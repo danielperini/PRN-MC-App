@@ -31,6 +31,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import PendingApprovalsPanel from './PendingApprovalsPanel';
 import FrasesParticipantes from './FrasesParticipantes';
+import { consolidateOfficialDashboardMetrics } from '@/utils/auditoria/institutionalMetrics';
 
 const MESES_ORDER = [
   'Janeiro',
@@ -307,7 +308,15 @@ export default function CoordDashboard({ reports = [], isLoading }) {
     });
   }, [reports, filterDataInicio, filterDataFim]);
 
-  const metrics = useMemo(() => buildMetrics(reportsFiltrados), [reportsFiltrados]);
+  const metrics = useMemo(() => {
+    const official = consolidateOfficialDashboardMetrics({ reports: reportsFiltrados });
+    return {
+      approvedReports: official.reports.items.filter(isApprovedReport),
+      approvedActivities: official.activities.items,
+      publicoTotal: official.audience.publicoTotal,
+      official,
+    };
+  }, [reportsFiltrados]);
 
   const allAtiv = useMemo(() => {
     let atividades = metrics.approvedActivities;
@@ -320,11 +329,16 @@ export default function CoordDashboard({ reports = [], isLoading }) {
   const pendentes = reportsFiltrados.filter(isPendingReport).length;
   const aprovados = metrics.approvedReports.length;
   const totalAtiv = allAtiv.length;
-  const publicoTotal = allAtiv.reduce((sum, activity) => sum + activity._publico, 0);
+  const hasActivityFilters = Boolean(filterMuseu || filterClasse || filterTipoAtiv);
+  const publicoTotal = hasActivityFilters
+    ? allAtiv.reduce((sum, activity) => sum + activity._publico, 0)
+    : metrics.publicoTotal;
 
   const atividadesMesReferencia = useMemo(() => {
-    const relatoriosMes = metrics.approvedReports.filter((report) => sameReportMonth(report, mesReferencia.monthNumber, mesReferencia.year));
-    const atividades = deduplicateActivities(relatoriosMes.flatMap(getReportActivities)).filter((activity) => {
+    const atividades = metrics.approvedActivities.filter((activity) => {
+      const activityMonth = activity._reportMonthNumber || (activity._monthKey ? Number(String(activity._monthKey).slice(5, 7)) : null);
+      const activityYear = activity._reportYear || (activity._monthKey ? Number(String(activity._monthKey).slice(0, 4)) : null);
+      if (activityMonth !== mesReferencia.monthNumber || activityYear !== mesReferencia.year) return false;
       if (filterMuseu && activity._museu !== filterMuseu) return false;
       if (filterClasse && String(activity.classificacao || '').toUpperCase() !== filterClasse) return false;
       if (filterTipoAtiv && activity.tipo_atividade !== filterTipoAtiv) return false;
@@ -335,7 +349,7 @@ export default function CoordDashboard({ reports = [], isLoading }) {
       count: atividades.length,
       publico: atividades.reduce((sum, activity) => sum + activity._publico, 0),
     };
-  }, [metrics.approvedReports, mesReferencia, filterMuseu, filterClasse, filterTipoAtiv]);
+  }, [metrics.approvedActivities, mesReferencia, filterMuseu, filterClasse, filterTipoAtiv]);
 
   const metas = allAtiv.filter((a) => String(a.classificacao || '').toUpperCase() === 'META').length;
   const rotinas = allAtiv.filter((a) => String(a.classificacao || '').toUpperCase() === 'ROTINA').length;

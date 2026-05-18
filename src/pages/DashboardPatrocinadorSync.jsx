@@ -16,7 +16,7 @@ import {
 'recharts';
 import { Activity, Calendar, MapPin, RotateCw, TrendingUp, Users } from 'lucide-react';
 import AgendaCard from '@/components/patrocinador/AgendaCard';
-import { consolidateMetrics } from '@/utils/auditoria/consolidateMetrics';
+import { consolidateOfficialDashboardMetrics } from '@/utils/auditoria/institutionalMetrics';
 
 const TOTAL_OFICIAL = 1320000;
 const MUSEUS = ['MIS', 'MHAB', 'MUMO'];
@@ -445,7 +445,7 @@ export default function DashboardPatrocinadorSync() {
       safeList(base44.entities.Rubrica, 'ordem_exibicao', 1000)]
       );
 
-      const officialMetrics = consolidateMetrics({
+      const officialMetrics = consolidateOfficialDashboardMetrics({
         reports: reportsAll,
         programacao: programacaoRaw,
         rubricas: rubricasRaw,
@@ -463,7 +463,8 @@ export default function DashboardPatrocinadorSync() {
         publicoGeralPorMuseu,
       };
       const atividadesRealizadas = metrics.activities;
-      const atividadesMes = atividadesRealizadas.filter((item) => item._reportMonthNumber === mesReferencia.monthNumber && item._reportYear === mesReferencia.year);
+      const mesKeyReferencia = `${mesReferencia.year}-${String(mesReferencia.monthNumber).padStart(2, '0')}`;
+      const atividadesMesInfo = (officialMetrics.activities?.byMonth || []).find((item) => item.key === mesKeyReferencia) || { atividades: 0, publico: 0 };
 
       const programacao = programacaoRaw.
       filter((item) => {
@@ -526,13 +527,13 @@ export default function DashboardPatrocinadorSync() {
       const totalUtilizado = officialMetrics.financeiro.totalUtilizado;
       const saldoTotal = officialMetrics.financeiro.saldo;
       const percentualExecucao = officialMetrics.financeiro.percentualExecucao;
-      const publicoMes = atividadesMes.reduce((sum, item) => sum + getPublicoContabil(item), 0);
+      const publicoMes = atividadesMesInfo.publico || 0;
       const totalPublico = metrics.totalPublico;
 
       setData({
         periodo: mesReferencia.label,
         periodoAgenda: mesAgenda.label,
-        totalAtividadesMes: atividadesMes.length,
+        totalAtividadesMes: atividadesMesInfo.atividades || 0,
         totalAtividadesAno: atividadesRealizadas.length,
         totalPublico,
         publicoMes,

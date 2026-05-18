@@ -1,5 +1,6 @@
 import { base44 } from '@/api/base44Client';
 import { consolidateMetrics } from './consolidateMetrics';
+import { buildTemporalFilter, endOfDay, startOfDay } from './temporalFilters';
 
 async function safeList(entity, order = '-updated_date', limit = 1000) {
   try {
@@ -41,4 +42,23 @@ export async function loadInstitutionalAuditDatasets() {
 export async function getOfficialInstitutionalMetrics(options = {}) {
   const datasets = options.datasets || await loadInstitutionalAuditDatasets();
   return consolidateMetrics(datasets, options);
+}
+
+export function getOfficialDashboardPeriod(referenceDate = new Date()) {
+  const ref = new Date(referenceDate);
+  const start = startOfDay(new Date(2026, 1, 1));
+  const end = endOfDay(new Date(ref.getFullYear(), ref.getMonth(), 0));
+
+  return buildTemporalFilter({
+    from: start,
+    to: end,
+    mode: 'dashboard-oficial',
+  });
+}
+
+export function consolidateOfficialDashboardMetrics(datasets = {}, options = {}) {
+  return consolidateMetrics(datasets, {
+    ...options,
+    period: options.period || getOfficialDashboardPeriod(options.referenceDate),
+  });
 }

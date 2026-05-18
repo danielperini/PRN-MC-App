@@ -2,7 +2,7 @@ import React from 'react';
 import { base44 } from '@/api/base44Client';
 import { Activity, Wallet, BarChart3, CalendarDays, MapPin } from 'lucide-react';
 import { useCurrentUser } from '@/components/auth/useCurrentUser';
-import { consolidateMetrics } from '@/utils/auditoria/consolidateMetrics';
+import { consolidateOfficialDashboardMetrics } from '@/utils/auditoria/institutionalMetrics';
 
 const MONTH_ORDER = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const MUSEUS = ['MIS', 'MHAB', 'MUMO'];
@@ -113,7 +113,7 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [] }) {
   const [agendaIndex, setAgendaIndex] = React.useState(0);
   const { user } = useCurrentUser();
   const isCoordenador = user?.role === 'COORDENADOR' || user?.base_role === 'COORDENADOR';
-  const officialMetrics = React.useMemo(() => consolidateMetrics({ reports, rubricas }), [reports, rubricas]);
+  const officialMetrics = React.useMemo(() => consolidateOfficialDashboardMetrics({ reports, rubricas }), [reports, rubricas]);
 
   React.useEffect(() => {
     let mounted = true;

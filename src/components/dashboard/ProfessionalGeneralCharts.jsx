@@ -11,6 +11,7 @@ import {
   YAxis,
   Tooltip
 } from 'recharts';
+import { consolidateOfficialDashboardMetrics } from '@/utils/auditoria/institutionalMetrics';
 
 const MESES_ORDER = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const PERIODO_INICIAL = { year: 2026, monthNumber: 2 };
@@ -305,8 +306,34 @@ function ChartCard({ title, children, className = '' }) {
 }
 
 export default function ProfessionalGeneralCharts({ reports = [], programacao = [] }) {
-  const porMes = useMemo(() => buildMonthlyRows(reports, programacao), [reports, programacao]);
-  const totals = useMemo(() => getApprovedTotals(reports), [reports]);
+  const officialMetrics = useMemo(() => consolidateOfficialDashboardMetrics({ reports, programacao }), [reports, programacao]);
+  const porMes = useMemo(() => {
+    const rows = buildMonthlyRows([], programacao);
+    const map = new Map(rows.map((row) => [row.key, row]));
+
+    (officialMetrics.audience?.byMonth || []).forEach((item) => {
+      if (!map.has(item.key)) {
+        const [, monthNumber] = String(item.key || '').split('-').map(Number);
+        map.set(item.key, {
+          key: item.key,
+          mesNumero: monthNumber,
+          mes: monthLabel(monthNumber, String(item.key || '').slice(0, 4)),
+          publico: 0,
+          atividades: 0,
+          programacoes: 0,
+        });
+      }
+      const row = map.get(item.key);
+      row.atividades = item.atividades || 0;
+      row.publico = item.total ?? item.publico_atividades ?? 0;
+    });
+
+    return Array.from(map.values()).sort((a, b) => String(a.key).localeCompare(String(b.key)));
+  }, [officialMetrics, programacao]);
+  const totals = useMemo(() => ({
+    activities: officialMetrics.activities?.total || 0,
+    publicTotal: officialMetrics.audience?.publicoTotal || 0,
+  }), [officialMetrics]);
 
   return (
     <section className="mb-8 space-y-4">

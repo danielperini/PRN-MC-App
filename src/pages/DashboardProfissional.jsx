@@ -13,6 +13,7 @@ import ProfessionalStats from '../components/dashboard/ProfessionalStats';
 import RecentReportsCard from '../components/dashboard/RecentReportsCard';
 import ProfessionalGeneralCharts from '../components/dashboard/ProfessionalGeneralCharts';
 import MetasAditivoSection from '../components/dashboard/MetasAditivoSection';
+import { consolidateOfficialDashboardMetrics } from '@/utils/auditoria/institutionalMetrics';
 
 const APPROVED = new Set(['APPROVED', 'APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN']);
 const SUBMITTED = new Set(['SUBMITTED', 'ENVIADO', 'ENVIADO_REVISAO', 'AGUARDANDO_REVISAO', 'SOLICITADO']);
@@ -238,10 +239,11 @@ function DashboardProfissionalInner() {
   const { data: allProgramacao = [], isLoading: isLoadingAllProgramacao } = useQuery({ queryKey: ['all-programacao-prof-general'], queryFn: () => base44.entities.Programacao.list('-data_realizacao', 500), enabled: !!currentUser?.email });
   const { data: rubricas = [] } = useQuery({ queryKey: ['dashboard-profissional-rubricas'], queryFn: async () => { try { const data = await base44.entities.Rubrica.list('rubrica', 1000); return Array.isArray(data) ? data.filter((r) => r.ativo !== false) : []; } catch { return []; } }, enabled: !!currentUser?.email });
 
-  const approvedMetrics = useMemo(() => getApprovedMetrics(allReports), [allReports]);
-  const museuAtualPublico = userMuseu ? toNumber(approvedMetrics.byMuseum?.[userMuseu]?.publicoTotal) : myActivities.reduce((sum, a) => sum + getActivityPublic(a), 0);
+  const approvedMetrics = useMemo(() => consolidateOfficialDashboardMetrics({ reports: allReports, programacao: allProgramacao, rubricas }), [allReports, allProgramacao, rubricas]);
+  const publicByMuseum = useMemo(() => Object.fromEntries((approvedMetrics.audience?.byMuseum || []).map((item) => [item.museu, item.total])), [approvedMetrics]);
+  const museuAtualPublico = userMuseu ? toNumber(publicByMuseum[userMuseu]) : myActivities.reduce((sum, a) => sum + getActivityPublic(a), 0);
   const recentReports = myReports.slice(0, 5);
-  const stats = { publico: museuAtualPublico, publicoTodosMuseus: approvedMetrics.publicoTotal, atividadesTresMuseus: approvedMetrics.approvedActivities.length };
+  const stats = { publico: museuAtualPublico, publicoTodosMuseus: approvedMetrics.audience?.publicoTotal || 0, atividadesTresMuseus: approvedMetrics.activities?.total || 0 };
 
   return (
     <div className="min-h-screen bg-background">

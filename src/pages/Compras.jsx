@@ -46,6 +46,8 @@ import MuseuPerformanceDashboard from '@/components/compras/MuseuPerformanceDash
 import AuditoriaFinanceiraCard from '@/components/compras/AuditoriaFinanceiraCard';
 import EntradaUnicaComprovante from '@/components/compras/EntradaUnicaComprovante';
 import MeusPagamentosTab from '@/components/compras/MeusPagamentosTab';
+import NovaRubricaDialog from '@/components/rubricas/NovaRubricaDialog';
+import { canManageRubricas } from '@/components/auth/permissions';
 
 const STATUS_CONFIG = {
   RASCUNHO: { label: 'Rascunho', color: 'bg-gray-100 text-gray-700' },
@@ -547,6 +549,7 @@ function ComprasInner() {
   const [showForm, setShowForm] = useState(false);
   const [editingPurchase, setEditingPurchase] = useState(null);
   const [showReportGen, setShowReportGen] = useState(false);
+  const [showNovaRubrica, setShowNovaRubrica] = useState(false);
   const [selectedRubrica, setSelectedRubrica] = useState(null);
   const [recalculando, setRecalculando] = useState(false);
   const [filters, setFilters] = useState({
@@ -594,6 +597,7 @@ function ComprasInner() {
 
   const hasGestaoCompras = isCoordenador || userPermission?.gestao_compras === true;
   const podeAprovarSolicitacoes = isCoordenador || userPermission?.pode_aprovar_solicitacoes === true;
+  const podeGerenciarRubricas = canManageRubricas(currentUser, userPermission);
 
   const { data: purchases = [], isLoading } = useQuery({
     queryKey: ['purchases', isCoordenador, currentUser?.email],
@@ -1022,7 +1026,7 @@ function ComprasInner() {
         <div className="-mx-4 mb-6 flex w-fit gap-1 overflow-x-auto rounded-none bg-gray-100 p-1 px-4 md:-mx-6 md:px-6">
           {[
             { id: 'lista', label: 'Solicitações' },
-            ...(isCoordenador ? [{ id: 'rubricas', label: 'Rubricas' }] : []),
+            ...(podeGerenciarRubricas ? [{ id: 'rubricas', label: 'Rubricas' }] : []),
             { id: 'documentos', label: 'Documentos' },
             ...(isCoordenador ? [{ id: 'equipe', label: 'Equipe' }] : []),
             { id: 'meus_pagamentos', label: 'Meus Pagamentos' }
@@ -1164,7 +1168,7 @@ function ComprasInner() {
           </div>
         )}
 
-        {tab === 'rubricas' && isCoordenador && (
+        {tab === 'rubricas' && podeGerenciarRubricas && (
           <div className="space-y-6">
             {selectedRubrica ? (
               <RubricaDetail rubrica={selectedRubrica} onClose={async () => { setSelectedRubrica(null); await refreshFinanceiroCompleto(); }} />
@@ -1197,6 +1201,19 @@ function ComprasInner() {
                   </button>
                 </div>
 
+                {podeGerenciarRubricas && (
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      onClick={() => setShowNovaRubrica(true)}
+                      className="bg-black hover:bg-gray-800 text-white gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Nova Rubrica
+                    </Button>
+                  </div>
+                )}
+
                 <RubricasGrid
                   rubricas={rubricas}
                   onSelectRubrica={setSelectedRubrica}
@@ -1210,7 +1227,7 @@ function ComprasInner() {
           </div>
         )}
 
-        {tab === 'rubricas-museus' && isCoordenador && (
+        {tab === 'rubricas-museus' && podeGerenciarRubricas && (
           <div className="space-y-6">
             <div className="flex gap-2 border-b border-gray-200 mb-4">
               <button
@@ -1246,7 +1263,7 @@ function ComprasInner() {
           </div>
         )}
 
-        {tab === 'rubricas-performance' && isCoordenador && (
+        {tab === 'rubricas-performance' && podeGerenciarRubricas && (
           <div className="space-y-6">
             <div className="flex gap-2 border-b border-gray-200 mb-4">
               <button
@@ -1281,7 +1298,7 @@ function ComprasInner() {
           </div>
         )}
 
-        {tab === 'rubricas-detalhe' && isCoordenador && (
+        {tab === 'rubricas-detalhe' && podeGerenciarRubricas && (
           <div className="space-y-6">
             <div className="flex gap-2 border-b border-gray-200 mb-4">
               <button
@@ -1309,6 +1326,18 @@ function ComprasInner() {
                 Detalhe
               </button>
             </div>
+            {!selectedRubrica && podeGerenciarRubricas && (
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  onClick={() => setShowNovaRubrica(true)}
+                  className="bg-black hover:bg-gray-800 text-white gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Nova Rubrica
+                </Button>
+              </div>
+            )}
             {selectedRubrica ? (
               <RubricaDetail rubrica={selectedRubrica} onClose={async () => { setSelectedRubrica(null); await refreshFinanceiroCompleto(); }} />
             ) : (
@@ -1371,6 +1400,15 @@ function ComprasInner() {
       {showReportGen && (
         <ContractActivityReportGenerator isOpen={showReportGen} onClose={() => setShowReportGen(false)} />
       )}
+
+      <NovaRubricaDialog
+        open={showNovaRubrica}
+        currentUser={currentUser}
+        onClose={async () => {
+          setShowNovaRubrica(false);
+          await refreshFinanceiroCompleto();
+        }}
+      />
     </div>
   );
 }
