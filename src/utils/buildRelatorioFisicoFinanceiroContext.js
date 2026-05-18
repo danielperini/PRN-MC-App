@@ -602,6 +602,53 @@ function getPublicoReport(report) {
     }, 0);
 }
 
+function getPublicoEspontaneoReport(report) {
+  return inteiro(
+    report?.publico_espontaneo ??
+    report?.publico_livre ??
+    report?.publico_geral_declarado ??
+    0
+  );
+}
+
+function getVisitasAgendadasReport(report) {
+  const direto = inteiro(
+    report?.visitas_agendadas ??
+    report?.publico_visitas_agendadas ??
+    report?.publico_agendado ??
+    report?.publico_escolar ??
+    0
+  );
+
+  if (direto > 0) return direto;
+
+  return (Array.isArray(report?.atividades) ? report.atividades : []).reduce((sum, atividade) => {
+    const text = normalizeText([
+      atividade?.nome,
+      atividade?.titulo,
+      atividade?.classificacao,
+      atividade?.tipo,
+      atividade?.descricao,
+    ].join(' '));
+
+    const isAgendada = text.includes('agendada') ||
+      text.includes('agendado') ||
+      text.includes('escola') ||
+      text.includes('grupo') ||
+      text.includes('visita mediada');
+
+    if (!isAgendada) return sum;
+
+    return sum + inteiro(
+      atividade?.publico_total ??
+      atividade?.publico_estimado ??
+      atividade?.publico ??
+      atividade?.participantes ??
+      0
+    );
+  }, 0);
+}
+
 function getRubricaValorPrevisto(rubrica) {
   return toNumber(
     rubrica?.valor_total ??
@@ -777,6 +824,44 @@ export function buildRelatorioFisicoFinanceiroContext({
     .filter((a) => a.categoria_editorial === 'atividade_publico')
     .reduce((sum, a) => sum + inteiro(a.publico), 0);
 
+  const publicoEspontaneoTotal = reports.reduce((sum, report) => sum + getPublicoEspontaneoReport(report), 0);
+  const visitasAgendadasTotal = reports.reduce((sum, report) => sum + getVisitasAgendadasReport(report), 0);
+
+  const publicoPorMesMap = {};
+  MESES_ALVO.forEach((mes) => {
+    publicoPorMesMap[mes] = { mes, atividades: 0, espontaneo: 0, visitas_agendadas: 0, total: 0 };
+  });
+
+  atividades.forEach((atividade) => {
+    const mes = atividade.mes || mesFromDate(atividade.data) || 'Período';
+    if (!publicoPorMesMap[mes]) publicoPorMesMap[mes] = { mes, atividades: 0, espontaneo: 0, visitas_agendadas: 0, total: 0 };
+    publicoPorMesMap[mes].atividades += inteiro(atividade.publico);
+  });
+
+  reports.forEach((report) => {
+    const mes = reportMes(report) || 'Período';
+    if (!publicoPorMesMap[mes]) publicoPorMesMap[mes] = { mes, atividades: 0, espontaneo: 0, visitas_agendadas: 0, total: 0 };
+    publicoPorMesMap[mes].espontaneo += getPublicoEspontaneoReport(report);
+    publicoPorMesMap[mes].visitas_agendadas += getVisitasAgendadasReport(report);
+  });
+
+  Object.values(publicoPorMesMap).forEach((item) => {
+    item.total = item.atividades + item.espontaneo + item.visitas_agendadas;
+  });
+
+  reports.forEach((report) => {
+    const key = normalizeMuseu(report?.museu);
+    if (!porMuseu[key]) {
+      porMuseu[key] = { museu: key, atividades: 0, publico: 0, espontaneo: 0, visitas_agendadas: 0, total: 0 };
+    }
+    porMuseu[key].espontaneo = (porMuseu[key].espontaneo || 0) + getPublicoEspontaneoReport(report);
+    porMuseu[key].visitas_agendadas = (porMuseu[key].visitas_agendadas || 0) + getVisitasAgendadasReport(report);
+  });
+
+  Object.values(porMuseu).forEach((item) => {
+    item.total = inteiro(item.publico) + inteiro(item.espontaneo) + inteiro(item.visitas_agendadas);
+  });
+
   const trechosRelatorios = buildTrechosRelatorios(reports);
   const programacao = buildProgramacaoDetalhada(programacaoRaw, dateFrom, dateTo, museuFiltro);
 
@@ -827,7 +912,12 @@ export function buildRelatorioFisicoFinanceiroContext({
     total_relatorios: reports.length || 25,
     equipe_total: equipeTotal,
     total_atividades: atividades.length,
-    publico_total: publicoTotal || 1625,
+    publico_total: publicoTotal + publicoEspontaneoTotal + visitasAgendadasTotal || publicoTotal || 1625,
+    publico_atividades_total: publicoTotal,
+    publico_espontaneo_total: publicoEspontaneoTotal,
+    visitas_agendadas_total: visitasAgendadasTotal,
+    publico_por_mes: Object.values(publicoPorMesMap),
+    publico_por_museu: Object.values(porMuseu),
     por_museu: porMuseu,
     atividades,
     atividades_por_categoria: atividadesPorCategoria,

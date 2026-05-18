@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -16,10 +16,10 @@ import { montarHtmlRelatorioPremium } from '@/components/reports/premium/Premium
 
 const CAPITULOS_RELATORIO = [
   { id: 'capa', label: 'Capa editorial' },
-  { id: 'sumario_executivo', label: 'Sumário executivo premium' },
+  { id: 'sumario_executivo', label: 'Sumário executivo editorial' },
   { id: 'introducao', label: 'Introdução institucional' },
   { id: 'territorio', label: 'Território e contexto' },
-  { id: 'indicadores_premium', label: 'Indicadores premium' },
+  { id: 'indicadores_premium', label: 'Indicadores editoriais' },
   { id: 'resumo_geral', label: 'Resumo e indicadores' },
   { id: 'publico', label: 'Público alcançado' },
   { id: 'metas', label: 'Metas do 3º Aditivo' },
@@ -27,13 +27,13 @@ const CAPITULOS_RELATORIO = [
   { id: 'agenda_programacao', label: 'Agenda de programação' },
   { id: 'timeline_premium', label: 'Linha do tempo editorial' },
   { id: 'atividades_museu', label: 'Atividades por museu' },
-  { id: 'museus_premium', label: 'Páginas premium por museu' },
+  { id: 'museus_premium', label: 'Páginas por museu' },
   { id: 'noturno_premium', label: 'Seção especial Noturno nos Museus' },
   { id: 'relatorios_completos', label: 'Relatórios integrais das equipes' },
   { id: 'galeria_evidencias', label: 'Galeria e evidências' },
-  { id: 'galeria_premium', label: 'Galeria premium com créditos e GPS' },
+  { id: 'galeria_premium', label: 'Galeria com créditos e GPS' },
   { id: 'comunicacao', label: 'Comunicação' },
-  { id: 'comunicacao_premium', label: 'Comunicação premium' },
+  { id: 'comunicacao_premium', label: 'Comunicação editorial' },
   { id: 'financeiro', label: 'Execução financeira' },
   { id: 'rubricas', label: 'Rubricas, orçamento e execução por grupo' },
   { id: 'prestacao', label: 'Prestação de contas' },
@@ -249,7 +249,7 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-lg font-semibold">Gerador de Relatório</DialogTitle>
-          <p className="text-sm text-gray-500 mt-0.5">Museus Centro — relatório editorial, programático, financeiro e de prestação de contas</p>
+          <p className="text-sm text-gray-500 mt-0.5">Museus Centro - relatório editorial, programático, financeiro e de prestação de contas</p>
         </DialogHeader>
 
         <div className="space-y-5 py-2">
@@ -306,7 +306,7 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
                 <div>
                   <Label htmlFor="modoPremium" className="text-sm font-medium cursor-pointer flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5" />
-                    Relatório Institucional Premium
+                    Catálogo-livro institucional
                   </Label>
                   <p className="text-xs text-gray-500 mt-0.5">
                     Usa o novo layout editorial A4 com capa full bleed, timeline, páginas por museu, Noturno, comunicação, galeria e tabelas prontas para PDF profissional.
@@ -411,12 +411,12 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
 
           {previa && (
             <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl space-y-2 text-sm">
-              <p className="font-semibold text-blue-800">Prévia — métricas extraídas</p>
+              <p className="font-semibold text-blue-800">Prévia - métricas extraídas</p>
               <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-blue-900">
-                <span>Relatórios: <strong>{previa.total_relatorios ?? '—'}</strong></span>
-                <span>Atividades: <strong>{previa.total_atividades ?? '—'}</strong></span>
+                <span>Relatórios: <strong>{previa.total_relatorios ?? '-'}</strong></span>
+                <span>Atividades: <strong>{previa.total_atividades ?? '-'}</strong></span>
                 <span>Público total: <strong>{Number(previa.publico_total || 0).toLocaleString('pt-BR')}</strong></span>
-                <span>Compras: <strong>{previa.total_compras ?? '—'}</strong></span>
+                <span>Compras: <strong>{previa.total_compras ?? '-'}</strong></span>
               </div>
             </div>
           )}
@@ -424,7 +424,7 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
           <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-100 rounded-lg text-xs text-amber-700">
             <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
             <span>
-              O relatório usa somente dados registrados no sistema. A IA reorganiza, audita e redige, mas não altera nenhum dado original. Tempo estimado: <strong>{tempoEstimado}</strong>.
+              O relatório usa somente dados registrados no sistema. A IA organiza, trata os dados e redige, mas não altera nenhum dado original. Tempo estimado: <strong>{tempoEstimado}</strong>.
             </span>
           </div>
         </div>

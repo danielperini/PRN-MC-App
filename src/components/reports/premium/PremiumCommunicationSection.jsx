@@ -5,7 +5,7 @@ function communicationActivities(contexto = {}) {
   const atividades = Array.isArray(contexto.atividades) ? contexto.atividades : [];
   return atividades.filter((item) => {
     const text = `${item?.categoria_editorial || ''} ${item?.categoria_label || ''} ${item?.nome || ''} ${item?.descricao || ''}`.toLowerCase();
-    return text.includes('comunic') || text.includes('rede') || text.includes('divulg') || text.includes('release') || text.includes('clipping');
+    return text.includes('comunic') || text.includes('rede') || text.includes('divulg') || text.includes('release') || text.includes('clipping') || text.includes('foto') || text.includes('filmagem');
   });
 }
 
@@ -19,20 +19,22 @@ export default function PremiumCommunicationSection({ contexto, textos }) {
   return (
     <section className="premium-communication premium-page-break">
       <div className="premium-section-heading">
-        <p className="premium-eyebrow">Comunicacao, memoria visual e circulacao publica</p>
-        <h2>Comunicacao como infraestrutura de evidencia</h2>
+        <p className="premium-eyebrow">Comunicação, memória visual e circulação pública</p>
+        <h2>Comunicação, registros e evidências</h2>
       </div>
 
       <div className="premium-communication-grid">
         <div className="premium-prose">
-          {paragraphs.map((paragraph) => (
+          {(paragraphs.length ? paragraphs : [
+            'A comunicação do período é apresentada como processo documental: registros fotográficos, filmagens, peças de divulgação, acompanhamento de atividades e organização de evidências que sustentam a memória pública do projeto.',
+          ]).map((paragraph) => (
             <p key={paragraph}>{paragraph}</p>
           ))}
         </div>
 
         <div className="premium-communication-panel">
           <strong>{atividades.length}</strong>
-          <span>registros associados a comunicacao, cobertura, pauta ou memoria visual</span>
+          <span>registros associados a comunicação, cobertura, pauta ou memória visual</span>
         </div>
       </div>
 
@@ -41,19 +43,19 @@ export default function PremiumCommunicationSection({ contexto, textos }) {
           <table className="premium-table">
             <thead>
               <tr>
-                <th>Acao</th>
+                <th>Ação</th>
                 <th>Museu</th>
-                <th>Mes</th>
+                <th>Mês</th>
                 <th>Natureza</th>
               </tr>
             </thead>
             <tbody>
               {atividades.slice(0, 16).map((item, index) => (
                 <tr key={item?.id || index}>
-                  <td>{item?.nome || item?.titulo || 'Registro de comunicacao'}</td>
+                  <td>{item?.nome || item?.titulo || 'Registro de comunicação'}</td>
                   <td>{item?.museu || 'Geral'}</td>
-                  <td>{item?.mes || item?.data || 'Periodo'}</td>
-                  <td>{item?.categoria_label || item?.classificacao || 'Comunicacao'}</td>
+                  <td>{item?.mes || item?.data || 'Período'}</td>
+                  <td>{item?.categoria_label || item?.classificacao || 'Comunicação'}</td>
                 </tr>
               ))}
             </tbody>

@@ -1,4 +1,4 @@
-import { base44 } from '@/api/base44Client';
+﻿import { base44 } from '@/api/base44Client';
 
 const MIN_CHARS = 600;
 
@@ -169,7 +169,7 @@ Regras obrigatórias:
 5. Informar que o relatório consolida relatórios mensais das equipes do MHAB, MUMO, MIS, comunicação, produção, coordenação financeira e produção executiva.
 6. Informar que o projeto Museus Centro é realizado em parceria com a Diretoria de Museus da Fundação Municipal de Cultura de Belo Horizonte.
 7. Informar que o relatório foi produzido com aplicativo desenvolvido especificamente para o projeto.
-8. Informar que foi utilizada inteligência artificial para auditoria técnica dos dados.
+8. Informar que foi realizado tratamento dos dados com apoio de inteligência artificial.
 9. Reorganizar as ações em:
    gestão e governança;
    produção executiva, operação e manutenção;
@@ -184,7 +184,7 @@ Regras obrigatórias:
 16. Use agenda/programação e base de conhecimento quando disponível.
 17. Não inventar números, datas, locais ou fotos.
 18. Refinar os textos com leitura executiva, mas preservar rastreabilidade dos dados.
-19. Explicitar os avanços de uso do app, integração de dados, auditoria por IA e qualificação da gestão sem linguagem publicitária.
+19. Explicitar os avanços de uso do app, integração de dados, tratamento dos dados com apoio de IA e qualificação da gestão sem linguagem publicitária.
 20. Gerar textos específicos para território, metas, programação, comunicação, financeiro e app, pois eles serão usados como capítulos autônomos.
 
 Dados:
@@ -232,7 +232,7 @@ A consolidação resulta da leitura dos relatórios aprovados pela coordenação
 
 Este relatório também marca uma etapa importante do processo de gestão do projeto, pois foi produzido integralmente com o uso de aplicativo desenvolvido especificamente para o Museus Centro. A ferramenta permite integrar relatórios, programação, fotos, registros administrativos, dados financeiros e informações de prestação de contas. A partir das próximas entregas, o sistema também poderá disponibilizar dashboard de acompanhamento para a Diretoria de Museus, fortalecendo a transparência e a produção de evidências.
 
-Foi utilizada inteligência artificial como camada de auditoria técnica dos dados. Essa auditoria não substitui a análise da coordenação, mas auxilia na identificação de inconsistências, na reorganização das atividades por natureza institucional, na diferenciação entre ações públicas e rotinas de gestão, e na qualificação textual do relatório. Dessa forma, atividades sem público direto deixam de ser tratadas como público zero e passam a aparecer como N/A, preservando a consistência dos indicadores.
+Foi realizado tratamento dos dados com apoio de inteligência artificial. Esse tratamento não substitui a análise da coordenação, mas auxilia na identificação de inconsistências, na reorganização das atividades por natureza institucional, na diferenciação entre ações públicas e rotinas de gestão, e na qualificação textual do relatório. Dessa forma, atividades sem público direto deixam de ser tratadas como público zero e passam a aparecer como N/A, preservando a consistência dos indicadores.
 `.trim();
 
   const resumo = `
@@ -242,7 +242,7 @@ Essa distinção é importante para evitar distorções nos indicadores. Reuniõ
 
 As atividades com público concentram os indicadores quantitativos de participação e revelam a presença do projeto nos museus participantes. Oficinas, visitas mediadas, ações educativas, atividades abertas e iniciativas de formação de público são os elementos centrais para leitura de alcance. As demais frentes demonstram a sustentação institucional, técnica e operacional que torna possível a execução das ações públicas e a construção de uma programação mais estruturada.
 
-A consolidação também evidencia o amadurecimento da rotina de produção de dados. O aplicativo desenvolvido para o projeto passa a funcionar como instrumento de gestão, auditoria e memória institucional, permitindo que os relatórios deixem de ser apenas registros narrativos e passem a compor uma base integrada de acompanhamento físico, financeiro e documental.
+A consolidação também evidencia o amadurecimento da rotina de produção de dados. O aplicativo desenvolvido para o projeto passa a funcionar como instrumento de gestão, tratamento de dados e memória institucional, permitindo que os relatórios deixem de ser apenas registros narrativos e passem a compor uma base integrada de acompanhamento físico, financeiro e documental.
 `.trim();
 
   const contextoTerritorial = `
@@ -278,7 +278,7 @@ A leitura financeira foi estruturada a partir das rubricas, compras e registros 
   const appMuseuCentro = `
 O relatório evidencia avanço importante no uso do aplicativo desenvolvido especificamente para o Museus Centro. A ferramenta passa a funcionar como ambiente de integração entre relatórios mensais, programação, fotos, atividades, equipe, compras, rubricas e documentação de prestação de contas. Esse desenho melhora a qualidade da informação, reduz dispersão documental e permite que a coordenação acompanhe a execução física e financeira com maior precisão.
 
-A inteligência artificial atua como camada de apoio à auditoria técnica, reorganizando textos, conferindo coerência dos indicadores e qualificando a leitura institucional dos registros. Esse uso não substitui a validação humana nem altera dados originais, mas amplia a capacidade de síntese e de identificação de inconsistências. O resultado é um relatório mais abrangente, rastreável e útil para tomada de decisão, acompanhamento da Diretoria de Museus e memória do projeto.
+A inteligência artificial apoia o tratamento técnico dos dados, reorganizando textos, conferindo coerência dos indicadores e qualificando a leitura institucional dos registros. Esse uso não substitui a validação humana nem altera dados originais, mas amplia a capacidade de síntese e de identificação de inconsistências. O resultado é um relatório mais abrangente, rastreável e útil para tomada de decisão, acompanhamento da Diretoria de Museus e memória do projeto.
 `.trim();
 
   const prestacao = `
@@ -307,7 +307,7 @@ O desenvolvimento do aplicativo fortalece esse processo. A ferramenta permite co
     conclusao: `
 Conclui-se que o período consolidado demonstra avanço relevante na estruturação técnica, administrativa e cultural do projeto Museus Centro. A organização das atividades por natureza institucional permite leitura mais precisa dos resultados e evita distorções nos indicadores de público. O relatório evidencia a importância de diferenciar ações públicas de rotinas internas, reconhecendo que gestão, produção, comunicação e manutenção são dimensões essenciais para que as atividades educativas e culturais aconteçam com qualidade.
 
-A utilização do aplicativo próprio e da inteligência artificial como apoio à auditoria de dados fortalece a produção de evidências e cria uma base mais robusta para acompanhamento institucional. O relatório também indica que a execução financeira segue o cronograma previsto, com concentração dos maiores custos nos meses seguintes. Dessa forma, a análise integrada dos dados confirma a pertinência da metodologia adotada e aponta para a continuidade do projeto com maior capacidade de monitoramento, transparência e qualificação das entregas.
+A utilização do aplicativo próprio e do tratamento dos dados com apoio de inteligência artificial fortalece a produção de evidências e cria uma base mais robusta para acompanhamento institucional. O relatório também indica que a execução financeira segue o cronograma previsto, com concentração dos maiores custos nos meses seguintes. Dessa forma, a análise integrada dos dados confirma a pertinência da metodologia adotada e aponta para a continuidade do projeto com maior capacidade de monitoramento, transparência e qualificação das entregas.
 `.trim(),
     capitulos: {
       gestao_governanca: resumo,
