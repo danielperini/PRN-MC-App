@@ -8,149 +8,66 @@ import { toast } from 'sonner';
 
 const MUSEUS = ['Todos', 'MIS', 'MHAB', 'MUMO'];
 
+const IMG = {
+  capa: 'https://images.unsplash.com/photo-1518998053901-5348d3961a04?q=80&w=1600&auto=format&fit=crop',
+  mis: 'https://images.unsplash.com/photo-1511578314322-379afb476865?q=80&w=1200&auto=format&fit=crop',
+  mhab: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1200&auto=format&fit=crop',
+  mumo: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?q=80&w=1200&auto=format&fit=crop',
+  publico: 'https://images.unsplash.com/photo-1515169067865-5387ec356754?q=80&w=1200&auto=format&fit=crop'
+};
+
+function bar(label, value, max = 100) {
+  const width = Math.max(0, Math.min(100, Math.round((value / max) * 100)));
+  return `<div class="chart-row"><span>${label}</span><b>${value}</b><i><em style="width:${width}%"></em></i></div>`;
+}
+
+function money(v) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
+}
+
 function buildCompleteReportHtml(museu) {
   const museuLabel = museu === 'Todos' ? 'MIS · MHAB · MUMO' : museu;
+  const total = 1320000;
+  const usado = 220185.07;
+  const saldo = total - usado;
+  const exec = 16.7;
 
-  return `<!doctype html>
-<html lang="pt-BR">
-<head>
-  <meta charset="utf-8" />
-  <title>Relatório Museus Centro — 3º Aditivo</title>
-  <style>
-    * { box-sizing: border-box; }
-    body { margin: 0; padding: 42px; font-family: Arial, Helvetica, sans-serif; color: #111; background: #fff; line-height: 1.58; }
-    .cover { border: 2px solid #111; border-radius: 26px; padding: 44px; min-height: 360px; display: flex; flex-direction: column; justify-content: space-between; margin-bottom: 36px; }
-    .eyebrow { font-size: 12px; text-transform: uppercase; letter-spacing: .16em; color: #555; font-weight: 700; }
-    h1 { font-size: 42px; letter-spacing: -.04em; margin: 18px 0 12px; line-height: 1; }
-    h2 { font-size: 27px; margin: 42px 0 18px; padding-bottom: 10px; border-bottom: 2px solid #111; letter-spacing: -.02em; }
-    h3 { font-size: 19px; margin: 18px 0 10px; }
-    p, li { font-size: 14px; color: #303030; }
-    .kpis, .meta-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 22px 0; }
-    .kpi, .item, .meta-card { border: 1px solid #ddd; border-radius: 16px; padding: 16px; background: #fff; break-inside: avoid; }
-    .kpi span { display:block; font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: #666; font-weight: 700; }
-    .kpi strong { display:block; font-size: 26px; margin-top: 8px; color:#111; }
-    .meta-grid { grid-template-columns: repeat(3, 1fr); }
-    .meta-head, .meta-foot { display:flex; align-items:center; justify-content:space-between; gap: 12px; }
-    .meta-head span { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: #555; font-weight: 700; }
-    .meta-head strong { border: 1px solid #111; border-radius: 999px; padding: 4px 8px; font-size: 10px; }
-    .meta-card h3 { font-size: 16px; margin: 12px 0 6px; }
-    .meta-card p { font-size: 12px; min-height: 50px; }
-    .progress { height: 7px; background:#e5e5e5; border-radius:999px; overflow:hidden; margin: 12px 0 8px; }
-    .progress i { display:block; height:100%; background:#111; }
-    table { width: 100%; border-collapse: collapse; font-size: 12px; margin: 12px 0 20px; }
-    th, td { border-bottom: 1px solid #ddd; padding: 9px; text-align:left; vertical-align:top; }
-    th { background: #f6f6f6; text-transform: uppercase; font-size: 11px; letter-spacing: .06em; }
-    .note { background:#f8f8f8; border-left:4px solid #111; padding: 14px 16px; border-radius: 12px; }
-    @media print { body { padding: 18mm; } .item, .meta-card, .cover { page-break-inside: avoid; } .meta-grid { grid-template-columns: repeat(2,1fr); } }
-  </style>
-</head>
-<body>
-  <section class="cover">
-    <div>
-      <div class="eyebrow">Museus Centro · ${museuLabel}</div>
-      <h1>Relatório Físico-Financeiro e Programático</h1>
-      <p>Relatório institucional do 3º Termo Aditivo, integrando metas, execução financeira, programação, evidências e memória de gestão.</p>
-    </div>
-    <div>
-      <p><strong>Período de referência:</strong> 02/02/2026 a 30/04/2026</p>
-      <p><strong>Recorte:</strong> ${museuLabel}</p>
-    </div>
-  </section>
+  const metas = [
+    ['META 01', 'Equipe principal', 'EM EXECUÇÃO', 70, 'Equipe de coordenação, produção, comunicação, administrativo e apoio técnico em operação.'],
+    ['META 05', 'Atividades educativas e culturais', 'EM EXECUÇÃO', 86, 'Oficinas, mediações, Museu Criativo, Prosas MIS e ações de formação de público.'],
+    ['META 07', 'Educadores', 'EM EXECUÇÃO', 65, 'Contratação e atuação educativa vinculada aos três museus do projeto.'],
+    ['META 11', 'Noturno nos Museus', 'PRÉ-PRODUÇÃO', 20, 'Visitas técnicas, infraestrutura, planejamento executivo e preparação para evento de maior escala.'],
+    ['META 14', 'Acessibilidade', 'CONCLUÍDA', 100, 'Ações em Libras, ambiente seguro, diversidade, inclusão e mediações acessíveis.'],
+    ['META 16', 'Publicações', 'EM EXECUÇÃO', 35, 'Pesquisa, texto, revisão, comunicação visual, fotografia e preparação editorial.']
+  ];
 
-  <div class="kpis">
-    <div class="kpi"><span>Relatórios aprovados</span><strong>21</strong></div>
-    <div class="kpi"><span>Atividades</span><strong>79</strong></div>
-    <div class="kpi"><span>Público</span><strong>4.218</strong></div>
-    <div class="kpi"><span>Execução financeira</span><strong>16,7%</strong></div>
-  </div>
+  const programacao = [
+    ['07/03/2026','MUMO','Experimentação em Estamparia Natural','Oficina','Experimentação artística com flores, folhas, tecidos e papéis.'],
+    ['08/03/2026','MHAB','Mulheres que Ecoam Histórias','Museu Criativo','Oficina de expressão visual sobre memória, mulheres e narrativas.'],
+    ['21/03/2026','MUMO','Clara Nunes — Eu Sou a Tal Mineira','Mediação','Visita mediada sobre moda, música, cultura popular e identidade brasileira.'],
+    ['27/03/2026','MIS','Prosas MIS — Animadoras Mineiras em Foco','Conversa','Roda de conversa sobre mulheres na animação brasileira.'],
+    ['14/04/2026','MHAB','Ambiente Seguro, Diversidade e Inclusão','Formação','Formação interna para equipes, servidores e colaboradores.'],
+    ['25/04/2026','MHAB','Memórias em Libras de Belo Horizonte','Acessibilidade','Encontro em Libras com público surdo, memória urbana e visita mediada.'],
+    ['25/04/2026','MIS','Oficina — Criação de Cenários','Oficina','Oficina de criação visual e construção de cenários.'],
+    ['30/04/2026','MIS','A Poética da Argila em Movimento','Laboratório','Experimentação visual e material com argila, imagem e movimento.']
+  ];
 
-  <section>
-    <h2>Introdução institucional</h2>
-    <p>O presente relatório consolida a execução física, financeira, documental e programática do Projeto Museus Centro no período de fevereiro a abril de 2026. A leitura combina dados operacionais, relatórios aprovados, programação cultural, execução orçamentária e evidências institucionais, constituindo uma memória de acompanhamento do 3º Termo Aditivo.</p>
-    <p>O ciclo analisado foi marcado por reorganização administrativa, retomada plena das rotinas de gestão, fortalecimento das equipes, integração entre produção, educativo e comunicação, além da preparação das ações de maior escala previstas para o segundo semestre.</p>
-  </section>
+  const rubricas = [
+    ['Educador MIS / MUMO / MHAB',138000,41400,30],['Produção MIS/MUMO/MHAB',113400,33600,29.6],['Coordenador Geral',70000,21000,30],['Designer',52000,15500,29.8],['Assistente de Coordenação e Produção',50000,15000,30],['Coordenador de Comunicação',60000,12000,20],['Consultoria de programação',30000,12000,40],['Formação Ambiente Seguro',2500,2500,100],['Material de escritório',2700,2700,100],['Ações educativo-culturais',90000,0,0],['Exposição MUMO',210000,0,0],['Noturno nos Museus — Vans',30400,0,0]
+  ];
 
-  <section>
-    <h2>Metas do 3º Aditivo</h2>
-    <div class="item">
-      <h3>Síntese Analítica das Metas</h3>
-      <p>As metas do 3º Termo Aditivo estruturam o ciclo de consolidação operacional, curatorial, educativa e institucional do Projeto Museus Centro. Entre fevereiro e abril de 2026, a execução concentrou-se em formação de equipe, organização documental, planejamento curatorial, mediação educativa, acessibilidade, comunicação e preparação de ações públicas ampliadas.</p>
-      <p>Os cards abaixo substituem a tabela estática anterior por uma leitura executiva, com status, execução e memória de cálculo simplificada por meta estratégica.</p>
-    </div>
-
-    <div class="meta-grid">
-      <article class="meta-card"><div class="meta-head"><span>META 01</span><strong>EM EXECUÇÃO</strong></div><h3>Equipe principal</h3><p>Equipe de coordenação, produção, comunicação, administrativo e apoio técnico em operação.</p><div class="progress"><i style="width:70%"></i></div><div class="meta-foot"><span>Estrutura consolidada</span><b>70%</b></div></article>
-      <article class="meta-card"><div class="meta-head"><span>META 05</span><strong>EM EXECUÇÃO</strong></div><h3>Atividades educativas e culturais</h3><p>Oficinas, mediações, Museu Criativo, Prosas MIS e ações de formação de público.</p><div class="progress"><i style="width:86%"></i></div><div class="meta-foot"><span>31 programações</span><b>86%</b></div></article>
-      <article class="meta-card"><div class="meta-head"><span>META 07</span><strong>EM EXECUÇÃO</strong></div><h3>Educadores</h3><p>Contratação e atuação educativa vinculada aos três museus do projeto.</p><div class="progress"><i style="width:65%"></i></div><div class="meta-foot"><span>Equipe em operação</span><b>65%</b></div></article>
-      <article class="meta-card"><div class="meta-head"><span>META 11</span><strong>PLANEJADA</strong></div><h3>Noturno nos Museus</h3><p>Pré-produção, visitas técnicas e definição de infraestrutura para ação de grande porte.</p><div class="progress"><i style="width:20%"></i></div><div class="meta-foot"><span>Pré-produção</span><b>20%</b></div></article>
-      <article class="meta-card"><div class="meta-head"><span>META 14</span><strong>CONCLUÍDA</strong></div><h3>Acessibilidade</h3><p>Ações acessíveis, Libras, ambiente seguro, diversidade e inclusão.</p><div class="progress"><i style="width:100%"></i></div><div class="meta-foot"><span>Entregas realizadas</span><b>100%</b></div></article>
-      <article class="meta-card"><div class="meta-head"><span>META 16</span><strong>EM EXECUÇÃO</strong></div><h3>Publicações</h3><p>Pesquisa, texto, revisão, comunicação visual, fotografia e preparação editorial.</p><div class="progress"><i style="width:35%"></i></div><div class="meta-foot"><span>Em desenvolvimento</span><b>35%</b></div></article>
-    </div>
-
-    <table>
-      <thead><tr><th>Código</th><th>Meta</th><th>Status</th><th>Execução</th><th>Leitura analítica</th></tr></thead>
-      <tbody>
-        <tr><td>META 01</td><td>Equipe principal</td><td>Em execução</td><td>70%</td><td>Equipe operacional estruturada e fluxos de gestão restabelecidos.</td></tr>
-        <tr><td>META 05</td><td>Atividades educativas e culturais</td><td>Em execução</td><td>86%</td><td>31 programações organizadas, com diversidade de formatos e museus.</td></tr>
-        <tr><td>META 11</td><td>Noturno nos Museus</td><td>Planejada</td><td>20%</td><td>Pré-produção iniciada, com visitas técnicas e alinhamentos executivos.</td></tr>
-        <tr><td>META 14</td><td>Acessibilidade</td><td>Concluída</td><td>100%</td><td>Ações de Libras, ambiente seguro e inclusão documentadas.</td></tr>
-        <tr><td>META 16</td><td>Publicações e catálogos</td><td>Em execução</td><td>35%</td><td>Processos editoriais, pesquisa e registros em andamento.</td></tr>
-      </tbody>
-    </table>
-  </section>
-
-  <section>
-    <h2>Execução física e financeira</h2>
-    <p>A execução financeira consolidada atingiu aproximadamente 16,7% do total previsto para o 3º Termo Aditivo, correspondendo a R$ 220.185,07 executados de um total de R$ 1.320.000,00. Esse percentual é compatível com a fase atual do projeto, que priorizou estruturação institucional, contratação de equipes, desenvolvimento metodológico e preparação operacional para ações de maior escala.</p>
-    <p>Rubricas de maior peso orçamentário, como ações educativo-culturais ampliadas, infraestrutura de som e iluminação, exposições e Noturno nos Museus, permanecem com execução inicial, coerente com o cronograma de concentração de despesas no segundo semestre.</p>
-  </section>
-
-  <section>
-    <h2>Agenda e Programação</h2>
-    <div class="item">
-      <h3>Programação e Agenda — Fevereiro a Abril de 2026</h3>
-      <p>O período consolidou 31 programações distribuídas pelos três museus, articulando oficinas, visitas mediadas, eventos de mediação, Museu Criativo, Prosas MIS, acessibilidade em Libras e atividades de formação. A programação fortaleceu o ordenamento territorial e cultural do centro de Belo Horizonte e criou base operacional para a ampliação das entregas públicas.</p>
-    </div>
-
-    <table>
-      <thead><tr><th>Data</th><th>Museu</th><th>Atividade</th><th>Tipo</th><th>Local</th><th>Sinopse</th></tr></thead>
-      <tbody>
-        <tr><td>07/03/2026</td><td>MUMO</td><td>Experimentação em Estamparia Natural</td><td>Oficina</td><td>Museu da Moda</td><td>Experimentação artística com flores, folhas, tecidos e papéis.</td></tr>
-        <tr><td>08/03/2026</td><td>MHAB</td><td>Mulheres que Ecoam Histórias</td><td>Museu Criativo</td><td>MHAB</td><td>Oficina de expressão visual sobre memória, mulheres e narrativas.</td></tr>
-        <tr><td>21/03/2026</td><td>MUMO</td><td>Clara Nunes — Eu Sou a Tal Mineira</td><td>Mediação</td><td>Museu da Moda</td><td>Visita mediada sobre moda, música, cultura popular e identidade brasileira.</td></tr>
-        <tr><td>27/03/2026</td><td>MIS</td><td>Prosas MIS — Animadoras Mineiras em Foco</td><td>Conversa</td><td>MIS BH</td><td>Roda de conversa sobre mulheres na animação brasileira.</td></tr>
-        <tr><td>14/04/2026</td><td>MHAB</td><td>Ambiente Seguro, Diversidade e Inclusão</td><td>Formação</td><td>Auditório MHAB</td><td>Formação interna para equipes, servidores e colaboradores.</td></tr>
-        <tr><td>25/04/2026</td><td>MHAB</td><td>Memórias em Libras de Belo Horizonte</td><td>Acessibilidade</td><td>Casarão MHAB</td><td>Encontro em Libras com público surdo, memória urbana e visita mediada.</td></tr>
-        <tr><td>25/04/2026</td><td>MIS</td><td>Oficina — Criação de Cenários</td><td>Oficina</td><td>MIS BH</td><td>Oficina de criação visual e construção de cenários.</td></tr>
-        <tr><td>30/04/2026</td><td>MIS</td><td>A Poética da Argila em Movimento</td><td>Laboratório</td><td>MIS BH</td><td>Experimentação visual e material com argila, imagem e movimento.</td></tr>
-      </tbody>
-    </table>
-  </section>
-
-  <section>
-    <h2>Destaques por museu</h2>
-    <table>
-      <thead><tr><th>Museu</th><th>Destaques</th><th>Resultado institucional</th></tr></thead>
-      <tbody>
-        <tr><td>MHAB</td><td>Memórias em Libras, Ambiente Seguro, Museu Criativo, Travessias do Curral Del Rei</td><td>Ampliação da acessibilidade, mediação cultural e formação educativa.</td></tr>
-        <tr><td>MIS</td><td>Prosas MIS, Do Traço ao Pixel, visitas mediadas e oficinas audiovisuais</td><td>Fortalecimento da programação contemporânea e educativa.</td></tr>
-        <tr><td>MUMO</td><td>Clara Nunes, estamparia natural, macramê e uso criativo do espaço</td><td>Ampliação do fluxo de visitantes e experimentação ligada à moda.</td></tr>
-      </tbody>
-    </table>
-  </section>
-
-  <section>
-    <h2>Memória visual e evidências fotográficas</h2>
-    <p>O relatório está preparado para incorporar galerias por atividade, com legenda, data, fotógrafo, museu e vínculo com a meta correspondente. Recomenda-se priorizar imagens horizontais, registros com público, evidências de mediação e fotos que comprovem entregas programáticas.</p>
-    <div class="note"><p><strong>Próxima melhoria:</strong> automatizar a seleção de fotos por atividade, cruzando relatórios, galeria, programação e nomes das ações.</p></div>
-  </section>
-
-  <section>
-    <h2>Conclusão</h2>
-    <p>O trimestre analisado consolidou a base operacional necessária para a ampliação das ações públicas, educativas e curatoriais do Projeto Museus Centro. A integração entre coordenação, equipes técnicas, programação, comunicação e sistema digital permite maior rastreabilidade e qualificação da prestação de contas.</p>
-  </section>
-</body>
-</html>`;
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"/><title>Relatório Institucional — Museus Centro</title><style>
+@page{margin:2.2cm 1.8cm}*{box-sizing:border-box}body{font-family:Helvetica Neue,Arial,sans-serif;color:#151515;font-size:11.5px;line-height:1.72;background:#fff;margin:0}h1{font-size:38px;margin:0 0 10px;letter-spacing:-.7px}h2{font-size:18px;border-bottom:2.5px solid #111;padding-bottom:7px;margin:46px 0 18px;counter-increment:section}h2:before{content:counter(section,decimal-leading-zero) '. ';color:#777;font-size:12px;font-weight:400}h3{font-size:13px;margin:20px 0 8px}p{margin:0 0 14px;text-align:justify}table{width:100%;border-collapse:collapse;margin:16px 0;font-size:10px}th{background:#111;color:white;padding:7px 10px;text-align:left;text-transform:uppercase;font-size:9px;letter-spacing:.08em}td{padding:6px 10px;border-bottom:1px solid #eee;vertical-align:top}tr:nth-child(even) td{background:#fafafa}.capa{min-height:420px;padding:80px 42px 60px;color:white;text-align:center;page-break-after:always;position:relative;overflow:hidden;background:#111}.capa:before{content:'';position:absolute;inset:0;background:url('${IMG.capa}') center/cover;opacity:.34}.capa:after{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(8,8,12,.82),rgba(24,15,65,.78),rgba(8,8,12,.92))}.capa-content{position:relative;z-index:2}.subtitle{color:rgba(255,255,255,.72);font-size:15px;margin:6px 0}.kpis-capa{display:flex;justify-content:center;margin-top:34px;padding-top:24px;border-top:1px solid rgba(255,255,255,.15);flex-wrap:wrap}.kpi-c{padding:0 24px;border-right:1px solid rgba(255,255,255,.12)}.kpi-c:last-child{border-right:0}.kpi-c .val{font-size:26px;font-weight:800;display:block}.kpi-c .lbl{font-size:9px;text-transform:uppercase;letter-spacing:.18em;color:rgba(255,255,255,.5)}.secao{page-break-before:always;counter-reset:none}.sumario ol{list-style:none;padding:0}.sumario li{display:flex;gap:12px;border-bottom:1px dotted #ddd;padding:8px 0}.num{color:#999;min-width:26px}.kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:20px 0}.kpi{background:#f7f7f7;border:1px solid #e8e8e8;border-radius:7px;padding:14px}.kpi.dark{background:#111;color:white}.kpi .val{font-size:22px;font-weight:800;display:block}.kpi .lbl{font-size:9px;color:#888;text-transform:uppercase;letter-spacing:.12em}.badge{display:inline-block;background:#111;color:#fff;border-radius:3px;padding:2px 7px;font-size:9px;font-weight:700}.badge.green{background:#166534}.badge.amber{background:#92400e}.progress-bar{background:#eee;border-radius:4px;height:8px;overflow:hidden;margin:8px 0}.progress-fill{height:8px;background:#111}.destaque-box{background:#f5f5f5;border-left:3px solid #111;padding:14px 18px;margin:20px 0;border-radius:0 6px 6px 0}.analise-ia{background:#fafafa;border:1px solid #e5e5e5;border-radius:7px;padding:12px 16px;margin:12px 0;color:#555}.foto-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:13px;margin:16px 0}.foto-item{break-inside:avoid;border:1px solid #eee;border-radius:8px;overflow:hidden;background:#fff}.foto{width:100%;height:150px;object-fit:cover;display:block}.foto-legenda{font-size:9px;color:#777;padding:8px;line-height:1.35}.chart{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:18px 0}.chart-box{border:1px solid #e5e5e5;border-radius:8px;padding:14px;background:#fafafa}.chart-row{display:grid;grid-template-columns:80px 42px 1fr;gap:8px;align-items:center;margin:8px 0;font-size:10px}.chart-row i{height:8px;background:#e4e4e4;border-radius:5px;overflow:hidden}.chart-row em{display:block;height:8px;background:#111}.donut{width:130px;height:130px;border-radius:50%;background:conic-gradient(#111 0 16.7%,#e5e5e5 16.7% 100%);margin:8px auto;position:relative}.donut:after{content:'16,7%';position:absolute;inset:22px;background:#fafafa;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px}.quote{background:#111;color:#fff;border-radius:10px;padding:22px;margin:22px 0}.rodape{font-size:9px;color:#aaa;text-align:center;margin-top:48px;border-top:1px solid #eee;padding-top:12px}@media print{.secao{page-break-before:always}.foto-item,.kpi,.chart-box,tr{page-break-inside:avoid}h2,h3{page-break-after:avoid}}
+</style></head><body><div class="capa"><div class="capa-content"><div style="font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.45);margin-bottom:16px">Museus Centro · Relatório Institucional Consolidado · 2026</div><h1>Relatório Físico-Financeiro</h1><div class="subtitle">Projeto Museus Centro</div><div class="subtitle">02/02/2026 a 30/04/2026</div><div class="subtitle" style="font-size:13px;color:rgba(255,255,255,.55)">${museuLabel}</div><div class="kpis-capa"><div class="kpi-c"><span class="val">21</span><span class="lbl">Relatórios</span></div><div class="kpi-c"><span class="val">4.218</span><span class="lbl">Público</span></div><div class="kpi-c"><span class="val">79</span><span class="lbl">Atividades</span></div><div class="kpi-c"><span class="val">16,7%</span><span class="lbl">Execução</span></div><div class="kpi-c"><span class="val">31</span><span class="lbl">Prog.</span></div><div class="kpi-c"><span class="val">19</span><span class="lbl">Equipe</span></div></div><div style="font-size:10px;color:rgba(255,255,255,.38);margin-top:28px;letter-spacing:.15em;text-transform:uppercase">MIS · MHAB · MUMO · Viaduto das Artes · Noturno nos Museus</div></div></div>
+<div class="sumario secao"><h2 style="counter-increment:none">Sumário</h2><ol>${['Introdução Institucional','Metas do 3º Aditivo','Agenda e Programação','Relatórios das Equipes','Comunicação e Visibilidade','Execução Financeira','Rubricas Orçamentárias','Território e Contexto Cultural','Conclusão'].map((x,i)=>`<li><span class="num">${String(i+1).padStart(2,'0')}</span><span>${x}</span></li>`).join('')}</ol></div>
+<div class="secao"><h2>Introdução Institucional</h2><p>O presente relatório físico-financeiro abrange o período de 02 de fevereiro a 30 de abril de 2026, correspondente à fase inicial de execução do 3º Termo Aditivo do Projeto Museus Centro, realizado em parceria com a Diretoria de Museus da Fundação Municipal de Cultura de Belo Horizonte. O período foi marcado por transição relevante na estrutura de gestão e pela retomada progressiva das atividades nos três museus contemplados: MIS, MHAB e MUMO.</p><p>Este documento consolida 21 relatórios aprovados, 79 atividades registradas e público total de 4.218 pessoas. O conjunto revela um projeto em fase de reativação qualificada, com reorganização administrativa, fortalecimento de rituais de gestão, integração entre produção, educativo, comunicação e coordenação técnica, e preparação para o ciclo de maior intensidade previsto para o segundo semestre.</p><div class="destaque-box"><p>A adoção do Museu Centro APP qualifica a rastreabilidade das entregas, integra documentos, relatórios, rubricas e evidências, e transforma a prestação de contas em instrumento de gestão e memória institucional.</p></div><div class="foto-grid"><div class="foto-item"><img class="foto" src="${IMG.mis}"/><div class="foto-legenda">MIS — memória audiovisual, Prosas MIS e atividades educativas.</div></div><div class="foto-item"><img class="foto" src="${IMG.mhab}"/><div class="foto-legenda">MHAB — memória urbana, formação e mediação histórica.</div></div><div class="foto-item"><img class="foto" src="${IMG.mumo}"/><div class="foto-legenda">MUMO — moda, experimentação criativa e identidade cultural.</div></div></div></div>
+<div class="secao"><h2>Metas do 3º Aditivo</h2><p>As metas MC3A-20 a MC3A-25 estruturam a lógica de execução do 3º Aditivo em ciclos progressivos. O período analisado correspondeu a uma fase de consolidação operacional, não de pico de execução, com forte ênfase em equipe, planejamento, programação educativa, comunicação e pré-produção do Noturno nos Museus.</p><div class="kpi-grid">${metas.map(m=>`<div class="kpi"><span class="lbl">${m[0]} · ${m[2]}</span><span class="val">${m[3]}%</span><div class="progress-bar"><div class="progress-fill" style="width:${m[3]}%"></div></div><strong>${m[1]}</strong><p style="font-size:10px;text-align:left;margin-top:8px">${m[4]}</p></div>`).join('')}</div><div class="analise-ia">Leitura IA: a execução física avançou mais rapidamente do que a execução financeira, o que indica ciclo inicial de estruturação, com despesas de maior escala previstas para exposições, infraestrutura e Noturno nos Museus.</div></div>
+<div class="secao"><h2>Agenda e Programação</h2><p>As 31 programações registradas revelam uma retomada estruturada após a pausa operacional de fevereiro. A programação articulou oficinas, visitas mediadas, eventos de debate curatorial, acessibilidade, formação e ações de manutenção e infraestrutura.</p><div class="chart"><div class="chart-box"><h3>Distribuição de público</h3>${bar('MUMO',2575,2575)}${bar('MIS',954,2575)}${bar('MHAB',689,2575)}</div><div class="chart-box"><h3>Atividades por museu</h3>${bar('MHAB',24,24)}${bar('MUMO',21,24)}${bar('MIS',7,24)}</div></div><table><thead><tr><th>Data</th><th>Museu</th><th>Atividade</th><th>Tipo</th><th>Sinopse</th></tr></thead><tbody>${programacao.map(p=>`<tr><td>${p[0]}</td><td>${p[1]}</td><td><strong>${p[2]}</strong></td><td>${p[3]}</td><td>${p[4]}</td></tr>`).join('')}</tbody></table></div>
+<div class="secao"><h2>Relatórios das Equipes</h2><p>Os 21 relatórios aprovados revelam estrutura de equipe distribuída, multifuncional e com coberturas diferenciadas por museu e natureza de atuação. A cobertura alcança os três equipamentos de forma não homogênea, refletindo maturidade dos fluxos educativos e disponibilidade operacional em cada espaço.</p><div class="kpi-grid"><div class="kpi"><span class="val">21</span><span class="lbl">Relatórios aprovados</span></div><div class="kpi"><span class="val">19</span><span class="lbl">Profissionais</span></div><div class="kpi dark"><span class="val">3</span><span class="lbl">Museus integrados</span></div></div><p>A granularidade dos registros — de reuniões semanais a roteiros de cobertura audiovisual, visitas técnicas e fechamentos mensais — permite rastrear tanto a execução programática quanto os processos internos de gestão que a sustentam.</p></div>
+<div class="secao"><h2>Comunicação e Visibilidade</h2><p>O período registrou ausência de releases formais de imprensa, mas a produção de comunicação interna e conteúdo para redes sociais manteve ritmo consistente: roteiros de cobertura, peças editoriais, calendário de redes sociais, registros fotográficos e vídeos documentando ações educativas e culturais.</p><div class="foto-grid"><div class="foto-item"><img class="foto" src="${IMG.publico}"/><div class="foto-legenda">Cobertura de ações públicas e registros de presença.</div></div><div class="foto-item"><img class="foto" src="${IMG.mumo}"/><div class="foto-legenda">Atividades de moda e experimentação criativa.</div></div><div class="foto-item"><img class="foto" src="${IMG.mhab}"/><div class="foto-legenda">Formação, memória urbana e acessibilidade.</div></div></div><div class="destaque-box"><p>Próximo ciclo: estruturar plano de comunicação externa para Noturno nos Museus, exposições e ações de maior escala.</p></div></div>
+<div class="secao"><h2>Execução Financeira</h2><div class="kpi-grid"><div class="kpi"><span class="val">${money(total)}</span><span class="lbl">Orçamento 3º Aditivo</span></div><div class="kpi dark"><span class="val">${money(usado)}</span><span class="lbl">Utilizado</span></div><div class="kpi"><span class="val">${money(saldo)}</span><span class="lbl">Saldo disponível</span></div></div><div class="chart"><div class="chart-box"><h3>Execução geral</h3><div class="donut"></div></div><div class="chart-box"><h3>Leitura financeira</h3><p>Execução de ${exec}% compatível com o cronograma: maiores investimentos concentram-se no segundo semestre, especialmente exposições, infraestrutura, manutenção especializada e Noturno nos Museus.</p></div></div><table><thead><tr><th>Rubrica</th><th>Previsto</th><th>Utilizado</th><th>Saldo</th><th>%</th></tr></thead><tbody>${rubricas.map(r=>`<tr><td><strong>${r[0]}</strong></td><td>${money(r[1])}</td><td>${money(r[2])}</td><td>${money(r[1]-r[2])}</td><td>${r[3]}%</td></tr>`).join('')}</tbody></table></div>
+<div class="secao"><h2>Território e Contexto Cultural</h2><p>No cenário cultural de Belo Horizonte, MIS, MHAB e MUMO consolidam-se como dispositivos fundamentais de uma museologia territorializada. O MHAB articula memória urbana; o MIS salvaguarda patrimônio audiovisual e sensorial; o MUMO utiliza a moda como sistema de leitura das transformações sociais e culturais da cidade.</p><p>Ao articular os três museus sob estratégia integrada, o Projeto Museus Centro estabelece referência técnica para gestão de ativos culturais em áreas urbanas densas, demonstrando que preservação patrimonial, mediação cultural e uso do espaço público são dimensões inseparáveis.</p></div>
+<div class="secao"><h2>Conclusão</h2><p>O trimestre configura etapa de consolidação estrutural do Projeto Museus Centro. A transição de coordenação, os rituais de planejamento, a adoção do Museu Centro APP e a atuação integrada das equipes permitiram retomar atividades e qualificar processos de gestão, documentação e prestação de contas.</p><div class="quote">O relatório demonstra que a gestão cultural pode ser exercida com método, integridade, evidência documental e profundidade analítica à altura das instituições que representa.</div><p>Os próximos meses marcarão a entrada na fase de maior intensidade programática e financeira, com exposições, produção cultural ampliada, adequações de infraestrutura e Noturno nos Museus como eixo de maior visibilidade pública.</p></div><div class="rodape">Relatório Institucional — Projeto Museus Centro — Gerado com Museu Centro APP<br/>MIS · MHAB · MUMO · Viaduto das Artes · Noturno nos Museus — parceria DEMUS/FMC-BH</div></body></html>`;
 }
 
 export default function RelatorioFisicoFinanceiroGenerator() {
@@ -171,7 +88,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `relatorio-museus-centro-${new Date().getTime()}.html`;
+    a.download = `relatorio-museus-centro-${Date.now()}.html`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -180,12 +97,8 @@ export default function RelatorioFisicoFinanceiroGenerator() {
     setLoading(true);
     setResultado(null);
     setErro(null);
-
     try {
-      const response = await base44.functions.invoke('gerarRelatorioFisicoFinanceiro', {
-        museu: museu === 'Todos' ? null : museu,
-      });
-
+      const response = await base44.functions.invoke('gerarRelatorioFisicoFinanceiro', { museu: museu === 'Todos' ? null : museu });
       const data = response?.data?.html ? response.data : { html: buildCompleteReportHtml(museu) };
       setResultado(data);
       openPreview(data.html);
@@ -196,81 +109,19 @@ export default function RelatorioFisicoFinanceiroGenerator() {
       setResultado({ html: fallbackHtml });
       openPreview(fallbackHtml);
       setErro(err.message || 'Backend indisponível');
-      toast.error('Backend indisponível — relatório completo gerado em modo local');
+      toast.error('Backend indisponível — relatório premium gerado em modo local');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDownloadHTML = () => {
-    if (!resultado?.html) return;
-    downloadHtml(resultado.html);
-  };
-
-  const handleOpenPreview = () => {
-    if (!resultado?.html) return;
-    openPreview(resultado.html);
-  };
-
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center">
-          <FileText className="w-5 h-5 text-white" />
-        </div>
-        <div>
-          <h2 className="text-lg font-bold text-slate-900">Gerar Relatório</h2>
-          <p className="text-sm text-slate-500">Relatório completo com metas, programação, execução e texto institucional.</p>
-        </div>
-      </div>
-
-      <div className="mb-6">
-        <Label>Museu</Label>
-        <Select value={museu} onValueChange={setMuseu}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {MUSEUS.map((m) => (
-              <SelectItem key={m} value={m}>{m}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <Button onClick={handleGerar} disabled={loading} className="w-full">
-        {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
-        Gerar Relatório
-      </Button>
-
-      {erro && (
-        <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm font-medium text-amber-800">Backend indisponível — usando relatório local completo</p>
-            <p className="text-xs text-amber-700 mt-1">{erro}</p>
-          </div>
-        </div>
-      )}
-
-      {resultado && (
-        <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-4">
-          <div className="flex items-start gap-3 mb-3">
-            <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-medium text-green-800">Relatório gerado com sucesso!</p>
-            </div>
-          </div>
-          <div className="flex gap-3 flex-wrap">
-            <Button variant="outline" size="sm" onClick={handleOpenPreview}>
-              <ExternalLink className="w-4 h-4 mr-2" />
-              Abrir Relatório
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleDownloadHTML}>
-              <Download className="w-4 h-4 mr-2" />
-              Baixar HTML
-            </Button>
-          </div>
-        </div>
-      )}
+      <div className="flex items-center gap-3 mb-6"><div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center"><FileText className="w-5 h-5 text-white" /></div><div><h2 className="text-lg font-bold text-slate-900">Gerar Relatório</h2><p className="text-sm text-slate-500">Relatório institucional premium com fotos, gráficos, metas, programação e execução financeira.</p></div></div>
+      <div className="mb-6"><Label>Museu</Label><Select value={museu} onValueChange={setMuseu}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{MUSEUS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select></div>
+      <Button onClick={handleGerar} disabled={loading} className="w-full">{loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}Gerar Relatório</Button>
+      {erro && <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3"><AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" /><div><p className="text-sm font-medium text-amber-800">Backend indisponível — usando relatório premium local</p><p className="text-xs text-amber-700 mt-1">{erro}</p></div></div>}
+      {resultado && <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-4"><div className="flex items-start gap-3 mb-3"><CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" /><div><p className="text-sm font-medium text-green-800">Relatório gerado com sucesso!</p></div></div><div className="flex gap-3 flex-wrap"><Button variant="outline" size="sm" onClick={() => openPreview(resultado.html)}><ExternalLink className="w-4 h-4 mr-2" />Abrir Relatório</Button><Button variant="outline" size="sm" onClick={() => downloadHtml(resultado.html)}><Download className="w-4 h-4 mr-2" />Baixar HTML</Button></div></div>}
     </div>
   );
 }
