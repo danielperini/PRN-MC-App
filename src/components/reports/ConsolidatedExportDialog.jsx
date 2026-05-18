@@ -43,23 +43,131 @@ function secHeader(doc, title, y, accent = [30, 30, 30]) {
   return y + 8;
 }
 
-async function loadImageAsBase64(url) {
+function getAttachmentUrl(att = {}) {
+  return att.file_url || att.url || att.download_url || att.arquivo_url || att.public_url || att.file?.url || '';
+}
+
+function isImage(fileType, fileName = '') {
+  const source = `${fileType || ''} ${fileName || ''}`.trim();
+  return /image\//i.test(source) || /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(source);
+}
+
+function getImageFormat(dataUrl = '') {
+  if (/^data:image\/png/i.test(dataUrl)) return 'PNG';
+  if (/^data:image\/webp/i.test(dataUrl)) return 'WEBP';
+  return 'JPEG';
+}
+
+function drawPhotoFallback(doc, x, y, w, h, att = {}) {
+  doc.setDrawColor(210, 210, 210);
+  doc.setFillColor(248, 248, 248);
+  doc.rect(x, y, w, h, 'FD');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  doc.setTextColor(90, 90, 90);
+  doc.text('Imagem não incorporada', x + w / 2, y + h / 2 - 2, { align: 'center' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(5.5);
+  doc.setTextColor(130, 130, 130);
+  doc.text('Arquivo disponível no link', x + w / 2, y + h / 2 + 3, { align: 'center' });
+  const url = getAttachmentUrl(att);
+  if (url) {
+    doc.setTextColor(0, 80, 180);
+    doc.textWithLink('Abrir imagem', x + w / 2, y + h / 2 + 9, { url, align: 'center' });
+  }
+}
+
+async function fetchImageBlob(url) {
+  try {
+    const response = await fetch(url, { mode: 'cors', cache: 'no-store', credentials: 'omit' });
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    if (!blob || !/^image\//i.test(blob.type || '')) return null;
+    return blob;
+  } catch (_) {
+    return null;
+  }
+}
+
+function readBlobAsDataURL(blob) {
   return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
-      canvas.getContext('2d').drawImage(img, 0, 0);
-      resolve(canvas.toDataURL('image/jpeg', 0.7));
-    };
-    img.onerror = () => resolve(null);
-    img.src = url;
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(blob);
   });
 }
 
-function isImage(fileType) {
-  return fileType && (fileType.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(fileType || ''));
+function normalizeImageToDataUrl(dataUrl, quality = 0.82) {
+  return new Promise((resolve) => {
+    if (!dataUrl) return resolve(null);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const maxSide = 1400;
+        const ratio = Math.min(1, maxSide / Math.max(img.naturalWidth || 1, img.naturalHeight || 1));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round((img.naturalWidth || 1) * ratio));
+        canvas.height = Math.max(1, Math.round((img.naturalHeight || 1) * ratio));
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      } catch (_) {
+        resolve(dataUrl.startsWith('data:image/') ? dataUrl : null);
+      }
+    };
+    img.onerror = () => resolve(dataUrl.startsWith('data:image/') ? dataUrl : null);
+    img.src = dataUrl;
+  });
+}
+
+async function loadImageAsBase64(url) {
+  if (!url) return null;
+
+  const blob = await fetchImageBlob(url);
+  if (blob) {
+    const blobDataUrl = await readBlobAsDataURL(blob);
+    const normalized = await normalizeImageToDataUrl(blobDataUrl);
+    if (normalized) return normalized;
+  }
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    let finished = false;
+    const done = (value) => {
+      if (finished) return;
+      finished = true;
+      resolve(value);
+    };
+
+    const timeout = setTimeout(() => done(null), 12000);
+    img.crossOrigin = 'anonymous';
+    img.referrerPolicy = 'no-referrer';
+    img.onload = () => {
+      clearTimeout(timeout);
+      try {
+        const maxSide = 1400;
+        const ratio = Math.min(1, maxSide / Math.max(img.naturalWidth || 1, img.naturalHeight || 1));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round((img.naturalWidth || 1) * ratio));
+        canvas.height = Math.max(1, Math.round((img.naturalHeight || 1) * ratio));
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        done(canvas.toDataURL('image/jpeg', 0.82));
+      } catch (_) {
+        done(null);
+      }
+    };
+    img.onerror = () => {
+      clearTimeout(timeout);
+      done(null);
+    };
+    img.src = url;
+  });
 }
 
 const STATUS_LABELS = {
@@ -259,41 +367,59 @@ export default function ConsolidatedExportDialog({ open, onClose, currentReport,
         }
 
         // Fotos/thumbnails
-        if (options.incluirFotos && attachments.some(a => isImage(a.file_type))) {
-          const imgAtts = attachments.filter(a => isImage(a.file_type));
+        if (options.incluirFotos && attachments.some(a => isImage(a.file_type, a.file_name))) {
+          const imgAtts = attachments.filter(a => isImage(a.file_type, a.file_name));
           y = checkBreak(doc, y, 20);
           y = secHeader(doc, `REGISTROS FOTOGRÁFICOS (${imgAtts.length})`, y, [80, 40, 0]);
 
           const imageData = {};
           await Promise.all(imgAtts.map(async att => {
-            const b64 = await loadImageAsBase64(att.file_url);
-            if (b64) imageData[att.id] = b64;
+            const url = getAttachmentUrl(att);
+            const b64 = await loadImageAsBase64(url);
+            if (b64) imageData[att.id || url || att.file_name] = b64;
           }));
 
           const thumbW = 55; const thumbH = 38; const cols = 3; const gap = 4;
-          const loaded = imgAtts.filter(a => imageData[a.id]);
 
-          if (loaded.length > 0) {
-            y = checkBreak(doc, y, thumbH + 16);
-            loaded.forEach((att, i) => {
-              const col = i % cols;
-              if (col === 0 && i > 0) y = checkBreak(doc, y, thumbH + 16);
-              const tx = M + col * (thumbW + gap);
-              const ty = y;
-              doc.setDrawColor(200, 200, 200);
-              doc.rect(tx, ty, thumbW, thumbH, 'S');
-              try { doc.addImage(imageData[att.id], 'JPEG', tx, ty, thumbW, thumbH, undefined, 'MEDIUM'); } catch (_) {}
-              doc.setFontSize(5.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
-              doc.text(String(att.file_name || '').substring(0, 22), tx, ty + thumbH + 3.5);
-              // Link to activity if present
-              if (att.activity_id) {
-                const actIdx = atividades.findIndex(a => a.id === att.activity_id || a.programacao_id === att.activity_id);
-                if (actIdx >= 0) doc.text(`A${String(actIdx + 1).padStart(2, '0')}`, tx + thumbW - 8, ty + thumbH + 3.5);
+          y = checkBreak(doc, y, thumbH + 16);
+          imgAtts.forEach((att, i) => {
+            const col = i % cols;
+            if (col === 0 && i > 0) y = checkBreak(doc, y, thumbH + 16);
+            const tx = M + col * (thumbW + gap);
+            const ty = y;
+            const url = getAttachmentUrl(att);
+            const dataKey = att.id || url || att.file_name;
+            const dataUrl = imageData[dataKey];
+
+            doc.setDrawColor(200, 200, 200);
+            doc.rect(tx, ty, thumbW, thumbH, 'S');
+
+            if (dataUrl) {
+              try {
+                doc.addImage(dataUrl, getImageFormat(dataUrl), tx, ty, thumbW, thumbH, undefined, 'MEDIUM');
+              } catch (_) {
+                drawPhotoFallback(doc, tx, ty, thumbW, thumbH, att);
               }
-              if (col === cols - 1 || i === loaded.length - 1) y += thumbH + 10;
-            });
-            y += 4;
-          }
+            } else {
+              drawPhotoFallback(doc, tx, ty, thumbW, thumbH, att);
+            }
+
+            doc.setFontSize(5.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
+            const displayName = String(att.file_name || 'Registro fotográfico').substring(0, 22);
+            if (url) {
+              doc.textWithLink(displayName, tx, ty + thumbH + 3.5, { url });
+            } else {
+              doc.text(displayName, tx, ty + thumbH + 3.5);
+            }
+
+            // Link to activity if present
+            if (att.activity_id) {
+              const actIdx = atividades.findIndex(a => a.id === att.activity_id || a.programacao_id === att.activity_id);
+              if (actIdx >= 0) doc.text(`A${String(actIdx + 1).padStart(2, '0')}`, tx + thumbW - 8, ty + thumbH + 3.5);
+            }
+            if (col === cols - 1 || i === imgAtts.length - 1) y += thumbH + 10;
+          });
+          y += 4;
         }
 
         // Anexos
