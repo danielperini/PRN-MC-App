@@ -98,13 +98,24 @@ const CATALOG_CSS = `
   .catalog-toc { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px 18px; margin-top: 20px; counter-reset: toc; }
   .catalog-toc li { list-style: none; border-bottom: 1px solid rgba(23,23,23,.14); padding: 8px 0; font-size: 12px; display: flex; justify-content: space-between; gap: 12px; counter-increment: toc; }
   .catalog-toc li::before { content: counter(toc, decimal-leading-zero); color: #9f7f4d; font-weight: 800; margin-right: 10px; }
-  .premium-month-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; margin-top: 18px; }
-  .premium-month-card { border: 1px solid rgba(23,23,23,.15); background: rgba(255,255,255,.5); padding: 15px; break-inside: avoid; min-height: 66mm; }
-  .premium-month-card h3 { margin: 0 0 8px; font-size: 17px; line-height: 1.25; }
-  .premium-month-card p { margin: 0 0 9px; font-size: 12.5px; line-height: 1.55; color: #444; }
-  .premium-month-card .premium-card-footnote { color: #69645c; font-size: 11.5px; }
-  .premium-month-card figure { margin: 8px 0 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
-  .premium-month-card img { width: 100%; height: 34px; object-fit: cover; background: #ddd4c6; }
+  .premium-month-grid { display: grid; grid-template-columns: 1fr; gap: 16px; margin-top: 20px; }
+  .premium-month-card { display: flex; flex-direction: column; border: 1px solid rgba(23,23,23,.16); background: rgba(255,255,255,.54); padding: 18px; break-inside: avoid; min-height: 82mm; }
+  .premium-month-card h3 { margin: 0 0 10px; font-family: Georgia, "Times New Roman", serif; font-size: 24px; line-height: 1.08; font-weight: 500; }
+  .premium-month-card p { margin: 0 0 11px; font-size: 13.5px; line-height: 1.62; color: #383838; }
+  .premium-month-card .premium-card-footnote { color: #5f574f; font-size: 12px; }
+  .premium-activity-photo-strip { order: -3; margin: 0 0 15px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
+  .premium-activity-photo-strip img, .premium-activity-photo-placeholder { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block; background: #ddd4c6; border: 1px solid rgba(23,23,23,.08); }
+  .premium-activity-photo-placeholder { display: grid; place-items: center; padding: 10px; text-align: center; color: #6f6559; font-size: 10px; text-transform: uppercase; letter-spacing: .1em; }
+  .premium-card-identity { display: grid; grid-template-columns: 1fr 128px; gap: 18px; align-items: start; margin-bottom: 12px; }
+  .premium-card-facts { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 7px; margin: 11px 0 14px; }
+  .premium-card-facts span { border-top: 1px solid rgba(23,23,23,.14); padding-top: 7px; font-size: 11.5px; line-height: 1.35; color: #5a544c; }
+  .premium-card-facts strong { display: block; margin-bottom: 3px; color: #171717; font-size: 10px; text-transform: uppercase; letter-spacing: .09em; }
+  .premium-public-highlight { align-self: stretch; border-left: 4px solid #171717; padding: 10px 0 10px 14px; }
+  .premium-public-highlight strong { display: block; font-size: 31px; line-height: .95; letter-spacing: 0; color: #171717; }
+  .premium-public-highlight span { display: block; margin-top: 6px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .1em; color: #5e574f; font-weight: 800; }
+  .premium-consolidated-text p + p { margin-top: 9px; }
+  .premium-evidence-links { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(23,23,23,.12); display: flex; flex-wrap: wrap; gap: 7px; }
+  .premium-evidence-links a { color: #171717; border: 1px solid rgba(23,23,23,.18); padding: 5px 7px; font-size: 10.5px; text-decoration: none; background: rgba(255,255,255,.42); }
   .premium-report-archive { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; margin-top: 18px; }
   .premium-report-note { border: 1px solid rgba(23,23,23,.14); background: rgba(255,255,255,.46); padding: 12px; font-size: 11.5px; line-height: 1.45; break-inside: avoid; }
   .premium-report-note strong, .premium-report-note span { display: block; margin-bottom: 4px; }
@@ -128,7 +139,7 @@ const CATALOG_CSS = `
   .audience-chart-legend { display: flex; gap: 14px; margin-top: 14px; flex-wrap: wrap; font-size: 11.5px; color: #555; }
   .audience-chart-legend span { display: inline-flex; align-items: center; gap: 6px; }
   .audience-chart-legend i { width: 16px; height: 8px; display: inline-block; border: 1px solid rgba(23,23,23,.16); }
-  .agenda-consolidation-badge { display: inline-block; margin: 0 0 7px; padding: 4px 7px; border: 1px solid rgba(23,23,23,.14); background: rgba(23,23,23,.04); font-size: 10.5px; line-height: 1; text-transform: uppercase; letter-spacing: .08em; color: #5d554c; font-weight: 800; }
+  .agenda-consolidation-badge { order: -2; display: inline-block; width: max-content; margin: 0 0 7px; padding: 4px 7px; border: 1px solid rgba(23,23,23,.14); background: rgba(23,23,23,.04); font-size: 10.5px; line-height: 1; text-transform: uppercase; letter-spacing: .08em; color: #5d554c; font-weight: 800; }
   @media print {
     body { background: #fff; }
     .premium-report { background: #fff; }
@@ -218,13 +229,16 @@ As mudanças de produção no MIS, com a saída de Ana Carolina Galvão e entrad
 function ActivityMiniPhotos({ activity }) {
   const photos = Array.isArray(activity?.fotos_destaque) ? activity.fotos_destaque : activity?.fotos || [];
   const selected = photos.slice(0, 4);
-  if (selected.length === 0) return null;
 
   return (
-    <figure>
-      {selected.map((photo, index) => (
-        photo?.url ? <img key={photo.url || index} src={photo.url} alt={photo.caption || getActivityTitle(activity)} loading="lazy" /> : null
-      ))}
+    <figure className="premium-activity-photo-strip">
+      {[0, 1, 2, 3].map((slot) => {
+        const photo = selected[slot];
+        const url = photo?.url || photo?.file_url || photo?.src || photo?.arquivo_url;
+        return url
+          ? <img key={url || slot} src={url} alt={photo.caption || getActivityTitle(activity)} loading="lazy" />
+          : <span key={slot} className="premium-activity-photo-placeholder">Registro visual</span>;
+      })}
     </figure>
   );
 }
@@ -264,6 +278,17 @@ function getPublicoEstimado(item = {}) {
   return value > 0 ? value : 0;
 }
 
+function getParticipantCount(item = {}) {
+  const fromList = Array.isArray(item.participantes) ? item.participantes.length : 0;
+  const value = toNumber(
+    item.participantes_total ??
+    item.total_participantes ??
+    item.numero_participantes ??
+    item.qtd_participantes
+  );
+  return Math.max(fromList, value);
+}
+
 function inferMetaLabel(item = {}) {
   const explicit = getActivityMeta(item);
   if (explicit) return { label: explicit, inferred: false };
@@ -279,6 +304,19 @@ function inferMetaLabel(item = {}) {
   ].filter(Boolean).join(' '));
 
   if (text.includes('noturno')) return { label: 'Meta 11 - Noturno nos Museus', inferred: true };
+  if (
+    text.includes('comunicacao') ||
+    text.includes('comunicaÃ§Ã£o') ||
+    text.includes('divulgacao') ||
+    text.includes('divulgaÃ§Ã£o') ||
+    text.includes('clipping') ||
+    text.includes('postagem') ||
+    text.includes('registro') ||
+    text.includes('cobertura') ||
+    text.includes('audiovisual')
+  ) {
+    return { label: 'Meta de comunicaÃ§Ã£o institucional', inferred: true };
+  }
   if (text.includes('acessibilidade') || text.includes('libras') || text.includes('inclusao') || text.includes('inclusÃ£o')) {
     return { label: 'Meta 14 - Acessibilidade', inferred: true };
   }
@@ -304,6 +342,52 @@ function inferMetaLabel(item = {}) {
   return { label: 'Meta nÃ£o informada', inferred: false };
 }
 
+function isCommunicationRecord(item = {}) {
+  const text = normalizeText([
+    item.titulo,
+    item.nome,
+    item.tipo,
+    item.classificacao,
+    item.categoria_label,
+    item.texto,
+    item.descricao,
+  ].filter(Boolean).join(' '));
+
+  return text.includes('comunicacao') ||
+    text.includes('comunicaÃ§Ã£o') ||
+    text.includes('cobertura') ||
+    text.includes('registro fotografico') ||
+    text.includes('registro fotogrÃ¡fico') ||
+    text.includes('audiovisual') ||
+    text.includes('video') ||
+    text.includes('vÃ­deo') ||
+    text.includes('clipping') ||
+    text.includes('postagem') ||
+    text.includes('rede social') ||
+    text.includes('redes sociais') ||
+    text.includes('png') ||
+    text.includes('identidade visual') ||
+    text.includes('divulgacao') ||
+    text.includes('divulgaÃ§Ã£o') ||
+    text.includes('documentacao') ||
+    text.includes('documentaÃ§Ã£o');
+}
+
+function isIrrelevantAdministrativeRecord(item = {}) {
+  const text = normalizeText([
+    item.titulo,
+    item.nome,
+    item.tipo,
+    item.texto,
+    item.descricao,
+  ].filter(Boolean).join(' '));
+
+  return text.includes('contratacao de consultoria') ||
+    text.includes('contrataÃ§Ã£o de consultoria') ||
+    text.includes('processo de contratacao') ||
+    text.includes('processo de contrataÃ§Ã£o');
+}
+
 function isRecurringMediatedVisit(item = {}) {
   const text = normalizeText([item.titulo, item.nome, item.tipo, item.texto, item.descricao].filter(Boolean).join(' '));
   return text.includes('visita mediada') ||
@@ -318,7 +402,11 @@ function agendaSemanticKey(item = {}) {
   const month = normalizeText(getMonthName(item));
   const title = normalizeText(item.titulo || item.nome || 'atividade');
 
+  if (isCommunicationRecord(item)) return 'comunicacao-institucional::periodo';
   if (isRecurringMediatedVisit(item)) return `visitas-mediadas::${museu}::${month}`;
+  if (title.includes('laboratorio poetico') || title.includes('laboratÃ³rio poÃ©tico') || title.includes('argilas e movimentos')) {
+    return `laboratorios-poeticos::${museu}::${month}`;
+  }
 
   const reducedTitle = title
     .replace(/\b(confirmada|confirmado|agendada|agendado|rotina|programacao|programaÃ§Ã£o)\b/g, '')
@@ -349,11 +437,31 @@ function mergeAgendaGroup(items = []) {
   const sorted = [...items].sort((a, b) => itemCompletenessScore(b) - itemCompletenessScore(a));
   const base = { ...sorted[0] };
   const recurring = items.some(isRecurringMediatedVisit);
+  const communication = items.some(isCommunicationRecord);
   const publicoRegistrado = items.reduce((sum, item) => sum + getPublicoRegistrado(item), 0);
   const publicoEstimado = publicoRegistrado > 0 ? 0 : Math.max(...items.map(getPublicoEstimado), 0);
   const meta = inferMetaLabel(base);
+  const participantes = Math.max(...items.map(getParticipantCount), 0);
+  const dates = [...new Set(items.map((item) => item.data || item.data_inicio || item.mes).filter(Boolean))];
+  const texts = [];
   const photos = [];
   items.forEach((item) => {
+    [
+      item.sinopse,
+      item.sinopse_agenda,
+      item.texto,
+      item.descricao,
+      item.observacoes,
+      item.resultado,
+      item.resultados,
+      item.relato,
+      item.comentarios,
+    ].forEach((value) => {
+      const text = sanitizeReportText(value);
+      const key = normalizeText(text).slice(0, 160);
+      if (text.length > 30 && !texts.some((existing) => normalizeText(existing).slice(0, 160) === key)) texts.push(text);
+    });
+
     const source = Array.isArray(item.fotos_destaque) ? item.fotos_destaque : Array.isArray(item.fotos) ? item.fotos : [];
     source.forEach((photo) => {
       const key = photo?.url || photo?.file_url || photo?.src;
@@ -363,8 +471,13 @@ function mergeAgendaGroup(items = []) {
 
   return {
     ...base,
-    titulo: recurring ? `Visitas mediadas - ${getMuseuLabel(base.museu)}` : base.titulo,
-    texto: base.texto || base.descricao || base.sinopse || '',
+    titulo: communication ? 'ComunicaÃ§Ã£o, registros e produÃ§Ãµes do perÃ­odo' : recurring ? `Visitas mediadas - ${getMuseuLabel(base.museu)}` : base.titulo,
+    tipo: communication ? 'ComunicaÃ§Ã£o institucional' : base.tipo,
+    texto: texts[0] || base.texto || base.descricao || base.sinopse || '',
+    textosConsolidados: texts.slice(0, 4),
+    datasConsolidadas: dates,
+    participantes,
+    isCommunicationCard: communication,
     publicoRegistrado,
     publicoEstimado,
     publicoTipo: publicoRegistrado > 0 ? 'registrado' : publicoEstimado > 0 ? 'estimado' : 'nao_informado',
@@ -372,11 +485,12 @@ function mergeAgendaGroup(items = []) {
     metaInferida: meta.inferred,
     consolidatedCount: items.length,
     fotos_destaque: photos.slice(0, 4),
+    evidenciaLinks: photos.map((photo) => photo?.url || photo?.file_url || photo?.src || photo?.arquivo_url).filter(Boolean).slice(0, 8),
   };
 }
 
 function consolidateAgendaItems(items = []) {
-  const groups = items.reduce((acc, item) => {
+  const groups = items.filter((item) => !isIrrelevantAdministrativeRecord(item)).reduce((acc, item) => {
     const key = agendaSemanticKey(item);
     if (!acc[key]) acc[key] = [];
     acc[key].push(item);
@@ -456,6 +570,33 @@ function AudienceMonthlyChart({ rows = [] }) {
   );
 }
 
+function ActivityNarrative({ item }) {
+  const paragraphs = Array.isArray(item.textosConsolidados) && item.textosConsolidados.length > 0
+    ? item.textosConsolidados
+    : [splitParagraphs(item.texto, 1)[0] || 'Registro recuperado da programaÃ§Ã£o ou dos relatÃ³rios aprovados no app.'];
+
+  return (
+    <div className="premium-consolidated-text">
+      {paragraphs.slice(0, 3).map((paragraph, index) => (
+        <p key={`${item.id || item.titulo}-texto-${index}`}>{sanitizeReportText(paragraph)}</p>
+      ))}
+    </div>
+  );
+}
+
+function EvidenceLinks({ links = [] }) {
+  const unique = [...new Set(links.filter(Boolean))].slice(0, 6);
+  if (unique.length === 0) return null;
+
+  return (
+    <div className="premium-evidence-links">
+      {unique.map((link, index) => (
+        <a href={link} target="_blank" rel="noreferrer" key={link}>EvidÃªncia {index + 1}</a>
+      ))}
+    </div>
+  );
+}
+
 function MonthlyAgendaSection({ contexto }) {
   const atividades = Array.isArray(contexto?.atividades) ? contexto.atividades : [];
   const programacao = Array.isArray(contexto?.programacao) ? contexto.programacao : [];
@@ -497,16 +638,27 @@ function MonthlyAgendaSection({ contexto }) {
       <div className="premium-month-grid">
         {unique.map((item, index) => (
           <article className="premium-month-card" key={item.id || `${item.titulo}-${index}`}>
+            <ActivityMiniPhotos activity={item} />
             {item.consolidatedCount > 1 ? <span className="agenda-consolidation-badge">{fmtInt(item.consolidatedCount)} registros consolidados</span> : null}
             <p className="premium-card-meta">{[item.data, item.mes, item.museu, item.tipo].filter(Boolean).join(' / ')}</p>
             <h3>{sanitizeReportText(item.titulo)}</h3>
-            <p>{sanitizeReportText(splitParagraphs(item.texto, 1)[0] || 'Registro recuperado da programação ou dos relatórios aprovados no app.')}</p>
-            <p className="premium-card-footnote">
-              <strong>{item.publicoTipo === 'estimado' ? 'Público estimado' : 'Público registrado'}:</strong>{' '}
-              {item.publicoRegistrado > 0 ? fmtInt(item.publicoRegistrado) : item.publicoEstimado > 0 ? fmtInt(item.publicoEstimado) : 'N/A'}
-              {' '}· <strong>Meta:</strong> {item.metaEditorial || getActivityMeta(item) || 'não informada'}{item.metaInferida ? ' (inferida)' : ''}
-            </p>
-            <ActivityMiniPhotos activity={item} />
+            {!item.isCommunicationCard ? (
+              <div className="premium-public-highlight">
+                <strong>{item.publicoRegistrado > 0 ? fmtInt(item.publicoRegistrado) : item.publicoEstimado > 0 ? fmtInt(item.publicoEstimado) : 'N/A'}</strong>
+                <span>{item.publicoTipo === 'estimado' ? 'pÃºblico estimado' : 'participantes'}</span>
+              </div>
+            ) : null}
+            <div className="premium-card-facts">
+              <span><strong>Datas</strong>{(item.datasConsolidadas || []).join(', ') || item.data || item.mes || 'perÃ­odo'}</span>
+              <span><strong>Meta vinculada</strong>{item.metaEditorial || getActivityMeta(item) || 'nÃ£o informada'}{item.metaInferida ? ' (inferida)' : ''}</span>
+              {!item.isCommunicationCard ? <span><strong>PÃºblico</strong>{item.publicoTipo === 'estimado' ? 'estimado a partir da programaÃ§Ã£o' : 'registrado nos relatÃ³rios e atividades'}</span> : null}
+              {item.participantes > 0 ? <span><strong>Participantes</strong>{fmtInt(item.participantes)} pessoas identificadas</span> : null}
+            </div>
+            <ActivityNarrative item={item} />
+            {item.isCommunicationCard ? (
+              <p className="premium-card-footnote">Entregas agrupadas: comunicaÃ§Ã£o, cobertura, registros, ediÃ§Ã£o, documentaÃ§Ã£o, peÃ§as digitais, audiovisual, clipping e divulgaÃ§Ã£o institucional. Este card nÃ£o atribui pÃºblico direto.</p>
+            ) : null}
+            <EvidenceLinks links={item.evidenciaLinks} />
           </article>
         ))}
       </div>
