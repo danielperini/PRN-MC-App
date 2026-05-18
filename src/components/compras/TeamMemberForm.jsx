@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import InactiveMembersPanel from './InactiveMembersPanel';
+import { normalizeEmail, onlyDigits } from '@/utils/linking/smartEntityLinker';
 
 const CARGOS_FUNCOES = [
   'Coordenador(a) Geral', 'Coordenador(a)', 'Coordenador(a) de Produção',
@@ -120,18 +121,20 @@ function SectionHeader({ icon: Icon, title, children }) {
 }
 
 const EMPTY_FORM = {
-  user_email: '', user_name: '', funcao: '', budgetline_id: '',
-  telefone: '', email_pessoal: '', cpf: '', cnpj: '',
+  possui_usuario: false, user_id: '', user_email: '', user_name: '', funcao: '', budgetline_id: '',
+  managed_by_user_id: '', managed_by_user_email: '',
+  telefone: '', email_pessoal: '', cpf: '', cnpj: '', cpf_cnpj: '',
   tipo_pessoa: 'PF', museu_projeto: '', coordenador_responsavel: '',
   centro_custo: '', forma_pagamento: 'PIX',
   numero_contrato: '', tipo_contrato: '', data_assinatura: '',
   status_contrato: 'VIGENTE', contrato_url: '',
+  vinculo_contratual: '', funcao_institucional: '',
   data_inicio_contrato: '', data_fim_contrato: '', objeto_contrato: '',
   escopo_descricao: '', escopo_atividades: '', escopo_entregas: '',
   escopo_responsabilidades: '', escopo_local: '', escopo_carga_horaria: '',
   escopo_periodo: '', escopo_observacoes: '',
   numero_parcelas: '', valor_parcela: '', valor_total: '',
-  banco: '', agencia: '', conta: '', pix_key: '',
+  banco: '', agencia: '', conta: '', pix_key: '', pix: '',
   status: 'ATIVO',
   cronograma_parcelas: [],
 };
@@ -157,14 +160,19 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
     if (editingMember) {
       setMode('form');
       setForm({
+        possui_usuario: Boolean(editingMember?.possui_usuario ?? editingMember?.user_email),
+        user_id: editingMember?.user_id || '',
         user_email: editingMember?.user_email || '',
         user_name: editingMember?.user_name || '',
         funcao: editingMember?.funcao || '',
         budgetline_id: editingMember?.budgetline_id || '',
+        managed_by_user_id: editingMember?.managed_by_user_id || '',
+        managed_by_user_email: editingMember?.managed_by_user_email || '',
         telefone: editingMember?.telefone || '',
         email_pessoal: editingMember?.email_pessoal || '',
         cpf: editingMember?.cpf || '',
         cnpj: editingMember?.cnpj || '',
+        cpf_cnpj: editingMember?.cpf_cnpj || editingMember?.cpf || editingMember?.cnpj || '',
         tipo_pessoa: editingMember?.tipo_pessoa || 'PF',
         museu_projeto: editingMember?.museu_projeto || '',
         coordenador_responsavel: editingMember?.coordenador_responsavel || '',
@@ -175,6 +183,8 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
         data_assinatura: editingMember?.data_assinatura || '',
         status_contrato: editingMember?.status_contrato || 'VIGENTE',
         contrato_url: editingMember?.contrato_url || '',
+        vinculo_contratual: editingMember?.vinculo_contratual || editingMember?.tipo_contrato || '',
+        funcao_institucional: editingMember?.funcao_institucional || editingMember?.funcao || '',
         data_inicio_contrato: editingMember?.data_inicio_contrato || '',
         data_fim_contrato: editingMember?.data_fim_contrato || '',
         objeto_contrato: editingMember?.objeto_contrato || '',
@@ -193,6 +203,7 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
         agencia: editingMember?.agencia || '',
         conta: editingMember?.conta || '',
         pix_key: editingMember?.pix_key || '',
+        pix: editingMember?.pix || editingMember?.pix_key || '',
         status: editingMember?.status || 'ATIVO',
         cronograma_parcelas: editingMember?.cronograma_parcelas || [],
       });
@@ -258,7 +269,17 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
       String(u?.email || '').trim().toLowerCase() === String(selectedUser || '').trim().toLowerCase()
     );
     if (!user) { toast.error('Selecione um usuário válido.'); return; }
-    setForm({ ...EMPTY_FORM, user_email: user.email || '', user_name: user.name || user.full_name || user.email || '', telefone: user.phone || user.telefone || '', status: 'ATIVO' });
+    setForm({
+      ...EMPTY_FORM,
+      possui_usuario: true,
+      user_id: user.id || '',
+      user_email: user.email || '',
+      user_name: user.name || user.full_name || user.email || '',
+      telefone: user.phone || user.telefone || '',
+      managed_by_user_id: user.id || '',
+      managed_by_user_email: user.email || '',
+      status: 'ATIVO',
+    });
     setMode('form');
   };
 
@@ -464,7 +485,6 @@ Responda SOMENTE com os dados extraídos.`,
 
   const handleSave = async () => {
     if (saving) return;
-    if (!String(form.user_email || '').trim()) { toast.error('Usuário inválido.'); return; }
     if (!String(form.user_name || '').trim()) { toast.error('Preencha o nome.'); return; }
     if (!String(form.funcao || '').trim()) { toast.error('Selecione o cargo / função.'); return; }
     if (!normalizeBudgetLineId(form.budgetline_id)) { toast.error('Selecione a rubrica.'); return; }
@@ -473,17 +493,27 @@ Responda SOMENTE com os dados extraídos.`,
       const numeroParcelas = toNum(form.numero_parcelas);
       const valorParcela = toNum(form.valor_parcela);
       const valorTotal = toNum(form.valor_total) || (numeroParcelas > 0 && valorParcela > 0 ? numeroParcelas * valorParcela : 0);
+      const cpfCnpj = onlyDigits(form.cpf_cnpj || form.cpf || form.cnpj);
+      const userEmail = normalizeEmail(form.user_email);
+      const hasUser = Boolean(form.possui_usuario && userEmail);
+      const managedUser = users.find((u) => String(u.id || '') === String(form.managed_by_user_id || ''));
       const payload = {
-        user_email: String(form.user_email).trim(),
+        possui_usuario: hasUser,
+        user_id: hasUser ? String(form.user_id || '').trim() : '',
+        user_email: hasUser ? userEmail : '',
         user_name: String(form.user_name).trim(),
         funcao: String(form.funcao).trim(),
+        funcao_institucional: String(form.funcao_institucional || form.funcao || '').trim(),
         role: String(form.funcao).trim(),
         budgetline_id: normalizeBudgetLineId(form.budgetline_id),
         budget_line_id: normalizeBudgetLineId(form.budgetline_id),
+        managed_by_user_id: String(form.managed_by_user_id || '').trim(),
+        managed_by_user_email: normalizeEmail(form.managed_by_user_email || managedUser?.email || ''),
         telefone: String(form.telefone || '').trim(),
         email_pessoal: String(form.email_pessoal || '').trim(),
-        cpf: String(form.cpf || '').trim(),
-        cnpj: String(form.cnpj || '').trim(),
+        cpf: onlyDigits(form.cpf || (form.tipo_pessoa === 'PF' ? cpfCnpj : '')),
+        cnpj: onlyDigits(form.cnpj || (form.tipo_pessoa !== 'PF' ? cpfCnpj : '')),
+        cpf_cnpj: cpfCnpj,
         tipo_pessoa: form.tipo_pessoa || 'PF',
         museu_projeto: String(form.museu_projeto || '').trim(),
         coordenador_responsavel: String(form.coordenador_responsavel || '').trim(),
@@ -494,9 +524,11 @@ Responda SOMENTE com os dados extraídos.`,
         data_assinatura: form.data_assinatura || undefined,
         status_contrato: form.status_contrato || 'VIGENTE',
         contrato_url: form.contrato_url || undefined,
+        vinculo_contratual: String(form.vinculo_contratual || form.tipo_contrato || '').trim(),
         data_inicio_contrato: form.data_inicio_contrato || undefined,
         data_fim_contrato: form.data_fim_contrato || undefined,
         objeto_contrato: String(form.objeto_contrato || '').trim(),
+        escopo_trabalho: String(form.escopo_descricao || '').trim(),
         escopo_descricao: String(form.escopo_descricao || '').trim(),
         escopo_atividades: String(form.escopo_atividades || '').trim(),
         escopo_entregas: String(form.escopo_entregas || '').trim(),
@@ -511,7 +543,8 @@ Responda SOMENTE com os dados extraídos.`,
         banco: String(form.banco || '').trim(),
         agencia: String(form.agencia || '').trim(),
         conta: String(form.conta || '').trim(),
-        pix_key: String(form.pix_key || '').trim(),
+        pix_key: String(form.pix_key || form.pix || '').trim(),
+        pix: String(form.pix || form.pix_key || '').trim(),
         cronograma_parcelas: form.cronograma_parcelas || [],
         status: String(form.status || 'ATIVO').trim(),
       };
@@ -568,6 +601,17 @@ Responda SOMENTE com os dados extraídos.`,
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => onClose?.()} disabled={saving}>Cancelar</Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setForm({ ...EMPTY_FORM, possui_usuario: false, status: 'ATIVO' });
+                  setMode('form');
+                }}
+                disabled={saving}
+              >
+                Criar membro sem usuário
+              </Button>
               <Button onClick={handleSelectUser} disabled={!selectedUser || selectedUser === '__empty__' || saving}>Continuar</Button>
             </div>
           </div>
@@ -580,10 +624,19 @@ Responda SOMENTE com os dados extraídos.`,
             {/* ── DADOS DO MEMBRO ── */}
             <div>
               <SectionHeader icon={User} title="Dados do Membro" />
+              {!form.possui_usuario && (
+                <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  Este membro não precisa ter login. Ele poderá ser vinculado a atividades, relatórios, contratos, notas fiscais e pagamentos por um usuário responsável.
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label>Nome completo *</Label>
                   <Input value={form.user_name} onChange={e => setF('user_name', e.target.value)} disabled={saving} />
+                </div>
+                <div className="space-y-1">
+                  <Label>E-mail de login vinculado</Label>
+                  <Input value={form.user_email} onChange={e => setF('user_email', e.target.value)} disabled={saving || !form.possui_usuario} placeholder={form.possui_usuario ? 'usuario@exemplo.com' : 'Sem usuário de acesso'} />
                 </div>
                 <div className="space-y-1">
                   <Label>Cargo / Função *</Label>
@@ -591,6 +644,10 @@ Responda SOMENTE com os dados extraídos.`,
                     <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                     <SelectContent>{CARGOS_FUNCOES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Função institucional</Label>
+                  <Input value={form.funcao_institucional} onChange={e => setF('funcao_institucional', e.target.value)} disabled={saving} placeholder="Ex: educadora, artista, consultoria, apoio" />
                 </div>
                 <div className="space-y-1">
                   <Label>Tipo de pessoa</Label>
@@ -605,7 +662,10 @@ Responda SOMENTE com os dados extraídos.`,
                 </div>
                 <div className="space-y-1">
                   <Label>{form.tipo_pessoa === 'PF' ? 'CPF' : 'CNPJ'}</Label>
-                  <Input value={form.tipo_pessoa === 'PF' ? form.cpf : form.cnpj} onChange={e => setF(form.tipo_pessoa === 'PF' ? 'cpf' : 'cnpj', e.target.value)} disabled={saving} placeholder="Somente dígitos" />
+                  <Input value={form.tipo_pessoa === 'PF' ? form.cpf : form.cnpj} onChange={e => {
+                    setF(form.tipo_pessoa === 'PF' ? 'cpf' : 'cnpj', e.target.value);
+                    setF('cpf_cnpj', e.target.value);
+                  }} disabled={saving} placeholder="Somente dígitos" />
                 </div>
                 <div className="space-y-1">
                   <Label>E-mail pessoal</Label>
@@ -625,6 +685,27 @@ Responda SOMENTE com os dados extraídos.`,
                 <div className="space-y-1">
                   <Label>Coordenador responsável</Label>
                   <Input value={form.coordenador_responsavel} onChange={e => setF('coordenador_responsavel', e.target.value)} disabled={saving} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Usuário responsável pelo membro</Label>
+                  <Select
+                    value={form.managed_by_user_id || '__none__'}
+                    onValueChange={v => {
+                      if (v === '__none__') {
+                        setForm(prev => ({ ...prev, managed_by_user_id: '', managed_by_user_email: '' }));
+                        return;
+                      }
+                      const selected = users.find(u => String(u.id || '') === String(v));
+                      setForm(prev => ({ ...prev, managed_by_user_id: v, managed_by_user_email: selected?.email || '' }));
+                    }}
+                    disabled={saving || loadingUsers}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Sem responsável definido</SelectItem>
+                      {users.map(u => <SelectItem key={u.id || u.email} value={String(u.id || u.email)}>{u.name || u.full_name || u.email}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-1">
                   <Label>Rubrica *</Label>

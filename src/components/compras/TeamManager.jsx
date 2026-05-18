@@ -3,17 +3,20 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Plus, Pencil, Trash2, Loader2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Plus, Pencil, Trash2, Loader2, Link2 } from 'lucide-react';
 import { toast } from 'sonner';
 import TeamMemberForm from './TeamMemberForm';
 import TeamContractsPanel from './TeamContractsPanel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import EntityLinkDialog from '@/components/linking/EntityLinkDialog';
 
 export default function TeamManager() {
   const queryClient = useQueryClient();
 
   const [isOpen, setIsOpen] = useState(false);
   const [editingMember, setEditingMember] = useState(null);
+  const [linkingMember, setLinkingMember] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
 
   const {
@@ -109,11 +112,25 @@ export default function TeamManager() {
                       </div>
 
                       <div className="text-xs text-muted-foreground">
-                        {member.user_email}
+                        {member.user_email || member.email_pessoal || 'Membro sem usuário de acesso'}
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {!member.user_email && <Badge variant="outline">sem login</Badge>}
+                        {member.managed_by_user_email && <Badge variant="secondary">responsável: {member.managed_by_user_email}</Badge>}
+                        {member.cpf_cnpj && <Badge variant="outline">doc. vinculado</Badge>}
                       </div>
                     </div>
 
                     <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setLinkingMember(member)}
+                        title="Vincular registros"
+                      >
+                        <Link2 className="w-4 h-4" />
+                      </Button>
+
                       <Button
                         variant="outline"
                         size="icon"
@@ -153,6 +170,14 @@ export default function TeamManager() {
         onClose={() => setIsOpen(false)}
         onSuccess={handleSuccess}
         editingMember={editingMember}
+      />
+      <EntityLinkDialog
+        open={Boolean(linkingMember)}
+        onClose={() => setLinkingMember(null)}
+        source={{ ...(linkingMember || {}), __entityType: 'TeamMember' }}
+        sourceType="TeamMember"
+        sourceId={linkingMember?.id}
+        onApplied={handleSuccess}
       />
     </div>
   );

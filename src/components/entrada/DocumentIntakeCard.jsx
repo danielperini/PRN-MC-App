@@ -9,6 +9,11 @@ import { cn } from '@/lib/utils';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 import { deleteIntake } from '@/lib/deleteIntegrado';
+import {
+  buildLinkPatch,
+  loadLinkingDatasets,
+  suggestEntityLinks,
+} from '@/utils/linking/smartEntityLinker';
 
 const STATUS_CONFIG = {
   ENVIADO: { label: 'Enviado', color: 'bg-blue-100 text-blue-700', icon: Clock },
@@ -186,7 +191,7 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
         nf_data_emissao: ia.nf_data_emissao || ia.data_emissao || ''
       });
 
-      await base44.entities.Attachment.create({
+      const attachment = await base44.entities.Attachment.create({
         purchase_request_id: novaPurchase?.id || '',
         document_intake_id: intake.id,
         file_name: intake.file_name_final || intake.file_name_original || fileName,
@@ -208,11 +213,38 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
         rubrica_nome
       }).catch(() => null);
 
+      let linkPatch = {};
+      try {
+        const linkSource = {
+          ...intake,
+          ...ia,
+          __entityType: 'DocumentIntake',
+          fornecedor_nome: ia.nf_emitente_nome || '',
+          fornecedor_cpf_cnpj: ia.nf_emitente_cpf_cnpj || '',
+          nf_numero: ia.nf_numero || '',
+          valor_total: valor,
+          rubrica_id,
+        };
+        const datasets = await loadLinkingDatasets();
+        const suggestions = suggestEntityLinks(linkSource, datasets, { minScore: 55 });
+        const patchCandidate = buildLinkPatch(suggestions);
+        if ((suggestions.confidence || 0) >= 60 && (patchCandidate.team_member_id || patchCandidate.linked_user_id || patchCandidate.team_payment_id)) {
+          linkPatch = patchCandidate;
+          await Promise.all([
+            novaPurchase?.id ? base44.entities.PurchaseRequest.update(novaPurchase.id, { ...linkPatch, entity_link_status: 'AUTO_LINKED' }).catch(() => null) : null,
+            attachment?.id ? base44.entities.Attachment.update(attachment.id, { ...linkPatch, entity_link_status: 'AUTO_LINKED' }).catch(() => null) : null,
+          ]);
+        }
+      } catch (linkError) {
+        console.warn('Vínculo automático não aplicado:', linkError);
+      }
+
       await base44.entities.DocumentIntake.update(intake.id, {
         status_processamento: 'ENVIADO_APROVACAO',
         ocultar_entrada_unica: true,
         entidade_destino: 'PurchaseRequest',
-        entidade_destino_id: novaPurchase?.id || ''
+        entidade_destino_id: novaPurchase?.id || '',
+        ...linkPatch
       });
 
       toast.success('Enviado para aprovação com sucesso.');
