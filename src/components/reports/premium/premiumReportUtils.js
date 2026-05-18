@@ -332,10 +332,11 @@ export function buildTimelineItems(contexto = {}) {
 
 export function buildMetrics(contexto = {}) {
   const total = toNumber(contexto.valor_utilizado) + toNumber(contexto.saldo);
+  const publicoAtividades = toNumber(contexto.publico_atividades_total || contexto.publico_atividades || contexto.publico_total);
   return [
     { label: 'Relatórios aprovados', value: fmtInt(contexto.total_relatorios), detail: 'base narrativa consolidada' },
     { label: 'Atividades', value: fmtInt(contexto.total_atividades), detail: 'ações registradas no app' },
-    { label: 'Público', value: fmtInt(contexto.publico_total), detail: 'somente atividades com público' },
+    { label: 'Público em atividades', value: fmtInt(publicoAtividades), detail: 'somente atividades com público registrado' },
     { label: 'Programação', value: fmtInt(contexto.programacao_total), detail: 'agenda recuperada' },
     { label: 'Equipe', value: fmtInt(contexto.equipe_total), detail: 'profissionais com relatório' },
     { label: 'Execução', value: `${toNumber(contexto.percentual_execucao).toFixed(1).replace('.', ',')}%`, detail: fmtBRL(total || 1320000) },

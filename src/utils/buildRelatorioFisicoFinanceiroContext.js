@@ -917,6 +917,40 @@ export function buildRelatorioFisicoFinanceiroContext({
       .filter(Boolean)
   ).size;
 
+  const publicoAtividadesOficial = officialAudience.publicoAtividades || publicoTotal;
+  const publicoEspontaneoOficial = officialAudience.publicoEspontaneo || publicoEspontaneoTotal;
+  const visitasAgendadasOficial = officialAudience.visitasAgendadas || visitasAgendadasTotal;
+  const publicoTotalOficial = officialAudience.publicoTotal ||
+    publicoAtividadesOficial + publicoEspontaneoOficial + visitasAgendadasOficial;
+  const publicoPorMesOficial = Array.isArray(officialAudience.byMonth) && officialAudience.byMonth.length > 0
+    ? officialAudience.byMonth.map((item) => ({
+      key: item.key,
+      mes: item.mes,
+      atividades: toNumber(item.publico_atividades),
+      espontaneo: toNumber(item.espontaneo),
+      visitas_agendadas: toNumber(item.visitas_agendadas),
+      presencas: toNumber(item.presencas),
+      total: toNumber(item.total),
+    }))
+    : Object.values(publicoPorMesMap);
+  const publicoPorMuseuOficial = Array.isArray(officialAudience.byMuseum) && officialAudience.byMuseum.length > 0
+    ? officialAudience.byMuseum.map((item) => ({
+      museu: item.museu,
+      atividades: toNumber(item.atividades),
+      publico: toNumber(item.publico_atividades),
+      publico_atividades: toNumber(item.publico_atividades),
+      espontaneo: toNumber(item.espontaneo),
+      visitas_agendadas: toNumber(item.visitas_agendadas),
+      presencas: toNumber(item.presencas),
+      total: toNumber(item.total),
+    }))
+    : Object.values(porMuseu);
+  const porMuseuOficial = publicoPorMuseuOficial.reduce((acc, item) => {
+    const key = normalizeMuseu(item.museu);
+    acc[key] = item;
+    return acc;
+  }, {});
+
   return {
     periodo: { dateFrom, dateTo },
     periodo_extenso: '2 de fevereiro a 30 de abril de 2026',
@@ -924,13 +958,13 @@ export function buildRelatorioFisicoFinanceiroContext({
     total_relatorios: reports.length || 25,
     equipe_total: equipeTotal,
     total_atividades: officialMetrics.activities?.total || atividades.length,
-    publico_total: officialAudience.publicoTotal || publicoTotal + publicoEspontaneoTotal + visitasAgendadasTotal || publicoTotal || 1625,
-    publico_atividades_total: officialAudience.publicoAtividades || publicoTotal,
-    publico_espontaneo_total: officialAudience.publicoEspontaneo || publicoEspontaneoTotal,
-    visitas_agendadas_total: officialAudience.visitasAgendadas || visitasAgendadasTotal,
-    publico_por_mes: Object.values(publicoPorMesMap),
-    publico_por_museu: Object.values(porMuseu),
-    por_museu: porMuseu,
+    publico_total: publicoTotalOficial || 1625,
+    publico_atividades_total: publicoAtividadesOficial,
+    publico_espontaneo_total: publicoEspontaneoOficial,
+    visitas_agendadas_total: visitasAgendadasOficial,
+    publico_por_mes: publicoPorMesOficial,
+    publico_por_museu: publicoPorMuseuOficial,
+    por_museu: porMuseuOficial,
     atividades,
     atividades_por_categoria: atividadesPorCategoria,
     relatorios_equipe: relatoriosEquipe,
