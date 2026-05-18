@@ -87,6 +87,8 @@ const CATALOG_CSS = `
   .premium-photo figcaption span, .premium-photo figcaption small { display: block; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: rgba(255,255,255,.78); }
   .premium-photo figcaption a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
   .premium-photo-index { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; margin-top: 18px; }
+  .premium-photo-index-thumb { display: block; width: 100%; height: 28mm; overflow: hidden; margin-bottom: 8px; background: #ddd4c6; }
+  .premium-photo-index-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .premium-photo-index-item { border: 1px solid rgba(23,23,23,.14); background: rgba(255,255,255,.45); padding: 11px; font-size: 11.5px; line-height: 1.45; break-inside: avoid; }
   .premium-photo-index-item strong, .premium-photo-index-item span, .premium-photo-index-item small, .premium-photo-index-item a { display: block; margin-bottom: 3px; color: inherit; }
   .premium-museum-heading { display: flex; justify-content: space-between; align-items: end; gap: 18px; margin-bottom: 18px; padding-bottom: 16px; border-bottom: 1px solid rgba(23,23,23,.18); }
@@ -305,16 +307,24 @@ A entrada de Daniel Perini na coordenação geral, após a saída de Andréa Mat
 
 function ActivityMiniPhotos({ activity }) {
   const photos = Array.isArray(activity?.fotos_destaque) ? activity.fotos_destaque : activity?.fotos || [];
-  const selected = photos.slice(0, 4);
+  const selected = photos
+    .filter((photo) => photo?.url || photo?.file_url || photo?.src || photo?.arquivo_url)
+    .slice(0, 4);
+
+  if (selected.length === 0) return null;
 
   return (
     <figure className="premium-activity-photo-strip">
-      {[0, 1, 2, 3].map((slot) => {
-        const photo = selected[slot];
+      {selected.map((photo, slot) => {
         const url = photo?.url || photo?.file_url || photo?.src || photo?.arquivo_url;
-        return url
-          ? <img key={url || slot} src={url} alt={photo.caption || getActivityTitle(activity)} loading="lazy" />
-          : <span key={slot} className="premium-activity-photo-placeholder">Registro visual</span>;
+        return (
+          <img
+            key={url || slot}
+            src={url}
+            alt={photo.caption || getActivityTitle(activity)}
+            loading="lazy"
+          />
+        );
       })}
     </figure>
   );
@@ -1004,6 +1014,11 @@ function PhotoEvidenceDenseSection({ contexto }) {
       <div className="premium-photo-index">
         {photos.map((photo, index) => (
           <article className="premium-photo-index-item" key={`${photo.link || photo.fileName}-${index}`}>
+            {photo.link ? (
+              <a href={photo.link} target="_blank" rel="noreferrer" className="premium-photo-index-thumb">
+                <img src={photo.link} alt={sanitizeReportText(photo.atividade || 'Registro visual')} loading="lazy" />
+              </a>
+            ) : null}
             <strong>{photo.mes || 'Período'}</strong>
             <span>{sanitizeReportText(photo.atividade || 'Atividade vinculada ao app')}</span>
             <small>{photo.museu || 'Museus Centro'}</small>
@@ -1386,6 +1401,85 @@ function RemovedPeriodSection({ contexto }) {
   );
 }
 
+
+function safeArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function getRealActivities(contexto = {}) {
+  return [
+    ...safeArray(contexto.atividades),
+    ...safeArray(contexto.activities),
+    ...safeArray(contexto.programacao),
+    ...safeArray(contexto.programacoes),
+  ].filter((item) => item && (item.titulo || item.nome || item.descricao || item.sinopse));
+}
+
+function getRealReports(contexto = {}) {
+  return [
+    ...safeArray(contexto.relatorios_equipe),
+    ...safeArray(contexto.relatorios),
+    ...safeArray(contexto.reports),
+  ].filter(Boolean);
+}
+
+function getRealTeamCount(contexto = {}) {
+  const names = new Set();
+
+  [
+    ...safeArray(contexto.equipe),
+    ...safeArray(contexto.team_members),
+    ...safeArray(contexto.relatorios_equipe),
+    ...safeArray(contexto.reports),
+  ].forEach((item) => {
+    const name = normalizeText(item?.nome || item?.autor || item?.author_name || item?.user_name || item?.fornecedor_nome);
+    if (name) names.add(name);
+  });
+
+  return names.size;
+}
+
+function getEffectiveTotalActivities(contexto = {}) {
+  const explicit = toNumber(contexto.total_atividades);
+  if (explicit > 0) return explicit;
+  return getRealActivities(contexto).length;
+}
+
+function getEffectiveTotalReports(contexto = {}) {
+  const explicit = toNumber(contexto.total_relatorios);
+  if (explicit > 0) return explicit;
+  return getRealReports(contexto).length;
+}
+
+function getEffectiveTeamCount(contexto = {}) {
+  const explicit = toNumber(contexto.total_equipe || contexto.equipe_total);
+  if (explicit > 0) return explicit;
+  return getRealTeamCount(contexto);
+}
+
+function hasRealPhotos(contexto = {}) {
+  return extractPhotos(contexto, 1).length > 0;
+}
+
+function hasRealRubricas(contexto = {}) {
+  return safeArray(contexto.rubricas).length > 0;
+}
+
+function hasRealCompras(contexto = {}) {
+  return safeArray(contexto.compras).length > 0;
+}
+
+function hasRealMuseumData(contexto = {}) {
+  return safeArray(contexto.atividades).length > 0 ||
+    safeArray(contexto.programacao).length > 0 ||
+    Boolean(contexto.por_museu && Object.keys(contexto.por_museu).length > 0);
+}
+
+function hasRealTimelineData(contexto = {}) {
+  return safeArray(contexto.programacao).length > 0 ||
+    safeArray(contexto.atividades).length > 0;
+}
+
 function hasSection(selected = [], ...ids) {
   if (!Array.isArray(selected) || selected.length === 0) return true;
   return ids.some((id) => selected.includes(id));
@@ -1415,13 +1509,13 @@ export default function PremiumReportLayout({ contexto = {}, textos = {}, filtro
         breakBefore
         eyebrow="Indicadores, metas e público"
         title="Execução física acompanhada por evidências"
-        subtitle={`${fmtInt(contexto.total_atividades)} atividades registradas, ${fmtInt(contexto.publico_total)} pessoas no recorte do período e ${fmtInt(contexto.total_relatorios)} relatórios consolidados.`}
+        subtitle={`${fmtInt(getEffectiveTotalActivities(contexto))} atividades registradas, ${fmtInt(contexto.publico_total)} pessoas no recorte do período e ${fmtInt(getEffectiveTotalReports(contexto))} relatórios consolidados.`}
         text={`${textos.resumo_geral || ''}\n\nPúblico espontâneo corresponde ao público que acessa o museu sem agendamento prévio, em visita livre, circulação cotidiana, exposições, permanência nos espaços e fruição espontânea da programação.\n\nVisitas agendadas correspondem a grupos previamente organizados, escolas, instituições, coletivos ou grupos acompanhados por mediação, com registro de data, número de participantes e, quando houver, vínculo com atividade educativa.\n\n${textos.metas || ''}`}
       >
         <AudienceBreakdown contexto={contexto} />
       </PremiumSection>}
 
-      {hasSection(secoesSelecionadas, 'programacao', 'agenda_programacao', 'timeline_premium') && <PremiumSection
+      {hasSection(secoesSelecionadas, 'programacao', 'agenda_programacao', 'timeline_premium') && hasRealTimelineData(contexto) && <PremiumSection
         breakBefore
         eyebrow="Agenda Museus Centro no período"
         title="Programação e atividades do período"
@@ -1435,25 +1529,25 @@ export default function PremiumReportLayout({ contexto = {}, textos = {}, filtro
 
       {hasSection(secoesSelecionadas, 'programacao', 'atividades_museu', 'relatorios_completos') && <StrategicRecords contexto={contexto} />}
 
-      {hasSection(secoesSelecionadas, 'atividades_museu', 'museus_premium') && <PremiumMuseumSection contexto={contexto} />}
+      {hasSection(secoesSelecionadas, 'atividades_museu', 'museus_premium') && hasRealMuseumData(contexto) && <PremiumMuseumSection contexto={contexto} />}
 
       {hasSection(secoesSelecionadas, 'comunicacao', 'comunicacao_premium') && <PremiumCommunicationSection contexto={contexto} textos={textos} />}
 
-      {hasSection(secoesSelecionadas, 'galeria_evidencias', 'galeria_premium') && <PremiumSection
+      {hasSection(secoesSelecionadas, 'galeria_evidencias', 'galeria_premium') && hasRealPhotos(contexto) && <PremiumSection
         breakBefore
         eyebrow="Galeria e evidências"
         title="Imagem como documento de execução"
         subtitle="As fotografias são recuperadas do app, deduplicadas por URL e distribuídas como evidência visual das ações."
-        text="A galeria opera como camada documental do relatório. Ela amplia a verificabilidade da narrativa: cada imagem vinculada ao app aponta para uma ação, um equipamento, uma frente de trabalho ou uma etapa de produção. A listagem em três colunas preserva atividade, museu, mês, crédito, arquivo e localização GPS quando disponível."
+        text="A galeria opera como camada documental do relatório. Ela amplia a verificabilidade da narrativa: cada imagem vinculada ao app aponta para uma ação, um equipamento, uma frente de trabalho ou uma etapa de produção. A listagem em três colunas preserva atividade, museu, mês, crédito, arquivo e localização institucional."
       >
         <PremiumGallery contexto={contexto} />
       </PremiumSection>}
 
-      {hasSection(secoesSelecionadas, 'galeria_evidencias', 'galeria_premium') && <PhotoEvidenceDenseSection contexto={contexto} />}
+      {hasSection(secoesSelecionadas, 'galeria_evidencias', 'galeria_premium') && hasRealPhotos(contexto) && <PhotoEvidenceDenseSection contexto={contexto} />}
 
       {hasSection(secoesSelecionadas, 'relatorios_completos') && <ReportsArchiveSection contexto={contexto} />}
 
-      {hasSection(secoesSelecionadas, 'financeiro', 'rubricas', 'prestacao') && <PremiumSection
+      {hasSection(secoesSelecionadas, 'financeiro', 'rubricas', 'prestacao') && (hasRealRubricas(contexto) || hasRealCompras(contexto)) && <PremiumSection
         breakBefore
         eyebrow="Metas, orçamento e prestação de contas"
         title="Orçamento, rubricas e rastreabilidade"
