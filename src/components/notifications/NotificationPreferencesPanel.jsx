@@ -10,18 +10,13 @@ import { AlertCircle, Check } from 'lucide-react';
 import { toast } from 'sonner';
 
 const CATEGORY_LABELS = {
-  system: 'Sistema',
-  financial: 'Financeiro',
-  reports: 'Relatórios',
-  programming: 'Programação',
-  communication: 'Comunicação',
-  web_clipping: 'Web & Clipping',
-  approvals: 'Aprovações',
-  documents: 'Documentos',
-  agenda: 'Agenda',
-  ai_suggestions: 'Sugestões de IA',
-  backup: 'Backup',
-  team: 'Equipe'
+  minhas_compras: 'Minhas compras',
+  meus_pagamentos: 'Meus pagamentos',
+  meus_relatorios: 'Meus relatórios',
+  mensagens: 'Mensagens',
+  aprovacoes: 'Aprovações',
+  financeiro: 'Financeiro',
+  sistema: 'Sistema'
 };
 
 const FREQUENCY_OPTIONS = [
@@ -64,21 +59,17 @@ export default function NotificationPreferencesPanel() {
           user_role: user.role || 'profissional',
           email_address: user.email,
           receive_email_notifications: true,
-          email_frequency: 'daily',
+          email_frequency: 'immediate',
           receive_in_app: true,
+          receive_push: false,
           notification_categories: {
-            system: true,
-            financial: true,
-            reports: true,
-            programming: true,
-            communication: true,
-            web_clipping: true,
-            approvals: true,
-            documents: true,
-            agenda: true,
-            ai_suggestions: true,
-            backup: true,
-            team: true
+            minhas_compras: true,
+            meus_pagamentos: true,
+            meus_relatorios: true,
+            mensagens: true,
+            aprovacoes: true,
+            financeiro: true,
+            sistema: false
           }
         });
         return newPref;
@@ -274,7 +265,7 @@ export default function NotificationPreferencesPanel() {
                 <div key={category} className="flex items-center gap-3">
                   <Checkbox
                     id={`cat-${category}`}
-                    checked={localPrefs.notification_categories?.[category] ?? true}
+                    checked={localPrefs.notification_categories?.[category] ?? category !== 'sistema'}
                     onCheckedChange={() => handleToggleCategory(category)}
                   />
                   <Label htmlFor={`cat-${category}`} className="font-normal cursor-pointer">

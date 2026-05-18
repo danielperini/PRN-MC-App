@@ -9,6 +9,7 @@ import { CheckCircle2, RotateCcw, Trash2, Paperclip, X, FileText, Upload } from 
 import { useSmartToast } from '@/lib/useSmartToast'
 import { findDuplicatePurchaseRequest } from '@/lib/purchaseDuplicateGuard'
 import DuplicatePurchaseDetectedModal from './DuplicatePurchaseDetectedModal'
+import { notifyPurchaseApproved, notifyPurchaseCreated, notifyPurchaseReturned } from '@/services/notifications/purchaseNotifications'
 
 const CENTROS = ['MUMO','MIS','MHAB','Noturno nos Museus 2026','Publicações','Geral']
 
@@ -403,18 +404,9 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
 
   async function tryNotifyPurchaseSubmitted(purchase) {
     if (!purchase?.id) return
-
-    try {
-      await base44.functions.invoke('notifyPurchaseSubmitted', { purchaseId: purchase.id })
-    } catch (_) {}
-
-    try {
-      await base44.functions.invoke('notifyPurchaseForApproval', { purchaseId: purchase.id })
-    } catch (_) {}
-
-    try {
-      await base44.functions.invoke('notifyCoordinatorPurchaseSubmitted', { purchaseId: purchase.id })
-    } catch (_) {}
+    await notifyPurchaseCreated(purchase, currentUser).catch((error) => {
+      console.warn('Falha ao notificar solicitação criada:', error)
+    })
   }
 
   async function handleSave() {
@@ -523,6 +515,14 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
         aprovadorNome: currentUser?.full_name || currentUser?.email || '',
       })
 
+      await notifyPurchaseApproved({
+        ...prefill,
+        ...buildPayload('APROVADO_COORD'),
+        status: 'APROVADO_COORD',
+      }, currentUser).catch((error) => {
+        console.warn('Falha ao notificar aprovação de compra:', error)
+      })
+
       smartToast.success('Solicitação aprovada.')
       onSuccess?.()
     } catch (err) {
@@ -545,6 +545,14 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
         status: 'DEVOLVIDO',
         comentario_devolucao: returnComment,
         aprov_coord_comentario: returnComment
+      })
+
+      await notifyPurchaseReturned({
+        ...prefill,
+        status: 'DEVOLVIDO',
+        comentario_devolucao: returnComment,
+      }, currentUser).catch((error) => {
+        console.warn('Falha ao notificar devolução de compra:', error)
       })
 
       smartToast.success('Solicitação devolvida.')

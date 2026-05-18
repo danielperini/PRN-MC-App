@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { notifyReportSubmitted } from '@/services/notifications/reportNotifications';
 import {
   Save,
   Send,
@@ -350,6 +351,13 @@ export default function ReportEditor() {
       const updated = await base44.entities.Report.update(report.id, payload);
       setReport(updated);
       setFormData((prev) => ({ ...prev, status: 'SUBMITTED' }));
+      await notifyReportSubmitted({
+        ...updated,
+        created_by: updated.created_by || report.created_by || currentUser?.email,
+        author_email: updated.author_email || report.author_email || currentUser?.email,
+      }, currentUser).catch((error) => {
+        console.warn('Falha ao notificar envio de relatório:', error);
+      });
       toast.success('📤 Relatório enviado para revisão!');
       queryClient.invalidateQueries({ queryKey: ['reports'] });
     } catch (err) {

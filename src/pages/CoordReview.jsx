@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { toastMessages } from '@/lib/toastMessages';
+import { notifyReportApproved, notifyReportReturned } from '@/services/notifications/reportNotifications';
 
 const STATUS_CONFIG = {
   SUBMITTED: {
@@ -62,7 +63,7 @@ function CoordReviewInner() {
   );
 
   const mutation = useMutation({
-    mutationFn: async ({ id, action, comment }) => {
+    mutationFn: async ({ id, action, comment, report }) => {
       const update = {};
 
       if (action === 'start_review') {
@@ -89,7 +90,26 @@ function CoordReviewInner() {
         update.reviewer_email = user?.email || '';
       }
 
-      await base44.entities.Report.update(id, update);
+      const updatedReport = await base44.entities.Report.update(id, update);
+
+      if (action === 'approve') {
+        await notifyReportApproved({
+          ...report,
+          ...updatedReport,
+        }, user).catch((error) => {
+          console.warn('Falha ao notificar aprovação de relatório:', error);
+        });
+      }
+
+      if (action === 'return') {
+        await notifyReportReturned({
+          ...report,
+          ...updatedReport,
+          return_comment: comment || '',
+        }, user).catch((error) => {
+          console.warn('Falha ao notificar devolução de relatório:', error);
+        });
+      }
 
       try {
         await base44.entities.AuditLog.create({
@@ -169,6 +189,7 @@ function CoordReviewInner() {
                           mutation.mutate({
                             id: report.id,
                             action: 'start_review',
+                            report,
                           });
                         }}
                       >
@@ -248,6 +269,7 @@ function CoordReviewInner() {
                   id: approveDialog.report.id,
                   action: 'approve',
                   comment,
+                  report: approveDialog.report,
                 });
                 setApproveDialog({ open: false, report: null });
                 setComment('');
@@ -286,6 +308,7 @@ function CoordReviewInner() {
                   id: returnDialog.report.id,
                   action: 'return',
                   comment,
+                  report: returnDialog.report,
                 });
                 setReturnDialog({ open: false, report: null });
                 setComment('');

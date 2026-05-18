@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { CheckCircle, Upload, FileText, X, Loader2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+import { notifyPaymentCompleted, notifyPaymentProofAttached } from '@/services/notifications/paymentNotifications';
 
 function toNum(v) {
   const n = Number(String(v ?? '').replace(/\s/g, '').replace(/\./g, '').replace(',', '.'));
@@ -55,6 +56,18 @@ export default function PagarSolicitacaoDialog({ purchase, currentUser, onClose,
         purchaseId: purchase.id,
       });
       if (res.data?.success) {
+        const updatedPurchase = {
+          ...purchase,
+          status: 'PAGO',
+          comprovante_pagamento_url: comprovanteUrl,
+          comprovante_url: comprovanteUrl,
+        };
+        await notifyPaymentCompleted(updatedPurchase, currentUser).catch((error) => {
+          console.warn('Falha ao notificar pagamento:', error);
+        });
+        await notifyPaymentProofAttached(updatedPurchase, currentUser).catch((error) => {
+          console.warn('Falha ao notificar comprovante de pagamento:', error);
+        });
         toast.success('Pagamento registrado com comprovante.');
         onSuccess?.();
         onClose();

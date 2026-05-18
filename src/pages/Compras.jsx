@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import { notifyPurchaseApproved, notifyPurchaseRejected, notifyPurchaseReturned } from '@/services/notifications/purchaseNotifications';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSmartToast } from '@/lib/useSmartToast';
 import { Button } from '@/components/ui/button';
@@ -761,6 +762,12 @@ function ComprasInner() {
       }
 
       await refreshFinanceiroCompleto();
+      await notifyPurchaseApproved({
+        ...purchase,
+        status: 'APROVADO_COORD',
+      }, currentUser).catch((error) => {
+        console.warn('Falha ao notificar aprovação de compra:', error);
+      });
       smartToast.success('Solicitação aprovada e rubrica debitada.');
     } catch (error) {
       console.error('Erro ao aprovar solicitação:', error);
@@ -782,6 +789,13 @@ function ComprasInner() {
       const result = response?.data || response;
       if (!result?.success) throw new Error(result?.error || 'Falha ao devolver.');
       await refreshFinanceiroCompleto();
+      await notifyPurchaseReturned({
+        ...purchase,
+        status: 'DEVOLVIDO',
+        comentario_devolucao: comentario || '',
+      }, currentUser).catch((error) => {
+        console.warn('Falha ao notificar devolução de compra:', error);
+      });
       smartToast.success('Solicitação devolvida.');
     } catch (error) {
       try {
@@ -790,6 +804,13 @@ function ComprasInner() {
           comentario_devolucao: comentario || ''
         });
         await refreshFinanceiroCompleto();
+        await notifyPurchaseReturned({
+          ...purchase,
+          status: 'DEVOLVIDO',
+          comentario_devolucao: comentario || '',
+        }, currentUser).catch((error) => {
+          console.warn('Falha ao notificar devolução de compra:', error);
+        });
         smartToast.success('Solicitação devolvida.');
       } catch (e2) {
         smartToast.error('Erro ao devolver', e2.message);
@@ -811,6 +832,13 @@ function ComprasInner() {
       const result = response?.data || response;
       if (!result?.success) throw new Error(result?.error || 'Falha ao desaprovar.');
       await refreshFinanceiroCompleto();
+      await notifyPurchaseRejected({
+        ...purchase,
+        status: 'RECUSADO',
+        comentario_devolucao: comentario || '',
+      }, currentUser).catch((error) => {
+        console.warn('Falha ao notificar recusa de compra:', error);
+      });
       smartToast.success('Solicitação desaprovada e valor estornado da rubrica.');
     } catch (error) {
       try {
@@ -841,6 +869,13 @@ function ComprasInner() {
         });
 
         await refreshFinanceiroCompleto();
+        await notifyPurchaseRejected({
+          ...purchase,
+          status: 'RECUSADO',
+          comentario_devolucao: comentario || '',
+        }, currentUser).catch((error) => {
+          console.warn('Falha ao notificar recusa de compra:', error);
+        });
         smartToast.success('Solicitação desaprovada e valor estornado da rubrica.');
       } catch (e2) {
         smartToast.error('Erro ao desaprovar', e2.message);

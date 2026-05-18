@@ -129,7 +129,6 @@ function MeusDadosInner() {
   const manualFields = useRef(new Set());
   const [aiApplied, setAiApplied] = useState({});
   const [formData, setFormData] = useState(EMPTY_FORM);
-  const [teamMembers, setTeamMembers] = useState([]);
   const [autoFillLoading, setAutoFillLoading] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
@@ -177,13 +176,8 @@ function MeusDadosInner() {
       if (currentMember) {
         setFormData((prev) => mergeWithoutOverwrite(prev, mapMemberToForm(currentMember)));
       }
-
-      if (user?.equipe) {
-        const teamColeagues = teamData.filter((m) => m.tipo_equipe === user.equipe && m.user_email !== user.email);
-        setTeamMembers(teamColeagues);
-      }
     }
-  }, [teamData, user?.email, user?.equipe, selectedUserEmail, user]);
+  }, [teamData, user?.email, selectedUserEmail, user]);
 
   useEffect(() => {
     if (!selectedUserEmail || !teamData.length) return;
@@ -274,19 +268,7 @@ function MeusDadosInner() {
         await base44.entities.TeamMember.create(teamPayload).catch(() => null);
       }
 
-      if (teamMembers.length > 0) {
-        await Promise.all(
-          teamMembers.map((member) =>
-            base44.entities.Notification.create({
-              user_email: member.user_email,
-              type: 'TEAM_DATA_REMINDER',
-              title: `${user.full_name} atualizou seus dados`,
-              message: 'Seus colegas estão preenchendo os dados pessoais e bancários. Complete seus dados para manter a equipe sincronizada.',
-              action_url: '/MeusDados',
-            }).catch(() => null)
-          )
-        );
-      }
+      // Atualização de dados pessoais não deve gerar aviso para terceiros.
     },
     onSuccess: () => toast.success('Dados salvos com sucesso!'),
     onError: () => toast.error('Erro ao salvar dados.'),
