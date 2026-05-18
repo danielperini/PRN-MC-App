@@ -40,8 +40,8 @@ export default function RubricasSummary() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs text-gray-600 mb-1">Total Orçado</p>
-              <p className="text-2xl font-bold text-black">
-                R$ {summary.totalOrcado.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}
+              <p className="break-words text-xl font-bold leading-tight text-black tabular-nums">
+                R$ {summary.totalOrcado.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
             </div>
             <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
@@ -54,8 +54,8 @@ export default function RubricasSummary() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs text-gray-600 mb-1">Total Utilizado</p>
-              <p className="text-2xl font-bold text-amber-700">
-                R$ {summary.totalUtilizado.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}
+              <p className="break-words text-xl font-bold leading-tight text-amber-700 tabular-nums">
+                R$ {summary.totalUtilizado.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
               <p className="text-xs text-amber-600 mt-1">{summary.percentualExecucao.toFixed(1)}% execução</p>
             </div>
@@ -69,8 +69,8 @@ export default function RubricasSummary() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs text-gray-600 mb-1">Saldo Disponível</p>
-              <p className="text-2xl font-bold text-green-700">
-                R$ {summary.totalSaldo.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}
+              <p className="break-words text-xl font-bold leading-tight text-green-700 tabular-nums">
+                R$ {summary.totalSaldo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
               <p className="text-xs text-green-600 mt-1">{(100 - summary.percentualExecucao).toFixed(1)}% livre</p>
             </div>
@@ -84,7 +84,7 @@ export default function RubricasSummary() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs text-gray-600 mb-1">Comprometido</p>
-              <p className="text-2xl font-bold text-gray-800">R$ 0,00</p>
+              <p className="break-words text-xl font-bold leading-tight text-gray-800 tabular-nums">R$ 0,00</p>
               <p className="text-xs text-gray-500 mt-1">A confirmar</p>
             </div>
             <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
@@ -130,13 +130,13 @@ export default function RubricasSummary() {
                   <td className="py-3 px-3 text-gray-700 font-medium">{rubrica.rubrica}</td>
                   <td className="py-3 px-3 text-gray-600">{rubrica.grupo}</td>
                   <td className="text-right py-3 px-3 text-gray-700">
-                    R$ {(rubrica.valor_rubrica || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
+                    R$ {(rubrica.valor_rubrica || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                   <td className="text-right py-3 px-3 font-semibold text-gray-700">
-                    R$ {(rubrica.valor_utilizado || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
+                    R$ {(rubrica.valor_utilizado || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                   <td className="text-right py-3 px-3 text-gray-700">
-                    R$ {((rubrica.valor_rubrica || 0) - (rubrica.valor_utilizado || 0)).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
+                    R$ {((rubrica.valor_rubrica || 0) - (rubrica.valor_utilizado || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                   <td className={`text-center py-3 px-3 font-semibold ${statusColor}`}>
                     {percentual.toFixed(1)}%

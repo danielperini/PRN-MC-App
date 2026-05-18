@@ -332,7 +332,12 @@ export default function RubricasPorMuseu() {
     return buildResumoRealPorMuseu(source);
   }, [consolidado, lastRecalcResponse]);
 
-  const fmt = (v) => toNumber(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+  const fmt = (v) => toNumber(v).toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
   const fmtPct = (v) => `${Number(v || 0).toFixed(1)}%`;
 
   const totaisGerais = useMemo(() => resumoPorMuseu.reduce((acc, item) => {

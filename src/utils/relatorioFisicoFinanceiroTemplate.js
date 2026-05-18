@@ -1532,9 +1532,10 @@ export function montarHtmlRelatorioFisicoFinanceiro({
 
   .fin-value {
     font-family: var(--font-main);
-    font-size: 26px;
+    font-size: 22px;
     line-height: 1;
     display: block;
+    overflow-wrap: anywhere;
   }
 
   .fin-row.fin-dark .fin-value { color: white; }
@@ -2102,10 +2103,11 @@ export function montarHtmlRelatorioFisicoFinanceiro({
   }
 
   .fin-value {
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 700;
     display: block;
     margin-top: 5px;
+    overflow-wrap: anywhere;
   }
 
   .rodape {

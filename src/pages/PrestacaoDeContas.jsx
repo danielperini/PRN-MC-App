@@ -141,7 +141,7 @@ export default function PrestacaoDeContas() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Valor Total</p>
-                  <p className="text-2xl font-bold">R$ {(selectedPrestacao?.valor_total || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+                  <p className="break-words text-xl font-bold leading-tight tabular-nums">R$ {(selectedPrestacao?.valor_total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 </div>
               </div>
             </div>

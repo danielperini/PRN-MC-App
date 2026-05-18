@@ -70,7 +70,12 @@ function toNumber(value) {
 
 function fmtBRL(v) {
   if (!v && v !== 0) return '—';
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(v);
 }
 
 function normalizeStatus(value) {
@@ -994,17 +999,17 @@ function ComprasInner() {
           <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
               <p className="text-xs font-medium text-gray-500">Total Previsto</p>
-              <p className="mt-1 text-xl font-bold text-gray-900">{fmtBRL(totaisConsolidados.totalPrevisto)}</p>
+              <p className="mt-1 break-words text-lg font-bold leading-tight text-gray-900 tabular-nums">{fmtBRL(totaisConsolidados.totalPrevisto)}</p>
               <p className="text-xs text-gray-400">Valor total do 3º Aditivo</p>
             </div>
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
               <p className="text-xs font-medium text-gray-500">Total Utilizado</p>
-              <p className="mt-1 text-xl font-bold text-gray-900">{fmtBRL(totaisConsolidados.totalUtilizado)}</p>
+              <p className="mt-1 break-words text-lg font-bold leading-tight text-gray-900 tabular-nums">{fmtBRL(totaisConsolidados.totalUtilizado)}</p>
               <p className="text-xs text-gray-400">Aprovado coord. + admin + pago</p>
             </div>
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
               <p className="text-xs font-medium text-gray-500">Saldo Disponível</p>
-              <p className={`mt-1 text-xl font-bold ${totaisConsolidados.saldo < 0 ? 'text-red-600' : 'text-green-700'}`}>
+              <p className={`mt-1 break-words text-lg font-bold leading-tight tabular-nums ${totaisConsolidados.saldo < 0 ? 'text-red-600' : 'text-green-700'}`}>
                 {fmtBRL(totaisConsolidados.saldo)}
               </p>
             </div>

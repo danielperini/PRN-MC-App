@@ -345,7 +345,7 @@ export default function OrcamentoDashboard({
             <Users className="w-4 h-4 text-purple-700" />
             <span className="text-xs text-purple-700">Equipe</span>
           </div>
-          <p className="text-xl font-bold text-purple-800">{fmt(totalEquipe)}</p>
+          <p className="break-words text-lg font-bold leading-tight text-purple-800 tabular-nums">{fmt(totalEquipe)}</p>
           <p className="text-xs text-purple-600">{pctEquipe.toFixed(1)}% Restantes</p>
         </div>
 

@@ -230,21 +230,21 @@ export default function RubricaManager({ budgetLines, purchases = [] }) {
             <DollarSign className="w-4 h-4 text-gray-500" />
             <span className="text-xs text-gray-500 font-medium">Total Previsto</span>
           </div>
-          <p className="text-xl font-bold text-gray-800">{fmt(totalPrevisto)}</p>
+          <p className="break-words text-lg font-bold leading-tight text-gray-800 tabular-nums">{fmt(totalPrevisto)}</p>
         </div>
         <div className="p-4 rounded-xl border border-amber-200 bg-amber-50">
           <div className="flex items-center gap-2 mb-1">
             <TrendingDown className="w-4 h-4 text-amber-600" />
             <span className="text-xs text-amber-600 font-medium">Total Utilizado</span>
           </div>
-          <p className="text-xl font-bold text-amber-700">{fmt(totalUtilizado)}</p>
+          <p className="break-words text-lg font-bold leading-tight text-amber-700 tabular-nums">{fmt(totalUtilizado)}</p>
         </div>
         <div className={`p-4 rounded-xl border ${totalSaldo < 0 ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'}`}>
           <div className="flex items-center gap-2 mb-1">
             <TrendingUp className={`w-4 h-4 ${totalSaldo < 0 ? 'text-red-600' : 'text-green-600'}`} />
             <span className={`text-xs font-medium ${totalSaldo < 0 ? 'text-red-600' : 'text-green-600'}`}>Saldo Disponível</span>
           </div>
-          <p className={`text-xl font-bold ${totalSaldo < 0 ? 'text-red-700' : 'text-green-700'}`}>{fmt(totalSaldo)}</p>
+          <p className={`break-words text-lg font-bold leading-tight tabular-nums ${totalSaldo < 0 ? 'text-red-700' : 'text-green-700'}`}>{fmt(totalSaldo)}</p>
         </div>
       </div>
 

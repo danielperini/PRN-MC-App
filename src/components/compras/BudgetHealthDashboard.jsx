@@ -94,7 +94,7 @@ export default function BudgetHealthDashboard({ budgetLines, purchases }) {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs text-gray-600 mb-1">Orçamento Total (3º Aditivo)</p>
-              <p className="text-2xl font-bold text-black">
+              <p className="break-words text-xl font-bold leading-tight text-black tabular-nums">
                 R$ {(analysis.totalOrcado / 1e6).toFixed(2)}M
               </p>
             </div>
@@ -108,7 +108,7 @@ export default function BudgetHealthDashboard({ budgetLines, purchases }) {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs text-gray-600 mb-1">Comprometido</p>
-              <p className="text-2xl font-bold text-amber-700">
+              <p className="break-words text-xl font-bold leading-tight text-amber-700 tabular-nums">
                 R$ {(analysis.totalComprometido / 1e6).toFixed(2)}M
               </p>
               <p className="text-xs text-amber-600 mt-1">{analysis.percentualUsado.toFixed(1)}% do orçamento</p>
@@ -123,7 +123,7 @@ export default function BudgetHealthDashboard({ budgetLines, purchases }) {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs text-gray-600 mb-1">Disponível</p>
-              <p className="text-2xl font-bold text-green-700">
+              <p className="break-words text-xl font-bold leading-tight text-green-700 tabular-nums">
                 R$ {(analysis.totalDisponivel / 1e6).toFixed(2)}M
               </p>
               <p className="text-xs text-green-600 mt-1">{(100 - analysis.percentualUsado).toFixed(1)}% livre</p>
@@ -267,13 +267,13 @@ export default function BudgetHealthDashboard({ budgetLines, purchases }) {
                   <td className="py-2 px-3 font-mono text-gray-600">{line.codigo}</td>
                   <td className="py-2 px-3 text-gray-700">{line.descricao?.substring(0, 30)}</td>
                   <td className="text-right py-2 px-3 text-gray-700">
-                    R$ {(line.valor_total || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
+                    R$ {(line.valor_total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                   <td className="text-right py-2 px-3 text-gray-700">
-                    R$ {(line.saldo_comprometido || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
+                    R$ {(line.saldo_comprometido || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                   <td className="text-right py-2 px-3 text-gray-700">
-                    R$ {(Math.max(0, (line.saldo_inicial || 0) - (line.saldo_comprometido || 0))).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
+                    R$ {(Math.max(0, (line.saldo_inicial || 0) - (line.saldo_comprometido || 0))).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                   <td className={`text-center py-2 px-3 font-semibold ${statusColor}`}>
                     {pct.toFixed(1)}%

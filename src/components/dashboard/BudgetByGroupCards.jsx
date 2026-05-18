@@ -20,7 +20,8 @@ function fmtBRL(value) {
   return n(value).toLocaleString('pt-BR', {
     style: 'currency',
     currency: 'BRL',
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   });
 }
 
@@ -77,7 +78,7 @@ function BudgetKpi({ label, value, helper, icon: Icon, onClick }) {
         <Icon className="h-4 w-4" />
         <span className="text-[11px] font-semibold uppercase tracking-wide">{label}</span>
       </div>
-      <div className="text-2xl font-bold text-foreground">{value}</div>
+      <div className="break-words text-xl font-bold leading-tight text-foreground tabular-nums md:text-[1.18rem]">{value}</div>
       {helper && <div className="mt-1 text-xs text-muted-foreground">{helper}</div>}
       <div className="mt-3 text-[11px] font-medium text-primary">Ver memória de cálculo</div>
     </button>
@@ -106,15 +107,15 @@ function DrilldownModal({ open, onOpenChange, title, description, rows = [], tot
         <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
           <div className="rounded-xl border bg-muted/40 p-3">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Previsto</div>
-            <div className="text-lg font-bold">{fmtBRL(totals?.previsto)}</div>
+            <div className="text-base font-bold leading-tight tabular-nums">{fmtBRL(totals?.previsto)}</div>
           </div>
           <div className="rounded-xl border bg-muted/40 p-3">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Utilizado</div>
-            <div className="text-lg font-bold">{fmtBRL(totals?.utilizado)}</div>
+            <div className="text-base font-bold leading-tight tabular-nums">{fmtBRL(totals?.utilizado)}</div>
           </div>
           <div className="rounded-xl border bg-muted/40 p-3">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Saldo</div>
-            <div className="text-lg font-bold">{fmtBRL(totals?.saldo)}</div>
+            <div className="text-base font-bold leading-tight tabular-nums">{fmtBRL(totals?.saldo)}</div>
           </div>
           <div className="rounded-xl border bg-muted/40 p-3">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Execução</div>
@@ -296,8 +297,8 @@ export default function BudgetByGroupCards({ rubricas = [] }) {
               <div className="mb-2 flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <h3 className="truncate text-sm font-semibold text-foreground">{group.grupo}</h3>
-                  <p className="text-xs text-muted-foreground">
-                    {group.rubricas} rubrica{group.rubricas === 1 ? '' : 's'} · {fmtBRL(group.utilizado)} usado
+                  <p className="text-[11px] leading-tight text-muted-foreground">
+                    {group.rubricas} rubrica{group.rubricas === 1 ? '' : 's'} · <span className="tabular-nums">{fmtBRL(group.utilizado)}</span> usado
                   </p>
                 </div>
                 <div className="shrink-0 rounded-full border border-border bg-secondary px-2.5 py-1 text-xs font-bold text-secondary-foreground">
@@ -309,9 +310,9 @@ export default function BudgetByGroupCards({ rubricas = [] }) {
                 <div className="h-2 rounded-full bg-primary transition-all" style={{ width: `${width}%` }} />
               </div>
 
-              <div className="mt-2 flex justify-between text-[11px] text-muted-foreground">
-                <span>Total: {fmtBRL(group.total)}</span>
-                <span>Saldo: {fmtBRL(group.saldo)}</span>
+              <div className="mt-2 flex justify-between gap-2 text-[10.5px] leading-tight text-muted-foreground">
+                <span className="min-w-0 break-words tabular-nums">Total: {fmtBRL(group.total)}</span>
+                <span className="min-w-0 break-words text-right tabular-nums">Saldo: {fmtBRL(group.saldo)}</span>
               </div>
               <div className="mt-2 text-[11px] font-medium text-primary">Clique para detalhar</div>
             </button>

@@ -312,17 +312,17 @@ export default function RubricasGrid({
         </div>
         <div className="rounded-2xl border border-gray-200 p-4">
           <p className="text-xs text-gray-500">Total Previsto</p>
-          <p className="text-xl font-bold text-black mt-1">R$ {moeda(resumo.totalPrevisto)}</p>
+          <p className="mt-1 break-words text-lg font-bold leading-tight text-black tabular-nums">R$ {moeda(resumo.totalPrevisto)}</p>
           <p className="text-xs text-gray-400 mt-0.5">3º Termo Aditivo</p>
         </div>
         <div className="rounded-2xl border border-gray-200 p-4">
           <p className="text-xs text-gray-500">Total Utilizado</p>
-          <p className="text-xl font-bold text-blue-700 mt-1">R$ {moeda(resumo.totalUtilizado)}</p>
+          <p className="mt-1 break-words text-lg font-bold leading-tight text-blue-700 tabular-nums">R$ {moeda(resumo.totalUtilizado)}</p>
           <p className="text-xs text-gray-400 mt-0.5">Aprovado coord. + admin + pago</p>
         </div>
         <div className="rounded-2xl border border-gray-200 p-4">
           <p className="text-xs text-gray-500">Saldo Disponível</p>
-          <p className={`text-xl font-bold mt-1 ${resumo.saldoTotal < 0 ? 'text-red-700' : 'text-green-700'}`}>
+          <p className={`mt-1 break-words text-lg font-bold leading-tight tabular-nums ${resumo.saldoTotal < 0 ? 'text-red-700' : 'text-green-700'}`}>
             R$ {moeda(resumo.saldoTotal)}
           </p>
           {resumo.creditos > 0 && <p className="text-xs text-green-700 mt-0.5">Inclui créditos: R$ {moeda(resumo.creditos)}</p>}

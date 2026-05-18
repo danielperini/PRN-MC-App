@@ -24,7 +24,7 @@ const CHART_COLORS = ['#111827', '#4B5563', '#9CA3AF', '#D1D5DB'];
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const APPROVED_STATUSES = new Set(['APPROVED', 'APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
 
-const fmtBRL = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(Number(v || 0));
+const fmtBRL = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(v || 0));
 const fmtInt = (v) => Math.round(Number(v || 0)).toLocaleString('pt-BR');
 
 function inteiro(value) {
@@ -380,8 +380,8 @@ function KpiCard({ icon: Icon, label, value, helper, dark = false }) {
         <Icon className={`w-4 h-4 ${dark ? 'text-white' : 'text-gray-500'}`} />
         <span className={`text-[11px] uppercase tracking-wide font-semibold ${dark ? 'text-gray-300' : 'text-gray-500'}`}>{label}</span>
       </div>
-      <p className={`text-3xl font-bold leading-tight truncate ${dark ? 'text-white' : 'text-black'}`}>{value}</p>
-      {helper && <p className={`text-xs mt-1 truncate ${dark ? 'text-gray-300' : 'text-gray-500'}`}>{helper}</p>}
+      <p className={`break-words text-2xl font-bold leading-tight tabular-nums ${dark ? 'text-white' : 'text-black'}`}>{value}</p>
+      {helper && <p className={`mt-1 break-words text-[11px] leading-tight ${dark ? 'text-gray-300' : 'text-gray-500'}`}>{helper}</p>}
     </div>);
 
 }
@@ -641,9 +641,9 @@ export default function DashboardPatrocinadorSync() {
         <SectionCard title="Próxima agenda">{renderProximaAgenda}</SectionCard>
         <SectionCard title="Orçamento oficial">
           <div className="space-y-3">
-            <div className="flex justify-between text-xs"><span className="text-gray-500">Previsto</span><span className="font-semibold text-black">{fmtBRL(data.totalOrcado)}</span></div>
-            <div className="flex justify-between text-xs"><span className="text-gray-500">Utilizado</span><span className="font-semibold text-black">{fmtBRL(data.totalUtilizado)}</span></div>
-            <div className="flex justify-between text-xs"><span className="text-gray-500">Saldo</span><span className="font-semibold text-black">{fmtBRL(data.saldoTotal)}</span></div>
+            <div className="flex justify-between gap-3 text-[11px]"><span className="text-gray-500">Previsto</span><span className="break-words text-right font-semibold tabular-nums text-black">{fmtBRL(data.totalOrcado)}</span></div>
+            <div className="flex justify-between gap-3 text-[11px]"><span className="text-gray-500">Utilizado</span><span className="break-words text-right font-semibold tabular-nums text-black">{fmtBRL(data.totalUtilizado)}</span></div>
+            <div className="flex justify-between gap-3 text-[11px]"><span className="text-gray-500">Saldo</span><span className="break-words text-right font-semibold tabular-nums text-black">{fmtBRL(data.saldoTotal)}</span></div>
             <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden"><div className="h-1.5 rounded-full bg-black" style={{ width: `${Math.min(data.percentualExecucao, 100)}%` }} /></div>
           </div>
         </SectionCard>

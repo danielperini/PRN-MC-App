@@ -101,7 +101,7 @@ export default function EditRubricaDialog({ rubrica, isOpen, onClose, onSuccess 
             {/* Saldo Disponível */}
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-xs text-blue-600 font-medium mb-1">Saldo Disponível</p>
-              <p className={`text-xl font-bold ${saldo_disponivel < 0 ? 'text-red-600' : 'text-blue-700'}`}>
+              <p className={`break-words text-lg font-bold leading-tight tabular-nums ${saldo_disponivel < 0 ? 'text-red-600' : 'text-blue-700'}`}>
                 {fmt(saldo_disponivel)}
               </p>
               {saldo_disponivel < 0 && (

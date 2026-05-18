@@ -36,7 +36,7 @@ export default function BudgetChart({ budgetLines = [], purchases = [] }) {
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="codigo" angle={-45} textAnchor="end" height={80} tick={{ fontSize: 12 }} />
             <YAxis />
-            <Tooltip formatter={(value) => `R$ ${value.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`} />
+            <Tooltip formatter={(value) => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} />
             <Legend />
             <Bar dataKey="comprometido" fill="#f59e0b" name="Comprometido" />
             <Bar dataKey="disponivel" fill="#10b981" name="Disponível" />

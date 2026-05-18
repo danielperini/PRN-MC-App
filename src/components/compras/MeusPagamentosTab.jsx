@@ -216,7 +216,7 @@ function PurchaseCard({ purchase, attachments }) {
             </div>
           </div>
           <div className="text-right flex-shrink-0 min-w-[90px]">
-            <p className="text-xl font-bold text-gray-900">{fmtBRL(valor)}</p>
+            <p className="break-words text-lg font-bold leading-tight text-gray-900 tabular-nums">{fmtBRL(valor)}</p>
             {numParc > 1 && <p className="text-[11px] text-gray-500 mt-0.5">{numParc}x {fmtBRL(valorParc)}</p>}
           </div>
         </div>
