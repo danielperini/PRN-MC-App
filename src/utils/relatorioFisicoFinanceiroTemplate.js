@@ -25,7 +25,8 @@ function fmtBRL(value) {
   return toNumber(value).toLocaleString('pt-BR', {
     style: 'currency',
     currency: 'BRL',
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   });
 }
 
@@ -89,8 +90,12 @@ function paragraphize(text) {
   return paragrafos.map((p) => `<p>${escapeHtml(p)}</p>`).join('');
 }
 
-function hasSection(secoesSelecionadas, id) {
+function legacyHasSection(secoesSelecionadas, id) {
   return Array.isArray(secoesSelecionadas) && secoesSelecionadas.includes(id);
+}
+
+function hasSection() {
+  return false;
 }
 
 function categoriaLabel(categoria) {
@@ -430,6 +435,306 @@ function renderCompras(compras) {
   `;
 }
 
+function formatDateBR(value) {
+  if (!value) return '—';
+  const raw = String(value);
+  if (/^\d{2}\/\d{2}\/\d{4}/.test(raw)) return raw.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+    const [year, month, day] = raw.slice(0, 10).split('-');
+    return `${day}/${month}/${year}`;
+  }
+  return raw.slice(0, 10);
+}
+
+function renderLegacySumario(secoesSelecionadas) {
+  const items = [
+    ['introducao', 'Introdução Institucional'],
+    ['territorio', 'Território e Contexto Cultural'],
+    ['resumo_geral', 'Resumo Geral e Indicadores'],
+    ['publico', 'Público Alcançado'],
+    ['metas', 'Metas do 3º Aditivo'],
+    ['programacao', 'Agenda e Programação'],
+    ['atividades_museu', 'Atividades por Museu e Eixo'],
+    ['relatorios_completos', 'Relatórios das Equipes'],
+    ['galeria_evidencias', 'Galeria e Evidências'],
+    ['comunicacao', 'Comunicação e Visibilidade'],
+    ['financeiro', 'Execução Financeira'],
+    ['rubricas', 'Rubricas Orçamentárias'],
+    ['prestacao', 'Prestação de Contas'],
+    ['app_museu_centro', 'Museu Centro APP'],
+    ['conclusao', 'Conclusão'],
+  ].filter(([id]) => legacyHasSection(secoesSelecionadas, id));
+
+  if (!items.length) return '';
+
+  return `
+    <div class="sumario secao">
+      <h2 style="counter-increment:none;">Sumário</h2>
+      <ol>
+        ${items.map(([, label], index) => `
+          <li>
+            <span class="num">${String(index + 1).padStart(2, '0')}</span>
+            <span class="titulo-item">${escapeHtml(label)}</span>
+          </li>
+        `).join('')}
+      </ol>
+    </div>
+  `;
+}
+
+function renderLegacyKpis(contexto, percentualExecucao) {
+  const items = [
+    ['Relatórios', fmtInt(contexto.total_relatorios), true],
+    ['Público', fmtInt(contexto.publico_total)],
+    ['Atividades', fmtInt(contexto.total_atividades)],
+    ['Execução', `${percentualExecucao}%`],
+    ['Programação', fmtInt(contexto.programacao_total)],
+    ['Equipe', fmtInt(contexto.equipe_total || 0)],
+  ];
+
+  return `
+    <div class="kpi-grid">
+      ${items.map(([label, value, dark]) => `
+        <div class="kpi ${dark ? 'dark' : ''}">
+          <span class="val">${value}</span>
+          <span class="lbl">${escapeHtml(label)}</span>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function renderTabelaPorMuseu(porMuseu) {
+  const museus = Object.values(porMuseu || {});
+  if (!museus.length) return '<p class="empty-section">Nenhum dado por museu encontrado.</p>';
+
+  return `
+    <table>
+      <thead>
+        <tr>
+          <th>Museu / atuação</th>
+          <th class="num">Atividades</th>
+          <th class="num">Público</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${museus.map((item) => `
+          <tr>
+            <td><strong>${escapeHtml(item.museu || 'Atuação geral')}</strong></td>
+            <td class="num">${fmtInt(item.atividades)}</td>
+            <td class="num">${fmtInt(item.publico)}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function renderTabelaEixos(totalPorEixo) {
+  return `
+    <table>
+      <thead>
+        <tr>
+          <th>Eixo institucional</th>
+          <th class="num">Atividades</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${Object.entries(totalPorEixo).map(([key, value]) => `
+          <tr>
+            <td>${escapeHtml(categoriaLabel(key))}</td>
+            <td class="num">${fmtInt(value)}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function renderProgramacaoDetalhada(programacao = []) {
+  if (!Array.isArray(programacao) || programacao.length === 0) {
+    return '<p class="empty-section">Nenhuma programação detalhada localizada no período.</p>';
+  }
+
+  return `
+    <table>
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Museu</th>
+          <th>Atividade</th>
+          <th>Tipo</th>
+          <th>Síntese</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${programacao.map((item) => `
+          <tr>
+            <td>${escapeHtml(formatDateBR(item.data))}</td>
+            <td>${escapeHtml(item.museu || '—')}</td>
+            <td><strong>${escapeHtml(item.titulo || 'Programação')}</strong></td>
+            <td>${escapeHtml(item.tipo || item.status || '—')}</td>
+            <td>${escapeHtml(item.sinopse || item.local || '—')}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function renderRubricasDetalhadas(rubricas = []) {
+  if (!Array.isArray(rubricas) || rubricas.length === 0) {
+    return '<p class="empty-section">Nenhuma rubrica detalhada localizada.</p>';
+  }
+
+  return `
+    <table>
+      <thead>
+        <tr>
+          <th>Código</th>
+          <th>Rubrica</th>
+          <th>Grupo</th>
+          <th class="num">Previsto</th>
+          <th class="num">Utilizado</th>
+          <th class="num">Saldo</th>
+          <th class="num">%</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rubricas.map((item) => `
+          <tr>
+            <td>${escapeHtml(item.codigo || '—')}</td>
+            <td><strong>${escapeHtml(item.nome || 'Rubrica')}</strong></td>
+            <td>${escapeHtml(item.grupo || '—')}</td>
+            <td class="num">${fmtBRL(item.previsto)}</td>
+            <td class="num">${fmtBRL(item.utilizado)}</td>
+            <td class="num">${fmtBRL(item.saldo)}</td>
+            <td class="num">${toNumber(item.percentual).toFixed(1).replace('.', ',')}%</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function renderGaleriaGeral(fotos = [], max = 24) {
+  const selecionadas = selecionarFotosCuradas(fotos, '', max);
+  if (!selecionadas.length) return '<p class="empty-section">Nenhuma foto do app localizada para a galeria geral.</p>';
+
+  return `
+    <div class="foto-grid">
+      ${selecionadas.map((foto) => {
+        const url = escapeHtml(foto?.url || foto?.file_url || '');
+        const caption = escapeHtml(foto?.caption || foto?.legenda || foto?.fileName || 'Registro fotográfico do app');
+        return `
+          <figure class="foto-item">
+            <img class="foto" src="${url}" alt="${caption}" loading="lazy" />
+            <figcaption class="foto-legenda">${caption}</figcaption>
+          </figure>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+function renderRelatoriosEquipeTabela(relatorios = []) {
+  if (!Array.isArray(relatorios) || relatorios.length === 0) {
+    return '<p class="empty-section">Nenhum relatório individual aprovado localizado no período.</p>';
+  }
+
+  return `
+    <table>
+      <thead>
+        <tr>
+          <th>Profissional</th>
+          <th>Função</th>
+          <th>Museu</th>
+          <th>Período</th>
+          <th class="num">Atividades</th>
+          <th class="num">Público</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${relatorios.map((report) => `
+          <tr>
+            <td><strong>${escapeHtml(report.autor)}</strong></td>
+            <td>${escapeHtml(report.funcao || '—')}</td>
+            <td>${escapeHtml(report.museu || '—')}</td>
+            <td>${escapeHtml([report.mes, report.ano].filter(Boolean).join('/'))}</td>
+            <td class="num">${fmtInt(report.atividades_count)}</td>
+            <td class="num">${fmtInt(report.publico)}</td>
+            <td><span class="badge green">${escapeHtml(report.status || 'Aprovado')}</span></td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function renderRelatoriosEquipeDetalhados(relatorios = []) {
+  if (!Array.isArray(relatorios) || relatorios.length === 0) return '';
+
+  return relatorios.map((report, index) => {
+    const atividades = Array.isArray(report.atividades) ? report.atividades : [];
+    const textos = [
+      ['Resumo executivo', report.resumo_executivo],
+      ['Resumo do período', report.resumo_periodo],
+      ['Pontos positivos', report.pontos_positivos],
+      ['Desafios', report.desafios],
+      ['Encaminhamentos', report.encaminhamentos],
+      ['Comentários', report.comentarios],
+    ].filter(([, value]) => String(value || '').trim());
+
+    return `
+      <article class="team-report">
+        <h3>${String(index + 1).padStart(2, '0')} · ${escapeHtml(report.autor)}</h3>
+        <div class="meta-line">
+          ${escapeHtml(report.funcao || 'Função não informada')} ·
+          ${escapeHtml(report.museu || 'Atuação geral')} ·
+          ${escapeHtml([report.mes, report.ano].filter(Boolean).join('/') || 'Período não informado')}
+        </div>
+
+        ${textos.map(([label, value]) => `
+          <div class="analise-ia">
+            <strong>${escapeHtml(label)}:</strong>
+            ${paragraphize(value)}
+          </div>
+        `).join('')}
+
+        ${atividades.length ? `
+          <h3>Atividades vinculadas</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Atividade</th>
+                <th>Data</th>
+                <th>Eixo</th>
+                <th class="num">Público</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${atividades.map((atividade) => `
+                <tr>
+                  <td><strong>${escapeHtml(atividade.nome || 'Atividade')}</strong></td>
+                  <td>${escapeHtml(formatDateBR(atividade.data))}</td>
+                  <td>${escapeHtml(categoriaLabel(atividade.categoria_editorial))}</td>
+                  <td class="num">${fmtPublico(atividade.publico)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        ` : '<p class="empty-section">Relatório sem atividades detalhadas vinculadas.</p>'}
+
+        ${renderGaleriaGeral([
+          ...(Array.isArray(report.fotos) ? report.fotos : []),
+          ...atividades.flatMap((atividade) => atividade.fotos_destaque || []),
+        ], 6)}
+      </article>
+    `;
+  }).join('');
+}
+
 // ===== MAIN TEMPLATE =====
 
 export function montarHtmlRelatorioFisicoFinanceiro({
@@ -446,6 +751,10 @@ export function montarHtmlRelatorioFisicoFinanceiro({
   const todasFotos = Array.isArray(contexto.fotos) ? contexto.fotos : [];
   const fotoCapa = selecionarFotoCapa(todasFotos);
   const fotoCovUrl = fotoCapa ? escapeHtml(fotoCapa?.url || fotoCapa?.file_url || '') : '';
+  const relatoriosEquipe = Array.isArray(contexto.relatorios_equipe) ? contexto.relatorios_equipe : [];
+  const programacao = Array.isArray(contexto.programacao) ? contexto.programacao : [];
+  const rubricas = Array.isArray(contexto.rubricas) ? contexto.rubricas : [];
+  const dataGeracao = new Date().toLocaleString('pt-BR');
 
   // Totais por eixo
   const atividadesPorCat = contexto.atividades_por_categoria || {};
@@ -1342,6 +1651,501 @@ export function montarHtmlRelatorioFisicoFinanceiro({
     .activity-card, figure, .editorial-table { page-break-inside: avoid; }
     h2 { page-break-after: avoid; }
   }
+
+  /* ============================
+     FORMATO ANTERIOR / RELATORIO ABRANGENTE
+  ============================= */
+  @page {
+    margin: 2.5cm 2cm;
+    @bottom-center {
+      content: counter(page) ' / ' counter(pages);
+      font-size: 9pt;
+      color: #aaa;
+    }
+  }
+
+  body {
+    background: #fff;
+    color: #1a1a1a;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    font-size: 11.5px;
+    line-height: 1.7;
+    padding: 0;
+    counter-reset: section;
+  }
+
+  h1 {
+    font-size: 32px;
+    font-weight: 700;
+    margin: 0 0 12px;
+    letter-spacing: -0.5px;
+  }
+
+  h2 {
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    font-size: 17px;
+    font-weight: 700;
+    border-bottom: 2.5px solid #111;
+    padding-bottom: 7px;
+    margin: 48px 0 18px;
+    page-break-after: avoid;
+    letter-spacing: -0.2px;
+    counter-increment: section;
+  }
+
+  h2::before {
+    content: counter(section, decimal-leading-zero) ". ";
+    color: #777;
+    font-size: 12px;
+    font-weight: 400;
+  }
+
+  h3 {
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    margin: 22px 0 8px;
+    color: #222;
+  }
+
+  p {
+    font-size: 11.5px;
+    line-height: 1.7;
+    margin: 0 0 14px;
+    text-align: justify;
+    hyphens: auto;
+  }
+
+  table,
+  .editorial-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 10px;
+  }
+
+  th,
+  .editorial-table th {
+    background: #111;
+    color: #fff;
+    padding: 6px 10px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 9.5px;
+    letter-spacing: 0.3px;
+    text-transform: none;
+    border-bottom: 0;
+  }
+
+  td,
+  .editorial-table td {
+    padding: 5px 10px;
+    border-bottom: 1px solid #ebebeb;
+    vertical-align: top;
+    color: #333;
+  }
+
+  tr:nth-child(even) td,
+  .editorial-table tr:nth-child(even) td {
+    background: #fafafa;
+  }
+
+  .actions-bar {
+    max-width: 960px;
+    margin: 12px auto;
+  }
+
+  .capa {
+    min-height: 300px;
+    padding: 80px 40px 60px;
+    background: linear-gradient(135deg, #0a0a14 0%, #1a1040 50%, #0a0a12 100%);
+    color: white;
+    text-align: center;
+    page-break-after: always;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .capa-img-bg {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    opacity: 0.35;
+  }
+
+  .capa-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, rgba(10,10,20,0.5) 0%, rgba(10,10,20,0.85) 100%);
+  }
+
+  .capa-content {
+    position: relative;
+    z-index: 2;
+  }
+
+  .capa h1 {
+    color: white;
+    font-size: 38px;
+    margin-bottom: 10px;
+  }
+
+  .capa .subtitle {
+    color: rgba(255,255,255,0.7);
+    font-size: 15px;
+    margin: 6px 0;
+    text-align: center;
+  }
+
+  .capa .kpis-capa {
+    display: flex;
+    gap: 0;
+    justify-content: center;
+    border-top: 1px solid rgba(255,255,255,0.15);
+    padding-top: 24px;
+    margin-top: 32px;
+    flex-wrap: wrap;
+  }
+
+  .capa .kpi-c {
+    padding: 0 28px;
+    border-right: 1px solid rgba(255,255,255,0.12);
+  }
+
+  .capa .kpi-c:last-child {
+    border-right: 0;
+  }
+
+  .capa .kpi-c .val {
+    font-size: 26px;
+    font-weight: 700;
+    color: white;
+    display: block;
+    line-height: 1;
+  }
+
+  .capa .kpi-c .lbl {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: rgba(255,255,255,0.5);
+    margin-top: 5px;
+    display: block;
+  }
+
+  .capa .rodape-capa {
+    font-size: 10px;
+    color: rgba(255,255,255,0.35);
+    margin-top: 28px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+
+  .secao {
+    page-break-before: always;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 20px 0;
+  }
+
+  .sumario {
+    page-break-after: always;
+  }
+
+  .sumario h2 {
+    counter-increment: none;
+  }
+
+  .sumario h2::before {
+    content: '';
+  }
+
+  .sumario ol {
+    list-style: none;
+    padding: 0;
+  }
+
+  .sumario li {
+    padding: 8px 0;
+    border-bottom: 1px dotted #ddd;
+    font-size: 12px;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+
+  .sumario li .num {
+    color: #999;
+    font-size: 10px;
+    min-width: 24px;
+  }
+
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin: 20px 0;
+  }
+
+  .kpi {
+    background: #f7f7f7;
+    border-radius: 6px;
+    padding: 14px 16px;
+    border: 1px solid #e8e8e8;
+  }
+
+  .kpi.dark {
+    background: #111;
+    color: white;
+  }
+
+  .kpi .val {
+    font-size: 22px;
+    font-weight: 700;
+    display: block;
+    line-height: 1;
+  }
+
+  .kpi .lbl {
+    font-size: 9px;
+    color: #888;
+    margin-top: 4px;
+    display: block;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+
+  .kpi.dark .lbl {
+    color: rgba(255,255,255,0.5);
+  }
+
+  .destaque-box {
+    background: #f5f5f5;
+    border-left: 3px solid #111;
+    padding: 14px 18px;
+    margin: 20px 0;
+    border-radius: 0 5px 5px 0;
+  }
+
+  .destaque-box p {
+    margin: 0;
+    font-size: 12px;
+    font-style: italic;
+    color: #444;
+  }
+
+  .analise-ia {
+    background: #fafafa;
+    border: 1px solid #e5e5e5;
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin: 10px 0;
+    font-size: 10px;
+    color: #555;
+    line-height: 1.5;
+  }
+
+  .analise-ia p {
+    font-size: 10.5px;
+    margin-bottom: 8px;
+  }
+
+  .foto-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin: 16px 0;
+  }
+
+  .foto-item,
+  .photo-single figure,
+  .photo-duo figure,
+  .photo-grid-editorial figure {
+    break-inside: avoid;
+    border: 1px solid #eee;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #fff;
+  }
+
+  img.foto,
+  .photo-single img,
+  .photo-duo figure img,
+  .photo-main img,
+  .photo-side figure img {
+    max-width: 100%;
+    height: 170px;
+    width: 100%;
+    object-fit: cover;
+    border-radius: 0;
+    display: block;
+  }
+
+  .photo-single img {
+    height: 240px;
+  }
+
+  .foto-legenda,
+  figure figcaption {
+    font-size: 9px;
+    color: #777;
+    margin: 0;
+    padding: 7px 8px;
+    line-height: 1.3;
+    font-style: italic;
+  }
+
+  .photo-duo,
+  .photo-grid-editorial {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+
+  .photo-side {
+    display: grid;
+    gap: 14px;
+  }
+
+  .activity-card,
+  .team-report {
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    padding: 16px;
+    margin: 16px 0 22px;
+    break-inside: avoid;
+    background: #fff;
+  }
+
+  .activity-card-inner {
+    display: block;
+  }
+
+  .activity-card-content {
+    padding: 0;
+  }
+
+  .activity-title {
+    font-size: 14px;
+    margin: 6px 0 8px;
+  }
+
+  .activity-desc p {
+    font-size: 11px;
+  }
+
+  .activity-kpi-aside {
+    border-left: 0;
+    background: #f7f7f7;
+    display: inline-block;
+    padding: 8px 12px;
+    margin: 8px 0;
+  }
+
+  .activity-photos {
+    border-top: 1px solid #eee;
+    padding-top: 12px;
+    margin-top: 12px;
+    background: #fff;
+  }
+
+  .cat-badge,
+  .museu-badge,
+  .table-badge,
+  .badge {
+    display: inline-block;
+    background: #111;
+    color: #fff;
+    border-radius: 3px;
+    padding: 2px 7px;
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .badge.green {
+    background: #166534;
+  }
+
+  .meta-line {
+    color: #777;
+    font-size: 10px;
+    margin: -2px 0 12px;
+  }
+
+  .financial-summary {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin: 20px 0;
+  }
+
+  .fin-row {
+    border: 1px solid #e8e8e8;
+    border-radius: 6px;
+    padding: 14px 16px;
+  }
+
+  .fin-row.fin-dark {
+    background: #111;
+    color: white;
+  }
+
+  .fin-label {
+    font-size: 9px;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    display: block;
+  }
+
+  .fin-value {
+    font-size: 18px;
+    font-weight: 700;
+    display: block;
+    margin-top: 5px;
+  }
+
+  .rodape {
+    max-width: 960px;
+    font-size: 9px;
+    color: #bbb;
+    text-align: center;
+    margin: 48px auto 0;
+    border-top: 1px solid #eee;
+    padding: 12px 0 28px;
+  }
+
+  @media print {
+    body {
+      background: white;
+      padding: 0;
+    }
+
+    .actions-bar {
+      display: none;
+    }
+
+    .secao {
+      page-break-before: always;
+    }
+
+    .kpi-grid,
+    .foto-item,
+    .destaque-box,
+    .activity-card,
+    .team-report,
+    tr {
+      page-break-inside: avoid;
+    }
+
+    h2,
+    h3 {
+      page-break-after: avoid;
+    }
+  }
 </style>
 </head>
 <body>
@@ -1349,6 +2153,205 @@ export function montarHtmlRelatorioFisicoFinanceiro({
   <div class="actions-bar">
     <button class="btn btn-secondary" onclick="window.print()">Salvar como PDF</button>
     <button class="btn btn-primary" onclick="window.print()">Imprimir</button>
+  </div>
+
+  ${legacyHasSection(secoesSelecionadas, 'capa') ? `
+    <div class="capa">
+      ${fotoCovUrl ? `<div class="capa-img-bg" style="background-image:url('${fotoCovUrl}')"></div>` : ''}
+      <div class="capa-overlay"></div>
+      <div class="capa-content">
+        <div style="font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.4);margin-bottom:16px;">
+          Museus Centro · Relatório Institucional Consolidado · ${new Date().getFullYear()}
+        </div>
+        <h1>Relatório Físico-Financeiro</h1>
+        <div class="subtitle">Projeto Museus Centro</div>
+        <div class="subtitle">${periodo}</div>
+        <div class="subtitle" style="color:rgba(255,255,255,0.5);font-size:13px;">${museu}</div>
+
+        <div class="kpis-capa">
+          <div class="kpi-c"><span class="val">${fmtInt(contexto.total_relatorios)}</span><span class="lbl">Relatórios</span></div>
+          <div class="kpi-c"><span class="val">${fmtInt(contexto.publico_total)}</span><span class="lbl">Público</span></div>
+          <div class="kpi-c"><span class="val">${fmtInt(contexto.total_atividades)}</span><span class="lbl">Atividades</span></div>
+          <div class="kpi-c"><span class="val">${percentualExecucao}%</span><span class="lbl">Execução</span></div>
+          <div class="kpi-c"><span class="val">${fmtInt(contexto.programacao_total)}</span><span class="lbl">Prog.</span></div>
+          <div class="kpi-c"><span class="val">${fmtInt(contexto.equipe_total || 0)}</span><span class="lbl">Equipe</span></div>
+        </div>
+
+        <div class="rodape-capa">MIS · MHAB · MUMO · Viaduto das Artes · Noturno nos Museus</div>
+        <div style="font-size:9px;color:rgba(255,255,255,0.25);margin-top:10px;">Gerado em ${dataGeracao}</div>
+      </div>
+    </div>
+  ` : ''}
+
+  ${renderLegacySumario(secoesSelecionadas)}
+
+  ${legacyHasSection(secoesSelecionadas, 'introducao') ? `
+    <div class="secao">
+      <h2>Introdução Institucional</h2>
+      ${paragraphize(textos.introducao)}
+      <div class="destaque-box">
+        <p>Este relatório consolida dados registrados no Museu Centro APP, articulando entregas físicas, evidências fotográficas, execução financeira e relatórios individuais das equipes em uma única leitura de prestação de contas.</p>
+      </div>
+      ${renderLegacyKpis(contexto, percentualExecucao)}
+    </div>
+  ` : ''}
+
+  ${legacyHasSection(secoesSelecionadas, 'territorio') ? `
+    <div class="secao">
+      <h2>Território e Contexto Cultural</h2>
+      ${paragraphize(textos.contexto_territorial || textos.territorio || 'O Projeto Museus Centro articula MIS, MHAB e MUMO como equipamentos complementares de memória, imagem, moda, cidade e mediação cultural no centro de Belo Horizonte. A leitura territorial do período evidencia a importância de integrar programação, comunicação, documentação e execução financeira para sustentar uma política cultural acompanhável, transparente e orientada por evidências.')}
+      ${renderTabelaPorMuseu(contexto.por_museu)}
+    </div>
+  ` : ''}
+
+  ${legacyHasSection(secoesSelecionadas, 'resumo_geral') ? `
+    <div class="secao">
+      <h2>Resumo Geral e Indicadores</h2>
+      ${paragraphize(textos.resumo_geral)}
+      ${renderLegacyKpis(contexto, percentualExecucao)}
+      <h3>Distribuição por museu</h3>
+      ${renderTabelaPorMuseu(contexto.por_museu)}
+      <h3>Distribuição por eixo institucional</h3>
+      ${renderTabelaEixos(totalPorEixo)}
+    </div>
+  ` : ''}
+
+  ${legacyHasSection(secoesSelecionadas, 'publico') ? `
+    <div class="secao">
+      <h2>Público Alcançado</h2>
+      ${paragraphize(textos.publico_alcancado)}
+      ${renderTabelaPorMuseu(contexto.por_museu)}
+    </div>
+  ` : ''}
+
+  ${legacyHasSection(secoesSelecionadas, 'metas') ? `
+    <div class="secao">
+      <h2>Metas do 3º Aditivo</h2>
+      ${paragraphize(textos.metas || 'As metas do 3º Aditivo são acompanhadas a partir da relação entre execução física, produção programática, registros das equipes, evidências fotográficas e evolução orçamentária. No período consolidado, a leitura aponta uma etapa de estruturação operacional com base documental suficiente para orientar os ciclos seguintes.')}
+      <div class="analise-ia">
+        <strong>Leitura de acompanhamento:</strong>
+        ${paragraphize('A execução física do projeto aparece nos relatórios mensais, nas atividades registradas e na programação vinculada aos museus. A execução financeira é apresentada nas seções de compras e rubricas, permitindo verificar aderência entre planejamento, contratação, entrega e prestação de contas.')}
+      </div>
+      ${renderTabelaEixos(totalPorEixo)}
+    </div>
+  ` : ''}
+
+  ${(legacyHasSection(secoesSelecionadas, 'programacao') || legacyHasSection(secoesSelecionadas, 'agenda_programacao')) ? `
+    <div class="secao">
+      <h2>Agenda e Programação</h2>
+      ${paragraphize(textos.programacao || 'A programação do período reúne atividades públicas, oficinas, visitas mediadas, formações, ações educativas, eventos e processos de preparação operacional. A tabela abaixo recupera os registros disponíveis no app para permitir leitura cronológica e conferência por museu.')}
+      ${renderProgramacaoDetalhada(programacao)}
+    </div>
+  ` : ''}
+
+  ${legacyHasSection(secoesSelecionadas, 'atividades_museu') ? `
+    <div class="secao">
+      <h2>Atividades por Museu e Eixo</h2>
+      <p>As atividades abaixo foram organizadas por eixo institucional, preservando os textos de origem das equipes sempre que disponíveis e incorporando fotos vinculadas no app.</p>
+      <h3>Gestão e Governança</h3>
+      ${paragraphize(textos.capitulos?.gestao_governanca)}
+      ${renderAtividadesPorCategoria(contexto, textos, 'gestao_governanca')}
+      <h3>Produção e Operações</h3>
+      ${paragraphize(textos.capitulos?.producao_operacao)}
+      ${renderAtividadesPorCategoria(contexto, textos, 'producao_operacao')}
+      <h3>Comunicação</h3>
+      ${paragraphize(textos.capitulos?.comunicacao_produtos)}
+      ${renderAtividadesPorCategoria(contexto, textos, 'comunicacao_produtos')}
+      <h3>Atividades com Público</h3>
+      ${paragraphize(textos.capitulos?.atividade_publico)}
+      ${renderAtividadesPorCategoria(contexto, textos, 'atividade_publico')}
+      <h3>Quadro sintético das ações</h3>
+      ${renderQuadroSintetico(contexto)}
+    </div>
+  ` : ''}
+
+  ${legacyHasSection(secoesSelecionadas, 'relatorios_completos') ? `
+    <div class="secao">
+      <h2>Relatórios das Equipes</h2>
+      <p>Esta seção resgata os relatórios individuais aprovados no período, permitindo conferir autoria, função, museu de atuação, atividades vinculadas, público declarado e principais textos narrativos de cada integrante da equipe.</p>
+      ${renderRelatoriosEquipeTabela(relatoriosEquipe)}
+      ${renderRelatoriosEquipeDetalhados(relatoriosEquipe)}
+    </div>
+  ` : ''}
+
+  ${legacyHasSection(secoesSelecionadas, 'galeria_evidencias') ? `
+    <div class="secao">
+      <h2>Galeria e Evidências</h2>
+      <p>As imagens abaixo são recuperadas dos registros fotográficos vinculados às atividades e relatórios do app, priorizando evidências de ação, presença de público, mediação e operação nos museus.</p>
+      ${renderGaleriaGeral(todasFotos, 30)}
+    </div>
+  ` : ''}
+
+  ${legacyHasSection(secoesSelecionadas, 'comunicacao') ? `
+    <div class="secao">
+      <h2>Comunicação e Visibilidade</h2>
+      ${paragraphize(textos.comunicacao || textos.capitulos?.comunicacao_produtos || 'A comunicação do período foi analisada a partir de atividades registradas, produção de conteúdo, evidências fotográficas e relatos das equipes. O conjunto demonstra a importância de articular cobertura, memória visual, redes sociais e documentação institucional como parte da própria execução do projeto.')}
+      ${renderAtividadesPorCategoria(contexto, textos, 'comunicacao_produtos')}
+    </div>
+  ` : ''}
+
+  ${legacyHasSection(secoesSelecionadas, 'financeiro') ? `
+    <div class="secao">
+      <h2>Execução Financeira</h2>
+      <div class="financial-summary">
+        <div class="fin-row fin-dark">
+          <span class="fin-label">Orçamento oficial — 3º Aditivo</span>
+          <span class="fin-value">${fmtBRL(TOTAL_OFICIAL)}</span>
+        </div>
+        <div class="fin-row">
+          <span class="fin-label">Valor utilizado</span>
+          <span class="fin-value">${fmtBRL(contexto.valor_utilizado)}</span>
+        </div>
+        <div class="fin-row">
+          <span class="fin-label">Saldo disponível</span>
+          <span class="fin-value">${fmtBRL(contexto.saldo)}</span>
+        </div>
+      </div>
+      ${paragraphize(textos.financeiro || `A execução financeira consolidada corresponde a ${percentualExecucao}% do orçamento oficial do 3º Aditivo. A leitura deve ser feita em conjunto com as compras do período, o acompanhamento das rubricas e a documentação fiscal anexada ao app.`)}
+      <h3>Transações do período</h3>
+      ${renderCompras(contexto.compras)}
+    </div>
+  ` : ''}
+
+  ${legacyHasSection(secoesSelecionadas, 'rubricas') ? `
+    <div class="secao">
+      <h2>Rubricas Orçamentárias</h2>
+      <p>A tabela a seguir apresenta a execução por rubrica orçamentária, com valores previstos, utilizados, saldos e percentuais de execução. Ela funciona como instrumento de auditoria do relatório físico-financeiro e de planejamento para os próximos ciclos.</p>
+      ${renderRubricasDetalhadas(rubricas)}
+    </div>
+  ` : ''}
+
+  ${legacyHasSection(secoesSelecionadas, 'prestacao') ? `
+    <div class="secao">
+      <h2>Prestação de Contas</h2>
+      ${paragraphize(textos.prestacao)}
+      <div class="destaque-box">
+        <p>A rastreabilidade do relatório depende da convergência entre relatórios aprovados, fotos, notas fiscais, rubricas, programação e registros de compras mantidos no Museu Centro APP.</p>
+      </div>
+    </div>
+  ` : ''}
+
+  ${legacyHasSection(secoesSelecionadas, 'app_museu_centro') ? `
+    <div class="secao">
+      <h2>Museu Centro APP</h2>
+      <p>O Museu Centro APP opera como base de gestão, memória institucional e prestação de contas do projeto. A plataforma centraliza relatórios mensais, programação, fotos, anexos, solicitações de compra, notas fiscais, rubricas e base de conhecimento, reduzindo dispersão documental e qualificando a conferência das entregas.</p>
+      <p>Na geração deste relatório, o app funciona como fonte primária: os dados consolidados derivam dos registros aprovados pelas equipes e dos documentos anexados, enquanto a camada editorial organiza esses dados em narrativa institucional, tabelas e evidências visuais.</p>
+    </div>
+  ` : ''}
+
+  ${legacyHasSection(secoesSelecionadas, 'conclusao') ? `
+    <div class="secao">
+      <h2>Conclusão</h2>
+      ${paragraphize(textos.conclusao)}
+      <div class="destaque-box">
+        <p>O relatório demonstra uma gestão cultural orientada por método, documentação, evidência visual, controle financeiro e leitura integrada das equipes de campo.</p>
+      </div>
+    </div>
+  ` : ''}
+
+  <div class="rodape">
+    Relatório Institucional — Projeto Museus Centro — Gerado com Museu Centro APP<br>
+    MIS · MHAB · MUMO · Viaduto das Artes · Noturno nos Museus — ${periodo}
   </div>
 
   <!-- ====== CAPA ====== -->

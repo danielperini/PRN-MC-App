@@ -486,6 +486,114 @@ function conhecimentoTextos(conhecimentoRaw) {
     .slice(0, 80);
 }
 
+function getPublicoReport(report) {
+  const direto = inteiro(
+    report?.publico_geral_declarado ??
+    report?.publico_total ??
+    report?.publico ??
+    0
+  );
+
+  if (direto > 0) return direto;
+
+  return (Array.isArray(report?.atividades) ? report.atividades : [])
+    .reduce((sum, atividade) => {
+      const publicoAtividade = inteiro(
+        atividade?.publico_total ??
+        atividade?.publico_estimado ??
+        atividade?.publico ??
+        0
+      );
+
+      if (publicoAtividade > 0) return sum + publicoAtividade;
+
+      const medio = inteiro(
+        atividade?.publico_medio_por_sessao ??
+        atividade?.publico_medio ??
+        0
+      );
+
+      const vezes = Math.max(
+        1,
+        inteiro(
+          atividade?.quantas_vezes_ocorreu ??
+          atividade?.ocorrencias ??
+          1
+        )
+      );
+
+      return sum + (medio * vezes);
+    }, 0);
+}
+
+function getRubricaValorPrevisto(rubrica) {
+  return toNumber(
+    rubrica?.valor_total ??
+    rubrica?.valor_previsto ??
+    rubrica?.valor_orcado ??
+    rubrica?.valor_original ??
+    rubrica?.valor ??
+    0
+  );
+}
+
+function buildProgramacaoDetalhada(programacaoRaw, dateFrom, dateTo, museuFiltro) {
+  return (Array.isArray(programacaoRaw) ? programacaoRaw : [])
+    .map((item) => {
+      const data =
+        item?.data_inicio ||
+        item?.data_realizacao ||
+        item?.data ||
+        item?.created_date ||
+        item?.updated_date ||
+        '';
+
+      return {
+        id: item?.id || item?._id || `${item?.titulo || item?.nome || 'programacao'}-${data}`,
+        data,
+        museu: normalizeMuseu(item?.museu || item?.equipamento || item?.local),
+        titulo: item?.titulo || item?.nome || item?.atividade || 'Programação sem título',
+        tipo: item?.tipo || item?.categoria || item?.classificacao || item?.formato || '',
+        local: item?.local || item?.espaco || item?.equipamento || '',
+        sinopse: item?.sinopse || item?.descricao || item?.resumo || '',
+        status: item?.status || '',
+      };
+    })
+    .filter((item) => !museuFiltro || normalizeMuseu(item.museu) === museuFiltro)
+    .filter((item) => !item.data || dateInRange(item.data, dateFrom, dateTo))
+    .sort((a, b) => String(a.data || '').localeCompare(String(b.data || '')));
+}
+
+function buildRubricasDetalhadas(rubricasRaw) {
+  return (Array.isArray(rubricasRaw) ? rubricasRaw : [])
+    .filter((r) => r?.ativo !== false)
+    .map((rubrica) => {
+      const previsto = getRubricaValorPrevisto(rubrica);
+      const utilizado = toNumber(
+        rubrica?.valor_utilizado ??
+        rubrica?.valor_executado ??
+        rubrica?.utilizado ??
+        0
+      );
+      const saldo = Number.isFinite(Number(rubrica?.saldo))
+        ? toNumber(rubrica?.saldo)
+        : previsto - utilizado;
+
+      return {
+        id: rubrica?.id || rubrica?._id || rubrica?.codigo || rubrica?.nome,
+        codigo: rubrica?.codigo || rubrica?.item || '',
+        nome: rubrica?.nome || rubrica?.rubrica || rubrica?.descricao || 'Rubrica',
+        grupo: rubrica?.grupo || rubrica?.categoria || rubrica?.eixo || '',
+        previsto,
+        utilizado,
+        saldo,
+        percentual: previsto > 0 ? Number(((utilizado / previsto) * 100).toFixed(1)) : 0,
+        status: rubrica?.status || '',
+      };
+    })
+    .sort((a, b) => b.previsto - a.previsto);
+}
+
 export function buildRelatorioFisicoFinanceiroContext({
   reportsRaw = [],
   rubricasRaw = [],
@@ -540,7 +648,7 @@ export function buildRelatorioFisicoFinanceiroContext({
         equipe: report?.equipe || atividade?.equipe || '',
         categoria_editorial: categoria,
         descricao: getActivityDescription(atividade),
-        report_id: report?.id || '',
+        report_id: report?.id || report?._id || report?.created_by || '',
         author_name: report?.author_name || '',
         fotos,
         fotos_destaque: fotos.slice(0, 4),
@@ -568,6 +676,7 @@ export function buildRelatorioFisicoFinanceiroContext({
 
   const rubricasAtivas = (Array.isArray(rubricasRaw) ? rubricasRaw : []).filter((r) => r?.ativo !== false);
   const valorUtilizado = rubricasAtivas.reduce((sum, r) => sum + toNumber(r?.valor_utilizado), 0);
+  const rubricas = buildRubricasDetalhadas(rubricasRaw);
   const saldo = TOTAL_OFICIAL - valorUtilizado;
   const percentualExecucao = TOTAL_OFICIAL > 0
     ? Number(((valorUtilizado / TOTAL_OFICIAL) * 100).toFixed(1))
@@ -593,17 +702,60 @@ export function buildRelatorioFisicoFinanceiroContext({
     .reduce((sum, a) => sum + inteiro(a.publico), 0);
 
   const trechosRelatorios = buildTrechosRelatorios(reports);
+  const programacao = buildProgramacaoDetalhada(programacaoRaw, dateFrom, dateTo, museuFiltro);
+
+  const atividadesPorReportId = atividades.reduce((acc, atividade) => {
+    if (!atividade.report_id) return acc;
+    if (!acc[atividade.report_id]) acc[atividade.report_id] = [];
+    acc[atividade.report_id].push(atividade);
+    return acc;
+  }, {});
+
+  const relatoriosEquipe = reports.map((report, index) => {
+    const reportId = report?.id || report?._id || report?.created_by || `relatorio-${index}`;
+    const atividadesRelatorio = atividadesPorReportId[reportId] || [];
+
+    return {
+      id: reportId,
+      autor: report?.author_name || report?.user_name || report?.created_by || report?.email || 'Profissional não identificado',
+      email: report?.created_by || report?.email || '',
+      funcao: report?.funcao || report?.role || report?.equipe || '',
+      museu: normalizeMuseu(report?.museu || report?.equipamento),
+      mes: reportMes(report),
+      ano: report?.ano || '',
+      status: report?.status || '',
+      atividades_count: atividadesRelatorio.length || (Array.isArray(report?.atividades) ? report.atividades.length : 0),
+      publico: getPublicoReport(report),
+      resumo_executivo: report?.resumo_executivo || '',
+      resumo_periodo: report?.resumo_periodo || '',
+      pontos_positivos: report?.avaliacao_pontos_positivos || '',
+      desafios: report?.avaliacao_desafios || report?.desafios || '',
+      encaminhamentos: report?.encaminhamentos || report?.proximos_passos || report?.avaliacao_sugestoes || '',
+      comentarios: report?.comentarios_gerais || report?.comentarios_coordenacao || '',
+      trechos: extractReportTexts(report),
+      atividades: atividadesRelatorio,
+      fotos: getReportPhotos(report).slice(0, 8),
+    };
+  });
+
+  const equipeTotal = new Set(
+    relatoriosEquipe
+      .map((report) => normalizeText(report.email || report.autor))
+      .filter(Boolean)
+  ).size;
 
   return {
     periodo: { dateFrom, dateTo },
     periodo_extenso: '2 de fevereiro a 30 de abril de 2026',
     museu: museuFiltro || 'Todos',
     total_relatorios: reports.length || 25,
+    equipe_total: equipeTotal,
     total_atividades: atividades.length,
     publico_total: publicoTotal || 1625,
     por_museu: porMuseu,
     atividades,
     atividades_por_categoria: atividadesPorCategoria,
+    relatorios_equipe: relatoriosEquipe,
     trechos_relatorios: trechosRelatorios,
     conhecimento: conhecimentoTextos(conhecimentoRaw),
     valor_utilizado: valorUtilizado,
@@ -611,8 +763,10 @@ export function buildRelatorioFisicoFinanceiroContext({
     percentual_execucao: percentualExecucao,
     total_compras: compras.length,
     compras,
+    rubricas,
     fotos: atividades.flatMap((a) => a.fotos_destaque || []),
-    programacao_total: Array.isArray(programacaoRaw) ? programacaoRaw.length : 0,
+    programacao,
+    programacao_total: programacao.length,
   };
 }
 
