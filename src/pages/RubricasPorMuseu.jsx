@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import GerenciarRubricasMuseuDialog from '@/components/rubricas/GerenciarRubricasMuseuDialog';
 import RubricasMuseuEditor from '@/components/rubricas/RubricasMuseuEditor';
 import CardRubricaEditor from '@/components/rubricas/CardRubricaEditor';
+import { recalculateAllRubricasFromPurchases } from '@/components/compras/AutoRubricasSync';
 
 const MUSEUS = ['MHAB', 'MIS', 'MUMO'];
 const ABAS = ['MHAB', 'MIS', 'MUMO', 'NOTURNO'];
@@ -356,8 +357,16 @@ export default function RubricasPorMuseu() {
       await refreshAllRubricaData();
       toast.success('Rubricas recalculadas e tela atualizada com dados reais');
     } catch (e) {
-      toast.error('Erro ao recalcular rubricas');
-      console.error(e);
+      console.warn('recalculateAllRubricas indisponível. Recalculando no frontend:', e);
+      try {
+        const result = await recalculateAllRubricasFromPurchases();
+        setLastRecalcResponse(null);
+        await refreshAllRubricaData();
+        toast.success(`Rubricas atualizadas no app (${result.updated || 0} ajuste${result.updated === 1 ? '' : 's'})`);
+      } catch (fallbackError) {
+        toast.error('Erro ao recalcular rubricas');
+        console.error(fallbackError);
+      }
     }
     setIsRefreshing(false);
   };
@@ -399,7 +408,7 @@ export default function RubricasPorMuseu() {
           </div>
 
           <Tabs value={museuAtivo} onValueChange={setMuseuAtivo}>
-            {ABAS.map((m) => <TabsContent key={`${m}-${refreshNonce}`} value={m} className="m-0 p-4 bg-white"><RubricasMuseuEditor key={`${m}-${refreshNonce}`} museu={m} canEdit={canEdit} refreshKey={refreshNonce} rubricaFilter={m === 'NOTURNO' ? (rubrica) => isNoturno(rubrica) && !isHiddenRubrica(getSearchText(rubrica)) : undefined} /></TabsContent>)}
+            {ABAS.map((m) => <TabsContent key={`${m}-${refreshNonce}`} value={m} className="m-0 p-4 bg-white"><RubricasMuseuEditor key={`${m}-${refreshNonce}`} museu={m} canEdit={canEdit} refreshKey={refreshNonce} /></TabsContent>)}
           </Tabs>
         </div>
 

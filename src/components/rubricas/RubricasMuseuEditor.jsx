@@ -75,22 +75,35 @@ function getValorLancamentos(rubrica = {}) {
   return toNumber(rubrica?.valorLancamentos ?? rubrica?.valor_lancamentos ?? rubrica?.lancamentos);
 }
 
-function getValorUtilizado(rubrica = {}) {
+function getValorEstorno(rubrica = {}) {
   return toNumber(
+    rubrica?.valorEstorno ??
+      rubrica?.valor_estorno ??
+      rubrica?.valorEstornado ??
+      rubrica?.valor_estornado ??
+      rubrica?.estorno ??
+      rubrica?.estornado ??
+      rubrica?.valor_devolvido ??
+      rubrica?.devolvido
+  );
+}
+
+function getValorUtilizado(rubrica = {}) {
+  const utilizado = toNumber(
     rubrica?.valorUtilizado ??
       rubrica?.valor_utilizado ??
       rubrica?.utilizado ??
       rubrica?.realizado
   );
+  const estorno = getValorEstorno(rubrica);
+  return Number(Math.max(0, utilizado - estorno).toFixed(2));
 }
 
 function getSaldo(rubrica = {}) {
-  if (rubrica?.saldo !== undefined && rubrica?.saldo !== null) return toNumber(rubrica.saldo);
-  return getValorOrcado(rubrica) - getValorUtilizado(rubrica);
+  return Number((getValorOrcado(rubrica) - getValorUtilizado(rubrica)).toFixed(2));
 }
 
 function getPct(rubrica = {}) {
-  if (rubrica?.pct !== undefined && rubrica?.pct !== null) return toNumber(rubrica.pct);
   const total = getValorOrcado(rubrica);
   if (total <= 0) return 0;
   return Number(((getValorUtilizado(rubrica) / total) * 100).toFixed(1));
@@ -135,6 +148,15 @@ function isHiddenRubrica(text = '') {
 
 function isNoturnoRubrica(rubrica = {}) {
   return getSearchText(rubrica, true).includes('noturno');
+}
+
+function isNoturnoGrupoRubrica(rubrica = {}) {
+  return normalizeText([
+    rubrica?.grupo,
+    rubrica?.grupo_nome,
+    rubrica?.categoria,
+    rubrica?.categoria_key,
+  ].filter(Boolean).join(' ')).includes('noturno');
 }
 
 function hasMuseuToken(text = '', museu = '') {
@@ -184,6 +206,16 @@ function flattenConsolidado(consolidado = {}, museu = '') {
   return rows.filter((rubrica) => matchRubricaMuseu(rubrica, normalizedMuseu));
 }
 
+function dedupeRows(rows = []) {
+  const seen = new Set();
+  return rows.filter((rubrica) => {
+    const key = rubrica?.id || `${normalizeText(getCategoria(rubrica))}::${normalizeText(getRubricaNome(rubrica))}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function groupByCategory(rows = []) {
   const grouped = new Map();
 
@@ -200,6 +232,7 @@ function RubricaCard({ rubrica }) {
   const valorOrcado = getValorOrcado(rubrica);
   const valorPago = getValorPago(rubrica);
   const valorLancamentos = getValorLancamentos(rubrica);
+  const valorEstorno = getValorEstorno(rubrica);
   const valorUtilizado = getValorUtilizado(rubrica);
   const saldo = getSaldo(rubrica);
   const pct = getPct(rubrica);
@@ -249,6 +282,11 @@ function RubricaCard({ rubrica }) {
           <div>
             <p className="text-gray-500">Utilizado</p>
             <p className="font-semibold text-black">{formatCurrency(valorUtilizado)}</p>
+            {valorEstorno > 0 && (
+              <p className="text-[10px] text-amber-600">
+                estorno: {formatCurrency(valorEstorno)}
+              </p>
+            )}
           </div>
 
           <div>
@@ -290,6 +328,11 @@ export default function RubricasMuseuEditor({
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['rubricas-museu-editor', normalizedMuseu, refreshKey],
     queryFn: async () => {
+      if (normalizedMuseu === 'NOTURNO') {
+        const rubricas = await base44.entities.Rubrica.list('ordem_exibicao', 1000);
+        return (Array.isArray(rubricas) ? rubricas : []).filter(isNoturnoGrupoRubrica);
+      }
+
       try {
         const res = await base44.functions.invoke('getRubricasConsolidadas', {});
         const rows = flattenConsolidado(res?.data || {}, normalizedMuseu);
@@ -308,7 +351,9 @@ export default function RubricasMuseuEditor({
 
   const rows = useMemo(() => {
     const baseRows = Array.isArray(data) ? data : [];
-    const scopedRows = baseRows.filter((rubrica) => matchRubricaMuseu(rubrica, normalizedMuseu));
+    const scopedRows = normalizedMuseu === 'NOTURNO'
+      ? dedupeRows(baseRows).filter(isNoturnoGrupoRubrica)
+      : baseRows.filter((rubrica) => matchRubricaMuseu(rubrica, normalizedMuseu));
     const filtered = typeof rubricaFilter === 'function'
       ? scopedRows.filter((rubrica) => {
           try {
@@ -366,7 +411,9 @@ export default function RubricasMuseuEditor({
       <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-10 text-center">
         <p className="font-semibold text-black">Nenhuma rubrica específica encontrada.</p>
         <p className="text-sm text-gray-500 mt-1">
-          Esta aba mostra somente rubricas que mencionam exclusivamente {normalizedMuseu}. Rubricas gerais, compartilhadas ou multi-museu ficam fora desta visão.
+          {normalizedMuseu === 'NOTURNO'
+            ? 'Esta aba mostra somente rubricas cadastradas no grupo Noturno nos Museus 2026, sem rateio por museu.'
+            : `Esta aba mostra somente rubricas que mencionam exclusivamente ${normalizedMuseu}. Rubricas gerais, compartilhadas ou multi-museu ficam fora desta visão.`}
         </p>
       </div>
     );
@@ -395,7 +442,9 @@ export default function RubricasMuseuEditor({
 
       {!canEdit && (
         <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-500">
-          Filtro restaurado: esta visão exibe apenas rubricas específicas da aba selecionada.
+          {normalizedMuseu === 'NOTURNO'
+            ? 'Filtro restaurado: esta visão exibe apenas rubricas do grupo Noturno nos Museus 2026, com valores integrais e estornos aplicados quando informados.'
+            : 'Filtro restaurado: esta visão exibe apenas rubricas específicas da aba selecionada.'}
         </div>
       )}
 
