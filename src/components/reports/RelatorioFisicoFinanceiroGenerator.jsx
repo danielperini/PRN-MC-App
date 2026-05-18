@@ -5,8 +5,126 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Loader2, FileText, Download, CheckCircle2, AlertCircle, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
+import buildRelatorioFisicoFinanceiroContext from '@/utils/buildRelatorioFisicoFinanceiroContext';
+import montarHtmlRelatorioFisicoFinanceiro from '@/utils/relatorioFisicoFinanceiroTemplate';
+import gerarTextosRelatorioFisicoFinanceiro from '@/services/relatorioIAService';
 
 const MUSEUS = ['Todos', 'MIS', 'MHAB', 'MUMO'];
+
+const SECOES_RELATORIO = [
+  'capa',
+  'introducao',
+  'territorio',
+  'resumo_geral',
+  'publico',
+  'metas',
+  'programacao',
+  'agenda_programacao',
+  'atividades_museu',
+  'relatorios_completos',
+  'galeria_evidencias',
+  'comunicacao',
+  'financeiro',
+  'rubricas',
+  'prestacao',
+  'app_museu_centro',
+  'conclusao',
+];
+
+async function safeList(entity, order = '-created_date', limit = 1000) {
+  try {
+    if (!entity?.list) return [];
+    const res = await entity.list(order, limit);
+    return Array.isArray(res) ? res : [];
+  } catch (error) {
+    console.warn('Falha ao listar entidade do relatório:', error);
+    return [];
+  }
+}
+
+async function carregarBaseConhecimento() {
+  const candidatos = [
+    base44?.entities?.BaseConhecimento,
+    base44?.entities?.KnowledgeBase,
+    base44?.entities?.KnowledgeItem,
+    base44?.entities?.ProjectKnowledge,
+  ].filter(Boolean);
+
+  for (const entity of candidatos) {
+    const lista = await safeList(entity, '-updated_date', 500);
+    if (lista.length > 0) return lista;
+  }
+
+  return [];
+}
+
+function salvarPreview(html) {
+  try {
+    sessionStorage.setItem('relatorio_fisico_financeiro_html', html);
+  } catch (error) {
+    console.warn('Não foi possível salvar a prévia do relatório:', error);
+  }
+}
+
+async function gerarRelatorioDoApp(museu) {
+  const dateFrom = '2026-02-02';
+  const dateTo = '2026-04-30';
+  const museuFiltro = museu === 'Todos' ? 'todos' : museu;
+
+  const [
+    reportsRaw,
+    rubricasRaw,
+    comprasRaw,
+    attachmentsRaw,
+    programacaoRaw,
+    conhecimentoRaw,
+  ] = await Promise.all([
+    safeList(base44.entities.Report, '-updated_date', 2000),
+    safeList(base44.entities.Rubrica, 'ordem_exibicao', 2000),
+    safeList(base44.entities.PurchaseRequest, '-created_date', 2000),
+    safeList(base44.entities.Attachment, '-created_date', 3000),
+    safeList(base44.entities.Programacao, '-data_inicio', 3000),
+    carregarBaseConhecimento(),
+  ]);
+
+  const contexto = buildRelatorioFisicoFinanceiroContext({
+    reportsRaw,
+    rubricasRaw,
+    comprasRaw,
+    attachmentsRaw,
+    programacaoRaw,
+    conhecimentoRaw,
+    filtros: {
+      dateFrom,
+      dateTo,
+      museu: museuFiltro,
+      capitulos: SECOES_RELATORIO,
+    },
+  });
+
+  const contextoComEstrategia = {
+    ...contexto,
+    secoesSelecionadas: SECOES_RELATORIO,
+  };
+
+  const textos = await gerarTextosRelatorioFisicoFinanceiro(
+    contextoComEstrategia,
+    true
+  );
+
+  const html = montarHtmlRelatorioFisicoFinanceiro({
+    contexto: contextoComEstrategia,
+    textos,
+    secoesSelecionadas: SECOES_RELATORIO,
+    filtros: {
+      dateFrom,
+      dateTo,
+      museu: museu === 'Todos' ? 'Todos os museus' : museu,
+    },
+  });
+
+  return { html, contexto: contextoComEstrategia };
+}
 
 const IMG = {
   capa: 'https://images.unsplash.com/photo-1518998053901-5348d3961a04?q=80&w=1600&auto=format&fit=crop',
@@ -70,6 +188,8 @@ function buildCompleteReportHtml(museu) {
 <div class="secao"><h2>Conclusão</h2><p>O trimestre configura etapa de consolidação estrutural do Projeto Museus Centro. A transição de coordenação, os rituais de planejamento, a adoção do Museu Centro APP e a atuação integrada das equipes permitiram retomar atividades e qualificar processos de gestão, documentação e prestação de contas.</p><div class="quote">O relatório demonstra que a gestão cultural pode ser exercida com método, integridade, evidência documental e profundidade analítica à altura das instituições que representa.</div><p>Os próximos meses marcarão a entrada na fase de maior intensidade programática e financeira, com exposições, produção cultural ampliada, adequações de infraestrutura e Noturno nos Museus como eixo de maior visibilidade pública.</p></div><div class="rodape">Relatório Institucional — Projeto Museus Centro — Gerado com Museu Centro APP<br/>MIS · MHAB · MUMO · Viaduto das Artes · Noturno nos Museus — parceria DEMUS/FMC-BH</div></body></html>`;
 }
 
+void buildCompleteReportHtml;
+
 export default function RelatorioFisicoFinanceiroGenerator() {
   const [museu, setMuseu] = useState('Todos');
   const [loading, setLoading] = useState(false);
@@ -77,6 +197,10 @@ export default function RelatorioFisicoFinanceiroGenerator() {
   const [erro, setErro] = useState(null);
 
   const openPreview = (html) => {
+    salvarPreview(html);
+    const preview = window.open('/RelatorioPreview', '_blank', 'width=1200,height=900');
+    if (preview) return null;
+
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
@@ -98,18 +222,41 @@ export default function RelatorioFisicoFinanceiroGenerator() {
     setResultado(null);
     setErro(null);
     try {
-      const response = await base44.functions.invoke('gerarRelatorioFisicoFinanceiro', { museu: museu === 'Todos' ? null : museu });
-      const data = response?.data?.html ? response.data : { html: buildCompleteReportHtml(museu) };
-      setResultado(data);
+      let data = null;
+      let fonte = 'backend';
+
+      try {
+        const response = await base44.functions.invoke('gerarRelatorioFisicoFinanceiro', {
+          museu: museu === 'Todos' ? null : museu,
+          formato: 'abrangente',
+          usar_fotos_app: true,
+          incluir_relatorios_equipe: true,
+          refinar_textos_ia: true,
+        });
+
+        if (response?.data?.html) {
+          data = response.data;
+        }
+      } catch (backendError) {
+        console.warn(
+          'gerarRelatorioFisicoFinanceiro indisponível. Gerando no frontend com dados do app e textos refinados por IA.',
+          backendError
+        );
+      }
+
+      if (!data?.html) {
+        const local = await gerarRelatorioDoApp(museu);
+        data = { html: local.html, contexto: local.contexto };
+        fonte = 'frontend_ia';
+      }
+
+      setResultado({ ...data, fonte });
       openPreview(data.html);
-      toast.success('Relatório gerado com sucesso!');
+      toast.success(fonte === 'backend' ? 'Relatório gerado pela função evoluída.' : 'Relatório gerado com dados reais do app e IA.');
     } catch (err) {
       console.error(err);
-      const fallbackHtml = buildCompleteReportHtml(museu);
-      setResultado({ html: fallbackHtml });
-      openPreview(fallbackHtml);
-      setErro(err.message || 'Backend indisponível');
-      toast.error('Backend indisponível — relatório premium gerado em modo local');
+      setErro(err.message || 'Não foi possível gerar o relatório.');
+      toast.error('Não foi possível gerar o relatório.');
     } finally {
       setLoading(false);
     }
@@ -120,8 +267,8 @@ export default function RelatorioFisicoFinanceiroGenerator() {
       <div className="flex items-center gap-3 mb-6"><div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center"><FileText className="w-5 h-5 text-white" /></div><div><h2 className="text-lg font-bold text-slate-900">Gerar Relatório</h2><p className="text-sm text-slate-500">Relatório institucional premium com fotos, gráficos, metas, programação e execução financeira.</p></div></div>
       <div className="mb-6"><Label>Museu</Label><Select value={museu} onValueChange={setMuseu}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{MUSEUS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select></div>
       <Button onClick={handleGerar} disabled={loading} className="w-full">{loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}Gerar Relatório</Button>
-      {erro && <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3"><AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" /><div><p className="text-sm font-medium text-amber-800">Backend indisponível — usando relatório premium local</p><p className="text-xs text-amber-700 mt-1">{erro}</p></div></div>}
-      {resultado && <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-4"><div className="flex items-start gap-3 mb-3"><CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" /><div><p className="text-sm font-medium text-green-800">Relatório gerado com sucesso!</p></div></div><div className="flex gap-3 flex-wrap"><Button variant="outline" size="sm" onClick={() => openPreview(resultado.html)}><ExternalLink className="w-4 h-4 mr-2" />Abrir Relatório</Button><Button variant="outline" size="sm" onClick={() => downloadHtml(resultado.html)}><Download className="w-4 h-4 mr-2" />Baixar HTML</Button></div></div>}
+      {erro && <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3"><AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" /><div><p className="text-sm font-medium text-amber-800">Não foi possível gerar o relatório</p><p className="text-xs text-amber-700 mt-1">{erro}</p></div></div>}
+      {resultado && <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-4"><div className="flex items-start gap-3 mb-3"><CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" /><div><p className="text-sm font-medium text-green-800">Relatório gerado com sucesso!</p><p className="text-xs text-green-700 mt-1">{resultado.fonte === 'backend' ? 'Gerado pela função gerarRelatorioFisicoFinanceiro.' : 'Gerado no frontend com dados reais do app, fotos vinculadas e refinamento textual por IA.'}</p></div></div><div className="flex gap-3 flex-wrap"><Button variant="outline" size="sm" onClick={() => openPreview(resultado.html)}><ExternalLink className="w-4 h-4 mr-2" />Abrir Relatório</Button><Button variant="outline" size="sm" onClick={() => downloadHtml(resultado.html)}><Download className="w-4 h-4 mr-2" />Baixar HTML</Button></div></div>}
     </div>
   );
 }

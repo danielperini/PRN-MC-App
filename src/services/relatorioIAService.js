@@ -58,21 +58,89 @@ function buildAtividadeResumo(atividade, index) {
   };
 }
 
+function buildRelatorioEquipeResumo(relatorio, index) {
+  return {
+    indice: index + 1,
+    autor: relatorio?.autor,
+    funcao: relatorio?.funcao,
+    museu: relatorio?.museu,
+    mes: relatorio?.mes,
+    status: relatorio?.status,
+    atividades_count: relatorio?.atividades_count,
+    publico: relatorio?.publico,
+    resumo_executivo: relatorio?.resumo_executivo,
+    resumo_periodo: relatorio?.resumo_periodo,
+    pontos_positivos: relatorio?.pontos_positivos,
+    desafios: relatorio?.desafios,
+    encaminhamentos: relatorio?.encaminhamentos,
+    trechos: Array.isArray(relatorio?.trechos) ? relatorio.trechos.slice(0, 6) : [],
+  };
+}
+
+function buildProgramacaoResumo(item, index) {
+  return {
+    indice: index + 1,
+    titulo: item?.titulo,
+    museu: item?.museu,
+    data: item?.data,
+    local: item?.local,
+    tipo: item?.tipo,
+    status: item?.status,
+    publico_estimado: item?.publico_estimado,
+    descricao: item?.descricao,
+  };
+}
+
+function buildRubricaResumo(rubrica, index) {
+  return {
+    indice: index + 1,
+    rubrica: rubrica?.rubrica,
+    grupo: rubrica?.grupo,
+    valor_previsto: rubrica?.valor_previsto,
+    valor_utilizado: rubrica?.valor_utilizado,
+    saldo: rubrica?.saldo,
+    percentual: rubrica?.percentual,
+  };
+}
+
+function buildCompraResumo(compra, index) {
+  return {
+    indice: index + 1,
+    descricao: compra?.descricao,
+    fornecedor: compra?.fornecedor,
+    rubrica: compra?.rubrica,
+    status: compra?.status,
+    valor: compra?.valor,
+    nf_numero: compra?.nf_numero,
+  };
+}
+
 function buildPrompt(contexto = {}) {
   const atividades = Array.isArray(contexto.atividades) ? contexto.atividades : [];
   const trechos = Array.isArray(contexto.trechos_relatorios) ? contexto.trechos_relatorios : [];
   const conhecimento = Array.isArray(contexto.conhecimento) ? contexto.conhecimento : [];
+  const relatoriosEquipe = Array.isArray(contexto.relatorios_equipe) ? contexto.relatorios_equipe : [];
+  const programacao = Array.isArray(contexto.programacao) ? contexto.programacao : [];
+  const rubricas = Array.isArray(contexto.rubricas) ? contexto.rubricas : [];
+  const compras = Array.isArray(contexto.compras) ? contexto.compras : [];
 
   const payload = {
     periodo: contexto.periodo_extenso || '2 de fevereiro a 30 de abril de 2026',
     total_relatorios: contexto.total_relatorios || 25,
+    total_equipe: contexto.equipe_total || relatoriosEquipe.length,
     publico_total: contexto.publico_total || 1625,
     museu: contexto.museu || 'Todos',
+    total_atividades: contexto.total_atividades,
+    programacao_total: contexto.programacao_total,
     valor_utilizado: contexto.valor_utilizado,
     saldo: contexto.saldo,
     percentual_execucao: contexto.percentual_execucao,
     total_compras: contexto.total_compras,
     atividades: atividades.slice(0, 160).map(buildAtividadeResumo),
+    relatorios_equipe: relatoriosEquipe.slice(0, 80).map(buildRelatorioEquipeResumo),
+    programacao: programacao.slice(0, 120).map(buildProgramacaoResumo),
+    rubricas: rubricas.slice(0, 80).map(buildRubricaResumo),
+    compras: compras.slice(0, 120).map(buildCompraResumo),
     trechos_reais: trechos.slice(0, 120),
     base_conhecimento: conhecimento.slice(0, 60),
   };
@@ -115,6 +183,9 @@ Regras obrigatórias:
 15. Use os trechos reais dos relatórios aprovados como base semântica.
 16. Use agenda/programação e base de conhecimento quando disponível.
 17. Não inventar números, datas, locais ou fotos.
+18. Refinar os textos com leitura executiva, mas preservar rastreabilidade dos dados.
+19. Explicitar os avanços de uso do app, integração de dados, auditoria por IA e qualificação da gestão sem linguagem publicitária.
+20. Gerar textos específicos para território, metas, programação, comunicação, financeiro e app, pois eles serão usados como capítulos autônomos.
 
 Dados:
 ${JSON.stringify(payload, null, 2)}
@@ -122,10 +193,16 @@ ${JSON.stringify(payload, null, 2)}
 Retorne JSON válido:
 {
   "introducao": "...",
+  "contexto_territorial": "...",
   "resumo_geral": "...",
   "publico_alcancado": "...",
+  "metas": "...",
+  "programacao": "...",
   "producao_executiva": "...",
+  "comunicacao": "...",
+  "financeiro": "...",
   "prestacao": "...",
+  "app_museu_centro": "...",
   "conclusao": "...",
   "capitulos": {
     "gestao_governanca": "...",
@@ -168,6 +245,42 @@ As atividades com público concentram os indicadores quantitativos de participa�
 A consolidação também evidencia o amadurecimento da rotina de produção de dados. O aplicativo desenvolvido para o projeto passa a funcionar como instrumento de gestão, auditoria e memória institucional, permitindo que os relatórios deixem de ser apenas registros narrativos e passem a compor uma base integrada de acompanhamento físico, financeiro e documental.
 `.trim();
 
+  const contextoTerritorial = `
+O Projeto Museus Centro articula MIS, MHAB e MUMO como equipamentos complementares de memória, imagem, moda, cidade e mediação cultural no centro de Belo Horizonte. A leitura territorial do período indica que a atuação integrada dos museus permite reconhecer o centro como espaço de circulação, pesquisa, patrimônio, formação de público e produção de memória institucional. O relatório organiza essa dimensão a partir dos registros aprovados pelas equipes, das atividades públicas, das rotinas de bastidor e da documentação associada ao app.
+
+Essa abordagem territorial evita reduzir o projeto a uma sequência de eventos. O conjunto de ações revela uma infraestrutura cultural em funcionamento, sustentada por equipes, programação, comunicação, manutenção, produção executiva, registros financeiros e mediações com públicos diversos. A análise considera que cada museu possui vocação própria, mas que a leitura conjunta permite acompanhar o avanço de uma política cultural compartilhada e orientada por evidências.
+`.trim();
+
+  const metas = `
+As metas do 3º Aditivo devem ser lidas em relação ao estágio real de execução do projeto. O período consolidado corresponde a uma fase de estruturação, recomposição de rotinas, planejamento programático, organização documental, qualificação de dados e retomada de processos de gestão. Por isso, parte relevante dos avanços aparece em ações preparatórias, articulações institucionais, produção de agenda, comunicação, manutenção e consolidação de relatórios da equipe.
+
+A inteligência artificial foi utilizada como apoio para classificar as ações por natureza institucional, revisar consistência dos indicadores e diferenciar atividades com público de rotinas técnicas sem atendimento direto. Esse refinamento melhora a leitura das metas porque impede que reuniões, produções internas, fechamento de pautas ou tarefas administrativas sejam confundidas com atividade pública. Assim, o acompanhamento físico passa a refletir melhor a execução concreta do projeto.
+`.trim();
+
+  const programacao = `
+A programação do período reúne atividades públicas, ações educativas, visitas, oficinas, eventos, reuniões técnicas, etapas de planejamento e processos de produção que sustentam a presença dos museus no território. A leitura consolidada não trata todos os registros da mesma maneira: ações abertas ao público compõem os indicadores de alcance, enquanto atividades de gestão, comunicação, manutenção e produção aparecem como infraestrutura técnica de execução.
+
+O uso do app permite aproximar programação, relatório de equipe, fotos, descrição original, museu de referência, data, local e público informado. Essa integração melhora a conferência das informações e cria uma base mais robusta para os próximos ciclos. Quando a agenda disponível no sistema dialoga com os relatórios aprovados, o relatório consegue recuperar não apenas o que aconteceu, mas também como cada ação se insere na estratégia institucional do Museus Centro.
+`.trim();
+
+  const comunicacao = `
+A comunicação foi analisada como frente técnica de documentação, circulação pública e memória institucional, não apenas como divulgação de atividades. Os registros do período indicam que a produção de conteúdo, a organização de pauta, a cobertura fotográfica, a atualização de canais e a curadoria de evidências visuais compõem parte essencial da execução física do projeto. Essas ações podem não gerar público direto, mas sustentam visibilidade, transparência e continuidade documental.
+
+No relatório, a comunicação aparece articulada aos museus, à programação e às atividades registradas pelas equipes. As fotos vinculadas no app reforçam essa camada de evidência e permitem qualificar a leitura das entregas. A inteligência artificial auxilia na organização dos textos, mas os dados preservam a origem nos relatórios aprovados e nos registros administrativos, mantendo a rastreabilidade entre narrativa, imagem e execução.
+`.trim();
+
+  const financeiro = `
+A execução financeira consolidada deve ser interpretada em conjunto com o cronograma físico do projeto. O percentual utilizado até o fim do período não representa, por si só, atraso estrutural, pois os maiores custos estão previstos para etapas posteriores, especialmente a partir de junho, quando se intensificam despesas com exposições, infraestrutura, manutenção, produção cultural, fornecedores, adequações e ações de maior escala.
+
+A leitura financeira foi estruturada a partir das rubricas, compras e registros disponíveis no app. Notas fiscais, solicitações e documentos de suporte são tratados dentro da prestação de contas, evitando criar uma seção fiscal isolada e desconectada da execução. Essa forma de organização permite acompanhar saldo, utilização e vínculo entre gasto e etapa do projeto, fortalecendo a governança financeira e a capacidade de resposta da coordenação.
+`.trim();
+
+  const appMuseuCentro = `
+O relatório evidencia avanço importante no uso do aplicativo desenvolvido especificamente para o Museus Centro. A ferramenta passa a funcionar como ambiente de integração entre relatórios mensais, programação, fotos, atividades, equipe, compras, rubricas e documentação de prestação de contas. Esse desenho melhora a qualidade da informação, reduz dispersão documental e permite que a coordenação acompanhe a execução física e financeira com maior precisão.
+
+A inteligência artificial atua como camada de apoio à auditoria técnica, reorganizando textos, conferindo coerência dos indicadores e qualificando a leitura institucional dos registros. Esse uso não substitui a validação humana nem altera dados originais, mas amplia a capacidade de síntese e de identificação de inconsistências. O resultado é um relatório mais abrangente, rastreável e útil para tomada de decisão, acompanhamento da Diretoria de Museus e memória do projeto.
+`.trim();
+
   const prestacao = `
 A prestação de contas apresentada considera a execução física e financeira do projeto no período de referência. As compras, notas fiscais e solicitações financeiras não aparecem como seção isolada, mas como parte da leitura consolidada da execução e da responsabilidade administrativa do projeto. A organização desses dados no sistema permite acompanhar rubricas, valores utilizados, documentação de suporte e vínculo entre execução física e gasto realizado.
 
@@ -180,10 +293,17 @@ O desenvolvimento do aplicativo fortalece esse processo. A ferramenta permite co
 
   return {
     introducao,
+    contexto_territorial: contextoTerritorial,
+    territorio: contextoTerritorial,
     resumo_geral: resumo,
     publico_alcancado: resumo,
+    metas,
+    programacao,
     producao_executiva: resumo,
+    comunicacao,
+    financeiro,
     prestacao,
+    app_museu_centro: appMuseuCentro,
     conclusao: `
 Conclui-se que o período consolidado demonstra avanço relevante na estruturação técnica, administrativa e cultural do projeto Museus Centro. A organização das atividades por natureza institucional permite leitura mais precisa dos resultados e evita distorções nos indicadores de público. O relatório evidencia a importância de diferenciar ações públicas de rotinas internas, reconhecendo que gestão, produção, comunicação e manutenção são dimensões essenciais para que as atividades educativas e culturais aconteçam com qualidade.
 
@@ -212,10 +332,17 @@ function normalizeResult(result = {}, contexto = {}) {
 
   return {
     introducao: ensureMinText(result?.introducao, fallback.introducao),
+    contexto_territorial: ensureMinText(result?.contexto_territorial || result?.territorio, fallback.contexto_territorial),
+    territorio: ensureMinText(result?.territorio || result?.contexto_territorial, fallback.territorio),
     resumo_geral: ensureMinText(result?.resumo_geral, fallback.resumo_geral),
     publico_alcancado: ensureMinText(result?.publico_alcancado, fallback.publico_alcancado),
+    metas: ensureMinText(result?.metas, fallback.metas),
+    programacao: ensureMinText(result?.programacao, fallback.programacao),
     producao_executiva: ensureMinText(result?.producao_executiva, fallback.producao_executiva),
+    comunicacao: ensureMinText(result?.comunicacao, fallback.comunicacao),
+    financeiro: ensureMinText(result?.financeiro, fallback.financeiro),
     prestacao: ensureMinText(result?.prestacao, fallback.prestacao),
+    app_museu_centro: ensureMinText(result?.app_museu_centro, fallback.app_museu_centro),
     conclusao: ensureMinText(result?.conclusao, fallback.conclusao),
     capitulos: {
       gestao_governanca: ensureMinText(result?.capitulos?.gestao_governanca, fallback.capitulos.gestao_governanca),
@@ -250,10 +377,17 @@ export async function gerarTextosRelatorioFisicoFinanceiro(contexto = {}, usarIA
         type: 'object',
         properties: {
           introducao: { type: 'string' },
+          contexto_territorial: { type: 'string' },
+          territorio: { type: 'string' },
           resumo_geral: { type: 'string' },
           publico_alcancado: { type: 'string' },
+          metas: { type: 'string' },
+          programacao: { type: 'string' },
           producao_executiva: { type: 'string' },
+          comunicacao: { type: 'string' },
+          financeiro: { type: 'string' },
           prestacao: { type: 'string' },
+          app_museu_centro: { type: 'string' },
           conclusao: { type: 'string' },
           capitulos: {
             type: 'object',

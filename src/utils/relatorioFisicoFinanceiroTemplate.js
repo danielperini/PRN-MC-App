@@ -2334,8 +2334,7 @@ export function montarHtmlRelatorioFisicoFinanceiro({
   ${legacyHasSection(secoesSelecionadas, 'app_museu_centro') ? `
     <div class="secao">
       <h2>Museu Centro APP</h2>
-      <p>O Museu Centro APP opera como base de gestão, memória institucional e prestação de contas do projeto. A plataforma centraliza relatórios mensais, programação, fotos, anexos, solicitações de compra, notas fiscais, rubricas e base de conhecimento, reduzindo dispersão documental e qualificando a conferência das entregas.</p>
-      <p>Na geração deste relatório, o app funciona como fonte primária: os dados consolidados derivam dos registros aprovados pelas equipes e dos documentos anexados, enquanto a camada editorial organiza esses dados em narrativa institucional, tabelas e evidências visuais.</p>
+      ${paragraphize(textos.app_museu_centro || 'O Museu Centro APP opera como base de gestão, memória institucional e prestação de contas do projeto. A plataforma centraliza relatórios mensais, programação, fotos, anexos, solicitações de compra, notas fiscais, rubricas e base de conhecimento, reduzindo dispersão documental e qualificando a conferência das entregas. Na geração deste relatório, o app funciona como fonte primária: os dados consolidados derivam dos registros aprovados pelas equipes e dos documentos anexados, enquanto a camada editorial organiza esses dados em narrativa institucional, tabelas e evidências visuais.')}
     </div>
   ` : ''}
 
