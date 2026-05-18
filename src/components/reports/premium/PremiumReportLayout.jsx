@@ -919,13 +919,11 @@ function MonthlyAgendaSection({ contexto }) {
                 </p>
                 <h3>{sanitizeReportText(item.titulo)}</h3>
               </div>
-              {!item.isCommunicationCard ? (
-                {(item.publicoRegistrado > 0 || item.publicoEstimado > 0) ? (
+              {!item.isCommunicationCard && (item.publicoRegistrado > 0 || item.publicoEstimado > 0) ? (
                 <div className="premium-public-highlight">
                   <strong>{item.publicoRegistrado > 0 ? fmtInt(item.publicoRegistrado) : item.publicoEstimado > 0 ? fmtInt(item.publicoEstimado) : ''}</strong>
                   <span>{item.publicoTipo === 'estimado' ? 'público estimado' : 'participantes'}</span>
                 </div>
-              ) : null}
               ) : null}
             </header>
             {buildPublicContext(item) ? <p className="premium-public-context">{buildPublicContext(item)}</p> : null}
@@ -998,7 +996,7 @@ function PhotoEvidenceDenseSection({ contexto }) {
             <span>{sanitizeReportText(photo.atividade || 'Atividade vinculada ao app')}</span>
             <small>{photo.museu || 'Museus Centro'}</small>
             <small>{cleanFileName(photo.fileName || photo.link)}</small>
-            <PremiumAttachmentThumbnail photo={photo} activity={activity} />
+            <PremiumAttachmentThumbnail photo={photo} activity={null} />
 <small>Local: {photo.localizacao?.label || resolveMuseumLocation(photo)}</small>
             <small>Crédito: {photo.credito || resolveMuseumCredit(photo)}</small>
             {photo.link ? <a href={photo.link} target="_blank" rel="noreferrer">Abrir arquivo</a> : null}
