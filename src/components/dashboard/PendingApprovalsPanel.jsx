@@ -59,23 +59,42 @@ export default function PendingApprovalsPanel() {
       const permissions = await base44.entities.UserPermission.filter({
         user_email: user.email.toLowerCase(),
       });
+      const requestedRole = user.role || user.base_role || 'PROFISSIONAL';
+      const sponsorDefaults = requestedRole === 'PATROCINADOR'
+        ? {
+            can_view_sponsor_dashboard: true,
+            can_view_approved_reports: true,
+            can_view_approved_programacao: true,
+            can_view_public_gallery: true,
+            can_view_budget_summary: true,
+            can_view_project_kpis: true,
+            must_submit_monthly_reports: false,
+            funcao: 'Patrocinador',
+            equipe: 'Patrocinador',
+          }
+        : {};
+
+      const permissionData = {
+        user_email: user.email.toLowerCase(),
+        user_name: user.full_name || '',
+        base_role: requestedRole,
+        can_view_all_reports: false,
+        can_review_reports: false,
+        can_manage_users: false,
+        can_manage_files: false,
+        can_manage_platform: false,
+        can_view_audit_log: false,
+        can_manage_museus: false,
+        can_manage_equipes: false,
+        must_submit_monthly_reports: requestedRole === 'PATROCINADOR' ? false : true,
+        gestao_compras: false,
+        ...sponsorDefaults,
+      };
 
       if (!permissions?.length) {
-        await base44.entities.UserPermission.create({
-          user_email: user.email.toLowerCase(),
-          user_name: user.full_name || '',
-          base_role: 'PROFISSIONAL',
-          can_view_all_reports: false,
-          can_review_reports: false,
-          can_manage_users: false,
-          can_manage_files: false,
-          can_manage_platform: false,
-          can_view_audit_log: false,
-          can_manage_museus: false,
-          can_manage_equipes: false,
-          must_submit_monthly_reports: true,
-          gestao_compras: false,
-        });
+        await base44.entities.UserPermission.create(permissionData);
+      } else {
+        await base44.entities.UserPermission.update(permissions[0].id, permissionData);
       }
 
       try {

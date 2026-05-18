@@ -6,6 +6,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 const MUSEUS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
+const ROLES = [
+  { value: 'COORDENADOR', label: 'Coordenador' },
+  { value: 'PROFISSIONAL', label: 'Profissional' },
+  { value: 'OBSERVADOR', label: 'Observador' },
+  { value: 'PATROCINADOR', label: 'Patrocinador' },
+];
 const FUNCOES = ['Educador', 'Produtor Cultural', 'Comunicador', 'Administrador', 'Outro'];
 
 function NativeSelect({ value, onChange, placeholder, options }) {
@@ -17,7 +23,7 @@ function NativeSelect({ value, onChange, placeholder, options }) {
     >
       <option value="">{placeholder}</option>
       {options.map((item) => (
-        <option key={item} value={item}>{item}</option>
+        <option key={item.value || item} value={item.value || item}>{item.label || item}</option>
       ))}
     </select>
   );
@@ -29,7 +35,7 @@ const UserNotRegisteredError = () => {
   const [error, setError] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [userName, setUserName] = useState('');
-  const [form, setForm] = useState({ full_name: '', email: '', museu: '', funcao: '' });
+  const [form, setForm] = useState({ full_name: '', email: '', museu: '', role: 'PROFISSIONAL', funcao: '' });
   const [approvedRegistration, setApprovedRegistration] = useState(null);
 
 
@@ -67,6 +73,13 @@ const UserNotRegisteredError = () => {
   }, []);
 
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
+  const setRole = (role) => setForm(prev => ({
+    ...prev,
+    role,
+    funcao: role === 'PATROCINADOR' ? 'Patrocinador' : prev.funcao,
+    equipe: role === 'PATROCINADOR' ? 'Patrocinador' : prev.equipe,
+    museu: role === 'PATROCINADOR' && !prev.museu ? 'Atuação Geral' : prev.museu,
+  }));
 
   const handleSubmit = async () => {
     if (!form.full_name || !form.email || !form.museu) {
@@ -80,7 +93,10 @@ const UserNotRegisteredError = () => {
         full_name: form.full_name.trim(),
         email: form.email.trim().toLowerCase(),
         museu: form.museu,
+        role: form.role || 'PROFISSIONAL',
+        base_role: form.role || 'PROFISSIONAL',
         funcao: form.funcao || '',
+        equipe: form.role === 'PATROCINADOR' ? 'Patrocinador' : '',
         status: 'PENDENTE',
       });
       setStep('done');
@@ -187,6 +203,15 @@ const UserNotRegisteredError = () => {
                 />
               </div>
               <div>
+                <Label>Perfil de acesso <span className="text-red-500">*</span></Label>
+                <NativeSelect
+                  value={form.role}
+                  onChange={setRole}
+                  placeholder="Selecione o perfil"
+                  options={ROLES}
+                />
+              </div>
+              <div>
                 <Label>Museu de atuação <span className="text-red-500">*</span></Label>
                 <NativeSelect
                   value={form.museu}
@@ -195,15 +220,21 @@ const UserNotRegisteredError = () => {
                   options={MUSEUS}
                 />
               </div>
-              <div>
-                <Label>Função</Label>
-                <NativeSelect
-                  value={form.funcao}
-                  onChange={v => set('funcao', v)}
-                  placeholder="Selecione uma função"
-                  options={FUNCOES}
-                />
-              </div>
+              {form.role !== 'PATROCINADOR' ? (
+                <div>
+                  <Label>Função</Label>
+                  <NativeSelect
+                    value={form.funcao}
+                    onChange={v => set('funcao', v)}
+                    placeholder="Selecione uma função"
+                    options={FUNCOES}
+                  />
+                </div>
+              ) : (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                  Perfil patrocinador selecionado. Função e equipe serão preenchidas como <strong>Patrocinador</strong>.
+                </div>
+              )}
             </div>
 
             {error && (

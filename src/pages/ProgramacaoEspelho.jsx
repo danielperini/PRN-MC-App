@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RefreshCw, Calendar } from 'lucide-react';
+import { isPatrocinador } from '@/components/auth/permissions';
 
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -252,6 +253,7 @@ async function syncProgramacaoFromFonte() {
 
 export default function ProgramacaoEspelho() {
   const nextMonthSelection = getNextMonthSelection();
+  const [isSponsor, setIsSponsor] = useState(false);
   const [allProgramacoes, setAllProgramacoes] = useState([]);
   const [programacoes, setProgramacoes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -259,6 +261,19 @@ export default function ProgramacaoEspelho() {
   const [mesSelecionado, setMesSelecionado] = useState(nextMonthSelection.mes);
   const [museuSelecionado, setMuseuSelecionado] = useState(ALL_VALUE);
   const [anoSelecionado, setAnoSelecionado] = useState(nextMonthSelection.ano);
+
+  useEffect(() => {
+    let mounted = true;
+    base44.auth.me().then(async (user) => {
+      let permission = null;
+      try {
+        const permissions = await base44.entities.UserPermission.filter({ user_email: user.email.toLowerCase() });
+        permission = permissions?.[0] || null;
+      } catch {}
+      if (mounted) setIsSponsor(isPatrocinador({ ...user, base_role: permission?.base_role || user.base_role }));
+    }).catch(() => {});
+    return () => { mounted = false; };
+  }, []);
 
   useEffect(() => {
     carregarProgramacoes({ syncFonte: false });
@@ -371,10 +386,12 @@ export default function ProgramacaoEspelho() {
           <h1 className="text-2xl font-bold text-slate-900">Programação</h1>
           <p className="text-slate-500 text-sm mt-1">Visualização da programação registrada no sistema</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => carregarProgramacoes({ syncFonte: true })} disabled={loading || syncing}>
-          <RefreshCw className={`w-4 h-4 mr-2 ${(loading || syncing) ? 'animate-spin' : ''}`} />
-          {syncing ? 'Sincronizando' : 'Atualizar'}
-        </Button>
+        {!isSponsor && (
+          <Button variant="outline" size="sm" onClick={() => carregarProgramacoes({ syncFonte: true })} disabled={loading || syncing}>
+            <RefreshCw className={`w-4 h-4 mr-2 ${(loading || syncing) ? 'animate-spin' : ''}`} />
+            {syncing ? 'Sincronizando' : 'Atualizar'}
+          </Button>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-3">

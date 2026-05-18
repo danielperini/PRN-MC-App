@@ -31,6 +31,7 @@ import {
   isPatrocinador,
   canManageUsers,
   SIDEBAR_OBSERVADOR,
+  SIDEBAR_PATROCINADOR,
   SIDEBAR_PROFISSIONAL,
 } from '@/components/auth/permissions';
 import SidebarTooltip from './SidebarTooltip';
@@ -201,6 +202,41 @@ const NAV_GROUPS = [
   },
 ];
 
+const SPONSOR_NAV_GROUPS = [
+  {
+    label: '',
+    items: [
+      { path: 'DashboardPatrocinador', label: 'Dashboard', icon: LayoutDashboard, roles: ['all'] },
+    ],
+  },
+  {
+    label: 'Institucional',
+    items: [
+      { path: 'ComunicacaoVisibilidade', label: 'Comunicação', icon: Newspaper, roles: ['all'] },
+      { path: 'Agenda', label: 'Agenda Museu Centro', icon: CalendarDays, roles: ['all'] },
+      { path: 'MuseusNoMapa', label: 'Agenda por Museu', icon: CalendarDays, roles: ['all'] },
+      { path: 'ProgramacaoEspelho', label: 'Programação Completa', icon: Star, roles: ['all'] },
+      { path: 'GaleriaFotos', label: 'Galeria', icon: Image, roles: ['all'] },
+    ],
+  },
+  {
+    label: 'Indicadores',
+    items: [
+      { path: 'FinanceiroPatrocinador', label: 'Financeiro', icon: DollarSign, roles: ['all'] },
+      { path: 'RubricasPorMuseu', label: 'Orçamento por Museu', icon: DollarSign, roles: ['all'] },
+    ],
+  },
+  {
+    label: 'Conta',
+    items: [
+      { path: 'Mensagens', label: 'Mensagens', icon: MessageSquare, roles: ['all'] },
+      { path: 'Manual', label: 'Central de Ajuda', icon: HelpCircle, roles: ['all'] },
+      { path: 'Aparencia', label: 'Aparência', icon: Palette, roles: ['all'] },
+      { path: 'MeusDados', label: 'Meus Dados', icon: User, roles: ['all'] },
+    ],
+  },
+];
+
 function NavItem({ item, isActive, collapsed, userPermission, user }) {
   const Icon = item.icon;
 
@@ -234,7 +270,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
     async function loadPerm() {
       if (!currentUser?.email) return;
       try {
-        const perms = await base44.entities.UserPermission.filter({ user_email: currentUser.email });
+        const perms = await base44.entities.UserPermission.filter({ user_email: currentUser.email.toLowerCase() });
         if (mounted) setUserPermission(perms?.[0] || null);
       } catch {
         if (mounted) setUserPermission(null);
@@ -244,13 +280,18 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
     return () => { mounted = false; };
   }, [currentUser?.email]);
 
-  const coord = isCoordenador(currentUser);
-  const obs = isObservador(currentUser, userPermission);
-  const sponsor = isPatrocinador(currentUser);
+  const currentUserWithPermission = currentUser ? { ...currentUser, base_role: userPermission?.base_role || currentUser.base_role } : null;
+  const coord = isCoordenador(currentUserWithPermission);
+  const sponsor = isPatrocinador(currentUserWithPermission);
+  const obs = isObservador(currentUserWithPermission, userPermission);
+  const sourceGroups = sponsor ? SPONSOR_NAV_GROUPS : NAV_GROUPS;
 
-  const filteredGroups = NAV_GROUPS.map(group => ({
+  const filteredGroups = sourceGroups.map(group => ({
     ...group,
     items: group.items.filter(item => {
+      if (sponsor) {
+        return SIDEBAR_PATROCINADOR.has(item.path);
+      }
       if (item.hideForObservador && obs) return false;
       if (item.permission === 'canManageUsers' && !canManageUsers(currentUser, userPermission)) return false;
       if (item.permission === 'canManagePlatform' && currentUser?.role !== 'admin') return false;
@@ -259,9 +300,8 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
 
       // Observador: mostrar apenas items permitidos
       if (obs) {
-        return SIDEBAR_OBSERVADOR.includes(item.path);
+        return SIDEBAR_OBSERVADOR.has(item.path);
       }
-      // Patrocinador: redireciona no App.jsx, mas se chegou aqui mostrar painel
       return true;
     }),
   })).filter(group => group.items.length > 0);
@@ -306,7 +346,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
             <div className="space-y-0.5">
               {group.items.map(item => (
                 <NavItem
-                  key={item.path}
+                  key={`${item.path}-${item.label}`}
                   item={item}
                   isActive={currentPageName === item.path}
                   collapsed={collapsed}

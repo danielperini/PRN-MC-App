@@ -42,11 +42,49 @@ const PERMISSION_GROUPS = [
   { key: 'must_submit_monthly_reports', label: 'Enviar relatório mensal' },
 ];
 
+const SPONSOR_PERMISSION_DEFAULTS = {
+  can_view_sponsor_dashboard: true,
+  can_view_approved_reports: true,
+  can_view_approved_programacao: true,
+  can_view_public_gallery: true,
+  can_view_budget_summary: true,
+  can_view_project_kpis: true,
+  can_review_reports: false,
+  can_manage_users: false,
+  can_manage_files: false,
+  can_manage_platform: false,
+  gestao_compras: false,
+  pode_aprovar_solicitacoes: false,
+  must_submit_monthly_reports: false,
+};
+
+function defaultsForRole(role) {
+  if (role === 'PATROCINADOR') {
+    return {
+      ...SPONSOR_PERMISSION_DEFAULTS,
+      funcao: 'Patrocinador',
+      equipe: 'Patrocinador',
+    };
+  }
+  if (role === 'OBSERVADOR') {
+    return {
+      can_review_reports: false,
+      can_manage_users: false,
+      can_manage_files: false,
+      can_manage_platform: false,
+      gestao_compras: false,
+      pode_aprovar_solicitacoes: false,
+      must_submit_monthly_reports: false,
+    };
+  }
+  return {};
+}
+
 function EditDialog({ user, onClose }) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState({
     full_name: user.full_name || '',
-    role: user.role || 'user',
+    role: user.role === 'user' ? 'PROFISSIONAL' : (user.role || 'PROFISSIONAL'),
     funcao: user.funcao || '',
     equipe: user.equipe || '',
   });
@@ -55,7 +93,10 @@ function EditDialog({ user, onClose }) {
   async function save() {
     setSaving(true);
     try {
-      await base44.entities.User.update(user.id, form);
+      await base44.entities.User.update(user.id, {
+        ...form,
+        ...(form.role === 'PATROCINADOR' ? { funcao: 'Patrocinador', equipe: 'Patrocinador' } : {}),
+      });
       toast.success('Usuário atualizado!');
       queryClient.invalidateQueries(['user-management']);
       onClose();
@@ -103,10 +144,20 @@ function EditDialog({ user, onClose }) {
           </div>
           <div>
             <Label className="text-sm mb-1 block">Papel</Label>
-            <Select value={form.role} onValueChange={v => setForm({ ...form, role: v })}>
+            <Select
+              value={form.role}
+              onValueChange={v => setForm({
+                ...form,
+                role: v,
+                ...(v === 'PATROCINADOR' ? { funcao: 'Patrocinador', equipe: 'Patrocinador' } : {}),
+              })}
+            >
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="user">Usuário</SelectItem>
+                <SelectItem value="PROFISSIONAL">Profissional</SelectItem>
+                <SelectItem value="COORDENADOR">Coordenador</SelectItem>
+                <SelectItem value="OBSERVADOR">Observador</SelectItem>
+                <SelectItem value="PATROCINADOR">Patrocinador</SelectItem>
                 <SelectItem value="admin">Admin</SelectItem>
               </SelectContent>
             </Select>
@@ -144,15 +195,25 @@ function PermissionsDialog({ user, permissions, onClose }) {
   const [perms, setPerms] = useState(permissions || {});
   const [saving, setSaving] = useState(false);
 
+  const handleRoleChange = (newRole) => {
+    setRole(newRole);
+    setPerms((prev) => ({ ...prev, ...defaultsForRole(newRole) }));
+  };
+
   async function save() {
     setSaving(true);
     try {
-      const data = { ...perms, base_role: role, user_email: user.email, user_name: user.full_name };
+      const roleDefaults = defaultsForRole(role);
+      const data = { ...perms, ...roleDefaults, base_role: role, user_email: user.email, user_name: user.full_name };
       if (perms?.id) {
         await base44.entities.UserPermission.update(perms.id, data);
       } else {
         await base44.entities.UserPermission.create(data);
       }
+      await base44.entities.User.update(user.id, {
+        role,
+        ...(role === 'PATROCINADOR' ? { funcao: 'Patrocinador', equipe: 'Patrocinador' } : {}),
+      });
       toast.success('Permissões salvas!');
       queryClient.invalidateQueries(['user-management']);
       onClose();
@@ -167,7 +228,7 @@ function PermissionsDialog({ user, permissions, onClose }) {
         <div className="space-y-4 py-2">
           <div>
             <Label className="text-sm font-semibold mb-2 block">Papel principal</Label>
-            <Select value={role} onValueChange={setRole}>
+            <Select value={role} onValueChange={handleRoleChange}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="PROFISSIONAL">Profissional</SelectItem>
@@ -312,12 +373,17 @@ export default function UserManagement() {
   async function handleRoleChange(user, newRole) {
     try {
       const perms = user.permissions;
-      const d = { base_role: newRole, user_email: user.email, user_name: user.full_name };
+      const roleDefaults = defaultsForRole(newRole);
+      const d = { ...roleDefaults, base_role: newRole, user_email: user.email, user_name: user.full_name };
       if (perms?.id) {
         await base44.entities.UserPermission.update(perms.id, { ...perms, ...d });
       } else {
         await base44.entities.UserPermission.create(d);
       }
+      await base44.entities.User.update(user.id, {
+        role: newRole,
+        ...(newRole === 'PATROCINADOR' ? { funcao: 'Patrocinador', equipe: 'Patrocinador' } : {}),
+      });
       toast.success(`Papel alterado para ${newRole}`);
       queryClient.invalidateQueries(['user-management']);
     } catch (e) { toast.error('Erro: ' + e.message); }

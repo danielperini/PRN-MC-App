@@ -15,6 +15,12 @@ import {
 } from '@/components/ui/dialog';
 
 const MUSEUS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
+const ROLES = [
+  { value: 'COORDENADOR', label: 'Coordenador' },
+  { value: 'PROFISSIONAL', label: 'Profissional' },
+  { value: 'OBSERVADOR', label: 'Observador' },
+  { value: 'PATROCINADOR', label: 'Patrocinador' },
+];
 const FUNCOES = ['Educador', 'Produtor Cultural', 'Comunicador', 'Administrador', 'Outro'];
 const EQUIPES = ['Comunicação', 'Administração', 'Educativo', 'Produção', 'Outra'];
 
@@ -22,6 +28,7 @@ const EMPTY = {
   full_name: '',
   email: '',
   museu: '',
+  role: 'PROFISSIONAL',
   funcao: '',
   equipe: '',
   password: '',
@@ -51,8 +58,8 @@ function NativeSelect({ value, onChange, placeholder, options }) {
     >
       <option value="">{placeholder}</option>
       {options.map((item) => (
-        <option key={item} value={item}>
-          {item}
+        <option key={item.value || item} value={item.value || item}>
+          {item.label || item}
         </option>
       ))}
     </select>
@@ -70,6 +77,16 @@ export default function Cadastro() {
     setForm((prev) => ({
       ...prev,
       [k]: v,
+    }));
+  };
+
+  const setRole = (role) => {
+    setForm((prev) => ({
+      ...prev,
+      role,
+      funcao: role === 'PATROCINADOR' ? 'Patrocinador' : prev.funcao,
+      equipe: role === 'PATROCINADOR' ? 'Patrocinador' : prev.equipe,
+      museu: role === 'PATROCINADOR' && !prev.museu ? 'Atuação Geral' : prev.museu,
     }));
   };
 
@@ -103,7 +120,7 @@ export default function Cadastro() {
           funcao: form.funcao || '',
           equipe: form.equipe || '',
           password: form.password,
-          role: 'PROFISSIONAL',
+          role: form.role || 'PROFISSIONAL',
         });
       }
 
@@ -111,6 +128,8 @@ export default function Cadastro() {
         full_name: form.full_name.trim(),
         email,
         museu: form.museu,
+        role: form.role || 'PROFISSIONAL',
+        base_role: form.role || 'PROFISSIONAL',
         funcao: form.funcao || '',
         equipe: form.equipe || '',
         status: 'PENDENTE',
@@ -212,7 +231,7 @@ export default function Cadastro() {
             <p className="text-gray-500 mt-1 text-sm">
               {directPasswordFlow
                 ? 'Seu domínio permite criação imediata de acesso com senha.'
-                : 'Preencha o formulário abaixo. Após a análise de um coordenador seu perfil poderá ser aprovado.'}
+                : 'Preencha os dados essenciais. Após a análise de um coordenador seu perfil poderá ser aprovado.'}
             </p>
           </div>
 
@@ -242,6 +261,21 @@ export default function Cadastro() {
 
             <div>
               <Label>
+                Perfil de acesso <span className="text-red-500">*</span>
+              </Label>
+              <NativeSelect
+                value={form.role}
+                onChange={setRole}
+                placeholder="Selecione o perfil"
+                options={ROLES}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                {ROLES.find((item) => item.value === form.role)?.label || 'Selecione o perfil'}
+              </p>
+            </div>
+
+            <div>
+              <Label>
                 Museu de atuação <span className="text-red-500">*</span>
               </Label>
               <NativeSelect
@@ -252,25 +286,33 @@ export default function Cadastro() {
               />
             </div>
 
-            <div>
-              <Label>Função</Label>
-              <NativeSelect
-                value={form.funcao}
-                onChange={(value) => set('funcao', value)}
-                placeholder="Selecione uma função"
-                options={FUNCOES}
-              />
-            </div>
+            {form.role !== 'PATROCINADOR' ? (
+              <>
+                <div>
+                  <Label>Função</Label>
+                  <NativeSelect
+                    value={form.funcao}
+                    onChange={(value) => set('funcao', value)}
+                    placeholder="Selecione uma função"
+                    options={FUNCOES}
+                  />
+                </div>
 
-            <div>
-              <Label>Equipe</Label>
-              <NativeSelect
-                value={form.equipe}
-                onChange={(value) => set('equipe', value)}
-                placeholder="Selecione uma equipe"
-                options={EQUIPES}
-              />
-            </div>
+                <div>
+                  <Label>Equipe</Label>
+                  <NativeSelect
+                    value={form.equipe}
+                    onChange={(value) => set('equipe', value)}
+                    placeholder="Selecione uma equipe"
+                    options={EQUIPES}
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                Perfil patrocinador selecionado. O sistema preencherá automaticamente função e equipe como <strong>Patrocinador</strong>.
+              </div>
+            )}
 
             {directPasswordFlow && (
               <>

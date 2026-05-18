@@ -23,26 +23,29 @@ export function isCoordenador(user) {
   if (!user) return false;
   if (user.email === COORD_GERAL_EMAIL) return true;
   if (user.can_manage_users === true) return true;
+  const role = String(user.role || '').toUpperCase();
+  const baseRole = String(user.base_role || '').toUpperCase();
   return [
-    'COORDENADOR', 'ADMIN', 'admin',
+    'COORDENADOR', 'ADMIN',
     'COORD_PRODUCAO', 'COORD_ADMINISTRATIVA',
     'COORD_COMUNICACAO', 'COORD_PROGRAMACAO',
     'CONSULTORIA_PROGRAMACAO',
-  ].includes(user.role);
+  ].includes(role) || ['COORDENADOR', 'ADMIN'].includes(baseRole);
 }
 
 /** Patrocinador / Observador externo: acesso apenas a dados públicos aprovados */
 export function isPatrocinador(user) {
   if (!user) return false;
-  return user.role === 'PATROCINADOR' || user.base_role === 'PATROCINADOR';
+  const role = String(user.role || '').toUpperCase();
+  const baseRole = String(user.base_role || '').toUpperCase();
+  return role === 'PATROCINADOR' || baseRole === 'PATROCINADOR';
 }
 
 /** Observador interno: acesso limitado a módulos públicos/operacionais */
 export function isObservador(user, userPermission) {
   if (!user) return false;
-  if (isPatrocinador(user)) return true;
-  const baseRole = userPermission?.base_role || user.base_role || '';
-  const role = user.role || '';
+  const baseRole = String(userPermission?.base_role || user.base_role || '').toUpperCase();
+  const role = String(user.role || '').toUpperCase();
   return baseRole === 'OBSERVADOR' || role === 'OBSERVADOR';
 }
 
@@ -80,6 +83,26 @@ export const OBSERVADOR_PAGES = new Set([
   'MeusDados',
   'Perfil',
   'Manual',
+]);
+
+export const PATROCINADOR_PAGES = new Set([
+  'DashboardPatrocinador',
+  'FinanceiroPatrocinador',
+  'ComunicacaoVisibilidade',
+  'Agenda',
+  'ProgramacaoEspelho',
+  'GaleriaFotos',
+  'RubricasPorMuseu',
+  'MuseusNoMapa',
+  'MhaabMap',
+  'MisMap',
+  'MumoMap',
+  'ViadutoMap',
+  'Mensagens',
+  'Manual',
+  'Aparencia',
+  'MeusDados',
+  'Perfil',
 ]);
 
 export const PROFISSIONAL_EXTRA_PAGES = new Set([
@@ -127,10 +150,25 @@ export const COORDENADOR_ONLY_PAGES = new Set([
 export function canAccessPage(pageName, user, userPermission) {
   if (!user) return false;
   if (isCoordenador(user)) return true;
-  if (isPatrocinador(user)) return OBSERVADOR_PAGES.has(pageName);
+  if (isPatrocinador(user)) return PATROCINADOR_PAGES.has(pageName);
   if (isObservador(user, userPermission)) return OBSERVADOR_PAGES.has(pageName);
   return PROFISSIONAL_PAGES.has(pageName);
 }
+
+export const SIDEBAR_PATROCINADOR = new Set([
+  'DashboardPatrocinador',
+  'FinanceiroPatrocinador',
+  'ComunicacaoVisibilidade',
+  'Agenda',
+  'MuseusNoMapa',
+  'ProgramacaoEspelho',
+  'GaleriaFotos',
+  'RubricasPorMuseu',
+  'Mensagens',
+  'Manual',
+  'Aparencia',
+  'MeusDados',
+]);
 
 export const SIDEBAR_OBSERVADOR = new Set([
   'Dashboard',

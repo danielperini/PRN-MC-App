@@ -296,14 +296,16 @@ export default function RubricasPorMuseu() {
     base44.auth.me().then(async (user) => {
       setCurrentUser(user);
       if (user?.email) {
-        const perms = await base44.entities.UserPermission.filter({ user_email: user.email });
+        const perms = await base44.entities.UserPermission.filter({ user_email: user.email.toLowerCase() });
         setUserPermission(perms?.[0] || null);
       }
     }).catch(() => {});
   }, []);
 
+  const userRole = String(userPermission?.base_role || currentUser?.role || '').toUpperCase();
+  const isSponsor = userRole === 'PATROCINADOR';
   const isCoordenador = currentUser && ['COORDENADOR', 'ADMIN', 'admin'].includes(currentUser?.role);
-  const canEdit = isCoordenador || userPermission?.pode_gerenciar_rubricas || userPermission?.gestao_compras;
+  const canEdit = !isSponsor && (isCoordenador || userPermission?.pode_gerenciar_rubricas || userPermission?.gestao_compras);
 
   const { data: consolidado, refetch: refetchConsolidado } = useQuery({
     queryKey: ['rubricas-consolidadas', refreshNonce],
@@ -379,10 +381,12 @@ export default function RubricasPorMuseu() {
             <h1 className="text-3xl font-semibold text-black tracking-tight flex items-center gap-2"><TrendingUp className="w-6 h-6 text-black" />Rubricas por Museu</h1>
             <p className="text-gray-500 mt-1 text-sm">Acompanhamento orçamentário consolidado por museu.</p>
           </div>
-          <div className="flex gap-2 flex-wrap">
-            <Button variant="outline" className="gap-2 border-gray-200 text-black hover:bg-gray-50 rounded-xl" onClick={handleRefresh} disabled={isRefreshing}><RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />Recalcular</Button>
-            {isCoordenador && <Button variant="outline" className="gap-2 border-gray-200 text-black hover:bg-gray-50 rounded-xl" onClick={() => setShowCardEditor(true)}><LayoutGrid className="w-4 h-4" />Editor de Cards</Button>}
-          </div>
+          {canEdit && (
+            <div className="flex gap-2 flex-wrap">
+              <Button variant="outline" className="gap-2 border-gray-200 text-black hover:bg-gray-50 rounded-xl" onClick={handleRefresh} disabled={isRefreshing}><RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />Recalcular</Button>
+              {isCoordenador && <Button variant="outline" className="gap-2 border-gray-200 text-black hover:bg-gray-50 rounded-xl" onClick={() => setShowCardEditor(true)}><LayoutGrid className="w-4 h-4" />Editor de Cards</Button>}
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

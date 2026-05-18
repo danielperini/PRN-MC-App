@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { isCoordenador } from '@/components/auth/permissions';
+import { isCoordenador, isPatrocinador } from '@/components/auth/permissions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -18,6 +18,7 @@ export default function Mensagens() {
   const { toast } = useToast();
   const [user, setUser] = useState(null);
   const [authorized, setAuthorized] = useState(null); // null=loading
+  const [readOnlySponsor, setReadOnlySponsor] = useState(false);
   const [view, setView] = useState(VIEWS.form);
   const [loading, setLoading] = useState(false);
 
@@ -35,9 +36,17 @@ export default function Mensagens() {
   const [currentMessageId, setCurrentMessageId] = useState(null);
 
   useEffect(() => {
-    base44.auth.me().then((u) => {
+    base44.auth.me().then(async (u) => {
       setUser(u);
-      const allowed = isCoordenador(u) || u?.role === 'admin' || u?.role === 'ADMIN';
+      let permission = null;
+      try {
+        const permissions = await base44.entities.UserPermission.filter({ user_email: u.email.toLowerCase() });
+        permission = permissions?.[0] || null;
+      } catch {}
+      const userWithPermission = { ...u, base_role: permission?.base_role || u.base_role };
+      const sponsor = isPatrocinador(userWithPermission);
+      setReadOnlySponsor(sponsor);
+      const allowed = sponsor || isCoordenador(userWithPermission) || u?.role === 'admin' || u?.role === 'ADMIN';
       setAuthorized(allowed);
     }).catch(() => setAuthorized(false));
   }, []);
@@ -141,6 +150,18 @@ export default function Mensagens() {
         <AlertCircle className="w-10 h-10 text-red-400" />
         <p className="text-lg font-semibold">Acesso restrito</p>
         <p className="text-sm">Apenas coordenadores e administradores podem acessar esta área.</p>
+      </div>
+    );
+  }
+
+  if (readOnlySponsor) {
+    return (
+      <div className="max-w-5xl mx-auto space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Mensagens</h1>
+          <p className="text-sm text-slate-500 mt-0.5">Comunicados institucionais e avisos publicados para acompanhamento.</p>
+        </div>
+        <MensagensHistorico />
       </div>
     );
   }

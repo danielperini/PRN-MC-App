@@ -29,7 +29,7 @@ import NotificationSettings from './pages/NotificationSettings';
 import NFDriveBackupSyncInstaller from '@/lib/nfDriveBackupSync';
 import PublicoAprovadoAuditButton from '@/components/dashboard/PublicoAprovadoAuditButton';
 import { base44 } from '@/api/base44Client';
-import { isObservador, isPatrocinador } from '@/components/auth/permissions';
+import { canAccessPage, isObservador, isPatrocinador } from '@/components/auth/permissions';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -45,26 +45,31 @@ const LayoutWrapper = ({ children, currentPageName }) =>
 function SafePage({ Page, pageName }) {
   const { user } = useAuth();
   const [userPermission, setUserPermission] = useState(null);
+  const [permissionLoaded, setPermissionLoaded] = useState(false);
 
   useEffect(() => {
     let mounted = true;
 
     async function loadPermissions() {
+      if (mounted) setPermissionLoaded(false);
       if (!user?.email) {
         if (mounted) setUserPermission(null);
+        if (mounted) setPermissionLoaded(true);
         return;
       }
 
       try {
         const permissions = await base44.entities.UserPermission.filter({
-          user_email: user.email,
+          user_email: user.email.toLowerCase(),
         });
 
         if (mounted) {
           setUserPermission(permissions?.[0] || null);
+          setPermissionLoaded(true);
         }
       } catch {
         if (mounted) setUserPermission(null);
+        if (mounted) setPermissionLoaded(true);
       }
     }
 
@@ -75,10 +80,31 @@ function SafePage({ Page, pageName }) {
     };
   }, [user?.email]);
 
-  const sponsorOrObserver = isPatrocinador(user) || isObservador(user, userPermission);
+  const userWithPermission = user ? { ...user, base_role: userPermission?.base_role || user.base_role } : null;
+  const sponsor = isPatrocinador(userWithPermission);
+  const sponsorOrObserver = sponsor || isObservador(userWithPermission, userPermission);
+
+  if (!permissionLoaded) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   if (pageName === 'Dashboard' && sponsorOrObserver) {
     return <Navigate to="/DashboardPatrocinador" replace />;
+  }
+
+  if (userWithPermission && !canAccessPage(pageName, userWithPermission, userPermission)) {
+    if (sponsor) {
+      return <Navigate to="/DashboardPatrocinador" replace />;
+    }
+    return (
+      <LayoutWrapper currentPageName={pageName}>
+        <AccessDenied />
+      </LayoutWrapper>
+    );
   }
 
   if (!Page) {
@@ -168,13 +194,14 @@ function AuthenticatedApp() {
             <Route path="/ProgramacaoEspelho" element={<SafePage Page={ProgramacaoEspelho} pageName="ProgramacaoEspelho" />} />
             <Route path="/Agenda" element={<SafePage Page={Agenda} pageName="Agenda" />} />
             <Route path="/DashboardPatrocinador" element={<SafePage Page={DashboardPatrocinador} pageName="DashboardPatrocinador" />} />
+            <Route path="/FinanceiroPatrocinador" element={<SafePage Page={DashboardPatrocinador} pageName="FinanceiroPatrocinador" />} />
             <Route path="/EntradaUnica" element={<SafePage Page={EntradaUnica} pageName="EntradaUnica" />} />
             <Route path="/Mensagens" element={<SafePage Page={Mensagens} pageName="Mensagens" />} />
             <Route path="/GuiaNotaFiscal" element={<SafePage Page={GuiaNotaFiscal} pageName="GuiaNotaFiscal" />} />
             <Route path="/Aparencia" element={<SafePage Page={Aparencia} pageName="Aparencia" />} />
             <Route path="/RelatorioFisicoFinanceiro" element={<SafePage Page={RelatorioFisicoFinanceiro} pageName="RelatorioFisicoFinanceiro" />} />
             <Route path="/RelatorioFisicoFinanceiroRevisao" element={<SafePage Page={RelatorioFisicoFinanceiroRevisao} pageName="RelatorioFisicoFinanceiroRevisao" />} />
-            <Route path="/ConviteAcesso" element={<ConviteAcesso />} />
+            <Route path="/ConviteAcesso" element={<SafePage Page={ConviteAcesso} pageName="ConviteAcesso" />} />
             <Route path="/NotificationSettings" element={<SafePage Page={NotificationSettings} pageName="NotificationSettings" />} />
 
             <Route path="*" element={<PageNotFound />} />

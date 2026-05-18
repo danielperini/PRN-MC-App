@@ -12,19 +12,25 @@ import { toast } from 'sonner';
 import { useMutation } from '@tanstack/react-query';
 
 const CARGO_OPTIONS = [
+  { value: 'COORDENADOR', label: 'Coordenador' },
   { value: 'PROFISSIONAL', label: 'Profissional' },
-  { value: 'COORD_PRODUCAO', label: 'Coordenação de Produção' },
-  { value: 'COORD_ADMINISTRATIVA', label: 'Coordenação Administrativa' },
-  { value: 'COORD_COMUNICACAO', label: 'Coordenação de Comunicação' },
-  { value: 'CONSULTORIA_PROGRAMACAO', label: 'Consultoria Programação' },
-  { value: 'COORDENADOR', label: 'Coordenação Geral' },
-  { value: 'ADMIN', label: 'Administração' },
+  { value: 'OBSERVADOR', label: 'Observador' },
+  { value: 'PATROCINADOR', label: 'Patrocinador' },
 ];
 
 export default function InviteDialog({ open, onClose, cadastroUrl }) {
   const [tab, setTab] = useState('link');
   const [copied, setCopied] = useState(false);
   const [emailForm, setEmailForm] = useState({ email: '', full_name: '', role: 'PROFISSIONAL', message: '' });
+
+  const updateEmailRole = (role) => {
+    setEmailForm((prev) => ({
+      ...prev,
+      role,
+      funcao: role === 'PATROCINADOR' ? 'Patrocinador' : prev.funcao,
+      equipe: role === 'PATROCINADOR' ? 'Patrocinador' : prev.equipe,
+    }));
+  };
 
   const copyLink = () => {
     navigator.clipboard.writeText(cadastroUrl);
@@ -140,7 +146,7 @@ export default function InviteDialog({ open, onClose, cadastroUrl }) {
                 value={emailForm.full_name}
                 onChange={e => setEmailForm({ ...emailForm, full_name: e.target.value })}
               />
-              <Select value={emailForm.role} onValueChange={v => setEmailForm({ ...emailForm, role: v })}>
+              <Select value={emailForm.role} onValueChange={updateEmailRole}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {CARGO_OPTIONS.map(o => (
