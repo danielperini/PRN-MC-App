@@ -8,6 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { FileDown, Loader2, AlertCircle, Paperclip, Sparkles } from 'lucide-react';
+import LoadingDataNotice from '@/components/ui/LoadingDataNotice';
 
 import buildRelatorioFisicoFinanceiroContext from '@/utils/buildRelatorioFisicoFinanceiroContext';
 import montarHtmlRelatorioFisicoFinanceiro from '@/utils/relatorioFisicoFinanceiroTemplate';
@@ -253,6 +254,13 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
         </DialogHeader>
 
         <div className="space-y-5 py-2">
+          {isLoading && (
+            <LoadingDataNotice
+              title="Carregando dados do relatório"
+              message="O app está consolidando relatórios, programação, rubricas, compras, anexos e textos. A prévia será aberta automaticamente ao final."
+            />
+          )}
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">Data inicial</Label>

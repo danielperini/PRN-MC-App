@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
+import LoadingDataNotice from '@/components/ui/LoadingDataNotice';
 
 const STATUS_CONFIG = {
   DRAFT: { label: 'Rascunho', color: 'bg-gray-100 text-gray-600', icon: Clock },
@@ -135,9 +136,12 @@ export default function Relatorios() {
 
       {/* List */}
       {isLoading ? (
-        <div className="flex items-center justify-center py-20 text-gray-400">
-          <div className="w-6 h-6 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin mr-3" />
-          Carregando...
+        <div className="py-16">
+          <LoadingDataNotice
+            title="Carregando relatórios"
+            message="A página ainda está recuperando os relatórios aprovados e rascunhos do app. Os filtros e a lista serão atualizados assim que os dados chegarem."
+            className="mx-auto max-w-xl"
+          />
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-20 text-gray-400">

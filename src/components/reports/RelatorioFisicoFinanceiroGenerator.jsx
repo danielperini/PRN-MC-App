@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, FileText, Download, CheckCircle2, AlertCircle, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
+import LoadingDataNotice from '@/components/ui/LoadingDataNotice';
 import buildRelatorioFisicoFinanceiroContext from '@/utils/buildRelatorioFisicoFinanceiroContext';
 import montarHtmlRelatorioFisicoFinanceiro from '@/utils/relatorioFisicoFinanceiroTemplate';
 import gerarTextosRelatorioFisicoFinanceiro from '@/services/relatorioIAService';
@@ -241,6 +242,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
       <div className="flex items-center gap-3 mb-6"><div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center"><FileText className="w-5 h-5 text-white" /></div><div><h2 className="text-lg font-bold text-slate-900">Gerar Relatório</h2><p className="text-sm text-slate-500">Catálogo-livro institucional com fotos, gráficos, metas, programação e execução financeira.</p></div></div>
       <Button onClick={() => setDialogAberto(true)} disabled={loading} className="w-full h-12">{loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}Gerar Relatório</Button>
+      {loading && <LoadingDataNotice className="mt-4" title="Relatório carregando dados" message="O app está recuperando relatórios, programação, rubricas, compras, anexos e textos de apoio. A prévia será aberta quando a consolidação terminar." />}
       {erro && <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3"><AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" /><div><p className="text-sm font-medium text-amber-800">Não foi possível gerar o relatório</p><p className="text-xs text-amber-700 mt-1">{erro}</p></div></div>}
       {resultado && <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-4"><div className="flex items-start gap-3 mb-3"><CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" /><div><p className="text-sm font-medium text-green-800">Relatório gerado com sucesso!</p><p className="text-xs text-green-700 mt-1">{resultado.fonte === 'premium_app' ? 'Gerado no modo catálogo-livro institucional, usando dados reais do app e refinamento textual por IA.' : resultado.fonte === 'backend' ? 'Gerado pela função gerarRelatorioFisicoFinanceiro.' : 'Gerado no frontend com dados reais do app, fotos vinculadas e refinamento textual por IA.'}</p></div></div><div className="flex gap-3 flex-wrap"><Button variant="outline" size="sm" onClick={() => openPreview(resultado.html)}><ExternalLink className="w-4 h-4 mr-2" />Abrir Relatório</Button><Button variant="outline" size="sm" onClick={() => downloadHtml(resultado.html)}><Download className="w-4 h-4 mr-2" />Baixar HTML</Button></div></div>}
       <Dialog open={dialogAberto} onOpenChange={setDialogAberto}>
@@ -251,6 +253,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
           </DialogHeader>
 
           <div className="space-y-5 py-2">
+            {loading && <LoadingDataNotice title="Carregando dados do relatório" message="Mantenha esta janela aberta enquanto o sistema consolida dados reais do app e revisa o HTML antes da prévia." />}
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <Label>Museu</Label>
