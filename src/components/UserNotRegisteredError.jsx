@@ -4,6 +4,7 @@ import { Building2, LogIn, Send, CheckCircle, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { recoverExistingUserAccess, normalizeEmail } from '@/utils/auth/recoverExistingUserAccess';
 
 const MUSEUS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
 const ROLES = [
@@ -36,23 +37,35 @@ const UserNotRegisteredError = () => {
   const [userName, setUserName] = useState('');
   const [form, setForm] = useState({ full_name: '', email: '', museu: '', role: 'PROFISSIONAL', funcao: '' });
   const [approvedRegistration, setApprovedRegistration] = useState(null);
+  const [recoveringAccess, setRecoveringAccess] = useState(true);
 
 
   // Tentar pré-preencher com dados do usuário autenticado
   useEffect(() => {
     base44.auth.me().then(async (u) => {
       if (u?.email) {
-        setUserEmail(u.email);
+        const email = normalizeEmail(u.email);
+        setUserEmail(email);
         setUserName(u.full_name || '');
         setForm(prev => ({
           ...prev,
-          email: u.email || '',
+          email,
           full_name: u.full_name || '',
         }));
 
         try {
+          const recovered = await recoverExistingUserAccess({ ...u, email }, { origin: 'user-not-registered-screen' });
+          if (recovered.recovered) {
+            setApprovedRegistration({ email, status: 'APROVADO', recovered: true });
+            setRecoveringAccess(false);
+            setTimeout(() => {
+              window.location.reload();
+            }, 1200);
+            return;
+          }
+
           const registrations = await base44.entities.UserRegistration.filter({
-            email: u.email.toLowerCase(),
+            email,
           });
 
           const approved = registrations.find(r => r.status === 'APROVADO');
@@ -67,8 +80,11 @@ const UserNotRegisteredError = () => {
         } catch (e) {
           console.warn('Falha ao verificar aprovação:', e);
         }
+        setRecoveringAccess(false);
+      } else {
+        setRecoveringAccess(false);
       }
-    }).catch(() => {});
+    }).catch(() => setRecoveringAccess(false));
   }, []);
 
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
@@ -114,6 +130,17 @@ const UserNotRegisteredError = () => {
     base44.auth.redirectToLogin(window.location.href);
   };
 
+  if (recoveringAccess) {
+    return (
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center px-6 text-center">
+        <div className="w-10 h-10 border-4 border-slate-200 border-t-slate-900 rounded-full animate-spin mb-5" />
+        <h1 className="text-xl font-semibold text-slate-900 mb-2">Verificando acesso existente</h1>
+        <p className="text-slate-500 max-w-md text-sm">
+          Estamos sincronizando automaticamente cadastros antigos, permissÃµes e histÃ³rico do usuÃ¡rio antes de solicitar novo cadastro.
+        </p>
+      </div>
+    );
+  }
 
   if (approvedRegistration) {
     return (

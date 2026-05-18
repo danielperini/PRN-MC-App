@@ -2,6 +2,7 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { appParams } from '@/lib/app-params';
 import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
+import { validateUserAccess, recoverExistingUserAccess, normalizeEmail } from '@/utils/auth/recoverExistingUserAccess';
 
 const AuthContext = createContext();
 
@@ -57,10 +58,17 @@ export const AuthProvider = ({ children }) => {
               message: 'Authentication required'
             });
           } else if (reason === 'user_not_registered') {
-            setAuthError({
-              type: 'user_not_registered',
-              message: 'User not registered for this app'
-            });
+            const recovery = await recoverExistingUserAccess(null, { origin: 'public-settings-user-not-registered' });
+            if (recovery.recovered) {
+              setUser(recovery.user);
+              setIsAuthenticated(true);
+              setAuthError(null);
+            } else {
+              setAuthError({
+                type: 'user_not_registered',
+                message: 'User not registered for this app'
+              });
+            }
           } else {
             setAuthError({
               type: reason,
@@ -92,8 +100,9 @@ export const AuthProvider = ({ children }) => {
       // Now check if the user is authenticated
       setIsLoadingAuth(true);
       const currentUser = await base44.auth.me();
+      const normalizedEmail = normalizeEmail(currentUser.email);
       const registrations = await base44.entities.UserRegistration
-        .filter({ email: currentUser.email.toLowerCase() })
+        .filter({ email: normalizedEmail })
         .catch(() => []);
       const approvedRegistration = Array.isArray(registrations)
         ? registrations.find((item) => item.status === 'APROVADO')
@@ -101,6 +110,14 @@ export const AuthProvider = ({ children }) => {
       const latestRegistration = !approvedRegistration && Array.isArray(registrations)
         ? registrations.find((item) => item.status === 'PENDENTE' || item.status === 'REJEITADO') || null
         : null;
+
+      const access = await validateUserAccess({ ...currentUser, email: normalizedEmail }, { origin: 'auth-context' });
+      if (access.allowed) {
+        setUser(access.user || { ...currentUser, email: normalizedEmail });
+        setIsAuthenticated(true);
+        setIsLoadingAuth(false);
+        return;
+      }
 
       if (latestRegistration && latestRegistration.status !== 'APROVADO') {
         setUser(null);
@@ -161,7 +178,9 @@ export const AuthProvider = ({ children }) => {
       appPublicSettings,
       logout,
       navigateToLogin,
-      checkAppState
+      checkAppState,
+      checkUserAuth,
+      authChecked: !isLoadingAuth
     }}>
       {children}
     </AuthContext.Provider>

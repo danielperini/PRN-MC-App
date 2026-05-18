@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { Button } from '@/components/ui/button';
+import { syncUserAccessState } from '@/utils/auth/recoverExistingUserAccess';
 
 /**
  * Wraps a page and redirects to login if not authenticated.
@@ -22,7 +23,9 @@ export default function RequireAuth({ children, requireRole }) {
         return;
       }
       if (requireRole) {
-        const user = await base44.auth.me();
+        const authUser = await base44.auth.me();
+        const recovery = await syncUserAccessState(authUser, { origin: 'require-auth' });
+        const user = recovery?.recovered ? recovery.user : authUser;
         const roles = Array.isArray(requireRole) ? requireRole : [requireRole];
         // also accept 'admin' and 'ADMIN' as equivalent to 'COORDENADOR'
         const userRoles = [user.role, user.role === 'admin' ? 'COORDENADOR' : null, user.role === 'ADMIN' ? 'COORDENADOR' : null].filter(Boolean);

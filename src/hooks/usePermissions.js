@@ -21,6 +21,7 @@ import {
   purchaseBelongsToUser as purchaseBelongsToUserFn,
   shouldHideRubricaForProfissional,
 } from '@/components/auth/permissions';
+import { normalizeEmail, syncUserAccessState } from '@/utils/auth/recoverExistingUserAccess';
 
 export function usePermissions() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -32,11 +33,13 @@ export function usePermissions() {
     async function load() {
       try {
         const user = await base44.auth.me();
+        const recovery = await syncUserAccessState(user, { origin: 'use-permissions' });
+        const recoveredUser = recovery?.recovered ? recovery.user : user;
         if (!active) return;
-        setCurrentUser(user);
+        setCurrentUser(recoveredUser);
 
-        if (user?.email) {
-          const perms = await base44.entities.UserPermission.filter({ user_email: user.email }).catch(() => []);
+        if (recoveredUser?.email) {
+          const perms = await base44.entities.UserPermission.filter({ user_email: normalizeEmail(recoveredUser.email) }).catch(() => []);
           if (active) setUserPermission(Array.isArray(perms) ? perms[0] || null : null);
         }
       } catch {

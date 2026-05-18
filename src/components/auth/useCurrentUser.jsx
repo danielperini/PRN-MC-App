@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { isCoordGeral as _isCoordGeral, isCoordenador as _isCoordenador } from './permissions';
+import { syncUserAccessState } from '@/utils/auth/recoverExistingUserAccess';
 
 let cachedUser = null;
 let fetchPromise = null;
@@ -22,8 +23,10 @@ export function useCurrentUser() {
     }
     if (!fetchPromise) {
       fetchPromise = base44.auth.me().then(u => {
-        cachedUser = u;
-        return u;
+        return syncUserAccessState(u, { origin: 'use-current-user' }).then((recovery) => {
+          cachedUser = recovery?.recovered ? recovery.user : u;
+          return cachedUser;
+        });
       }).catch(() => null);
     }
     fetchPromise.then(u => {

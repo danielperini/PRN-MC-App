@@ -35,6 +35,7 @@ import {
   SIDEBAR_PATROCINADOR,
   SIDEBAR_PROFISSIONAL,
 } from '@/components/auth/permissions';
+import { normalizeEmail } from '@/utils/auth/recoverExistingUserAccess';
 import SidebarTooltip from './SidebarTooltip';
 
 const NAV_GROUPS = [
@@ -277,7 +278,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
     async function loadPerm() {
       if (!currentUser?.email) return;
       try {
-        const perms = await base44.entities.UserPermission.filter({ user_email: currentUser.email.toLowerCase() });
+        const perms = await base44.entities.UserPermission.filter({ user_email: normalizeEmail(currentUser.email) });
         if (mounted) setUserPermission(perms?.[0] || null);
       } catch {
         if (mounted) setUserPermission(null);

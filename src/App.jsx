@@ -30,6 +30,7 @@ import NFDriveBackupSyncInstaller from '@/lib/nfDriveBackupSync';
 import PublicoAprovadoAuditButton from '@/components/dashboard/PublicoAprovadoAuditButton';
 import { base44 } from '@/api/base44Client';
 import { canAccessPage, isObservador, isPatrocinador } from '@/components/auth/permissions';
+import { normalizeEmail } from '@/utils/auth/recoverExistingUserAccess';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -61,7 +62,7 @@ function SafePage({ Page, pageName }) {
 
       try {
         const permissions = await base44.entities.UserPermission.filter({
-          user_email: user.email.toLowerCase(),
+          user_email: normalizeEmail(user.email),
         });
 
         if (mounted) {
