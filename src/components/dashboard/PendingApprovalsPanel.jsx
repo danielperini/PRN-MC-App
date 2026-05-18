@@ -98,6 +98,17 @@ export default function PendingApprovalsPanel() {
         await base44.entities.UserPermission.update(permissions[0].id, permissionData);
       }
 
+      const appUsers = await base44.entities.User.filter({ email: user.email.toLowerCase() }).catch(() => []);
+      if (appUsers?.[0]?.id) {
+        await base44.entities.User.update(appUsers[0].id, {
+          role: requestedRole,
+          full_name: user.full_name || appUsers[0].full_name,
+          museu: user.museu || appUsers[0].museu,
+          funcao: sponsorDefaults.funcao || user.funcao || appUsers[0].funcao,
+          equipe: sponsorDefaults.equipe || user.equipe || appUsers[0].equipe,
+        });
+      }
+
       try {
         await base44.entities.AuditLog.create({
           action: 'APPROVE',
@@ -147,7 +158,23 @@ export default function PendingApprovalsPanel() {
       await base44.entities.UserRegistration.update(userId, {
         status: 'REJEITADO',
         rejeitado_em: new Date().toISOString(),
+        acesso_liberado: false,
       });
+
+      if (user?.email) {
+        const email = user.email.toLowerCase();
+        await base44.functions.invoke('deleteUserAccount', { email }).catch((error) => {
+          console.warn('Conta de autenticação não removida ao negar acesso:', error);
+        });
+        const [permissions, appUsers] = await Promise.all([
+          base44.entities.UserPermission.filter({ user_email: email }).catch(() => []),
+          base44.entities.User.filter({ email }).catch(() => []),
+        ]);
+        await Promise.all([
+          ...permissions.map((item) => base44.entities.UserPermission.delete(item.id)),
+          ...appUsers.map((item) => base44.entities.User.delete(item.id)),
+        ]);
+      }
 
       try {
         await base44.entities.AuditLog.create({

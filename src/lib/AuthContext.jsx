@@ -92,6 +92,29 @@ export const AuthProvider = ({ children }) => {
       // Now check if the user is authenticated
       setIsLoadingAuth(true);
       const currentUser = await base44.auth.me();
+      const registrations = await base44.entities.UserRegistration
+        .filter({ email: currentUser.email.toLowerCase() })
+        .catch(() => []);
+      const approvedRegistration = Array.isArray(registrations)
+        ? registrations.find((item) => item.status === 'APROVADO')
+        : null;
+      const latestRegistration = !approvedRegistration && Array.isArray(registrations)
+        ? registrations.find((item) => item.status === 'PENDENTE' || item.status === 'REJEITADO') || null
+        : null;
+
+      if (latestRegistration && latestRegistration.status !== 'APROVADO') {
+        setUser(null);
+        setIsAuthenticated(false);
+        setAuthError({
+          type: 'user_not_registered',
+          message: latestRegistration.status === 'REJEITADO'
+            ? 'User registration rejected'
+            : 'User registration pending approval',
+        });
+        setIsLoadingAuth(false);
+        return;
+      }
+
       setUser(currentUser);
       setIsAuthenticated(true);
       setIsLoadingAuth(false);

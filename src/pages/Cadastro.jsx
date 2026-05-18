@@ -63,7 +63,6 @@ function NativeSelect({ value, onChange, placeholder, options }) {
 export default function Cadastro() {
   const [form, setForm] = useState(EMPTY);
   const [done, setDone] = useState(false);
-  const [directAccessCreated, setDirectAccessCreated] = useState(false);
   const [showRecovery, setShowRecovery] = useState(false);
   const [recoveryEmail, setRecoveryEmail] = useState('');
 
@@ -111,18 +110,33 @@ export default function Cadastro() {
           throw new Error('A confirmação de senha não confere.');
         }
 
-        return base44.functions.invoke('createUserWithPassword', {
-          email,
-          full_name: form.full_name.trim(),
-          museu: form.museu,
-          funcao: form.funcao || '',
-          equipe: form.equipe || '',
-          password: form.password,
-          role: form.role || 'PROFISSIONAL',
-          base_role: form.role || 'PROFISSIONAL',
-          require_approval: false,
-          login_provider: 'email_password',
-        });
+        try {
+          await base44.functions.invoke('createUserWithPassword', {
+            email,
+            full_name: form.full_name.trim(),
+            museu: form.museu,
+            funcao: form.funcao || '',
+            equipe: form.equipe || '',
+            password: form.password,
+            role: form.role || 'PROFISSIONAL',
+            base_role: form.role || 'PROFISSIONAL',
+            require_approval: true,
+            acesso_liberado: false,
+            status: 'PENDENTE',
+            login_provider: 'email_password',
+          });
+        } catch (error) {
+          console.warn('Cadastro com senha aguardará aprovação via UserRegistration:', error);
+        }
+
+        const existing = await base44.entities.UserRegistration.filter({ email });
+        const activeRequest = existing.find((item) => ['PENDENTE', 'APROVADO'].includes(item.status));
+        if (activeRequest?.status === 'APROVADO') {
+          throw new Error('Este e-mail já possui aprovação. Use a tela de login para entrar.');
+        }
+        if (activeRequest?.status === 'PENDENTE') {
+          return activeRequest;
+        }
       }
 
       return base44.entities.UserRegistration.create({
@@ -133,17 +147,12 @@ export default function Cadastro() {
         base_role: form.role || 'PROFISSIONAL',
         funcao: form.funcao || '',
         equipe: form.equipe || '',
+        login_provider: 'email_password',
+        acesso_liberado: false,
         status: 'PENDENTE',
       });
     },
     onSuccess: () => {
-      if (directPasswordFlow) {
-        toastMessages.created();
-        setDirectAccessCreated(true);
-        setDone(true);
-        return;
-      }
-
       toastMessages.sent();
       setDone(true);
     },
@@ -173,29 +182,6 @@ export default function Cadastro() {
   });
 
   if (done) {
-    if (directAccessCreated) {
-      return (
-        <div className="min-h-screen bg-white flex flex-col items-center justify-center px-6 text-center">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-5">
-            <CheckCircle className="w-8 h-8 text-green-600" />
-          </div>
-
-          <h1 className="text-2xl font-semibold text-black mb-2">Acesso criado!</h1>
-
-          <p className="text-gray-500 max-w-md mb-6">
-            Seu usuário foi criado com sucesso. Agora você já pode entrar usando e-mail e senha.
-          </p>
-
-          <Button
-            className="bg-black hover:bg-gray-800 text-white"
-            onClick={() => base44.auth.redirectToLogin()}
-          >
-            Ir para o login
-          </Button>
-        </div>
-      );
-    }
-
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center px-6 text-center">
         <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-5">
@@ -205,7 +191,7 @@ export default function Cadastro() {
         <h1 className="text-2xl font-semibold text-black mb-2">Solicitação enviada!</h1>
 
         <p className="text-gray-500 max-w-md">
-          Sua solicitação de acesso foi registrada. Um coordenador irá revisá-la e você receberá retorno assim que for aprovada.
+          Sua solicitação de acesso foi registrada. Um coordenador precisa aprovar seu perfil antes do primeiro login.
         </p>
       </div>
     );

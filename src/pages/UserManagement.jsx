@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -204,6 +204,7 @@ function PermissionsDialog({ user, permissions, onClose }) {
       });
       toast.success('Permissões salvas!');
       queryClient.invalidateQueries(['user-management']);
+      queryClient.invalidateQueries(['user-management-pending-registrations']);
       onClose();
     } catch (e) { toast.error('Erro: ' + e.message); }
     setSaving(false);
@@ -322,6 +323,27 @@ function UserCard({ user, onEdit, onPassword, onPermissions, onRoleChange, onDel
   );
 }
 
+function PendingRegistrationCard({ registration, onApprove, onReject, busy }) {
+  const role = registration.base_role || registration.role || 'PROFISSIONAL';
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center gap-3 border border-amber-200 bg-amber-50 rounded-2xl px-5 py-4">
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-amber-950 truncate">{registration.full_name || 'Novo usuário'}</p>
+        <p className="text-xs text-amber-800 truncate">{registration.email}</p>
+        <p className="text-xs text-amber-700 mt-1">{[registration.museu, role, registration.funcao].filter(Boolean).join(' · ')}</p>
+      </div>
+      <div className="flex gap-2 flex-wrap">
+        <Button size="sm" className="bg-green-700 hover:bg-green-800 text-white" onClick={() => onApprove(registration)} disabled={busy}>
+          Aprovar
+        </Button>
+        <Button size="sm" variant="outline" className="border-red-200 text-red-700 hover:bg-red-50" onClick={() => onReject(registration)} disabled={busy}>
+          Negar
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function UserManagement() {
   const [search, setSearch] = useState('');
   const [editingUser, setEditingUser] = useState(null);
@@ -345,15 +367,125 @@ export default function UserManagement() {
     },
   });
 
+  const { data: pendingRegistrations = [] } = useQuery({
+    queryKey: ['user-management-pending-registrations'],
+    queryFn: () => base44.entities.UserRegistration.filter({ status: 'PENDENTE' }),
+  });
+
+  const approveRegistration = useMutation({
+    mutationFn: async (registration) => {
+      const email = String(registration.email || '').toLowerCase();
+      if (!email) throw new Error('Solicitação sem e-mail.');
+      const requestedRoleRaw = registration.role || registration.base_role || 'PROFISSIONAL';
+      const requestedRole = requestedRoleRaw === 'PATROCINADOR' ? 'OBSERVADOR' : requestedRoleRaw;
+      const roleDefaults = defaultsForRole(requestedRole);
+      const permissionData = {
+        ...roleDefaults,
+        user_email: email,
+        user_name: registration.full_name || '',
+        base_role: requestedRole,
+        can_review_reports: false,
+        can_manage_users: false,
+        can_manage_files: false,
+        can_manage_platform: false,
+        gestao_compras: false,
+        pode_aprovar_solicitacoes: false,
+        must_submit_monthly_reports: requestedRole === 'OBSERVADOR' ? false : true,
+      };
+
+      const permissions = await base44.entities.UserPermission.filter({ user_email: email });
+      if (permissions?.[0]?.id) {
+        await base44.entities.UserPermission.update(permissions[0].id, { ...permissions[0], ...permissionData });
+      } else {
+        await base44.entities.UserPermission.create(permissionData);
+      }
+
+      const users = await base44.entities.User.filter({ email }).catch(() => []);
+      if (users?.[0]?.id) {
+        await base44.entities.User.update(users[0].id, {
+          role: requestedRole,
+          full_name: registration.full_name || users[0].full_name,
+          museu: registration.museu || users[0].museu,
+          funcao: roleDefaults.funcao || registration.funcao || users[0].funcao,
+          equipe: roleDefaults.equipe || registration.equipe || users[0].equipe,
+        });
+      }
+
+      await base44.entities.UserRegistration.update(registration.id, {
+        status: 'APROVADO',
+        aprovado_em: new Date().toISOString(),
+        acesso_liberado: true,
+        base_role: requestedRole,
+      });
+    },
+    onSuccess: () => {
+      toast.success('Usuário aprovado.');
+      queryClient.invalidateQueries(['user-management']);
+      queryClient.invalidateQueries(['user-management-pending-registrations']);
+      queryClient.invalidateQueries({ queryKey: ['pending-users'] });
+    },
+    onError: (e) => toast.error('Erro ao aprovar: ' + (e?.message || 'erro desconhecido')),
+  });
+
+  const rejectRegistration = useMutation({
+    mutationFn: async (registration) => {
+      const email = String(registration.email || '').toLowerCase();
+      await base44.entities.UserRegistration.update(registration.id, {
+        status: 'REJEITADO',
+        rejeitado_em: new Date().toISOString(),
+        acesso_liberado: false,
+      });
+
+      if (email) {
+        const [permissions, users] = await Promise.all([
+          base44.entities.UserPermission.filter({ user_email: email }).catch(() => []),
+          base44.entities.User.filter({ email }).catch(() => []),
+        ]);
+
+        await Promise.all([
+          ...permissions.map((item) => base44.entities.UserPermission.delete(item.id)),
+          ...users.map((item) => base44.entities.User.delete(item.id)),
+        ]);
+
+        await base44.functions.invoke('deleteUserAccount', { email }).catch((error) => {
+          console.warn('Conta de autenticação não removida ao negar acesso:', error);
+        });
+      }
+    },
+    onSuccess: () => {
+      toast.success('Solicitação negada.');
+      queryClient.invalidateQueries(['user-management-pending-registrations']);
+      queryClient.invalidateQueries({ queryKey: ['pending-users'] });
+    },
+    onError: (e) => toast.error('Erro ao negar: ' + (e?.message || 'erro desconhecido')),
+  });
+
   async function handleDelete(user) {
     if (!window.confirm(`Tem certeza que deseja excluir o usuário "${user.full_name || user.email}"? Esta ação não pode ser desfeita.`)) return;
     try {
-      if (user.permissions?.id) {
-        await base44.entities.UserPermission.delete(user.permissions.id);
+      const email = String(user.email || '').toLowerCase();
+      if (email) {
+        const [permissions, registrations, teamMembers] = await Promise.all([
+          base44.entities.UserPermission.filter({ user_email: email }).catch(() => []),
+          base44.entities.UserRegistration.filter({ email }).catch(() => []),
+          base44.entities.TeamMember?.filter ? base44.entities.TeamMember.filter({ email }).catch(() => []) : [],
+        ]);
+
+        await Promise.all([
+          ...permissions.map((item) => base44.entities.UserPermission.delete(item.id)),
+          ...registrations.map((item) => base44.entities.UserRegistration.delete(item.id)),
+          ...teamMembers.map((item) => base44.entities.TeamMember.delete(item.id)),
+        ]);
+
+        await base44.functions.invoke('deleteUserAccount', { email }).catch((error) => {
+          console.warn('Conta de autenticação não removida pelo backend:', error);
+        });
       }
       await base44.entities.User.delete(user.id);
       toast.success('Usuário excluído com sucesso.');
       queryClient.invalidateQueries(['user-management']);
+      queryClient.invalidateQueries(['user-management-pending-registrations']);
+      queryClient.invalidateQueries({ queryKey: ['pending-users'] });
     } catch (e) { toast.error('Erro ao excluir: ' + e.message); }
   }
 
@@ -411,6 +543,29 @@ export default function UserManagement() {
             className="pl-10 bg-gray-50 border-gray-200"
           />
         </div>
+
+        {pendingRegistrations.length > 0 && (
+          <div className="mb-6 rounded-2xl border border-amber-200 bg-white p-4">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div>
+                <h2 className="text-sm font-semibold text-amber-950">Novos usuários aguardando aprovação</h2>
+                <p className="text-xs text-amber-700">Aprove ou negue antes do primeiro acesso ao sistema.</p>
+              </div>
+              <Badge className="bg-amber-100 text-amber-800">{pendingRegistrations.length} pendente(s)</Badge>
+            </div>
+            <div className="space-y-3">
+              {pendingRegistrations.map((registration) => (
+                <PendingRegistrationCard
+                  key={registration.id}
+                  registration={registration}
+                  onApprove={(item) => approveRegistration.mutate(item)}
+                  onReject={(item) => rejectRegistration.mutate(item)}
+                  busy={approveRegistration.isPending || rejectRegistration.isPending}
+                />
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* List */}
         {isLoading ? (
