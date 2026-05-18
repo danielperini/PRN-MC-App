@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { FileDown, Loader2, Eye, AlertCircle, Paperclip, Sparkles } from 'lucide-react';
+import { FileDown, Loader2, AlertCircle, Paperclip, Sparkles } from 'lucide-react';
 
 import buildRelatorioFisicoFinanceiroContext from '@/utils/buildRelatorioFisicoFinanceiroContext';
 import montarHtmlRelatorioFisicoFinanceiro from '@/utils/relatorioFisicoFinanceiroTemplate';
@@ -16,21 +16,29 @@ import { montarHtmlRelatorioPremium } from '@/components/reports/premium/Premium
 
 const CAPITULOS_RELATORIO = [
   { id: 'capa', label: 'Capa editorial' },
+  { id: 'sumario_executivo', label: 'Sumário executivo premium' },
   { id: 'introducao', label: 'Introdução institucional' },
   { id: 'territorio', label: 'Território e contexto' },
+  { id: 'indicadores_premium', label: 'Indicadores premium' },
   { id: 'resumo_geral', label: 'Resumo e indicadores' },
   { id: 'publico', label: 'Público alcançado' },
   { id: 'metas', label: 'Metas do 3º Aditivo' },
   { id: 'programacao', label: 'Programação' },
   { id: 'agenda_programacao', label: 'Agenda de programação' },
+  { id: 'timeline_premium', label: 'Linha do tempo editorial' },
   { id: 'atividades_museu', label: 'Atividades por museu' },
+  { id: 'museus_premium', label: 'Páginas premium por museu' },
+  { id: 'noturno_premium', label: 'Seção especial Noturno nos Museus' },
   { id: 'relatorios_completos', label: 'Relatórios integrais das equipes' },
   { id: 'galeria_evidencias', label: 'Galeria e evidências' },
+  { id: 'galeria_premium', label: 'Galeria premium com créditos e GPS' },
   { id: 'comunicacao', label: 'Comunicação' },
+  { id: 'comunicacao_premium', label: 'Comunicação premium' },
   { id: 'financeiro', label: 'Execução financeira' },
   { id: 'rubricas', label: 'Rubricas, orçamento e execução por grupo' },
   { id: 'prestacao', label: 'Prestação de contas' },
   { id: 'app_museu_centro', label: 'Museu Centro APP' },
+  { id: 'sistema_governanca', label: 'Sistema, dados e governança' },
   { id: 'conclusao', label: 'Conclusão' },
 ];
 
@@ -102,22 +110,6 @@ function salvarPreview(html) {
   }
 }
 
-function abrirPreview(html) {
-  salvarPreview(html);
-
-  const previewUrl = '/RelatorioPreview';
-  const opened = window.open(previewUrl, '_blank', 'width=1200,height=900');
-
-  if (opened) return;
-
-  const w = window.open('', '_blank', 'width=1200,height=900');
-  if (w) {
-    w.document.open();
-    w.document.write(html);
-    w.document.close();
-  }
-}
-
 export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
    const [dateFrom, setDateFrom] = useState('2026-02-02');
    const [dateTo, setDateTo] = useState('2026-04-30');
@@ -127,7 +119,6 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
    const [introIA, setIntroIA] = useState(true);
    const [editorialFase3Ativo, setEditorialFase3Ativo] = useState(true);
    const [modoPremium, setModoPremium] = useState(true);
-   const [loadingPrevia, setLoadingPrevia] = useState(false);
    const [loadingPDF, setLoadingPDF] = useState(false);
    const [previa, setPrevia] = useState(null);
 
@@ -198,6 +189,7 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
         contexto,
         textos,
         filtros,
+        secoesSelecionadas,
       });
     }
 
@@ -207,31 +199,6 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
       secoesSelecionadas,
       filtros,
     });
-  }
-
-  async function handlePrevia() {
-    if (!dateFrom || !dateTo) {
-      toast.error('Informe as datas');
-      return;
-    }
-
-    if (secoesSelecionadas.length === 0) {
-      toast.error('Selecione ao menos um capítulo');
-      return;
-    }
-
-    setLoadingPrevia(true);
-
-    try {
-      const html = await gerarHtml();
-      abrirPreview(html);
-      toast.success('Prévia do relatório aberta.');
-    } catch (error) {
-      console.error(error);
-      toast.error('Erro ao gerar prévia: ' + (error?.message || 'tente novamente'));
-    } finally {
-      setLoadingPrevia(false);
-    }
   }
 
   async function handlePDF() {
@@ -273,7 +240,7 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
     }
   }
 
-  const isLoading = loadingPrevia || loadingPDF;
+  const isLoading = loadingPDF;
   const secoesCount = secoesSelecionadas.length;
   const tempoEstimado = modoEntrega ? '3 a 5 min' : '1 a 2 min';
 
@@ -465,16 +432,6 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
         <DialogFooter className="gap-2 flex-wrap">
           <Button variant="outline" onClick={onClose} disabled={isLoading}>
             Cancelar
-          </Button>
-
-          <Button
-            variant="outline"
-            className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50"
-            onClick={handlePrevia}
-            disabled={isLoading}
-          >
-            {loadingPrevia ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
-            {loadingPrevia ? 'Gerando prévia...' : 'Gerar prévia'}
           </Button>
 
           <Button

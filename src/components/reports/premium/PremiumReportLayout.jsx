@@ -206,37 +206,42 @@ function NoturnoSection({ contexto }) {
   );
 }
 
-export default function PremiumReportLayout({ contexto = {}, textos = {}, filtros = {} }) {
+function hasSection(selected = [], ...ids) {
+  if (!Array.isArray(selected) || selected.length === 0) return true;
+  return ids.some((id) => selected.includes(id));
+}
+
+export default function PremiumReportLayout({ contexto = {}, textos = {}, filtros = {}, secoesSelecionadas = [] }) {
   return (
     <main className="premium-report">
-      <PremiumOpeningCover contexto={contexto} filtros={filtros} />
+      {hasSection(secoesSelecionadas, 'capa') && <PremiumOpeningCover contexto={contexto} filtros={filtros} />}
 
-      <PremiumSection
+      {hasSection(secoesSelecionadas, 'sumario_executivo', 'introducao', 'resumo_geral', 'indicadores_premium') && <PremiumSection
         eyebrow="Sumario executivo"
         title="Uma leitura integrada da execucao cultural"
         subtitle="O relatorio cruza programacao, equipes, publico, evidencias visuais, comunicacao, rubricas e prestacao de contas para construir uma narrativa institucional rastreavel."
         text={textos.introducao}
       >
         <PremiumMetrics contexto={contexto} />
-      </PremiumSection>
+      </PremiumSection>}
 
-      <PremiumSection
+      {hasSection(secoesSelecionadas, 'territorio') && <PremiumSection
         breakBefore
         eyebrow="Territorio e contexto cultural"
         title="Museus como infraestrutura publica de memoria"
         subtitle="A leitura territorial desloca o relatorio de uma lista de entregas para uma interpretacao do papel cultural dos equipamentos no centro de Belo Horizonte."
         text={textos.contexto_territorial || textos.territorio}
-      />
+      />}
 
-      <PremiumSection
+      {hasSection(secoesSelecionadas, 'publico', 'metas', 'indicadores_premium') && <PremiumSection
         breakBefore
         eyebrow="Indicadores, metas e publico"
         title="Execucao fisica acompanhada por evidencias"
         subtitle={`${fmtInt(contexto.total_atividades)} atividades registradas, ${fmtInt(contexto.publico_total)} pessoas contabilizadas em acoes com publico e ${fmtInt(contexto.total_relatorios)} relatorios consolidados.`}
         text={`${textos.resumo_geral || ''}\n\n${textos.publico_alcancado || ''}\n\n${textos.metas || ''}`}
-      />
+      />}
 
-      <PremiumSection
+      {hasSection(secoesSelecionadas, 'programacao', 'agenda_programacao', 'timeline_premium') && <PremiumSection
         breakBefore
         eyebrow="Linha do tempo"
         title="Ritmo programatico do periodo"
@@ -244,15 +249,15 @@ export default function PremiumReportLayout({ contexto = {}, textos = {}, filtro
         text={textos.programacao}
       >
         <PremiumTimeline contexto={contexto} />
-      </PremiumSection>
+      </PremiumSection>}
 
-      <PremiumMuseumSection contexto={contexto} />
+      {hasSection(secoesSelecionadas, 'atividades_museu', 'museus_premium') && <PremiumMuseumSection contexto={contexto} />}
 
-      <NoturnoSection contexto={contexto} />
+      {hasSection(secoesSelecionadas, 'noturno_premium') && <NoturnoSection contexto={contexto} />}
 
-      <PremiumCommunicationSection contexto={contexto} textos={textos} />
+      {hasSection(secoesSelecionadas, 'comunicacao', 'comunicacao_premium') && <PremiumCommunicationSection contexto={contexto} textos={textos} />}
 
-      <PremiumSection
+      {hasSection(secoesSelecionadas, 'galeria_evidencias', 'galeria_premium') && <PremiumSection
         breakBefore
         eyebrow="Galeria e evidencias"
         title="Imagem como documento de execucao"
@@ -260,9 +265,9 @@ export default function PremiumReportLayout({ contexto = {}, textos = {}, filtro
         text="A galeria opera como camada documental do relatorio. Ela nao substitui a narrativa tecnica, mas amplia sua verificabilidade: cada imagem vinculada ao app aponta para uma acao, um equipamento, uma frente de trabalho ou uma etapa de producao."
       >
         <PremiumGallery contexto={contexto} />
-      </PremiumSection>
+      </PremiumSection>}
 
-      <PremiumSection
+      {hasSection(secoesSelecionadas, 'financeiro', 'rubricas', 'prestacao') && <PremiumSection
         breakBefore
         eyebrow="Execucao financeira e prestacao de contas"
         title="Orcamento, rubricas e rastreabilidade"
@@ -273,24 +278,24 @@ export default function PremiumReportLayout({ contexto = {}, textos = {}, filtro
           <RubricasTable contexto={contexto} />
           <ComprasTable contexto={contexto} />
         </div>
-      </PremiumSection>
+      </PremiumSection>}
 
-      <PremiumSection
+      {hasSection(secoesSelecionadas, 'app_museu_centro', 'sistema_governanca') && <PremiumSection
         breakBefore
         eyebrow="Sistema e governanca"
         title="Museu Centro APP como memoria operacional"
         subtitle="A ferramenta integra relatorios, fotos, programacao, compras, rubricas e textos, permitindo relatorios mais densos e menos manuais."
         text={textos.app_museu_centro}
-      />
+      />}
 
-      <PremiumClosingSection textos={textos} />
+      {hasSection(secoesSelecionadas, 'conclusao') && <PremiumClosingSection textos={textos} />}
     </main>
   );
 }
 
-export function montarHtmlRelatorioPremium({ contexto = {}, textos = {}, filtros = {} } = {}) {
+export function montarHtmlRelatorioPremium({ contexto = {}, textos = {}, filtros = {}, secoesSelecionadas = [] } = {}) {
   const html = renderToStaticMarkup(
-    <PremiumReportLayout contexto={contexto} textos={textos} filtros={filtros} />
+    <PremiumReportLayout contexto={contexto} textos={textos} filtros={filtros} secoesSelecionadas={secoesSelecionadas} />
   );
 
   return `<!doctype html>
