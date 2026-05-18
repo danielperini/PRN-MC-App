@@ -1,0 +1,27 @@
+{
+  "name": "AttendanceRecord",
+  "type": "object",
+  "properties": {
+    "attendance_list_id": { "type": "string" },
+    "lista_presenca_id": { "type": "string" },
+    "class_id": { "type": "string" },
+    "activity_class_id": { "type": "string" },
+    "participant_id": { "type": "string" },
+    "participant_name": { "type": "string" },
+    "nome_completo": { "type": "string" },
+    "museu": { "type": "string" },
+    "activity_id": { "type": "string" },
+    "atividade_id": { "type": "string" },
+    "atividade_nome": { "type": "string" },
+    "turma_nome": { "type": "string" },
+    "data": { "type": "string" },
+    "data_presenca": { "type": "string" },
+    "tipo_presenca": { "type": "string" },
+    "tipo_publico": { "type": "string" },
+    "status_presenca": { "type": "string" },
+    "assinatura": { "type": "string" },
+    "publico_computado": { "type": "boolean", "default": true },
+    "created_at": { "type": "string" },
+    "updated_at": { "type": "string" }
+  }
+}

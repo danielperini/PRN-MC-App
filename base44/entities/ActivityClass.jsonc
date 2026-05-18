@@ -1,0 +1,23 @@
+{
+  "name": "ActivityClass",
+  "type": "object",
+  "properties": {
+    "nome_turma": { "type": "string" },
+    "activity_id": { "type": "string" },
+    "atividade_id": { "type": "string" },
+    "atividade_nome": { "type": "string" },
+    "museu": { "type": "string" },
+    "educador_responsavel": { "type": "string" },
+    "datas": { "type": "array", "items": { "type": "string" } },
+    "horario": { "type": "string" },
+    "local": { "type": "string" },
+    "max_participantes": { "type": "number" },
+    "observacoes": { "type": "string" },
+    "status": { "type": "string" },
+    "drive_root_folder_id": { "type": "string" },
+    "drive_folder_path": { "type": "string" },
+    "created_by": { "type": "string" },
+    "created_at": { "type": "string" },
+    "updated_at": { "type": "string" }
+  }
+}

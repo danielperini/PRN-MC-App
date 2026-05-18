@@ -1,0 +1,17 @@
+{
+  "name": "AttendanceAuditLog",
+  "type": "object",
+  "properties": {
+    "action": { "type": "string" },
+    "entity_type": { "type": "string" },
+    "entity_id": { "type": "string" },
+    "class_id": { "type": "string" },
+    "attendance_list_id": { "type": "string" },
+    "details": { "type": "string" },
+    "metadata": { "type": "object" },
+    "folder_path": { "type": "string" },
+    "file_name": { "type": "string" },
+    "drive_root_folder_id": { "type": "string" },
+    "created_at": { "type": "string" }
+  }
+}

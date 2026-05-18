@@ -16,12 +16,16 @@ import { Badge } from "@/components/ui/badge";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import QuickParticipantForm from "@/components/presenca/QuickParticipantForm";
+import QuickActivityForm from "@/components/presenca/QuickActivityForm";
+import QuickClassForm from "@/components/presenca/QuickClassForm";
+import ClassDashboard from "@/components/presenca/ClassDashboard";
 import {
   findDuplicateParticipants,
   presenceIdentityKey,
   splitParticipantName,
 } from "@/utils/presenca/deduplicateParticipants";
 import { PUBLICO_TIPOS, normalizePresenceDate } from "@/utils/presenca/presenceMetrics";
+import { backupAttendanceClassToDrive, buildAttendanceFileName } from "@/utils/presenca/attendanceBackup";
 
 function normalizeName(value) {
   return String(value ?? "")
@@ -128,6 +132,101 @@ async function parseDocFallback(file) {
   return extractNamesFromText(text);
 }
 
+async function readAttendanceListWithAI(fileUrl) {
+  if (!base44.integrations?.Core?.InvokeLLM || !fileUrl) return null;
+  const result = await base44.integrations.Core.InvokeLLM({
+    model: "gpt_5",
+    prompt: `Leia esta lista de presença do projeto Museus Centro / Viaduto das Artes.
+Extraia somente dados que existirem no documento.
+Retorne JSON válido com:
+{
+  "atividade_nome": "nome da atividade/oficina quando aparecer",
+  "turma_nome": "nome da turma quando aparecer",
+  "museu": "MHAB, MIS, MUMO ou texto identificado",
+  "datas": ["YYYY-MM-DD"],
+  "responsavel": "educador/profissional quando aparecer",
+  "local": "local quando aparecer",
+  "participantes": [
+    {
+      "nome_completo": "nome completo",
+      "nome_social": "",
+      "telefone": "",
+      "email": "",
+      "cpf": "",
+      "passaporte": "",
+      "assinatura": "sim/não ou texto quando houver"
+    }
+  ],
+  "total_participantes": 0,
+  "observacoes": ""
+}
+Não invente participantes. Se uma linha estiver ilegível, ignore ou registre em observacoes.`,
+    file_urls: [fileUrl],
+    response_json_schema: {
+      type: "object",
+      properties: {
+        atividade_nome: { type: "string" },
+        turma_nome: { type: "string" },
+        museu: { type: "string" },
+        datas: { type: "array", items: { type: "string" } },
+        responsavel: { type: "string" },
+        local: { type: "string" },
+        participantes: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              nome_completo: { type: "string" },
+              nome_social: { type: "string" },
+              telefone: { type: "string" },
+              email: { type: "string" },
+              cpf: { type: "string" },
+              passaporte: { type: "string" },
+              assinatura: { type: "string" },
+            },
+          },
+        },
+        total_participantes: { type: "number" },
+        observacoes: { type: "string" },
+      },
+    },
+  });
+  return result;
+}
+
+function normalizeAIAttendanceResult(result) {
+  const participantes = Array.isArray(result?.participantes) ? result.participantes : [];
+  return {
+    ...result,
+    participantes,
+    datas: (result?.datas || []).map((item) => normalizePresenceDate(item)).filter(Boolean),
+  };
+}
+
+function buildRowsFromParticipants(participantes = []) {
+  const loadedRows = (Array.isArray(participantes) ? participantes : [])
+    .filter((item) => normalizeName(item?.nome_completo || item?.nome || item))
+    .map((item, index) => {
+      const row = typeof item === "string" ? { nome_completo: item } : item;
+      return {
+        id: index + 1,
+        nome: titleCase(normalizeName(row.nome_completo || row.nome || "")),
+        nome_social: row.nome_social || "",
+        telefone: row.telefone || row.celular || "",
+        email: row.email || "",
+        cpf: row.cpf || row.passaporte || row.documento || "",
+        participant_id: "",
+        presencas: {},
+        assinatura: row.assinatura || "",
+      };
+    });
+  const minRows = Math.max(loadedRows.length, 20);
+  while (loadedRows.length < minRows) {
+    loadedRows.push({ id: loadedRows.length + 1, nome: "", nome_social: "", telefone: "", email: "", cpf: "", participant_id: "", presencas: {}, assinatura: "" });
+  }
+  return loadedRows;
+}
+
 const MUSEUS = ["MHAB", "MIS", "MUMO", "Museus Centro", "Noturno nos Museus"];
 
 function emptyRows(count = 20) {
@@ -147,6 +246,10 @@ function getProgramacaoTitle(item) {
 
 function getProgramacaoDate(item) {
   return normalizePresenceDate(item?.data_realizacao || item?.data_programacao || item?.data_inicio || item?.data);
+}
+
+function getProgramacaoMuseu(item) {
+  return item?.museu || item?.centro_custo || item?.local_museu || "Museus Centro";
 }
 
 async function auditPresence(payload) {
@@ -176,6 +279,7 @@ export default function GeradorListaPresenca() {
   const [museu, setMuseu] = useState("MHAB");
   const [tipoPublico, setTipoPublico] = useState("oficina");
   const [atividadeId, setAtividadeId] = useState("");
+  const [selectedClassId, setSelectedClassId] = useState("");
   const [savingPresence, setSavingPresence] = useState(false);
   const [local, setLocal] = useState("");
   const [responsavel, setResponsavel] = useState("");
@@ -201,6 +305,16 @@ export default function GeradorListaPresenca() {
     queryFn: async () => base44.entities.PresenceRecord?.list ? normalizeListResponse(await base44.entities.PresenceRecord.list("-data", 3000)) : [],
   });
 
+  const { data: classes = [] } = useQuery({
+    queryKey: ["activity-classes-presenca"],
+    queryFn: async () => base44.entities.ActivityClass?.list ? normalizeListResponse(await base44.entities.ActivityClass.list("-updated_date", 1000)) : [],
+  });
+
+  const { data: attendanceRecords = [] } = useQuery({
+    queryKey: ["attendance-records"],
+    queryFn: async () => base44.entities.AttendanceRecord?.list ? normalizeListResponse(await base44.entities.AttendanceRecord.list("-data", 3000)) : [],
+  });
+
   const tituloCabecalho = useMemo(() => {
     const tipo = atividadeTipo || "Atividade";
     return atividadeNome ? `${tipo} - ${atividadeNome}` : tipo;
@@ -216,6 +330,12 @@ export default function GeradorListaPresenca() {
   }, [data, datasMultiplas]);
 
   const selectedProgramacao = useMemo(() => programacao.find((item) => String(item.id) === String(atividadeId)), [programacao, atividadeId]);
+  const selectedClass = useMemo(() => classes.find((item) => String(item.id) === String(selectedClassId)), [classes, selectedClassId]);
+  const selectedClassParticipants = useMemo(() => {
+    if (!selectedClass?.id) return [];
+    const ids = new Set(attendanceRecords.filter((record) => String(record.class_id || record.activity_class_id || "") === String(selectedClass.id)).map((record) => record.participant_id).filter(Boolean));
+    return participants.filter((participant) => ids.has(participant.id));
+  }, [attendanceRecords, participants, selectedClass]);
 
   async function handleFileChange(event) {
     const file = event.target.files?.[0];
@@ -223,11 +343,38 @@ export default function GeradorListaPresenca() {
 
     setErro("");
     setArquivoInfo(`${file.name} (${Math.round(file.size / 1024)} KB)`);
-    setStatus("Lendo arquivo e tentando identificar os nomes...");
+    setStatus("Lendo a lista de presença e tentando identificar participantes...");
 
     try {
       const lower = file.name.toLowerCase();
       let nomes = [];
+
+      if (base44.integrations?.Core?.UploadFile && base44.integrations?.Core?.InvokeLLM) {
+        try {
+          setStatus("Enviando lista para leitura por IA...");
+          const uploaded = await base44.integrations.Core.UploadFile({ file });
+          const fileUrl = uploaded?.file_url || uploaded?.url;
+          setStatus("IA lendo a lista de presença e extraindo participantes...");
+          const aiResult = normalizeAIAttendanceResult(await readAttendanceListWithAI(fileUrl));
+          if (aiResult.participantes.length) {
+            setRows(buildRowsFromParticipants(aiResult.participantes));
+            if (aiResult.atividade_nome && !atividadeNome) setAtividadeNome(aiResult.atividade_nome);
+            if (aiResult.museu) setMuseu(aiResult.museu);
+            if (aiResult.responsavel) setResponsavel(aiResult.responsavel);
+            if (aiResult.local) setLocal(aiResult.local);
+            if (aiResult.observacoes) setObservacoes((current) => current ? `${current}\n${aiResult.observacoes}` : aiResult.observacoes);
+            if (aiResult.datas.length) {
+              setData(aiResult.datas[0]);
+              setDatasMultiplas(aiResult.datas.join("\n"));
+            }
+            setStatus(`Lista lida por IA: ${aiResult.participantes.length} participante(s).${aiResult.turma_nome ? ` Turma identificada: ${aiResult.turma_nome}.` : ""}`);
+            return;
+          }
+        } catch (aiError) {
+          console.warn("Leitura por IA falhou, usando leitura local:", aiError);
+          setStatus("IA não concluiu a leitura. Tentando leitura local do arquivo...");
+        }
+      }
 
       if (lower.endsWith(".xlsx") || lower.endsWith(".xls")) {
         nomes = await parseSpreadsheet(file);
@@ -235,6 +382,26 @@ export default function GeradorListaPresenca() {
         nomes = await parseDocx(file);
       } else if (lower.endsWith(".doc")) {
         nomes = await parseDocFallback(file);
+      } else if (lower.endsWith(".pdf") || lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg")) {
+        if (!base44.integrations?.Core?.UploadFile) throw new Error("Upload de arquivo não disponível para leitura por IA.");
+        setStatus("Enviando lista para leitura por IA...");
+        const uploaded = await base44.integrations.Core.UploadFile({ file });
+        const fileUrl = uploaded?.file_url || uploaded?.url;
+        setStatus("IA lendo a lista de presença e extraindo participantes...");
+        const aiResult = normalizeAIAttendanceResult(await readAttendanceListWithAI(fileUrl));
+        if (!aiResult.participantes.length) throw new Error("A IA não encontrou participantes legíveis na lista.");
+        setRows(buildRowsFromParticipants(aiResult.participantes));
+        if (aiResult.atividade_nome && !atividadeNome) setAtividadeNome(aiResult.atividade_nome);
+        if (aiResult.museu) setMuseu(aiResult.museu);
+        if (aiResult.responsavel) setResponsavel(aiResult.responsavel);
+        if (aiResult.local) setLocal(aiResult.local);
+        if (aiResult.observacoes) setObservacoes((current) => current ? `${current}\n${aiResult.observacoes}` : aiResult.observacoes);
+        if (aiResult.datas.length) {
+          setData(aiResult.datas[0]);
+          setDatasMultiplas(aiResult.datas.join("\n"));
+        }
+        setStatus(`Lista lida por IA: ${aiResult.participantes.length} participante(s).${aiResult.turma_nome ? ` Turma identificada: ${aiResult.turma_nome}.` : ""}`);
+        return;
       } else {
         throw new Error("Formato não suportado. Use .xls, .xlsx, .doc ou .docx.");
       }
@@ -245,13 +412,7 @@ export default function GeradorListaPresenca() {
         return;
       }
 
-      const loadedRows = nomes.map((nome, index) => ({ id: index + 1, nome, nome_social: "", telefone: "", email: "", cpf: "", participant_id: "", presencas: {}, assinatura: "" }));
-      const minRows = Math.max(loadedRows.length, 20);
-      while (loadedRows.length < minRows) {
-        loadedRows.push({ id: loadedRows.length + 1, nome: "", nome_social: "", telefone: "", email: "", cpf: "", participant_id: "", presencas: {}, assinatura: "" });
-      }
-
-      setRows(loadedRows);
+      setRows(buildRowsFromParticipants(nomes));
       setStatus(`${nomes.length} nome(s) identificado(s) com sucesso.`);
     } catch (e) {
       console.error(e);
@@ -280,6 +441,29 @@ export default function GeradorListaPresenca() {
       email: participant.email || "",
       cpf: participant.cpf || participant.passaporte || "",
     } : row));
+  }
+
+  function openClass(turma) {
+    if (!turma) return;
+    setSelectedClassId(turma.id || "");
+    setAtividadeId(turma.activity_id || turma.atividade_id || "");
+    setAtividadeNome(turma.atividade_nome || atividadeNome);
+    setMuseu(turma.museu || museu);
+    setResponsavel(turma.educador_responsavel || responsavel);
+    setLocal(turma.local || local);
+    setDatasMultiplas(Array.isArray(turma.datas) ? turma.datas.join("\n") : "");
+    const firstDate = Array.isArray(turma.datas) ? turma.datas[0] : "";
+    if (firstDate) setData(normalizePresenceDate(firstDate));
+    setStatus(`Turma aberta: ${turma.nome_turma}`);
+  }
+
+  function applySelectedClass(value) {
+    if (value === "__none__") {
+      setSelectedClassId("");
+      return;
+    }
+    const turma = classes.find((item) => String(item.id) === String(value));
+    openClass(turma);
   }
 
   function togglePresence(rowId, date) {
@@ -357,6 +541,32 @@ export default function GeradorListaPresenca() {
     setSavingPresence(true);
     try {
       const listaId = `lista-${Date.now()}`;
+      let attendanceList = null;
+      if (base44.entities.AttendanceList?.create) {
+        attendanceList = await base44.entities.AttendanceList.create({
+          lista_presenca_id: listaId,
+          class_id: selectedClassId || "",
+          activity_class_id: selectedClassId || "",
+          activity_id: atividadeId || selectedProgramacao?.id || "",
+          atividade_id: atividadeId || selectedProgramacao?.id || "",
+          atividade_nome: atividadeNome || getProgramacaoTitle(selectedProgramacao),
+          turma_nome: selectedClass?.nome_turma || "",
+          museu,
+          datas: datasPresenca,
+          tipo_publico: tipoPublico,
+          responsavel,
+          local,
+          observacoes,
+          status: "REGISTRADA",
+          file_name: buildAttendanceFileName({
+            museu,
+            atividade: atividadeNome || getProgramacaoTitle(selectedProgramacao),
+            turma: selectedClass?.nome_turma || "LISTA",
+            data: datasPresenca[0] || new Date().toISOString().slice(0, 10),
+          }),
+          created_at: new Date().toISOString(),
+        });
+      }
       const existingKeys = new Set((presenceRecords || []).map(presenceIdentityKey));
       let created = 0;
       let skipped = 0;
@@ -374,6 +584,9 @@ export default function GeradorListaPresenca() {
             activity_id: atividadeId || selectedProgramacao?.id || "",
             atividade_id: atividadeId || selectedProgramacao?.id || "",
             atividade_nome: atividadeNome || getProgramacaoTitle(selectedProgramacao),
+            class_id: selectedClassId || "",
+            activity_class_id: selectedClassId || "",
+            turma_nome: selectedClass?.nome_turma || "",
             oficina_id: atividadeTipo === "Oficina" ? (atividadeId || selectedProgramacao?.id || "") : "",
             data: date,
             data_presenca: date,
@@ -393,6 +606,16 @@ export default function GeradorListaPresenca() {
             continue;
           }
           const saved = await base44.entities.PresenceRecord.create(record);
+          if (base44.entities.AttendanceRecord?.create) {
+            await base44.entities.AttendanceRecord.create({
+              ...record,
+              attendance_list_id: attendanceList?.id || "",
+              lista_presenca_id: listaId,
+              class_id: selectedClassId || "",
+              activity_class_id: selectedClassId || "",
+              publico_computado: true,
+            });
+          }
           existingKeys.add(key);
           created += 1;
           await auditPresence({
@@ -413,8 +636,19 @@ export default function GeradorListaPresenca() {
 
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["presence-records"] }),
+        queryClient.invalidateQueries({ queryKey: ["attendance-records"] }),
         queryClient.invalidateQueries({ queryKey: ["participants-presenca"] }),
       ]);
+      await backupAttendanceClassToDrive({
+        attendance_list_id: attendanceList?.id || listaId,
+        class_id: selectedClassId || "",
+        museu,
+        atividade: atividadeNome || getProgramacaoTitle(selectedProgramacao),
+        turma: selectedClass?.nome_turma || "Lista de Presença",
+        data: datasPresenca[0] || new Date().toISOString().slice(0, 10),
+        participants_count: validRows.length,
+        records_created: created,
+      });
       toast.success(`${created} presença(s) registrada(s). ${skipped} duplicidade(s) evitada(s).`);
       setStatus(`${created} presença(s) alimentando indicadores. ${skipped} duplicidade(s) evitada(s).`);
     } catch (error) {
@@ -445,20 +679,26 @@ export default function GeradorListaPresenca() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl">
                 <Wand2 className="h-5 w-5" />
-                Gerador de Lista de Presença
+                Gestão de Atividade, Turma e Lista de Presença
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-5">
+              <Alert>
+                <AlertDescription>
+                  Fluxo recomendado: 1. crie ou escolha a atividade principal; 2. crie ou abra a turma; 3. suba a lista de presença para preencher participantes e registrar público.
+                </AlertDescription>
+              </Alert>
+
               <div className="space-y-2">
-                <Label>Arquivo de origem</Label>
+                <Label>3. Leitor de lista de presença</Label>
                 <Input
                   ref={fileInputRef}
                   type="file"
-                  accept=".xls,.xlsx,.doc,.docx"
+                  accept=".xls,.xlsx,.doc,.docx,.pdf,.png,.jpg,.jpeg"
                   onChange={handleFileChange}
                 />
                 <p className="text-sm text-slate-500">
-                  Compatível com Excel (.xls/.xlsx) e Word (.doc/.docx). Para arquivos antigos, o melhor resultado costuma vir após salvar em .xlsx ou .docx.
+                  Suba uma lista já preenchida. Excel e Word são lidos localmente; PDF e imagem ficam preparados para leitura por IA.
                 </p>
                 {arquivoInfo && <p className="text-sm font-medium">Arquivo: {arquivoInfo}</p>}
               </div>
@@ -474,6 +714,56 @@ export default function GeradorListaPresenca() {
               )}
 
               <div className="grid gap-4">
+                <Card className="border-blue-100 shadow-none">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">1. Criar atividade principal</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <QuickActivityForm onCreated={async (created) => {
+                      await queryClient.invalidateQueries({ queryKey: ["programacao-presenca"] });
+                      if (created?.id) {
+                        setAtividadeId(created.id);
+                        setAtividadeNome(getProgramacaoTitle(created));
+                        setMuseu(getProgramacaoMuseu(created));
+                        setData(getProgramacaoDate(created) || data);
+                      }
+                    }} />
+                  </CardContent>
+                </Card>
+
+                <Card className="border-emerald-100 shadow-none">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">2. Criar ou abrir turma</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <QuickClassForm activities={programacao} onCreated={async (created) => {
+                      await queryClient.invalidateQueries({ queryKey: ["activity-classes-presenca"] });
+                      openClass(created);
+                    }} />
+                    <div className="space-y-2">
+                      <Label>Abrir turma existente</Label>
+                      <Select value={selectedClassId || "__none__"} onValueChange={applySelectedClass}>
+                        <SelectTrigger><SelectValue placeholder="Selecionar turma" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Nenhuma turma aberta</SelectItem>
+                          {classes.map((turma) => (
+                            <SelectItem key={turma.id} value={String(turma.id)}>
+                              {turma.nome_turma} · {turma.atividade_nome || "atividade"}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <ClassDashboard
+                      turma={selectedClass}
+                      participants={selectedClassParticipants}
+                      attendanceRecords={attendanceRecords}
+                      onOpen={openClass}
+                      onPrint={printPage}
+                    />
+                  </CardContent>
+                </Card>
+
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label>Museu *</Label>
@@ -492,7 +782,7 @@ export default function GeradorListaPresenca() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Tipo de atividade</Label>
+                  <Label>Tipo da lista / ação</Label>
                   <Select value={atividadeTipo} onValueChange={setAtividadeTipo}>
                     <SelectTrigger>
                       <SelectValue />
@@ -509,12 +799,12 @@ export default function GeradorListaPresenca() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Nome da atividade</Label>
+                  <Label>Atividade usada nesta lista</Label>
                   <Input value={atividadeNome} onChange={(e) => setAtividadeNome(e.target.value)} placeholder="Ex.: Oficina de Empregabilidade" />
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Vincular à agenda / atividade existente</Label>
+                  <Label>Escolher atividade já criada</Label>
                   <Select
                     value={atividadeId || "__manual__"}
                     onValueChange={(value) => {

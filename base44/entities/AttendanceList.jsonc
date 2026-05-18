@@ -1,0 +1,26 @@
+{
+  "name": "AttendanceList",
+  "type": "object",
+  "properties": {
+    "lista_presenca_id": { "type": "string" },
+    "class_id": { "type": "string" },
+    "activity_class_id": { "type": "string" },
+    "activity_id": { "type": "string" },
+    "atividade_id": { "type": "string" },
+    "atividade_nome": { "type": "string" },
+    "turma_nome": { "type": "string" },
+    "museu": { "type": "string" },
+    "datas": { "type": "array", "items": { "type": "string" } },
+    "tipo_publico": { "type": "string" },
+    "responsavel": { "type": "string" },
+    "local": { "type": "string" },
+    "observacoes": { "type": "string" },
+    "status": { "type": "string" },
+    "file_name": { "type": "string" },
+    "drive_root_folder_id": { "type": "string" },
+    "drive_folder_path": { "type": "string" },
+    "created_by": { "type": "string" },
+    "created_at": { "type": "string" },
+    "updated_at": { "type": "string" }
+  }
+}
