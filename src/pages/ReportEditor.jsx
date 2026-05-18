@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { notifyReportSubmitted } from '@/services/notifications/reportNotifications';
 import {
@@ -24,6 +23,7 @@ import {
   Users,
 } from 'lucide-react';
 
+import LoadingPage from '@/components/common/LoadingPage';
 import ReportTabsNavigation from '@/components/reports/ReportTabsNavigation';
 import AtividadesSection from '@/components/reports/AtividadesSection';
 import ReportPhotoSection from '@/components/reports/ReportPhotoSection';
@@ -35,9 +35,6 @@ import ReleasePanelEditor from '@/components/reports/ReleasePanelEditor';
 import ReportSectionSelector from '@/components/reports/ReportSectionSelector';
 import PagamentosTabelaDetalhada from '@/components/reports/PagamentosTabelaDetalhada';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CONSTANTS
-// ─────────────────────────────────────────────────────────────────────────────
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
@@ -59,11 +56,9 @@ const STATUS_LABELS = {
   ARCHIVED: { label: 'Arquivado', color: 'bg-slate-100 text-slate-600' },
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// UTILITY FUNCTIONS
-// ─────────────────────────────────────────────────────────────────────────────
 function normalizeAtividades(raw) {
   if (!Array.isArray(raw)) return [];
+
   return raw.map((a) => ({
     id: a?.id || a?._id || `atividade_${Math.random().toString(36).slice(2)}`,
     classificacao: a?.classificacao || '',
@@ -87,6 +82,7 @@ function formatarNumeroResumo(n) {
   if (!n && n !== 0) return '—';
   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
   if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+
   return String(n);
 }
 
@@ -121,9 +117,6 @@ function getAnoAtual() {
   return new Date().getFullYear();
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// REPORT SUMMARY CARD
-// ─────────────────────────────────────────────────────────────────────────────
 function ReportSummaryStats({ atividades = [], fotos = [] }) {
   const totalAtividades = atividades.length;
   const totalPublico = atividades.reduce((sum, a) => sum + (Number(a.publico_estimado) || 0), 0);
@@ -142,26 +135,24 @@ function ReportSummaryStats({ atividades = [], fotos = [] }) {
             {stat.icon}
             {stat.label}
           </div>
-          <div className="text-2xl font-bold text-gray-900">{stat.value}</div>
+
+          <div className="text-2xl font-bold text-gray-900">
+            {stat.value}
+          </div>
         </Card>
       ))}
     </div>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// MAIN COMPONENT
-// ─────────────────────────────────────────────────────────────────────────────
 export default function ReportEditor() {
   const queryClient = useQueryClient();
 
-  // ── URL params ──────────────────────────────────────────────────────────────
   const urlParams = new URLSearchParams(window.location.search);
   const reportIdParam = urlParams.get('id') || urlParams.get('reportId');
   const mesParam = urlParams.get('mes');
-  const anoParam = urlParams.get('ano') ? parseInt(urlParams.get('ano')) : null;
+  const anoParam = urlParams.get('ano') ? parseInt(urlParams.get('ano'), 10) : null;
 
-  // ── State ───────────────────────────────────────────────────────────────────
   const [currentTab, setCurrentTab] = useState('relatorio');
   const [report, setReport] = useState(null);
   const [formData, setFormData] = useState({});
@@ -173,18 +164,22 @@ export default function ReportEditor() {
   const [submitting, setSubmitting] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [loadingReport, setLoadingReport] = useState(true);
+  const [loadingError, setLoadingError] = useState(false);
   const [secoesPdf, setSecoesPdf] = useState([]);
   const [pagamentos, setPagamentos] = useState([]);
   const [loadingPagamentos, setLoadingPagamentos] = useState(false);
 
-  // ── Current user ─────────────────────────────────────────────────────────────
-  const { data: currentUser } = useQuery({
+  const {
+    data: currentUser,
+    isLoading: loadingCurrentUser,
+    isError: currentUserError,
+  } = useQuery({
     queryKey: ['current-user'],
     queryFn: () => base44.auth.me(),
     staleTime: 300000,
+    refetchOnWindowFocus: false,
   });
 
-  // ── Load or create report ────────────────────────────────────────────────────
   useEffect(() => {
     if (!currentUser) return;
     loadOrCreateReport();
@@ -192,21 +187,21 @@ export default function ReportEditor() {
 
   async function loadOrCreateReport() {
     setLoadingReport(true);
+    setLoadingError(false);
+
     try {
       const mesAtual = mesParam || getMesAtual();
       const anoAtual = anoParam || getAnoAtual();
 
-      // 1. If we have a specific ID, load it
       if (reportIdParam) {
         const found = await base44.entities.Report.filter({ id: reportIdParam });
+
         if (found && found.length > 0) {
           applyReport(found[0]);
-          setLoadingReport(false);
           return;
         }
       }
 
-      // 2. Look for existing draft for this user/month/year
       const existingDrafts = await base44.entities.Report.filter({
         created_by: currentUser.email,
         mes_referencia: mesAtual,
@@ -215,19 +210,17 @@ export default function ReportEditor() {
       });
 
       if (existingDrafts && existingDrafts.length > 0) {
-        // Reuse the first empty/existing draft
-        const draft = existingDrafts[0];
-        applyReport(draft);
-        setLoadingReport(false);
+        applyReport(existingDrafts[0]);
         return;
       }
 
-      // 3. Create new draft
       const payload = createEmptyReportPayload(currentUser, mesAtual, anoAtual);
       const created = await base44.entities.Report.create(payload);
+
       applyReport(created);
     } catch (err) {
       console.error('Erro ao carregar/criar relatório:', err);
+      setLoadingError(true);
       toast.error('Erro ao carregar relatório');
     } finally {
       setLoadingReport(false);
@@ -236,6 +229,7 @@ export default function ReportEditor() {
 
   function applyReport(r) {
     setReport(r);
+
     setFormData({
       author_name: r.author_name || '',
       author_role: r.author_role || 'PROFISSIONAL',
@@ -255,13 +249,13 @@ export default function ReportEditor() {
       comentarios_coordenacao: r.comentarios_coordenacao || '',
       publico_geral_declarado: r.publico_geral_declarado || 0,
     });
+
     setAtividades(normalizeAtividades(r.atividades));
     setFotos(Array.isArray(r.fotos) ? r.fotos : []);
     setAttachments(Array.isArray(r.attachments) ? r.attachments : []);
     setDepoimentos(Array.isArray(r.depoimentos) ? r.depoimentos : []);
   }
 
-  // ── Load pagamentos ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (currentTab === 'financeiro' && report?.id) {
       loadPagamentos();
@@ -270,12 +264,15 @@ export default function ReportEditor() {
 
   async function loadPagamentos() {
     if (!report?.id) return;
+
     setLoadingPagamentos(true);
+
     try {
       const res = await base44.entities.PurchaseRequest.filter({
         report_id: report.id,
         status: ['PAGO', 'APROVADO_ADMIN', 'APROVADO_COORD'],
       });
+
       const mapped = (res || []).map((p) => ({
         id: p.id,
         data_pagamento: p.data_pagamento_efetivo || p.data_pagamento || p.aprov_admin_data || p.created_date,
@@ -289,6 +286,7 @@ export default function ReportEditor() {
         nf_xml_url: p.nf_xml_url,
         comprovante_url: p.comprovante_pagamento_url || p.comprovante_url,
       }));
+
       setPagamentos(mapped);
     } catch (err) {
       console.error('Erro ao carregar pagamentos:', err);
@@ -297,15 +295,15 @@ export default function ReportEditor() {
     }
   }
 
-  // ── Field update helper ──────────────────────────────────────────────────────
   const updateField = useCallback((field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   }, []);
 
-  // ── handleSave ───────────────────────────────────────────────────────────────
   async function handleSave() {
     if (!report?.id) return;
+
     setSaving(true);
+
     try {
       const payload = {
         ...formData,
@@ -314,10 +312,13 @@ export default function ReportEditor() {
         attachments,
         depoimentos,
       };
+
       const updated = await base44.entities.Report.update(report.id, payload);
+
       setReport(updated);
       toast.success('✅ Relatório salvo com sucesso!');
       queryClient.invalidateQueries({ queryKey: ['reports'] });
+      queryClient.invalidateQueries({ queryKey: ['relatorios-list'] });
     } catch (err) {
       console.error(err);
       toast.error('❌ Erro ao salvar: ' + (err?.message || 'tente novamente'));
@@ -326,18 +327,21 @@ export default function ReportEditor() {
     }
   }
 
-  // ── handleSubmit ─────────────────────────────────────────────────────────────
   async function handleSubmit() {
     if (!report?.id) return;
+
     if (!formData.museu) {
       toast.error('Informe o museu antes de enviar');
       return;
     }
+
     if (!formData.mes_referencia) {
       toast.error('Informe o mês de referência');
       return;
     }
+
     setSubmitting(true);
+
     try {
       const payload = {
         ...formData,
@@ -348,18 +352,26 @@ export default function ReportEditor() {
         attachments,
         depoimentos,
       };
+
       const updated = await base44.entities.Report.update(report.id, payload);
+
       setReport(updated);
       setFormData((prev) => ({ ...prev, status: 'SUBMITTED' }));
-      await notifyReportSubmitted({
-        ...updated,
-        created_by: updated.created_by || report.created_by || currentUser?.email,
-        author_email: updated.author_email || report.author_email || currentUser?.email,
-      }, currentUser).catch((error) => {
+
+      await notifyReportSubmitted(
+        {
+          ...updated,
+          created_by: updated.created_by || report.created_by || currentUser?.email,
+          author_email: updated.author_email || report.author_email || currentUser?.email,
+        },
+        currentUser
+      ).catch((error) => {
         console.warn('Falha ao notificar envio de relatório:', error);
       });
+
       toast.success('📤 Relatório enviado para revisão!');
       queryClient.invalidateQueries({ queryKey: ['reports'] });
+      queryClient.invalidateQueries({ queryKey: ['relatorios-list'] });
     } catch (err) {
       console.error(err);
       toast.error('❌ Erro ao enviar: ' + (err?.message || 'tente novamente'));
@@ -368,12 +380,12 @@ export default function ReportEditor() {
     }
   }
 
-  // ── handleExportPdf ──────────────────────────────────────────────────────────
   async function handleExportPdf() {
     if (!report?.id) return;
+
     setExportingPdf(true);
+
     try {
-      // Save first
       await handleSave();
 
       const response = await base44.functions.invoke('generateReportPDF', {
@@ -397,7 +409,6 @@ export default function ReportEditor() {
     }
   }
 
-  // ── Photo handlers ───────────────────────────────────────────────────────────
   const handleAddPhoto = useCallback(async (photo) => {
     const newPhoto = {
       id: photo.id || `photo_${Date.now()}`,
@@ -407,6 +418,7 @@ export default function ReportEditor() {
       author: photo.author || photo.created_by || '',
       activityId: photo.activityId || null,
     };
+
     setFotos((prev) => [...prev, newPhoto]);
   }, []);
 
@@ -420,28 +432,35 @@ export default function ReportEditor() {
     setFotos((prev) => prev.filter((p) => p.id !== photoId));
   }, []);
 
-  // ── Computed ─────────────────────────────────────────────────────────────────
   const canEdit = !['SUBMITTED', 'IN_REVIEW', 'APPROVED', 'ARCHIVED'].includes(formData.status);
-  const isSubmitted = ['SUBMITTED', 'IN_REVIEW', 'APPROVED'].includes(formData.status);
-
   const statusInfo = STATUS_LABELS[formData.status] || STATUS_LABELS.DRAFT;
 
-  // ── Loading state ─────────────────────────────────────────────────────────────
-  if (loadingReport || !currentUser) {
+  const isInitialPageLoading =
+    loadingCurrentUser ||
+    loadingReport ||
+    (!!currentUser && !report);
+
+  if (isInitialPageLoading) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
-          <p className="text-sm text-gray-500">Carregando relatório...</p>
-        </div>
-      </div>
+      <LoadingPage
+        message="Carregando página..."
+        description="Estamos carregando o relatório, atividades, fotos, anexos e dados do usuário. Aguarde alguns instantes."
+      />
     );
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────────
+  if (currentUserError || loadingError) {
+    return (
+      <LoadingPage
+        error
+        errorTitle="Não foi possível carregar o relatório"
+        errorDescription="Atualize a página ou tente novamente em alguns instantes."
+      />
+    );
+  }
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
-      {/* ── Header ── */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div className="flex items-center gap-3">
           <button
@@ -450,30 +469,35 @@ export default function ReportEditor() {
           >
             <ArrowLeft className="w-5 h-5 text-gray-500" />
           </button>
+
           <div>
             <h1 className="text-xl font-bold text-gray-900">
               Relatório Mensal — {formData.mes_referencia} {formData.ano}
             </h1>
+
             <div className="flex items-center gap-2 mt-1">
               <span
                 className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${statusInfo.color}`}
               >
                 {statusInfo.label}
               </span>
+
               {formData.museu && (
                 <span className="text-xs text-gray-500 flex items-center gap-1">
                   <Building2 className="w-3 h-3" />
                   {formData.museu}
                 </span>
               )}
+
               {report?.numero_protocolo && (
-                <span className="text-xs text-gray-400">{report.numero_protocolo}</span>
+                <span className="text-xs text-gray-400">
+                  {report.numero_protocolo}
+                </span>
               )}
             </div>
           </div>
         </div>
 
-        {/* ── Action buttons ── */}
         <div className="flex flex-wrap gap-2">
           {canEdit && (
             <Button
@@ -510,35 +534,32 @@ export default function ReportEditor() {
         </div>
       </div>
 
-      {/* ── Return comment (if returned) ── */}
       {formData.status === 'RETURNED' && report?.return_comment && (
         <Card className="p-4 border-l-4 border-orange-400 bg-orange-50">
           <div className="flex gap-3">
             <AlertCircle className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="font-semibold text-orange-900 text-sm">Relatório devolvido para correção</p>
-              <p className="text-sm text-orange-800 mt-1">{report.return_comment}</p>
+              <p className="font-semibold text-orange-900 text-sm">
+                Relatório devolvido para correção
+              </p>
+              <p className="text-sm text-orange-800 mt-1">
+                {report.return_comment}
+              </p>
             </div>
           </div>
         </Card>
       )}
 
-      {/* ── Stats summary ── */}
       <ReportSummaryStats atividades={atividades} fotos={fotos} />
 
-      {/* ── Tab navigation ── */}
       <ReportTabsNavigation
         currentTab={currentTab}
         formData={{ ...formData, atividades, fotos }}
         onTabChange={setCurrentTab}
       />
 
-      {/* ═══════════════════════════════════════════════════════════════════════
-          TAB: RELATÓRIO
-      ═══════════════════════════════════════════════════════════════════════ */}
       {currentTab === 'relatorio' && (
         <div className="space-y-6">
-          {/* Identificação */}
           <Card className="p-6 space-y-4">
             <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2 pb-2 border-b">
               <User className="w-4 h-4" />
@@ -555,6 +576,7 @@ export default function ReportEditor() {
                   disabled={!canEdit}
                 />
               </div>
+
               <div className="space-y-1">
                 <Label className="text-xs text-gray-600">Função</Label>
                 <Input
@@ -564,6 +586,7 @@ export default function ReportEditor() {
                   disabled={!canEdit}
                 />
               </div>
+
               <div className="space-y-1">
                 <Label className="text-xs text-gray-600">Museu Principal</Label>
                 <Select
@@ -576,29 +599,35 @@ export default function ReportEditor() {
                   </SelectTrigger>
                   <SelectContent>
                     {MUSEUS_LISTA.map((m) => (
-                      <SelectItem key={m} value={m}>{m}</SelectItem>
+                      <SelectItem key={m} value={m}>
+                        {m}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+
               <div className="space-y-1">
                 <Label className="text-xs text-gray-600">Museu Secundário (opcional)</Label>
                 <Select
-                  value={formData.museu_secundario || ''}
-                  onValueChange={(v) => updateField('museu_secundario', v)}
+                  value={formData.museu_secundario || 'nenhum'}
+                  onValueChange={(v) => updateField('museu_secundario', v === 'nenhum' ? '' : v)}
                   disabled={!canEdit}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Nenhum" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={null}>Nenhum</SelectItem>
+                    <SelectItem value="nenhum">Nenhum</SelectItem>
                     {MUSEUS_LISTA.map((m) => (
-                      <SelectItem key={m} value={m}>{m}</SelectItem>
+                      <SelectItem key={m} value={m}>
+                        {m}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+
               <div className="space-y-1">
                 <Label className="text-xs text-gray-600">Mês de Referência</Label>
                 <Select
@@ -611,22 +640,26 @@ export default function ReportEditor() {
                   </SelectTrigger>
                   <SelectContent>
                     {MESES.map((m) => (
-                      <SelectItem key={m} value={m}>{m}</SelectItem>
+                      <SelectItem key={m} value={m}>
+                        {m}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+
               <div className="space-y-1">
                 <Label className="text-xs text-gray-600">Ano</Label>
                 <Input
                   type="number"
                   value={formData.ano || getAnoAtual()}
-                  onChange={(e) => updateField('ano', parseInt(e.target.value))}
+                  onChange={(e) => updateField('ano', parseInt(e.target.value, 10))}
                   disabled={!canEdit}
                   min={2024}
                   max={2030}
                 />
               </div>
+
               <div className="space-y-1">
                 <Label className="text-xs text-gray-600">Equipe</Label>
                 <Input
@@ -636,12 +669,13 @@ export default function ReportEditor() {
                   disabled={!canEdit}
                 />
               </div>
+
               <div className="space-y-1">
                 <Label className="text-xs text-gray-600">Público Geral Declarado</Label>
                 <Input
                   type="number"
                   value={formData.publico_geral_declarado || 0}
-                  onChange={(e) => updateField('publico_geral_declarado', parseInt(e.target.value) || 0)}
+                  onChange={(e) => updateField('publico_geral_declarado', parseInt(e.target.value, 10) || 0)}
                   placeholder="Total de visitantes"
                   disabled={!canEdit}
                   min={0}
@@ -650,11 +684,11 @@ export default function ReportEditor() {
             </div>
           </Card>
 
-          {/* Narrativa */}
           <Card className="p-6 space-y-4">
             <h2 className="text-base font-semibold text-gray-900 pb-2 border-b">
               Narrativa do Período
             </h2>
+
             <div className="space-y-1">
               <Label className="text-xs text-gray-600">Resumo do Período</Label>
               <Textarea
@@ -666,6 +700,7 @@ export default function ReportEditor() {
                 disabled={!canEdit}
               />
             </div>
+
             <div className="space-y-1">
               <Label className="text-xs text-gray-600">Resumo Executivo</Label>
               <Textarea
@@ -679,11 +714,11 @@ export default function ReportEditor() {
             </div>
           </Card>
 
-          {/* Avaliação */}
           <Card className="p-6 space-y-4">
             <h2 className="text-base font-semibold text-gray-900 pb-2 border-b">
               Avaliação do Período
             </h2>
+
             <div className="space-y-1">
               <Label className="text-xs text-gray-600">Pontos Positivos</Label>
               <Textarea
@@ -695,6 +730,7 @@ export default function ReportEditor() {
                 disabled={!canEdit}
               />
             </div>
+
             <div className="space-y-1">
               <Label className="text-xs text-gray-600">Desafios Enfrentados</Label>
               <Textarea
@@ -706,6 +742,7 @@ export default function ReportEditor() {
                 disabled={!canEdit}
               />
             </div>
+
             <div className="space-y-1">
               <Label className="text-xs text-gray-600">Sugestões de Melhoria</Label>
               <Textarea
@@ -717,6 +754,7 @@ export default function ReportEditor() {
                 disabled={!canEdit}
               />
             </div>
+
             <div className="space-y-1">
               <Label className="text-xs text-gray-600">Comentários Gerais</Label>
               <Textarea
@@ -728,6 +766,7 @@ export default function ReportEditor() {
                 disabled={!canEdit}
               />
             </div>
+
             {(formData.author_role === 'COORDENADOR' || formData.author_role === 'ADMIN') && (
               <div className="space-y-1">
                 <Label className="text-xs text-gray-600">Comentários para Coordenação</Label>
@@ -743,7 +782,6 @@ export default function ReportEditor() {
             )}
           </Card>
 
-          {/* Editorial tools */}
           {report?.id && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <EditorialEnhancer
@@ -755,17 +793,20 @@ export default function ReportEditor() {
                   if (editorial?.introducao) {
                     updateField('resumo_periodo', editorial.introducao);
                   }
+
                   if (editorial?.resumoExecutivo) {
                     updateField('resumo_executivo', editorial.resumoExecutivo);
                   }
                 }}
               />
+
               <ReleasePanelEditor
                 mes={formData.mes_referencia}
                 ano={formData.ano}
                 museu={formData.museu}
                 onSelect={(release) => {
                   const texto = release.conteudo_resumido || release.conteudo_completo?.substring(0, 500);
+
                   if (texto) {
                     updateField(
                       'resumo_periodo',
@@ -780,9 +821,6 @@ export default function ReportEditor() {
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════════════
-          TAB: ATIVIDADES
-      ═══════════════════════════════════════════════════════════════════════ */}
       {currentTab === 'atividades' && (
         <Card className="p-6">
           <AtividadesSection
@@ -801,9 +839,6 @@ export default function ReportEditor() {
         </Card>
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════════════
-          TAB: FOTOS
-      ═══════════════════════════════════════════════════════════════════════ */}
       {currentTab === 'fotos' && (
         <Card className="p-6">
           <ReportPhotoSection
@@ -816,9 +851,6 @@ export default function ReportEditor() {
         </Card>
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════════════
-          TAB: ATTACHMENTS
-      ═══════════════════════════════════════════════════════════════════════ */}
       {currentTab === 'attachments' && (
         <Card className="p-6">
           <AttachmentsSection
@@ -829,9 +861,6 @@ export default function ReportEditor() {
         </Card>
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════════════
-          TAB: DEPOIMENTOS
-      ═══════════════════════════════════════════════════════════════════════ */}
       {currentTab === 'depoimentos' && (
         <Card className="p-6">
           <DepoimentosSection
@@ -843,9 +872,6 @@ export default function ReportEditor() {
         </Card>
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════════════
-          TAB: FINANCEIRO
-      ═══════════════════════════════════════════════════════════════════════ */}
       {currentTab === 'financeiro' && (
         <div className="space-y-4">
           {loadingPagamentos ? (
@@ -863,9 +889,6 @@ export default function ReportEditor() {
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════════════
-          TAB: VALIDAÇÃO
-      ═══════════════════════════════════════════════════════════════════════ */}
       {currentTab === 'validacao' && (
         <div className="space-y-6">
           {report?.id && (
@@ -883,6 +906,7 @@ export default function ReportEditor() {
             <h2 className="text-base font-semibold text-gray-900 pb-2 border-b">
               Seções do Relatório PDF
             </h2>
+
             <ReportSectionSelector
               secoesSelecionadas={secoesPdf}
               onSelectionChange={setSecoesPdf}
@@ -895,7 +919,6 @@ export default function ReportEditor() {
         </div>
       )}
 
-      {/* ── Bottom save bar ── */}
       <div className="flex flex-col md:flex-row gap-3 pt-4 border-t border-gray-200">
         {canEdit && (
           <>
@@ -908,6 +931,7 @@ export default function ReportEditor() {
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               {saving ? 'Salvando...' : 'Salvar rascunho'}
             </Button>
+
             <Button
               onClick={handleSubmit}
               disabled={submitting}
@@ -918,6 +942,7 @@ export default function ReportEditor() {
             </Button>
           </>
         )}
+
         <Button
           variant="outline"
           onClick={handleExportPdf}
