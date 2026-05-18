@@ -31,6 +31,221 @@ function formatInt(value) {
   return Math.round(toNumber(value)).toLocaleString('pt-BR');
 }
 
+function formatPercent(value) {
+  return `${toNumber(value).toFixed(1).replace('.', ',')}%`;
+}
+
+function normalizeStatus(value) {
+  return String(value || '')
+    .trim()
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function isApprovedReport(report) {
+  const status = normalizeStatus(report?.status);
+
+  return [
+    '',
+    'APPROVED',
+    'APROVADO',
+    'APROVADO_COORD',
+    'APROVADO_ADMIN',
+    'APROVADO_COORDENACAO',
+  ].includes(status);
+}
+
+function getApprovedReports(reports = []) {
+  return (Array.isArray(reports) ? reports : []).filter(isApprovedReport);
+}
+
+function getReportActivities(report) {
+  return Array.isArray(report?.atividades) ? report.atividades : [];
+}
+
+function getReportPublico(report) {
+  const declarado = toNumber(
+    report?.publico_geral_declarado ??
+      report?.publico_total ??
+      report?.publico ??
+      0
+  );
+
+  if (declarado > 0) return declarado;
+
+  return getReportActivities(report).reduce(
+    (sum, activity) => sum + getPublicoAtividade(activity),
+    0
+  );
+}
+
+function summarizeReports(reports = []) {
+  const approvedReports = getApprovedReports(reports);
+  const allActivities = approvedReports.flatMap(getReportActivities);
+  const publicoTotal = approvedReports.reduce(
+    (sum, report) => sum + getReportPublico(report),
+    0
+  );
+
+  const reportsWithPublico = approvedReports.filter(
+    (report) => getReportPublico(report) > 0
+  ).length;
+
+  const reportsWithActivities = approvedReports.filter(
+    (report) => getReportActivities(report).length > 0
+  ).length;
+
+  const byMuseu = approvedReports.reduce((acc, report) => {
+    const museu =
+      report?.museu ||
+      report?.equipamento ||
+      'Atuacao geral';
+
+    if (!acc[museu]) {
+      acc[museu] = {
+        museu,
+        reports: 0,
+        activities: 0,
+        publico: 0,
+      };
+    }
+
+    acc[museu].reports += 1;
+    acc[museu].activities += getReportActivities(report).length;
+    acc[museu].publico += getReportPublico(report);
+
+    return acc;
+  }, {});
+
+  return {
+    totalReports: approvedReports.length,
+    totalActivities: allActivities.length,
+    publicoTotal,
+    reportsWithPublico,
+    reportsWithActivities,
+    publicoCoverage:
+      approvedReports.length > 0
+        ? (reportsWithPublico / approvedReports.length) * 100
+        : 0,
+    activityCoverage:
+      approvedReports.length > 0
+        ? (reportsWithActivities / approvedReports.length) * 100
+        : 0,
+    byMuseu: Object.values(byMuseu).sort(
+      (a, b) => b.reports - a.reports
+    ),
+  };
+}
+
+function renderAnexosExecutiveSummary(reports = []) {
+  const summary = summarizeReports(reports);
+
+  if (!summary.totalReports) return '';
+
+  const museuRows = summary.byMuseu
+    .map(
+      (item) => `
+        <tr>
+          <td>${escapeHtml(item.museu)}</td>
+          <td class="num">${formatInt(item.reports)}</td>
+          <td class="num">${formatInt(item.activities)}</td>
+          <td class="num">${formatInt(item.publico)}</td>
+        </tr>
+      `
+    )
+    .join('');
+
+  const alerts = [
+    summary.publicoCoverage < 100
+      ? `${formatInt(
+          summary.totalReports - summary.reportsWithPublico
+        )} relatorio(s) sem publico consolidado.`
+      : '',
+    summary.activityCoverage < 100
+      ? `${formatInt(
+          summary.totalReports - summary.reportsWithActivities
+        )} relatorio(s) sem atividades detalhadas.`
+      : '',
+  ].filter(Boolean);
+
+  return `
+    <section class="anexos-executive-summary">
+      <div class="anexos-section-kicker">
+        Sintese de consistencia dos anexos
+      </div>
+
+      <h3>Base documental consolidada</h3>
+
+      <p>
+        Antes da leitura individual dos anexos, este quadro resume a base
+        documental aprovada que sustenta o relatorio geral e ajuda a localizar
+        rapidamente lacunas de preenchimento.
+      </p>
+
+      <div class="anexos-kpi-grid">
+        <div>
+          <span>Relatorios aprovados</span>
+          <strong>${formatInt(summary.totalReports)}</strong>
+        </div>
+
+        <div>
+          <span>Atividades detalhadas</span>
+          <strong>${formatInt(summary.totalActivities)}</strong>
+        </div>
+
+        <div>
+          <span>Publico consolidado</span>
+          <strong>${formatInt(summary.publicoTotal)}</strong>
+        </div>
+
+        <div>
+          <span>Cobertura de publico</span>
+          <strong>${formatPercent(summary.publicoCoverage)}</strong>
+        </div>
+      </div>
+
+      ${
+        museuRows
+          ? `
+            <table class="anexos-museu-table">
+              <thead>
+                <tr>
+                  <th>Museu / atuacao</th>
+                  <th class="num">Relatorios</th>
+                  <th class="num">Atividades</th>
+                  <th class="num">Publico</th>
+                </tr>
+              </thead>
+              <tbody>${museuRows}</tbody>
+            </table>
+          `
+          : ''
+      }
+
+      ${
+        alerts.length
+          ? `
+            <div class="anexos-alerts">
+              <strong>Pontos para revisao editorial</strong>
+              <ul>
+                ${alerts
+                  .map((alert) => `<li>${escapeHtml(alert)}</li>`)
+                  .join('')}
+              </ul>
+            </div>
+          `
+          : `
+            <div class="anexos-ok-note">
+              A base aprovada possui atividades e publico informados em todos
+              os relatorios individuais localizados para o periodo.
+            </div>
+          `
+      }
+    </section>
+  `;
+}
+
 function parsePtDate(value) {
   const match = String(value || '').match(/(\d{2})\/(\d{2})\/(\d{4})/);
 
@@ -213,9 +428,11 @@ function renderActivityFiles(activity) {
 }
 
 function buildRelatoriosAnexosHtml(reports = []) {
-  if (!reports.length) return '';
+  const approvedReports = getApprovedReports(reports);
 
-  const anexos = reports
+  if (!approvedReports.length) return '';
+
+  const anexos = approvedReports
     .map((report, reportIndex) => {
       const atividades = Array.isArray(report?.atividades)
         ? report.atividades
@@ -411,6 +628,8 @@ function buildRelatoriosAnexosHtml(reports = []) {
         que fundamentam a síntese institucional do período.
       </p>
 
+      ${renderAnexosExecutiveSummary(approvedReports)}
+
       ${anexos}
     </section>
   `;
@@ -420,6 +639,121 @@ function getAnexosCss() {
   return `
     .anexos-equipe-section {
       page-break-before: always;
+    }
+
+    .anexos-section-kicker {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: .16em;
+      color: #777;
+      font-weight: 700;
+      margin: 22px 0 6px;
+    }
+
+    .anexos-executive-summary {
+      border: 1.5px solid #d6d6d6;
+      border-radius: 14px;
+      padding: 20px;
+      margin: 24px 0 30px;
+      background: #fafafa;
+      break-inside: avoid;
+    }
+
+    .anexos-executive-summary h3 {
+      margin: 0 0 8px;
+      font-size: 19px;
+    }
+
+    .anexos-executive-summary p {
+      margin-bottom: 14px;
+    }
+
+    .anexos-kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin: 14px 0 18px;
+    }
+
+    .anexos-kpi-grid div {
+      border: 1px solid #e5e5e5;
+      border-radius: 8px;
+      padding: 12px;
+      background: #fff;
+    }
+
+    .anexos-kpi-grid span {
+      display: block;
+      font-size: 8.5px;
+      color: #777;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      min-height: 24px;
+    }
+
+    .anexos-kpi-grid strong {
+      display: block;
+      font-size: 18px;
+      margin-top: 5px;
+    }
+
+    .anexos-museu-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 10px;
+      margin: 10px 0 14px;
+      background: #fff;
+      border: 1px solid #e5e5e5;
+    }
+
+    .anexos-museu-table th,
+    .anexos-museu-table td {
+      border-bottom: 1px solid #e5e5e5;
+      padding: 8px 10px;
+      text-align: left;
+    }
+
+    .anexos-museu-table th {
+      font-size: 8px;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      color: #666;
+      background: #f3f3f3;
+    }
+
+    .anexos-museu-table .num {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .anexos-alerts,
+    .anexos-ok-note {
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 10px;
+      margin-top: 12px;
+    }
+
+    .anexos-alerts {
+      background: #fff7ed;
+      border: 1px solid #fed7aa;
+      color: #7c2d12;
+    }
+
+    .anexos-alerts strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .anexos-alerts ul {
+      margin: 0;
+      padding-left: 16px;
+    }
+
+    .anexos-ok-note {
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      color: #166534;
     }
 
     .anexo-relatorio {
@@ -548,7 +882,7 @@ function getAnexosCss() {
 }
 
 function addAnexosCss(html) {
-  if (!html || html.includes('.anexo-relatorio')) {
+  if (!html || html.includes('.anexos-executive-summary')) {
     return html;
   }
 
@@ -621,12 +955,7 @@ async function loadReportsForHtml(html) {
       reportsRaw,
       from,
       to
-    ).filter(
-      (report) =>
-        !report?.status ||
-        report.status === 'APPROVED' ||
-        report.status === 'APROVADO'
-    );
+    ).filter(isApprovedReport);
   } catch (error) {
     console.warn(
       'Falha ao carregar anexos individuais dos relatórios:',
