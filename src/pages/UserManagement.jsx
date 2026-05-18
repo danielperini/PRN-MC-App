@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Search, UserPlus, Save, Users, KeyRound, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import InviteDialog from '@/components/users/InviteDialog';
+import { normalizeEmail, revokeUserAccess } from '@/utils/auth/recoverExistingUserAccess';
 
 const ROLE_LABELS = {
   ADMIN: 'admin', admin: 'admin',
@@ -429,28 +430,12 @@ export default function UserManagement() {
 
   const rejectRegistration = useMutation({
     mutationFn: async (registration) => {
-      const email = String(registration.email || '').toLowerCase();
-      await base44.entities.UserRegistration.update(registration.id, {
+      await revokeUserAccess(registration.email, {
         status: 'REJEITADO',
-        rejeitado_em: new Date().toISOString(),
-        acesso_liberado: false,
+        origin: 'user-management-reject',
+        reason: 'Solicitação negada pela coordenação',
+        full_name: registration.full_name,
       });
-
-      if (email) {
-        const [permissions, users] = await Promise.all([
-          base44.entities.UserPermission.filter({ user_email: email }).catch(() => []),
-          base44.entities.User.filter({ email }).catch(() => []),
-        ]);
-
-        await Promise.all([
-          ...permissions.map((item) => base44.entities.UserPermission.delete(item.id)),
-          ...users.map((item) => base44.entities.User.delete(item.id)),
-        ]);
-
-        await base44.functions.invoke('deleteUserAccount', { email }).catch((error) => {
-          console.warn('Conta de autenticação não removida ao negar acesso:', error);
-        });
-      }
     },
     onSuccess: () => {
       toast.success('Solicitação negada.');
@@ -463,26 +448,15 @@ export default function UserManagement() {
   async function handleDelete(user) {
     if (!window.confirm(`Tem certeza que deseja excluir o usuário "${user.full_name || user.email}"? Esta ação não pode ser desfeita.`)) return;
     try {
-      const email = String(user.email || '').toLowerCase();
-      if (email) {
-        const [permissions, registrations, teamMembers] = await Promise.all([
-          base44.entities.UserPermission.filter({ user_email: email }).catch(() => []),
-          base44.entities.UserRegistration.filter({ email }).catch(() => []),
-          base44.entities.TeamMember?.filter ? base44.entities.TeamMember.filter({ email }).catch(() => []) : [],
-        ]);
-
-        await Promise.all([
-          ...permissions.map((item) => base44.entities.UserPermission.delete(item.id)),
-          ...registrations.map((item) => base44.entities.UserRegistration.delete(item.id)),
-          ...teamMembers.map((item) => base44.entities.TeamMember.delete(item.id)),
-        ]);
-
-        await base44.functions.invoke('deleteUserAccount', { email }).catch((error) => {
-          console.warn('Conta de autenticação não removida pelo backend:', error);
-        });
-      }
-      await base44.entities.User.delete(user.id);
-      toast.success('Usuário excluído com sucesso.');
+      const email = normalizeEmail(user.email);
+      await revokeUserAccess(email, {
+        status: 'EXCLUIDO',
+        origin: 'user-management-delete',
+        reason: 'Usuário excluído pela coordenação. Novo acesso exige nova aprovação.',
+        full_name: user.full_name,
+      });
+      if (user.id) await base44.entities.User.delete(user.id).catch(() => null);
+      toast.success('Usuário excluído. Para voltar ao app, precisará solicitar nova aprovação.');
       queryClient.invalidateQueries(['user-management']);
       queryClient.invalidateQueries(['user-management-pending-registrations']);
       queryClient.invalidateQueries({ queryKey: ['pending-users'] });

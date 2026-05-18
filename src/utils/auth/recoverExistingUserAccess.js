@@ -18,7 +18,7 @@ const EMAIL_FIELDS = [
 ];
 
 const APPROVED_STATUSES = new Set(['APROVADO', 'APPROVED', 'ATIVO', 'ACTIVE', 'LIBERADO']);
-const BLOCKED_STATUSES = new Set(['REJEITADO', 'REJECTED', 'BLOQUEADO', 'BLOCKED', 'INATIVO']);
+const BLOCKED_STATUSES = new Set(['REJEITADO', 'REJECTED', 'BLOQUEADO', 'BLOCKED', 'INATIVO', 'EXCLUIDO', 'EXCLUÍDO', 'REMOVIDO', 'DELETED']);
 
 export function normalizeEmail(value) {
   return String(value || '')
@@ -168,13 +168,14 @@ function shouldRecover({ registrations, permissions, teamMembers, userRecords, r
   const activeTeamMember = teamMembers.find((item) => item.ativo !== false && !BLOCKED_STATUSES.has(normalizeStatus(item.status)));
   const activeUser = userRecords.find((item) => item.ativo !== false && !BLOCKED_STATUSES.has(normalizeStatus(item.status)));
 
+  // Histórico operacional é preservado por auditoria e não deve reabrir acesso sozinho
+  // para usuários que foram removidos. Ele só ajuda a inferir perfil quando já há vínculo ativo.
+  const hasOperationalHistory = reports.length > 0 || purchases.length > 0;
+  const hasActiveAccessAnchor = Boolean(approvedRegistration || activePermission || activeTeamMember || activeUser);
+
   return Boolean(
-    approvedRegistration ||
-      activePermission ||
-      activeTeamMember ||
-      activeUser ||
-      reports.length > 0 ||
-      purchases.length > 0
+    hasActiveAccessAnchor ||
+      (hasOperationalHistory && registrations.length > 0 && approvedRegistration)
   );
 }
 
@@ -439,4 +440,91 @@ export async function migrateLegacyUsers(options = {}) {
   }
 
   return results;
+}
+
+export async function revokeUserAccess(emailInput, options = {}) {
+  const email = normalizeEmail(emailInput);
+  if (!email) return { revoked: false, reason: 'NO_EMAIL' };
+
+  const status = options.status || 'EXCLUIDO';
+  const now = new Date().toISOString();
+
+  const [
+    registrations,
+    permissions,
+    teamMembers,
+    userRecords,
+    profileRecords,
+  ] = await Promise.all([
+    findByEmail('UserRegistration', email, ['email']),
+    findByEmail('UserPermission', email, ['user_email', 'email']),
+    findByEmail('TeamMember', email, ['email', 'user_email']),
+    findByEmail('User', email, ['email', 'user_email']),
+    findByEmail('Profile', email, ['email', 'user_email']),
+  ]);
+
+  const registrationPatch = {
+    email,
+    status,
+    acesso_liberado: false,
+    bloqueado: true,
+    excluido: status === 'EXCLUIDO',
+    revogado_em: now,
+    motivo_revogacao: options.reason || 'Acesso removido pela coordenação',
+    requires_new_approval: true,
+  };
+
+  if (registrations.length > 0) {
+    await Promise.all(registrations.map((item) => (
+      item?.id
+        ? base44.entities.UserRegistration.update(item.id, { ...item, ...registrationPatch }).catch(() => null)
+        : null
+    )));
+  } else if (base44.entities.UserRegistration?.create) {
+    await base44.entities.UserRegistration.create({
+      ...registrationPatch,
+      full_name: options.full_name || email,
+      role: 'PROFISSIONAL',
+      base_role: 'PROFISSIONAL',
+      museu: 'Atuação Geral',
+      criado_por_revogacao: true,
+    }).catch(() => null);
+  }
+
+  await Promise.all([
+    ...permissions.map((item) => item?.id ? base44.entities.UserPermission.delete(item.id).catch(() => null) : null),
+    ...teamMembers.map((item) => item?.id ? base44.entities.TeamMember.delete(item.id).catch(() => null) : null),
+    ...userRecords.map((item) => item?.id ? base44.entities.User.delete(item.id).catch(() => null) : null),
+    ...profileRecords.map((item) => item?.id ? base44.entities.Profile.delete(item.id).catch(() => null) : null),
+  ]);
+
+  await base44.functions.invoke('deleteUserAccount', { email }).catch((error) => {
+    console.warn('Conta de autenticação não removida pelo backend:', error);
+  });
+
+  await logAccessRecovery({
+    email,
+    user_email: email,
+    status: 'ACCESS_REVOKED',
+    revocation_status: status,
+    origin: options.origin || 'user-management',
+    actor_email: options.actor_email || '',
+    reason: options.reason || '',
+    registrations: registrations.length,
+    permissions: permissions.length,
+    team_members: teamMembers.length,
+    users: userRecords.length,
+    profiles: profileRecords.length,
+    data: now,
+  });
+
+  return {
+    revoked: true,
+    email,
+    registrations: registrations.length,
+    permissions: permissions.length,
+    teamMembers: teamMembers.length,
+    users: userRecords.length,
+    profiles: profileRecords.length,
+  };
 }

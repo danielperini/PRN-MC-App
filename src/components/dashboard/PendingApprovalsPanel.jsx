@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+import { normalizeEmail, revokeUserAccess } from '@/utils/auth/recoverExistingUserAccess';
 
 const STATUS_CONFIG = {
   SUBMITTED: { label: 'Enviado', color: '#dbeafe', text: '#1d4ed8' },
@@ -56,8 +57,9 @@ export default function PendingApprovalsPanel() {
         acesso_liberado: true,
       });
 
+      const email = normalizeEmail(user.email);
       const permissions = await base44.entities.UserPermission.filter({
-        user_email: user.email.toLowerCase(),
+        user_email: email,
       });
       const requestedRoleRaw = user.role || user.base_role || 'PROFISSIONAL';
       const requestedRole = requestedRoleRaw === 'PATROCINADOR' ? 'OBSERVADOR' : requestedRoleRaw;
@@ -76,7 +78,7 @@ export default function PendingApprovalsPanel() {
         : {};
 
       const permissionData = {
-        user_email: user.email.toLowerCase(),
+        user_email: email,
         user_name: user.full_name || '',
         base_role: requestedRole,
         can_view_all_reports: false,
@@ -98,7 +100,7 @@ export default function PendingApprovalsPanel() {
         await base44.entities.UserPermission.update(permissions[0].id, permissionData);
       }
 
-      const appUsers = await base44.entities.User.filter({ email: user.email.toLowerCase() }).catch(() => []);
+      const appUsers = await base44.entities.User.filter({ email }).catch(() => []);
       if (appUsers?.[0]?.id) {
         await base44.entities.User.update(appUsers[0].id, {
           role: requestedRole,
@@ -162,18 +164,12 @@ export default function PendingApprovalsPanel() {
       });
 
       if (user?.email) {
-        const email = user.email.toLowerCase();
-        await base44.functions.invoke('deleteUserAccount', { email }).catch((error) => {
-          console.warn('Conta de autenticação não removida ao negar acesso:', error);
+        await revokeUserAccess(user.email, {
+          status: 'REJEITADO',
+          origin: 'pending-approvals-reject',
+          reason: 'Solicitação negada pela coordenação',
+          full_name: user.full_name,
         });
-        const [permissions, appUsers] = await Promise.all([
-          base44.entities.UserPermission.filter({ user_email: email }).catch(() => []),
-          base44.entities.User.filter({ email }).catch(() => []),
-        ]);
-        await Promise.all([
-          ...permissions.map((item) => base44.entities.UserPermission.delete(item.id)),
-          ...appUsers.map((item) => base44.entities.User.delete(item.id)),
-        ]);
       }
 
       try {
