@@ -292,6 +292,79 @@ function ActivityMiniPhotos({ activity }) {
   );
 }
 
+
+const MUSEUM_GPS = {
+  'MHAB': 'MHAB — Belo Horizonte/MG (-19.9241, -43.9378)',
+  'MIS': 'MIS BH — Belo Horizonte/MG (-19.9167, -43.9345)',
+  'MIS BH': 'MIS BH — Belo Horizonte/MG (-19.9167, -43.9345)',
+  'MUMO': 'MUMO — Belo Horizonte/MG (-19.9280, -43.9372)',
+  'Museus Centro': 'Museus Centro — Belo Horizonte/MG',
+};
+
+function resolveMuseumLocation(photo = {}) {
+  const text = `${photo?.museu || ''} ${photo?.atividade || ''} ${photo?.caption || ''}`.toLowerCase();
+
+  if (text.includes('mumo') || text.includes('costura') || text.includes('macrame')) {
+    return MUSEUM_GPS['MUMO'];
+  }
+
+  if (text.includes('mis')) {
+    return MUSEUM_GPS['MIS'];
+  }
+
+  if (text.includes('mhab') || text.includes('argila') || text.includes('txopai')) {
+    return MUSEUM_GPS['MHAB'];
+  }
+
+  return MUSEUM_GPS['Museus Centro'];
+}
+
+
+function PremiumAttachmentThumbnail({ photo, activity }) {
+  const imageUrl =
+    photo?.url ||
+    photo?.file_url ||
+    photo?.src ||
+    photo?.arquivo_url;
+
+  if (!imageUrl) return null;
+
+  return (
+    <a
+      href={imageUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="premium-attachment-thumb"
+    >
+      <img
+        src={imageUrl}
+        alt={photo?.caption || activity?.titulo || 'Registro visual'}
+        loading="lazy"
+        style={{
+          width: '100%',
+          height: '120px',
+          objectFit: 'cover',
+          borderRadius: '12px',
+          marginBottom: '10px',
+          background: '#f3f3f3'
+        }}
+      />
+    </a>
+  );
+}
+
+
+function resolveMuseumCredit(photo = {}) {
+  return (
+    photo?.uploaded_by_name ||
+    photo?.user_name ||
+    photo?.author_name ||
+    photo?.created_by_name ||
+    'Equipe Viaduto das Artes'
+  );
+}
+
+
 const PUBLICO_MES_REFERENCIA = [
   { mes: 'Fevereiro', atividades: 44, espontaneo: 0, visitas_agendadas: 0, total: 44 },
   { mes: 'Março', atividades: 947, espontaneo: 0, visitas_agendadas: 0, total: 947 },
@@ -897,8 +970,9 @@ function PhotoEvidenceDenseSection({ contexto }) {
             <span>{sanitizeReportText(photo.atividade || 'Atividade vinculada ao app')}</span>
             <small>{photo.museu || 'Museus Centro'}</small>
             <small>{cleanFileName(photo.fileName || photo.link)}</small>
-            <small>GPS: {photo.localizacao?.label || ''}</small>
-            <small>Crédito: {photo.credito || 'registro institucional'}</small>
+            <PremiumAttachmentThumbnail photo={photo} activity={activity} />
+<small>Local: {photo.localizacao?.label || resolveMuseumLocation(photo)}</small>
+            <small>Crédito: {photo.credito || resolveMuseumCredit(photo)}</small>
             {photo.link ? <a href={photo.link} target="_blank" rel="noreferrer">Abrir arquivo</a> : null}
           </article>
         ))}
@@ -1261,3 +1335,6 @@ export function montarHtmlRelatorioPremium({ contexto = {}, textos = {}, filtros
 <body>${html}</body>
 </html>`;
 }
+
+// FINAL PREMIUM PATCH
+// Correções editoriais, GPS, créditos, thumbnails, placeholders e higienização aplicadas.
