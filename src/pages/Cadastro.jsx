@@ -19,7 +19,6 @@ const ROLES = [
   { value: 'COORDENADOR', label: 'Coordenador' },
   { value: 'PROFISSIONAL', label: 'Profissional' },
   { value: 'OBSERVADOR', label: 'Observador' },
-  { value: 'PATROCINADOR', label: 'Patrocinador' },
 ];
 const FUNCOES = ['Educador', 'Produtor Cultural', 'Comunicador', 'Administrador', 'Outro'];
 const EQUIPES = ['Comunicação', 'Administração', 'Educativo', 'Produção', 'Outra'];
@@ -79,9 +78,9 @@ export default function Cadastro() {
     setForm((prev) => ({
       ...prev,
       role,
-      funcao: role === 'PATROCINADOR' ? 'Patrocinador' : prev.funcao,
-      equipe: role === 'PATROCINADOR' ? 'Patrocinador' : prev.equipe,
-      museu: role === 'PATROCINADOR' && !prev.museu ? 'Atuação Geral' : prev.museu,
+      funcao: role === 'OBSERVADOR' ? 'Observador' : prev.funcao,
+      equipe: role === 'OBSERVADOR' ? 'Observador' : prev.equipe,
+      museu: role === 'OBSERVADOR' && !prev.museu ? 'Atuação Geral' : prev.museu,
     }));
   };
 
@@ -288,7 +287,7 @@ export default function Cadastro() {
               />
             </div>
 
-            {form.role !== 'PATROCINADOR' ? (
+            {form.role !== 'OBSERVADOR' ? (
               <>
                 <div>
                   <Label>Função</Label>
@@ -312,7 +311,7 @@ export default function Cadastro() {
               </>
             ) : (
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                Perfil patrocinador selecionado. O sistema preencherá automaticamente função e equipe como <strong>Patrocinador</strong>.
+                Perfil observador selecionado. O sistema preencherá automaticamente função e equipe como <strong>Observador</strong>.
               </div>
             )}
 

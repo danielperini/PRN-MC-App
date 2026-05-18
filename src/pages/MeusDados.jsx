@@ -141,7 +141,7 @@ function MeusDadosInner() {
       }
       setUser(u);
       setCoordGeral(isCoordGeral(u));
-      setIsSponsor(u.role === 'PATROCINADOR');
+      setIsSponsor(u.role === 'PATROCINADOR' || u.role === 'OBSERVADOR');
       setFormData(mapUserToForm(u));
     }).catch(() => setUser(null));
   }, []);

@@ -10,7 +10,6 @@ const ROLES = [
   { value: 'COORDENADOR', label: 'Coordenador' },
   { value: 'PROFISSIONAL', label: 'Profissional' },
   { value: 'OBSERVADOR', label: 'Observador' },
-  { value: 'PATROCINADOR', label: 'Patrocinador' },
 ];
 const FUNCOES = ['Educador', 'Produtor Cultural', 'Comunicador', 'Administrador', 'Outro'];
 
@@ -76,9 +75,9 @@ const UserNotRegisteredError = () => {
   const setRole = (role) => setForm(prev => ({
     ...prev,
     role,
-    funcao: role === 'PATROCINADOR' ? 'Patrocinador' : prev.funcao,
-    equipe: role === 'PATROCINADOR' ? 'Patrocinador' : prev.equipe,
-    museu: role === 'PATROCINADOR' && !prev.museu ? 'Atuação Geral' : prev.museu,
+    funcao: role === 'OBSERVADOR' ? 'Observador' : prev.funcao,
+    equipe: role === 'OBSERVADOR' ? 'Observador' : prev.equipe,
+    museu: role === 'OBSERVADOR' && !prev.museu ? 'Atuação Geral' : prev.museu,
   }));
 
   const handleSubmit = async () => {
@@ -96,7 +95,7 @@ const UserNotRegisteredError = () => {
         role: form.role || 'PROFISSIONAL',
         base_role: form.role || 'PROFISSIONAL',
         funcao: form.funcao || '',
-        equipe: form.role === 'PATROCINADOR' ? 'Patrocinador' : '',
+        equipe: form.role === 'OBSERVADOR' ? 'Observador' : '',
         status: 'PENDENTE',
       });
       setStep('done');
@@ -220,7 +219,7 @@ const UserNotRegisteredError = () => {
                   options={MUSEUS}
                 />
               </div>
-              {form.role !== 'PATROCINADOR' ? (
+              {form.role !== 'OBSERVADOR' ? (
                 <div>
                   <Label>Função</Label>
                   <NativeSelect
@@ -232,7 +231,7 @@ const UserNotRegisteredError = () => {
                 </div>
               ) : (
                 <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                  Perfil patrocinador selecionado. Função e equipe serão preenchidas como <strong>Patrocinador</strong>.
+                  Perfil observador selecionado. Função e equipe serão preenchidas como <strong>Observador</strong>.
                 </div>
               )}
             </div>

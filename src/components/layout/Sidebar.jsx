@@ -284,12 +284,13 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
   const coord = isCoordenador(currentUserWithPermission);
   const sponsor = isPatrocinador(currentUserWithPermission);
   const obs = isObservador(currentUserWithPermission, userPermission);
-  const sourceGroups = sponsor ? SPONSOR_NAV_GROUPS : NAV_GROUPS;
+  const externalReadOnly = sponsor || obs;
+  const sourceGroups = externalReadOnly ? SPONSOR_NAV_GROUPS : NAV_GROUPS;
 
   const filteredGroups = sourceGroups.map(group => ({
     ...group,
     items: group.items.filter(item => {
-      if (sponsor) {
+      if (externalReadOnly) {
         return SIDEBAR_PATROCINADOR.has(item.path);
       }
       if (item.hideForObservador && obs) return false;

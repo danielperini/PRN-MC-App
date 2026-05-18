@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { isCoordenador, isPatrocinador } from '@/components/auth/permissions';
+import { isCoordenador, isObservador, isPatrocinador } from '@/components/auth/permissions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -44,7 +44,7 @@ export default function Mensagens() {
         permission = permissions?.[0] || null;
       } catch {}
       const userWithPermission = { ...u, base_role: permission?.base_role || u.base_role };
-      const sponsor = isPatrocinador(userWithPermission);
+      const sponsor = isPatrocinador(userWithPermission) || isObservador(userWithPermission, permission);
       setReadOnlySponsor(sponsor);
       const allowed = sponsor || isCoordenador(userWithPermission) || u?.role === 'admin' || u?.role === 'ADMIN';
       setAuthorized(allowed);

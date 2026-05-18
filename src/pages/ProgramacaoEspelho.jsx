@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RefreshCw, Calendar } from 'lucide-react';
-import { isPatrocinador } from '@/components/auth/permissions';
+import { isObservador, isPatrocinador } from '@/components/auth/permissions';
 
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -270,7 +270,8 @@ export default function ProgramacaoEspelho() {
         const permissions = await base44.entities.UserPermission.filter({ user_email: user.email.toLowerCase() });
         permission = permissions?.[0] || null;
       } catch {}
-      if (mounted) setIsSponsor(isPatrocinador({ ...user, base_role: permission?.base_role || user.base_role }));
+      const userWithPermission = { ...user, base_role: permission?.base_role || user.base_role };
+      if (mounted) setIsSponsor(isPatrocinador(userWithPermission) || isObservador(userWithPermission, permission));
     }).catch(() => {});
     return () => { mounted = false; };
   }, []);

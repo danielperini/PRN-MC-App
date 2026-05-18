@@ -59,8 +59,9 @@ export default function PendingApprovalsPanel() {
       const permissions = await base44.entities.UserPermission.filter({
         user_email: user.email.toLowerCase(),
       });
-      const requestedRole = user.role || user.base_role || 'PROFISSIONAL';
-      const sponsorDefaults = requestedRole === 'PATROCINADOR'
+      const requestedRoleRaw = user.role || user.base_role || 'PROFISSIONAL';
+      const requestedRole = requestedRoleRaw === 'PATROCINADOR' ? 'OBSERVADOR' : requestedRoleRaw;
+      const sponsorDefaults = requestedRole === 'PATROCINADOR' || requestedRole === 'OBSERVADOR'
         ? {
             can_view_sponsor_dashboard: true,
             can_view_approved_reports: true,
@@ -69,8 +70,8 @@ export default function PendingApprovalsPanel() {
             can_view_budget_summary: true,
             can_view_project_kpis: true,
             must_submit_monthly_reports: false,
-            funcao: 'Patrocinador',
-            equipe: 'Patrocinador',
+            funcao: 'Observador',
+            equipe: 'Observador',
           }
         : {};
 
@@ -86,7 +87,7 @@ export default function PendingApprovalsPanel() {
         can_view_audit_log: false,
         can_manage_museus: false,
         can_manage_equipes: false,
-        must_submit_monthly_reports: requestedRole === 'PATROCINADOR' ? false : true,
+        must_submit_monthly_reports: requestedRole === 'PATROCINADOR' || requestedRole === 'OBSERVADOR' ? false : true,
         gestao_compras: false,
         ...sponsorDefaults,
       };

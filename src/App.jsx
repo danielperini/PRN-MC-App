@@ -98,7 +98,7 @@ function SafePage({ Page, pageName }) {
   }
 
   if (userWithPermission && !canAccessPage(pageName, userWithPermission, userPermission)) {
-    if (sponsor) {
+    if (sponsorOrObserver) {
       return <Navigate to="/DashboardPatrocinador" replace />;
     }
     return (

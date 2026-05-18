@@ -61,8 +61,8 @@ export function isProfissional(user, userPermission) {
 export function getUserPerfil(user, userPermission) {
   if (!user) return 'ANONIMO';
   if (isCoordenador(user)) return 'COORDENADOR';
-  if (isPatrocinador(user)) return 'PATROCINADOR';
   if (isObservador(user, userPermission)) return 'OBSERVADOR';
+  if (isPatrocinador(user)) return 'OBSERVADOR';
   return 'PROFISSIONAL';
 }
 
@@ -104,6 +104,8 @@ export const PATROCINADOR_PAGES = new Set([
   'MeusDados',
   'Perfil',
 ]);
+
+export const OBSERVADOR_EXTERNAL_PAGES = PATROCINADOR_PAGES;
 
 export const PROFISSIONAL_EXTRA_PAGES = new Set([
   'Relatorios',
@@ -151,7 +153,7 @@ export function canAccessPage(pageName, user, userPermission) {
   if (!user) return false;
   if (isCoordenador(user)) return true;
   if (isPatrocinador(user)) return PATROCINADOR_PAGES.has(pageName);
-  if (isObservador(user, userPermission)) return OBSERVADOR_PAGES.has(pageName);
+  if (isObservador(user, userPermission)) return OBSERVADOR_EXTERNAL_PAGES.has(pageName);
   return PROFISSIONAL_PAGES.has(pageName);
 }
 
@@ -180,6 +182,8 @@ export const SIDEBAR_OBSERVADOR = new Set([
   'Aparencia',
   'MeusDados',
 ]);
+
+export const SIDEBAR_OBSERVADOR_EXTERNAL = SIDEBAR_PATROCINADOR;
 
 export const SIDEBAR_PROFISSIONAL = new Set([
   'Dashboard',

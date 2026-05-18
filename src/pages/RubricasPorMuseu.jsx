@@ -303,7 +303,7 @@ export default function RubricasPorMuseu() {
   }, []);
 
   const userRole = String(userPermission?.base_role || currentUser?.role || '').toUpperCase();
-  const isSponsor = userRole === 'PATROCINADOR';
+  const isSponsor = userRole === 'PATROCINADOR' || userRole === 'OBSERVADOR';
   const isCoordenador = currentUser && ['COORDENADOR', 'ADMIN', 'admin'].includes(currentUser?.role);
   const canEdit = !isSponsor && (isCoordenador || userPermission?.pode_gerenciar_rubricas || userPermission?.gestao_compras);
 

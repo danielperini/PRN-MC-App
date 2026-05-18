@@ -15,7 +15,6 @@ const CARGO_OPTIONS = [
   { value: 'COORDENADOR', label: 'Coordenador' },
   { value: 'PROFISSIONAL', label: 'Profissional' },
   { value: 'OBSERVADOR', label: 'Observador' },
-  { value: 'PATROCINADOR', label: 'Patrocinador' },
 ];
 
 export default function InviteDialog({ open, onClose, cadastroUrl }) {
@@ -27,8 +26,8 @@ export default function InviteDialog({ open, onClose, cadastroUrl }) {
     setEmailForm((prev) => ({
       ...prev,
       role,
-      funcao: role === 'PATROCINADOR' ? 'Patrocinador' : prev.funcao,
-      equipe: role === 'PATROCINADOR' ? 'Patrocinador' : prev.equipe,
+      funcao: role === 'OBSERVADOR' ? 'Observador' : prev.funcao,
+      equipe: role === 'OBSERVADOR' ? 'Observador' : prev.equipe,
     }));
   };
 

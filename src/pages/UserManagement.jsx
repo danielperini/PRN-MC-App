@@ -16,7 +16,7 @@ const ROLE_LABELS = {
   ADMIN: 'admin', admin: 'admin',
   COORDENADOR: 'coordenador',
   PROFISSIONAL: 'profissional',
-  PATROCINADOR: 'patrocinador',
+  PATROCINADOR: 'observador',
   OBSERVADOR: 'observador',
   user: 'usuário',
 };
@@ -25,7 +25,7 @@ const ROLE_COLORS = {
   ADMIN: 'bg-black text-white', admin: 'bg-black text-white',
   COORDENADOR: 'bg-blue-100 text-blue-800',
   PROFISSIONAL: 'bg-gray-100 text-gray-700',
-  PATROCINADOR: 'bg-purple-100 text-purple-700',
+  PATROCINADOR: 'bg-teal-100 text-teal-700',
   OBSERVADOR: 'bg-teal-100 text-teal-700',
   user: 'bg-gray-100 text-gray-700',
 };
@@ -59,22 +59,11 @@ const SPONSOR_PERMISSION_DEFAULTS = {
 };
 
 function defaultsForRole(role) {
-  if (role === 'PATROCINADOR') {
+  if (role === 'PATROCINADOR' || role === 'OBSERVADOR') {
     return {
       ...SPONSOR_PERMISSION_DEFAULTS,
-      funcao: 'Patrocinador',
-      equipe: 'Patrocinador',
-    };
-  }
-  if (role === 'OBSERVADOR') {
-    return {
-      can_review_reports: false,
-      can_manage_users: false,
-      can_manage_files: false,
-      can_manage_platform: false,
-      gestao_compras: false,
-      pode_aprovar_solicitacoes: false,
-      must_submit_monthly_reports: false,
+      funcao: 'Observador',
+      equipe: 'Observador',
     };
   }
   return {};
@@ -84,7 +73,7 @@ function EditDialog({ user, onClose }) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState({
     full_name: user.full_name || '',
-    role: user.role === 'user' ? 'PROFISSIONAL' : (user.role || 'PROFISSIONAL'),
+    role: user.role === 'PATROCINADOR' ? 'OBSERVADOR' : (user.role === 'user' ? 'PROFISSIONAL' : (user.role || 'PROFISSIONAL')),
     funcao: user.funcao || '',
     equipe: user.equipe || '',
   });
@@ -95,7 +84,7 @@ function EditDialog({ user, onClose }) {
     try {
       await base44.entities.User.update(user.id, {
         ...form,
-        ...(form.role === 'PATROCINADOR' ? { funcao: 'Patrocinador', equipe: 'Patrocinador' } : {}),
+        ...(form.role === 'OBSERVADOR' || form.role === 'PATROCINADOR' ? { funcao: 'Observador', equipe: 'Observador' } : {}),
       });
       toast.success('Usuário atualizado!');
       queryClient.invalidateQueries(['user-management']);
@@ -149,7 +138,7 @@ function EditDialog({ user, onClose }) {
               onValueChange={v => setForm({
                 ...form,
                 role: v,
-                ...(v === 'PATROCINADOR' ? { funcao: 'Patrocinador', equipe: 'Patrocinador' } : {}),
+                ...(v === 'OBSERVADOR' || v === 'PATROCINADOR' ? { funcao: 'Observador', equipe: 'Observador' } : {}),
               })}
             >
               <SelectTrigger><SelectValue /></SelectTrigger>
@@ -157,7 +146,6 @@ function EditDialog({ user, onClose }) {
                 <SelectItem value="PROFISSIONAL">Profissional</SelectItem>
                 <SelectItem value="COORDENADOR">Coordenador</SelectItem>
                 <SelectItem value="OBSERVADOR">Observador</SelectItem>
-                <SelectItem value="PATROCINADOR">Patrocinador</SelectItem>
                 <SelectItem value="admin">Admin</SelectItem>
               </SelectContent>
             </Select>
@@ -191,7 +179,7 @@ function PasswordDialog({ user, onClose }) {
 
 function PermissionsDialog({ user, permissions, onClose }) {
   const queryClient = useQueryClient();
-  const [role, setRole] = useState(permissions?.base_role || 'PROFISSIONAL');
+  const [role, setRole] = useState(permissions?.base_role === 'PATROCINADOR' ? 'OBSERVADOR' : (permissions?.base_role || 'PROFISSIONAL'));
   const [perms, setPerms] = useState(permissions || {});
   const [saving, setSaving] = useState(false);
 
@@ -212,7 +200,7 @@ function PermissionsDialog({ user, permissions, onClose }) {
       }
       await base44.entities.User.update(user.id, {
         role,
-        ...(role === 'PATROCINADOR' ? { funcao: 'Patrocinador', equipe: 'Patrocinador' } : {}),
+        ...(role === 'OBSERVADOR' || role === 'PATROCINADOR' ? { funcao: 'Observador', equipe: 'Observador' } : {}),
       });
       toast.success('Permissões salvas!');
       queryClient.invalidateQueries(['user-management']);
@@ -235,7 +223,6 @@ function PermissionsDialog({ user, permissions, onClose }) {
                 <SelectItem value="COORDENADOR">Coordenador</SelectItem>
                 <SelectItem value="ADMIN">Administrador</SelectItem>
                 <SelectItem value="OBSERVADOR">Observador (somente leitura)</SelectItem>
-                <SelectItem value="PATROCINADOR">Patrocinador</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -268,7 +255,8 @@ function PermissionsDialog({ user, permissions, onClose }) {
 }
 
 function UserCard({ user, onEdit, onPassword, onPermissions, onRoleChange, onDelete }) {
-  const role = user.permissions?.base_role || user.role || 'user';
+  const rawRole = user.permissions?.base_role || user.role || 'user';
+  const role = rawRole === 'PATROCINADOR' ? 'OBSERVADOR' : rawRole;
   const initials = (user.full_name || user.email || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
   const funcao = user.funcao || null;
   const equipe = user.equipe || null;
@@ -306,7 +294,6 @@ function UserCard({ user, onEdit, onPassword, onPermissions, onRoleChange, onDel
             <SelectItem value="COORDENADOR">Coordenador</SelectItem>
             <SelectItem value="ADMIN">Administrador</SelectItem>
             <SelectItem value="OBSERVADOR">Observador</SelectItem>
-            <SelectItem value="PATROCINADOR">Patrocinador</SelectItem>
           </SelectContent>
         </Select>
 
@@ -382,7 +369,7 @@ export default function UserManagement() {
       }
       await base44.entities.User.update(user.id, {
         role: newRole,
-        ...(newRole === 'PATROCINADOR' ? { funcao: 'Patrocinador', equipe: 'Patrocinador' } : {}),
+        ...(newRole === 'OBSERVADOR' || newRole === 'PATROCINADOR' ? { funcao: 'Observador', equipe: 'Observador' } : {}),
       });
       toast.success(`Papel alterado para ${newRole}`);
       queryClient.invalidateQueries(['user-management']);
