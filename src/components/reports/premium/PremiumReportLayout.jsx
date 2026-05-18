@@ -19,6 +19,7 @@ import {
   getActivityText,
   getActivityTitle,
   getMuseuLabel,
+  normalizeText,
   sanitizeReportText,
   splitParagraphs,
   toNumber,
@@ -46,64 +47,66 @@ const CATALOG_CSS = `
   .premium-section-dark { background: #171717; color: #f7f3eb; }
   .premium-section-heading { display: grid; grid-template-columns: minmax(0, .95fr) minmax(220px, .55fr); gap: 24px; align-items: end; margin-bottom: 22px; border-bottom: 1px solid rgba(23,23,23,.18); padding-bottom: 18px; }
   .premium-section-heading h2, .premium-museum-heading h2, .premium-closing h2 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 38px; line-height: 1; font-weight: 500; letter-spacing: 0; text-align: left; }
-  .premium-section-subtitle { margin: 0; color: #666; font-size: 13px; line-height: 1.45; }
-  .premium-prose { columns: 2; column-gap: 26px; font-size: 12.2px; line-height: 1.72; color: #2b2b2b; }
-  .premium-prose p { margin: 0 0 12px; break-inside: avoid; }
+  .premium-section-subtitle { margin: 0; color: #5f5f5f; font-size: 14px; line-height: 1.55; }
+  .premium-prose { columns: 2; column-gap: 28px; font-size: 14px; line-height: 1.78; color: #2b2b2b; }
+  .premium-prose p { margin: 0 0 14px; break-inside: avoid; }
   .premium-prose-invert { color: rgba(255,255,255,.82); }
   .premium-metrics { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin: 22px 0 8px; }
   .premium-metric { border: 1px solid rgba(23,23,23,.16); background: rgba(255,255,255,.42); padding: 15px; min-height: 96px; }
-  .premium-metric span, .premium-card-meta, .premium-timeline-meta { display: block; font-size: 9px; color: #6b6258; text-transform: uppercase; letter-spacing: .12em; font-weight: 700; }
+  .premium-metric span, .premium-card-meta, .premium-timeline-meta { display: block; font-size: 11px; color: #5f574e; text-transform: uppercase; letter-spacing: .1em; font-weight: 700; }
   .premium-metric strong { display: block; margin-top: 8px; font-size: 28px; line-height: 1; font-weight: 700; }
-  .premium-metric small { display: block; margin-top: 8px; color: #777; font-size: 10px; }
+  .premium-metric small { display: block; margin-top: 8px; color: #686868; font-size: 12px; line-height: 1.35; }
   .premium-timeline { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; margin-top: 22px; }
   .premium-timeline-item { display: grid; grid-template-columns: 42px 1fr; gap: 12px; padding: 12px 0; border-top: 1px solid rgba(23,23,23,.14); break-inside: avoid; }
   .premium-timeline-marker { width: 32px; height: 32px; border-radius: 50%; background: #171717; color: #fff; display: grid; place-items: center; font-size: 10px; font-weight: 700; }
-  .premium-timeline-item h3, .premium-activity-card h4 { margin: 3px 0 6px; font-size: 14px; line-height: 1.2; }
-  .premium-timeline-item p, .premium-activity-card p { margin: 0; font-size: 11px; line-height: 1.55; color: #555; }
+  .premium-timeline-item h3, .premium-activity-card h4 { margin: 3px 0 7px; font-size: 16px; line-height: 1.25; }
+  .premium-timeline-item p, .premium-activity-card p { margin: 0; font-size: 13px; line-height: 1.6; color: #4b4b4b; }
   .premium-gallery { display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); grid-auto-rows: 36mm; gap: 7px; margin-top: 18px; }
   .premium-photo { margin: 0; position: relative; overflow: hidden; background: #ddd4c6; break-inside: avoid; }
   .premium-photo-0, .premium-photo-4 { grid-column: span 3; grid-row: span 2; }
   .premium-photo-1, .premium-photo-2, .premium-photo-3 { grid-column: span 2; }
   .premium-photo img, .premium-photo-placeholder { width: 100%; height: 100%; object-fit: cover; display: block; }
   .premium-photo-placeholder { display: grid; place-items: center; background: repeating-linear-gradient(135deg, #d7cec0 0 10px, #cfc3b1 10px 20px); color: #746756; font-size: 11px; text-transform: uppercase; letter-spacing: .12em; }
-  .premium-photo figcaption { position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 10px 9px; color: #fff; font-size: 9px; line-height: 1.25; background: linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,.82)); }
+  .premium-photo figcaption { position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 10px 9px; color: #fff; font-size: 11px; line-height: 1.35; background: linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,.82)); }
   .premium-photo figcaption span, .premium-photo figcaption small { display: block; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: rgba(255,255,255,.78); }
   .premium-photo figcaption a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
   .premium-photo-index { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; margin-top: 18px; }
-  .premium-photo-index-item { border: 1px solid rgba(23,23,23,.14); background: rgba(255,255,255,.45); padding: 9px; font-size: 9.5px; line-height: 1.35; break-inside: avoid; }
+  .premium-photo-index-item { border: 1px solid rgba(23,23,23,.14); background: rgba(255,255,255,.45); padding: 11px; font-size: 11.5px; line-height: 1.45; break-inside: avoid; }
   .premium-photo-index-item strong, .premium-photo-index-item span, .premium-photo-index-item small, .premium-photo-index-item a { display: block; margin-bottom: 3px; color: inherit; }
   .premium-museum-heading { display: flex; justify-content: space-between; align-items: end; gap: 18px; margin-bottom: 18px; padding-bottom: 16px; border-bottom: 1px solid rgba(23,23,23,.18); }
   .premium-museum-kpis { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-  .premium-museum-kpis span, .premium-activity-tags span { border: 1px solid rgba(23,23,23,.16); padding: 6px 8px; font-size: 10px; background: rgba(255,255,255,.4); }
+  .premium-museum-kpis span, .premium-activity-tags span { border: 1px solid rgba(23,23,23,.16); padding: 7px 9px; font-size: 12px; background: rgba(255,255,255,.4); }
   .premium-activity-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .premium-activity-card { display: grid; grid-template-columns: 34px 1fr; gap: 11px; padding: 12px; border: 1px solid rgba(23,23,23,.13); background: rgba(255,255,255,.48); break-inside: avoid; }
+  .premium-activity-card { display: grid; grid-template-columns: 38px 1fr; gap: 13px; padding: 15px; border: 1px solid rgba(23,23,23,.13); background: rgba(255,255,255,.5); break-inside: avoid; }
   .premium-activity-index { font-size: 16px; font-weight: 800; color: #9f7f4d; }
   .premium-activity-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 9px; }
   .premium-activity-photos { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; margin-top: 10px; }
   .premium-activity-photos figure { margin: 0; min-height: 48px; }
   .premium-activity-photos img { width: 100%; height: 48px; object-fit: cover; display: block; background: #ddd4c6; }
-  .premium-activity-photos figcaption { margin-top: 3px; font-size: 7px; line-height: 1.25; color: #6a6259; }
+  .premium-activity-photos figcaption { margin-top: 4px; font-size: 9px; line-height: 1.3; color: #5e574f; }
   .premium-activity-photos figcaption span { display: block; }
   .premium-communication-grid { display: grid; grid-template-columns: minmax(0, 1fr) 210px; gap: 20px; align-items: stretch; }
   .premium-communication-panel { background: #171717; color: #fff; padding: 18px; display: flex; flex-direction: column; justify-content: flex-end; min-height: 130px; }
   .premium-communication-panel strong { font-size: 52px; line-height: .9; }
   .premium-communication-panel span { margin-top: 10px; font-size: 11px; line-height: 1.35; color: rgba(255,255,255,.72); }
-  .premium-table-wrap { margin-top: 18px; overflow: hidden; border: 1px solid rgba(23,23,23,.16); }
-  .premium-table { width: 100%; border-collapse: collapse; font-size: 10px; background: rgba(255,255,255,.42); }
-  .premium-table th { text-align: left; padding: 8px; background: #171717; color: #fff; font-size: 8px; text-transform: uppercase; letter-spacing: .1em; }
-  .premium-table td { padding: 8px; border-top: 1px solid rgba(23,23,23,.1); vertical-align: top; }
+  .premium-table-wrap { margin-top: 20px; overflow: hidden; border: 1px solid rgba(23,23,23,.18); background: rgba(255,255,255,.36); }
+  .premium-table { width: 100%; border-collapse: collapse; font-size: 12px; line-height: 1.45; background: rgba(255,255,255,.5); }
+  .premium-table th { text-align: left; padding: 11px 12px; background: #171717; color: #fff; font-size: 10px; text-transform: uppercase; letter-spacing: .1em; }
+  .premium-table td { padding: 12px; border-top: 1px solid rgba(23,23,23,.1); vertical-align: top; }
+  .premium-table tbody tr:nth-child(even) td { background: rgba(23,23,23,.035); }
   .premium-finance-grid, .premium-audience-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; }
   .catalog-toc { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px 18px; margin-top: 20px; counter-reset: toc; }
   .catalog-toc li { list-style: none; border-bottom: 1px solid rgba(23,23,23,.14); padding: 8px 0; font-size: 12px; display: flex; justify-content: space-between; gap: 12px; counter-increment: toc; }
   .catalog-toc li::before { content: counter(toc, decimal-leading-zero); color: #9f7f4d; font-weight: 800; margin-right: 10px; }
   .premium-month-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; margin-top: 18px; }
-  .premium-month-card { border: 1px solid rgba(23,23,23,.15); background: rgba(255,255,255,.48); padding: 12px; break-inside: avoid; min-height: 62mm; }
-  .premium-month-card h3 { margin: 0 0 6px; font-size: 15px; line-height: 1.2; }
-  .premium-month-card p { margin: 0 0 7px; font-size: 10.5px; line-height: 1.45; color: #4b4b4b; }
+  .premium-month-card { border: 1px solid rgba(23,23,23,.15); background: rgba(255,255,255,.5); padding: 15px; break-inside: avoid; min-height: 66mm; }
+  .premium-month-card h3 { margin: 0 0 8px; font-size: 17px; line-height: 1.25; }
+  .premium-month-card p { margin: 0 0 9px; font-size: 12.5px; line-height: 1.55; color: #444; }
+  .premium-month-card .premium-card-footnote { color: #69645c; font-size: 11.5px; }
   .premium-month-card figure { margin: 8px 0 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
   .premium-month-card img { width: 100%; height: 34px; object-fit: cover; background: #ddd4c6; }
   .premium-report-archive { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; margin-top: 18px; }
-  .premium-report-note { border: 1px solid rgba(23,23,23,.14); background: rgba(255,255,255,.46); padding: 10px; font-size: 9.5px; line-height: 1.35; break-inside: avoid; }
+  .premium-report-note { border: 1px solid rgba(23,23,23,.14); background: rgba(255,255,255,.46); padding: 12px; font-size: 11.5px; line-height: 1.45; break-inside: avoid; }
   .premium-report-note strong, .premium-report-note span { display: block; margin-bottom: 4px; }
   .premium-callout-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin-top: 18px; }
   .premium-callout { border-left: 4px solid #9f7f4d; background: rgba(255,255,255,.5); padding: 12px; font-size: 11px; line-height: 1.45; }
@@ -111,6 +114,21 @@ const CATALOG_CSS = `
   .premium-closing h2 { max-width: 760px; font-size: 48px; }
   .premium-signature { border-top: 1px solid rgba(255,255,255,.2); padding-top: 18px; display: flex; justify-content: space-between; gap: 20px; font-size: 12px; color: rgba(255,255,255,.62); }
   .premium-signature strong { color: #fff; }
+  .premium-audience-chart { grid-column: 1 / -1; border: 1px solid rgba(23,23,23,.18); background: rgba(255,255,255,.5); padding: 18px; break-inside: avoid; }
+  .premium-audience-chart h3 { margin: 0 0 6px; font-size: 20px; font-family: Georgia, "Times New Roman", serif; font-weight: 500; }
+  .premium-audience-chart p { margin: 0 0 16px; font-size: 12.5px; line-height: 1.5; color: #555; }
+  .audience-chart-row { display: grid; grid-template-columns: 92px 1fr 72px; gap: 12px; align-items: center; margin: 12px 0; }
+  .audience-chart-month { font-size: 12px; text-transform: uppercase; letter-spacing: .1em; font-weight: 800; color: #4b443d; }
+  .audience-chart-total { text-align: right; font-size: 16px; font-weight: 800; }
+  .audience-bar { height: 18px; display: flex; border: 1px solid rgba(23,23,23,.18); background: #eee8de; }
+  .audience-bar span { display: block; min-width: 1px; height: 100%; }
+  .audience-bar-acoes { background: #171717; }
+  .audience-bar-espontaneo { background: #777; }
+  .audience-bar-agendadas { background: #b9b0a2; }
+  .audience-chart-legend { display: flex; gap: 14px; margin-top: 14px; flex-wrap: wrap; font-size: 11.5px; color: #555; }
+  .audience-chart-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .audience-chart-legend i { width: 16px; height: 8px; display: inline-block; border: 1px solid rgba(23,23,23,.16); }
+  .agenda-consolidation-badge { display: inline-block; margin: 0 0 7px; padding: 4px 7px; border: 1px solid rgba(23,23,23,.14); background: rgba(23,23,23,.04); font-size: 10.5px; line-height: 1; text-transform: uppercase; letter-spacing: .08em; color: #5d554c; font-weight: 800; }
   @media print {
     body { background: #fff; }
     .premium-report { background: #fff; }
@@ -211,6 +229,233 @@ function ActivityMiniPhotos({ activity }) {
   );
 }
 
+const PUBLICO_MES_REFERENCIA = [
+  { mes: 'Fevereiro', atividades: 44, espontaneo: 0, visitas_agendadas: 0, total: 44 },
+  { mes: 'MarÃ§o', atividades: 947, espontaneo: 0, visitas_agendadas: 0, total: 947 },
+  { mes: 'Abril', atividades: 377, espontaneo: 0, visitas_agendadas: 0, total: 377 },
+];
+
+function getMonthName(item = {}) {
+  const direct = item.mes || item.month || '';
+  if (direct) return String(direct);
+
+  const parsed = new Date(item.data || item.data_inicio || item.data_realizacao || '');
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toLocaleDateString('pt-BR', { month: 'long' }).replace(/^./, (c) => c.toUpperCase());
+  }
+
+  return 'PerÃ­odo';
+}
+
+function getPublicoRegistrado(item = {}) {
+  const value = toNumber(item.publico ?? item.publico_total ?? item.participantes ?? item.presentes);
+  return value > 0 ? value : 0;
+}
+
+function getPublicoEstimado(item = {}) {
+  const value = toNumber(
+    item.publico_estimado ??
+    item.publico_previsto ??
+    item.capacidade ??
+    item.capacidade_publico ??
+    item.vagas ??
+    item.quantidade_prevista_participantes
+  );
+  return value > 0 ? value : 0;
+}
+
+function inferMetaLabel(item = {}) {
+  const explicit = getActivityMeta(item);
+  if (explicit) return { label: explicit, inferred: false };
+
+  const text = normalizeText([
+    item.titulo,
+    item.nome,
+    item.tipo,
+    item.classificacao,
+    item.categoria_label,
+    item.texto,
+    item.descricao,
+  ].filter(Boolean).join(' '));
+
+  if (text.includes('noturno')) return { label: 'Meta 11 - Noturno nos Museus', inferred: true };
+  if (text.includes('acessibilidade') || text.includes('libras') || text.includes('inclusao') || text.includes('inclusÃ£o')) {
+    return { label: 'Meta 14 - Acessibilidade', inferred: true };
+  }
+  if (text.includes('exposicao') || text.includes('exposiÃ§Ã£o') || text.includes('mostra')) {
+    return { label: 'Metas 10/12 - Mostras e exposiÃ§Ãµes', inferred: true };
+  }
+  if (
+    text.includes('oficina') ||
+    text.includes('curso') ||
+    text.includes('mediacao') ||
+    text.includes('mediaÃ§Ã£o') ||
+    text.includes('visita mediada') ||
+    text.includes('educativa') ||
+    text.includes('formacao') ||
+    text.includes('formaÃ§Ã£o') ||
+    text.includes('palestra') ||
+    text.includes('laboratorio') ||
+    text.includes('laboratÃ³rio')
+  ) {
+    return { label: 'Meta 05 - Atividades educativas e culturais', inferred: true };
+  }
+
+  return { label: 'Meta nÃ£o informada', inferred: false };
+}
+
+function isRecurringMediatedVisit(item = {}) {
+  const text = normalizeText([item.titulo, item.nome, item.tipo, item.texto, item.descricao].filter(Boolean).join(' '));
+  return text.includes('visita mediada') ||
+    text.includes('visitas mediadas') ||
+    text.includes('visita guiada') ||
+    text.includes('rotina') ||
+    text.includes('atendimento educativo recorrente');
+}
+
+function agendaSemanticKey(item = {}) {
+  const museu = normalizeText(getMuseuLabel(item.museu || item.equipamento || item.local));
+  const month = normalizeText(getMonthName(item));
+  const title = normalizeText(item.titulo || item.nome || 'atividade');
+
+  if (isRecurringMediatedVisit(item)) return `visitas-mediadas::${museu}::${month}`;
+
+  const reducedTitle = title
+    .replace(/\b(confirmada|confirmado|agendada|agendado|rotina|programacao|programaÃ§Ã£o)\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter((word) => word.length > 2)
+    .slice(0, 8)
+    .join(' ');
+
+  return `${museu}::${month}::${reducedTitle}`;
+}
+
+function itemCompletenessScore(item = {}) {
+  const textLength = String(item.texto || item.descricao || item.sinopse || '').length;
+  const photos = Array.isArray(item.fotos_destaque) ? item.fotos_destaque.length : Array.isArray(item.fotos) ? item.fotos.length : 0;
+  const status = normalizeText(item.status || item.tipo || '');
+  return (
+    (textLength > 70 ? 20 : textLength > 20 ? 10 : 0) +
+    (getPublicoRegistrado(item) > 0 ? 20 : 0) +
+    (getActivityMeta(item) ? 12 : 0) +
+    (photos > 0 ? Math.min(photos, 4) * 4 : 0) +
+    (status.includes('aprov') || status.includes('confirm') ? 14 : 0)
+  );
+}
+
+function mergeAgendaGroup(items = []) {
+  const sorted = [...items].sort((a, b) => itemCompletenessScore(b) - itemCompletenessScore(a));
+  const base = { ...sorted[0] };
+  const recurring = items.some(isRecurringMediatedVisit);
+  const publicoRegistrado = items.reduce((sum, item) => sum + getPublicoRegistrado(item), 0);
+  const publicoEstimado = publicoRegistrado > 0 ? 0 : Math.max(...items.map(getPublicoEstimado), 0);
+  const meta = inferMetaLabel(base);
+  const photos = [];
+  items.forEach((item) => {
+    const source = Array.isArray(item.fotos_destaque) ? item.fotos_destaque : Array.isArray(item.fotos) ? item.fotos : [];
+    source.forEach((photo) => {
+      const key = photo?.url || photo?.file_url || photo?.src;
+      if (key && !photos.some((existing) => (existing?.url || existing?.file_url || existing?.src) === key)) photos.push(photo);
+    });
+  });
+
+  return {
+    ...base,
+    titulo: recurring ? `Visitas mediadas - ${getMuseuLabel(base.museu)}` : base.titulo,
+    texto: base.texto || base.descricao || base.sinopse || '',
+    publicoRegistrado,
+    publicoEstimado,
+    publicoTipo: publicoRegistrado > 0 ? 'registrado' : publicoEstimado > 0 ? 'estimado' : 'nao_informado',
+    metaEditorial: meta.label,
+    metaInferida: meta.inferred,
+    consolidatedCount: items.length,
+    fotos_destaque: photos.slice(0, 4),
+  };
+}
+
+function consolidateAgendaItems(items = []) {
+  const groups = items.reduce((acc, item) => {
+    const key = agendaSemanticKey(item);
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(item);
+    return acc;
+  }, {});
+
+  return Object.values(groups)
+    .map(mergeAgendaGroup)
+    .sort((a, b) => String(a.data || '').localeCompare(String(b.data || '')))
+    .slice(0, 80);
+}
+
+function normalizeAudienceMonth(item = {}) {
+  const atividades = toNumber(item.atividades ?? item.acoes ?? item.publico_atividades ?? item.publicoAtividades);
+  const espontaneo = toNumber(item.espontaneo ?? item.publico_espontaneo ?? item.publicoEspontaneo);
+  const visitas = toNumber(item.visitas_agendadas ?? item.agendadas ?? item.publico_agendado ?? item.visitasAgendadas);
+  const total = toNumber(item.total) || atividades + espontaneo + visitas;
+
+  return {
+    mes: item.mes || item.month || 'PerÃ­odo',
+    atividades,
+    espontaneo,
+    visitas_agendadas: visitas,
+    total,
+  };
+}
+
+function buildAudienceMonthRows(contexto = {}) {
+  const source = Array.isArray(contexto?.publico_por_mes) && contexto.publico_por_mes.length > 0
+    ? contexto.publico_por_mes.map(normalizeAudienceMonth)
+    : PUBLICO_MES_REFERENCIA;
+
+  const byMonth = source.reduce((acc, item) => {
+    acc[normalizeText(item.mes)] = item;
+    return acc;
+  }, {});
+
+  return PUBLICO_MES_REFERENCIA.map((fallback) => {
+    const found = byMonth[normalizeText(fallback.mes)];
+    if (!found) return fallback;
+    return found.total > 0 ? found : fallback;
+  });
+}
+
+function AudienceMonthlyChart({ rows = [] }) {
+  const max = Math.max(...rows.map((item) => toNumber(item.total)), 1);
+
+  return (
+    <div className="premium-audience-chart">
+      <h3>PÃºblico por mÃªs</h3>
+      <p>Leitura editorial do recorte fevereiro, marÃ§o e abril, separando pÃºblico de aÃ§Ãµes, presenÃ§a espontÃ¢nea e visitas agendadas sem misturar estimativas com registros.</p>
+      {rows.map((item) => {
+        const total = Math.max(toNumber(item.total), 1);
+        const width = Math.max((total / max) * 100, 2);
+        const acoes = Math.max((toNumber(item.atividades) / total) * 100, item.atividades > 0 ? 2 : 0);
+        const espontaneo = Math.max((toNumber(item.espontaneo) / total) * 100, item.espontaneo > 0 ? 2 : 0);
+        const agendadas = Math.max((toNumber(item.visitas_agendadas) / total) * 100, item.visitas_agendadas > 0 ? 2 : 0);
+
+        return (
+          <div className="audience-chart-row" key={item.mes}>
+            <div className="audience-chart-month">{item.mes}</div>
+            <div className="audience-bar" style={{ width: `${width}%` }} aria-label={`${item.mes}: ${fmtInt(item.total)} pessoas`}>
+              <span className="audience-bar-acoes" style={{ width: `${acoes}%` }} />
+              <span className="audience-bar-espontaneo" style={{ width: `${espontaneo}%` }} />
+              <span className="audience-bar-agendadas" style={{ width: `${agendadas}%` }} />
+            </div>
+            <div className="audience-chart-total">{fmtInt(item.total)}</div>
+          </div>
+        );
+      })}
+      <div className="audience-chart-legend">
+        <span><i className="audience-bar-acoes" /> AÃ§Ãµes</span>
+        <span><i className="audience-bar-espontaneo" /> EspontÃ¢neo</span>
+        <span><i className="audience-bar-agendadas" /> Agendadas</span>
+      </div>
+    </div>
+  );
+}
+
 function MonthlyAgendaSection({ contexto }) {
   const atividades = Array.isArray(contexto?.atividades) ? contexto.atividades : [];
   const programacao = Array.isArray(contexto?.programacao) ? contexto.programacao : [];
@@ -224,6 +469,7 @@ function MonthlyAgendaSection({ contexto }) {
       tipo: item.tipo || item.tipo_atividade || item.status || 'Programação',
       texto: item.descricao || item.sinopse,
       publico: getActivityPublico(item),
+      publico_estimado: item.publico_estimado || item.publico_previsto || item.capacidade,
       meta: getActivityMeta(item),
       fotos_destaque: [],
     })),
@@ -236,13 +482,7 @@ function MonthlyAgendaSection({ contexto }) {
     })),
   ].filter((item) => item.titulo);
 
-  const seen = new Set();
-  const unique = items.filter((item) => {
-    const key = `${sanitizeReportText(item.data)}::${sanitizeReportText(item.titulo).toLowerCase()}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  }).slice(0, 80);
+  const unique = consolidateAgendaItems(items);
 
   if (unique.length === 0) return null;
 
@@ -252,15 +492,20 @@ function MonthlyAgendaSection({ contexto }) {
       eyebrow="Agenda Museus Centro no período"
       title="Agenda detalhada de fevereiro, março e abril"
       subtitle="Cada item preserva título, museu, data, tipo, público, meta e fotos vinculadas quando disponíveis no app."
-      text="A agenda foi consolidada a partir da programação e dos relatórios aprovados. Toda atividade relatada aparece como registro do período, com distinção entre ação pública, rotina interna, produção, comunicação, manutenção e gestão."
+      text="A agenda foi consolidada a partir da programação e dos relatórios aprovados. Registros recorrentes, rotinas e visitas mediadas fragmentadas foram agrupados para reduzir duplicidade visual, sem apagar a rastreabilidade: quando houver mais de uma origem, o card informa a quantidade de registros consolidados."
     >
       <div className="premium-month-grid">
         {unique.map((item, index) => (
           <article className="premium-month-card" key={item.id || `${item.titulo}-${index}`}>
+            {item.consolidatedCount > 1 ? <span className="agenda-consolidation-badge">{fmtInt(item.consolidatedCount)} registros consolidados</span> : null}
             <p className="premium-card-meta">{[item.data, item.mes, item.museu, item.tipo].filter(Boolean).join(' / ')}</p>
             <h3>{sanitizeReportText(item.titulo)}</h3>
             <p>{sanitizeReportText(splitParagraphs(item.texto, 1)[0] || 'Registro recuperado da programação ou dos relatórios aprovados no app.')}</p>
-            <p><strong>Público:</strong> {getActivityPublico(item) > 0 ? fmtInt(getActivityPublico(item)) : 'N/A'} · <strong>Meta:</strong> {getActivityMeta(item) || 'não informada'}</p>
+            <p className="premium-card-footnote">
+              <strong>{item.publicoTipo === 'estimado' ? 'Público estimado' : 'Público registrado'}:</strong>{' '}
+              {item.publicoRegistrado > 0 ? fmtInt(item.publicoRegistrado) : item.publicoEstimado > 0 ? fmtInt(item.publicoEstimado) : 'N/A'}
+              {' '}· <strong>Meta:</strong> {item.metaEditorial || getActivityMeta(item) || 'não informada'}{item.metaInferida ? ' (inferida)' : ''}
+            </p>
             <ActivityMiniPhotos activity={item} />
           </article>
         ))}
@@ -391,11 +636,12 @@ function ComprasTable({ contexto }) {
 }
 
 function AudienceBreakdown({ contexto }) {
-  const porMes = Array.isArray(contexto?.publico_por_mes) ? contexto.publico_por_mes : [];
+  const porMes = buildAudienceMonthRows(contexto);
   const porMuseu = Array.isArray(contexto?.publico_por_museu) ? contexto.publico_por_museu : Object.values(contexto?.por_museu || {});
 
   return (
     <div className="premium-audience-grid">
+      <AudienceMonthlyChart rows={porMes} />
       <div>
         <h3>Público por mês</h3>
         <div className="premium-table-wrap">
