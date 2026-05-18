@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import RequireAuth from '../components/auth/RequireAuth';
 import { useCurrentUser } from '../components/auth/useCurrentUser';
+import LoadingPage from '@/components/common/LoadingPage';
 import { RotateCw, LayoutDashboard, User, Eye } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -34,6 +35,7 @@ function DashboardViewSelector({ value, onChange }) {
       {options.map((option) => {
         const Icon = option.icon;
         const active = value === option.key;
+
         return (
           <Button
             key={option.key}
@@ -41,7 +43,11 @@ function DashboardViewSelector({ value, onChange }) {
             variant="ghost"
             size="sm"
             onClick={() => onChange(option.key)}
-            className={`gap-2 rounded-xl px-3 ${active ? 'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}
+            className={`gap-2 rounded-xl px-3 ${
+              active
+                ? 'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
+                : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+            }`}
           >
             <Icon className="w-4 h-4" />
             {option.label}
@@ -71,13 +77,28 @@ function DashboardCoordenadorView({
       <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10 space-y-6">
         <div className="flex items-center justify-between mb-2 gap-4 flex-wrap">
           <div>
-            <h1 className="text-3xl font-semibold text-foreground">Painel Coordenação</h1>
-            <p className="text-sm text-muted-foreground mt-1">Atualização automática ativa</p>
+            <h1 className="text-3xl font-semibold text-foreground">
+              Painel Coordenação
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Atualização automática ativa
+            </p>
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
-            {isCoordenador && <DashboardViewSelector value={dashboardViewMode} onChange={setDashboardViewMode} />}
-            <Button variant="outline" size="icon" onClick={handleRefresh} disabled={isRefreshing}>
+            {isCoordenador && (
+              <DashboardViewSelector
+                value={dashboardViewMode}
+                onChange={setDashboardViewMode}
+              />
+            )}
+
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+            >
               <RotateCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             </Button>
           </div>
@@ -90,9 +111,15 @@ function DashboardCoordenadorView({
         <ComplianceStats currentMonth={currentMonth} currentYear={currentYear} />
         <BudgetByGroupCards rubricas={rubricas} />
 
-        <CoordDashboard reports={isCoordenador ? allReports : myReports} isLoading={loadingAll} />
+        <CoordDashboard
+          reports={isCoordenador ? allReports : myReports}
+          isLoading={loadingAll}
+        />
 
-        <ExecutiveIndicators reports={isCoordenador ? allReports : myReports} rubricas={rubricas} />
+        <ExecutiveIndicators
+          reports={isCoordenador ? allReports : myReports}
+          rubricas={rubricas}
+        />
 
         <MetasAditivoSection rubricas={rubricas} />
       </div>
@@ -102,7 +129,9 @@ function DashboardCoordenadorView({
 
 function DashboardInner() {
   const { user: currentUser, isLoading: userLoading, isCoordenador } = useCurrentUser();
+
   const [isRefreshing, setIsRefreshing] = React.useState(false);
+
   const [dashboardViewMode, setDashboardViewModeState] = React.useState(() => {
     try {
       return localStorage.getItem(DASHBOARD_VIEW_KEY) || 'coordenador';
@@ -113,6 +142,7 @@ function DashboardInner() {
 
   const setDashboardViewMode = React.useCallback((mode) => {
     setDashboardViewModeState(mode);
+
     try {
       localStorage.setItem(DASHBOARD_VIEW_KEY, mode);
     } catch {}
@@ -127,11 +157,31 @@ function DashboardInner() {
   }, [isCoordenador]);
 
   const now = new Date();
-  const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+  const monthNames = [
+    'Janeiro',
+    'Fevereiro',
+    'Março',
+    'Abril',
+    'Maio',
+    'Junho',
+    'Julho',
+    'Agosto',
+    'Setembro',
+    'Outubro',
+    'Novembro',
+    'Dezembro',
+  ];
+
   const currentMonth = monthNames[now.getMonth()];
   const currentYear = now.getFullYear();
 
-  const { data: allReports = [], isLoading: loadingAll, refetch: refetchAll } = useQuery({
+  const {
+    data: allReports = [],
+    isLoading: loadingAll,
+    isFetching: fetchingAll,
+    refetch: refetchAll,
+  } = useQuery({
     queryKey: ['all-reports'],
     queryFn: async () => {
       try {
@@ -141,24 +191,43 @@ function DashboardInner() {
         return [];
       }
     },
-    enabled: isCoordenador,
+    enabled: !!currentUser?.email && isCoordenador,
+    staleTime: 1000 * 60 * 2,
+    refetchOnWindowFocus: false,
   });
 
-  const { data: myReports = [], refetch: refetchMy } = useQuery({
+  const {
+    data: myReports = [],
+    isLoading: loadingMy,
+    isFetching: fetchingMy,
+    refetch: refetchMy,
+  } = useQuery({
     queryKey: ['my-reports', currentUser?.email],
     queryFn: async () => {
       if (!currentUser?.email) return [];
+
       try {
-        const data = await base44.entities.Report.filter({ created_by: currentUser.email }, '-created_date');
+        const data = await base44.entities.Report.filter(
+          { created_by: currentUser.email },
+          '-created_date'
+        );
+
         return Array.isArray(data) ? data : [];
       } catch {
         return [];
       }
     },
     enabled: !!currentUser?.email && !userLoading,
+    staleTime: 1000 * 60 * 2,
+    refetchOnWindowFocus: false,
   });
 
-  const { data: rubricas = [] } = useQuery({
+  const {
+    data: rubricas = [],
+    isLoading: loadingRubricas,
+    isFetching: fetchingRubricas,
+    refetch: refetchRubricas,
+  } = useQuery({
     queryKey: ['dashboard-rubricas'],
     queryFn: async () => {
       try {
@@ -169,64 +238,119 @@ function DashboardInner() {
       }
     },
     enabled: !!currentUser?.email,
+    staleTime: 1000 * 60 * 2,
+    refetchOnWindowFocus: false,
   });
 
   const refetchDashboardData = React.useCallback(async () => {
-    await refetchMy();
-    if (isCoordenador) await refetchAll();
-    window.dispatchEvent(new CustomEvent('dashboard:update'));
-  }, [refetchMy, refetchAll, isCoordenador]);
+    await Promise.all([
+      refetchMy(),
+      refetchRubricas(),
+      isCoordenador ? refetchAll() : Promise.resolve(),
+    ]);
+  }, [refetchMy, refetchRubricas, refetchAll, isCoordenador]);
 
   React.useEffect(() => {
+    if (!currentUser?.email) return undefined;
+
     let dailyTimer = null;
+    let isUnmounted = false;
 
     const scheduleDailyUpdate = () => {
       if (dailyTimer) clearTimeout(dailyTimer);
-      const now = new Date();
+
+      const nowDate = new Date();
       const nextUpdate = new Date();
+
       nextUpdate.setHours(23, 59, 0, 0);
-      if (now >= nextUpdate) nextUpdate.setDate(nextUpdate.getDate() + 1);
-      const timeout = nextUpdate.getTime() - now.getTime();
+
+      if (nowDate >= nextUpdate) {
+        nextUpdate.setDate(nextUpdate.getDate() + 1);
+      }
+
+      const timeout = nextUpdate.getTime() - nowDate.getTime();
+
       dailyTimer = setTimeout(async () => {
+        if (isUnmounted) return;
+
         await refetchDashboardData();
-        localStorage.setItem('dashboard-update', Date.now().toString());
+
+        try {
+          localStorage.setItem('dashboard-update', Date.now().toString());
+        } catch {}
+
         scheduleDailyUpdate();
       }, timeout);
     };
 
-    const handleDashboardUpdate = () => refetchDashboardData();
-    const handleStorageUpdate = (event) => {
-      if (event.key === 'dashboard-update') refetchDashboardData();
+    const handleDashboardUpdate = () => {
+      refetchDashboardData();
     };
 
-    const unsubReport = base44.entities.Report.subscribe(() => {
-      refetchDashboardData();
-      localStorage.setItem('dashboard-update', Date.now().toString());
-    });
+    const handleStorageUpdate = (event) => {
+      if (event.key === 'dashboard-update') {
+        refetchDashboardData();
+      }
+    };
 
-    const unsubActivity = base44.entities.Activity.subscribe(() => {
-      refetchDashboardData();
-      localStorage.setItem('dashboard-update', Date.now().toString());
-    });
+    let unsubReport = null;
+    let unsubActivity = null;
+
+    try {
+      unsubReport = base44.entities.Report.subscribe(() => {
+        refetchDashboardData();
+
+        try {
+          localStorage.setItem('dashboard-update', Date.now().toString());
+        } catch {}
+      });
+    } catch {}
+
+    try {
+      unsubActivity = base44.entities.Activity.subscribe(() => {
+        refetchDashboardData();
+
+        try {
+          localStorage.setItem('dashboard-update', Date.now().toString());
+        } catch {}
+      });
+    } catch {}
 
     window.addEventListener('dashboard:update', handleDashboardUpdate);
     window.addEventListener('storage', handleStorageUpdate);
+
     scheduleDailyUpdate();
 
     return () => {
-      if (dailyTimer) clearTimeout(dailyTimer);
-      unsubReport();
-      unsubActivity();
+      isUnmounted = true;
+
+      if (dailyTimer) {
+        clearTimeout(dailyTimer);
+      }
+
+      if (typeof unsubReport === 'function') {
+        unsubReport();
+      }
+
+      if (typeof unsubActivity === 'function') {
+        unsubActivity();
+      }
+
       window.removeEventListener('dashboard:update', handleDashboardUpdate);
       window.removeEventListener('storage', handleStorageUpdate);
     };
-  }, [refetchDashboardData]);
+  }, [currentUser?.email, refetchDashboardData]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
+
     try {
       await refetchDashboardData();
-      localStorage.setItem('dashboard-update', Date.now().toString());
+
+      try {
+        localStorage.setItem('dashboard-update', Date.now().toString());
+      } catch {}
+
       window.dispatchEvent(new CustomEvent('dashboardRefreshed'));
     } finally {
       setIsRefreshing(false);
@@ -235,16 +359,43 @@ function DashboardInner() {
 
   const { containerRef } = usePullToRefresh(handleRefresh);
 
-  if (!userLoading && currentUser && !isCoordenador) return <DashboardProfissional />;
+  const isInitialPageLoading =
+    userLoading ||
+    (!!currentUser?.email &&
+      (loadingMy ||
+        loadingRubricas ||
+        (isCoordenador && loadingAll)));
+
+  const isPageFetching =
+    fetchingMy ||
+    fetchingRubricas ||
+    (isCoordenador && fetchingAll);
+
+  if (isInitialPageLoading) {
+    return (
+      <LoadingPage
+        message="Carregando página..."
+        description="Estamos carregando todas as informações do painel. Aguarde alguns instantes."
+      />
+    );
+  }
+
+  if (!userLoading && currentUser && !isCoordenador) {
+    return <DashboardProfissional />;
+  }
 
   if (isCoordenador && dashboardViewMode === 'profissional') {
     return (
       <div className="min-h-screen bg-background">
         <div className="max-w-6xl mx-auto px-4 md:px-6 pt-6 md:pt-10">
           <div className="flex justify-end mb-4">
-            <DashboardViewSelector value={dashboardViewMode} onChange={setDashboardViewMode} />
+            <DashboardViewSelector
+              value={dashboardViewMode}
+              onChange={setDashboardViewMode}
+            />
           </div>
         </div>
+
         <DashboardProfissional />
       </div>
     );
@@ -256,11 +407,28 @@ function DashboardInner() {
         <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10 space-y-6">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>
-              <h1 className="text-3xl font-semibold text-foreground">Dashboard Observador</h1>
-              <p className="text-sm text-muted-foreground mt-1">Visão institucional restaurada para coordenadores.</p>
+              <h1 className="text-3xl font-semibold text-foreground">
+                Dashboard Observador
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                Visão institucional restaurada para coordenadores.
+              </p>
             </div>
-            <DashboardViewSelector value={dashboardViewMode} onChange={setDashboardViewMode} />
+
+            <DashboardViewSelector
+              value={dashboardViewMode}
+              onChange={setDashboardViewMode}
+            />
           </div>
+
+          {isPageFetching ? (
+            <LoadingPage
+              fullHeight={false}
+              message="Atualizando informações..."
+              description="Estamos sincronizando os dados mais recentes do painel."
+            />
+          ) : null}
+
           <GaleriaTickerCarousel />
           <NewsCarousel />
           <DiariamenteNosMuseus />
