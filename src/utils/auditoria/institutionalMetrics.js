@@ -21,6 +21,7 @@ export async function loadInstitutionalAuditDatasets() {
     metas,
     attachments,
     gallery,
+    presenceRecords,
   ] = await Promise.all([
     safeList(base44.entities.Report, '-updated_date', 1000),
     safeList(base44.entities.Programacao, '-data_realizacao', 1000),
@@ -28,6 +29,7 @@ export async function loadInstitutionalAuditDatasets() {
     safeList(base44.entities.Meta, 'codigo', 1000),
     safeList(base44.entities.Attachment, '-created_date', 1000),
     safeList(base44.entities.Gallery, '-created_date', 1000),
+    safeList(base44.entities.PresenceRecord, '-data', 3000),
   ]);
 
   return {
@@ -36,6 +38,7 @@ export async function loadInstitutionalAuditDatasets() {
     rubricas,
     metas,
     photos: [...attachments, ...gallery],
+    presenceRecords,
   };
 }
 

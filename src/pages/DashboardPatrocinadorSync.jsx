@@ -439,16 +439,18 @@ export default function DashboardPatrocinadorSync() {
       const mesReferencia = getPreviousClosedMonth();
       const mesAgenda = getCurrentMonth();
 
-      const [reportsAll, programacaoRaw, rubricasRaw] = await Promise.all([
+      const [reportsAll, programacaoRaw, rubricasRaw, presenceRecords] = await Promise.all([
       safeList(base44.entities.Report, '-updated_date', 1000),
       safeList(base44.entities.Programacao, '-data_realizacao', 1000),
-      safeList(base44.entities.Rubrica, 'ordem_exibicao', 1000)]
+      safeList(base44.entities.Rubrica, 'ordem_exibicao', 1000),
+      safeList(base44.entities.PresenceRecord, '-data', 3000)]
       );
 
       const officialMetrics = consolidateOfficialDashboardMetrics({
         reports: reportsAll,
         programacao: programacaoRaw,
         rubricas: rubricasRaw,
+        presenceRecords,
       });
       const publicoGeralPorMuseu = Object.fromEntries(
         (officialMetrics.audience?.byMuseum || []).map((item) => [item.museu, item.total])

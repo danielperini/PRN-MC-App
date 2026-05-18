@@ -1,0 +1,13 @@
+{
+  "name": "ParticipantAuditLog",
+  "type": "object",
+  "properties": {
+    "action": { "type": "string" },
+    "participant_id": { "type": "string" },
+    "museu": { "type": "string" },
+    "atividade_id": { "type": "string" },
+    "details": { "type": "string" },
+    "metadata": { "type": "object" },
+    "created_at": { "type": "string" }
+  }
+}

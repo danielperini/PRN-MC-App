@@ -1,0 +1,32 @@
+{
+  "name": "Participant",
+  "type": "object",
+  "properties": {
+    "nome_completo": { "type": "string" },
+    "primeiro_nome": { "type": "string" },
+    "sobrenome": { "type": "string" },
+    "nome_social": { "type": "string" },
+    "cpf": { "type": "string" },
+    "passaporte": { "type": "string" },
+    "email": { "type": "string" },
+    "telefone": { "type": "string" },
+    "cep": { "type": "string" },
+    "endereco": { "type": "string" },
+    "numero": { "type": "string" },
+    "complemento": { "type": "string" },
+    "bairro": { "type": "string" },
+    "cidade": { "type": "string" },
+    "estado": { "type": "string" },
+    "pais": { "type": "string", "default": "Brasil" },
+    "data_nascimento": { "type": "string", "format": "date" },
+    "museu": { "type": "string" },
+    "atividade_id": { "type": "string" },
+    "atividade_nome": { "type": "string" },
+    "oficina_id": { "type": "string" },
+    "relatorio_id": { "type": "string" },
+    "origem": { "type": "string" },
+    "created_by": { "type": "string" },
+    "created_at": { "type": "string" },
+    "updated_at": { "type": "string" }
+  }
+}

@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { base44 } from '@/api/base44Client';
 import { createPageUrl } from '@/utils';
 import {
   BarChart,
@@ -295,6 +297,17 @@ export default function CoordDashboard({ reports = [], isLoading }) {
 
   const publicoLineColor = isDarkTheme ? '#ffffff' : '#000000';
   const mesReferencia = useMemo(() => getPreviousClosedMonth(), []);
+  const { data: presenceRecords = [] } = useQuery({
+    queryKey: ['presence-records-dashboard'],
+    queryFn: async () => {
+      try {
+        const data = await base44.entities.PresenceRecord.list('-data', 3000);
+        return Array.isArray(data) ? data : [];
+      } catch {
+        return [];
+      }
+    },
+  });
 
   const reportsFiltrados = useMemo(() => {
     return reports.filter((report) => {
@@ -309,14 +322,14 @@ export default function CoordDashboard({ reports = [], isLoading }) {
   }, [reports, filterDataInicio, filterDataFim]);
 
   const metrics = useMemo(() => {
-    const official = consolidateOfficialDashboardMetrics({ reports: reportsFiltrados });
+    const official = consolidateOfficialDashboardMetrics({ reports: reportsFiltrados, presenceRecords });
     return {
       approvedReports: official.reports.items.filter(isApprovedReport),
       approvedActivities: official.activities.items,
       publicoTotal: official.audience.publicoTotal,
       official,
     };
-  }, [reportsFiltrados]);
+  }, [reportsFiltrados, presenceRecords]);
 
   const allAtiv = useMemo(() => {
     let atividades = metrics.approvedActivities;

@@ -1,0 +1,27 @@
+{
+  "name": "PresenceRecord",
+  "type": "object",
+  "properties": {
+    "participant_id": { "type": "string" },
+    "participant_name": { "type": "string" },
+    "nome_completo": { "type": "string" },
+    "museu": { "type": "string" },
+    "activity_id": { "type": "string" },
+    "atividade_id": { "type": "string" },
+    "atividade_nome": { "type": "string" },
+    "oficina_id": { "type": "string" },
+    "data": { "type": "string", "format": "date" },
+    "data_presenca": { "type": "string", "format": "date" },
+    "tipo_presenca": { "type": "string" },
+    "tipo_publico": { "type": "string" },
+    "origem_lista": { "type": "string" },
+    "lista_presenca_id": { "type": "string" },
+    "responsavel": { "type": "string" },
+    "status_presenca": { "type": "string" },
+    "assinatura": { "type": "string" },
+    "computed_as_public": { "type": "boolean", "default": true },
+    "created_by": { "type": "string" },
+    "created_at": { "type": "string" },
+    "updated_at": { "type": "string" }
+  }
+}

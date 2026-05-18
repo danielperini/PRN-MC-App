@@ -10,6 +10,7 @@ import { validateMetas } from './validateMetas';
 import { validateRubricas } from './validateRubricas';
 import { validateDashboardMetrics } from './validateDashboardMetrics';
 import { validateExceptionalRubricas } from '@/utils/finance/validateExceptionalRubricas';
+import { consolidatePresenceAudience } from '@/utils/presenca/presenceMetrics';
 
 function withReportAuditFields(reports = []) {
   return (Array.isArray(reports) ? reports : []).map((report) => {
@@ -52,6 +53,7 @@ export function consolidateMetrics(datasets = {}, options = {}) {
   const rubricas = datasets.rubricas || [];
   const metas = datasets.metas || [];
   const photos = datasets.photos || datasets.galeria || datasets.attachments || [];
+  const presenceRecords = datasets.presenceRecords || datasets.presencas || [];
 
   const activities = reconcileActivities(reports, programacao, filter);
   const filteredReports = filter?.from || filter?.to
@@ -59,7 +61,8 @@ export function consolidateMetrics(datasets = {}, options = {}) {
     : reports;
 
   const approvedFilteredReports = filteredReports.filter(isApprovedReport);
-  const audience = reconcileAudienceTotals({ reports: approvedFilteredReports, activities: activities.activities });
+  const presenceAudience = consolidatePresenceAudience(presenceRecords, { filter, activities: activities.activities });
+  const audience = reconcileAudienceTotals({ reports: approvedFilteredReports, activities: activities.activities, presenceAudience });
   const financeiro = reconcileFinancialTotals(rubricas, options.financeiro || {});
   const gallery = reconcileGallery(photos, activities.activities);
 
@@ -88,6 +91,7 @@ export function consolidateMetrics(datasets = {}, options = {}) {
       byMuseum: groupActivitiesByMuseum(activities.activities),
     },
     audience,
+    presence: presenceAudience,
     financeiro,
     gallery,
   };
