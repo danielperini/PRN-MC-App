@@ -24,16 +24,16 @@ export default function PremiumCommunicationSection({ contexto, textos }) {
     6
   );
   const fallbackParagraphs = [
-    'A comunicacao do periodo e apresentada como frente de memoria visual, documentacao cultural e presenca publica. Mais do que divulgar atividades isoladas, registros fotograficos, filmagens, pecas digitais e acompanhamento das acoes formam uma camada de evidencia sobre a execucao do projeto.',
-    'Esse conjunto permite reconhecer como a programacao se torna visivel para diferentes publicos e como os museus constroem continuidade institucional por meio de imagens, textos, coberturas e arquivos.',
-    'Os textos originais dos registros foram preservados como fonte, mas reorganizados editorialmente para reduzir redundancias, qualificar a leitura e evidenciar relacoes entre cobertura, identidade visual, documentacao, audiovisual, redes institucionais e prestacao de contas.',
+    'A comunicação do período é apresentada como frente de memória visual, documentação cultural e presença pública. Mais do que divulgar atividades isoladas, registros fotográficos, filmagens, peças digitais e acompanhamento das ações formam uma camada de evidência sobre a execução do projeto.',
+    'Esse conjunto permite reconhecer como a programação se torna visível para diferentes públicos e como os museus constroem continuidade institucional por meio de imagens, textos, coberturas e arquivos.',
+    'Os textos originais dos registros foram preservados como fonte, mas reorganizados editorialmente para reduzir redundâncias, qualificar a leitura e evidenciar relações entre cobertura, identidade visual, documentação, audiovisual, redes institucionais e prestação de contas.',
   ];
 
   return (
     <section className="premium-communication premium-page-break">
       <div className="premium-section-heading">
-        <p className="premium-eyebrow">Comunicacao, memoria visual e circulacao publica</p>
-        <h2>Comunicacao, registros e evidencias</h2>
+        <p className="premium-eyebrow">Comunicação, memória visual e circulação pública</p>
+        <h2>Comunicação, registros e evidências</h2>
       </div>
 
       <div className="premium-communication-grid">
@@ -45,7 +45,7 @@ export default function PremiumCommunicationSection({ contexto, textos }) {
 
         <div className="premium-communication-panel">
           <strong>{atividades.length}</strong>
-          <span>registros associados a comunicacao, cobertura, audiovisual, pauta ou memoria visual</span>
+          <span>registros associados a comunicação, cobertura, audiovisual, pauta ou memória visual</span>
         </div>
       </div>
 
@@ -63,10 +63,10 @@ export default function PremiumCommunicationSection({ contexto, textos }) {
             <tbody>
               {atividades.slice(0, 24).map((item, index) => (
                 <tr key={item?.id || index}>
-                  <td>{item?.nome || item?.titulo || 'Registro de comunicacao'}</td>
+                  <td>{item?.nome || item?.titulo || 'Registro de comunicação'}</td>
                   <td>{item?.museu || 'Geral'}</td>
-                  <td>{item?.mes || item?.data || 'Periodo'}</td>
-                  <td>{item?.categoria_label || item?.classificacao || 'Comunicacao'}</td>
+                  <td>{item?.mes || item?.data || 'Período'}</td>
+                  <td>{item?.categoria_label || item?.classificacao || 'Comunicação'}</td>
                 </tr>
               ))}
             </tbody>

@@ -75,10 +75,10 @@ export default function PremiumMuseumSection({ contexto }) {
   const atividadesPublicas = (Array.isArray(contexto?.atividades) ? contexto.atividades : []).filter(isPublicFacingActivity);
   const grupos = groupByMuseu(atividadesPublicas);
   const intros = {
-    MHAB: 'No MHAB, a programacao dialoga com memoria urbana, historia publica, mediacao territorial e formacao de publico.',
-    MIS: 'No MIS, as acoes mobilizam audiovisual, memoria da imagem e do som, documentacao cultural e aproximacao com publicos diversos.',
-    MUMO: 'No MUMO, os registros aproximam moda, corpo, design, educacao e cultura urbana em chave contemporanea.',
-    geral: 'A atuacao geral reune frentes transversais de planejamento, acessibilidade, comunicacao, documentacao e producao cultural.',
+    MHAB: 'No MHAB, a programação dialoga com memória urbana, história pública, mediação territorial e formação de público.',
+    MIS: 'No MIS, as ações mobilizam audiovisual, memória da imagem e do som, documentação cultural e aproximação com públicos diversos.',
+    MUMO: 'No MUMO, os registros aproximam moda, corpo, design, educação e cultura urbana em chave contemporânea.',
+    geral: 'A atuação geral reúne frentes transversais de planejamento, acessibilidade, comunicação, documentação e produção cultural.',
   };
   const museus = ['MHAB', 'MIS', 'MUMO', 'Atuação geral'];
 

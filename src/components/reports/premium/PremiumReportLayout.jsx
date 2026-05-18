@@ -121,9 +121,11 @@ const CATALOG_CSS = `
   .premium-institutional-list strong { display: block; margin-bottom: 5px; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; }
   .premium-institutional-list span { display: block; font-size: 12.5px; line-height: 1.5; color: #4b4b4b; }
   .premium-museum-intro { margin: -4px 0 18px; max-width: 820px; font-size: 14px; line-height: 1.66; color: #3f3f3f; }
-  .premium-report-archive { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; margin-top: 18px; }
-  .premium-report-note { border: 1px solid rgba(23,23,23,.14); background: rgba(255,255,255,.46); padding: 12px; font-size: 11.5px; line-height: 1.45; break-inside: avoid; }
-  .premium-report-note strong, .premium-report-note span { display: block; margin-bottom: 4px; }
+  .premium-report-archive { display: grid; grid-template-columns: 1fr; gap: 14px; margin-top: 20px; }
+  .premium-report-note { border: 1px solid rgba(23,23,23,.14); background: rgba(255,255,255,.52); padding: 18px; font-size: 13px; line-height: 1.6; break-inside: avoid; }
+  .premium-report-note strong { display: block; margin-bottom: 6px; font-family: Georgia, "Times New Roman", serif; font-size: 22px; line-height: 1.08; font-weight: 500; }
+  .premium-report-note span { display: inline-block; margin: 0 10px 8px 0; color: #5b554e; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; font-weight: 700; }
+  .premium-report-note small { display: block; margin-top: 8px; font-size: 13px; line-height: 1.62; color: #3d3d3d; }
   .premium-callout-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin-top: 18px; }
   .premium-callout { border-left: 4px solid #9f7f4d; background: rgba(255,255,255,.5); padding: 12px; font-size: 11px; line-height: 1.45; }
   .premium-closing { background: #171717; color: #f7f3eb; display: flex; flex-direction: column; justify-content: space-between; }
@@ -267,7 +269,7 @@ function ActivityMiniPhotos({ activity }) {
 
 const PUBLICO_MES_REFERENCIA = [
   { mes: 'Fevereiro', atividades: 44, espontaneo: 0, visitas_agendadas: 0, total: 44 },
-  { mes: 'MarÃ§o', atividades: 947, espontaneo: 0, visitas_agendadas: 0, total: 947 },
+  { mes: 'Março', atividades: 947, espontaneo: 0, visitas_agendadas: 0, total: 947 },
   { mes: 'Abril', atividades: 377, espontaneo: 0, visitas_agendadas: 0, total: 377 },
 ];
 
@@ -280,7 +282,7 @@ function getMonthName(item = {}) {
     return parsed.toLocaleDateString('pt-BR', { month: 'long' }).replace(/^./, (c) => c.toUpperCase());
   }
 
-  return 'PerÃ­odo';
+  return 'Período';
 }
 
 function getPublicoRegistrado(item = {}) {
@@ -328,40 +330,40 @@ function inferMetaLabel(item = {}) {
   if (text.includes('noturno')) return { label: 'Meta vinculada fora do recorte', inferred: true };
   if (
     text.includes('comunicacao') ||
-    text.includes('comunicaÃ§Ã£o') ||
+    text.includes('comunicação') ||
     text.includes('divulgacao') ||
-    text.includes('divulgaÃ§Ã£o') ||
+    text.includes('divulgação') ||
     text.includes('clipping') ||
     text.includes('postagem') ||
     text.includes('registro') ||
     text.includes('cobertura') ||
     text.includes('audiovisual')
   ) {
-    return { label: 'Meta de comunicaÃ§Ã£o institucional', inferred: true };
+    return { label: 'Meta de comunicação institucional', inferred: true };
   }
-  if (text.includes('acessibilidade') || text.includes('libras') || text.includes('inclusao') || text.includes('inclusÃ£o')) {
+  if (text.includes('acessibilidade') || text.includes('libras') || text.includes('inclusao') || text.includes('inclusão')) {
     return { label: 'Meta 14 - Acessibilidade', inferred: true };
   }
-  if (text.includes('exposicao') || text.includes('exposiÃ§Ã£o') || text.includes('mostra')) {
-    return { label: 'Metas 10/12 - Mostras e exposiÃ§Ãµes', inferred: true };
+  if (text.includes('exposicao') || text.includes('exposição') || text.includes('mostra')) {
+    return { label: 'Metas 10/12 - Mostras e exposições', inferred: true };
   }
   if (
     text.includes('oficina') ||
     text.includes('curso') ||
     text.includes('mediacao') ||
-    text.includes('mediaÃ§Ã£o') ||
+    text.includes('mediação') ||
     text.includes('visita mediada') ||
     text.includes('educativa') ||
     text.includes('formacao') ||
-    text.includes('formaÃ§Ã£o') ||
+    text.includes('formação') ||
     text.includes('palestra') ||
     text.includes('laboratorio') ||
-    text.includes('laboratÃ³rio')
+    text.includes('laboratório')
   ) {
     return { label: 'Meta 05 - Atividades educativas e culturais', inferred: true };
   }
 
-  return { label: 'Meta nÃ£o informada', inferred: false };
+  return { label: 'Meta não informada', inferred: false };
 }
 
 function isCommunicationRecord(item = {}) {
@@ -376,13 +378,13 @@ function isCommunicationRecord(item = {}) {
   ].filter(Boolean).join(' '));
 
   return text.includes('comunicacao') ||
-    text.includes('comunicaÃ§Ã£o') ||
+    text.includes('comunicação') ||
     text.includes('cobertura') ||
     text.includes('registro fotografico') ||
-    text.includes('registro fotogrÃ¡fico') ||
+    text.includes('registro fotográfico') ||
     text.includes('audiovisual') ||
     text.includes('video') ||
-    text.includes('vÃ­deo') ||
+    text.includes('vídeo') ||
     text.includes('clipping') ||
     text.includes('postagem') ||
     text.includes('rede social') ||
@@ -390,9 +392,9 @@ function isCommunicationRecord(item = {}) {
     text.includes('png') ||
     text.includes('identidade visual') ||
     text.includes('divulgacao') ||
-    text.includes('divulgaÃ§Ã£o') ||
+    text.includes('divulgação') ||
     text.includes('documentacao') ||
-    text.includes('documentaÃ§Ã£o');
+    text.includes('documentação');
 }
 
 function isIrrelevantAdministrativeRecord(item = {}) {
@@ -405,9 +407,9 @@ function isIrrelevantAdministrativeRecord(item = {}) {
   ].filter(Boolean).join(' '));
 
   return text.includes('contratacao de consultoria') ||
-    text.includes('contrataÃ§Ã£o de consultoria') ||
+    text.includes('contratação de consultoria') ||
     text.includes('processo de contratacao') ||
-    text.includes('processo de contrataÃ§Ã£o') ||
+    text.includes('processo de contratação') ||
     text.includes('noturno');
 }
 
@@ -427,12 +429,12 @@ function agendaSemanticKey(item = {}) {
 
   if (isCommunicationRecord(item)) return 'comunicacao-institucional::periodo';
   if (isRecurringMediatedVisit(item)) return `visitas-mediadas::${museu}::${month}`;
-  if (title.includes('laboratorio poetico') || title.includes('laboratÃ³rio poÃ©tico') || title.includes('argilas e movimentos')) {
+  if (title.includes('laboratorio poetico') || title.includes('laboratório poético') || title.includes('argilas e movimentos')) {
     return `laboratorios-poeticos::${museu}::${month}`;
   }
 
   const reducedTitle = title
-    .replace(/\b(confirmada|confirmado|agendada|agendado|rotina|programacao|programaÃ§Ã£o)\b/g, '')
+    .replace(/\b(confirmada|confirmado|agendada|agendado|rotina|programacao|programação)\b/g, '')
     .replace(/\s+/g, ' ')
     .trim()
     .split(' ')
@@ -494,8 +496,8 @@ function mergeAgendaGroup(items = []) {
 
   return {
     ...base,
-    titulo: communication ? 'ComunicaÃ§Ã£o, registros e produÃ§Ãµes do perÃ­odo' : recurring ? `Visitas mediadas - ${getMuseuLabel(base.museu)}` : base.titulo,
-    tipo: communication ? 'ComunicaÃ§Ã£o institucional' : base.tipo,
+    titulo: communication ? 'Comunicação, registros e produções do período' : recurring ? `Visitas mediadas - ${getMuseuLabel(base.museu)}` : base.titulo,
+    tipo: communication ? 'Comunicação institucional' : base.tipo,
     texto: texts[0] || base.texto || base.descricao || base.sinopse || '',
     textosConsolidados: texts.slice(0, 4),
     datasConsolidadas: dates,
@@ -533,7 +535,7 @@ function normalizeAudienceMonth(item = {}) {
   const total = toNumber(item.total) || atividades + espontaneo + visitas;
 
   return {
-    mes: item.mes || item.month || 'PerÃ­odo',
+    mes: item.mes || item.month || 'Período',
     atividades,
     espontaneo,
     visitas_agendadas: visitas,
@@ -563,8 +565,8 @@ function AudienceMonthlyChart({ rows = [] }) {
 
   return (
     <div className="premium-audience-chart">
-      <h3>PÃºblico por mÃªs</h3>
-      <p>Leitura editorial do recorte fevereiro, marÃ§o e abril, separando pÃºblico de aÃ§Ãµes, presenÃ§a espontÃ¢nea e visitas agendadas sem misturar estimativas com registros.</p>
+      <h3>Público por mês</h3>
+      <p>Leitura editorial do recorte fevereiro, março e abril, separando público de ações, presença espontânea e visitas agendadas sem misturar estimativas com registros.</p>
       {rows.map((item) => {
         const total = Math.max(toNumber(item.total), 1);
         const width = Math.max((total / max) * 100, 2);
@@ -585,8 +587,8 @@ function AudienceMonthlyChart({ rows = [] }) {
         );
       })}
       <div className="audience-chart-legend">
-        <span><i className="audience-bar-acoes" /> AÃ§Ãµes</span>
-        <span><i className="audience-bar-espontaneo" /> EspontÃ¢neo</span>
+        <span><i className="audience-bar-acoes" /> Ações</span>
+        <span><i className="audience-bar-espontaneo" /> Espontâneo</span>
         <span><i className="audience-bar-agendadas" /> Agendadas</span>
       </div>
     </div>
@@ -596,7 +598,7 @@ function AudienceMonthlyChart({ rows = [] }) {
 function ActivityNarrative({ item }) {
   const paragraphs = Array.isArray(item.textosConsolidados) && item.textosConsolidados.length > 0
     ? item.textosConsolidados
-    : [splitParagraphs(item.texto, 1)[0] || 'Registro recuperado da programaÃ§Ã£o ou dos relatÃ³rios aprovados no app.'];
+    : [splitParagraphs(item.texto, 1)[0] || 'Registro recuperado da programação ou dos relatórios aprovados no app.'];
 
   return (
     <div className="premium-consolidated-text">
@@ -614,7 +616,7 @@ function EvidenceLinks({ links = [] }) {
   return (
     <div className="premium-evidence-links">
       {unique.map((link, index) => (
-        <a href={link} target="_blank" rel="noreferrer" key={link}>EvidÃªncia {index + 1}</a>
+        <a href={link} target="_blank" rel="noreferrer" key={link}>Evidência {index + 1}</a>
       ))}
     </div>
   );
@@ -668,18 +670,18 @@ function MonthlyAgendaSection({ contexto }) {
             {!item.isCommunicationCard ? (
               <div className="premium-public-highlight">
                 <strong>{item.publicoRegistrado > 0 ? fmtInt(item.publicoRegistrado) : item.publicoEstimado > 0 ? fmtInt(item.publicoEstimado) : 'N/A'}</strong>
-                <span>{item.publicoTipo === 'estimado' ? 'pÃºblico estimado' : 'participantes'}</span>
+                <span>{item.publicoTipo === 'estimado' ? 'público estimado' : 'participantes'}</span>
               </div>
             ) : null}
             <div className="premium-card-facts">
-              <span><strong>Datas</strong>{(item.datasConsolidadas || []).join(', ') || item.data || item.mes || 'perÃ­odo'}</span>
-              <span><strong>Meta vinculada</strong>{item.metaEditorial || getActivityMeta(item) || 'nÃ£o informada'}{item.metaInferida ? ' (inferida)' : ''}</span>
-              {!item.isCommunicationCard ? <span><strong>PÃºblico</strong>{item.publicoTipo === 'estimado' ? 'estimado a partir da programaÃ§Ã£o' : 'registrado nos relatÃ³rios e atividades'}</span> : null}
+              <span><strong>Datas</strong>{(item.datasConsolidadas || []).join(', ') || item.data || item.mes || 'período'}</span>
+              <span><strong>Meta vinculada</strong>{item.metaEditorial || getActivityMeta(item) || 'não informada'}{item.metaInferida ? ' (inferida)' : ''}</span>
+              {!item.isCommunicationCard ? <span><strong>Público</strong>{item.publicoTipo === 'estimado' ? 'estimado a partir da programação' : 'registrado nos relatórios e atividades'}</span> : null}
               {item.participantes > 0 ? <span><strong>Participantes</strong>{fmtInt(item.participantes)} pessoas identificadas</span> : null}
             </div>
             <ActivityNarrative item={item} />
             {item.isCommunicationCard ? (
-              <p className="premium-card-footnote">Entregas agrupadas: comunicaÃ§Ã£o, cobertura, registros, ediÃ§Ã£o, documentaÃ§Ã£o, peÃ§as digitais, audiovisual, clipping e divulgaÃ§Ã£o institucional. Este card nÃ£o atribui pÃºblico direto.</p>
+              <p className="premium-card-footnote">Entregas agrupadas: comunicação, cobertura, registros, edição, documentação, peças digitais, audiovisual, clipping e divulgação institucional. Este card não atribui público direto.</p>
             ) : null}
             <EvidenceLinks links={item.evidenciaLinks} />
           </article>
@@ -947,7 +949,7 @@ function RemovedPeriodSection({ contexto }) {
     <PremiumSection
       breakBefore
       eyebrow="Seção especial"
-      title="SeÃ§Ã£o removida"
+      title="Seção removida"
       subtitle="Planejamento, pré-produção, infraestrutura, comunicação e rubricas vinculadas ao eixo de maior visibilidade pública."
       text="Seção mantida fora do fluxo público deste relatório porque o evento não ocorreu no período analisado."
     >

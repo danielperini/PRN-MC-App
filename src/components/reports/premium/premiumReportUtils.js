@@ -1,6 +1,6 @@
 export function sanitizeReportText(value) {
   return String(value || '')
-    .replace(/[—–â€”â€“]/g, ',')
+    .replace(/[—–\u0014\u0013\u001d\u001c]/g, ',')
     .replace(/auditoria técnica dos dados/gi, 'tratamento dos dados com apoio de inteligência artificial')
     .replace(/auditoria por inteligência artificial/gi, 'tratamento dos dados com apoio de inteligência artificial')
     .replace(/\brelatorio\b/gi, 'relatório')
@@ -12,7 +12,7 @@ export function sanitizeReportText(value) {
 export function uniqueParagraphs(value, limit = 8, minLength = 70) {
   const seen = new Set();
   return String(value || '')
-    .replace(/[—–â€”â€“]/g, ',')
+    .replace(/[—–\u0014\u0013\u001d\u001c]/g, ',')
     .replace(/auditoria técnica dos dados/gi, 'tratamento dos dados com apoio de inteligência artificial')
     .replace(/auditoria por inteligência artificial/gi, 'tratamento dos dados com apoio de inteligência artificial')
     .split(/\n{2,}|(?<=\.)\s+(?=[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ])/)
@@ -46,7 +46,7 @@ export function fmtBRL(value) {
 
 export function cleanText(value) {
   return String(value || '')
-    .replace(/[—–]/g, ',')
+    .replace(/[—–\u0014\u0013]/g, ',')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -61,7 +61,7 @@ export function normalizeText(value) {
 export function splitParagraphs(value, limit = 6) {
   const seen = new Set();
   const paragraphs = String(value || '')
-    .replace(/[—–]/g, ',')
+    .replace(/[—–\u0014\u0013]/g, ',')
     .split(/\n{2,}|(?<=\.)\s+(?=[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ])/)
     .map(cleanText)
     .filter((item) => item.length > 70)
