@@ -98,22 +98,30 @@ const CATALOG_CSS = `
   .catalog-toc { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px 18px; margin-top: 20px; counter-reset: toc; }
   .catalog-toc li { list-style: none; border-bottom: 1px solid rgba(23,23,23,.14); padding: 8px 0; font-size: 12px; display: flex; justify-content: space-between; gap: 12px; counter-increment: toc; }
   .catalog-toc li::before { content: counter(toc, decimal-leading-zero); color: #9f7f4d; font-weight: 800; margin-right: 10px; }
-  .premium-month-grid { display: grid; grid-template-columns: 1fr; gap: 16px; margin-top: 20px; }
-  .premium-month-card { display: flex; flex-direction: column; border: 1px solid rgba(23,23,23,.16); background: rgba(255,255,255,.54); padding: 18px; break-inside: avoid; min-height: 82mm; }
-  .premium-month-card h3 { margin: 0 0 10px; font-family: Georgia, "Times New Roman", serif; font-size: 24px; line-height: 1.08; font-weight: 500; }
-  .premium-month-card p { margin: 0 0 11px; font-size: 13.5px; line-height: 1.62; color: #383838; }
-  .premium-month-card .premium-card-footnote { color: #5f574f; font-size: 12px; }
-  .premium-activity-photo-strip { order: -3; margin: 0 0 15px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
+  .premium-month-grid { display: grid; grid-template-columns: 1fr; gap: 22px; margin-top: 24px; }
+  .premium-month-card { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; border: 1px solid rgba(23,23,23,.18); border-top: 6px solid #171717; background: rgba(255,255,255,.58); padding: 24px; break-inside: avoid; min-height: 154mm; }
+  .premium-month-card h3 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 30px; line-height: 1.02; font-weight: 500; letter-spacing: 0; }
+  .premium-month-card p { margin: 0 0 12px; font-size: 14px; line-height: 1.72; color: #333; }
+  .premium-month-card .premium-card-footnote { margin-top: 4px; color: #5f574f; font-size: 13px; line-height: 1.55; }
+  .premium-activity-photo-strip { margin: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
   .premium-activity-photo-strip img, .premium-activity-photo-placeholder { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block; background: #ddd4c6; border: 1px solid rgba(23,23,23,.08); }
-  .premium-activity-photo-placeholder { display: grid; place-items: center; padding: 10px; text-align: center; color: #6f6559; font-size: 10px; text-transform: uppercase; letter-spacing: .1em; }
-  .premium-card-identity { display: grid; grid-template-columns: 1fr 128px; gap: 18px; align-items: start; margin-bottom: 12px; }
-  .premium-card-facts { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 7px; margin: 11px 0 14px; }
-  .premium-card-facts span { border-top: 1px solid rgba(23,23,23,.14); padding-top: 7px; font-size: 11.5px; line-height: 1.35; color: #5a544c; }
-  .premium-card-facts strong { display: block; margin-bottom: 3px; color: #171717; font-size: 10px; text-transform: uppercase; letter-spacing: .09em; }
-  .premium-public-highlight { align-self: stretch; border-left: 4px solid #171717; padding: 10px 0 10px 14px; }
-  .premium-public-highlight strong { display: block; font-size: 31px; line-height: .95; letter-spacing: 0; color: #171717; }
-  .premium-public-highlight span { display: block; margin-top: 6px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .1em; color: #5e574f; font-weight: 800; }
-  .premium-consolidated-text p + p { margin-top: 9px; }
+  .premium-activity-photo-placeholder { display: grid; place-items: center; padding: 14px; text-align: center; color: #6f6559; font-size: 11px; text-transform: uppercase; letter-spacing: .1em; }
+  .premium-card-header { display: grid; grid-template-columns: minmax(0, 1fr) 170px; gap: 24px; align-items: start; padding-bottom: 18px; border-bottom: 1px solid rgba(23,23,23,.14); }
+  .premium-card-kicker { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+  .premium-card-kicker span { border: 1px solid rgba(23,23,23,.14); padding: 6px 8px; font-size: 10.5px; line-height: 1; text-transform: uppercase; letter-spacing: .09em; color: #514b45; background: rgba(247,243,235,.74); font-weight: 800; }
+  .premium-card-facts { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin: 0; }
+  .premium-card-facts span { border-top: 1px solid rgba(23,23,23,.16); padding-top: 9px; font-size: 12.5px; line-height: 1.42; color: #4e4942; }
+  .premium-card-facts strong { display: block; margin-bottom: 4px; color: #171717; font-size: 10.5px; text-transform: uppercase; letter-spacing: .09em; }
+  .premium-public-highlight { align-self: stretch; border-left: 5px solid #171717; padding: 8px 0 8px 16px; }
+  .premium-public-highlight strong { display: block; font-size: 48px; line-height: .9; letter-spacing: 0; color: #171717; }
+  .premium-public-highlight span { display: block; margin-top: 8px; font-size: 11px; line-height: 1.25; text-transform: uppercase; letter-spacing: .1em; color: #5e574f; font-weight: 800; }
+  .premium-public-context { margin: -4px 0 2px; font-size: 15px; line-height: 1.55; color: #171717; font-weight: 650; }
+  .premium-consolidated-text { columns: 2; column-gap: 26px; }
+  .premium-consolidated-text p { break-inside: avoid; }
+  .premium-consolidated-text p + p { margin-top: 12px; }
+  .premium-card-footer { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; padding-top: 12px; border-top: 1px solid rgba(23,23,23,.14); }
+  .premium-card-footer span { font-size: 11.5px; line-height: 1.4; color: #5b554d; }
+  .premium-card-footer strong { display: block; margin-bottom: 3px; color: #171717; text-transform: uppercase; letter-spacing: .09em; font-size: 10px; }
   .premium-evidence-links { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(23,23,23,.12); display: flex; flex-wrap: wrap; gap: 7px; }
   .premium-evidence-links a { color: #171717; border: 1px solid rgba(23,23,23,.18); padding: 5px 7px; font-size: 10.5px; text-decoration: none; background: rgba(255,255,255,.42); }
   .premium-institutional-list { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; margin-top: 18px; }
@@ -469,6 +477,8 @@ function mergeAgendaGroup(items = []) {
   const participantes = Math.max(...items.map(getParticipantCount), 0);
   const dates = [...new Set(items.map((item) => item.data || item.data_inicio || item.mes).filter(Boolean))];
   const texts = [];
+  const reportTexts = [];
+  const linkedReports = [];
   const photos = [];
   items.forEach((item) => {
     [
@@ -486,6 +496,15 @@ function mergeAgendaGroup(items = []) {
       const key = normalizeText(text).slice(0, 160);
       if (text.length > 30 && !texts.some((existing) => normalizeText(existing).slice(0, 160) === key)) texts.push(text);
     });
+    (Array.isArray(item.relatosEquipe) ? item.relatosEquipe : []).forEach((value) => {
+      const text = sanitizeReportText(value);
+      const key = normalizeText(text).slice(0, 160);
+      if (text.length > 30 && !reportTexts.some((existing) => normalizeText(existing).slice(0, 160) === key)) reportTexts.push(text);
+    });
+    (Array.isArray(item.relatoriosVinculados) ? item.relatoriosVinculados : []).forEach((value) => {
+      const text = sanitizeReportText(value);
+      if (text && !linkedReports.includes(text)) linkedReports.push(text);
+    });
 
     const source = Array.isArray(item.fotos_destaque) ? item.fotos_destaque : Array.isArray(item.fotos) ? item.fotos : [];
     source.forEach((photo) => {
@@ -500,6 +519,8 @@ function mergeAgendaGroup(items = []) {
     tipo: communication ? 'Comunicação institucional' : base.tipo,
     texto: texts[0] || base.texto || base.descricao || base.sinopse || '',
     textosConsolidados: texts.slice(0, 4),
+    relatosEquipe: reportTexts.slice(0, 3),
+    relatoriosVinculados: linkedReports.slice(0, 4),
     datasConsolidadas: dates,
     participantes,
     isCommunicationCard: communication,
@@ -526,6 +547,52 @@ function consolidateAgendaItems(items = []) {
     .map(mergeAgendaGroup)
     .sort((a, b) => String(a.data || '').localeCompare(String(b.data || '')))
     .slice(0, 80);
+}
+
+function reportSourceText(report = {}) {
+  return uniqueParagraphs([
+    report.resumo_executivo,
+    report.resumo_periodo,
+    report.pontos_positivos,
+    report.descricao,
+    report.relato,
+    report.observacoes,
+  ].filter(Boolean).join('\n\n'), 2, 40);
+}
+
+function enrichItemsWithReports(items = [], reports = []) {
+  if (!Array.isArray(reports) || reports.length === 0) return items;
+
+  return items.map((item) => {
+    const itemMonth = normalizeText(item.mes || getMonthName(item));
+    const itemMuseum = normalizeText(getMuseuLabel(item.museu || item.equipamento || item.local));
+    const itemText = normalizeText([item.titulo, item.nome, item.texto, item.descricao, item.tipo].filter(Boolean).join(' '));
+    const related = reports.filter((report) => {
+      const reportMonth = normalizeText(report?.mes || report?.month || '');
+      const reportMuseum = normalizeText(getMuseuLabel(report?.museu || report?.equipamento || ''));
+      const reportText = normalizeText([
+        report?.resumo_executivo,
+        report?.resumo_periodo,
+        report?.pontos_positivos,
+        report?.descricao,
+        report?.relato,
+        report?.observacoes,
+      ].filter(Boolean).join(' '));
+      const sameMonth = !itemMonth || !reportMonth || itemMonth === reportMonth;
+      const sameMuseum = !itemMuseum || !reportMuseum || itemMuseum === reportMuseum || itemMuseum.includes(reportMuseum) || reportMuseum.includes(itemMuseum);
+      const semanticTouch = itemText.split(' ').filter((word) => word.length > 4).some((word) => reportText.includes(word));
+      return sameMonth && sameMuseum && (semanticTouch || reportText.length > 160);
+    });
+
+    const relatosEquipe = related.flatMap(reportSourceText).slice(0, 3);
+    const relatoriosVinculados = related.map((report) => report.autor || report.author_name || report.user_name || report.museu).filter(Boolean).slice(0, 4);
+
+    return {
+      ...item,
+      relatosEquipe,
+      relatoriosVinculados,
+    };
+  });
 }
 
 function normalizeAudienceMonth(item = {}) {
@@ -595,14 +662,73 @@ function AudienceMonthlyChart({ rows = [] }) {
   );
 }
 
+function buildPublicContext(item = {}) {
+  if (item.isCommunicationCard) return '';
+  const value = item.publicoRegistrado > 0 ? item.publicoRegistrado : item.publicoEstimado;
+  if (!value) return '';
+
+  const type = item.publicoTipo === 'estimado' ? 'público estimado' : 'participantes registrados';
+  const scope = [item.museu, item.mes || getMonthName(item)].filter(Boolean).join(' / ');
+  const category = item.tipo || item.categoria_label || item.classificacao || 'ação cultural';
+
+  return `${fmtInt(value)} ${type} em ${category.toString().toLowerCase()}${scope ? ` no recorte ${scope}` : ''}.`;
+}
+
+function buildInstitutionalExpansion(item = {}) {
+  const title = getActivityTitle(item);
+  const text = normalizeText([
+    title,
+    item.tipo,
+    item.classificacao,
+    item.categoria_label,
+    item.texto,
+    item.descricao,
+  ].filter(Boolean).join(' '));
+  const museu = item.museu ? ` no ${getMuseuLabel(item.museu)}` : '';
+  const month = item.mes || getMonthName(item);
+  const meta = item.metaEditorial || getActivityMeta(item);
+
+  if (item.isCommunicationCard) {
+    return `Como frente de documentação pública, ${sanitizeReportText(title)} reúne registros, coberturas, materiais visuais e evidências de circulação institucional produzidas no período. A síntese preserva a função documental dessas entregas e explicita sua contribuição para memória visual, prestação de contas e presença pública do Museus Centro.`;
+  }
+
+  if (text.includes('estudio aberto') || text.includes('estúdio aberto')) {
+    return `A ação ${sanitizeReportText(title)} articula mediação, experimentação e acolhimento de públicos em um formato de permanência educativa. No relatório, ela deve ser lida como parte da construção de vínculo entre museu, visitantes e processos de formação cultural, especialmente quando associada a grupos agendados, oficinas e preparação pedagógica registrada pela equipe.`;
+  }
+
+  if (text.includes('visita mediada') || text.includes('visitas mediadas')) {
+    return `As visitas mediadas${museu} foram consolidadas como ação de formação de público, aproximando acervos, exposições e repertórios dos visitantes por meio de acompanhamento educativo. A consolidação evita a fragmentação de registros recorrentes e preserva a leitura de público, território e rotina institucional.`;
+  }
+
+  if (text.includes('oficina') || text.includes('laboratorio') || text.includes('laboratório') || text.includes('curso')) {
+    return `A atividade ${sanitizeReportText(title)} fortalece a dimensão educativa do projeto ao combinar prática, escuta, repertório cultural e participação. Quando vinculada a oficinas, laboratórios ou formações, a ação amplia a relação entre museu e território, criando condições para experimentação, mediação e continuidade pedagógica.`;
+  }
+
+  if (text.includes('exposicao') || text.includes('exposição') || text.includes('mostra')) {
+    return `No conjunto do relatório, ${sanitizeReportText(title)} aparece como ação de qualificação da experiência expositiva, conectando pesquisa, montagem, mediação e presença pública. O registro permite acompanhar como o planejamento de exposições se articula à programação e às entregas institucionais do período.`;
+  }
+
+  if (text.includes('libras') || text.includes('acessibilidade') || text.includes('diversidade')) {
+    return `A ação ${sanitizeReportText(title)} reforça o compromisso do projeto com acessibilidade, acolhimento e mediação pública. Sua presença no relatório qualifica a leitura institucional do período ao situar inclusão e diversidade como dimensões práticas da gestão cultural, não apenas como diretrizes abstratas.`;
+  }
+
+  return `No recorte de ${month}, ${sanitizeReportText(title)} integra a agenda consolidada do Museus Centro como ação vinculada à programação, aos registros de equipe e às evidências disponíveis no aplicativo${meta ? `, com relação editorial à ${sanitizeReportText(meta)}` : ''}. A leitura consolidada aproxima dados, relatos e documentação visual, ampliando a rastreabilidade sem repetir textos de origem.`;
+}
+
 function ActivityNarrative({ item }) {
-  const paragraphs = Array.isArray(item.textosConsolidados) && item.textosConsolidados.length > 0
+  const sourceParagraphs = Array.isArray(item.textosConsolidados) && item.textosConsolidados.length > 0
     ? item.textosConsolidados
     : [splitParagraphs(item.texto, 1)[0] || 'Registro recuperado da programação ou dos relatórios aprovados no app.'];
+  const reportParagraphs = Array.isArray(item.relatosEquipe) ? item.relatosEquipe : [];
+  const paragraphs = uniqueParagraphs([
+    ...sourceParagraphs,
+    ...reportParagraphs,
+    buildInstitutionalExpansion(item),
+  ].filter(Boolean).join('\n\n'), 5, 40);
 
   return (
     <div className="premium-consolidated-text">
-      {paragraphs.slice(0, 3).map((paragraph, index) => (
+      {paragraphs.slice(0, 5).map((paragraph, index) => (
         <p key={`${item.id || item.titulo}-texto-${index}`}>{sanitizeReportText(paragraph)}</p>
       ))}
     </div>
@@ -625,7 +751,8 @@ function EvidenceLinks({ links = [] }) {
 function MonthlyAgendaSection({ contexto }) {
   const atividades = Array.isArray(contexto?.atividades) ? contexto.atividades : [];
   const programacao = Array.isArray(contexto?.programacao) ? contexto.programacao : [];
-  const items = [
+  const reports = Array.isArray(contexto?.relatorios_equipe) ? contexto.relatorios_equipe : [];
+  const items = enrichItemsWithReports([
     ...programacao.map((item) => ({
       id: item.id,
       data: item.data || item.data_inicio,
@@ -646,7 +773,7 @@ function MonthlyAgendaSection({ contexto }) {
       texto: getActivityText(activity),
       tipo: activity?.categoria_label || activity?.classificacao || 'Atividade',
     })),
-  ].filter((item) => item.titulo);
+  ].filter((item) => item.titulo), reports);
 
   const unique = consolidateAgendaItems(items);
 
@@ -665,24 +792,39 @@ function MonthlyAgendaSection({ contexto }) {
           <article className="premium-month-card" key={item.id || `${item.titulo}-${index}`}>
             <ActivityMiniPhotos activity={item} />
             {item.consolidatedCount > 1 ? <span className="agenda-consolidation-badge">{fmtInt(item.consolidatedCount)} registros consolidados</span> : null}
-            <p className="premium-card-meta">{[item.data, item.mes, item.museu, item.tipo].filter(Boolean).join(' / ')}</p>
-            <h3>{sanitizeReportText(item.titulo)}</h3>
-            {!item.isCommunicationCard ? (
-              <div className="premium-public-highlight">
-                <strong>{item.publicoRegistrado > 0 ? fmtInt(item.publicoRegistrado) : item.publicoEstimado > 0 ? fmtInt(item.publicoEstimado) : 'N/A'}</strong>
-                <span>{item.publicoTipo === 'estimado' ? 'público estimado' : 'participantes'}</span>
+            <header className="premium-card-header">
+              <div>
+                <p className="premium-card-kicker">
+                  {[item.museu, item.tipo, item.mes || getMonthName(item)].filter(Boolean).map((value, keyIndex) => (
+                    <span key={`${value}-${keyIndex}`}>{sanitizeReportText(value)}</span>
+                  ))}
+                </p>
+                <h3>{sanitizeReportText(item.titulo)}</h3>
               </div>
-            ) : null}
+              {!item.isCommunicationCard ? (
+                <div className="premium-public-highlight">
+                  <strong>{item.publicoRegistrado > 0 ? fmtInt(item.publicoRegistrado) : item.publicoEstimado > 0 ? fmtInt(item.publicoEstimado) : 'N/A'}</strong>
+                  <span>{item.publicoTipo === 'estimado' ? 'público estimado' : 'participantes'}</span>
+                </div>
+              ) : null}
+            </header>
+            {buildPublicContext(item) ? <p className="premium-public-context">{buildPublicContext(item)}</p> : null}
             <div className="premium-card-facts">
               <span><strong>Datas</strong>{(item.datasConsolidadas || []).join(', ') || item.data || item.mes || 'período'}</span>
               <span><strong>Meta vinculada</strong>{item.metaEditorial || getActivityMeta(item) || 'não informada'}{item.metaInferida ? ' (inferida)' : ''}</span>
               {!item.isCommunicationCard ? <span><strong>Público</strong>{item.publicoTipo === 'estimado' ? 'estimado a partir da programação' : 'registrado nos relatórios e atividades'}</span> : null}
               {item.participantes > 0 ? <span><strong>Participantes</strong>{fmtInt(item.participantes)} pessoas identificadas</span> : null}
+              {item.relatoriosVinculados?.length ? <span><strong>Relatórios vinculados</strong>{item.relatoriosVinculados.join(', ')}</span> : null}
             </div>
             <ActivityNarrative item={item} />
             {item.isCommunicationCard ? (
               <p className="premium-card-footnote">Entregas agrupadas: comunicação, cobertura, registros, edição, documentação, peças digitais, audiovisual, clipping e divulgação institucional. Este card não atribui público direto.</p>
             ) : null}
+            <footer className="premium-card-footer">
+              <span><strong>Localização</strong>{item.local || item.endereco || item.museu || 'Museus Centro'}</span>
+              <span><strong>Créditos</strong>{item.credito || item.creditos || item.producao || 'registros do app'}</span>
+              <span><strong>Indicador</strong>{item.isCommunicationCard ? 'documentação institucional' : item.publicoTipo === 'estimado' ? 'público estimado' : 'público registrado'}</span>
+            </footer>
             <EvidenceLinks links={item.evidenciaLinks} />
           </article>
         ))}
