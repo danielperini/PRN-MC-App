@@ -48,6 +48,68 @@ export function pickText(...values) {
   return values.map(cleanText).find((item) => item.length > 0) || '';
 }
 
+export function getPhotoCredit(foto = {}) {
+  return pickText(
+    foto.credito,
+    foto.creditos,
+    foto.credit,
+    foto.credits,
+    foto.foto_credito,
+    foto.credito_foto,
+    foto.creditos_foto,
+    foto.fotografo,
+    foto.fotografa,
+    foto.photographer,
+    foto.autor_foto,
+    foto.autoria,
+    foto.author_name,
+    foto.uploaded_by_name
+  );
+}
+
+export function getPhotoLocation(foto = {}) {
+  const nested = foto.localizacao || foto.location || foto.geolocation || {};
+  const latitude = pickText(
+    foto.latitude,
+    foto.lat,
+    foto.gps_latitude,
+    foto.gps_lat,
+    nested.latitude,
+    nested.lat
+  );
+  const longitude = pickText(
+    foto.longitude,
+    foto.lng,
+    foto.lon,
+    foto.gps_longitude,
+    foto.gps_lng,
+    foto.gps_lon,
+    nested.longitude,
+    nested.lng,
+    nested.lon
+  );
+  const endereco = pickText(
+    foto.endereco,
+    foto.address,
+    foto.localizacao_texto,
+    foto.location_name,
+    foto.local,
+    nested.endereco,
+    nested.address,
+    nested.label
+  );
+
+  const hasCoordinates = latitude && longitude;
+
+  return {
+    latitude,
+    longitude,
+    endereco,
+    label: hasCoordinates ? `${latitude}, ${longitude}` : endereco,
+    mapUrl: hasCoordinates ? `https://www.google.com/maps?q=${encodeURIComponent(`${latitude},${longitude}`)}` : '',
+  };
+}
+
 export function getActivityTitle(activity = {}) {
   return pickText(
     activity.nome,
@@ -106,7 +168,8 @@ export function extractPhotos(contexto = {}, limit = 36) {
       url: foto?.url || foto?.file_url || foto?.src || foto?.arquivo_url || '',
       legenda: pickText(foto?.legenda, foto?.caption, foto?.descricao, foto?.nome, 'Registro visual do projeto Museus Centro.'),
       museu: getMuseuLabel(foto?.museu || foto?.equipamento || foto?.origem || ''),
-      credito: pickText(foto?.credito, foto?.creditos, foto?.author_name),
+      credito: getPhotoCredit(foto),
+      localizacao: getPhotoLocation(foto),
     }))
     .filter((foto) => /^https?:\/\//.test(foto.url) || foto.url.startsWith('/'))
     .slice(0, limit);

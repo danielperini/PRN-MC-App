@@ -30,6 +30,13 @@ export default function PremiumGallery({ contexto, limit = 18 }) {
             <span>{photo.museu || 'Museus Centro'}</span>
             {photo.legenda}
             {photo.credito ? <small>Credito: {photo.credito}</small> : null}
+            {photo.localizacao?.label ? (
+              <small>
+                GPS: {photo.localizacao.mapUrl ? (
+                  <a href={photo.localizacao.mapUrl} target="_blank" rel="noreferrer">{photo.localizacao.label}</a>
+                ) : photo.localizacao.label}
+              </small>
+            ) : null}
           </figcaption>
         </figure>
       ))}

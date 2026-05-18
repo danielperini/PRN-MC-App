@@ -295,6 +295,72 @@ function attachmentUrl(attachment) {
   );
 }
 
+function photoCredit(source) {
+  return (
+    source?.credito ||
+    source?.creditos ||
+    source?.credit ||
+    source?.credits ||
+    source?.foto_credito ||
+    source?.credito_foto ||
+    source?.creditos_foto ||
+    source?.fotografo ||
+    source?.fotografa ||
+    source?.photographer ||
+    source?.autor_foto ||
+    source?.autoria ||
+    source?.author_name ||
+    source?.uploaded_by_name ||
+    ''
+  );
+}
+
+function photoLocation(source, fallback = {}) {
+  const latitude = (
+    source?.latitude ??
+    source?.lat ??
+    source?.gps_latitude ??
+    source?.gps_lat ??
+    source?.location?.latitude ??
+    source?.location?.lat ??
+    source?.geolocation?.latitude ??
+    source?.geolocation?.lat ??
+    fallback?.latitude ??
+    fallback?.lat ??
+    ''
+  );
+  const longitude = (
+    source?.longitude ??
+    source?.lng ??
+    source?.lon ??
+    source?.gps_longitude ??
+    source?.gps_lng ??
+    source?.gps_lon ??
+    source?.location?.longitude ??
+    source?.location?.lng ??
+    source?.location?.lon ??
+    source?.geolocation?.longitude ??
+    source?.geolocation?.lng ??
+    source?.geolocation?.lon ??
+    fallback?.longitude ??
+    fallback?.lng ??
+    fallback?.lon ??
+    ''
+  );
+  const endereco = (
+    source?.endereco ||
+    source?.address ||
+    source?.localizacao ||
+    source?.location_name ||
+    source?.local ||
+    fallback?.local ||
+    fallback?.endereco ||
+    ''
+  );
+
+  return { latitude, longitude, endereco };
+}
+
 function attachmentText(attachment) {
   return normalizeText([
     attachment?.id,
@@ -321,6 +387,8 @@ function getReportPhotos(report) {
     fotos.push({
       url,
       caption: foto?.caption || foto?.legenda || foto?.descricao || '',
+      credito: photoCredit(foto),
+      localizacao: photoLocation(foto, report),
       fileName: foto?.fileName || foto?.file_name || foto?.name || 'Foto',
       origem: 'report.fotos',
     });
@@ -335,6 +403,8 @@ function getReportPhotos(report) {
     fotos.push({
       url,
       caption: att?.caption || att?.legenda || att?.descricao || '',
+      credito: photoCredit(att),
+      localizacao: photoLocation(att, report),
       fileName: att?.file_name || att?.name || 'Foto',
       origem: 'report.attachments',
     });
@@ -388,6 +458,8 @@ function matchFotosAtividade(activity, report, attachmentsRaw, activityIndex) {
     fotos.push({
       url,
       caption: foto?.caption || foto?.legenda || foto?.descricao || activityName,
+      credito: photoCredit(foto),
+      localizacao: photoLocation(foto, activity),
       fileName: foto?.fileName || foto?.file_name || foto?.name || 'Foto',
       origem: 'activity.fotos',
     });
@@ -402,6 +474,8 @@ function matchFotosAtividade(activity, report, attachmentsRaw, activityIndex) {
     fotos.push({
       url,
       caption: att?.caption || att?.legenda || att?.descricao || activityName,
+      credito: photoCredit(att),
+      localizacao: photoLocation(att, activity),
       fileName: att?.file_name || att?.name || 'Foto',
       origem: 'activity.attachments',
     });
@@ -426,6 +500,8 @@ function matchFotosAtividade(activity, report, attachmentsRaw, activityIndex) {
     fotos.push({
       url,
       caption: att?.caption || att?.legenda || att?.descricao || activityName,
+      credito: photoCredit(att),
+      localizacao: photoLocation(att, activity),
       fileName: att?.file_name || att?.name || 'Foto',
       origem: 'Attachment',
     });
