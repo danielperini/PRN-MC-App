@@ -358,7 +358,7 @@ function resolveMuseumLocation(photo = {}) {
 }
 
 
-function PremiumAttachmentThumbnail({ photo, activity }) {
+function PremiumAttachmentThumbnail({ photo, activity = null }) {
   const imageUrl =
     photo?.url ||
     photo?.file_url ||
@@ -376,7 +376,12 @@ function PremiumAttachmentThumbnail({ photo, activity }) {
     >
       <img
         src={imageUrl}
-        alt={photo?.caption || activity?.titulo || 'Registro visual'}
+        alt={
+          photo?.caption ||
+          activity?.titulo ||
+          activity?.nome ||
+          'Registro visual'
+        }
         loading="lazy"
         style={{
           width: '100%',
@@ -930,7 +935,7 @@ function MonthlyAgendaSection({ contexto }) {
                 <h3>{sanitizeReportText(item.titulo)}</h3>
               </div>
               {!item.isCommunicationCard &&
-(item.publicoRegistrado > 0 || item.publicoEstimado > 0) ? (
+(item.publicoRegistrado > 0 || item.publicoEstimado > 0) && (
   <div className="premium-public-highlight">
     <strong>
       {item.publicoRegistrado > 0
@@ -946,7 +951,7 @@ function MonthlyAgendaSection({ contexto }) {
         : 'participantes'}
     </span>
   </div>
-) : null}) : null}
+)}
             </header>
             {buildPublicContext(item) ? <p className="premium-public-context">{buildPublicContext(item)}</p> : null}
             <div className="premium-card-facts">
@@ -1023,7 +1028,7 @@ function PhotoEvidenceDenseSection({ contexto }) {
             <span>{sanitizeReportText(photo.atividade || 'Atividade vinculada ao app')}</span>
             <small>{photo.museu || 'Museus Centro'}</small>
             <small>{cleanFileName(photo.fileName || photo.link)}</small>
-            <PremiumAttachmentThumbnail photo={photo} activity={activity} />
+            <PremiumAttachmentThumbnail photo={photo} />
 <small>Local: {photo.localizacao?.label || resolveMuseumLocation(photo)}</small>
             <small>Crédito: {photo.credito || resolveMuseumCredit(photo)}</small>
             {photo.link ? <a href={photo.link} target="_blank" rel="noreferrer">Abrir arquivo</a> : null}
