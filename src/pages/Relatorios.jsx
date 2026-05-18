@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useCurrentUser } from '@/components/auth/useCurrentUser';
 import {
@@ -12,14 +12,18 @@ import {
   AlertCircle,
   Send,
   BarChart2,
-  Filter,
-  ChevronDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
-import LoadingDataNotice from '@/components/ui/LoadingDataNotice';
+import LoadingPage from '@/components/common/LoadingPage';
 
 const STATUS_CONFIG = {
   DRAFT: { label: 'Rascunho', color: 'bg-gray-100 text-gray-600', icon: Clock },
@@ -31,16 +35,24 @@ const STATUS_CONFIG = {
 };
 
 const MESES = [
-  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+  'Janeiro',
+  'Fevereiro',
+  'Março',
+  'Abril',
+  'Maio',
+  'Junho',
+  'Julho',
+  'Agosto',
+  'Setembro',
+  'Outubro',
+  'Novembro',
+  'Dezembro',
 ];
 
 const MUSEUS = ['MHAB', 'MIS', 'MUMO'];
 
 export default function Relatorios() {
-  const { user } = useCurrentUser();
-  const queryClient = useQueryClient();
-
+  const { user, isLoading: userLoading } = useCurrentUser();
   const [filterMuseu, setFilterMuseu] = useState('todos');
   const [filterMes, setFilterMes] = useState('todos');
   const [filterStatus, setFilterStatus] = useState('todos');
@@ -48,9 +60,20 @@ export default function Relatorios() {
   const isAdmin = user?.role === 'admin';
   const isCoordenador = user?.role === 'COORDENADOR' || user?.role === 'admin';
 
-  const { data: reports = [], isLoading } = useQuery({
+  const {
+    data: reports = [],
+    isLoading,
+    isError,
+    isFetching,
+  } = useQuery({
     queryKey: ['relatorios-list'],
-    queryFn: () => base44.entities.Report.list('-created_date', 200),
+    queryFn: async () => {
+      const data = await base44.entities.Report.list('-created_date', 200);
+      return Array.isArray(data) ? data : [];
+    },
+    enabled: !!user?.email,
+    staleTime: 1000 * 60,
+    refetchOnWindowFocus: false,
   });
 
   const myReports = useMemo(() => {
@@ -67,12 +90,35 @@ export default function Relatorios() {
     });
   }, [myReports, filterMuseu, filterMes, filterStatus]);
 
+  const isInitialPageLoading = userLoading || (!!user?.email && isLoading);
+
+  if (isInitialPageLoading) {
+    return (
+      <LoadingPage
+        message="Carregando página..."
+        description="Estamos carregando os relatórios mensais, filtros e dados do usuário. Aguarde alguns instantes."
+      />
+    );
+  }
+
+  if (isError) {
+    return (
+      <LoadingPage
+        error
+        errorTitle="Não foi possível carregar os relatórios"
+        errorDescription="Atualize a página ou tente novamente em alguns instantes."
+      />
+    );
+  }
+
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto">
-      {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Relatórios Mensais</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">
+            Relatórios Mensais
+          </h1>
+
           <p className="text-sm text-gray-500 mt-0.5">
             {filtered.length} relatório{filtered.length !== 1 ? 's' : ''}
           </p>
@@ -95,16 +141,24 @@ export default function Relatorios() {
         </div>
       </div>
 
-      {/* Filters */}
+      {isFetching && !isLoading && (
+        <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500">
+          Atualizando relatórios...
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-3 mb-5">
         <Select value={filterMuseu} onValueChange={setFilterMuseu}>
           <SelectTrigger className="w-36">
             <SelectValue placeholder="Museu" />
           </SelectTrigger>
+
           <SelectContent>
             <SelectItem value="todos">Todos os museus</SelectItem>
             {MUSEUS.map((m) => (
-              <SelectItem key={m} value={m}>{m}</SelectItem>
+              <SelectItem key={m} value={m}>
+                {m}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -113,10 +167,13 @@ export default function Relatorios() {
           <SelectTrigger className="w-36">
             <SelectValue placeholder="Mês" />
           </SelectTrigger>
+
           <SelectContent>
             <SelectItem value="todos">Todos os meses</SelectItem>
             {MESES.map((m) => (
-              <SelectItem key={m} value={m}>{m}</SelectItem>
+              <SelectItem key={m} value={m}>
+                {m}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -125,31 +182,27 @@ export default function Relatorios() {
           <SelectTrigger className="w-40">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
+
           <SelectContent>
             <SelectItem value="todos">Todos os status</SelectItem>
             {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
-              <SelectItem key={key} value={key}>{cfg.label}</SelectItem>
+              <SelectItem key={key} value={key}>
+                {cfg.label}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
 
-      {/* List */}
-      {isLoading ? (
-        <div className="py-16">
-          <LoadingDataNotice
-            title="Carregando relatórios"
-            message="A página ainda está recuperando os relatórios aprovados e rascunhos do app. Os filtros e a lista serão atualizados assim que os dados chegarem."
-            className="mx-auto max-w-xl"
-          />
-        </div>
-      ) : filtered.length === 0 ? (
+      {filtered.length === 0 ? (
         <div className="text-center py-20 text-gray-400">
           <FileText className="h-10 w-10 mx-auto mb-3 opacity-30" />
           <p className="text-sm">Nenhum relatório encontrado</p>
+
           <Link to="/ReportEditor?novo=1" className="mt-3 inline-block">
             <Button size="sm" className="bg-black text-white hover:bg-gray-900 gap-1">
-              <Plus className="h-3.5 w-3.5" /> Criar primeiro relatório
+              <Plus className="h-3.5 w-3.5" />
+              Criar primeiro relatório
             </Button>
           </Link>
         </div>
@@ -158,8 +211,12 @@ export default function Relatorios() {
           {filtered.map((report) => {
             const cfg = STATUS_CONFIG[report.status] || STATUS_CONFIG.DRAFT;
             const Icon = cfg.icon;
+
             return (
-              <Card key={report.id} className="border border-gray-200 bg-white hover:shadow-sm transition-shadow">
+              <Card
+                key={report.id}
+                className="border border-gray-200 bg-white hover:shadow-sm transition-shadow"
+              >
                 <CardContent className="p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
@@ -168,11 +225,13 @@ export default function Relatorios() {
                           <Icon className="h-3 w-3" />
                           {cfg.label}
                         </Badge>
+
                         {report.museu && (
                           <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
                             {report.museu}
                           </span>
                         )}
+
                         <span className="text-xs text-gray-400">
                           {report.mes_referencia} {report.ano}
                         </span>
@@ -183,7 +242,9 @@ export default function Relatorios() {
                       </p>
 
                       {report.funcao && (
-                        <p className="text-sm text-gray-500 truncate">{report.funcao}</p>
+                        <p className="text-sm text-gray-500 truncate">
+                          {report.funcao}
+                        </p>
                       )}
 
                       {report.return_comment && (
