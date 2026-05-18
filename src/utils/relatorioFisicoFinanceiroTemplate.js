@@ -39,8 +39,22 @@ function escapeHtml(value) {
     .replace(/'/g, '&#039;');
 }
 
-function normalizarTexto(value) {
+function stripVisibleMarkup(value) {
   return String(value || '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#039;|&apos;/gi, "'")
+    .replace(/&lt;\s*br\s*\/?\s*&gt;/gi, '\n')
+    .replace(/&lt;\s*\/?\s*(p|div|span|strong|b|em|i|h[1-6]|ul|ol|li|section|article)[^&]*&gt;/gi, ' ')
+    .replace(/<\s*br\s*\/?\s*>/gi, '\n')
+    .replace(/<\s*\/?\s*(p|div|span|strong|b|em|i|h[1-6]|ul|ol|li|section|article)[^>]*>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&lt;[^&]*&gt;/g, ' ');
+}
+
+function normalizarTexto(value) {
+  return stripVisibleMarkup(value)
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -79,7 +93,7 @@ function paragrafoJaUsado(paragrafo) {
 }
 
 function paragraphize(text) {
-  const raw = String(text || '').trim();
+  const raw = stripVisibleMarkup(text).trim();
   if (!raw) return '<p class="empty-section">Texto não disponível para esta seção.</p>';
   const paragrafos = raw
     .split(/\n{2,}|\r?\n/)
@@ -258,7 +272,7 @@ function renderFotosAtividade(atividade) {
 }
 
 function cleanText(value) {
-  return String(value || '').replace(/\s+/g, ' ').trim();
+  return stripVisibleMarkup(value).replace(/\s+/g, ' ').trim();
 }
 
 function getOriginalActivityText(atividade = {}) {

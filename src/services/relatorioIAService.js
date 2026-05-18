@@ -186,6 +186,7 @@ Regras obrigatórias:
 18. Refinar os textos com leitura executiva, mas preservar rastreabilidade dos dados.
 19. Explicitar os avanços de uso do app, integração de dados, tratamento dos dados com apoio de IA e qualificação da gestão sem linguagem publicitária.
 20. Gerar textos específicos para território, metas, programação, comunicação, financeiro e app, pois eles serão usados como capítulos autônomos.
+21. Não escrever tags HTML, Markdown bruto, <p>, <br>, listas com marcação ou símbolos de template. Entregar apenas texto limpo em PT-BR.
 
 Dados:
 ${JSON.stringify(payload, null, 2)}

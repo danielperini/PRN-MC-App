@@ -15,8 +15,22 @@ const AI_MARKS = [
   /\bações relevantes\b/gi,
 ];
 
+function stripVisibleMarkup(value = '') {
+  return String(value || '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#039;|&apos;/gi, "'")
+    .replace(/&lt;\s*br\s*\/?\s*&gt;/gi, ' ')
+    .replace(/&lt;\s*\/?\s*(p|div|span|strong|b|em|i|h[1-6]|ul|ol|li|section|article)[^&]*&gt;/gi, ' ')
+    .replace(/<\s*br\s*\/?\s*>/gi, ' ')
+    .replace(/<\s*\/?\s*(p|div|span|strong|b|em|i|h[1-6]|ul|ol|li|section|article)[^>]*>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&lt;[^&]*&gt;/g, ' ');
+}
+
 function reviseVisibleText(text = '') {
-  return String(text || '')
+  return stripVisibleMarkup(text)
     .replace(/[—–]/g, ',')
     .replace(/\brelatorio\b/gi, 'relatório')
     .replace(/\brelatorios\b/gi, 'relatórios')
@@ -62,6 +76,10 @@ export function revisarHtmlRelatorioAntesDaExportacao(html = '', options = {}) {
   reviewed = removeAiMarks(reviewed);
   reviewed = reviewImageAlts(reviewed);
   reviewed = reviewTextNodes(reviewed);
+  reviewed = reviewed
+    .replace(/&lt;\s*br\s*\/?\s*&gt;/gi, ' ')
+    .replace(/&lt;\s*\/?\s*(p|div|span|strong|b|em|i|h[1-6]|ul|ol|li|section|article)[^&]*&gt;/gi, ' ')
+    .replace(/&lt;[^&]*&gt;/g, ' ');
   reviewed = normalizeTables(reviewed);
   reviewed = reviewed.replace(/<!--\s*editorial-review:[\s\S]*?-->/g, '');
   reviewed = reviewed.replace('</body>', `<!-- editorial-review: PT-BR, ortografia, legendas, títulos, tabelas e imagens revisados automaticamente antes da exportação (${options.modo || 'relatorio'}). --></body>`);

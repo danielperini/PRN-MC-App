@@ -1,5 +1,19 @@
-export function sanitizeReportText(value) {
+function stripVisibleMarkup(value) {
   return String(value || '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#039;|&apos;/gi, "'")
+    .replace(/&lt;\s*br\s*\/?\s*&gt;/gi, '\n')
+    .replace(/&lt;\s*\/?\s*(p|div|span|strong|b|em|i|h[1-6]|ul|ol|li|section|article)[^&]*&gt;/gi, ' ')
+    .replace(/<\s*br\s*\/?\s*>/gi, '\n')
+    .replace(/<\s*\/?\s*(p|div|span|strong|b|em|i|h[1-6]|ul|ol|li|section|article)[^>]*>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&lt;[^&]*&gt;/g, ' ');
+}
+
+export function sanitizeReportText(value) {
+  return stripVisibleMarkup(value)
     .replace(/[—–\u0014\u0013\u001d\u001c]/g, ',')
     .replace(/auditoria técnica dos dados/gi, 'tratamento dos dados com apoio de inteligência artificial')
     .replace(/auditoria por inteligência artificial/gi, 'tratamento dos dados com apoio de inteligência artificial')
@@ -11,7 +25,7 @@ export function sanitizeReportText(value) {
 
 export function uniqueParagraphs(value, limit = 8, minLength = 70) {
   const seen = new Set();
-  return String(value || '')
+  return stripVisibleMarkup(value)
     .replace(/[—–\u0014\u0013\u001d\u001c]/g, ',')
     .replace(/auditoria técnica dos dados/gi, 'tratamento dos dados com apoio de inteligência artificial')
     .replace(/auditoria por inteligência artificial/gi, 'tratamento dos dados com apoio de inteligência artificial')
@@ -46,7 +60,7 @@ export function fmtBRL(value) {
 }
 
 export function cleanText(value) {
-  return String(value || '')
+  return stripVisibleMarkup(value)
     .replace(/[—–\u0014\u0013]/g, ',')
     .replace(/\s+/g, ' ')
     .trim();
@@ -62,6 +76,9 @@ export function normalizeText(value) {
 export function splitParagraphs(value, limit = 6) {
   const seen = new Set();
   const paragraphs = String(value || '')
+    .replace(/&lt;\s*br\s*\/?\s*&gt;|<\s*br\s*\/?\s*>/gi, '\n')
+    .replace(/&lt;\s*\/p\s*&gt;|<\s*\/p\s*>/gi, '\n\n')
+    .replace(/&lt;\s*p[^&]*&gt;|<\s*p[^>]*>/gi, '')
     .replace(/[—–\u0014\u0013]/g, ',')
     .split(/\n{2,}|(?<=\.)\s+(?=[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ])/)
     .map(cleanText)
