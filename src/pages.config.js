@@ -7,6 +7,7 @@ import AdminUsers from './pages/AdminUsers';
 import ApprovalsMobile from './pages/ApprovalsMobile';
 import AssistentePlanejamento from './pages/AssistentePlanejamento';
 import AuditLog from './pages/AuditLog';
+import AuditoriaInstitucional from './pages/AuditoriaInstitucional';
 import BaseConhecimento from './pages/BaseConhecimento';
 import Cadastro from './pages/Cadastro';
 
@@ -55,6 +56,7 @@ export const PAGES = {
   ApprovalsMobile,
   AssistentePlanejamento,
   AuditLog,
+  AuditoriaInstitucional,
   BaseConhecimento,
   Cadastro,
   Compras,

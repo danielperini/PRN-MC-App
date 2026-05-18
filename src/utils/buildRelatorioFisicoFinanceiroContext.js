@@ -1,3 +1,5 @@
+import { consolidateMetrics } from '@/utils/auditoria/consolidateMetrics';
+
 const TOTAL_OFICIAL = 1320000;
 
 const MESES_ALVO = ['Fevereiro', 'Março', 'Abril'];
@@ -826,6 +828,16 @@ export function buildRelatorioFisicoFinanceiroContext({
 
   const publicoEspontaneoTotal = reports.reduce((sum, report) => sum + getPublicoEspontaneoReport(report), 0);
   const visitasAgendadasTotal = reports.reduce((sum, report) => sum + getVisitasAgendadasReport(report), 0);
+  const officialMetrics = consolidateMetrics({
+    reports: reportsRaw,
+    programacao: programacaoRaw,
+    rubricas: rubricasRaw,
+    photos: attachmentsRaw,
+  }, {
+    period: { from: dateFrom, to: dateTo },
+  });
+  const officialAudience = officialMetrics.audience || {};
+  const officialFinanceiro = officialMetrics.financeiro || {};
 
   const publicoPorMesMap = {};
   MESES_ALVO.forEach((mes) => {
@@ -911,11 +923,11 @@ export function buildRelatorioFisicoFinanceiroContext({
     museu: museuFiltro || 'Todos',
     total_relatorios: reports.length || 25,
     equipe_total: equipeTotal,
-    total_atividades: atividades.length,
-    publico_total: publicoTotal + publicoEspontaneoTotal + visitasAgendadasTotal || publicoTotal || 1625,
-    publico_atividades_total: publicoTotal,
-    publico_espontaneo_total: publicoEspontaneoTotal,
-    visitas_agendadas_total: visitasAgendadasTotal,
+    total_atividades: officialMetrics.activities?.total || atividades.length,
+    publico_total: officialAudience.publicoTotal || publicoTotal + publicoEspontaneoTotal + visitasAgendadasTotal || publicoTotal || 1625,
+    publico_atividades_total: officialAudience.publicoAtividades || publicoTotal,
+    publico_espontaneo_total: officialAudience.publicoEspontaneo || publicoEspontaneoTotal,
+    visitas_agendadas_total: officialAudience.visitasAgendadas || visitasAgendadasTotal,
     publico_por_mes: Object.values(publicoPorMesMap),
     publico_por_museu: Object.values(porMuseu),
     por_museu: porMuseu,
@@ -924,15 +936,16 @@ export function buildRelatorioFisicoFinanceiroContext({
     relatorios_equipe: relatoriosEquipe,
     trechos_relatorios: trechosRelatorios,
     conhecimento: conhecimentoTextos(conhecimentoRaw),
-    valor_utilizado: valorUtilizado,
-    saldo,
-    percentual_execucao: percentualExecucao,
+    valor_utilizado: Number.isFinite(officialFinanceiro.totalUtilizado) ? officialFinanceiro.totalUtilizado : valorUtilizado,
+    saldo: Number.isFinite(officialFinanceiro.saldo) ? officialFinanceiro.saldo : saldo,
+    percentual_execucao: Number.isFinite(officialFinanceiro.percentualExecucao) ? officialFinanceiro.percentualExecucao : percentualExecucao,
     total_compras: compras.length,
     compras,
     rubricas,
     fotos: atividades.flatMap((a) => a.fotos_destaque || []),
     programacao,
     programacao_total: programacao.length,
+    auditoria_institucional: officialMetrics,
   };
 }
 

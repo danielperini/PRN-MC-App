@@ -137,6 +137,7 @@ export const COORDENADOR_ONLY_PAGES = new Set([
   'PlataformaAdmin',
   'ActivityLog',
   'AuditLog',
+  'AuditoriaInstitucional',
   'AdminUsers',
   'PlataformaConfig',
   'TeamManager',

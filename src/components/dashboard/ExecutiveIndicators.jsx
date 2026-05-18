@@ -2,10 +2,10 @@ import React from 'react';
 import { base44 } from '@/api/base44Client';
 import { Activity, Wallet, BarChart3, CalendarDays, MapPin } from 'lucide-react';
 import { useCurrentUser } from '@/components/auth/useCurrentUser';
+import { consolidateMetrics } from '@/utils/auditoria/consolidateMetrics';
 
 const MONTH_ORDER = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const MUSEUS = ['MIS', 'MHAB', 'MUMO'];
-const TOTAL_PREVISTO = 1320000;
 
 function toInt(value) {
   const n = Number(value || 0);
@@ -113,6 +113,7 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [] }) {
   const [agendaIndex, setAgendaIndex] = React.useState(0);
   const { user } = useCurrentUser();
   const isCoordenador = user?.role === 'COORDENADOR' || user?.base_role === 'COORDENADOR';
+  const officialMetrics = React.useMemo(() => consolidateMetrics({ reports, rubricas }), [reports, rubricas]);
 
   React.useEffect(() => {
     let mounted = true;
@@ -156,28 +157,21 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [] }) {
   }, [agendaItems.length]);
 
   const activitiesByMonth = React.useMemo(() => {
-    const map = {};
-    reports.forEach((r) => {
-      if (!['APPROVED', 'APROVADO'].includes(String(r.status || '').toUpperCase())) return;
-      const mes = r.mes_referencia;
-      if (!mes) return;
-      if (!map[mes]) map[mes] = { atividades: 0, publico: 0 };
-      (Array.isArray(r.atividades) ? r.atividades : []).forEach((a) => {
-        const publico = toInt(a.publico_total ?? a.publico_estimado ?? 0) * Math.max(toInt(a.quantas_repeticoes ?? 1), 1);
-        if (publico > 0) {
-          map[mes].atividades += 1;
-          map[mes].publico += publico;
-        }
-      });
+    return (officialMetrics.activities?.byMonth || []).map((item) => {
+      const [, month] = String(item.key || '').split('-').map(Number);
+      return {
+        mes: month ? MONTH_ORDER[month - 1].slice(0, 3) : String(item.key || '—'),
+        atividades: toInt(item.atividades),
+        publico: toInt(item.publico),
+      };
     });
-    return MONTH_ORDER.filter((m) => map[m]).map((m) => ({ mes: m.slice(0, 3), atividades: toInt(map[m].atividades), publico: toInt(map[m].publico) }));
-  }, [reports]);
+  }, [officialMetrics]);
 
   const ultimoMes = activitiesByMonth[activitiesByMonth.length - 1] || { mes: '—', atividades: 0, publico: 0 };
   const maxAtiv = activitiesByMonth.length > 0 ? Math.max(...activitiesByMonth.map((m) => m.atividades), 1) : 1;
   const maxPub = activitiesByMonth.length > 0 ? Math.max(...activitiesByMonth.map((m) => m.publico), 1) : 1;
-  const totalUtilizado = rubricas.reduce((acc, r) => acc + Number(r.valor_utilizado || 0), 0);
-  const percentual = TOTAL_PREVISTO > 0 ? (totalUtilizado / TOTAL_PREVISTO) * 100 : 0;
+  const totalUtilizado = officialMetrics.financeiro?.totalUtilizado || 0;
+  const percentual = officialMetrics.financeiro?.percentualExecucao || 0;
   const fmtBRL = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   return (

@@ -22,6 +22,7 @@ import {
   Inbox,
   MessageSquare,
   Palette,
+  ShieldCheck,
 } from 'lucide-react';
 
 import { base44 } from '@/api/base44Client';
@@ -160,6 +161,12 @@ const NAV_GROUPS = [
         icon: Users,
         roles: ['coord', 'admin'],
         permission: 'canManageUsers',
+      },
+      {
+        path: 'AuditoriaInstitucional',
+        label: 'Auditoria Institucional',
+        icon: ShieldCheck,
+        roles: ['coord', 'admin'],
       },
       {
         path: 'PlataformaAdmin',

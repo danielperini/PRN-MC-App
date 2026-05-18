@@ -16,6 +16,7 @@ import {
 'recharts';
 import { Activity, Calendar, MapPin, RotateCw, TrendingUp, Users } from 'lucide-react';
 import AgendaCard from '@/components/patrocinador/AgendaCard';
+import { consolidateMetrics } from '@/utils/auditoria/consolidateMetrics';
 
 const TOTAL_OFICIAL = 1320000;
 const MUSEUS = ['MIS', 'MHAB', 'MUMO'];
@@ -444,7 +445,23 @@ export default function DashboardPatrocinadorSync() {
       safeList(base44.entities.Rubrica, 'ordem_exibicao', 1000)]
       );
 
-      const metrics = buildApprovedMetrics(reportsAll);
+      const officialMetrics = consolidateMetrics({
+        reports: reportsAll,
+        programacao: programacaoRaw,
+        rubricas: rubricasRaw,
+      });
+      const publicoGeralPorMuseu = Object.fromEntries(
+        (officialMetrics.audience?.byMuseum || []).map((item) => [item.museu, item.total])
+      );
+      const metrics = {
+        reports: officialMetrics.reports.items,
+        rawActivities: officialMetrics.activities.items,
+        activities: officialMetrics.activities.items,
+        duplicateCount: officialMetrics.activities.duplicateActivities.length,
+        consolidatedGroupCount: officialMetrics.activities.consolidatedAudienceGroups.length,
+        totalPublico: officialMetrics.audience.publicoTotal,
+        publicoGeralPorMuseu,
+      };
       const atividadesRealizadas = metrics.activities;
       const atividadesMes = atividadesRealizadas.filter((item) => item._reportMonthNumber === mesReferencia.monthNumber && item._reportYear === mesReferencia.year);
 
@@ -506,15 +523,9 @@ export default function DashboardPatrocinadorSync() {
         };
       });
 
-      const rubricasUnicas = new Map();
-      rubricasRaw.forEach((rubrica) => {
-        if (rubrica?.ativo === false) return;
-        if (rubrica?.id && !rubricasUnicas.has(rubrica.id)) rubricasUnicas.set(rubrica.id, rubrica);
-      });
-
-      const totalUtilizado = Array.from(rubricasUnicas.values()).reduce((sum, rubrica) => sum + Number(rubrica?.valor_utilizado || 0), 0);
-      const saldoTotal = TOTAL_OFICIAL - totalUtilizado;
-      const percentualExecucao = TOTAL_OFICIAL > 0 ? Number((totalUtilizado / TOTAL_OFICIAL * 100).toFixed(1)) : 0;
+      const totalUtilizado = officialMetrics.financeiro.totalUtilizado;
+      const saldoTotal = officialMetrics.financeiro.saldo;
+      const percentualExecucao = officialMetrics.financeiro.percentualExecucao;
       const publicoMes = atividadesMes.reduce((sum, item) => sum + getPublicoContabil(item), 0);
       const totalPublico = metrics.totalPublico;
 
