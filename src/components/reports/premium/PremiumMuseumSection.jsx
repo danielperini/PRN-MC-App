@@ -26,31 +26,11 @@ function isPublicFacingActivity(activity = {}) {
   );
 }
 
-function ActivityPhotos({ photos = [] }) {
-  const selected = Array.isArray(photos) ? photos.slice(0, 4) : [];
-  if (selected.length === 0) return null;
-
-  return (
-    <div className="premium-activity-photos">
-      {selected.map((photo, index) => (
-        <figure key={photo?.url || `${photo?.caption}-${index}`}>
-          {photo?.url ? <img src={photo.url} alt={photo.caption || 'Foto da atividade'} loading="lazy" /> : null}
-          <figcaption>
-            {photo?.credito ? <span>Crédito: {photo.credito}</span> : null}
-            {photo?.localizacao?.label ? <span>GPS: {photo.localizacao.label}</span> : null}
-          </figcaption>
-        </figure>
-      ))}
-    </div>
-  );
-}
-
 function ActivityCard({ activity, index }) {
   const text = splitParagraphs(getActivityText(activity), 1)[0] || 'Registro recuperado dos relatórios aprovados no app, mantido como evidência da execução do período.';
   const complementaryText = splitParagraphs([activity?.sinopse_agenda, activity?.observacoes, activity?.resultado].filter(Boolean).join('\n\n'), 1)[0] || '';
   const publico = getActivityPublico(activity);
   const meta = getActivityMeta(activity);
-  const fotos = Array.isArray(activity?.fotos_destaque) ? activity.fotos_destaque : activity?.fotos;
 
   return (
     <article className="premium-activity-card">
@@ -62,10 +42,9 @@ function ActivityCard({ activity, index }) {
         {complementaryText ? <p>{cleanText(complementaryText)}</p> : null}
         <div className="premium-activity-tags">
           <span>{activity?.categoria_label || activity?.classificacao || 'Eixo institucional'}</span>
-          <span>Público: {publico > 0 ? fmtInt(publico) : 'N/A'}</span>
+          {publico > 0 ? <span>Público: {fmtInt(publico)}</span> : null}
           {meta ? <span>Meta: {meta}</span> : null}
         </div>
-        <ActivityPhotos photos={fotos} />
       </div>
     </article>
   );
@@ -97,7 +76,7 @@ export default function PremiumMuseumSection({ contexto }) {
               <h2>{museu}</h2>
               <div className="premium-museum-kpis">
                 <span>{fmtInt(items.length)} ações</span>
-                <span>{publico > 0 ? fmtInt(publico) : 'N/A'} público</span>
+                {publico > 0 ? <span>{fmtInt(publico)} público</span> : null}
               </div>
             </div>
             <p className="premium-museum-intro">{intros[museu] || intros.geral}</p>

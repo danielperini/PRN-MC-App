@@ -5,7 +5,6 @@ import PremiumExpedienteSection from './PremiumExpedienteSection';
 import PremiumSection from './PremiumSection';
 import PremiumMetrics from './PremiumMetrics';
 import PremiumTimeline from './PremiumTimeline';
-import PremiumGallery from './PremiumGallery';
 import PremiumMuseumSection from './PremiumMuseumSection';
 import PremiumCommunicationSection from './PremiumCommunicationSection';
 import PremiumClosingSection from './PremiumClosingSection';
@@ -81,15 +80,14 @@ const CATALOG_CSS = `
   .premium-photo { margin: 0; position: relative; overflow: hidden; background: #ddd4c6; break-inside: avoid; }
   .premium-photo-0, .premium-photo-4 { grid-column: span 3; grid-row: span 2; }
   .premium-photo-1, .premium-photo-2, .premium-photo-3 { grid-column: span 2; }
-  .premium-photo img, .premium-photo-placeholder { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .premium-photo-placeholder { display: grid; place-items: center; background: repeating-linear-gradient(135deg, #d7cec0 0 10px, #cfc3b1 10px 20px); color: #746756; font-size: 11px; text-transform: uppercase; letter-spacing: .12em; }
+  .premium-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .premium-photo figcaption { position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 10px 9px; color: #fff; font-size: 11px; line-height: 1.35; background: linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,.82)); }
   .premium-photo figcaption span, .premium-photo figcaption small { display: block; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: rgba(255,255,255,.78); }
   .premium-photo figcaption a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
-  .premium-photo-index { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; margin-top: 18px; }
-  .premium-photo-index-thumb { display: block; width: 100%; height: 28mm; overflow: hidden; margin-bottom: 8px; background: #ddd4c6; }
-  .premium-photo-index-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .premium-photo-index-item { border: 1px solid rgba(23,23,23,.14); background: rgba(255,255,255,.45); padding: 11px; font-size: 11.5px; line-height: 1.45; break-inside: avoid; }
+  .premium-photo-index { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; margin-top: 18px; }
+  .premium-photo-index-item { border: 1px solid rgba(23,23,23,.14); background: rgba(255,255,255,.55); padding: 12px; font-size: 11.5px; line-height: 1.45; break-inside: avoid; }
+  .premium-photo-index-thumb { display: block; width: 100%; height: 32mm; overflow: hidden; margin-bottom: 8px; border-radius: 10px; }
+  .premium-photo-index-thumb img { width: 100%; height: 100%; object-fit: cover; }
   .premium-photo-index-item strong, .premium-photo-index-item span, .premium-photo-index-item small, .premium-photo-index-item a { display: block; margin-bottom: 3px; color: inherit; }
   .premium-museum-heading { display: flex; justify-content: space-between; align-items: end; gap: 18px; margin-bottom: 18px; padding-bottom: 16px; border-bottom: 1px solid rgba(23,23,23,.18); }
   .premium-museum-kpis { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
@@ -98,11 +96,6 @@ const CATALOG_CSS = `
   .premium-activity-card { display: grid; grid-template-columns: 44px 1fr; gap: 16px; padding: 18px; border: 1px solid rgba(23,23,23,.14); background: rgba(255,255,255,.52); break-inside: avoid; }
   .premium-activity-index { font-size: 18px; font-weight: 800; color: #9f7f4d; }
   .premium-activity-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 9px; }
-  .premium-activity-photos { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; margin-top: 13px; }
-  .premium-activity-photos figure { margin: 0; min-height: 76px; }
-  .premium-activity-photos img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block; background: #ddd4c6; }
-  .premium-activity-photos figcaption { margin-top: 5px; font-size: 9.5px; line-height: 1.35; color: #5e574f; }
-  .premium-activity-photos figcaption span { display: block; }
   .premium-communication-grid { display: grid; grid-template-columns: minmax(0, 1fr) 210px; gap: 20px; align-items: stretch; }
   .premium-communication-panel { background: #171717; color: #fff; padding: 18px; display: flex; flex-direction: column; justify-content: flex-end; min-height: 130px; }
   .premium-communication-panel strong { font-size: 52px; line-height: .9; }
@@ -121,9 +114,6 @@ const CATALOG_CSS = `
   .premium-month-card h3 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 30px; line-height: 1.02; font-weight: 500; letter-spacing: 0; }
   .premium-month-card p { margin: 0 0 12px; font-size: 14px; line-height: 1.72; color: #333; }
   .premium-month-card .premium-card-footnote { margin-top: 4px; color: #5f574f; font-size: 13px; line-height: 1.55; }
-  .premium-activity-photo-strip { margin: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-  .premium-activity-photo-strip img, .premium-activity-photo-placeholder { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block; background: #ddd4c6; border: 1px solid rgba(23,23,23,.08); }
-  .premium-activity-photo-placeholder { display: grid; place-items: center; padding: 14px; text-align: center; color: #6f6559; font-size: 11px; text-transform: uppercase; letter-spacing: .1em; }
   .premium-card-header { display: grid; grid-template-columns: minmax(0, 1fr) 170px; gap: 24px; align-items: start; padding-bottom: 18px; border-bottom: 1px solid rgba(23,23,23,.14); }
   .premium-card-kicker { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
   .premium-card-kicker span { border: 1px solid rgba(23,23,23,.14); padding: 6px 8px; font-size: 10.5px; line-height: 1; text-transform: uppercase; letter-spacing: .09em; color: #514b45; background: rgba(247,243,235,.74); font-weight: 800; }
@@ -209,20 +199,20 @@ const CATALOG_CSS = `
   }
 `;
 
-const INTRODUCAO_PERIODO = `Este relatório abrange fevereiro, março e abril de 2026 e consolida, a partir dos registros do aplicativo, resultados culturais, institucionais, programáticos e de público do projeto Museus Centro / Viaduto das Artes.
+const INTRODUCAO_PERIODO = `Este relatÃ³rio abrange fevereiro, marÃ§o e abril de 2026 e consolida, a partir dos registros do aplicativo, resultados culturais, institucionais, programÃ¡ticos e de pÃºblico do projeto Museus Centro / Viaduto das Artes.
 
-O período marca uma transição importante na coordenação geral do projeto, com a saída de Andréa Matos e a entrada de Daniel Perini. Também passa a integrar o processo a consultora de programação Ana Luiza, fortalecendo a interlocução entre planejamento, produção, diretorias dos museus e organização das ações culturais.
+O perÃ­odo marca uma transiÃ§Ã£o importante na coordenaÃ§Ã£o geral do projeto, com a saÃ­da de AndrÃ©a Matos e a entrada de Daniel Perini. TambÃ©m passa a integrar o processo a consultora de programaÃ§Ã£o Ana Luiza, fortalecendo a interlocuÃ§Ã£o entre planejamento, produÃ§Ã£o, diretorias dos museus e organizaÃ§Ã£o das aÃ§Ãµes culturais.
 
-O primeiro momento do projeto foi marcado por chegada, aprovação, contratação e estabilização dos fluxos. Além da coordenação geral, houve mudanças de produção nos equipamentos: no MIS, saída de Ana Carolina Galvão e entrada de Isabela; no MUMO, saída de Daniela Isis e entrada de Silvia Coes. Essas transições exigiram pactuação de rotinas, reordenação de responsabilidades e aproximação cotidiana entre coordenação, produção, comunicação, educativo e equipes dos museus.
+O primeiro momento do projeto foi marcado por chegada, aprovaÃ§Ã£o, contrataÃ§Ã£o e estabilizaÃ§Ã£o dos fluxos. AlÃ©m da coordenaÃ§Ã£o geral, houve mudanÃ§as de produÃ§Ã£o nos equipamentos: no MIS, saÃ­da de Ana Carolina GalvÃ£o e entrada de Isabela; no MUMO, saÃ­da de Daniela Isis e entrada de Silvia Coes. Essas transiÃ§Ãµes exigiram pactuaÃ§Ã£o de rotinas, reordenaÃ§Ã£o de responsabilidades e aproximaÃ§Ã£o cotidiana entre coordenaÃ§Ã£o, produÃ§Ã£o, comunicaÃ§Ã£o, educativo e equipes dos museus.
 
-O relatório apresenta uma leitura integrada dos museus como infraestrutura pública de memória, formação, convivência e fruição cultural. MIS, MHAB e MUMO aparecem como equipamentos complementares, capazes de articular audiovisual, memória urbana, moda, educação, acessibilidade, preservação e presença territorial no centro de Belo Horizonte.`;
+O relatÃ³rio apresenta uma leitura integrada dos museus como infraestrutura pÃºblica de memÃ³ria, formaÃ§Ã£o, convivÃªncia e fruiÃ§Ã£o cultural. MIS, MHAB e MUMO aparecem como equipamentos complementares, capazes de articular audiovisual, memÃ³ria urbana, moda, educaÃ§Ã£o, acessibilidade, preservaÃ§Ã£o e presenÃ§a territorial no centro de Belo Horizonte.`;
 
 function composeIntro(textos = {}) {
   const blocked = [
-    'este relatório cobre o período de 2 de fevereiro',
-    'o presente relatório cobre o período',
-    'o relatório foi produzido com um aplicativo',
-    'auditoria técnica dos dados',
+    'este relatÃ³rio cobre o perÃ­odo de 2 de fevereiro',
+    'o presente relatÃ³rio cobre o perÃ­odo',
+    'o relatÃ³rio foi produzido com um aplicativo',
+    'auditoria tÃ©cnica dos dados',
   ];
   const extra = uniqueParagraphs([
     textos.introducao,
@@ -239,25 +229,25 @@ function composeIntro(textos = {}) {
 
 function TableOfContents() {
   const chapters = [
-    ['Expediente', 'Reconhecimento institucional das equipes, realização e museus participantes'],
-    ['Introdução', 'Transição de coordenação, estabilização e leitura institucional'],
-    ['Indicadores e público', 'Atividades, público espontâneo, visitas agendadas e metas'],
-    ['Programação e atividades do período', 'Agenda completa de fevereiro, março e abril'],
-    ['Ações por museu', 'MHAB, MIS, MUMO e atuação geral com fotos vinculadas'],
-    ['Comunicação, registros e evidências', 'Notícias, registros, campanhas e documentação'],
-    ['Galeria e evidências', 'Fotos em grade, créditos, links e GPS quando disponível'],
-    ['Relatórios da equipe', 'Síntese dos relatórios aprovados usados como fonte'],
-    ['Metas, orçamento e prestação de contas', 'Rubricas, execução e quadro sintético'],
-    ['Sistema e governança', 'Museu Centro APP e tratamento dos dados com apoio de IA'],
+    ['Expediente', 'Reconhecimento institucional das equipes, realizaÃ§Ã£o e museus participantes'],
+    ['IntroduÃ§Ã£o', 'TransiÃ§Ã£o de coordenaÃ§Ã£o, estabilizaÃ§Ã£o e leitura institucional'],
+    ['Indicadores e pÃºblico', 'Atividades, pÃºblico espontÃ¢neo, visitas agendadas e metas'],
+    ['ProgramaÃ§Ã£o e atividades do perÃ­odo', 'Agenda completa de fevereiro, marÃ§o e abril'],
+    ['AÃ§Ãµes por museu', 'MHAB, MIS, MUMO e atuaÃ§Ã£o geral com fotos vinculadas'],
+    ['ComunicaÃ§Ã£o, registros e evidÃªncias', 'NotÃ­cias, registros, campanhas e documentaÃ§Ã£o'],
+    ['Galeria e evidÃªncias', 'Fotos em grade, crÃ©ditos, links e GPS quando disponÃ­vel'],
+    ['RelatÃ³rios da equipe', 'SÃ­ntese dos relatÃ³rios aprovados usados como fonte'],
+    ['Metas, orÃ§amento e prestaÃ§Ã£o de contas', 'Rubricas, execuÃ§Ã£o e quadro sintÃ©tico'],
+    ['Sistema e governanÃ§a', 'Museu Centro APP e tratamento dos dados com apoio de IA'],
   ];
 
   return (
     <PremiumSection
       breakBefore
       eyebrow="Mapa de leitura"
-      title="Sumário"
-      subtitle="Capítulos organizados para leitura institucional, conferência técnica e exportação profissional em PDF."
-      text="O relatório foi reorganizado como catálogo-livro: começa pela narrativa institucional, passa por indicadores e agenda, aproxima atividades de suas evidências visuais, consolida relatórios de equipe e encerra com orçamento, prestação de contas e governança dos dados."
+      title="SumÃ¡rio"
+      subtitle="CapÃ­tulos organizados para leitura institucional, conferÃªncia tÃ©cnica e exportaÃ§Ã£o profissional em PDF."
+      text="O relatÃ³rio foi reorganizado como catÃ¡logo-livro: comeÃ§a pela narrativa institucional, passa por indicadores e agenda, aproxima atividades de suas evidÃªncias visuais, consolida relatÃ³rios de equipe e encerra com orÃ§amento, prestaÃ§Ã£o de contas e governanÃ§a dos dados."
     >
       <ol className="catalog-toc">
         {chapters.map(([title, detail]) => (
@@ -273,25 +263,25 @@ function TableOfContents() {
 
 function TransitionManagementSection() {
   const itens = [
-    ['Visitas institucionais aos museus', 'A coordenação realizou aproximações presenciais com os equipamentos, fortalecendo a leitura de contexto, necessidades operacionais e prioridades de cada museu.'],
-    ['Visitas técnicas individualizadas', 'O acompanhamento por equipamento apoiou a compreensão dos fluxos locais, das agendas em construção e das condições necessárias para execução das ações culturais.'],
-    ['Desenvolvimento inicial do aplicativo', 'O período marcou a estruturação dos fluxos digitais de registro, acompanhamento, consolidação de dados, evidências e prestação de contas.'],
-    ['Plano de trabalho e programação', 'A equipe avançou na organização do plano de trabalho, na construção da programação do semestre e na preparação de exposições e atividades futuras.'],
-    ['Reorganização institucional', 'Foram consolidadas substituições de profissionais, recomposição de equipes, pactuação de responsabilidades e acompanhamento operacional cotidiano.'],
-    ['Comunicação entre equipes', 'A coordenação fortaleceu a circulação de informações entre produção, educativo, comunicação, consultoria de programação e direção dos equipamentos.'],
-    ['Diversidade e inclusão', 'A implementação do curso de Diversidade e Inclusão qualificou práticas de acolhimento, acessibilidade e mediação pública no âmbito institucional.'],
-    ['Fluxos administrativos e culturais', 'A etapa consolidou procedimentos de acompanhamento, documentação, planejamento, comunicação, registro visual e organização das entregas.'],
+    ['Visitas institucionais aos museus', 'A coordenaÃ§Ã£o realizou aproximaÃ§Ãµes presenciais com os equipamentos, fortalecendo a leitura de contexto, necessidades operacionais e prioridades de cada museu.'],
+    ['Visitas tÃ©cnicas individualizadas', 'O acompanhamento por equipamento apoiou a compreensÃ£o dos fluxos locais, das agendas em construÃ§Ã£o e das condiÃ§Ãµes necessÃ¡rias para execuÃ§Ã£o das aÃ§Ãµes culturais.'],
+    ['Desenvolvimento inicial do aplicativo', 'O perÃ­odo marcou a estruturaÃ§Ã£o dos fluxos digitais de registro, acompanhamento, consolidaÃ§Ã£o de dados, evidÃªncias e prestaÃ§Ã£o de contas.'],
+    ['Plano de trabalho e programaÃ§Ã£o', 'A equipe avanÃ§ou na organizaÃ§Ã£o do plano de trabalho, na construÃ§Ã£o da programaÃ§Ã£o do semestre e na preparaÃ§Ã£o de exposiÃ§Ãµes e atividades futuras.'],
+    ['ReorganizaÃ§Ã£o institucional', 'Foram consolidadas substituiÃ§Ãµes de profissionais, recomposiÃ§Ã£o de equipes, pactuaÃ§Ã£o de responsabilidades e acompanhamento operacional cotidiano.'],
+    ['ComunicaÃ§Ã£o entre equipes', 'A coordenaÃ§Ã£o fortaleceu a circulaÃ§Ã£o de informaÃ§Ãµes entre produÃ§Ã£o, educativo, comunicaÃ§Ã£o, consultoria de programaÃ§Ã£o e direÃ§Ã£o dos equipamentos.'],
+    ['Diversidade e inclusÃ£o', 'A implementaÃ§Ã£o do curso de Diversidade e InclusÃ£o qualificou prÃ¡ticas de acolhimento, acessibilidade e mediaÃ§Ã£o pÃºblica no Ã¢mbito institucional.'],
+    ['Fluxos administrativos e culturais', 'A etapa consolidou procedimentos de acompanhamento, documentaÃ§Ã£o, planejamento, comunicaÃ§Ã£o, registro visual e organizaÃ§Ã£o das entregas.'],
   ];
 
   return (
     <PremiumSection
       breakBefore
-      eyebrow="Atuação geral"
-      title="Coordenação, planejamento e desenvolvimento institucional"
-      subtitle="Síntese das frentes estruturantes que deram sustentação à execução cultural, à documentação do projeto e à organização das entregas do semestre."
-      text={`A atuação geral do período é apresentada como infraestrutura de continuidade: um conjunto de decisões, visitas, acompanhamentos, fluxos digitais e reorganizações institucionais que permitiu estabilizar a execução e preparar a programação seguinte sem transformar processos internos em eventos públicos.
+      eyebrow="AtuaÃ§Ã£o geral"
+      title="CoordenaÃ§Ã£o, planejamento e desenvolvimento institucional"
+      subtitle="SÃ­ntese das frentes estruturantes que deram sustentaÃ§Ã£o Ã  execuÃ§Ã£o cultural, Ã  documentaÃ§Ã£o do projeto e Ã  organizaÃ§Ã£o das entregas do semestre."
+      text={`A atuaÃ§Ã£o geral do perÃ­odo Ã© apresentada como infraestrutura de continuidade: um conjunto de decisÃµes, visitas, acompanhamentos, fluxos digitais e reorganizaÃ§Ãµes institucionais que permitiu estabilizar a execuÃ§Ã£o e preparar a programaÃ§Ã£o seguinte sem transformar processos internos em eventos pÃºblicos.
 
-A entrada de Daniel Perini na coordenação geral, após a saída de Andréa Matos, reorganizou responsabilidades, fluxo decisório e acompanhamento das equipes. A consultora de programação Ana Luiza passou a atuar de forma mais próxima das diretorias dos museus, apoiando a construção de agenda, exposições, oficinas, ações educativas e entregas de médio prazo.`}
+A entrada de Daniel Perini na coordenaÃ§Ã£o geral, apÃ³s a saÃ­da de AndrÃ©a Matos, reorganizou responsabilidades, fluxo decisÃ³rio e acompanhamento das equipes. A consultora de programaÃ§Ã£o Ana Luiza passou a atuar de forma mais prÃ³xima das diretorias dos museus, apoiando a construÃ§Ã£o de agenda, exposiÃ§Ãµes, oficinas, aÃ§Ãµes educativas e entregas de mÃ©dio prazo.`}
     >
       <div className="premium-institutional-list">
         {itens.map(([titulo, texto]) => (
@@ -305,38 +295,12 @@ A entrada de Daniel Perini na coordenação geral, após a saída de Andréa Mat
   );
 }
 
-function ActivityMiniPhotos({ activity }) {
-  const photos = Array.isArray(activity?.fotos_destaque) ? activity.fotos_destaque : activity?.fotos || [];
-  const selected = photos
-    .filter((photo) => photo?.url || photo?.file_url || photo?.src || photo?.arquivo_url)
-    .slice(0, 4);
-
-  if (selected.length === 0) return null;
-
-  return (
-    <figure className="premium-activity-photo-strip">
-      {selected.map((photo, slot) => {
-        const url = photo?.url || photo?.file_url || photo?.src || photo?.arquivo_url;
-        return (
-          <img
-            key={url || slot}
-            src={url}
-            alt={photo.caption || getActivityTitle(activity)}
-            loading="lazy"
-          />
-        );
-      })}
-    </figure>
-  );
-}
-
-
 const MUSEUM_GPS = {
-  'MHAB': 'MHAB — Belo Horizonte/MG (-19.9241, -43.9378)',
-  'MIS': 'MIS BH — Belo Horizonte/MG (-19.9167, -43.9345)',
-  'MIS BH': 'MIS BH — Belo Horizonte/MG (-19.9167, -43.9345)',
-  'MUMO': 'MUMO — Belo Horizonte/MG (-19.9280, -43.9372)',
-  'Museus Centro': 'Museus Centro — Belo Horizonte/MG',
+  'MHAB': 'MHAB â€” Belo Horizonte/MG (-19.9241, -43.9378)',
+  'MIS': 'MIS BH â€” Belo Horizonte/MG (-19.9167, -43.9345)',
+  'MIS BH': 'MIS BH â€” Belo Horizonte/MG (-19.9167, -43.9345)',
+  'MUMO': 'MUMO â€” Belo Horizonte/MG (-19.9280, -43.9372)',
+  'Museus Centro': 'Museus Centro â€” Belo Horizonte/MG',
 };
 
 function resolveMuseumLocation(photo = {}) {
@@ -358,45 +322,6 @@ function resolveMuseumLocation(photo = {}) {
 }
 
 
-function PremiumAttachmentThumbnail({ photo, activity = null }) {
-  const imageUrl =
-    photo?.url ||
-    photo?.file_url ||
-    photo?.src ||
-    photo?.arquivo_url;
-
-  if (!imageUrl) return null;
-
-  return (
-    <a
-      href={imageUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="premium-attachment-thumb"
-    >
-      <img
-        src={imageUrl}
-        alt={
-          photo?.caption ||
-          activity?.titulo ||
-          activity?.nome ||
-          'Registro visual'
-        }
-        loading="lazy"
-        style={{
-          width: '100%',
-          height: '120px',
-          objectFit: 'cover',
-          borderRadius: '12px',
-          marginBottom: '10px',
-          background: '#f3f3f3'
-        }}
-      />
-    </a>
-  );
-}
-
-
 function resolveMuseumCredit(photo = {}) {
   return (
     photo?.uploaded_by_name ||
@@ -410,7 +335,7 @@ function resolveMuseumCredit(photo = {}) {
 
 const PUBLICO_MES_REFERENCIA = [
   { mes: 'Fevereiro', atividades: 44, espontaneo: 0, visitas_agendadas: 0, total: 44 },
-  { mes: 'Março', atividades: 947, espontaneo: 0, visitas_agendadas: 0, total: 947 },
+  { mes: 'MarÃ§o', atividades: 947, espontaneo: 0, visitas_agendadas: 0, total: 947 },
   { mes: 'Abril', atividades: 377, espontaneo: 0, visitas_agendadas: 0, total: 377 },
 ];
 
@@ -423,7 +348,7 @@ function getMonthName(item = {}) {
     return parsed.toLocaleDateString('pt-BR', { month: 'long' }).replace(/^./, (c) => c.toUpperCase());
   }
 
-  return 'Período';
+  return 'PerÃ­odo';
 }
 
 function getPublicoRegistrado(item = {}) {
@@ -471,40 +396,40 @@ function inferMetaLabel(item = {}) {
   if (text.includes('noturno')) return { label: 'Meta vinculada fora do recorte', inferred: true };
   if (
     text.includes('comunicacao') ||
-    text.includes('comunicação') ||
+    text.includes('comunicaÃ§Ã£o') ||
     text.includes('divulgacao') ||
-    text.includes('divulgação') ||
+    text.includes('divulgaÃ§Ã£o') ||
     text.includes('clipping') ||
     text.includes('postagem') ||
     text.includes('registro') ||
     text.includes('cobertura') ||
     text.includes('audiovisual')
   ) {
-    return { label: 'Meta de comunicação institucional', inferred: true };
+    return { label: 'Meta de comunicaÃ§Ã£o institucional', inferred: true };
   }
-  if (text.includes('acessibilidade') || text.includes('libras') || text.includes('inclusao') || text.includes('inclusão')) {
+  if (text.includes('acessibilidade') || text.includes('libras') || text.includes('inclusao') || text.includes('inclusÃ£o')) {
     return { label: 'Meta 14 - Acessibilidade', inferred: true };
   }
-  if (text.includes('exposicao') || text.includes('exposição') || text.includes('mostra')) {
-    return { label: 'Metas 10/12 - Mostras e exposições', inferred: true };
+  if (text.includes('exposicao') || text.includes('exposiÃ§Ã£o') || text.includes('mostra')) {
+    return { label: 'Metas 10/12 - Mostras e exposiÃ§Ãµes', inferred: true };
   }
   if (
     text.includes('oficina') ||
     text.includes('curso') ||
     text.includes('mediacao') ||
-    text.includes('mediação') ||
+    text.includes('mediaÃ§Ã£o') ||
     text.includes('visita mediada') ||
     text.includes('educativa') ||
     text.includes('formacao') ||
-    text.includes('formação') ||
+    text.includes('formaÃ§Ã£o') ||
     text.includes('palestra') ||
     text.includes('laboratorio') ||
-    text.includes('laboratório')
+    text.includes('laboratÃ³rio')
   ) {
     return { label: 'Meta 05 - Atividades educativas e culturais', inferred: true };
   }
 
-  return { label: 'Meta não informada', inferred: false };
+  return { label: 'Meta nÃ£o informada', inferred: false };
 }
 
 function isCommunicationRecord(item = {}) {
@@ -519,13 +444,13 @@ function isCommunicationRecord(item = {}) {
   ].filter(Boolean).join(' '));
 
   return text.includes('comunicacao') ||
-    text.includes('comunicação') ||
+    text.includes('comunicaÃ§Ã£o') ||
     text.includes('cobertura') ||
     text.includes('registro fotografico') ||
-    text.includes('registro fotográfico') ||
+    text.includes('registro fotogrÃ¡fico') ||
     text.includes('audiovisual') ||
     text.includes('video') ||
-    text.includes('vídeo') ||
+    text.includes('vÃ­deo') ||
     text.includes('clipping') ||
     text.includes('postagem') ||
     text.includes('rede social') ||
@@ -533,9 +458,9 @@ function isCommunicationRecord(item = {}) {
     text.includes('png') ||
     text.includes('identidade visual') ||
     text.includes('divulgacao') ||
-    text.includes('divulgação') ||
+    text.includes('divulgaÃ§Ã£o') ||
     text.includes('documentacao') ||
-    text.includes('documentação');
+    text.includes('documentaÃ§Ã£o');
 }
 
 function isIrrelevantAdministrativeRecord(item = {}) {
@@ -548,9 +473,9 @@ function isIrrelevantAdministrativeRecord(item = {}) {
   ].filter(Boolean).join(' '));
 
   return text.includes('contratacao de consultoria') ||
-    text.includes('contratação de consultoria') ||
+    text.includes('contrataÃ§Ã£o de consultoria') ||
     text.includes('processo de contratacao') ||
-    text.includes('processo de contratação') ||
+    text.includes('processo de contrataÃ§Ã£o') ||
     text.includes('noturno');
 }
 
@@ -570,12 +495,12 @@ function agendaSemanticKey(item = {}) {
 
   if (isCommunicationRecord(item)) return 'comunicacao-institucional::periodo';
   if (isRecurringMediatedVisit(item)) return `visitas-mediadas::${museu}::${month}`;
-  if (title.includes('laboratorio poetico') || title.includes('laboratório poético') || title.includes('argilas e movimentos')) {
+  if (title.includes('laboratorio poetico') || title.includes('laboratÃ³rio poÃ©tico') || title.includes('argilas e movimentos')) {
     return `laboratorios-poeticos::${museu}::${month}`;
   }
 
   const reducedTitle = title
-    .replace(/\b(confirmada|confirmado|agendada|agendado|rotina|programacao|programação)\b/g, '')
+    .replace(/\b(confirmada|confirmado|agendada|agendado|rotina|programacao|programaÃ§Ã£o)\b/g, '')
     .replace(/\s+/g, ' ')
     .trim()
     .split(' ')
@@ -648,8 +573,8 @@ function mergeAgendaGroup(items = []) {
 
   return {
     ...base,
-    titulo: communication ? 'Comunicação, registros e produções do período' : recurring ? `Visitas mediadas - ${getMuseuLabel(base.museu)}` : base.titulo,
-    tipo: communication ? 'Comunicação institucional' : base.tipo,
+    titulo: communication ? 'ComunicaÃ§Ã£o, registros e produÃ§Ãµes do perÃ­odo' : recurring ? `Visitas mediadas - ${getMuseuLabel(base.museu)}` : base.titulo,
+    tipo: communication ? 'ComunicaÃ§Ã£o institucional' : base.tipo,
     texto: texts[0] || base.texto || base.descricao || base.sinopse || '',
     textosConsolidados: texts.slice(0, 4),
     relatosEquipe: reportTexts.slice(0, 3),
@@ -735,7 +660,7 @@ function normalizeAudienceMonth(item = {}) {
   const total = toNumber(item.total) || atividades + espontaneo + visitas;
 
   return {
-    mes: item.mes || item.month || 'Período',
+    mes: item.mes || item.month || 'PerÃ­odo',
     atividades,
     espontaneo,
     visitas_agendadas: visitas,
@@ -765,8 +690,8 @@ function AudienceMonthlyChart({ rows = [] }) {
 
   return (
     <div className="premium-audience-chart">
-      <h3>Público por mês</h3>
-      <p>Leitura editorial do recorte fevereiro, março e abril, separando público de ações, presença espontânea e visitas agendadas sem misturar estimativas com registros.</p>
+      <h3>PÃºblico por mÃªs</h3>
+      <p>Leitura editorial do recorte fevereiro, marÃ§o e abril, separando pÃºblico de aÃ§Ãµes, presenÃ§a espontÃ¢nea e visitas agendadas sem misturar estimativas com registros.</p>
       {rows.map((item) => {
         const total = Math.max(toNumber(item.total), 1);
         const width = Math.max((total / max) * 100, 2);
@@ -787,8 +712,8 @@ function AudienceMonthlyChart({ rows = [] }) {
         );
       })}
       <div className="audience-chart-legend">
-        <span><i className="audience-bar-acoes" /> Ações</span>
-        <span><i className="audience-bar-espontaneo" /> Espontâneo</span>
+        <span><i className="audience-bar-acoes" /> AÃ§Ãµes</span>
+        <span><i className="audience-bar-espontaneo" /> EspontÃ¢neo</span>
         <span><i className="audience-bar-agendadas" /> Agendadas</span>
       </div>
     </div>
@@ -800,9 +725,9 @@ function buildPublicContext(item = {}) {
   const value = item.publicoRegistrado > 0 ? item.publicoRegistrado : item.publicoEstimado;
   if (!value) return '';
 
-  const type = item.publicoTipo === 'estimado' ? 'público estimado' : 'participantes registrados';
+  const type = item.publicoTipo === 'estimado' ? 'pÃºblico estimado' : 'participantes registrados';
   const scope = [item.museu, item.mes || getMonthName(item)].filter(Boolean).join(' / ');
-  const category = item.tipo || item.categoria_label || item.classificacao || 'ação cultural';
+  const category = item.tipo || item.categoria_label || item.classificacao || 'aÃ§Ã£o cultural';
 
   return `${fmtInt(value)} ${type} em ${category.toString().toLowerCase()}${scope ? ` no recorte ${scope}` : ''}.`;
 }
@@ -822,36 +747,36 @@ function buildInstitutionalExpansion(item = {}) {
   const meta = item.metaEditorial || getActivityMeta(item);
 
   if (item.isCommunicationCard) {
-    return `Como frente de documentação pública, ${sanitizeReportText(title)} reúne registros, coberturas, materiais visuais e evidências de circulação institucional produzidas no período. A síntese preserva a função documental dessas entregas e explicita sua contribuição para memória visual, prestação de contas e presença pública do Museus Centro.`;
+    return `Como frente de documentaÃ§Ã£o pÃºblica, ${sanitizeReportText(title)} reÃºne registros, coberturas, materiais visuais e evidÃªncias de circulaÃ§Ã£o institucional produzidas no perÃ­odo. A sÃ­ntese preserva a funÃ§Ã£o documental dessas entregas e explicita sua contribuiÃ§Ã£o para memÃ³ria visual, prestaÃ§Ã£o de contas e presenÃ§a pÃºblica do Museus Centro.`;
   }
 
-  if (text.includes('estudio aberto') || text.includes('estúdio aberto')) {
-    return `A ação ${sanitizeReportText(title)} articula mediação, experimentação e acolhimento de públicos em um formato de permanência educativa. No relatório, ela deve ser lida como parte da construção de vínculo entre museu, visitantes e processos de formação cultural, especialmente quando associada a grupos agendados, oficinas e preparação pedagógica registrada pela equipe.`;
+  if (text.includes('estudio aberto') || text.includes('estÃºdio aberto')) {
+    return `A aÃ§Ã£o ${sanitizeReportText(title)} articula mediaÃ§Ã£o, experimentaÃ§Ã£o e acolhimento de pÃºblicos em um formato de permanÃªncia educativa. No relatÃ³rio, ela deve ser lida como parte da construÃ§Ã£o de vÃ­nculo entre museu, visitantes e processos de formaÃ§Ã£o cultural, especialmente quando associada a grupos agendados, oficinas e preparaÃ§Ã£o pedagÃ³gica registrada pela equipe.`;
   }
 
   if (text.includes('visita mediada') || text.includes('visitas mediadas')) {
-    return `As visitas mediadas${museu} foram consolidadas como ação de formação de público, aproximando acervos, exposições e repertórios dos visitantes por meio de acompanhamento educativo. A consolidação evita a fragmentação de registros recorrentes e preserva a leitura de público, território e rotina institucional.`;
+    return `As visitas mediadas${museu} foram consolidadas como aÃ§Ã£o de formaÃ§Ã£o de pÃºblico, aproximando acervos, exposiÃ§Ãµes e repertÃ³rios dos visitantes por meio de acompanhamento educativo. A consolidaÃ§Ã£o evita a fragmentaÃ§Ã£o de registros recorrentes e preserva a leitura de pÃºblico, territÃ³rio e rotina institucional.`;
   }
 
-  if (text.includes('oficina') || text.includes('laboratorio') || text.includes('laboratório') || text.includes('curso')) {
-    return `A atividade ${sanitizeReportText(title)} fortalece a dimensão educativa do projeto ao combinar prática, escuta, repertório cultural e participação. Quando vinculada a oficinas, laboratórios ou formações, a ação amplia a relação entre museu e território, criando condições para experimentação, mediação e continuidade pedagógica.`;
+  if (text.includes('oficina') || text.includes('laboratorio') || text.includes('laboratÃ³rio') || text.includes('curso')) {
+    return `A atividade ${sanitizeReportText(title)} fortalece a dimensÃ£o educativa do projeto ao combinar prÃ¡tica, escuta, repertÃ³rio cultural e participaÃ§Ã£o. Quando vinculada a oficinas, laboratÃ³rios ou formaÃ§Ãµes, a aÃ§Ã£o amplia a relaÃ§Ã£o entre museu e territÃ³rio, criando condiÃ§Ãµes para experimentaÃ§Ã£o, mediaÃ§Ã£o e continuidade pedagÃ³gica.`;
   }
 
-  if (text.includes('exposicao') || text.includes('exposição') || text.includes('mostra')) {
-    return `No conjunto do relatório, ${sanitizeReportText(title)} aparece como ação de qualificação da experiência expositiva, conectando pesquisa, montagem, mediação e presença pública. O registro permite acompanhar como o planejamento de exposições se articula à programação e às entregas institucionais do período.`;
+  if (text.includes('exposicao') || text.includes('exposiÃ§Ã£o') || text.includes('mostra')) {
+    return `No conjunto do relatÃ³rio, ${sanitizeReportText(title)} aparece como aÃ§Ã£o de qualificaÃ§Ã£o da experiÃªncia expositiva, conectando pesquisa, montagem, mediaÃ§Ã£o e presenÃ§a pÃºblica. O registro permite acompanhar como o planejamento de exposiÃ§Ãµes se articula Ã  programaÃ§Ã£o e Ã s entregas institucionais do perÃ­odo.`;
   }
 
   if (text.includes('libras') || text.includes('acessibilidade') || text.includes('diversidade')) {
-    return `A ação ${sanitizeReportText(title)} reforça o compromisso do projeto com acessibilidade, acolhimento e mediação pública. Sua presença no relatório qualifica a leitura institucional do período ao situar inclusão e diversidade como dimensões práticas da gestão cultural, não apenas como diretrizes abstratas.`;
+    return `A aÃ§Ã£o ${sanitizeReportText(title)} reforÃ§a o compromisso do projeto com acessibilidade, acolhimento e mediaÃ§Ã£o pÃºblica. Sua presenÃ§a no relatÃ³rio qualifica a leitura institucional do perÃ­odo ao situar inclusÃ£o e diversidade como dimensÃµes prÃ¡ticas da gestÃ£o cultural, nÃ£o apenas como diretrizes abstratas.`;
   }
 
-  return `No recorte de ${month}, ${sanitizeReportText(title)} integra a agenda consolidada do Museus Centro como ação vinculada à programação, aos registros de equipe e às evidências disponíveis no aplicativo${meta ? `, com relação editorial à ${sanitizeReportText(meta)}` : ''}. A leitura consolidada aproxima dados, relatos e documentação visual, ampliando a rastreabilidade sem repetir textos de origem.`;
+  return `No recorte de ${month}, ${sanitizeReportText(title)} integra a agenda consolidada do Museus Centro como aÃ§Ã£o vinculada Ã  programaÃ§Ã£o, aos registros de equipe e Ã s evidÃªncias disponÃ­veis no aplicativo${meta ? `, com relaÃ§Ã£o editorial Ã  ${sanitizeReportText(meta)}` : ''}. A leitura consolidada aproxima dados, relatos e documentaÃ§Ã£o visual, ampliando a rastreabilidade sem repetir textos de origem.`;
 }
 
 function ActivityNarrative({ item }) {
   const sourceParagraphs = Array.isArray(item.textosConsolidados) && item.textosConsolidados.length > 0
     ? item.textosConsolidados
-    : [splitParagraphs(item.texto, 1)[0] || 'Registro recuperado da programação ou dos relatórios aprovados no app.'];
+    : [splitParagraphs(item.texto, 1)[0] || 'Registro recuperado da programaÃ§Ã£o ou dos relatÃ³rios aprovados no app.'];
   const reportParagraphs = Array.isArray(item.relatosEquipe) ? item.relatosEquipe : [];
   const paragraphs = uniqueParagraphs([
     ...sourceParagraphs,
@@ -875,7 +800,7 @@ function EvidenceLinks({ links = [] }) {
   return (
     <div className="premium-evidence-links">
       {unique.map((link, index) => (
-        <a href={link} target="_blank" rel="noreferrer" key={link}>Evidência {index + 1}</a>
+        <a href={link} target="_blank" rel="noreferrer" key={link}>EvidÃªncia {index + 1}</a>
       ))}
     </div>
   );
@@ -891,8 +816,8 @@ function MonthlyAgendaSection({ contexto }) {
       data: item.data || item.data_inicio,
       mes: item.mes,
       museu: getMuseuLabel(item.museu || item.equipamento || item.local),
-      titulo: item.titulo || item.nome || 'Programação registrada',
-      tipo: item.tipo || item.tipo_atividade || item.status || 'Programação',
+      titulo: item.titulo || item.nome || 'ProgramaÃ§Ã£o registrada',
+      tipo: item.tipo || item.tipo_atividade || item.status || 'ProgramaÃ§Ã£o',
       texto: item.descricao || item.sinopse,
       publico: getActivityPublico(item),
       publico_estimado: item.publico_estimado || item.publico_previsto || item.capacidade,
@@ -915,60 +840,58 @@ function MonthlyAgendaSection({ contexto }) {
   return (
     <PremiumSection
       breakBefore
-      eyebrow="Agenda Museus Centro no período"
-      title="Agenda detalhada de fevereiro, março e abril"
-      subtitle="Cada item preserva título, museu, data, tipo, público, meta e fotos vinculadas quando disponíveis no app."
-      text="A agenda foi consolidada a partir da programação e dos relatórios aprovados. Registros recorrentes, rotinas e visitas mediadas fragmentadas foram agrupados para reduzir duplicidade visual, sem apagar a rastreabilidade: quando houver mais de uma origem, o card informa a quantidade de registros consolidados."
+      eyebrow="Agenda Museus Centro no perÃ­odo"
+      title="Agenda detalhada de fevereiro, marÃ§o e abril"
+      subtitle="Cada item preserva tÃ­tulo, museu, data, tipo, pÃºblico, meta e fotos vinculadas quando disponÃ­veis no app."
+      text="A agenda foi consolidada a partir da programaÃ§Ã£o e dos relatÃ³rios aprovados. Registros recorrentes, rotinas e visitas mediadas fragmentadas foram agrupados para reduzir duplicidade visual, sem apagar a rastreabilidade: quando houver mais de uma origem, o card informa a quantidade de registros consolidados."
     >
       <div className="premium-month-grid">
         {unique.map((item, index) => (
           <article className="premium-month-card" key={item.id || `${item.titulo}-${index}`}>
-            <ActivityMiniPhotos activity={item} />
             {item.consolidatedCount > 1 ? <span className="agenda-consolidation-badge">{fmtInt(item.consolidatedCount)} registros consolidados</span> : null}
             <header className="premium-card-header">
               <div>
                 <p className="premium-card-kicker">
-                  {[item.museu, item.tipo, item.mes || getMonthName(item)].filter(Boolean).map((value, keyIndex) => (
-                    <span key={`${value}-${keyIndex}`}>{sanitizeReportText(value)}</span>
-                  ))}
+                  {[item.museu, item.tipo, item.mes || getMonthName(item)]
+                    .filter(Boolean)
+                    .map((value, keyIndex) => (
+                      <span key={`${value}-${keyIndex}`}>
+                        {sanitizeReportText(value)}
+                      </span>
+                    ))}
                 </p>
                 <h3>{sanitizeReportText(item.titulo)}</h3>
               </div>
               {!item.isCommunicationCard &&
 (item.publicoRegistrado > 0 || item.publicoEstimado > 0) && (
-  <div className="premium-public-highlight">
-    <strong>
-      {item.publicoRegistrado > 0
-        ? fmtInt(item.publicoRegistrado)
-        : item.publicoEstimado > 0
-          ? fmtInt(item.publicoEstimado)
-          : ''}
-    </strong>
-
-    <span>
-      {item.publicoTipo === 'estimado'
-        ? 'público estimado'
-        : 'participantes'}
-    </span>
-  </div>
-)}
+                <div className="premium-public-highlight">
+                  <strong>
+                    {item.publicoRegistrado > 0
+                      ? fmtInt(item.publicoRegistrado)
+                      : item.publicoEstimado > 0
+                        ? fmtInt(item.publicoEstimado)
+                        : ''}
+                  </strong>
+                  <span>{item.publicoTipo === 'estimado' ? 'pÃºblico estimado' : 'participantes'}</span>
+                </div>
+              )}
             </header>
             {buildPublicContext(item) ? <p className="premium-public-context">{buildPublicContext(item)}</p> : null}
             <div className="premium-card-facts">
-              <span><strong>Datas</strong>{(item.datasConsolidadas || []).join(', ') || item.data || item.mes || 'período'}</span>
-              <span><strong>Meta vinculada</strong>{item.metaEditorial || getActivityMeta(item) || ''}{item.metaInferida ? ' (inferida)' : ''}</span>
-              {!item.isCommunicationCard ? <span><strong>Público</strong>{item.publicoTipo === 'estimado' ? 'estimado a partir da programação' : 'registrado nos relatórios e atividades'}</span> : null}
+              <span><strong>Datas</strong>{(item.datasConsolidadas || []).join(', ') || item.data || item.mes || 'perÃ­odo'}</span>
+{(item.metaEditorial || getActivityMeta(item)) ? <span><strong>Meta vinculada</strong>{item.metaEditorial || getActivityMeta(item)}{item.metaInferida ? ' (inferida)' : ''}</span> : null}
+              {!item.isCommunicationCard ? <span><strong>PÃºblico</strong>{item.publicoTipo === 'estimado' ? 'estimado a partir da programaÃ§Ã£o' : 'registrado nos relatÃ³rios e atividades'}</span> : null}
               {item.participantes > 0 ? <span><strong>Participantes</strong>{fmtInt(item.participantes)} pessoas identificadas</span> : null}
-              {item.relatoriosVinculados?.length ? <span><strong>Relatórios vinculados</strong>{item.relatoriosVinculados.join(', ')}</span> : null}
+              {item.relatoriosVinculados?.length ? <span><strong>RelatÃ³rios vinculados</strong>{item.relatoriosVinculados.join(', ')}</span> : null}
             </div>
             <ActivityNarrative item={item} />
             {item.isCommunicationCard ? (
-              <p className="premium-card-footnote">Entregas agrupadas: comunicação, cobertura, registros, edição, documentação, peças digitais, audiovisual, clipping e divulgação institucional. Este card não atribui público direto.</p>
+              <p className="premium-card-footnote">Entregas agrupadas: comunicaÃ§Ã£o, cobertura, registros, ediÃ§Ã£o, documentaÃ§Ã£o, peÃ§as digitais, audiovisual, clipping e divulgaÃ§Ã£o institucional. Este card nÃ£o atribui pÃºblico direto.</p>
             ) : null}
             <footer className="premium-card-footer">
-              <span><strong>Localização</strong>{item.local || item.endereco || item.museu || 'Museus Centro'}</span>
-              <span><strong>Créditos</strong>{item.credito || item.creditos || item.producao || 'registros do app'}</span>
-              <span><strong>Indicador</strong>{item.isCommunicationCard ? 'documentação institucional' : item.publicoTipo === 'estimado' ? 'público estimado' : 'público registrado'}</span>
+              <span><strong>LocalizaÃ§Ã£o</strong>{item.local || item.endereco || item.museu || 'Museus Centro'}</span>
+              <span><strong>CrÃ©ditos</strong>{item.credito || item.creditos || item.producao || 'registros do app'}</span>
+              <span><strong>Indicador</strong>{item.isCommunicationCard ? 'documentaÃ§Ã£o institucional' : item.publicoTipo === 'estimado' ? 'pÃºblico estimado' : 'pÃºblico registrado'}</span>
             </footer>
             <EvidenceLinks links={item.evidenciaLinks} />
           </article>
@@ -985,18 +908,18 @@ function ReportsArchiveSection({ contexto }) {
   return (
     <PremiumSection
       breakBefore
-      eyebrow="Relatórios da equipe"
+      eyebrow="RelatÃ³rios da equipe"
       title="Fontes internas consolidadas"
-      subtitle={`${fmtInt(reports.length)} relatórios aprovados compõem a base narrativa, técnica e documental do período.`}
-      text="Esta seção explicita a origem dos textos e registros utilizados no relatório. Em vez de repetir integralmente cada documento, o sistema recupera autoria, função, museu, mês, atividades, público e trechos de síntese, preservando rastreabilidade e evitando redundância editorial."
+      subtitle={`${fmtInt(reports.length)} relatÃ³rios aprovados compÃµem a base narrativa, tÃ©cnica e documental do perÃ­odo.`}
+      text="Esta seÃ§Ã£o explicita a origem dos textos e registros utilizados no relatÃ³rio. Em vez de repetir integralmente cada documento, o sistema recupera autoria, funÃ§Ã£o, museu, mÃªs, atividades, pÃºblico e trechos de sÃ­ntese, preservando rastreabilidade e evitando redundÃ¢ncia editorial."
     >
       <div className="premium-report-archive">
         {reports.slice(0, 60).map((report, index) => (
           <article className="premium-report-note" key={report.id || index}>
             <strong>{report.autor || report.author_name || 'Equipe Museus Centro'}</strong>
             <span>{[report.funcao, report.museu, report.mes].filter(Boolean).join(' / ')}</span>
-            <span>{fmtInt(report.atividades_count)} atividades · público {fmtInt(report.publico)}</span>
-            <small>{sanitizeReportText(uniqueParagraphs([report.resumo_executivo, report.resumo_periodo, report.pontos_positivos].filter(Boolean).join('\n\n'), 1, 40)[0] || 'Relatório aprovado usado como fonte do período.')}</small>
+            <span>{fmtInt(report.atividades_count)} atividades Â· pÃºblico {fmtInt(report.publico)}</span>
+            <small>{sanitizeReportText(uniqueParagraphs([report.resumo_executivo, report.resumo_periodo, report.pontos_positivos].filter(Boolean).join('\n\n'), 1, 40)[0] || 'RelatÃ³rio aprovado usado como fonte do perÃ­odo.')}</small>
           </article>
         ))}
       </div>
@@ -1012,24 +935,23 @@ function PhotoEvidenceDenseSection({ contexto }) {
     <PremiumSection
       breakBefore
       eyebrow="Listagem de fotos"
-      title="Fotos, créditos e localização"
-      subtitle="Lista em três colunas para conferência de atividade, museu, mês, arquivo, crédito, link e GPS quando disponível."
-      text="A listagem amplia a densidade documental do relatório e evita que a fotografia apareça apenas como ilustração. Cada item preserva o vínculo com a atividade ou arquivo de origem disponível no app."
+      title="Fotos, crÃ©ditos e localizaÃ§Ã£o"
+      subtitle="Lista em trÃªs colunas para conferÃªncia de atividade, museu, mÃªs, arquivo, crÃ©dito, link e GPS quando disponÃ­vel."
+      text="A listagem amplia a densidade documental do relatÃ³rio e evita que a fotografia apareÃ§a apenas como ilustraÃ§Ã£o. Cada item preserva o vÃ­nculo com a atividade ou arquivo de origem disponÃ­vel no app."
     >
       <div className="premium-photo-index">
         {photos.map((photo, index) => (
           <article className="premium-photo-index-item" key={`${photo.link || photo.fileName}-${index}`}>
             {photo.link ? (
               <a href={photo.link} target="_blank" rel="noreferrer" className="premium-photo-index-thumb">
-                <img src={photo.link} alt={sanitizeReportText(photo.atividade || 'Registro visual')} loading="lazy" />
+                <img src={photo.link} alt={sanitizeReportText(photo.atividade || 'Registro vinculado à atividade')} loading="lazy" />
               </a>
             ) : null}
-            <strong>{photo.mes || 'Período'}</strong>
+            <strong>{photo.mes || 'PerÃ­odo'}</strong>
             <span>{sanitizeReportText(photo.atividade || 'Atividade vinculada ao app')}</span>
             <small>{photo.museu || 'Museus Centro'}</small>
             <small>{cleanFileName(photo.fileName || photo.link)}</small>
-            <PremiumAttachmentThumbnail photo={photo} />
-<small>Local: {photo.localizacao?.label || resolveMuseumLocation(photo)}</small>
+            <small>Local: {photo.localizacao?.label || resolveMuseumLocation(photo)}</small>
             <small>Crédito: {photo.credito || resolveMuseumCredit(photo)}</small>
             {photo.link ? <a href={photo.link} target="_blank" rel="noreferrer">Abrir arquivo</a> : null}
           </article>
@@ -1064,9 +986,9 @@ function getRubricaPercentual(item = {}) {
 }
 
 function getExecutionStatus(percentual = 0) {
-  if (percentual >= 70) return { label: 'Alta execução', className: 'alta' };
-  if (percentual >= 15) return { label: 'Em execução', className: 'andamento' };
-  return { label: 'Baixa execução', className: 'baixa' };
+  if (percentual >= 70) return { label: 'Alta execuÃ§Ã£o', className: 'alta' };
+  if (percentual >= 15) return { label: 'Em execuÃ§Ã£o', className: 'andamento' };
+  return { label: 'Baixa execuÃ§Ã£o', className: 'baixa' };
 }
 
 function groupRubricas(rubricas = []) {
@@ -1098,11 +1020,11 @@ function FinanceSummaryCards({ totals }) {
         <strong>{fmtBRL(totals.utilizado)}</strong>
       </div>
       <div className="premium-finance-summary-card">
-        <span>Saldo disponível</span>
+        <span>Saldo disponÃ­vel</span>
         <strong>{fmtBRL(totals.saldo)}</strong>
       </div>
       <div className="premium-finance-summary-card">
-        <span>Execução</span>
+        <span>ExecuÃ§Ã£o</span>
         <strong>{totals.percentual.toFixed(1).replace('.', ',')}%</strong>
       </div>
     </div>
@@ -1123,7 +1045,7 @@ function RubricasTable({ contexto }) {
     <div>
       <FinanceSummaryCards totals={totals} />
       <p className="premium-finance-note">
-        As rubricas foram reorganizadas por grupo orçamentário, com subtotais, saldo e percentual de execução. A tabela evita leitura de planilha bruta e apresenta o orçamento como quadro executivo de prestação de contas.
+        As rubricas foram reorganizadas por grupo orÃ§amentÃ¡rio, com subtotais, saldo e percentual de execuÃ§Ã£o. A tabela evita leitura de planilha bruta e apresenta o orÃ§amento como quadro executivo de prestaÃ§Ã£o de contas.
       </p>
 
       {orderedGroups.map(({ grupo, items, totals: groupTotals }) => (
@@ -1133,7 +1055,7 @@ function RubricasTable({ contexto }) {
             <span>Previsto<br />{fmtBRL(groupTotals.previsto)}</span>
             <span>Utilizado<br />{fmtBRL(groupTotals.utilizado)}</span>
             <span>Saldo<br />{fmtBRL(groupTotals.saldo)}</span>
-            <span>Execução<br />{groupTotals.percentual.toFixed(1).replace('.', ',')}%</span>
+            <span>ExecuÃ§Ã£o<br />{groupTotals.percentual.toFixed(1).replace('.', ',')}%</span>
           </header>
 
           <table className="premium-rubrica-table">
@@ -1143,7 +1065,7 @@ function RubricasTable({ contexto }) {
                 <th className="premium-money-cell">Previsto</th>
                 <th className="premium-money-cell">Utilizado</th>
                 <th className="premium-money-cell">Saldo</th>
-                <th>Execução</th>
+                <th>ExecuÃ§Ã£o</th>
                 <th>Status</th>
               </tr>
             </thead>
@@ -1197,9 +1119,9 @@ function ComprasTable({ contexto }) {
 
   return (
     <section className="premium-purchase-section">
-      <h3>Movimentações financeiras do período</h3>
+      <h3>MovimentaÃ§Ãµes financeiras do perÃ­odo</h3>
       <p>
-        As solicitações aprovadas são apresentadas separadamente das rubricas para preservar a diferença entre orçamento previsto, execução acumulada e movimentações operacionais do período.
+        As solicitaÃ§Ãµes aprovadas sÃ£o apresentadas separadamente das rubricas para preservar a diferenÃ§a entre orÃ§amento previsto, execuÃ§Ã£o acumulada e movimentaÃ§Ãµes operacionais do perÃ­odo.
       </p>
       <div className="premium-table-wrap">
         <table className="premium-table">
@@ -1235,11 +1157,11 @@ function AudienceBreakdown({ contexto }) {
     <div className="premium-audience-grid">
       <AudienceMonthlyChart rows={porMes} />
       <div>
-        <h3>Público por mês</h3>
+        <h3>PÃºblico por mÃªs</h3>
         <div className="premium-table-wrap">
           <table className="premium-table">
             <thead>
-              <tr><th>Mês</th><th>Ações</th><th>Espontâneo</th><th>Agendadas</th><th>Total</th></tr>
+              <tr><th>MÃªs</th><th>AÃ§Ãµes</th><th>EspontÃ¢neo</th><th>Agendadas</th><th>Total</th></tr>
             </thead>
             <tbody>
               {porMes.map((item) => (
@@ -1256,11 +1178,11 @@ function AudienceBreakdown({ contexto }) {
         </div>
       </div>
       <div>
-        <h3>Público por museu</h3>
+        <h3>PÃºblico por museu</h3>
         <div className="premium-table-wrap">
           <table className="premium-table">
             <thead>
-              <tr><th>Museu</th><th>Atividades</th><th>Espontâneo</th><th>Agendadas</th><th>Total</th></tr>
+              <tr><th>Museu</th><th>Atividades</th><th>EspontÃ¢neo</th><th>Agendadas</th><th>Total</th></tr>
             </thead>
             <tbody>
               {porMuseu.map((item) => (
@@ -1291,13 +1213,13 @@ function StrategicRecords({ contexto }) {
       text.includes('contratacao de consultoria');
   };
   const grupos = [
-    { titulo: 'Ambiente seguro e diversidade', termos: ['ambiente seguro', 'diversidade', 'inclusao', 'inclusão'] },
-    { titulo: 'Memórias e Libras', termos: ['libras', 'memorias', 'memórias', 'surdo', 'acessibilidade'] },
+    { titulo: 'Ambiente seguro e diversidade', termos: ['ambiente seguro', 'diversidade', 'inclusao', 'inclusÃ£o'] },
+    { titulo: 'MemÃ³rias e Libras', termos: ['libras', 'memorias', 'memÃ³rias', 'surdo', 'acessibilidade'] },
     { titulo: 'Entrevista / Registro recuperado', termos: ['entrevista', 'registro recuperado'] },
-    { titulo: 'Traços ao Pixel', termos: ['tracos ao pixel', 'traços ao pixel', 'pixel'] },
-    { titulo: 'Atuação geral', termos: ['atuacao geral', 'atuação geral', 'coordenação', 'coordenacao', 'consultora de programação'] },
-    { titulo: 'Reuniões semanais com a equipe', termos: ['reuniao', 'reunião', 'ritual de gestao', 'ritual de gestão', 'alinhamento'] },
-    { titulo: 'Acompanhamento das filmagens', termos: ['filmagem', 'filmagens', 'audiovisual', 'video', 'vídeo'] },
+    { titulo: 'TraÃ§os ao Pixel', termos: ['tracos ao pixel', 'traÃ§os ao pixel', 'pixel'] },
+    { titulo: 'AtuaÃ§Ã£o geral', termos: ['atuacao geral', 'atuaÃ§Ã£o geral', 'coordenaÃ§Ã£o', 'coordenacao', 'consultora de programaÃ§Ã£o'] },
+    { titulo: 'ReuniÃµes semanais com a equipe', termos: ['reuniao', 'reuniÃ£o', 'ritual de gestao', 'ritual de gestÃ£o', 'alinhamento'] },
+    { titulo: 'Acompanhamento das filmagens', termos: ['filmagem', 'filmagens', 'audiovisual', 'video', 'vÃ­deo'] },
     { titulo: 'Trechos de entrevistas de Libras', termos: ['entrevista', 'libras'] },
   ].map((grupo) => ({
     ...grupo,
@@ -1316,19 +1238,19 @@ function StrategicRecords({ contexto }) {
     <PremiumSection
       breakBefore
       eyebrow="Registros editoriais recuperados"
-      title="Ações estratégicas do período"
-      subtitle="Atividades e registros internos são apresentados conforme aparecem nos relatórios aprovados, sem criar eventos fora da base do app."
-      text="Esta seção aproxima ações de acessibilidade, formação, reuniões, filmagens, entrevistas e registros recuperados. Quando a ação é interna, ela é lida como atividade de gestão, produção, comunicação ou mediação, sem atribuição indevida de público direto."
+      title="AÃ§Ãµes estratÃ©gicas do perÃ­odo"
+      subtitle="Atividades e registros internos sÃ£o apresentados conforme aparecem nos relatÃ³rios aprovados, sem criar eventos fora da base do app."
+      text="Esta seÃ§Ã£o aproxima aÃ§Ãµes de acessibilidade, formaÃ§Ã£o, reuniÃµes, filmagens, entrevistas e registros recuperados. Quando a aÃ§Ã£o Ã© interna, ela Ã© lida como atividade de gestÃ£o, produÃ§Ã£o, comunicaÃ§Ã£o ou mediaÃ§Ã£o, sem atribuiÃ§Ã£o indevida de pÃºblico direto."
     >
       <div className="premium-table-wrap">
         <table className="premium-table">
           <thead>
             <tr>
-              <th>Seção</th>
+              <th>SeÃ§Ã£o</th>
               <th>Registro localizado</th>
               <th>Museu</th>
-              <th>Mês</th>
-              <th>Classificação</th>
+              <th>MÃªs</th>
+              <th>ClassificaÃ§Ã£o</th>
             </tr>
           </thead>
           <tbody>
@@ -1337,7 +1259,7 @@ function StrategicRecords({ contexto }) {
                 <td>{grupo.titulo}</td>
                 <td>{item?.nome || item?.titulo || 'Registro do app'}</td>
                 <td>{item?.museu || 'Geral'}</td>
-                <td>{item?.mes || item?.data || 'Período'}</td>
+                <td>{item?.mes || item?.data || 'PerÃ­odo'}</td>
                 <td>{item?.categoria_label || item?.classificacao || 'Atividade interna'}</td>
               </tr>
             )))}
@@ -1363,10 +1285,10 @@ function RemovedPeriodSection({ contexto }) {
   return (
     <PremiumSection
       breakBefore
-      eyebrow="Seção especial"
-      title="Seção removida"
-      subtitle="Planejamento, pré-produção, infraestrutura, comunicação e rubricas vinculadas ao eixo de maior visibilidade pública."
-      text="Seção mantida fora do fluxo público deste relatório porque o evento não ocorreu no período analisado."
+      eyebrow="SeÃ§Ã£o especial"
+      title="SeÃ§Ã£o removida"
+      subtitle="Planejamento, prÃ©-produÃ§Ã£o, infraestrutura, comunicaÃ§Ã£o e rubricas vinculadas ao eixo de maior visibilidade pÃºblica."
+      text="SeÃ§Ã£o mantida fora do fluxo pÃºblico deste relatÃ³rio porque o evento nÃ£o ocorreu no perÃ­odo analisado."
     >
       <div className="premium-finance-grid">
         <div>
@@ -1376,7 +1298,7 @@ function RemovedPeriodSection({ contexto }) {
               <tbody>
                 {atividades.slice(0, 12).map((item, index) => (
                   <tr key={item?.id || index}>
-                    <td>{item?.nome || item?.titulo || 'Ação fora do recorte'}</td>
+                    <td>{item?.nome || item?.titulo || 'AÃ§Ã£o fora do recorte'}</td>
                     <td>{item?.museu || 'Geral'}</td>
                     <td>{item?.data || item?.mes || '-'}</td>
                   </tr>
@@ -1500,9 +1422,9 @@ export default function PremiumReportLayout({ contexto = {}, textos = {}, filtro
       {hasSection(secoesSelecionadas, 'sumario_executivo', 'introducao') && <TableOfContents />}
 
       {hasSection(secoesSelecionadas, 'sumario_executivo', 'introducao', 'resumo_geral', 'indicadores_premium') && <PremiumSection
-        eyebrow="Sumário executivo"
-        title="Introdução"
-        subtitle="Fevereiro, março e abril como ciclo de transição, estabilização, pactuação de rotinas e consolidação dos dados do app."
+        eyebrow="SumÃ¡rio executivo"
+        title="IntroduÃ§Ã£o"
+        subtitle="Fevereiro, marÃ§o e abril como ciclo de transiÃ§Ã£o, estabilizaÃ§Ã£o, pactuaÃ§Ã£o de rotinas e consolidaÃ§Ã£o dos dados do app."
         text={composeIntro(textos)}
       >
         <PremiumMetrics contexto={contexto} />
@@ -1512,19 +1434,19 @@ export default function PremiumReportLayout({ contexto = {}, textos = {}, filtro
 
       {hasSection(secoesSelecionadas, 'publico', 'metas', 'indicadores_premium') && <PremiumSection
         breakBefore
-        eyebrow="Indicadores, metas e público"
-        title="Execução física acompanhada por evidências"
-        subtitle={`${fmtInt(getEffectiveTotalActivities(contexto))} atividades registradas, ${fmtInt(contexto.publico_total)} pessoas no recorte do período e ${fmtInt(getEffectiveTotalReports(contexto))} relatórios consolidados.`}
-        text={`${textos.resumo_geral || ''}\n\nPúblico espontâneo corresponde ao público que acessa o museu sem agendamento prévio, em visita livre, circulação cotidiana, exposições, permanência nos espaços e fruição espontânea da programação.\n\nVisitas agendadas correspondem a grupos previamente organizados, escolas, instituições, coletivos ou grupos acompanhados por mediação, com registro de data, número de participantes e, quando houver, vínculo com atividade educativa.\n\n${textos.metas || ''}`}
+        eyebrow="Indicadores, metas e pÃºblico"
+        title="ExecuÃ§Ã£o fÃ­sica acompanhada por evidÃªncias"
+        subtitle={`${fmtInt(getEffectiveTotalActivities(contexto))} atividades registradas, ${fmtInt(contexto.publico_total)} pessoas no recorte do perÃ­odo e ${fmtInt(getEffectiveTotalReports(contexto))} relatÃ³rios consolidados.`}
+        text={`${textos.resumo_geral || ''}\n\nPÃºblico espontÃ¢neo corresponde ao pÃºblico que acessa o museu sem agendamento prÃ©vio, em visita livre, circulaÃ§Ã£o cotidiana, exposiÃ§Ãµes, permanÃªncia nos espaÃ§os e fruiÃ§Ã£o espontÃ¢nea da programaÃ§Ã£o.\n\nVisitas agendadas correspondem a grupos previamente organizados, escolas, instituiÃ§Ãµes, coletivos ou grupos acompanhados por mediaÃ§Ã£o, com registro de data, nÃºmero de participantes e, quando houver, vÃ­nculo com atividade educativa.\n\n${textos.metas || ''}`}
       >
         <AudienceBreakdown contexto={contexto} />
       </PremiumSection>}
 
       {hasSection(secoesSelecionadas, 'programacao', 'agenda_programacao', 'timeline_premium') && hasRealTimelineData(contexto) && <PremiumSection
         breakBefore
-        eyebrow="Agenda Museus Centro no período"
-        title="Programação e atividades do período"
-        subtitle="Programações e atividades reais de fevereiro, março e abril, recuperadas dos relatórios aprovados e da agenda do app."
+        eyebrow="Agenda Museus Centro no perÃ­odo"
+        title="ProgramaÃ§Ã£o e atividades do perÃ­odo"
+        subtitle="ProgramaÃ§Ãµes e atividades reais de fevereiro, marÃ§o e abril, recuperadas dos relatÃ³rios aprovados e da agenda do app."
         text={textos.programacao}
       >
         <PremiumTimeline contexto={contexto} />
@@ -1538,25 +1460,15 @@ export default function PremiumReportLayout({ contexto = {}, textos = {}, filtro
 
       {hasSection(secoesSelecionadas, 'comunicacao', 'comunicacao_premium') && <PremiumCommunicationSection contexto={contexto} textos={textos} />}
 
-      {hasSection(secoesSelecionadas, 'galeria_evidencias', 'galeria_premium') && hasRealPhotos(contexto) && <PremiumSection
-        breakBefore
-        eyebrow="Galeria e evidências"
-        title="Imagem como documento de execução"
-        subtitle="As fotografias são recuperadas do app, deduplicadas por URL e distribuídas como evidência visual das ações."
-        text="A galeria opera como camada documental do relatório. Ela amplia a verificabilidade da narrativa: cada imagem vinculada ao app aponta para uma ação, um equipamento, uma frente de trabalho ou uma etapa de produção. A listagem em três colunas preserva atividade, museu, mês, crédito, arquivo e localização institucional."
-      >
-        <PremiumGallery contexto={contexto} />
-      </PremiumSection>}
-
       {hasSection(secoesSelecionadas, 'galeria_evidencias', 'galeria_premium') && hasRealPhotos(contexto) && <PhotoEvidenceDenseSection contexto={contexto} />}
 
       {hasSection(secoesSelecionadas, 'relatorios_completos') && <ReportsArchiveSection contexto={contexto} />}
 
       {hasSection(secoesSelecionadas, 'financeiro', 'rubricas', 'prestacao') && (hasRealRubricas(contexto) || hasRealCompras(contexto)) && <PremiumSection
         breakBefore
-        eyebrow="Metas, orçamento e prestação de contas"
-        title="Orçamento, rubricas e rastreabilidade"
-        subtitle={`Execução informada: ${toNumber(contexto.percentual_execucao).toFixed(1).replace('.', ',')}% do orçamento acompanhado.`}
+        eyebrow="Metas, orÃ§amento e prestaÃ§Ã£o de contas"
+        title="OrÃ§amento, rubricas e rastreabilidade"
+        subtitle={`ExecuÃ§Ã£o informada: ${toNumber(contexto.percentual_execucao).toFixed(1).replace('.', ',')}% do orÃ§amento acompanhado.`}
         text={`${textos.financeiro || ''}\n\n${textos.prestacao || ''}`}
       >
         <RubricasTable contexto={contexto} />
@@ -1565,9 +1477,9 @@ export default function PremiumReportLayout({ contexto = {}, textos = {}, filtro
 
       {hasSection(secoesSelecionadas, 'app_museu_centro', 'sistema_governanca') && <PremiumSection
         breakBefore
-        eyebrow="Sistema e governança"
-        title="Museu Centro APP como memória operacional"
-        subtitle="A ferramenta integra relatórios, fotos, programação, compras, rubricas e textos, permitindo relatórios mais densos e menos manuais."
+        eyebrow="Sistema e governanÃ§a"
+        title="Museu Centro APP como memÃ³ria operacional"
+        subtitle="A ferramenta integra relatÃ³rios, fotos, programaÃ§Ã£o, compras, rubricas e textos, permitindo relatÃ³rios mais densos e menos manuais."
         text={textos.app_museu_centro}
       />}
 
@@ -1586,12 +1498,9 @@ export function montarHtmlRelatorioPremium({ contexto = {}, textos = {}, filtros
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Relatório Institucional - Museus Centro</title>
+  <title>RelatÃ³rio Institucional - Museus Centro</title>
   <style>${CATALOG_CSS}</style>
 </head>
 <body>${html}</body>
 </html>`;
 }
-
-// FINAL PREMIUM PATCH
-// Correções editoriais, GPS, créditos, thumbnails, placeholders e higienização aplicadas.

@@ -1,14 +1,6 @@
 import React from 'react';
 import { extractPhotos } from './premiumReportUtils';
 
-function PlaceholderImage({ label }) {
-  return (
-    <div className="premium-photo-placeholder">
-      <span>{label}</span>
-    </div>
-  );
-}
-
 function PhotoCaption({ photo }) {
   return (
     <figcaption>
@@ -38,8 +30,8 @@ function PhotoIndex({ photos }) {
           <span>{photo.atividade || 'Atividade vinculada ao app'}</span>
           <small>{photo.museu || 'Museus Centro'}</small>
           <small>{photo.legenda || photo.atividade || 'Registro vinculado à atividade'}</small>
-          {photo.localizacao?.label ? <small>GPS: {photo.localizacao.label}</small> : <small>GPS: não informado</small>}
-          {photo.credito ? <small>Crédito: {photo.credito}</small> : <small>Crédito: não informado</small>}
+          {photo.localizacao?.label ? <small>GPS: {photo.localizacao.label}</small> : null}
+          {photo.credito ? <small>Crédito: {photo.credito}</small> : null}
           {photo.link ? <a href={photo.link} target="_blank" rel="noreferrer">Abrir arquivo</a> : null}
         </article>
       ))}
@@ -49,23 +41,14 @@ function PhotoIndex({ photos }) {
 
 export default function PremiumGallery({ contexto, limit = 36 }) {
   const photos = extractPhotos(contexto, limit);
-  const hasPhotos = photos.length > 0;
-  const galleryPhotos = hasPhotos ? photos : [
-    { legenda: 'Galeria aguardando imagem vinculada no app.', museu: 'Museus Centro' },
-    { legenda: 'Evidência visual pendente de curadoria.', museu: 'Museus Centro' },
-    { legenda: 'Registro fotográfico a associar.', museu: 'Museus Centro' },
-  ];
+  if (photos.length === 0) return null;
 
   return (
     <>
       <div className="premium-gallery">
-        {galleryPhotos.map((photo, index) => (
-          <figure className={`premium-photo premium-photo-${index % 5}`} key={photo.url || `${photo.legenda}-${index}`}>
-            {photo.url ? (
-              <img src={photo.url} alt={photo.legenda || photo.atividade || 'Registro vinculado à atividade do relatório'} loading="lazy" />
-            ) : (
-              <PlaceholderImage label={photo.museu || 'Museus Centro'} />
-            )}
+        {photos.map((photo, index) => (
+          <figure className={`premium-photo premium-photo-${index % 5}`} key={photo.url || photo.link || `${photo.legenda}-${index}`}>
+            <img src={photo.url || photo.link} alt={photo.legenda || photo.atividade || 'Registro vinculado à atividade do relatório'} loading="lazy" />
             <PhotoCaption photo={photo} />
           </figure>
         ))}
