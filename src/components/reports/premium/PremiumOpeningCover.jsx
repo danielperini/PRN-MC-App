@@ -13,7 +13,7 @@ function pickCoverPhoto(contexto) {
 export default function PremiumOpeningCover({ contexto, filtros = {} }) {
   const cover = pickCoverPhoto(contexto);
   const coverPhoto = cover.url;
-  const periodo = contexto?.periodo_extenso || `${filtros.dateFrom || ''} a ${filtros.dateTo || ''}`;
+  const periodo = contexto?.periodo_extenso || 'Fevereiro-abril de 2026';
 
   return (
     <section className="premium-cover">
@@ -22,6 +22,7 @@ export default function PremiumOpeningCover({ contexto, filtros = {} }) {
       <div className="premium-cover-content">
         <p className="premium-cover-kicker">Viaduto das Artes / Museus Centro</p>
         <h1>Relatório Institucional</h1>
+        <p className="premium-cover-period">Museus Centro · Viaduto das Artes</p>
         <p className="premium-cover-period">{periodo}</p>
         {(cover.credito || cover.localizacao?.label) && (
           <p className="premium-cover-credit">

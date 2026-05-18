@@ -37,7 +37,7 @@ function PhotoIndex({ photos }) {
           <strong>{photo.mes || 'Período'}</strong>
           <span>{photo.atividade || 'Atividade vinculada ao app'}</span>
           <small>{photo.museu || 'Museus Centro'}</small>
-          <small>{photo.fileName || 'Registro fotográfico'}</small>
+          <small>{photo.legenda || photo.atividade || 'Registro vinculado à atividade'}</small>
           {photo.localizacao?.label ? <small>GPS: {photo.localizacao.label}</small> : <small>GPS: não informado</small>}
           {photo.credito ? <small>Crédito: {photo.credito}</small> : <small>Crédito: não informado</small>}
           {photo.link ? <a href={photo.link} target="_blank" rel="noreferrer">Abrir arquivo</a> : null}
@@ -62,7 +62,7 @@ export default function PremiumGallery({ contexto, limit = 36 }) {
         {galleryPhotos.map((photo, index) => (
           <figure className={`premium-photo premium-photo-${index % 5}`} key={photo.url || `${photo.legenda}-${index}`}>
             {photo.url ? (
-              <img src={photo.url} alt={photo.legenda || 'Registro visual do Museus Centro'} loading="lazy" />
+              <img src={photo.url} alt={photo.legenda || photo.atividade || 'Registro vinculado à atividade do relatório'} loading="lazy" />
             ) : (
               <PlaceholderImage label={photo.museu || 'Museus Centro'} />
             )}

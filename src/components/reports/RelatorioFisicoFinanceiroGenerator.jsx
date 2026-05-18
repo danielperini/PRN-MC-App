@@ -11,11 +11,13 @@ import buildRelatorioFisicoFinanceiroContext from '@/utils/buildRelatorioFisicoF
 import montarHtmlRelatorioFisicoFinanceiro from '@/utils/relatorioFisicoFinanceiroTemplate';
 import gerarTextosRelatorioFisicoFinanceiro from '@/services/relatorioIAService';
 import { montarHtmlRelatorioPremium } from '@/components/reports/premium/PremiumReportLayout';
+import { revisarHtmlRelatorioAntesDaExportacao } from '@/services/reportEditorialReview';
 
 const MUSEUS = ['Todos', 'MIS', 'MHAB', 'MUMO'];
 
 const CAPITULOS_RELATORIO = [
   { id: 'capa', label: 'Capa editorial' },
+  { id: 'expediente', label: 'Expediente institucional' },
   { id: 'sumario_executivo', label: 'Sumário executivo editorial' },
   { id: 'introducao', label: 'Introdução institucional' },
   { id: 'territorio', label: 'Território e contexto cultural' },
@@ -132,7 +134,7 @@ async function gerarRelatorioDoApp(museu, { premium = false, secoesSelecionadas 
     museu: museu === 'Todos' ? 'Todos os museus' : museu,
   };
 
-  const html = premium ? montarHtmlRelatorioPremium({
+  const htmlInicial = premium ? montarHtmlRelatorioPremium({
     contexto: contextoComEstrategia,
     textos,
     filtros,
@@ -143,6 +145,7 @@ async function gerarRelatorioDoApp(museu, { premium = false, secoesSelecionadas 
     secoesSelecionadas,
     filtros,
   });
+  const html = revisarHtmlRelatorioAntesDaExportacao(htmlInicial, { modo: premium ? 'premium' : 'fisico_financeiro' });
 
   return { html, contexto: contextoComEstrategia };
 }

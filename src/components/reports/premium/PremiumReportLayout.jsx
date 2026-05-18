@@ -1,6 +1,7 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import PremiumOpeningCover from './PremiumOpeningCover';
+import PremiumExpedienteSection from './PremiumExpedienteSection';
 import PremiumSection from './PremiumSection';
 import PremiumMetrics from './PremiumMetrics';
 import PremiumTimeline from './PremiumTimeline';
@@ -43,6 +44,21 @@ const CATALOG_CSS = `
   .premium-cover-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; max-width: 860px; background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.25); }
   .premium-cover-grid span { padding: 14px; background: rgba(0,0,0,.45); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
   .premium-section, .premium-museum-block, .premium-communication, .premium-closing { padding: 20mm 18mm; background: #f7f3eb; min-height: 260mm; }
+  .premium-expediente { padding: 22mm 18mm; background: #f7f3eb; min-height: 260mm; color: #171717; }
+  .premium-expediente-heading { display: grid; grid-template-columns: minmax(0, .8fr) minmax(260px, .55fr); gap: 28px; align-items: end; padding-bottom: 20px; border-bottom: 1px solid rgba(23,23,23,.2); margin-bottom: 22px; }
+  .premium-expediente-heading h2 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 42px; line-height: .98; font-weight: 500; letter-spacing: 0; }
+  .premium-expediente-heading p:last-child { margin: 0; font-size: 14px; line-height: 1.68; color: #3d3a35; }
+  .premium-expediente-grid, .premium-expediente-museums { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px; margin-bottom: 16px; }
+  .premium-expediente-museums { grid-template-columns: repeat(3, minmax(0,1fr)); }
+  .premium-expediente-block { border-top: 3px solid #171717; padding-top: 12px; break-inside: avoid; }
+  .premium-expediente-block h3 { margin: 0 0 12px; font-size: 11px; text-transform: uppercase; letter-spacing: .14em; color: #5a534b; }
+  .premium-expediente-list { margin: 0; padding: 0; list-style: none; }
+  .premium-expediente-list li { padding: 8px 0; border-bottom: 1px solid rgba(23,23,23,.12); font-size: 13px; line-height: 1.45; }
+  .premium-expediente-people { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  .premium-expediente-people-wide { grid-template-columns: repeat(3, minmax(0,1fr)); }
+  .premium-expediente-people article { border-bottom: 1px solid rgba(23,23,23,.12); padding: 0 0 8px; min-height: 45px; }
+  .premium-expediente-people strong { display: block; font-family: Georgia, "Times New Roman", serif; font-size: 16px; line-height: 1.12; font-weight: 500; }
+  .premium-expediente-people span { display: block; margin-top: 4px; font-size: 11.5px; line-height: 1.35; color: #5e574f; }
   .premium-page-break { break-before: page; }
   .premium-section-dark { background: #171717; color: #f7f3eb; }
   .premium-section-heading { display: grid; grid-template-columns: minmax(0, .95fr) minmax(220px, .55fr); gap: 24px; align-items: end; margin-bottom: 22px; border-bottom: 1px solid rgba(23,23,23,.18); padding-bottom: 18px; }
@@ -158,7 +174,7 @@ const CATALOG_CSS = `
   @media print {
     body { background: #fff; }
     .premium-report { background: #fff; }
-    .premium-section, .premium-museum-block, .premium-communication, .premium-closing { min-height: auto; }
+    .premium-section, .premium-expediente, .premium-museum-block, .premium-communication, .premium-closing { min-height: auto; }
     .premium-photo, .premium-activity-card, .premium-timeline-item, .premium-metric, .premium-photo-index-item { break-inside: avoid; }
   }
 `;
@@ -193,6 +209,7 @@ function composeIntro(textos = {}) {
 
 function TableOfContents() {
   const chapters = [
+    ['Expediente', 'Reconhecimento institucional das equipes, realização e museus participantes'],
     ['Introdução', 'Transição de coordenação, estabilização e leitura institucional'],
     ['Indicadores e público', 'Atividades, público espontâneo, visitas agendadas e metas'],
     ['Programação e atividades do período', 'Agenda completa de fevereiro, março e abril'],
@@ -1142,6 +1159,8 @@ export default function PremiumReportLayout({ contexto = {}, textos = {}, filtro
   return (
     <main className="premium-report">
       {hasSection(secoesSelecionadas, 'capa') && <PremiumOpeningCover contexto={contexto} filtros={filtros} />}
+
+      {hasSection(secoesSelecionadas, 'expediente') && <PremiumExpedienteSection contexto={contexto} />}
 
       {hasSection(secoesSelecionadas, 'sumario_executivo', 'introducao') && <TableOfContents />}
 

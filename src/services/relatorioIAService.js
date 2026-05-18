@@ -305,9 +305,11 @@ O desenvolvimento do aplicativo fortalece esse processo. A ferramenta permite co
     prestacao,
     app_museu_centro: appMuseuCentro,
     conclusao: `
-Conclui-se que o período consolidado demonstra avanço relevante na estruturação técnica, administrativa e cultural do projeto Museus Centro. A organização das atividades por natureza institucional permite leitura mais precisa dos resultados e evita distorções nos indicadores de público. O relatório evidencia a importância de diferenciar ações públicas de rotinas internas, reconhecendo que gestão, produção, comunicação e manutenção são dimensões essenciais para que as atividades educativas e culturais aconteçam com qualidade.
+O fechamento do período reconhece o Museus Centro como construção coletiva, sustentada por equipes públicas, profissionais do Viaduto das Artes, coordenações, educativo, produção, comunicação, prestadoras e prestadores de serviço que converteram o cotidiano dos museus em ação cultural, documentação e presença pública.
 
-A utilização do aplicativo próprio e do tratamento dos dados com apoio de inteligência artificial fortalece a produção de evidências e cria uma base mais robusta para acompanhamento institucional. O relatório também indica que a execução financeira segue o cronograma previsto, com concentração dos maiores custos nos meses seguintes. Dessa forma, a análise integrada dos dados confirma a pertinência da metodologia adotada e aponta para a continuidade do projeto com maior capacidade de monitoramento, transparência e qualificação das entregas.
+O aplicativo passa a ocupar papel importante nessa memória operacional. Ao reunir relatórios, fotografias, programação, indicadores, documentos e registros de execução, a plataforma ajuda a preservar a experiência institucional vivida no período e a transformar informação dispersa em acompanhamento compartilhado. A tecnologia, nesse contexto, não substitui a mediação nem a presença das equipes nos museus: ela organiza evidências para que a cultura pública possa ser acompanhada com mais cuidado, continuidade e responsabilidade.
+
+A continuidade do projeto se expressa na colaboração entre museus, na documentação do cotidiano, na escuta das equipes e na capacidade de manter a programação conectada à cidade. O período deixa como legado uma base mais consistente de memória, gestão e leitura pública da execução cultural.
 `.trim(),
     capitulos: {
       gestao_governanca: resumo,

@@ -104,6 +104,32 @@ export function cleanFileName(value = '') {
     .replace(/[_-]+/g, ' ') || 'Registro fotográfico';
 }
 
+function isGenericPhotoText(value = '') {
+  const text = normalizeText(value);
+  return !text ||
+    text.includes('whatsapp image') ||
+    /^img\s*\d+/.test(text) ||
+    /^dsc\s*\d+/.test(text) ||
+    text.includes('registro fotografico') ||
+    text.includes('arquivo') ||
+    text.includes('image');
+}
+
+export function buildActivityPhotoCaption(foto = {}) {
+  const atividade = pickText(foto?.atividade, foto?.atividade_nome, foto?.titulo_atividade);
+  const museu = getMuseuLabel(foto?.museu || foto?.equipamento || '');
+  const mes = monthLabel(foto?.mes || foto?.data || foto?.created_date);
+  const explicit = pickText(foto?.legenda, foto?.caption, foto?.descricao);
+
+  if (explicit && !isGenericPhotoText(explicit)) return explicit;
+  if (atividade) {
+    const parts = [atividade, museu, mes].filter(Boolean);
+    return `Registro da atividade ${parts.join(' · ')}.`;
+  }
+  if (museu || mes) return `Registro visual vinculado ao ${[museu || 'Museus Centro', mes].filter(Boolean).join(' · ')}.`;
+  return 'Registro visual vinculado às atividades do Museus Centro.';
+}
+
 export function getPhotoCredit(foto = {}) {
   return pickText(
     foto.credito,
@@ -250,7 +276,7 @@ export function extractPhotos(contexto = {}, limit = 36) {
       const url = foto?.url || foto?.file_url || foto?.src || foto?.arquivo_url || '';
       return {
         url,
-        legenda: pickText(foto?.legenda, foto?.caption, foto?.descricao, foto?.nome, 'Registro visual do projeto Museus Centro.'),
+        legenda: buildActivityPhotoCaption(foto),
         museu: getMuseuLabel(foto?.museu || foto?.equipamento || foto?.origem || ''),
         credito: getPhotoCredit(foto),
         localizacao: getPhotoLocation(foto),
