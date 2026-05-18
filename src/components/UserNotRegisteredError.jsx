@@ -39,7 +39,7 @@ const UserNotRegisteredError = () => {
   const [approvedRegistration, setApprovedRegistration] = useState(null);
 
 
-  // Tentar pré-preencher com dados do usuário Google logado
+  // Tentar pré-preencher com dados do usuário autenticado
   useEffect(() => {
     base44.auth.me().then(async (u) => {
       if (u?.email) {
@@ -152,7 +152,7 @@ const UserNotRegisteredError = () => {
         </div>
         <h1 className="text-2xl font-semibold text-slate-900 mb-2">Solicitação enviada!</h1>
         <p className="text-slate-500 max-w-sm text-sm">
-          Sua solicitação foi registrada. Após aprovação da coordenação, seu acesso via Google será liberado automaticamente.
+          Sua solicitação foi registrada. Após aprovação da coordenação, seu acesso será liberado para o método de login usado.
         </p>
         <button
           onClick={handleLoginOther}
@@ -286,11 +286,11 @@ const UserNotRegisteredError = () => {
             </div>
           ) : (
             <p className="text-sm text-slate-600">
-              Esta plataforma é restrita à equipe do projeto. Faça login com Google ou solicite acesso abaixo.
+              Esta plataforma é restrita à equipe do projeto. Faça login com Google, Microsoft ou e-mail e senha, ou solicite acesso abaixo.
             </p>
           )}
 
-          {/* Entrar com Google (principal) */}
+          {/* Entrar pelo provedor de login */}
           <button
             onClick={handleLoginGoogle}
             className="w-full flex items-center justify-center gap-3 h-11 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-medium transition-colors"
@@ -301,7 +301,7 @@ const UserNotRegisteredError = () => {
               <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.47 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
             </svg>
-            Entrar com Google
+            Entrar ou continuar login
           </button>
 
           <p className="text-xs text-center text-slate-400">
@@ -342,7 +342,7 @@ const UserNotRegisteredError = () => {
         </div>
 
         <p className="text-center text-xs text-slate-400 mt-5">
-          Usuários <strong>@pbh.gov.br</strong> têm aprovação automática
+          Para e-mail e senha, use a página de cadastro para criar o acesso.
         </p>
       </div>
     </div>

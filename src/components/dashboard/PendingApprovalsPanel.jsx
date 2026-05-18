@@ -104,7 +104,7 @@ export default function PendingApprovalsPanel() {
           entity_id: userId,
           actor_email: 'system',
           actor_name: 'Coordenador',
-          details: `Usuário aprovado e liberado para login Google: ${user.email}`,
+          details: `Usuário aprovado e liberado para acesso ao app: ${user.email}`,
         });
       } catch (error) {
         console.warn('Auditoria de aprovação de usuário não registrada:', error);
@@ -112,7 +112,7 @@ export default function PendingApprovalsPanel() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pending-users'] });
-      toast.success('Usuário aprovado e liberado para login Google');
+      toast.success('Usuário aprovado e liberado para acesso ao app');
     },
     onError: (err) => toast.error('Erro ao aprovar: ' + (err?.message || 'erro desconhecido')),
   });

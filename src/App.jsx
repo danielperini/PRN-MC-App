@@ -34,6 +34,7 @@ import { canAccessPage, isObservador, isPatrocinador } from '@/components/auth/p
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 const MainPage = mainPageKey ? Pages[mainPageKey] : null;
+const PUBLIC_ROUTES = new Set(['/Cadastro', '/Home']);
 
 const LayoutWrapper = ({ children, currentPageName }) =>
   Layout ? (
@@ -139,6 +140,8 @@ function AuthenticatedApp() {
     navigateToLogin,
   } = useAuth();
   const location = useLocation();
+  const publicPageName = location.pathname.replace(/^\//, '') || 'Home';
+  const PublicPage = PUBLIC_ROUTES.has(location.pathname) ? Pages[publicPageName] : null;
 
   if (isLoadingPublicSettings || isLoadingAuth) {
     return (
@@ -149,6 +152,14 @@ function AuthenticatedApp() {
   }
 
   if (authError) {
+    if (PublicPage) {
+      return (
+        <ErrorBoundary key={publicPageName}>
+          <PublicPage />
+        </ErrorBoundary>
+      );
+    }
+
     if (authError.type === 'user_not_registered') {
       return <UserNotRegisteredError />;
     }

@@ -41,12 +41,7 @@ function normalizeEmail(email) {
 
 function isAllowedDirectPasswordDomain(email) {
   const normalized = normalizeEmail(email);
-
-  return (
-    normalized.endsWith('@pbh.gov.br') ||
-    normalized.endsWith('@viadutodasartes.org.br') ||
-    normalized.endsWith('@periniprojetos.com.br')
-  );
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized);
 }
 
 function NativeSelect({ value, onChange, placeholder, options }) {
@@ -100,6 +95,10 @@ export default function Cadastro() {
         throw new Error('Preencha nome, e-mail e museu de atuação.');
       }
 
+      if (!isAllowedDirectPasswordDomain(email)) {
+        throw new Error('Informe um e-mail válido para criar acesso com senha.');
+      }
+
       if (directPasswordFlow) {
         if (!form.password || !form.confirm_password) {
           throw new Error('Preencha senha e confirmação de senha.');
@@ -121,6 +120,9 @@ export default function Cadastro() {
           equipe: form.equipe || '',
           password: form.password,
           role: form.role || 'PROFISSIONAL',
+          base_role: form.role || 'PROFISSIONAL',
+          require_approval: false,
+          login_provider: 'email_password',
         });
       }
 
@@ -182,7 +184,7 @@ export default function Cadastro() {
           <h1 className="text-2xl font-semibold text-black mb-2">Acesso criado!</h1>
 
           <p className="text-gray-500 max-w-md mb-6">
-            Seu usuário foi criado com sucesso. Agora você já pode entrar usando seu e-mail e a senha cadastrada.
+            Seu usuário foi criado com sucesso. Agora você já pode entrar usando e-mail e senha.
           </p>
 
           <Button
@@ -225,13 +227,13 @@ export default function Cadastro() {
         <div className="w-full max-w-lg">
           <div className="mb-8">
             <h1 className="text-2xl font-semibold text-black tracking-tight">
-              {directPasswordFlow ? 'Criar acesso à plataforma' : 'Solicitar acesso à plataforma'}
+              {directPasswordFlow ? 'Criar acesso com e-mail e senha' : 'Solicitar acesso à plataforma'}
             </h1>
 
             <p className="text-gray-500 mt-1 text-sm">
               {directPasswordFlow
-                ? 'Seu domínio permite criação imediata de acesso com senha.'
-                : 'Preencha os dados essenciais. Após a análise de um coordenador seu perfil poderá ser aprovado.'}
+                ? 'Preencha seus dados e defina uma senha para acessar sem Google ou Microsoft.'
+                : 'Informe um e-mail válido para criar acesso com senha ou solicitar acesso.'}
             </p>
           </div>
 
@@ -364,7 +366,7 @@ export default function Cadastro() {
               className="flex-1 gap-2 border-gray-300"
               onClick={() => base44.auth.redirectToLogin()}
             >
-              Google
+              Login Google, Microsoft ou e-mail
             </Button>
 
             <Button
