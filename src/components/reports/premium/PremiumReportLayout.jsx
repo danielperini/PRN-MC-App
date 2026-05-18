@@ -76,14 +76,14 @@ const CATALOG_CSS = `
   .premium-museum-heading { display: flex; justify-content: space-between; align-items: end; gap: 18px; margin-bottom: 18px; padding-bottom: 16px; border-bottom: 1px solid rgba(23,23,23,.18); }
   .premium-museum-kpis { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
   .premium-museum-kpis span, .premium-activity-tags span { border: 1px solid rgba(23,23,23,.16); padding: 7px 9px; font-size: 12px; background: rgba(255,255,255,.4); }
-  .premium-activity-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .premium-activity-card { display: grid; grid-template-columns: 38px 1fr; gap: 13px; padding: 15px; border: 1px solid rgba(23,23,23,.13); background: rgba(255,255,255,.5); break-inside: avoid; }
-  .premium-activity-index { font-size: 16px; font-weight: 800; color: #9f7f4d; }
+  .premium-activity-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  .premium-activity-card { display: grid; grid-template-columns: 44px 1fr; gap: 16px; padding: 18px; border: 1px solid rgba(23,23,23,.14); background: rgba(255,255,255,.52); break-inside: avoid; }
+  .premium-activity-index { font-size: 18px; font-weight: 800; color: #9f7f4d; }
   .premium-activity-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 9px; }
-  .premium-activity-photos { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; margin-top: 10px; }
-  .premium-activity-photos figure { margin: 0; min-height: 48px; }
-  .premium-activity-photos img { width: 100%; height: 48px; object-fit: cover; display: block; background: #ddd4c6; }
-  .premium-activity-photos figcaption { margin-top: 4px; font-size: 9px; line-height: 1.3; color: #5e574f; }
+  .premium-activity-photos { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; margin-top: 13px; }
+  .premium-activity-photos figure { margin: 0; min-height: 76px; }
+  .premium-activity-photos img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block; background: #ddd4c6; }
+  .premium-activity-photos figcaption { margin-top: 5px; font-size: 9.5px; line-height: 1.35; color: #5e574f; }
   .premium-activity-photos figcaption span { display: block; }
   .premium-communication-grid { display: grid; grid-template-columns: minmax(0, 1fr) 210px; gap: 20px; align-items: stretch; }
   .premium-communication-panel { background: #171717; color: #fff; padding: 18px; display: flex; flex-direction: column; justify-content: flex-end; min-height: 130px; }
@@ -91,8 +91,8 @@ const CATALOG_CSS = `
   .premium-communication-panel span { margin-top: 10px; font-size: 11px; line-height: 1.35; color: rgba(255,255,255,.72); }
   .premium-table-wrap { margin-top: 20px; overflow: hidden; border: 1px solid rgba(23,23,23,.18); background: rgba(255,255,255,.36); }
   .premium-table { width: 100%; border-collapse: collapse; font-size: 12px; line-height: 1.45; background: rgba(255,255,255,.5); }
-  .premium-table th { text-align: left; padding: 11px 12px; background: #171717; color: #fff; font-size: 10px; text-transform: uppercase; letter-spacing: .1em; }
-  .premium-table td { padding: 12px; border-top: 1px solid rgba(23,23,23,.1); vertical-align: top; }
+  .premium-table th { text-align: left; padding: 13px 14px; background: #171717; color: #fff; font-size: 10.5px; text-transform: uppercase; letter-spacing: .09em; }
+  .premium-table td { padding: 14px; border-top: 1px solid rgba(23,23,23,.1); vertical-align: top; }
   .premium-table tbody tr:nth-child(even) td { background: rgba(23,23,23,.035); }
   .premium-finance-grid, .premium-audience-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; }
   .catalog-toc { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px 18px; margin-top: 20px; counter-reset: toc; }
@@ -116,6 +116,11 @@ const CATALOG_CSS = `
   .premium-consolidated-text p + p { margin-top: 9px; }
   .premium-evidence-links { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(23,23,23,.12); display: flex; flex-wrap: wrap; gap: 7px; }
   .premium-evidence-links a { color: #171717; border: 1px solid rgba(23,23,23,.18); padding: 5px 7px; font-size: 10.5px; text-decoration: none; background: rgba(255,255,255,.42); }
+  .premium-institutional-list { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; margin-top: 18px; }
+  .premium-institutional-list article { border-left: 4px solid #171717; background: rgba(255,255,255,.5); padding: 13px 14px; break-inside: avoid; }
+  .premium-institutional-list strong { display: block; margin-bottom: 5px; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; }
+  .premium-institutional-list span { display: block; font-size: 12.5px; line-height: 1.5; color: #4b4b4b; }
+  .premium-museum-intro { margin: -4px 0 18px; max-width: 820px; font-size: 14px; line-height: 1.66; color: #3f3f3f; }
   .premium-report-archive { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; margin-top: 18px; }
   .premium-report-note { border: 1px solid rgba(23,23,23,.14); background: rgba(255,255,255,.46); padding: 12px; font-size: 11.5px; line-height: 1.45; break-inside: avoid; }
   .premium-report-note strong, .premium-report-note span { display: block; margin-bottom: 4px; }
@@ -182,7 +187,6 @@ function TableOfContents() {
     ['Indicadores e público', 'Atividades, público espontâneo, visitas agendadas e metas'],
     ['Programação e atividades do período', 'Agenda completa de fevereiro, março e abril'],
     ['Ações por museu', 'MHAB, MIS, MUMO e atuação geral com fotos vinculadas'],
-    ['Noturno nos Museus', 'Planejamento, rubricas e pré-produção quando houver dados'],
     ['Comunicação, registros e evidências', 'Notícias, registros, campanhas e documentação'],
     ['Galeria e evidências', 'Fotos em grade, créditos, links e GPS quando disponível'],
     ['Relatórios da equipe', 'Síntese dos relatórios aprovados usados como fonte'],
@@ -211,18 +215,36 @@ function TableOfContents() {
 }
 
 function TransitionManagementSection() {
+  const itens = [
+    ['Visitas institucionais aos museus', 'A coordenação realizou aproximações presenciais com os equipamentos, fortalecendo a leitura de contexto, necessidades operacionais e prioridades de cada museu.'],
+    ['Visitas técnicas individualizadas', 'O acompanhamento por equipamento apoiou a compreensão dos fluxos locais, das agendas em construção e das condições necessárias para execução das ações culturais.'],
+    ['Desenvolvimento inicial do aplicativo', 'O período marcou a estruturação dos fluxos digitais de registro, acompanhamento, consolidação de dados, evidências e prestação de contas.'],
+    ['Plano de trabalho e programação', 'A equipe avançou na organização do plano de trabalho, na construção da programação do semestre e na preparação de exposições e atividades futuras.'],
+    ['Reorganização institucional', 'Foram consolidadas substituições de profissionais, recomposição de equipes, pactuação de responsabilidades e acompanhamento operacional cotidiano.'],
+    ['Comunicação entre equipes', 'A coordenação fortaleceu a circulação de informações entre produção, educativo, comunicação, consultoria de programação e direção dos equipamentos.'],
+    ['Diversidade e inclusão', 'A implementação do curso de Diversidade e Inclusão qualificou práticas de acolhimento, acessibilidade e mediação pública no âmbito institucional.'],
+    ['Fluxos administrativos e culturais', 'A etapa consolidou procedimentos de acompanhamento, documentação, planejamento, comunicação, registro visual e organização das entregas.'],
+  ];
+
   return (
     <PremiumSection
       breakBefore
       eyebrow="Atuação geral"
-      title="Coordenação, rituais de gestão e planejamento"
-      subtitle="O período combinou transição de coordenação, recomposição de produção, aproximação com diretorias e organização antecipada das próximas entregas."
-      text={`Foram realizadas reuniões semanais de alinhamento com a equipe completa nos rituais de gestão do projeto. Em momento posterior, esses encontros passaram a ocorrer de forma quinzenal, preservando a função de acompanhamento de produção, comunicação, gestão, programação, filmagens, conteúdos e pactuação cotidiana com os museus.
+      title="Coordenação, planejamento e desenvolvimento institucional"
+      subtitle="Síntese das frentes estruturantes que deram sustentação à execução cultural, à documentação do projeto e à organização das entregas do semestre."
+      text={`A atuação geral do período é apresentada como infraestrutura de continuidade: um conjunto de decisões, visitas, acompanhamentos, fluxos digitais e reorganizações institucionais que permitiu estabilizar a execução e preparar a programação seguinte sem transformar processos internos em eventos públicos.
 
-A entrada de Daniel Perini na coordenação geral, após a saída de Andréa Matos, reorganizou responsabilidades, fluxo decisório e acompanhamento das equipes. A consultora de programação Ana Luiza também passou a atuar de forma mais próxima das diretorias dos museus, abrindo espaço para planejamento antecipado de oficinas, ações culturais, Noturno nos Museus e exposições do segundo semestre.
-
-As mudanças de produção no MIS, com a saída de Ana Carolina Galvão e entrada de Isabela, e no MUMO, com a saída de Daniela Isis e entrada de Silvia Coes, foram tratadas como parte do processo de estabilização institucional. O relatório registra essa transição porque ela explica o esforço de reorganização, a necessidade de pactuação de rotinas e a consolidação progressiva dos dados no app.`}
-    />
+A entrada de Daniel Perini na coordenação geral, após a saída de Andréa Matos, reorganizou responsabilidades, fluxo decisório e acompanhamento das equipes. A consultora de programação Ana Luiza passou a atuar de forma mais próxima das diretorias dos museus, apoiando a construção de agenda, exposições, oficinas, ações educativas e entregas de médio prazo.`}
+    >
+      <div className="premium-institutional-list">
+        {itens.map(([titulo, texto]) => (
+          <article key={titulo}>
+            <strong>{titulo}</strong>
+            <span>{texto}</span>
+          </article>
+        ))}
+      </div>
+    </PremiumSection>
   );
 }
 
@@ -303,7 +325,7 @@ function inferMetaLabel(item = {}) {
     item.descricao,
   ].filter(Boolean).join(' '));
 
-  if (text.includes('noturno')) return { label: 'Meta 11 - Noturno nos Museus', inferred: true };
+  if (text.includes('noturno')) return { label: 'Meta vinculada fora do recorte', inferred: true };
   if (
     text.includes('comunicacao') ||
     text.includes('comunicaÃ§Ã£o') ||
@@ -385,7 +407,8 @@ function isIrrelevantAdministrativeRecord(item = {}) {
   return text.includes('contratacao de consultoria') ||
     text.includes('contrataÃ§Ã£o de consultoria') ||
     text.includes('processo de contratacao') ||
-    text.includes('processo de contrataÃ§Ã£o');
+    text.includes('processo de contrataÃ§Ã£o') ||
+    text.includes('noturno');
 }
 
 function isRecurringMediatedVisit(item = {}) {
@@ -842,6 +865,14 @@ function AudienceBreakdown({ contexto }) {
 
 function StrategicRecords({ contexto }) {
   const atividades = Array.isArray(contexto?.atividades) ? contexto.atividades : [];
+  const isInternalNoise = (atividade = {}) => {
+    const text = normalizeText(`${atividade?.nome || ''} ${atividade?.titulo || ''} ${atividade?.descricao || ''} ${atividade?.classificacao || ''}`);
+    return text.includes('ritual de gestao') ||
+      text.includes('reuniao de apresentacao') ||
+      text.includes('contatos internos') ||
+      text.includes('contato interno') ||
+      text.includes('contratacao de consultoria');
+  };
   const grupos = [
     { titulo: 'Ambiente seguro e diversidade', termos: ['ambiente seguro', 'diversidade', 'inclusao', 'inclusão'] },
     { titulo: 'Memórias e Libras', termos: ['libras', 'memorias', 'memórias', 'surdo', 'acessibilidade'] },
@@ -854,6 +885,9 @@ function StrategicRecords({ contexto }) {
   ].map((grupo) => ({
     ...grupo,
     itens: atividades.filter((atividade) => {
+      const groupKey = normalizeText(grupo.titulo);
+      if (groupKey.includes('atuacao geral') || groupKey.includes('reunioes semanais')) return false;
+      if (isInternalNoise(atividade)) return false;
       const text = `${atividade?.nome || ''} ${atividade?.descricao || ''} ${atividade?.classificacao || ''} ${atividade?.categoria_label || ''}`.toLowerCase();
       return grupo.termos.some((termo) => text.includes(termo));
     }).slice(0, 4),
@@ -897,7 +931,7 @@ function StrategicRecords({ contexto }) {
   );
 }
 
-function NoturnoSection({ contexto }) {
+function RemovedPeriodSection({ contexto }) {
   const atividades = (Array.isArray(contexto?.atividades) ? contexto.atividades : []).filter((item) => {
     const text = `${item?.nome || ''} ${item?.descricao || ''} ${item?.categoria_label || ''}`.toLowerCase();
     return text.includes('noturno');
@@ -913,9 +947,9 @@ function NoturnoSection({ contexto }) {
     <PremiumSection
       breakBefore
       eyebrow="Seção especial"
-      title="Noturno nos Museus"
+      title="SeÃ§Ã£o removida"
       subtitle="Planejamento, pré-produção, infraestrutura, comunicação e rubricas vinculadas ao eixo de maior visibilidade pública."
-      text="No período de fevereiro a abril, o Noturno nos Museus é tratado como frente de planejamento e preparação. Os registros do app permitem acompanhar articulações, compras, infraestrutura, desenho de programação e organização executiva sem apresentar a ausência de evento como vazio de execução."
+      text="Seção mantida fora do fluxo público deste relatório porque o evento não ocorreu no período analisado."
     >
       <div className="premium-finance-grid">
         <div>
@@ -925,7 +959,7 @@ function NoturnoSection({ contexto }) {
               <tbody>
                 {atividades.slice(0, 12).map((item, index) => (
                   <tr key={item?.id || index}>
-                    <td>{item?.nome || item?.titulo || 'Ação Noturno'}</td>
+                    <td>{item?.nome || item?.titulo || 'Ação fora do recorte'}</td>
                     <td>{item?.museu || 'Geral'}</td>
                     <td>{item?.data || item?.mes || '-'}</td>
                   </tr>
@@ -935,13 +969,13 @@ function NoturnoSection({ contexto }) {
           </div>
         </div>
         <div>
-          <h3>Rubricas do grupo Noturno</h3>
+          <h3>Rubricas fora do recorte</h3>
           <div className="premium-table-wrap">
             <table className="premium-table">
               <tbody>
                 {rubricas.slice(0, 12).map((item, index) => (
                   <tr key={item?.id || index}>
-                    <td>{item?.rubrica || item?.nome || 'Rubrica Noturno'}</td>
+                    <td>{item?.rubrica || item?.nome || 'Rubrica fora do recorte'}</td>
                     <td>{fmtBRL(item?.valor_previsto ?? item?.previsto ?? item?.valor_rubrica ?? item?.valor_total)}</td>
                     <td>{fmtBRL(item?.valor_utilizado ?? item?.utilizado)}</td>
                   </tr>
@@ -1003,8 +1037,6 @@ export default function PremiumReportLayout({ contexto = {}, textos = {}, filtro
       {hasSection(secoesSelecionadas, 'programacao', 'atividades_museu', 'relatorios_completos') && <StrategicRecords contexto={contexto} />}
 
       {hasSection(secoesSelecionadas, 'atividades_museu', 'museus_premium') && <PremiumMuseumSection contexto={contexto} />}
-
-      {hasSection(secoesSelecionadas, 'noturno_premium') && <NoturnoSection contexto={contexto} />}
 
       {hasSection(secoesSelecionadas, 'comunicacao', 'comunicacao_premium') && <PremiumCommunicationSection contexto={contexto} textos={textos} />}
 

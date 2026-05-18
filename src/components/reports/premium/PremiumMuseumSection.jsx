@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  cleanText,
   fmtInt,
   getActivityDate,
   getActivityMeta,
@@ -10,6 +11,20 @@ import {
   splitParagraphs,
   toNumber,
 } from './premiumReportUtils';
+
+function isPublicFacingActivity(activity = {}) {
+  const text = `${activity?.nome || ''} ${activity?.titulo || ''} ${activity?.descricao || ''} ${activity?.classificacao || ''}`.toLowerCase();
+  return !(
+    text.includes('ritual de gest') ||
+    text.includes('reunião de apresentação') ||
+    text.includes('reuniao de apresentacao') ||
+    text.includes('contato interno') ||
+    text.includes('contatos internos') ||
+    text.includes('contratação de consultoria') ||
+    text.includes('contratacao de consultoria') ||
+    text.includes('noturno')
+  );
+}
 
 function ActivityPhotos({ photos = [] }) {
   const selected = Array.isArray(photos) ? photos.slice(0, 4) : [];
@@ -32,6 +47,7 @@ function ActivityPhotos({ photos = [] }) {
 
 function ActivityCard({ activity, index }) {
   const text = splitParagraphs(getActivityText(activity), 1)[0] || 'Registro recuperado dos relatórios aprovados no app, mantido como evidência da execução do período.';
+  const complementaryText = splitParagraphs([activity?.sinopse_agenda, activity?.observacoes, activity?.resultado].filter(Boolean).join('\n\n'), 1)[0] || '';
   const publico = getActivityPublico(activity);
   const meta = getActivityMeta(activity);
   const fotos = Array.isArray(activity?.fotos_destaque) ? activity.fotos_destaque : activity?.fotos;
@@ -42,7 +58,8 @@ function ActivityCard({ activity, index }) {
       <div>
         <p className="premium-card-meta">{[getActivityDate(activity), activity?.mes, activity?.local].filter(Boolean).join(' / ')}</p>
         <h4>{getActivityTitle(activity)}</h4>
-        <p>{text}</p>
+        <p>{cleanText(text)}</p>
+        {complementaryText ? <p>{cleanText(complementaryText)}</p> : null}
         <div className="premium-activity-tags">
           <span>{activity?.categoria_label || activity?.classificacao || 'Eixo institucional'}</span>
           <span>Público: {publico > 0 ? fmtInt(publico) : 'N/A'}</span>
@@ -55,7 +72,14 @@ function ActivityCard({ activity, index }) {
 }
 
 export default function PremiumMuseumSection({ contexto }) {
-  const grupos = groupByMuseu(Array.isArray(contexto?.atividades) ? contexto.atividades : []);
+  const atividadesPublicas = (Array.isArray(contexto?.atividades) ? contexto.atividades : []).filter(isPublicFacingActivity);
+  const grupos = groupByMuseu(atividadesPublicas);
+  const intros = {
+    MHAB: 'No MHAB, a programacao dialoga com memoria urbana, historia publica, mediacao territorial e formacao de publico.',
+    MIS: 'No MIS, as acoes mobilizam audiovisual, memoria da imagem e do som, documentacao cultural e aproximacao com publicos diversos.',
+    MUMO: 'No MUMO, os registros aproximam moda, corpo, design, educacao e cultura urbana em chave contemporanea.',
+    geral: 'A atuacao geral reune frentes transversais de planejamento, acessibilidade, comunicacao, documentacao e producao cultural.',
+  };
   const museus = ['MHAB', 'MIS', 'MUMO', 'Atuação geral'];
 
   return (
@@ -76,6 +100,7 @@ export default function PremiumMuseumSection({ contexto }) {
                 <span>{publico > 0 ? fmtInt(publico) : 'N/A'} público</span>
               </div>
             </div>
+            <p className="premium-museum-intro">{intros[museu] || intros.geral}</p>
 
             <div className="premium-activity-grid">
               {items.slice(0, 24).map((activity, index) => (
