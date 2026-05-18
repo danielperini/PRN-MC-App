@@ -171,6 +171,34 @@ const CATALOG_CSS = `
   .audience-chart-legend span { display: inline-flex; align-items: center; gap: 6px; }
   .audience-chart-legend i { width: 16px; height: 8px; display: inline-block; border: 1px solid rgba(23,23,23,.16); }
   .agenda-consolidation-badge { order: -2; display: inline-block; width: max-content; margin: 0 0 7px; padding: 4px 7px; border: 1px solid rgba(23,23,23,.14); background: rgba(23,23,23,.04); font-size: 10.5px; line-height: 1; text-transform: uppercase; letter-spacing: .08em; color: #5d554c; font-weight: 800; }
+
+  .premium-finance-summary-cards { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; margin: 18px 0; }
+  .premium-finance-summary-card { border: 1px solid rgba(23,23,23,.16); background: rgba(255,255,255,.56); padding: 14px; break-inside: avoid; }
+  .premium-finance-summary-card span { display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: .1em; color: #5b554d; font-weight: 800; }
+  .premium-finance-summary-card strong { display: block; margin-top: 8px; font-size: 22px; line-height: 1; color: #171717; }
+  .premium-finance-group { margin-top: 18px; border: 1px solid rgba(23,23,23,.16); background: rgba(255,255,255,.46); break-inside: avoid; }
+  .premium-finance-group-header { display: grid; grid-template-columns: minmax(0,1fr) repeat(4, 96px); gap: 8px; align-items: center; padding: 13px 14px; background: #171717; color: #fff; }
+  .premium-finance-group-header h3 { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: .09em; }
+  .premium-finance-group-header span { display: block; font-size: 11px; text-align: right; color: rgba(255,255,255,.82); }
+  .premium-rubrica-table { width: 100%; border-collapse: collapse; font-size: 11.5px; line-height: 1.38; }
+  .premium-rubrica-table th { text-align: left; padding: 10px 12px; background: rgba(23,23,23,.06); color: #4d463f; font-size: 9.8px; text-transform: uppercase; letter-spacing: .08em; }
+  .premium-rubrica-table td { padding: 10px 12px; border-top: 1px solid rgba(23,23,23,.09); vertical-align: middle; }
+  .premium-rubrica-table tbody tr:nth-child(even) td { background: rgba(23,23,23,.025); }
+  .premium-rubrica-name { font-weight: 650; color: #171717; }
+  .premium-money-cell, .premium-percent-cell { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .premium-execution-cell { min-width: 138px; }
+  .premium-execution-bar { height: 8px; background: #e7dfd3; border: 1px solid rgba(23,23,23,.12); overflow: hidden; margin-bottom: 5px; }
+  .premium-execution-bar span { display: block; height: 100%; background: #171717; }
+  .premium-execution-label { display: flex; justify-content: space-between; gap: 8px; font-size: 10.5px; color: #5b554d; font-weight: 700; }
+  .premium-status-chip { display: inline-block; padding: 4px 7px; border: 1px solid rgba(23,23,23,.14); background: rgba(255,255,255,.5); font-size: 9.5px; text-transform: uppercase; letter-spacing: .08em; color: #4d463f; font-weight: 800; white-space: nowrap; }
+  .premium-status-chip.baixa { background: rgba(23,23,23,.04); }
+  .premium-status-chip.andamento { background: rgba(159,127,77,.14); }
+  .premium-status-chip.alta { background: rgba(23,23,23,.12); }
+  .premium-finance-note { margin: 12px 0 0; font-size: 12.5px; line-height: 1.55; color: #4d463f; }
+  .premium-purchase-section { margin-top: 22px; break-inside: avoid; }
+  .premium-purchase-section h3 { margin: 0 0 8px; font-family: Georgia, "Times New Roman", serif; font-size: 24px; font-weight: 500; }
+  .premium-purchase-section p { margin: 0 0 12px; font-size: 12.5px; line-height: 1.55; color: #4d463f; }
+
   @media print {
     body { background: #fff; }
     .premium-report { background: #fff; }
@@ -981,36 +1009,148 @@ function PhotoEvidenceDenseSection({ contexto }) {
   );
 }
 
+
+function getRubricaPrevisto(item = {}) {
+  return toNumber(item?.valor_previsto ?? item?.previsto ?? item?.valor_rubrica ?? item?.valor_total);
+}
+
+function getRubricaUtilizado(item = {}) {
+  return toNumber(item?.valor_utilizado ?? item?.utilizado);
+}
+
+function getRubricaSaldo(item = {}) {
+  const previsto = getRubricaPrevisto(item);
+  const utilizado = getRubricaUtilizado(item);
+  const saldo = toNumber(item?.saldo);
+  return saldo || Math.max(previsto - utilizado, 0);
+}
+
+function getRubricaPercentual(item = {}) {
+  const previsto = getRubricaPrevisto(item);
+  if (previsto <= 0) return 0;
+  const explicit = toNumber(item?.percentual);
+  if (explicit > 0) return explicit;
+  return (getRubricaUtilizado(item) / previsto) * 100;
+}
+
+function getExecutionStatus(percentual = 0) {
+  if (percentual >= 70) return { label: 'Alta execução', className: 'alta' };
+  if (percentual >= 15) return { label: 'Em execução', className: 'andamento' };
+  return { label: 'Baixa execução', className: 'baixa' };
+}
+
+function groupRubricas(rubricas = []) {
+  return rubricas.reduce((acc, item) => {
+    const group = item?.grupo || item?.categoria || 'Sem grupo informado';
+    if (!acc[group]) acc[group] = [];
+    acc[group].push(item);
+    return acc;
+  }, {});
+}
+
+function sumRubricas(items = []) {
+  const previsto = items.reduce((sum, item) => sum + getRubricaPrevisto(item), 0);
+  const utilizado = items.reduce((sum, item) => sum + getRubricaUtilizado(item), 0);
+  const saldo = Math.max(previsto - utilizado, 0);
+  const percentual = previsto > 0 ? (utilizado / previsto) * 100 : 0;
+  return { previsto, utilizado, saldo, percentual };
+}
+
+function FinanceSummaryCards({ totals }) {
+  return (
+    <div className="premium-finance-summary-cards">
+      <div className="premium-finance-summary-card">
+        <span>Total previsto</span>
+        <strong>{fmtBRL(totals.previsto)}</strong>
+      </div>
+      <div className="premium-finance-summary-card">
+        <span>Total utilizado</span>
+        <strong>{fmtBRL(totals.utilizado)}</strong>
+      </div>
+      <div className="premium-finance-summary-card">
+        <span>Saldo disponível</span>
+        <strong>{fmtBRL(totals.saldo)}</strong>
+      </div>
+      <div className="premium-finance-summary-card">
+        <span>Execução</span>
+        <strong>{totals.percentual.toFixed(1).replace('.', ',')}%</strong>
+      </div>
+    </div>
+  );
+}
+
 function RubricasTable({ contexto }) {
   const rubricas = Array.isArray(contexto?.rubricas) ? contexto.rubricas : [];
   if (rubricas.length === 0) return null;
 
+  const totals = sumRubricas(rubricas);
+  const grouped = groupRubricas(rubricas);
+  const orderedGroups = Object.entries(grouped)
+    .map(([grupo, items]) => ({ grupo, items, totals: sumRubricas(items) }))
+    .sort((a, b) => b.totals.previsto - a.totals.previsto);
+
   return (
-    <div className="premium-table-wrap">
-      <table className="premium-table">
-        <thead>
-          <tr>
-            <th>Grupo</th>
-            <th>Rubrica</th>
-            <th>Previsto</th>
-            <th>Utilizado</th>
-            <th>Saldo</th>
-            <th>%</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rubricas.slice(0, 42).map((item, index) => (
-            <tr key={item?.id || index}>
-              <td>{item?.grupo || 'Grupo'}</td>
-              <td>{item?.rubrica || item?.nome || 'Rubrica'}</td>
-              <td>{fmtBRL(item?.valor_previsto ?? item?.previsto ?? item?.valor_rubrica ?? item?.valor_total)}</td>
-              <td>{fmtBRL(item?.valor_utilizado ?? item?.utilizado)}</td>
-              <td>{fmtBRL(item?.saldo)}</td>
-              <td>{toNumber(item?.percentual).toFixed(1).replace('.', ',')}%</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div>
+      <FinanceSummaryCards totals={totals} />
+      <p className="premium-finance-note">
+        As rubricas foram reorganizadas por grupo orçamentário, com subtotais, saldo e percentual de execução. A tabela evita leitura de planilha bruta e apresenta o orçamento como quadro executivo de prestação de contas.
+      </p>
+
+      {orderedGroups.map(({ grupo, items, totals: groupTotals }) => (
+        <section className="premium-finance-group" key={grupo}>
+          <header className="premium-finance-group-header">
+            <h3>{grupo}</h3>
+            <span>Previsto<br />{fmtBRL(groupTotals.previsto)}</span>
+            <span>Utilizado<br />{fmtBRL(groupTotals.utilizado)}</span>
+            <span>Saldo<br />{fmtBRL(groupTotals.saldo)}</span>
+            <span>Execução<br />{groupTotals.percentual.toFixed(1).replace('.', ',')}%</span>
+          </header>
+
+          <table className="premium-rubrica-table">
+            <thead>
+              <tr>
+                <th>Rubrica</th>
+                <th className="premium-money-cell">Previsto</th>
+                <th className="premium-money-cell">Utilizado</th>
+                <th className="premium-money-cell">Saldo</th>
+                <th>Execução</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items
+                .slice()
+                .sort((a, b) => getRubricaPrevisto(b) - getRubricaPrevisto(a))
+                .map((item, index) => {
+                  const previsto = getRubricaPrevisto(item);
+                  const utilizado = getRubricaUtilizado(item);
+                  const saldo = getRubricaSaldo(item);
+                  const percentual = getRubricaPercentual(item);
+                  const status = getExecutionStatus(percentual);
+
+                  return (
+                    <tr key={item?.id || `${grupo}-${index}`}>
+                      <td className="premium-rubrica-name">{item?.rubrica || item?.nome || 'Rubrica sem nome'}</td>
+                      <td className="premium-money-cell">{fmtBRL(previsto)}</td>
+                      <td className="premium-money-cell">{fmtBRL(utilizado)}</td>
+                      <td className="premium-money-cell">{fmtBRL(saldo)}</td>
+                      <td className="premium-execution-cell">
+                        <div className="premium-execution-bar">
+                          <span style={{ width: `${Math.min(Math.max(percentual, 0), 100)}%` }} />
+                        </div>
+                        <div className="premium-execution-label">
+                          <span>{percentual.toFixed(1).replace('.', ',')}%</span>
+                          <span>{fmtBRL(utilizado)}</span>
+                        </div>
+                      </td>
+                      <td><span className={`premium-status-chip ${status.className}`}>{status.label}</span></td>
+                    </tr>
+                  );
+                })}
+            </tbody>
+          </table>
+        </section>
+      ))}
     </div>
   );
 }
@@ -1019,31 +1159,41 @@ function ComprasTable({ contexto }) {
   const compras = Array.isArray(contexto?.compras) ? contexto.compras : [];
   if (compras.length === 0) return null;
 
+  const approved = compras
+    .filter((item) => !item?.status || String(item.status).toUpperCase().includes('APROV') || String(item.status).toUpperCase().includes('PAGO'))
+    .slice(0, 36);
+
+  if (approved.length === 0) return null;
+
   return (
-    <div className="premium-table-wrap">
-      <table className="premium-table">
-        <thead>
-          <tr>
-            <th>Descrição</th>
-            <th>Fornecedor</th>
-            <th>Rubrica</th>
-            <th>Status</th>
-            <th>Valor</th>
-          </tr>
-        </thead>
-        <tbody>
-          {compras.slice(0, 36).map((item, index) => (
-            <tr key={item?.id || index}>
-              <td>{item?.descricao || 'Compra registrada'}</td>
-              <td>{item?.fornecedor || '-'}</td>
-              <td>{item?.rubrica || '-'}</td>
-              <td>{item?.status || '-'}</td>
-              <td>{fmtBRL(item?.valor)}</td>
+    <section className="premium-purchase-section">
+      <h3>Movimentações financeiras do período</h3>
+      <p>
+        As solicitações aprovadas são apresentadas separadamente das rubricas para preservar a diferença entre orçamento previsto, execução acumulada e movimentações operacionais do período.
+      </p>
+      <div className="premium-table-wrap">
+        <table className="premium-table">
+          <thead>
+            <tr>
+              <th>Fornecedor</th>
+              <th>Rubrica</th>
+              <th>Status</th>
+              <th>Valor</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {approved.map((item, index) => (
+              <tr key={item?.id || index}>
+                <td>{item?.fornecedor || item?.fornecedor_nome || '-'}</td>
+                <td>{item?.rubrica || item?.rubrica_nome || '-'}</td>
+                <td>{item?.status || '-'}</td>
+                <td className="premium-money-cell">{fmtBRL(item?.valor ?? item?.valor_solicitado ?? item?.valor_total)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
@@ -1300,10 +1450,8 @@ export default function PremiumReportLayout({ contexto = {}, textos = {}, filtro
         subtitle={`Execução informada: ${toNumber(contexto.percentual_execucao).toFixed(1).replace('.', ',')}% do orçamento acompanhado.`}
         text={`${textos.financeiro || ''}\n\n${textos.prestacao || ''}`}
       >
-        <div className="premium-finance-grid">
-          <RubricasTable contexto={contexto} />
-          <ComprasTable contexto={contexto} />
-        </div>
+        <RubricasTable contexto={contexto} />
+        <ComprasTable contexto={contexto} />
       </PremiumSection>}
 
       {hasSection(secoesSelecionadas, 'app_museu_centro', 'sistema_governanca') && <PremiumSection
