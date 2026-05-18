@@ -230,7 +230,6 @@ const SPONSOR_NAV_GROUPS = [
   {
     label: 'Indicadores',
     items: [
-      { path: 'FinanceiroPatrocinador', label: 'Financeiro', icon: DollarSign, roles: ['all'] },
       { path: 'RubricasPorMuseu', label: 'Orçamento por Museu', icon: DollarSign, roles: ['all'] },
     ],
   },
