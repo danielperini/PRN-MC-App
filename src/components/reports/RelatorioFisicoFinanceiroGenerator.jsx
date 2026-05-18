@@ -3,11 +3,13 @@ import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, FileText, Download, CheckCircle2, AlertCircle, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import buildRelatorioFisicoFinanceiroContext from '@/utils/buildRelatorioFisicoFinanceiroContext';
 import montarHtmlRelatorioFisicoFinanceiro from '@/utils/relatorioFisicoFinanceiroTemplate';
 import gerarTextosRelatorioFisicoFinanceiro from '@/services/relatorioIAService';
+import { montarHtmlRelatorioPremium } from '@/components/reports/premium/PremiumReportLayout';
 
 const MUSEUS = ['Todos', 'MIS', 'MHAB', 'MUMO'];
 
@@ -66,7 +68,7 @@ function salvarPreview(html) {
   }
 }
 
-async function gerarRelatorioDoApp(museu) {
+async function gerarRelatorioDoApp(museu, { premium = false } = {}) {
   const dateFrom = '2026-02-02';
   const dateTo = '2026-04-30';
   const museuFiltro = museu === 'Todos' ? 'todos' : museu;
@@ -112,15 +114,21 @@ async function gerarRelatorioDoApp(museu) {
     true
   );
 
-  const html = montarHtmlRelatorioFisicoFinanceiro({
+  const filtros = {
+    dateFrom,
+    dateTo,
+    museu: museu === 'Todos' ? 'Todos os museus' : museu,
+  };
+
+  const html = premium ? montarHtmlRelatorioPremium({
+    contexto: contextoComEstrategia,
+    textos,
+    filtros,
+  }) : montarHtmlRelatorioFisicoFinanceiro({
     contexto: contextoComEstrategia,
     textos,
     secoesSelecionadas: SECOES_RELATORIO,
-    filtros: {
-      dateFrom,
-      dateTo,
-      museu: museu === 'Todos' ? 'Todos os museus' : museu,
-    },
+    filtros,
   });
 
   return { html, contexto: contextoComEstrategia };
@@ -195,6 +203,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
   const [loading, setLoading] = useState(false);
   const [resultado, setResultado] = useState(null);
   const [erro, setErro] = useState(null);
+  const [modoPremium, setModoPremium] = useState(true);
 
   const openPreview = (html) => {
     salvarPreview(html);
@@ -223,36 +232,38 @@ export default function RelatorioFisicoFinanceiroGenerator() {
     setErro(null);
     try {
       let data = null;
-      let fonte = 'backend';
+      let fonte = modoPremium ? 'premium_app' : 'backend';
 
-      try {
-        const response = await base44.functions.invoke('gerarRelatorioFisicoFinanceiro', {
-          museu: museu === 'Todos' ? null : museu,
-          formato: 'abrangente',
-          usar_fotos_app: true,
-          incluir_relatorios_equipe: true,
-          refinar_textos_ia: true,
-        });
+      if (!modoPremium) {
+        try {
+          const response = await base44.functions.invoke('gerarRelatorioFisicoFinanceiro', {
+            museu: museu === 'Todos' ? null : museu,
+            formato: 'abrangente',
+            usar_fotos_app: true,
+            incluir_relatorios_equipe: true,
+            refinar_textos_ia: true,
+          });
 
-        if (response?.data?.html) {
-          data = response.data;
+          if (response?.data?.html) {
+            data = response.data;
+          }
+        } catch (backendError) {
+          console.warn(
+            'gerarRelatorioFisicoFinanceiro indisponível. Gerando no frontend com dados do app e textos refinados por IA.',
+            backendError
+          );
         }
-      } catch (backendError) {
-        console.warn(
-          'gerarRelatorioFisicoFinanceiro indisponível. Gerando no frontend com dados do app e textos refinados por IA.',
-          backendError
-        );
       }
 
       if (!data?.html) {
-        const local = await gerarRelatorioDoApp(museu);
+        const local = await gerarRelatorioDoApp(museu, { premium: modoPremium });
         data = { html: local.html, contexto: local.contexto };
-        fonte = 'frontend_ia';
+        fonte = modoPremium ? 'premium_app' : 'frontend_ia';
       }
 
       setResultado({ ...data, fonte });
       openPreview(data.html);
-      toast.success(fonte === 'backend' ? 'Relatório gerado pela função evoluída.' : 'Relatório gerado com dados reais do app e IA.');
+      toast.success(fonte === 'premium_app' ? 'Relatório Institucional Premium gerado.' : fonte === 'backend' ? 'Relatório gerado pela função evoluída.' : 'Relatório gerado com dados reais do app e IA.');
     } catch (err) {
       console.error(err);
       setErro(err.message || 'Não foi possível gerar o relatório.');
@@ -266,9 +277,16 @@ export default function RelatorioFisicoFinanceiroGenerator() {
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
       <div className="flex items-center gap-3 mb-6"><div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center"><FileText className="w-5 h-5 text-white" /></div><div><h2 className="text-lg font-bold text-slate-900">Gerar Relatório</h2><p className="text-sm text-slate-500">Relatório institucional premium com fotos, gráficos, metas, programação e execução financeira.</p></div></div>
       <div className="mb-6"><Label>Museu</Label><Select value={museu} onValueChange={setMuseu}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{MUSEUS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select></div>
+      <div className={`mb-4 flex items-start gap-3 rounded-xl border p-4 cursor-pointer ${modoPremium ? 'border-black bg-black/5' : 'border-slate-200 bg-slate-50'}`} onClick={() => setModoPremium((v) => !v)}>
+        <Checkbox checked={modoPremium} onCheckedChange={(v) => setModoPremium(!!v)} onClick={(event) => event.stopPropagation()} className="mt-0.5" />
+        <div>
+          <p className="text-sm font-semibold text-slate-900">Relatório Institucional Premium</p>
+          <p className="text-xs text-slate-500 mt-0.5">Nova publicação editorial A4, com capa full bleed, grids, fotos do app, timeline, museus, Noturno, comunicação, indicadores e tabelas para PDF profissional.</p>
+        </div>
+      </div>
       <Button onClick={handleGerar} disabled={loading} className="w-full">{loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}Gerar Relatório</Button>
       {erro && <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3"><AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" /><div><p className="text-sm font-medium text-amber-800">Não foi possível gerar o relatório</p><p className="text-xs text-amber-700 mt-1">{erro}</p></div></div>}
-      {resultado && <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-4"><div className="flex items-start gap-3 mb-3"><CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" /><div><p className="text-sm font-medium text-green-800">Relatório gerado com sucesso!</p><p className="text-xs text-green-700 mt-1">{resultado.fonte === 'backend' ? 'Gerado pela função gerarRelatorioFisicoFinanceiro.' : 'Gerado no frontend com dados reais do app, fotos vinculadas e refinamento textual por IA.'}</p></div></div><div className="flex gap-3 flex-wrap"><Button variant="outline" size="sm" onClick={() => openPreview(resultado.html)}><ExternalLink className="w-4 h-4 mr-2" />Abrir Relatório</Button><Button variant="outline" size="sm" onClick={() => downloadHtml(resultado.html)}><Download className="w-4 h-4 mr-2" />Baixar HTML</Button></div></div>}
+      {resultado && <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-4"><div className="flex items-start gap-3 mb-3"><CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" /><div><p className="text-sm font-medium text-green-800">Relatório gerado com sucesso!</p><p className="text-xs text-green-700 mt-1">{resultado.fonte === 'premium_app' ? 'Gerado no novo modo Relatório Institucional Premium, usando dados reais do app e refinamento textual por IA.' : resultado.fonte === 'backend' ? 'Gerado pela função gerarRelatorioFisicoFinanceiro.' : 'Gerado no frontend com dados reais do app, fotos vinculadas e refinamento textual por IA.'}</p></div></div><div className="flex gap-3 flex-wrap"><Button variant="outline" size="sm" onClick={() => openPreview(resultado.html)}><ExternalLink className="w-4 h-4 mr-2" />Abrir Relatório</Button><Button variant="outline" size="sm" onClick={() => downloadHtml(resultado.html)}><Download className="w-4 h-4 mr-2" />Baixar HTML</Button></div></div>}
     </div>
   );
 }

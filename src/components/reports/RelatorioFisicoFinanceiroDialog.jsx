@@ -12,6 +12,7 @@ import { FileDown, Loader2, Eye, AlertCircle, Paperclip, Sparkles } from 'lucide
 import buildRelatorioFisicoFinanceiroContext from '@/utils/buildRelatorioFisicoFinanceiroContext';
 import montarHtmlRelatorioFisicoFinanceiro from '@/utils/relatorioFisicoFinanceiroTemplate';
 import gerarTextosRelatorioFisicoFinanceiro from '@/services/relatorioIAService';
+import { montarHtmlRelatorioPremium } from '@/components/reports/premium/PremiumReportLayout';
 
 const CAPITULOS_RELATORIO = [
   { id: 'capa', label: 'Capa editorial' },
@@ -125,6 +126,7 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
    const [modoEntrega, setModoEntrega] = useState(true);
    const [introIA, setIntroIA] = useState(true);
    const [editorialFase3Ativo, setEditorialFase3Ativo] = useState(true);
+   const [modoPremium, setModoPremium] = useState(true);
    const [loadingPrevia, setLoadingPrevia] = useState(false);
    const [loadingPDF, setLoadingPDF] = useState(false);
    const [previa, setPrevia] = useState(null);
@@ -184,16 +186,26 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
     const { contexto, textos } = await coletarDados();
     setPrevia(contexto);
 
+    const filtros = {
+      dateFrom,
+      dateTo,
+      museu: museu === 'todos' ? 'Todos os museus' : museu,
+      reportGeneratorStrategy: REPORT_GENERATOR_STRATEGY,
+    };
+
+    if (modoPremium) {
+      return montarHtmlRelatorioPremium({
+        contexto,
+        textos,
+        filtros,
+      });
+    }
+
     return montarHtmlRelatorioFisicoFinanceiro({
       contexto,
       textos,
       secoesSelecionadas,
-      filtros: {
-        dateFrom,
-        dateTo,
-        museu: museu === 'todos' ? 'Todos os museus' : museu,
-        reportGeneratorStrategy: REPORT_GENERATOR_STRATEGY,
-      },
+      filtros,
     });
   }
 
@@ -313,6 +325,28 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
           <div className="space-y-2">
             <Label className="text-sm font-medium">Opções de geração</Label>
             <div className="space-y-2.5 p-4 bg-gray-50 border border-gray-100 rounded-xl">
+              <div
+                className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${modoPremium ? 'border-black bg-black/5' : 'border-gray-200 bg-white hover:border-gray-300'}`}
+                onClick={() => setModoPremium((p) => !p)}
+              >
+                <Checkbox
+                  id="modoPremium"
+                  checked={modoPremium}
+                  onCheckedChange={(v) => setModoPremium(!!v)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="mt-0.5"
+                />
+                <div>
+                  <Label htmlFor="modoPremium" className="text-sm font-medium cursor-pointer flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Relatório Institucional Premium
+                  </Label>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Usa o novo layout editorial A4 com capa full bleed, timeline, páginas por museu, Noturno, comunicação, galeria e tabelas prontas para PDF profissional.
+                  </p>
+                </div>
+              </div>
+
               <div
                 className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${modoEntrega ? 'border-black bg-black/5' : 'border-gray-200 bg-white hover:border-gray-300'}`}
                 onClick={() => setModoEntrega((p) => !p)}
