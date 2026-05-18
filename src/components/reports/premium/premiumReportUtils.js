@@ -1,3 +1,32 @@
+export function sanitizeReportText(value) {
+  return String(value || '')
+    .replace(/[—–â€”â€“]/g, ',')
+    .replace(/auditoria técnica dos dados/gi, 'tratamento dos dados com apoio de inteligência artificial')
+    .replace(/auditoria por inteligência artificial/gi, 'tratamento dos dados com apoio de inteligência artificial')
+    .replace(/\brelatorio\b/gi, 'relatório')
+    .replace(/\brelatorios\b/gi, 'relatórios')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function uniqueParagraphs(value, limit = 8, minLength = 70) {
+  const seen = new Set();
+  return String(value || '')
+    .replace(/[—–â€”â€“]/g, ',')
+    .replace(/auditoria técnica dos dados/gi, 'tratamento dos dados com apoio de inteligência artificial')
+    .replace(/auditoria por inteligência artificial/gi, 'tratamento dos dados com apoio de inteligência artificial')
+    .split(/\n{2,}|(?<=\.)\s+(?=[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ])/)
+    .map(sanitizeReportText)
+    .filter((item) => item.length >= minLength)
+    .filter((item) => {
+      const key = item.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().slice(0, 150);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, limit);
+}
+
 export function toNumber(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;

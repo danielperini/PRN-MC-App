@@ -8,7 +8,22 @@ import PremiumGallery from './PremiumGallery';
 import PremiumMuseumSection from './PremiumMuseumSection';
 import PremiumCommunicationSection from './PremiumCommunicationSection';
 import PremiumClosingSection from './PremiumClosingSection';
-import { fmtBRL, fmtInt, toNumber } from './premiumReportUtils';
+import {
+  cleanFileName,
+  extractPhotos,
+  fmtBRL,
+  fmtInt,
+  getActivityDate,
+  getActivityMeta,
+  getActivityPublico,
+  getActivityText,
+  getActivityTitle,
+  getMuseuLabel,
+  sanitizeReportText,
+  splitParagraphs,
+  toNumber,
+  uniqueParagraphs,
+} from './premiumReportUtils';
 
 const CATALOG_CSS = `
   @page { size: A4; margin: 16mm 14mm 18mm; }
@@ -78,6 +93,20 @@ const CATALOG_CSS = `
   .premium-table th { text-align: left; padding: 8px; background: #171717; color: #fff; font-size: 8px; text-transform: uppercase; letter-spacing: .1em; }
   .premium-table td { padding: 8px; border-top: 1px solid rgba(23,23,23,.1); vertical-align: top; }
   .premium-finance-grid, .premium-audience-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; }
+  .catalog-toc { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px 18px; margin-top: 20px; counter-reset: toc; }
+  .catalog-toc li { list-style: none; border-bottom: 1px solid rgba(23,23,23,.14); padding: 8px 0; font-size: 12px; display: flex; justify-content: space-between; gap: 12px; counter-increment: toc; }
+  .catalog-toc li::before { content: counter(toc, decimal-leading-zero); color: #9f7f4d; font-weight: 800; margin-right: 10px; }
+  .premium-month-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; margin-top: 18px; }
+  .premium-month-card { border: 1px solid rgba(23,23,23,.15); background: rgba(255,255,255,.48); padding: 12px; break-inside: avoid; min-height: 62mm; }
+  .premium-month-card h3 { margin: 0 0 6px; font-size: 15px; line-height: 1.2; }
+  .premium-month-card p { margin: 0 0 7px; font-size: 10.5px; line-height: 1.45; color: #4b4b4b; }
+  .premium-month-card figure { margin: 8px 0 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+  .premium-month-card img { width: 100%; height: 34px; object-fit: cover; background: #ddd4c6; }
+  .premium-report-archive { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; margin-top: 18px; }
+  .premium-report-note { border: 1px solid rgba(23,23,23,.14); background: rgba(255,255,255,.46); padding: 10px; font-size: 9.5px; line-height: 1.35; break-inside: avoid; }
+  .premium-report-note strong, .premium-report-note span { display: block; margin-bottom: 4px; }
+  .premium-callout-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin-top: 18px; }
+  .premium-callout { border-left: 4px solid #9f7f4d; background: rgba(255,255,255,.5); padding: 12px; font-size: 11px; line-height: 1.45; }
   .premium-closing { background: #171717; color: #f7f3eb; display: flex; flex-direction: column; justify-content: space-between; }
   .premium-closing h2 { max-width: 760px; font-size: 48px; }
   .premium-signature { border-top: 1px solid rgba(255,255,255,.2); padding-top: 18px; display: flex; justify-content: space-between; gap: 20px; font-size: 12px; color: rgba(255,255,255,.62); }
@@ -99,12 +128,200 @@ O primeiro momento do projeto foi marcado por chegada, aprovação, contrataçã
 O relatório apresenta uma leitura integrada dos museus como infraestrutura pública de memória, formação, convivência e fruição cultural. MIS, MHAB e MUMO aparecem como equipamentos complementares, capazes de articular audiovisual, memória urbana, moda, educação, acessibilidade, preservação e presença territorial no centro de Belo Horizonte.`;
 
 function composeIntro(textos = {}) {
-  return [
-    INTRODUCAO_PERIODO,
+  const blocked = [
+    'este relatório cobre o período de 2 de fevereiro',
+    'o presente relatório cobre o período',
+    'o relatório foi produzido com um aplicativo',
+    'auditoria técnica dos dados',
+  ];
+  const extra = uniqueParagraphs([
     textos.introducao,
     textos.contexto_territorial || textos.territorio,
     textos.publico_alcancado,
-  ].filter(Boolean).join('\n\n');
+  ].filter(Boolean).join('\n\n'), 5)
+    .filter((paragraph) => {
+      const text = paragraph.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      return !blocked.some((term) => text.includes(term.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()));
+    });
+
+  return [INTRODUCAO_PERIODO, ...extra].join('\n\n');
+}
+
+function TableOfContents() {
+  const chapters = [
+    ['Introdução', 'Transição de coordenação, estabilização e leitura institucional'],
+    ['Indicadores e público', 'Atividades, público espontâneo, visitas agendadas e metas'],
+    ['Programação e atividades do período', 'Agenda completa de fevereiro, março e abril'],
+    ['Ações por museu', 'MHAB, MIS, MUMO e atuação geral com fotos vinculadas'],
+    ['Noturno nos Museus', 'Planejamento, rubricas e pré-produção quando houver dados'],
+    ['Comunicação, registros e evidências', 'Notícias, registros, campanhas e documentação'],
+    ['Galeria e evidências', 'Fotos em grade, créditos, links e GPS quando disponível'],
+    ['Relatórios da equipe', 'Síntese dos relatórios aprovados usados como fonte'],
+    ['Metas, orçamento e prestação de contas', 'Rubricas, execução e quadro sintético'],
+    ['Sistema e governança', 'Museu Centro APP e tratamento dos dados com apoio de IA'],
+  ];
+
+  return (
+    <PremiumSection
+      breakBefore
+      eyebrow="Mapa de leitura"
+      title="Sumário"
+      subtitle="Capítulos organizados para leitura institucional, conferência técnica e exportação profissional em PDF."
+      text="O relatório foi reorganizado como catálogo-livro: começa pela narrativa institucional, passa por indicadores e agenda, aproxima atividades de suas evidências visuais, consolida relatórios de equipe e encerra com orçamento, prestação de contas e governança dos dados."
+    >
+      <ol className="catalog-toc">
+        {chapters.map(([title, detail]) => (
+          <li key={title}>
+            <strong>{title}</strong>
+            <span>{detail}</span>
+          </li>
+        ))}
+      </ol>
+    </PremiumSection>
+  );
+}
+
+function TransitionManagementSection() {
+  return (
+    <PremiumSection
+      breakBefore
+      eyebrow="Atuação geral"
+      title="Coordenação, rituais de gestão e planejamento"
+      subtitle="O período combinou transição de coordenação, recomposição de produção, aproximação com diretorias e organização antecipada das próximas entregas."
+      text={`Foram realizadas reuniões semanais de alinhamento com a equipe completa nos rituais de gestão do projeto. Em momento posterior, esses encontros passaram a ocorrer de forma quinzenal, preservando a função de acompanhamento de produção, comunicação, gestão, programação, filmagens, conteúdos e pactuação cotidiana com os museus.
+
+A entrada de Daniel Perini na coordenação geral, após a saída de Andréa Matos, reorganizou responsabilidades, fluxo decisório e acompanhamento das equipes. A consultora de programação Ana Luiza também passou a atuar de forma mais próxima das diretorias dos museus, abrindo espaço para planejamento antecipado de oficinas, ações culturais, Noturno nos Museus e exposições do segundo semestre.
+
+As mudanças de produção no MIS, com a saída de Ana Carolina Galvão e entrada de Isabela, e no MUMO, com a saída de Daniela Isis e entrada de Silvia Coes, foram tratadas como parte do processo de estabilização institucional. O relatório registra essa transição porque ela explica o esforço de reorganização, a necessidade de pactuação de rotinas e a consolidação progressiva dos dados no app.`}
+    />
+  );
+}
+
+function ActivityMiniPhotos({ activity }) {
+  const photos = Array.isArray(activity?.fotos_destaque) ? activity.fotos_destaque : activity?.fotos || [];
+  const selected = photos.slice(0, 4);
+  if (selected.length === 0) return null;
+
+  return (
+    <figure>
+      {selected.map((photo, index) => (
+        photo?.url ? <img key={photo.url || index} src={photo.url} alt={photo.caption || getActivityTitle(activity)} loading="lazy" /> : null
+      ))}
+    </figure>
+  );
+}
+
+function MonthlyAgendaSection({ contexto }) {
+  const atividades = Array.isArray(contexto?.atividades) ? contexto.atividades : [];
+  const programacao = Array.isArray(contexto?.programacao) ? contexto.programacao : [];
+  const items = [
+    ...programacao.map((item) => ({
+      id: item.id,
+      data: item.data || item.data_inicio,
+      mes: item.mes,
+      museu: getMuseuLabel(item.museu || item.equipamento || item.local),
+      titulo: item.titulo || item.nome || 'Programação registrada',
+      tipo: item.tipo || item.tipo_atividade || item.status || 'Programação',
+      texto: item.descricao || item.sinopse,
+      publico: getActivityPublico(item),
+      meta: getActivityMeta(item),
+      fotos_destaque: [],
+    })),
+    ...atividades.map((activity) => ({
+      ...activity,
+      data: getActivityDate(activity),
+      titulo: getActivityTitle(activity),
+      texto: getActivityText(activity),
+      tipo: activity?.categoria_label || activity?.classificacao || 'Atividade',
+    })),
+  ].filter((item) => item.titulo);
+
+  const seen = new Set();
+  const unique = items.filter((item) => {
+    const key = `${sanitizeReportText(item.data)}::${sanitizeReportText(item.titulo).toLowerCase()}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 80);
+
+  if (unique.length === 0) return null;
+
+  return (
+    <PremiumSection
+      breakBefore
+      eyebrow="Agenda Museus Centro no período"
+      title="Agenda detalhada de fevereiro, março e abril"
+      subtitle="Cada item preserva título, museu, data, tipo, público, meta e fotos vinculadas quando disponíveis no app."
+      text="A agenda foi consolidada a partir da programação e dos relatórios aprovados. Toda atividade relatada aparece como registro do período, com distinção entre ação pública, rotina interna, produção, comunicação, manutenção e gestão."
+    >
+      <div className="premium-month-grid">
+        {unique.map((item, index) => (
+          <article className="premium-month-card" key={item.id || `${item.titulo}-${index}`}>
+            <p className="premium-card-meta">{[item.data, item.mes, item.museu, item.tipo].filter(Boolean).join(' / ')}</p>
+            <h3>{sanitizeReportText(item.titulo)}</h3>
+            <p>{sanitizeReportText(splitParagraphs(item.texto, 1)[0] || 'Registro recuperado da programação ou dos relatórios aprovados no app.')}</p>
+            <p><strong>Público:</strong> {getActivityPublico(item) > 0 ? fmtInt(getActivityPublico(item)) : 'N/A'} · <strong>Meta:</strong> {getActivityMeta(item) || 'não informada'}</p>
+            <ActivityMiniPhotos activity={item} />
+          </article>
+        ))}
+      </div>
+    </PremiumSection>
+  );
+}
+
+function ReportsArchiveSection({ contexto }) {
+  const reports = Array.isArray(contexto?.relatorios_equipe) ? contexto.relatorios_equipe : [];
+  if (reports.length === 0) return null;
+
+  return (
+    <PremiumSection
+      breakBefore
+      eyebrow="Relatórios da equipe"
+      title="Fontes internas consolidadas"
+      subtitle={`${fmtInt(reports.length)} relatórios aprovados compõem a base narrativa, técnica e documental do período.`}
+      text="Esta seção explicita a origem dos textos e registros utilizados no relatório. Em vez de repetir integralmente cada documento, o sistema recupera autoria, função, museu, mês, atividades, público e trechos de síntese, preservando rastreabilidade e evitando redundância editorial."
+    >
+      <div className="premium-report-archive">
+        {reports.slice(0, 60).map((report, index) => (
+          <article className="premium-report-note" key={report.id || index}>
+            <strong>{report.autor || report.author_name || 'Equipe Museus Centro'}</strong>
+            <span>{[report.funcao, report.museu, report.mes].filter(Boolean).join(' / ')}</span>
+            <span>{fmtInt(report.atividades_count)} atividades · público {fmtInt(report.publico)}</span>
+            <small>{sanitizeReportText(uniqueParagraphs([report.resumo_executivo, report.resumo_periodo, report.pontos_positivos].filter(Boolean).join('\n\n'), 1, 40)[0] || 'Relatório aprovado usado como fonte do período.')}</small>
+          </article>
+        ))}
+      </div>
+    </PremiumSection>
+  );
+}
+
+function PhotoEvidenceDenseSection({ contexto }) {
+  const photos = extractPhotos(contexto, 120);
+  if (photos.length === 0) return null;
+
+  return (
+    <PremiumSection
+      breakBefore
+      eyebrow="Listagem de fotos"
+      title="Fotos, créditos e localização"
+      subtitle="Lista em três colunas para conferência de atividade, museu, mês, arquivo, crédito, link e GPS quando disponível."
+      text="A listagem amplia a densidade documental do relatório e evita que a fotografia apareça apenas como ilustração. Cada item preserva o vínculo com a atividade ou arquivo de origem disponível no app."
+    >
+      <div className="premium-photo-index">
+        {photos.map((photo, index) => (
+          <article className="premium-photo-index-item" key={`${photo.link || photo.fileName}-${index}`}>
+            <strong>{photo.mes || 'Período'}</strong>
+            <span>{sanitizeReportText(photo.atividade || 'Atividade vinculada ao app')}</span>
+            <small>{photo.museu || 'Museus Centro'}</small>
+            <small>{cleanFileName(photo.fileName || photo.link)}</small>
+            <small>GPS: {photo.localizacao?.label || 'não informado'}</small>
+            <small>Crédito: {photo.credito || 'não informado'}</small>
+            {photo.link ? <a href={photo.link} target="_blank" rel="noreferrer">Abrir arquivo</a> : null}
+          </article>
+        ))}
+      </div>
+    </PremiumSection>
+  );
 }
 
 function RubricasTable({ contexto }) {
@@ -350,6 +567,8 @@ export default function PremiumReportLayout({ contexto = {}, textos = {}, filtro
     <main className="premium-report">
       {hasSection(secoesSelecionadas, 'capa') && <PremiumOpeningCover contexto={contexto} filtros={filtros} />}
 
+      {hasSection(secoesSelecionadas, 'sumario_executivo', 'introducao') && <TableOfContents />}
+
       {hasSection(secoesSelecionadas, 'sumario_executivo', 'introducao', 'resumo_geral', 'indicadores_premium') && <PremiumSection
         eyebrow="Sumário executivo"
         title="Introdução"
@@ -358,6 +577,8 @@ export default function PremiumReportLayout({ contexto = {}, textos = {}, filtro
       >
         <PremiumMetrics contexto={contexto} />
       </PremiumSection>}
+
+      {hasSection(secoesSelecionadas, 'territorio', 'sistema_governanca') && <TransitionManagementSection />}
 
       {hasSection(secoesSelecionadas, 'publico', 'metas', 'indicadores_premium') && <PremiumSection
         breakBefore
@@ -379,6 +600,8 @@ export default function PremiumReportLayout({ contexto = {}, textos = {}, filtro
         <PremiumTimeline contexto={contexto} />
       </PremiumSection>}
 
+      {hasSection(secoesSelecionadas, 'agenda_programacao', 'programacao') && <MonthlyAgendaSection contexto={contexto} />}
+
       {hasSection(secoesSelecionadas, 'programacao', 'atividades_museu', 'relatorios_completos') && <StrategicRecords contexto={contexto} />}
 
       {hasSection(secoesSelecionadas, 'atividades_museu', 'museus_premium') && <PremiumMuseumSection contexto={contexto} />}
@@ -396,6 +619,10 @@ export default function PremiumReportLayout({ contexto = {}, textos = {}, filtro
       >
         <PremiumGallery contexto={contexto} />
       </PremiumSection>}
+
+      {hasSection(secoesSelecionadas, 'galeria_evidencias', 'galeria_premium') && <PhotoEvidenceDenseSection contexto={contexto} />}
+
+      {hasSection(secoesSelecionadas, 'relatorios_completos') && <ReportsArchiveSection contexto={contexto} />}
 
       {hasSection(secoesSelecionadas, 'financeiro', 'rubricas', 'prestacao') && <PremiumSection
         breakBefore

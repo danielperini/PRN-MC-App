@@ -1,5 +1,5 @@
 import React from 'react';
-import { splitParagraphs } from './premiumReportUtils';
+import { sanitizeReportText, splitParagraphs } from './premiumReportUtils';
 
 export default function PremiumSection({
   eyebrow,
@@ -23,7 +23,7 @@ export default function PremiumSection({
       {paragraphs.length > 0 && (
         <div className="premium-prose">
           {paragraphs.map((paragraph, index) => (
-            <p key={`${title}-p-${index}`}>{paragraph}</p>
+            <p key={`${title}-p-${index}`}>{sanitizeReportText(paragraph)}</p>
           ))}
         </div>
       )}
