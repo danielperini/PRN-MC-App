@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 
 import RequireAuth from '@/components/auth/RequireAuth';
+import LoadingPage from '@/components/common/LoadingPage';
 import { deletePurchaseRequest } from '@/lib/deleteIntegrado';
 import PurchaseFormDialog from '@/components/compras/PurchaseFormDialog';
 import OrcamentoDashboard from '@/components/compras/OrcamentoDashboard';
@@ -70,6 +71,7 @@ function toNumber(value) {
 
 function fmtBRL(v) {
   if (!v && v !== 0) return '—';
+
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
@@ -83,7 +85,12 @@ function normalizeStatus(value) {
 }
 
 function normalizeCentro(value) {
-  const raw = String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+  const raw = String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+
   if (!raw) return '';
   if (raw === 'mis') return 'MIS';
   if (raw === 'mhab') return 'MHAB';
@@ -95,6 +102,7 @@ function normalizeCentro(value) {
   if (raw.includes('imagem e som')) return 'MIS';
   if (raw.includes('abilio barreto')) return 'MHAB';
   if (raw.includes('moda')) return 'MUMO';
+
   return String(value || '').trim();
 }
 
@@ -103,7 +111,11 @@ function normalizeEmail(value) {
 }
 
 function normalizeText(value) {
-  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
 }
 
 function getPurchaseValue(p) {
@@ -126,9 +138,11 @@ function getChaveFiscal(p) {
       p.fornecedor_cpf_cnpj || p.fornecedor_cnpj || p.nf_emitente_cpf_cnpj
     ).replace(/\D/g, '')}:${getPurchaseValue(p)}`;
   }
+
   if (p?.nota_fiscal_url) return `url:${p.nota_fiscal_url.trim()}`;
   if (p?.file_url) return `file:${p.file_url.trim()}`;
   if (p?.intake_id) return `intake:${p.intake_id.trim()}`;
+
   return null;
 }
 
@@ -158,7 +172,9 @@ function isCompraEquipe(purchase) {
     purchase?.tipo_solicitacao,
     purchase?.descricao_item,
     purchase?.observacoes
-  ].map((v) => String(v || '').toLowerCase()).join(' ');
+  ]
+    .map((v) => String(v || '').toLowerCase())
+    .join(' ');
 
   return (
     !!purchase?.team_payment_id ||
@@ -190,9 +206,13 @@ function isEntradaUnicaAttachment(att) {
 
 function dedupById(items) {
   const map = new Map();
+
   (items || []).forEach((item) => {
-    if (item?.id && !map.has(item.id)) map.set(item.id, item);
+    if (item?.id && !map.has(item.id)) {
+      map.set(item.id, item);
+    }
   });
+
   return Array.from(map.values());
 }
 
@@ -205,12 +225,15 @@ function getPurchaseOwnerEmails(purchase) {
     purchase?.email_solicitante,
     purchase?.author_email,
     purchase?.owner_email
-  ].map(normalizeEmail).filter(Boolean);
+  ]
+    .map(normalizeEmail)
+    .filter(Boolean);
 }
 
 function purchaseBelongsToUser(purchase, email) {
   const normalizedEmail = normalizeEmail(email);
   if (!normalizedEmail) return false;
+
   return getPurchaseOwnerEmails(purchase).includes(normalizedEmail);
 }
 
@@ -222,6 +245,7 @@ function extractRubricas(result) {
   if (Array.isArray(result?.body?.rubricas)) return result.body.rubricas;
   if (Array.isArray(result?.results)) return result.results;
   if (Array.isArray(result?.data?.results)) return result.data.results;
+
   return [];
 }
 
@@ -229,14 +253,20 @@ async function carregarRubricas() {
   try {
     const result = await base44.functions.invoke('listAllRubricas', {});
     const viaFunction = extractRubricas(result);
-    if (Array.isArray(viaFunction) && viaFunction.length > 0) return viaFunction;
+
+    if (Array.isArray(viaFunction) && viaFunction.length > 0) {
+      return viaFunction;
+    }
   } catch (error) {
     console.error('Erro em listAllRubricas:', error);
   }
 
   try {
     const diretas = await base44.entities.Rubrica.list('ordem_exibicao', 500);
-    if (Array.isArray(diretas)) return diretas;
+
+    if (Array.isArray(diretas)) {
+      return diretas;
+    }
   } catch (error) {
     console.error('Erro ao buscar Rubrica direto:', error);
   }
@@ -251,35 +281,33 @@ async function carregarSolicitacoes({ isCoordenador, currentUser }) {
     return await base44.entities.PurchaseRequest.list('-created_date', 500);
   }
 
-  // Profissional: vê TODAS as solicitações dos museus, exceto compras de equipe e "Geral"
   const dedup = new Map();
 
   try {
     const listaGeral = await base44.entities.PurchaseRequest.list('-created_date', 500);
-    
+
     listaGeral.filter(Boolean).forEach((p) => {
       if (p?.id) {
-        // Não-profissionais não veem compras de equipe
         if (isCompraEquipe(p)) return;
-        
+
         const centroCusto = normalizeCentro(p?.centro_custo);
-        
-        // Não-profissionais não veem solicitações de "Geral"
+
         if (centroCusto === 'Geral') return;
-        
+
         const museusCentro = ['MHAB', 'MIS', 'MUMO'];
         const temMuseu = museusCentro.includes(centroCusto);
-        
-        // Vê tudo dos museus específicos
-        if (temMuseu) dedup.set(p.id, p);
+
+        if (temMuseu) {
+          dedup.set(p.id, p);
+        }
       }
     });
   } catch (error) {
     console.error('Erro ao buscar lista geral de PurchaseRequest:', error);
   }
 
-  return Array.from(dedup.values()).sort((a, b) =>
-    new Date(b?.created_date || 0) - new Date(a?.created_date || 0)
+  return Array.from(dedup.values()).sort(
+    (a, b) => new Date(b?.created_date || 0) - new Date(a?.created_date || 0)
   );
 }
 
@@ -297,6 +325,7 @@ function categorizeSolicitacoes(purchases) {
       categories.pessoas.push(p);
     } else {
       const centro = normalizeCentro(p?.centro_custo);
+
       if (centro === 'MHAB') categories.mhab.push(p);
       else if (centro === 'MIS') categories.mis.push(p);
       else if (centro === 'MUMO') categories.mumo.push(p);
@@ -326,19 +355,27 @@ function TabelaSolicitacoes({
 
   const rubricaById = useMemo(() => {
     const m = {};
+
     (rubricas || []).forEach((r) => {
-      if (r?.id) m[r.id] = r;
+      if (r?.id) {
+        m[r.id] = r;
+      }
     });
+
     return m;
   }, [rubricas]);
 
   if (!purchases || purchases.length === 0) return null;
 
-  const podeAprovar = isCoordenador || podeAprovarSolicitacoes === true || hasGestaoCompras === true;
+  const podeAprovar =
+    isCoordenador ||
+    podeAprovarSolicitacoes === true ||
+    hasGestaoCompras === true;
+
   const categories = categorizeSolicitacoes(purchases);
-  
-  // Visibilidade de categorias baseado no papel do usuário
+
   const isObservador = !isCoordenador && userPermission?.base_role === 'OBSERVADOR';
+
   const visibleCategories = [
     { key: 'geral', label: 'Geral', visible: isCoordenador },
     { key: 'mhab', label: 'MHAB', visible: !isObservador },
@@ -350,10 +387,16 @@ function TabelaSolicitacoes({
   const renderTabela = (items) => (
     <table className="w-full table-fixed border-collapse text-sm">
       <colgroup>
-        <col className="w-[27%]" /><col className="w-[14%]" /><col className="w-[8%]" />
-        <col className="w-[15%]" /><col className="w-[10%]" /><col className="w-[10%]" />
-        <col className="w-[7%]" /><col className="w-[9%]" />
+        <col className="w-[27%]" />
+        <col className="w-[14%]" />
+        <col className="w-[8%]" />
+        <col className="w-[15%]" />
+        <col className="w-[10%]" />
+        <col className="w-[10%]" />
+        <col className="w-[7%]" />
+        <col className="w-[9%]" />
       </colgroup>
+
       <thead>
         <tr className="border-b border-gray-200 bg-gray-50 text-left">
           <th className="px-3 py-3 font-medium text-gray-600">Descrição</th>
@@ -366,163 +409,217 @@ function TabelaSolicitacoes({
           <th className="px-3 py-3 text-center font-medium text-gray-600">Ações</th>
         </tr>
       </thead>
+
       <tbody>
         {items.map((p, i) => {
-            const statusKey = normalizeStatus(p.status);
-            const status = STATUS_CONFIG[statusKey] || { label: p.status || '—', color: 'bg-gray-100 text-gray-600' };
-            const aprovado = STATUS_APROVADOS.has(statusKey);
-            const pendenteAprovacao = !aprovado && statusKey !== 'RECUSADO' && statusKey !== 'CANCELADO';
-            const rubrica = p.rubrica_id ? rubricaById[p.rubrica_id] : null;
-            const rubricaNome = p?.rubrica_nome || p?.rubrica || rubrica?.rubrica || rubrica?.nome || '—';
-            const valor = getPurchaseValue(p);
-            const fileUrl = getPurchaseFileUrl(p, attachmentByPurchaseId);
-            const compraEquipe = isCompraEquipe(p);
-            const menuAberto = menuOpenId === p.id;
-            // Apenas coordenadores podem editar solicitações já aprovadas
-            const podeEditarAprovada = isCoordenador && aprovado;
-            const podeAcessar = !aprovado || podeEditarAprovada;
+          const statusKey = normalizeStatus(p.status);
+          const status =
+            STATUS_CONFIG[statusKey] || {
+              label: p.status || '—',
+              color: 'bg-gray-100 text-gray-600'
+            };
 
-            return (
-              <tr key={p.id} className={`border-b border-gray-100 transition-colors hover:bg-gray-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'}`}>
-                <td className="px-3 py-2.5 align-top">
-                  <p className="line-clamp-2 font-medium text-gray-900">{p.descricao_item || p.objeto || '—'}</p>
-                  {p.meta_id && (
-                    <p className="truncate text-xs text-gray-400">
-                      {p.meta_id === 'MC3A-EXTRA' && p.meta_extra_descricao ? p.meta_extra_descricao : p.meta_id}
-                    </p>
+          const aprovado = STATUS_APROVADOS.has(statusKey);
+          const pendenteAprovacao =
+            !aprovado && statusKey !== 'RECUSADO' && statusKey !== 'CANCELADO';
+
+          const rubrica = p.rubrica_id ? rubricaById[p.rubrica_id] : null;
+          const rubricaNome =
+            p?.rubrica_nome ||
+            p?.rubrica ||
+            rubrica?.rubrica ||
+            rubrica?.nome ||
+            '—';
+
+          const valor = getPurchaseValue(p);
+          const fileUrl = getPurchaseFileUrl(p, attachmentByPurchaseId);
+          const compraEquipe = isCompraEquipe(p);
+          const menuAberto = menuOpenId === p.id;
+          const podeEditarAprovada = isCoordenador && aprovado;
+          const podeAcessar = !aprovado || podeEditarAprovada;
+
+          return (
+            <tr
+              key={p.id}
+              className={`border-b border-gray-100 transition-colors hover:bg-gray-50 ${
+                i % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'
+              }`}
+            >
+              <td className="px-3 py-2.5 align-top">
+                <p className="line-clamp-2 font-medium text-gray-900">
+                  {p.descricao_item || p.objeto || '—'}
+                </p>
+
+                {p.meta_id && (
+                  <p className="truncate text-xs text-gray-400">
+                    {p.meta_id === 'MC3A-EXTRA' && p.meta_extra_descricao
+                      ? p.meta_extra_descricao
+                      : p.meta_id}
+                  </p>
+                )}
+
+                {compraEquipe && (
+                  <span className="mt-1 inline-flex rounded-full bg-purple-50 px-2 py-0.5 text-[11px] font-medium text-purple-700">
+                    Equipe
+                  </span>
+                )}
+              </td>
+
+              <td className="px-3 py-2.5 align-top text-gray-600">
+                <p className="truncate">
+                  {p.fornecedor_nome || p.nf_emitente_nome || '—'}
+                </p>
+              </td>
+
+              <td className="px-3 py-2.5 align-top">
+                {p._centro_custo_normalizado ? (
+                  <span className="inline-block max-w-full truncate rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+                    {p._centro_custo_normalizado}
+                  </span>
+                ) : (
+                  <span className="text-xs text-gray-400">—</span>
+                )}
+              </td>
+
+              <td className="px-3 py-2.5 align-top">
+                <p className="truncate text-xs text-gray-700">
+                  {rubricaNome}
+                </p>
+              </td>
+
+              <td className="px-3 py-2.5 align-top">
+                <span
+                  className={`inline-block max-w-full truncate rounded-full px-2 py-0.5 text-xs font-medium ${status.color}`}
+                >
+                  {status.label}
+                </span>
+              </td>
+
+              <td className="px-3 py-2.5 align-top text-right font-medium tabular-nums text-gray-900">
+                <span className="block truncate">{fmtBRL(valor)}</span>
+              </td>
+
+              <td className="px-3 py-2.5 align-top text-center">
+                {fileUrl ? (
+                  <a
+                    href={fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-medium text-blue-700 underline underline-offset-2 hover:text-blue-900"
+                  >
+                    Arquivo
+                  </a>
+                ) : (
+                  <span className="text-xs text-gray-400">—</span>
+                )}
+              </td>
+
+              <td className="px-3 py-2.5 align-top">
+                <div className="relative flex items-center justify-center gap-2">
+                  {podeAcessar && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onAccess(p);
+                      }}
+                      className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-black"
+                      title={aprovado ? 'Apenas coordenadores podem editar aprovadas' : 'Ações'}
+                      disabled={!podeAcessar}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
                   )}
-                  {compraEquipe && (
-                    <span className="mt-1 inline-flex rounded-full bg-purple-50 px-2 py-0.5 text-[11px] font-medium text-purple-700">Equipe</span>
+
+                  {isCoordenador && (
+                    <button
+                      type="button"
+                      onClick={async (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+
+                        if (window.confirm('Tem certeza que deseja deletar esta solicitação?')) {
+                          await onDelete(p.id);
+                        }
+                      }}
+                      className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                      title="Deletar"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   )}
-                </td>
-                <td className="px-3 py-2.5 align-top text-gray-600">
-                  <p className="truncate">{p.fornecedor_nome || p.nf_emitente_nome || '—'}</p>
-                </td>
-                <td className="px-3 py-2.5 align-top">
-                  {p._centro_custo_normalizado ? (
-                    <span className="inline-block max-w-full truncate rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">{p._centro_custo_normalizado}</span>
-                  ) : (
-                    <span className="text-xs text-gray-400">—</span>
-                  )}
-                </td>
-                <td className="px-3 py-2.5 align-top">
-                  <p className="truncate text-xs text-gray-700">{rubricaNome}</p>
-                </td>
-                <td className="px-3 py-2.5 align-top">
-                  <span className={`inline-block max-w-full truncate rounded-full px-2 py-0.5 text-xs font-medium ${status.color}`}>{status.label}</span>
-                </td>
-                <td className="px-3 py-2.5 align-top text-right font-medium tabular-nums text-gray-900">
-                  <span className="block truncate">{fmtBRL(valor)}</span>
-                </td>
-                <td className="px-3 py-2.5 align-top text-center">
-                  {fileUrl ? (
-                    <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-blue-700 underline underline-offset-2 hover:text-blue-900">Arquivo</a>
-                  ) : (
-                    <span className="text-xs text-gray-400">—</span>
-                  )}
-                </td>
-                <td className="px-3 py-2.5 align-top">
-                  <div className="relative flex items-center justify-center gap-2">
-                    {podeAcessar && (
+
+                  {menuAberto && (
+                    <div className="absolute right-0 top-8 z-30 w-48 rounded-xl border border-gray-200 bg-white p-1.5 text-left shadow-lg">
                       <button
                         type="button"
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
+                          setMenuOpenId(null);
                           onAccess(p);
                         }}
-                        className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-black"
-                        title={aprovado ? 'Apenas coordenadores podem editar aprovadas' : 'Ações'}
-                        disabled={!podeAcessar}
+                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50"
                       >
-                        <Pencil className="h-3.5 w-3.5" />
+                        <LinkIcon className="h-3.5 w-3.5" />
+                        Acessar solicitação
                       </button>
-                    )}
 
-                    {isCoordenador && (
-                      <button
-                        type="button"
-                        onClick={async (e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          if (window.confirm('Tem certeza que deseja deletar esta solicitação?')) await onDelete(p.id);
-                        }}
-                        className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                        title="Deletar"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-
-                    {menuAberto && (
-                      <div className="absolute right-0 top-8 z-30 w-48 rounded-xl border border-gray-200 bg-white p-1.5 text-left shadow-lg">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setMenuOpenId(null);
-                            onAccess(p);
-                          }}
-                          className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50"
-                        >
-                          <LinkIcon className="h-3.5 w-3.5" />
-                          Acessar solicitação
-                        </button>
-
-                        {podeAprovar && pendenteAprovacao && (
-                          <>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setMenuOpenId(null);
-                                onApprove(p);
-                              }}
-                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-green-700 hover:bg-green-50"
-                            >
-                              <CheckCircle2 className="h-3.5 w-3.5" />
-                              Aprovar
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setMenuOpenId(null);
-                                onReturn(p);
-                              }}
-                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50"
-                            >
-                              <RotateCcw className="h-3.5 w-3.5" />
-                              Devolver
-                            </button>
-                          </>
-                        )}
-
-                        {podeAprovar && aprovado && (
+                      {podeAprovar && pendenteAprovacao && (
+                        <>
                           <button
                             type="button"
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
                               setMenuOpenId(null);
-                              onUnapprove(p);
+                              onApprove(p);
                             }}
-                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
+                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-green-700 hover:bg-green-50"
                           >
-                            <XCircle className="h-3.5 w-3.5" />
-                            Desaprovar
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            Aprovar
                           </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setMenuOpenId(null);
+                              onReturn(p);
+                            }}
+                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50"
+                          >
+                            <RotateCcw className="h-3.5 w-3.5" />
+                            Devolver
+                          </button>
+                        </>
+                      )}
+
+                      {podeAprovar && aprovado && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setMenuOpenId(null);
+                            onUnapprove(p);
+                          }}
+                          className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
+                        >
+                          <XCircle className="h-3.5 w-3.5" />
+                          Desaprovar
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );
@@ -532,11 +629,15 @@ function TabelaSolicitacoes({
       {visibleCategories.map((cat) => (
         <div key={cat.key}>
           <div className="mb-3 flex items-center gap-2">
-            <h3 className="text-lg font-semibold text-gray-900">{cat.label}</h3>
+            <h3 className="text-lg font-semibold text-gray-900">
+              {cat.label}
+            </h3>
+
             <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
               {categories[cat.key].length}
             </span>
           </div>
+
           <div className="overflow-x-auto rounded-xl border border-gray-200">
             {renderTabela(categories[cat.key])}
           </div>
@@ -549,7 +650,11 @@ function TabelaSolicitacoes({
 function ComprasInner() {
   const smartToast = useSmartToast();
   const isMobile = useIsMobile();
+
   const [currentUser, setCurrentUser] = useState(null);
+  const [userLoading, setUserLoading] = useState(true);
+  const [userLoadError, setUserLoadError] = useState(false);
+
   const [tab, setTab] = useState('lista');
   const [showForm, setShowForm] = useState(false);
   const [editingPurchase, setEditingPurchase] = useState(null);
@@ -557,6 +662,7 @@ function ComprasInner() {
   const [showNovaRubrica, setShowNovaRubrica] = useState(false);
   const [selectedRubrica, setSelectedRubrica] = useState(null);
   const [recalculando, setRecalculando] = useState(false);
+
   const [filters, setFilters] = useState({
     status: 'all',
     meta_id: 'all',
@@ -569,10 +675,40 @@ function ComprasInner() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    base44.auth.me().then((u) => setCurrentUser(u)).catch(() => setCurrentUser(null));
+    let mounted = true;
+
+    setUserLoading(true);
+    setUserLoadError(false);
+
+    base44.auth
+      .me()
+      .then((u) => {
+        if (!mounted) return;
+        setCurrentUser(u || null);
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setCurrentUser(null);
+        setUserLoadError(true);
+      })
+      .finally(() => {
+        if (!mounted) return;
+        setUserLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  const isCoordenador = ['admin', 'ADMIN', 'COORDENADOR', 'COORD_COMUNICACAO', 'COORD_ADMINISTRATIVA', 'COORD_PRODUCAO'].includes(currentUser?.role);
+  const isCoordenador = [
+    'admin',
+    'ADMIN',
+    'COORDENADOR',
+    'COORD_COMUNICACAO',
+    'COORD_ADMINISTRATIVA',
+    'COORD_PRODUCAO'
+  ].includes(currentUser?.role);
 
   const invalidateComprasQueries = useCallback(async () => {
     await Promise.all([
@@ -587,45 +723,78 @@ function ComprasInner() {
     ]);
   }, [queryClient]);
 
-  const { data: userPermission } = useQuery({
+  const {
+    data: userPermission,
+    isLoading: loadingUserPermission
+  } = useQuery({
     queryKey: ['user-permission', currentUser?.email],
     queryFn: async () => {
       try {
-        const result = await base44.entities.UserPermission.filter({ user_email: currentUser?.email });
+        const result = await base44.entities.UserPermission.filter({
+          user_email: currentUser?.email
+        });
+
         return result?.[0] || null;
       } catch {
         return null;
       }
     },
-    enabled: !!currentUser?.email
+    enabled: !!currentUser?.email,
+    staleTime: 1000 * 60 * 2,
+    refetchOnWindowFocus: false
   });
 
   const hasGestaoCompras = isCoordenador || userPermission?.gestao_compras === true;
-  const podeAprovarSolicitacoes = isCoordenador || userPermission?.pode_aprovar_solicitacoes === true;
+  const podeAprovarSolicitacoes =
+    isCoordenador || userPermission?.pode_aprovar_solicitacoes === true;
   const podeGerenciarRubricas = canManageRubricas(currentUser, userPermission);
 
-  const { data: purchases = [], isLoading } = useQuery({
+  const {
+    data: purchases = [],
+    isLoading,
+    isFetching: fetchingPurchases
+  } = useQuery({
     queryKey: ['purchases', isCoordenador, currentUser?.email],
     queryFn: () => carregarSolicitacoes({ isCoordenador, currentUser }),
-    enabled: !!currentUser
+    enabled: !!currentUser,
+    staleTime: 1000 * 60,
+    refetchOnWindowFocus: false
   });
 
-  const { data: anexosCompras = [] } = useQuery({
+  const {
+    data: anexosCompras = [],
+    isLoading: loadingAnexos,
+    isFetching: fetchingAnexos
+  } = useQuery({
     queryKey: ['attachments-compras'],
     queryFn: async () => {
       const list = await base44.entities.Attachment.list('-created_date', 500);
       const docs = dedupById((list || []).filter(isEntradaUnicaAttachment));
-      return docs.sort((a, b) => new Date(b?.created_date || 0) - new Date(a?.created_date || 0));
+
+      return docs.sort(
+        (a, b) => new Date(b?.created_date || 0) - new Date(a?.created_date || 0)
+      );
     },
-    enabled: !!currentUser
+    enabled: !!currentUser,
+    staleTime: 1000 * 60,
+    refetchOnWindowFocus: false
   });
 
   const attachmentByPurchaseId = useMemo(() => {
     const map = {};
+
     (anexosCompras || []).forEach((doc) => {
-      const purchaseId = doc?.purchase_id || doc?.purchase_request_id || doc?.purchaseRequestId || doc?.solicitacao_id;
-      if (purchaseId && !map[purchaseId]) map[purchaseId] = doc;
+      const purchaseId =
+        doc?.purchase_id ||
+        doc?.purchase_request_id ||
+        doc?.purchaseRequestId ||
+        doc?.solicitacao_id;
+
+      if (purchaseId && !map[purchaseId]) {
+        map[purchaseId] = doc;
+      }
     });
+
     return map;
   }, [anexosCompras]);
 
@@ -633,10 +802,14 @@ function ComprasInner() {
     queryKey: ['purchase-documents-all', isCoordenador, currentUser?.email],
     queryFn: async () => {
       const docs = await base44.entities.PurchaseDocument.list('-created_date', 300);
+
       if (isCoordenador) return docs;
+
       return docs.filter((doc) => doc.uploadado_por === currentUser?.email);
     },
-    enabled: !!currentUser
+    enabled: !!currentUser,
+    staleTime: 1000 * 60,
+    refetchOnWindowFocus: false
   });
 
   const { budgetLines } = useBudgetLines();
@@ -644,19 +817,31 @@ function ComprasInner() {
   const {
     data: rubricas = [],
     refetch: refetchRubricas,
-    isLoading: loadingRubricas
+    isLoading: loadingRubricas,
+    isFetching: fetchingRubricas
   } = useQuery({
     queryKey: ['rubricas'],
     queryFn: carregarRubricas,
     enabled: !!currentUser,
-    staleTime: 0
+    staleTime: 1000 * 60,
+    refetchOnWindowFocus: false
   });
 
   const TOTAL_PREVISTO_3_ADITIVO = 1320000;
+
   const totaisConsolidados = useMemo(() => {
-    const totalUtilizado = (rubricas || []).reduce((acc, r) => acc + toNumber(r.valor_utilizado), 0);
+    const totalUtilizado = (rubricas || []).reduce(
+      (acc, r) => acc + toNumber(r.valor_utilizado),
+      0
+    );
+
     const saldo = TOTAL_PREVISTO_3_ADITIVO - totalUtilizado;
-    return { totalPrevisto: TOTAL_PREVISTO_3_ADITIVO, totalUtilizado, saldo };
+
+    return {
+      totalPrevisto: TOTAL_PREVISTO_3_ADITIVO,
+      totalUtilizado,
+      saldo
+    };
   }, [rubricas]);
 
   const purchasesWithFlags = useMemo(() => {
@@ -664,6 +849,7 @@ function ComprasInner() {
       const hasBudgetline = !!getPurchaseBudgetlineId(p);
       const hasRubrica = !!p.rubrica_id;
       const centroCusto = normalizeCentro(p?.centro_custo);
+
       return {
         ...p,
         _has_budgetline: hasBudgetline,
@@ -677,32 +863,65 @@ function ComprasInner() {
 
   const centrosDisponiveis = useMemo(() => {
     const centros = new Set();
+
     purchasesWithFlags.forEach((p) => {
-      if (p._centro_custo_normalizado) centros.add(p._centro_custo_normalizado);
+      if (p._centro_custo_normalizado) {
+        centros.add(p._centro_custo_normalizado);
+      }
     });
+
     return Array.from(centros).sort((a, b) => a.localeCompare(b, 'pt-BR'));
   }, [purchasesWithFlags]);
 
   const filtered = purchasesWithFlags.filter((p) => {
-    const matchStatus = filters.status === 'all' || normalizeStatus(p.status) === filters.status;
+    const matchStatus =
+      filters.status === 'all' || normalizeStatus(p.status) === filters.status;
 
     let matchMeta = filters.meta_id === 'all';
-    if (!matchMeta && filters.meta_id === 'produto') matchMeta = p.tipo_item === 'produto' || p.tipo_gasto === 'Produto';
-    if (!matchMeta && filters.meta_id === 'servico') matchMeta = p.tipo_item === 'servico' || p.tipo_gasto === 'Serviço';
-    if (!matchMeta) matchMeta = p.meta_id === filters.meta_id;
 
-    const matchRubrica = filters.rubrica_id === 'all' || p.rubrica_id === filters.rubrica_id;
-    const matchInconsistencia = filters.inconsistencias === 'all' ||
-      (filters.inconsistencias === 'somente_inconsistentes' && (!p._has_orcamento_vinculado || p._sem_centro_custo)) ||
-      (filters.inconsistencias === 'somente_ok' && p._has_orcamento_vinculado && !p._sem_centro_custo);
-    const matchCentro = filters.centro_custo === 'all' || p._centro_custo_normalizado === filters.centro_custo;
+    if (!matchMeta && filters.meta_id === 'produto') {
+      matchMeta = p.tipo_item === 'produto' || p.tipo_gasto === 'Produto';
+    }
+
+    if (!matchMeta && filters.meta_id === 'servico') {
+      matchMeta = p.tipo_item === 'servico' || p.tipo_gasto === 'Serviço';
+    }
+
+    if (!matchMeta) {
+      matchMeta = p.meta_id === filters.meta_id;
+    }
+
+    const matchRubrica =
+      filters.rubrica_id === 'all' || p.rubrica_id === filters.rubrica_id;
+
+    const matchInconsistencia =
+      filters.inconsistencias === 'all' ||
+      (filters.inconsistencias === 'somente_inconsistentes' &&
+        (!p._has_orcamento_vinculado || p._sem_centro_custo)) ||
+      (filters.inconsistencias === 'somente_ok' &&
+        p._has_orcamento_vinculado &&
+        !p._sem_centro_custo);
+
+    const matchCentro =
+      filters.centro_custo === 'all' ||
+      p._centro_custo_normalizado === filters.centro_custo;
+
     const busca = filters.search.trim().toLowerCase();
-    const matchSearch = !busca ||
+
+    const matchSearch =
+      !busca ||
       String(p.descricao_item || '').toLowerCase().includes(busca) ||
       String(p.fornecedor_nome || '').toLowerCase().includes(busca) ||
       String(p.objeto || '').toLowerCase().includes(busca);
 
-    return matchStatus && matchMeta && matchRubrica && matchInconsistencia && matchCentro && matchSearch;
+    return (
+      matchStatus &&
+      matchMeta &&
+      matchRubrica &&
+      matchInconsistencia &&
+      matchCentro &&
+      matchSearch
+    );
   });
 
   const refreshFinanceiroCompleto = useCallback(async () => {
@@ -712,6 +931,7 @@ function ComprasInner() {
 
   async function handleApprovePurchase(purchase) {
     if (!purchase?.id) return;
+
     if (!purchase?.rubrica_id) {
       smartToast.error('Não é possível aprovar sem rubrica vinculada.');
       return;
@@ -722,12 +942,22 @@ function ComprasInner() {
 
     if (chaveFiscal && !jaDebitado) {
       try {
-        const todasAprovadas = await base44.entities.PurchaseRequest.list('-created_date', 500);
-        const duplicada = todasAprovadas.find(
-          (p) => p.id !== purchase.id && STATUS_APROVADOS.has(normalizeStatus(p.status)) && getChaveFiscal(p) === chaveFiscal
+        const todasAprovadas = await base44.entities.PurchaseRequest.list(
+          '-created_date',
+          500
         );
+
+        const duplicada = todasAprovadas.find(
+          (p) =>
+            p.id !== purchase.id &&
+            STATUS_APROVADOS.has(normalizeStatus(p.status)) &&
+            getChaveFiscal(p) === chaveFiscal
+        );
+
         if (duplicada) {
-          smartToast.error('Esta nota fiscal já foi aprovada em outra solicitação. Débito bloqueado.');
+          smartToast.error(
+            'Esta nota fiscal já foi aprovada em outra solicitação. Débito bloqueado.'
+          );
           return;
         }
       } catch (_) {}
@@ -735,10 +965,18 @@ function ComprasInner() {
 
     try {
       let backendOk = false;
+
       try {
-        const response = await base44.functions.invoke('purchaseActions', { purchaseId: purchase.id, action: 'aprovar' });
+        const response = await base44.functions.invoke('purchaseActions', {
+          purchaseId: purchase.id,
+          action: 'aprovar'
+        });
+
         const result = response?.data || response;
-        if (result?.success) backendOk = true;
+
+        if (result?.success) {
+          backendOk = true;
+        }
       } catch (_) {}
 
       if (!backendOk) {
@@ -746,6 +984,7 @@ function ComprasInner() {
 
         if (!jaDebitado && valor > 0) {
           const rubrica = await base44.entities.Rubrica.get(purchase.rubrica_id);
+
           if (rubrica) {
             const total = toNumber(rubrica.valor_rubrica || rubrica.valor_total);
             const utilizadoAtual = toNumber(rubrica.valor_utilizado);
@@ -764,19 +1003,27 @@ function ComprasInner() {
 
         await base44.entities.PurchaseRequest.update(purchase.id, {
           status: 'APROVADO_COORD',
-          rubrica_debitada_em: purchase.rubrica_debitada_em || new Date().toISOString(),
-          rubrica_debitada_valor: purchase.rubrica_debitada_valor || getPurchaseValue(purchase),
-          financeiro_lancado_em: purchase.financeiro_lancado_em || new Date().toISOString()
+          rubrica_debitada_em:
+            purchase.rubrica_debitada_em || new Date().toISOString(),
+          rubrica_debitada_valor:
+            purchase.rubrica_debitada_valor || getPurchaseValue(purchase),
+          financeiro_lancado_em:
+            purchase.financeiro_lancado_em || new Date().toISOString()
         });
       }
 
       await refreshFinanceiroCompleto();
-      await notifyPurchaseApproved({
-        ...purchase,
-        status: 'APROVADO_COORD',
-      }, currentUser).catch((error) => {
+
+      await notifyPurchaseApproved(
+        {
+          ...purchase,
+          status: 'APROVADO_COORD'
+        },
+        currentUser
+      ).catch((error) => {
         console.warn('Falha ao notificar aprovação de compra:', error);
       });
+
       smartToast.success('Solicitação aprovada e rubrica debitada.');
     } catch (error) {
       console.error('Erro ao aprovar solicitação:', error);
@@ -786,7 +1033,12 @@ function ComprasInner() {
 
   async function handleReturnPurchase(purchase) {
     if (!purchase?.id) return;
-    const comentario = window.prompt('Informe o comentário de devolução:', 'Devolvido pela coordenação para ajustes.');
+
+    const comentario = window.prompt(
+      'Informe o comentário de devolução:',
+      'Devolvido pela coordenação para ajustes.'
+    );
+
     if (comentario === null) return;
 
     try {
@@ -795,16 +1047,26 @@ function ComprasInner() {
         action: 'devolver',
         comentario: comentario || 'Devolvido pela coordenação.'
       });
+
       const result = response?.data || response;
-      if (!result?.success) throw new Error(result?.error || 'Falha ao devolver.');
+
+      if (!result?.success) {
+        throw new Error(result?.error || 'Falha ao devolver.');
+      }
+
       await refreshFinanceiroCompleto();
-      await notifyPurchaseReturned({
-        ...purchase,
-        status: 'DEVOLVIDO',
-        comentario_devolucao: comentario || '',
-      }, currentUser).catch((error) => {
+
+      await notifyPurchaseReturned(
+        {
+          ...purchase,
+          status: 'DEVOLVIDO',
+          comentario_devolucao: comentario || ''
+        },
+        currentUser
+      ).catch((error) => {
         console.warn('Falha ao notificar devolução de compra:', error);
       });
+
       smartToast.success('Solicitação devolvida.');
     } catch (error) {
       try {
@@ -812,14 +1074,20 @@ function ComprasInner() {
           status: 'DEVOLVIDO',
           comentario_devolucao: comentario || ''
         });
+
         await refreshFinanceiroCompleto();
-        await notifyPurchaseReturned({
-          ...purchase,
-          status: 'DEVOLVIDO',
-          comentario_devolucao: comentario || '',
-        }, currentUser).catch((error) => {
+
+        await notifyPurchaseReturned(
+          {
+            ...purchase,
+            status: 'DEVOLVIDO',
+            comentario_devolucao: comentario || ''
+          },
+          currentUser
+        ).catch((error) => {
           console.warn('Falha ao notificar devolução de compra:', error);
         });
+
         smartToast.success('Solicitação devolvida.');
       } catch (e2) {
         smartToast.error('Erro ao devolver', e2.message);
@@ -829,7 +1097,12 @@ function ComprasInner() {
 
   async function handleUnapprovePurchase(purchase) {
     if (!purchase?.id) return;
-    const comentario = window.prompt('Informe o motivo da desaprovação:', 'Desaprovado pela coordenação.');
+
+    const comentario = window.prompt(
+      'Informe o motivo da desaprovação:',
+      'Desaprovado pela coordenação.'
+    );
+
     if (comentario === null) return;
 
     try {
@@ -838,22 +1111,34 @@ function ComprasInner() {
         action: 'desaprovar',
         comentario: comentario || 'Desaprovado pela coordenação.'
       });
+
       const result = response?.data || response;
-      if (!result?.success) throw new Error(result?.error || 'Falha ao desaprovar.');
+
+      if (!result?.success) {
+        throw new Error(result?.error || 'Falha ao desaprovar.');
+      }
+
       await refreshFinanceiroCompleto();
-      await notifyPurchaseRejected({
-        ...purchase,
-        status: 'RECUSADO',
-        comentario_devolucao: comentario || '',
-      }, currentUser).catch((error) => {
+
+      await notifyPurchaseRejected(
+        {
+          ...purchase,
+          status: 'RECUSADO',
+          comentario_devolucao: comentario || ''
+        },
+        currentUser
+      ).catch((error) => {
         console.warn('Falha ao notificar recusa de compra:', error);
       });
+
       smartToast.success('Solicitação desaprovada e valor estornado da rubrica.');
     } catch (error) {
       try {
         const valor = getPurchaseValue(purchase);
+
         if (purchase.rubrica_id && valor > 0 && purchase.rubrica_debitada_em) {
           const rubrica = await base44.entities.Rubrica.get(purchase.rubrica_id);
+
           if (rubrica) {
             const total = toNumber(rubrica.valor_rubrica || rubrica.valor_total);
             const utilizadoAtual = toNumber(rubrica.valor_utilizado);
@@ -878,13 +1163,18 @@ function ComprasInner() {
         });
 
         await refreshFinanceiroCompleto();
-        await notifyPurchaseRejected({
-          ...purchase,
-          status: 'RECUSADO',
-          comentario_devolucao: comentario || '',
-        }, currentUser).catch((error) => {
+
+        await notifyPurchaseRejected(
+          {
+            ...purchase,
+            status: 'RECUSADO',
+            comentario_devolucao: comentario || ''
+          },
+          currentUser
+        ).catch((error) => {
           console.warn('Falha ao notificar recusa de compra:', error);
         });
+
         smartToast.success('Solicitação desaprovada e valor estornado da rubrica.');
       } catch (e2) {
         smartToast.error('Erro ao desaprovar', e2.message);
@@ -894,13 +1184,18 @@ function ComprasInner() {
 
   async function handleDeletePurchase(purchaseId) {
     try {
-      const pr = await base44.entities.PurchaseRequest.get(purchaseId).catch(() => null);
+      const pr = await base44.entities.PurchaseRequest.get(purchaseId).catch(
+        () => null
+      );
+
       if (pr) {
         await deletePurchaseRequest(pr);
       } else {
         await base44.entities.PurchaseRequest.delete(purchaseId).catch(() => {});
       }
+
       await refreshFinanceiroCompleto();
+
       smartToast.success('Registro deletado e rubrica estornada com sucesso.');
     } catch (error) {
       console.error('Erro ao deletar solicitação:', error);
@@ -909,7 +1204,13 @@ function ComprasInner() {
   }
 
   async function recalcularTodasRubricas() {
-    if (!window.confirm('Executar agora a restauração/recalculo das rubricas oficiais do 3º Aditivo?')) return;
+    if (
+      !window.confirm(
+        'Executar agora a restauração/recalculo das rubricas oficiais do 3º Aditivo?'
+      )
+    ) {
+      return;
+    }
 
     setRecalculando(true);
 
@@ -933,7 +1234,9 @@ function ComprasInner() {
       console.log('Resultado recalculateAllRubricas:', result);
 
       if (!result?.success) {
-        throw new Error(result?.error || 'A function executou, mas não retornou success=true.');
+        throw new Error(
+          result?.error || 'A function executou, mas não retornou success=true.'
+        );
       }
 
       await invalidateComprasQueries();
@@ -945,7 +1248,9 @@ function ComprasInner() {
       }, 1200);
 
       smartToast.success(
-        `Rubricas recalculadas. Total oficial: ${fmtBRL(result.totalOficial || result.totalBase || 1320000)}`
+        `Rubricas recalculadas. Total oficial: ${fmtBRL(
+          result.totalOficial || result.totalBase || 1320000
+        )}`
       );
     } catch (error) {
       console.error('Erro no recálculo:', error);
@@ -955,61 +1260,129 @@ function ComprasInner() {
     }
   }
 
+  const isInitialPageLoading =
+    userLoading ||
+    (!!currentUser &&
+      (loadingUserPermission ||
+        isLoading ||
+        loadingRubricas ||
+        loadingAnexos));
+
+  if (isInitialPageLoading) {
+    return (
+      <LoadingPage
+        message="Carregando página..."
+        description="Estamos carregando solicitações, rubricas, documentos e permissões. Aguarde alguns instantes."
+      />
+    );
+  }
+
+  if (userLoadError && !currentUser) {
+    return (
+      <LoadingPage
+        error
+        errorTitle="Não foi possível carregar a página"
+        errorDescription="Não conseguimos carregar os dados do usuário. Atualize a página ou tente novamente em alguns instantes."
+      />
+    );
+  }
+
+  const isSyncingPage = fetchingPurchases || fetchingRubricas || fetchingAnexos;
+
   return (
     <div className="min-h-screen bg-white">
       <div className="mx-auto max-w-6xl px-4 py-4 md:px-6 md:py-8">
-
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-black">
               <ShoppingCart className="h-5 w-5 text-white" />
             </div>
+
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-bold text-black">Suprimentos</h1>
+
                 {isCoordenador ? (
                   <span className="flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700">
-                    <ShieldCheck className="h-3 w-3" />Coordenador
+                    <ShieldCheck className="h-3 w-3" />
+                    Coordenador
                   </span>
                 ) : (
                   <span className="flex items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
-                    <User className="h-3 w-3" />Profissional
+                    <User className="h-3 w-3" />
+                    Profissional
                   </span>
                 )}
               </div>
+
               <p className="text-sm text-gray-500">
-                {isCoordenador ? 'Visão geral — todas as solicitações' : 'Solicitações — 3º Termo Aditivo'}
+                {isCoordenador
+                  ? 'Visão geral — todas as solicitações'
+                  : 'Solicitações — 3º Termo Aditivo'}
               </p>
             </div>
           </div>
 
           <div className="flex gap-2">
             {isCoordenador && (
-              <Button variant="outline" className="gap-2 border-black" onClick={() => setShowReportGen(true)}>
-                <FileText className="h-4 w-4" />Relatório PDF
+              <Button
+                variant="outline"
+                className="gap-2 border-black"
+                onClick={() => setShowReportGen(true)}
+              >
+                <FileText className="h-4 w-4" />
+                Relatório PDF
               </Button>
             )}
-            <Button className="bg-black text-white hover:bg-gray-800" onClick={() => { setEditingPurchase(null); setShowForm(true); }}>
-              <Plus className="mr-2 h-4 w-4" />Nova Solicitação
+
+            <Button
+              className="bg-black text-white hover:bg-gray-800"
+              onClick={() => {
+                setEditingPurchase(null);
+                setShowForm(true);
+              }}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Nova Solicitação
             </Button>
           </div>
         </div>
+
+        {isSyncingPage && (
+          <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500">
+            Atualizando informações financeiras e documentais...
+          </div>
+        )}
 
         {isCoordenador && (
           <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
               <p className="text-xs font-medium text-gray-500">Total Previsto</p>
-              <p className="mt-1 break-words text-lg font-bold leading-tight text-gray-900 tabular-nums">{fmtBRL(totaisConsolidados.totalPrevisto)}</p>
+              <p className="mt-1 break-words text-lg font-bold leading-tight text-gray-900 tabular-nums">
+                {fmtBRL(totaisConsolidados.totalPrevisto)}
+              </p>
               <p className="text-xs text-gray-400">Valor total do 3º Aditivo</p>
             </div>
+
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
               <p className="text-xs font-medium text-gray-500">Total Utilizado</p>
-              <p className="mt-1 break-words text-lg font-bold leading-tight text-gray-900 tabular-nums">{fmtBRL(totaisConsolidados.totalUtilizado)}</p>
-              <p className="text-xs text-gray-400">Aprovado coord. + admin + pago</p>
+              <p className="mt-1 break-words text-lg font-bold leading-tight text-gray-900 tabular-nums">
+                {fmtBRL(totaisConsolidados.totalUtilizado)}
+              </p>
+              <p className="text-xs text-gray-400">
+                Aprovado coord. + admin + pago
+              </p>
             </div>
+
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
               <p className="text-xs font-medium text-gray-500">Saldo Disponível</p>
-              <p className={`mt-1 break-words text-lg font-bold leading-tight tabular-nums ${totaisConsolidados.saldo < 0 ? 'text-red-600' : 'text-green-700'}`}>
+              <p
+                className={`mt-1 break-words text-lg font-bold leading-tight tabular-nums ${
+                  totaisConsolidados.saldo < 0
+                    ? 'text-red-600'
+                    : 'text-green-700'
+                }`}
+              >
                 {fmtBRL(totaisConsolidados.saldo)}
               </p>
             </div>
@@ -1018,7 +1391,11 @@ function ComprasInner() {
 
         {isCoordenador && (
           <div className="mb-6">
-            <OrcamentoDashboard budgetLines={budgetLines || []} purchases={purchases || []} rubricas={rubricas || []} />
+            <OrcamentoDashboard
+              budgetLines={budgetLines || []}
+              purchases={purchases || []}
+              rubricas={rubricas || []}
+            />
           </div>
         )}
 
@@ -1039,7 +1416,11 @@ function ComprasInner() {
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${tab === t.id ? 'bg-white text-black shadow' : 'text-gray-500 hover:text-black'}`}
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                tab === t.id
+                  ? 'bg-white text-black shadow'
+                  : 'text-gray-500 hover:text-black'
+              }`}
             >
               {t.label}
             </button>
@@ -1049,96 +1430,146 @@ function ComprasInner() {
         {tab === 'lista' && (
           <div>
             <div className="mb-4 flex flex-wrap gap-3">
-               <div className="relative min-w-48 flex-1">
-                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-                 <Input placeholder="Buscar..." className="pl-9" value={filters.search} onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))} />
-               </div>
+              <div className="relative min-w-48 flex-1">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Buscar..."
+                  className="pl-9"
+                  value={filters.search}
+                  onChange={(e) =>
+                    setFilters((f) => ({ ...f, search: e.target.value }))
+                  }
+                />
+              </div>
 
-               {isMobile ? (
-                 <>
-                   <NativeSelect
-                     value={filters.status}
-                     onValueChange={(v) => setFilters((f) => ({ ...f, status: v }))}
-                     placeholder="Status"
-                     items={[
-                       { value: 'all', label: 'Todos os status' },
-                       ...Object.entries(STATUS_CONFIG).map(([k, v]) => ({
-                         value: k,
-                         label: v.label
-                       }))
-                     ]}
-                   />
-                   <NativeSelect
-                     value={filters.rubrica_id}
-                     onValueChange={(v) => setFilters((f) => ({ ...f, rubrica_id: v }))}
-                     placeholder="Rubrica"
-                     items={[
-                       { value: 'all', label: 'Todas as rubricas' },
-                       ...(rubricas || []).filter((r) => r?.ativo !== false).map((r) => ({
-                         value: r.id,
-                         label: r.rubrica || r.nome
-                       }))
-                     ]}
-                   />
-                   <NativeSelect
-                     value={filters.centro_custo}
-                     onValueChange={(v) => setFilters((f) => ({ ...f, centro_custo: v }))}
-                     placeholder="Centro de custo"
-                     items={[
-                       { value: 'all', label: 'Todos os centros' },
-                       ...centrosDisponiveis.map((centro) => ({
-                         value: centro,
-                         label: centro
-                       }))
-                     ]}
-                   />
-                 </>
-               ) : (
-                 <>
-                   <Select value={filters.status} onValueChange={(v) => setFilters((f) => ({ ...f, status: v }))}>
-                     <SelectTrigger className="w-44"><SelectValue placeholder="Status" /></SelectTrigger>
-                     <SelectContent>
-                       <SelectItem value="all">Todos os status</SelectItem>
-                       {Object.entries(STATUS_CONFIG).map(([k, v]) => (
-                         <SelectItem key={k} value={k}>{v.label}</SelectItem>
-                       ))}
-                     </SelectContent>
-                   </Select>
+              {isMobile ? (
+                <>
+                  <NativeSelect
+                    value={filters.status}
+                    onValueChange={(v) =>
+                      setFilters((f) => ({ ...f, status: v }))
+                    }
+                    placeholder="Status"
+                    items={[
+                      { value: 'all', label: 'Todos os status' },
+                      ...Object.entries(STATUS_CONFIG).map(([k, v]) => ({
+                        value: k,
+                        label: v.label
+                      }))
+                    ]}
+                  />
 
-                   <Select value={filters.rubrica_id} onValueChange={(v) => setFilters((f) => ({ ...f, rubrica_id: v }))}>
-                     <SelectTrigger className="w-64"><SelectValue placeholder="Rubrica" /></SelectTrigger>
-                     <SelectContent>
-                       <SelectItem value="all">Todas as rubricas</SelectItem>
-                       {(rubricas || []).filter((r) => r?.ativo !== false).map((r) => (
-                         <SelectItem key={r.id} value={r.id}>{r.rubrica || r.nome}</SelectItem>
-                       ))}
-                     </SelectContent>
-                   </Select>
+                  <NativeSelect
+                    value={filters.rubrica_id}
+                    onValueChange={(v) =>
+                      setFilters((f) => ({ ...f, rubrica_id: v }))
+                    }
+                    placeholder="Rubrica"
+                    items={[
+                      { value: 'all', label: 'Todas as rubricas' },
+                      ...(rubricas || [])
+                        .filter((r) => r?.ativo !== false)
+                        .map((r) => ({
+                          value: r.id,
+                          label: r.rubrica || r.nome
+                        }))
+                    ]}
+                  />
 
-                   <Select value={filters.centro_custo} onValueChange={(v) => setFilters((f) => ({ ...f, centro_custo: v }))}>
-                     <SelectTrigger className="w-44"><SelectValue placeholder="Centro de custo" /></SelectTrigger>
-                     <SelectContent>
-                       <SelectItem value="all">Todos os centros</SelectItem>
-                       {centrosDisponiveis.map((centro) => (
-                         <SelectItem key={centro} value={centro}>{centro}</SelectItem>
-                       ))}
-                     </SelectContent>
-                   </Select>
-                 </>
-               )}
-             </div>
+                  <NativeSelect
+                    value={filters.centro_custo}
+                    onValueChange={(v) =>
+                      setFilters((f) => ({ ...f, centro_custo: v }))
+                    }
+                    placeholder="Centro de custo"
+                    items={[
+                      { value: 'all', label: 'Todos os centros' },
+                      ...centrosDisponiveis.map((centro) => ({
+                        value: centro,
+                        label: centro
+                      }))
+                    ]}
+                  />
+                </>
+              ) : (
+                <>
+                  <Select
+                    value={filters.status}
+                    onValueChange={(v) =>
+                      setFilters((f) => ({ ...f, status: v }))
+                    }
+                  >
+                    <SelectTrigger className="w-44">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+
+                    <SelectContent>
+                      <SelectItem value="all">Todos os status</SelectItem>
+                      {Object.entries(STATUS_CONFIG).map(([k, v]) => (
+                        <SelectItem key={k} value={k}>
+                          {v.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Select
+                    value={filters.rubrica_id}
+                    onValueChange={(v) =>
+                      setFilters((f) => ({ ...f, rubrica_id: v }))
+                    }
+                  >
+                    <SelectTrigger className="w-64">
+                      <SelectValue placeholder="Rubrica" />
+                    </SelectTrigger>
+
+                    <SelectContent>
+                      <SelectItem value="all">Todas as rubricas</SelectItem>
+                      {(rubricas || [])
+                        .filter((r) => r?.ativo !== false)
+                        .map((r) => (
+                          <SelectItem key={r.id} value={r.id}>
+                            {r.rubrica || r.nome}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Select
+                    value={filters.centro_custo}
+                    onValueChange={(v) =>
+                      setFilters((f) => ({ ...f, centro_custo: v }))
+                    }
+                  >
+                    <SelectTrigger className="w-44">
+                      <SelectValue placeholder="Centro de custo" />
+                    </SelectTrigger>
+
+                    <SelectContent>
+                      <SelectItem value="all">Todos os centros</SelectItem>
+                      {centrosDisponiveis.map((centro) => (
+                        <SelectItem key={centro} value={centro}>
+                          {centro}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </>
+              )}
+            </div>
 
             <div className="mb-3 flex items-center justify-between">
               <p className="text-sm text-gray-500">
                 {filtered.length} solicitaç{filtered.length !== 1 ? 'ões' : 'ão'}
               </p>
+
               {isCoordenador && (
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={recalcularTodasRubricas}
                   disabled={recalculando}
-                  className="gap-2 text-xs border-amber-300 text-amber-700 hover:bg-amber-50"
+                  className="gap-2 border-amber-300 text-xs text-amber-700 hover:bg-amber-50"
                 >
                   <AlertTriangle className="h-3.5 w-3.5" />
                   {recalculando ? 'Recalculando...' : 'Recalcular Rubricas'}
@@ -1146,12 +1577,12 @@ function ComprasInner() {
               )}
             </div>
 
-            {isLoading ? (
-              <div className="py-16 text-center text-gray-400">Carregando...</div>
-            ) : filtered.length === 0 ? (
+            {filtered.length === 0 ? (
               <div className="rounded-2xl border-2 border-dashed border-gray-200 py-16 text-center">
                 <ShoppingCart className="mx-auto mb-3 h-12 w-12 text-gray-300" />
-                <p className="font-medium text-gray-400">Nenhuma solicitação encontrada</p>
+                <p className="font-medium text-gray-400">
+                  Nenhuma solicitação encontrada
+                </p>
               </div>
             ) : (
               <TabelaSolicitacoes
@@ -1166,7 +1597,10 @@ function ComprasInner() {
                 onApprove={handleApprovePurchase}
                 onReturn={handleReturnPurchase}
                 onUnapprove={handleUnapprovePurchase}
-                onAccess={(purchase) => { setEditingPurchase({ ...purchase }); setShowForm(true); }}
+                onAccess={(purchase) => {
+                  setEditingPurchase({ ...purchase });
+                  setShowForm(true);
+                }}
                 onDelete={handleDeletePurchase}
               />
             )}
@@ -1176,31 +1610,40 @@ function ComprasInner() {
         {tab === 'rubricas' && podeGerenciarRubricas && (
           <div className="space-y-6">
             {selectedRubrica ? (
-              <RubricaDetail rubrica={selectedRubrica} onClose={async () => { setSelectedRubrica(null); await refreshFinanceiroCompleto(); }} />
+              <RubricaDetail
+                rubrica={selectedRubrica}
+                onClose={async () => {
+                  setSelectedRubrica(null);
+                  await refreshFinanceiroCompleto();
+                }}
+              />
             ) : (
               <>
                 <div className="flex gap-2 border-b border-gray-200">
                   <button
                     onClick={() => setTab('rubricas-resumo')}
-                    className="px-4 py-2 font-medium text-sm text-gray-900 border-b-2 border-black"
+                    className="border-b-2 border-black px-4 py-2 text-sm font-medium text-gray-900"
                   >
                     Visão Consolidada
                   </button>
+
                   <button
                     onClick={() => setTab('rubricas-museus')}
-                    className="px-4 py-2 font-medium text-sm text-gray-500 border-b-2 border-transparent hover:text-gray-900"
+                    className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900"
                   >
                     Por Museu
                   </button>
+
                   <button
                     onClick={() => setTab('rubricas-performance')}
-                    className="px-4 py-2 font-medium text-sm text-gray-500 border-b-2 border-transparent hover:text-gray-900"
+                    className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900"
                   >
                     Performance
                   </button>
+
                   <button
                     onClick={() => setTab('rubricas-detalhe')}
-                    className="px-4 py-2 font-medium text-sm text-gray-500 border-b-2 border-transparent hover:text-gray-900"
+                    className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900"
                   >
                     Detalhe
                   </button>
@@ -1211,9 +1654,9 @@ function ComprasInner() {
                     <Button
                       type="button"
                       onClick={() => setShowNovaRubrica(true)}
-                      className="bg-black hover:bg-gray-800 text-white gap-2"
+                      className="gap-2 bg-black text-white hover:bg-gray-800"
                     >
-                      <Plus className="w-4 h-4" />
+                      <Plus className="h-4 w-4" />
                       Nova Rubrica
                     </Button>
                   </div>
@@ -1228,38 +1671,47 @@ function ComprasInner() {
                 />
               </>
             )}
-            {loadingRubricas && <div className="text-sm text-gray-400">Atualizando dados financeiros...</div>}
+
+            {fetchingRubricas && (
+              <div className="text-sm text-gray-400">
+                Atualizando dados financeiros...
+              </div>
+            )}
           </div>
         )}
 
         {tab === 'rubricas-museus' && podeGerenciarRubricas && (
           <div className="space-y-6">
-            <div className="flex gap-2 border-b border-gray-200 mb-4">
+            <div className="mb-4 flex gap-2 border-b border-gray-200">
               <button
                 onClick={() => setTab('rubricas')}
-                className="px-4 py-2 font-medium text-sm text-gray-500 border-b-2 border-transparent hover:text-gray-900"
+                className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900"
               >
                 Visão Consolidada
               </button>
+
               <button
                 onClick={() => setTab('rubricas-museus')}
-                className="px-4 py-2 font-medium text-sm text-gray-900 border-b-2 border-black"
+                className="border-b-2 border-black px-4 py-2 text-sm font-medium text-gray-900"
               >
                 Por Museu
               </button>
+
               <button
                 onClick={() => setTab('rubricas-performance')}
-                className="px-4 py-2 font-medium text-sm text-gray-500 border-b-2 border-transparent hover:text-gray-900"
+                className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900"
               >
                 Performance
               </button>
+
               <button
                 onClick={() => setTab('rubricas-detalhe')}
-                className="px-4 py-2 font-medium text-sm text-gray-500 border-b-2 border-transparent hover:text-gray-900"
+                className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900"
               >
                 Detalhe
               </button>
             </div>
+
             <RubricasByMuseuDashboard
               rubricas={rubricas}
               purchases={purchases}
@@ -1270,81 +1722,93 @@ function ComprasInner() {
 
         {tab === 'rubricas-performance' && podeGerenciarRubricas && (
           <div className="space-y-6">
-            <div className="flex gap-2 border-b border-gray-200 mb-4">
+            <div className="mb-4 flex gap-2 border-b border-gray-200">
               <button
                 onClick={() => setTab('rubricas')}
-                className="px-4 py-2 font-medium text-sm text-gray-500 border-b-2 border-transparent hover:text-gray-900"
+                className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900"
               >
                 Visão Consolidada
               </button>
+
               <button
                 onClick={() => setTab('rubricas-museus')}
-                className="px-4 py-2 font-medium text-sm text-gray-500 border-b-2 border-transparent hover:text-gray-900"
+                className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900"
               >
                 Por Museu
               </button>
+
               <button
                 onClick={() => setTab('rubricas-performance')}
-                className="px-4 py-2 font-medium text-sm text-gray-900 border-b-2 border-black"
+                className="border-b-2 border-black px-4 py-2 text-sm font-medium text-gray-900"
               >
                 Performance
               </button>
+
               <button
                 onClick={() => setTab('rubricas-detalhe')}
-                className="px-4 py-2 font-medium text-sm text-gray-500 border-b-2 border-transparent hover:text-gray-900"
+                className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900"
               >
                 Detalhe
               </button>
             </div>
-            <MuseuPerformanceDashboard
-              purchases={purchases}
-              rubricas={rubricas}
-            />
+
+            <MuseuPerformanceDashboard purchases={purchases} rubricas={rubricas} />
           </div>
         )}
 
         {tab === 'rubricas-detalhe' && podeGerenciarRubricas && (
           <div className="space-y-6">
-            <div className="flex gap-2 border-b border-gray-200 mb-4">
+            <div className="mb-4 flex gap-2 border-b border-gray-200">
               <button
                 onClick={() => setTab('rubricas')}
-                className="px-4 py-2 font-medium text-sm text-gray-500 border-b-2 border-transparent hover:text-gray-900"
+                className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900"
               >
                 Visão Consolidada
               </button>
+
               <button
                 onClick={() => setTab('rubricas-museus')}
-                className="px-4 py-2 font-medium text-sm text-gray-500 border-b-2 border-transparent hover:text-gray-900"
+                className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900"
               >
                 Por Museu
               </button>
+
               <button
                 onClick={() => setTab('rubricas-performance')}
-                className="px-4 py-2 font-medium text-sm text-gray-500 border-b-2 border-transparent hover:text-gray-900"
+                className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900"
               >
                 Performance
               </button>
+
               <button
                 onClick={() => setTab('rubricas-detalhe')}
-                className="px-4 py-2 font-medium text-sm text-gray-900 border-b-2 border-black"
+                className="border-b-2 border-black px-4 py-2 text-sm font-medium text-gray-900"
               >
                 Detalhe
               </button>
             </div>
+
             {!selectedRubrica && podeGerenciarRubricas && (
               <div className="flex justify-end">
                 <Button
                   type="button"
                   onClick={() => setShowNovaRubrica(true)}
-                  className="bg-black hover:bg-gray-800 text-white gap-2"
+                  className="gap-2 bg-black text-white hover:bg-gray-800"
                 >
-                  <Plus className="w-4 h-4" />
+                  <Plus className="h-4 w-4" />
                   Nova Rubrica
                 </Button>
               </div>
             )}
+
             {selectedRubrica ? (
-              <RubricaDetail rubrica={selectedRubrica} onClose={async () => { setSelectedRubrica(null); await refreshFinanceiroCompleto(); }} />
+              <RubricaDetail
+                rubrica={selectedRubrica}
+                onClose={async () => {
+                  setSelectedRubrica(null);
+                  await refreshFinanceiroCompleto();
+                }}
+              />
             ) : (
               <RubricasGrid
                 rubricas={rubricas}
@@ -1362,11 +1826,14 @@ function ComprasInner() {
             {isCoordenador && (
               <EntradaUnicaComprovante onSuccess={refreshFinanceiroCompleto} />
             )}
+
             <GestaoDocumental />
           </div>
         )}
 
-        {tab === 'equipe' && isCoordenador && <TeamManager budgetLines={budgetLines} />}
+        {tab === 'equipe' && isCoordenador && (
+          <TeamManager budgetLines={budgetLines} />
+        )}
 
         {tab === 'meus_pagamentos' && (
           <MeusPagamentosTab
@@ -1397,13 +1864,23 @@ function ComprasInner() {
         <PurchaseFormDialog
           currentUser={currentUser}
           prefill={editingPurchase}
-          onClose={() => { setShowForm(false); setEditingPurchase(null); }}
-          onSuccess={async () => { setShowForm(false); setEditingPurchase(null); await refreshFinanceiroCompleto(); }}
+          onClose={() => {
+            setShowForm(false);
+            setEditingPurchase(null);
+          }}
+          onSuccess={async () => {
+            setShowForm(false);
+            setEditingPurchase(null);
+            await refreshFinanceiroCompleto();
+          }}
         />
       )}
 
       {showReportGen && (
-        <ContractActivityReportGenerator isOpen={showReportGen} onClose={() => setShowReportGen(false)} />
+        <ContractActivityReportGenerator
+          isOpen={showReportGen}
+          onClose={() => setShowReportGen(false)}
+        />
       )}
 
       <NovaRubricaDialog
