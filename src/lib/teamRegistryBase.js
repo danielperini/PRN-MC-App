@@ -143,7 +143,7 @@ export const TEAM_REGISTRY_BASE = [
     area: 'Museus Centro',
   },
   {
-    nome: 'Lenado',
+    nome: 'Leandro Gabriel',
     funcao: 'Equipe Museus Centro',
     area: 'Museus Centro',
   },
@@ -169,4 +169,3 @@ export function buildTeamMemberFormPreset(email = '') {
     inicio_vinculo_referencia: item.inicio_vinculo_referencia || '',
   };
 }
-

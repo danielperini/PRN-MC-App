@@ -7,13 +7,6 @@ const REALIZACAO = [
   'Fundação Municipal de Cultura',
   'Diretoria de Museus - DEMUS',
   'Viaduto das Artes',
-  'Museus Centro',
-];
-
-const DEMUS = [
-  { nome: 'Diretoria de Museus - DEMUS', funcao: 'Direção institucional dos museus municipais · Fundação Municipal de Cultura' },
-  { nome: 'Coordenações dos equipamentos museológicos', funcao: 'Gestão pública dos museus · PBH/FMC' },
-  { nome: 'Equipes técnicas dos museus municipais', funcao: 'Acervo, educativo, difusão, pesquisa, documentação e atendimento ao público' },
 ];
 
 const EQUIPE_BASE = TEAM_REGISTRY_BASE.map((item) => {
@@ -33,36 +26,6 @@ const EQUIPE_BASE = TEAM_REGISTRY_BASE.map((item) => {
   };
 });
 
-const EQUIPAMENTOS = [
-  {
-    titulo: 'Museu Histórico Abílio Barreto - MHAB',
-    linhas: [
-      'Direção e equipe institucional · MHAB',
-      'Educativo, mediação e atendimento · MHAB',
-      'Acervo, pesquisa, documentação e difusão cultural · MHAB',
-      'Produção Museus Centro · MHAB',
-    ],
-  },
-  {
-    titulo: 'Museu da Imagem e do Som - MIS BH',
-    linhas: [
-      'Direção e equipe institucional · MIS BH',
-      'Educativo, mediação e atendimento · MIS BH',
-      'Audiovisual, memória da imagem e do som, documentação e difusão · MIS BH',
-      'Produção Museus Centro · MIS BH',
-    ],
-  },
-  {
-    titulo: 'Museu da Moda - MUMO',
-    linhas: [
-      'Direção e equipe institucional · MUMO',
-      'Educativo, mediação e atendimento · MUMO',
-      'Moda, memória urbana, documentação e difusão cultural · MUMO',
-      'Produção Museus Centro · MUMO',
-    ],
-  },
-];
-
 function normalizeRole(value = '') {
   const text = normalizeText(value);
   if (text.includes('coord')) return 'Coordenação';
@@ -79,6 +42,13 @@ function buildEquipe(contexto = {}) {
   const fromReports = reports.map((report) => {
     const nome = cleanText(report.autor || report.author_name || report.user_name || report.nome);
     if (!nome) return null;
+    if (normalizeText(nome).includes('claraassumpcao')) {
+      return {
+        nome: 'Clara Braga Assumpção',
+        funcao: 'Educadora · Museus Centro',
+        detalhes: [],
+      };
+    }
     const funcao = normalizeRole(report.funcao || report.role || report.cargo);
     const museu = getMuseuLabel(report.museu || report.equipamento || report.setor || 'Museus Centro');
     return {
@@ -112,39 +82,19 @@ export default function PremiumExpedienteSection({ contexto = {} }) {
         <p className="premium-eyebrow">Expediente</p>
         <h2>Uma publicação construída por muitas mãos</h2>
         <p>
-          Este relatório reconhece a dimensão coletiva do Museus Centro: a articulação entre gestão pública, equipes dos museus,
-          Viaduto das Artes, coordenações, educativo, produção, comunicação e profissionais que transformaram a rotina do projeto
-          em memória pública, acompanhamento técnico e presença cultural no território.
+          Este relatório reconhece a dimensão coletiva do Museus Centro: a articulação entre gestão pública, Viaduto das Artes,
+          coordenações, educativo, produção, comunicação e profissionais que transformaram a rotina do projeto em memória pública,
+          acompanhamento técnico e presença cultural no território.
         </p>
       </div>
 
       <div className="premium-expediente-grid">
-        <CreditBlock title="Realização">
+        <CreditBlock title="Projeto Museus Centro">
+          <p className="premium-expediente-lead">Realização</p>
           <ul className="premium-expediente-list">
             {REALIZACAO.map((item) => <li key={item}>{item}</li>)}
           </ul>
         </CreditBlock>
-
-        <CreditBlock title="Diretoria de Museus - DEMUS">
-          <div className="premium-expediente-people">
-            {DEMUS.map((item) => (
-              <article key={item.nome}>
-                <strong>{item.nome}</strong>
-                <span>{item.funcao}</span>
-              </article>
-            ))}
-          </div>
-        </CreditBlock>
-      </div>
-
-      <div className="premium-expediente-museums">
-        {EQUIPAMENTOS.map((grupo) => (
-          <CreditBlock title={grupo.titulo} key={grupo.titulo}>
-            <ul className="premium-expediente-list">
-              {grupo.linhas.map((linha) => <li key={linha}>{linha}</li>)}
-            </ul>
-          </CreditBlock>
-        ))}
       </div>
 
       <CreditBlock title="Equipe Museus Centro">

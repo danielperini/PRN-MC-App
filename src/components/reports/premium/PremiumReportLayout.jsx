@@ -12,6 +12,7 @@ import { getChapterIntro, getReportSummaryChapters } from '@/config/reportChapte
 import { buildDocumentsChapterData } from '@/utils/reportDocumentsChapter';
 import {
   cleanFileName,
+  dedupeReportActivities,
   extractPhotos,
   fmtBRL,
   fmtInt,
@@ -60,6 +61,7 @@ const CATALOG_CSS = `
   .premium-expediente-museums { grid-template-columns: repeat(3, minmax(0,1fr)); }
   .premium-expediente-block { border-top: 3px solid #171717; padding-top: 12px; break-inside: avoid; }
   .premium-expediente-block h3 { margin: 0 0 12px; font-size: 11px; text-transform: uppercase; letter-spacing: .14em; color: #5a534b; }
+  .premium-expediente-lead { margin: 0 0 8px; font-size: 13px; line-height: 1.45; font-weight: 700; color: #171717; }
   .premium-expediente-list { margin: 0; padding: 0; list-style: none; }
   .premium-expediente-list li { padding: 8px 0; border-bottom: 1px solid rgba(23,23,23,.12); font-size: 13px; line-height: 1.45; }
   .premium-expediente-people { display: grid; grid-template-columns: 1fr; gap: 8px; }
@@ -146,11 +148,14 @@ const CATALOG_CSS = `
   .premium-table td { padding: 14px; border-top: 1px solid rgba(23,23,23,.1); vertical-align: top; }
   .premium-table tbody tr:nth-child(even) td { background: rgba(23,23,23,.035); }
   .premium-finance-grid, .premium-audience-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; }
-  .catalog-toc { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px 18px; margin-top: 20px; counter-reset: toc; }
-  .catalog-toc li { list-style: none; border-bottom: 1px solid rgba(23,23,23,.14); padding: 8px 0; font-size: 12px; display: flex; justify-content: space-between; gap: 12px; counter-increment: toc; }
-  .catalog-toc li::before { content: counter(toc, decimal-leading-zero); color: #9f7f4d; font-weight: 800; margin-right: 10px; }
+  .catalog-toc { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px 22px; margin-top: 20px; padding: 0; counter-reset: toc; }
+  .catalog-toc li { list-style: none; display: grid; grid-template-columns: 42px 1fr; column-gap: 14px; align-items: start; border-bottom: 1px solid rgba(23,23,23,.14); padding: 9px 0; break-inside: avoid; page-break-inside: avoid; counter-increment: toc; }
+  .catalog-toc li::before { content: counter(toc, decimal-leading-zero); color: #9f7f4d; font-weight: 800; text-align: right; font-size: 11px; letter-spacing: .08em; }
+  .catalog-toc li.toc-annex::before { content: "AN"; counter-increment: none; }
+  .catalog-toc strong { display: block; font-size: 13px; line-height: 1.25; }
+  .catalog-toc span { display: block; margin-top: 3px; font-size: 11.5px; line-height: 1.35; color: #5f5f5f; }
   .premium-month-grid { display: grid; grid-template-columns: 1fr; gap: 22px; margin-top: 24px; }
-  .premium-month-card { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; border: 1px solid rgba(23,23,23,.18); border-top: 6px solid #171717; background: rgba(255,255,255,.58); padding: 24px; break-inside: avoid; min-height: 154mm; }
+  .premium-month-card { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; border: 1px solid rgba(23,23,23,.18); border-top: 6px solid #171717; background: rgba(255,255,255,.58); padding: 24px; break-inside: auto; page-break-inside: auto; min-height: auto; }
   .premium-month-card h3 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 30px; line-height: 1.02; font-weight: 500; letter-spacing: 0; }
   .premium-month-card p { margin: 0 0 12px; font-size: 14px; line-height: 1.72; color: #333; }
   .premium-month-card .premium-card-footnote { margin-top: 4px; color: #5f574f; font-size: 13px; line-height: 1.55; }
@@ -179,6 +184,7 @@ const CATALOG_CSS = `
   .premium-method-card p, .premium-method-card li { margin: 0; font-size: 12px; line-height: 1.55; color: #4d463f; }
   .premium-method-card ul { margin: 0; padding-left: 18px; }
   .premium-method-card li + li { margin-top: 4px; }
+  .premium-audience-note { grid-column: 1 / -1; }
   .premium-evidence-links { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(23,23,23,.12); display: flex; flex-wrap: wrap; gap: 7px; }
   .premium-evidence-links a { color: #171717; border: 1px solid rgba(23,23,23,.18); padding: 5px 7px; font-size: 10.5px; text-decoration: none; background: rgba(255,255,255,.42); }
   .premium-institutional-list { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; margin-top: 18px; }
@@ -468,24 +474,35 @@ function composeIntro(textos = {}) {
 }
 
 function TableOfContents({ secoesSelecionadas = [] }) {
-  const chapters = getReportSummaryChapters(secoesSelecionadas).map((chapter) => [
-    chapter.title,
-    chapter.summaryDescription || chapter.group,
-  ]);
+  const chapters = getReportSummaryChapters(secoesSelecionadas).map((chapter) => ({
+    title: chapter.title,
+    detail: chapter.summaryDescription || chapter.group,
+    isAnnex: false,
+  }));
+  const items = hasSection(secoesSelecionadas, 'relatorios_completos')
+    ? [
+        ...chapters,
+        {
+          title: 'Anexos — Relatórios Individuais',
+          detail: 'Relatórios individuais preservados como base documental complementar.',
+          isAnnex: true,
+        },
+      ]
+    : chapters;
 
   return (
     <PremiumSection
       breakBefore
       eyebrow="Mapa de leitura"
       title="Sumário"
-      subtitle="Capítulos organizados para leitura institucional, conferência técnica e exportação profissional em PDF."
-      text="O relatório foi reorganizado como catálogo-livro: começa pela narrativa institucional, passa por indicadores e agenda, aproxima atividades de suas evidências visuais, consolida relatórios de equipe e encerra com orçamento, prestação de contas e governança dos dados."
     >
       <ol className="catalog-toc">
-        {chapters.map(([title, detail]) => (
-          <li key={title}>
-            <strong>{title}</strong>
-            <span>{detail}</span>
+        {items.map((item) => (
+          <li key={item.title} className={item.isAnnex ? 'toc-annex' : undefined}>
+            <div>
+              <strong>{item.title}</strong>
+              {item.detail ? <span>{item.detail}</span> : null}
+            </div>
           </li>
         ))}
       </ol>
@@ -850,7 +867,6 @@ function isRecurringMediatedVisit(item = {}) {
   return text.includes('visita mediada') ||
     text.includes('visitas mediadas') ||
     text.includes('visita guiada') ||
-    text.includes('rotina') ||
     text.includes('atendimento educativo recorrente');
 }
 
@@ -858,9 +874,25 @@ function agendaSemanticKey(item = {}) {
   const museu = normalizeText(getMuseuLabel(item.museu || item.equipamento || item.local));
   const month = normalizeText(getMonthName(item));
   const title = normalizeText(item.titulo || item.nome || 'atividade');
+  const day = String(item.data || item.data_inicio || '').slice(0, 10) || month;
 
   if (isCommunicationRecord(item)) return 'comunicacao-institucional::periodo';
   if (isRecurringMediatedVisit(item)) return `visitas-mediadas::${museu}::${month}`;
+  if (title.includes('argila') && title.includes('movimento') && title.includes('poetic')) {
+    return `laboratorio-argila-movimento::${museu}::${day}`;
+  }
+  if (title.includes('mulheres') && title.includes('ecoam') && title.includes('historia')) {
+    return `museu-criativo-mulheres-ecoam::${museu}::${day}`;
+  }
+  if (title.includes('pintando') && title.includes('tempo')) {
+    return `museu-criativo-pintando-tempo::${museu}::${day}`;
+  }
+  if (title.includes('criacao') && title.includes('cenario')) {
+    return `oficina-criacao-cenarios::${museu}::${day}`;
+  }
+  if (title.includes('costurando') && title.includes('bem querer')) {
+    return `oficina-costurando-bem-querer::${museu}::${day}`;
+  }
   if (title.includes('laboratorio poetico') || title.includes('laboratório poético') || title.includes('argilas e movimentos')) {
     return `laboratorios-poeticos::${museu}::${month}`;
   }
@@ -1142,7 +1174,7 @@ function buildInstitutionalExpansion(item = {}) {
 function ActivityNarrative({ item }) {
   const sourceParagraphs = Array.isArray(item.textosConsolidados) && item.textosConsolidados.length > 0
     ? item.textosConsolidados
-    : [splitParagraphs(item.texto, 1)[0] || 'Registro recuperado da programação ou dos relatórios aprovados no app.'];
+    : [splitParagraphs(item.texto, 1)[0]].filter(Boolean);
   const reportParagraphs = Array.isArray(item.relatosEquipe) ? item.relatosEquipe : [];
   const paragraphs = uniqueParagraphs([
     ...sourceParagraphs,
@@ -1831,6 +1863,9 @@ function ComprasTable({ contexto }) {
 function AudienceBreakdown({ contexto }) {
   const porMes = buildAudienceMonthRows(contexto);
   const porMuseu = Array.isArray(contexto?.publico_por_museu) ? contexto.publico_por_museu : Object.values(contexto?.por_museu || {});
+  const totalMes = porMes.reduce((sum, item) => sum + toNumber(item.total), 0);
+  const totalMuseu = porMuseu.reduce((sum, item) => sum + toNumber(item.total ?? item.publico), 0);
+  const hasAudienceDivergence = totalMes > 0 && totalMuseu > 0 && totalMes !== totalMuseu;
 
   return (
     <div className="premium-audience-grid">
@@ -1877,6 +1912,12 @@ function AudienceBreakdown({ contexto }) {
           </table>
         </div>
       </div>
+      {hasAudienceDivergence ? (
+        <div className="premium-method-card premium-audience-note">
+          <strong>Nota metodológica sobre público</strong>
+          <p>Os indicadores de público distinguem registros de atividades datadas no período e consolidações por museu quando estas decorrem de fontes diferentes no app. A divergência entre totais deve ser explicitada ou corrigida conforme a fonte de consolidação adotada.</p>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -2141,7 +2182,21 @@ function hasSection(selected = [], ...ids) {
   return ids.some((id) => selected.includes(id));
 }
 
-export default function PremiumReportLayout({ contexto = {}, textos = {}, filtros = {}, secoesSelecionadas = [] }) {
+export default function PremiumReportLayout({ contexto: rawContexto = {}, textos = {}, filtros = {}, secoesSelecionadas = [] }) {
+  const atividades = dedupeReportActivities(safeArray(rawContexto.atividades));
+  const activities = dedupeReportActivities(safeArray(rawContexto.activities));
+  const programacao = dedupeReportActivities(safeArray(rawContexto.programacao));
+  const programacoes = dedupeReportActivities(safeArray(rawContexto.programacoes));
+  const atividadesConsolidadas = dedupeReportActivities([...atividades, ...activities, ...programacao, ...programacoes]);
+  const contexto = {
+    ...rawContexto,
+    atividades,
+    activities,
+    programacao,
+    programacoes,
+    total_atividades: atividadesConsolidadas.length || rawContexto.total_atividades,
+  };
+
   return (
     <main className="premium-report">
       <ReportPdfInstitutionalHeader />

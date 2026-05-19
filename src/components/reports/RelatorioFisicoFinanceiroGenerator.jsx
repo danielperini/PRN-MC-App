@@ -669,7 +669,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
               <p className="text-sm font-medium text-green-800">Relatório gerado com sucesso!</p>
               <p className="text-xs text-green-700 mt-1">
                 {resultado.fonte === 'premium_app'
-                  ? 'Gerado no modo catálogo-livro institucional, usando dados reais do app e refinamento textual por IA.'
+                  ? 'Gerado no modo relatório institucional, usando dados reais do app e refinamento textual editorial.'
                   : resultado.fonte === 'backend'
                     ? 'Gerado pela função gerarRelatorioFisicoFinanceiro.'
                     : 'Gerado no frontend com dados reais do app, fotos vinculadas e refinamento textual por IA.'}
