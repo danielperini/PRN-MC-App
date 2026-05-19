@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { appParams } from '@/lib/app-params';
 import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
 import { validateUserAccess, recoverExistingUserAccess, normalizeEmail } from '@/utils/auth/recoverExistingUserAccess';
+import { trackUserLoginOnce } from '@/lib/userLoginMonitoring';
 
 const AuthContext = createContext();
 
@@ -63,6 +64,7 @@ export const AuthProvider = ({ children }) => {
               setUser(recovery.user);
               setIsAuthenticated(true);
               setAuthError(null);
+              trackUserLoginOnce(recovery.user);
             } else {
               setAuthError({
                 type: 'user_not_registered',
@@ -113,9 +115,11 @@ export const AuthProvider = ({ children }) => {
 
       const access = await validateUserAccess({ ...currentUser, email: normalizedEmail }, { origin: 'auth-context' });
       if (access.allowed) {
-        setUser(access.user || { ...currentUser, email: normalizedEmail });
+        const authenticatedUser = access.user || { ...currentUser, email: normalizedEmail };
+        setUser(authenticatedUser);
         setIsAuthenticated(true);
         setIsLoadingAuth(false);
+        trackUserLoginOnce(authenticatedUser);
         return;
       }
 
@@ -132,9 +136,11 @@ export const AuthProvider = ({ children }) => {
         return;
       }
 
-      setUser(currentUser);
+      const authenticatedUser = { ...currentUser, email: normalizedEmail };
+      setUser(authenticatedUser);
       setIsAuthenticated(true);
       setIsLoadingAuth(false);
+      trackUserLoginOnce(authenticatedUser);
     } catch (error) {
       console.error('User auth check failed:', error);
       setIsLoadingAuth(false);

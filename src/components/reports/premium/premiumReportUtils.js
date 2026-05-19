@@ -269,6 +269,98 @@ export function uniqueBy(items = [], keyFn = (item) => item?.id || item?.url || 
   });
 }
 
+export function getPhotoIdentity(photo = {}) {
+  return cleanText(
+    photo?.id ||
+    photo?.attachment_id ||
+    photo?.attachmentId ||
+    photo?.arquivo_original_url ||
+    photo?.original_url ||
+    photo?.link ||
+    photo?.url ||
+    photo?.file_url ||
+    photo?.src ||
+    [
+      photo?.fileName || photo?.file_name || photo?.name || '',
+      photo?.created_date || photo?.updated_date || photo?.mes || '',
+      photo?.atividade || photo?.atividade_nome || photo?.titulo || '',
+    ].filter(Boolean).join('::')
+  );
+}
+
+export function prepareInlineAndGalleryPhotos(allPhotos = [], selectedInlinePhotoIds = []) {
+  const selectedSet = new Set((Array.isArray(selectedInlinePhotoIds) ? selectedInlinePhotoIds : []).filter(Boolean));
+  const inlinePhotos = [];
+  const galleryPhotos = [];
+  const seenInline = new Set();
+  const seenGallery = new Set();
+
+  (Array.isArray(allPhotos) ? allPhotos : []).forEach((photo) => {
+    const key = getPhotoIdentity(photo);
+    if (!key) return;
+
+    if (selectedSet.has(key)) {
+      if (seenInline.has(key)) return;
+      seenInline.add(key);
+      inlinePhotos.push(photo);
+      return;
+    }
+
+    if (seenGallery.has(key)) return;
+    seenGallery.add(key);
+    galleryPhotos.push(photo);
+  });
+
+  return {
+    selectedSet,
+    inlinePhotos,
+    galleryPhotos,
+  };
+}
+
+export function groupGalleryPhotosByMuseumMonthActivity(galleryPhotos = []) {
+  const museumMap = new Map();
+
+  (Array.isArray(galleryPhotos) ? galleryPhotos : []).forEach((photo) => {
+    const museumRaw = cleanText(photo?.museu || photo?.museum || '');
+    const monthRaw = cleanText(photo?.mes || photo?.month || '');
+    const activityRaw = cleanText(photo?.atividade || photo?.atividade_nome || photo?.titulo_atividade || photo?.titulo || '');
+
+    const museum = museumRaw || 'Fotos sem classificação completa';
+    const month = monthRaw || 'Período sem classificação';
+    const activity = activityRaw || 'Fotos sem atividade vinculada';
+
+    if (!museumMap.has(museum)) museumMap.set(museum, new Map());
+    const monthMap = museumMap.get(museum);
+    if (!monthMap.has(month)) monthMap.set(month, new Map());
+    const activityMap = monthMap.get(month);
+    if (!activityMap.has(activity)) activityMap.set(activity, []);
+
+    const list = activityMap.get(activity);
+    const key = getPhotoIdentity(photo);
+    if (!list.some((item) => getPhotoIdentity(item) === key)) {
+      list.push(photo);
+    }
+  });
+
+  return Array.from(museumMap.entries())
+    .map(([museu, monthMap]) => ({
+      museu,
+      months: Array.from(monthMap.entries())
+        .map(([mes, activityMap]) => ({
+          mes,
+          activities: Array.from(activityMap.entries())
+            .map(([atividade, photos]) => ({
+              atividade,
+              photos,
+            }))
+            .sort((a, b) => a.atividade.localeCompare(b.atividade, 'pt-BR')),
+        }))
+        .sort((a, b) => a.mes.localeCompare(b.mes, 'pt-BR')),
+    }))
+    .sort((a, b) => a.museu.localeCompare(b.museu, 'pt-BR'));
+}
+
 export function extractPhotos(contexto = {}, limit = 36) {
   const fromContext = Array.isArray(contexto.fotos) ? contexto.fotos : [];
   const fromActivities = (Array.isArray(contexto.atividades) ? contexto.atividades : [])

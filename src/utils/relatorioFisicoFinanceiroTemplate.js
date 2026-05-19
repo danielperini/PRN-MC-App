@@ -1,3 +1,6 @@
+import { getReportSummaryChapters } from '@/config/reportChapters';
+import { buildDocumentsChapterData } from '@/utils/reportDocumentsChapter';
+
 const TOTAL_OFICIAL = 1320000;
 
 const memoriaRedacional = new Set();
@@ -475,24 +478,114 @@ function formatDateBR(value) {
   return raw.slice(0, 10);
 }
 
+function renderDocumentLinkHtml(url, label) {
+  if (!url) return '<span>Link indisponível</span>';
+  return `<a class="document-link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`;
+}
+
+function renderDocumentsChapterHTML(contexto = {}) {
+  const docs = buildDocumentsChapterData(contexto);
+  const contracts = Array.isArray(docs.contracts) ? docs.contracts : [];
+  const fiscalDocuments = Array.isArray(docs.fiscalDocuments) ? docs.fiscalDocuments : [];
+  const limitations = Array.isArray(docs.limitations) ? docs.limitations : [];
+
+  const contractRows = contracts.map((item, index) => `
+    <tr>
+      <td>${index + 1}</td>
+      <td>${escapeHtml(item.fileName || 'Arquivo sem nome')}</td>
+      <td>${escapeHtml(item.personSupplier || '-')}</td>
+      <td>${escapeHtml(item.entityLabel || '-')}</td>
+      <td>${escapeHtml(formatDateBR(item.date))}</td>
+      <td>${escapeHtml(item.tipo || 'Contrato')}</td>
+      <td>${renderDocumentLinkHtml(item.url, 'Abrir contrato')}</td>
+    </tr>
+  `).join('');
+
+  const fiscalRows = fiscalDocuments.map((item, index) => `
+    <tr>
+      <td>${index + 1}</td>
+      <td>${escapeHtml(item.fileName || 'Arquivo sem nome')}</td>
+      <td>${escapeHtml(item.personSupplier || '-')}</td>
+      <td>${escapeHtml(item.invoiceNumber || '-')}</td>
+      <td class="num">${item.value > 0 ? fmtBRL(item.value) : '-'}</td>
+      <td>${escapeHtml(formatDateBR(item.date))}</td>
+      <td>${escapeHtml(item.tipo || 'Documento fiscal')}</td>
+      <td>${escapeHtml(item.entityLabel || '-')}</td>
+      <td>${renderDocumentLinkHtml(item.url, 'Abrir arquivo')}</td>
+    </tr>
+  `).join('');
+
+  return `
+    <div class="secao">
+      <h2>Notas fiscais e contratos</h2>
+      <p>Este capítulo reúne os arquivos documentais utilizados para sustentar a prestação de contas do período, organizando contratos e documentos fiscais a partir dos registros disponíveis no app. A listagem considera os documentos vinculados à Gestão Documental, à Entrada Única, às solicitações de compras, aos pagamentos de equipe e aos anexos relacionados. Os links são apresentados para facilitar a rastreabilidade entre execução operacional, documentação fiscal e comprovação institucional.</p>
+
+      <div class="destaque-box">
+        <p><strong>Como os documentos foram obtidos</strong></p>
+        <p>Os arquivos listados foram identificados a partir dos registros disponíveis no app, considerando documentos enviados pela Entrada Única, anexos da Gestão Documental, vínculos com solicitações financeiras, pagamentos de equipe e campos específicos de contratos, notas fiscais, XMLs, recibos e comprovantes. Quando um mesmo arquivo aparece em mais de uma origem, a listagem consolida o documento uma única vez para evitar duplicidade.</p>
+      </div>
+
+      ${limitations.length > 0 ? `
+      <div class="destaque-box">
+        <p><strong>Limitações da listagem</strong></p>
+        <ul>
+          ${limitations.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}
+        </ul>
+      </div>` : ''}
+
+      <h3>Contratos em PDF</h3>
+      <p>Lista de contratos localizados nos documentos do app para o período ou vinculados à equipe, fornecedores, solicitações ou registros documentais.</p>
+      ${contracts.length === 0 ? `
+        <p class="empty-section">Não foram localizados contratos em PDF vinculados ao período ou aos registros documentais disponíveis no app.</p>
+      ` : `
+        <div class="table-scroll">
+          <table class="editorial-table documents-table">
+            <thead>
+              <tr>
+                <th>Nº</th>
+                <th>Nome do arquivo</th>
+                <th>Pessoa/fornecedor/equipe</th>
+                <th>Vínculo no app</th>
+                <th>Data de envio ou criação</th>
+                <th>Tipo</th>
+                <th>Link</th>
+              </tr>
+            </thead>
+            <tbody>${contractRows}</tbody>
+          </table>
+        </div>
+      `}
+
+      <h3>Notas fiscais e documentos fiscais</h3>
+      <p>Lista de notas fiscais, XMLs, recibos e comprovantes localizados nos documentos do app e vinculados às solicitações financeiras, pagamentos de equipe ou registros da Entrada Única.</p>
+      ${fiscalDocuments.length === 0 ? `
+        <p class="empty-section">Não foram localizadas notas fiscais ou documentos fiscais vinculados ao período ou aos registros documentais disponíveis no app.</p>
+      ` : `
+        <div class="table-scroll">
+          <table class="editorial-table documents-table">
+            <thead>
+              <tr>
+                <th>Nº</th>
+                <th>Nome do arquivo</th>
+                <th>Fornecedor/emissor</th>
+                <th>Nº da NF</th>
+                <th>Valor</th>
+                <th>Data de emissão ou envio</th>
+                <th>Tipo</th>
+                <th>Vínculo no app</th>
+                <th>Link</th>
+              </tr>
+            </thead>
+            <tbody>${fiscalRows}</tbody>
+          </table>
+        </div>
+      `}
+    </div>
+  `;
+}
+
 function renderLegacySumario(secoesSelecionadas) {
-  const items = [
-    ['introducao', 'Introdução Institucional'],
-    ['territorio', 'Território e Contexto Cultural'],
-    ['resumo_geral', 'Resumo Geral e Indicadores'],
-    ['publico', 'Público Alcançado'],
-    ['metas', 'Metas do 3º Aditivo'],
-    ['programacao', 'Agenda e Programação'],
-    ['atividades_museu', 'Atividades por Museu e Eixo'],
-    ['relatorios_completos', 'Relatórios das Equipes'],
-    ['galeria_evidencias', 'Galeria e Evidências'],
-    ['comunicacao', 'Comunicação e Visibilidade'],
-    ['financeiro', 'Execução Financeira'],
-    ['rubricas', 'Rubricas Orçamentárias'],
-    ['prestacao', 'Prestação de Contas'],
-    ['app_museu_centro', 'Museu Centro APP'],
-    ['conclusao', 'Conclusão'],
-  ].filter(([id]) => legacyHasSection(secoesSelecionadas, id));
+  const items = getReportSummaryChapters(secoesSelecionadas).map((chapter) => [chapter.id, chapter.title]);
 
   if (!items.length) return '';
 
@@ -1515,6 +1608,22 @@ export function montarHtmlRelatorioFisicoFinanceiro({
 
   .editorial-table tr:last-child td { border-bottom: 0; }
   .editorial-table tr:hover td { background: #fafafa; }
+  .documents-table {
+    width: 100%;
+    max-width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+  }
+  .documents-table th,
+  .documents-table td {
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    vertical-align: top;
+  }
+  .document-link {
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
 
   .act-name { font-weight: 600; color: var(--ink); }
 
@@ -2402,6 +2511,10 @@ export function montarHtmlRelatorioFisicoFinanceiro({
         <p>A rastreabilidade do relatório depende da convergência entre relatórios aprovados, fotos, notas fiscais, rubricas, programação e registros de compras mantidos no Museu Centro APP.</p>
       </div>
     </div>
+  ` : ''}
+
+  ${legacyHasSection(secoesSelecionadas, 'notas-fiscais-contratos') ? `
+    ${renderDocumentsChapterHTML(contexto)}
   ` : ''}
 
   ${legacyHasSection(secoesSelecionadas, 'app_museu_centro') ? `

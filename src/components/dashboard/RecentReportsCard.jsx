@@ -21,7 +21,7 @@ export default function RecentReportsCard({ reports = [] }) {
         <FileText className="w-10 h-10 text-gray-300 mx-auto mb-3" />
         <p className="text-gray-500 font-medium">Nenhum relatório ainda</p>
         <p className="text-sm text-gray-400 mt-1">Comece criando seu primeiro relatório</p>
-        <Link to={createPageUrl('ReportEditor')}>
+        <Link to={createPageUrl('ReportEditor?novo=1')}>
           <Button variant="outline" className="mt-4 border-black text-black hover:bg-black hover:text-white">
             Criar Relatório
           </Button>

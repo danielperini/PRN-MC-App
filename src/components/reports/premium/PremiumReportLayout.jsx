@@ -5,15 +5,17 @@ import PremiumExpedienteSection from './PremiumExpedienteSection';
 import PremiumSection from './PremiumSection';
 import PremiumMetrics from './PremiumMetrics';
 import PremiumTimeline from './PremiumTimeline';
-import PremiumGallery from './PremiumGallery';
 import PremiumMuseumSection from './PremiumMuseumSection';
 import PremiumCommunicationSection from './PremiumCommunicationSection';
 import PremiumClosingSection from './PremiumClosingSection';
+import { getChapterIntro, getReportSummaryChapters } from '@/config/reportChapters';
+import { buildDocumentsChapterData } from '@/utils/reportDocumentsChapter';
 import {
   cleanFileName,
   extractPhotos,
   fmtBRL,
   fmtInt,
+  getPhotoIdentity,
   getActivityDate,
   getActivityMeta,
   getActivityPublico,
@@ -21,6 +23,8 @@ import {
   getActivityTitle,
   getMuseuLabel,
   normalizeText,
+  prepareInlineAndGalleryPhotos,
+  groupGalleryPhotosByMuseumMonthActivity,
   sanitizeReportText,
   splitParagraphs,
   toNumber,
@@ -169,6 +173,12 @@ const CATALOG_CSS = `
   .premium-card-footer { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; padding-top: 12px; border-top: 1px solid rgba(23,23,23,.14); }
   .premium-card-footer span { font-size: 11.5px; line-height: 1.4; color: #5b554d; }
   .premium-card-footer strong { display: block; margin-bottom: 3px; color: #171717; text-transform: uppercase; letter-spacing: .09em; font-size: 10px; }
+  .premium-method-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; margin-top: 18px; margin-bottom: 18px; }
+  .premium-method-card { border: 1px solid rgba(23,23,23,.14); background: rgba(255,255,255,.54); padding: 14px; break-inside: avoid; }
+  .premium-method-card strong { display: block; margin-bottom: 6px; color: #171717; font-size: 10.5px; text-transform: uppercase; letter-spacing: .09em; }
+  .premium-method-card p, .premium-method-card li { margin: 0; font-size: 12px; line-height: 1.55; color: #4d463f; }
+  .premium-method-card ul { margin: 0; padding-left: 18px; }
+  .premium-method-card li + li { margin-top: 4px; }
   .premium-evidence-links { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(23,23,23,.12); display: flex; flex-wrap: wrap; gap: 7px; }
   .premium-evidence-links a { color: #171717; border: 1px solid rgba(23,23,23,.18); padding: 5px 7px; font-size: 10.5px; text-decoration: none; background: rgba(255,255,255,.42); }
   .premium-institutional-list { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; margin-top: 18px; }
@@ -243,6 +253,9 @@ const CATALOG_CSS = `
   .premium-purchase-section { margin-top: 22px; break-inside: avoid; }
   .premium-purchase-section h3 { margin: 0 0 8px; font-family: Georgia, "Times New Roman", serif; font-size: 24px; font-weight: 500; }
   .premium-purchase-section p { margin: 0 0 12px; font-size: 12.5px; line-height: 1.55; color: #4d463f; }
+  .documents-table { width: 100%; max-width: 100%; table-layout: fixed; border-collapse: collapse; }
+  .documents-table th, .documents-table td { word-break: break-word; overflow-wrap: anywhere; vertical-align: top; }
+  .document-link { word-break: break-word; overflow-wrap: anywhere; }
 
   @media print {
     body { background: #fff; }
@@ -333,6 +346,107 @@ function buildMetaCards(contexto = {}) {
   });
 }
 
+function getChapterDataSources(chapterId) {
+  const sources = {
+    introducao: ['relatórios aprovados', 'configuração do período', 'cadastros de museu e equipe'],
+    indicadores: ['Report', 'Programação consolidada', 'Rubrica', 'PurchaseRequest', 'Attachment'],
+    programacao: ['Programação do app', 'relatórios aprovados', 'atividades vinculadas'],
+    agenda: ['Programação consolidada', 'datas registradas', 'relatórios aprovados'],
+    atividades: ['atividades internas do relatório', 'relatórios aprovados', 'campos de público, meta e status'],
+    relatorios: ['Report', 'textos narrativos aprovados', 'vínculos por museu, mês e autoria'],
+    galeria: ['Attachment', 'fotos vinculadas às atividades', 'metadados de crédito, legenda e localização'],
+    financeiro: ['Rubrica', 'PurchaseRequest', 'TeamPayment', 'DocumentIntake e anexos pareados'],
+    governanca: ['módulos do app', 'campos completos e incompletos', 'vínculos entre relatórios, documentos e rubricas'],
+  };
+
+  return sources[chapterId] || ['dados consolidados do aplicativo'];
+}
+
+function getChapterMethodologyBox(chapterId, contexto = {}) {
+  const reportCount = fmtInt(contexto?.total_relatorios || 0);
+  const activityCount = fmtInt(contexto?.total_atividades || 0);
+  const purchaseCount = fmtInt(contexto?.total_compras || 0);
+  const photoCount = fmtInt((Array.isArray(contexto?.fotos) ? contexto.fotos.length : 0));
+
+  const criteria = {
+    introducao: 'O recorte considera o período institucional configurado no gerador e a leitura integrada dos registros aprovados disponíveis no app, sem incorporar dados externos ao sistema.',
+    indicadores: `Os indicadores reúnem ${reportCount} relatórios, ${activityCount} atividades e ${purchaseCount} movimentações financeiras consolidadas no período, priorizando registros aprovados e campos efetivamente preenchidos.`,
+    programacao: 'A consolidação preserva a ordem das ações cadastradas, cruza programação e relatórios de equipe e explicita quando há ausência de agenda vinculada ou descrição insuficiente.',
+    agenda: 'Registros recorrentes e visitas fragmentadas são agrupados por equivalência semântica, mantendo data, museu, público e origem documental sempre que existirem.',
+    atividades: 'As atividades são apresentadas em texto por padrão. Fotos só entram no corpo da atividade quando foram vinculadas no app e selecionadas explicitamente antes da exportação.',
+    relatorios: 'A seção utiliza autoria, função, mês, museu e trechos aprovados, evitando repetição integral dos documentos e preservando a rastreabilidade narrativa.',
+    galeria: `A galeria final recebe apenas fotografias não selecionadas para o corpo das atividades. O conjunto atual reúne ${photoCount} registros visuais deduplicados por identidade técnica.`,
+    financeiro: 'A leitura financeira separa orçamento, rubricas, solicitações e pagamentos. Quando um documento não está pareado a uma solicitação ou pagamento, a limitação é preservada no texto metodológico.',
+    governanca: 'Os blocos de governança apresentam a qualidade dos vínculos entre módulos, destacando completude, rastreabilidade e campos pendentes sem preencher artificialmente lacunas.',
+  };
+
+  return criteria[chapterId] || 'A consolidação foi realizada exclusivamente a partir dos dados verificáveis existentes no aplicativo.';
+}
+
+function getChapterLimitations(chapterId, contexto = {}) {
+  const limitations = [];
+
+  if ((chapterId === 'galeria' || chapterId === 'atividades') && (!Array.isArray(contexto?.fotos) || contexto.fotos.length === 0)) {
+    limitations.push('Não há fotos suficientes vinculadas no app para ampliar a camada visual deste capítulo.');
+  }
+
+  if ((chapterId === 'indicadores' || chapterId === 'atividades') && toNumber(contexto?.publico_total) <= 0) {
+    limitations.push('A ausência de público consolidado no recorte impede leituras comparativas mais densas.');
+  }
+
+  if (chapterId === 'financeiro' && (!Array.isArray(contexto?.compras) || contexto.compras.length === 0)) {
+    limitations.push('Não foram localizadas movimentações financeiras suficientes para detalhamento operacional no recorte selecionado.');
+  }
+
+  if ((chapterId === 'programacao' || chapterId === 'agenda') && (!Array.isArray(contexto?.programacao) || contexto.programacao.length === 0)) {
+    limitations.push('A agenda do período não está completamente consolidada no app para este recorte.');
+  }
+
+  if (chapterId === 'governanca') {
+    const incompletePhotos = extractPhotos(contexto, 240).filter((photo) => !photo?.atividade || !photo?.museu);
+    if (incompletePhotos.length > 0) {
+      limitations.push(`${fmtInt(incompletePhotos.length)} imagens permanecem sem classificação completa de atividade ou museu.`);
+    }
+  }
+
+  return limitations;
+}
+
+function ChapterMethodologyPanel({ chapterId, contexto = {}, evidence = [] }) {
+  const sources = getChapterDataSources(chapterId);
+  const limitations = getChapterLimitations(chapterId, contexto);
+  const evidenceTypes = (Array.isArray(evidence) ? evidence : []).filter(Boolean);
+
+  return (
+    <div className="premium-method-grid">
+      <article className="premium-method-card">
+        <strong>Como este dado foi obtido</strong>
+        <p>Fonte dos dados: {sources.join(', ')}.</p>
+      </article>
+      <article className="premium-method-card">
+        <strong>Critério de consolidação</strong>
+        <p>{getChapterMethodologyBox(chapterId, contexto)}</p>
+      </article>
+      {evidenceTypes.length > 0 ? (
+        <article className="premium-method-card">
+          <strong>Evidências utilizadas</strong>
+          <ul>
+            {evidenceTypes.map((item) => <li key={item}>{item}</li>)}
+          </ul>
+        </article>
+      ) : null}
+      {limitations.length > 0 ? (
+        <article className="premium-method-card">
+          <strong>Pendências e limitações</strong>
+          <ul>
+            {limitations.map((item) => <li key={item}>{item}</li>)}
+          </ul>
+        </article>
+      ) : null}
+    </div>
+  );
+}
+
 function composeIntro(textos = {}) {
   const blocked = [
     'este relatório cobre o período de 2 de fevereiro',
@@ -353,19 +467,11 @@ function composeIntro(textos = {}) {
   return [INTRODUCAO_PERIODO, ...extra].join('\n\n');
 }
 
-function TableOfContents() {
-  const chapters = [
-    ['Expediente', 'Reconhecimento institucional das equipes, realização e museus participantes'],
-    ['Introdução', 'Transição de coordenação, estabilização e leitura institucional'],
-    ['Indicadores e público', 'Atividades, público espontâneo, visitas agendadas e metas'],
-    ['Programação e atividades do período', 'Agenda completa de fevereiro, março e abril'],
-    ['Ações por museu', 'MHAB, MIS, MUMO e atuação geral com fotos vinculadas'],
-    ['Comunicação, registros e evidências', 'Notícias, registros, campanhas e documentação'],
-    ['Galeria e evidências', 'Fotos em grade, créditos, links e GPS quando disponível'],
-    ['Relatórios da equipe', 'Síntese dos relatórios aprovados usados como fonte'],
-    ['Metas, orçamento e prestação de contas', 'Rubricas, execução e quadro sintético'],
-    ['Sistema e governança', 'Museu Centro APP e tratamento dos dados com apoio de IA'],
-  ];
+function TableOfContents({ secoesSelecionadas = [] }) {
+  const chapters = getReportSummaryChapters(secoesSelecionadas).map((chapter) => [
+    chapter.title,
+    chapter.summaryDescription || chapter.group,
+  ]);
 
   return (
     <PremiumSection
@@ -499,10 +605,7 @@ function getPhotoMuseumName(photo = {}) {
 }
 
 function ActivityMiniPhotos({ activity }) {
-  const photos = Array.isArray(activity?.fotos_destaque) ? activity.fotos_destaque : activity?.fotos || [];
-  const selected = photos
-    .filter((photo) => photo?.url || photo?.file_url || photo?.src || photo?.arquivo_url)
-    .slice(0, 4);
+  const selected = Array.isArray(activity?.inlineSelectedPhotos) ? activity.inlineSelectedPhotos : [];
 
   if (selected.length === 0) return null;
 
@@ -1073,6 +1176,9 @@ function MonthlyAgendaSection({ contexto }) {
   const atividades = Array.isArray(contexto?.atividades) ? contexto.atividades : [];
   const programacao = Array.isArray(contexto?.programacao) ? contexto.programacao : [];
   const reports = Array.isArray(contexto?.relatorios_equipe) ? contexto.relatorios_equipe : [];
+  const selectedInlinePhotoIds = Array.isArray(contexto?.selected_inline_photo_ids)
+    ? contexto.selected_inline_photo_ids
+    : [];
   const items = enrichItemsWithReports([
     ...programacao.map((item) => ({
       id: item.id,
@@ -1096,7 +1202,19 @@ function MonthlyAgendaSection({ contexto }) {
     })),
   ].filter((item) => item.titulo), reports);
 
-  const unique = consolidateAgendaItems(items);
+  const unique = consolidateAgendaItems(items).map((item) => {
+    const sourcePhotos = Array.isArray(item?.fotos_destaque)
+      ? item.fotos_destaque
+      : Array.isArray(item?.fotos)
+        ? item.fotos
+        : [];
+    const { inlinePhotos } = prepareInlineAndGalleryPhotos(sourcePhotos, selectedInlinePhotoIds);
+
+    return {
+      ...item,
+      inlineSelectedPhotos: inlinePhotos.slice(0, 4),
+    };
+  });
 
   if (unique.length === 0) return null;
 
@@ -1108,6 +1226,11 @@ function MonthlyAgendaSection({ contexto }) {
       subtitle="Cada item preserva título, museu, data, tipo, público, meta e fotos vinculadas quando disponíveis no app."
       text="A agenda foi consolidada a partir da programação e dos relatórios aprovados. Registros recorrentes, rotinas e visitas mediadas fragmentadas foram agrupados para reduzir duplicidade visual, sem apagar a rastreabilidade: quando houver mais de uma origem, o card informa a quantidade de registros consolidados."
     >
+      <ChapterMethodologyPanel
+        chapterId="agenda"
+        contexto={contexto}
+        evidence={['programação consolidada', 'relatórios aprovados', 'fotos selecionadas para atividade', 'metadados de público e meta']}
+      />
       <div className="premium-month-grid">
         {unique.map((item, index) => (
           <article className="premium-month-card" key={item.id || `${item.titulo}-${index}`}>
@@ -1122,24 +1245,22 @@ function MonthlyAgendaSection({ contexto }) {
                 </p>
                 <h3>{sanitizeReportText(item.titulo)}</h3>
               </div>
-              {!item.isCommunicationCard &&
-(item.publicoRegistrado > 0 || item.publicoEstimado > 0) ? (
-  <div className="premium-public-highlight">
-    <strong>
-      {item.publicoRegistrado > 0
-        ? fmtInt(item.publicoRegistrado)
-        : item.publicoEstimado > 0
-          ? fmtInt(item.publicoEstimado)
-          : ''}
-    </strong>
-
-    <span>
-      {item.publicoTipo === 'estimado'
-        ? 'público estimado'
-        : 'participantes'}
-    </span>
-  </div>
-) : null}) : null}
+              {!item.isCommunicationCard && (item.publicoRegistrado > 0 || item.publicoEstimado > 0) ? (
+                <div className="premium-public-highlight">
+                  <strong>
+                    {item.publicoRegistrado > 0
+                      ? fmtInt(item.publicoRegistrado)
+                      : item.publicoEstimado > 0
+                        ? fmtInt(item.publicoEstimado)
+                        : ''}
+                  </strong>
+                  <span>
+                    {item.publicoTipo === 'estimado'
+                      ? 'público estimado'
+                      : 'participantes'}
+                  </span>
+                </div>
+              ) : null}
             </header>
             {buildPublicContext(item) ? <p className="premium-public-context">{buildPublicContext(item)}</p> : null}
             <div className="premium-card-facts">
@@ -1178,6 +1299,11 @@ function ReportsArchiveSection({ contexto }) {
       subtitle={`${fmtInt(reports.length)} relatórios aprovados compõem a base narrativa, técnica e documental do período.`}
       text="Esta seção explicita a origem dos textos e registros utilizados no relatório. Em vez de repetir integralmente cada documento, o sistema recupera autoria, função, museu, mês, atividades, público e trechos de síntese, preservando rastreabilidade e evitando redundância editorial."
     >
+      <ChapterMethodologyPanel
+        chapterId="relatorios"
+        contexto={contexto}
+        evidence={['relatórios aprovados', 'autoria', 'museu', 'mês', 'trechos narrativos aprovados']}
+      />
       <div className="premium-report-archive">
         {reports.slice(0, 60).map((report, index) => (
           <article className="premium-report-note" key={report.id || index}>
@@ -1256,76 +1382,200 @@ function photoCaptionForActivity(photo = {}, activityTitle = '') {
 }
 
 function groupPhotosByMonthMuseumActivity(contexto) {
-  const photos = extractPhotos(contexto, 240)
+  const allPhotos = extractPhotos(contexto, 240)
     .filter((photo) => photo?.link || photo?.url)
     .map((photo) => ({
       ...photo,
-      activityTitle: photoActivityLabel(photo),
-      monthTitle: sanitizeReportText(photo.mes || 'Período'),
-      museumTitle: sanitizeReportText(photo.museu || 'Museus Centro'),
-    }))
-    .filter((photo) => photo.activityTitle);
+      atividade: photoActivityLabel(photo),
+      mes: sanitizeReportText(photo.mes || 'Período'),
+      museu: sanitizeReportText(photo.museu || 'Museus Centro'),
+    }));
 
-  const grouped = new Map();
-  photos.forEach((photo) => {
-    const key = [
-      normalizeText(photo.monthTitle),
-      normalizeText(photo.museumTitle),
-      normalizeText(photo.activityTitle),
-    ].join('|');
+  const { galleryPhotos } = prepareInlineAndGalleryPhotos(
+    allPhotos,
+    contexto?.selected_inline_photo_ids || []
+  );
 
-    if (!grouped.has(key)) {
-      grouped.set(key, {
-        mes: photo.monthTitle,
-        museu: photo.museumTitle,
-        atividade: photo.activityTitle,
-        photos: [],
-        seen: new Set(),
-      });
-    }
-
-    const group = grouped.get(key);
-    const photoKey = photo.link || photo.url || photo.fileName;
-    if (photoKey && !group.seen.has(photoKey) && group.photos.length < 4) {
-      group.seen.add(photoKey);
-      group.photos.push(photo);
-    }
-  });
-
-  const activityGroups = Array.from(grouped.values())
-    .filter((group) => group.photos.length > 0)
-    .map(({ seen, ...group }) => group)
-    .sort((a, b) => (
-      monthSortValue(a.mes) - monthSortValue(b.mes) ||
-      a.museu.localeCompare(b.museu, 'pt-BR') ||
-      a.atividade.localeCompare(b.atividade, 'pt-BR')
-    ));
-
-  const months = new Map();
-  activityGroups.forEach((group) => {
-    if (!months.has(group.mes)) months.set(group.mes, new Map());
-    const museums = months.get(group.mes);
-    if (!museums.has(group.museu)) museums.set(group.museu, []);
-    museums.get(group.museu).push(group);
-  });
-
-  return Array.from(months.entries()).map(([mes, museums]) => ({
-    mes,
-    museums: Array.from(museums.entries()).map(([museu, activities]) => ({
-      museu,
-      activities,
+  return groupGalleryPhotosByMuseumMonthActivity(galleryPhotos).map((museumGroup) => ({
+    museu: museumGroup.museu,
+    months: museumGroup.months.map((monthGroup) => ({
+      mes: monthGroup.mes,
+      activities: monthGroup.activities.map((activityGroup) => ({
+        ...activityGroup,
+        photos: activityGroup.photos.slice(0, 4),
+      })),
     })),
   }));
 }
 
+function GovernanceEvidenceSection({ contexto = {} }) {
+  return (
+    <PremiumSection
+      breakBefore
+      eyebrow="Governança documental"
+      title="Governança documental e rastreabilidade das evidências"
+      subtitle="A consolidação documental do período considera anexos, documentos fiscais, comprovantes, fotos, vínculos com solicitações e arquivos relacionados disponíveis no aplicativo."
+      text={getChapterIntro('governanca_documental', contexto) || 'Este capítulo organiza a trilha documental do relatório a partir dos arquivos efetivamente localizados no app. Quando um documento está pareado a uma solicitação, pagamento, rubrica, foto ou atividade, o relatório preserva esse vínculo. Quando o pareamento não existe ou está incompleto, a limitação é explicitada sem preenchimento artificial.'}
+    >
+      <ChapterMethodologyPanel
+        chapterId="governanca"
+        contexto={contexto}
+        evidence={['DocumentIntake', 'Attachment', 'PDFs', 'XMLs', 'recibos', 'comprovantes', 'fotos', 'origem dos arquivos']}
+      />
+    </PremiumSection>
+  );
+}
+
+function OperationalAuditSection({ contexto = {} }) {
+  return (
+    <PremiumSection
+      breakBefore
+      eyebrow="Auditoria operacional"
+      title="Auditoria operacional do período"
+      subtitle="O cruzamento técnico do período aproxima atividades, público, programação, documentos, rubricas, pagamentos e pendências detectáveis a partir dos módulos do app."
+      text={getChapterIntro('auditoria_operacional', contexto) || 'A leitura operacional não cria novos números nem corrige registros automaticamente dentro do relatório. Ela expõe a consistência disponível entre módulos, destacando convergências, lacunas de vínculo e limites de rastreabilidade sempre a partir dos dados reais do sistema.'}
+    >
+      <ChapterMethodologyPanel
+        chapterId="governanca"
+        contexto={contexto}
+        evidence={['Report', 'Programação', 'PurchaseRequest', 'TeamPayment', 'Rubrica', 'DocumentIntake', 'Attachment']}
+      />
+    </PremiumSection>
+  );
+}
+
+function DocumentLinkCell({ url, label, fallbackLabel = 'Link indisponível' }) {
+  if (!url) return <span>{sanitizeReportText(fallbackLabel)}</span>;
+  return (
+    <a className="document-link" href={url} target="_blank" rel="noopener noreferrer">
+      {sanitizeReportText(label)}
+    </a>
+  );
+}
+
+function DocumentsChapterSection({ contexto = {} }) {
+  const docs = buildDocumentsChapterData(contexto);
+  const contracts = Array.isArray(docs.contracts) ? docs.contracts : [];
+  const fiscalDocuments = Array.isArray(docs.fiscalDocuments) ? docs.fiscalDocuments : [];
+  const limitations = Array.isArray(docs.limitations) ? docs.limitations : [];
+
+  return (
+    <PremiumSection
+      breakBefore
+      eyebrow="Rastreabilidade fiscal"
+      title="Notas fiscais e contratos"
+      subtitle="Listagem de contratos e documentos fiscais existentes no app, com separação por tipo e vínculo operacional."
+      text={getChapterIntro('notas-fiscais-contratos', contexto) || 'Este capítulo reúne os arquivos documentais utilizados para sustentar a prestação de contas do período, organizando contratos e documentos fiscais a partir dos registros disponíveis no app. A listagem considera os documentos vinculados à Gestão Documental, à Entrada Única, às solicitações de compras, aos pagamentos de equipe e aos anexos relacionados. Os links são apresentados para facilitar a rastreabilidade entre execução operacional, documentação fiscal e comprovação institucional.'}
+    >
+      <ChapterMethodologyPanel
+        chapterId="governanca"
+        contexto={contexto}
+        evidence={['Attachment', 'DocumentIntake', 'PurchaseRequest', 'TeamPayment', 'PDFs', 'XMLs', 'recibos', 'comprovantes']}
+      />
+      <div className="premium-method-grid">
+        <article className="premium-method-card">
+          <strong>Como os documentos foram obtidos</strong>
+          <p>Os arquivos listados foram identificados a partir dos registros disponíveis no app, considerando documentos enviados pela Entrada Única, anexos da Gestão Documental, vínculos com solicitações financeiras, pagamentos de equipe e campos específicos de contratos, notas fiscais, XMLs, recibos e comprovantes. Quando um mesmo arquivo aparece em mais de uma origem, a listagem consolida o documento uma única vez para evitar duplicidade.</p>
+        </article>
+        {limitations.length > 0 && (
+          <article className="premium-method-card">
+            <strong>Limitações da listagem</strong>
+            <ul>
+              {limitations.map((item, index) => (
+                <li key={`${item}-${index}`}>{sanitizeReportText(item)}</li>
+              ))}
+            </ul>
+          </article>
+        )}
+      </div>
+
+      <div className="premium-purchase-section">
+        <h3>Contratos em PDF</h3>
+        <p>Lista de contratos localizados nos documentos do app para o período ou vinculados à equipe, fornecedores, solicitações ou registros documentais.</p>
+        {contracts.length === 0 ? (
+          <p>Não foram localizados contratos em PDF vinculados ao período ou aos registros documentais disponíveis no app.</p>
+        ) : (
+          <div className="premium-table-wrap">
+            <table className="premium-table documents-table">
+              <thead>
+                <tr>
+                  <th>Nº</th>
+                  <th>Nome do arquivo</th>
+                  <th>Pessoa/fornecedor/equipe</th>
+                  <th>Vínculo no app</th>
+                  <th>Data de envio ou criação</th>
+                  <th>Tipo</th>
+                  <th>Link</th>
+                </tr>
+              </thead>
+              <tbody>
+                {contracts.map((item, index) => (
+                  <tr key={item.key || `${item.fileName}-${index}`}>
+                    <td>{index + 1}</td>
+                    <td>{sanitizeReportText(item.fileName || '-')}</td>
+                    <td>{sanitizeReportText(item.personSupplier || '-')}</td>
+                    <td>{sanitizeReportText(item.entityLabel || '-')}</td>
+                    <td>{sanitizeReportText(item.date || '-')}</td>
+                    <td>{sanitizeReportText(item.tipo || 'Contrato')}</td>
+                    <td><DocumentLinkCell url={item.url} label="Abrir contrato" /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="premium-purchase-section">
+        <h3>Notas fiscais e documentos fiscais</h3>
+        <p>Lista de notas fiscais, XMLs, recibos e comprovantes localizados nos documentos do app e vinculados às solicitações financeiras, pagamentos de equipe ou registros da Entrada Única.</p>
+        {fiscalDocuments.length === 0 ? (
+          <p>Não foram localizadas notas fiscais ou documentos fiscais vinculados ao período ou aos registros documentais disponíveis no app.</p>
+        ) : (
+          <div className="premium-table-wrap">
+            <table className="premium-table documents-table">
+              <thead>
+                <tr>
+                  <th>Nº</th>
+                  <th>Nome do arquivo</th>
+                  <th>Fornecedor/emissor</th>
+                  <th>Nº da NF</th>
+                  <th>Valor</th>
+                  <th>Data de emissão ou envio</th>
+                  <th>Tipo</th>
+                  <th>Vínculo no app</th>
+                  <th>Link</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fiscalDocuments.map((item, index) => (
+                  <tr key={item.key || `${item.fileName}-${index}`}>
+                    <td>{index + 1}</td>
+                    <td>{sanitizeReportText(item.fileName || '-')}</td>
+                    <td>{sanitizeReportText(item.personSupplier || '-')}</td>
+                    <td>{sanitizeReportText(item.invoiceNumber || '-')}</td>
+                    <td>{item.value > 0 ? fmtBRL(item.value) : '-'}</td>
+                    <td>{sanitizeReportText(item.date || '-')}</td>
+                    <td>{sanitizeReportText(item.tipo || 'Documento fiscal')}</td>
+                    <td>{sanitizeReportText(item.entityLabel || '-')}</td>
+                    <td><DocumentLinkCell url={item.url} label="Abrir arquivo" /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </PremiumSection>
+  );
+}
+
 function PhotoEvidenceDenseSection({ contexto }) {
-  const photos = Array.from(
-    new Map(
-      extractPhotos(contexto, 240)
-        .map((photo) => ({ ...photo, imageUrl: getPhotoUrl(photo) }))
-        .filter((photo) => photo.imageUrl && isRenderableImageUrl(photo.imageUrl))
-        .map((photo) => [photo.imageUrl, photo])
-    ).values()
+  const groups = groupPhotosByMonthMuseumActivity(contexto);
+  const photos = groups.flatMap((museumGroup) =>
+    museumGroup.months.flatMap((monthGroup) =>
+      monthGroup.activities.flatMap((activityGroup) => activityGroup.photos)
+    )
   );
 
   if (photos.length === 0) return null;
@@ -1338,51 +1588,65 @@ function PhotoEvidenceDenseSection({ contexto }) {
       subtitle="Registros fotográficos incorporados ao HTML e ao PDF, com atividade, museu, mês, arquivo, crédito e localização institucional."
       text="A listagem amplia a densidade documental do relatório e evita que a fotografia apareça apenas como link. Cada item preserva o vínculo com a atividade ou arquivo de origem disponível no app."
     >
-      <div className="premium-photo-index">
-        {photos.map((photo, index) => {
-          const imageUrl = getPhotoUrl(photo);
-          const activity = getPhotoActivityName(photo);
-          const museum = getPhotoMuseumName(photo);
-          const fileName = cleanFileName(getPhotoFileName(photo));
-          const location = photo.localizacao?.label || resolveMuseumLocation({ ...photo, museu: museum });
-          const credit = photo.credito || resolveMuseumCredit(photo);
+      <ChapterMethodologyPanel
+        chapterId="galeria"
+        contexto={contexto}
+        evidence={['fotos não selecionadas para atividades', 'metadados de crédito', 'legenda', 'localização e origem do arquivo']}
+      />
+      {groups.map((museumGroup) => (
+        <section key={museumGroup.museu} className="premium-purchase-section">
+          <h3>{sanitizeReportText(museumGroup.museu)}</h3>
+          {museumGroup.months.map((monthGroup) => (
+            <div key={`${museumGroup.museu}-${monthGroup.mes}`} className="mt-4">
+              <p className="premium-card-meta">{sanitizeReportText(monthGroup.mes)}</p>
+              {monthGroup.activities.map((activityGroup) => (
+                <div key={`${monthGroup.mes}-${activityGroup.atividade}`} className="mt-3">
+                  <p className="premium-public-context">{sanitizeReportText(activityGroup.atividade)}</p>
+                  <div className="premium-photo-index">
+                    {activityGroup.photos.map((photo, index) => {
+                      const imageUrl = getPhotoUrl(photo);
+                      const activity = getPhotoActivityName(photo);
+                      const museum = getPhotoMuseumName(photo);
+                      const fileName = cleanFileName(getPhotoFileName(photo));
+                      const location = photo.localizacao?.label || resolveMuseumLocation({ ...photo, museu: museum });
+                      const credit = photo.credito || resolveMuseumCredit(photo);
+                      const photoKey = getPhotoIdentity(photo) || `${imageUrl}-${index}`;
 
-          return (
-            <article className="premium-photo-index-item" key={`${imageUrl}-${index}`}>
-              <a href={imageUrl} target="_blank" rel="noreferrer" className="premium-photo-index-thumb">
-                <img
-                  src={imageUrl}
-                  alt={sanitizeReportText(activity)}
-                  loading="eager"
-                  crossOrigin="anonymous"
-                  referrerPolicy="no-referrer"
-                  onError={(event) => {
-                    event.currentTarget.closest('.premium-photo-index-thumb')?.classList.add('premium-photo-index-no-image');
-                  }}
-                />
-              </a>
+                      return (
+                        <article className="premium-photo-index-item" key={photoKey}>
+                          <a href={imageUrl} target="_blank" rel="noreferrer" className="premium-photo-index-thumb">
+                            <img
+                              src={imageUrl}
+                              alt={sanitizeReportText(activity)}
+                              loading="eager"
+                              crossOrigin="anonymous"
+                              referrerPolicy="no-referrer"
+                              onError={(event) => {
+                                event.currentTarget.closest('.premium-photo-index-thumb')?.classList.add('premium-photo-index-no-image');
+                              }}
+                            />
+                          </a>
 
-              <strong>{photo.mes || photo.month || 'Período'}</strong>
-              <span>{sanitizeReportText(activity)}</span>
-              <small>{museum}</small>
-              <small>{sanitizeReportText(fileName)}</small>
-              <small>Local: {sanitizeReportText(location)}</small>
-              <small>Crédito: {sanitizeReportText(credit)}</small>
-              <a href={imageUrl} target="_blank" rel="noreferrer">Abrir arquivo</a>
-            </article>
-          );
-        })}
-      </div>
+                          <strong>{sanitizeReportText(museum)}</strong>
+                          <span>{sanitizeReportText(activity)}</span>
+                          <small>{sanitizeReportText(monthGroup.mes)}</small>
+                          <small>{sanitizeReportText(fileName)}</small>
+                          <small>Local: {sanitizeReportText(location)}</small>
+                          <small>Crédito: {sanitizeReportText(credit)}</small>
+                          {photo?.origem ? <small>Origem: {sanitizeReportText(photo.origem)}</small> : null}
+                          <a href={imageUrl} target="_blank" rel="noreferrer">Abrir arquivo</a>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </section>
+      ))}
     </PremiumSection>
   );
-}
-
-function getRubricaPrevisto(item = {}) {
-  return toNumber(item?.valor_previsto ?? item?.previsto ?? item?.valor_rubrica ?? item?.valor_total);
-}
-
-function getRubricaUtilizado(item = {}) {
-  return toNumber(item?.valor_utilizado ?? item?.utilizado);
 }
 
 function getRubricaSaldo(item = {}) {
@@ -1736,15 +2000,15 @@ function RemovedPeriodSection({ contexto }) {
     return text.includes('noturno');
   });
 
-  if (atividades.length === 0 && rubricas.length === 0) return null;
-
   return (
     <PremiumSection
       breakBefore
       eyebrow="Seção especial"
       title="Seção removida"
       subtitle="Planejamento, pré-produção, infraestrutura, comunicação e rubricas vinculadas ao eixo de maior visibilidade pública."
-      text="Seção mantida fora do fluxo público deste relatório porque o evento não ocorreu no período analisado."
+      text={atividades.length === 0 && rubricas.length === 0
+        ? 'O capítulo permanece no relatório para preservar a estrutura editorial oficial. No recorte selecionado, não foram localizados registros suficientes de programação, atividade ou rubrica que justifiquem a abertura pública de uma seção específica do Noturno nos Museus.'
+        : 'Seção mantida fora do fluxo público deste relatório porque o evento não ocorreu no período analisado.'}
     >
       <div className="premium-finance-grid">
         <div>
@@ -1841,7 +2105,13 @@ function getEffectiveTeamCount(contexto = {}) {
 }
 
 function hasRealPhotos(contexto = {}) {
-  return extractPhotos(contexto, 240).some((photo) => {
+  const allPhotos = extractPhotos(contexto, 240);
+  const { galleryPhotos } = prepareInlineAndGalleryPhotos(
+    allPhotos,
+    contexto?.selected_inline_photo_ids || []
+  );
+
+  return galleryPhotos.some((photo) => {
     const url = getPhotoUrl(photo);
     return url && isRenderableImageUrl(url);
   });
@@ -1880,7 +2150,7 @@ export default function PremiumReportLayout({ contexto = {}, textos = {}, filtro
 
       {hasSection(secoesSelecionadas, 'expediente') && <PremiumExpedienteSection contexto={contexto} />}
 
-      {hasSection(secoesSelecionadas, 'sumario_executivo', 'introducao') && <TableOfContents />}
+      {hasSection(secoesSelecionadas, 'sumario_executivo', 'introducao') && <TableOfContents secoesSelecionadas={secoesSelecionadas} />}
 
       {hasSection(secoesSelecionadas, 'sumario_executivo', 'introducao', 'resumo_geral', 'indicadores_premium') && <PremiumSection
         eyebrow="Sumário executivo"
@@ -1889,6 +2159,11 @@ export default function PremiumReportLayout({ contexto = {}, textos = {}, filtro
         text={composeIntro(textos)}
       >
         <PremiumMetrics contexto={contexto} />
+        <ChapterMethodologyPanel
+          chapterId="introducao"
+          contexto={contexto}
+          evidence={['relatórios aprovados', 'programação vinculada', 'dados institucionais do app']}
+        />
       </PremiumSection>}
 
       {hasSection(secoesSelecionadas, 'territorio', 'sistema_governanca') && <TransitionManagementSection />}
@@ -1900,6 +2175,11 @@ export default function PremiumReportLayout({ contexto = {}, textos = {}, filtro
         subtitle={`${fmtInt(getEffectiveTotalActivities(contexto))} atividades registradas, ${fmtInt(contexto.publico_total)} pessoas no recorte do período e ${fmtInt(getEffectiveTotalReports(contexto))} relatórios consolidados.`}
         text={`${textos.resumo_geral || ''}\n\nPúblico espontâneo corresponde ao público que acessa o museu sem agendamento prévio, em visita livre, circulação cotidiana, exposições, permanência nos espaços e fruição espontânea da programação.\n\nVisitas agendadas correspondem a grupos previamente organizados, escolas, instituições, coletivos ou grupos acompanhados por mediação, com registro de data, número de participantes e, quando houver, vínculo com atividade educativa.\n\n${textos.metas || ''}`}
       >
+        <ChapterMethodologyPanel
+          chapterId="indicadores"
+          contexto={contexto}
+          evidence={['relatórios', 'programação', 'rubricas', 'solicitações financeiras', 'anexos']}
+        />
         <AudienceBreakdown contexto={contexto} />
         <PremiumMetasPanel contexto={contexto} />
       </PremiumSection>}
@@ -1911,6 +2191,11 @@ export default function PremiumReportLayout({ contexto = {}, textos = {}, filtro
         subtitle="Programações e atividades reais de fevereiro, março e abril, recuperadas dos relatórios aprovados e da agenda do app."
         text={textos.programacao}
       >
+        <ChapterMethodologyPanel
+          chapterId="programacao"
+          contexto={contexto}
+          evidence={['programação do app', 'relatórios aprovados', 'atividades consolidadas']}
+        />
         <PremiumTimeline contexto={contexto} />
       </PremiumSection>}
 
@@ -1920,17 +2205,9 @@ export default function PremiumReportLayout({ contexto = {}, textos = {}, filtro
 
       {hasSection(secoesSelecionadas, 'atividades_museu', 'museus_premium') && hasRealMuseumData(contexto) && <PremiumMuseumSection contexto={contexto} />}
 
-      {hasSection(secoesSelecionadas, 'comunicacao', 'comunicacao_premium') && <PremiumCommunicationSection contexto={contexto} textos={textos} />}
+      {hasSection(secoesSelecionadas, 'noturno_premium') && <RemovedPeriodSection contexto={contexto} />}
 
-      {hasSection(secoesSelecionadas, 'galeria_evidencias', 'galeria_premium') && hasRealPhotos(contexto) && <PremiumSection
-        breakBefore
-        eyebrow="Galeria e evidências"
-        title="Imagem como documento de execução"
-        subtitle="As fotografias são recuperadas do app, deduplicadas por URL e distribuídas como evidência visual das ações."
-        text="A galeria opera como camada documental do relatório. Ela amplia a verificabilidade da narrativa: cada imagem vinculada ao app aponta para uma ação, um equipamento, uma frente de trabalho ou uma etapa de produção. A listagem em três colunas preserva atividade, museu, mês, crédito, arquivo e localização institucional."
-      >
-        <PremiumGallery contexto={contexto} />
-      </PremiumSection>}
+      {hasSection(secoesSelecionadas, 'comunicacao', 'comunicacao_premium') && <PremiumCommunicationSection contexto={contexto} textos={textos} />}
 
       {hasSection(secoesSelecionadas, 'galeria_evidencias', 'galeria_premium') && hasRealPhotos(contexto) && <PhotoEvidenceDenseSection contexto={contexto} />}
 
@@ -1943,9 +2220,18 @@ export default function PremiumReportLayout({ contexto = {}, textos = {}, filtro
         subtitle={`Execução informada: ${toNumber(contexto.percentual_execucao).toFixed(1).replace('.', ',')}% do orçamento acompanhado.`}
         text={`${textos.financeiro || ''}\n\n${textos.prestacao || ''}`}
       >
+        <ChapterMethodologyPanel
+          chapterId="financeiro"
+          contexto={contexto}
+          evidence={['rubricas', 'solicitações financeiras', 'pagamentos', 'documentos fiscais pareados']}
+        />
         <RubricasTable contexto={contexto} />
         <ComprasTable contexto={contexto} />
       </PremiumSection>}
+
+      {hasSection(secoesSelecionadas, 'notas-fiscais-contratos') && <DocumentsChapterSection contexto={contexto} />}
+
+      {hasSection(secoesSelecionadas, 'governanca_documental') && <GovernanceEvidenceSection contexto={contexto} />}
 
       {hasSection(secoesSelecionadas, 'app_museu_centro', 'sistema_governanca') && <PremiumSection
         breakBefore
@@ -1953,7 +2239,15 @@ export default function PremiumReportLayout({ contexto = {}, textos = {}, filtro
         title="Museu Centro APP como memória operacional"
         subtitle="A ferramenta integra relatórios, fotos, programação, compras, rubricas e textos, permitindo relatórios mais densos e menos manuais."
         text={textos.app_museu_centro}
-      />}
+      >
+        <ChapterMethodologyPanel
+          chapterId="governanca"
+          contexto={contexto}
+          evidence={['relatórios', 'programação', 'anexos', 'rubricas', 'pagamentos', 'vínculos entre módulos']}
+        />
+      </PremiumSection>}
+
+      {hasSection(secoesSelecionadas, 'auditoria_operacional') && <OperationalAuditSection contexto={contexto} />}
 
       {hasSection(secoesSelecionadas, 'conclusao') && <PremiumClosingSection textos={textos} />}
     </main>

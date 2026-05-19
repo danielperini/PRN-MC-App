@@ -723,6 +723,8 @@ export function buildRelatorioFisicoFinanceiroContext({
   reportsRaw = [],
   rubricasRaw = [],
   comprasRaw = [],
+  teamPaymentsRaw = [],
+  documentIntakeRaw = [],
   attachmentsRaw = [],
   programacaoRaw = [],
   conhecimentoRaw = [],
@@ -821,6 +823,18 @@ export function buildRelatorioFisicoFinanceiroContext({
       valor: getCompraValor(c),
       nf_numero: c?.nf_numero || '',
     }));
+
+  const teamPayments = (Array.isArray(teamPaymentsRaw) ? teamPaymentsRaw : [])
+    .filter((item) => {
+      const data = item?.data_pagamento || item?.data_emissao || item?.created_date || item?.updated_date;
+      return dateInRange(data, dateFrom, dateTo);
+    });
+
+  const documentsIntake = (Array.isArray(documentIntakeRaw) ? documentIntakeRaw : [])
+    .filter((item) => {
+      const data = item?.data_emissao || item?.data_envio || item?.created_date || item?.updated_date;
+      return dateInRange(data, dateFrom, dateTo);
+    });
 
   const publicoTotal = atividades
     .filter((a) => a.categoria_editorial === 'atividade_publico')
@@ -975,6 +989,15 @@ export function buildRelatorioFisicoFinanceiroContext({
     percentual_execucao: Number.isFinite(officialFinanceiro.percentualExecucao) ? officialFinanceiro.percentualExecucao : percentualExecucao,
     total_compras: compras.length,
     compras,
+    compras_raw: (Array.isArray(comprasRaw) ? comprasRaw : [])
+      .filter((c) => !museuFiltro || normalizeMuseu(c?.centro_custo || c?.museu) === museuFiltro)
+      .filter((c) => {
+        const data = c?.data_emissao || c?.nf_data_emissao || c?.created_date || c?.updated_date;
+        return dateInRange(data, dateFrom, dateTo);
+      }),
+    pagamentos_equipe_raw: teamPayments,
+    document_intake_raw: documentsIntake,
+    attachments_raw: Array.isArray(attachmentsRaw) ? attachmentsRaw : [],
     rubricas,
     fotos: atividades.flatMap((a) => a.fotos_destaque || []),
     programacao,

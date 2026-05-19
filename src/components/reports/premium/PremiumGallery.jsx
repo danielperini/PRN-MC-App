@@ -1,5 +1,9 @@
 import React from 'react';
-import { extractPhotos } from './premiumReportUtils';
+import {
+  extractPhotos,
+  groupGalleryPhotosByMuseumMonthActivity,
+  prepareInlineAndGalleryPhotos,
+} from './premiumReportUtils';
 
 function PhotoCaption({ photo }) {
   return (
@@ -40,7 +44,18 @@ function PhotoIndex({ photos }) {
 }
 
 export default function PremiumGallery({ contexto, limit = 36 }) {
-  const photos = extractPhotos(contexto, limit);
+  const allPhotos = extractPhotos(contexto, limit);
+  const { galleryPhotos } = prepareInlineAndGalleryPhotos(
+    allPhotos,
+    contexto?.selected_inline_photo_ids || []
+  );
+  const grouped = groupGalleryPhotosByMuseumMonthActivity(galleryPhotos);
+  const photos = grouped.flatMap((museumGroup) =>
+    museumGroup.months.flatMap((monthGroup) =>
+      monthGroup.activities.flatMap((activityGroup) => activityGroup.photos)
+    )
+  );
+
   if (photos.length === 0) return null;
 
   return (
@@ -53,7 +68,22 @@ export default function PremiumGallery({ contexto, limit = 36 }) {
           </figure>
         ))}
       </div>
-      <PhotoIndex photos={photos} />
+      {grouped.map((museumGroup) => (
+        <section key={museumGroup.museu}>
+          <h3>{museumGroup.museu}</h3>
+          {museumGroup.months.map((monthGroup) => (
+            <div key={`${museumGroup.museu}-${monthGroup.mes}`} className="mt-3">
+              <p className="premium-card-meta">{monthGroup.mes}</p>
+              {monthGroup.activities.map((activityGroup) => (
+                <div key={`${monthGroup.mes}-${activityGroup.atividade}`} className="mt-2">
+                  <strong>{activityGroup.atividade}</strong>
+                  <PhotoIndex photos={activityGroup.photos} />
+                </div>
+              ))}
+            </div>
+          ))}
+        </section>
+      ))}
     </>
   );
 }

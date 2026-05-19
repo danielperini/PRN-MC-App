@@ -152,6 +152,7 @@ export default function ReportEditor() {
   const reportIdParam = urlParams.get('id') || urlParams.get('reportId');
   const mesParam = urlParams.get('mes');
   const anoParam = urlParams.get('ano') ? parseInt(urlParams.get('ano'), 10) : null;
+  const isNewReportIntent = urlParams.get('novo') === '1';
 
   const [currentTab, setCurrentTab] = useState('relatorio');
   const [report, setReport] = useState(null);
@@ -182,10 +183,10 @@ export default function ReportEditor() {
 
   useEffect(() => {
     if (!currentUser) return;
-    loadOrCreateReport();
-  }, [currentUser, reportIdParam]);
+    loadReportSafely();
+  }, [currentUser, reportIdParam, isNewReportIntent, mesParam, anoParam]);
 
-  async function loadOrCreateReport() {
+  async function loadReportSafely() {
     setLoadingReport(true);
     setLoadingError(false);
 
@@ -200,6 +201,16 @@ export default function ReportEditor() {
           applyReport(found[0]);
           return;
         }
+
+        clearReportState();
+        setLoadingError(true);
+        toast.error('RelatÃ³rio nÃ£o encontrado.');
+        return;
+      }
+
+      if (!isNewReportIntent) {
+        clearReportState();
+        return;
       }
 
       const existingDrafts = await base44.entities.Report.filter({
@@ -211,6 +222,7 @@ export default function ReportEditor() {
 
       if (existingDrafts && existingDrafts.length > 0) {
         applyReport(existingDrafts[0]);
+        toast.info('Rascunho existente aberto.');
         return;
       }
 
@@ -218,6 +230,7 @@ export default function ReportEditor() {
       const created = await base44.entities.Report.create(payload);
 
       applyReport(created);
+      toast.success('Novo relatÃ³rio criado.');
     } catch (err) {
       console.error('Erro ao carregar/criar relatório:', err);
       setLoadingError(true);
@@ -225,6 +238,16 @@ export default function ReportEditor() {
     } finally {
       setLoadingReport(false);
     }
+  }
+
+  function clearReportState() {
+    setReport(null);
+    setFormData({});
+    setAtividades([]);
+    setFotos([]);
+    setAttachments([]);
+    setDepoimentos([]);
+    setPagamentos([]);
   }
 
   function applyReport(r) {
@@ -437,8 +460,7 @@ export default function ReportEditor() {
 
   const isInitialPageLoading =
     loadingCurrentUser ||
-    loadingReport ||
-    (!!currentUser && !report);
+    loadingReport;
 
   if (isInitialPageLoading) {
     return (
@@ -456,6 +478,30 @@ export default function ReportEditor() {
         errorTitle="Não foi possível carregar o relatório"
         errorDescription="Atualize a página ou tente novamente em alguns instantes."
       />
+    );
+  }
+
+  if (!report) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-16">
+        <Card className="p-8 text-center rounded-3xl border border-gray-200 bg-white">
+          <h1 className="text-2xl font-semibold text-gray-900">
+            Nenhum relatÃ³rio selecionado.
+          </h1>
+          <p className="mt-3 text-sm leading-relaxed text-gray-500">
+            Abra um relatÃ³rio existente pela lista ou crie um novo relatÃ³rio por aÃ§Ã£o explÃ­cita.
+            O editor nÃ£o gera rascunhos automaticamente ao carregar a pÃ¡gina.
+          </p>
+          <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <Button variant="outline" onClick={() => { window.location.href = '/Relatorios'; }}>
+              Voltar para RelatÃ³rios
+            </Button>
+            <Button onClick={() => { window.location.href = '/ReportEditor?novo=1'; }}>
+              Criar novo relatÃ³rio
+            </Button>
+          </div>
+        </Card>
+      </div>
     );
   }
 

@@ -4,240 +4,54 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { ChevronDown, ChevronUp } from 'lucide-react';
+import { REPORT_CHAPTERS } from '@/config/reportChapters';
 
-const SECOES_PADRAO = [
-  {
-    id: 'capa',
-    nome: 'Capa Editorial',
-    descricao: 'Título, período, museu, visual',
-    icone: '📄',
-    selecionado: true
-  },
-  {
-    id: 'territorio',
-    nome: 'Introdução e Território',
-    descricao: 'Contexto, bairro, ocupação urbana, circulação',
-    icone: '🗺️',
-    selecionado: true
-  },
-  {
-    id: 'indicadores',
-    nome: 'Resumo e Indicadores',
-    descricao: 'Números principais, métricas, KPIs',
-    icone: '📊',
-    selecionado: true
-  },
-  {
-    id: 'publico',
-    nome: 'Público Alcançado',
-    descricao: 'Quantidades, faixas etárias, distribuição, impacto',
-    icone: '👥',
-    selecionado: true
-  },
-  {
-    id: 'atividades',
-    nome: 'Atividades por Eixo',
-    descricao: 'Educativo, produção, comunicação, análise temática',
-    icone: '🎭',
-    selecionado: true
-  },
-  {
-    id: 'financeiro',
-    nome: 'Execução Financeira',
-    descricao: 'Rubricas, gastos, análise orçamentária',
-    icone: '💰',
-    selecionado: true
-  },
-  {
-    id: 'prestacao',
-    nome: 'Prestação de Contas',
-    descricao: 'Conformidade, auditoria, documentação',
-    icone: '✅',
-    selecionado: true
-  },
-  {
-    id: 'conclusao',
-    nome: 'Conclusão',
-    descricao: 'Síntese, aprendizados, recomendações, perspectivas',
-    icone: '🎯',
-    selecionado: true
-  },
-  // Novas seções adicionadas
-  {
-    id: 'programacao',
-    nome: 'Programação do Período',
-    descricao: 'Agenda, eventos, atividades programadas',
-    icone: '📅',
-    selecionado: false
-  },
-  {
-    id: 'comunicacao',
-    nome: 'Comunicação e Visibilidade',
-    descricao: 'Releases, imprensa, redes sociais, alcance',
-    icone: '📢',
-    selecionado: false
-  },
-  {
-    id: 'registros',
-    nome: 'Registros e Evidências',
-    descricao: 'Fotos, vídeos, documentação, comprovações',
-    icone: '📸',
-    selecionado: false
-  },
-  {
-    id: 'institucionais',
-    nome: 'Indicadores Institucionais',
-    descricao: 'Métricas estratégicas, impacto, sustentabilidade',
-    icone: '📈',
-    selecionado: false
-  },
-  {
-    id: 'museu',
-    nome: 'Execução por Museu',
-    descricao: 'Análise individual: MHAB, MIS, MUMO',
-    icone: '🏛️',
-    selecionado: false
-  },
-  {
-    id: 'grupos_rubrica',
-    nome: 'Execução por Grupo de Rubrica',
-    descricao: 'Distribuição orçamentária por categoria',
-    icone: '📑',
-    selecionado: false
-  },
-  {
-    id: 'compras',
-    nome: 'Compras e Pagamentos',
-    descricao: 'Solicitações, aprovações, execução, status',
-    icone: '🛒',
-    selecionado: false
-  },
-  {
-    id: 'fiscal',
-    nome: 'Documentos Fiscais',
-    descricao: 'Notas fiscais, conformidade fiscal, impostos',
-    icone: '🧾',
-    selecionado: false
-  },
-  {
-    id: 'contratos',
-    nome: 'Contratos e Equipe',
-    descricao: 'Contratos ativos, fornecedores, pessoal',
-    icone: '📝',
-    selecionado: false
-  },
-  {
-    id: 'consolidadas',
-    nome: 'Atividades Consolidadas',
-    descricao: 'Resumo cross-museu, análise comparativa',
-    icone: '📋',
-    selecionado: false
-  },
-  {
-    id: 'curadoria',
-    nome: 'Curadoria Institucional',
-    descricao: 'Destaques, impacto, histórias relevantes',
-    icone: '✨',
-    selecionado: false
-  },
-  {
-    id: 'executivo',
-    nome: 'Painel Executivo',
-    descricao: 'Dashboard executivo, resumo C-level',
-    icone: '🎩',
-    selecionado: false
-  },
-  {
-    id: 'integridade',
-    nome: 'Integridade Financeira',
-    descricao: 'Auditoria, divergências, conformidade',
-    icone: '🔒',
-    selecionado: false
-  },
-  {
-    id: 'galeria',
-    nome: 'Galeria Curada',
-    descricao: 'Melhores fotos, visual story, portfolio',
-    icone: '🎨',
-    selecionado: false
-  },
-  {
-    id: 'conhecimento',
-    nome: 'Base de Conhecimento Utilizada',
-    descricao: 'Documentos, referências, aprendizados',
-    icone: '📚',
-    selecionado: false
-  },
-  {
-    id: 'memoria',
-    nome: 'Memória Institucional',
-    descricao: 'Histórico, evolução, marcos importantes',
-    icone: '🕰️',
-    selecionado: false
-  },
-  {
-    id: 'consolidacao_ia',
-    nome: 'Consolidação Editorial IA',
-    descricao: 'Análise IA, conexões entre dados',
-    icone: '🤖',
-    selecionado: false
-  },
-  {
-    id: 'linha_tempo',
-    nome: 'Linha do Tempo do Período',
-    descricao: 'Cronologia de eventos, marcos, evolução',
-    icone: '📍',
-    selecionado: false
-  },
-  {
-    id: 'formacao',
-    nome: 'Formação e Acessibilidade',
-    descricao: 'Pessoas capacitadas, acessibilidade oferecida',
-    icone: '♿',
-    selecionado: false
-  }
-];
+const TYPE_ICONS = {
+  editorial: '📄',
+  data: '📊',
+  gallery: '📸',
+  financial: '💰',
+  governance: '🧭',
+  conclusion: '🎯',
+};
+
+const SECOES_PADRAO = REPORT_CHAPTERS.map((chapter) => ({
+  id: chapter.id,
+  nome: chapter.title,
+  descricao: chapter.summaryDescription || chapter.group,
+  icone: TYPE_ICONS[chapter.type] || '📄',
+  selecionado: chapter.defaultSelected !== false,
+}));
 
 export default function RelatorioEditorialSectionSelector({ onSelecaoMudou, secoesSelecionadas = null }) {
-  const [secoes, setSecoes] = useState(
-    secoesSelecionadas || SECOES_PADRAO
-  );
+  const [secoes, setSecoes] = useState(secoesSelecionadas || SECOES_PADRAO);
   const [expandido, setExpandido] = useState(false);
 
   const handleToggleSecao = (id) => {
-    const novasSecoes = secoes.map(secao =>
+    const novasSecoes = secoes.map((secao) =>
       secao.id === id ? { ...secao, selecionado: !secao.selecionado } : secao
     );
     setSecoes(novasSecoes);
-    if (onSelecaoMudou) {
-      onSelecaoMudou(novasSecoes);
-    }
+    onSelecaoMudou?.(novasSecoes);
   };
 
   const handleSelecionarTodas = () => {
-    const novasSecoes = secoes.map(s => ({ ...s, selecionado: true }));
+    const novasSecoes = secoes.map((secao) => ({ ...secao, selecionado: true }));
     setSecoes(novasSecoes);
-    if (onSelecaoMudou) {
-      onSelecaoMudou(novasSecoes);
-    }
+    onSelecaoMudou?.(novasSecoes);
   };
 
   const handleDesselecionarTodas = () => {
-    const novasSecoes = secoes.map(s => ({ ...s, selecionado: false }));
+    const novasSecoes = secoes.map((secao) => ({ ...secao, selecionado: false }));
     setSecoes(novasSecoes);
-    if (onSelecaoMudou) {
-      onSelecaoMudou(novasSecoes);
-    }
+    onSelecaoMudou?.(novasSecoes);
   };
 
-  const totalSelecionadas = secoes.filter(s => s.selecionado).length;
+  const totalSelecionadas = secoes.filter((secao) => secao.selecionado).length;
 
   return (
     <Card className="border-2 border-slate-200">
-      <CardHeader 
-        className="cursor-pointer hover:bg-slate-50 transition-colors"
-        onClick={() => setExpandido(!expandido)}
-      >
+      <CardHeader className="cursor-pointer hover:bg-slate-50 transition-colors" onClick={() => setExpandido(!expandido)}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <CardTitle className="text-lg">Seções do Relatório Editorial</CardTitle>
@@ -245,85 +59,33 @@ export default function RelatorioEditorialSectionSelector({ onSelecaoMudou, seco
               {totalSelecionadas} de {secoes.length}
             </span>
           </div>
-          {expandido ? 
-            <ChevronUp className="w-5 h-5 text-slate-500" /> :
-            <ChevronDown className="w-5 h-5 text-slate-500" />
-          }
+          {expandido ? <ChevronUp className="w-5 h-5 text-slate-500" /> : <ChevronDown className="w-5 h-5 text-slate-500" />}
         </div>
       </CardHeader>
 
-      {expandido && (
+      {expandido ? (
         <CardContent className="space-y-6 pt-6">
-          {/* Ações Rápidas */}
           <div className="flex gap-2 pb-4 border-b">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSelecionarTodas}
-              className="text-xs"
-            >
-              Selecionar Todas
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleDesselecionarTodas}
-              className="text-xs"
-            >
-              Desselecionar Todas
-            </Button>
+            <Button variant="outline" size="sm" onClick={handleSelecionarTodas}>Selecionar todas</Button>
+            <Button variant="outline" size="sm" onClick={handleDesselecionarTodas}>Limpar seleção</Button>
           </div>
 
-          {/* Grid de Seções */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {secoes.map(secao => (
-              <div
-                key={secao.id}
-                className={`flex items-start gap-3 p-4 rounded-lg border-2 transition-all cursor-pointer ${
-                  secao.selecionado
-                    ? 'border-blue-300 bg-blue-50'
-                    : 'border-slate-200 bg-white hover:border-slate-300'
-                }`}
-                onClick={() => handleToggleSecao(secao.id)}
-              >
-                <Checkbox
-                  id={secao.id}
-                  checked={secao.selecionado}
-                  onCheckedChange={() => handleToggleSecao(secao.id)}
-                  className="mt-1"
-                />
-                <div className="flex-1 min-w-0">
-                  <Label 
-                    htmlFor={secao.id}
-                    className="flex items-center gap-2 cursor-pointer font-semibold text-slate-900"
-                  >
-                    <span className="text-lg">{secao.icone}</span>
-                    {secao.nome}
-                  </Label>
-                  <p className="text-xs text-slate-600 mt-1">{secao.descricao}</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {secoes.map((secao) => (
+              <label key={secao.id} className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-3 cursor-pointer">
+                <Checkbox checked={secao.selecionado} onCheckedChange={() => handleToggleSecao(secao.id)} />
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span aria-hidden="true">{secao.icone}</span>
+                    <Label className="cursor-pointer font-medium text-slate-900">{secao.nome}</Label>
+                  </div>
+                  <p className="text-sm text-slate-500 mt-1">{secao.descricao}</p>
                 </div>
-              </div>
+              </label>
             ))}
           </div>
-
-          {/* Resumo de Seleção */}
-          <div className="bg-slate-50 p-4 rounded-lg border">
-            <p className="text-sm font-semibold text-slate-700 mb-2">Seções selecionadas:</p>
-            <div className="flex flex-wrap gap-2">
-              {secoes
-                .filter(s => s.selecionado)
-                .map(s => (
-                  <span
-                    key={s.id}
-                    className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full"
-                  >
-                    {s.icone} {s.nome}
-                  </span>
-                ))}
-            </div>
-          </div>
         </CardContent>
-      )}
+      ) : null}
     </Card>
   );
 }

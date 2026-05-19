@@ -13,43 +13,27 @@ import montarHtmlRelatorioFisicoFinanceiro from '@/utils/relatorioFisicoFinancei
 import gerarTextosRelatorioFisicoFinanceiro from '@/services/relatorioIAService';
 import { montarHtmlRelatorioPremium } from '@/components/reports/premium/PremiumReportLayout';
 import { revisarHtmlRelatorioAntesDaExportacao } from '@/services/reportEditorialReview';
+import {
+  REPORT_CHAPTERS,
+  REPORT_CHAPTER_IDS,
+  buildReportChapterSelectionState,
+  getReportChapterById,
+  getSelectedReportChapterIds,
+  normalizeSelectedReportChapterIds,
+  validateReportExportWithRegistry,
+} from '@/config/reportChapters';
+import {
+  buildActivityPhotoCaption,
+  cleanFileName,
+  getPhotoIdentity,
+} from '@/components/reports/premium/premiumReportUtils';
 
 const MUSEUS = ['Todos', 'MIS', 'MHAB', 'MUMO'];
 const MAX_EXPORT_PART_SIZE_BYTES = 200 * 1024 * 1024;
 const EXPORT_FILENAME_BASE = 'Relatorio_Museus_Centro';
-
-const CAPITULOS_RELATORIO = [
-  { id: 'capa', label: 'Capa editorial' },
-  { id: 'expediente', label: 'Expediente institucional' },
-  { id: 'sumario_executivo', label: 'Sumário executivo editorial' },
-  { id: 'introducao', label: 'Introdução institucional' },
-  { id: 'territorio', label: 'Território e contexto cultural' },
-  { id: 'indicadores_premium', label: 'Indicadores editoriais' },
-  { id: 'resumo_geral', label: 'Resumo geral' },
-  { id: 'publico', label: 'Público alcançado' },
-  { id: 'metas', label: 'Metas do 3º Aditivo' },
-  { id: 'programacao', label: 'Programação' },
-  { id: 'agenda_programacao', label: 'Agenda de programação' },
-  { id: 'timeline_premium', label: 'Linha do tempo editorial' },
-  { id: 'atividades_museu', label: 'Atividades por museu' },
-  { id: 'museus_premium', label: 'Páginas por museu' },
-  { id: 'noturno_premium', label: 'Seção especial Noturno nos Museus' },
-  { id: 'relatorios_completos', label: 'Relatórios integrais das equipes' },
-  { id: 'galeria_evidencias', label: 'Galeria e evidências' },
-  { id: 'galeria_premium', label: 'Galeria com créditos e GPS' },
-  { id: 'comunicacao', label: 'Comunicação' },
-  { id: 'comunicacao_premium', label: 'Comunicação editorial' },
-  { id: 'financeiro', label: 'Execução financeira' },
-  { id: 'rubricas', label: 'Rubricas e orçamento por grupo' },
-  { id: 'prestacao', label: 'Prestação de contas' },
-  { id: 'app_museu_centro', label: 'Museu Centro APP' },
-  { id: 'sistema_governanca', label: 'Sistema, dados e governança' },
-  { id: 'conclusao', label: 'Conclusão' },
-];
-
-const SECOES_RELATORIO = CAPITULOS_RELATORIO.map((capitulo) => capitulo.id);
+const SECOES_RELATORIO = REPORT_CHAPTER_IDS;
 function getCapituloLabel(sectionId) {
-  return CAPITULOS_RELATORIO.find((item) => item.id === sectionId)?.label || sectionId;
+  return getReportChapterById(sectionId)?.title || sectionId;
 }
 
 function buildPartFileName(partNumber, extension = 'html') {
@@ -168,6 +152,46 @@ async function carregarBaseConhecimento() {
   return [];
 }
 
+function buildPhotoSelectionCandidates(contexto = {}) {
+  return (Array.isArray(contexto?.atividades) ? contexto.atividades : [])
+    .map((atividade, index) => {
+      const photos = (Array.isArray(atividade?.fotos) ? atividade.fotos : [])
+        .map((photo, photoIndex) => {
+          const identity = getPhotoIdentity(photo);
+          const imageUrl = photo?.url || photo?.link || photo?.file_url || photo?.src || photo?.arquivo_url || '';
+
+          if (!identity || !imageUrl) return null;
+
+          return {
+            ...photo,
+            id: identity,
+            imageUrl,
+            caption: buildActivityPhotoCaption({
+              ...photo,
+              atividade: atividade?.nome || atividade?.titulo,
+              museu: atividade?.museu,
+              mes: atividade?.mes,
+            }),
+            fileName: cleanFileName(photo?.fileName || photo?.file_name || photo?.name || imageUrl),
+            key: `${identity}-${photoIndex}`,
+          };
+        })
+        .filter(Boolean);
+
+      if (photos.length === 0) return null;
+
+      return {
+        id: atividade?.id || `${atividade?.nome || atividade?.titulo || 'atividade'}-${index}`,
+        titulo: atividade?.nome || atividade?.titulo || 'Atividade registrada',
+        museu: atividade?.museu || 'Museus Centro',
+        data: atividade?.data || atividade?.data_inicio || atividade?.mes || '',
+        mes: atividade?.mes || '',
+        photos,
+      };
+    })
+    .filter(Boolean);
+}
+
 function salvarPreview(html) {
   try {
     sessionStorage.setItem('relatorio_fisico_financeiro_html', html);
@@ -176,7 +200,7 @@ function salvarPreview(html) {
   }
 }
 
-async function gerarRelatorioDoApp(museu, { premium = false, secoesSelecionadas = SECOES_RELATORIO, splitContext = null } = {}) {
+async function carregarContextoRelatorioDoApp(museu, { secoesSelecionadas = SECOES_RELATORIO, splitContext = null, selectedInlinePhotoIds = [] } = {}) {
   const dateFrom = '2026-02-02';
   const dateTo = '2026-04-30';
   const museuFiltro = museu === 'Todos' ? 'todos' : museu;
@@ -185,6 +209,8 @@ async function gerarRelatorioDoApp(museu, { premium = false, secoesSelecionadas 
     reportsRaw,
     rubricasRaw,
     comprasRaw,
+    teamPaymentsRaw,
+    documentIntakeRaw,
     attachmentsRaw,
     programacaoRaw,
     conhecimentoRaw,
@@ -192,6 +218,8 @@ async function gerarRelatorioDoApp(museu, { premium = false, secoesSelecionadas 
     safeList(base44.entities.Report, '-updated_date', 2000),
     safeList(base44.entities.Rubrica, 'ordem_exibicao', 2000),
     safeList(base44.entities.PurchaseRequest, '-created_date', 2000),
+    safeList(base44.entities.TeamPayment, '-created_date', 2000),
+    safeList(base44.entities.DocumentIntake, '-created_date', 2000),
     safeList(base44.entities.Attachment, '-created_date', 3000),
     safeList(base44.entities.Programacao, '-data_inicio', 3000),
     carregarBaseConhecimento(),
@@ -201,6 +229,8 @@ async function gerarRelatorioDoApp(museu, { premium = false, secoesSelecionadas 
     reportsRaw,
     rubricasRaw,
     comprasRaw,
+    teamPaymentsRaw,
+    documentIntakeRaw,
     attachmentsRaw,
     programacaoRaw,
     conhecimentoRaw,
@@ -215,15 +245,11 @@ async function gerarRelatorioDoApp(museu, { premium = false, secoesSelecionadas 
 
   const contextoComEstrategia = {
     ...contexto,
-    capitulos_relatorio: CAPITULOS_RELATORIO,
+    capitulos_relatorio: REPORT_CHAPTERS,
     secoesSelecionadas,
     split_context: splitContext || undefined,
+    selected_inline_photo_ids: selectedInlinePhotoIds,
   };
-
-  const textos = await gerarTextosRelatorioFisicoFinanceiro(
-    contextoComEstrategia,
-    true
-  );
 
   const filtros = {
     dateFrom,
@@ -231,20 +257,35 @@ async function gerarRelatorioDoApp(museu, { premium = false, secoesSelecionadas 
     museu: museu === 'Todos' ? 'Todos os museus' : museu,
   };
 
+  return { contexto: contextoComEstrategia, filtros };
+}
+
+async function gerarRelatorioDoApp(museu, { premium = false, secoesSelecionadas = SECOES_RELATORIO, splitContext = null, selectedInlinePhotoIds = [] } = {}) {
+  const { contexto, filtros } = await carregarContextoRelatorioDoApp(museu, {
+    secoesSelecionadas,
+    splitContext,
+    selectedInlinePhotoIds,
+  });
+
+  const textos = await gerarTextosRelatorioFisicoFinanceiro(
+    contexto,
+    true
+  );
+
   const htmlInicial = premium ? montarHtmlRelatorioPremium({
-    contexto: contextoComEstrategia,
+    contexto,
     textos,
     filtros,
     secoesSelecionadas,
   }) : montarHtmlRelatorioFisicoFinanceiro({
-    contexto: contextoComEstrategia,
+    contexto,
     textos,
     secoesSelecionadas,
     filtros,
   });
   const html = revisarHtmlRelatorioAntesDaExportacao(htmlInicial, { modo: premium ? 'premium' : 'fisico_financeiro' });
 
-  return { html, contexto: contextoComEstrategia };
+  return { html, contexto };
 }
 
 export default function RelatorioFisicoFinanceiroGenerator() {
@@ -256,11 +297,29 @@ export default function RelatorioFisicoFinanceiroGenerator() {
   const [modoPremium, setModoPremium] = useState(true);
   const [exportMode, setExportMode] = useState('single');
   const [dialogAberto, setDialogAberto] = useState(false);
-  const [secoes, setSecoes] = useState(Object.fromEntries(CAPITULOS_RELATORIO.map((capitulo) => [capitulo.id, true])));
+  const [secoes, setSecoes] = useState(buildReportChapterSelectionState());
+  const [photoSelectionDialog, setPhotoSelectionDialog] = useState(false);
+  const [photoSelectionCandidates, setPhotoSelectionCandidates] = useState([]);
+  const [selectedInlinePhotoIds, setSelectedInlinePhotoIds] = useState({});
 
-  const secoesSelecionadas = Object.entries(secoes).filter(([, ativo]) => ativo).map(([id]) => id);
+  const secoesSelecionadas = getSelectedReportChapterIds(secoes);
   const toggleSecao = (id) => setSecoes((prev) => ({ ...prev, [id]: !prev[id] }));
-  const toggleTodas = (value) => setSecoes(Object.fromEntries(CAPITULOS_RELATORIO.map((capitulo) => [capitulo.id, value])));
+  const toggleTodas = (value) => setSecoes(buildReportChapterSelectionState(value ? REPORT_CHAPTER_IDS : []));
+  const toggleInlinePhoto = (photoId, value) => {
+    setSelectedInlinePhotoIds((prev) => ({
+      ...prev,
+      [photoId]: typeof value === 'boolean' ? value : !prev[photoId],
+    }));
+  };
+  const selectAllActivityPhotos = (activity, value) => {
+    setSelectedInlinePhotoIds((prev) => {
+      const next = { ...prev };
+      (activity?.photos || []).forEach((photo) => {
+        next[photo.id] = value;
+      });
+      return next;
+    });
+  };
 
   const openPreview = (html) => {
     salvarPreview(html);
@@ -296,14 +355,29 @@ export default function RelatorioFisicoFinanceiroGenerator() {
     });
   };
 
-  const handleGerar = async () => {
-    if (secoesSelecionadas.length === 0) {
+  const validateBeforeExport = (html, selectedIds) => {
+    const validation = validateReportExportWithRegistry(html, selectedIds);
+    if (!validation.valid) {
+      const missingTitles = validation.missingSelected.map(getCapituloLabel);
+      throw new Error(`Os seguintes capítulos selecionados não foram renderizados: ${missingTitles.join(', ')}.`);
+    }
+  };
+
+  const runExport = async (inlinePhotoIds = []) => {
+    const normalizedSelectedSections = normalizeSelectedReportChapterIds(secoesSelecionadas);
+
+    if (normalizedSelectedSections.length === 0) {
       toast.error('Selecione ao menos um capítulo.');
       return;
     }
 
+    try {
+      sessionStorage.setItem('relatorio_fisico_financeiro_selected_chapters', JSON.stringify(normalizedSelectedSections));
+      sessionStorage.setItem('relatorio_fisico_financeiro_export_mode', exportMode);
+    } catch {}
+
     setLoading(true);
-    updateProgress(4, 'Iniciando geração do relatório', `${secoesSelecionadas.length} capítulos selecionados`);
+    updateProgress(4, 'Iniciando geração do relatório', `${normalizedSelectedSections.length} capítulos selecionados`);
     setResultado(null);
     setErro(null);
 
@@ -337,7 +411,11 @@ export default function RelatorioFisicoFinanceiroGenerator() {
 
       if (!data?.html) {
         updateProgress(28, 'Consolidando dados e capítulos', 'Montando o relatório com dados reais do app');
-        const local = await gerarRelatorioDoApp(museu, { premium: modoPremium, secoesSelecionadas });
+        const local = await gerarRelatorioDoApp(museu, {
+          premium: modoPremium,
+          secoesSelecionadas: normalizedSelectedSections,
+          selectedInlinePhotoIds: inlinePhotoIds,
+        });
         data = { html: local.html, contexto: local.contexto };
         fonte = modoPremium ? 'premium_app' : 'frontend_ia';
       }
@@ -350,6 +428,8 @@ export default function RelatorioFisicoFinanceiroGenerator() {
           toast.info('O relatório ficou abaixo de 200 MB e foi mantido em arquivo único.');
         }
 
+        validateBeforeExport(data.html, normalizedSelectedSections);
+
         setResultado({
           ...data,
           fonte,
@@ -361,14 +441,16 @@ export default function RelatorioFisicoFinanceiroGenerator() {
       } else {
         const measuredSections = [];
 
-        for (let index = 0; index < secoesSelecionadas.length; index += 1) {
-          const sectionId = secoesSelecionadas[index];
-          const percent = 30 + ((index + 1) / Math.max(1, secoesSelecionadas.length)) * 28;
-          updateProgress(percent, 'Medindo capítulos para divisão', `${index + 1} de ${secoesSelecionadas.length} capítulos analisados`);
+        for (let index = 0; index < normalizedSelectedSections.length; index += 1) {
+          const sectionId = normalizedSelectedSections[index];
+          const percent = 30 + ((index + 1) / Math.max(1, normalizedSelectedSections.length)) * 28;
+          updateProgress(percent, 'Medindo capítulos para divisão', `${index + 1} de ${normalizedSelectedSections.length} capítulos analisados`);
           const chapterResult = await gerarRelatorioDoApp(museu, {
             premium: modoPremium,
             secoesSelecionadas: [sectionId],
+            selectedInlinePhotoIds: inlinePhotoIds,
           });
+          validateBeforeExport(chapterResult.html, [sectionId]);
           const chapterSize = new Blob([chapterResult.html], { type: 'text/html;charset=utf-8' }).size;
           measuredSections.push({
             sectionId,
@@ -381,7 +463,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
 
         if (builtParts.length === 0) {
           builtParts.push({
-            secoes: secoesSelecionadas,
+            secoes: normalizedSelectedSections,
             estimatedSizeBytes: htmlSize,
             oversizedSingleChapter: false,
           });
@@ -416,6 +498,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
             premium: modoPremium,
             secoesSelecionadas: part.secoes,
             splitContext,
+            selectedInlinePhotoIds: inlinePhotoIds,
           });
 
           const htmlPart = injectPartMetadata(localPart.html, {
@@ -424,6 +507,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
             sectionLabels: splitContext.sectionLabels,
             summaryHtml,
           });
+          validateBeforeExport(htmlPart, part.secoes);
 
           finalParts.push({
             partNumber,
@@ -464,6 +548,57 @@ export default function RelatorioFisicoFinanceiroGenerator() {
     } finally {
       setLoading(false);
       setTimeout(() => setExportProgress(null), 1200);
+    }
+  };
+
+  const getSelectedInlineIds = () => Object.entries(selectedInlinePhotoIds)
+    .filter(([, selected]) => selected)
+    .map(([photoId]) => photoId);
+
+  const handleGerar = async () => {
+    if (secoesSelecionadas.length === 0) {
+      toast.error('Selecione ao menos um capítulo.');
+      return;
+    }
+
+    const selectedIds = getSelectedInlineIds();
+
+    setErro(null);
+    setLoading(true);
+    updateProgress(4, 'Analisando fotos vinculadas', 'Verificando imagens vinculadas às atividades');
+
+    try {
+      const { contexto } = await carregarContextoRelatorioDoApp(museu, {
+        secoesSelecionadas,
+        selectedInlinePhotoIds: selectedIds,
+      });
+      const candidates = buildPhotoSelectionCandidates(contexto);
+
+      if (candidates.length > 0) {
+        setPhotoSelectionCandidates(candidates);
+        setSelectedInlinePhotoIds((prev) => {
+          const next = { ...prev };
+          candidates.forEach((activity) => {
+            activity.photos.forEach((photo) => {
+              if (typeof next[photo.id] === 'undefined') next[photo.id] = false;
+            });
+          });
+          return next;
+        });
+        setDialogAberto(false);
+        setPhotoSelectionDialog(true);
+        setLoading(false);
+        setExportProgress(null);
+        return;
+      }
+
+      await runExport(selectedIds);
+    } catch (err) {
+      console.error(err);
+      setLoading(false);
+      setExportProgress(null);
+      setErro(err.message || 'Não foi possível preparar a seleção de fotos.');
+      toast.error('Não foi possível preparar a seleção de fotos.');
     }
   };
 
@@ -590,6 +725,87 @@ export default function RelatorioFisicoFinanceiroGenerator() {
         </div>
       )}
 
+      <Dialog open={photoSelectionDialog} onOpenChange={setPhotoSelectionDialog}>
+        <DialogContent className="max-w-5xl max-h-[88vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Fotos vinculadas às atividades</DialogTitle>
+            <p className="text-sm text-slate-500">
+              Selecione quais fotos devem ser impressas no corpo das atividades. As fotos não selecionadas serão enviadas automaticamente para a galeria final, organizadas por museu, atividade e mês.
+            </p>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {photoSelectionCandidates.map((activity) => (
+              <div key={activity.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">{activity.titulo}</p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {[activity.museu, activity.data || activity.mes, `${activity.photos.length} foto${activity.photos.length !== 1 ? 's' : ''} vinculada${activity.photos.length !== 1 ? 's' : ''}`]
+                        .filter(Boolean)
+                        .join(' • ')}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button type="button" size="sm" variant="outline" onClick={() => selectAllActivityPhotos(activity, true)}>
+                      Selecionar todas desta atividade
+                    </Button>
+                    <Button type="button" size="sm" variant="outline" onClick={() => selectAllActivityPhotos(activity, false)}>
+                      Não imprimir fotos nesta atividade
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
+                  {activity.photos.map((photo) => (
+                    <label key={photo.key} className="rounded-xl border border-slate-200 bg-white p-3 cursor-pointer">
+                      <div className="flex items-start gap-3">
+                        <Checkbox
+                          checked={!!selectedInlinePhotoIds[photo.id]}
+                          onCheckedChange={(value) => toggleInlinePhoto(photo.id, !!value)}
+                          className="mt-1"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="w-full h-32 overflow-hidden rounded-lg bg-slate-100 mb-3">
+                            <img src={photo.imageUrl} alt={photo.caption} className="w-full h-full object-cover" loading="lazy" />
+                          </div>
+                          <p className="text-xs font-medium text-slate-800 break-words">{photo.fileName}</p>
+                          <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">{photo.caption}</p>
+                        </div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setPhotoSelectionDialog(false);
+                setDialogAberto(true);
+              }}
+              disabled={loading}
+            >
+              Voltar
+            </Button>
+            <Button
+              onClick={async () => {
+                const selectedIds = getSelectedInlineIds();
+                setPhotoSelectionDialog(false);
+                await runExport(selectedIds);
+              }}
+              disabled={loading}
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
+              Continuar exportação
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={dialogAberto} onOpenChange={setDialogAberto}>
         <DialogContent className="max-w-3xl max-h-[88vh] overflow-y-auto">
           <DialogHeader>
@@ -668,16 +884,16 @@ export default function RelatorioFisicoFinanceiroGenerator() {
             </div>
 
             <div className="grid md:grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
-              {CAPITULOS_RELATORIO.map((capitulo) => (
+              {REPORT_CHAPTERS.map((capitulo) => (
                 <label key={capitulo.id} className="flex items-center gap-2 rounded-lg bg-white border border-slate-100 px-3 py-2 cursor-pointer">
                   <Checkbox checked={!!secoes[capitulo.id]} onCheckedChange={() => toggleSecao(capitulo.id)} />
-                  <span className="text-sm text-slate-700">{capitulo.label}</span>
+                  <span className="text-sm text-slate-700">{capitulo.title}</span>
                 </label>
               ))}
             </div>
 
             <p className="text-xs text-slate-500">
-              {secoesSelecionadas.length} de {CAPITULOS_RELATORIO.length} capítulos selecionados.
+              {secoesSelecionadas.length} de {REPORT_CHAPTERS.length} capítulos selecionados.
             </p>
           </div>
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -8,10 +8,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { Search, UserPlus, Save, Users, KeyRound, Pencil, Trash2 } from 'lucide-react';
+import { Search, UserPlus, Save, Users, KeyRound, Pencil, Trash2, Clock3, LogIn } from 'lucide-react';
 import { toast } from 'sonner';
 import InviteDialog from '@/components/users/InviteDialog';
 import { normalizeEmail, revokeUserAccess } from '@/utils/auth/recoverExistingUserAccess';
+import { useAuth } from '@/lib/AuthContext';
+import {
+  canViewUserLoginMonitoring,
+  fetchUserLoginMonitoringStats,
+  formatLoginDate,
+  normalizeLoginEmail,
+} from '@/lib/userLoginMonitoring';
 
 const ROLE_LABELS = {
   ADMIN: 'admin', admin: 'admin',
@@ -256,7 +263,16 @@ function PermissionsDialog({ user, permissions, onClose }) {
   );
 }
 
-function UserCard({ user, onEdit, onPassword, onPermissions, onRoleChange, onDelete }) {
+function UserCard({
+  user,
+  onEdit,
+  onPassword,
+  onPermissions,
+  onRoleChange,
+  onDelete,
+  showLoginMonitoring,
+  loginStats,
+}) {
   const rawRole = user.permissions?.base_role || user.role || 'user';
   const role = rawRole === 'PATROCINADOR' ? 'OBSERVADOR' : rawRole;
   const initials = (user.full_name || user.email || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
@@ -276,6 +292,18 @@ function UserCard({ user, onEdit, onPassword, onPermissions, onRoleChange, onDel
           <p className="text-xs text-gray-500 truncate">{user.email}</p>
           {user.numero_matricula && (
             <p className="text-xs text-gray-400 font-mono mt-0.5">{user.numero_matricula}</p>
+          )}
+          {showLoginMonitoring && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-[11px] text-slate-500">
+              <span className="inline-flex items-center gap-1">
+                <LogIn className="w-3 h-3" />
+                {Number(loginStats?.total_logins || 0).toLocaleString('pt-BR')} login(s)
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <Clock3 className="w-3 h-3" />
+                {formatLoginDate(loginStats?.ultimo_login_em)}
+              </span>
+            </div>
           )}
         </div>
       </div>
@@ -353,6 +381,8 @@ export default function UserManagement() {
   const [showInvite, setShowInvite] = useState(false);
   const [deletingUser, setDeletingUser] = useState(null);
   const queryClient = useQueryClient();
+  const { user: currentUser } = useAuth();
+  const showLoginMonitoring = canViewUserLoginMonitoring(currentUser);
 
   const { data = [], isLoading } = useQuery({
     queryKey: ['user-management'],
@@ -366,6 +396,15 @@ export default function UserManagement() {
         permissions: permissions.find(p => p.user_email === u.email) || null,
       }));
     },
+  });
+
+  const { data: loginMonitoring = { statsByEmail: {}, unavailable: false }, isLoading: loginStatsLoading } = useQuery({
+    queryKey: ['user-login-monitoring-stats'],
+    queryFn: fetchUserLoginMonitoringStats,
+    enabled: showLoginMonitoring,
+    staleTime: 1000 * 60,
+    refetchOnWindowFocus: false,
+    retry: 1,
   });
 
   const { data: pendingRegistrations = [] } = useQuery({
@@ -482,7 +521,63 @@ export default function UserManagement() {
     } catch (e) { toast.error('Erro: ' + e.message); }
   }
 
-  const filtered = data.filter(u =>
+  const usersWithLoginStats = useMemo(() => {
+    if (!showLoginMonitoring) return data;
+    const statsByEmail = loginMonitoring?.statsByEmail || {};
+    return data.map((user) => {
+      const email = normalizeLoginEmail(user.email || user.user_email);
+      const auditStats = statsByEmail[email] || {};
+      const userTotalLogins = Number(user.total_logins || user.login_count || 0);
+      const auditTotalLogins = Number(auditStats.total_logins || 0);
+      return {
+        ...user,
+        loginStats: {
+          total_logins: Math.max(userTotalLogins, auditTotalLogins),
+          ultimo_login_em:
+            auditStats.ultimo_login_em ||
+            user.ultimo_login_em ||
+            user.last_login_at ||
+            user.lastLogin ||
+            null,
+        },
+      };
+    });
+  }, [data, loginMonitoring?.statsByEmail, showLoginMonitoring]);
+
+  const loginMonitoringSummary = useMemo(() => {
+    if (!showLoginMonitoring) {
+      return {
+        monitoredUsers: 0,
+        totalLogins: 0,
+        activeRecently: 0,
+        withoutRecord: 0,
+      };
+    }
+
+    const now = Date.now();
+    const recentlyThreshold = now - 1000 * 60 * 60 * 24 * 30;
+    return usersWithLoginStats.reduce((summary, user) => {
+      const total = Number(user.loginStats?.total_logins || 0);
+      const lastLogin = user.loginStats?.ultimo_login_em
+        ? new Date(user.loginStats.ultimo_login_em).getTime()
+        : 0;
+
+      summary.monitoredUsers += 1;
+      summary.totalLogins += total;
+      if (total <= 0) summary.withoutRecord += 1;
+      if (lastLogin && !Number.isNaN(lastLogin) && lastLogin >= recentlyThreshold) {
+        summary.activeRecently += 1;
+      }
+      return summary;
+    }, {
+      monitoredUsers: 0,
+      totalLogins: 0,
+      activeRecently: 0,
+      withoutRecord: 0,
+    });
+  }, [showLoginMonitoring, usersWithLoginStats]);
+
+  const filtered = usersWithLoginStats.filter(u =>
     (u.full_name || '').toLowerCase().includes(search.toLowerCase()) ||
     (u.email || '').toLowerCase().includes(search.toLowerCase())
   );
@@ -517,6 +612,36 @@ export default function UserManagement() {
             className="pl-10 bg-gray-50 border-gray-200"
           />
         </div>
+
+        {showLoginMonitoring && (
+          <div className="mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="rounded-2xl border border-gray-200 bg-white p-4">
+                <p className="text-xs text-gray-500">Usuários monitorados</p>
+                <p className="text-2xl font-semibold text-black mt-1">{loginMonitoringSummary.monitoredUsers}</p>
+              </div>
+              <div className="rounded-2xl border border-gray-200 bg-white p-4">
+                <p className="text-xs text-gray-500">Total de logins registrados</p>
+                <p className="text-2xl font-semibold text-black mt-1">
+                  {loginMonitoringSummary.totalLogins.toLocaleString('pt-BR')}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-gray-200 bg-white p-4">
+                <p className="text-xs text-gray-500">Ativos nos últimos 30 dias</p>
+                <p className="text-2xl font-semibold text-black mt-1">{loginMonitoringSummary.activeRecently}</p>
+              </div>
+              <div className="rounded-2xl border border-gray-200 bg-white p-4">
+                <p className="text-xs text-gray-500">Sem login registrado</p>
+                <p className="text-2xl font-semibold text-black mt-1">{loginMonitoringSummary.withoutRecord}</p>
+              </div>
+            </div>
+            {!loginStatsLoading && (loginMonitoring?.unavailable || loginMonitoringSummary.totalLogins === 0) && (
+              <p className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                Monitoramento de login ainda sem registros consolidados.
+              </p>
+            )}
+          </div>
+        )}
 
         {pendingRegistrations.length > 0 && (
           <div className="mb-6 rounded-2xl border border-amber-200 bg-white p-4">
@@ -557,6 +682,8 @@ export default function UserManagement() {
                 onPermissions={setPermissionsUser}
                 onRoleChange={handleRoleChange}
                 onDelete={handleDelete}
+                showLoginMonitoring={showLoginMonitoring}
+                loginStats={u.loginStats}
               />
             ))}
           </div>

@@ -1,9 +1,333 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ArrowLeft, Download, Printer } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ArrowLeft, Download, FileDown, Printer } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
+import { toast } from 'sonner';
+import { REPORT_CHAPTERS, REPORT_CHAPTER_IDS } from '@/config/reportChapters';
+
+const MAX_EXPORT_PART_SIZE_BYTES = 200 * 1024 * 1024;
+const EXPORT_FILENAME_BASE = 'Relatorio_Museus_Centro';
+
+function normalizeText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function loadSelectedChapterIds() {
+  try {
+    const raw = sessionStorage.getItem('relatorio_fisico_financeiro_selected_chapters');
+    const parsed = JSON.parse(raw || '[]');
+    const set = new Set(Array.isArray(parsed) ? parsed : []);
+    const ordered = REPORT_CHAPTER_IDS.filter((id) => set.has(id));
+    return ordered.length > 0 ? ordered : REPORT_CHAPTER_IDS;
+  } catch {
+    return REPORT_CHAPTER_IDS;
+  }
+}
+
+function chapterLabel(chapterId) {
+  const chapter = REPORT_CHAPTERS.find((item) => item.id === chapterId);
+  return chapter?.title || chapterId;
+}
+
+function chapterRenderSignals(chapterId) {
+  const chapter = REPORT_CHAPTERS.find((item) => item.id === chapterId);
+  const signals = [
+    chapter?.renderTitle,
+    chapter?.title,
+  ].filter(Boolean).map(normalizeText);
+  return Array.from(new Set(signals));
+}
+
+function filenameForPart(partNumber) {
+  return `${EXPORT_FILENAME_BASE}_parte_${String(partNumber).padStart(2, '0')}.pdf`;
+}
+
+function extractDocumentParts(html, selectedChapterIds) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html || '', 'text/html');
+  const headHtml = doc.head?.innerHTML || '';
+  const reportRoot = doc.querySelector('main.premium-report');
+  const root = reportRoot || doc.body;
+  const children = Array.from(root?.children || []);
+
+  if (children.length === 0) return null;
+
+  const headerNode = children.find((node) => node.classList?.contains('report-pdf-institutional-header')) || null;
+  const contentNodes = children.filter((node) => node !== headerNode);
+
+  const chapters = [];
+  let cursor = 0;
+  let currentChapter = null;
+
+  const chapterIds = Array.isArray(selectedChapterIds) && selectedChapterIds.length > 0
+    ? selectedChapterIds
+    : REPORT_CHAPTER_IDS;
+
+  const tryMatchChapterId = (node) => {
+    const headingText = [
+      node.querySelector('h1')?.textContent,
+      node.querySelector('h2')?.textContent,
+      node.querySelector('h3')?.textContent,
+      node.getAttribute('data-chapter'),
+      node.textContent?.slice(0, 600),
+    ].filter(Boolean).join(' ');
+    const normalizedHeading = normalizeText(headingText);
+
+    if (!normalizedHeading) return null;
+
+    for (let i = cursor; i < chapterIds.length; i += 1) {
+      const candidateId = chapterIds[i];
+      const signals = chapterRenderSignals(candidateId);
+      const matched = signals.some((signal) => signal && normalizedHeading.includes(signal));
+      if (matched) {
+        cursor = i + 1;
+        return candidateId;
+      }
+    }
+    return null;
+  };
+
+  contentNodes.forEach((node) => {
+    const matchedChapterId = tryMatchChapterId(node);
+
+    if (matchedChapterId) {
+      currentChapter = {
+        id: matchedChapterId,
+        title: chapterLabel(matchedChapterId),
+        canBeSplit: REPORT_CHAPTERS.find((item) => item.id === matchedChapterId)?.canBeSplit !== false,
+        nodes: [node.outerHTML],
+      };
+      chapters.push(currentChapter);
+      return;
+    }
+
+    if (!currentChapter) {
+      currentChapter = {
+        id: 'prefacio',
+        title: 'Abertura',
+        canBeSplit: true,
+        nodes: [node.outerHTML],
+      };
+      chapters.push(currentChapter);
+      return;
+    }
+
+    currentChapter.nodes.push(node.outerHTML);
+  });
+
+  if (chapters.length === 0) return null;
+
+  const normalizedChapters = chapters.map((chapter) => {
+    const htmlContent = chapter.nodes.join('\n');
+    return {
+      ...chapter,
+      html: htmlContent,
+      sizeBytes: new Blob([htmlContent], { type: 'text/html;charset=utf-8' }).size,
+    };
+  });
+
+  return {
+    headHtml,
+    headerHtml: headerNode?.outerHTML || '',
+    chapters: normalizedChapters,
+  };
+}
+
+function buildSplitParts(chapters) {
+  const parts = [];
+  let current = [];
+  let currentSize = 0;
+  const warnings = [];
+
+  const splitOversizedChapter = (chapter) => {
+    if (!chapter?.canBeSplit) return [];
+
+    const parser = new DOMParser();
+    const parsed = parser.parseFromString(`<body>${chapter.html || ''}</body>`, 'text/html');
+    const container = parsed.body;
+
+    const selectors = [
+      '.premium-photo-index-item',
+      '.premium-report-note',
+      '.premium-activity-card',
+      '.premium-timeline-item',
+      'tbody tr',
+      '.premium-meta-card',
+    ];
+
+    let selectedNodes = [];
+    for (const selector of selectors) {
+      const nodes = Array.from(container.querySelectorAll(selector));
+      if (nodes.length >= 2) {
+        selectedNodes = nodes;
+        break;
+      }
+    }
+
+    if (selectedNodes.length < 2) return [];
+
+    selectedNodes.forEach((node, index) => {
+      node.setAttribute('data-split-item', String(index));
+    });
+
+    const markedHtml = container.innerHTML;
+    const selectedSizeLimit = Math.max(1, Math.floor(MAX_EXPORT_PART_SIZE_BYTES * 0.92));
+
+    const chunkIds = [];
+    let currentIds = [];
+    let currentChunkSize = 0;
+    selectedNodes.forEach((node, index) => {
+      const nodeSize = new Blob([node.outerHTML || ''], { type: 'text/html;charset=utf-8' }).size;
+      if (currentIds.length > 0 && currentChunkSize + nodeSize > selectedSizeLimit) {
+        chunkIds.push(currentIds);
+        currentIds = [];
+        currentChunkSize = 0;
+      }
+      currentIds.push(index);
+      currentChunkSize += nodeSize;
+    });
+    if (currentIds.length > 0) chunkIds.push(currentIds);
+
+    if (chunkIds.length <= 1) return [];
+
+    return chunkIds.map((ids, chunkIndex) => {
+      const chunkDoc = parser.parseFromString(`<body>${markedHtml}</body>`, 'text/html');
+      const allChunkNodes = Array.from(chunkDoc.body.querySelectorAll('[data-split-item]'));
+
+      allChunkNodes.forEach((node) => {
+        const nodeId = Number(node.getAttribute('data-split-item'));
+        if (!ids.includes(nodeId)) {
+          node.remove();
+          return;
+        }
+        node.removeAttribute('data-split-item');
+      });
+
+      const htmlChunk = chunkDoc.body.innerHTML;
+      return {
+        ...chapter,
+        id: `${chapter.id}__parte_${chunkIndex + 1}`,
+        title: `${chapter.title} — Parte ${String(chunkIndex + 1).padStart(2, '0')}`,
+        html: htmlChunk,
+        sizeBytes: new Blob([htmlChunk], { type: 'text/html;charset=utf-8' }).size,
+      };
+    });
+  };
+
+  const pushCurrent = () => {
+    if (current.length === 0) return;
+    const sizeBytes = current.reduce((sum, item) => sum + item.sizeBytes, 0);
+    parts.push({
+      chapters: current,
+      sizeBytes,
+    });
+    current = [];
+    currentSize = 0;
+  };
+
+  chapters.forEach((chapter) => {
+    if (chapter.sizeBytes <= MAX_EXPORT_PART_SIZE_BYTES) {
+      const nextWouldOverflow = current.length > 0 && (currentSize + chapter.sizeBytes > MAX_EXPORT_PART_SIZE_BYTES);
+      if (nextWouldOverflow) pushCurrent();
+      current.push(chapter);
+      currentSize += chapter.sizeBytes;
+      return;
+    }
+
+    const splitChunks = splitOversizedChapter(chapter);
+    if (splitChunks.length > 1) {
+      pushCurrent();
+      splitChunks.forEach((splitChunk) => {
+        parts.push({
+          chapters: [splitChunk],
+          sizeBytes: splitChunk.sizeBytes,
+          oversizedSingleChapter: true,
+          internallySplit: true,
+        });
+      });
+      warnings.push(`O capítulo ${chapter.title} excedeu 200 MB e foi dividido em subpartes para preservar a integridade do PDF.`);
+      return;
+    }
+
+    pushCurrent();
+    parts.push({
+      chapters: [chapter],
+      sizeBytes: chapter.sizeBytes,
+      oversizedSingleChapter: true,
+    });
+
+    warnings.push(`O capítulo ${chapter.title} excede 200 MB e foi exportado em arquivo próprio para preservar a integridade do PDF.`);
+  });
+
+  pushCurrent();
+
+  return { parts, warnings };
+}
+
+function buildPartSummary(parts) {
+  if (!Array.isArray(parts) || parts.length <= 1) return '';
+  return `
+    <section style="max-width:210mm;margin:0 auto 16px;padding:0 20px;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;">
+      <div style="border:1px solid rgba(23,23,23,.16);padding:14px 16px;background:#fff;">
+        <p style="margin:0 0 8px;font-size:13px;font-weight:700;">Relatório dividido em arquivos</p>
+        <ul style="margin:0;padding-left:18px;font-size:11.5px;line-height:1.5;">
+          ${parts.map((part, index) => `<li>Parte ${String(index + 1).padStart(2, '0')} — ${part.chapters.map((chapter) => escapeHtml(chapter.title)).join(', ')}</li>`).join('')}
+        </ul>
+      </div>
+    </section>
+  `;
+}
+
+function buildPartHtml(documentParts, part, partIndex, totalParts, summaryHtml = '') {
+  const partHeader = `
+    <section style="max-width:210mm;margin:0 auto 14px;padding:0 20px;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;">
+      <div style="border:1px solid rgba(23,23,23,.16);padding:12px 14px;background:#fff;">
+        <p style="margin:0;font-size:13px;font-weight:700;">Relatório Museus Centro — Parte ${String(partIndex).padStart(2, '0')} de ${String(totalParts).padStart(2, '0')}</p>
+        <p style="margin:6px 0 0;font-size:11.5px;line-height:1.45;">Capítulos: ${part.chapters.map((chapter) => escapeHtml(chapter.title)).join(', ')}</p>
+      </div>
+    </section>
+  `;
+
+  return `<!doctype html>
+<html lang="pt-BR">
+<head>${documentParts.headHtml}</head>
+<body>
+  <main class="premium-report">
+    ${documentParts.headerHtml || ''}
+    ${partIndex === 1 ? summaryHtml : ''}
+    ${partHeader}
+    ${part.chapters.map((chapter) => chapter.html).join('\n')}
+  </main>
+</body>
+</html>`;
+}
+
+function openPrintWindow(html, filename) {
+  const printWindow = window.open('', '_blank', 'width=1280,height=900');
+  if (!printWindow) return false;
+
+  const finalHtml = String(html || '').replace(/<title>.*?<\/title>/i, `<title>${escapeHtml(filename)}</title>`);
+  printWindow.document.open();
+  printWindow.document.write(finalHtml);
+  printWindow.document.close();
+
+  setTimeout(() => {
+    try {
+      printWindow.focus();
+      printWindow.print();
+    } catch {}
+  }, 300);
+
+  return true;
+}
 
 function getStoredHtml() {
   try {
@@ -969,6 +1293,9 @@ async function loadReportsForHtml(html) {
 export default function RelatorioPreview() {
   const navigate = useNavigate();
   const [html, setHtml] = useState('');
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [exportMode, setExportMode] = useState('single');
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -1015,6 +1342,69 @@ export default function RelatorioPreview() {
     }
 
     window.print();
+  }
+
+  async function handleExportPdf() {
+    if (!html) return;
+
+    setIsExportingPdf(true);
+    toast.info('Preparando relatório para exportação...');
+
+    try {
+      if (exportMode === 'single') {
+        toast.info('Gerando PDF em arquivo único...');
+        handlePrint();
+        toast.success('Relatório exportado com sucesso.');
+        setExportDialogOpen(false);
+        return;
+      }
+
+      toast.info('Gerando PDF dividido em partes...');
+      const selectedChapterIds = loadSelectedChapterIds();
+      const documentParts = extractDocumentParts(html, selectedChapterIds);
+
+      if (!documentParts || !Array.isArray(documentParts.chapters) || documentParts.chapters.length === 0) {
+        toast.error('Não foi possível dividir o relatório por capítulos. Tente novamente.');
+        return;
+      }
+
+      const { parts, warnings } = buildSplitParts(documentParts.chapters);
+      if (!Array.isArray(parts) || parts.length === 0) {
+        toast.error('Não foi possível montar partes válidas para exportação.');
+        return;
+      }
+
+      const summaryHtml = buildPartSummary(parts);
+      const totalParts = parts.length;
+
+      for (let i = 0; i < parts.length; i += 1) {
+        const partNumber = i + 1;
+        const partHtml = buildPartHtml(documentParts, parts[i], partNumber, totalParts, summaryHtml);
+        const filename = filenameForPart(partNumber);
+
+        const ok = openPrintWindow(partHtml, filename);
+        if (!ok) {
+          toast.error(`Não foi possível abrir a parte ${String(partNumber).padStart(2, '0')} para impressão.`);
+          continue;
+        }
+
+        toast.success(`Parte ${String(partNumber).padStart(2, '0')} preparada.`);
+      }
+
+      if (warnings.length > 0) {
+        warnings.forEach((warningMessage) => toast.warning(warningMessage));
+        toast.warning('Exportação concluída com avisos.');
+      } else {
+        toast.success('Relatório exportado com sucesso.');
+      }
+
+      setExportDialogOpen(false);
+    } catch (error) {
+      console.error('Erro ao exportar PDF:', error);
+      toast.error('Erro ao exportar PDF.');
+    } finally {
+      setIsExportingPdf(false);
+    }
   }
 
   function handleDownloadHtml() {
@@ -1073,12 +1463,12 @@ export default function RelatorioPreview() {
             </Button>
 
             <Button
-              onClick={handlePrint}
+              onClick={() => setExportDialogOpen(true)}
               className="bg-black hover:bg-gray-800 text-white gap-2"
               disabled={!html}
             >
-              <Printer className="w-4 h-4" />
-              Salvar como PDF
+              <FileDown className="w-4 h-4" />
+              Exportar PDF
             </Button>
           </div>
         </div>
@@ -1110,6 +1500,48 @@ export default function RelatorioPreview() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Exportar relatório em PDF</DialogTitle>
+            <DialogDescription>
+              Escolha se deseja gerar o relatório em um único arquivo ou em partes de até 200 MB.
+              No modo dividido, os capítulos serão mantidos inteiros sempre que possível.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <button
+              type="button"
+              onClick={() => setExportMode('single')}
+              className={`w-full rounded-xl border p-4 text-left transition-colors ${exportMode === 'single' ? 'border-black bg-black/5' : 'border-slate-200 bg-white'}`}
+            >
+              <p className="text-sm font-semibold text-slate-900">Arquivo único</p>
+              <p className="text-xs text-slate-500 mt-1">Mantém o comportamento atual em um único PDF.</p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setExportMode('split')}
+              className={`w-full rounded-xl border p-4 text-left transition-colors ${exportMode === 'split' ? 'border-black bg-black/5' : 'border-slate-200 bg-white'}`}
+            >
+              <p className="text-sm font-semibold text-slate-900">Vários arquivos de até 200 MB</p>
+              <p className="text-xs text-slate-500 mt-1">Agrupa capítulos inteiros em partes, respeitando o limite sempre que possível.</p>
+            </button>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExportDialogOpen(false)} disabled={isExportingPdf}>
+              Cancelar
+            </Button>
+            <Button onClick={handleExportPdf} disabled={!html || isExportingPdf} className="gap-2">
+              {isExportingPdf ? <Printer className="w-4 h-4 animate-pulse" /> : <FileDown className="w-4 h-4" />}
+              {isExportingPdf ? 'Exportando...' : 'Exportar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

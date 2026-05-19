@@ -250,7 +250,7 @@ function DashboardProfissionalInner() {
       <div className="max-w-7xl mx-auto px-4 py-6 md:px-8 md:py-10">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div><h1 className="text-3xl font-semibold text-foreground">Painel</h1><p className="mt-1 text-sm text-muted-foreground">Bem-vindo, {currentUser?.full_name || ''}! Sua atuação nas instituições{userMuseu ? ` · ${userMuseu}` : ''}</p></div>
-          <Link to="/ReportEditor"><Button className="gap-2"><Plus className="h-4 w-4" />Novo Relatório</Button></Link>
+          <Link to="/ReportEditor?novo=1"><Button className="gap-2"><Plus className="h-4 w-4" />Novo Relatório</Button></Link>
         </div>
         <div className="mb-6 space-y-6"><GaleriaTickerCarousel /><NewsCarousel /><DiariamenteNosMuseus /><MetasAditivoSection rubricas={rubricas} /></div>
         {!isLoadingAllReports && !isLoadingAllProgramacao && <ProfessionalGeneralCharts reports={allReports} programacao={allProgramacao} />}
@@ -258,7 +258,7 @@ function DashboardProfissionalInner() {
         {!isLoading && <div className="mb-8"><h2 className="mb-4 text-xl font-semibold text-foreground">Dados</h2><ProfessionalStats stats={stats} /></div>}
         {recentReports.length > 0 && <div className="mb-8"><h2 className="mb-4 text-xl font-semibold text-foreground">Relatórios Recentes</h2><RecentReportsCard reports={recentReports} /></div>}
         <ProfessionalDataSection myReports={myReports} myActivities={myActivities} isLoadingActivities={isLoadingActivities} />
-        {!isLoading && myReports.length === 0 && <div className="mt-8 rounded-2xl border border-dashed border-border p-12 text-center"><p className="font-medium text-foreground">Você ainda não tem relatórios</p><p className="mt-2 text-sm text-muted-foreground">Comece criando um novo relatório mensal para registrar suas atividades e atuação.</p><Link to="/ReportEditor"><Button className="mt-6 gap-2"><Plus className="h-4 w-4" />Criar Primeiro Relatório</Button></Link></div>}
+        {!isLoading && myReports.length === 0 && <div className="mt-8 rounded-2xl border border-dashed border-border p-12 text-center"><p className="font-medium text-foreground">Você ainda não tem relatórios</p><p className="mt-2 text-sm text-muted-foreground">Comece criando um novo relatório mensal para registrar suas atividades e atuação.</p><Link to="/ReportEditor?novo=1"><Button className="mt-6 gap-2"><Plus className="h-4 w-4" />Criar Primeiro Relatório</Button></Link></div>}
       </div>
     </div>
   );

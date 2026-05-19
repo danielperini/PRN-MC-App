@@ -3,44 +3,25 @@ import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { REPORT_CHAPTERS, REPORT_CHAPTER_IDS } from '@/config/reportChapters';
 
-const CAPITULOS = [
-  { id: 'capa', label: 'Capa editorial', categoria: 'Estrutura' },
-  { id: 'introducao_institucional', label: 'Introdução institucional', categoria: 'Estrutura' },
-  { id: 'introducao', label: 'Introdução e território', categoria: 'Estrutura' },
-  { id: 'resumo', label: 'Resumo e indicadores', categoria: 'Análise' },
-  { id: 'metas', label: 'Metas do 3º Aditivo', categoria: 'Metas' },
-  { id: 'publico', label: 'Público alcançado', categoria: 'Métricas' },
-  { id: 'programacao', label: 'Programação', categoria: 'Conteúdo' },
-  { id: 'agenda_programacao', label: 'Agenda de programação', categoria: 'Conteúdo' },
-  { id: 'atividades', label: 'Atividades por eixo', categoria: 'Conteúdo' },
-  { id: 'relatorios_completos', label: 'Relatórios completos das equipes', categoria: 'Conteúdo' },
-  { id: 'galeria_evidencias', label: 'Galeria e evidências', categoria: 'Evidências' },
-  { id: 'fotos', label: 'Fotos das atividades', categoria: 'Evidências' },
-  { id: 'comunicacao', label: 'Comunicação', categoria: 'Comunicação' },
-  { id: 'clipping_links', label: 'Clipping, redes sociais e links', categoria: 'Comunicação' },
-  { id: 'execucao_financeira', label: 'Execução financeira', categoria: 'Financeiro' },
-  { id: 'compras_rubricas', label: 'Compras e rubricas', categoria: 'Financeiro' },
-  { id: 'execucao_rubrica', label: 'Execução por rubrica', categoria: 'Financeiro' },
-  { id: 'orcamento_museu', label: 'Rubricas por museu', categoria: 'Financeiro' },
-  { id: 'prestacao_contas', label: 'Prestação de contas', categoria: 'Financeiro' },
-  { id: 'repositorio', label: 'Repositório documental', categoria: 'Documentos' },
-  { id: 'plataforma', label: 'Museu Centro APP', categoria: 'Institucional' },
-  { id: 'memoria_institucional', label: 'Memória institucional', categoria: 'Institucional' },
-  { id: 'conclusao', label: 'Conclusão', categoria: 'Estrutura' },
-];
+const CAPITULOS = REPORT_CHAPTERS.map((chapter) => ({
+  id: chapter.id,
+  label: chapter.title,
+  categoria: chapter.group,
+}));
 
 const TEMPLATES = {
-  completo: { nome: 'Relatório Completo', descricao: 'Todos os capítulos', capitulos: CAPITULOS.map((c) => c.id) },
-  resumido: { nome: 'Relatório Resumido', descricao: 'Síntese executiva', capitulos: ['capa', 'introducao_institucional', 'resumo', 'metas', 'publico', 'atividades', 'conclusao'] },
-  financeiro: { nome: 'Prestação de Contas', descricao: 'Foco financeiro', capitulos: ['capa', 'execucao_financeira', 'compras_rubricas', 'execucao_rubrica', 'orcamento_museu', 'prestacao_contas', 'conclusao'] },
-  institucional: { nome: 'Relatório Institucional', descricao: 'Narrativa completa', capitulos: ['capa', 'introducao_institucional', 'introducao', 'resumo', 'metas', 'programacao', 'agenda_programacao', 'relatorios_completos', 'galeria_evidencias', 'comunicacao', 'plataforma', 'memoria_institucional', 'conclusao'] },
-  patrocinador: { nome: 'Relatório Patrocinador', descricao: 'Resultados', capitulos: ['capa', 'resumo', 'metas', 'publico', 'programacao', 'atividades', 'galeria_evidencias', 'comunicacao', 'execucao_financeira', 'orcamento_museu', 'conclusao'] },
+  completo: { nome: 'Relatório Completo', descricao: 'Todos os capítulos', capitulos: REPORT_CHAPTER_IDS },
+  resumido: { nome: 'Relatório Resumido', descricao: 'Síntese executiva', capitulos: ['capa', 'sumario_executivo', 'introducao', 'indicadores_premium', 'publico', 'metas', 'conclusao'] },
+  financeiro: { nome: 'Prestação de Contas', descricao: 'Foco financeiro', capitulos: ['capa', 'financeiro', 'rubricas', 'prestacao', 'notas-fiscais-contratos', 'governanca_documental', 'conclusao'] },
+  institucional: { nome: 'Relatório Institucional', descricao: 'Narrativa completa', capitulos: ['capa', 'expediente', 'introducao', 'territorio', 'programacao', 'agenda_programacao', 'atividades_museu', 'relatorios_completos', 'galeria_evidencias', 'comunicacao', 'app_museu_centro', 'sistema_governanca', 'conclusao'] },
+  patrocinador: { nome: 'Relatório Patrocinador', descricao: 'Resultados', capitulos: ['capa', 'sumario_executivo', 'indicadores_premium', 'publico', 'programacao', 'galeria_evidencias', 'comunicacao', 'financeiro', 'conclusao'] },
 };
 
 export default function ReportSectionSelector({ secoesSelecionadas = [], onSelectionChange, onGerar }) {
-  const [selecionados, setSelecionados] = useState(secoesSelecionadas.length ? secoesSelecionadas : CAPITULOS.map((c) => c.id));
-  const categorias = [...new Set(CAPITULOS.map((c) => c.categoria))];
+  const [selecionados, setSelecionados] = useState(secoesSelecionadas.length ? secoesSelecionadas : REPORT_CHAPTER_IDS);
+  const categorias = [...new Set(CAPITULOS.map((chapter) => chapter.categoria))];
 
   function update(next) {
     setSelecionados(next);
@@ -66,8 +47,8 @@ export default function ReportSectionSelector({ secoesSelecionadas = [], onSelec
         </div>
 
         <div className="flex gap-2 mb-6 pb-4 border-b">
-          <Button variant="secondary" size="sm" onClick={() => update(CAPITULOS.map((c) => c.id))} className="text-xs">✓ Todos</Button>
-          <Button variant="secondary" size="sm" onClick={() => update([])} className="text-xs">✗ Nenhum</Button>
+          <Button variant="secondary" size="sm" onClick={() => update(REPORT_CHAPTER_IDS)} className="text-xs">Todos</Button>
+          <Button variant="secondary" size="sm" onClick={() => update([])} className="text-xs">Nenhum</Button>
           <span className="ml-auto text-xs text-gray-600 py-2">{selecionados.length} de {CAPITULOS.length} capítulos selecionados</span>
         </div>
 
@@ -76,7 +57,7 @@ export default function ReportSectionSelector({ secoesSelecionadas = [], onSelec
             <section key={categoria} className="space-y-2">
               <h4 className="text-sm font-semibold text-gray-700">{categoria}</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2 border-l border-gray-200 pl-4">
-                {CAPITULOS.filter((c) => c.categoria === categoria).map((capitulo) => (
+                {CAPITULOS.filter((chapter) => chapter.categoria === categoria).map((capitulo) => (
                   <div key={capitulo.id} className="flex items-center gap-3">
                     <Checkbox id={capitulo.id} checked={selecionados.includes(capitulo.id)} onCheckedChange={() => toggle(capitulo.id)} />
                     <Label htmlFor={capitulo.id} className="cursor-pointer text-sm font-normal">{capitulo.label}</Label>
@@ -89,7 +70,7 @@ export default function ReportSectionSelector({ secoesSelecionadas = [], onSelec
       </div>
 
       <Button onClick={() => onGerar?.(selecionados)} disabled={selecionados.length === 0} className="w-full bg-black text-white hover:bg-gray-900">
-        📄 Gerar Relatório ({selecionados.length} capítulos)
+        Gerar Relatório ({selecionados.length} capítulos)
       </Button>
     </Card>
   );

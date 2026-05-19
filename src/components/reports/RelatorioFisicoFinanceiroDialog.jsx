@@ -9,41 +9,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { FileDown, Loader2, AlertCircle, Paperclip, Sparkles } from 'lucide-react';
 import LoadingDataNotice from '@/components/ui/LoadingDataNotice';
+import {
+  REPORT_CHAPTERS,
+  REPORT_CHAPTER_IDS,
+  buildReportChapterSelectionState,
+  getSelectedReportChapterIds,
+} from '@/config/reportChapters';
 
 import buildRelatorioFisicoFinanceiroContext from '@/utils/buildRelatorioFisicoFinanceiroContext';
 import montarHtmlRelatorioFisicoFinanceiro from '@/utils/relatorioFisicoFinanceiroTemplate';
 import gerarTextosRelatorioFisicoFinanceiro from '@/services/relatorioIAService';
 import { montarHtmlRelatorioPremium } from '@/components/reports/premium/PremiumReportLayout';
-
-const CAPITULOS_RELATORIO = [
-  { id: 'capa', label: 'Capa editorial' },
-  { id: 'sumario_executivo', label: 'Sumário executivo editorial' },
-  { id: 'introducao', label: 'Introdução institucional' },
-  { id: 'territorio', label: 'Território e contexto' },
-  { id: 'indicadores_premium', label: 'Indicadores editoriais' },
-  { id: 'resumo_geral', label: 'Resumo e indicadores' },
-  { id: 'publico', label: 'Público alcançado' },
-  { id: 'metas', label: 'Metas do 3º Aditivo' },
-  { id: 'programacao', label: 'Programação' },
-  { id: 'agenda_programacao', label: 'Agenda de programação' },
-  { id: 'timeline_premium', label: 'Linha do tempo editorial' },
-  { id: 'atividades_museu', label: 'Atividades por museu' },
-  { id: 'museus_premium', label: 'Páginas por museu' },
-  { id: 'noturno_premium', label: 'Seção especial Noturno nos Museus' },
-  { id: 'relatorios_completos', label: 'Relatórios integrais das equipes' },
-  { id: 'galeria_evidencias', label: 'Galeria e evidências' },
-  { id: 'galeria_premium', label: 'Galeria com créditos e GPS' },
-  { id: 'comunicacao', label: 'Comunicação' },
-  { id: 'comunicacao_premium', label: 'Comunicação editorial' },
-  { id: 'financeiro', label: 'Execução financeira' },
-  { id: 'rubricas', label: 'Rubricas, orçamento e execução por grupo' },
-  { id: 'prestacao', label: 'Prestação de contas' },
-  { id: 'app_museu_centro', label: 'Museu Centro APP' },
-  { id: 'sistema_governanca', label: 'Sistema, dados e governança' },
-  { id: 'conclusao', label: 'Conclusão' },
-];
-
-const SECOES = CAPITULOS_RELATORIO;
+const SECOES = REPORT_CHAPTERS;
 
 const MUSEUS_OPTIONS = [
   { value: 'todos', label: 'Todos os museus' },
@@ -115,7 +92,7 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
    const [dateFrom, setDateFrom] = useState('2026-02-02');
    const [dateTo, setDateTo] = useState('2026-04-30');
    const [museu, setMuseu] = useState('todos');
-   const [secoes, setSecoes] = useState(Object.fromEntries(SECOES.map((s) => [s.id, true])));
+   const [secoes, setSecoes] = useState(buildReportChapterSelectionState());
    const [modoEntrega, setModoEntrega] = useState(true);
    const [introIA, setIntroIA] = useState(true);
    const [editorialFase3Ativo, setEditorialFase3Ativo] = useState(true);
@@ -124,15 +101,17 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
    const [previa, setPrevia] = useState(null);
 
   const toggleSecao = (id) => setSecoes((p) => ({ ...p, [id]: !p[id] }));
-  const toggleAll = (val) => setSecoes(Object.fromEntries(SECOES.map((s) => [s.id, val])));
+  const toggleAll = (val) => setSecoes(buildReportChapterSelectionState(val ? REPORT_CHAPTER_IDS : []));
 
-  const secoesSelecionadas = Object.entries(secoes).filter(([, v]) => v).map(([k]) => k);
+  const secoesSelecionadas = getSelectedReportChapterIds(secoes);
 
   async function coletarDados() {
     const [
       reportsRaw,
       rubricasRaw,
       comprasRaw,
+      teamPaymentsRaw,
+      documentIntakeRaw,
       attachmentsRaw,
       programacaoRaw,
       conhecimentoRaw,
@@ -140,6 +119,8 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
       safeList(base44.entities.Report, '-updated_date', 2000),
       safeList(base44.entities.Rubrica, 'ordem_exibicao', 2000),
       safeList(base44.entities.PurchaseRequest, '-created_date', 2000),
+      safeList(base44.entities.TeamPayment, '-created_date', 2000),
+      safeList(base44.entities.DocumentIntake, '-created_date', 2000),
       safeList(base44.entities.Attachment, '-created_date', 3000),
       safeList(base44.entities.Programacao, '-data_inicio', 3000),
       carregarBaseConhecimento(),
@@ -149,6 +130,8 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
       reportsRaw,
       rubricasRaw,
       comprasRaw,
+      teamPaymentsRaw,
+      documentIntakeRaw,
       attachmentsRaw,
       programacaoRaw,
       conhecimentoRaw,
@@ -165,7 +148,7 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
     const contextoComEstrategia = {
       ...contexto,
       report_generator_strategy: REPORT_GENERATOR_STRATEGY,
-      capitulos_relatorio: CAPITULOS_RELATORIO,
+      capitulos_relatorio: REPORT_CHAPTERS,
       secoesSelecionadas,
     };
 
@@ -212,6 +195,11 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
       toast.error('Selecione ao menos um capítulo');
       return;
     }
+
+    try {
+      sessionStorage.setItem('relatorio_fisico_financeiro_selected_chapters', JSON.stringify(secoesSelecionadas));
+      sessionStorage.setItem('relatorio_fisico_financeiro_export_mode', 'single');
+    } catch {}
 
     setLoadingPDF(true);
 
@@ -407,7 +395,7 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
                     checked={!!secoes[s.id]}
                     onCheckedChange={() => toggleSecao(s.id)}
                   />
-                  <Label htmlFor={s.id} className="text-sm cursor-pointer text-gray-700">{s.label}</Label>
+                  <Label htmlFor={s.id} className="text-sm cursor-pointer text-gray-700">{s.title}</Label>
                 </div>
               ))}
             </div>
