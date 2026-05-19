@@ -387,6 +387,37 @@ function createHiddenReportIframe(html) {
   return iframe;
 }
 
+function getPdfRenderTargets(root) {
+  const MAX_SECTION_HEIGHT = 5200;
+  const result = [];
+
+  function collect(element) {
+    if (!element) return;
+    const rect = element.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+
+    const children = Array.from(element.children || []).filter((child) => {
+      const childRect = child.getBoundingClientRect();
+      return childRect.width > 0 && childRect.height > 0;
+    });
+
+    if (element.scrollHeight > MAX_SECTION_HEIGHT && children.length > 0) {
+      children.forEach(collect);
+      return;
+    }
+
+    result.push(element);
+  }
+
+  const children = Array.from(root?.children || []).filter((element) => {
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  });
+
+  (children.length > 0 ? children : [root]).forEach(collect);
+  return result;
+}
+
 async function exportHtmlToPdfBlob(html) {
   if (!String(html || '').trim()) {
     throw new Error('HTML do relatorio vazio.');
@@ -402,23 +433,6 @@ async function exportHtmlToPdfBlob(html) {
   try {
     await waitForIframeAssets(iframe);
 
-    const doc = iframe.contentDocument;
-    const target = doc.querySelector('main.premium-report') || doc.body;
-
-    const canvas = await html2canvas(target, {
-      scale: 1.2,
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: '#ffffff',
-      logging: false,
-      windowWidth: Math.max(target.scrollWidth, 1024),
-      windowHeight: Math.max(target.scrollHeight, 1448),
-    });
-
-    if (!canvas.width || !canvas.height) {
-      throw new Error('Canvas do relatorio vazio.');
-    }
-
     const pdf = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
@@ -428,37 +442,61 @@ async function exportHtmlToPdfBlob(html) {
 
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
-    const pageCanvasHeight = Math.floor((canvas.width * pageHeight) / pageWidth);
     const pageCanvas = document.createElement('canvas');
     const pageContext = pageCanvas.getContext('2d');
     if (!pageContext) {
       throw new Error('Canvas do PDF indisponivel.');
     }
 
-    pageCanvas.width = canvas.width;
+    const doc = iframe.contentDocument;
+    const target = doc.querySelector('main.premium-report') || doc.body;
+    const renderTargets = getPdfRenderTargets(target);
+    let hasPageContent = false;
 
-    for (let y = 0, pageIndex = 0; y < canvas.height; y += pageCanvasHeight, pageIndex += 1) {
-      const sliceHeight = Math.min(pageCanvasHeight, canvas.height - y);
-      pageCanvas.height = sliceHeight;
-      pageContext.fillStyle = '#ffffff';
-      pageContext.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
-      pageContext.drawImage(
-        canvas,
-        0,
-        y,
-        canvas.width,
-        sliceHeight,
-        0,
-        0,
-        pageCanvas.width,
-        sliceHeight
-      );
+    for (const element of renderTargets) {
+      const canvas = await html2canvas(element, {
+        scale: 1.2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        windowWidth: Math.max(element.scrollWidth, target.scrollWidth, 1024),
+        windowHeight: Math.max(element.scrollHeight, element.clientHeight, 800),
+      });
 
-      if (pageIndex > 0) pdf.addPage();
+      if (!canvas.width || !canvas.height) continue;
 
-      const imageData = pageCanvas.toDataURL('image/jpeg', 0.82);
-      const imageHeight = (sliceHeight * pageWidth) / canvas.width;
-      pdf.addImage(imageData, 'JPEG', 0, 0, pageWidth, imageHeight, undefined, 'FAST');
+      const pageCanvasHeight = Math.max(1, Math.floor((canvas.width * pageHeight) / pageWidth));
+      pageCanvas.width = canvas.width;
+
+      for (let y = 0; y < canvas.height; y += pageCanvasHeight) {
+        const sliceHeight = Math.min(pageCanvasHeight, canvas.height - y);
+        pageCanvas.height = sliceHeight;
+        pageContext.fillStyle = '#ffffff';
+        pageContext.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+        pageContext.drawImage(
+          canvas,
+          0,
+          y,
+          canvas.width,
+          sliceHeight,
+          0,
+          0,
+          pageCanvas.width,
+          sliceHeight
+        );
+
+        if (hasPageContent) pdf.addPage();
+
+        const imageData = pageCanvas.toDataURL('image/jpeg', 0.82);
+        const imageHeight = (sliceHeight * pageWidth) / canvas.width;
+        pdf.addImage(imageData, 'JPEG', 0, 0, pageWidth, imageHeight, undefined, 'FAST');
+        hasPageContent = true;
+      }
+    }
+
+    if (!hasPageContent) {
+      throw new Error('PDF gerado sem paginas renderizadas.');
     }
 
     const blob = pdf.output('blob');

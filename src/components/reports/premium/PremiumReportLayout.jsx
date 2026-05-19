@@ -556,7 +556,6 @@ function TableOfContents({ secoesSelecionadas = [], contexto = {} }) {
 
   return (
     <PremiumSection
-      chapterId="governanca_documental"
       breakBefore
       chapterId="sumario_executivo"
       chapterTitle="SumÃ¡rio executivo editorial"
@@ -599,7 +598,7 @@ function TransitionManagementSection() {
 
   return (
     <PremiumSection
-      chapterId="auditoria_operacional"
+      chapterId="territorio"
       breakBefore
       eyebrow="Atuação geral"
       title="Coordenação, planejamento e desenvolvimento institucional"
@@ -1549,7 +1548,7 @@ function groupPhotosByMonthMuseumActivity(contexto) {
 function GovernanceEvidenceSection({ contexto = {} }) {
   return (
     <PremiumSection
-      chapterId="notas-fiscais-contratos"
+      chapterId="governanca_documental"
       breakBefore
       eyebrow="Governança documental"
       title="Governança documental e rastreabilidade das evidências"
@@ -1568,6 +1567,7 @@ function GovernanceEvidenceSection({ contexto = {} }) {
 function OperationalAuditSection({ contexto = {} }) {
   return (
     <PremiumSection
+      chapterId="auditoria_operacional"
       breakBefore
       eyebrow="Auditoria operacional"
       title="Auditoria operacional do período"
@@ -1600,6 +1600,7 @@ function DocumentsChapterSection({ contexto = {} }) {
 
   return (
     <PremiumSection
+      chapterId="notas-fiscais-contratos"
       breakBefore
       eyebrow="Rastreabilidade fiscal"
       title="Notas fiscais e contratos"
@@ -2147,6 +2148,7 @@ function RemovedPeriodSection({ contexto }) {
 
   return (
     <PremiumSection
+      chapterId="noturno_premium"
       breakBefore
       eyebrow="Seção especial"
       title="Noturno nos Museus"
@@ -2270,30 +2272,9 @@ function hasRealCompras(contexto = {}) {
   return safeArray(contexto.compras).length > 0;
 }
 
-function hasRealMuseumData(contexto = {}) {
-  return safeArray(contexto.atividades).length > 0 ||
-    safeArray(contexto.programacao).length > 0 ||
-    Boolean(contexto.por_museu && Object.keys(contexto.por_museu).length > 0);
-}
-
 function hasRealTimelineData(contexto = {}) {
   return safeArray(contexto.programacao).length > 0 ||
     safeArray(contexto.atividades).length > 0;
-}
-
-function hasNoturnoData(contexto = {}) {
-  const includesNoturno = (item = {}) => normalizeText([
-    item.nome,
-    item.titulo,
-    item.descricao,
-    item.categoria_label,
-    item.grupo,
-    item.rubrica,
-  ].filter(Boolean).join(' ')).includes('noturno');
-
-  return safeArray(contexto.atividades).some(includesNoturno) ||
-    safeArray(contexto.programacao).some(includesNoturno) ||
-    safeArray(contexto.rubricas).some(includesNoturno);
 }
 
 function hasSection(selected = [], ...ids) {
@@ -2439,14 +2420,14 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
 
       {hasSection(secoesSelecionadas, 'agenda_programacao') && <MonthlyAgendaSection contexto={contexto} />}
 
-      {hasSection(secoesSelecionadas, 'atividades_museu', 'museus_premium') && hasRealMuseumData(contexto) && (
+      {hasSection(secoesSelecionadas, 'atividades_museu', 'museus_premium') && (
         <PremiumMuseumSection
           contexto={contexto}
           chapterIds={selectedChapterIds(secoesSelecionadas, ['atividades_museu', 'museus_premium'])}
         />
       )}
 
-      {hasSection(secoesSelecionadas, 'noturno_premium') && hasNoturnoData(contexto) && <RemovedPeriodSection contexto={contexto} />}
+      {hasSection(secoesSelecionadas, 'noturno_premium') && <RemovedPeriodSection contexto={contexto} />}
 
       {hasSection(secoesSelecionadas, 'comunicacao', 'comunicacao_premium') && (
         <PremiumCommunicationSection

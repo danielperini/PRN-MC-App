@@ -61,6 +61,7 @@ export default function PremiumMuseumSection({ contexto, chapterIds = ['atividad
     geral: 'A atuação geral reúne frentes transversais de planejamento, acessibilidade, comunicação, documentação e produção cultural.',
   };
   const museus = ['MHAB', 'MIS', 'MUMO', 'Atuação geral'];
+  const totalItems = museus.reduce((sum, museu) => sum + (grupos[museu] || []).length, 0);
 
   return (
     <div
@@ -69,6 +70,18 @@ export default function PremiumMuseumSection({ contexto, chapterIds = ['atividad
       data-report-chapter-ids={chapterIds.filter(Boolean).join(' ')}
       data-report-chapter-title="Atividades por museu"
     >
+      {totalItems === 0 ? (
+        <section className="premium-museum-block premium-page-break">
+          <PremiumInternalPageHeader />
+          <div className="premium-museum-heading">
+            <p className="premium-eyebrow">Ações por equipamento</p>
+            <h2>Atividades por museu</h2>
+          </div>
+          <p className="premium-museum-intro">
+            Não foram localizados registros consolidados para este capítulo no período selecionado. A ausência de dados é apresentada para preservar a rastreabilidade do relatório e evitar preenchimento artificial de informações.
+          </p>
+        </section>
+      ) : null}
       {museus.map((museu) => {
         const items = grupos[museu] || [];
         if (items.length === 0) return null;
