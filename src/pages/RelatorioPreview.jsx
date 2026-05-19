@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { REPORT_CHAPTERS, REPORT_CHAPTER_IDS } from '@/config/reportChapters';
 
 const MAX_EXPORT_PART_SIZE_BYTES = 200 * 1024 * 1024;
+const CHAPTERS_PER_PDF_PART = 3;
 const EXPORT_FILENAME_BASE = 'Relatorio_Museus_Centro';
 
 function normalizeText(value) {
@@ -161,6 +162,19 @@ function extractDocumentParts(html, selectedChapterIds) {
 }
 
 function buildSplitParts(chapters) {
+  const source = Array.isArray(chapters) ? chapters.filter(Boolean) : [];
+  if (source.length > 0) {
+    const fixedParts = [];
+    for (let index = 0; index < source.length; index += CHAPTERS_PER_PDF_PART) {
+      const current = source.slice(index, index + CHAPTERS_PER_PDF_PART);
+      fixedParts.push({
+        chapters: current,
+        sizeBytes: current.reduce((sum, item) => sum + (item.sizeBytes || 0), 0),
+      });
+    }
+    return { parts: fixedParts, warnings: [] };
+  }
+
   const parts = [];
   let current = [];
   let currentSize = 0;
@@ -454,15 +468,22 @@ async function exportHtmlToPdfBlob(html) {
     let hasPageContent = false;
 
     for (const element of renderTargets) {
-      const canvas = await html2canvas(element, {
-        scale: 1.2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-        windowWidth: Math.max(element.scrollWidth, target.scrollWidth, 1024),
-        windowHeight: Math.max(element.scrollHeight, element.clientHeight, 800),
-      });
+      let canvas = null;
+      try {
+        canvas = await html2canvas(element, {
+          scale: 1.2,
+          useCORS: true,
+          allowTaint: false,
+          backgroundColor: '#ffffff',
+          logging: false,
+          imageTimeout: 12000,
+          windowWidth: Math.max(element.scrollWidth, target.scrollWidth, 1024),
+          windowHeight: Math.max(element.scrollHeight, element.clientHeight, 800),
+        });
+      } catch (renderError) {
+        console.warn('Falha ao renderizar bloco do PDF. O bloco sera ignorado no raster e preservado no fallback textual.', renderError);
+        continue;
+      }
 
       if (!canvas.width || !canvas.height) continue;
 
@@ -488,15 +509,37 @@ async function exportHtmlToPdfBlob(html) {
 
         if (hasPageContent) pdf.addPage();
 
-        const imageData = pageCanvas.toDataURL('image/jpeg', 0.82);
-        const imageHeight = (sliceHeight * pageWidth) / canvas.width;
-        pdf.addImage(imageData, 'JPEG', 0, 0, pageWidth, imageHeight, undefined, 'FAST');
-        hasPageContent = true;
+        try {
+          const imageData = pageCanvas.toDataURL('image/jpeg', 0.82);
+          const imageHeight = (sliceHeight * pageWidth) / canvas.width;
+          pdf.addImage(imageData, 'JPEG', 0, 0, pageWidth, imageHeight, undefined, 'FAST');
+          hasPageContent = true;
+        } catch (imageError) {
+          console.warn('Falha ao inserir imagem no PDF. Tentando continuar com os demais blocos.', imageError);
+        }
       }
     }
 
     if (!hasPageContent) {
-      throw new Error('PDF gerado sem paginas renderizadas.');
+      const text = String(target?.innerText || doc.body?.innerText || '').replace(/\s+\n/g, '\n').trim();
+      if (!text) {
+        throw new Error('PDF gerado sem paginas renderizadas.');
+      }
+
+      const margin = 14;
+      const lineHeight = 5.2;
+      const maxWidth = pageWidth - margin * 2;
+      const lines = pdf.splitTextToSize(text, maxWidth);
+      let y = margin;
+      lines.forEach((line) => {
+        if (y > pageHeight - margin) {
+          pdf.addPage();
+          y = margin;
+        }
+        pdf.setFontSize(9);
+        pdf.text(line, margin, y);
+        y += lineHeight;
+      });
     }
 
     const blob = pdf.output('blob');
@@ -1505,6 +1548,12 @@ export default function RelatorioPreview() {
 
   useEffect(() => {
     let cancelled = false;
+    try {
+      const storedMode = sessionStorage.getItem('relatorio_fisico_financeiro_export_mode');
+      if (storedMode === 'split' || storedMode === 'single') {
+        setExportMode(storedMode);
+      }
+    } catch {}
 
     async function load() {
       const stored = getStoredHtml();

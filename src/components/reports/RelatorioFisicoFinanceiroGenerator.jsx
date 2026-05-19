@@ -37,6 +37,7 @@ import {
 
 const MUSEUS = ['Todos', 'MIS', 'MHAB', 'MUMO'];
 const MAX_EXPORT_PART_SIZE_BYTES = PDF_MAX_TOTAL_SIZE_MB * 1024 * 1024;
+const CHAPTERS_PER_EXPORT_PART = 3;
 const EXPORT_FILENAME_BASE = 'Relatorio_Museus_Centro';
 const SECOES_RELATORIO = REPORT_CHAPTER_IDS;
 function getCapituloLabel(sectionId) {
@@ -127,6 +128,22 @@ function buildPartsFromMeasuredSections(sectionMeasures = []) {
 
   if (currentSections.length > 0) {
     parts.push({ secoes: currentSections, estimatedSizeBytes: currentSize, oversizedSingleChapter: false });
+  }
+
+  return parts;
+}
+
+function buildPartsByChapterCount(sectionIds = [], chunkSize = CHAPTERS_PER_EXPORT_PART) {
+  const ids = Array.isArray(sectionIds) ? sectionIds.filter(Boolean) : [];
+  const safeChunkSize = Math.max(1, Number(chunkSize) || CHAPTERS_PER_EXPORT_PART);
+  const parts = [];
+
+  for (let index = 0; index < ids.length; index += safeChunkSize) {
+    parts.push({
+      secoes: ids.slice(index, index + safeChunkSize),
+      estimatedSizeBytes: 0,
+      oversizedSingleChapter: false,
+    });
   }
 
   return parts;
@@ -474,7 +491,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
 
       const htmlSize = new Blob([data.html], { type: 'text/html;charset=utf-8' }).size;
 
-      if (exportMode === 'single' || htmlSize <= MAX_EXPORT_PART_SIZE_BYTES) {
+      if (exportMode === 'single') {
         updateProgress(88, 'Finalizando arquivo único', 'Preparando prévia e download');
         if (exportMode === 'split' && htmlSize <= MAX_EXPORT_PART_SIZE_BYTES) {
           toast.info('O relatório ficou abaixo de 200 MB e foi mantido em arquivo único.');
@@ -511,7 +528,8 @@ export default function RelatorioFisicoFinanceiroGenerator() {
           });
         }
 
-        const builtParts = buildPartsFromMeasuredSections(measuredSections);
+        buildPartsFromMeasuredSections(measuredSections);
+        const builtParts = buildPartsByChapterCount(normalizedSelectedSections);
 
         if (builtParts.length === 0) {
           builtParts.push({
