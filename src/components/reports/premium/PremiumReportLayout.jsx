@@ -33,15 +33,15 @@ import {
 } from './premiumReportUtils';
 
 const CATALOG_CSS = `
-  @page { size: A4; margin: 34mm 14mm 18mm; }
+  @page { size: A4; margin: 22mm 14mm 30mm; }
   @page cover { size: A4; margin: 0; }
   * { box-sizing: border-box; }
   body { margin: 0; background: #e7e3dc; color: #171717; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
   .premium-report { background: #f7f3eb; color: #171717; }
   .report-pdf-institutional-header { display: none; }
-  .report-pdf-institutional-logo-wrap { width: 18mm; height: 18mm; flex: 0 0 18mm; }
-  .report-pdf-institutional-logo { width: 18mm; height: 18mm; display: block; object-fit: contain; }
-  .report-pdf-institutional-text { flex: 1; margin-left: 32mm; padding-top: 2mm; text-align: center; font-size: 10.5px; font-weight: 700; line-height: 1.35; color: #777777; font-family: Arial, Helvetica, sans-serif; }
+  .report-pdf-institutional-logo-wrap { width: 16mm; height: 16mm; flex: 0 0 16mm; }
+  .report-pdf-institutional-logo { width: 16mm; height: 16mm; display: block; object-fit: contain; }
+  .report-pdf-institutional-text { flex: 1; margin-left: 0; padding-top: 0; text-align: right; font-size: 9px; font-weight: 700; line-height: 1.32; color: #777777; font-family: Arial, Helvetica, sans-serif; }
   .report-pdf-institutional-text span { display: block; }
   .premium-internal-page-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; padding: 0 0 18px; border-bottom: 1px solid rgba(0,0,0,0.08); margin-bottom: 22px; break-inside: avoid; page-break-inside: avoid; }
   .premium-internal-page-header-logo img { max-height: 58px; width: auto; display: block; object-fit: contain; }
@@ -276,7 +276,7 @@ const CATALOG_CSS = `
   @media print {
     body { background: #fff; }
     .premium-report { background: #fff; }
-    .report-pdf-institutional-header { position: fixed; top: -27mm; left: 0; right: 0; z-index: 1; display: flex; align-items: flex-start; box-sizing: border-box; padding: 5mm 14mm 4mm; height: 24mm; page-break-inside: avoid; break-inside: avoid; background: #ffffff; border-bottom: 1px solid rgba(23,23,23,.08); }
+    .report-pdf-institutional-header { position: fixed; left: 14mm; right: 14mm; bottom: -25mm; z-index: 1; display: grid; grid-template-columns: 16mm minmax(0,1fr); column-gap: 10mm; align-items: center; box-sizing: border-box; height: 20mm; padding: 3mm 0 0; page-break-inside: avoid; break-inside: avoid; background: #ffffff; border-top: 1px solid rgba(23,23,23,.1); pointer-events: none; }
     .premium-internal-page-header { display: none; }
     .premium-cover { z-index: 5; }
     .premium-section, .premium-expediente, .premium-museum-block, .premium-communication, .premium-closing { min-height: auto; }

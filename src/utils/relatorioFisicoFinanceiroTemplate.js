@@ -928,40 +928,30 @@ export function montarHtmlRelatorioFisicoFinanceiro({
   }
 
   .report-pdf-institutional-header {
-    width: 100%;
-    display: flex;
-    align-items: flex-start;
-    box-sizing: border-box;
-    padding-top: 32px;
-    padding-left: 110px;
-    padding-right: 70px;
-    margin-bottom: 90px;
-    page-break-inside: avoid;
-    break-inside: avoid;
-    background: #ffffff;
+    display: none;
   }
 
   .report-pdf-institutional-logo-wrap {
-    width: 80px;
-    height: 80px;
-    flex: 0 0 80px;
+    width: 16mm;
+    height: 16mm;
+    flex: 0 0 16mm;
   }
 
   .report-pdf-institutional-logo {
-    width: 80px;
-    height: 80px;
+    width: 16mm;
+    height: 16mm;
     display: block;
     object-fit: contain;
   }
 
   .report-pdf-institutional-text {
     flex: 1;
-    margin-left: 150px;
-    padding-top: 18px;
-    text-align: center;
-    font-size: 12px;
+    margin-left: 0;
+    padding-top: 0;
+    text-align: right;
+    font-size: 9px;
     font-weight: 700;
-    line-height: 1.35;
+    line-height: 1.32;
     color: #777777;
     font-family: Arial, Helvetica, sans-serif;
   }
@@ -1835,7 +1825,7 @@ export function montarHtmlRelatorioFisicoFinanceiro({
   ============================= */
   @page {
     size: A4;
-    margin: 2.5cm 2cm;
+    margin: 2cm 2cm 3cm;
     @bottom-center {
       content: counter(page) ' / ' counter(pages);
       font-size: 9pt;
@@ -1942,6 +1932,7 @@ export function montarHtmlRelatorioFisicoFinanceiro({
     text-align: center;
     page-break-after: always;
     position: relative;
+    z-index: 5;
     overflow: hidden;
   }
 
@@ -2302,6 +2293,26 @@ export function montarHtmlRelatorioFisicoFinanceiro({
     body {
       background: white;
       padding: 0;
+    }
+
+    .report-pdf-institutional-header {
+      position: fixed;
+      left: 14mm;
+      right: 14mm;
+      bottom: -25mm;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: 16mm minmax(0, 1fr);
+      column-gap: 10mm;
+      align-items: center;
+      box-sizing: border-box;
+      height: 20mm;
+      padding: 3mm 0 0;
+      page-break-inside: avoid;
+      break-inside: avoid;
+      background: #ffffff;
+      border-top: 1px solid rgba(23,23,23,.1);
+      pointer-events: none;
     }
 
     .actions-bar {
