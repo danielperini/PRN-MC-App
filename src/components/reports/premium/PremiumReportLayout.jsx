@@ -288,19 +288,9 @@ function buildIntroPeriodo(contexto = {}) {
   const periodo = contexto?.reportEditorial?.periodLabel || contexto?.periodo_extenso || 'recorte selecionado';
   return `Este relatório consolida o ${periodo} a partir dos registros do aplicativo, reunindo resultados culturais, institucionais, programáticos, documentais, financeiros e de público do projeto Museus Centro / Viaduto das Artes.
 
-A leitura editorial considera relatórios aprovados, programação, atividades, anexos, rubricas, documentos, público e evidências disponíveis no aplicativo. O objetivo é transformar registros operacionais em uma memória institucional verificável, sem incorporar dados externos nem preencher lacunas artificialmente.
+A leitura editorial considera relatórios aprovados, programação, atividades, anexos, rubricas, documentos, público e evidências disponíveis no app. O objetivo é transformar registros operacionais em uma memória institucional verificável, sem incorporar dados externos nem preencher lacunas artificialmente.
 
 O relatório apresenta MIS, MHAB e MUMO como equipamentos complementares de memória, formação, convivência e fruição cultural. Quando houver ausência de dados ou diferença entre fontes, a limitação é explicitada para preservar transparência, rastreabilidade e qualidade técnica.`;
-}
-
-function buildEditorialOpeningText(contexto = {}) {
-  const periodo = contexto?.reportEditorial?.periodLabel || contexto?.periodo_extenso || 'recorte selecionado';
-
-  return `Este relatório consolida o período de ${periodo} do projeto Museus Centro / Viaduto das Artes.
-
-A publicação reúne registros institucionais, programáticos, documentais, financeiros e de público produzidos a partir dos relatórios aprovados, da programação vinculada e das evidências disponíveis no aplicativo de acompanhamento.
-
-O objetivo é transformar registros operacionais em memória institucional verificável, com transparência metodológica, rastreabilidade das fontes e respeito aos limites dos dados efetivamente registrados.`;
 }
 
 const BASE_METAS_ADITIVO = [
@@ -380,13 +370,13 @@ function getChapterDataSources(chapterId) {
   const sources = {
     introducao: ['relatórios aprovados', 'configuração do período', 'cadastros de museu e equipe'],
     indicadores: ['Report', 'Programação consolidada', 'Rubrica', 'PurchaseRequest', 'Attachment'],
-    programacao: ['Programação do aplicativo', 'relatórios aprovados', 'atividades vinculadas'],
+    programacao: ['Programação do app', 'relatórios aprovados', 'atividades vinculadas'],
     agenda: ['Programação consolidada', 'datas registradas', 'relatórios aprovados'],
     atividades: ['atividades internas do relatório', 'relatórios aprovados', 'campos de público, meta e status'],
     relatorios: ['Report', 'textos narrativos aprovados', 'vínculos por museu, mês e autoria'],
     galeria: ['Attachment', 'fotos vinculadas às atividades', 'metadados de crédito, legenda e localização'],
     financeiro: ['Rubrica', 'PurchaseRequest', 'TeamPayment', 'DocumentIntake e anexos pareados'],
-    governanca: ['módulos do aplicativo', 'campos completos e incompletos', 'vínculos entre relatórios, documentos e rubricas'],
+    governanca: ['módulos do app', 'campos completos e incompletos', 'vínculos entre relatórios, documentos e rubricas'],
   };
 
   return sources[chapterId] || ['dados consolidados do aplicativo'];
@@ -399,11 +389,11 @@ function getChapterMethodologyBox(chapterId, contexto = {}) {
   const photoCount = fmtInt((Array.isArray(contexto?.fotos) ? contexto.fotos.length : 0));
 
   const criteria = {
-    introducao: 'O recorte considera o período institucional configurado no gerador e a leitura integrada dos registros aprovados disponíveis no aplicativo, sem incorporar dados externos ao sistema.',
+    introducao: 'O recorte considera o período institucional configurado no gerador e a leitura integrada dos registros aprovados disponíveis no app, sem incorporar dados externos ao sistema.',
     indicadores: `Os indicadores reúnem ${reportCount} relatórios, ${activityCount} atividades e ${purchaseCount} movimentações financeiras consolidadas no período, priorizando registros aprovados e campos efetivamente preenchidos.`,
     programacao: 'A consolidação preserva a ordem das ações cadastradas, cruza programação e relatórios de equipe e explicita quando há ausência de agenda vinculada ou descrição insuficiente.',
     agenda: 'Registros recorrentes e visitas fragmentadas são agrupados por equivalência semântica, mantendo data, museu, público e origem documental sempre que existirem.',
-    atividades: 'As atividades são apresentadas em texto por padrão. Fotos só entram no corpo da atividade quando foram vinculadas no aplicativo e selecionadas explicitamente antes da exportação.',
+    atividades: 'As atividades são apresentadas em texto por padrão. Fotos só entram no corpo da atividade quando foram vinculadas no app e selecionadas explicitamente antes da exportação.',
     relatorios: 'A seção utiliza autoria, função, mês, museu e trechos aprovados, evitando repetição integral dos documentos e preservando a rastreabilidade narrativa.',
     galeria: `A galeria final recebe apenas fotografias não selecionadas para o corpo das atividades. O conjunto atual reúne ${photoCount} registros visuais deduplicados por identidade técnica.`,
     financeiro: 'A leitura financeira separa orçamento, rubricas, solicitações e pagamentos. Quando um documento não está pareado a uma solicitação ou pagamento, a limitação é preservada no texto metodológico.',
@@ -417,7 +407,7 @@ function getChapterLimitations(chapterId, contexto = {}) {
   const limitations = [];
 
   if ((chapterId === 'galeria' || chapterId === 'atividades') && (!Array.isArray(contexto?.fotos) || contexto.fotos.length === 0)) {
-    limitations.push('Não há fotos suficientes vinculadas no aplicativo para ampliar a camada visual deste capítulo.');
+    limitations.push('Não há fotos suficientes vinculadas no app para ampliar a camada visual deste capítulo.');
   }
 
   if ((chapterId === 'indicadores' || chapterId === 'atividades') && toNumber(contexto?.publico_total) <= 0) {
@@ -429,7 +419,7 @@ function getChapterLimitations(chapterId, contexto = {}) {
   }
 
   if ((chapterId === 'programacao' || chapterId === 'agenda') && (!Array.isArray(contexto?.programacao) || contexto.programacao.length === 0)) {
-    limitations.push('A agenda do período não está completamente consolidada no aplicativo para este recorte.');
+    limitations.push('A agenda do período não está completamente consolidada no app para este recorte.');
   }
 
   if (chapterId === 'governanca') {
@@ -508,39 +498,7 @@ function composeIntro(textos = {}, contexto = {}) {
       return !blocked.some((term) => text.includes(term.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()));
     });
 
-  return [buildEditorialOpeningText(contexto), ...extra].join('\n\n');
-}
-
-function SummaryExecutiveSection({ contexto = {} }) {
-  const rawActivities = toNumber(contexto.total_atividades_bruto);
-  const validatedActivities = toNumber(contexto.total_atividades);
-  const hasRawDifference = rawActivities > validatedActivities && validatedActivities > 0;
-
-  return (
-    <PremiumSection
-      breakBefore
-      chapterTitle="Sumário executivo editorial"
-      eyebrow="Sumário executivo"
-      chapterId="sumario_executivo"
-      title="Síntese do período"
-      subtitle="Principais indicadores, escopo e critérios de leitura do trimestre consolidado."
-      text={`No período analisado, foram consolidadas ${fmtInt(validatedActivities)} atividades validadas no aplicativo, ${fmtInt(contexto.publico_total)} pessoas em público consolidado, ${fmtInt(contexto.total_relatorios)} relatórios aprovados e ${fmtInt(contexto.programacao_total)} registros de programação.
-
-${hasRawDifference ? `Outros ${fmtInt(rawActivities)} registros brutos ou operacionais permanecem considerados como evidências complementares, sem serem somados ao total principal de atividades públicas validadas.` : 'Os indicadores apresentados priorizam registros consolidados, evitando duplicidade entre programação, relatórios de equipe e rotinas internas.'}`}
-    >
-      <PremiumMetrics contexto={contexto} />
-      <div className="premium-method-grid">
-        <article className="premium-method-card">
-          <strong>Escopo</strong>
-          <p>O sumário executivo apresenta os resultados principais e diferencia atividades validadas, público consolidado, programação e relatórios aprovados.</p>
-        </article>
-        <article className="premium-method-card">
-          <strong>Critério editorial</strong>
-          <p>Registros de comunicação, produção, reunião e rotina interna são tratados como apoio operacional quando não configuram atividade pública.</p>
-        </article>
-      </div>
-    </PremiumSection>
-  );
+  return [buildIntroPeriodo(contexto), ...extra].join('\n\n');
 }
 
 function TableOfContents({ secoesSelecionadas = [] }) {
@@ -564,6 +522,8 @@ function TableOfContents({ secoesSelecionadas = [] }) {
   return (
     <PremiumSection
       breakBefore
+      chapterId="sumario_executivo"
+      chapterTitle="SumÃ¡rio executivo editorial"
       eyebrow="Mapa de leitura"
       title="Sumário"
     >
@@ -586,7 +546,7 @@ function TransitionManagementSection() {
     ['Visitas institucionais aos museus', 'A coordenação realizou aproximações presenciais com os equipamentos, fortalecendo a leitura de contexto, necessidades operacionais e prioridades de cada museu.'],
     ['Visitas técnicas individualizadas', 'O acompanhamento por equipamento apoiou a compreensão dos fluxos locais, das agendas em construção e das condições necessárias para execução das ações culturais.'],
     ['Desenvolvimento inicial do aplicativo', 'O período marcou a estruturação dos fluxos digitais de registro, acompanhamento, consolidação de dados, evidências e prestação de contas.'],
-    ['Plano de trabalho e programação', 'A equipe avançou na organização do plano de trabalho, na construção da programação do período e na preparação de exposições e atividades futuras.'],
+    ['Plano de trabalho e programação', 'A equipe avançou na organização do plano de trabalho, na construção da programação do semestre e na preparação de exposições e atividades futuras.'],
     ['Reorganização institucional', 'Foram consolidadas substituições de profissionais, recomposição de equipes, pactuação de responsabilidades e acompanhamento operacional cotidiano.'],
     ['Comunicação entre equipes', 'A coordenação fortaleceu a circulação de informações entre produção, educativo, comunicação, consultoria de programação e direção dos equipamentos.'],
     ['Diversidade e inclusão', 'A implementação do curso de Diversidade e Inclusão qualificou práticas de acolhimento, acessibilidade e mediação pública no âmbito institucional.'],
@@ -598,7 +558,7 @@ function TransitionManagementSection() {
       breakBefore
       eyebrow="Atuação geral"
       title="Coordenação, planejamento e desenvolvimento institucional"
-      subtitle="Síntese das frentes estruturantes que deram sustentação à execução cultural, à documentação do projeto e à organização das entregas do período."
+      subtitle="Síntese das frentes estruturantes que deram sustentação à execução cultural, à documentação do projeto e à organização das entregas do semestre."
       text={`A atuação geral do período é apresentada como infraestrutura de continuidade: um conjunto de decisões, visitas, acompanhamentos, fluxos digitais e reorganizações institucionais que permitiu estabilizar a execução e preparar a programação seguinte sem transformar processos internos em eventos públicos.
 
 A entrada de Daniel Perini na coordenação geral, após a saída de Andréa Matos, reorganizou responsabilidades, fluxo decisório e acompanhamento das equipes. A consultora de programação Ana Luiza passou a atuar de forma mais próxima das diretorias dos museus, apoiando a construção de agenda, exposições, oficinas, ações educativas e entregas de médio prazo.`}
@@ -677,7 +637,7 @@ function getPhotoActivityName(photo = {}) {
     .replace(/\s+\d{8,}$/g, '')
     .trim();
 
-  return cleaned && normalizeText(cleaned) !== 'atividade vinculada ao aplicativo'
+  return cleaned && normalizeText(cleaned) !== 'atividade vinculada ao app'
     ? cleaned
     : 'Registro fotográfico vinculado ao projeto';
 }
@@ -803,32 +763,6 @@ function getMonthName(item = {}) {
   }
 
   return 'Período';
-}
-
-function formatReportDate(value) {
-  if (!value) return '';
-  const raw = String(value).trim();
-  if (!raw) return '';
-
-  if (/^\d{2}\/\d{2}\/\d{4}/.test(raw)) return raw.slice(0, 10);
-
-  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (isoMatch) {
-    const [, year, month, day] = isoMatch;
-    return `${day}/${month}/${year}`;
-  }
-
-  const parsed = new Date(raw);
-  if (!Number.isNaN(parsed.getTime())) {
-    return parsed.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  }
-
-  return sanitizeReportText(raw);
-}
-
-function formatReportDateList(values = []) {
-  const list = Array.isArray(values) ? values : [values];
-  return [...new Set(list.map(formatReportDate).filter(Boolean))].join(', ');
 }
 
 function getPublicoRegistrado(item = {}) {
@@ -1028,7 +962,7 @@ function mergeAgendaGroup(items = []) {
   const publicoEstimado = publicoRegistrado > 0 ? 0 : Math.max(...items.map(getPublicoEstimado), 0);
   const meta = inferMetaLabel(base);
   const participantes = Math.max(...items.map(getParticipantCount), 0);
-  const dates = [...new Set(items.map((item) => formatReportDate(item.data || item.data_inicio) || item.mes).filter(Boolean))];
+  const dates = [...new Set(items.map((item) => item.data || item.data_inicio || item.mes).filter(Boolean))];
   const texts = [];
   const reportTexts = [];
   const linkedReports = [];
@@ -1265,7 +1199,7 @@ function buildInstitutionalExpansion(item = {}) {
     return `A ação ${sanitizeReportText(title)} reforça o compromisso do projeto com acessibilidade, acolhimento e mediação pública. Sua presença no relatório qualifica a leitura institucional do período ao situar inclusão e diversidade como dimensões práticas da gestão cultural, não apenas como diretrizes abstratas.`;
   }
 
-  return '';
+  return `No recorte de ${month}, ${sanitizeReportText(title)} integra a agenda consolidada do Museus Centro como ação vinculada à programação, aos registros de equipe e às evidências disponíveis no aplicativo${meta ? `, com relação editorial à ${sanitizeReportText(meta)}` : ''}. A leitura consolidada aproxima dados, relatos e documentação visual, ampliando a rastreabilidade sem repetir textos de origem.`;
 }
 
 function ActivityNarrative({ item }) {
@@ -1353,7 +1287,7 @@ function MonthlyAgendaSection({ contexto }) {
       breakBefore
       eyebrow="Agenda Museus Centro no período"
       title="Agenda detalhada do período"
-      subtitle="Cada item preserva título, museu, data, tipo, público, meta e fotos vinculadas quando disponíveis no aplicativo."
+      subtitle="Cada item preserva título, museu, data, tipo, público, meta e fotos vinculadas quando disponíveis no app."
       text="A agenda foi consolidada a partir da programação e dos relatórios aprovados. Registros recorrentes, rotinas e visitas mediadas fragmentadas foram agrupados para reduzir duplicidade visual, sem apagar a rastreabilidade: quando houver mais de uma origem, o card informa a quantidade de registros consolidados."
     >
       <ChapterMethodologyPanel
@@ -1395,7 +1329,7 @@ function MonthlyAgendaSection({ contexto }) {
             </header>
             {buildPublicContext(item) ? <p className="premium-public-context">{buildPublicContext(item)}</p> : null}
             <div className="premium-card-facts">
-              <span><strong>Datas</strong>{formatReportDateList(item.datasConsolidadas) || formatReportDate(item.data) || item.mes || 'período'}</span>
+              <span><strong>Datas</strong>{(item.datasConsolidadas || []).join(', ') || item.data || item.mes || 'período'}</span>
               <span><strong>Meta vinculada</strong>{item.metaEditorial || getActivityMeta(item) || ''}{item.metaInferida ? ' (inferida)' : ''}</span>
               {!item.isCommunicationCard ? <span><strong>Público</strong>{item.publicoTipo === 'estimado' ? 'estimado a partir da programação' : 'registrado nos relatórios e atividades'}</span> : null}
               {item.participantes > 0 ? <span><strong>Participantes</strong>{fmtInt(item.participantes)} pessoas identificadas</span> : null}
@@ -1407,7 +1341,7 @@ function MonthlyAgendaSection({ contexto }) {
             ) : null}
             <footer className="premium-card-footer">
               <span><strong>Localização</strong>{item.local || item.endereco || item.museu || 'Museus Centro'}</span>
-              <span><strong>Créditos</strong>{item.credito || item.creditos || item.producao || 'registros do aplicativo'}</span>
+              <span><strong>Créditos</strong>{item.credito || item.creditos || item.producao || 'registros do app'}</span>
               <span><strong>Indicador</strong>{item.isCommunicationCard ? 'documentação institucional' : item.publicoTipo === 'estimado' ? 'público estimado' : 'público registrado'}</span>
             </footer>
             <EvidenceLinks links={item.evidenciaLinks} />
@@ -1497,7 +1431,7 @@ function monthSortValue(value = '') {
 
 function photoActivityLabel(photo = {}) {
   const explicit = sanitizeReportText(photo.atividade || photo.atividade_nome || photo.titulo_atividade || '');
-  if (explicit && normalizeText(explicit) !== 'atividade vinculada ao aplicativo') return explicit;
+  if (explicit && normalizeText(explicit) !== 'atividade vinculada ao app') return explicit;
 
   const caption = sanitizeReportText(photo.legenda || photo.caption || '');
   const normalizedCaption = normalizeText(caption);
@@ -1551,7 +1485,7 @@ function GovernanceEvidenceSection({ contexto = {} }) {
       eyebrow="Governança documental"
       title="Governança documental e rastreabilidade das evidências"
       subtitle="A consolidação documental do período considera anexos, documentos fiscais, comprovantes, fotos, vínculos com solicitações e arquivos relacionados disponíveis no aplicativo."
-      text={getChapterIntro('governanca_documental', contexto) || 'Este capítulo organiza a trilha documental do relatório a partir dos arquivos efetivamente localizados no aplicativo. Quando um documento está pareado a uma solicitação, pagamento, rubrica, foto ou atividade, o relatório preserva esse vínculo. Quando o pareamento não existe ou está incompleto, a limitação é explicitada sem preenchimento artificial.'}
+      text={getChapterIntro('governanca_documental', contexto) || 'Este capítulo organiza a trilha documental do relatório a partir dos arquivos efetivamente localizados no app. Quando um documento está pareado a uma solicitação, pagamento, rubrica, foto ou atividade, o relatório preserva esse vínculo. Quando o pareamento não existe ou está incompleto, a limitação é explicitada sem preenchimento artificial.'}
     >
       <ChapterMethodologyPanel
         chapterId="governanca"
@@ -1568,7 +1502,7 @@ function OperationalAuditSection({ contexto = {} }) {
       breakBefore
       eyebrow="Auditoria operacional"
       title="Auditoria operacional do período"
-      subtitle="O cruzamento técnico do período aproxima atividades, público, programação, documentos, rubricas, pagamentos e pendências detectáveis a partir dos módulos do aplicativo."
+      subtitle="O cruzamento técnico do período aproxima atividades, público, programação, documentos, rubricas, pagamentos e pendências detectáveis a partir dos módulos do app."
       text={getChapterIntro('auditoria_operacional', contexto) || 'A leitura operacional não cria novos números nem corrige registros automaticamente dentro do relatório. Ela expõe a consistência disponível entre módulos, destacando convergências, lacunas de vínculo e limites de rastreabilidade sempre a partir dos dados reais do sistema.'}
     >
       <ChapterMethodologyPanel
@@ -1589,26 +1523,6 @@ function DocumentLinkCell({ url, label, fallbackLabel = 'Link indisponível' }) 
   );
 }
 
-function formatDocumentFileName(value = '') {
-  const raw = sanitizeReportText(value || '');
-  if (!raw) return '-';
-  const extension = raw.match(/\.(pdf|xml|jpg|jpeg|png|webp)$/i)?.[0] || '';
-  const base = raw
-    .replace(/\.(pdf|xml|jpg|jpeg|png|webp)$/i, '')
-    .replace(/[_-]+/g, ' ')
-    .replace(/\b\d{10,}\b/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  const cleaned = base
-    .toLowerCase()
-    .replace(/\b\w/g, (char) => char.toUpperCase())
-    .replace(/\bTecnica\b/g, 'tecnica')
-    .replace(/\bManutencao\b/g, 'manutencao')
-    .replace(/\bInfraestrutura\b/g, 'infraestrutura');
-  const shortName = cleaned.length > 72 ? `${cleaned.slice(0, 69).trim()}...` : cleaned;
-  return `${shortName}${extension.toLowerCase()}`;
-}
-
 function DocumentsChapterSection({ contexto = {} }) {
   const docs = buildDocumentsChapterData(contexto);
   const contracts = Array.isArray(docs.contracts) ? docs.contracts : [];
@@ -1620,8 +1534,8 @@ function DocumentsChapterSection({ contexto = {} }) {
       breakBefore
       eyebrow="Rastreabilidade fiscal"
       title="Notas fiscais e contratos"
-      subtitle="Listagem de contratos e documentos fiscais existentes no aplicativo, com separação por tipo e vínculo operacional."
-      text={getChapterIntro('notas-fiscais-contratos', contexto) || 'Este capítulo reúne os arquivos documentais utilizados para sustentar a prestação de contas do período, organizando contratos e documentos fiscais a partir dos registros disponíveis no aplicativo. A listagem considera os documentos vinculados à Gestão Documental, à Entrada Única, às solicitações de compras, aos pagamentos de equipe e aos anexos relacionados. Os links são apresentados para facilitar a rastreabilidade entre execução operacional, documentação fiscal e comprovação institucional.'}
+      subtitle="Listagem de contratos e documentos fiscais existentes no app, com separação por tipo e vínculo operacional."
+      text={getChapterIntro('notas-fiscais-contratos', contexto) || 'Este capítulo reúne os arquivos documentais utilizados para sustentar a prestação de contas do período, organizando contratos e documentos fiscais a partir dos registros disponíveis no app. A listagem considera os documentos vinculados à Gestão Documental, à Entrada Única, às solicitações de compras, aos pagamentos de equipe e aos anexos relacionados. Os links são apresentados para facilitar a rastreabilidade entre execução operacional, documentação fiscal e comprovação institucional.'}
     >
       <ChapterMethodologyPanel
         chapterId="governanca"
@@ -1631,7 +1545,7 @@ function DocumentsChapterSection({ contexto = {} }) {
       <div className="premium-method-grid">
         <article className="premium-method-card">
           <strong>Como os documentos foram obtidos</strong>
-          <p>Os arquivos listados foram identificados a partir dos registros disponíveis no aplicativo, considerando documentos enviados pela Entrada Única, anexos da Gestão Documental, vínculos com solicitações financeiras, pagamentos de equipe e campos específicos de contratos, notas fiscais, XMLs, recibos e comprovantes. Quando um mesmo arquivo aparece em mais de uma origem, a listagem consolida o documento uma única vez para evitar duplicidade.</p>
+          <p>Os arquivos listados foram identificados a partir dos registros disponíveis no app, considerando documentos enviados pela Entrada Única, anexos da Gestão Documental, vínculos com solicitações financeiras, pagamentos de equipe e campos específicos de contratos, notas fiscais, XMLs, recibos e comprovantes. Quando um mesmo arquivo aparece em mais de uma origem, a listagem consolida o documento uma única vez para evitar duplicidade.</p>
         </article>
         {limitations.length > 0 && (
           <article className="premium-method-card">
@@ -1647,9 +1561,9 @@ function DocumentsChapterSection({ contexto = {} }) {
 
       <div className="premium-purchase-section">
         <h3>Contratos em PDF</h3>
-        <p>Lista de contratos localizados nos documentos do aplicativo para o período ou vinculados à equipe, fornecedores, solicitações ou registros documentais.</p>
+        <p>Lista de contratos localizados nos documentos do app para o período ou vinculados à equipe, fornecedores, solicitações ou registros documentais.</p>
         {contracts.length === 0 ? (
-          <p>Não foram identificados contratos em PDF vinculados ao período ou aos registros documentais disponíveis no aplicativo.</p>
+          <p>Não foram localizados contratos em PDF vinculados ao período ou aos registros documentais disponíveis no app.</p>
         ) : (
           <div className="premium-table-wrap">
             <table className="premium-table documents-table">
@@ -1658,7 +1572,7 @@ function DocumentsChapterSection({ contexto = {} }) {
                   <th>Nº</th>
                   <th>Nome do arquivo</th>
                   <th>Pessoa/fornecedor/equipe</th>
-                  <th>Vínculo no aplicativo</th>
+                  <th>Vínculo no app</th>
                   <th>Data de envio ou criação</th>
                   <th>Tipo</th>
                   <th>Link</th>
@@ -1668,10 +1582,10 @@ function DocumentsChapterSection({ contexto = {} }) {
                 {contracts.map((item, index) => (
                   <tr key={item.key || `${item.fileName}-${index}`}>
                     <td>{index + 1}</td>
-                    <td title={sanitizeReportText(item.fileName || '-')}>{formatDocumentFileName(item.fileName || '-')}</td>
+                    <td>{sanitizeReportText(item.fileName || '-')}</td>
                     <td>{sanitizeReportText(item.personSupplier || '-')}</td>
                     <td>{sanitizeReportText(item.entityLabel || '-')}</td>
-                    <td>{formatReportDate(item.date) || '-'}</td>
+                    <td>{sanitizeReportText(item.date || '-')}</td>
                     <td>{sanitizeReportText(item.tipo || 'Contrato')}</td>
                     <td><DocumentLinkCell url={item.url} label="Abrir contrato" /></td>
                   </tr>
@@ -1684,9 +1598,9 @@ function DocumentsChapterSection({ contexto = {} }) {
 
       <div className="premium-purchase-section">
         <h3>Notas fiscais e documentos fiscais</h3>
-        <p>Lista de notas fiscais, XMLs, recibos e comprovantes localizados nos documentos do aplicativo e vinculados às solicitações financeiras, pagamentos de equipe ou registros da Entrada Única.</p>
+        <p>Lista de notas fiscais, XMLs, recibos e comprovantes localizados nos documentos do app e vinculados às solicitações financeiras, pagamentos de equipe ou registros da Entrada Única.</p>
         {fiscalDocuments.length === 0 ? (
-          <p>Não foram identificadas notas fiscais ou documentos fiscais vinculados ao período ou aos registros documentais disponíveis no aplicativo.</p>
+          <p>Não foram localizadas notas fiscais ou documentos fiscais vinculados ao período ou aos registros documentais disponíveis no app.</p>
         ) : (
           <div className="premium-table-wrap">
             <table className="premium-table documents-table">
@@ -1699,7 +1613,7 @@ function DocumentsChapterSection({ contexto = {} }) {
                   <th>Valor</th>
                   <th>Data de emissão ou envio</th>
                   <th>Tipo</th>
-                  <th>Vínculo no aplicativo</th>
+                  <th>Vínculo no app</th>
                   <th>Link</th>
                 </tr>
               </thead>
@@ -1707,11 +1621,11 @@ function DocumentsChapterSection({ contexto = {} }) {
                 {fiscalDocuments.map((item, index) => (
                   <tr key={item.key || `${item.fileName}-${index}`}>
                     <td>{index + 1}</td>
-                    <td title={sanitizeReportText(item.fileName || '-')}>{formatDocumentFileName(item.fileName || '-')}</td>
+                    <td>{sanitizeReportText(item.fileName || '-')}</td>
                     <td>{sanitizeReportText(item.personSupplier || '-')}</td>
                     <td>{sanitizeReportText(item.invoiceNumber || '-')}</td>
                     <td>{item.value > 0 ? fmtBRL(item.value) : '-'}</td>
-                    <td>{formatReportDate(item.date) || '-'}</td>
+                    <td>{sanitizeReportText(item.date || '-')}</td>
                     <td>{sanitizeReportText(item.tipo || 'Documento fiscal')}</td>
                     <td>{sanitizeReportText(item.entityLabel || '-')}</td>
                     <td><DocumentLinkCell url={item.url} label="Abrir arquivo" /></td>
@@ -1743,7 +1657,7 @@ function PhotoEvidenceDenseSection({ contexto }) {
       eyebrow="Galeria e evidências"
       title="Fotos, créditos e localização"
       subtitle="Registros fotográficos incorporados ao HTML e ao PDF, com atividade, museu, mês, arquivo, crédito e localização institucional."
-      text="A listagem amplia a densidade documental do relatório e evita que a fotografia apareça apenas como link. Cada item preserva o vínculo com a atividade ou arquivo de origem disponível no aplicativo."
+      text="A listagem amplia a densidade documental do relatório e evita que a fotografia apareça apenas como link. Cada item preserva o vínculo com a atividade ou arquivo de origem disponível no app."
     >
       <ChapterMethodologyPanel
         chapterId="galeria"
@@ -1821,12 +1735,10 @@ function getRubricaPercentual(item = {}) {
   return (getRubricaUtilizado(item) / previsto) * 100;
 }
 
-function getExecutionStatus(percentual = 0, previsto = 0, utilizado = 0) {
-  if (previsto <= 0) return { label: 'Previsto não informado', className: 'baixa' };
-  if (utilizado <= 0) return { label: 'Sem execução registrada no período', className: 'baixa' };
-  if (percentual >= 99) return { label: 'Concluída', className: 'alta' };
-  if (percentual >= 15) return { label: 'Execução parcial', className: 'andamento' };
-  return { label: 'Execução em etapa futura', className: 'baixa' };
+function getExecutionStatus(percentual = 0) {
+  if (percentual >= 70) return { label: 'Alta execução', className: 'alta' };
+  if (percentual >= 15) return { label: 'Em execução', className: 'andamento' };
+  return { label: 'Baixa execução', className: 'baixa' };
 }
 
 function groupRubricas(rubricas = []) {
@@ -1916,7 +1828,7 @@ function RubricasTable({ contexto }) {
                   const utilizado = getRubricaUtilizado(item);
                   const saldo = getRubricaSaldo(item);
                   const percentual = getRubricaPercentual(item);
-                  const status = getExecutionStatus(percentual, previsto, utilizado);
+                  const status = getExecutionStatus(percentual);
 
                   return (
                     <tr key={item?.id || `${grupo}-${index}`}>
@@ -1993,7 +1905,6 @@ function AudienceBreakdown({ contexto }) {
   const totalMes = porMes.reduce((sum, item) => sum + toNumber(item.total), 0);
   const totalMuseu = porMuseu.reduce((sum, item) => sum + toNumber(item.total ?? item.publico), 0);
   const hasAudienceDivergence = totalMes > 0 && totalMuseu > 0 && totalMes !== totalMuseu;
-  const hasOnlyActivityAudience = porMes.length > 0 && porMes.every((item) => toNumber(item.espontaneo) === 0 && toNumber(item.visitas_agendadas) === 0);
 
   return (
     <div className="premium-audience-grid">
@@ -2043,13 +1954,7 @@ function AudienceBreakdown({ contexto }) {
       {hasAudienceDivergence ? (
         <div className="premium-method-card premium-audience-note">
           <strong>Nota metodológica sobre público</strong>
-          <p>Os indicadores de público distinguem registros de atividades datadas no período e consolidações por museu quando estas decorrem de fontes diferentes no aplicativo. A divergência entre totais deve ser explicitada ou corrigida conforme a fonte de consolidação adotada.</p>
-        </div>
-      ) : null}
-      {hasOnlyActivityAudience ? (
-        <div className="premium-method-card premium-audience-note">
-          <strong>Leitura das categorias zeradas</strong>
-          <p>Os campos de público espontâneo e visitas agendadas aparecem zerados quando não houve preenchimento específico dessas categorias no aplicativo. Nesses casos, o público foi consolidado na coluna de atividades, preservando a fonte original.</p>
+          <p>Os indicadores de público distinguem registros de atividades datadas no período e consolidações por museu quando estas decorrem de fontes diferentes no app. A divergência entre totais deve ser explicitada ou corrigida conforme a fonte de consolidação adotada.</p>
         </div>
       ) : null}
     </div>
@@ -2061,10 +1966,6 @@ function PremiumMetasPanel({ contexto }) {
 
   return (
     <section>
-      <div className="premium-method-card">
-        <strong>Leitura das metas</strong>
-        <p>Acompanhamento consolidado a partir das rubricas, atividades e registros disponíveis no aplicativo.</p>
-      </div>
       <div className="premium-meta-grid">
         {metas.map((meta) => {
           const isDone = meta.status === 'CONCLUÍDA';
@@ -2090,6 +1991,9 @@ function PremiumMetasPanel({ contexto }) {
                 <span style={{ width: `${Math.min(toNumber(meta.percentual), 100)}%` }} />
               </div>
 
+              <div className="premium-meta-footnote">
+                Acompanhamento editorial a partir das rubricas, atividades e registros consolidados no aplicativo.
+              </div>
             </article>
           );
         })}
@@ -2135,7 +2039,7 @@ function StrategicRecords({ contexto }) {
       breakBefore
       eyebrow="Registros editoriais recuperados"
       title="Ações estratégicas do período"
-      subtitle="Atividades e registros internos são apresentados conforme aparecem nos relatórios aprovados, sem criar eventos fora da base do aplicativo."
+      subtitle="Atividades e registros internos são apresentados conforme aparecem nos relatórios aprovados, sem criar eventos fora da base do app."
       text="Esta seção aproxima ações de acessibilidade, formação, reuniões, filmagens, entrevistas e registros recuperados. Quando a ação é interna, ela é lida como atividade de gestão, produção, comunicação ou mediação, sem atribuição indevida de público direto."
     >
       <div className="premium-table-wrap">
@@ -2153,10 +2057,10 @@ function StrategicRecords({ contexto }) {
             {grupos.flatMap((grupo) => grupo.itens.map((item, index) => (
               <tr key={`${grupo.titulo}-${item?.id || index}`}>
                 <td>{grupo.titulo}</td>
-                <td>{item?.nome || item?.titulo || 'Registro do aplicativo'}</td>
+                <td>{item?.nome || item?.titulo || 'Registro do app'}</td>
                 <td>{item?.museu || 'Geral'}</td>
-                <td>{item?.mes || formatReportDate(item?.data) || 'Período'}</td>
-                <td>{sanitizeReportText(item?.categoria_label || item?.classificacao || 'Atividade interna')}</td>
+                <td>{item?.mes || item?.data || 'Período'}</td>
+                <td>{item?.categoria_label || item?.classificacao || 'Atividade interna'}</td>
               </tr>
             )))}
           </tbody>
@@ -2332,26 +2236,21 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
 
       {hasSection(secoesSelecionadas, 'expediente') && <PremiumExpedienteSection contexto={contexto} />}
 
-      {hasSection(secoesSelecionadas, 'sumario_executivo') && (
-        <>
-          <SummaryExecutiveSection contexto={contexto} />
-          <TableOfContents secoesSelecionadas={secoesSelecionadas} />
-        </>
-      )}
+      {hasSection(secoesSelecionadas, 'sumario_executivo') && <TableOfContents secoesSelecionadas={secoesSelecionadas} />}
 
       {hasSection(secoesSelecionadas, 'introducao') && <PremiumSection
         chapterId="introducao"
         chapterTitle="IntroduÃ§Ã£o institucional"
-        eyebrow="Introdução institucional"
-        title="Introdução institucional"
-        subtitle="Recorte selecionado como ciclo de acompanhamento, pactuação de rotinas e consolidação dos registros do aplicativo."
+        eyebrow="Sumário executivo"
+        title="Introdução"
+        subtitle="Recorte selecionado como ciclo de acompanhamento, pactuação de rotinas e consolidação dos dados do app."
         text={composeIntro(textos, contexto)}
       >
         <PremiumMetrics contexto={contexto} />
         <ChapterMethodologyPanel
           chapterId="introducao"
           contexto={contexto}
-          evidence={['relatórios aprovados', 'programação vinculada', 'dados institucionais do aplicativo']}
+          evidence={['relatórios aprovados', 'programação vinculada', 'dados institucionais do app']}
         />
       </PremiumSection>}
 
@@ -2361,8 +2260,8 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
         breakBefore
         eyebrow="Indicadores, metas e público"
         title="Execução física acompanhada por evidências"
-        subtitle={`${fmtInt(getEffectiveTotalActivities(contexto))} atividades validadas, ${fmtInt(contexto.publico_total)} pessoas no público consolidado e ${fmtInt(getEffectiveTotalReports(contexto))} relatórios aprovados.`}
-        text={`Os indicadores distinguem atividades validadas, registros operacionais de apoio, público consolidado e execução financeira. O total principal de atividades não incorpora rotinas internas, reuniões, tarefas de comunicação ou registros duplicados recuperados de mais de uma fonte.\n\nPúblico espontâneo corresponde ao público que acessa o museu sem agendamento prévio, em visita livre, circulação cotidiana, exposições, permanência nos espaços e fruição espontânea da programação.\n\nVisitas agendadas correspondem a grupos previamente organizados, escolas, instituições, coletivos ou grupos acompanhados por mediação, com registro de data, número de participantes e, quando houver, vínculo com atividade educativa.`}
+        subtitle={`${fmtInt(getEffectiveTotalActivities(contexto))} atividades registradas, ${fmtInt(contexto.publico_total)} pessoas no recorte do período e ${fmtInt(getEffectiveTotalReports(contexto))} relatórios consolidados.`}
+        text={`${textos.resumo_geral || ''}\n\nPúblico espontâneo corresponde ao público que acessa o museu sem agendamento prévio, em visita livre, circulação cotidiana, exposições, permanência nos espaços e fruição espontânea da programação.\n\nVisitas agendadas correspondem a grupos previamente organizados, escolas, instituições, coletivos ou grupos acompanhados por mediação, com registro de data, número de participantes e, quando houver, vínculo com atividade educativa.\n\n${textos.metas || ''}`}
       >
         <ChapterMethodologyPanel
           chapterId="indicadores"
@@ -2379,13 +2278,13 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
         breakBefore
         eyebrow="Agenda Museus Centro no período"
         title="Programação e atividades do período"
-        subtitle="Programações e atividades reais do período selecionado, recuperadas dos relatórios aprovados e da agenda do aplicativo."
+        subtitle="Programações e atividades reais do período selecionado, recuperadas dos relatórios aprovados e da agenda do app."
         text={textos.programacao}
       >
         <ChapterMethodologyPanel
           chapterId="programacao"
           contexto={contexto}
-          evidence={['programação do aplicativo', 'relatórios aprovados', 'atividades consolidadas']}
+          evidence={['programação do app', 'relatórios aprovados', 'atividades consolidadas']}
         />
         {hasRealTimelineData(contexto) ? <PremiumTimeline contexto={contexto} /> : <EmptyChapterNotice chapterTitle="Programação" />}
       </PremiumSection>}
@@ -2411,7 +2310,7 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
         eyebrow="Metas, orçamento e prestação de contas"
         title="Orçamento, rubricas e rastreabilidade"
         subtitle={`Execução informada: ${toNumber(contexto.percentual_execucao).toFixed(1).replace('.', ',')}% do orçamento acompanhado.`}
-        text={`A execução financeira informada para o período deve ser interpretada em relação ao cronograma físico-financeiro do projeto. O percentual registrado até o fim do recorte não indica, isoladamente, atraso estrutural, pois parte das despesas de maior volume pode estar prevista para etapas posteriores, especialmente aquelas relacionadas a exposições, infraestrutura, manutenção, fornecedores e ações de maior escala.\n\nA leitura financeira foi organizada a partir das rubricas, solicitações, pagamentos, documentos fiscais e anexos disponíveis no aplicativo. Quando um documento não possui vínculo completo com solicitação, pagamento ou rubrica, essa limitação é preservada como informação metodológica, sem preenchimento artificial de lacunas.`}
+        text={`${textos.financeiro || ''}\n\n${textos.prestacao || ''}`}
       >
         <ChapterMethodologyPanel
           chapterId="financeiro"

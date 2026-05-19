@@ -28,7 +28,7 @@ function isPublicFacingActivity(activity = {}) {
 }
 
 function ActivityCard({ activity, index }) {
-  const text = splitParagraphs(getActivityText(activity), 1)[0] || 'Registro recuperado dos relatórios aprovados no aplicativo, mantido como evidência da execução do período.';
+  const text = splitParagraphs(getActivityText(activity), 1)[0] || 'Registro recuperado dos relatórios aprovados no app, mantido como evidência da execução do período.';
   const complementaryText = splitParagraphs([activity?.sinopse_agenda, activity?.observacoes, activity?.resultado].filter(Boolean).join('\n\n'), 1)[0] || '';
   const publico = getActivityPublico(activity);
   const meta = getActivityMeta(activity);
