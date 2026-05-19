@@ -21,6 +21,22 @@ function stripVisibleMarkup(value) {
 
 export function sanitizeReportText(value) {
   return normalizeTextForReport(stripVisibleMarkup(value))
+    .replace(/https?:\/\/\S+/gi, 'link preservado nas evidencias')
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '')
+    .replace(/consolida o 2 de fevereiro/gi, 'consolida o periodo de 2 de fevereiro')
+    .replace(/entregas do semestre/gi, 'entregas do periodo')
+    .replace(/programacao do semestre/gi, 'programacao do periodo')
+    .replace(/Acompanhameto/gi, 'Acompanhamento')
+    .replace(/\bACAO\b/g, 'AÇÃO')
+    .replace(/\bMES\b/g, 'MÊS')
+    .replace(/dia Da Mulher/gi, 'Dia da Mulher')
+    .replace(/dia nacional de libras/gi, 'Dia Nacional da Libras')
+    .replace(/\ba SEBRAE\b/g, 'o Sebrae')
+    .replace(/\bEXTRA\b/g, 'Registro complementar')
+    .replace(/\bROTINA\b/g, 'Rotina institucional')
+    .replace(/\bRotina\b/g, 'Rotina institucional')
+    .replace(/Prestação de contas/g, 'prestação de contas')
+    .replace(/Execução financeira/g, 'execução financeira')
     .replace(/clara\s*assumpcao\s*ctt/gi, 'Clara Braga Assumpção')
     .replace(/clara\s+assumpcao\s+ctt/gi, 'Clara Braga Assumpção')
     .replace(/Clara Braga Assump[cç][aã]o/gi, 'Clara Braga Assumpção')
@@ -729,9 +745,9 @@ export function buildMetrics(contexto = {}) {
   const publicoAtividades = toNumber(contexto.publico_atividades_total || contexto.publico_atividades || contexto.publico_total);
   return [
     { label: 'Relatórios aprovados', value: fmtInt(contexto.total_relatorios), detail: 'base narrativa consolidada' },
-    { label: 'Atividades', value: fmtInt(contexto.total_atividades), detail: 'ações registradas no app' },
+    { label: 'Atividades', value: fmtInt(contexto.total_atividades), detail: 'ações registradas no aplicativo' },
     { label: 'Público em atividades', value: fmtInt(publicoAtividades), detail: 'somente atividades com público registrado' },
-    { label: 'Programação', value: fmtInt(contexto.programacao_total), detail: 'agenda recuperada' },
+    { label: 'Programação', value: fmtInt(contexto.programacao_total), detail: 'programação consolidada' },
     { label: 'Equipe', value: fmtInt(contexto.equipe_total), detail: 'profissionais com relatório' },
     { label: 'Execução', value: `${toNumber(contexto.percentual_execucao).toFixed(1).replace('.', ',')}%`, detail: fmtBRL(total) },
   ];

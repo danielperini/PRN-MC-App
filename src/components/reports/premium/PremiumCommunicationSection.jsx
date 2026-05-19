@@ -18,6 +18,13 @@ function communicationActivities(contexto = {}) {
   });
 }
 
+function formatCommunicationDate(value) {
+  if (!value) return '';
+  const raw = String(value);
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;
+  return cleanText(raw);
+}
 export default function PremiumCommunicationSection({ contexto, textos }) {
   const atividades = communicationActivities(contexto);
   const paragraphs = splitParagraphs(
@@ -25,9 +32,9 @@ export default function PremiumCommunicationSection({ contexto, textos }) {
     6
   );
   const fallbackParagraphs = [
-    'A comunicação do período é apresentada como frente de memória visual, documentação cultural e presença pública. Mais do que divulgar atividades isoladas, registros fotográficos, filmagens, peças digitais e acompanhamento das ações formam uma camada de evidência sobre a execução do projeto.',
-    'Esse conjunto permite reconhecer como a programação se torna visível para diferentes públicos e como os museus constroem continuidade institucional por meio de imagens, textos, coberturas e arquivos.',
-    'Os textos originais dos registros foram preservados como fonte, mas reorganizados editorialmente para reduzir redundâncias, qualificar a leitura e evidenciar relações entre cobertura, identidade visual, documentação, audiovisual, redes institucionais e prestação de contas.',
+    'A comunicação é tratada neste relatório como frente técnica de documentação, circulação pública e memória institucional. Além da divulgação de atividades, o capítulo considera a produção de conteúdo, a organização de pautas, os registros fotográficos e audiovisuais, a atualização de canais e a curadoria de evidências visuais.',
+    'A seção diferencia divulgação pública e documentação institucional, reconhecendo que coberturas, peças gráficas, registros de processo e materiais de circulação também compõem a comprovação da execução do projeto.',
+    'Os registros originais foram preservados como fonte, mas reorganizados editorialmente para reduzir redundâncias e qualificar a leitura entre cobertura, identidade visual, audiovisual, redes institucionais e prestação de contas.',
   ];
 
   return (
@@ -57,19 +64,19 @@ export default function PremiumCommunicationSection({ contexto, textos }) {
           <table className="premium-table">
             <thead>
               <tr>
-                <th>Acao</th>
+                <th>AÇÃO</th>
                 <th>Museu</th>
-                <th>Mes</th>
+                <th>MÊS</th>
                 <th>Natureza</th>
               </tr>
             </thead>
             <tbody>
               {atividades.slice(0, 24).map((item, index) => (
                 <tr key={item?.id || index}>
-                  <td>{item?.nome || item?.titulo || 'Registro de comunicação'}</td>
-                  <td>{item?.museu || 'Geral'}</td>
-                  <td>{item?.mes || item?.data || 'Período'}</td>
-                  <td>{item?.categoria_label || item?.classificacao || 'Comunicação'}</td>
+                  <td>{cleanText(item?.nome || item?.titulo || 'Registro de comunicação')}</td>
+                  <td>{cleanText(item?.museu || 'Geral')}</td>
+                  <td>{cleanText(item?.mes || formatCommunicationDate(item?.data) || 'Período')}</td>
+                  <td>{cleanText(item?.categoria_label || item?.classificacao || 'Comunicação')}</td>
                 </tr>
               ))}
             </tbody>

@@ -31,7 +31,7 @@ function PhotoIndex({ photos }) {
       {photos.map((photo, index) => (
         <article className="premium-photo-index-item" key={`${photo.link || photo.fileName}-${index}`}>
           <strong>{photo.mes || 'Período'}</strong>
-          <span>{photo.atividade || 'Atividade vinculada ao app'}</span>
+          <span>{photo.atividade || 'Atividade vinculada ao aplicativo'}</span>
           <small>{photo.museu || 'Museus Centro'}</small>
           <small>{photo.legenda || photo.atividade || 'Registro vinculado à atividade'}</small>
           {photo.localizacao?.label ? <small>GPS: {photo.localizacao.label}</small> : null}

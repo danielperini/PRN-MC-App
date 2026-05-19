@@ -79,6 +79,7 @@ export function buildEditorialReportContext(rawData = {}, selectedPeriod = {}, s
     programacao,
     programacoes,
     atividades_consolidadas: atividadesConsolidadas,
+    total_atividades_bruto: rawData.total_atividades,
     total_atividades: atividadesConsolidadas.length || rawData.total_atividades,
   };
 
