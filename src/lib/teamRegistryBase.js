@@ -124,12 +124,12 @@ export const TEAM_REGISTRY_BASE = [
   },
   {
     nome: 'Marcos Hilatrio',
-    funcao: 'Equipe Museus Centro',
+    funcao: 'Produção Cultural',
     area: 'Museus Centro',
   },
   {
     nome: 'Leandro Gabriel',
-    funcao: 'Equipe Museus Centro',
+    funcao: 'Produção Cultural',
     area: 'Museus Centro',
   },
 ];

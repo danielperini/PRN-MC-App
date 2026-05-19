@@ -37,13 +37,19 @@ function getCanonicalExpedientePerson(nome = '', report = {}) {
   const normalizedEmail = normalizeText(report.email || report.user_email || report.autor_email || '');
 
   if (!normalizedName) return null;
-  if (normalizedName.includes('producao viaduto das artes')) return null;
   if (normalizedName.includes('silvia goes caram') || normalizedEmail.includes('caram silvia yahoo')) return null;
 
+  if (normalizedName.includes('ana luiza') || normalizedName.includes('programacao museus centro')) return { nome: 'Ana Luiza' };
+  if (normalizedName.includes('fernanda monte mor') || normalizedName.includes('fernanda campos')) return { nome: 'Fernanda Campos de Pinho Monte-Mor' };
   if (normalizedName.includes('daniela isis')) return { nome: 'Daniela Isis de Souza Araújo' };
   if (normalizedName.includes('daniel moreira')) return { nome: 'Daniel Moreira Soares' };
   if (normalizedName.includes('caroline abasse')) return { nome: 'Caroline Abasse e Braga' };
   if (normalizedName.includes('ana carolina motta')) return { nome: 'Ana Carolina Motta Montalvão' };
+  if (normalizedName.includes('isabella caroline')) return { nome: 'Isabella Caroline de Souza' };
+  if (normalizedName.includes('wanda mucchiut')) return { nome: 'Wanda Mucchiut' };
+  if (normalizedName.includes('marcos hilatrio')) return { nome: 'Marcos Hilatrio' };
+  if (normalizedName.includes('leandro gabriel') || normalizedName.includes('lenado')) return { nome: 'Leandro Gabriel' };
+  if (normalizedName.includes('producao viaduto das artes')) return null;
   if (normalizedName.includes('claraassumpcao') || normalizedName.includes('clara assumpcao')) {
     return {
       nome: 'Clara Braga Assumpção',
