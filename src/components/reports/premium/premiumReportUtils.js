@@ -659,9 +659,25 @@ export function dedupePhotosByImageIdentity(photos = []) {
   return Array.from(byKey.values());
 }
 
+function getPhotoSelectionKeys(photo = {}) {
+  return [
+    getPhotoIdentity(photo),
+    photo?.id,
+    photo?.attachment_id,
+    photo?.attachmentId,
+    photo?.sourceId,
+    photo?.url,
+    photo?.file_url,
+    photo?.fileUrl,
+    photo?.src,
+    photo?.arquivo_original_url,
+    photo?.link,
+  ].filter(Boolean).map((item) => String(item));
+}
+
 export function prepareInlineAndGalleryPhotos(allPhotos = [], selectedInlinePhotoIds = []) {
   const dedupedPhotos = dedupePhotosByImageIdentity(allPhotos);
-  const selectedSet = new Set((Array.isArray(selectedInlinePhotoIds) ? selectedInlinePhotoIds : []).filter(Boolean));
+  const selectedSet = new Set((Array.isArray(selectedInlinePhotoIds) ? selectedInlinePhotoIds : []).filter(Boolean).map((item) => String(item)));
   const inlinePhotos = [];
   const galleryPhotos = [];
   const seenInline = new Set();
@@ -670,8 +686,9 @@ export function prepareInlineAndGalleryPhotos(allPhotos = [], selectedInlinePhot
   dedupedPhotos.forEach((photo) => {
     const key = getPhotoIdentity(photo);
     if (!key) return;
+    const isSelectedInline = getPhotoSelectionKeys(photo).some((selectionKey) => selectedSet.has(selectionKey));
 
-    if (selectedSet.has(key)) {
+    if (isSelectedInline) {
       if (seenInline.has(key)) return;
       seenInline.add(key);
       inlinePhotos.push(photo);
