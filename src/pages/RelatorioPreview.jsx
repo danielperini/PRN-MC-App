@@ -1386,8 +1386,13 @@ export default function RelatorioPreview() {
     try {
       if (exportMode === 'single') {
         toast.info('Gerando PDF em arquivo único...');
-        handlePrint();
-        toast.success('Relatório exportado com sucesso.');
+        const ok = openPrintWindow(html, `${EXPORT_FILENAME_BASE}.pdf`);
+        if (!ok) {
+          handlePrint();
+          toast.warning('Janela de impressao bloqueada. Use a previa para salvar como PDF.');
+        } else {
+          toast.success('PDF pronto para salvar.');
+        }
         setExportDialogOpen(false);
         return;
       }

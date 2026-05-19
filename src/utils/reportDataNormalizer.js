@@ -163,15 +163,24 @@ export function validateReportBeforeExport(reportContext = {}, html = '', select
   const registryValidation = validateReportExportWithRegistry(normalizedHtml, selectedChapters);
   const layoutValidation = validateReportLayoutHtml(normalizedHtml);
   const indicatorValidation = validateReportIndicators(reportContext);
-  const errors = [
-    ...(registryValidation.valid ? [] : registryValidation.missingSelected.map((chapterId) => `Capítulo selecionado não renderizado: ${chapterId}`)),
-    ...layoutValidation.errors,
-  ];
+  const errors = [];
+
+  if (!normalizedHtml.trim()) {
+    errors.push('HTML do relatorio vazio.');
+  } else if (
+    !normalizedHtml.includes('premium-report') &&
+    !normalizedHtml.includes('report-export') &&
+    !normalizedHtml.includes('report-pdf-institutional-header')
+  ) {
+    errors.push('Container principal do relatorio nao encontrado.');
+  }
 
   return {
     valid: errors.length === 0,
     errors,
     warnings: [
+      ...(registryValidation.valid ? [] : registryValidation.missingSelected.map((chapterId) => `Capitulo selecionado nao renderizado: ${chapterId}`)),
+      ...layoutValidation.errors,
       ...layoutValidation.warnings,
       ...indicatorValidation.warnings.map((item) => item.message),
     ],

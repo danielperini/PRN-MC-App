@@ -390,18 +390,26 @@ export default function RelatorioFisicoFinanceiroGenerator() {
   };
 
   const validateBeforeExport = (html, selectedIds, reportContext = {}) => {
+    if (!String(html || '').trim()) {
+      throw new Error('HTML do relatorio vazio.');
+    }
+
     const validation = validateReportExportWithRegistry(html, selectedIds);
     if (!validation.valid) {
       const missingTitles = validation.missingSelected.map(getCapituloLabel);
-      throw new Error(`Os seguintes capítulos selecionados não foram renderizados: ${missingTitles.join(', ')}.`);
+      console.warn('Capitulos selecionados nao renderizados antes da exportacao:', missingTitles);
     }
 
     const editorialValidation = validateReportBeforeExport(reportContext, html, selectedIds);
     if (!editorialValidation.valid) {
-      throw new Error(`Validação editorial bloqueou a exportação: ${editorialValidation.errors.join(' ')}`);
+      throw new Error(`Falha estrutural na exportacao: ${editorialValidation.errors.join(' ')}`);
     }
-    if (editorialValidation.warnings.length > 0) {
-      console.warn('Alertas editoriais antes da exportação:', editorialValidation.warnings);
+    const warnings = [
+      ...(validation.valid ? [] : validation.missingSelected.map(getCapituloLabel)),
+      ...editorialValidation.warnings,
+    ].filter(Boolean);
+    if (warnings.length > 0) {
+      console.warn('Alertas antes da exportacao:', warnings);
     }
   };
   const runExport = async (inlinePhotoIds = []) => {
