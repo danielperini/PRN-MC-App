@@ -28,7 +28,7 @@ function isPublicFacingActivity(activity = {}) {
 }
 
 function ActivityCard({ activity, index }) {
-  const text = splitParagraphs(getActivityText(activity), 1)[0] || 'Registro recuperado dos relatórios aprovados no app, mantido como evidência da execução do período.';
+  const text = splitParagraphs(getActivityText(activity), 1)[0] || 'Registro disponível nos relatórios aprovados, mantido como evidência da execução do período.';
   const complementaryText = splitParagraphs([activity?.sinopse_agenda, activity?.observacoes, activity?.resultado].filter(Boolean).join('\n\n'), 1)[0] || '';
   const publico = getActivityPublico(activity);
   const meta = getActivityMeta(activity);
@@ -51,7 +51,7 @@ function ActivityCard({ activity, index }) {
   );
 }
 
-export default function PremiumMuseumSection({ contexto }) {
+export default function PremiumMuseumSection({ contexto, chapterIds = ['atividades_museu'] }) {
   const atividadesPublicas = (Array.isArray(contexto?.atividades) ? contexto.atividades : []).filter(isPublicFacingActivity);
   const grupos = groupByMuseu(atividadesPublicas);
   const intros = {
@@ -63,7 +63,12 @@ export default function PremiumMuseumSection({ contexto }) {
   const museus = ['MHAB', 'MIS', 'MUMO', 'Atuação geral'];
 
   return (
-    <div className="premium-museums">
+    <div
+      className="premium-museums"
+      data-report-chapter-id={chapterIds[0] || 'atividades_museu'}
+      data-report-chapter-ids={chapterIds.filter(Boolean).join(' ')}
+      data-report-chapter-title="Atividades por museu"
+    >
       {museus.map((museu) => {
         const items = grupos[museu] || [];
         if (items.length === 0) return null;
@@ -85,7 +90,7 @@ export default function PremiumMuseumSection({ contexto }) {
             <p className="premium-museum-intro">{intros[museu] || intros.geral}</p>
 
             <div className="premium-activity-grid">
-              {items.slice(0, 24).map((activity, index) => (
+              {items.map((activity, index) => (
                 <ActivityCard activity={activity} index={index} key={activity?.id || `${museu}-${index}`} />
               ))}
             </div>

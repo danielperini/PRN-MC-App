@@ -8,7 +8,7 @@ import PremiumTimeline from './PremiumTimeline';
 import PremiumMuseumSection from './PremiumMuseumSection';
 import PremiumCommunicationSection from './PremiumCommunicationSection';
 import PremiumClosingSection from './PremiumClosingSection';
-import { getChapterIntro, getReportSummaryChapters } from '@/config/reportChapters';
+import { getChapterIntro, getReportChapterById, getReportSummaryChapters } from '@/config/reportChapters';
 import { buildEditorialReportContext } from '@/utils/reportDataNormalizer';
 import { buildDocumentsChapterData } from '@/utils/reportDocumentsChapter';
 import {
@@ -367,19 +367,38 @@ function buildMetaCards(contexto = {}) {
 }
 
 function getChapterDataSources(chapterId) {
+  const registrySources = getReportChapterById(chapterId)?.dataSources;
+  if (Array.isArray(registrySources) && registrySources.length > 0) return registrySources;
+
   const sources = {
-    introducao: ['relatórios aprovados', 'configuração do período', 'cadastros de museu e equipe'],
-    indicadores: ['Report', 'Programação consolidada', 'Rubrica', 'PurchaseRequest', 'Attachment'],
-    programacao: ['Programação do app', 'relatórios aprovados', 'atividades vinculadas'],
-    agenda: ['Programação consolidada', 'datas registradas', 'relatórios aprovados'],
-    atividades: ['atividades internas do relatório', 'relatórios aprovados', 'campos de público, meta e status'],
-    relatorios: ['Report', 'textos narrativos aprovados', 'vínculos por museu, mês e autoria'],
-    galeria: ['Attachment', 'fotos vinculadas às atividades', 'metadados de crédito, legenda e localização'],
-    financeiro: ['Rubrica', 'PurchaseRequest', 'TeamPayment', 'DocumentIntake e anexos pareados'],
-    governanca: ['módulos do app', 'campos completos e incompletos', 'vínculos entre relatórios, documentos e rubricas'],
+    introducao: ['Report', 'ProgramacaoEspelho', 'Attachment', 'DocumentIntake', 'PurchaseRequest', 'TeamPayment', 'Rubrica'],
+    territorio: ['Report', 'ProgramacaoEspelho', 'museu', 'centro/museu'],
+    indicadores_premium: ['Report', 'ProgramacaoEspelho', 'Attachment', 'DocumentIntake', 'PurchaseRequest', 'TeamPayment', 'Rubrica'],
+    resumo_geral: ['síntese dos capítulos selecionados', 'indicadores disponíveis no aplicativo'],
+    publico: ['Report', 'atividades', 'ProgramacaoEspelho', 'campos de público'],
+    metas: ['Rubrica', 'atividades', 'metas vinculadas'],
+    programacao: ['ProgramacaoEspelho', 'Report'],
+    agenda_programacao: ['ProgramacaoEspelho', 'datas registradas', 'atividades'],
+    timeline_premium: ['ProgramacaoEspelho', 'Report'],
+    atividades_museu: ['atividades', 'Report', 'ProgramacaoEspelho'],
+    museus_premium: ['atividades', 'programação', 'relatórios por museu'],
+    noturno_premium: ['atividades', 'programação', 'rubricas vinculadas ao Noturno'],
+    relatorios_completos: ['Report'],
+    galeria_evidencias: ['Attachment', 'fotos vinculadas', 'metadados visuais'],
+    galeria_premium: ['Attachment', 'créditos', 'GPS', 'localização'],
+    comunicacao: ['Report', 'Attachment', 'registros de comunicação'],
+    comunicacao_premium: ['Report', 'Attachment', 'registros de comunicação'],
+    financeiro: ['PurchaseRequest', 'TeamPayment', 'Rubrica'],
+    rubricas: ['Rubrica'],
+    prestacao: ['PurchaseRequest', 'TeamPayment', 'DocumentIntake', 'Attachment'],
+    'notas-fiscais-contratos': ['Attachment', 'DocumentIntake', 'PurchaseRequest', 'TeamPayment'],
+    governanca_documental: ['DocumentIntake', 'Attachment', 'PurchaseRequest', 'TeamPayment'],
+    app_museu_centro: ['módulos do aplicativo', 'estrutura operacional existente'],
+    sistema_governanca: ['módulos do aplicativo', 'vínculos entre relatórios, documentos e rubricas'],
+    auditoria_operacional: ['Report', 'ProgramacaoEspelho', 'PurchaseRequest', 'TeamPayment', 'Rubrica', 'DocumentIntake', 'Attachment'],
   };
 
-  return sources[chapterId] || ['dados consolidados do aplicativo'];
+  return sources[chapterId] || sources[chapterId?.replace('indicadores', 'indicadores_premium')] || ['dados consolidados do aplicativo'];
 }
 
 function getChapterMethodologyBox(chapterId, contexto = {}) {
@@ -389,28 +408,44 @@ function getChapterMethodologyBox(chapterId, contexto = {}) {
   const photoCount = fmtInt((Array.isArray(contexto?.fotos) ? contexto.fotos.length : 0));
 
   const criteria = {
-    introducao: 'O recorte considera o período institucional configurado no gerador e a leitura integrada dos registros aprovados disponíveis no app, sem incorporar dados externos ao sistema.',
-    indicadores: `Os indicadores reúnem ${reportCount} relatórios, ${activityCount} atividades e ${purchaseCount} movimentações financeiras consolidadas no período, priorizando registros aprovados e campos efetivamente preenchidos.`,
-    programacao: 'A consolidação preserva a ordem das ações cadastradas, cruza programação e relatórios de equipe e explicita quando há ausência de agenda vinculada ou descrição insuficiente.',
-    agenda: 'Registros recorrentes e visitas fragmentadas são agrupados por equivalência semântica, mantendo data, museu, público e origem documental sempre que existirem.',
-    atividades: 'As atividades são apresentadas em texto por padrão. Fotos só entram no corpo da atividade quando foram vinculadas no app e selecionadas explicitamente antes da exportação.',
-    relatorios: 'A seção utiliza autoria, função, mês, museu e trechos aprovados, evitando repetição integral dos documentos e preservando a rastreabilidade narrativa.',
-    galeria: `A galeria final recebe apenas fotografias não selecionadas para o corpo das atividades. O conjunto atual reúne ${photoCount} registros visuais deduplicados por identidade técnica.`,
-    financeiro: 'A leitura financeira separa orçamento, rubricas, solicitações e pagamentos. Quando um documento não está pareado a uma solicitação ou pagamento, a limitação é preservada no texto metodológico.',
-    governanca: 'Os blocos de governança apresentam a qualidade dos vínculos entre módulos, destacando completude, rastreabilidade e campos pendentes sem preencher artificialmente lacunas.',
+    introducao: 'O recorte considera o período configurado no gerador e explica a origem dos registros do aplicativo. Esta é a metodologia geral do relatório, sem incorporar dados externos.',
+    territorio: 'A leitura territorial usa apenas registros associados a MIS, MHAB, MUMO e atuação geral. Quando não houver dado específico por equipamento, a limitação permanece visível.',
+    indicadores_premium: `Painel sintético com ${reportCount} relatórios, ${activityCount} atividades, fotos/anexos, documentos, solicitações, pagamentos e rubricas disponíveis no aplicativo.`,
+    resumo_geral: 'Síntese transversal do período. Interpreta os dados disponíveis sem repetir tabelas, listas completas ou o conteúdo da introdução metodológica.',
+    publico: 'Capítulo exclusivo para público. Se os totais por mês e por museu vierem de universos diferentes, a diferença é indicada como nota metodológica.',
+    metas: 'Relaciona ações, despesas, rubricas e registros às metas pactuadas. Percentuais financeiros são lidos junto ao cronograma físico-financeiro.',
+    programacao: 'Apresenta ações planejadas e realizadas a partir da programação cadastrada e de registros vinculados, sem repetir a agenda cronológica completa.',
+    agenda_programacao: 'Organiza registros em ordem cronológica. O card preserva data, museu, tipo, público e descrição real, sem reescrever atividade nem fundir relatórios por semelhança.',
+    timeline_premium: 'Transforma a cronologia em marcos editoriais do período. Não substitui a agenda e não lista todos os detalhes operacionais de cada atividade.',
+    atividades_museu: 'Capítulo principal de atividades, organizado por museu. Fotos só entram no corpo da atividade quando selecionadas previamente pelo usuário.',
+    museus_premium: 'Síntese individual por equipamento, com leitura de atividades, público, evidências e pendências. Não repete integralmente todas as atividades.',
+    noturno_premium: 'Renderiza somente registros vinculados ao Noturno nos Museus. Se não houver dados, o capítulo apresenta limitação em vez de programação inventada.',
+    relatorios_completos: 'Preserva relatórios individuais aprovados, autoria, museu, mês, status e textos originais. Não funde relatórios automaticamente.',
+    galeria_evidencias: `Recebe fotos não selecionadas para atividades. O conjunto atual reúne ${photoCount} registros visuais, com deduplicação técnica por identidade de arquivo.`,
+    galeria_premium: 'Apresenta apenas metadados existentes de crédito, legenda, origem e localização/GPS. Campos ausentes não são preenchidos artificialmente.',
+    comunicacao: 'Lista e organiza registros objetivos de comunicação, materiais, anexos, coberturas e publicações quando existirem no aplicativo.',
+    comunicacao_premium: 'Leitura narrativa da comunicação como circulação pública, documentação institucional, memória visual e visibilidade do projeto.',
+    financeiro: `Separa solicitado, aprovado, pago, status, rubrica e centro/museu quando disponíveis. Considera ${purchaseCount} solicitações/movimentações no recorte.`,
+    rubricas: 'Usa rubricas como fonte de verdade para previsto, utilizado, saldo, percentual, grupo e centro/museu.',
+    prestacao: 'Cruza solicitações, pagamentos, documentos fiscais, XMLs, recibos e comprovantes. Não substitui a listagem documental de notas fiscais.',
+    'notas-fiscais-contratos': 'Lista contratos, notas fiscais, XMLs, recibos e comprovantes com links de rastreabilidade, sem repetir a análise financeira.',
+    governanca_documental: 'Mostra cadeia documental, documentos pareados e sem par, vínculos e origem dos arquivos. Não repete a tabela fiscal completa.',
+    app_museu_centro: 'Explica o aplicativo como infraestrutura de registro, consolidação, memória, exportação e acompanhamento institucional.',
+    sistema_governanca: 'Analisa qualidade da base, campos completos, vínculos, pendências e consistência entre módulos.',
+    auditoria_operacional: 'Cruzamento crítico entre atividades, público, metas, documentos, financeiro, rubricas e pagamentos. Não repete os capítulos anteriores.',
   };
 
-  return criteria[chapterId] || 'A consolidação foi realizada exclusivamente a partir dos dados verificáveis existentes no aplicativo.';
+  return criteria[chapterId] || criteria[chapterId?.replace('indicadores', 'indicadores_premium')] || 'A consolidação foi realizada exclusivamente a partir dos dados verificáveis existentes no aplicativo.';
 }
 
 function getChapterLimitations(chapterId, contexto = {}) {
   const limitations = [];
 
-  if ((chapterId === 'galeria' || chapterId === 'atividades') && (!Array.isArray(contexto?.fotos) || contexto.fotos.length === 0)) {
+  if ((chapterId === 'galeria_evidencias' || chapterId === 'galeria_premium' || chapterId === 'atividades_museu') && (!Array.isArray(contexto?.fotos) || contexto.fotos.length === 0)) {
     limitations.push('Não há fotos suficientes vinculadas no app para ampliar a camada visual deste capítulo.');
   }
 
-  if ((chapterId === 'indicadores' || chapterId === 'atividades') && toNumber(contexto?.publico_total) <= 0) {
+  if ((chapterId === 'indicadores_premium' || chapterId === 'publico' || chapterId === 'atividades_museu') && toNumber(contexto?.publico_total) <= 0) {
     limitations.push('A ausência de público consolidado no recorte impede leituras comparativas mais densas.');
   }
 
@@ -418,11 +453,11 @@ function getChapterLimitations(chapterId, contexto = {}) {
     limitations.push('Não foram localizadas movimentações financeiras suficientes para detalhamento operacional no recorte selecionado.');
   }
 
-  if ((chapterId === 'programacao' || chapterId === 'agenda') && (!Array.isArray(contexto?.programacao) || contexto.programacao.length === 0)) {
+  if ((chapterId === 'programacao' || chapterId === 'agenda_programacao' || chapterId === 'timeline_premium') && (!Array.isArray(contexto?.programacao) || contexto.programacao.length === 0)) {
     limitations.push('A agenda do período não está completamente consolidada no app para este recorte.');
   }
 
-  if (chapterId === 'governanca') {
+  if (chapterId === 'governanca_documental' || chapterId === 'sistema_governanca' || chapterId === 'auditoria_operacional') {
     const incompletePhotos = extractPhotos(contexto).filter((photo) => !photo?.atividade || !photo?.museu);
     if (incompletePhotos.length > 0) {
       limitations.push(`${fmtInt(incompletePhotos.length)} imagens permanecem sem classificação completa de atividade ou museu.`);
@@ -501,7 +536,7 @@ function composeIntro(textos = {}, contexto = {}) {
   return [buildIntroPeriodo(contexto), ...extra].join('\n\n');
 }
 
-function TableOfContents({ secoesSelecionadas = [] }) {
+function TableOfContents({ secoesSelecionadas = [], contexto = {} }) {
   const chapters = getReportSummaryChapters(secoesSelecionadas).map((chapter) => ({
     id: chapter.id,
     title: chapter.title,
@@ -521,12 +556,21 @@ function TableOfContents({ secoesSelecionadas = [] }) {
 
   return (
     <PremiumSection
+      chapterId="governanca_documental"
       breakBefore
       chapterId="sumario_executivo"
       chapterTitle="SumÃ¡rio executivo editorial"
-      eyebrow="Mapa de leitura"
-      title="Sumário"
+      eyebrow="Sumário executivo"
+      title="Síntese editorial do período"
+      subtitle="Leitura inicial dos dados reais disponíveis no aplicativo, seguida pelo mapa de capítulos selecionados."
+      text={`O período reúne ${fmtInt(getEffectiveTotalActivities(contexto))} atividades registradas, ${fmtInt(contexto.publico_total)} pessoas em público consolidado quando informado, ${fmtInt(getEffectiveTotalReports(contexto))} relatórios aprovados e registros documentais, financeiros e visuais vinculados ao acompanhamento do projeto.\n\nA síntese executiva não substitui a introdução metodológica. Ela orienta a leitura dos principais blocos do relatório: programação, público, metas, relatórios de equipe, evidências, comunicação, financeiro e governança documental.`}
     >
+      <PremiumMetrics contexto={contexto} />
+      <ChapterMethodologyPanel
+        chapterId="sumario_executivo"
+        contexto={contexto}
+        evidence={['capítulos selecionados', 'indicadores consolidados', 'registros disponíveis no aplicativo']}
+      />
       <ol className="catalog-toc">
         {items.map((item) => (
           <li key={item.id || item.title} className={item.isAnnex ? 'toc-annex' : undefined}>
@@ -555,6 +599,7 @@ function TransitionManagementSection() {
 
   return (
     <PremiumSection
+      chapterId="auditoria_operacional"
       breakBefore
       eyebrow="Atuação geral"
       title="Coordenação, planejamento e desenvolvimento institucional"
@@ -1273,7 +1318,7 @@ function MonthlyAgendaSection({ contexto }) {
       text="A agenda preserva os registros do período conforme aparecem na programação e nas atividades do aplicativo. Apenas duplicidades estritas por identificador ou por data, museu e título equivalente são removidas da exibição."
     >
       <ChapterMethodologyPanel
-        chapterId="agenda"
+        chapterId="agenda_programacao"
         contexto={contexto}
         evidence={['programação consolidada', 'relatórios aprovados', 'fotos selecionadas para atividade', 'metadados de público e meta']}
       />
@@ -1334,6 +1379,36 @@ function MonthlyAgendaSection({ contexto }) {
   );
 }
 
+function ProgramacaoRecordsList({ contexto }) {
+  const items = Array.isArray(contexto?.programacao) ? contexto.programacao : [];
+  if (items.length === 0) return <EmptyChapterNotice chapterTitle="Programação" />;
+
+  return (
+    <div className="premium-table-wrap">
+      <table className="premium-table">
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Ação planejada/realizada</th>
+            <th>Museu</th>
+            <th>Status/tipo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item, index) => (
+            <tr key={item.id || index}>
+              <td>{sanitizeReportText(item.data || item.data_inicio || item.mes || '-')}</td>
+              <td>{sanitizeReportText(item.titulo || item.nome || item.nome_acao || 'Programação registrada')}</td>
+              <td>{sanitizeReportText(getMuseuLabel(item.museu || item.equipamento || item.local || 'Atuação geral'))}</td>
+              <td>{sanitizeReportText(item.status || item.tipo || item.tipo_atividade || '-')}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function ReportsArchiveSection({ contexto }) {
   const reports = Array.isArray(contexto?.relatorios_equipe) ? contexto.relatorios_equipe : [];
 
@@ -1349,7 +1424,7 @@ function ReportsArchiveSection({ contexto }) {
       text="Esta seção preserva os relatórios individuais aprovados pelas equipes, mantendo autoria, função, museu, mês, atividades, público e textos originais registrados no aplicativo."
     >
       <ChapterMethodologyPanel
-        chapterId="relatorios"
+        chapterId="relatorios_completos"
         contexto={contexto}
         evidence={['relatórios aprovados', 'autoria', 'museu', 'mês', 'trechos narrativos aprovados']}
       />
@@ -1474,6 +1549,7 @@ function groupPhotosByMonthMuseumActivity(contexto) {
 function GovernanceEvidenceSection({ contexto = {} }) {
   return (
     <PremiumSection
+      chapterId="notas-fiscais-contratos"
       breakBefore
       eyebrow="Governança documental"
       title="Governança documental e rastreabilidade das evidências"
@@ -1481,7 +1557,7 @@ function GovernanceEvidenceSection({ contexto = {} }) {
       text={getChapterIntro('governanca_documental', contexto) || 'Este capítulo organiza a trilha documental do relatório a partir dos arquivos efetivamente localizados no app. Quando um documento está pareado a uma solicitação, pagamento, rubrica, foto ou atividade, o relatório preserva esse vínculo. Quando o pareamento não existe ou está incompleto, a limitação é explicitada sem preenchimento artificial.'}
     >
       <ChapterMethodologyPanel
-        chapterId="governanca"
+        chapterId="governanca_documental"
         contexto={contexto}
         evidence={['DocumentIntake', 'Attachment', 'PDFs', 'XMLs', 'recibos', 'comprovantes', 'fotos', 'origem dos arquivos']}
       />
@@ -1499,7 +1575,7 @@ function OperationalAuditSection({ contexto = {} }) {
       text={getChapterIntro('auditoria_operacional', contexto) || 'A leitura operacional não cria novos números nem corrige registros automaticamente dentro do relatório. Ela expõe a consistência disponível entre módulos, destacando convergências, lacunas de vínculo e limites de rastreabilidade sempre a partir dos dados reais do sistema.'}
     >
       <ChapterMethodologyPanel
-        chapterId="governanca"
+        chapterId="auditoria_operacional"
         contexto={contexto}
         evidence={['Report', 'Programação', 'PurchaseRequest', 'TeamPayment', 'Rubrica', 'DocumentIntake', 'Attachment']}
       />
@@ -1531,7 +1607,7 @@ function DocumentsChapterSection({ contexto = {} }) {
       text={getChapterIntro('notas-fiscais-contratos', contexto) || 'Este capítulo reúne os arquivos documentais utilizados para sustentar a prestação de contas do período, organizando contratos e documentos fiscais a partir dos registros disponíveis no app. A listagem considera os documentos vinculados à Gestão Documental, à Entrada Única, às solicitações de compras, aos pagamentos de equipe e aos anexos relacionados. Os links são apresentados para facilitar a rastreabilidade entre execução operacional, documentação fiscal e comprovação institucional.'}
     >
       <ChapterMethodologyPanel
-        chapterId="governanca"
+        chapterId="notas-fiscais-contratos"
         contexto={contexto}
         evidence={['Attachment', 'DocumentIntake', 'PurchaseRequest', 'TeamPayment', 'PDFs', 'XMLs', 'recibos', 'comprovantes']}
       />
@@ -1633,7 +1709,7 @@ function DocumentsChapterSection({ contexto = {} }) {
   );
 }
 
-function PhotoEvidenceDenseSection({ contexto }) {
+function PhotoEvidenceDenseSection({ contexto, chapterIds = ['galeria_evidencias'] }) {
   const groups = groupPhotosByMonthMuseumActivity(contexto);
   const photos = groups.flatMap((museumGroup) =>
     museumGroup.months.flatMap((monthGroup) =>
@@ -1644,7 +1720,7 @@ function PhotoEvidenceDenseSection({ contexto }) {
   return (
     <PremiumSection
       chapterId="galeria_evidencias"
-      chapterIds={['galeria_evidencias']}
+      chapterIds={chapterIds}
       chapterTitle="Galeria e evidências"
       breakBefore
       eyebrow="Galeria e evidências"
@@ -1653,7 +1729,7 @@ function PhotoEvidenceDenseSection({ contexto }) {
       text="A listagem amplia a densidade documental do relatório e evita que a fotografia apareça apenas como link. Cada item preserva o vínculo com a atividade ou arquivo de origem disponível no app."
     >
       <ChapterMethodologyPanel
-        chapterId="galeria"
+        chapterId="galeria_evidencias"
         contexto={contexto}
         evidence={['fotos não selecionadas para atividades', 'metadados de crédito', 'legenda', 'localização e origem do arquivo']}
       />
@@ -2073,7 +2149,7 @@ function RemovedPeriodSection({ contexto }) {
     <PremiumSection
       breakBefore
       eyebrow="Seção especial"
-      title="Seção removida"
+      title="Noturno nos Museus"
       subtitle="Planejamento, pré-produção, infraestrutura, comunicação e rubricas vinculadas ao eixo de maior visibilidade pública."
       text={atividades.length === 0 && rubricas.length === 0
         ? 'O capítulo permanece no relatório para preservar a estrutura editorial oficial. No recorte selecionado, não foram localizados registros suficientes de programação, atividade ou rubrica que justifiquem a abertura pública de uma seção específica do Noturno nos Museus.'
@@ -2205,6 +2281,21 @@ function hasRealTimelineData(contexto = {}) {
     safeArray(contexto.atividades).length > 0;
 }
 
+function hasNoturnoData(contexto = {}) {
+  const includesNoturno = (item = {}) => normalizeText([
+    item.nome,
+    item.titulo,
+    item.descricao,
+    item.categoria_label,
+    item.grupo,
+    item.rubrica,
+  ].filter(Boolean).join(' ')).includes('noturno');
+
+  return safeArray(contexto.atividades).some(includesNoturno) ||
+    safeArray(contexto.programacao).some(includesNoturno) ||
+    safeArray(contexto.rubricas).some(includesNoturno);
+}
+
 function hasSection(selected = [], ...ids) {
   if (!Array.isArray(selected) || selected.length === 0) return true;
   return ids.some((id) => selected.includes(id));
@@ -2225,7 +2316,7 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
 
       {hasSection(secoesSelecionadas, 'expediente') && <PremiumExpedienteSection contexto={contexto} />}
 
-      {hasSection(secoesSelecionadas, 'sumario_executivo') && <TableOfContents secoesSelecionadas={secoesSelecionadas} />}
+      {hasSection(secoesSelecionadas, 'sumario_executivo') && <TableOfContents secoesSelecionadas={secoesSelecionadas} contexto={contexto} />}
 
       {hasSection(secoesSelecionadas, 'introducao') && <PremiumSection
         chapterId="introducao"
@@ -2243,26 +2334,77 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
         />
       </PremiumSection>}
 
-      {hasSection(secoesSelecionadas, 'territorio', 'sistema_governanca') && <TransitionManagementSection />}
+      {hasSection(secoesSelecionadas, 'territorio') && <TransitionManagementSection />}
 
-      {hasSection(secoesSelecionadas, 'publico', 'metas', 'indicadores_premium') && <PremiumSection
+      {hasSection(secoesSelecionadas, 'indicadores_premium') && <PremiumSection
+        chapterId="indicadores_premium"
+        chapterTitle="Indicadores editoriais"
         breakBefore
-        eyebrow="Indicadores, metas e público"
-        title="Execução física acompanhada por evidências"
+        eyebrow="Indicadores editoriais"
+        title="Painel de leitura do período"
         subtitle={`${fmtInt(getEffectiveTotalActivities(contexto))} atividades registradas, ${fmtInt(contexto.publico_total)} pessoas no recorte do período e ${fmtInt(getEffectiveTotalReports(contexto))} relatórios consolidados.`}
-        text={`${textos.resumo_geral || ''}\n\nPúblico espontâneo corresponde ao público que acessa o museu sem agendamento prévio, em visita livre, circulação cotidiana, exposições, permanência nos espaços e fruição espontânea da programação.\n\nVisitas agendadas correspondem a grupos previamente organizados, escolas, instituições, coletivos ou grupos acompanhados por mediação, com registro de data, número de participantes e, quando houver, vínculo com atividade educativa.\n\n${textos.metas || ''}`}
+        text="Painel sintético de atividades, público, relatórios, fotos/anexos, documentos, solicitações, pagamentos e rubricas disponíveis no aplicativo."
       >
         <ChapterMethodologyPanel
-          chapterId="indicadores"
+          chapterId="indicadores_premium"
           contexto={contexto}
           evidence={['relatórios', 'programação', 'rubricas', 'solicitações financeiras', 'anexos']}
         />
+        <PremiumMetrics contexto={contexto} />
+      </PremiumSection>}
+
+      {hasSection(secoesSelecionadas, 'resumo_geral') && <PremiumSection
+        chapterId="resumo_geral"
+        chapterTitle="Resumo geral"
+        breakBefore
+        eyebrow="Resumo geral"
+        title="Leitura transversal do período"
+        subtitle="Interpretação sintética dos registros disponíveis, sem repetir tabelas ou listas completas."
+        text={textos.resumo_geral || getChapterIntro('resumo_geral', contexto)}
+      >
+        <ChapterMethodologyPanel
+          chapterId="resumo_geral"
+          contexto={contexto}
+          evidence={['indicadores consolidados', 'relatórios aprovados', 'capítulos selecionados']}
+        />
+      </PremiumSection>}
+
+      {hasSection(secoesSelecionadas, 'publico') && <PremiumSection
+        chapterId="publico"
+        chapterTitle="Público alcançado"
+        breakBefore
+        eyebrow="Público alcançado"
+        title="Público registrado e universos de consolidação"
+        subtitle="Separação entre público de atividades datadas, público por museu, estimativas e registros sem preenchimento específico."
+        text="Este capítulo trata exclusivamente dos dados de público disponíveis no aplicativo. Quando públicos por mês e por museu pertencem a universos diferentes, a diferença é apresentada como limitação metodológica em vez de ser corrigida artificialmente."
+      >
+        <ChapterMethodologyPanel
+          chapterId="publico"
+          contexto={contexto}
+          evidence={['campos de público', 'atividades datadas', 'consolidação por museu']}
+        />
         <AudienceBreakdown contexto={contexto} />
+      </PremiumSection>}
+
+      {hasSection(secoesSelecionadas, 'metas') && <PremiumSection
+        chapterId="metas"
+        chapterTitle="Metas do 3º Aditivo"
+        breakBefore
+        eyebrow="Metas do 3º Aditivo"
+        title="Aderência entre ações, rubricas e metas"
+        subtitle="Leitura de metas pactuadas a partir de atividades, despesas e registros vinculados."
+        text={textos.metas || 'As metas são acompanhadas a partir dos registros disponíveis no aplicativo, cruzando atividades, rubricas e execução financeira quando houver vínculo suficiente.'}
+      >
+        <ChapterMethodologyPanel
+          chapterId="metas"
+          contexto={contexto}
+          evidence={['rubricas', 'atividades', 'metas vinculadas']}
+        />
         <PremiumMetasPanel contexto={contexto} />
       </PremiumSection>}
 
-      {hasSection(secoesSelecionadas, 'programacao', 'timeline_premium') && <PremiumSection
-        chapterIds={selectedChapterIds(secoesSelecionadas, ['programacao', 'timeline_premium'])}
+      {hasSection(secoesSelecionadas, 'programacao') && <PremiumSection
+        chapterId="programacao"
         chapterTitle="Programação"
         breakBefore
         eyebrow="Agenda Museus Centro no período"
@@ -2275,20 +2417,51 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
           contexto={contexto}
           evidence={['programação do app', 'relatórios aprovados', 'atividades consolidadas']}
         />
-        {hasRealTimelineData(contexto) ? <PremiumTimeline contexto={contexto} /> : <EmptyChapterNotice chapterTitle="Programação" />}
+        <ProgramacaoRecordsList contexto={contexto} />
+      </PremiumSection>}
+
+      {hasSection(secoesSelecionadas, 'timeline_premium') && <PremiumSection
+        chapterId="timeline_premium"
+        chapterTitle="Linha do tempo editorial"
+        breakBefore
+        eyebrow="Linha do tempo editorial"
+        title="Marcos do período"
+        subtitle="Cronologia transformada em leitura de marcos, sem repetir a agenda detalhada."
+        text="A linha do tempo destaca marcos do período a partir da programação e das atividades registradas. Ela não substitui a agenda cronológica nem o capítulo principal de atividades por museu."
+      >
+        <ChapterMethodologyPanel
+          chapterId="timeline_premium"
+          contexto={contexto}
+          evidence={['programação', 'atividades registradas', 'datas do período']}
+        />
+        {hasRealTimelineData(contexto) ? <PremiumTimeline contexto={contexto} /> : <EmptyChapterNotice chapterTitle="Linha do tempo editorial" />}
       </PremiumSection>}
 
       {hasSection(secoesSelecionadas, 'agenda_programacao') && <MonthlyAgendaSection contexto={contexto} />}
 
-      {hasSection(secoesSelecionadas, 'programacao', 'atividades_museu') && <StrategicRecords contexto={contexto} />}
+      {hasSection(secoesSelecionadas, 'atividades_museu', 'museus_premium') && hasRealMuseumData(contexto) && (
+        <PremiumMuseumSection
+          contexto={contexto}
+          chapterIds={selectedChapterIds(secoesSelecionadas, ['atividades_museu', 'museus_premium'])}
+        />
+      )}
 
-      {hasSection(secoesSelecionadas, 'atividades_museu', 'museus_premium') && hasRealMuseumData(contexto) && <PremiumMuseumSection contexto={contexto} />}
+      {hasSection(secoesSelecionadas, 'noturno_premium') && hasNoturnoData(contexto) && <RemovedPeriodSection contexto={contexto} />}
 
-      {hasSection(secoesSelecionadas, 'noturno_premium') && <RemovedPeriodSection contexto={contexto} />}
+      {hasSection(secoesSelecionadas, 'comunicacao', 'comunicacao_premium') && (
+        <PremiumCommunicationSection
+          contexto={contexto}
+          textos={textos}
+          chapterIds={selectedChapterIds(secoesSelecionadas, ['comunicacao', 'comunicacao_premium'])}
+        />
+      )}
 
-      {hasSection(secoesSelecionadas, 'comunicacao', 'comunicacao_premium') && <PremiumCommunicationSection contexto={contexto} textos={textos} />}
-
-      {hasSection(secoesSelecionadas, 'galeria_evidencias') && <PhotoEvidenceDenseSection contexto={contexto} />}
+      {hasSection(secoesSelecionadas, 'galeria_evidencias', 'galeria_premium') && (
+        <PhotoEvidenceDenseSection
+          contexto={contexto}
+          chapterIds={selectedChapterIds(secoesSelecionadas, ['galeria_evidencias', 'galeria_premium'])}
+        />
+      )}
 
       {hasSection(secoesSelecionadas, 'relatorios_completos') && <ReportsArchiveSection contexto={contexto} />}
 
@@ -2318,17 +2491,33 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
 
       {hasSection(secoesSelecionadas, 'governanca_documental') && <GovernanceEvidenceSection contexto={contexto} />}
 
-      {hasSection(secoesSelecionadas, 'app_museu_centro', 'sistema_governanca') && <PremiumSection
+      {hasSection(secoesSelecionadas, 'app_museu_centro') && <PremiumSection
+        chapterId="app_museu_centro"
         breakBefore
-        eyebrow="Sistema e governança"
+        eyebrow="Museu Centro APP"
         title="Museu Centro APP como memória operacional"
         subtitle="A ferramenta integra relatórios, fotos, programação, compras, rubricas e textos, permitindo relatórios mais densos e menos manuais."
         text={textos.app_museu_centro}
       >
         <ChapterMethodologyPanel
-          chapterId="governanca"
+          chapterId="app_museu_centro"
           contexto={contexto}
           evidence={['relatórios', 'programação', 'anexos', 'rubricas', 'pagamentos', 'vínculos entre módulos']}
+        />
+      </PremiumSection>}
+
+      {hasSection(secoesSelecionadas, 'sistema_governanca') && <PremiumSection
+        chapterId="sistema_governanca"
+        breakBefore
+        eyebrow="Sistema, dados e governança"
+        title="Qualidade da base e consistência dos vínculos"
+        subtitle="Leitura de campos completos, vínculos, pendências e consistência entre módulos."
+        text="Este capítulo observa a qualidade da base do aplicativo: completude de campos, vínculos entre atividades, relatórios, documentos, rubricas e pagamentos, além de pendências que precisam ser preservadas como informação metodológica."
+      >
+        <ChapterMethodologyPanel
+          chapterId="sistema_governanca"
+          contexto={contexto}
+          evidence={['campos completos', 'vínculos entre módulos', 'pendências de classificação']}
         />
       </PremiumSection>}
 

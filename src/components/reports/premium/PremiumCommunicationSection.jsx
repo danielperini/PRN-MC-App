@@ -18,7 +18,7 @@ function communicationActivities(contexto = {}) {
   });
 }
 
-export default function PremiumCommunicationSection({ contexto, textos }) {
+export default function PremiumCommunicationSection({ contexto, textos, chapterIds = ['comunicacao'] }) {
   const atividades = communicationActivities(contexto);
   const paragraphs = splitParagraphs(
     textos?.comunicacao || textos?.capitulos?.comunicacao_produtos,
@@ -31,7 +31,12 @@ export default function PremiumCommunicationSection({ contexto, textos }) {
   ];
 
   return (
-    <section className="premium-communication premium-page-break">
+    <section
+      className="premium-communication premium-page-break"
+      data-report-chapter-id={chapterIds[0] || 'comunicacao'}
+      data-report-chapter-ids={chapterIds.filter(Boolean).join(' ')}
+      data-report-chapter-title="Comunicação"
+    >
       <PremiumInternalPageHeader />
 
       <div className="premium-section-heading">
@@ -64,7 +69,7 @@ export default function PremiumCommunicationSection({ contexto, textos }) {
               </tr>
             </thead>
             <tbody>
-              {atividades.slice(0, 24).map((item, index) => (
+              {atividades.map((item, index) => (
                 <tr key={item?.id || index}>
                   <td>{item?.nome || item?.titulo || 'Registro de comunicação'}</td>
                   <td>{item?.museu || 'Geral'}</td>
