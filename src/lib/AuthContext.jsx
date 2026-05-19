@@ -1,7 +1,6 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { appParams } from '@/lib/app-params';
-import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
 import { validateUserAccess, recoverExistingUserAccess, normalizeEmail } from '@/utils/auth/recoverExistingUserAccess';
 import { trackUserLoginOnce } from '@/lib/userLoginMonitoring';
 
@@ -23,75 +22,59 @@ export const AuthProvider = ({ children }) => {
     try {
       setIsLoadingPublicSettings(true);
       setAuthError(null);
-      
-      // First, check app public settings (with token if available)
-      // This will tell us if auth is required, user not registered, etc.
-      const appClient = createAxiosClient({
-        baseURL: `/api/apps/public`,
-        headers: {
-          'X-App-Id': appParams.appId
-        },
-        token: appParams.token, // Include token if available
-        interceptResponses: true
-      });
-      
+
       try {
-        const publicSettings = await appClient.get(`/prod/public-settings/by-id/${appParams.appId}`);
-        setAppPublicSettings(publicSettings);
-        
-        // If we got the app public settings successfully, check if user is authenticated
-        if (appParams.token) {
-          await checkUserAuth();
+        const headers = { 'X-App-Id': appParams.appId };
+        if (appParams.token) headers['Authorization'] = `Bearer ${appParams.token}`;
+
+        const res = await fetch(`/api/apps/public/prod/public-settings/by-id/${appParams.appId}`, { headers });
+
+        if (res.ok) {
+          const publicSettings = await res.json();
+          setAppPublicSettings(publicSettings);
+
+          if (appParams.token) {
+            await checkUserAuth();
+          } else {
+            setIsLoadingAuth(false);
+            setIsAuthenticated(false);
+          }
+          setIsLoadingPublicSettings(false);
         } else {
-          setIsLoadingAuth(false);
-          setIsAuthenticated(false);
-        }
-        setIsLoadingPublicSettings(false);
-      } catch (appError) {
-        console.error('App state check failed:', appError);
-        
-        // Handle app-level errors
-        if (appError.status === 403 && appError.data?.extra_data?.reason) {
-          const reason = appError.data.extra_data.reason;
-          if (reason === 'auth_required') {
-            setAuthError({
-              type: 'auth_required',
-              message: 'Authentication required'
-            });
-          } else if (reason === 'user_not_registered') {
-            const recovery = await recoverExistingUserAccess(null, { origin: 'public-settings-user-not-registered' });
-            if (recovery.recovered) {
-              setUser(recovery.user);
-              setIsAuthenticated(true);
-              setAuthError(null);
-              trackUserLoginOnce(recovery.user);
+          const errorData = await res.json().catch(() => ({}));
+          const reason = errorData?.extra_data?.reason;
+
+          if (res.status === 403 && reason) {
+            if (reason === 'auth_required') {
+              setAuthError({ type: 'auth_required', message: 'Authentication required' });
+            } else if (reason === 'user_not_registered') {
+              const recovery = await recoverExistingUserAccess(null, { origin: 'public-settings-user-not-registered' });
+              if (recovery.recovered) {
+                setUser(recovery.user);
+                setIsAuthenticated(true);
+                setAuthError(null);
+                trackUserLoginOnce(recovery.user);
+              } else {
+                setAuthError({ type: 'user_not_registered', message: 'User not registered for this app' });
+              }
             } else {
-              setAuthError({
-                type: 'user_not_registered',
-                message: 'User not registered for this app'
-              });
+              setAuthError({ type: reason, message: errorData.message || 'Access denied' });
             }
           } else {
-            setAuthError({
-              type: reason,
-              message: appError.message
-            });
+            setAuthError({ type: 'unknown', message: errorData.message || 'Failed to load app' });
           }
-        } else {
-          setAuthError({
-            type: 'unknown',
-            message: appError.message || 'Failed to load app'
-          });
+          setIsLoadingPublicSettings(false);
+          setIsLoadingAuth(false);
         }
+      } catch (appError) {
+        console.error('App state check failed:', appError);
+        setAuthError({ type: 'unknown', message: appError.message || 'Failed to load app' });
         setIsLoadingPublicSettings(false);
         setIsLoadingAuth(false);
       }
     } catch (error) {
       console.error('Unexpected error:', error);
-      setAuthError({
-        type: 'unknown',
-        message: error.message || 'An unexpected error occurred'
-      });
+      setAuthError({ type: 'unknown', message: error.message || 'An unexpected error occurred' });
       setIsLoadingPublicSettings(false);
       setIsLoadingAuth(false);
     }
