@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { backupContractIntakeToDrive } from '@/lib/contractDriveBackup';
 import {
   Loader2, FileText, User, Building2, CheckCircle2,
   AlertCircle, Link2, ExternalLink, DollarSign, Calendar, MapPin,
@@ -163,6 +164,7 @@ export default function ReviewModalContrato({ intake, onClose, onSaved }) {
       // 3. Atualizar DocumentIntake
       await base44.entities.DocumentIntake.update(intake.id, {
         status_processamento: 'APROVADO',
+        tipo_detectado: intake.tipo_detectado || 'CONTRATO_PDF',
         revisado_pelo_usuario: true,
         grupo_status: 'COMPLETO',
         entidade_destino: form.team_member_id ? 'TeamMember' : fornecedorId ? 'Fornecedor' : '',
@@ -175,11 +177,28 @@ export default function ReviewModalContrato({ intake, onClose, onSaved }) {
 
       // 4. Backup no Drive (via função existente)
       if (intake.arquivo_original_url) {
-        base44.functions.invoke('processarContratoEntradaUnica', {
-          intake_id: intake.id,
-          file_url: intake.arquivo_original_url,
-          file_name: intake.file_name_final || intake.file_name_original,
-        }).catch(() => {});
+        const backupResult = await backupContractIntakeToDrive({
+          intake: {
+            ...intake,
+            status_processamento: 'APROVADO',
+            revisado_pelo_usuario: true,
+            grupo_status: 'COMPLETO',
+            entidade_destino: form.team_member_id ? 'TeamMember' : fornecedorId ? 'Fornecedor' : '',
+            entidade_destino_id: form.team_member_id || fornecedorId || '',
+            contrato_team_member_id: form.team_member_id || null,
+            contrato_fornecedor_id: fornecedorId || null,
+            contrato_numero: form.numero_contrato || ia?.numero_contrato || '',
+            centro_custo: form.centro_custo || ia?.centro_custo || '',
+          },
+          currentUser: null,
+          linkType: form.team_member_id ? 'TeamMember' : fornecedorId ? 'Fornecedor' : ''
+        });
+
+        if (backupResult?.success) {
+          toast.success('Backup salvo no Drive em Contratos APP.');
+        } else if (backupResult && !backupResult.skipped) {
+          toast.warning('Contrato vinculado ao app. Backup no Drive ficou pendente.');
+        }
       }
 
       toast.success('Contrato vinculado e arquivado com sucesso.');
@@ -269,6 +288,22 @@ export default function ReviewModalContrato({ intake, onClose, onSaved }) {
                   <ExternalLink className="w-3 h-3" />Ver contrato
                 </a>
               )}
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                <Badge variant="outline" className="border-gray-200 text-gray-600">
+                  Backup Drive: {intake.backup_drive_status || 'PENDENTE'}
+                </Badge>
+                {intake.drive_backup_url && (
+                  <a
+                    href={intake.drive_backup_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-blue-600 underline"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    Abrir backup no Drive
+                  </a>
+                )}
+              </div>
             </div>
 
             {/* Vínculo com membro da equipe */}

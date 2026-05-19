@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 
 export const NF_BACKUP_DRIVE_PARENT_ID = '1aJ5nfpgXcpu6SrDVecmhIQ2eq4vexqe3';
 const APPROVED_STATUSES = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
+const NF_TYPES = new Set(['NOTA_FISCAL_PDF', 'NOTA_FISCAL_XML', 'RECIBO_PDF']);
 const DELETE_STATUSES = new Set(['DELETADO', 'EXCLUIDO', 'EXCLUÍDO', 'CANCELADO']);
 const BACKUP_DELAY_MS = 60 * 1000;
 
@@ -20,6 +21,12 @@ function isApprovedPayload(payload = {}) {
 
 function isDeletePayload(payload = {}) {
   return DELETE_STATUSES.has(normalizeStatus(payload.status || payload.status_processamento || payload.status_registro));
+}
+
+function isFiscalDocumentPayload(payload = {}) {
+  const type = normalizeStatus(payload.tipo_detectado || payload.nf_tipo_documento || payload.resultado_ia?.tipo_documento);
+  if (!type) return true;
+  return NF_TYPES.has(type) || type.includes('NOTA_FISCAL') || type.includes('RECIBO');
 }
 
 function invokeBackup(payload) {
@@ -91,7 +98,7 @@ function patchEntity(entity, entityName) {
         });
       }
 
-      if (entityName === 'DocumentIntake' && isApprovedPayload(payload)) {
+      if (entityName === 'DocumentIntake' && isApprovedPayload(payload) && isFiscalDocumentPayload(payload)) {
         scheduleBackup({
           document_intake_id: id,
           purchase_request_id: payload?.entidade_destino === 'PurchaseRequest' ? payload?.entidade_destino_id : '',

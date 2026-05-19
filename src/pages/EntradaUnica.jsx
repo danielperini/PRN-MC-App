@@ -11,6 +11,7 @@ import ReviewModalOutro from '@/components/entrada/ReviewModalOutro';
 import ReviewModalContrato from '@/components/entrada/ReviewModalContrato';
 import LinkXmlModal from '@/components/entrada/LinkXmlModal';
 import LinkArquivoModal from '@/components/entrada/LinkArquivoModal';
+import { backupContractIntakeToDrive, isContractIntakeType } from '@/lib/contractDriveBackup';
 import {
   Loader2,
   InboxIcon,
@@ -486,9 +487,15 @@ Responda apenas com uma palavra: CONTRATO ou NOTA_FISCAL ou OUTRO.`,
 
       const tipoRapido = String(tipagemRapida?.tipo || '').toUpperCase();
 
-      if (tipoRapido === 'CONTRATO') {
+      if (tipoRapido === 'CONTRATO' || tipoRapido === 'CONTRATO_PDF' || tipoRapido === 'TERMO_COMPROMISSO_PDF') {
+        const nomeArquivoNormalizado = normalizeText(fileUrl);
+        const tipoContrato =
+          tipoRapido === 'TERMO_COMPROMISSO_PDF' || nomeArquivoNormalizado.includes('termo')
+            ? 'TERMO_COMPROMISSO_PDF'
+            : 'CONTRATO_PDF';
+
         await base44.entities.DocumentIntake.update(intakeId, {
-          tipo_detectado: 'CONTRATO',
+          tipo_detectado: tipoContrato,
           status_processamento: 'ANALISANDO_IA',
         });
 
@@ -503,10 +510,28 @@ Responda apenas com uma palavra: CONTRATO ou NOTA_FISCAL ou OUTRO.`,
 
           await base44.entities.DocumentIntake.update(intakeId, {
             status_processamento: 'AGUARDANDO_REVISAO',
-            tipo_detectado: 'CONTRATO',
+            tipo_detectado: tipoContrato,
             erros_validacao: ['Análise de contrato falhou. Revise manualmente.'],
           }).catch(() => {});
         }
+
+        await backupContractIntakeToDrive({
+          intake: {
+            id: intakeId,
+            tipo_detectado: tipoContrato,
+            arquivo_original_url: fileUrl,
+            file_name_original: '',
+            user_email: user?.email || ''
+          },
+          currentUser: user,
+          linkType: ''
+        }).then((result) => {
+          if (result?.success) {
+            toast.success('Contrato vinculado ao app. Backup salvo no Drive.');
+          } else if (result && !result.skipped) {
+            toast.warning('Contrato vinculado ao app. Backup no Drive nao foi concluido.');
+          }
+        }).catch(() => {});
 
         return;
       }
@@ -933,7 +958,7 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
   const isNF = tipo === 'NOTA_FISCAL_PDF' || tipo === 'NOTA_FISCAL_XML';
   const isFoto = tipo === 'FOTO_ATIVIDADE';
   const isDocAdmin = tipo === 'DOCUMENTO_ADMINISTRATIVO';
-  const isContrato = tipo === 'CONTRATO';
+  const isContrato = isContractIntakeType(tipo);
 
   const isInitialPageLoading = userLoading || (!!user && loadingIntakes);
 

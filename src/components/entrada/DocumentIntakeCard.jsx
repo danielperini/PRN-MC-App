@@ -33,6 +33,8 @@ const TIPO_LABEL = {
   FOTO_ATIVIDADE: 'Foto',
   DOCUMENTO_ADMINISTRATIVO: 'Documento',
   CONTRATO: 'Contrato',
+  CONTRATO_PDF: 'Contrato',
+  TERMO_COMPROMISSO_PDF: 'Termo de compromisso',
   OUTRO: 'Outro',
   PENDENTE: 'Pendente'
 };
@@ -72,7 +74,7 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
   const isXML = tipo === 'NOTA_FISCAL_XML';
   const isPDF = tipo === 'NOTA_FISCAL_PDF';
   const isRecibo = tipo === 'RECIBO_PDF';
-  const isContrato = tipo === 'CONTRATO';
+  const isContrato = ['CONTRATO', 'CONTRATO_PDF', 'TERMO_COMPROMISSO_PDF'].includes(tipo);
   const isNF = isPDF || isXML;
   const isImage = tipo === 'FOTO_ATIVIDADE';
 
@@ -321,6 +323,20 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
                 {valorDisplay}
               </span>
             }
+            {isContrato && intake.backup_drive_status &&
+              <span className={cn(
+                'inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium',
+                intake.backup_drive_status === 'CONCLUIDO'
+                  ? 'bg-green-100 text-green-700'
+                  : intake.backup_drive_status === 'ERRO'
+                    ? 'bg-red-100 text-red-700'
+                    : 'bg-amber-100 text-amber-700'
+              )}>
+                {intake.backup_drive_status === 'CONCLUIDO' ? 'Backup no Drive concluido' :
+                  intake.backup_drive_status === 'ERRO' ? 'Erro no backup do Drive' :
+                    'Backup no Drive pendente'}
+              </span>
+            }
           </div>
         </div>
 
@@ -331,6 +347,13 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
           <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="Ver arquivo"
           onClick={() => window.open(intake.arquivo_original_url, '_blank')}>
               <ExternalLink className="w-4 h-4 text-slate-400" />
+            </Button>
+          }
+
+          {isContrato && intake.drive_backup_url &&
+          <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="Abrir backup no Drive"
+          onClick={() => window.open(intake.drive_backup_url, '_blank')}>
+              <ExternalLink className="w-4 h-4 text-green-600" />
             </Button>
           }
 
@@ -475,7 +498,16 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
       {isContrato && (intake.contrato_team_member_id || intake.contrato_fornecedor_id) &&
         <div className="mt-3 flex items-center gap-2 text-xs text-green-700 bg-green-50 px-3 py-2 rounded-lg">
           <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
-          <span>Contrato vinculado e arquivado com sucesso.</span>
+          <span>
+            Contrato vinculado e arquivado com sucesso.
+            {intake.drive_backup_url ? (
+              <> <a href={intake.drive_backup_url} target="_blank" rel="noopener noreferrer" className="underline">Abrir backup no Drive</a>.</>
+            ) : intake.backup_drive_status === 'ERRO' ? (
+              <> Backup no Drive com erro; o arquivo permanece salvo no app.</>
+            ) : (
+              <> Backup no Drive pendente.</>
+            )}
+          </span>
         </div>
       }
 
