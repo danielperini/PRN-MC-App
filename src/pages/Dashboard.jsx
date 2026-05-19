@@ -1,9 +1,10 @@
 import React from 'react';
 import { base44 } from '@/api/base44Client';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import RequireAuth from '../components/auth/RequireAuth';
 import { useCurrentUser } from '../components/auth/useCurrentUser';
 import LoadingPage from '@/components/common/LoadingPage';
+import { prefetchCriticalAppData } from '@/lib/prefetchAppData';
 import { RotateCw, LayoutDashboard, User, Eye } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -129,6 +130,7 @@ function DashboardCoordenadorView({
 
 function DashboardInner() {
   const { user: currentUser, isLoading: userLoading, isCoordenador } = useCurrentUser();
+  const queryClient = useQueryClient();
 
   const [isRefreshing, setIsRefreshing] = React.useState(false);
 
@@ -155,6 +157,10 @@ function DashboardInner() {
       } catch {}
     }
   }, [isCoordenador]);
+
+  React.useEffect(() => {
+    prefetchCriticalAppData(queryClient, currentUser);
+  }, [queryClient, currentUser?.email]);
 
   const now = new Date();
 

@@ -20,6 +20,8 @@ import { Label } from '@/components/ui/label';
 import { toastMessages } from '@/lib/toastMessages';
 
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'heic', 'webp', 'gif', 'bmp', 'avif'];
+const INITIAL_VISIBLE_IMAGES = 48;
+const VISIBLE_IMAGES_STEP = 48;
 
 const MUSEUM_SECTIONS = {
   MHAB: {
@@ -601,6 +603,7 @@ function GaleriaFotosInner() {
   const [selectedImage, setSelectedImage] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('recent');
+  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_IMAGES);
 
   const {
     data: images = [],
@@ -631,7 +634,7 @@ function GaleriaFotosInner() {
       const activityMaps = buildActivityMaps(reports, programacao);
 
       try {
-        const media = await base44.entities.MediaLibrary.list();
+        const media = await base44.entities.MediaLibrary.list('-created_date', 1000);
 
         allImages.push(
           ...(Array.isArray(media) ? media : [])
@@ -653,7 +656,7 @@ function GaleriaFotosInner() {
 
       try {
         const approvedIds = new Set(reports.map((r) => r.id));
-        const attachments = await base44.entities.Attachment.list();
+        const attachments = await base44.entities.Attachment.list('-created_date', 1200);
 
         allImages.push(
           ...(Array.isArray(attachments) ? attachments : [])
@@ -680,9 +683,14 @@ function GaleriaFotosInner() {
         .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     },
     enabled: !!currentUser?.email,
-    staleTime: 1000 * 60,
+    staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
+    retry: 1,
   });
+
+  useEffect(() => {
+    setVisibleCount(INITIAL_VISIBLE_IMAGES);
+  }, [searchTerm, sortBy]);
 
   const filteredImages = useMemo(() => {
     const q = searchTerm.toLowerCase();
@@ -712,6 +720,7 @@ function GaleriaFotosInner() {
   }, [filteredImages, sortBy]);
 
   const groupedImages = useMemo(() => {
+    const visibleImages = sortedImages.slice(0, visibleCount);
     const groups = SECTION_ORDER.map((key) => ({
       key,
       section: MUSEUM_SECTIONS[key],
@@ -720,13 +729,13 @@ function GaleriaFotosInner() {
 
     const byKey = Object.fromEntries(groups.map((group) => [group.key, group]));
 
-    sortedImages.forEach((image) => {
+    visibleImages.forEach((image) => {
       const key = MUSEUM_SECTIONS[image.sectionKey] ? image.sectionKey : 'MHAB';
       byKey[key].images.push(image);
     });
 
     return groups.filter((group) => group.images.length > 0);
-  }, [sortedImages]);
+  }, [sortedImages, visibleCount]);
 
   const currentImageIndex = selectedImage
     ? sortedImages.findIndex((img) => img.id === selectedImage.id)
@@ -803,6 +812,12 @@ function GaleriaFotosInner() {
           {isFetching && !isLoading && (
             <p className="mt-2 text-xs text-gray-400">
               Atualizando galeria...
+            </p>
+          )}
+
+          {sortedImages.length > visibleCount && (
+            <p className="mt-2 text-xs text-gray-500">
+              Exibindo {visibleCount} de {sortedImages.length} imagens. Use "Carregar mais" para continuar.
             </p>
           )}
         </div>
@@ -887,6 +902,18 @@ function GaleriaFotosInner() {
                 </div>
               </section>
             ))}
+
+            {sortedImages.length > visibleCount && (
+              <div className="flex justify-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => setVisibleCount((count) => Math.min(count + VISIBLE_IMAGES_STEP, sortedImages.length))}
+                  className="rounded-full border border-gray-300 bg-white px-5 py-2 text-sm font-medium text-gray-700 shadow-sm hover:border-gray-400 hover:bg-gray-50"
+                >
+                  Carregar mais
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

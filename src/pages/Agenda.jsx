@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { toastMessages } from '@/lib/toastMessages';
 import LoadingPage from '@/components/common/LoadingPage';
+import { useQuery } from '@tanstack/react-query';
 import {
   ChevronLeft,
   ChevronRight,
@@ -191,98 +192,61 @@ function MuseuFilterBtn({ museu, active, count, onClick }) {
 }
 
 export default function Agenda() {
-  const [allItems, setAllItems] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(getMonthKey(new Date()));
   const [museuFilter, setMuseuFilter] = useState('Todos');
   const [search, setSearch] = useState('');
-  const [availableMonths, setAvailableMonths] = useState([]);
 
-  useEffect(() => {
-    let mounted = true;
-
-    async function load() {
-      setLoading(true);
-      setLoadError(false);
-
+  const {
+    data: allItems = [],
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ['agenda-programacao'],
+    queryFn: async () => {
       try {
         const data = await base44.entities.Programacao.list('-data_inicio', 5000);
-        const items = Array.isArray(data) ? data : [];
-
-        if (!mounted) return;
-
-        setAllItems(items);
-
-        const monthSet = new Set();
-
-        items.forEach((item) => {
-          const key =
-            item.month_key ||
-            (item.data_inicio ? getMonthKey(new Date(item.data_inicio)) : null);
-
-          if (key) {
-            monthSet.add(key);
-          }
-        });
-
-        const sorted = Array.from(monthSet).sort().reverse();
-
-        setAvailableMonths(sorted);
-
-        if (sorted.length > 0 && !monthSet.has(getMonthKey(new Date()))) {
-          setCurrentMonth(sorted[0]);
-        }
-      } catch (e) {
-        console.error('Erro ao carregar agenda:', e);
-
-        if (!mounted) return;
-
-        setLoadError(true);
+        return Array.isArray(data) ? data : [];
+      } catch (error) {
+        console.error('Erro ao carregar agenda:', error);
         toastMessages.warning('Erro ao carregar agenda. Tente novamente.');
-      } finally {
-        if (!mounted) return;
-        setLoading(false);
+        throw error;
       }
+    },
+    staleTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
+
+  const availableMonths = useMemo(() => {
+    const monthSet = new Set();
+
+    allItems.forEach((item) => {
+      const key =
+        item.month_key ||
+        (item.data_inicio ? getMonthKey(new Date(item.data_inicio)) : null);
+
+      if (key) monthSet.add(key);
+    });
+
+    return Array.from(monthSet).sort().reverse();
+  }, [allItems]);
+
+  React.useEffect(() => {
+    const current = getMonthKey(new Date());
+    if (availableMonths.length > 0 && !availableMonths.includes(current) && !availableMonths.includes(currentMonth)) {
+      setCurrentMonth(availableMonths[0]);
     }
+  }, [availableMonths, currentMonth]);
 
-    load();
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  if (loading) {
-    return (
-      <LoadingPage
-        fullHeight={false}
-        message="Carregando página..."
-        description="Estamos carregando a agenda completa, meses disponíveis, filtros e programação dos museus. Aguarde alguns instantes."
-      />
-    );
-  }
-
-  if (loadError) {
-    return (
-      <LoadingPage
-        fullHeight={false}
-        error
-        errorTitle="Não foi possível carregar a agenda"
-        errorDescription="Atualize a página ou tente novamente em alguns instantes."
-      />
-    );
-  }
-
-  const itemsInMonth = allItems.filter((item) => {
+  const itemsInMonth = useMemo(() => allItems.filter((item) => {
     const key =
       item.month_key ||
       (item.data_inicio ? getMonthKey(new Date(item.data_inicio)) : '');
 
     return key === currentMonth;
-  });
+  }), [allItems, currentMonth]);
 
-  const filtered = itemsInMonth.filter((item) => {
+  const filtered = useMemo(() => itemsInMonth.filter((item) => {
     if (museuFilter !== 'Todos' && item.museu !== museuFilter) return false;
 
     if (search) {
@@ -296,16 +260,37 @@ export default function Agenda() {
     }
 
     return true;
-  });
+  }), [itemsInMonth, museuFilter, search]);
 
-  const countByMuseu = MUSEUS.reduce((acc, m) => {
+  const countByMuseu = useMemo(() => MUSEUS.reduce((acc, m) => {
     acc[m] =
       m === 'Todos'
         ? itemsInMonth.length
         : itemsInMonth.filter((i) => i.museu === m).length;
 
     return acc;
-  }, {});
+  }, {}), [itemsInMonth]);
+
+  if (isLoading) {
+    return (
+      <LoadingPage
+        fullHeight={false}
+        message="Carregando página..."
+        description="Estamos carregando a agenda completa, meses disponíveis, filtros e programação dos museus. Aguarde alguns instantes."
+      />
+    );
+  }
+
+  if (isError) {
+    return (
+      <LoadingPage
+        fullHeight={false}
+        error
+        errorTitle="Não foi possível carregar a agenda"
+        errorDescription="Atualize a página ou tente novamente em alguns instantes."
+      />
+    );
+  }
 
   const hasPrev = availableMonths.includes(prevMonth(currentMonth));
   const hasNext = availableMonths.includes(nextMonth(currentMonth));
