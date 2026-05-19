@@ -503,6 +503,7 @@ function composeIntro(textos = {}, contexto = {}) {
 
 function TableOfContents({ secoesSelecionadas = [] }) {
   const chapters = getReportSummaryChapters(secoesSelecionadas).map((chapter) => ({
+    id: chapter.id,
     title: chapter.title,
     detail: chapter.summaryDescription || chapter.group,
     isAnnex: false,
@@ -521,12 +522,14 @@ function TableOfContents({ secoesSelecionadas = [] }) {
   return (
     <PremiumSection
       breakBefore
+      chapterId="sumario_executivo"
+      chapterTitle="SumÃ¡rio executivo editorial"
       eyebrow="Mapa de leitura"
       title="Sumário"
     >
       <ol className="catalog-toc">
         {items.map((item) => (
-          <li key={item.title} className={item.isAnnex ? 'toc-annex' : undefined}>
+          <li key={item.id || item.title} className={item.isAnnex ? 'toc-annex' : undefined}>
             <div>
               <strong>{item.title}</strong>
               {item.detail ? <span>{item.detail}</span> : null}
@@ -2233,9 +2236,11 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
 
       {hasSection(secoesSelecionadas, 'expediente') && <PremiumExpedienteSection contexto={contexto} />}
 
-      {hasSection(secoesSelecionadas, 'sumario_executivo', 'introducao') && <TableOfContents secoesSelecionadas={secoesSelecionadas} />}
+      {hasSection(secoesSelecionadas, 'sumario_executivo') && <TableOfContents secoesSelecionadas={secoesSelecionadas} />}
 
-      {hasSection(secoesSelecionadas, 'sumario_executivo', 'introducao', 'resumo_geral', 'indicadores_premium') && <PremiumSection
+      {hasSection(secoesSelecionadas, 'introducao') && <PremiumSection
+        chapterId="introducao"
+        chapterTitle="IntroduÃ§Ã£o institucional"
         eyebrow="Sumário executivo"
         title="Introdução"
         subtitle="Recorte selecionado como ciclo de acompanhamento, pactuação de rotinas e consolidação dos dados do app."

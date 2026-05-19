@@ -32,6 +32,12 @@ const RAW_REPORT_CHAPTERS = [
 
 export const REPORT_CHAPTERS = RAW_REPORT_CHAPTERS.map((chapter) => ({
   ...chapter,
+  sectionId: chapter.sectionId || chapter.id,
+  contentKey: chapter.contentKey || ({
+    expediente: 'expediente_institucional_text',
+    introducao: 'introducao_institucional_text',
+    sumario_executivo: 'sumario_executivo_editorial_text',
+  }[chapter.id] || `${chapter.id}_text`),
   introTemplate: chapter.introTemplate || `chapter:${chapter.id}:intro`,
   methodologyTemplate: chapter.methodologyTemplate || `chapter:${chapter.id}:methodology`,
   emptyStateText: chapter.emptyStateText || 'Não foram localizados dados suficientes no app para este capítulo no recorte selecionado.',
@@ -70,7 +76,56 @@ export function getSelectedReportChapterIds(selectionState = {}) {
 
 export function getReportSummaryChapters(selectedIds = REPORT_CHAPTER_IDS) {
   const selected = new Set(normalizeSelectedReportChapterIds(selectedIds));
-  return REPORT_CHAPTERS.filter((chapter) => chapter.includeInSummary && selected.has(chapter.id));
+  return dedupeSectionOptions(REPORT_CHAPTERS.filter((chapter) => chapter.includeInSummary && selected.has(chapter.id)));
+}
+
+export function dedupeSectionOptions(options = []) {
+  const map = new Map();
+
+  (Array.isArray(options) ? options : []).forEach((option) => {
+    if (!option) return;
+    const key = option.id || `${option.sectionId || ''}:${option.title || ''}`;
+    if (!key || map.has(key)) return;
+    map.set(key, option);
+  });
+
+  return Array.from(map.values());
+}
+
+export function hasRenderableContent(option = {}, producedTexts = {}) {
+  const key = option.contentKey;
+  const content = key ? producedTexts?.[key] : null;
+
+  if (typeof content === 'string') {
+    return content.trim().length > 0;
+  }
+
+  return Boolean(option.title || option.summaryDescription || option.renderTitle);
+}
+
+export function buildReportSectionOptions(chapters = REPORT_CHAPTERS, producedTexts = {}) {
+  const rawOptions = (Array.isArray(chapters) ? chapters : []).map((chapter) => ({
+    id: chapter.id,
+    sectionId: chapter.sectionId || chapter.id,
+    title: chapter.title,
+    contentKey: chapter.contentKey || `${chapter.id}_text`,
+    selected: chapter.defaultSelected !== false,
+    chapter,
+  }));
+
+  return dedupeSectionOptions(rawOptions)
+    .filter((option) => hasRenderableContent(option, producedTexts));
+}
+
+export function shouldRenderSectionItem(item = {}, currentSectionId, producedTexts = {}) {
+  const content = producedTexts?.[item.contentKey];
+
+  return (
+    item.selected === true &&
+    item.sectionId === currentSectionId &&
+    typeof content === 'string' &&
+    content.trim().length > 0
+  );
 }
 
 export function getReportChapterValidationTitle(chapterId) {

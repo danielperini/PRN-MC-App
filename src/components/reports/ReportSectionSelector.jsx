@@ -3,12 +3,14 @@ import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { REPORT_CHAPTERS, REPORT_CHAPTER_IDS } from '@/config/reportChapters';
+import { REPORT_CHAPTERS, REPORT_CHAPTER_IDS, buildReportSectionOptions } from '@/config/reportChapters';
 
-const CAPITULOS = REPORT_CHAPTERS.map((chapter) => ({
-  id: chapter.id,
-  label: chapter.title,
-  categoria: chapter.group,
+const CAPITULOS = buildReportSectionOptions(REPORT_CHAPTERS).map((option) => ({
+  id: option.id,
+  sectionId: option.sectionId,
+  contentKey: option.contentKey,
+  label: option.title,
+  categoria: option.chapter?.group,
 }));
 
 const TEMPLATES = {

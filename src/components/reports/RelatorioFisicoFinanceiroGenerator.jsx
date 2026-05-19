@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -22,6 +22,7 @@ import {
 import {
   REPORT_CHAPTERS,
   REPORT_CHAPTER_IDS,
+  buildReportSectionOptions,
   buildReportChapterSelectionState,
   getReportChapterById,
   getSelectedReportChapterIds,
@@ -310,8 +311,34 @@ export default function RelatorioFisicoFinanceiroGenerator() {
   const [selectedInlinePhotoIds, setSelectedInlinePhotoIds] = useState({});
 
   const secoesSelecionadas = getSelectedReportChapterIds(secoes);
+  const producedSectionTexts = useMemo(() => Object.fromEntries(
+    REPORT_CHAPTERS.map((chapter) => [
+      chapter.contentKey || `${chapter.id}_text`,
+      [chapter.title, chapter.summaryDescription, chapter.renderTitle].filter(Boolean).join('\n'),
+    ])
+  ), []);
+  const visibleSectionOptions = useMemo(
+    () => buildReportSectionOptions(REPORT_CHAPTERS, producedSectionTexts),
+    [producedSectionTexts]
+  );
+  const visibleChapterIds = useMemo(
+    () => visibleSectionOptions.map((option) => option.id),
+    [visibleSectionOptions]
+  );
+
+  useEffect(() => {
+    if (typeof console !== 'undefined' && typeof console.table === 'function') {
+      console.table(visibleSectionOptions.map((option) => ({
+        id: option.id,
+        sectionId: option.sectionId,
+        title: option.title,
+        contentKey: option.contentKey,
+      })));
+    }
+  }, [visibleSectionOptions]);
+
   const toggleSecao = (id) => setSecoes((prev) => ({ ...prev, [id]: !prev[id] }));
-  const toggleTodas = (value) => setSecoes(buildReportChapterSelectionState(value ? REPORT_CHAPTER_IDS : []));
+  const toggleTodas = (value) => setSecoes(buildReportChapterSelectionState(value ? visibleChapterIds : []));
   const toggleInlinePhoto = (photoId, value) => {
     setSelectedInlinePhotoIds((prev) => ({
       ...prev,
@@ -901,16 +928,16 @@ export default function RelatorioFisicoFinanceiroGenerator() {
             </div>
 
             <div className="grid md:grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
-              {REPORT_CHAPTERS.map((capitulo) => (
-                <label key={capitulo.id} className="flex items-center gap-2 rounded-lg bg-white border border-slate-100 px-3 py-2 cursor-pointer">
-                  <Checkbox checked={!!secoes[capitulo.id]} onCheckedChange={() => toggleSecao(capitulo.id)} />
-                  <span className="text-sm text-slate-700">{capitulo.title}</span>
+              {visibleSectionOptions.map((option) => (
+                <label key={option.id} className="flex items-center gap-2 rounded-lg bg-white border border-slate-100 px-3 py-2 cursor-pointer">
+                  <Checkbox checked={!!secoes[option.id]} onCheckedChange={() => toggleSecao(option.id)} />
+                  <span className="text-sm text-slate-700">{option.title}</span>
                 </label>
               ))}
             </div>
 
             <p className="text-xs text-slate-500">
-              {secoesSelecionadas.length} de {REPORT_CHAPTERS.length} capítulos selecionados.
+              {secoesSelecionadas.filter((id) => visibleChapterIds.includes(id)).length} de {visibleSectionOptions.length} capítulos selecionados.
             </p>
           </div>
 
