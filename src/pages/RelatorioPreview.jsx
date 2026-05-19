@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ArrowLeft, Download, FileDown, Printer } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CheckCircle2, Download, FileDown, Loader2, Printer } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
@@ -48,6 +48,25 @@ function chapterRenderSignals(chapterId) {
 
 function filenameForPart(partNumber) {
   return `${EXPORT_FILENAME_BASE}_parte_${String(partNumber).padStart(2, '0')}.pdf`;
+}
+
+const EXPORT_STATUS_LABELS = {
+  waiting: 'Aguardando',
+  exporting: 'Exportando...',
+  preparing_download: 'Preparando download...',
+  download_started: 'Download iniciado',
+  done: 'ConcluÃ­do',
+  error: 'Erro',
+};
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function summarizeChapterTitles(chapters = []) {
+  const titles = chapters.map((chapter) => chapter?.title).filter(Boolean);
+  if (titles.length <= 3) return titles.join(', ');
+  return `${titles.slice(0, 3).join(', ')} + ${titles.length - 3} capÃ­tulo(s)`;
 }
 
 function extractDocumentParts(html, selectedChapterIds) {
@@ -1296,6 +1315,12 @@ export default function RelatorioPreview() {
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [exportMode, setExportMode] = useState('single');
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [exportProgressOpen, setExportProgressOpen] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
+  const [exportQueue, setExportQueue] = useState([]);
+  const [currentExportFile, setCurrentExportFile] = useState(null);
+  const [exportProgressMessage, setExportProgressMessage] = useState('');
+  const [exportProgressError, setExportProgressError] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -1344,6 +1369,14 @@ export default function RelatorioPreview() {
     window.print();
   }
 
+  function updateExportQueueItem(index, patch) {
+    setExportQueue((prev) =>
+      prev.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, ...patch } : item
+      )
+    );
+  }
+
   async function handleExportPdf() {
     if (!html) return;
 
@@ -1374,22 +1407,58 @@ export default function RelatorioPreview() {
         return;
       }
 
+      const queue = parts.map((part, index) => ({
+        id: `parte-${String(index + 1).padStart(2, '0')}`,
+        filename: filenameForPart(index + 1),
+        status: 'waiting',
+        chapters: part.chapters.map((chapter) => chapter.title),
+        blobSize: null,
+        error: null,
+      }));
+
+      setExportQueue(queue);
+      setExportProgress(0);
+      setCurrentExportFile(null);
+      setExportProgressError(null);
+      setExportProgressMessage('Os arquivos estÃ£o sendo gerados em sequÃªncia. Cada arquivo serÃ¡ enviado para download antes do prÃ³ximo comeÃ§ar.');
+      setExportDialogOpen(false);
+      setExportProgressOpen(true);
+
       const summaryHtml = buildPartSummary(parts);
       const totalParts = parts.length;
 
       for (let i = 0; i < parts.length; i += 1) {
         const partNumber = i + 1;
+        const queuedFilename = queue[i].filename;
+        setCurrentExportFile(queuedFilename);
+        updateExportQueueItem(i, { status: 'exporting', error: null });
+        toast.info(`Exportando ${queuedFilename}...`);
         const partHtml = buildPartHtml(documentParts, parts[i], partNumber, totalParts, summaryHtml);
-        const filename = filenameForPart(partNumber);
+        const filename = queuedFilename;
+        const blobSize = new Blob([partHtml], { type: 'text/html;charset=utf-8' }).size;
+
+        updateExportQueueItem(i, { status: 'preparing_download', blobSize });
 
         const ok = openPrintWindow(partHtml, filename);
         if (!ok) {
           toast.error(`Não foi possível abrir a parte ${String(partNumber).padStart(2, '0')} para impressão.`);
-          continue;
+          const errorMessage = `Erro ao exportar ${filename}. A exportaÃ§Ã£o foi interrompida para evitar arquivos incompletos.`;
+          updateExportQueueItem(i, { status: 'error', blobSize, error: errorMessage });
+          setCurrentExportFile(null);
+          setExportProgressError('O navegador pode ter bloqueado downloads mÃºltiplos. Permita downloads automÃ¡ticos para este site e tente novamente.');
+          throw new Error(errorMessage);
         }
 
+        updateExportQueueItem(i, { status: 'download_started', blobSize });
+        await delay(300);
+        updateExportQueueItem(i, { status: 'done', blobSize });
+        setExportProgress(Math.round((partNumber / totalParts) * 100));
         toast.success(`Parte ${String(partNumber).padStart(2, '0')} preparada.`);
       }
+
+      setCurrentExportFile(null);
+      setExportProgress(100);
+      setExportProgressMessage('ExportaÃ§Ã£o concluÃ­da. Todos os arquivos foram enviados para download.');
 
       if (warnings.length > 0) {
         warnings.forEach((warningMessage) => toast.warning(warningMessage));
@@ -1465,10 +1534,10 @@ export default function RelatorioPreview() {
             <Button
               onClick={() => setExportDialogOpen(true)}
               className="bg-black hover:bg-gray-800 text-white gap-2"
-              disabled={!html}
+              disabled={!html || isExportingPdf}
             >
-              <FileDown className="w-4 h-4" />
-              Exportar PDF
+              {isExportingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+              {isExportingPdf ? 'Exportando...' : 'Exportar PDF'}
             </Button>
           </div>
         </div>
@@ -1515,6 +1584,7 @@ export default function RelatorioPreview() {
             <button
               type="button"
               onClick={() => setExportMode('single')}
+              disabled={isExportingPdf}
               className={`w-full rounded-xl border p-4 text-left transition-colors ${exportMode === 'single' ? 'border-black bg-black/5' : 'border-slate-200 bg-white'}`}
             >
               <p className="text-sm font-semibold text-slate-900">Arquivo único</p>
@@ -1524,6 +1594,7 @@ export default function RelatorioPreview() {
             <button
               type="button"
               onClick={() => setExportMode('split')}
+              disabled={isExportingPdf}
               className={`w-full rounded-xl border p-4 text-left transition-colors ${exportMode === 'split' ? 'border-black bg-black/5' : 'border-slate-200 bg-white'}`}
             >
               <p className="text-sm font-semibold text-slate-900">Vários arquivos de até 200 MB</p>
@@ -1538,6 +1609,89 @@ export default function RelatorioPreview() {
             <Button onClick={handleExportPdf} disabled={!html || isExportingPdf} className="gap-2">
               {isExportingPdf ? <Printer className="w-4 h-4 animate-pulse" /> : <FileDown className="w-4 h-4" />}
               {isExportingPdf ? 'Exportando...' : 'Exportar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={exportProgressOpen}
+        onOpenChange={(open) => {
+          if (!isExportingPdf) setExportProgressOpen(open);
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Exportando relatÃ³rio em partes</DialogTitle>
+            <DialogDescription>
+              Cada arquivo serÃ¡ gerado e enviado para download antes do prÃ³ximo comeÃ§ar.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Progresso geral</p>
+                  <p className="mt-1 text-3xl font-bold tabular-nums text-slate-950">{exportProgress}%</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-semibold text-slate-900">
+                    {currentExportFile ? `Exportando agora: ${currentExportFile}` : exportProgress >= 100 ? 'ExportaÃ§Ã£o concluÃ­da' : 'Preparando fila'}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">{exportProgressMessage}</p>
+                </div>
+              </div>
+              <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
+                <div
+                  className="h-full rounded-full bg-slate-950 transition-all duration-300"
+                  style={{ width: `${exportProgress}%` }}
+                />
+              </div>
+            </div>
+
+            {exportProgressError ? (
+              <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                <p>{exportProgressError}</p>
+              </div>
+            ) : null}
+
+            <div className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
+              {exportQueue.map((item) => {
+                const isCurrent = item.filename === currentExportFile;
+                const isDone = item.status === 'done';
+                const isError = item.status === 'error';
+                return (
+                  <div
+                    key={item.id}
+                    className={`rounded-xl border p-3 ${isCurrent ? 'border-black bg-black/5' : isError ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-white'}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="break-words text-sm font-semibold text-slate-900">{item.filename}</p>
+                        <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                          CapÃ­tulos: {summarizeChapterTitles((item.chapters || []).map((title) => ({ title }))) || 'Sem capÃ­tulos informados'}
+                        </p>
+                        {item.error ? <p className="mt-1 text-xs text-red-700">{item.error}</p> : null}
+                      </div>
+                      <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${isError ? 'bg-red-100 text-red-700' : isDone ? 'bg-green-100 text-green-700' : isCurrent ? 'bg-black text-white' : 'bg-slate-100 text-slate-600'}`}>
+                        {isDone ? <CheckCircle2 className="h-3 w-3" /> : isCurrent ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                        {EXPORT_STATUS_LABELS[item.status] || item.status}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              onClick={() => setExportProgressOpen(false)}
+              disabled={isExportingPdf}
+            >
+              {isExportingPdf ? 'Exportando...' : 'Fechar'}
             </Button>
           </DialogFooter>
         </DialogContent>
