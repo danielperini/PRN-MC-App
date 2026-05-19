@@ -132,7 +132,7 @@ export function buildEditorialReportContext(rawData = {}, selectedPeriod = {}, s
     total_atividades: rawData.total_atividades ?? atividadesConsolidadas.length,
   };
 
-  const allPhotos = extractPhotos(contexto, 500);
+  const allPhotos = extractPhotos(contexto);
   const { galleryPhotos, inlinePhotos } = prepareInlineAndGalleryPhotos(
     allPhotos,
     rawData.selected_inline_photo_ids || []

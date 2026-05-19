@@ -423,7 +423,7 @@ function getChapterLimitations(chapterId, contexto = {}) {
   }
 
   if (chapterId === 'governanca') {
-    const incompletePhotos = extractPhotos(contexto, 240).filter((photo) => !photo?.atividade || !photo?.museu);
+    const incompletePhotos = extractPhotos(contexto).filter((photo) => !photo?.atividade || !photo?.museu);
     if (incompletePhotos.length > 0) {
       limitations.push(`${fmtInt(incompletePhotos.length)} imagens permanecem sem classificação completa de atividade ou museu.`);
     }
@@ -1033,8 +1033,7 @@ function consolidateAgendaItems(items = []) {
       seen.add(key);
       return true;
     })
-    .sort((a, b) => String(a.data || '').localeCompare(String(b.data || '')))
-    .slice(0, 80);
+    .sort((a, b) => String(a.data || '').localeCompare(String(b.data || '')));
 }
 
 function reportSourceText(report = {}) {
@@ -1345,9 +1344,9 @@ function ReportsArchiveSection({ contexto }) {
       chapterTitle="Relatórios integrais das equipes"
       breakBefore
       eyebrow="Relatórios da equipe"
-      title="Fontes internas consolidadas"
+      title="Relatórios individuais das equipes"
       subtitle={`${fmtInt(reports.length)} relatórios aprovados compõem a base narrativa, técnica e documental do período.`}
-      text="Esta seção explicita a origem dos textos e registros utilizados no relatório. Em vez de repetir integralmente cada documento, o sistema recupera autoria, função, museu, mês, atividades, público e trechos de síntese, preservando rastreabilidade e evitando redundância editorial."
+      text="Esta seção preserva os relatórios individuais aprovados pelas equipes, mantendo autoria, função, museu, mês, atividades, público e textos originais registrados no aplicativo."
     >
       <ChapterMethodologyPanel
         chapterId="relatorios"
@@ -1356,12 +1355,24 @@ function ReportsArchiveSection({ contexto }) {
       />
       {reports.length === 0 ? <EmptyChapterNotice chapterTitle="Relatórios integrais das equipes" /> : (
         <div className="premium-report-archive">
-          {reports.slice(0, 60).map((report, index) => (
+          {reports.map((report, index) => (
             <article className="premium-report-note" key={report.id || index}>
               <strong>{report.autor || report.author_name || 'Equipe Museus Centro'}</strong>
               <span>{[report.funcao, report.museu, report.mes].filter(Boolean).join(' / ')}</span>
               <span>{fmtInt(report.atividades_count)} atividades · público {fmtInt(report.publico)}</span>
-              <small>{sanitizeReportText(uniqueParagraphs([report.resumo_executivo, report.resumo_periodo, report.pontos_positivos].filter(Boolean).join('\n\n'), 1, 40)[0] || 'Relatório aprovado usado como fonte do período.')}</small>
+              {[
+                ['Resumo executivo', report.resumo_executivo],
+                ['Resumo do período', report.resumo_periodo],
+                ['Pontos positivos', report.pontos_positivos],
+                ['Desafios', report.desafios],
+              ].filter(([, value]) => sanitizeReportText(value).length > 0).map(([label, value]) => (
+                <small key={`${report.id || index}-${label}`}>
+                  <strong>{label}: </strong>{sanitizeReportText(value)}
+                </small>
+              ))}
+              {![report.resumo_executivo, report.resumo_periodo, report.pontos_positivos, report.desafios].some((value) => sanitizeReportText(value).length > 0) ? (
+                <small>Relatório aprovado usado como fonte do período.</small>
+              ) : null}
             </article>
           ))}
         </div>
@@ -1434,7 +1445,7 @@ function photoCaptionForActivity(photo = {}, activityTitle = '') {
 }
 
 function groupPhotosByMonthMuseumActivity(contexto) {
-  const allPhotos = extractPhotos(contexto, 240)
+  const allPhotos = extractPhotos(contexto)
     .filter((photo) => photo?.link || photo?.url)
     .map((photo) => ({
       ...photo,
@@ -1454,7 +1465,7 @@ function groupPhotosByMonthMuseumActivity(contexto) {
       mes: monthGroup.mes,
       activities: monthGroup.activities.map((activityGroup) => ({
         ...activityGroup,
-        photos: activityGroup.photos.slice(0, 4),
+        photos: activityGroup.photos,
       })),
     })),
   }));
@@ -1844,8 +1855,7 @@ function ComprasTable({ contexto }) {
   if (compras.length === 0) return null;
 
   const approved = compras
-    .filter((item) => !item?.status || String(item.status).toUpperCase().includes('APROV') || String(item.status).toUpperCase().includes('PAGO'))
-    .slice(0, 36);
+    .filter((item) => !item?.status || String(item.status).toUpperCase().includes('APROV') || String(item.status).toUpperCase().includes('PAGO'));
 
   if (approved.length === 0) return null;
 
@@ -2008,7 +2018,7 @@ function StrategicRecords({ contexto }) {
       if (isInternalNoise(atividade)) return false;
       const text = `${atividade?.nome || ''} ${atividade?.descricao || ''} ${atividade?.classificacao || ''} ${atividade?.categoria_label || ''}`.toLowerCase();
       return grupo.termos.some((termo) => text.includes(termo));
-    }).slice(0, 4),
+    }),
   })).filter((grupo) => grupo.itens.length > 0);
 
   if (grupos.length === 0) return null;
@@ -2075,7 +2085,7 @@ function RemovedPeriodSection({ contexto }) {
           <div className="premium-table-wrap">
             <table className="premium-table">
               <tbody>
-                {atividades.slice(0, 12).map((item, index) => (
+                {atividades.map((item, index) => (
                   <tr key={item?.id || index}>
                     <td>{item?.nome || item?.titulo || 'Ação fora do recorte'}</td>
                     <td>{item?.museu || 'Geral'}</td>
@@ -2091,7 +2101,7 @@ function RemovedPeriodSection({ contexto }) {
           <div className="premium-table-wrap">
             <table className="premium-table">
               <tbody>
-                {rubricas.slice(0, 12).map((item, index) => (
+                {rubricas.map((item, index) => (
                   <tr key={item?.id || index}>
                     <td>{item?.rubrica || item?.nome || 'Rubrica fora do recorte'}</td>
                     <td>{fmtBRL(item?.valor_previsto ?? item?.previsto ?? item?.valor_rubrica ?? item?.valor_total)}</td>
@@ -2164,7 +2174,7 @@ function getEffectiveTeamCount(contexto = {}) {
 }
 
 function hasRealPhotos(contexto = {}) {
-  const allPhotos = extractPhotos(contexto, 240);
+  const allPhotos = extractPhotos(contexto);
   const { galleryPhotos } = prepareInlineAndGalleryPhotos(
     allPhotos,
     contexto?.selected_inline_photo_ids || []

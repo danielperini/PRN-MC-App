@@ -501,6 +501,32 @@ export function dedupeReportActivities(activities = []) {
   return result;
 }
 
+export function dedupeReportActivitiesStrict(activities = []) {
+  const seen = new Set();
+  const result = [];
+
+  (Array.isArray(activities) ? activities : []).forEach((activity) => {
+    if (!activity) return;
+
+    const id = activity.id || activity._id || activity.activity_id || activity.atividade_id || activity.programacao_id;
+    const title = normalizeText(getActivityTitle(activity));
+    const date = normalizeDateToDay(getActivityDate(activity));
+    const museum = normalizeText(getMuseuLabel(activity.museu || activity.equipamento || activity.centro || activity.centro_custo || activity.local));
+    const key = id ? `id:${id}` : (title && date && museum ? `strict:${date}:${museum}:${title}` : '');
+
+    if (!key) {
+      result.push(activity);
+      return;
+    }
+
+    if (seen.has(key)) return;
+    seen.add(key);
+    result.push(activity);
+  });
+
+  return result;
+}
+
 export function getMuseuLabel(value) {
   const text = normalizeText(value);
   if (text.includes('mhab') || text.includes('abilio') || text.includes('historico')) return 'MHAB';
@@ -645,7 +671,7 @@ export function groupGalleryPhotosByMuseumMonthActivity(galleryPhotos = []) {
     .sort((a, b) => a.museu.localeCompare(b.museu, 'pt-BR'));
 }
 
-export function extractPhotos(contexto = {}, limit = 36) {
+export function extractPhotos(contexto = {}, limit = Infinity) {
   const fromContext = Array.isArray(contexto.fotos) ? contexto.fotos : [];
   const fromActivities = (Array.isArray(contexto.atividades) ? contexto.atividades : [])
     .flatMap((atividade) => [
@@ -683,7 +709,7 @@ export function extractPhotos(contexto = {}, limit = 36) {
       };
     }))
     .filter((foto) => /^https?:\/\//.test(foto.url) || foto.url.startsWith('/'))
-    .slice(0, limit);
+    .slice(0, Number.isFinite(limit) ? limit : undefined);
 }
 
 export function groupByMuseu(atividades = []) {
@@ -700,7 +726,7 @@ export function buildTimelineItems(contexto = {}) {
   const atividades = Array.isArray(contexto.atividades) ? contexto.atividades : [];
   const programacao = Array.isArray(contexto.programacao) ? contexto.programacao : [];
 
-  return dedupeReportActivities([
+  return dedupeReportActivitiesStrict([
     ...programacao.map((item) => ({
       data: pickText(item.data, item.data_inicio),
       titulo: pickText(item.titulo, item.nome_acao, 'Programação registrada'),
@@ -720,8 +746,7 @@ export function buildTimelineItems(contexto = {}) {
       meta: getActivityMeta(item),
     })),
   ])
-    .filter((item) => item.titulo)
-    .slice(0, 40);
+    .filter((item) => item.titulo);
 }
 
 export function buildMetrics(contexto = {}) {
