@@ -747,12 +747,6 @@ function resolveMuseumCredit(photo = {}) {
 }
 
 
-const PUBLICO_MES_REFERENCIA = [
-  { mes: 'Fevereiro', atividades: 44, espontaneo: 0, visitas_agendadas: 0, total: 44 },
-  { mes: 'Março', atividades: 947, espontaneo: 0, visitas_agendadas: 0, total: 947 },
-  { mes: 'Abril', atividades: 377, espontaneo: 0, visitas_agendadas: 0, total: 377 },
-];
-
 function getMonthName(item = {}) {
   const direct = item.mes || item.month || '';
   if (direct) return String(direct);
@@ -1023,15 +1017,22 @@ function mergeAgendaGroup(items = []) {
 }
 
 function consolidateAgendaItems(items = []) {
-  const groups = items.filter((item) => !isIrrelevantAdministrativeRecord(item)).reduce((acc, item) => {
-    const key = agendaSemanticKey(item);
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(item);
-    return acc;
-  }, {});
+  const seen = new Set();
 
-  return Object.values(groups)
-    .map(mergeAgendaGroup)
+  return items
+    .filter((item) => item && (item.titulo || item.nome || item.texto || item.descricao || item.sinopse))
+    .filter((item) => {
+      const id = item.id || item._id || item.programacao_id || item.atividade_id || item.activity_id;
+      const day = String(item.data || item.data_inicio || item.date || '').slice(0, 10);
+      const museum = normalizeText(getMuseuLabel(item.museu || item.equipamento || item.centro || item.local || ''));
+      const title = normalizeText(item.titulo || item.nome || item.title || '');
+      const key = id ? `id:${id}` : (day && museum && title ? `strict:${day}:${museum}:${title}` : '');
+
+      if (!key) return true;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
     .sort((a, b) => String(a.data || '').localeCompare(String(b.data || '')))
     .slice(0, 80);
 }
@@ -1048,6 +1049,8 @@ function reportSourceText(report = {}) {
 }
 
 function enrichItemsWithReports(items = [], reports = []) {
+  return items;
+
   if (!Array.isArray(reports) || reports.length === 0) return items;
 
   return items.map((item) => {
@@ -1098,20 +1101,11 @@ function normalizeAudienceMonth(item = {}) {
 }
 
 function buildAudienceMonthRows(contexto = {}) {
-  const source = Array.isArray(contexto?.publico_por_mes) && contexto.publico_por_mes.length > 0
-    ? contexto.publico_por_mes.map(normalizeAudienceMonth)
-    : PUBLICO_MES_REFERENCIA;
+  if (!Array.isArray(contexto?.publico_por_mes) || contexto.publico_por_mes.length === 0) {
+    return [];
+  }
 
-  const byMonth = source.reduce((acc, item) => {
-    acc[normalizeText(item.mes)] = item;
-    return acc;
-  }, {});
-
-  return PUBLICO_MES_REFERENCIA.map((fallback) => {
-    const found = byMonth[normalizeText(fallback.mes)];
-    if (!found) return fallback;
-    return found.total > 0 ? found : fallback;
-  });
+  return contexto.publico_por_mes.map(normalizeAudienceMonth);
 }
 
 function AudienceMonthlyChart({ rows = [] }) {
@@ -1161,45 +1155,8 @@ function buildPublicContext(item = {}) {
   return `${fmtInt(value)} ${type} em ${category.toString().toLowerCase()}${scope ? ` no recorte ${scope}` : ''}.`;
 }
 
-function buildInstitutionalExpansion(item = {}) {
-  const title = getActivityTitle(item);
-  const text = normalizeText([
-    title,
-    item.tipo,
-    item.classificacao,
-    item.categoria_label,
-    item.texto,
-    item.descricao,
-  ].filter(Boolean).join(' '));
-  const museu = item.museu ? ` no ${getMuseuLabel(item.museu)}` : '';
-  const month = item.mes || getMonthName(item);
-  const meta = item.metaEditorial || getActivityMeta(item);
-
-  if (item.isCommunicationCard) {
-    return `Como frente de documentação pública, ${sanitizeReportText(title)} reúne registros, coberturas, materiais visuais e evidências de circulação institucional produzidas no período. A síntese preserva a função documental dessas entregas e explicita sua contribuição para memória visual, prestação de contas e presença pública do Museus Centro.`;
-  }
-
-  if (text.includes('estudio aberto') || text.includes('estúdio aberto')) {
-    return `A ação ${sanitizeReportText(title)} articula mediação, experimentação e acolhimento de públicos em um formato de permanência educativa. No relatório, ela deve ser lida como parte da construção de vínculo entre museu, visitantes e processos de formação cultural, especialmente quando associada a grupos agendados, oficinas e preparação pedagógica registrada pela equipe.`;
-  }
-
-  if (text.includes('visita mediada') || text.includes('visitas mediadas')) {
-    return `As visitas mediadas${museu} foram consolidadas como ação de formação de público, aproximando acervos, exposições e repertórios dos visitantes por meio de acompanhamento educativo. A consolidação evita a fragmentação de registros recorrentes e preserva a leitura de público, território e rotina institucional.`;
-  }
-
-  if (text.includes('oficina') || text.includes('laboratorio') || text.includes('laboratório') || text.includes('curso')) {
-    return `A atividade ${sanitizeReportText(title)} fortalece a dimensão educativa do projeto ao combinar prática, escuta, repertório cultural e participação. Quando vinculada a oficinas, laboratórios ou formações, a ação amplia a relação entre museu e território, criando condições para experimentação, mediação e continuidade pedagógica.`;
-  }
-
-  if (text.includes('exposicao') || text.includes('exposição') || text.includes('mostra')) {
-    return `No conjunto do relatório, ${sanitizeReportText(title)} aparece como ação de qualificação da experiência expositiva, conectando pesquisa, montagem, mediação e presença pública. O registro permite acompanhar como o planejamento de exposições se articula à programação e às entregas institucionais do período.`;
-  }
-
-  if (text.includes('libras') || text.includes('acessibilidade') || text.includes('diversidade')) {
-    return `A ação ${sanitizeReportText(title)} reforça o compromisso do projeto com acessibilidade, acolhimento e mediação pública. Sua presença no relatório qualifica a leitura institucional do período ao situar inclusão e diversidade como dimensões práticas da gestão cultural, não apenas como diretrizes abstratas.`;
-  }
-
-  return `No recorte de ${month}, ${sanitizeReportText(title)} integra a agenda consolidada do Museus Centro como ação vinculada à programação, aos registros de equipe e às evidências disponíveis no aplicativo${meta ? `, com relação editorial à ${sanitizeReportText(meta)}` : ''}. A leitura consolidada aproxima dados, relatos e documentação visual, ampliando a rastreabilidade sem repetir textos de origem.`;
+function buildInstitutionalExpansion() {
+  return '';
 }
 
 function ActivityNarrative({ item }) {
@@ -1272,10 +1229,36 @@ function MonthlyAgendaSection({ contexto }) {
         ? item.fotos
         : [];
     const { inlinePhotos } = prepareInlineAndGalleryPhotos(sourcePhotos, selectedInlinePhotoIds);
+    const publicoRegistrado = getPublicoRegistrado(item);
+    const publicoEstimado = publicoRegistrado > 0 ? 0 : getPublicoEstimado(item);
+    const meta = getActivityMeta(item);
 
     return {
       ...item,
       inlineSelectedPhotos: inlinePhotos.slice(0, 4),
+      datasConsolidadas: [item.data || item.data_inicio || item.mes].filter(Boolean),
+      textosConsolidados: [
+        item.texto,
+        item.descricao,
+        item.sinopse,
+        item.observacoes,
+        item.resultado,
+        item.resultados,
+      ].map(sanitizeReportText).filter((text) => text.length > 30).slice(0, 3),
+      relatosEquipe: [],
+      relatoriosVinculados: [],
+      participantes: getParticipantCount(item),
+      isCommunicationCard: isCommunicationRecord(item),
+      publicoRegistrado,
+      publicoEstimado,
+      publicoTipo: publicoRegistrado > 0 ? 'registrado' : publicoEstimado > 0 ? 'estimado' : 'nao_informado',
+      metaEditorial: meta || '',
+      metaInferida: false,
+      consolidatedCount: 1,
+      evidenciaLinks: sourcePhotos
+        .map((photo) => photo?.url || photo?.file_url || photo?.src || photo?.arquivo_url || photo?.arquivo_original_url)
+        .filter(Boolean)
+        .slice(0, 8),
     };
   });
 
@@ -1287,8 +1270,8 @@ function MonthlyAgendaSection({ contexto }) {
       breakBefore
       eyebrow="Agenda Museus Centro no período"
       title="Agenda detalhada do período"
-      subtitle="Cada item preserva título, museu, data, tipo, público, meta e fotos vinculadas quando disponíveis no app."
-      text="A agenda foi consolidada a partir da programação e dos relatórios aprovados. Registros recorrentes, rotinas e visitas mediadas fragmentadas foram agrupados para reduzir duplicidade visual, sem apagar a rastreabilidade: quando houver mais de uma origem, o card informa a quantidade de registros consolidados."
+      subtitle="Cada item preserva título, museu, data, tipo, público, meta e fotos vinculadas quando disponíveis no aplicativo."
+      text="A agenda preserva os registros do período conforme aparecem na programação e nas atividades do aplicativo. Apenas duplicidades estritas por identificador ou por data, museu e título equivalente são removidas da exibição."
     >
       <ChapterMethodologyPanel
         chapterId="agenda"
@@ -1327,7 +1310,6 @@ function MonthlyAgendaSection({ contexto }) {
                 </div>
               ) : null}
             </header>
-            {buildPublicContext(item) ? <p className="premium-public-context">{buildPublicContext(item)}</p> : null}
             <div className="premium-card-facts">
               <span><strong>Datas</strong>{(item.datasConsolidadas || []).join(', ') || item.data || item.mes || 'período'}</span>
               <span><strong>Meta vinculada</strong>{item.metaEditorial || getActivityMeta(item) || ''}{item.metaInferida ? ' (inferida)' : ''}</span>
@@ -1341,7 +1323,7 @@ function MonthlyAgendaSection({ contexto }) {
             ) : null}
             <footer className="premium-card-footer">
               <span><strong>Localização</strong>{item.local || item.endereco || item.museu || 'Museus Centro'}</span>
-              <span><strong>Créditos</strong>{item.credito || item.creditos || item.producao || 'registros do app'}</span>
+              <span><strong>Créditos</strong>{item.credito || item.creditos || item.producao || 'registros do aplicativo'}</span>
               <span><strong>Indicador</strong>{item.isCommunicationCard ? 'documentação institucional' : item.publicoTipo === 'estimado' ? 'público estimado' : 'público registrado'}</span>
             </footer>
             <EvidenceLinks links={item.evidenciaLinks} />
@@ -1991,9 +1973,6 @@ function PremiumMetasPanel({ contexto }) {
                 <span style={{ width: `${Math.min(toNumber(meta.percentual), 100)}%` }} />
               </div>
 
-              <div className="premium-meta-footnote">
-                Acompanhamento editorial a partir das rubricas, atividades e registros consolidados no aplicativo.
-              </div>
             </article>
           );
         })}
