@@ -9,9 +9,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  Edit3,
   Images,
   LinkIcon,
   MapPin,
+  Sparkles,
   X
 } from 'lucide-react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
@@ -491,6 +493,27 @@ function uniqueByFileUrl(items = []) {
   });
 }
 
+function buildDuplicateGroups(items = []) {
+  const groups = new Map();
+
+  (Array.isArray(items) ? items : []).forEach((item) => {
+    const key = getGalleryImageIdentity(item);
+    if (!key) return;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(item);
+  });
+
+  return Array.from(groups.entries())
+    .filter(([, group]) => group.length > 1)
+    .map(([key, group]) => ({
+      key,
+      count: group.length,
+      keep: group[0],
+      duplicates: group.slice(1),
+      items: group,
+    }));
+}
+
 function normalizeGalleryUrl(value = '') {
   const raw = String(value || '').trim();
   if (!raw) return '';
@@ -557,8 +580,10 @@ function mapPhoto(item, activityMaps, report = null, prefix = 'media') {
     item.updated_date
   );
 
-  return {
+  const mapped = {
     id: `${prefix}-${item.id}`,
+    sourceEntity: prefix === 'media' ? 'MediaLibrary' : 'Attachment',
+    sourceId: item.id,
     fileName: item.file_name || 'imagem',
     fileUrl: item.file_url,
     timestamp,
@@ -581,6 +606,10 @@ function mapPhoto(item, activityMaps, report = null, prefix = 'media') {
     geoCoordinates: metadataCoordinates || section.coordinates,
     metadataDate,
     linkedActivity,
+  };
+  return {
+    ...mapped,
+    duplicateIdentity: getGalleryImageIdentity(mapped),
   };
 }
 
@@ -641,12 +670,19 @@ function GaleriaFotosInner() {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('recent');
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_IMAGES);
+  const [duplicateAnalysis, setDuplicateAnalysis] = useState(null);
+  const [duplicateReviewOpen, setDuplicateReviewOpen] = useState(false);
+  const [isAnalyzingDuplicates, setIsAnalyzingDuplicates] = useState(false);
+  const [editingImage, setEditingImage] = useState(null);
+  const [editForm, setEditForm] = useState({ legenda: '', museu: '', localizacao: '' });
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   const {
-    data: images = [],
+    data: galleryData = { images: [], duplicateGroups: [] },
     isLoading,
     isError,
-    isFetching
+    isFetching,
+    refetch
   } = useQuery({
     queryKey: ['galeria-fotos-v9-restaurada', currentUser?.email],
     queryFn: async () => {
@@ -716,14 +752,19 @@ function GaleriaFotosInner() {
         toastMessages.warning('Erro ao carregar imagens da galeria');
       }
 
-      return uniqueByFileUrl(allImages)
-        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      return {
+        images: uniqueByFileUrl(allImages).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)),
+        duplicateGroups: buildDuplicateGroups(allImages),
+      };
     },
     enabled: !!currentUser?.email,
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
     retry: 1,
   });
+
+  const images = Array.isArray(galleryData) ? galleryData : galleryData.images || [];
+  const duplicateGroups = Array.isArray(galleryData) ? [] : galleryData.duplicateGroups || [];
 
   useEffect(() => {
     setVisibleCount(INITIAL_VISIBLE_IMAGES);
@@ -787,6 +828,120 @@ function GaleriaFotosInner() {
   const handleNextImage = () => {
     if (currentImageIndex < sortedImages.length - 1) {
       setSelectedImage(sortedImages[currentImageIndex + 1]);
+    }
+  };
+
+  const analyzeDuplicateGroupsWithAI = async () => {
+    if (!duplicateGroups.length) {
+      setDuplicateAnalysis({
+        summary: 'Nenhuma imagem repetida foi encontrada pelos critérios técnicos da galeria.',
+        groups: [],
+      });
+      setDuplicateReviewOpen(true);
+      return;
+    }
+
+    setIsAnalyzingDuplicates(true);
+    setDuplicateReviewOpen(true);
+
+    const candidates = duplicateGroups.slice(0, 40).map((group, index) => ({
+      groupKey: group.key,
+      index: index + 1,
+      count: group.count,
+      keepId: group.keep.id,
+      keepFile: group.keep.fileName,
+      keepMuseum: group.keep.museu,
+      keepCaption: group.keep.legenda,
+      duplicates: group.duplicates.map((item) => ({
+        id: item.id,
+        file: item.fileName,
+        museu: item.museu,
+        legenda: item.legenda,
+        atividade: item.linkedActivity?.title || '',
+      })),
+    }));
+
+    try {
+      const prompt = `
+Você é uma curadoria técnica da Galeria de Fotos do Museus Centro.
+Analise os grupos abaixo e aponte quais parecem ser fotos repetidas do mesmo arquivo ou do mesmo registro visual.
+Use apenas os metadados fornecidos. Não invente dados.
+Responda em JSON puro, sem markdown, neste formato:
+{
+  "summary": "síntese curta",
+  "groups": [
+    {
+      "groupKey": "chave recebida",
+      "confidence": "alta|media|baixa",
+      "reason": "motivo curto",
+      "keepId": "id recomendado para manter",
+      "duplicateIds": ["ids repetidos"]
+    }
+  ]
+}
+
+GRUPOS CANDIDATOS:
+${JSON.stringify(candidates, null, 2)}
+`;
+
+      const response = await base44.integrations.Core.InvokeLLM({
+        prompt,
+        add_context_from_internet: false,
+      });
+      const raw = String(response || '').replace(/^```json\s*/i, '').replace(/```$/i, '').trim();
+      const parsed = JSON.parse(raw);
+      setDuplicateAnalysis({
+        summary: parsed.summary || `${duplicateGroups.length} grupo(s) candidato(s) a repetição encontrados.`,
+        groups: Array.isArray(parsed.groups) ? parsed.groups : [],
+      });
+    } catch (error) {
+      console.warn('IA indisponível para análise de duplicadas. Usando análise técnica local:', error);
+      setDuplicateAnalysis({
+        summary: `${duplicateGroups.length} grupo(s) de imagens repetidas foram detectados por identidade técnica de arquivo.`,
+        groups: duplicateGroups.map((group) => ({
+          groupKey: group.key,
+          confidence: 'alta',
+          reason: 'Mesmo arquivo normalizado encontrado em mais de uma origem da galeria.',
+          keepId: group.keep.id,
+          duplicateIds: group.duplicates.map((item) => item.id),
+        })),
+      });
+    } finally {
+      setIsAnalyzingDuplicates(false);
+    }
+  };
+
+  const openEditImage = (image) => {
+    setEditingImage(image);
+    setEditForm({
+      legenda: image?.legenda || image?.description || '',
+      museu: image?.museu || '',
+      localizacao: image?.localizacao || '',
+    });
+  };
+
+  const saveImageEdit = async () => {
+    if (!editingImage?.sourceEntity || !editingImage?.sourceId) return;
+    setIsSavingEdit(true);
+
+    try {
+      const payload = {
+        descricao: editForm.legenda,
+        description: editForm.legenda,
+        legenda: editForm.legenda,
+        museu: editForm.museu,
+        localizacao: editForm.localizacao,
+      };
+
+      await base44.entities[editingImage.sourceEntity].update(editingImage.sourceId, payload);
+      toastMessages.updateSuccess();
+      setEditingImage(null);
+      await refetch();
+    } catch (error) {
+      console.error('Erro ao editar foto da galeria:', error);
+      toastMessages.updateFailed();
+    } finally {
+      setIsSavingEdit(false);
     }
   };
 
@@ -857,6 +1012,12 @@ function GaleriaFotosInner() {
               Exibindo {visibleCount} de {sortedImages.length} imagens. Use "Carregar mais" para continuar.
             </p>
           )}
+
+          {duplicateGroups.length > 0 && (
+            <p className="mt-2 text-xs text-amber-700">
+              {duplicateGroups.length} grupo(s) de imagens repetidas foram detectados antes da deduplicação visual.
+            </p>
+          )}
         </div>
 
         <div className="bg-white border border-gray-200 rounded-2xl p-4 mb-8 space-y-4 shadow-sm">
@@ -890,6 +1051,24 @@ function GaleriaFotosInner() {
                 <option value="name-desc">Nome (Z-A)</option>
               </select>
             </div>
+          </div>
+
+          <div className="flex flex-col gap-2 rounded-xl border border-gray-200 bg-gray-50 p-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-900">Revisão de repetidas por IA</p>
+              <p className="text-xs text-gray-500">
+                Analisa grupos técnicos de duplicidade e aponta quais registros parecem ser o mesmo arquivo.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={analyzeDuplicateGroupsWithAI}
+              disabled={isAnalyzingDuplicates}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Sparkles className={`h-4 w-4 ${isAnalyzingDuplicates ? 'animate-pulse' : ''}`} />
+              {isAnalyzingDuplicates ? 'Analisando...' : 'Analisar repetidas'}
+            </button>
           </div>
         </div>
 
@@ -1021,6 +1200,15 @@ function GaleriaFotosInner() {
                       Abrir
                     </a>
                   )}
+
+                  <button
+                    type="button"
+                    onClick={() => openEditImage(selectedImage)}
+                    className="inline-flex items-center gap-1 rounded-full border border-white/40 px-3 py-1.5 text-xs font-medium text-white hover:bg-white hover:text-black"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    Editar
+                  </button>
                 </div>
 
                 <div className="rounded-xl border border-white/20 bg-white/5 p-3 text-sm">
@@ -1100,6 +1288,160 @@ function GaleriaFotosInner() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={duplicateReviewOpen} onOpenChange={setDuplicateReviewOpen}>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+          <div className="space-y-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-gray-500">Galeria de Fotos</p>
+              <h2 className="text-xl font-semibold text-black">Análise de imagens repetidas</h2>
+              <p className="mt-1 text-sm text-gray-600">
+                A IA usa os metadados da galeria e os grupos técnicos de arquivo repetido. A lista não apaga arquivos automaticamente.
+              </p>
+            </div>
+
+            {isAnalyzingDuplicates ? (
+              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-6 text-sm text-gray-600">
+                Analisando os grupos de imagens repetidas...
+              </div>
+            ) : (
+              <>
+                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                  <p className="text-sm text-gray-700">
+                    {duplicateAnalysis?.summary || 'Nenhuma análise executada ainda.'}
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  {(duplicateAnalysis?.groups || []).map((group, index) => {
+                    const sourceGroup = duplicateGroups.find((item) => item.key === group.groupKey);
+                    const keepImage = sourceGroup?.items.find((item) => item.id === group.keepId) || sourceGroup?.keep;
+                    const requestedDuplicateIds = Array.isArray(group.duplicateIds) ? group.duplicateIds : null;
+                    const duplicateImages = requestedDuplicateIds
+                      ? sourceGroup?.items.filter((item) => requestedDuplicateIds.includes(item.id)) || []
+                      : sourceGroup?.duplicates || [];
+
+                    return (
+                      <article key={`${group.groupKey}-${index}`} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+                        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                          <div>
+                            <p className="text-sm font-semibold text-black">
+                              Grupo {index + 1} · confiança {group.confidence || 'média'}
+                            </p>
+                            <p className="text-xs text-gray-500">{group.reason}</p>
+                          </div>
+                          <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800">
+                            {(sourceGroup?.count || duplicateImages.length + 1)} ocorrências
+                          </span>
+                        </div>
+
+                        {keepImage && (
+                          <div className="mt-3 grid gap-3 md:grid-cols-[120px_1fr]">
+                            <img src={keepImage.fileUrl} alt={keepImage.legenda || keepImage.fileName} className="h-28 w-full rounded-xl object-cover" />
+                            <div className="text-sm">
+                              <p className="font-medium text-black">Manter: {keepImage.legenda || keepImage.fileName}</p>
+                              <p className="text-xs text-gray-500">{keepImage.museu} · {keepImage.reportLabel}</p>
+                              <button
+                                type="button"
+                                onClick={() => openEditImage(keepImage)}
+                                className="mt-2 inline-flex items-center gap-1 rounded-full border border-gray-300 px-3 py-1 text-xs font-medium hover:bg-gray-50"
+                              >
+                                <Edit3 className="h-3 w-3" />
+                                Editar metadados
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {duplicateImages.length > 0 && (
+                          <div className="mt-4 grid gap-3 md:grid-cols-2">
+                            {duplicateImages.map((image) => (
+                              <div key={image.id} className="flex gap-3 rounded-xl border border-gray-100 bg-gray-50 p-2">
+                                <img src={image.fileUrl} alt={image.legenda || image.fileName} className="h-16 w-16 rounded-lg object-cover" />
+                                <div className="min-w-0 text-xs">
+                                  <p className="line-clamp-2 font-medium text-gray-900">{image.legenda || image.fileName}</p>
+                                  <p className="text-gray-500">{image.museu}</p>
+                                  <button
+                                    type="button"
+                                    onClick={() => openEditImage(image)}
+                                    className="mt-1 text-gray-800 underline"
+                                  >
+                                    Editar
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </article>
+                    );
+                  })}
+
+                  {!isAnalyzingDuplicates && (duplicateAnalysis?.groups || []).length === 0 && (
+                    <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-6 text-center text-sm text-gray-500">
+                      Nenhuma repetição para revisar.
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingImage} onOpenChange={(open) => !open && setEditingImage(null)}>
+        <DialogContent className="max-w-xl">
+          <div className="space-y-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-gray-500">Editar foto</p>
+              <h2 className="text-xl font-semibold text-black">Metadados da imagem</h2>
+              <p className="mt-1 text-sm text-gray-600">A edição ajusta legenda, museu e localização do registro selecionado.</p>
+            </div>
+
+            {editingImage && (
+              <img src={editingImage.fileUrl} alt={editingImage.legenda || editingImage.fileName} className="max-h-64 w-full rounded-2xl object-contain bg-gray-100" />
+            )}
+
+            <div className="space-y-3">
+              <div>
+                <Label>Legenda</Label>
+                <Input value={editForm.legenda} onChange={(event) => setEditForm((prev) => ({ ...prev, legenda: event.target.value }))} />
+              </div>
+              <div>
+                <Label>Museu</Label>
+                <select
+                  value={editForm.museu}
+                  onChange={(event) => setEditForm((prev) => ({ ...prev, museu: event.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm"
+                >
+                  <option value="">Sem classificação</option>
+                  <option value="MHAB">MHAB</option>
+                  <option value="MIS">MIS</option>
+                  <option value="MUMO">MUMO</option>
+                </select>
+              </div>
+              <div>
+                <Label>Localização</Label>
+                <Input value={editForm.localizacao} onChange={(event) => setEditForm((prev) => ({ ...prev, localizacao: event.target.value }))} />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setEditingImage(null)} className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium">
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={saveImageEdit}
+                disabled={isSavingEdit}
+                className="rounded-xl bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+              >
+                {isSavingEdit ? 'Salvando...' : 'Salvar edição'}
+              </button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
