@@ -451,70 +451,10 @@ function matchFotosAtividade(activity, report, attachmentsRaw, activityIndex) {
   const activityId = activity?.id || activity?._id || activity?.activity_id || '';
   const activityNameNorm = normalizeText(activityName);
   const fotos = [];
-  const activityKeywords = activityNameNorm
-    .split(' ')
-    .filter((word) => word.length >= 4)
-    .filter((word) => ![
-      'museus',
-      'centro',
-      'producao',
-      'mumo',
-      'mhab',
-      'mis',
-      'oficina',
-      'visita',
-      'visitas',
-      'tecnica',
-      'tecnicas',
-      'atividade',
-      'evento',
-      'publico',
-      'espontaneo',
-      'mediadas',
-      'mediacao',
-      'manutencao',
-      'rotina',
-      'relatorio',
-      'fechamento',
-    ].includes(word));
-  const activityCompact = activityNameNorm.replace(/\s+/g, '');
-  const photoLooksLinkedToActivity = (foto) => {
-    const directId = String(foto?.activity_id || foto?.atividade_id || foto?.activityId || foto?.atividadeId || '');
-    if (activityId && directId && String(activityId) === directId) return true;
-
-    const text = normalizeText([
-      foto?.fileName,
-      foto?.file_name,
-      foto?.name,
-      foto?.nome_arquivo,
-      foto?.caption,
-      foto?.legenda,
-      foto?.descricao,
-      foto?.description,
-      foto?.atividade,
-      foto?.atividade_nome,
-    ].filter(Boolean).join(' ')).replace(/\b\d{6,}\b/g, ' ');
-    if (!text || activityKeywords.length === 0) return false;
-
-    const textCompact = text.replace(/\s+/g, '');
-    if (activityCompact.length >= 12 && textCompact.includes(activityCompact.slice(0, Math.min(activityCompact.length, 32)))) {
-      return true;
-    }
-
-    const textWords = text.split(' ').filter(Boolean);
-    const hits = activityKeywords.filter((keyword) => textWords.some((word) => (
-      word === keyword ||
-      (word.length >= 5 && keyword.startsWith(word)) ||
-      (keyword.length >= 5 && word.startsWith(keyword))
-    )));
-
-    return hits.length >= Math.min(2, activityKeywords.length);
-  };
 
   (Array.isArray(activity?.fotos) ? activity.fotos : []).forEach((foto) => {
     const url = foto?.url || foto?.file_url || foto?.arquivo_url || '';
     if (!url) return;
-    if (!photoLooksLinkedToActivity(foto)) return;
 
     fotos.push({
       url,
@@ -528,7 +468,6 @@ function matchFotosAtividade(activity, report, attachmentsRaw, activityIndex) {
 
   (Array.isArray(activity?.attachments) ? activity.attachments : []).forEach((att) => {
     if (!isImageAttachment(att)) return;
-    if (!photoLooksLinkedToActivity(att)) return;
 
     const url = attachmentUrl(att);
     if (!url) return;
@@ -549,11 +488,12 @@ function matchFotosAtividade(activity, report, attachmentsRaw, activityIndex) {
     const url = attachmentUrl(att);
     if (!url) return;
 
+    const text = attachmentText(att);
     const matchesActivityId = activityId && (
       String(att?.activity_id || '') === String(activityId) ||
       String(att?.atividade_id || '') === String(activityId)
     );
-    const matchesName = photoLooksLinkedToActivity(att);
+    const matchesName = activityNameNorm && text.includes(activityNameNorm);
 
     if (!matchesActivityId && !matchesName) return;
 
