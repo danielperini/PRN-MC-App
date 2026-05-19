@@ -449,7 +449,6 @@ function matchAgenda(activity, report, programacaoRaw) {
 function matchFotosAtividade(activity, report, attachmentsRaw, activityIndex) {
   const activityName = activity?.nome || activity?.titulo || activity?.nome_atividade || '';
   const activityId = activity?.id || activity?._id || activity?.activity_id || '';
-  const reportId = report?.id || '';
   const activityNameNorm = normalizeText(activityName);
   const fotos = [];
 
@@ -494,10 +493,9 @@ function matchFotosAtividade(activity, report, attachmentsRaw, activityIndex) {
       String(att?.activity_id || '') === String(activityId) ||
       String(att?.atividade_id || '') === String(activityId)
     );
-    const matchesReport = reportId && String(att?.report_id || '') === String(reportId);
     const matchesName = activityNameNorm && text.includes(activityNameNorm);
 
-    if (!matchesActivityId && !matchesName && !matchesReport) return;
+    if (!matchesActivityId && !matchesName) return;
 
     fotos.push({
       url,
@@ -508,10 +506,6 @@ function matchFotosAtividade(activity, report, attachmentsRaw, activityIndex) {
       origem: 'Attachment',
     });
   });
-
-  if (fotos.length === 0) {
-    getReportPhotos(report).forEach((foto) => fotos.push(foto));
-  }
 
   const seen = new Set();
   return fotos.filter((foto) => {
