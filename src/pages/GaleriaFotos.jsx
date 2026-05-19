@@ -20,6 +20,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toastMessages } from '@/lib/toastMessages';
+import { dedupePhotosByImageIdentity, getPhotoIdentity } from '@/components/reports/premium/premiumReportUtils';
 
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'heic', 'webp', 'gif', 'bmp', 'avif'];
 const INITIAL_VISIBLE_IMAGES = 48;
@@ -480,24 +481,14 @@ function resolveMuseumSection({ item = {}, report = null, linkedActivity = null,
 }
 
 function uniqueByFileUrl(items = []) {
-  const seen = new Set();
-
-  return items.filter((item) => {
-    const key = getGalleryImageIdentity(item);
-
-    if (!key || seen.has(key)) return false;
-
-    seen.add(key);
-
-    return true;
-  });
+  return dedupePhotosByImageIdentity(items);
 }
 
 function buildDuplicateGroups(items = []) {
   const groups = new Map();
 
   (Array.isArray(items) ? items : []).forEach((item) => {
-    const key = getGalleryImageIdentity(item);
+    const key = getPhotoIdentity(item);
     if (!key) return;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(item);
@@ -512,43 +503,6 @@ function buildDuplicateGroups(items = []) {
       duplicates: group.slice(1),
       items: group,
     }));
-}
-
-function normalizeGalleryUrl(value = '') {
-  const raw = String(value || '').trim();
-  if (!raw) return '';
-
-  try {
-    const url = new URL(raw, window.location.origin);
-    url.search = '';
-    url.hash = '';
-    return decodeURIComponent(url.pathname || raw).toLowerCase();
-  } catch {
-    return raw.split('?')[0].split('#')[0].toLowerCase();
-  }
-}
-
-function normalizeGalleryFileName(value = '') {
-  return normalizeText(
-    String(value || '')
-      .split('?')[0]
-      .split('#')[0]
-      .split('/')
-      .pop()
-      ?.replace(/\.(jpg|jpeg|png|webp|gif|bmp|avif|heic)$/i, '') || ''
-  );
-}
-
-function getGalleryImageIdentity(item = {}) {
-  const urlKey = normalizeGalleryUrl(item.fileUrl || item.url || item.file_url || item.src);
-  if (urlKey) return `url:${urlKey}`;
-
-  const fileName = normalizeGalleryFileName(item.fileName || item.file_name || item.name);
-  const day = String(item.date || item.timestamp || item.created_date || '').slice(0, 10);
-  const museum = normalizeText(item.museu || item.sectionKey || item.sectionTitle);
-  const caption = normalizeText(item.legenda || item.description).slice(0, 80);
-
-  return [fileName, day, museum, caption].filter(Boolean).join('|');
 }
 
 function mapPhoto(item, activityMaps, report = null, prefix = 'media') {
@@ -609,7 +563,7 @@ function mapPhoto(item, activityMaps, report = null, prefix = 'media') {
   };
   return {
     ...mapped,
-    duplicateIdentity: getGalleryImageIdentity(mapped),
+    duplicateIdentity: getPhotoIdentity(mapped),
   };
 }
 
