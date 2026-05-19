@@ -1,9 +1,11 @@
 import React from 'react';
 import { splitParagraphs } from './premiumReportUtils';
 
-const FECHAMENTO_EDITORIAL = `O encerramento deste relatório não se organiza como uma conclusão administrativa, mas como o registro de uma experiência coletiva de trabalho, acompanhamento e construção institucional.
+function buildFechamentoEditorial(contexto = {}) {
+  const periodo = contexto?.reportEditorial?.periodLabel || contexto?.periodo_extenso || 'o recorte selecionado';
+  return `O encerramento deste relatório não se organiza como uma conclusão administrativa, mas como o registro de uma experiência coletiva de trabalho, acompanhamento e construção institucional.
 
-Entre fevereiro e abril de 2026, o Projeto Museus Centro foi sustentado por uma rede de pessoas, equipamentos públicos, equipes técnicas, educadoras, produtores, coordenações, prestadoras de serviço e parceiros institucionais que deram forma cotidiana à política pública cultural nos museus municipais de Belo Horizonte.
+Durante ${periodo}, o Projeto Museus Centro foi sustentado por uma rede de pessoas, equipamentos públicos, equipes técnicas, educadoras, produtores, coordenações, prestadoras de serviço e parceiros institucionais que deram forma cotidiana à política pública cultural nos museus municipais de Belo Horizonte.
 
 A documentação reunida no aplicativo preserva uma parte importante dessa experiência. Relatórios, fotografias, programações, indicadores, documentos fiscais, registros educativos, evidências de produção e informações financeiras deixam de aparecer como arquivos isolados e passam a compor uma memória operacional do projeto.
 
@@ -18,9 +20,10 @@ Concluir este relatório é, portanto, reconhecer que a cultura pública se real
 O Museus Centro se afirma, nesse percurso, como uma experiência de articulação entre equipamentos, equipes e territórios. Sua continuidade depende da capacidade de transformar registros em memória, memória em aprendizado institucional e aprendizado em novas formas de presença pública.
 
 Este relatório preserva esse ciclo: o que foi feito, o que foi registrado, o que pôde ser verificado e o que permanece como base para os próximos meses de trabalho.`;
+}
 
-export default function PremiumClosingSection({ textos }) {
-  const paragraphs = splitParagraphs(FECHAMENTO_EDITORIAL, 12);
+export default function PremiumClosingSection({ contexto = {} }) {
+  const paragraphs = splitParagraphs(buildFechamentoEditorial(contexto), 12);
 
   return (
     <section className="premium-closing premium-page-break">

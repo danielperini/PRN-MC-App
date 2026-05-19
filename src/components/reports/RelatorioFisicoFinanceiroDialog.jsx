@@ -17,6 +17,7 @@ import {
 } from '@/config/reportChapters';
 
 import buildRelatorioFisicoFinanceiroContext from '@/utils/buildRelatorioFisicoFinanceiroContext';
+import { validateReportBeforeExport } from '@/utils/reportDataNormalizer';
 import montarHtmlRelatorioFisicoFinanceiro from '@/utils/relatorioFisicoFinanceiroTemplate';
 import gerarTextosRelatorioFisicoFinanceiro from '@/services/relatorioIAService';
 import { montarHtmlRelatorioPremium } from '@/components/reports/premium/PremiumReportLayout';
@@ -168,21 +169,29 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
       reportGeneratorStrategy: REPORT_GENERATOR_STRATEGY,
     };
 
-    if (modoPremium) {
-      return montarHtmlRelatorioPremium({
+    const html = modoPremium
+      ? montarHtmlRelatorioPremium({
         contexto,
         textos,
         filtros,
         secoesSelecionadas,
+      })
+      : montarHtmlRelatorioFisicoFinanceiro({
+        contexto,
+        textos,
+        secoesSelecionadas,
+        filtros,
       });
+
+    const validation = validateReportBeforeExport(contexto, html, secoesSelecionadas);
+    if (!validation.valid) {
+      throw new Error(`Validação editorial bloqueou a exportação: ${validation.errors.join(' ')}`);
+    }
+    if (validation.warnings.length > 0) {
+      console.warn('Alertas editoriais antes da exportação:', validation.warnings);
     }
 
-    return montarHtmlRelatorioFisicoFinanceiro({
-      contexto,
-      textos,
-      secoesSelecionadas,
-      filtros,
-    });
+    return html;
   }
 
   async function handlePDF() {

@@ -13,7 +13,7 @@ function pickCoverPhoto(contexto) {
 export default function PremiumOpeningCover({ contexto, filtros = {} }) {
   const cover = pickCoverPhoto(contexto);
   const coverPhoto = cover.url;
-  const periodo = contexto?.periodo_extenso || 'Fevereiro-abril de 2026';
+  const periodo = contexto?.reportEditorial?.periodLabel || contexto?.periodo_extenso || 'Período selecionado';
 
   return (
     <section className="premium-cover">

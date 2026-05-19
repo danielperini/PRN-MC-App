@@ -9,10 +9,10 @@ import PremiumMuseumSection from './PremiumMuseumSection';
 import PremiumCommunicationSection from './PremiumCommunicationSection';
 import PremiumClosingSection from './PremiumClosingSection';
 import { getChapterIntro, getReportSummaryChapters } from '@/config/reportChapters';
+import { buildEditorialReportContext } from '@/utils/reportDataNormalizer';
 import { buildDocumentsChapterData } from '@/utils/reportDocumentsChapter';
 import {
   cleanFileName,
-  dedupeReportActivities,
   extractPhotos,
   fmtBRL,
   fmtInt,
@@ -271,20 +271,21 @@ const CATALOG_CSS = `
   }
 `;
 
-const INTRODUCAO_PERIODO = `Este relatório abrange fevereiro, março e abril de 2026 e consolida, a partir dos registros do aplicativo, resultados culturais, institucionais, programáticos e de público do projeto Museus Centro / Viaduto das Artes.
+function buildIntroPeriodo(contexto = {}) {
+  const periodo = contexto?.reportEditorial?.periodLabel || contexto?.periodo_extenso || 'recorte selecionado';
+  return `Este relatório consolida o ${periodo} a partir dos registros do aplicativo, reunindo resultados culturais, institucionais, programáticos, documentais, financeiros e de público do projeto Museus Centro / Viaduto das Artes.
 
-O período marca uma transição importante na coordenação geral do projeto, com a saída de Andréa Matos e a entrada de Daniel Perini. Também passa a integrar o processo a consultora de programação Ana Luiza, fortalecendo a interlocução entre planejamento, produção, diretorias dos museus e organização das ações culturais.
+A leitura editorial considera relatórios aprovados, programação, atividades, anexos, rubricas, documentos, público e evidências disponíveis no app. O objetivo é transformar registros operacionais em uma memória institucional verificável, sem incorporar dados externos nem preencher lacunas artificialmente.
 
-O primeiro momento do projeto foi marcado por chegada, aprovação, contratação e estabilização dos fluxos. Além da coordenação geral, houve mudanças de produção nos equipamentos: no MIS, saída de Ana Carolina Galvão e entrada de Isabela; no MUMO, saída de Daniela Isis e entrada de Silvia Coes. Essas transições exigiram pactuação de rotinas, reordenação de responsabilidades e aproximação cotidiana entre coordenação, produção, comunicação, educativo e equipes dos museus.
-
-O relatório apresenta uma leitura integrada dos museus como infraestrutura pública de memória, formação, convivência e fruição cultural. MIS, MHAB e MUMO aparecem como equipamentos complementares, capazes de articular audiovisual, memória urbana, moda, educação, acessibilidade, preservação e presença territorial no centro de Belo Horizonte.`;
+O relatório apresenta MIS, MHAB e MUMO como equipamentos complementares de memória, formação, convivência e fruição cultural. Quando houver ausência de dados ou diferença entre fontes, a limitação é explicitada para preservar transparência, rastreabilidade e qualidade técnica.`;
+}
 
 const BASE_METAS_ADITIVO = [
   { numero: 'META 01', titulo: 'Equipe principal', percentual: 100, detalhe: 'Cargos previstos e cargos ocupados na equipe', indicador: '100% concluído · contagem de cargos ativa', status: 'CONCLUÍDA' },
   { numero: 'META 07', titulo: 'Contratação de educadores', percentual: 100, detalhe: 'Educadores contratados para MIS, MUMO e MHAB', indicador: '100% concluído', status: 'CONCLUÍDA' },
   { numero: 'META 14', titulo: 'Acessibilidade', percentual: 100, detalhe: 'Entrega de dispositivos acessíveis', indicador: '100% entregue', status: 'CONCLUÍDA' },
   { numero: 'META 04', titulo: 'Alteração de núcleos e salas expositivas', percentual: 0, detalhe: 'Rubricas de núcleos, salas expositivas, montagem, expografia e ambientação', indicador: 'Percentual das rubricas relacionadas utilizadas', status: 'EM EXECUÇÃO' },
-  { numero: 'META 05', titulo: 'Atividades Educativas e Culturais', percentual: 0, detalhe: 'Atividades únicas da Programação/Agenda, filtradas mensalmente desde março/2026', indicador: '0/30 atividades da programação validadas', status: 'EM EXECUÇÃO' },
+  { numero: 'META 05', titulo: 'Atividades Educativas e Culturais', percentual: 0, detalhe: 'Atividades únicas da Programação/Agenda, filtradas no recorte selecionado', indicador: '0/30 atividades da programação validadas', status: 'EM EXECUÇÃO' },
   { numero: 'META 17', titulo: 'Custeio das atividades educativas e culturais', percentual: 0, detalhe: 'Materiais, lanches e apoio pedagógico', indicador: 'Percentual das rubricas de custeio utilizadas', status: 'EM EXECUÇÃO' },
   { numero: 'META 15', titulo: 'Diárias de educadores', percentual: 0, detalhe: 'Execução financeira da rubrica Diárias Educadores', indicador: 'Percentual da rubrica utilizada', status: 'EM EXECUÇÃO' },
   { numero: 'META 12', titulo: 'Exposição MHAB', percentual: 0, detalhe: 'Rubricas relacionadas à exposição MHAB/MAB', indicador: 'Percentual das rubricas relacionadas utilizadas', status: 'EM EXECUÇÃO' },
@@ -453,9 +454,9 @@ function ChapterMethodologyPanel({ chapterId, contexto = {}, evidence = [] }) {
   );
 }
 
-function composeIntro(textos = {}) {
+function composeIntro(textos = {}, contexto = {}) {
   const blocked = [
-    'este relatório cobre o período de 2 de fevereiro',
+    'este relatório cobre o período',
     'o presente relatório cobre o período',
     'o relatório foi produzido com um aplicativo',
     'auditoria técnica dos dados',
@@ -470,7 +471,7 @@ function composeIntro(textos = {}) {
       return !blocked.some((term) => text.includes(term.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()));
     });
 
-  return [INTRODUCAO_PERIODO, ...extra].join('\n\n');
+  return [buildIntroPeriodo(contexto), ...extra].join('\n\n');
 }
 
 function TableOfContents({ secoesSelecionadas = [] }) {
@@ -1089,7 +1090,7 @@ function AudienceMonthlyChart({ rows = [] }) {
   return (
     <div className="premium-audience-chart">
       <h3>Público por mês</h3>
-      <p>Leitura editorial do recorte fevereiro, março e abril, separando público de ações, presença espontânea e visitas agendadas sem misturar estimativas com registros.</p>
+      <p>Leitura editorial do recorte selecionado, separando público de ações, presença espontânea e visitas agendadas sem misturar estimativas com registros.</p>
       {rows.map((item) => {
         const total = Math.max(toNumber(item.total), 1);
         const width = Math.max((total / max) * 100, 2);
@@ -1254,7 +1255,7 @@ function MonthlyAgendaSection({ contexto }) {
     <PremiumSection
       breakBefore
       eyebrow="Agenda Museus Centro no período"
-      title="Agenda detalhada de fevereiro, março e abril"
+      title="Agenda detalhada do período"
       subtitle="Cada item preserva título, museu, data, tipo, público, meta e fotos vinculadas quando disponíveis no app."
       text="A agenda foi consolidada a partir da programação e dos relatórios aprovados. Registros recorrentes, rotinas e visitas mediadas fragmentadas foram agrupados para reduzir duplicidade visual, sem apagar a rastreabilidade: quando houver mais de uma origem, o card informa a quantidade de registros consolidados."
     >
@@ -2183,19 +2184,7 @@ function hasSection(selected = [], ...ids) {
 }
 
 export default function PremiumReportLayout({ contexto: rawContexto = {}, textos = {}, filtros = {}, secoesSelecionadas = [] }) {
-  const atividades = dedupeReportActivities(safeArray(rawContexto.atividades));
-  const activities = dedupeReportActivities(safeArray(rawContexto.activities));
-  const programacao = dedupeReportActivities(safeArray(rawContexto.programacao));
-  const programacoes = dedupeReportActivities(safeArray(rawContexto.programacoes));
-  const atividadesConsolidadas = dedupeReportActivities([...atividades, ...activities, ...programacao, ...programacoes]);
-  const contexto = {
-    ...rawContexto,
-    atividades,
-    activities,
-    programacao,
-    programacoes,
-    total_atividades: atividadesConsolidadas.length || rawContexto.total_atividades,
-  };
+  const contexto = buildEditorialReportContext(rawContexto, filtros, secoesSelecionadas);
 
   return (
     <main className="premium-report">
@@ -2210,8 +2199,8 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
       {hasSection(secoesSelecionadas, 'sumario_executivo', 'introducao', 'resumo_geral', 'indicadores_premium') && <PremiumSection
         eyebrow="Sumário executivo"
         title="Introdução"
-        subtitle="Fevereiro, março e abril como ciclo de transição, estabilização, pactuação de rotinas e consolidação dos dados do app."
-        text={composeIntro(textos)}
+        subtitle="Recorte selecionado como ciclo de acompanhamento, pactuação de rotinas e consolidação dos dados do app."
+        text={composeIntro(textos, contexto)}
       >
         <PremiumMetrics contexto={contexto} />
         <ChapterMethodologyPanel
@@ -2243,7 +2232,7 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
         breakBefore
         eyebrow="Agenda Museus Centro no período"
         title="Programação e atividades do período"
-        subtitle="Programações e atividades reais de fevereiro, março e abril, recuperadas dos relatórios aprovados e da agenda do app."
+        subtitle="Programações e atividades reais do período selecionado, recuperadas dos relatórios aprovados e da agenda do app."
         text={textos.programacao}
       >
         <ChapterMethodologyPanel
@@ -2304,7 +2293,7 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
 
       {hasSection(secoesSelecionadas, 'auditoria_operacional') && <OperationalAuditSection contexto={contexto} />}
 
-      {hasSection(secoesSelecionadas, 'conclusao') && <PremiumClosingSection textos={textos} />}
+      {hasSection(secoesSelecionadas, 'conclusao') && <PremiumClosingSection contexto={contexto} />}
     </main>
   );
 }

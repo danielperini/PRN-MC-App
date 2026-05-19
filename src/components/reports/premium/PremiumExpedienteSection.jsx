@@ -1,13 +1,7 @@
 import React from 'react';
 import { TEAM_REGISTRY_BASE } from '@/lib/teamRegistryBase';
+import { REPORT_INSTITUTIONAL_REALIZATION } from '@/config/reportEditorialTemplate';
 import { cleanText, getMuseuLabel, normalizeText, uniqueBy } from './premiumReportUtils';
-
-const REALIZACAO = [
-  'Prefeitura de Belo Horizonte',
-  'Fundação Municipal de Cultura',
-  'Diretoria de Museus - DEMUS',
-  'Viaduto das Artes',
-];
 
 const EQUIPE_BASE = TEAM_REGISTRY_BASE.map((item) => {
   const funcaoBase = cleanText([item.funcao, item.area].filter(Boolean).join(' · '));
@@ -92,7 +86,7 @@ export default function PremiumExpedienteSection({ contexto = {} }) {
         <CreditBlock title="Projeto Museus Centro">
           <p className="premium-expediente-lead">Realização</p>
           <ul className="premium-expediente-list">
-            {REALIZACAO.map((item) => <li key={item}>{item}</li>)}
+            {REPORT_INSTITUTIONAL_REALIZATION.map((item) => <li key={item}>{item}</li>)}
           </ul>
         </CreditBlock>
       </div>

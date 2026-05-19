@@ -1,3 +1,5 @@
+import { normalizeTextForReport } from '@/utils/reportTextHelpers';
+
 function stripVisibleMarkup(value) {
   return String(value || '')
     .replace(/&nbsp;/gi, ' ')
@@ -13,7 +15,7 @@ function stripVisibleMarkup(value) {
 }
 
 export function sanitizeReportText(value) {
-  return stripVisibleMarkup(value)
+  return normalizeTextForReport(stripVisibleMarkup(value))
     .replace(/clara\s*assumpcao\s*ctt/gi, 'Clara Braga Assumpção')
     .replace(/clara\s+assumpcao\s+ctt/gi, 'Clara Braga Assumpção')
     .replace(/Clara Braga Assump[cç][aã]o/gi, 'Clara Braga Assumpção')
@@ -77,7 +79,7 @@ export function fmtBRL(value) {
 }
 
 export function cleanText(value) {
-  return stripVisibleMarkup(value)
+  return normalizeTextForReport(stripVisibleMarkup(value))
     .replace(/clara\s*assumpcao\s*ctt/gi, 'Clara Braga Assumpção')
     .replace(/clara\s+assumpcao\s+ctt/gi, 'Clara Braga Assumpção')
     .replace(/Clara Braga Assump[cç][aã]o/gi, 'Clara Braga Assumpção')
@@ -692,6 +694,6 @@ export function buildMetrics(contexto = {}) {
     { label: 'Público em atividades', value: fmtInt(publicoAtividades), detail: 'somente atividades com público registrado' },
     { label: 'Programação', value: fmtInt(contexto.programacao_total), detail: 'agenda recuperada' },
     { label: 'Equipe', value: fmtInt(contexto.equipe_total), detail: 'profissionais com relatório' },
-    { label: 'Execução', value: `${toNumber(contexto.percentual_execucao).toFixed(1).replace('.', ',')}%`, detail: fmtBRL(total || 1320000) },
+    { label: 'Execução', value: `${toNumber(contexto.percentual_execucao).toFixed(1).replace('.', ',')}%`, detail: fmtBRL(total) },
   ];
 }

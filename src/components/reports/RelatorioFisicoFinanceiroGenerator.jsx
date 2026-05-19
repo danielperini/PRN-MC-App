@@ -9,6 +9,7 @@ import { Loader2, FileText, Download, CheckCircle2, AlertCircle, ExternalLink } 
 import { toast } from 'sonner';
 import LoadingDataNotice from '@/components/ui/LoadingDataNotice';
 import buildRelatorioFisicoFinanceiroContext from '@/utils/buildRelatorioFisicoFinanceiroContext';
+import { validateReportBeforeExport } from '@/utils/reportDataNormalizer';
 import montarHtmlRelatorioFisicoFinanceiro from '@/utils/relatorioFisicoFinanceiroTemplate';
 import gerarTextosRelatorioFisicoFinanceiro from '@/services/relatorioIAService';
 import { montarHtmlRelatorioPremium } from '@/components/reports/premium/PremiumReportLayout';
@@ -355,14 +356,21 @@ export default function RelatorioFisicoFinanceiroGenerator() {
     });
   };
 
-  const validateBeforeExport = (html, selectedIds) => {
+  const validateBeforeExport = (html, selectedIds, reportContext = {}) => {
     const validation = validateReportExportWithRegistry(html, selectedIds);
     if (!validation.valid) {
       const missingTitles = validation.missingSelected.map(getCapituloLabel);
       throw new Error(`Os seguintes capítulos selecionados não foram renderizados: ${missingTitles.join(', ')}.`);
     }
-  };
 
+    const editorialValidation = validateReportBeforeExport(reportContext, html, selectedIds);
+    if (!editorialValidation.valid) {
+      throw new Error(`Validação editorial bloqueou a exportação: ${editorialValidation.errors.join(' ')}`);
+    }
+    if (editorialValidation.warnings.length > 0) {
+      console.warn('Alertas editoriais antes da exportação:', editorialValidation.warnings);
+    }
+  };
   const runExport = async (inlinePhotoIds = []) => {
     const normalizedSelectedSections = normalizeSelectedReportChapterIds(secoesSelecionadas);
 
@@ -428,7 +436,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
           toast.info('O relatório ficou abaixo de 200 MB e foi mantido em arquivo único.');
         }
 
-        validateBeforeExport(data.html, normalizedSelectedSections);
+        validateBeforeExport(data.html, normalizedSelectedSections, data.contexto);
 
         setResultado({
           ...data,
@@ -450,7 +458,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
             secoesSelecionadas: [sectionId],
             selectedInlinePhotoIds: inlinePhotoIds,
           });
-          validateBeforeExport(chapterResult.html, [sectionId]);
+          validateBeforeExport(chapterResult.html, [sectionId], chapterResult.contexto);
           const chapterSize = new Blob([chapterResult.html], { type: 'text/html;charset=utf-8' }).size;
           measuredSections.push({
             sectionId,
@@ -507,7 +515,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
             sectionLabels: splitContext.sectionLabels,
             summaryHtml,
           });
-          validateBeforeExport(htmlPart, part.secoes);
+          validateBeforeExport(htmlPart, part.secoes, localPart.contexto);
 
           finalParts.push({
             partNumber,
