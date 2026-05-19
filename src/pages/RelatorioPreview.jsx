@@ -1479,8 +1479,155 @@ function addAnexosToSummary(html) {
   return html.replace('</ol>', `${item}</ol>`);
 }
 
+function normalizeHtmlContentKey(value = '') {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function formatIsoDateForReport(match, year, month, day, hour, minute) {
+  const date = `${day}/${month}/${year}`;
+  if (!hour || !minute) return date;
+  return `${date}, ${hour}h${minute}`;
+}
+
+function cleanVisibleReportText(value = '') {
+  return String(value || '')
+    .replace(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::\d{2})?(?:\.\d+)?Z?/g, formatIsoDateForReport)
+    .replace(/(\d{4})-(\d{2})-(\d{2})/g, (_match, year, month, day) => `${day}/${month}/${year}`)
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '')
+    .replace(/\biaduto das Artes\b/g, 'Viaduto das Artes')
+    .replace(/\bEste relatório consolida o 2 de fevereiro\b/g, 'Este relatório consolida o período de 2 de fevereiro')
+    .replace(/\bAcompanhameto\b/gi, 'Acompanhamento')
+    .replace(/\bdia Da Mulher\b/g, 'Dia da Mulher')
+    .replace(/\bdia nacional de libras\b/gi, 'Dia Nacional da Libras')
+    .replace(/\ba SEBRAE\b/g, 'o Sebrae')
+    .replace(/\bPrestação de contas\b/g, 'prestação de contas')
+    .replace(/\bExecução financeira\b/g, 'execução financeira')
+    .replace(/\bapp\b/g, 'aplicativo')
+    .replace(/\s+([,.;:!?])/g, '$1')
+    .replace(/\s{2,}/g, ' ');
+}
+
+function normalizeFiscalFileName(value = '') {
+  return normalizeHtmlContentKey(value)
+    .replace(/^[a-f0-9]{6,}_/i, '')
+    .replace(/\.(pdf|xml|jpg|jpeg|png|webp)$/i, '')
+    .replace(/\b(documento fiscal|nota fiscal|entradaunica|attachment|abrir arquivo)\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function cleanupTextNodesForPdf(doc) {
+  const walker = doc.createTreeWalker(doc.body || doc, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+
+  nodes.forEach((node) => {
+    const cleaned = cleanVisibleReportText(node.nodeValue);
+    if (cleaned !== node.nodeValue) {
+      node.nodeValue = cleaned;
+    }
+  });
+}
+
+function dedupeTableRowsForPdf(doc) {
+  doc.querySelectorAll('table').forEach((table) => {
+    const seen = new Set();
+    table.querySelectorAll('tbody tr').forEach((row) => {
+      const cells = Array.from(row.cells || []).map((cell) => normalizeHtmlContentKey(cell.textContent));
+      if (cells.length === 0) return;
+
+      const fiscalLike = cells.length >= 8 && /abrir arquivo|documento fiscal|nota fiscal|xml|pdf|jpeg|jpg/.test(cells.join(' '));
+      const key = fiscalLike
+        ? [
+          normalizeFiscalFileName(cells[1] || cells[0]),
+          cells[3] || '',
+          cells[4] || '',
+          cells[5] || '',
+          cells[6] || '',
+        ].join('|')
+        : cells.join('|');
+
+      if (!key.trim()) return;
+      if (seen.has(key)) {
+        row.remove();
+        return;
+      }
+      seen.add(key);
+    });
+  });
+}
+
+function dedupeRepeatedBlocksForPdf(doc) {
+  const seenByParent = new WeakMap();
+  const selectors = [
+    '.premium-activity-card',
+    '.premium-timeline-item',
+    '.premium-report-note',
+    '.premium-photo-index-item',
+    '.premium-meta-card',
+    'li',
+  ];
+
+  selectors.forEach((selector) => {
+    doc.querySelectorAll(selector).forEach((node) => {
+      const parent = node.parentElement;
+      if (!parent) return;
+      let seenKeys = seenByParent.get(parent);
+      if (!seenKeys) {
+        seenKeys = new Set();
+        seenByParent.set(parent, seenKeys);
+      }
+
+      const key = normalizeHtmlContentKey(node.textContent).slice(0, 900);
+      if (key.length < 24) return;
+      if (seenKeys.has(key)) {
+        node.remove();
+        return;
+      }
+      seenKeys.add(key);
+    });
+  });
+
+  doc.querySelectorAll('[data-report-chapter-id], [data-report-chapter-ids]').forEach((section) => {
+    const paragraphs = Array.from(section.querySelectorAll('p'));
+    const seen = new Set();
+    paragraphs.forEach((paragraph) => {
+      const key = normalizeHtmlContentKey(paragraph.textContent);
+      if (key.length < 70) return;
+      if (seen.has(key)) {
+        paragraph.remove();
+        return;
+      }
+      seen.add(key);
+    });
+  });
+}
+
+function cleanupReportHtmlForPdf(html = '') {
+  if (!String(html || '').trim()) return html;
+
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(String(html), 'text/html');
+
+    cleanupTextNodesForPdf(doc);
+    dedupeTableRowsForPdf(doc);
+    dedupeRepeatedBlocksForPdf(doc);
+
+    return `<!doctype html>\n${doc.documentElement.outerHTML}`;
+  } catch (error) {
+    console.warn('Falha ao limpar HTML do relatório antes do PDF:', error);
+    return html;
+  }
+}
+
 function prepareFinalHtml(rawHtml, reports = []) {
-  let finalHtml = stripEditorialMarkers(rawHtml);
+  let finalHtml = cleanupReportHtmlForPdf(stripEditorialMarkers(rawHtml));
 
   finalHtml = addAnexosCss(finalHtml);
   finalHtml = addAnexosToSummary(finalHtml);
@@ -1494,9 +1641,11 @@ function prepareFinalHtml(rawHtml, reports = []) {
   ) {
     finalHtml = finalHtml.replace(
       '</body>',
-      `${anexosHtml}</body>`
+      `${cleanupReportHtmlForPdf(anexosHtml)}</body>`
     );
   }
+
+  finalHtml = cleanupReportHtmlForPdf(finalHtml);
 
   try {
     sessionStorage.setItem(
