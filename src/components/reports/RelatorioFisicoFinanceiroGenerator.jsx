@@ -250,6 +250,7 @@ async function gerarRelatorioDoApp(museu, { premium = false, secoesSelecionadas 
 export default function RelatorioFisicoFinanceiroGenerator() {
   const [museu, setMuseu] = useState('Todos');
   const [loading, setLoading] = useState(false);
+  const [exportProgress, setExportProgress] = useState(null);
   const [resultado, setResultado] = useState(null);
   const [erro, setErro] = useState(null);
   const [modoPremium, setModoPremium] = useState(true);
@@ -287,6 +288,14 @@ export default function RelatorioFisicoFinanceiroGenerator() {
     downloadNamedHtml(html, `relatorio-museus-centro-${Date.now()}.html`);
   };
 
+  const updateProgress = (percent, label, detail = '') => {
+    setExportProgress({
+      percent: Math.max(0, Math.min(100, Math.round(percent))),
+      label,
+      detail,
+    });
+  };
+
   const handleGerar = async () => {
     if (secoesSelecionadas.length === 0) {
       toast.error('Selecione ao menos um capítulo.');
@@ -294,6 +303,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
     }
 
     setLoading(true);
+    updateProgress(4, 'Iniciando geração do relatório', `${secoesSelecionadas.length} capítulos selecionados`);
     setResultado(null);
     setErro(null);
 
@@ -305,6 +315,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
 
       if (!modoPremium) {
         try {
+          updateProgress(12, 'Consultando geração principal', 'Tentando usar a função evoluída do backend');
           const response = await base44.functions.invoke('gerarRelatorioFisicoFinanceiro', {
             museu: museu === 'Todos' ? null : museu,
             formato: 'abrangente',
@@ -325,6 +336,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
       }
 
       if (!data?.html) {
+        updateProgress(28, 'Consolidando dados e capítulos', 'Montando o relatório com dados reais do app');
         const local = await gerarRelatorioDoApp(museu, { premium: modoPremium, secoesSelecionadas });
         data = { html: local.html, contexto: local.contexto };
         fonte = modoPremium ? 'premium_app' : 'frontend_ia';
@@ -333,6 +345,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
       const htmlSize = new Blob([data.html], { type: 'text/html;charset=utf-8' }).size;
 
       if (exportMode === 'single' || htmlSize <= MAX_EXPORT_PART_SIZE_BYTES) {
+        updateProgress(88, 'Finalizando arquivo único', 'Preparando prévia e download');
         if (exportMode === 'split' && htmlSize <= MAX_EXPORT_PART_SIZE_BYTES) {
           toast.info('O relatório ficou abaixo de 200 MB e foi mantido em arquivo único.');
         }
@@ -343,11 +356,15 @@ export default function RelatorioFisicoFinanceiroGenerator() {
           exportMode: 'single',
           htmlSize,
         });
+        updateProgress(100, 'Relatório concluído', 'Arquivo único pronto');
         openPreview(data.html);
       } else {
         const measuredSections = [];
 
-        for (const sectionId of secoesSelecionadas) {
+        for (let index = 0; index < secoesSelecionadas.length; index += 1) {
+          const sectionId = secoesSelecionadas[index];
+          const percent = 30 + ((index + 1) / Math.max(1, secoesSelecionadas.length)) * 28;
+          updateProgress(percent, 'Medindo capítulos para divisão', `${index + 1} de ${secoesSelecionadas.length} capítulos analisados`);
           const chapterResult = await gerarRelatorioDoApp(museu, {
             premium: modoPremium,
             secoesSelecionadas: [sectionId],
@@ -382,6 +399,8 @@ export default function RelatorioFisicoFinanceiroGenerator() {
         for (let index = 0; index < builtParts.length; index += 1) {
           const part = builtParts[index];
           const partNumber = index + 1;
+          const percent = 62 + (partNumber / Math.max(1, totalParts)) * 30;
+          updateProgress(percent, 'Gerando partes do relatório', `${partNumber} de ${totalParts} partes em preparação`);
           if (part.oversizedSingleChapter && part.secoes.length === 1) {
             toast.info(`O capítulo ${getCapituloLabel(part.secoes[0])} excede 200 MB e foi exportado em arquivo próprio para preservar a integridade do PDF.`);
           }
@@ -426,6 +445,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
           htmlSize,
           parts: finalParts,
         });
+        updateProgress(100, 'Relatório concluído', `${finalParts.length} partes prontas para visualização e download`);
         openPreview(finalParts[0]?.html || data.html);
       }
 
@@ -443,6 +463,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
       toast.error('Não foi possível gerar o relatório.');
     } finally {
       setLoading(false);
+      setTimeout(() => setExportProgress(null), 1200);
     }
   };
 
@@ -457,6 +478,30 @@ export default function RelatorioFisicoFinanceiroGenerator() {
           <p className="text-sm text-slate-500">Catálogo-livro institucional com fotos, gráficos, metas, programação e execução financeira.</p>
         </div>
       </div>
+
+      {exportProgress && (
+        <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Progresso da Exportação</p>
+              <div className="mt-1 flex items-end gap-2">
+                <span className="text-4xl font-bold leading-none text-slate-900 tabular-nums">{exportProgress.percent}%</span>
+                <span className="pb-1 text-sm text-slate-500">concluído</span>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-sm font-medium text-slate-800">{exportProgress.label}</p>
+              <p className="text-xs text-slate-500">{exportProgress.detail}</p>
+            </div>
+          </div>
+          <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
+            <div
+              className="h-full rounded-full bg-slate-900 transition-all duration-300"
+              style={{ width: `${exportProgress.percent}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       <Button onClick={() => setDialogAberto(true)} disabled={loading} className="w-full h-12">
         {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
