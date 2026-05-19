@@ -38,11 +38,6 @@ export const TEAM_REGISTRY_BASE = [
     inicio_vinculo_referencia: '15/10/2025',
   },
   {
-    nome: 'Produção Viaduto das Artes',
-    funcao: 'Produção Cultural',
-    area: 'Museus Centro',
-  },
-  {
     nome: 'Caroline Abasse e Braga',
     email: 'design.mc@viadutodasartes.org.br',
     cpf: '08248382621',
@@ -64,12 +59,12 @@ export const TEAM_REGISTRY_BASE = [
   },
   {
     nome: 'Wanda Mucchiut',
-    funcao: 'Equipe Museus Centro',
+    funcao: 'Produção Cultural',
     area: 'Museus Centro',
   },
   {
     nome: 'Isabella Caroline de Souza',
-    funcao: 'Equipe Museus Centro',
+    funcao: 'Produção Cultural',
     area: 'Museus Centro',
   },
   {
@@ -111,16 +106,6 @@ export const TEAM_REGISTRY_BASE = [
     area: 'Museus Centro',
     valor_referencia: 'R$ 2.500,00',
     inicio_vinculo_referencia: 'Março de 2026',
-  },
-  {
-    nome: 'Sílvia Góes Caram',
-    email: 'caram.silvia@yahoo.com',
-    cpf: '033.791.176-25',
-    cnpj: '425.238/001-3',
-    funcao: 'Produtora Executiva',
-    area: 'Museus Centro',
-    valor_referencia: 'R$ 4.200,00',
-    inicio_vinculo_referencia: '15/05/2026',
   },
   {
     nome: 'Cristina Sanches Porto',

@@ -32,23 +32,39 @@ function normalizeRole(value = '') {
   return cleanText(value) || 'Equipe Museus Centro';
 }
 
+function getCanonicalExpedientePerson(nome = '', report = {}) {
+  const normalizedName = normalizeText(nome);
+  const normalizedEmail = normalizeText(report.email || report.user_email || report.autor_email || '');
+
+  if (!normalizedName) return null;
+  if (normalizedName.includes('producao viaduto das artes')) return null;
+  if (normalizedName.includes('silvia goes caram') || normalizedEmail.includes('caram silvia yahoo')) return null;
+
+  if (normalizedName.includes('daniela isis')) return { nome: 'Daniela Isis de Souza Araújo' };
+  if (normalizedName.includes('daniel moreira')) return { nome: 'Daniel Moreira Soares' };
+  if (normalizedName.includes('caroline abasse')) return { nome: 'Caroline Abasse e Braga' };
+  if (normalizedName.includes('ana carolina motta')) return { nome: 'Ana Carolina Motta Montalvão' };
+  if (normalizedName.includes('claraassumpcao') || normalizedName.includes('clara assumpcao')) {
+    return {
+      nome: 'Clara Braga Assumpção',
+      funcao: 'Educadora · Museus Centro',
+    };
+  }
+
+  return { nome: cleanText(nome) };
+}
+
 function buildEquipe(contexto = {}) {
   const reports = Array.isArray(contexto?.relatorios_equipe) ? contexto.relatorios_equipe : [];
   const fromReports = reports.map((report) => {
-    const nome = cleanText(report.autor || report.author_name || report.user_name || report.nome);
-    if (!nome) return null;
-    if (normalizeText(nome).includes('claraassumpcao')) {
-      return {
-        nome: 'Clara Braga Assumpção',
-        funcao: 'Educadora · Museus Centro',
-        detalhes: [],
-      };
-    }
+    const canonical = getCanonicalExpedientePerson(report.autor || report.author_name || report.user_name || report.nome, report);
+    if (!canonical) return null;
+    const nome = canonical.nome;
     const funcao = normalizeRole(report.funcao || report.role || report.cargo);
     const museu = getMuseuLabel(report.museu || report.equipamento || report.setor || 'Museus Centro');
     return {
       nome,
-      funcao: `${funcao} · ${museu}`,
+      funcao: canonical.funcao || `${funcao} · ${museu}`,
       detalhes: [],
     };
   }).filter(Boolean);
