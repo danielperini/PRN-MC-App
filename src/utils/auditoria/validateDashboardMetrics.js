@@ -17,12 +17,14 @@ export function validateDashboardMetrics(metrics = {}) {
     });
   }
 
-  if (metrics.activities?.duplicateActivities?.length > 0) {
+  const duplicateActivities = (metrics.activities?.duplicateActivitiesForAudit || metrics.activities?.duplicateActivities || [])
+    .filter((item) => item?.severity !== 'info');
+  if (duplicateActivities.length > 0) {
     issues.push({
       type: 'DASHBOARD_DUPLICATE_ACTIVITIES',
       severity: 'warning',
-      message: `${metrics.activities.duplicateActivities.length} possível(is) atividade(s) duplicada(s) detectada(s).`,
-      count: metrics.activities.duplicateActivities.length,
+      message: `${duplicateActivities.length} possível(is) atividade(s) duplicada(s) detectada(s).`,
+      count: duplicateActivities.length,
     });
   }
 

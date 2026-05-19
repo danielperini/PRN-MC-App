@@ -1,3 +1,5 @@
+import { getActivityMetaForAudit, getExplicitActivityMeta, shouldRequireMeta } from './activitySemantics';
+
 export function validateMetas({ activities = [], metas = [] } = {}) {
   const issues = [];
   const metaKeys = new Set(
@@ -7,8 +9,9 @@ export function validateMetas({ activities = [], metas = [] } = {}) {
   );
 
   activities.forEach((activity) => {
-    if (activity._isInternal) return;
-    const meta = String(activity._meta || activity.meta || activity.meta_aditivo || activity.meta_relacionada || '').trim();
+    if (!shouldRequireMeta(activity)) return;
+    const explicitMeta = getExplicitActivityMeta(activity);
+    const meta = getActivityMetaForAudit(activity);
     if (!meta) {
       issues.push({
         type: 'ACTIVITY_WITHOUT_META',
@@ -19,7 +22,7 @@ export function validateMetas({ activities = [], metas = [] } = {}) {
       return;
     }
 
-    if (metaKeys.size && !metaKeys.has(meta.toLowerCase())) {
+    if (explicitMeta && metaKeys.size && !metaKeys.has(meta.toLowerCase())) {
       issues.push({
         type: 'ACTIVITY_META_NOT_FOUND',
         severity: 'info',

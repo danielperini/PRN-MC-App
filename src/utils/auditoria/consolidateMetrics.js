@@ -9,6 +9,7 @@ import { validateProgramacao } from './validateProgramacao';
 import { validateMetas } from './validateMetas';
 import { validateRubricas } from './validateRubricas';
 import { validateDashboardMetrics } from './validateDashboardMetrics';
+import { shouldEmitDuplicateActivityIssue } from './activitySemantics';
 import { validateExceptionalRubricas } from '@/utils/finance/validateExceptionalRubricas';
 import { consolidatePresenceAudience } from '@/utils/presenca/presenceMetrics';
 
@@ -46,6 +47,48 @@ function groupActivitiesByMuseum(activities = []) {
   return Object.values(map).sort((a, b) => a.museu.localeCompare(b.museu));
 }
 
+function buildDuplicateActivityIssues(duplicates = []) {
+  const seen = new Set();
+  const items = (Array.isArray(duplicates) ? duplicates : [])
+    .filter(shouldEmitDuplicateActivityIssue)
+    .map((item) => {
+      const entityId = item.duplicate?.id || item.duplicate?._sourceId || item.key;
+      const title = item.duplicate?._title || item.kept?._title || item.key;
+      const key = [entityId, title].filter(Boolean).join('|');
+      if (seen.has(key)) return null;
+      seen.add(key);
+
+      return { entityId, title };
+    })
+    .filter(Boolean);
+
+  if (!items.length) return [];
+
+  return [{
+    type: 'DUPLICATE_ACTIVITY',
+    severity: 'info',
+    message: `${items.length} possível(is) duplicidade(s) pública(s) foram consolidadas pela auditoria para evitar repetição no relatório.`,
+    count: items.length,
+    entityId: 'duplicate-activities-summary',
+    sampleIds: items.slice(0, 20).map((item) => item.entityId).filter(Boolean),
+    sampleTitles: items.slice(0, 8).map((item) => item.title).filter(Boolean),
+  }];
+}
+
+function buildOrphanPhotoIssues(orphanPhotos = []) {
+  const photos = Array.isArray(orphanPhotos) ? orphanPhotos : [];
+  if (!photos.length) return [];
+
+  return [{
+    type: 'PHOTO_WITHOUT_LINK',
+    severity: 'info',
+    message: `${photos.length} foto(s) sem vínculo claro com atividade foram agrupadas para revisão na galeria final.`,
+    count: photos.length,
+    entityId: 'orphan-photos-summary',
+    sampleIds: photos.slice(0, 20).map((item) => item.id || item.nome || item.name).filter(Boolean),
+  }];
+}
+
 export function consolidateMetrics(datasets = {}, options = {}) {
   const filter = options.filter || buildTemporalFilter(options.period || {});
   const reports = withReportAuditFields(datasets.reports || []);
@@ -71,6 +114,8 @@ export function consolidateMetrics(datasets = {}, options = {}) {
   const metaValidation = validateMetas({ activities: activities.activities, metas });
   const rubricaValidation = validateRubricas(rubricas);
   const exceptionalRubricaValidation = validateExceptionalRubricas(rubricas);
+  const duplicateActivityIssues = buildDuplicateActivityIssues(activities.duplicateActivities);
+  const orphanPhotoIssues = buildOrphanPhotoIssues(gallery.orphanPhotos);
 
   const preliminary = {
     period: filter,
@@ -86,6 +131,7 @@ export function consolidateMetrics(datasets = {}, options = {}) {
       semMeta: activities.activitiesWithoutMeta.length,
       items: activities.activities,
       duplicateActivities: activities.duplicateActivities,
+      duplicateActivitiesForAudit: duplicateActivityIssues,
       consolidatedAudienceGroups: activities.consolidatedAudienceGroups,
       byMonth: groupActivitiesByMonth(activities.activities),
       byMuseum: groupActivitiesByMuseum(activities.activities),
@@ -105,24 +151,14 @@ export function consolidateMetrics(datasets = {}, options = {}) {
     ...exceptionalRubricaValidation.issues,
     ...financeiro.inconsistencies,
     ...dashboardValidation.issues,
-    ...activities.duplicateActivities.map((item) => ({
-      type: 'DUPLICATE_ACTIVITY',
-      severity: 'warning',
-      message: `Possível duplicidade de atividade: ${item.duplicate?._title || item.key}`,
-      entityId: item.duplicate?.id || item.duplicate?._sourceId,
-    })),
+    ...duplicateActivityIssues,
     ...gallery.duplicatePhotos.map((item) => ({
       type: 'DUPLICATE_PHOTO',
       severity: 'info',
       message: `Foto possivelmente duplicada: ${item.duplicate?.nome || item.duplicate?.name || item.key}`,
       entityId: item.duplicate?.id,
     })),
-    ...gallery.orphanPhotos.map((item) => ({
-      type: 'PHOTO_WITHOUT_LINK',
-      severity: 'info',
-      message: `Foto sem vínculo claro com atividade: ${item.nome || item.name || item.id}`,
-      entityId: item.id,
-    })),
+    ...orphanPhotoIssues,
   ];
 
   const errors = issues.filter((item) => item.severity === 'error').length;

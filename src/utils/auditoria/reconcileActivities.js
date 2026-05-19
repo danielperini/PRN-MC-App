@@ -1,6 +1,7 @@
 import { getMonthKey, getReportReferenceDate } from './temporalFilters';
 import { getActivityDate, getActivityIdentity, getActivityTitle, normalizeMuseu } from './semanticActivityMatcher';
 import { applyMonthlyConsolidatedAudienceRule, deduplicateAudienceRecords, getActivityAudience, isInternalActivity } from './deduplicateAudience';
+import { classifyAuditActivityNature, getActivityMetaForAudit, isOperationalActivityForAudit, isPublicActivityForAudit, shouldRequireMeta } from './activitySemantics';
 
 export const APPROVED_REPORT_STATUSES = new Set([
   'APPROVED',
@@ -26,6 +27,8 @@ export function extractReportActivities(report = {}) {
   return activities.map((activity, index) => {
     const date = getActivityDate(activity, report);
     const museu = normalizeMuseu(activity.museu || activity.centro_custo || report.museu || report.museu_secundario);
+    const activityNature = classifyAuditActivityNature(activity);
+    const internal = isInternalActivity(activity) || isOperationalActivityForAudit({ ...activity, _activityNature: activityNature });
     return {
       ...activity,
       _source: 'Report',
@@ -41,8 +44,9 @@ export function extractReportActivities(report = {}) {
       _museu: museu,
       _auditKey: getActivityIdentity(activity, report),
       _publico: getActivityAudience(activity),
-      _isInternal: isInternalActivity(activity),
-      _meta: activity.meta || activity.meta_aditivo || activity.meta_relacionada || activity.meta_id || '',
+      _isInternal: internal,
+      _activityNature: activityNature,
+      _meta: getActivityMetaForAudit(activity),
     };
   });
 }
@@ -68,8 +72,8 @@ export function reconcileActivities(reports = [], programacao = [], filter = nul
     programacaoAtiva,
     duplicateActivities: duplicates,
     consolidatedAudienceGroups: consolidatedGroups,
-    publicActivities: activities.filter((activity) => !activity._isInternal),
+    publicActivities: activities.filter((activity) => isPublicActivityForAudit(activity)),
     internalActivities: activities.filter((activity) => activity._isInternal),
-    activitiesWithoutMeta: activities.filter((activity) => !activity._meta && !activity._isInternal),
+    activitiesWithoutMeta: activities.filter((activity) => shouldRequireMeta(activity) && !activity._meta),
   };
 }
