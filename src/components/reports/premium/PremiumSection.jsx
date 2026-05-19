@@ -10,11 +10,24 @@ export default function PremiumSection({
   children,
   tone = 'light',
   breakBefore = false,
+  chapterId,
+  chapterIds,
+  chapterTitle,
 }) {
   const paragraphs = splitParagraphs(text, 8);
+  const normalizedChapterIds = Array.isArray(chapterIds)
+    ? chapterIds.filter(Boolean)
+    : chapterId
+      ? [chapterId]
+      : [];
 
   return (
-    <section className={`premium-section premium-section-${tone} ${breakBefore ? 'premium-page-break' : ''}`}>
+    <section
+      className={`premium-section premium-section-${tone} ${breakBefore ? 'premium-page-break' : ''}`}
+      data-report-chapter-id={chapterId || normalizedChapterIds[0] || undefined}
+      data-report-chapter-ids={normalizedChapterIds.join(' ') || undefined}
+      data-report-chapter-title={chapterTitle || title || undefined}
+    >
       <PremiumInternalPageHeader />
 
       <div className="premium-section-heading">

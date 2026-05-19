@@ -467,6 +467,20 @@ function ChapterMethodologyPanel({ chapterId, contexto = {}, evidence = [] }) {
   );
 }
 
+function EmptyChapterNotice({ chapterTitle }) {
+  return (
+    <div className="premium-method-grid">
+      <article className="premium-method-card">
+        <strong>Limitação dos dados</strong>
+        <p>
+          Não foram localizados registros consolidados para este capítulo no período selecionado.
+          A ausência de dados é apresentada para preservar a rastreabilidade do relatório e evitar preenchimento artificial de informações.
+        </p>
+      </article>
+    </div>
+  );
+}
+
 function composeIntro(textos = {}, contexto = {}) {
   const blocked = [
     'este relatório cobre o período',
@@ -1262,10 +1276,11 @@ function MonthlyAgendaSection({ contexto }) {
     };
   });
 
-  if (unique.length === 0) return null;
-
   return (
     <PremiumSection
+      chapterId="agenda_programacao"
+      chapterIds={['agenda_programacao']}
+      chapterTitle="Agenda de programação"
       breakBefore
       eyebrow="Agenda Museus Centro no período"
       title="Agenda detalhada do período"
@@ -1277,9 +1292,10 @@ function MonthlyAgendaSection({ contexto }) {
         contexto={contexto}
         evidence={['programação consolidada', 'relatórios aprovados', 'fotos selecionadas para atividade', 'metadados de público e meta']}
       />
-      <div className="premium-month-grid">
-        {unique.map((item, index) => (
-          <article className="premium-month-card" key={item.id || `${item.titulo}-${index}`}>
+      {unique.length === 0 ? <EmptyChapterNotice chapterTitle="Agenda de programação" /> : (
+        <div className="premium-month-grid">
+          {unique.map((item, index) => (
+            <article className="premium-month-card" key={item.id || `${item.titulo}-${index}`}>
             <ActivityMiniPhotos activity={item} />
             {item.consolidatedCount > 1 ? <span className="agenda-consolidation-badge">{fmtInt(item.consolidatedCount)} registros consolidados</span> : null}
             <header className="premium-card-header">
@@ -1326,19 +1342,22 @@ function MonthlyAgendaSection({ contexto }) {
               <span><strong>Indicador</strong>{item.isCommunicationCard ? 'documentação institucional' : item.publicoTipo === 'estimado' ? 'público estimado' : 'público registrado'}</span>
             </footer>
             <EvidenceLinks links={item.evidenciaLinks} />
-          </article>
-        ))}
-      </div>
+            </article>
+          ))}
+        </div>
+      )}
     </PremiumSection>
   );
 }
 
 function ReportsArchiveSection({ contexto }) {
   const reports = Array.isArray(contexto?.relatorios_equipe) ? contexto.relatorios_equipe : [];
-  if (reports.length === 0) return null;
 
   return (
     <PremiumSection
+      chapterId="relatorios_completos"
+      chapterIds={['relatorios_completos']}
+      chapterTitle="Relatórios integrais das equipes"
       breakBefore
       eyebrow="Relatórios da equipe"
       title="Fontes internas consolidadas"
@@ -1350,16 +1369,18 @@ function ReportsArchiveSection({ contexto }) {
         contexto={contexto}
         evidence={['relatórios aprovados', 'autoria', 'museu', 'mês', 'trechos narrativos aprovados']}
       />
-      <div className="premium-report-archive">
-        {reports.slice(0, 60).map((report, index) => (
-          <article className="premium-report-note" key={report.id || index}>
-            <strong>{report.autor || report.author_name || 'Equipe Museus Centro'}</strong>
-            <span>{[report.funcao, report.museu, report.mes].filter(Boolean).join(' / ')}</span>
-            <span>{fmtInt(report.atividades_count)} atividades · público {fmtInt(report.publico)}</span>
-            <small>{sanitizeReportText(uniqueParagraphs([report.resumo_executivo, report.resumo_periodo, report.pontos_positivos].filter(Boolean).join('\n\n'), 1, 40)[0] || 'Relatório aprovado usado como fonte do período.')}</small>
-          </article>
-        ))}
-      </div>
+      {reports.length === 0 ? <EmptyChapterNotice chapterTitle="Relatórios integrais das equipes" /> : (
+        <div className="premium-report-archive">
+          {reports.slice(0, 60).map((report, index) => (
+            <article className="premium-report-note" key={report.id || index}>
+              <strong>{report.autor || report.author_name || 'Equipe Museus Centro'}</strong>
+              <span>{[report.funcao, report.museu, report.mes].filter(Boolean).join(' / ')}</span>
+              <span>{fmtInt(report.atividades_count)} atividades · público {fmtInt(report.publico)}</span>
+              <small>{sanitizeReportText(uniqueParagraphs([report.resumo_executivo, report.resumo_periodo, report.pontos_positivos].filter(Boolean).join('\n\n'), 1, 40)[0] || 'Relatório aprovado usado como fonte do período.')}</small>
+            </article>
+          ))}
+        </div>
+      )}
     </PremiumSection>
   );
 }
@@ -1624,10 +1645,11 @@ function PhotoEvidenceDenseSection({ contexto }) {
     )
   );
 
-  if (photos.length === 0) return null;
-
   return (
     <PremiumSection
+      chapterId="galeria_evidencias"
+      chapterIds={['galeria_evidencias']}
+      chapterTitle="Galeria e evidências"
       breakBefore
       eyebrow="Galeria e evidências"
       title="Fotos, créditos e localização"
@@ -1639,7 +1661,7 @@ function PhotoEvidenceDenseSection({ contexto }) {
         contexto={contexto}
         evidence={['fotos não selecionadas para atividades', 'metadados de crédito', 'legenda', 'localização e origem do arquivo']}
       />
-      {groups.map((museumGroup) => (
+      {photos.length === 0 ? <EmptyChapterNotice chapterTitle="Galeria e evidências" /> : groups.map((museumGroup) => (
         <section key={museumGroup.museu} className="premium-purchase-section">
           <h3>{sanitizeReportText(museumGroup.museu)}</h3>
           {museumGroup.months.map((monthGroup) => (
@@ -2196,6 +2218,11 @@ function hasSection(selected = [], ...ids) {
   return ids.some((id) => selected.includes(id));
 }
 
+function selectedChapterIds(selected = [], ids = []) {
+  if (!Array.isArray(selected) || selected.length === 0) return ids.filter(Boolean);
+  return ids.filter((id) => selected.includes(id));
+}
+
 export default function PremiumReportLayout({ contexto: rawContexto = {}, textos = {}, filtros = {}, secoesSelecionadas = [] }) {
   const contexto = buildEditorialReportContext(rawContexto, filtros, secoesSelecionadas);
 
@@ -2240,7 +2267,9 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
         <PremiumMetasPanel contexto={contexto} />
       </PremiumSection>}
 
-      {hasSection(secoesSelecionadas, 'programacao', 'agenda_programacao', 'timeline_premium') && hasRealTimelineData(contexto) && <PremiumSection
+      {hasSection(secoesSelecionadas, 'programacao', 'timeline_premium') && <PremiumSection
+        chapterIds={selectedChapterIds(secoesSelecionadas, ['programacao', 'timeline_premium'])}
+        chapterTitle="Programação"
         breakBefore
         eyebrow="Agenda Museus Centro no período"
         title="Programação e atividades do período"
@@ -2252,12 +2281,12 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
           contexto={contexto}
           evidence={['programação do app', 'relatórios aprovados', 'atividades consolidadas']}
         />
-        <PremiumTimeline contexto={contexto} />
+        {hasRealTimelineData(contexto) ? <PremiumTimeline contexto={contexto} /> : <EmptyChapterNotice chapterTitle="Programação" />}
       </PremiumSection>}
 
-      {hasSection(secoesSelecionadas, 'agenda_programacao', 'programacao') && <MonthlyAgendaSection contexto={contexto} />}
+      {hasSection(secoesSelecionadas, 'agenda_programacao') && <MonthlyAgendaSection contexto={contexto} />}
 
-      {hasSection(secoesSelecionadas, 'programacao', 'atividades_museu', 'relatorios_completos') && <StrategicRecords contexto={contexto} />}
+      {hasSection(secoesSelecionadas, 'programacao', 'atividades_museu') && <StrategicRecords contexto={contexto} />}
 
       {hasSection(secoesSelecionadas, 'atividades_museu', 'museus_premium') && hasRealMuseumData(contexto) && <PremiumMuseumSection contexto={contexto} />}
 
@@ -2265,11 +2294,13 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
 
       {hasSection(secoesSelecionadas, 'comunicacao', 'comunicacao_premium') && <PremiumCommunicationSection contexto={contexto} textos={textos} />}
 
-      {hasSection(secoesSelecionadas, 'galeria_evidencias', 'galeria_premium') && hasRealPhotos(contexto) && <PhotoEvidenceDenseSection contexto={contexto} />}
+      {hasSection(secoesSelecionadas, 'galeria_evidencias') && <PhotoEvidenceDenseSection contexto={contexto} />}
 
       {hasSection(secoesSelecionadas, 'relatorios_completos') && <ReportsArchiveSection contexto={contexto} />}
 
-      {hasSection(secoesSelecionadas, 'financeiro', 'rubricas', 'prestacao') && (hasRealRubricas(contexto) || hasRealCompras(contexto)) && <PremiumSection
+      {hasSection(secoesSelecionadas, 'financeiro', 'rubricas', 'prestacao') && <PremiumSection
+        chapterIds={selectedChapterIds(secoesSelecionadas, ['financeiro', 'rubricas', 'prestacao'])}
+        chapterTitle="Execução financeira"
         breakBefore
         eyebrow="Metas, orçamento e prestação de contas"
         title="Orçamento, rubricas e rastreabilidade"
@@ -2281,8 +2312,12 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
           contexto={contexto}
           evidence={['rubricas', 'solicitações financeiras', 'pagamentos', 'documentos fiscais pareados']}
         />
-        <RubricasTable contexto={contexto} />
-        <ComprasTable contexto={contexto} />
+        {(hasRealRubricas(contexto) || hasRealCompras(contexto)) ? (
+          <>
+            <RubricasTable contexto={contexto} />
+            <ComprasTable contexto={contexto} />
+          </>
+        ) : <EmptyChapterNotice chapterTitle="Execução financeira" />}
       </PremiumSection>}
 
       {hasSection(secoesSelecionadas, 'notas-fiscais-contratos') && <DocumentsChapterSection contexto={contexto} />}

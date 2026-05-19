@@ -104,12 +104,31 @@ function stripHtml(value = '') {
     .trim();
 }
 
+export function getRenderedChapterIdsFromHtml(html = '') {
+  const ids = new Set();
+  const source = String(html || '');
+
+  source.replace(/data-report-chapter-id="([^"]+)"/g, (_, id) => {
+    if (id) ids.add(id);
+    return '';
+  });
+
+  source.replace(/data-report-chapter-ids="([^"]+)"/g, (_, value) => {
+    String(value || '').split(/\s+/).filter(Boolean).forEach((id) => ids.add(id));
+    return '';
+  });
+
+  return ids;
+}
+
 export function validateReportExportWithRegistry(html = '', selectedIds = []) {
   const text = stripHtml(html);
+  const renderedIds = getRenderedChapterIdsFromHtml(html);
   const normalizedIds = normalizeSelectedReportChapterIds(selectedIds);
   const missingSelected = normalizedIds.filter((chapterId) => {
     const chapter = getReportChapterById(chapterId);
     if (!chapter || chapter.validatePresence === false) return false;
+    if (renderedIds.has(chapterId)) return false;
     const title = getReportChapterValidationTitle(chapterId);
     return title && !text.includes(title);
   });
@@ -118,5 +137,6 @@ export function validateReportExportWithRegistry(html = '', selectedIds = []) {
     valid: missingSelected.length === 0,
     missingSelected,
     normalizedIds,
+    renderedIds: Array.from(renderedIds),
   };
 }
