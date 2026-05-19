@@ -32,6 +32,10 @@ const CATALOG_CSS = `
   * { box-sizing: border-box; }
   body { margin: 0; background: #e7e3dc; color: #171717; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
   .premium-report { background: #f7f3eb; color: #171717; }
+  .report-pdf-institutional-header { width: 100%; display: flex; align-items: flex-start; box-sizing: border-box; padding-top: 32px; padding-left: 110px; padding-right: 70px; margin-bottom: 90px; page-break-inside: avoid; break-inside: avoid; background: #ffffff; }
+  .report-pdf-institutional-logo-wrap { width: 80px; height: 80px; flex: 0 0 80px; }
+  .report-pdf-institutional-logo { width: 80px; height: 80px; display: block; object-fit: contain; }
+  .report-pdf-institutional-text { flex: 1; margin-left: 150px; padding-top: 18px; text-align: center; font-size: 12px; font-weight: 700; line-height: 1.35; color: #777777; font-family: Arial, Helvetica, sans-serif; }
   .premium-cover { min-height: 297mm; position: relative; overflow: hidden; display: flex; align-items: flex-end; break-after: page; background: #161616; color: #fff; }
   .premium-cover img, .premium-cover-fallback { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
   .premium-cover-fallback { background: linear-gradient(135deg, #111 0%, #39352d 48%, #6e5c45 100%); }
@@ -1101,6 +1105,132 @@ function ReportsArchiveSection({ contexto }) {
   );
 }
 
+function ReportPdfInstitutionalHeader() {
+  return (
+    <div className="report-pdf-institutional-header">
+      <div className="report-pdf-institutional-logo-wrap">
+        <img
+          src="/viaduto-logo.png"
+          alt="Viaduto das Artes"
+          className="report-pdf-institutional-logo"
+        />
+      </div>
+
+      <div className="report-pdf-institutional-text">
+        <div>Viaduto das Artes – Fundado em 16 de junho de 2015</div>
+        <div>Av. Olinto Meireles, 45 – Barreiro – Belo Horizonte/MG</div>
+        <div>CEP 30640-010 – E-mail: viadutodasartes@gmail.com</div>
+      </div>
+    </div>
+  );
+}
+
+const MONTH_ORDER = {
+  janeiro: 1,
+  fevereiro: 2,
+  marco: 3,
+  março: 3,
+  abril: 4,
+  maio: 5,
+  junho: 6,
+  julho: 7,
+  agosto: 8,
+  setembro: 9,
+  outubro: 10,
+  novembro: 11,
+  dezembro: 12,
+};
+
+function monthSortValue(value = '') {
+  const key = normalizeText(value);
+  return MONTH_ORDER[key] || 99;
+}
+
+function photoActivityLabel(photo = {}) {
+  const explicit = sanitizeReportText(photo.atividade || photo.atividade_nome || photo.titulo_atividade || '');
+  if (explicit && normalizeText(explicit) !== 'atividade vinculada ao app') return explicit;
+
+  const caption = sanitizeReportText(photo.legenda || photo.caption || '');
+  const normalizedCaption = normalizeText(caption);
+  if (caption && !normalizedCaption.includes('whatsapp image') && !normalizedCaption.includes('registro fotografico')) {
+    return caption.replace(/^Registro da atividade\s+/i, '').replace(/\.$/, '');
+  }
+
+  return '';
+}
+
+function photoCaptionForActivity(photo = {}, activityTitle = '') {
+  const title = sanitizeReportText(activityTitle);
+  const museu = sanitizeReportText(photo.museu || 'Museus Centro');
+  const mes = sanitizeReportText(photo.mes || '');
+  const location = photo.localizacao?.label || resolveMuseumLocation(photo);
+  const parts = [title, museu, mes].filter(Boolean).join(' · ');
+  return sanitizeReportText(`Registro da atividade ${parts}. Localização: ${location}.`);
+}
+
+function groupPhotosByMonthMuseumActivity(contexto) {
+  const photos = extractPhotos(contexto, 240)
+    .filter((photo) => photo?.link || photo?.url)
+    .map((photo) => ({
+      ...photo,
+      activityTitle: photoActivityLabel(photo),
+      monthTitle: sanitizeReportText(photo.mes || 'Período'),
+      museumTitle: sanitizeReportText(photo.museu || 'Museus Centro'),
+    }))
+    .filter((photo) => photo.activityTitle);
+
+  const grouped = new Map();
+  photos.forEach((photo) => {
+    const key = [
+      normalizeText(photo.monthTitle),
+      normalizeText(photo.museumTitle),
+      normalizeText(photo.activityTitle),
+    ].join('|');
+
+    if (!grouped.has(key)) {
+      grouped.set(key, {
+        mes: photo.monthTitle,
+        museu: photo.museumTitle,
+        atividade: photo.activityTitle,
+        photos: [],
+        seen: new Set(),
+      });
+    }
+
+    const group = grouped.get(key);
+    const photoKey = photo.link || photo.url || photo.fileName;
+    if (photoKey && !group.seen.has(photoKey) && group.photos.length < 4) {
+      group.seen.add(photoKey);
+      group.photos.push(photo);
+    }
+  });
+
+  const activityGroups = Array.from(grouped.values())
+    .filter((group) => group.photos.length > 0)
+    .map(({ seen, ...group }) => group)
+    .sort((a, b) => (
+      monthSortValue(a.mes) - monthSortValue(b.mes) ||
+      a.museu.localeCompare(b.museu, 'pt-BR') ||
+      a.atividade.localeCompare(b.atividade, 'pt-BR')
+    ));
+
+  const months = new Map();
+  activityGroups.forEach((group) => {
+    if (!months.has(group.mes)) months.set(group.mes, new Map());
+    const museums = months.get(group.mes);
+    if (!museums.has(group.museu)) museums.set(group.museu, []);
+    museums.get(group.museu).push(group);
+  });
+
+  return Array.from(months.entries()).map(([mes, museums]) => ({
+    mes,
+    museums: Array.from(museums.entries()).map(([museu, activities]) => ({
+      museu,
+      activities,
+    })),
+  }));
+}
+
 function PhotoEvidenceDenseSection({ contexto }) {
   const photos = Array.from(
     new Map(
@@ -1616,6 +1746,8 @@ function hasSection(selected = [], ...ids) {
 export default function PremiumReportLayout({ contexto = {}, textos = {}, filtros = {}, secoesSelecionadas = [] }) {
   return (
     <main className="premium-report">
+      <ReportPdfInstitutionalHeader />
+
       {hasSection(secoesSelecionadas, 'capa') && <PremiumOpeningCover contexto={contexto} filtros={filtros} />}
 
       {hasSection(secoesSelecionadas, 'expediente') && <PremiumExpedienteSection contexto={contexto} />}

@@ -104,6 +104,21 @@ function paragraphize(text) {
   return paragrafos.map((p) => `<p>${escapeHtml(p)}</p>`).join('');
 }
 
+function renderReportPdfInstitutionalHeader() {
+  return `
+    <div class="report-pdf-institutional-header">
+      <div class="report-pdf-institutional-logo-wrap">
+        <img src="/viaduto-logo.png" alt="Viaduto das Artes" class="report-pdf-institutional-logo" />
+      </div>
+      <div class="report-pdf-institutional-text">
+        <div>Viaduto das Artes – Fundado em 16 de junho de 2015</div>
+        <div>Av. Olinto Meireles, 45 – Barreiro – Belo Horizonte/MG</div>
+        <div>CEP 30640-010 – E-mail: viadutodasartes@gmail.com</div>
+      </div>
+    </div>
+  `;
+}
+
 function legacyHasSection(secoesSelecionadas, id) {
   return Array.isArray(secoesSelecionadas) && secoesSelecionadas.includes(id);
 }
@@ -817,6 +832,45 @@ export function montarHtmlRelatorioFisicoFinanceiro({
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
     padding: 24px 16px 48px;
+  }
+
+  .report-pdf-institutional-header {
+    width: 100%;
+    display: flex;
+    align-items: flex-start;
+    box-sizing: border-box;
+    padding-top: 32px;
+    padding-left: 110px;
+    padding-right: 70px;
+    margin-bottom: 90px;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    background: #ffffff;
+  }
+
+  .report-pdf-institutional-logo-wrap {
+    width: 80px;
+    height: 80px;
+    flex: 0 0 80px;
+  }
+
+  .report-pdf-institutional-logo {
+    width: 80px;
+    height: 80px;
+    display: block;
+    object-fit: contain;
+  }
+
+  .report-pdf-institutional-text {
+    flex: 1;
+    margin-left: 150px;
+    padding-top: 18px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.35;
+    color: #777777;
+    font-family: Arial, Helvetica, sans-serif;
   }
 
   /* ============================
@@ -1671,6 +1725,7 @@ export function montarHtmlRelatorioFisicoFinanceiro({
      FORMATO ANTERIOR / RELATORIO ABRANGENTE
   ============================= */
   @page {
+    size: A4;
     margin: 2.5cm 2cm;
     @bottom-center {
       content: counter(page) ' / ' counter(pages);
@@ -2170,6 +2225,8 @@ export function montarHtmlRelatorioFisicoFinanceiro({
     <button class="btn btn-secondary" onclick="window.print()">Salvar como PDF</button>
     <button class="btn btn-primary" onclick="window.print()">Imprimir</button>
   </div>
+
+  ${renderReportPdfInstitutionalHeader()}
 
   ${legacyHasSection(secoesSelecionadas, 'capa') ? `
     <div class="capa">
