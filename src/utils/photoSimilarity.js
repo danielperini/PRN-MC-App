@@ -312,6 +312,10 @@ export function dedupePhotosByTechnicalIdentity(photos = []) {
 export const dedupePhotosByImageIdentity = dedupePhotosByTechnicalIdentity;
 
 export async function dedupePhotosByVisualSimilarity(photos = [], options = {}) {
+  if (options.enableVisual !== true) {
+    return dedupePhotosByTechnicalIdentity(photos);
+  }
+
   const threshold = options.threshold || DEFAULT_SIMILARITY_THRESHOLD;
   const technicalDeduped = dedupePhotosByTechnicalIdentity(photos);
   const processed = [];
@@ -371,5 +375,98 @@ export async function dedupePhotosByVisualSimilarity(photos = [], options = {}) 
     totalOriginal: Array.isArray(photos) ? photos.length : 0,
     totalFinal: result.length,
     totalRemoved: (Array.isArray(photos) ? photos.length : 0) - result.length,
+  };
+}
+
+function waitForIdleFrame() {
+  return new Promise((resolve) => {
+    if (typeof requestIdleCallback === 'function') {
+      requestIdleCallback(() => resolve(), { timeout: 200 });
+      return;
+    }
+
+    setTimeout(resolve, 0);
+  });
+}
+
+export async function analyzePhotoSimilarityBatch(photos = [], options = {}) {
+  const threshold = options.threshold || DEFAULT_SIMILARITY_THRESHOLD;
+  const batchSize = Math.min(Math.max(Number(options.batchSize) || 10, 1), 12);
+  const maxPhotos = Math.min(Number(options.maxPhotos) || 50, 50);
+  const candidates = dedupePhotosByTechnicalIdentity(photos).slice(0, maxPhotos);
+  const processed = [];
+  const result = [];
+  const removed = [];
+  const errors = [];
+  const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null;
+
+  for (let index = 0; index < candidates.length; index += batchSize) {
+    const batch = candidates.slice(index, index + batchSize);
+    const hashedBatch = await Promise.all(batch.map(async (photo) => {
+      try {
+        const visualHash = await createPerceptualHash(photo);
+        return { ...photo, visualHash };
+      } catch (error) {
+        errors.push({
+          id: photo?.id || photo?.sourceId,
+          message: error?.message || 'Hash visual indisponivel',
+        });
+        return { ...photo, visualHash: null, visualHashError: error?.message || 'Hash visual indisponivel' };
+      }
+    }));
+
+    processed.push(...hashedBatch);
+    onProgress?.({
+      processed: Math.min(index + batch.length, candidates.length),
+      total: candidates.length,
+      percent: Math.round((Math.min(index + batch.length, candidates.length) / Math.max(1, candidates.length)) * 100),
+    });
+
+    await waitForIdleFrame();
+  }
+
+  for (const photo of processed) {
+    let merged = false;
+
+    for (let index = 0; index < result.length; index += 1) {
+      const existing = result[index];
+      if (!photo.visualHash || !existing.visualHash) continue;
+
+      const similarity = compareHashes(photo.visualHash, existing.visualHash);
+      if (similarity < threshold) continue;
+
+      const best = chooseBestPhoto(existing, photo);
+      const other = best === existing ? photo : existing;
+
+      result[index] = {
+        ...mergePhotoMetadata(best, other),
+        visualHash: best.visualHash || existing.visualHash || photo.visualHash,
+        visualSimilarity: similarity,
+        visualDuplicate: true,
+      };
+
+      removed.push({
+        keptId: result[index].id || result[index].sourceId,
+        removedId: other.id || other.sourceId,
+        keptIdentity: getPhotoIdentity(result[index]),
+        removedIdentity: getPhotoIdentity(other),
+        similarity,
+        reason: 'similaridade_visual',
+      });
+
+      merged = true;
+      break;
+    }
+
+    if (!merged) result.push(photo);
+  }
+
+  return {
+    photos: result,
+    removed,
+    errors,
+    totalOriginal: candidates.length,
+    totalFinal: result.length,
+    totalRemoved: removed.length,
   };
 }

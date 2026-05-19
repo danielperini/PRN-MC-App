@@ -21,14 +21,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toastMessages } from '@/lib/toastMessages';
 import {
+  analyzePhotoSimilarityBatch,
   dedupePhotosByTechnicalIdentity,
-  dedupePhotosByVisualSimilarity,
   getPhotoIdentity,
 } from '@/utils/photoSimilarity';
 
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'heic', 'webp', 'gif', 'bmp', 'avif'];
 const INITIAL_VISIBLE_IMAGES = 48;
 const VISIBLE_IMAGES_STEP = 48;
+const VISUAL_ANALYSIS_MAX_PHOTOS = 50;
+const VISUAL_ANALYSIS_BATCH_SIZE = 10;
 
 const MUSEUM_SECTIONS = {
   MHAB: {
@@ -598,6 +600,10 @@ function mapPhoto(item, activityMaps, report = null, prefix = 'media') {
     geoCoordinates: metadataCoordinates || section.coordinates,
     metadataDate,
     linkedActivity,
+    ocultar_na_galeria: item.ocultar_na_galeria,
+    visual_similarity_status: item.visual_similarity_status,
+    visual_similarity_score: item.visual_similarity_score,
+    visual_similarity_kept_id: item.visual_similarity_kept_id,
   };
   return {
     ...mapped,
@@ -665,6 +671,10 @@ function GaleriaFotosInner() {
   const [duplicateAnalysis, setDuplicateAnalysis] = useState(null);
   const [duplicateReviewOpen, setDuplicateReviewOpen] = useState(false);
   const [isAnalyzingDuplicates, setIsAnalyzingDuplicates] = useState(false);
+  const [isAnalyzingVisualSimilarity, setIsAnalyzingVisualSimilarity] = useState(false);
+  const [visualAnalysisProgress, setVisualAnalysisProgress] = useState(null);
+  const [visualDuplicateGroups, setVisualDuplicateGroups] = useState([]);
+  const [visualHiddenIds, setVisualHiddenIds] = useState(new Set());
   const [editingImage, setEditingImage] = useState(null);
   const [editForm, setEditForm] = useState({ legenda: '', museu: '', localizacao: '' });
   const [isSavingEdit, setIsSavingEdit] = useState(false);
@@ -676,7 +686,7 @@ function GaleriaFotosInner() {
     isFetching,
     refetch
   } = useQuery({
-    queryKey: ['galeria-fotos-v10-visual-dedup', currentUser?.email],
+    queryKey: ['galeria-fotos-v11-safe-technical-dedup', currentUser?.email],
     queryFn: async () => {
       const allImages = [];
       let reports = [];
@@ -745,24 +755,12 @@ function GaleriaFotosInner() {
       }
 
       let dedupedImages = [];
-      let visualRemoved = [];
-
-      try {
-        const visualResult = await dedupePhotosByVisualSimilarity(allImages, {
-          threshold: 0.8,
-        });
-
-        dedupedImages = visualResult.photos;
-        visualRemoved = visualResult.removed;
-      } catch (error) {
-        console.warn('Deduplicação visual indisponível. Usando deduplicação técnica:', error);
-        dedupedImages = uniqueByFileUrl(allImages);
-        visualRemoved = [];
-      }
+      dedupedImages = uniqueByFileUrl(allImages);
 
       return {
         images: dedupedImages.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)),
-        duplicateGroups: buildDuplicateGroups(allImages, visualRemoved),
+        rawImages: allImages,
+        duplicateGroups: buildDuplicateGroups(allImages),
       };
     },
     enabled: !!currentUser?.email,
@@ -772,7 +770,11 @@ function GaleriaFotosInner() {
   });
 
   const images = Array.isArray(galleryData) ? galleryData : galleryData.images || [];
-  const duplicateGroups = Array.isArray(galleryData) ? [] : galleryData.duplicateGroups || [];
+  const rawImages = Array.isArray(galleryData) ? galleryData : galleryData.rawImages || images;
+  const duplicateGroups = [
+    ...(Array.isArray(galleryData) ? [] : galleryData.duplicateGroups || []),
+    ...visualDuplicateGroups,
+  ];
 
   useEffect(() => {
     setVisibleCount(INITIAL_VISIBLE_IMAGES);
@@ -781,18 +783,28 @@ function GaleriaFotosInner() {
   const filteredImages = useMemo(() => {
     const q = searchTerm.toLowerCase();
 
-    return images.filter((img) => (
-      img.fileName.toLowerCase().includes(q) ||
-      img.reportLabel.toLowerCase().includes(q) ||
-      String(img.description || '').toLowerCase().includes(q) ||
-      String(img.legenda || '').toLowerCase().includes(q) ||
-      String(img.museu || '').toLowerCase().includes(q) ||
-      String(img.localizacao || '').toLowerCase().includes(q) ||
-      String(img.geoCoordinates || '').toLowerCase().includes(q) ||
-      String(img.sectionTitle || '').toLowerCase().includes(q) ||
-      String(img.linkedActivity?.title || '').toLowerCase().includes(q)
-    ));
-  }, [images, searchTerm]);
+    return images.filter((img) => {
+      const isHiddenByStatus =
+        img.ocultar_na_galeria === true ||
+        img.visual_similarity_status === 'duplicada' ||
+        img.visual_similarity_status === 'semelhante_oculta';
+      const isHiddenInMemory = visualHiddenIds.has(String(img.id)) || visualHiddenIds.has(String(img.sourceId));
+
+      if (isHiddenByStatus || isHiddenInMemory) return false;
+
+      return (
+        img.fileName.toLowerCase().includes(q) ||
+        img.reportLabel.toLowerCase().includes(q) ||
+        String(img.description || '').toLowerCase().includes(q) ||
+        String(img.legenda || '').toLowerCase().includes(q) ||
+        String(img.museu || '').toLowerCase().includes(q) ||
+        String(img.localizacao || '').toLowerCase().includes(q) ||
+        String(img.geoCoordinates || '').toLowerCase().includes(q) ||
+        String(img.sectionTitle || '').toLowerCase().includes(q) ||
+        String(img.linkedActivity?.title || '').toLowerCase().includes(q)
+      );
+    });
+  }, [images, searchTerm, visualHiddenIds]);
 
   const sortedImages = useMemo(() => {
     return [...filteredImages].sort((a, b) => {
@@ -920,6 +932,109 @@ ${JSON.stringify(candidates, null, 2)}
       });
     } finally {
       setIsAnalyzingDuplicates(false);
+    }
+  };
+
+  const persistVisualDuplicateStatus = async (photo, duplicate) => {
+    if (!photo?.sourceEntity || !photo?.sourceId) return false;
+
+    const payload = {
+      ocultar_na_galeria: true,
+      visual_similarity_status: 'semelhante_oculta',
+      visual_similarity_score: duplicate.similarity || null,
+      visual_similarity_kept_id: duplicate.keptId || duplicate.keptIdentity || '',
+      visual_similarity_reason: duplicate.reason || 'similaridade_visual',
+    };
+
+    try {
+      await base44.entities[photo.sourceEntity].update(photo.sourceId, payload);
+      return true;
+    } catch (error) {
+      console.warn('Metadados de similaridade visual mantidos apenas em memória:', error);
+      return false;
+    }
+  };
+
+  const analyzeCurrentPhotosByVisualSimilarity = async () => {
+    if (isAnalyzingVisualSimilarity) return;
+
+    const visibleCandidates = (rawImages.length ? rawImages : images)
+      .filter((image) => {
+        const isHidden =
+          image.ocultar_na_galeria === true ||
+          image.visual_similarity_status === 'duplicada' ||
+          image.visual_similarity_status === 'semelhante_oculta' ||
+          visualHiddenIds.has(String(image.id)) ||
+          visualHiddenIds.has(String(image.sourceId));
+
+        return !isHidden;
+      })
+      .slice(0, VISUAL_ANALYSIS_MAX_PHOTOS);
+
+    if (!visibleCandidates.length) {
+      toastMessages.info?.('Nenhuma foto disponível para análise visual.') ?? console.info('Nenhuma foto disponível para análise visual.');
+      return;
+    }
+
+    setIsAnalyzingVisualSimilarity(true);
+    setVisualAnalysisProgress({
+      processed: 0,
+      total: visibleCandidates.length,
+      percent: 0,
+    });
+
+    try {
+      const analysis = await analyzePhotoSimilarityBatch(visibleCandidates, {
+        enableVisual: true,
+        threshold: 0.8,
+        batchSize: VISUAL_ANALYSIS_BATCH_SIZE,
+        maxPhotos: VISUAL_ANALYSIS_MAX_PHOTOS,
+        onProgress: setVisualAnalysisProgress,
+      });
+
+      const hiddenIds = new Set();
+      const byId = new Map();
+      visibleCandidates.forEach((image) => {
+        [image.id, image.sourceId, image.duplicateIdentity]
+          .filter(Boolean)
+          .forEach((key) => byId.set(String(key), image));
+      });
+
+      for (const duplicate of analysis.removed || []) {
+        const hiddenPhoto =
+          byId.get(String(duplicate.removedId)) ||
+          byId.get(String(duplicate.removedIdentity));
+
+        if (!hiddenPhoto) continue;
+
+        [hiddenPhoto.id, hiddenPhoto.sourceId]
+          .filter(Boolean)
+          .forEach((key) => hiddenIds.add(String(key)));
+
+        await persistVisualDuplicateStatus(hiddenPhoto, duplicate);
+      }
+
+      setVisualHiddenIds((prev) => new Set([...prev, ...hiddenIds]));
+      setVisualDuplicateGroups(
+        buildDuplicateGroups(visibleCandidates, analysis.removed || [])
+          .filter((group) => group.reason === 'similaridade_visual')
+      );
+      setVisualAnalysisProgress({
+        processed: visibleCandidates.length,
+        total: visibleCandidates.length,
+        percent: 100,
+      });
+
+      if ((analysis.removed || []).length > 0) {
+        toastMessages.success?.(`${analysis.removed.length} foto(s) semelhante(s) ocultada(s) da exibição.`) ?? console.info(`${analysis.removed.length} foto(s) semelhante(s) ocultada(s) da exibição.`);
+      } else {
+        toastMessages.info?.('Nenhuma foto semelhante acima de 80% foi encontrada neste lote.') ?? console.info('Nenhuma foto semelhante acima de 80% foi encontrada neste lote.');
+      }
+    } catch (error) {
+      console.error('Erro na análise visual em lote:', error);
+      toastMessages.warning?.('A análise visual falhou, mas a galeria foi mantida carregada.') ?? console.warn('A análise visual falhou, mas a galeria foi mantida carregada.');
+    } finally {
+      setIsAnalyzingVisualSimilarity(false);
     }
   };
 
@@ -1071,7 +1186,22 @@ ${JSON.stringify(candidates, null, 2)}
               <p className="text-xs text-gray-500">
                 Analisa grupos técnicos de duplicidade e aponta quais registros parecem ser o mesmo arquivo.
               </p>
+              {visualAnalysisProgress && (
+                <p className="mt-1 text-xs text-gray-500">
+                  Similaridade visual: {visualAnalysisProgress.processed}/{visualAnalysisProgress.total} fotos analisadas ({visualAnalysisProgress.percent}%).
+                </p>
+              )}
             </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={analyzeCurrentPhotosByVisualSimilarity}
+              disabled={isAnalyzingVisualSimilarity}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Sparkles className={`h-4 w-4 ${isAnalyzingVisualSimilarity ? 'animate-pulse' : ''}`} />
+              {isAnalyzingVisualSimilarity ? 'Analisando lote...' : 'Analisar fotos novas'}
+            </button>
             <button
               type="button"
               onClick={analyzeDuplicateGroupsWithAI}
@@ -1079,8 +1209,9 @@ ${JSON.stringify(candidates, null, 2)}
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Sparkles className={`h-4 w-4 ${isAnalyzingDuplicates ? 'animate-pulse' : ''}`} />
-              {isAnalyzingDuplicates ? 'Analisando...' : 'Analisar repetidas'}
+              {isAnalyzingDuplicates ? 'Analisando...' : 'Revisar fotos atuais'}
             </button>
+            </div>
           </div>
         </div>
 
