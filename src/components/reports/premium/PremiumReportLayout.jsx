@@ -190,6 +190,20 @@ const CATALOG_CSS = `
   .premium-audience-chart { grid-column: 1 / -1; border: 1px solid rgba(23,23,23,.18); background: rgba(255,255,255,.5); padding: 18px; break-inside: avoid; }
   .premium-audience-chart h3 { margin: 0 0 6px; font-size: 20px; font-family: Georgia, "Times New Roman", serif; font-weight: 500; }
   .premium-audience-chart p { margin: 0 0 16px; font-size: 12.5px; line-height: 1.5; color: #555; }
+  .premium-meta-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 14px; margin-top: 22px; }
+  .premium-meta-card { border: 1px solid rgba(23,23,23,.14); border-radius: 14px; background: rgba(255,255,255,.72); padding: 14px 14px 12px; break-inside: avoid; box-shadow: 0 1px 0 rgba(23,23,23,.04); }
+  .premium-meta-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+  .premium-meta-code { display: inline-flex; align-items: center; gap: 6px; font-size: 10px; line-height: 1; text-transform: uppercase; letter-spacing: .11em; color: #4d463f; font-weight: 800; }
+  .premium-meta-code::before { content: ""; width: 10px; height: 10px; border: 1px solid rgba(23,23,23,.52); border-radius: 999px; display: inline-block; }
+  .premium-meta-status { display: inline-flex; align-items: center; justify-content: center; padding: 4px 8px; border-radius: 999px; font-size: 9.5px; line-height: 1; text-transform: uppercase; letter-spacing: .08em; font-weight: 800; white-space: nowrap; border: 1px solid rgba(23,23,23,.16); background: #efede8; color: #171717; }
+  .premium-meta-status.done { background: #171717; color: #fff; border-color: #171717; }
+  .premium-meta-title { margin: 0; font-size: 16px; line-height: 1.2; font-weight: 700; color: #171717; }
+  .premium-meta-detail { margin: 6px 0 0; font-size: 11.5px; line-height: 1.45; color: #666057; min-height: 34px; }
+  .premium-meta-progress-label { display: flex; align-items: end; justify-content: space-between; gap: 10px; margin-top: 14px; font-size: 11px; line-height: 1.35; color: #5e574f; }
+  .premium-meta-progress-label strong { font-size: 12px; line-height: 1; color: #171717; white-space: nowrap; }
+  .premium-meta-progress { margin-top: 6px; height: 5px; width: 100%; border-radius: 999px; overflow: hidden; background: #dfdbd3; }
+  .premium-meta-progress span { display: block; height: 100%; background: #171717; border-radius: 999px; }
+  .premium-meta-footnote { margin-top: 10px; font-size: 10px; line-height: 1.35; color: #8a8379; }
   .audience-chart-row { display: grid; grid-template-columns: 92px 1fr 72px; gap: 12px; align-items: center; margin: 12px 0; }
   .audience-chart-month { font-size: 12px; text-transform: uppercase; letter-spacing: .1em; font-weight: 800; color: #4b443d; }
   .audience-chart-total { text-align: right; font-size: 16px; font-weight: 800; }
@@ -234,7 +248,7 @@ const CATALOG_CSS = `
     body { background: #fff; }
     .premium-report { background: #fff; }
     .premium-section, .premium-expediente, .premium-museum-block, .premium-communication, .premium-closing { min-height: auto; }
-    .premium-photo, .premium-activity-card, .premium-timeline-item, .premium-metric, .premium-photo-index-item { break-inside: avoid; }
+    .premium-photo, .premium-activity-card, .premium-timeline-item, .premium-metric, .premium-photo-index-item, .premium-meta-card { break-inside: avoid; }
   }
 `;
 
@@ -245,6 +259,79 @@ O período marca uma transição importante na coordenação geral do projeto, c
 O primeiro momento do projeto foi marcado por chegada, aprovação, contratação e estabilização dos fluxos. Além da coordenação geral, houve mudanças de produção nos equipamentos: no MIS, saída de Ana Carolina Galvão e entrada de Isabela; no MUMO, saída de Daniela Isis e entrada de Silvia Coes. Essas transições exigiram pactuação de rotinas, reordenação de responsabilidades e aproximação cotidiana entre coordenação, produção, comunicação, educativo e equipes dos museus.
 
 O relatório apresenta uma leitura integrada dos museus como infraestrutura pública de memória, formação, convivência e fruição cultural. MIS, MHAB e MUMO aparecem como equipamentos complementares, capazes de articular audiovisual, memória urbana, moda, educação, acessibilidade, preservação e presença territorial no centro de Belo Horizonte.`;
+
+const BASE_METAS_ADITIVO = [
+  { numero: 'META 01', titulo: 'Equipe principal', percentual: 100, detalhe: 'Cargos previstos e cargos ocupados na equipe', indicador: '100% concluído · contagem de cargos ativa', status: 'CONCLUÍDA' },
+  { numero: 'META 07', titulo: 'Contratação de educadores', percentual: 100, detalhe: 'Educadores contratados para MIS, MUMO e MHAB', indicador: '100% concluído', status: 'CONCLUÍDA' },
+  { numero: 'META 14', titulo: 'Acessibilidade', percentual: 100, detalhe: 'Entrega de dispositivos acessíveis', indicador: '100% entregue', status: 'CONCLUÍDA' },
+  { numero: 'META 04', titulo: 'Alteração de núcleos e salas expositivas', percentual: 0, detalhe: 'Rubricas de núcleos, salas expositivas, montagem, expografia e ambientação', indicador: 'Percentual das rubricas relacionadas utilizadas', status: 'EM EXECUÇÃO' },
+  { numero: 'META 05', titulo: 'Atividades Educativas e Culturais', percentual: 0, detalhe: 'Atividades únicas da Programação/Agenda, filtradas mensalmente desde março/2026', indicador: '0/30 atividades da programação validadas', status: 'EM EXECUÇÃO' },
+  { numero: 'META 17', titulo: 'Custeio das atividades educativas e culturais', percentual: 0, detalhe: 'Materiais, lanches e apoio pedagógico', indicador: 'Percentual das rubricas de custeio utilizadas', status: 'EM EXECUÇÃO' },
+  { numero: 'META 15', titulo: 'Diárias de educadores', percentual: 0, detalhe: 'Execução financeira da rubrica Diárias Educadores', indicador: 'Percentual da rubrica utilizada', status: 'EM EXECUÇÃO' },
+  { numero: 'META 12', titulo: 'Exposição MHAB', percentual: 0, detalhe: 'Rubricas relacionadas à exposição MHAB/MAB', indicador: 'Percentual das rubricas relacionadas utilizadas', status: 'EM EXECUÇÃO' },
+  { numero: 'META 12B', titulo: 'Exposição MUMO', percentual: 0, detalhe: 'Rubricas relacionadas à exposição MUMO', indicador: 'Percentual das rubricas relacionadas utilizadas', status: 'EM EXECUÇÃO' },
+  { numero: 'META 03', titulo: 'Manutenção das exposições', percentual: 0, detalhe: 'Execução financeira da rubrica de manutenção e disposição, sem educadoras', indicador: 'Percentual da rubrica utilizada', status: 'EM EXECUÇÃO' },
+  { numero: 'META 10', titulo: 'Mostras e exposições', percentual: 0, detalhe: 'MIS pequeno + MHAB + MUMO grande', indicador: 'MUMO = 70% · MIS + MHAB = 30%', status: 'EM EXECUÇÃO' },
+  { numero: 'META 11', titulo: 'Noturno nos Museus', percentual: 0, detalhe: 'Execução vinculada ao grupo/rubrica Noturno nos Museus', indicador: 'Percentual do custeio Noturno utilizado', status: 'EM EXECUÇÃO' },
+  { numero: 'META 16', titulo: 'Publicações e catálogos', percentual: 0, detalhe: 'Rubricas de catálogo, publicação, revisão, tradução, impressão, fotógrafo, pesquisa e texto', indicador: 'Percentual das rubricas relacionadas utilizadas', status: 'EM EXECUÇÃO' },
+];
+
+function rubricaLinkedToMeta(rubrica = {}, meta = {}) {
+  const metaRubrica = normalizeText(rubrica?.meta || rubrica?.meta_numero || rubrica?.meta_titulo || rubrica?.meta_nome);
+  const numero = normalizeText(meta.numero);
+  const titulo = normalizeText(meta.titulo);
+  return Boolean(metaRubrica) && (metaRubrica === numero || metaRubrica.includes(numero) || metaRubrica.includes(titulo));
+}
+
+function getRubricaPrevisto(rubrica = {}) {
+  return toNumber(
+    rubrica?.valor_total ??
+    rubrica?.valor_previsto ??
+    rubrica?.valor_orcado ??
+    rubrica?.valor_original ??
+    rubrica?.valor ??
+    0
+  );
+}
+
+function getRubricaUtilizado(rubrica = {}) {
+  return toNumber(
+    rubrica?.valor_utilizado ??
+    rubrica?.valor_executado ??
+    rubrica?.utilizado ??
+    rubrica?.valor_pago ??
+    0
+  );
+}
+
+function buildMetaCards(contexto = {}) {
+  const rubricas = Array.isArray(contexto?.rubricas) ? contexto.rubricas : [];
+  const atividades = Array.isArray(contexto?.atividades) ? contexto.atividades : [];
+  const atividadesPublicas = atividades.filter((item) => toNumber(item?.publico) > 0).length;
+
+  return BASE_METAS_ADITIVO.map((meta) => {
+    const vinculadas = rubricas.filter((rubrica) => rubricaLinkedToMeta(rubrica, meta));
+    const previsto = vinculadas.reduce((sum, rubrica) => sum + getRubricaPrevisto(rubrica), 0);
+    const utilizado = vinculadas.reduce((sum, rubrica) => sum + getRubricaUtilizado(rubrica), 0);
+
+    let percentual = meta.percentual;
+    let indicador = meta.indicador;
+
+    if (meta.numero === 'META 05') {
+      percentual = Math.min(Math.round((atividadesPublicas / 30) * 100), 100);
+      indicador = `${fmtInt(atividadesPublicas)}/30 atividades da programação validadas`;
+    } else if (vinculadas.length > 0 && previsto > 0) {
+      percentual = Math.min(Math.round((utilizado / previsto) * 100), 100);
+      indicador = `${fmtBRL(utilizado)} utilizado de ${fmtBRL(previsto)}`;
+    }
+
+    return {
+      ...meta,
+      percentual,
+      indicador,
+    };
+  });
+}
 
 function composeIntro(textos = {}) {
   const blocked = [
@@ -1530,6 +1617,47 @@ function AudienceBreakdown({ contexto }) {
   );
 }
 
+function PremiumMetasPanel({ contexto }) {
+  const metas = buildMetaCards(contexto);
+
+  return (
+    <section>
+      <div className="premium-meta-grid">
+        {metas.map((meta) => {
+          const isDone = meta.status === 'CONCLUÍDA';
+
+          return (
+            <article className="premium-meta-card" key={meta.numero}>
+              <div className="premium-meta-top">
+                <span className="premium-meta-code">{meta.numero}</span>
+                <span className={`premium-meta-status${isDone ? ' done' : ''}`}>
+                  {meta.status}
+                </span>
+              </div>
+
+              <h3 className="premium-meta-title">{meta.titulo}</h3>
+              <p className="premium-meta-detail">{meta.detalhe}</p>
+
+              <div className="premium-meta-progress-label">
+                <span>{meta.indicador}</span>
+                <strong>{fmtInt(meta.percentual)}%</strong>
+              </div>
+
+              <div className="premium-meta-progress" aria-label={`${meta.numero}: ${fmtInt(meta.percentual)} por cento`}>
+                <span style={{ width: `${Math.min(toNumber(meta.percentual), 100)}%` }} />
+              </div>
+
+              <div className="premium-meta-footnote">
+                Acompanhamento editorial a partir das rubricas, atividades e registros consolidados no aplicativo.
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function StrategicRecords({ contexto }) {
   const atividades = Array.isArray(contexto?.atividades) ? contexto.atividades : [];
   const isInternalNoise = (atividade = {}) => {
@@ -1773,6 +1901,7 @@ export default function PremiumReportLayout({ contexto = {}, textos = {}, filtro
         text={`${textos.resumo_geral || ''}\n\nPúblico espontâneo corresponde ao público que acessa o museu sem agendamento prévio, em visita livre, circulação cotidiana, exposições, permanência nos espaços e fruição espontânea da programação.\n\nVisitas agendadas correspondem a grupos previamente organizados, escolas, instituições, coletivos ou grupos acompanhados por mediação, com registro de data, número de participantes e, quando houver, vínculo com atividade educativa.\n\n${textos.metas || ''}`}
       >
         <AudienceBreakdown contexto={contexto} />
+        <PremiumMetasPanel contexto={contexto} />
       </PremiumSection>}
 
       {hasSection(secoesSelecionadas, 'programacao', 'agenda_programacao', 'timeline_premium') && hasRealTimelineData(contexto) && <PremiumSection
