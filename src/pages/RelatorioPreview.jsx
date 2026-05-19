@@ -413,7 +413,67 @@ function getPdfRenderTargets(root) {
   return result;
 }
 
-async function exportHtmlToPdfBlob(html) {
+function extractSearchableReportText(doc) {
+  const clone = doc.body?.cloneNode(true);
+  if (!clone) return '';
+
+  clone.querySelectorAll('script, style, noscript, iframe, svg').forEach((node) => node.remove());
+
+  const text = String(clone.innerText || '')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+
+  return text;
+}
+
+function addSearchableTextAppendix(pdf, text, options = {}) {
+  const normalizedText = String(text || '').trim();
+  if (!normalizedText) return;
+
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const margin = 14;
+  const maxWidth = pageWidth - margin * 2;
+  const lineHeight = 4.6;
+  const footerY = pageHeight - 8;
+  let y = margin;
+
+  pdf.addPage();
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(13);
+  pdf.text(options.title || 'Anexo textual pesquisável', margin, y);
+
+  y += 7;
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(8.5);
+  pdf.text(
+    'Este anexo é gerado a partir do HTML completo para preservar busca textual e conteúdo integral do relatório.',
+    margin,
+    y,
+    { maxWidth }
+  );
+
+  y += 9;
+  pdf.setFontSize(7.5);
+
+  const lines = pdf.splitTextToSize(normalizedText, maxWidth);
+  lines.forEach((line) => {
+    if (y > pageHeight - margin) {
+      pdf.setFontSize(7);
+      pdf.text('Anexo textual pesquisável', margin, footerY);
+      pdf.addPage();
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(7.5);
+      y = margin;
+    }
+    pdf.text(line, margin, y);
+    y += lineHeight;
+  });
+}
+
+async function exportHtmlToPdfBlob(html, options = {}) {
   if (!String(html || '').trim()) {
     throw new Error('HTML do relatorio vazio.');
   }
@@ -445,6 +505,7 @@ async function exportHtmlToPdfBlob(html) {
 
     const doc = iframe.contentDocument;
     const target = doc.querySelector('main.premium-report') || doc.body;
+    const searchableText = extractSearchableReportText(doc);
     const renderTargets = getPdfRenderTargets(target);
     let hasPageContent = false;
 
@@ -502,15 +563,14 @@ async function exportHtmlToPdfBlob(html) {
     }
 
     if (!hasPageContent) {
-      const text = String(target?.innerText || doc.body?.innerText || '').replace(/\s+\n/g, '\n').trim();
-      if (!text) {
+      if (!searchableText) {
         throw new Error('PDF gerado sem paginas renderizadas.');
       }
 
       const margin = 14;
       const lineHeight = 5.2;
       const maxWidth = pageWidth - margin * 2;
-      const lines = pdf.splitTextToSize(text, maxWidth);
+      const lines = pdf.splitTextToSize(searchableText, maxWidth);
       let y = margin;
       lines.forEach((line) => {
         if (y > pageHeight - margin) {
@@ -521,6 +581,8 @@ async function exportHtmlToPdfBlob(html) {
         pdf.text(line, margin, y);
         y += lineHeight;
       });
+    } else if (options.includeSearchableAppendix !== false) {
+      addSearchableTextAppendix(pdf, searchableText);
     }
 
     const blob = pdf.output('blob');
