@@ -15,6 +15,11 @@ import gerarTextosRelatorioFisicoFinanceiro from '@/services/relatorioIAService'
 import { montarHtmlRelatorioPremium } from '@/components/reports/premium/PremiumReportLayout';
 import { revisarHtmlRelatorioAntesDaExportacao } from '@/services/reportEditorialReview';
 import {
+  DEFAULT_OPTIONS as REPORT_IMAGE_OPTIMIZATION_OPTIONS,
+  PDF_MAX_TOTAL_SIZE_MB,
+  optimizeReportHtmlImages,
+} from '@/utils/reportImageOptimizer';
+import {
   REPORT_CHAPTERS,
   REPORT_CHAPTER_IDS,
   buildReportChapterSelectionState,
@@ -30,7 +35,7 @@ import {
 } from '@/components/reports/premium/premiumReportUtils';
 
 const MUSEUS = ['Todos', 'MIS', 'MHAB', 'MUMO'];
-const MAX_EXPORT_PART_SIZE_BYTES = 200 * 1024 * 1024;
+const MAX_EXPORT_PART_SIZE_BYTES = PDF_MAX_TOTAL_SIZE_MB * 1024 * 1024;
 const EXPORT_FILENAME_BASE = 'Relatorio_Museus_Centro';
 const SECOES_RELATORIO = REPORT_CHAPTER_IDS;
 function getCapituloLabel(sectionId) {
@@ -284,7 +289,8 @@ async function gerarRelatorioDoApp(museu, { premium = false, secoesSelecionadas 
     secoesSelecionadas,
     filtros,
   });
-  const html = revisarHtmlRelatorioAntesDaExportacao(htmlInicial, { modo: premium ? 'premium' : 'fisico_financeiro' });
+  const htmlRevisado = revisarHtmlRelatorioAntesDaExportacao(htmlInicial, { modo: premium ? 'premium' : 'fisico_financeiro' });
+  const html = await optimizeReportHtmlImages(htmlRevisado, REPORT_IMAGE_OPTIMIZATION_OPTIONS);
 
   return { html, contexto };
 }
@@ -407,7 +413,10 @@ export default function RelatorioFisicoFinanceiroGenerator() {
           });
 
           if (response?.data?.html) {
-            data = response.data;
+            data = {
+              ...response.data,
+              html: await optimizeReportHtmlImages(response.data.html, REPORT_IMAGE_OPTIMIZATION_OPTIONS),
+            };
           }
         } catch (backendError) {
           console.warn(
