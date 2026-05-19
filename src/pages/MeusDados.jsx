@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { isCoordGeral } from '@/components/auth/permissions';
 import DeleteAccountDialog from '@/components/auth/DeleteAccountDialog';
+import { buildTeamMemberFormPreset } from '@/lib/teamRegistryBase';
 
 const FORM_FIELDS = [
   { name: 'email_pessoal', label: 'Email Pessoal', type: 'email' },
@@ -32,6 +33,12 @@ const BANKING_FIELDS = [
   { name: 'pix_key', label: 'Chave PIX (opcional)', type: 'text' },
 ];
 
+const TEAM_LINK_FIELDS = [
+  { name: 'funcao_institucional', label: 'Função no projeto', type: 'text' },
+  { name: 'valor_referencia', label: 'Valor de referência do vínculo', type: 'text' },
+  { name: 'inicio_vinculo_referencia', label: 'Início do vínculo / contratação', type: 'text' },
+];
+
 const EMPTY_FORM = {
   email_pessoal: '',
   telefone: '',
@@ -48,6 +55,9 @@ const EMPTY_FORM = {
   conta: '',
   tipo_conta: 'Corrente',
   pix_key: '',
+  funcao_institucional: '',
+  valor_referencia: '',
+  inicio_vinculo_referencia: '',
 };
 
 function mergeWithoutOverwrite(current, incoming) {
@@ -68,6 +78,9 @@ function mergeWithoutOverwrite(current, incoming) {
     conta: current.conta || incoming.conta || '',
     tipo_conta: current.tipo_conta || incoming.tipo_conta || 'Corrente',
     pix_key: current.pix_key || incoming.pix_key || '',
+    funcao_institucional: current.funcao_institucional || incoming.funcao_institucional || '',
+    valor_referencia: current.valor_referencia || incoming.valor_referencia || '',
+    inicio_vinculo_referencia: current.inicio_vinculo_referencia || incoming.inicio_vinculo_referencia || '',
   };
 }
 
@@ -88,6 +101,9 @@ function mapUserToForm(u) {
     conta: u?.conta || '',
     tipo_conta: u?.tipo_conta || 'Corrente',
     pix_key: u?.pix_key || '',
+    funcao_institucional: u?.funcao_institucional || '',
+    valor_referencia: u?.valor_referencia || '',
+    inicio_vinculo_referencia: u?.inicio_vinculo_referencia || '',
   };
 }
 
@@ -108,6 +124,9 @@ function mapMemberToForm(member) {
     conta: member?.conta || '',
     tipo_conta: member?.tipo_conta || 'Corrente',
     pix_key: member?.pix_key || '',
+    funcao_institucional: member?.funcao_institucional || member?.funcao || '',
+    valor_referencia: member?.valor_referencia || '',
+    inicio_vinculo_referencia: member?.inicio_vinculo_referencia || member?.data_inicio_contrato || '',
   };
 }
 
@@ -190,6 +209,13 @@ function MeusDadosInner() {
   }, [selectedUserEmail, teamData]);
 
   useEffect(() => {
+    if (!targetEmail) return;
+    const preset = buildTeamMemberFormPreset(targetEmail);
+    if (!preset) return;
+    setFormData((prev) => mergeWithoutOverwrite(prev, preset));
+  }, [targetEmail]);
+
+  useEffect(() => {
     if (!targetEmail || isSponsor) return;
 
     let active = true;
@@ -260,6 +286,9 @@ function MeusDadosInner() {
         conta: formData.conta,
         tipo_conta: formData.tipo_conta,
         pix_key: formData.pix_key,
+        funcao_institucional: formData.funcao_institucional,
+        valor_referencia: formData.valor_referencia,
+        inicio_vinculo_referencia: formData.inicio_vinculo_referencia,
       };
 
       if (currentMember) {
@@ -434,6 +463,32 @@ function MeusDadosInner() {
                   </SelectContent>
                 </Select>
               </div>
+            </Section>
+          )}
+
+          {!isSponsor && (
+            <Section title="Vínculo com a Equipe">
+              <div className="space-y-1.5">
+                <Label>Função cadastrada no sistema</Label>
+                <Input
+                  value={resolveFuncao(teamData.find((m) => m.user_email === targetEmail), targetUser) || ''}
+                  readOnly
+                  placeholder="Função vinculada ao usuário"
+                  className="bg-slate-50"
+                />
+              </div>
+
+              {TEAM_LINK_FIELDS.map((field) => (
+                <div key={field.name} className="space-y-1.5">
+                  <Label>{field.label}</Label>
+                  <Input
+                    type={field.type}
+                    value={formData[field.name] || ''}
+                    onChange={(e) => set(field.name, e.target.value)}
+                    placeholder={field.label}
+                  />
+                </div>
+              ))}
             </Section>
           )}
 

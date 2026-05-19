@@ -1,4 +1,5 @@
 import React from 'react';
+import { TEAM_REGISTRY_BASE } from '@/lib/teamRegistryBase';
 import { cleanText, getMuseuLabel, normalizeText, uniqueBy } from './premiumReportUtils';
 
 const REALIZACAO = [
@@ -15,20 +16,22 @@ const DEMUS = [
   { nome: 'Equipes técnicas dos museus municipais', funcao: 'Acervo, educativo, difusão, pesquisa, documentação e atendimento ao público' },
 ];
 
-const EQUIPE_BASE = [
-  { nome: 'Daniel Perini', funcao: 'Coordenação Geral · Museus Centro' },
-  { nome: 'Ana Luiza', funcao: 'Consultoria de Programação · Museus Centro' },
-  { nome: 'Fernanda Monte-Mór', funcao: 'Coordenação de Produção e Comunicação · Atuação Geral' },
-  { nome: 'Juliana Silva', funcao: 'Educativo · MIS BH' },
-  { nome: 'Lara Carvalho', funcao: 'Equipe Museus Centro · Museus Centro' },
-  { nome: 'Produção Viaduto das Artes', funcao: 'Produção Cultural · Museus Centro' },
-  { nome: 'Caroline Abasse', funcao: 'Equipe Museus Centro · Museus Centro' },
-  { nome: 'Daniela Isis', funcao: 'Produção Cultural · MUMO' },
-  { nome: 'Wanda Mucchiut', funcao: 'Equipe Museus Centro · Museus Centro' },
-  { nome: 'Isabella Caroline de Souza', funcao: 'Equipe Museus Centro · Museus Centro' },
-  { nome: 'Clara Assumpção', funcao: 'Equipe Museus Centro · Museus Centro' },
-  { nome: 'Daniel Moreira', funcao: 'Equipe Museus Centro · Museus Centro' },
-];
+const EQUIPE_BASE = TEAM_REGISTRY_BASE.map((item) => {
+  const funcaoBase = cleanText([item.funcao, item.area].filter(Boolean).join(' · '));
+  const detalhes = [
+    cleanText(item.email),
+    cleanText([
+      item.valor_referencia ? `Referência: ${item.valor_referencia}` : '',
+      item.inicio_vinculo_referencia ? `Ingresso: ${item.inicio_vinculo_referencia}` : '',
+    ].filter(Boolean).join(' · ')),
+  ].filter(Boolean);
+
+  return {
+    nome: cleanText(item.nome),
+    funcao: funcaoBase || 'Equipe Museus Centro · Museus Centro',
+    detalhes,
+  };
+});
 
 const EQUIPAMENTOS = [
   {
@@ -78,10 +81,17 @@ function buildEquipe(contexto = {}) {
     if (!nome) return null;
     const funcao = normalizeRole(report.funcao || report.role || report.cargo);
     const museu = getMuseuLabel(report.museu || report.equipamento || report.setor || 'Museus Centro');
-    return { nome, funcao: `${funcao} · ${museu}` };
+    return {
+      nome,
+      funcao: `${funcao} · ${museu}`,
+      detalhes: [],
+    };
   }).filter(Boolean);
 
-  return uniqueBy([...EQUIPE_BASE, ...fromReports], (item) => normalizeText(item.nome)).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  return uniqueBy(
+    [...EQUIPE_BASE, ...fromReports],
+    (item) => normalizeText(item.nome)
+  ).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
 }
 
 function CreditBlock({ title, children }) {
@@ -143,6 +153,9 @@ export default function PremiumExpedienteSection({ contexto = {} }) {
             <article key={pessoa.nome}>
               <strong>{pessoa.nome}</strong>
               <span>{pessoa.funcao}</span>
+              {Array.isArray(pessoa.detalhes) && pessoa.detalhes.map((detalhe) => (
+                <span key={`${pessoa.nome}-${detalhe}`}>{detalhe}</span>
+              ))}
             </article>
           ))}
         </div>
