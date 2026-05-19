@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -15,6 +15,8 @@ import { montarHtmlRelatorioPremium } from '@/components/reports/premium/Premium
 import { revisarHtmlRelatorioAntesDaExportacao } from '@/services/reportEditorialReview';
 
 const MUSEUS = ['Todos', 'MIS', 'MHAB', 'MUMO'];
+const MAX_EXPORT_PART_SIZE_BYTES = 200 * 1024 * 1024;
+const EXPORT_FILENAME_BASE = 'Relatorio_Museus_Centro';
 
 const CAPITULOS_RELATORIO = [
   { id: 'capa', label: 'Capa editorial' },
@@ -46,6 +48,98 @@ const CAPITULOS_RELATORIO = [
 ];
 
 const SECOES_RELATORIO = CAPITULOS_RELATORIO.map((capitulo) => capitulo.id);
+function getCapituloLabel(sectionId) {
+  return CAPITULOS_RELATORIO.find((item) => item.id === sectionId)?.label || sectionId;
+}
+
+function buildPartFileName(partNumber, extension = 'html') {
+  return `${EXPORT_FILENAME_BASE}_parte_${String(partNumber).padStart(2, '0')}.${extension}`;
+}
+
+function buildDivisionSummary(parts = []) {
+  if (!Array.isArray(parts) || parts.length <= 1) return '';
+
+  const linhas = parts.map((part) => {
+    const titulos = (part.sectionLabels || []).join(', ');
+    return `Parte ${String(part.partNumber).padStart(2, '0')} — ${titulos}`;
+  });
+
+  return `
+    <section style="max-width:210mm;margin:0 auto 18px;padding:0 24px;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;color:#333;">
+      <div style="border:1px solid rgba(23,23,23,.16);padding:16px 18px;background:#fff;">
+        <p style="margin:0 0 10px;font-size:13px;font-weight:700;">Relatório dividido em ${parts.length} arquivos</p>
+        <ul style="margin:0;padding-left:18px;font-size:11.5px;line-height:1.55;">
+          ${linhas.map((linha) => `<li>${linha}</li>`).join('')}
+        </ul>
+      </div>
+    </section>
+  `;
+}
+
+function injectPartMetadata(html, { partNumber, totalParts, sectionLabels = [], summaryHtml = '' } = {}) {
+  if (!html) return html;
+
+  const header = `
+    <section style="max-width:210mm;margin:0 auto 18px;padding:0 24px;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;color:#333;">
+      <div style="border:1px solid rgba(23,23,23,.16);padding:14px 18px;background:#fff;">
+        <p style="margin:0;font-size:13px;font-weight:700;">Relatório Museus Centro — Parte ${String(partNumber).padStart(2, '0')} de ${String(totalParts).padStart(2, '0')}</p>
+        <p style="margin:6px 0 0;font-size:11.5px;line-height:1.5;">Período do relatório: fevereiro a abril de 2026</p>
+        <p style="margin:4px 0 0;font-size:11.5px;line-height:1.5;">Capítulos desta parte: ${sectionLabels.join(', ')}</p>
+      </div>
+    </section>
+  `;
+
+  const content = `${partNumber === 1 && summaryHtml ? summaryHtml : ''}${header}`;
+
+  if (html.includes('<body>')) {
+    return html.replace('<body>', `<body>${content}`);
+  }
+
+  return `${content}${html}`;
+}
+
+function buildPartsFromMeasuredSections(sectionMeasures = []) {
+  const orderedMeasures = Array.isArray(sectionMeasures) ? sectionMeasures.filter(Boolean) : [];
+  const parts = [];
+  let currentSections = [];
+  let currentSize = 0;
+
+  orderedMeasures.forEach((measure) => {
+    if (measure.sizeBytes > MAX_EXPORT_PART_SIZE_BYTES) {
+      if (currentSections.length > 0) {
+        parts.push({ secoes: currentSections, estimatedSizeBytes: currentSize, oversizedSingleChapter: false });
+        currentSections = [];
+        currentSize = 0;
+      }
+
+      parts.push({
+        secoes: [measure.sectionId],
+        estimatedSizeBytes: measure.sizeBytes,
+        oversizedSingleChapter: true,
+      });
+      return;
+    }
+
+    const wouldExceedLimit =
+      currentSections.length > 0 &&
+      currentSize + measure.sizeBytes > MAX_EXPORT_PART_SIZE_BYTES;
+
+    if (wouldExceedLimit) {
+      parts.push({ secoes: currentSections, estimatedSizeBytes: currentSize, oversizedSingleChapter: false });
+      currentSections = [];
+      currentSize = 0;
+    }
+
+    currentSections.push(measure.sectionId);
+    currentSize += measure.sizeBytes;
+  });
+
+  if (currentSections.length > 0) {
+    parts.push({ secoes: currentSections, estimatedSizeBytes: currentSize, oversizedSingleChapter: false });
+  }
+
+  return parts;
+}
 
 async function safeList(entity, order = '-created_date', limit = 1000) {
   try {
@@ -82,7 +176,7 @@ function salvarPreview(html) {
   }
 }
 
-async function gerarRelatorioDoApp(museu, { premium = false, secoesSelecionadas = SECOES_RELATORIO } = {}) {
+async function gerarRelatorioDoApp(museu, { premium = false, secoesSelecionadas = SECOES_RELATORIO, splitContext = null } = {}) {
   const dateFrom = '2026-02-02';
   const dateTo = '2026-04-30';
   const museuFiltro = museu === 'Todos' ? 'todos' : museu;
@@ -115,6 +209,7 @@ async function gerarRelatorioDoApp(museu, { premium = false, secoesSelecionadas 
       dateTo,
       museu: museuFiltro,
       capitulos: secoesSelecionadas,
+      split_context: splitContext || undefined,
     },
   });
 
@@ -122,6 +217,7 @@ async function gerarRelatorioDoApp(museu, { premium = false, secoesSelecionadas 
     ...contexto,
     capitulos_relatorio: CAPITULOS_RELATORIO,
     secoesSelecionadas,
+    split_context: splitContext || undefined,
   };
 
   const textos = await gerarTextosRelatorioFisicoFinanceiro(
@@ -157,6 +253,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
   const [resultado, setResultado] = useState(null);
   const [erro, setErro] = useState(null);
   const [modoPremium, setModoPremium] = useState(true);
+  const [exportMode, setExportMode] = useState('single');
   const [dialogAberto, setDialogAberto] = useState(false);
   const [secoes, setSecoes] = useState(Object.fromEntries(CAPITULOS_RELATORIO.map((capitulo) => [capitulo.id, true])));
 
@@ -175,14 +272,19 @@ export default function RelatorioFisicoFinanceiroGenerator() {
     return url;
   };
 
-  const downloadHtml = (html) => {
+  const downloadNamedHtml = (html, fileName) => {
+    if (!html) return;
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `relatorio-museus-centro-${Date.now()}.html`;
+    a.download = fileName;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const downloadHtml = (html) => {
+    downloadNamedHtml(html, `relatorio-museus-centro-${Date.now()}.html`);
   };
 
   const handleGerar = async () => {
@@ -194,7 +296,10 @@ export default function RelatorioFisicoFinanceiroGenerator() {
     setLoading(true);
     setResultado(null);
     setErro(null);
+
     try {
+      toast.info(exportMode === 'split' ? 'Preparando exportação dividida...' : 'Preparando exportação em arquivo único...');
+
       let data = null;
       let fonte = modoPremium ? 'premium_app' : 'backend';
 
@@ -225,10 +330,113 @@ export default function RelatorioFisicoFinanceiroGenerator() {
         fonte = modoPremium ? 'premium_app' : 'frontend_ia';
       }
 
-      setResultado({ ...data, fonte });
-      openPreview(data.html);
+      const htmlSize = new Blob([data.html], { type: 'text/html;charset=utf-8' }).size;
+
+      if (exportMode === 'single' || htmlSize <= MAX_EXPORT_PART_SIZE_BYTES) {
+        if (exportMode === 'split' && htmlSize <= MAX_EXPORT_PART_SIZE_BYTES) {
+          toast.info('O relatório ficou abaixo de 200 MB e foi mantido em arquivo único.');
+        }
+
+        setResultado({
+          ...data,
+          fonte,
+          exportMode: 'single',
+          htmlSize,
+        });
+        openPreview(data.html);
+      } else {
+        const measuredSections = [];
+
+        for (const sectionId of secoesSelecionadas) {
+          const chapterResult = await gerarRelatorioDoApp(museu, {
+            premium: modoPremium,
+            secoesSelecionadas: [sectionId],
+          });
+          const chapterSize = new Blob([chapterResult.html], { type: 'text/html;charset=utf-8' }).size;
+          measuredSections.push({
+            sectionId,
+            sizeBytes: chapterSize,
+            label: getCapituloLabel(sectionId),
+          });
+        }
+
+        const builtParts = buildPartsFromMeasuredSections(measuredSections);
+
+        if (builtParts.length === 0) {
+          builtParts.push({
+            secoes: secoesSelecionadas,
+            estimatedSizeBytes: htmlSize,
+            oversizedSingleChapter: false,
+          });
+        }
+
+        const totalParts = builtParts.length;
+        const summaryHtml = buildDivisionSummary(
+          builtParts.map((part, index) => ({
+            partNumber: index + 1,
+            sectionLabels: part.secoes.map(getCapituloLabel),
+          }))
+        );
+
+        const finalParts = [];
+        for (let index = 0; index < builtParts.length; index += 1) {
+          const part = builtParts[index];
+          const partNumber = index + 1;
+          if (part.oversizedSingleChapter && part.secoes.length === 1) {
+            toast.info(`O capítulo ${getCapituloLabel(part.secoes[0])} excede 200 MB e foi exportado em arquivo próprio para preservar a integridade do PDF.`);
+          }
+          const splitContext = {
+            enabled: true,
+            partNumber,
+            totalParts,
+            sectionLabels: part.secoes.map(getCapituloLabel),
+            subdivisionOf: null,
+          };
+
+          const localPart = await gerarRelatorioDoApp(museu, {
+            premium: modoPremium,
+            secoesSelecionadas: part.secoes,
+            splitContext,
+          });
+
+          const htmlPart = injectPartMetadata(localPart.html, {
+            partNumber,
+            totalParts,
+            sectionLabels: splitContext.sectionLabels,
+            summaryHtml,
+          });
+
+          finalParts.push({
+            partNumber,
+            totalParts,
+            fileName: buildPartFileName(partNumber),
+            html: htmlPart,
+            sizeBytes: new Blob([htmlPart], { type: 'text/html;charset=utf-8' }).size,
+            sectionLabels: splitContext.sectionLabels,
+            secoes: part.secoes,
+          });
+
+          toast.success(`Parte ${String(partNumber).padStart(2, '0')} preparada com ${splitContext.sectionLabels.join(', ')}.`);
+        }
+
+        setResultado({
+          ...data,
+          fonte,
+          exportMode: 'split',
+          htmlSize,
+          parts: finalParts,
+        });
+        openPreview(finalParts[0]?.html || data.html);
+      }
+
       setDialogAberto(false);
-      toast.success(fonte === 'premium_app' ? 'Relatório institucional gerado.' : fonte === 'backend' ? 'Relatório gerado pela função evoluída.' : 'Relatório gerado com dados reais do app e IA.');
+      toast.success(
+        fonte === 'premium_app'
+          ? 'Relatório institucional gerado.'
+          : fonte === 'backend'
+            ? 'Relatório gerado pela função evoluída.'
+            : 'Relatório gerado com dados reais do app e IA.'
+      );
     } catch (err) {
       console.error(err);
       setErro(err.message || 'Não foi possível gerar o relatório.');
@@ -240,35 +448,168 @@ export default function RelatorioFisicoFinanceiroGenerator() {
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-      <div className="flex items-center gap-3 mb-6"><div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center"><FileText className="w-5 h-5 text-white" /></div><div><h2 className="text-lg font-bold text-slate-900">Gerar Relatório</h2><p className="text-sm text-slate-500">Catálogo-livro institucional com fotos, gráficos, metas, programação e execução financeira.</p></div></div>
-      <Button onClick={() => setDialogAberto(true)} disabled={loading} className="w-full h-12">{loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}Gerar Relatório</Button>
-      {loading && <LoadingDataNotice className="mt-4" title="Relatório carregando dados" message="O app está recuperando relatórios, programação, rubricas, compras, anexos e textos de apoio. A prévia será aberta quando a consolidação terminar." />}
-      {erro && <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3"><AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" /><div><p className="text-sm font-medium text-amber-800">Não foi possível gerar o relatório</p><p className="text-xs text-amber-700 mt-1">{erro}</p></div></div>}
-      {resultado && <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-4"><div className="flex items-start gap-3 mb-3"><CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" /><div><p className="text-sm font-medium text-green-800">Relatório gerado com sucesso!</p><p className="text-xs text-green-700 mt-1">{resultado.fonte === 'premium_app' ? 'Gerado no modo catálogo-livro institucional, usando dados reais do app e refinamento textual por IA.' : resultado.fonte === 'backend' ? 'Gerado pela função gerarRelatorioFisicoFinanceiro.' : 'Gerado no frontend com dados reais do app, fotos vinculadas e refinamento textual por IA.'}</p></div></div><div className="flex gap-3 flex-wrap"><Button variant="outline" size="sm" onClick={() => openPreview(resultado.html)}><ExternalLink className="w-4 h-4 mr-2" />Abrir Relatório</Button><Button variant="outline" size="sm" onClick={() => downloadHtml(resultado.html)}><Download className="w-4 h-4 mr-2" />Baixar HTML</Button></div></div>}
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center">
+          <FileText className="w-5 h-5 text-white" />
+        </div>
+        <div>
+          <h2 className="text-lg font-bold text-slate-900">Gerar Relatório</h2>
+          <p className="text-sm text-slate-500">Catálogo-livro institucional com fotos, gráficos, metas, programação e execução financeira.</p>
+        </div>
+      </div>
+
+      <Button onClick={() => setDialogAberto(true)} disabled={loading} className="w-full h-12">
+        {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
+        Gerar Relatório
+      </Button>
+
+      {loading && (
+        <LoadingDataNotice
+          className="mt-4"
+          title="Relatório carregando dados"
+          message="O app está recuperando relatórios, programação, rubricas, compras, anexos e textos de apoio. A prévia será aberta quando a consolidação terminar."
+        />
+      )}
+
+      {erro && (
+        <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-amber-800">Não foi possível gerar o relatório</p>
+            <p className="text-xs text-amber-700 mt-1">{erro}</p>
+          </div>
+        </div>
+      )}
+
+      {resultado && (
+        <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-4">
+          <div className="flex items-start gap-3 mb-3">
+            <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-green-800">Relatório gerado com sucesso!</p>
+              <p className="text-xs text-green-700 mt-1">
+                {resultado.fonte === 'premium_app'
+                  ? 'Gerado no modo catálogo-livro institucional, usando dados reais do app e refinamento textual por IA.'
+                  : resultado.fonte === 'backend'
+                    ? 'Gerado pela função gerarRelatorioFisicoFinanceiro.'
+                    : 'Gerado no frontend com dados reais do app, fotos vinculadas e refinamento textual por IA.'}
+              </p>
+              {resultado.exportMode === 'split' && Array.isArray(resultado.parts) && resultado.parts.length > 1 && (
+                <p className="text-xs text-green-700 mt-1">
+                  Exportação preparada em {resultado.parts.length} partes, respeitando a ordem dos capítulos selecionados.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex gap-3 flex-wrap">
+            {resultado.exportMode === 'split' && Array.isArray(resultado.parts) && resultado.parts.length > 1 ? (
+              <>
+                <Button variant="outline" size="sm" onClick={() => openPreview(resultado.parts[0]?.html || resultado.html)}>
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Abrir Parte 01
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => resultado.parts.forEach((part) => downloadNamedHtml(part.html, part.fileName))}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Baixar todas as partes
+                </Button>
+                {resultado.parts.map((part) => (
+                  <Button
+                    key={part.fileName}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => downloadNamedHtml(part.html, part.fileName)}
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    {`Parte ${String(part.partNumber).padStart(2, '0')}`}
+                  </Button>
+                ))}
+              </>
+            ) : (
+              <>
+                <Button variant="outline" size="sm" onClick={() => openPreview(resultado.html)}>
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Abrir Relatório
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => downloadHtml(resultado.html)}>
+                  <Download className="w-4 h-4 mr-2" />
+                  Baixar HTML
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       <Dialog open={dialogAberto} onOpenChange={setDialogAberto}>
         <DialogContent className="max-w-3xl max-h-[88vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Escolha os capítulos do relatório</DialogTitle>
-            <p className="text-sm text-slate-500">Selecione o formato, o museu e os capítulos que entram na geração.</p>
+            <p className="text-sm text-slate-500">Selecione o formato, o museu, o modo de exportação e os capítulos que entram na geração.</p>
           </DialogHeader>
 
           <div className="space-y-5 py-2">
-            {loading && <LoadingDataNotice title="Carregando dados do relatório" message="Mantenha esta janela aberta enquanto o sistema consolida dados reais do app e revisa o HTML antes da prévia." />}
+            {loading && (
+              <LoadingDataNotice
+                title="Carregando dados do relatório"
+                message="Mantenha esta janela aberta enquanto o sistema consolida dados reais do app e revisa o HTML antes da prévia."
+              />
+            )}
+
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <Label>Museu</Label>
                 <Select value={museu} onValueChange={setMuseu}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{MUSEUS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                  <SelectContent>
+                    {MUSEUS.map((item) => (
+                      <SelectItem key={item} value={item}>{item}</SelectItem>
+                    ))}
+                  </SelectContent>
                 </Select>
               </div>
 
-              <div className={`flex items-start gap-3 rounded-xl border p-4 cursor-pointer ${modoPremium ? 'border-black bg-black/5' : 'border-slate-200 bg-slate-50'}`} onClick={() => setModoPremium((v) => !v)}>
-                <Checkbox checked={modoPremium} onCheckedChange={(v) => setModoPremium(!!v)} onClick={(event) => event.stopPropagation()} className="mt-0.5" />
+              <div
+                className={`flex items-start gap-3 rounded-xl border p-4 cursor-pointer ${modoPremium ? 'border-black bg-black/5' : 'border-slate-200 bg-slate-50'}`}
+                onClick={() => setModoPremium((value) => !value)}
+              >
+                <Checkbox
+                  checked={modoPremium}
+                  onCheckedChange={(value) => setModoPremium(!!value)}
+                  onClick={(event) => event.stopPropagation()}
+                  className="mt-0.5"
+                />
                 <div>
                   <p className="text-sm font-semibold text-slate-900">Catálogo-livro institucional</p>
                   <p className="text-xs text-slate-500 mt-0.5">Capa full bleed, timeline, museus, Noturno, comunicação, galeria com créditos/GPS e tabelas A4.</p>
                 </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <Label>Modo de exportação</Label>
+              <div className="grid md:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setExportMode('single')}
+                  className={`rounded-xl border p-4 text-left transition-colors ${exportMode === 'single' ? 'border-black bg-black/5' : 'border-slate-200 bg-white'}`}
+                >
+                  <p className="text-sm font-semibold text-slate-900">Exportar em arquivo único</p>
+                  <p className="text-xs text-slate-500 mt-1">Mantém exatamente o fluxo atual da exportação.</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setExportMode('split')}
+                  className={`rounded-xl border p-4 text-left transition-colors ${exportMode === 'split' ? 'border-black bg-black/5' : 'border-slate-200 bg-white'}`}
+                >
+                  <p className="text-sm font-semibold text-slate-900">Dividir em arquivos de até 200 MB</p>
+                  <p className="text-xs text-slate-500 mt-1">Agrupa os capítulos em partes válidas antes da geração final do HTML/PDF.</p>
+                </button>
               </div>
             </div>
 
@@ -290,7 +631,9 @@ export default function RelatorioFisicoFinanceiroGenerator() {
               ))}
             </div>
 
-            <p className="text-xs text-slate-500">{secoesSelecionadas.length} de {CAPITULOS_RELATORIO.length} capítulos selecionados.</p>
+            <p className="text-xs text-slate-500">
+              {secoesSelecionadas.length} de {CAPITULOS_RELATORIO.length} capítulos selecionados.
+            </p>
           </div>
 
           <DialogFooter>
