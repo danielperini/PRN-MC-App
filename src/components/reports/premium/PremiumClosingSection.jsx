@@ -1,4 +1,5 @@
 import React from 'react';
+import PremiumInternalPageHeader from './PremiumInternalPageHeader';
 import { splitParagraphs } from './premiumReportUtils';
 
 function buildFechamentoEditorial(contexto = {}) {
@@ -27,6 +28,8 @@ export default function PremiumClosingSection({ contexto = {} }) {
 
   return (
     <section className="premium-closing premium-page-break">
+      <PremiumInternalPageHeader className="premium-internal-page-header-invert" />
+
       <div>
         <p className="premium-eyebrow">Encerramento</p>
         <h2>Memória pública, trabalho coletivo e cultura em continuidade</h2>

@@ -1,4 +1,5 @@
 import React from 'react';
+import PremiumInternalPageHeader from './PremiumInternalPageHeader';
 import {
   cleanText,
   fmtInt,
@@ -71,6 +72,8 @@ export default function PremiumMuseumSection({ contexto }) {
 
         return (
           <section className="premium-museum-block premium-page-break" key={museu}>
+            <PremiumInternalPageHeader />
+
             <div className="premium-museum-heading">
               <p className="premium-eyebrow">Ações por equipamento</p>
               <h2>{museu}</h2>

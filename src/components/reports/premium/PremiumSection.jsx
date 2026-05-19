@@ -1,5 +1,6 @@
 import React from 'react';
 import { sanitizeReportText, splitParagraphs } from './premiumReportUtils';
+import PremiumInternalPageHeader from './PremiumInternalPageHeader';
 
 export default function PremiumSection({
   eyebrow,
@@ -14,6 +15,8 @@ export default function PremiumSection({
 
   return (
     <section className={`premium-section premium-section-${tone} ${breakBefore ? 'premium-page-break' : ''}`}>
+      <PremiumInternalPageHeader />
+
       <div className="premium-section-heading">
         {eyebrow && <p className="premium-eyebrow">{eyebrow}</p>}
         <h2>{title}</h2>

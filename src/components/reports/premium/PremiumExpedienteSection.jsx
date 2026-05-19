@@ -1,6 +1,7 @@
 import React from 'react';
 import { TEAM_REGISTRY_BASE } from '@/lib/teamRegistryBase';
 import { REPORT_INSTITUTIONAL_REALIZATION } from '@/config/reportEditorialTemplate';
+import PremiumInternalPageHeader from './PremiumInternalPageHeader';
 import { cleanText, getMuseuLabel, normalizeText, uniqueBy } from './premiumReportUtils';
 
 const EQUIPE_BASE = TEAM_REGISTRY_BASE.map((item) => {
@@ -72,6 +73,8 @@ export default function PremiumExpedienteSection({ contexto = {} }) {
 
   return (
     <section className="premium-expediente premium-page-break">
+      <PremiumInternalPageHeader />
+
       <div className="premium-expediente-heading">
         <p className="premium-eyebrow">Expediente</p>
         <h2>Uma publicação construída por muitas mãos</h2>

@@ -33,18 +33,28 @@ import {
 } from './premiumReportUtils';
 
 const CATALOG_CSS = `
-  @page { size: A4; margin: 16mm 14mm 18mm; }
+  @page { size: A4; margin: 34mm 14mm 18mm; }
+  @page cover { size: A4; margin: 0; }
   * { box-sizing: border-box; }
   body { margin: 0; background: #e7e3dc; color: #171717; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
   .premium-report { background: #f7f3eb; color: #171717; }
-  .report-pdf-institutional-header { width: 100%; display: flex; align-items: flex-start; box-sizing: border-box; padding-top: 32px; padding-left: 110px; padding-right: 70px; margin-bottom: 90px; page-break-inside: avoid; break-inside: avoid; background: #ffffff; }
-  .report-pdf-institutional-logo-wrap { width: 80px; height: 80px; flex: 0 0 80px; }
-  .report-pdf-institutional-logo { width: 80px; height: 80px; display: block; object-fit: contain; }
-  .report-pdf-institutional-text { flex: 1; margin-left: 150px; padding-top: 18px; text-align: center; font-size: 12px; font-weight: 700; line-height: 1.35; color: #777777; font-family: Arial, Helvetica, sans-serif; }
-  .premium-cover { min-height: 297mm; position: relative; overflow: hidden; display: flex; align-items: flex-end; break-after: page; background: #161616; color: #fff; }
+  .report-pdf-institutional-header { display: none; }
+  .report-pdf-institutional-logo-wrap { width: 18mm; height: 18mm; flex: 0 0 18mm; }
+  .report-pdf-institutional-logo { width: 18mm; height: 18mm; display: block; object-fit: contain; }
+  .report-pdf-institutional-text { flex: 1; margin-left: 32mm; padding-top: 2mm; text-align: center; font-size: 10.5px; font-weight: 700; line-height: 1.35; color: #777777; font-family: Arial, Helvetica, sans-serif; }
+  .report-pdf-institutional-text span { display: block; }
+  .premium-internal-page-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; padding: 0 0 18px; border-bottom: 1px solid rgba(0,0,0,0.08); margin-bottom: 22px; break-inside: avoid; page-break-inside: avoid; }
+  .premium-internal-page-header-logo img { max-height: 58px; width: auto; display: block; object-fit: contain; }
+  .premium-internal-page-header-text { text-align: right; font-size: 12px; line-height: 1.35; color: #777777; font-weight: 600; font-family: Arial, Helvetica, sans-serif; }
+  .premium-internal-page-header-text strong, .premium-internal-page-header-text span { display: block; }
+  .premium-internal-page-header-text strong { font-weight: 700; }
+  .premium-internal-page-header-invert { border-bottom-color: rgba(255,255,255,.16); }
+  .premium-internal-page-header-invert .premium-internal-page-header-text { color: rgba(255,255,255,.72); }
+  .premium-cover { page: cover; min-height: 297mm; position: relative; overflow: hidden; display: flex; align-items: flex-end; break-after: page; background: #161616; color: #fff; z-index: 5; }
   .premium-cover img, .premium-cover-fallback { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .premium-cover > img { opacity: .5; }
   .premium-cover-fallback { background: linear-gradient(135deg, #111 0%, #39352d 48%, #6e5c45 100%); }
-  .premium-cover-overlay { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.15) 0%, rgba(0,0,0,.55) 52%, rgba(0,0,0,.9) 100%); }
+  .premium-cover-overlay { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.05) 0%, rgba(0,0,0,.38) 52%, rgba(0,0,0,.78) 100%); }
   .premium-cover-content { position: relative; width: 100%; padding: 34mm 20mm 24mm; }
   .premium-cover-kicker, .premium-eyebrow { margin: 0 0 10px; font-size: 10px; line-height: 1.5; letter-spacing: .18em; text-transform: uppercase; font-weight: 700; color: #9f7f4d; }
   .premium-cover h1 { max-width: 760px; margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 64px; line-height: .92; letter-spacing: 0; font-weight: 500; }
@@ -266,6 +276,9 @@ const CATALOG_CSS = `
   @media print {
     body { background: #fff; }
     .premium-report { background: #fff; }
+    .report-pdf-institutional-header { position: fixed; top: -27mm; left: 0; right: 0; z-index: 1; display: flex; align-items: flex-start; box-sizing: border-box; padding: 5mm 14mm 4mm; height: 24mm; page-break-inside: avoid; break-inside: avoid; background: #ffffff; border-bottom: 1px solid rgba(23,23,23,.08); }
+    .premium-internal-page-header { display: none; }
+    .premium-cover { z-index: 5; }
     .premium-section, .premium-expediente, .premium-museum-block, .premium-communication, .premium-closing { min-height: auto; }
     .premium-photo, .premium-activity-card, .premium-timeline-item, .premium-metric, .premium-photo-index-item, .premium-meta-card { break-inside: avoid; }
   }
@@ -2188,9 +2201,8 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
 
   return (
     <main className="premium-report">
-      <ReportPdfInstitutionalHeader />
-
       {hasSection(secoesSelecionadas, 'capa') && <PremiumOpeningCover contexto={contexto} filtros={filtros} />}
+      <ReportPdfInstitutionalHeader />
 
       {hasSection(secoesSelecionadas, 'expediente') && <PremiumExpedienteSection contexto={contexto} />}
 

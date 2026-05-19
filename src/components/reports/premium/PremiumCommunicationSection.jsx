@@ -1,5 +1,6 @@
 import React from 'react';
 import { cleanText, splitParagraphs } from './premiumReportUtils';
+import PremiumInternalPageHeader from './PremiumInternalPageHeader';
 
 function communicationActivities(contexto = {}) {
   const atividades = Array.isArray(contexto.atividades) ? contexto.atividades : [];
@@ -31,6 +32,8 @@ export default function PremiumCommunicationSection({ contexto, textos }) {
 
   return (
     <section className="premium-communication premium-page-break">
+      <PremiumInternalPageHeader />
+
       <div className="premium-section-heading">
         <p className="premium-eyebrow">Comunicação, memória visual e circulação pública</p>
         <h2>Comunicação, registros e evidências</h2>
