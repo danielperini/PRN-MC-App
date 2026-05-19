@@ -8,6 +8,7 @@ import {
   notifyPaymentCompleted,
   notifyPaymentProofAttached
 } from '@/services/notifications/paymentNotifications';
+import { uploadNotaFiscalToDrive } from '@/lib/uploadNotaFiscalToDrive';
 
 function toNum(value) {
   if (value === null || value === undefined || value === '') return 0;
@@ -148,6 +149,10 @@ async function createPaymentDocumentRecord({ purchase, comprovanteUrl, fileName,
       file_url: comprovanteUrl,
       arquivo_original_url: comprovanteUrl,
       comprovante_pagamento_url: comprovanteUrl,
+      comprovante_drive_url: purchase.comprovante_drive_url || '',
+      comprovante_drive_file_id: purchase.comprovante_drive_file_id || '',
+      comprovante_drive_folder_path: purchase.comprovante_drive_folder_path || '',
+      comprovante_drive_backup_status: purchase.comprovante_drive_backup_status || '',
       filename: fileName || 'comprovante-pagamento.pdf',
       nome_arquivo: fileName || 'comprovante-pagamento.pdf',
       criado_por: currentUser?.email || '',
@@ -220,7 +225,7 @@ export default function PagarSolicitacaoDialog({ purchase, currentUser, onClose,
         throw new Error('O upload foi concluido sem URL de arquivo.');
       }
 
-      setComprovanteFile({ name: file.name, url });
+      setComprovanteFile({ name: file.name, url, file });
       setComprovanteUrl(url);
       toast.success('Comprovante carregado.');
     } catch (error) {
@@ -272,6 +277,23 @@ export default function PagarSolicitacaoDialog({ purchase, currentUser, onClose,
         '';
       const nextComprovanteUrl = withoutReceipt ? getReceiptUrl(purchase) : comprovanteUrl;
       const nextHasReceipt = !!nextComprovanteUrl;
+      let driveBackup = null;
+
+      if (!withoutReceipt && comprovanteFile?.file) {
+        try {
+          driveBackup = await uploadNotaFiscalToDrive(comprovanteFile.file, {
+            categoria: 'COMPROVANTE_PAGAMENTO',
+            fornecedor,
+            valor: valorSolicitacao,
+            dataReferencia: paidAt,
+            numero_nf: numeroNF,
+            purchaseId: purchase.id
+          });
+        } catch (error) {
+          console.warn('Comprovante anexado, mas backup no Drive nao foi concluido:', error);
+          toast.warning('Comprovante anexado a solicitacao. Backup no Drive nao disponivel neste momento.');
+        }
+      }
 
       const updatePayload = {
         status: 'PAGO',
@@ -288,7 +310,11 @@ export default function PagarSolicitacaoDialog({ purchase, currentUser, onClose,
         comprovante_valor_extraido: analysis?.valorExtraido || null,
         comprovante_valor_compativel:
           typeof analysis?.valorCompativel === 'boolean' ? analysis.valorCompativel : null,
-        comprovante_leitura_ia_status: analysis?.available ? 'processado' : 'indisponivel'
+        comprovante_leitura_ia_status: analysis?.available ? 'processado' : 'indisponivel',
+        comprovante_drive_url: driveBackup?.drive_pdf_link || driveBackup?.fileUrl || driveBackup?.downloadUrl || purchase.comprovante_drive_url || '',
+        comprovante_drive_file_id: driveBackup?.fileId || driveBackup?.drive_file_id || purchase.comprovante_drive_file_id || '',
+        comprovante_drive_folder_path: driveBackup?.folderPath || purchase.comprovante_drive_folder_path || '',
+        comprovante_drive_backup_status: driveBackup ? 'CONCLUIDO' : (!withoutReceipt && comprovanteFile?.file ? 'ERRO' : (purchase.comprovante_drive_backup_status || ''))
       };
 
       await base44.entities.PurchaseRequest.update(purchase.id, updatePayload);

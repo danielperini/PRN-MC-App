@@ -348,6 +348,149 @@ function openPrintWindow(html, filename) {
   return true;
 }
 
+async function waitForIframeAssets(iframe) {
+  const doc = iframe?.contentDocument;
+  if (!doc) return;
+
+  try {
+    await doc.fonts?.ready;
+  } catch {}
+
+  const images = Array.from(doc.images || []);
+  await Promise.all(images.map((image) => {
+    if (image.complete) return Promise.resolve();
+    return new Promise((resolve) => {
+      image.onload = resolve;
+      image.onerror = resolve;
+    });
+  }));
+
+  await delay(150);
+}
+
+function createHiddenReportIframe(html) {
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.left = '-10000px';
+  iframe.style.top = '0';
+  iframe.style.width = '1024px';
+  iframe.style.height = '1448px';
+  iframe.style.opacity = '0';
+  iframe.style.pointerEvents = 'none';
+  iframe.setAttribute('aria-hidden', 'true');
+
+  document.body.appendChild(iframe);
+  iframe.contentDocument.open();
+  iframe.contentDocument.write(String(html || ''));
+  iframe.contentDocument.close();
+
+  return iframe;
+}
+
+async function exportHtmlToPdfBlob(html) {
+  if (!String(html || '').trim()) {
+    throw new Error('HTML do relatorio vazio.');
+  }
+
+  const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+    import('html2canvas'),
+    import('jspdf'),
+  ]);
+
+  const iframe = createHiddenReportIframe(html);
+
+  try {
+    await waitForIframeAssets(iframe);
+
+    const doc = iframe.contentDocument;
+    const target = doc.querySelector('main.premium-report') || doc.body;
+
+    const canvas = await html2canvas(target, {
+      scale: 1.2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+      windowWidth: Math.max(target.scrollWidth, 1024),
+      windowHeight: Math.max(target.scrollHeight, 1448),
+    });
+
+    if (!canvas.width || !canvas.height) {
+      throw new Error('Canvas do relatorio vazio.');
+    }
+
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4',
+      compress: true,
+    });
+
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const pageCanvasHeight = Math.floor((canvas.width * pageHeight) / pageWidth);
+    const pageCanvas = document.createElement('canvas');
+    const pageContext = pageCanvas.getContext('2d');
+    if (!pageContext) {
+      throw new Error('Canvas do PDF indisponivel.');
+    }
+
+    pageCanvas.width = canvas.width;
+
+    for (let y = 0, pageIndex = 0; y < canvas.height; y += pageCanvasHeight, pageIndex += 1) {
+      const sliceHeight = Math.min(pageCanvasHeight, canvas.height - y);
+      pageCanvas.height = sliceHeight;
+      pageContext.fillStyle = '#ffffff';
+      pageContext.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+      pageContext.drawImage(
+        canvas,
+        0,
+        y,
+        canvas.width,
+        sliceHeight,
+        0,
+        0,
+        pageCanvas.width,
+        sliceHeight
+      );
+
+      if (pageIndex > 0) pdf.addPage();
+
+      const imageData = pageCanvas.toDataURL('image/jpeg', 0.82);
+      const imageHeight = (sliceHeight * pageWidth) / canvas.width;
+      pdf.addImage(imageData, 'JPEG', 0, 0, pageWidth, imageHeight, undefined, 'FAST');
+    }
+
+    const blob = pdf.output('blob');
+    if (!blob || blob.size <= 0) {
+      throw new Error('PDF gerado sem conteudo.');
+    }
+
+    return blob;
+  } finally {
+    iframe.remove();
+  }
+}
+
+async function downloadPdfBlob(blob, filename) {
+  if (!blob || blob.size <= 0) {
+    throw new Error('PDF nao foi gerado.');
+  }
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.style.display = 'none';
+
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  await delay(500);
+  URL.revokeObjectURL(url);
+}
+
 function getStoredHtml() {
   try {
     return sessionStorage.getItem('relatorio_fisico_financeiro_html') || '';
@@ -1386,12 +1529,17 @@ export default function RelatorioPreview() {
     try {
       if (exportMode === 'single') {
         toast.info('Gerando PDF em arquivo único...');
-        const ok = openPrintWindow(html, `${EXPORT_FILENAME_BASE}.pdf`);
-        if (!ok) {
-          handlePrint();
-          toast.warning('Janela de impressao bloqueada. Use a previa para salvar como PDF.');
-        } else {
-          toast.success('PDF pronto para salvar.');
+        try {
+          const blob = await exportHtmlToPdfBlob(html);
+          await downloadPdfBlob(blob, `${EXPORT_FILENAME_BASE}.pdf`);
+          toast.success('PDF exportado com sucesso.');
+        } catch (pdfError) {
+          console.warn('Exportacao direta para PDF indisponivel. Usando impressao do navegador:', pdfError);
+          const ok = openPrintWindow(html, `${EXPORT_FILENAME_BASE}.pdf`);
+          if (!ok) {
+            handlePrint();
+          }
+          toast.warning('PDF direto indisponivel. Use a janela de impressao para salvar como PDF.');
         }
         setExportDialogOpen(false);
         return;
@@ -1444,7 +1592,9 @@ export default function RelatorioPreview() {
 
         updateExportQueueItem(i, { status: 'preparing_download', blobSize });
 
-        const ok = openPrintWindow(partHtml, filename);
+        const pdfBlob = await exportHtmlToPdfBlob(partHtml);
+        await downloadPdfBlob(pdfBlob, filename);
+        const ok = true;
         if (!ok) {
           toast.error(`Não foi possível abrir a parte ${String(partNumber).padStart(2, '0')} para impressão.`);
           const errorMessage = `Erro ao exportar ${filename}. A exportaÃ§Ã£o foi interrompida para evitar arquivos incompletos.`;
@@ -1454,9 +1604,9 @@ export default function RelatorioPreview() {
           throw new Error(errorMessage);
         }
 
-        updateExportQueueItem(i, { status: 'download_started', blobSize });
+        updateExportQueueItem(i, { status: 'download_started', blobSize: pdfBlob.size });
         await delay(300);
-        updateExportQueueItem(i, { status: 'done', blobSize });
+        updateExportQueueItem(i, { status: 'done', blobSize: pdfBlob.size });
         setExportProgress(Math.round((partNumber / totalParts) * 100));
         toast.success(`Parte ${String(partNumber).padStart(2, '0')} preparada.`);
       }
