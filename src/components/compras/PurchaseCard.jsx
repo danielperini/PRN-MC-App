@@ -24,6 +24,16 @@ function formatBRL(value) {
   })}`;
 }
 
+function getPaymentProofUrl(purchase = {}) {
+  return (
+    purchase.comprovante_pagamento_url ||
+    purchase.comprovante_url ||
+    purchase.payment_receipt_url ||
+    purchase.recibo_url ||
+    ''
+  );
+}
+
 export default function PurchaseCard({
   purchase,
   budgetLines,
@@ -38,8 +48,9 @@ export default function PurchaseCard({
   const [actionLoading, setActionLoading] = useState(false);
   const [teamPayment, setTeamPayment] = useState(null);
   const [showPagarDialog, setShowPagarDialog] = useState(false);
+  const normalizedStatus = String(purchase.status || '').trim().toUpperCase();
 
-  const statusInfo = statusConfig[purchase.status] || {
+  const statusInfo = statusConfig[normalizedStatus] || statusConfig[purchase.status] || {
     label: purchase.status,
     color: 'bg-secondary text-foreground'
   };
@@ -70,11 +81,16 @@ export default function PurchaseCard({
     !!purchase.linha_orcamentaria_id ||
     !!budgetLine;
 
+  const isPaid = normalizedStatus === 'PAGO';
   const canMarkAsPaidBase =
     (isCoordenador || isAdmin) &&
-    (purchase.status === 'APROVADO_COORD' || purchase.status === 'APROVADO_ADMIN');
+    (['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN'].includes(normalizedStatus) ||
+      (!isTeamPayment && isPaid));
 
-  const canMarkAsPaid = canMarkAsPaidBase && hasRubricaVinculada;
+  const canMarkAsPaid = canMarkAsPaidBase && (!isTeamPayment || hasRubricaVinculada);
+  const paymentProofUrl = getPaymentProofUrl(purchase);
+  const paymentProofPending =
+    isPaid && (purchase.comprovante_pendente === true || !paymentProofUrl);
 
   /* ================= PAGAMENTO ================= */
 
@@ -142,7 +158,7 @@ export default function PurchaseCard({
 
       </div>
 
-      {!hasRubricaVinculada && (
+      {!hasRubricaVinculada && isTeamPayment && (
         <div className="text-xs bg-secondary border-2 border-border text-foreground p-2 rounded flex items-center gap-2">
           <AlertCircle className="w-3 h-3"/>
           ⚠️ Sem rubrica vinculada — não é possível pagar
@@ -173,14 +189,14 @@ export default function PurchaseCard({
             disabled={!canMarkAsPaid}
           >
             <CheckCircle className="w-4 h-4" />
-            Pago
+            {isPaid ? 'Adicionar comprovante' : 'Pago'}
           </Button>
         )}
 
         {/* Badge de comprovante anexado */}
-        {purchase.comprovante_pagamento_url && (
+        {paymentProofUrl && (
           <a
-            href={purchase.comprovante_pagamento_url}
+            href={paymentProofUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1 text-xs text-primary underline"
@@ -189,6 +205,12 @@ export default function PurchaseCard({
             <FileText className="w-3 h-3" />
             Comprovante
           </a>
+        )}
+
+        {paymentProofPending && (
+          <span className="self-center rounded-full bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700">
+            Comprovante pendente
+          </span>
         )}
 
         {purchase.numero_processamento && (

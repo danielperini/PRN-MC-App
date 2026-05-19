@@ -47,6 +47,7 @@ import MuseuPerformanceDashboard from '@/components/compras/MuseuPerformanceDash
 import AuditoriaFinanceiraCard from '@/components/compras/AuditoriaFinanceiraCard';
 import EntradaUnicaComprovante from '@/components/compras/EntradaUnicaComprovante';
 import MeusPagamentosTab from '@/components/compras/MeusPagamentosTab';
+import PagarSolicitacaoDialog from '@/components/compras/PagarSolicitacaoDialog';
 import NovaRubricaDialog from '@/components/rubricas/NovaRubricaDialog';
 import { canManageRubricas } from '@/components/auth/permissions';
 
@@ -58,11 +59,12 @@ const STATUS_CONFIG = {
   APROVADO_ADMIN: { label: 'Aprovado', color: 'bg-green-100 text-green-700' },
   RECUSADO: { label: 'Reprovado', color: 'bg-red-100 text-red-700' },
   CANCELADO: { label: 'Cancelado', color: 'bg-gray-100 text-gray-500' },
-  PAGO: { label: 'Aprovado', color: 'bg-green-100 text-green-700' },
+  PAGO: { label: 'Pago', color: 'bg-emerald-100 text-emerald-700' },
   APROVADO: { label: 'Aprovado', color: 'bg-green-100 text-green-700' }
 };
 
 const STATUS_APROVADOS = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
+const STATUS_ELEGIVEIS_PAGAMENTO = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
 
 function toNumber(value) {
   const n = Number(value ?? 0);
@@ -162,6 +164,31 @@ function getPurchaseFileUrl(purchase, attachmentByPurchaseId = {}) {
     attachmentByPurchaseId?.[purchase?.id]?.file_url ||
     ''
   );
+}
+
+function getComprovantePagamentoUrl(purchase = {}) {
+  return (
+    purchase.comprovante_pagamento_url ||
+    purchase.comprovante_url ||
+    purchase.payment_receipt_url ||
+    purchase.recibo_url ||
+    ''
+  );
+}
+
+function formatDateTimeBR(value) {
+  if (!value) return '';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  return date.toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
 }
 
 function isCompraEquipe(purchase) {
@@ -348,6 +375,7 @@ function TabelaSolicitacoes({
   onApprove,
   onReturn,
   onUnapprove,
+  onMarkPaid,
   onAccess,
   userPermission
 }) {
@@ -433,10 +461,17 @@ function TabelaSolicitacoes({
 
           const valor = getPurchaseValue(p);
           const fileUrl = getPurchaseFileUrl(p, attachmentByPurchaseId);
+          const comprovantePagamentoUrl = getComprovantePagamentoUrl(p);
+          const pago = statusKey === 'PAGO';
+          const comprovantePendente =
+            pago && (p.comprovante_pendente === true || !comprovantePagamentoUrl);
+          const pagoEmFormatado = formatDateTimeBR(p.pago_em || p.data_pagamento);
           const compraEquipe = isCompraEquipe(p);
           const menuAberto = menuOpenId === p.id;
           const podeEditarAprovada = isCoordenador && aprovado;
           const podeAcessar = !aprovado || podeEditarAprovada;
+          const podeMarcarPago =
+            podeAprovar && STATUS_ELEGIVEIS_PAGAMENTO.has(statusKey);
 
           return (
             <tr
@@ -493,6 +528,35 @@ function TabelaSolicitacoes({
                 >
                   {status.label}
                 </span>
+
+                {pagoEmFormatado && (
+                  <p className="mt-1 text-[11px] leading-tight text-gray-400">
+                    {pagoEmFormatado}
+                  </p>
+                )}
+
+                {pago && p.pago_por && (
+                  <p className="mt-0.5 truncate text-[11px] leading-tight text-gray-400">
+                    por {p.pago_por}
+                  </p>
+                )}
+
+                {comprovantePendente && (
+                  <span className="mt-1 inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                    Comprovante pendente
+                  </span>
+                )}
+
+                {comprovantePagamentoUrl && (
+                  <a
+                    href={comprovantePagamentoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-1 block truncate text-[11px] font-medium text-blue-700 underline underline-offset-2"
+                  >
+                    Abrir comprovante
+                  </a>
+                )}
               </td>
 
               <td className="px-3 py-2.5 align-top text-right font-medium tabular-nums text-gray-900">
@@ -547,6 +611,28 @@ function TabelaSolicitacoes({
                       title="Deletar"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+
+                  {podeMarcarPago && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onMarkPaid?.(p);
+                      }}
+                      className={`inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
+                        pago
+                          ? 'text-emerald-600 hover:bg-emerald-50'
+                          : 'text-gray-500 hover:bg-emerald-50 hover:text-emerald-700'
+                      }`}
+                      title={pago ? 'Adicionar ou editar comprovante' : 'Marcar como pago'}
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      <span className="hidden xl:inline">
+                        {pago ? 'Comprovante' : 'Pago'}
+                      </span>
                     </button>
                   )}
 
@@ -661,6 +747,7 @@ function ComprasInner() {
   const [showReportGen, setShowReportGen] = useState(false);
   const [showNovaRubrica, setShowNovaRubrica] = useState(false);
   const [selectedRubrica, setSelectedRubrica] = useState(null);
+  const [paymentPurchase, setPaymentPurchase] = useState(null);
   const [recalculando, setRecalculando] = useState(false);
 
   const [filters, setFilters] = useState({
@@ -1597,6 +1684,7 @@ function ComprasInner() {
                 onApprove={handleApprovePurchase}
                 onReturn={handleReturnPurchase}
                 onUnapprove={handleUnapprovePurchase}
+                onMarkPaid={(purchase) => setPaymentPurchase(purchase)}
                 onAccess={(purchase) => {
                   setEditingPurchase({ ...purchase });
                   setShowForm(true);
@@ -1880,6 +1968,18 @@ function ComprasInner() {
         <ContractActivityReportGenerator
           isOpen={showReportGen}
           onClose={() => setShowReportGen(false)}
+        />
+      )}
+
+      {paymentPurchase && (
+        <PagarSolicitacaoDialog
+          purchase={paymentPurchase}
+          currentUser={currentUser}
+          onClose={() => setPaymentPurchase(null)}
+          onSuccess={async () => {
+            setPaymentPurchase(null);
+            await refreshFinanceiroCompleto();
+          }}
         />
       )}
 
