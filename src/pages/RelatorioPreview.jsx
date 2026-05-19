@@ -343,25 +343,6 @@ function buildPartHtml(documentParts, part, partIndex, totalParts, summaryHtml =
 </html>`;
 }
 
-function openPrintWindow(html, filename) {
-  const printWindow = window.open('', '_blank', 'width=1280,height=900');
-  if (!printWindow) return false;
-
-  const finalHtml = String(html || '').replace(/<title>.*?<\/title>/i, `<title>${escapeHtml(filename)}</title>`);
-  printWindow.document.open();
-  printWindow.document.write(finalHtml);
-  printWindow.document.close();
-
-  setTimeout(() => {
-    try {
-      printWindow.focus();
-      printWindow.print();
-    } catch {}
-  }, 300);
-
-  return true;
-}
-
 async function waitForIframeAssets(iframe) {
   const doc = iframe?.contentDocument;
   if (!doc) return;
@@ -1707,13 +1688,19 @@ export default function RelatorioPreview() {
     async function load() {
       const stored = getStoredHtml();
 
-      const reports =
-        await loadReportsForHtml(stored);
+      let finalHtml = '';
+      try {
+        const reports =
+          await loadReportsForHtml(stored);
 
-      const finalHtml = prepareFinalHtml(
-        stored,
-        reports
-      );
+        finalHtml = prepareFinalHtml(
+          stored,
+          reports
+        );
+      } catch (error) {
+        console.warn('Falha ao preparar prévia completa. Usando HTML salvo para exportação:', error);
+        finalHtml = prepareFinalHtml(stored, []);
+      }
 
       if (!cancelled) {
         setHtml(finalHtml);
@@ -1734,18 +1721,19 @@ export default function RelatorioPreview() {
     [html]
   );
 
-  function handlePrint() {
-    const iframe = document.getElementById(
-      'relatorio-preview-frame'
-    );
+  async function getHtmlForExport() {
+    if (String(html || '').trim()) return html;
 
-    if (iframe?.contentWindow) {
-      iframe.contentWindow.focus();
-      iframe.contentWindow.print();
-      return;
+    const stored = getStoredHtml();
+    if (!String(stored || '').trim()) return '';
+
+    try {
+      const reports = await loadReportsForHtml(stored);
+      return prepareFinalHtml(stored, reports);
+    } catch (error) {
+      console.warn('Falha ao carregar dados complementares. Exportando HTML salvo:', error);
+      return prepareFinalHtml(stored, []);
     }
-
-    window.print();
   }
 
   function updateExportQueueItem(index, patch) {
@@ -1756,34 +1744,29 @@ export default function RelatorioPreview() {
     );
   }
 
-  async function handleExportPdf() {
-    if (!html) return;
+  async function handleExportPdf(modeOverride = exportMode) {
+    const exportHtml = await getHtmlForExport();
+    if (!exportHtml) {
+      toast.error('HTML do relatório não encontrado. Gere o relatório novamente.');
+      return;
+    }
 
     setIsExportingPdf(true);
     toast.info('Preparando relatório para exportação...');
 
     try {
-      if (exportMode === 'single') {
+      if (modeOverride === 'single') {
         toast.info('Gerando PDF em arquivo único...');
-        try {
-          const blob = await exportHtmlToPdfBlob(html);
-          await downloadPdfBlob(blob, `${EXPORT_FILENAME_BASE}.pdf`);
-          toast.success('PDF exportado com sucesso.');
-        } catch (pdfError) {
-          console.warn('Exportacao direta para PDF indisponivel. Usando impressao do navegador:', pdfError);
-          const ok = openPrintWindow(html, `${EXPORT_FILENAME_BASE}.pdf`);
-          if (!ok) {
-            handlePrint();
-          }
-          toast.warning('PDF direto indisponivel. Use a janela de impressao para salvar como PDF.');
-        }
+        const blob = await exportHtmlToPdfBlob(exportHtml);
+        await downloadPdfBlob(blob, `${EXPORT_FILENAME_BASE}.pdf`);
+        toast.success('PDF exportado com sucesso.');
         setExportDialogOpen(false);
         return;
       }
 
       toast.info('Gerando PDF dividido em partes...');
       const selectedChapterIds = loadSelectedChapterIds();
-      const documentParts = extractDocumentParts(html, selectedChapterIds);
+      const documentParts = extractDocumentParts(exportHtml, selectedChapterIds);
 
       if (!documentParts || !Array.isArray(documentParts.chapters) || documentParts.chapters.length === 0) {
         toast.error('Não foi possível dividir o relatório por capítulos. Tente novamente.');
@@ -1868,7 +1851,13 @@ export default function RelatorioPreview() {
   }
 
   function handleDownloadHtml() {
-    const blob = new Blob([html || ''], {
+    const htmlForDownload = html || getStoredHtml();
+    if (!String(htmlForDownload || '').trim()) {
+      toast.error('HTML do relatório não encontrado. Gere o relatório novamente.');
+      return;
+    }
+
+    const blob = new Blob([htmlForDownload], {
       type: 'text/html;charset=utf-8',
     });
 
@@ -1898,7 +1887,7 @@ export default function RelatorioPreview() {
 
             <p className="text-sm text-gray-500 mt-1">
               Visualização do documento final.
-              Use imprimir para salvar como PDF.
+              Exportação direta do HTML para PDF.
             </p>
           </div>
 
@@ -1923,12 +1912,25 @@ export default function RelatorioPreview() {
             </Button>
 
             <Button
-              onClick={() => setExportDialogOpen(true)}
+              onClick={() => {
+                setExportMode('single');
+                handleExportPdf('single');
+              }}
               className="bg-black hover:bg-gray-800 text-white gap-2"
-              disabled={!html || isExportingPdf}
+              disabled={isExportingPdf}
             >
               {isExportingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
-              {isExportingPdf ? 'Exportando...' : 'Exportar PDF'}
+              {isExportingPdf ? 'Exportando...' : 'Exportar PDF direto'}
+            </Button>
+
+            <Button
+              variant="outline"
+              onClick={() => setExportDialogOpen(true)}
+              className="gap-2"
+              disabled={isExportingPdf}
+            >
+              <Printer className="w-4 h-4" />
+              Opções PDF
             </Button>
           </div>
         </div>
@@ -1997,7 +1999,7 @@ export default function RelatorioPreview() {
             <Button variant="outline" onClick={() => setExportDialogOpen(false)} disabled={isExportingPdf}>
               Cancelar
             </Button>
-            <Button onClick={handleExportPdf} disabled={!html || isExportingPdf} className="gap-2">
+            <Button onClick={() => handleExportPdf()} disabled={isExportingPdf} className="gap-2">
               {isExportingPdf ? <Printer className="w-4 h-4 animate-pulse" /> : <FileDown className="w-4 h-4" />}
               {isExportingPdf ? 'Exportando...' : 'Exportar'}
             </Button>
