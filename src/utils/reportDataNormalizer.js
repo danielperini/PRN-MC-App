@@ -6,7 +6,7 @@ import {
   prepareInlineAndGalleryPhotos,
   toNumber,
 } from '@/components/reports/premium/premiumReportUtils';
-import { normalizeTextForReport } from './reportTextHelpers';
+import { normalizeHtmlForReport, normalizeTextForReport } from './reportTextHelpers';
 import { validateReportLayoutHtml } from './reportLayoutRules';
 
 function safeArray(value) {
@@ -109,8 +109,9 @@ export function buildEditorialReportContext(rawData = {}, selectedPeriod = {}, s
 }
 
 export function validateReportBeforeExport(reportContext = {}, html = '', selectedChapters = []) {
-  const registryValidation = validateReportExportWithRegistry(html, selectedChapters);
-  const layoutValidation = validateReportLayoutHtml(html);
+  const normalizedHtml = normalizeHtmlForReport(html);
+  const registryValidation = validateReportExportWithRegistry(normalizedHtml, selectedChapters);
+  const layoutValidation = validateReportLayoutHtml(normalizedHtml);
   const indicatorValidation = validateReportIndicators(reportContext);
   const errors = [
     ...(registryValidation.valid ? [] : registryValidation.missingSelected.map((chapterId) => `Capítulo selecionado não renderizado: ${chapterId}`)),

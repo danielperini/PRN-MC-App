@@ -1,3 +1,5 @@
+import { normalizeHtmlForReport } from '@/utils/reportTextHelpers';
+
 const BANNED_SENTENCES = [
   /A continuidade do Projeto Museus Centro se apresenta como uma oportunidade significativa[^<]*(?:<\/p>)?/gi,
   /A busca pela excelência nas ações educativas[^<]*(?:<\/p>)?/gi,
@@ -81,6 +83,7 @@ export function revisarHtmlRelatorioAntesDaExportacao(html = '', options = {}) {
     .replace(/&lt;\s*\/?\s*(p|div|span|strong|b|em|i|h[1-6]|ul|ol|li|section|article)[^&]*&gt;/gi, ' ')
     .replace(/&lt;[^&]*&gt;/g, ' ');
   reviewed = normalizeTables(reviewed);
+  reviewed = normalizeHtmlForReport(reviewed);
   reviewed = reviewed.replace(/<!--\s*editorial-review:[\s\S]*?-->/g, '');
   reviewed = reviewed.replace('</body>', `<!-- editorial-review: PT-BR, ortografia, legendas, títulos, tabelas e imagens revisados automaticamente antes da exportação (${options.modo || 'relatorio'}). --></body>`);
   return reviewed;

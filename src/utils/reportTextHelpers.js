@@ -7,7 +7,9 @@ export function fixSpacingBeforePunctuation(value = '') {
 
 export function fixCommonTypos(value = '') {
   return String(value || '')
+    .replace(/claraassumpcaoctt/gi, 'Clara Braga Assumpção')
     .replace(/clara\s*assumpcao\s*ctt/gi, 'Clara Braga Assumpção')
+    .replace(/clara\s*assump[cç][aã]o\s*ctt/gi, 'Clara Braga Assumpção')
     .replace(/Clara Braga Assump[cç][aã]o/gi, 'Clara Braga Assumpção')
     .replace(/\bLenado\b/g, 'Leandro Gabriel')
     .replace(/Clara Braga Assumpção\s*Educativo\s*·\s*MUMO/gi, 'Clara Braga Assumpção Educadora · Museus Centro')
@@ -39,6 +41,12 @@ export function normalizeOfficialTerms(value = '') {
 
 export function normalizeTextForReport(value = '') {
   return fixSpacingBeforePunctuation(normalizeOfficialTerms(value));
+}
+
+export function normalizeHtmlForReport(value = '') {
+  return normalizeOfficialTerms(String(value || ''))
+    .replace(/Clara Braga Assumpção\s*(?:<[^>]+>\s*)*Educativo\s*·\s*MUMO/gi, 'Clara Braga Assumpção<br />Educadora · Museus Centro')
+    .replace(/claraassumpcaoctt/gi, 'Clara Braga Assumpção');
 }
 
 export function normalizeTextForComparison(value = '') {

@@ -18,6 +18,7 @@ import {
 
 import buildRelatorioFisicoFinanceiroContext from '@/utils/buildRelatorioFisicoFinanceiroContext';
 import { validateReportBeforeExport } from '@/utils/reportDataNormalizer';
+import { normalizeHtmlForReport } from '@/utils/reportTextHelpers';
 import montarHtmlRelatorioFisicoFinanceiro from '@/utils/relatorioFisicoFinanceiroTemplate';
 import gerarTextosRelatorioFisicoFinanceiro from '@/services/relatorioIAService';
 import { montarHtmlRelatorioPremium } from '@/components/reports/premium/PremiumReportLayout';
@@ -169,7 +170,7 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
       reportGeneratorStrategy: REPORT_GENERATOR_STRATEGY,
     };
 
-    const html = modoPremium
+    const html = normalizeHtmlForReport(modoPremium
       ? montarHtmlRelatorioPremium({
         contexto,
         textos,
@@ -181,7 +182,7 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
         textos,
         secoesSelecionadas,
         filtros,
-      });
+      }));
 
     const validation = validateReportBeforeExport(contexto, html, secoesSelecionadas);
     if (!validation.valid) {
