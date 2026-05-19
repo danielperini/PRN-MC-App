@@ -1,4 +1,9 @@
 import { normalizeTextForReport } from '@/utils/reportTextHelpers';
+import {
+  dedupePhotosByTechnicalIdentity,
+  getPhotoIdentity,
+  getPhotoUrl,
+} from '@/utils/photoSimilarity';
 
 function stripVisibleMarkup(value) {
   return String(value || '')
@@ -515,34 +520,14 @@ export function uniqueBy(items = [], keyFn = (item) => item?.id || item?.url || 
   });
 }
 
-export function normalizePhotoUrl(value = '') {
-  const raw = cleanText(value);
-  if (!raw) return '';
-
-  try {
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://museus-centro.local';
-    const url = new URL(raw, origin);
-    url.search = '';
-    url.hash = '';
-    return decodeURIComponent(url.pathname || raw).toLowerCase();
-  } catch {
-    return raw.split('?')[0].split('#')[0].toLowerCase();
-  }
+export function dedupePhotosByImageIdentity(photos = []) {
+  return dedupePhotosByTechnicalIdentity(photos);
 }
 
-export function normalizePhotoFileName(value = '') {
-  return normalizeText(
-    cleanText(value)
-      .split('?')[0]
-      .split('#')[0]
-      .split('/')
-      .pop()
-      ?.replace(/\.(jpg|jpeg|png|webp|gif|bmp|avif|heic)$/i, '') || ''
-  );
-}
+export { getPhotoIdentity, getPhotoUrl };
 
-export function getPhotoIdentity(photo = {}) {
-  const urlIdentity = normalizePhotoUrl(
+function getLegacyPhotoIdentity(photo = {}) {
+  const rawUrl = cleanText(
     photo?.arquivo_original_url ||
     photo?.original_url ||
     photo?.fileUrl ||
@@ -551,117 +536,27 @@ export function getPhotoIdentity(photo = {}) {
     photo?.src ||
     photo?.link ||
     photo?.imagem_url ||
-    photo?.attachment_url
+    photo?.attachment_url ||
+    ''
   );
 
-  if (urlIdentity) return urlIdentity;
+  if (!rawUrl) return '';
 
-  const fallback = [
-    normalizePhotoFileName(photo?.fileName || photo?.file_name || photo?.name || ''),
-    cleanText(photo?.created_date || photo?.updated_date || photo?.timestamp || photo?.date || photo?.mes || '').slice(0, 10),
-    normalizeText(photo?.museu || photo?.centro_custo || photo?.sectionKey || photo?.sectionTitle || ''),
-    normalizeText(photo?.legenda || photo?.caption || photo?.descricao || photo?.description || '').slice(0, 120),
-    normalizeText(photo?.atividade || photo?.atividade_nome || photo?.titulo_atividade || photo?.linkedActivity?.title || '').slice(0, 120),
-  ].filter(Boolean).join('::');
-
-  return fallback || cleanText(photo?.attachment_id || photo?.attachmentId || photo?.id || '');
-}
-
-export function scorePhotoMetadata(photo = {}) {
-  return [
-    photo?.legenda,
-    photo?.caption,
-    photo?.descricao,
-    photo?.description,
-    photo?.museu,
-    photo?.centro_custo,
-    photo?.sectionKey,
-    photo?.sectionTitle,
-    photo?.localizacao,
-    photo?.geoCoordinates,
-    photo?.metadataCoordinates,
-    photo?.linkedActivity?.title,
-    photo?.atividade,
-    photo?.reportLabel,
-    photo?.author_name,
-    photo?.autor,
-    photo?.credito,
-  ].filter(Boolean).length;
-}
-
-function hasValidPhotoUrl(photo = {}) {
-  return Boolean(photo?.fileUrl || photo?.url || photo?.file_url || photo?.src || photo?.arquivo_original_url || photo?.imagem_url || photo?.attachment_url);
-}
-
-function getPhotoTime(photo = {}) {
-  const date = new Date(photo?.timestamp || photo?.created_date || photo?.updated_date || photo?.date || photo?.data || 0);
-  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
-}
-
-export function mergePhotoMetadata(primary = {}, duplicate = {}) {
-  const duplicateSourceId = duplicate.sourceId || duplicate.id || duplicate.attachment_id || duplicate.attachmentId;
-  return {
-    ...duplicate,
-    ...primary,
-    legenda: primary.legenda || duplicate.legenda || duplicate.caption,
-    caption: primary.caption || duplicate.caption || duplicate.legenda,
-    description: primary.description || duplicate.description || duplicate.descricao,
-    descricao: primary.descricao || duplicate.descricao || duplicate.description,
-    museu: primary.museu || duplicate.museu || duplicate.centro_custo,
-    centro_custo: primary.centro_custo || duplicate.centro_custo || duplicate.museu,
-    sectionKey: primary.sectionKey || duplicate.sectionKey,
-    sectionTitle: primary.sectionTitle || duplicate.sectionTitle,
-    localizacao: primary.localizacao || duplicate.localizacao,
-    geoCoordinates: primary.geoCoordinates || duplicate.geoCoordinates,
-    metadataCoordinates: primary.metadataCoordinates || duplicate.metadataCoordinates,
-    linkedActivity: primary.linkedActivity || duplicate.linkedActivity,
-    atividade: primary.atividade || duplicate.atividade || duplicate.atividade_nome,
-    reportLabel: primary.reportLabel || duplicate.reportLabel,
-    credito: primary.credito || duplicate.credito || duplicate.autor,
-    duplicateCount: (primary.duplicateCount || 1) + (duplicate.duplicateCount || 1),
-    duplicateSourceIds: Array.from(new Set([
-      ...(primary.duplicateSourceIds || []),
-      ...(duplicate.duplicateSourceIds || []),
-      duplicateSourceId,
-    ].filter(Boolean))),
-  };
-}
-
-function choosePrimaryPhoto(current = {}, candidate = {}) {
-  const currentScore = scorePhotoMetadata(current);
-  const candidateScore = scorePhotoMetadata(candidate);
-  if (candidateScore !== currentScore) return candidateScore > currentScore ? candidate : current;
-
-  if (hasValidPhotoUrl(candidate) !== hasValidPhotoUrl(current)) return hasValidPhotoUrl(candidate) ? candidate : current;
-  if (candidate.reportLabel && !current.reportLabel) return candidate;
-  if (getPhotoTime(candidate) !== getPhotoTime(current)) return getPhotoTime(candidate) > getPhotoTime(current) ? candidate : current;
-  return current;
-}
-
-export function dedupePhotosByImageIdentity(photos = []) {
-  const byKey = new Map();
-
-  (Array.isArray(photos) ? photos : []).forEach((photo) => {
-    const key = getPhotoIdentity(photo);
-    if (!key) return;
-
-    if (!byKey.has(key)) {
-      byKey.set(key, { ...photo, duplicateCount: photo.duplicateCount || 1, duplicateSourceIds: photo.duplicateSourceIds || [] });
-      return;
-    }
-
-    const current = byKey.get(key);
-    const primary = choosePrimaryPhoto(current, photo);
-    const duplicate = primary === current ? photo : current;
-    byKey.set(key, mergePhotoMetadata(primary, duplicate));
-  });
-
-  return Array.from(byKey.values());
+  try {
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://museus-centro.local';
+    const url = new URL(rawUrl, origin);
+    url.search = '';
+    url.hash = '';
+    return decodeURIComponent(url.pathname || rawUrl).toLowerCase();
+  } catch {
+    return rawUrl.split('?')[0].split('#')[0].toLowerCase();
+  }
 }
 
 function getPhotoSelectionKeys(photo = {}) {
   return [
     getPhotoIdentity(photo),
+    getLegacyPhotoIdentity(photo),
     photo?.id,
     photo?.attachment_id,
     photo?.attachmentId,
@@ -772,7 +667,7 @@ export function extractPhotos(contexto = {}, limit = 36) {
 
   return dedupePhotosByImageIdentity([...fromContext, ...fromActivities, ...fromReports]
     .map((foto) => {
-      const url = foto?.url || foto?.file_url || foto?.fileUrl || foto?.src || foto?.arquivo_original_url || foto?.arquivo_url || foto?.imagem_url || foto?.attachment_url || '';
+      const url = getPhotoUrl(foto);
       return {
         ...foto,
         url,

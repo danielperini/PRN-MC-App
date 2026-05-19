@@ -20,7 +20,11 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toastMessages } from '@/lib/toastMessages';
-import { dedupePhotosByImageIdentity, getPhotoIdentity } from '@/components/reports/premium/premiumReportUtils';
+import {
+  dedupePhotosByTechnicalIdentity,
+  dedupePhotosByVisualSimilarity,
+  getPhotoIdentity,
+} from '@/utils/photoSimilarity';
 
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'heic', 'webp', 'gif', 'bmp', 'avif'];
 const INITIAL_VISIBLE_IMAGES = 48;
@@ -481,10 +485,10 @@ function resolveMuseumSection({ item = {}, report = null, linkedActivity = null,
 }
 
 function uniqueByFileUrl(items = []) {
-  return dedupePhotosByImageIdentity(items);
+  return dedupePhotosByTechnicalIdentity(items);
 }
 
-function buildDuplicateGroups(items = []) {
+function buildDuplicateGroups(items = [], visualRemoved = []) {
   const groups = new Map();
 
   (Array.isArray(items) ? items : []).forEach((item) => {
@@ -494,7 +498,7 @@ function buildDuplicateGroups(items = []) {
     groups.get(key).push(item);
   });
 
-  return Array.from(groups.entries())
+  const technicalGroups = Array.from(groups.entries())
     .filter(([, group]) => group.length > 1)
     .map(([key, group]) => ({
       key,
@@ -502,7 +506,41 @@ function buildDuplicateGroups(items = []) {
       keep: group[0],
       duplicates: group.slice(1),
       items: group,
+      reason: 'identidade_tecnica',
     }));
+
+  if (!Array.isArray(visualRemoved) || !visualRemoved.length) {
+    return technicalGroups;
+  }
+
+  const byId = new Map();
+  (Array.isArray(items) ? items : []).forEach((item) => {
+    [item?.id, item?.sourceId, item?.duplicateIdentity]
+      .filter(Boolean)
+      .forEach((key) => byId.set(String(key), item));
+  });
+
+  const visualGroups = visualRemoved
+    .map((duplicate, index) => {
+      const keep = byId.get(String(duplicate.keptId)) || byId.get(String(duplicate.keptIdentity));
+      const removed = byId.get(String(duplicate.removedId)) || byId.get(String(duplicate.removedIdentity));
+      const itemsForGroup = [keep, removed].filter(Boolean);
+
+      if (itemsForGroup.length < 2) return null;
+
+      return {
+        key: `visual:${duplicate.keptId || duplicate.keptIdentity}:${duplicate.removedId || duplicate.removedIdentity}:${index}`,
+        count: itemsForGroup.length,
+        keep: itemsForGroup[0],
+        duplicates: itemsForGroup.slice(1),
+        items: itemsForGroup,
+        similarity: duplicate.similarity,
+        reason: duplicate.reason || 'similaridade_visual',
+      };
+    })
+    .filter(Boolean);
+
+  return [...technicalGroups, ...visualGroups];
 }
 
 function mapPhoto(item, activityMaps, report = null, prefix = 'media') {
@@ -638,7 +676,7 @@ function GaleriaFotosInner() {
     isFetching,
     refetch
   } = useQuery({
-    queryKey: ['galeria-fotos-v9-restaurada', currentUser?.email],
+    queryKey: ['galeria-fotos-v10-visual-dedup', currentUser?.email],
     queryFn: async () => {
       const allImages = [];
       let reports = [];
@@ -706,9 +744,25 @@ function GaleriaFotosInner() {
         toastMessages.warning('Erro ao carregar imagens da galeria');
       }
 
+      let dedupedImages = [];
+      let visualRemoved = [];
+
+      try {
+        const visualResult = await dedupePhotosByVisualSimilarity(allImages, {
+          threshold: 0.8,
+        });
+
+        dedupedImages = visualResult.photos;
+        visualRemoved = visualResult.removed;
+      } catch (error) {
+        console.warn('Deduplicação visual indisponível. Usando deduplicação técnica:', error);
+        dedupedImages = uniqueByFileUrl(allImages);
+        visualRemoved = [];
+      }
+
       return {
-        images: uniqueByFileUrl(allImages).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)),
-        duplicateGroups: buildDuplicateGroups(allImages),
+        images: dedupedImages.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)),
+        duplicateGroups: buildDuplicateGroups(allImages, visualRemoved),
       };
     },
     enabled: !!currentUser?.email,
@@ -788,7 +842,7 @@ function GaleriaFotosInner() {
   const analyzeDuplicateGroupsWithAI = async () => {
     if (!duplicateGroups.length) {
       setDuplicateAnalysis({
-        summary: 'Nenhuma imagem repetida foi encontrada pelos critérios técnicos da galeria.',
+        summary: 'Nenhuma imagem repetida foi encontrada pelos critérios técnicos ou visuais da galeria.',
         groups: [],
       });
       setDuplicateReviewOpen(true);
@@ -802,6 +856,8 @@ function GaleriaFotosInner() {
       groupKey: group.key,
       index: index + 1,
       count: group.count,
+      similarity: group.similarity ? Math.round(group.similarity * 100) : null,
+      reason: group.reason || '',
       keepId: group.keep.id,
       keepFile: group.keep.fileName,
       keepMuseum: group.keep.museu,
@@ -818,7 +874,7 @@ function GaleriaFotosInner() {
     try {
       const prompt = `
 Você é uma curadoria técnica da Galeria de Fotos do Museus Centro.
-Analise os grupos abaixo e aponte quais parecem ser fotos repetidas do mesmo arquivo ou do mesmo registro visual.
+Analise os grupos abaixo e aponte quais parecem ser fotos repetidas do mesmo arquivo, da mesma identidade técnica ou do mesmo registro visual.
 Use apenas os metadados fornecidos. Não invente dados.
 Responda em JSON puro, sem markdown, neste formato:
 {
@@ -851,11 +907,13 @@ ${JSON.stringify(candidates, null, 2)}
     } catch (error) {
       console.warn('IA indisponível para análise de duplicadas. Usando análise técnica local:', error);
       setDuplicateAnalysis({
-        summary: `${duplicateGroups.length} grupo(s) de imagens repetidas foram detectados por identidade técnica de arquivo.`,
+        summary: `${duplicateGroups.length} grupo(s) de imagens repetidas foram detectados por identidade técnica ou similaridade visual.`,
         groups: duplicateGroups.map((group) => ({
           groupKey: group.key,
           confidence: 'alta',
-          reason: 'Mesmo arquivo normalizado encontrado em mais de uma origem da galeria.',
+          reason: group.reason === 'similaridade_visual'
+            ? `Similaridade visual local estimada em ${Math.round((group.similarity || 0) * 100)}%.`
+            : 'Mesmo arquivo normalizado encontrado em mais de uma origem da galeria.',
           keepId: group.keep.id,
           duplicateIds: group.duplicates.map((item) => item.id),
         })),
@@ -969,7 +1027,7 @@ ${JSON.stringify(candidates, null, 2)}
 
           {duplicateGroups.length > 0 && (
             <p className="mt-2 text-xs text-amber-700">
-              {duplicateGroups.length} grupo(s) de imagens repetidas foram detectados antes da deduplicação visual.
+              {duplicateGroups.length} grupo(s) de imagens repetidas foram detectados e removidos da exibição por identidade técnica ou similaridade visual.
             </p>
           )}
         </div>
