@@ -515,19 +515,40 @@ export function uniqueBy(items = [], keyFn = (item) => item?.id || item?.url || 
   });
 }
 
+function normalizePhotoUrlForIdentity(value = '') {
+  const raw = cleanText(value);
+  if (!raw) return '';
+
+  try {
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://museus-centro.local';
+    const url = new URL(raw, origin);
+    url.search = '';
+    url.hash = '';
+    return decodeURIComponent(url.pathname || raw).toLowerCase();
+  } catch {
+    return raw.split('?')[0].split('#')[0].toLowerCase();
+  }
+}
+
 export function getPhotoIdentity(photo = {}) {
-  return cleanText(
-    photo?.id ||
-    photo?.attachment_id ||
-    photo?.attachmentId ||
+  const urlIdentity = normalizePhotoUrlForIdentity(
     photo?.arquivo_original_url ||
     photo?.original_url ||
-    photo?.link ||
     photo?.url ||
     photo?.file_url ||
     photo?.src ||
+    photo?.link
+  );
+
+  if (urlIdentity) return urlIdentity;
+
+  return cleanText(
+    photo?.attachment_id ||
+    photo?.attachmentId ||
+    photo?.id ||
     [
       photo?.fileName || photo?.file_name || photo?.name || '',
+      photo?.size || photo?.file_size || '',
       photo?.created_date || photo?.updated_date || photo?.mes || '',
       photo?.atividade || photo?.atividade_nome || photo?.titulo || '',
     ].filter(Boolean).join('::')
@@ -627,7 +648,7 @@ export function extractPhotos(contexto = {}, limit = 36) {
       museu: report?.museu || foto?.museu,
     })) : []);
 
-  return uniqueBy([...fromContext, ...fromActivities, ...fromReports], (foto) => foto?.url || foto?.file_url || foto?.src)
+  return uniqueBy([...fromContext, ...fromActivities, ...fromReports], getPhotoIdentity)
     .map((foto) => {
       const url = foto?.url || foto?.file_url || foto?.src || foto?.arquivo_url || '';
       return {
