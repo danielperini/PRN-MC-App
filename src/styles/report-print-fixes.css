@@ -1,0 +1,151 @@
+/* Correções cirúrgicas para prévia/exportação do relatório.
+   Mantém o layout consolidado e apenas evita quebra vertical indevida de textos/cards,
+   além de aplicar a logo institucional disponível em public/viaduto-logo.png. */
+
+.premium-report,
+.premium-report * {
+  word-break: normal !important;
+  overflow-wrap: break-word !important;
+  hyphens: auto;
+}
+
+.premium-report {
+  width: 210mm !important;
+  max-width: 210mm !important;
+}
+
+.premium-internal-page-header {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 18px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+.premium-internal-page-header-logo {
+  width: 34mm !important;
+  min-width: 34mm !important;
+  height: 18mm !important;
+  flex: 0 0 34mm !important;
+  background-image: url('/viaduto-logo.png') !important;
+  background-repeat: no-repeat !important;
+  background-position: left center !important;
+  background-size: contain !important;
+}
+
+.premium-internal-page-header-logo img {
+  max-width: 34mm !important;
+  max-height: 18mm !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain !important;
+}
+
+.premium-internal-page-header-logo img[src=''],
+.premium-internal-page-header-logo img:not([src]) {
+  display: none !important;
+}
+
+.premium-internal-page-header-text {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  text-align: right !important;
+  white-space: normal !important;
+}
+
+.report-pdf-institutional-logo-wrap {
+  width: 28mm !important;
+  min-width: 28mm !important;
+  height: 16mm !important;
+  flex: 0 0 28mm !important;
+  background-image: url('/viaduto-logo.png') !important;
+  background-repeat: no-repeat !important;
+  background-position: left center !important;
+  background-size: contain !important;
+}
+
+.report-pdf-institutional-logo {
+  max-width: 28mm !important;
+  max-height: 16mm !important;
+  object-fit: contain !important;
+}
+
+.premium-activity-grid,
+.premium-month-grid,
+.premium-report-archive,
+.premium-museum-block,
+.premium-section {
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+
+.premium-activity-card {
+  display: grid !important;
+  grid-template-columns: minmax(28px, 40px) minmax(0, 1fr) !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  overflow: visible !important;
+  align-items: start !important;
+}
+
+.premium-activity-card > *,
+.premium-activity-card article,
+.premium-activity-card div,
+.activity-card-meta,
+.activity-card-title,
+.activity-card-body,
+.premium-activity-card h3,
+.premium-activity-card h4,
+.premium-activity-card p {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  white-space: normal !important;
+  word-break: normal !important;
+  overflow-wrap: break-word !important;
+}
+
+.premium-activity-index {
+  width: 40px !important;
+  min-width: 28px !important;
+  max-width: 40px !important;
+  white-space: normal !important;
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+  text-align: left !important;
+}
+
+.premium-month-card,
+.premium-card-header,
+.premium-card-facts,
+.premium-card-footer {
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+
+@media print {
+  .premium-report {
+    width: 210mm !important;
+    max-width: 210mm !important;
+    min-width: 210mm !important;
+    margin: 0 auto !important;
+  }
+
+  .premium-section,
+  .premium-museum-block,
+  .premium-communication,
+  .premium-closing,
+  .premium-expediente {
+    width: 210mm !important;
+    max-width: 210mm !important;
+    min-width: 210mm !important;
+    overflow: visible !important;
+  }
+
+  .premium-activity-card {
+    grid-template-columns: 40px minmax(0, 1fr) !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+}
