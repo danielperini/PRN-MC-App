@@ -66,7 +66,7 @@ const MUSEUS = ['MHAB', 'MIS', 'MUMO'];
 
 export default function Relatorios() {
   const queryClient = useQueryClient();
-  const { user, isLoading: userLoading } = useCurrentUser();
+  const { user, isLoading: userLoading, isCoordenador } = useCurrentUser();
   const [filterMuseu, setFilterMuseu] = useState('todos');
   const [filterMes, setFilterMes] = useState('todos');
   const [filterStatus, setFilterStatus] = useState('todos');
@@ -75,7 +75,6 @@ export default function Relatorios() {
   const [returnComment, setReturnComment] = useState('');
 
   const isAdmin = user?.role === 'admin';
-  const isCoordenador = user?.role === 'COORDENADOR' || user?.role === 'admin';
 
   const returnReportMutation = useMutation({
     mutationFn: async ({ report, comment }) => {
@@ -222,12 +221,12 @@ export default function Relatorios() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Link to="/RelatorioFisicoFinanceiro">
+            {isCoordenador ? <Link to="/RelatorioFisicoFinanceiro">
               <Button variant="outline" className="gap-2">
                 <BarChart2 className="h-4 w-4" />
                 Gerador de Relatório
               </Button>
-            </Link>
+            </Link> : null}
 
             <Link to="/ReportEditor?novo=1">
               <Button className="gap-2 bg-black text-white hover:bg-gray-900">

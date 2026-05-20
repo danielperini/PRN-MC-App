@@ -675,11 +675,46 @@ function buildGalleryGroups(contexto = {}) {
   );
 }
 
+function buildGalleryIntroHtml({ totalPhotos = 0, groups = [], selectedChapters = [] } = {}) {
+  const totalChapters = selectedChapters.length || REPORT_CHAPTER_IDS.length;
+
+  return `
+        <h2>Relat\u00f3rio Galeria \u2014 evid\u00eancias visuais, atividades e geolocaliza\u00e7\u00e3o</h2>
+        <p class="intro-lead">Este Relat\u00f3rio Galeria organiza as imagens registradas no \u00e2mbito do Projeto Museus Centro como evid\u00eancias visuais das atividades realizadas no per\u00edodo de 2 de fevereiro a 30 de abril de 2026. As fotografias n\u00e3o s\u00e3o tratadas como uma galeria gen\u00e9rica ou meramente ilustrativa, mas como documentos vinculados \u00e0s a\u00e7\u00f5es registradas pela equipe, preservando a rela\u00e7\u00e3o entre imagem, atividade, museu, data, relat\u00f3rio de origem e, quando dispon\u00edvel, geolocaliza\u00e7\u00e3o.</p>
+        <p>A organiza\u00e7\u00e3o das imagens parte do princ\u00edpio de que cada registro fotogr\u00e1fico comprova, qualifica ou contextualiza uma atividade espec\u00edfica. Assim, as imagens s\u00e3o agrupadas a partir do v\u00ednculo original informado nos relat\u00f3rios da equipe e associadas aos respectivos equipamentos culturais \u2014 Museu Hist\u00f3rico Ab\u00edlio Barreto, Museu da Imagem e do Som, Museu da Moda ou a\u00e7\u00f5es de atua\u00e7\u00e3o geral. Esse procedimento permite compreender a imagem como evid\u00eancia de execu\u00e7\u00e3o, mem\u00f3ria institucional e apoio \u00e0 rastreabilidade do projeto.</p>
+        <p>Sempre que dispon\u00edveis, s\u00e3o mantidos os metadados associados \u00e0s imagens, incluindo cr\u00e9dito, local, GPS, nome do arquivo, data, museu e atividade vinculada. Quando essas informa\u00e7\u00f5es n\u00e3o estiverem completas, o relat\u00f3rio preserva o dado existente sem produzir infer\u00eancias artificiais. Dessa forma, evita-se atribuir localiza\u00e7\u00e3o, autoria ou contexto n\u00e3o confirmados, mantendo a integridade documental da publica\u00e7\u00e3o.</p>
+        <p>A estrutura deste relat\u00f3rio tamb\u00e9m adota crit\u00e9rio de uso \u00fanico das imagens. Cada fotografia deve aparecer apenas uma vez, vinculada \u00e0 atividade de origem ou ao agrupamento mais consistente identificado. Quando uma mesma imagem aparece associada a mais de uma atividade, o sistema deve verificar se h\u00e1 duplicidade de registro ou v\u00ednculo indevido. Nos casos em que se tratar da mesma atividade duplicada, os registros podem ser consolidados; quando forem atividades distintas, a imagem permanece apenas no v\u00ednculo mais forte, evitando repeti\u00e7\u00e3o no PDF.</p>
+        <p>Com essa metodologia, a galeria deixa de funcionar como um anexo visual desorganizado e passa a operar como uma base de evid\u00eancias. As imagens comprovam a realiza\u00e7\u00e3o das atividades, demonstram os contextos de participa\u00e7\u00e3o, registram espa\u00e7os, materiais, p\u00fablicos, processos de media\u00e7\u00e3o e momentos de trabalho, contribuindo para a leitura institucional do per\u00edodo e para a transpar\u00eancia da execu\u00e7\u00e3o do projeto.</p>
+        <p>No arquivo consolidado, a capa indica ${totalPhotos} imagens \u00fanicas organizadas em ${groups.length} atividades ou grupos, provenientes de ${totalChapters} cap\u00edtulos de origem, refor\u00e7ando a galeria como sistema de evid\u00eancias vinculadas, e n\u00e3o como conjunto solto de fotografias.</p>
+  `;
+}
+
+function chunkGalleryGroupsForRender(groups = [], chunkSize = 4) {
+  const safeChunkSize = Math.max(1, Number(chunkSize) || 4);
+
+  return groups.flatMap((group) => {
+    const photos = Array.isArray(group?.photos) ? group.photos : [];
+    if (photos.length <= safeChunkSize) {
+      return [{ ...group, renderChunkIndex: 1, renderChunkTotal: 1 }];
+    }
+
+    const total = Math.ceil(photos.length / safeChunkSize);
+    return Array.from({ length: total }, (_, index) => ({
+      ...group,
+      photos: photos.slice(index * safeChunkSize, (index + 1) * safeChunkSize),
+      renderChunkIndex: index + 1,
+      renderChunkTotal: total,
+    }));
+  });
+}
+
 function buildGalleryReportDocument({ contexto = {}, filtros = {}, selectedChapters = [] } = {}) {
-  const groups = buildGalleryGroups(contexto);
-  const totalPhotos = groups.reduce((sum, group) => sum + group.photos.length, 0);
+  const groupedActivities = buildGalleryGroups(contexto);
+  const groups = chunkGalleryGroupsForRender(groupedActivities, 4);
+  const totalPhotos = groupedActivities.reduce((sum, group) => sum + group.photos.length, 0);
   const generatedAt = new Date().toLocaleString('pt-BR');
   const period = `${filtros?.dateFrom || '2026-02-02'} a ${filtros?.dateTo || '2026-04-30'}`;
+  const introHtml = buildGalleryIntroHtml({ totalPhotos, groups: groupedActivities, selectedChapters });
 
   const groupHtml = groups.map((group) => `
     <section class="gallery-activity avoid-break">
@@ -687,6 +722,7 @@ function buildGalleryReportDocument({ contexto = {}, filtros = {}, selectedChapt
         <div>
           <p>${escapeHtml(group.museu)} · ${escapeHtml(group.mes)}</p>
           <h2>${escapeHtml(group.atividade)}</h2>
+          ${group.renderChunkTotal > 1 ? `<small class="gallery-activity-part">Bloco ${group.renderChunkIndex} de ${group.renderChunkTotal}</small>` : ''}
         </div>
         <strong>${group.photos.length} imagem(ns)</strong>
       </header>
@@ -723,13 +759,15 @@ function buildGalleryReportDocument({ contexto = {}, filtros = {}, selectedChapt
     .cover-stats strong { display: block; font-size: 22pt; }
     .report-header { padding: 8mm 14mm 4mm; font-size: 8.5pt; line-height: 1.35; color: #5d554c; border-bottom: 1px solid #ded7cd; }
     .report-content { padding: 12mm 14mm 16mm; }
-    .intro { margin-bottom: 12mm; }
-    .intro h2 { font-size: 20pt; margin: 0 0 8px; }
-    .intro p { font-size: 11pt; line-height: 1.55; margin: 0 0 8px; }
+    .intro { margin-bottom: 12mm; border: 1px solid #ddd4c6; background: #fffdf8; padding: 12px 14px; }
+    .intro h2 { font-size: 20pt; margin: 0 0 10px; }
+    .intro .intro-lead { font-size: 11.6pt; line-height: 1.6; margin: 0 0 10px; color: #2c2c2c; }
+    .intro p { font-size: 10.5pt; line-height: 1.58; margin: 0 0 9px; color: #342f2a; }
     .gallery-activity { padding: 8mm 0 10mm; border-top: 1px solid #ddd4c6; break-inside: avoid; page-break-inside: avoid; }
     .gallery-activity-header { display: flex; justify-content: space-between; gap: 12px; align-items: start; margin-bottom: 8px; }
     .gallery-activity-header p { margin: 0 0 4px; font-size: 9pt; color: #6d6257; text-transform: uppercase; letter-spacing: .06em; }
     .gallery-activity-header h2 { margin: 0; font-size: 15pt; line-height: 1.25; }
+    .gallery-activity-part { display: block; margin-top: 6px; font-size: 8pt; line-height: 1.3; color: #6d6257; text-transform: uppercase; letter-spacing: .08em; }
     .gallery-activity-header strong { white-space: nowrap; font-size: 9pt; border: 1px solid #cfc6ba; padding: 5px 7px; }
     .gallery-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
     figure { margin: 0; break-inside: avoid; page-break-inside: avoid; }
@@ -771,10 +809,15 @@ function buildGalleryReportDocument({ contexto = {}, filtros = {}, selectedChapt
       CEP 30640-010 - E-mail: viadutodasartes@gmail.com
     </div>
     <div class="report-content">
-      <section class="intro">
-        <h2>Galeria organizada por atividade</h2>
-        <p>Este documento reúne as imagens do aplicativo em um relatório separado do volume textual. A separação reduz o peso do relatório principal, preserva as evidências visuais e organiza cada imagem junto da atividade ou do grupo documental mais próximo.</p>
-        <p>Cada imagem aparece apenas uma vez. Quando não há vínculo completo de atividade, museu ou data, o relatório preserva a melhor classificação disponível no app sem inventar dados.</p>
+      <section class="intro">${introHtml}</section>
+      <section class="intro legacy-gallery-intro" style="display:none;">
+        <h2>Relatório Galeria — evidências visuais, atividades e geolocalização</h2>
+        <p class="intro-lead">Este Relatório Galeria organiza as imagens registradas no âmbito do Projeto Museus Centro como evidências visuais das atividades realizadas no período de 2 de fevereiro a 30 de abril de 2026. As fotografias não são tratadas como uma galeria genérica ou meramente ilustrativa, mas como documentos vinculados às ações registradas pela equipe, preservando a relação entre imagem, atividade, museu, data, relatório de origem e, quando disponível, geolocalização.</p>
+        <p>A organização das imagens parte do princípio de que cada registro fotográfico comprova, qualifica ou contextualiza uma atividade específica. Assim, as imagens são agrupadas a partir do vínculo original informado nos relatórios da equipe e associadas aos respectivos equipamentos culturais — Museu Histórico Abílio Barreto, Museu da Imagem e do Som, Museu da Moda ou ações de atuação geral. Esse procedimento permite compreender a imagem como evidência de execução, memória institucional e apoio à rastreabilidade do projeto.</p>
+        <p>Sempre que disponíveis, são mantidos os metadados associados às imagens, incluindo crédito, local, GPS, nome do arquivo, data, museu e atividade vinculada. Quando essas informações não estiverem completas, o relatório preserva o dado existente sem produzir inferências artificiais. Dessa forma, evita-se atribuir localização, autoria ou contexto não confirmados, mantendo a integridade documental da publicação.</p>
+        <p>A estrutura deste relatório também adota critério de uso único das imagens. Cada fotografia deve aparecer apenas uma vez, vinculada à atividade de origem ou ao agrupamento mais consistente identificado. Quando uma mesma imagem aparece associada a mais de uma atividade, o sistema deve verificar se há duplicidade de registro ou vínculo indevido. Nos casos em que se tratar da mesma atividade duplicada, os registros podem ser consolidados; quando forem atividades distintas, a imagem permanece apenas no vínculo mais forte, evitando repetição no PDF.</p>
+        <p>Com essa metodologia, a galeria deixa de funcionar como um anexo visual desorganizado e passa a operar como uma base de evidências. As imagens comprovam a realização das atividades, demonstram os contextos de participação, registram espaços, materiais, públicos, processos de mediação e momentos de trabalho, contribuindo para a leitura institucional do período e para a transparência da execução do projeto.</p>
+        <p>No arquivo consolidado, a capa indica ${totalPhotos} imagens únicas organizadas em ${groups.length} atividades ou grupos, provenientes de ${selectedChapters.length || REPORT_CHAPTER_IDS.length} capítulos de origem, reforçando a galeria como sistema de evidências vinculadas, e não como conjunto solto de fotografias.</p>
       </section>
       ${groupHtml || '<p>Nenhuma imagem com URL foi localizada para a galeria.</p>'}
     </div>

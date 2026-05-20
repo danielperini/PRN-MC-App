@@ -416,7 +416,7 @@ function hasUsefulPdfDomContent(element) {
 function normalizeReportDomForPdf(doc) {
   if (!doc) return;
 
-  doc.querySelectorAll('script, noscript, .report-pdf-institutional-header, .premium-internal-page-header').forEach((node) => node.remove());
+  doc.querySelectorAll('script, noscript, .report-pdf-institutional-header, .premium-internal-page-header, .report-header, .report-footer, .legacy-gallery-intro').forEach((node) => node.remove());
 
   let style = doc.getElementById('pdf-export-a4-normalizer');
   if (!style) {
@@ -518,6 +518,43 @@ function normalizeReportDomForPdf(doc) {
       break-before: auto !important;
       page-break-before: auto !important;
     }
+    .report-shell {
+      width: 794px !important;
+      max-width: 794px !important;
+      margin: 0 auto !important;
+      overflow: hidden !important;
+      background: #ffffff !important;
+    }
+    .report-content {
+      width: 794px !important;
+      max-width: 794px !important;
+      padding: 34px 42px 42px !important;
+      margin: 0 !important;
+      overflow: hidden !important;
+    }
+    .gallery-cover,
+    .gallery-activity,
+    .intro {
+      width: 794px !important;
+      max-width: 794px !important;
+      margin: 0 !important;
+      overflow: hidden !important;
+      transform: none !important;
+    }
+    .gallery-activity {
+      padding: 28px 0 34px !important;
+    }
+    .gallery-grid {
+      display: grid !important;
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      gap: 10px !important;
+    }
+    .gallery-grid img {
+      width: 100% !important;
+      height: 240px !important;
+      max-height: 240px !important;
+      object-fit: cover !important;
+    }
   `;
 
   doc.querySelectorAll('[style]').forEach((node) => {
@@ -565,7 +602,7 @@ function removeNestedPdfTargets(elements = []) {
 }
 
 function getPdfRenderTargets(root) {
-  const MAX_SECTION_HEIGHT = 5200;
+  const MAX_SECTION_HEIGHT = 4200;
   const result = [];
   const majorSelector = [
     '.premium-cover',
@@ -574,6 +611,10 @@ function getPdfRenderTargets(root) {
     '.premium-museum-block',
     '.premium-communication',
     '.premium-closing',
+    '.gallery-cover',
+    '.report-content',
+    '.gallery-activity',
+    '.intro',
   ].join(', ');
 
   function collect(element) {

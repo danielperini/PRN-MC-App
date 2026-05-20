@@ -87,14 +87,16 @@ export default function PremiumMuseumSection({ contexto, chapterIds = ['atividad
       data-report-chapter-ids={chapterIds.filter(Boolean).join(' ')}
       data-report-chapter-title="Atividades por museu"
     >
-      {museus.map((museu) => {
-        const items = grupos[museu] || [];
+      {museus.map((museu, museumIndex) => {
+        const items = (grupos[museu] || [])
+          .slice()
+          .sort((a, b) => String(getActivityDate(a) || '').localeCompare(String(getActivityDate(b) || '')));
         if (items.length === 0) return null;
 
         const publico = items.reduce((sum, item) => sum + toNumber(item?.publico), 0);
 
         return (
-          <section className="premium-museum-block premium-page-break" key={museu}>
+          <section className={`premium-museum-block ${museumIndex > 0 ? 'premium-page-break' : ''}`} key={museu}>
             <PremiumInternalPageHeader />
             <div className="premium-museum-heading">
               <p className="premium-eyebrow">Atividades por museu</p>

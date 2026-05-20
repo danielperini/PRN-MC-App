@@ -1,4 +1,3 @@
-import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import PremiumOpeningCover from './PremiumOpeningCover';
 import PremiumExpedienteSection from './PremiumExpedienteSection';
@@ -141,22 +140,23 @@ const CATALOG_CSS = `
   .premium-museum-heading { display: grid; grid-template-columns: minmax(0,1fr); align-items: start; gap: 12px; margin-bottom: 18px; padding-bottom: 16px; border-bottom: 1px solid rgba(23,23,23,.18); }
   .premium-museum-kpis { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-start; }
   .premium-museum-kpis span, .premium-activity-tags span { border: 1px solid rgba(23,23,23,.16); padding: 7px 9px; font-size: 12px; background: rgba(255,255,255,.4); }
-  .premium-activity-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
-  .premium-activity-card { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; max-width: 100%; overflow: hidden; margin-bottom: 14px; padding: 12px 14px; border: 1px solid rgba(23,23,23,.14); background: rgba(255,255,255,.52); break-inside: avoid; page-break-inside: avoid; }
-  .premium-activity-index { font-size: 18px; font-weight: 800; color: #9f7f4d; }
+  .premium-activity-grid { display: grid; grid-template-columns: 1fr; gap: 18px; }
+  .premium-activity-card { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 14px; max-width: 100%; overflow: hidden; margin-bottom: 0; padding: 16px 18px; border: 1px solid rgba(23,23,23,.14); background: rgba(255,255,255,.64); break-inside: avoid; page-break-inside: avoid; }
+  .premium-activity-index { font-size: 20px; font-weight: 800; color: #9f7f4d; line-height: 1; padding-top: 2px; }
   .premium-activity-tags { display: none; }
   .premium-activity-photos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
   .premium-activity-photos figure { margin: 0; min-height: 76px; }
   .premium-activity-photos img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block; background: #ddd4c6; }
   .premium-activity-photos figcaption { margin-top: 6px; font-size: 9.8pt; line-height: 1.35; color: #5e574f; }
   .premium-activity-photos figcaption span { display: block; }
-  .activity-card-title { margin-bottom: 8px; line-height: 1.25; }
-  .activity-card-body { font-size: 10.5pt; line-height: 1.45; }
-  .activity-card-body p + p { margin-top: 8px; }
+  .activity-card-meta { margin: 0 0 8px; font-size: 8.7pt; line-height: 1.35; color: #675f57; text-transform: uppercase; letter-spacing: .06em; }
+  .activity-card-title { margin-bottom: 10px; line-height: 1.3; font-size: 16px; }
+  .activity-card-body { font-size: 10.5pt; line-height: 1.52; color: #2c2c2c; }
+  .activity-card-body p + p { margin-top: 9px; }
   .premium-activity-card h4, .premium-activity-card p { overflow-wrap: anywhere; }
   .premium-report img, .premium-section img, .premium-museum-block img, .premium-communication img, .premium-closing img { max-width: 100%; max-height: 120mm; height: auto; object-fit: contain; transform: none !important; }
   .premium-cover img { max-width: none; max-height: none; width: 100%; height: 100%; object-fit: cover; }
-  .premium-communication-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: stretch; }
+  .premium-communication-grid { display: grid; grid-template-columns: minmax(0, 1fr) 180px; gap: 16px; align-items: stretch; }
   .premium-communication-panel { background: #171717; color: #fff; padding: 16px; display: flex; flex-direction: column; justify-content: flex-end; min-height: auto; }
   .premium-communication-panel strong { font-size: 52px; line-height: .9; }
   .premium-communication-panel span { margin-top: 10px; font-size: 11px; line-height: 1.35; color: rgba(255,255,255,.72); }
@@ -306,15 +306,6 @@ const CATALOG_CSS = `
     .premium-photo, .premium-activity-card, .premium-timeline-item, .premium-metric, .premium-photo-index-item, .premium-meta-card, .premium-infographic-card, table { break-inside: avoid; page-break-inside: avoid; }
   }
 `;
-
-function buildIntroPeriodo(contexto = {}) {
-  const periodo = contexto?.reportEditorial?.periodLabel || contexto?.periodo_extenso || 'recorte selecionado';
-  return `Este relatório consolida o ${periodo} a partir dos registros do aplicativo, reunindo resultados culturais, institucionais, programáticos, documentais, financeiros e de público do projeto Museus Centro / Viaduto das Artes.
-
-A leitura editorial considera relatórios aprovados, programação, atividades, anexos, rubricas, documentos, público e evidências disponíveis no app. O objetivo é transformar registros operacionais em uma memória institucional verificável, sem incorporar dados externos nem preencher lacunas artificialmente.
-
-O relatório apresenta MIS, MHAB e MUMO como equipamentos complementares de memória, formação, convivência e fruição cultural. Quando houver ausência de dados ou diferença entre fontes, a limitação é explicitada para preservar transparência, rastreabilidade e qualidade técnica.`;
-}
 
 const BASE_METAS_ADITIVO = [
   { numero: 'META 01', titulo: 'Equipe principal', percentual: 100, detalhe: 'Cargos previstos e cargos ocupados na equipe', indicador: '100% concluído · contagem de cargos ativa', status: 'CONCLUÍDA' },
@@ -2266,13 +2257,28 @@ let REPORT_SECTION_FILTER = null;
 function composeIntro(textos = {}, contexto = {}) {
   const periodo = contexto?.reportEditorial?.periodLabel || contexto?.periodo_extenso || '2 de fevereiro a 30 de abril de 2026';
   return [
-    `Este relatório consolida informações executivas do período de ${periodo}, a partir dos dados e registros produzidos pela equipe no aplicativo Museu Centro VP. A leitura editorial baseia-se em informações compartilhadas no sistema, incluindo atividades, anexos, documentos, fotografias, registros de público, programação, solicitações e demais evidências operacionais do projeto.`,
-    'O objetivo é transformar registros operacionais em uma abordagem institucional verificável, capaz de organizar evidências, consolidar resultados e apoiar a leitura pública da execução do Projeto Museus Centro no período.',
-    'O Projeto Museus Centro é realizado em parceria com a Diretoria de Museus da Fundação Municipal de Cultura de Belo Horizonte e o Viaduto das Artes. O presente documento foi elaborado a partir da sistematização dos dados oriundos de um aplicativo desenvolvido especificamente para o projeto, incluindo tratamento de dados com apoio de inteligência artificial.',
+    `Este relatório consolida informações executivas do período de ${periodo} a partir dos dados registrados no aplicativo Museu Centro VP. Trata-se de um produto gerado com base na sistematização digital do projeto, reunindo atividades, anexos, documentos, fotografias, programação, solicitações e registros de público em uma leitura institucional verificável.`,
+    'O sistema está em evolução contínua e seguirá sendo atualizado para incorporar ajustes editoriais, técnicos e de conferência ao longo do acompanhamento do projeto. Por isso, este relatório deve ser lido como base oficial do ciclo atual, sem prejuízo de revisões controladas quando houver atualização de dados no app.',
+    'No recorte atual, por exemplo, o MIS recebeu nova produção registrada após fechamentos anteriores, o que exige refazer a contagem consolidada de público nesse equipamento para manter a consistência metodológica. Esse tipo de ajuste passa a ser identificado com transparência e tratado com rastreabilidade.',
+    'O ponto central é que agora existe uma ferramenta que sistematiza de forma fidedigna as informações do Projeto Museus Centro. Para acompanhar os dados atualizados por museu, recomendamos a consulta contínua ao Dashboard Observador, que apresenta a evolução dos registros e apoia validações institucionais do período.',
   ].join('\n\n');
 }
 
-function TableOfContents({ secoesSelecionadas = [], contexto = {} }) {
+function composeStableInstitutionalIntro(contexto = {}) {
+  const periodo =
+    contexto?.reportEditorial?.periodLabel ||
+    contexto?.periodo_extenso ||
+    '2 de fevereiro a 30 de abril de 2026';
+
+  return [
+    `Este relat\u00f3rio consolida informa\u00e7\u00f5es executivas do per\u00edodo de ${periodo} a partir dos dados registrados no aplicativo Museu Centro VP. Trata-se de um produto gerado com base na sistematiza\u00e7\u00e3o digital do projeto, reunindo atividades, anexos, documentos, fotografias, programa\u00e7\u00e3o, solicita\u00e7\u00f5es e registros de p\u00fablico em uma leitura institucional verific\u00e1vel.`,
+    'O sistema est\u00e1 em evolu\u00e7\u00e3o cont\u00ednua e seguir\u00e1 sendo atualizado para incorporar ajustes editoriais, t\u00e9cnicos e de confer\u00eancia ao longo do acompanhamento do projeto. Por isso, este relat\u00f3rio deve ser lido como base oficial do ciclo atual, sem preju\u00edzo de revis\u00f5es controladas quando houver atualiza\u00e7\u00e3o de dados no app.',
+    'No recorte atual, por exemplo, o MIS recebeu nova produ\u00e7\u00e3o registrada ap\u00f3s fechamentos anteriores, o que exige refazer a contagem consolidada de p\u00fablico nesse equipamento para manter a consist\u00eancia metodol\u00f3gica. Esse tipo de ajuste passa a ser identificado com transpar\u00eancia e tratado com rastreabilidade.',
+    'O ponto central \u00e9 que agora existe uma ferramenta que sistematiza de forma fidedigna as informa\u00e7\u00f5es do Projeto Museus Centro. Para acompanhar os dados atualizados por museu, recomendamos a consulta cont\u00ednua ao Dashboard Observador, que apresenta a evolu\u00e7\u00e3o dos registros e apoia valida\u00e7\u00f5es institucionais do per\u00edodo.',
+  ].join('\n\n');
+}
+
+function TableOfContents({ secoesSelecionadas = [] }) {
   const chapters = getReportSummaryChapters(secoesSelecionadas)
     .filter((chapter) => !REPORT_SECTION_FILTER || REPORT_SECTION_FILTER.has(chapter.id))
     .map((chapter) => ({
@@ -2753,7 +2759,7 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
         eyebrow="Sumário executivo"
         title="Introdução"
         subtitle="Recorte selecionado como ciclo de acompanhamento, pactuação de rotinas e consolidação dos dados do app."
-        text={composeIntro(textos, contexto)}
+        text={composeStableInstitutionalIntro(contexto)}
       >
         <ChapterMethodologyPanel
           chapterId="introducao"
