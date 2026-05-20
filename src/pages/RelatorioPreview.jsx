@@ -8,15 +8,17 @@ import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 import { REPORT_CHAPTERS, REPORT_CHAPTER_IDS } from '@/config/reportChapters';
 import {
+  REPORT_PREVIEW_VARIANTS,
   SINGLE_REPORT_FILENAME,
   exportSingleReportPdf,
+  getReportPreview,
   getSingleReportPreview,
 } from '@/services/reportExportPipeline';
 
 const MAX_EXPORT_PART_SIZE_BYTES = Number.MAX_SAFE_INTEGER;
 
 const PDF_VOLUME_COUNT = 1;
-const filenameForReport = () => SINGLE_REPORT_FILENAME;
+const filenameForReport = (variant = 'single') => REPORT_PREVIEW_VARIANTS[variant]?.filename || SINGLE_REPORT_FILENAME;
 
 function normalizeText(value) {
   return String(value || '')
@@ -1960,6 +1962,11 @@ export default function RelatorioPreview() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const autoExportPdf = searchParams.get('export') === 'pdf';
+  const reportVariant = searchParams.get('report') === 'galeria' || searchParams.get('kind') === 'galeria'
+    ? 'galeria'
+    : searchParams.get('report') === 'dados' || searchParams.get('kind') === 'dados'
+      ? 'dados'
+      : 'single';
   const [html, setHtml] = useState('');
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [exportProgressOpen, setExportProgressOpen] = useState(false);
@@ -1974,8 +1981,10 @@ export default function RelatorioPreview() {
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      const preview = await getSingleReportPreview();
-      const finalHtml = preview.html || await getStoredHtml() || '';
+      const preview = reportVariant === 'single'
+        ? await getSingleReportPreview()
+        : await getReportPreview(reportVariant);
+      const finalHtml = preview.html || (reportVariant === 'single' ? await getStoredHtml() : '') || '';
       if (!cancelled) {
         setReportMeta(preview.meta || {});
         setHtml(finalHtml);
@@ -1987,7 +1996,7 @@ export default function RelatorioPreview() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reportVariant]);
 
   /*
       try {
@@ -2023,6 +2032,11 @@ export default function RelatorioPreview() {
       '<html><body><p>Prévia não encontrada.</p></body></html>',
     [html]
   );
+  const previewTitle = reportVariant === 'galeria'
+    ? 'Prévia do Relatório Galeria'
+    : reportVariant === 'dados'
+      ? 'Prévia do Relatório Principal'
+      : 'Prévia do Relatório Físico-Financeiro';
 
   useEffect(() => {
     if (!autoExportPdf || !html || isExportingPdf || autoExportStarted) return;
@@ -2036,8 +2050,10 @@ export default function RelatorioPreview() {
 async function getHtmlForExport() {
     if (String(html || '').trim()) return html;
 
-    const preview = await getSingleReportPreview();
-    return preview.html || await getStoredHtml() || '';
+    const preview = reportVariant === 'single'
+      ? await getSingleReportPreview()
+      : await getReportPreview(reportVariant);
+    return preview.html || (reportVariant === 'single' ? await getStoredHtml() : '') || '';
   }
 
   function updateExportQueueItem(index, patch) {
@@ -2061,10 +2077,13 @@ async function getHtmlForExport() {
     try {
       const blob = await exportSingleReportPdf({
         html: exportHtml,
-        meta: reportMeta,
+        meta: {
+          ...reportMeta,
+          reportVariant,
+        },
         exporter: exportHtmlToPdfBlob,
       });
-      await downloadPdfBlob(blob, filenameForReport());
+      await downloadPdfBlob(blob, filenameForReport(reportVariant));
       toast.success('PDF exportado com sucesso.');
     } catch (error) {
       console.error('Erro ao exportar PDF:', error);
@@ -2077,7 +2096,10 @@ async function getHtmlForExport() {
   }
 
   async function handleDownloadHtml() {
-    const htmlForDownload = html || (await getSingleReportPreview()).html || await getStoredHtml() || '';
+    const storedPreview = reportVariant === 'single'
+      ? await getSingleReportPreview()
+      : await getReportPreview(reportVariant);
+    const htmlForDownload = html || storedPreview.html || (reportVariant === 'single' ? await getStoredHtml() : '') || '';
     if (!String(htmlForDownload || '').trim()) {
       toast.error('HTML do relatório não encontrado. Gere o relatório novamente.');
       return;
@@ -2093,7 +2115,7 @@ async function getHtmlForExport() {
 
     a.href = url;
 
-    a.download = `relatorio_fisico_financeiro_${new Date()
+    a.download = `relatorio_fisico_financeiro_${reportVariant}_${new Date()
       .toISOString()
       .slice(0, 10)}.html`;
 
@@ -2108,7 +2130,7 @@ async function getHtmlForExport() {
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
             <h1 className="text-2xl font-semibold text-black tracking-tight">
-              Prévia do Relatório Físico-Financeiro
+              {previewTitle}
             </h1>
 
             <p className="text-sm text-gray-500 mt-1">

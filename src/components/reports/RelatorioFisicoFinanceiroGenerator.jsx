@@ -37,10 +37,12 @@ import {
   buildEditorialVolumePlan as buildPipelineVolumeParts,
   buildPartFileName as buildPipelinePartFileName,
   buildReportDataContext as buildPipelineReportDataContext,
+  buildSeparatedReportsHtml,
   buildSingleReportHtml,
   buildVolumeHtml as buildPipelineVolumeHtml,
   buildVolumeMeta,
   cleanEmptyReportSections,
+  saveReportPreview,
   saveSingleReportPreview,
   saveVolumePreview,
 } from '@/services/reportExportPipeline';
@@ -514,8 +516,12 @@ export default function RelatorioFisicoFinanceiroGenerator() {
       .reduce((sum, part) => sum + Number(part.estimatedPages || 0), 0);
   };
 
-  const openPreview = async (volumeNumber = 1, autoExportPdf = false) => {
-    const preview = window.open(`/RelatorioPreview${autoExportPdf ? '?export=pdf' : ''}`, '_blank', 'width=1200,height=900');
+  const openPreview = async (reportVariant = 'single', autoExportPdf = false) => {
+    const params = new URLSearchParams();
+    if (reportVariant && reportVariant !== 'single') params.set('report', reportVariant);
+    if (autoExportPdf) params.set('export', 'pdf');
+    const query = params.toString();
+    const preview = window.open(`/RelatorioPreview${query ? `?${query}` : ''}`, '_blank', 'width=1200,height=900');
     if (preview) return null;
     toast.error('Nao foi possivel abrir a previa do relatorio.');
     return null;
@@ -958,46 +964,68 @@ export default function RelatorioFisicoFinanceiroGenerator() {
     }
   };
 
-  const handleGerarUnico = async () => {
-    const selectedIds = getSelectedInlineIds();
+  const generateSeparatedReports = async () => {
+    if (secoesSelecionadas.length === 0) {
+      toast.error('Selecione ao menos um capitulo.');
+      return;
+    }
 
     setErro(null);
     setLoading(true);
-    updateProgress(4, 'Analisando fotos vinculadas', 'Verificando imagens vinculadas as atividades');
+    updateProgress(8, 'Gerando relatorios separados', 'Consolidando dados no relatorio principal e imagens no relatorio galeria');
 
     try {
-      const { contexto } = await carregarContextoRelatorioDoApp(museu, {
-        secoesSelecionadas,
-        selectedInlinePhotoIds: selectedIds,
+      const normalizedSections = normalizeSelectedReportChapterIds(secoesSelecionadas);
+      const result = await buildSeparatedReportsHtml({
+        museu,
+        premium: modoPremium,
+        secoesSelecionadas: normalizedSections,
       });
-      const candidates = buildPhotoSelectionCandidates(contexto);
 
-      if (candidates.length > 0) {
-        setPhotoSelectionCandidates(candidates);
-        setSelectedInlinePhotoIds((prev) => {
-          const next = { ...prev };
-          candidates.forEach((activity) => {
-            activity.photos.forEach((photo) => {
-              if (typeof next[photo.id] === 'undefined') next[photo.id] = false;
-            });
-          });
-          return next;
-        });
-        setDialogAberto(false);
-        setPhotoSelectionDialog(true);
-        setLoading(false);
-        setExportProgress(null);
-        return;
-      }
+      updateProgress(82, 'Salvando previas', 'Preparando relatorio principal e galeria fotografica');
+      await saveReportPreview('dados', {
+        html: result.data.html,
+        meta: {
+          ...result.data.meta,
+          selectedChapters: normalizedSections.filter((sectionId) => !['galeria_evidencias', 'galeria_premium'].includes(sectionId)),
+          reportVariant: 'dados',
+        },
+      });
+      await saveReportPreview('galeria', {
+        html: result.gallery.html,
+        meta: {
+          ...result.gallery.meta,
+          selectedChapters: normalizedSections,
+          reportVariant: 'galeria',
+        },
+      });
 
-      await generateSingleReport(selectedIds);
+      setResultado({
+        html: result.data.html,
+        galleryHtml: result.gallery.html,
+        contexto: result.data.contexto,
+        fonte: modoPremium ? 'premium_app' : 'frontend_ia',
+        exportMode: 'two_reports',
+        htmlSize: new Blob([result.data.html], { type: 'text/html;charset=utf-8' }).size,
+        galleryHtmlSize: new Blob([result.gallery.html], { type: 'text/html;charset=utf-8' }).size,
+        meta: result.data.meta,
+        galleryMeta: result.gallery.meta,
+      });
+      updateProgress(100, 'Relatorios concluidos', 'Principal e galeria estao prontos para previa e exportacao');
+      setDialogAberto(false);
+      toast.success('Relatorios gerados: principal de dados e galeria de imagens.');
     } catch (err) {
       console.error(err);
+      setErro(err.message || 'Nao foi possivel gerar os relatorios.');
+      toast.error('Nao foi possivel gerar os relatorios.');
+    } finally {
       setLoading(false);
-      setExportProgress(null);
-      setErro(err.message || 'Nao foi possivel preparar a selecao de fotos.');
-      toast.error('Nao foi possivel preparar a selecao de fotos.');
+      setTimeout(() => setExportProgress(null), 1200);
     }
+  };
+
+  const handleGerarUnico = async () => {
+    await generateSeparatedReports();
   };
 
   return (
@@ -1008,7 +1036,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
         </div>
         <div>
           <h2 className="text-lg font-bold text-slate-900">Gerar Relatório</h2>
-          <p className="text-sm text-slate-500">Catálogo-livro institucional com fotos, gráficos, metas, programação e execução financeira.</p>
+          <p className="text-sm text-slate-500">Relatório principal com dados e atividades, mais galeria separada com imagens organizadas sem repetição.</p>
         </div>
       </div>
 
@@ -1122,7 +1150,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
               </>
             ) : (
               <>
-                <Button variant="outline" size="sm" onClick={() => openPreview(1)}>
+                <Button variant="outline" size="sm" onClick={() => openPreview('dados')}>
                   <ExternalLink className="w-4 h-4 mr-2" />
                   Abrir Relatório
                 </Button>
@@ -1130,17 +1158,33 @@ export default function RelatorioFisicoFinanceiroGenerator() {
                   <Download className="w-4 h-4 mr-2" />
                   Baixar HTML
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => openPreview(1, true)}>
+                <Button variant="outline" size="sm" onClick={() => openPreview('dados', true)}>
                   <Download className="w-4 h-4 mr-2" />
                   Exportar PDF
                 </Button>
+                {resultado.galleryHtml && (
+                  <>
+                    <Button variant="outline" size="sm" onClick={() => openPreview('galeria')}>
+                      <ExternalLink className="w-4 h-4 mr-2" />
+                      Abrir galeria
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => downloadNamedHtml(resultado.galleryHtml, `relatorio-galeria-${Date.now()}.html`)}>
+                      <Download className="w-4 h-4 mr-2" />
+                      HTML galeria
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => openPreview('galeria', true)}>
+                      <Download className="w-4 h-4 mr-2" />
+                      PDF galeria
+                    </Button>
+                  </>
+                )}
               </>
             )}
           </div>
         </div>
       )}
 
-      <Dialog open={photoSelectionDialog} onOpenChange={setPhotoSelectionDialog}>
+      <Dialog open={false && photoSelectionDialog} onOpenChange={setPhotoSelectionDialog}>
         <DialogContent className="max-w-5xl max-h-[88vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Fotos vinculadas às atividades</DialogTitle>

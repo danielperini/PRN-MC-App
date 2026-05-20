@@ -19,10 +19,40 @@ import {
 export const EXPORT_VOLUME_COUNT = 3;
 export const EXPORT_FILENAME_BASE = 'Museus-Centro-Relatorio';
 export const SINGLE_REPORT_FILENAME = 'Museus-Centro-Relatorio-Fisico-Financeiro.pdf';
+export const DATA_REPORT_FILENAME = 'Museus-Centro-Relatorio-Dados.pdf';
+export const GALLERY_REPORT_FILENAME = 'Museus-Centro-Relatorio-Galeria.pdf';
 export const SINGLE_REPORT_HTML_KEY = 'relatorio_fisico_financeiro_html';
 export const SINGLE_REPORT_META_KEY = 'relatorio_fisico_financeiro_meta';
+export const DATA_REPORT_HTML_KEY = 'relatorio_fisico_financeiro_dados_html';
+export const DATA_REPORT_META_KEY = 'relatorio_fisico_financeiro_dados_meta';
+export const GALLERY_REPORT_HTML_KEY = 'relatorio_fisico_financeiro_galeria_html';
+export const GALLERY_REPORT_META_KEY = 'relatorio_fisico_financeiro_galeria_meta';
 export const PREVIEW_DB_NAME = 'museus_centro_report_preview';
 export const PREVIEW_DB_STORE = 'previews';
+
+export const REPORT_PREVIEW_VARIANTS = {
+  single: {
+    htmlKey: SINGLE_REPORT_HTML_KEY,
+    metaKey: SINGLE_REPORT_META_KEY,
+    filename: SINGLE_REPORT_FILENAME,
+    title: 'Museus Centro - Relatorio Fisico-Financeiro',
+    exportMode: 'single_pdf',
+  },
+  dados: {
+    htmlKey: DATA_REPORT_HTML_KEY,
+    metaKey: DATA_REPORT_META_KEY,
+    filename: DATA_REPORT_FILENAME,
+    title: 'Museus Centro - Relatorio de Dados',
+    exportMode: 'data_pdf',
+  },
+  galeria: {
+    htmlKey: GALLERY_REPORT_HTML_KEY,
+    metaKey: GALLERY_REPORT_META_KEY,
+    filename: GALLERY_REPORT_FILENAME,
+    title: 'Museus Centro - Relatorio Galeria',
+    exportMode: 'gallery_pdf',
+  },
+};
 
 const OPENING_CHAPTER_IDS = ['capa', 'expediente', 'sumario_executivo', 'introducao'];
 const CHAPTER_MUSEUM_WEIGHT = {
@@ -387,6 +417,201 @@ function estimateHtmlSizeMB(html = '') {
   return Number((new Blob([String(html || '')], { type: 'text/html;charset=utf-8' }).size / (1024 * 1024)).toFixed(2));
 }
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function getPhotoUrl(photo = {}) {
+  return photo?.url || photo?.file_url || photo?.fileUrl || photo?.src || photo?.link || photo?.arquivo_url || photo?.arquivo_original_url || photo?.imagem_url || '';
+}
+
+function getPhotoIdentityKey(photo = {}) {
+  const url = getPhotoUrl(photo);
+  return String(
+    photo?.id ||
+    photo?.attachment_id ||
+    photo?.attachmentId ||
+    photo?.sourceId ||
+    photo?.file_id ||
+    url
+  ).split('?')[0].split('#')[0];
+}
+
+function isLikelyImage(photo = {}) {
+  const url = getPhotoUrl(photo);
+  const name = `${url} ${photo?.fileName || ''} ${photo?.file_name || ''} ${photo?.name || ''} ${photo?.mime_type || ''} ${photo?.type || ''}`.toLowerCase();
+  return /\.(jpe?g|png|webp|gif)(\?|#|$)/i.test(url) ||
+    name.includes('image/') ||
+    name.includes('foto') ||
+    name.includes('imagem') ||
+    name.includes('gallery');
+}
+
+function normalizeGalleryLabel(value, fallback) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  return text || fallback;
+}
+
+function buildGalleryGroups(contexto = {}) {
+  const allPhotos = [
+    ...(Array.isArray(contexto?.fotos) ? contexto.fotos : []),
+    ...(Array.isArray(contexto?.attachments_raw) ? contexto.attachments_raw : []),
+  ];
+  const used = new Set();
+  const groups = new Map();
+
+  allPhotos.forEach((photo) => {
+    const url = getPhotoUrl(photo);
+    const key = getPhotoIdentityKey(photo);
+    if (!url || !key || used.has(key) || !isLikelyImage(photo)) return;
+    used.add(key);
+
+    const museu = normalizeGalleryLabel(photo?.museu || photo?.museum || photo?.equipamento, 'Museus Centro');
+    const mes = normalizeGalleryLabel(photo?.mes || photo?.month || String(photo?.data || photo?.created_date || '').slice(0, 10), 'Periodo sem data');
+    const atividade = normalizeGalleryLabel(
+      photo?.atividade ||
+      photo?.atividade_nome ||
+      photo?.titulo_atividade ||
+      photo?.activity_title ||
+      photo?.titulo ||
+      photo?.legenda ||
+      photo?.caption,
+      'Fotos sem atividade vinculada'
+    );
+    const groupKey = `${museu}||${mes}||${atividade}`;
+
+    if (!groups.has(groupKey)) {
+      groups.set(groupKey, { museu, mes, atividade, photos: [] });
+    }
+
+    groups.get(groupKey).photos.push({
+      ...photo,
+      url,
+      fileName: normalizeGalleryLabel(photo?.fileName || photo?.file_name || photo?.name || url.split('/').pop(), 'Registro fotografico'),
+      credit: normalizeGalleryLabel(photo?.credito || photo?.creditos || photo?.credit || photo?.fotografo || photo?.author_name, 'Credito nao informado'),
+      location: normalizeGalleryLabel(photo?.localizacao?.label || photo?.location?.label || photo?.local || photo?.endereco, 'Localizacao nao informada'),
+    });
+  });
+
+  return Array.from(groups.values()).sort((a, b) =>
+    `${a.museu} ${a.mes} ${a.atividade}`.localeCompare(`${b.museu} ${b.mes} ${b.atividade}`)
+  );
+}
+
+function buildGalleryReportDocument({ contexto = {}, filtros = {}, selectedChapters = [] } = {}) {
+  const groups = buildGalleryGroups(contexto);
+  const totalPhotos = groups.reduce((sum, group) => sum + group.photos.length, 0);
+  const generatedAt = new Date().toLocaleString('pt-BR');
+  const period = `${filtros?.dateFrom || '2026-02-02'} a ${filtros?.dateTo || '2026-04-30'}`;
+
+  const groupHtml = groups.map((group) => `
+    <section class="gallery-activity avoid-break">
+      <header class="gallery-activity-header">
+        <div>
+          <p>${escapeHtml(group.museu)} · ${escapeHtml(group.mes)}</p>
+          <h2>${escapeHtml(group.atividade)}</h2>
+        </div>
+        <strong>${group.photos.length} imagem(ns)</strong>
+      </header>
+      <div class="gallery-grid">
+        ${group.photos.map((photo) => `
+          <figure>
+            <img src="${escapeHtml(photo.url)}" alt="${escapeHtml(group.atividade)}" loading="eager" crossorigin="anonymous" referrerpolicy="no-referrer" />
+            <figcaption>
+              <span>${escapeHtml(photo.fileName)}</span>
+              <small>Credito: ${escapeHtml(photo.credit)}</small>
+              <small>Local: ${escapeHtml(photo.location)}</small>
+            </figcaption>
+          </figure>
+        `).join('')}
+      </div>
+    </section>
+  `).join('');
+
+  return `<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Museus Centro - Relatorio Galeria</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f3f0ea; color: #171717; font-family: Arial, Helvetica, sans-serif; }
+    .report-shell { max-width: 210mm; margin: 0 auto; background: #fff; }
+    .gallery-cover { min-height: 297mm; padding: 26mm 18mm; display: flex; flex-direction: column; justify-content: space-between; background: #171717; color: #fff; page-break-after: always; }
+    .gallery-cover h1 { font-size: 38pt; line-height: 1; margin: 0 0 14px; }
+    .gallery-cover p { font-size: 13pt; line-height: 1.45; max-width: 150mm; }
+    .cover-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 20mm; }
+    .cover-stats div { border: 1px solid rgba(255,255,255,.28); padding: 12px; }
+    .cover-stats strong { display: block; font-size: 22pt; }
+    .report-header { padding: 8mm 14mm 4mm; font-size: 8.5pt; line-height: 1.35; color: #5d554c; border-bottom: 1px solid #ded7cd; }
+    .report-content { padding: 12mm 14mm 16mm; }
+    .intro { margin-bottom: 12mm; }
+    .intro h2 { font-size: 20pt; margin: 0 0 8px; }
+    .intro p { font-size: 11pt; line-height: 1.55; margin: 0 0 8px; }
+    .gallery-activity { padding: 8mm 0 10mm; border-top: 1px solid #ddd4c6; break-inside: avoid; page-break-inside: avoid; }
+    .gallery-activity-header { display: flex; justify-content: space-between; gap: 12px; align-items: start; margin-bottom: 8px; }
+    .gallery-activity-header p { margin: 0 0 4px; font-size: 9pt; color: #6d6257; text-transform: uppercase; letter-spacing: .06em; }
+    .gallery-activity-header h2 { margin: 0; font-size: 15pt; line-height: 1.25; }
+    .gallery-activity-header strong { white-space: nowrap; font-size: 9pt; border: 1px solid #cfc6ba; padding: 5px 7px; }
+    .gallery-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    figure { margin: 0; break-inside: avoid; page-break-inside: avoid; }
+    img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; background: #ddd4c6; border: 1px solid #ddd4c6; }
+    figcaption { margin-top: 5px; font-size: 8.4pt; line-height: 1.35; color: #514a43; }
+    figcaption span, figcaption small { display: block; }
+    .report-footer { padding: 4mm 14mm 8mm; font-size: 8.5pt; color: #6d6257; border-top: 1px solid #ded7cd; }
+    @media print {
+      @page { size: A4; margin: 16mm 14mm 16mm 14mm; }
+      body { background: #fff; }
+      .report-shell { max-width: none; width: auto; margin: 0; }
+      .gallery-cover { width: auto; min-height: auto; height: auto; margin: -16mm -14mm 0; padding: 32mm 20mm; }
+      .avoid-break, figure, .gallery-activity { break-inside: avoid; page-break-inside: avoid; }
+      .report-header, .report-footer { padding-left: 0; padding-right: 0; }
+      .report-content { padding-left: 0; padding-right: 0; }
+    }
+  </style>
+</head>
+<body>
+  <main class="report-shell">
+    <section class="gallery-cover">
+      <div>
+        <p>Museus Centro · Viaduto das Artes</p>
+        <h1>Relatorio Galeria</h1>
+        <p>Imagens organizadas por atividade, museu e periodo, com deduplicacao tecnica para impedir repeticao no PDF.</p>
+      </div>
+      <div>
+        <p>Periodo: ${escapeHtml(period)}</p>
+        <div class="cover-stats">
+          <div><strong>${totalPhotos}</strong><span>imagens unicas</span></div>
+          <div><strong>${groups.length}</strong><span>atividades/grupos</span></div>
+          <div><strong>${selectedChapters.length || REPORT_CHAPTER_IDS.length}</strong><span>capitulos de origem</span></div>
+        </div>
+      </div>
+    </section>
+    <div class="report-header">
+      Viaduto das Artes - Fundado em 16 de junho de 2015<br />
+      Av. Olinto Meireles, 45 - Barreiro - Belo Horizonte/MG<br />
+      CEP 30640-010 - E-mail: viadutodasartes@gmail.com
+    </div>
+    <div class="report-content">
+      <section class="intro">
+        <h2>Galeria organizada por atividade</h2>
+        <p>Este documento reúne as imagens do aplicativo em um relatório separado do volume textual. A separação reduz o peso do relatório principal, preserva as evidências visuais e organiza cada imagem junto da atividade ou do grupo documental mais próximo.</p>
+        <p>Cada imagem aparece apenas uma vez. Quando não há vínculo completo de atividade, museu ou data, o relatório preserva a melhor classificação disponível no app sem inventar dados.</p>
+      </section>
+      ${groupHtml || '<p>Nenhuma imagem com URL foi localizada para a galeria.</p>'}
+    </div>
+    <div class="report-footer">Museus Centro - Relatorio Galeria | Gerado em ${escapeHtml(generatedAt)}</div>
+  </main>
+</body>
+</html>`;
+}
+
 export function buildSingleReportMeta({ html = '', selectedChapters = [], warnings = [] } = {}) {
   const imageCount = countHtmlImages(html);
   const estimatedSizeMB = estimateHtmlSizeMB(html);
@@ -428,6 +653,59 @@ export async function buildSingleReportHtml({
       html,
       selectedChapters: secoesSelecionadas,
     }),
+  };
+}
+
+export async function buildSeparatedReportsHtml({
+  museu = 'Todos',
+  premium = true,
+  secoesSelecionadas = REPORT_CHAPTER_IDS,
+} = {}) {
+  const normalizedSections = normalizeSelectedReportChapterIds(secoesSelecionadas);
+  const dataSections = normalizedSections.filter((sectionId) => !['galeria_evidencias', 'galeria_premium'].includes(sectionId));
+
+  const dataResult = await buildVolumeHtml({
+    museu,
+    premium,
+    secoesSelecionadas: dataSections,
+    splitContext: null,
+    selectedInlinePhotoIds: [],
+  });
+
+  const { contexto, filtros } = await buildReportDataContext({
+    museu,
+    secoesSelecionadas: normalizedSections,
+    splitContext: null,
+    selectedInlinePhotoIds: [],
+  });
+
+  const galleryInitialHtml = buildGalleryReportDocument({
+    contexto,
+    filtros,
+    selectedChapters: normalizedSections,
+  });
+  const galleryOptimizedHtml = await optimizeReportHtmlImages(galleryInitialHtml, REPORT_IMAGE_OPTIMIZATION_OPTIONS);
+  const galleryHtml = cleanEmptyReportSections(galleryOptimizedHtml);
+  const dataHtml = cleanEmptyReportSections(dataResult.html);
+
+  return {
+    data: {
+      html: dataHtml,
+      contexto: dataResult.contexto,
+      meta: buildSingleReportMeta({
+        html: dataHtml,
+        selectedChapters: dataSections,
+        warnings: ['Relatorio principal sem galeria fotografica; imagens foram separadas no Relatorio Galeria.'],
+      }),
+    },
+    gallery: {
+      html: galleryHtml,
+      contexto,
+      meta: buildSingleReportMeta({
+        html: galleryHtml,
+        selectedChapters: normalizedSections,
+      }),
+    },
   };
 }
 
@@ -520,29 +798,43 @@ export async function saveVolumePreview({ volumeNumber = 1, html = '', meta = {}
 }
 
 export async function saveSingleReportPreview({ html = '', meta = {} } = {}) {
+  return saveReportPreview('single', { html, meta });
+}
+
+export async function saveReportPreview(variant = 'single', { html = '', meta = {} } = {}) {
+  const config = REPORT_PREVIEW_VARIANTS[variant] || REPORT_PREVIEW_VARIANTS.single;
   const payloadMeta = {
     ...buildSingleReportMeta({ html, selectedChapters: meta.selectedChapters || [] }),
     ...meta,
     reportType: 'fisico_financeiro',
-    exportMode: 'single_pdf',
+    exportMode: config.exportMode,
+    reportVariant: variant,
   };
-
   try {
-    sessionStorage.setItem(SINGLE_REPORT_HTML_KEY, html);
-    sessionStorage.setItem(SINGLE_REPORT_META_KEY, JSON.stringify(payloadMeta));
+    sessionStorage.setItem(config.htmlKey, html);
+    sessionStorage.setItem(config.metaKey, JSON.stringify(payloadMeta));
+    if (variant === 'single') {
+      sessionStorage.setItem(SINGLE_REPORT_HTML_KEY, html);
+      sessionStorage.setItem(SINGLE_REPORT_META_KEY, JSON.stringify(payloadMeta));
+    }
   } catch (error) {
     console.warn('Nao foi possivel salvar previa unica em sessionStorage:', error);
   }
 
   try {
-    localStorage.setItem(SINGLE_REPORT_HTML_KEY, html);
-    localStorage.setItem(SINGLE_REPORT_META_KEY, JSON.stringify(payloadMeta));
-    localStorage.setItem(`${SINGLE_REPORT_HTML_KEY}_saved_at`, payloadMeta.generatedAt || new Date().toISOString());
+    localStorage.setItem(config.htmlKey, html);
+    localStorage.setItem(config.metaKey, JSON.stringify(payloadMeta));
+    localStorage.setItem(`${config.htmlKey}_saved_at`, payloadMeta.generatedAt || new Date().toISOString());
+    if (variant === 'single') {
+      localStorage.setItem(SINGLE_REPORT_HTML_KEY, html);
+      localStorage.setItem(SINGLE_REPORT_META_KEY, JSON.stringify(payloadMeta));
+      localStorage.setItem(`${SINGLE_REPORT_HTML_KEY}_saved_at`, payloadMeta.generatedAt || new Date().toISOString());
+    }
   } catch (error) {
     console.warn('Nao foi possivel salvar previa unica em localStorage:', error);
   }
 
-  await savePreviewHtmlToIndexedDb(SINGLE_REPORT_HTML_KEY, {
+  await savePreviewHtmlToIndexedDb(config.htmlKey, {
     html,
     meta: payloadMeta,
     savedAt: payloadMeta.generatedAt || new Date().toISOString(),
@@ -575,17 +867,23 @@ export async function getVolumePreview(volumeNumber = 1) {
 }
 
 export async function getSingleReportPreview() {
+  return getReportPreview('single');
+}
+
+export async function getReportPreview(variant = 'single') {
+  const config = REPORT_PREVIEW_VARIANTS[variant] || REPORT_PREVIEW_VARIANTS.single;
   let html = '';
   let meta = null;
 
   try {
-    html = sessionStorage.getItem(SINGLE_REPORT_HTML_KEY) || localStorage.getItem(SINGLE_REPORT_HTML_KEY) || '';
-    meta = JSON.parse(sessionStorage.getItem(SINGLE_REPORT_META_KEY) || localStorage.getItem(SINGLE_REPORT_META_KEY) || 'null');
+    html = sessionStorage.getItem(config.htmlKey) || localStorage.getItem(config.htmlKey) || '';
+    meta = JSON.parse(sessionStorage.getItem(config.metaKey) || localStorage.getItem(config.metaKey) || 'null');
   } catch {
     meta = null;
   }
 
-  if (!html) html = await getPreviewHtmlFromIndexedDb(SINGLE_REPORT_HTML_KEY);
+  if (!html) html = await getPreviewHtmlFromIndexedDb(config.htmlKey);
+  if (!html && variant === 'single') html = await getPreviewHtmlFromIndexedDb(SINGLE_REPORT_HTML_KEY);
 
   return {
     html,
@@ -613,7 +911,7 @@ export async function exportSingleReportPdf({ html, exporter, meta = {} } = {}) 
 
   return exporter(html, {
     pageNumberOffset: 0,
-    reportTitle: 'Museus Centro - Relatorio Fisico-Financeiro',
+    reportTitle: REPORT_PREVIEW_VARIANTS[meta?.reportVariant]?.title || 'Museus Centro - Relatorio Fisico-Financeiro',
     includeSearchableAppendix: false,
     targetSizeMB: 180,
     maxSizeMB: 200,
