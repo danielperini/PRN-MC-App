@@ -372,8 +372,9 @@ function buildPhotoSelectionCandidates(contexto = {}) {
 const PREVIEW_DB_NAME = 'museus_centro_report_preview';
 const PREVIEW_DB_STORE = 'previews';
 const PREVIEW_HTML_KEY = 'latest_html';
+const PREVIEW_PARTS_KEY = 'latest_parts';
 
-function savePreviewHtmlToIndexedDb(html) {
+function savePreviewValueToIndexedDb(key, value) {
   if (typeof indexedDB === 'undefined') return Promise.resolve(false);
 
   return new Promise((resolve) => {
@@ -390,10 +391,7 @@ function savePreviewHtmlToIndexedDb(html) {
     request.onsuccess = () => {
       const db = request.result;
       const tx = db.transaction(PREVIEW_DB_STORE, 'readwrite');
-      tx.objectStore(PREVIEW_DB_STORE).put({
-        html,
-        savedAt: new Date().toISOString(),
-      }, PREVIEW_HTML_KEY);
+      tx.objectStore(PREVIEW_DB_STORE).put(value, key);
       tx.oncomplete = () => {
         db.close();
         resolve(true);
@@ -406,7 +404,36 @@ function savePreviewHtmlToIndexedDb(html) {
   });
 }
 
-async function salvarPreview(html) {
+function savePreviewHtmlToIndexedDb(html) {
+  return savePreviewValueToIndexedDb(PREVIEW_HTML_KEY, {
+    html,
+    savedAt: new Date().toISOString(),
+  });
+}
+
+function savePreviewPartsToIndexedDb(parts = []) {
+  const safeParts = (Array.isArray(parts) ? parts : [])
+    .filter((part) => part?.html)
+    .map((part) => ({
+      partNumber: Number(part.partNumber) || 1,
+      totalParts: Number(part.totalParts) || EXPORT_VOLUME_COUNT,
+      fileName: part.fileName || buildPartFileName(part.partNumber || 1),
+      html: part.html,
+      sizeBytes: Number(part.sizeBytes) || 0,
+      sectionLabels: Array.isArray(part.sectionLabels) ? part.sectionLabels : [],
+      secoes: Array.isArray(part.secoes) ? part.secoes : [],
+      pageNumberOffset: Number(part.pageNumberOffset) || 0,
+    }));
+
+  if (safeParts.length === 0) return Promise.resolve(false);
+
+  return savePreviewValueToIndexedDb(PREVIEW_PARTS_KEY, {
+    parts: safeParts,
+    savedAt: new Date().toISOString(),
+  });
+}
+
+async function salvarPreview(html, parts = []) {
   try {
     sessionStorage.setItem('relatorio_fisico_financeiro_html', html);
   } catch (error) {
@@ -421,6 +448,7 @@ async function salvarPreview(html) {
   }
 
   await savePreviewHtmlToIndexedDb(html);
+  await savePreviewPartsToIndexedDb(parts);
 }
 
 function salvarMetadadosVolume(volumeMeta = {}) {
@@ -651,8 +679,8 @@ export default function RelatorioFisicoFinanceiroGenerator() {
       .reduce((sum, part) => sum + Number(part.estimatedPages || 0), 0);
   };
 
-  const openPreview = async (html) => {
-    await salvarPreview(html);
+  const openPreview = async (html, { parts = [] } = {}) => {
+    await salvarPreview(html, parts);
     const preview = window.open('/RelatorioPreview', '_blank', 'width=1200,height=900');
     if (preview) return null;
 
@@ -798,7 +826,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
       });
 
       updateProgress(100, 'Relatório concluído', builtParts.length > 1 ? 'Volumes preparados para exportação HTML/PDF.' : `Volume ${firstPart.partNumber} pronto para visualização e PDF`);
-      await openPreview(firstPart.html);
+      await openPreview(firstPart.html, { parts: builtParts });
       setDialogAberto(false);
       toast.success(builtParts.length > 1 ? 'Relatório preparado em 3 volumes editoriais.' : `Volume ${firstPart.partNumber} gerado com dados reais do aplicativo.`);
     } catch (err) {
@@ -915,7 +943,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
         parts: [finalPart],
       });
       updateProgress(100, 'Relatorio concluido', `Volume ${volumeNumber} pronto para visualizacao e PDF`);
-      await openPreview(htmlPart);
+      await openPreview(htmlPart, { parts: [finalPart] });
       setDialogAberto(false);
       toast.success(`Volume ${volumeNumber} gerado com dados reais do aplicativo.`);
     } catch (err) {
@@ -1116,7 +1144,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
           <div className="flex gap-3 flex-wrap">
             {resultado.exportMode === 'split' && Array.isArray(resultado.parts) && resultado.parts.length > 1 ? (
               <>
-                <Button variant="outline" size="sm" onClick={() => openPreview(resultado.parts[0]?.html || resultado.html)}>
+                <Button variant="outline" size="sm" onClick={() => openPreview(resultado.parts[0]?.html || resultado.html, { parts: resultado.parts })}>
                   <ExternalLink className="w-4 h-4 mr-2" />
                   Abrir Volume 01
                 </Button>
@@ -1142,7 +1170,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
               </>
             ) : (
               <>
-                <Button variant="outline" size="sm" onClick={() => openPreview(resultado.html)}>
+                <Button variant="outline" size="sm" onClick={() => openPreview(resultado.html, { parts: resultado.parts || [] })}>
                   <ExternalLink className="w-4 h-4 mr-2" />
                   Abrir Relatório
                 </Button>

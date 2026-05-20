@@ -675,8 +675,9 @@ async function downloadPdfBlob(blob, filename) {
 const PREVIEW_DB_NAME = 'museus_centro_report_preview';
 const PREVIEW_DB_STORE = 'previews';
 const PREVIEW_HTML_KEY = 'latest_html';
+const PREVIEW_PARTS_KEY = 'latest_parts';
 
-function getPreviewHtmlFromIndexedDb() {
+function getPreviewValueFromIndexedDb(key) {
   if (typeof indexedDB === 'undefined') return Promise.resolve('');
 
   return new Promise((resolve) => {
@@ -693,11 +694,11 @@ function getPreviewHtmlFromIndexedDb() {
     request.onsuccess = () => {
       const db = request.result;
       const tx = db.transaction(PREVIEW_DB_STORE, 'readonly');
-      const getRequest = tx.objectStore(PREVIEW_DB_STORE).get(PREVIEW_HTML_KEY);
+      const getRequest = tx.objectStore(PREVIEW_DB_STORE).get(key);
       getRequest.onsuccess = () => {
         const value = getRequest.result;
         db.close();
-        resolve(typeof value === 'string' ? value : value?.html || '');
+        resolve(value || '');
       };
       getRequest.onerror = () => {
         db.close();
@@ -705,6 +706,19 @@ function getPreviewHtmlFromIndexedDb() {
       };
     };
   });
+}
+
+async function getPreviewHtmlFromIndexedDb() {
+  const value = await getPreviewValueFromIndexedDb(PREVIEW_HTML_KEY);
+  return typeof value === 'string' ? value : value?.html || '';
+}
+
+async function getPreviewPartsFromIndexedDb() {
+  const value = await getPreviewValueFromIndexedDb(PREVIEW_PARTS_KEY);
+  const parts = Array.isArray(value?.parts) ? value.parts : [];
+  return parts
+    .filter((part) => part?.html)
+    .sort((a, b) => Number(a.partNumber || 0) - Number(b.partNumber || 0));
 }
 
 async function getStoredHtml() {
@@ -1907,6 +1921,7 @@ export default function RelatorioPreview() {
   const [currentExportFile, setCurrentExportFile] = useState(null);
   const [exportProgressMessage, setExportProgressMessage] = useState('');
   const [exportProgressError, setExportProgressError] = useState(null);
+  const [storedParts, setStoredParts] = useState([]);
   const [volumeMeta, setVolumeMeta] = useState({
     volumeNumber: 1,
     totalVolumes: PDF_VOLUME_COUNT,
@@ -1932,6 +1947,10 @@ export default function RelatorioPreview() {
 
     async function load() {
       const stored = await getStoredHtml();
+      const parts = await getPreviewPartsFromIndexedDb();
+      if (!cancelled) {
+        setStoredParts(parts);
+      }
 
       let finalHtml = '';
       try {
@@ -1989,33 +2008,98 @@ async function getHtmlForExport() {
     );
   }
 
-  async function handleExportPdf() {
-    const exportHtml = await getHtmlForExport();
-    if (!exportHtml) {
+  async function prepareHtmlForPdf(sourceHtml) {
+    if (!String(sourceHtml || '').trim()) return '';
+
+    try {
+      const reports = await loadReportsForHtml(sourceHtml);
+      return prepareFinalHtml(sourceHtml, reports);
+    } catch (error) {
+      console.warn('Falha ao preparar HTML do volume. Usando HTML salvo:', error);
+      return prepareFinalHtml(sourceHtml, []);
+    }
+  }
+
+  async function handleExportPdfSequence() {
+    const indexedParts = storedParts.length > 1 ? storedParts : await getPreviewPartsFromIndexedDb();
+    const parts = indexedParts.length > 1
+      ? indexedParts
+      : [{
+        partNumber: volumeMeta.volumeNumber,
+        totalParts: volumeMeta.totalVolumes,
+        fileName: filenameForPart(volumeMeta.volumeNumber),
+        html: await getHtmlForExport(),
+        sectionLabels: [],
+        pageNumberOffset: volumeMeta.pageNumberOffset,
+      }];
+
+    const validParts = parts.filter((part) => String(part?.html || '').trim());
+    if (validParts.length === 0) {
       toast.error('HTML do relatório não encontrado. Gere o relatório novamente.');
       return;
     }
 
     setIsExportingPdf(true);
-    toast.info(`Gerando PDF do Volume ${volumeMeta.volumeNumber}...`);
+    setExportProgressOpen(true);
+    setExportProgress(0);
+    setExportProgressError(null);
+    setCurrentExportFile(null);
+    setExportQueue(validParts.map((part) => ({
+      id: `volume-${part.partNumber}`,
+      filename: part.fileName || filenameForPart(part.partNumber),
+      chapters: part.sectionLabels || [],
+      status: 'waiting',
+      pageStart: null,
+      pageEnd: null,
+    })));
+
+    let nextPageOffset = validParts.length > 1 ? 0 : Number(volumeMeta.pageNumberOffset || 0);
 
     try {
-      const blob = await exportHtmlToPdfBlob(exportHtml, {
-        pageNumberOffset: volumeMeta.pageNumberOffset,
-        volumeNumber: volumeMeta.volumeNumber,
-        totalVolumes: volumeMeta.totalVolumes,
-        includeSearchableAppendix: false,
-      });
-      await downloadPdfBlob(blob, filenameForPart(volumeMeta.volumeNumber));
-      toast.success(`Volume ${volumeMeta.volumeNumber} exportado com sucesso.`);
+      for (let index = 0; index < validParts.length; index += 1) {
+        const part = validParts[index];
+        const filename = part.fileName || filenameForPart(part.partNumber);
+        const pageStart = nextPageOffset + 1;
+
+        setCurrentExportFile(filename);
+        setExportProgressMessage(`Volume ${part.partNumber}: começando na página ${pageStart}.`);
+        updateExportQueueItem(index, { status: 'exporting', pageStart });
+
+        const exportHtml = await prepareHtmlForPdf(part.html);
+        const result = await exportHtmlToPdfBlob(exportHtml, {
+          pageNumberOffset: nextPageOffset,
+          volumeNumber: part.partNumber,
+          totalVolumes: part.totalParts || validParts.length,
+          includeSearchableAppendix: false,
+          returnMeta: true,
+        });
+
+        await downloadPdfBlob(result.blob, filename);
+
+        const pageEnd = nextPageOffset + Number(result.pageCount || 0);
+        updateExportQueueItem(index, {
+          status: 'done',
+          pageEnd,
+        });
+
+        nextPageOffset = pageEnd;
+        setExportProgress(Math.round(((index + 1) / validParts.length) * 100));
+        setExportProgressMessage(
+          index + 1 < validParts.length
+            ? `Volume ${part.partNumber} terminou na página ${pageEnd}. Próximo volume começa na página ${pageEnd + 1}.`
+            : `Exportação concluída. Última página: ${pageEnd}.`
+        );
+      }
+
+      setCurrentExportFile(null);
+      toast.success(validParts.length > 1 ? '3 volumes exportados em sequência.' : `Volume ${volumeMeta.volumeNumber} exportado com sucesso.`);
     } catch (error) {
-      console.error('Erro ao exportar PDF:', error);
+      console.error('Erro ao exportar sequência de PDFs:', error);
+      setExportProgressError(error.message || 'Erro ao exportar PDF.');
       toast.error('Erro ao exportar PDF.');
     } finally {
       setIsExportingPdf(false);
     }
-
-    return;
   }
 
   async function handleDownloadHtml() {
@@ -2081,13 +2165,13 @@ async function getHtmlForExport() {
 
             <Button
               onClick={() => {
-                handleExportPdf();
+                handleExportPdfSequence();
               }}
               className="bg-black hover:bg-gray-800 text-white gap-2"
               disabled={isExportingPdf}
             >
               {isExportingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
-              {isExportingPdf ? 'Exportando...' : `Exportar PDF Volume ${volumeMeta.volumeNumber}`}
+              {isExportingPdf ? 'Exportando...' : storedParts.length > 1 ? 'Exportar PDF 3 volumes em sequência' : `Exportar PDF Volume ${volumeMeta.volumeNumber}`}
             </Button>
 
           </div>
