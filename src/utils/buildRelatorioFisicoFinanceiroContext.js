@@ -713,6 +713,271 @@ function buildRubricasDetalhadas(rubricasRaw) {
     .sort((a, b) => b.previsto - a.previsto);
 }
 
+function normalizeRubricaLabel(value) {
+  return normalizeText(String(value || ''));
+}
+
+function inferMuseuFromText(value) {
+  const t = normalizeRubricaLabel(value);
+  if (!t) return 'SEM_CENTRO';
+  if (t.includes('noturno')) return 'NOTURNO';
+  if (t.includes('mhab') || t.includes('abilio')) return 'MHAB';
+  if (t.includes('mis')) return 'MIS';
+  if (t.includes('mumo') || t.includes('moda')) return 'MUMO';
+  if (t.includes('3 museus') || t.includes('tres museus') || t.includes('compartilh')) return 'COMPARTILHADAS';
+  if (t.includes('atuacao geral') || t.includes('coordena') || t.includes('geral')) return 'ATUACAO_GERAL';
+  return 'SEM_CENTRO';
+}
+
+function getImageIdentity(item = {}) {
+  return item?.id || item?._id || item?.attachment_id || item?.file_id || item?.url || item?.file_url || item?.arquivo_url || '';
+}
+
+function mapImageRecord(item = {}, source = 'Attachment') {
+  const url = attachmentUrl(item);
+  if (!url || !isImageAttachment(item)) return null;
+  return {
+    id: String(getImageIdentity(item) || url),
+    url,
+    source,
+    museu: normalizeMuseu(item?.museu || item?.centro_custo || item?.local || item?.equipamento || ''),
+    data: item?.data || item?.created_date || item?.updated_date || '',
+    legenda: item?.legenda || item?.caption || item?.descricao || '',
+    credito: photoCredit(item),
+    localizacao: photoLocation(item),
+    origem: source,
+    raw: item,
+  };
+}
+
+function diffDays(a, b) {
+  const da = parseDate(a);
+  const db = parseDate(b);
+  if (!da || !db) return 9999;
+  return Math.abs(Math.round((da.getTime() - db.getTime()) / (1000 * 60 * 60 * 24)));
+}
+
+function allocateImagesToActivities(atividades = [], attachmentsRaw = [], galleryRaw = []) {
+  const pool = [
+    ...(Array.isArray(attachmentsRaw) ? attachmentsRaw : []).map((item) => mapImageRecord(item, 'Attachment')),
+    ...(Array.isArray(galleryRaw) ? galleryRaw : []).map((item) => mapImageRecord(item, 'Gallery')),
+  ].filter(Boolean);
+
+  const used = new Set();
+  const duplicatedImagesAvoided = [];
+  const imageAllocation = [];
+
+  const byMuseu = pool.reduce((acc, image) => {
+    const key = image.museu || 'Atuação Geral';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(image);
+    return acc;
+  }, {});
+
+  const enriched = (Array.isArray(atividades) ? atividades : []).map((atividade) => {
+    const existing = Array.isArray(atividade?.fotos) ? atividade.fotos : [];
+    const currentPhotos = [];
+
+    existing.forEach((photo) => {
+      const id = String(getImageIdentity(photo) || attachmentUrl(photo));
+      const url = attachmentUrl(photo);
+      if (!id || !url) return;
+      if (used.has(id)) {
+        duplicatedImagesAvoided.push({ imageId: id, reason: 'Imagem já alocada em atividade anterior.' });
+        return;
+      }
+      used.add(id);
+      currentPhotos.push(photo);
+      imageAllocation.push({
+        imageId: id,
+        activityId: atividade.id || '',
+        chapterId: 'atividades_museu',
+        usage: 'activity',
+        confidence: 0.99,
+        reason: 'Vínculo direto em atividade.',
+      });
+    });
+
+    if (currentPhotos.length >= 4) {
+      return {
+        ...atividade,
+        fotos: currentPhotos,
+        fotos_destaque: currentPhotos.slice(0, 4),
+        fotos_demais: currentPhotos.slice(4),
+      };
+    }
+
+    const museuKey = normalizeMuseu(atividade.museu);
+    const candidates = [
+      ...(byMuseu[museuKey] || []),
+      ...(byMuseu['Atuação Geral'] || []),
+    ].filter((image) => !used.has(image.id));
+
+    candidates
+      .sort((a, b) => diffDays(atividade.data, a.data) - diffDays(atividade.data, b.data))
+      .slice(0, Math.max(0, 4 - currentPhotos.length))
+      .forEach((image) => {
+        if (used.has(image.id)) return;
+        used.add(image.id);
+        currentPhotos.push({
+          id: image.id,
+          url: image.url,
+          legenda: image.legenda,
+          credito: image.credito,
+          atividade: atividade.nome,
+          museu: atividade.museu,
+          mes: atividade.mes,
+          localizacao: image.localizacao,
+          origem: image.origem,
+        });
+        imageAllocation.push({
+          imageId: image.id,
+          activityId: atividade.id || '',
+          chapterId: 'atividades_museu',
+          usage: 'activity',
+          confidence: 0.72,
+          reason: 'Vínculo por museu e proximidade temporal.',
+        });
+      });
+
+    return {
+      ...atividade,
+      fotos: currentPhotos,
+      fotos_destaque: currentPhotos.slice(0, 4),
+      fotos_demais: currentPhotos.slice(4),
+      galeria_links: currentPhotos.slice(4).map((foto) => foto.url).filter(Boolean),
+    };
+  });
+
+  const unusedImages = pool.filter((image) => !used.has(image.id)).map((image) => ({
+    imageId: image.id,
+    url: image.url,
+    museu: image.museu,
+    reason: 'Sem vínculo suficiente com atividade.',
+  }));
+
+  return { atividades: enriched, imageAllocation, unusedImages, duplicatedImagesAvoided };
+}
+
+function buildBudgetByMuseum({
+  rubricas = [],
+  comprasRaw = [],
+  teamPaymentsRaw = [],
+  documentIntakeRaw = [],
+  atividades = [],
+}) {
+  const museumKeys = ['MIS', 'MHAB', 'MUMO', 'ATUACAO_GERAL', 'NOTURNO', 'COMPARTILHADAS', 'SEM_CENTRO'];
+  const museumData = Object.fromEntries(museumKeys.map((key) => [key, {
+    previsto: 0,
+    utilizado: 0,
+    saldo: 0,
+    percentual: 0,
+    rubricas: [],
+    solicitacoes: [],
+    documentos: [],
+    atividades: [],
+  }]));
+
+  rubricas.forEach((rubrica) => {
+    const museumKey = inferMuseuFromText(`${rubrica.nome} ${rubrica.grupo}`);
+    museumData[museumKey].rubricas.push(rubrica);
+    museumData[museumKey].previsto += toNumber(rubrica.previsto);
+    museumData[museumKey].utilizado += toNumber(rubrica.utilizado);
+  });
+
+  (Array.isArray(comprasRaw) ? comprasRaw : []).forEach((solicitacao) => {
+    const museumKey = inferMuseuFromText(`${solicitacao?.museu || ''} ${solicitacao?.centro_custo || ''} ${solicitacao?.rubrica || ''} ${solicitacao?.rubrica_nome || ''}`);
+    museumData[museumKey].solicitacoes.push(solicitacao);
+  });
+
+  (Array.isArray(teamPaymentsRaw) ? teamPaymentsRaw : []).forEach((payment) => {
+    const museumKey = inferMuseuFromText(`${payment?.museu || ''} ${payment?.centro_custo || ''} ${payment?.rubrica || ''} ${payment?.rubrica_nome || ''}`);
+    museumData[museumKey].solicitacoes.push(payment);
+  });
+
+  (Array.isArray(documentIntakeRaw) ? documentIntakeRaw : []).forEach((doc) => {
+    const museumKey = inferMuseuFromText(`${doc?.museu || ''} ${doc?.centro_custo || ''} ${doc?.rubrica || ''} ${doc?.tipo || ''}`);
+    museumData[museumKey].documentos.push(doc);
+  });
+
+  (Array.isArray(atividades) ? atividades : []).forEach((atividade) => {
+    const museumKey = inferMuseuFromText(atividade?.museu || '');
+    museumData[museumKey].atividades.push(atividade);
+  });
+
+  Object.values(museumData).forEach((item) => {
+    item.saldo = item.previsto - item.utilizado;
+    item.percentual = item.previsto > 0 ? Number(((item.utilizado / item.previsto) * 100).toFixed(1)) : 0;
+  });
+
+  const resumoPorMuseu = ['MIS', 'MHAB', 'MUMO'].map((museu) => ({
+    museu,
+    valorPrevisto: museumData[museu].previsto,
+    valorUtilizado: museumData[museu].utilizado,
+    saldo: museumData[museu].saldo,
+    percentualExecutado: museumData[museu].percentual,
+    numeroSolicitacoes: museumData[museu].solicitacoes.length,
+    numeroDocumentos: museumData[museu].documentos.length,
+  }));
+
+  const rubricasPorMuseu = museumKeys.flatMap((museu) =>
+    museumData[museu].rubricas.map((rubrica) => ({
+      museu,
+      grupo: rubrica.grupo || 'Sem grupo',
+      rubrica: rubrica.nome,
+      meta: '',
+      valorPrevisto: rubrica.previsto,
+      utilizado: rubrica.utilizado,
+      saldo: rubrica.saldo,
+      status: rubrica.status || '',
+    }))
+  );
+
+  const despesasVinculadas = museumKeys.flatMap((museu) =>
+    museumData[museu].solicitacoes.map((item) => ({
+      museu,
+      solicitacao: item?.descricao || item?.titulo || item?.id || 'Solicitação',
+      fornecedor: item?.fornecedor_nome || item?.fornecedor || item?.author_name || '-',
+      nf: item?.nf_numero || item?.numero_nf || '-',
+      valor: toNumber(item?.valor_aprovado ?? item?.valor_total ?? item?.valor ?? item?.amount ?? 0),
+      rubrica: item?.rubrica_nome || item?.rubrica || '-',
+      status: item?.status || '-',
+      documento: item?.link_documento || item?.url_documento || '',
+    }))
+  );
+
+  const budgetAlerts = [];
+  const hasSemCentro = museumData.SEM_CENTRO.rubricas.length > 0;
+  if (hasSemCentro) {
+    budgetAlerts.push({
+      museu: 'SEM_CENTRO',
+      tipo: 'Rubrica sem centro definido',
+      descricao: 'Há rubricas sem vínculo explícito com MIS, MHAB ou MUMO.',
+      gravidade: 'Média',
+      recomendacao: 'Revisar classificação de centro de custo.',
+    });
+  }
+
+  const semRubricaSolicitacoes = despesasVinculadas.filter((item) => !item.rubrica || item.rubrica === '-').length;
+  if (semRubricaSolicitacoes > 0) {
+    budgetAlerts.push({
+      museu: 'GERAL',
+      tipo: 'Solicitações sem rubrica',
+      descricao: `${semRubricaSolicitacoes} solicitações aprovadas sem rubrica vinculada.`,
+      gravidade: 'Alta',
+      recomendacao: 'Associar rubrica para rastreabilidade financeira.',
+    });
+  }
+
+  return {
+    byMuseum: museumData,
+    resumoPorMuseu,
+    rubricasPorMuseu,
+    despesasVinculadas,
+    budgetAlerts,
+  };
+}
+
 export function buildRelatorioFisicoFinanceiroContext({
   reportsRaw = [],
   rubricasRaw = [],
@@ -782,10 +1047,12 @@ export function buildRelatorioFisicoFinanceiroContext({
     });
   });
 
-  const atividadesPorCategoria = groupAtividades(atividades);
+  const alocacaoImagens = allocateImagesToActivities(atividades, attachmentsRaw, galleryRaw);
+  const atividadesComFotos = alocacaoImagens.atividades;
+  const atividadesPorCategoria = groupAtividades(atividadesComFotos);
 
   const porMuseu = {};
-  atividades.forEach((atividade) => {
+  atividadesComFotos.forEach((atividade) => {
     const key = normalizeMuseu(atividade.museu);
     if (!porMuseu[key]) {
       porMuseu[key] = { museu: key, atividades: 0, publico: 0 };
@@ -833,7 +1100,7 @@ export function buildRelatorioFisicoFinanceiroContext({
       return dateInRange(data, dateFrom, dateTo);
     });
 
-  const publicoTotal = atividades
+  const publicoTotal = atividadesComFotos
     .filter((a) => a.categoria_editorial === 'atividade_publico')
     .reduce((sum, a) => sum + inteiro(a.publico), 0);
 
@@ -860,7 +1127,7 @@ export function buildRelatorioFisicoFinanceiroContext({
     publicoPorMesMap[mes] = { mes, atividades: 0, espontaneo: 0, visitas_agendadas: 0, total: 0 };
   });
 
-  atividades.forEach((atividade) => {
+  atividadesComFotos.forEach((atividade) => {
     const mes = atividade.mes || mesFromDate(atividade.data) || 'Período';
     if (!publicoPorMesMap[mes]) publicoPorMesMap[mes] = { mes, atividades: 0, espontaneo: 0, visitas_agendadas: 0, total: 0 };
     publicoPorMesMap[mes].atividades += inteiro(atividade.publico);
@@ -893,7 +1160,7 @@ export function buildRelatorioFisicoFinanceiroContext({
   const trechosRelatorios = buildTrechosRelatorios(reports);
   const programacao = buildProgramacaoDetalhada(programacaoRaw, dateFrom, dateTo, museuFiltro);
 
-  const atividadesPorReportId = atividades.reduce((acc, atividade) => {
+  const atividadesPorReportId = atividadesComFotos.reduce((acc, atividade) => {
     if (!atividade.report_id) return acc;
     if (!acc[atividade.report_id]) acc[atividade.report_id] = [];
     acc[atividade.report_id].push(atividade);
@@ -967,6 +1234,34 @@ export function buildRelatorioFisicoFinanceiroContext({
     return acc;
   }, {});
 
+  const budgetByMuseum = buildBudgetByMuseum({
+    rubricas,
+    comprasRaw,
+    teamPaymentsRaw,
+    documentIntakeRaw,
+    atividades: atividadesComFotos,
+  });
+
+  const selectedChapters = Array.isArray(filtros?.capitulos) ? filtros.capitulos.filter(Boolean) : [];
+  const opening = selectedChapters.filter((id) => ['capa', 'expediente', 'sumario_executivo', 'introducao'].includes(id));
+  const body = selectedChapters.filter((id) => !opening.includes(id));
+  const chunkSize = Math.max(1, Math.ceil(body.length / 3));
+  const volumePlan = [0, 1, 2].map((idx) => {
+    const chapters = idx === 0
+      ? [...opening, ...body.slice(0, chunkSize)]
+      : body.slice(chunkSize * idx, chunkSize * (idx + 1));
+    const estimatedPages = Math.max(1, Math.round(chapters.length * 2.8));
+    const estimatedMB = Number((Math.max(1, estimatedPages * 0.85)).toFixed(1));
+    return {
+      volume: idx + 1,
+      chapters,
+      estimatedPages,
+      estimatedMB,
+      startsAtPage: idx === 0 ? 1 : null,
+      endsAtPage: null,
+    };
+  });
+
   return {
     periodo: { dateFrom, dateTo },
     periodo_extenso: '2 de fevereiro a 30 de abril de 2026',
@@ -981,7 +1276,7 @@ export function buildRelatorioFisicoFinanceiroContext({
     publico_por_mes: publicoPorMesOficial,
     publico_por_museu: publicoPorMuseuOficial,
     por_museu: porMuseuOficial,
-    atividades,
+    atividades: atividadesComFotos,
     atividades_por_categoria: atividadesPorCategoria,
     relatorios_equipe: relatoriosEquipe,
     trechos_relatorios: trechosRelatorios,
@@ -1001,7 +1296,23 @@ export function buildRelatorioFisicoFinanceiroContext({
     document_intake_raw: documentsIntake,
     attachments_raw: Array.isArray(attachmentsRaw) ? attachmentsRaw : [],
     rubricas,
-    fotos: atividades.flatMap((a) => a.fotos_destaque || []),
+    fotos: atividadesComFotos.flatMap((a) => a.fotos_destaque || []),
+    imageAllocation: alocacaoImagens.imageAllocation,
+    unusedImages: alocacaoImagens.unusedImages,
+    duplicatedImagesAvoided: alocacaoImagens.duplicatedImagesAvoided,
+    budget_by_museum: budgetByMuseum.byMuseum,
+    budget_tables: {
+      resumo_por_museu: budgetByMuseum.resumoPorMuseu,
+      rubricas_por_museu: budgetByMuseum.rubricasPorMuseu,
+      despesas_vinculadas: budgetByMuseum.despesasVinculadas,
+      alertas_auditoria: budgetByMuseum.budgetAlerts,
+    },
+    budget_alerts: budgetByMuseum.budgetAlerts,
+    volumePlan,
+    volumeAlerts: volumePlan.filter((v) => v.estimatedMB > 180).map((v) => ({
+      volume: v.volume,
+      message: 'Volume muito pesado. Recomenda-se reduzir imagens ou redistribuir capítulos.',
+    })),
     programacao,
     programacao_total: programacao.length,
     auditoria_institucional: officialMetrics,

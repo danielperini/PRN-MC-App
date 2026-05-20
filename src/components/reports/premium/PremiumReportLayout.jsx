@@ -2195,6 +2195,62 @@ function RemovedPeriodSection({ contexto }) {
   );
 }
 
+function GalleryMethodologyOnlySection({ contexto, chapterIds = ['galeria_evidencias'] }) {
+  return (
+    <PremiumSection
+      chapterId="galeria_evidencias"
+      chapterIds={chapterIds}
+      chapterTitle="Galeria e evidências"
+      breakBefore
+      eyebrow="Galeria e evidências"
+      title="Critérios de uso de imagens"
+      subtitle="As imagens foram distribuídas ao longo das atividades para evitar duplicidade."
+      text="As evidências visuais foram distribuídas ao longo do relatório junto às atividades correspondentes, evitando duplicidade de imagens e fortalecendo a relação entre registro fotográfico, ação realizada, museu, data e público."
+    >
+      <ChapterMethodologyPanel
+        chapterId="galeria_evidencias"
+        contexto={contexto}
+        evidence={['imagens vinculadas a atividades', 'controle de uso único', 'créditos e origem', 'imagens sem vínculo suficiente']}
+      />
+      <div className="premium-method-grid">
+        <article className="premium-method-card">
+          <strong>Imagens sem uso</strong>
+          <p>{fmtInt(Array.isArray(contexto?.unusedImages) ? contexto.unusedImages.length : 0)} registros sem vínculo suficiente foram preservados fora do corpo editorial.</p>
+        </article>
+        <article className="premium-method-card">
+          <strong>Duplicidades evitadas</strong>
+          <p>{fmtInt(Array.isArray(contexto?.duplicatedImagesAvoided) ? contexto.duplicatedImagesAvoided.length : 0)} ocorrências de repetição foram bloqueadas automaticamente.</p>
+        </article>
+      </div>
+    </PremiumSection>
+  );
+}
+
+function BudgetByMuseumSection({ contexto = {} }) {
+  const tables = contexto?.budget_tables || {};
+  const resumo = Array.isArray(tables?.resumo_por_museu) ? tables.resumo_por_museu : [];
+  const rubricas = Array.isArray(tables?.rubricas_por_museu) ? tables.rubricas_por_museu : [];
+  const despesas = Array.isArray(tables?.despesas_vinculadas) ? tables.despesas_vinculadas : [];
+  const alertas = Array.isArray(tables?.alertas_auditoria) ? tables.alertas_auditoria : [];
+
+  return (
+    <PremiumSection
+      chapterId="orcamento_museu"
+      breakBefore
+      eyebrow="Orçamento por Museu"
+      title="Distribuição e execução por equipamento"
+      subtitle="Análise de MIS, MHAB e MUMO com rubricas, solicitações, pagamentos e documentos."
+      text="A análise do orçamento por museu organiza a execução financeira por MIS, MHAB e MUMO com rubricas específicas, compartilhadas e rastreabilidade documental."
+    >
+      <ChapterMethodologyPanel chapterId="orcamento_museu" contexto={contexto} evidence={['Rubrica', 'PurchaseRequest', 'TeamPayment', 'DocumentIntake', 'Attachment', 'Meta', 'ProgramacaoEspelho', 'Report']} />
+      <div className="premium-table-wrap"><table className="premium-table"><thead><tr><th>Museu</th><th>Valor previsto</th><th>Valor utilizado</th><th>Saldo</th><th>% executado</th><th>Nº de solicitações</th><th>Nº de documentos</th></tr></thead><tbody>{resumo.map((item) => (<tr key={item.museu}><td>{item.museu}</td><td>{fmtBRL(item.valorPrevisto)}</td><td>{fmtBRL(item.valorUtilizado)}</td><td>{fmtBRL(item.saldo)}</td><td>{toNumber(item.percentualExecutado).toFixed(1).replace('.', ',')}%</td><td>{fmtInt(item.numeroSolicitacoes)}</td><td>{fmtInt(item.numeroDocumentos)}</td></tr>))}</tbody></table></div>
+      <div className="premium-table-wrap mt-4"><table className="premium-table"><thead><tr><th>Museu</th><th>Grupo</th><th>Rubrica</th><th>Meta</th><th>Valor previsto</th><th>Utilizado</th><th>Saldo</th><th>Status</th></tr></thead><tbody>{rubricas.map((item, index) => (<tr key={`${item.museu}-${item.rubrica}-${index}`}><td>{item.museu}</td><td>{item.grupo || '-'}</td><td>{item.rubrica || '-'}</td><td>{item.meta || '-'}</td><td>{fmtBRL(item.valorPrevisto)}</td><td>{fmtBRL(item.utilizado)}</td><td>{fmtBRL(item.saldo)}</td><td>{item.status || '-'}</td></tr>))}</tbody></table></div>
+      <div className="premium-table-wrap mt-4"><table className="premium-table"><thead><tr><th>Museu</th><th>Solicitação</th><th>Fornecedor</th><th>NF</th><th>Valor</th><th>Rubrica</th><th>Status</th><th>Documento</th></tr></thead><tbody>{despesas.map((item, index) => (<tr key={`${item.museu}-${item.solicitacao}-${index}`}><td>{item.museu}</td><td>{item.solicitacao}</td><td>{item.fornecedor}</td><td>{item.nf}</td><td>{fmtBRL(item.valor)}</td><td>{item.rubrica}</td><td>{item.status}</td><td>{item.documento ? <a href={item.documento} target="_blank" rel="noreferrer">Abrir</a> : 'Dado não localizado no app.'}</td></tr>))}</tbody></table></div>
+      <div className="premium-table-wrap mt-4"><table className="premium-table"><thead><tr><th>Museu</th><th>Tipo de alerta</th><th>Descrição</th><th>Gravidade</th><th>Recomendação</th></tr></thead><tbody>{alertas.length === 0 ? (<tr><td colSpan={5}>Nenhum alerta crítico identificado no recorte.</td></tr>) : alertas.map((item, index) => (<tr key={`${item.museu}-${item.tipo}-${index}`}><td>{item.museu}</td><td>{item.tipo}</td><td>{item.descricao}</td><td>{item.gravidade}</td><td>{item.recomendacao}</td></tr>))}</tbody></table></div>
+    </PremiumSection>
+  );
+}
+
 
 function safeArray(value) {
   return Array.isArray(value) ? value : [];
@@ -2438,7 +2494,7 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
       )}
 
       {hasSection(secoesSelecionadas, 'galeria_evidencias', 'galeria_premium') && (
-        <PhotoEvidenceDenseSection
+        <GalleryMethodologyOnlySection
           contexto={contexto}
           chapterIds={selectedChapterIds(secoesSelecionadas, ['galeria_evidencias', 'galeria_premium'])}
         />
@@ -2486,6 +2542,8 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
           evidence={['relatórios', 'programação', 'anexos', 'rubricas', 'pagamentos', 'vínculos entre módulos']}
         />
       </PremiumSection>}
+
+      {hasSection(secoesSelecionadas, 'orcamento_museu') && <BudgetByMuseumSection contexto={contexto} />}
 
       {hasSection(secoesSelecionadas, 'sistema_governanca') && <PremiumSection
         chapterId="sistema_governanca"

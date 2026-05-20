@@ -39,6 +39,21 @@ const MUSEUS = ['Todos', 'MIS', 'MHAB', 'MUMO'];
 const EXPORT_VOLUME_COUNT = 3;
 const EXPORT_FILENAME_BASE = 'Museus-Centro-Relatorio';
 const SECOES_RELATORIO = REPORT_CHAPTER_IDS;
+const OPENING_CHAPTER_IDS = ['capa', 'expediente', 'sumario_executivo', 'introducao'];
+const CHAPTER_MUSEUM_WEIGHT = {
+  agenda_programacao: 1.7,
+  atividades_museu: 2.2,
+  museus_premium: 1.8,
+  relatorios_completos: 1.6,
+  comunicacao: 1.3,
+  comunicacao_premium: 1.2,
+  financeiro: 1.5,
+  rubricas: 1.4,
+  orcamento_museu: 1.4,
+  prestacao: 1.5,
+  'notas-fiscais-contratos': 1.8,
+  governanca_documental: 1.2,
+};
 function getCapituloLabel(sectionId) {
   return getReportChapterById(sectionId)?.title || sectionId;
 }
@@ -90,13 +105,54 @@ function injectPartMetadata(html, { partNumber, totalParts, sectionLabels = [], 
   return `${content}${html}`;
 }
 
-function buildVolumeParts(sectionIds = []) {
+function estimateChapterWeight(sectionId, context = {}) {
+  const base = CHAPTER_MUSEUM_WEIGHT[sectionId] || 1;
+  const activities = Array.isArray(context?.atividades) ? context.atividades.length : 0;
+  const photos = Array.isArray(context?.fotos) ? context.fotos.length : 0;
+  const docs = Array.isArray(context?.attachments_raw) ? context.attachments_raw.length : 0;
+  const multiplier = 1 + (activities / 600) + (photos / 1200) + (docs / 1800);
+  return Number((base * multiplier).toFixed(3));
+}
+
+function buildVolumeParts(sectionIds = [], context = {}) {
   const ids = Array.isArray(sectionIds) ? sectionIds.filter(Boolean) : [];
-  return [
-    { partNumber: 1, totalParts: EXPORT_VOLUME_COUNT, secoes: ids.slice(0, 10) },
-    { partNumber: 2, totalParts: EXPORT_VOLUME_COUNT, secoes: ids.slice(10, 20) },
-    { partNumber: 3, totalParts: EXPORT_VOLUME_COUNT, secoes: ids.slice(20) },
-  ];
+  const opening = ids.filter((id) => OPENING_CHAPTER_IDS.includes(id));
+  const body = ids.filter((id) => !OPENING_CHAPTER_IDS.includes(id));
+  const baseParts = Array.from({ length: EXPORT_VOLUME_COUNT }, (_, index) => ({
+    partNumber: index + 1,
+    totalParts: EXPORT_VOLUME_COUNT,
+    secoes: [],
+    estimatedWeight: 0,
+    estimatedPages: 0,
+    estimatedMB: 0,
+    estimatedImages: 0,
+    status: 'adequado',
+  }));
+
+  baseParts[0].secoes.push(...opening);
+  baseParts[0].estimatedWeight += opening.reduce((sum, id) => sum + estimateChapterWeight(id, context), 0);
+  const target = body.reduce((sum, id) => sum + estimateChapterWeight(id, context), 0) / EXPORT_VOLUME_COUNT;
+
+  body.forEach((id) => {
+    const chapterWeight = estimateChapterWeight(id, context);
+    const current = baseParts.reduce((best, part) => {
+      const scoreBest = best.estimatedWeight;
+      const scorePart = part.estimatedWeight;
+      return scorePart < scoreBest ? part : best;
+    }, baseParts[0]);
+    current.secoes.push(id);
+    current.estimatedWeight += chapterWeight;
+  });
+
+  baseParts.forEach((part) => {
+    part.estimatedPages = Math.max(2, Math.round(part.estimatedWeight * 3.4));
+    part.estimatedImages = Math.max(0, Math.round(part.estimatedWeight * 4));
+    part.estimatedMB = Number(Math.max(0.8, part.estimatedWeight * 2.1).toFixed(1));
+    if (part.estimatedMB > 180) part.status = 'volume muito pesado';
+    if (part.estimatedWeight > target * 1.5) part.status = 'revisar distribuição';
+  });
+
+  return baseParts;
 }
 
 function parsePositiveInteger(value) {
@@ -319,7 +375,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
 
   const secoesSelecionadas = getSelectedReportChapterIds(secoes);
   const volumeParts = useMemo(
-    () => buildVolumeParts(normalizeSelectedReportChapterIds(secoesSelecionadas)),
+    () => buildVolumeParts(normalizeSelectedReportChapterIds(secoesSelecionadas), {}),
     [secoesSelecionadas]
   );
   const producedSectionTexts = useMemo(() => Object.fromEntries(
@@ -441,8 +497,8 @@ export default function RelatorioFisicoFinanceiroGenerator() {
   };
   const runExport = async (inlinePhotoIds = [], volumeNumber = requestedVolume) => {
     const normalizedSelectedSections = normalizeSelectedReportChapterIds(secoesSelecionadas);
-    const allVolumeParts = buildVolumeParts(normalizedSelectedSections);
-    const selectedVolume = allVolumeParts.find((part) => part.partNumber === volumeNumber);
+    let allVolumeParts = buildVolumeParts(normalizedSelectedSections, {});
+    let selectedVolume = allVolumeParts.find((part) => part.partNumber === volumeNumber);
     const pageNumberOffset = getVolumePageOffset(volumeNumber);
 
     if (normalizedSelectedSections.length === 0) {
@@ -482,6 +538,11 @@ export default function RelatorioFisicoFinanceiroGenerator() {
         secoesSelecionadas: normalizedSelectedSections,
         selectedInlinePhotoIds: inlinePhotoIds,
       });
+      allVolumeParts = buildVolumeParts(normalizedSelectedSections, fullData?.contexto || {});
+      selectedVolume = allVolumeParts.find((part) => part.partNumber === volumeNumber);
+      if (!selectedVolume || selectedVolume.secoes.length === 0) {
+        throw new Error(`Volume ${volumeNumber} sem capítulos após planejamento editorial.`);
+      }
       const summaryHtml = buildDivisionSummary(
         allVolumeParts.map((part) => ({
           partNumber: part.partNumber,
@@ -907,6 +968,19 @@ export default function RelatorioFisicoFinanceiroGenerator() {
             <p className="text-xs text-slate-500">
               {secoesSelecionadas.filter((id) => visibleChapterIds.includes(id)).length} de {visibleSectionOptions.length} capítulos selecionados.
             </p>
+
+            <div className="grid md:grid-cols-3 gap-3">
+              {volumeParts.map((part) => (
+                <div key={`volume-plan-${part.partNumber}`} className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-600">
+                  <p className="font-semibold text-slate-900">Volume {part.partNumber}</p>
+                  <p>Capítulos: {part.secoes.length}</p>
+                  <p>Páginas estimadas: {part.estimatedPages}</p>
+                  <p>Imagens estimadas: {part.estimatedImages}</p>
+                  <p>Tamanho estimado: {part.estimatedMB} MB</p>
+                  <p>Status: {part.status}</p>
+                </div>
+              ))}
+            </div>
           </div>
 
           <DialogFooter>
