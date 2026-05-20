@@ -38,7 +38,7 @@ import {
 
 const MUSEUS = ['Todos', 'MIS', 'MHAB', 'MUMO'];
 const MAX_EXPORT_PART_SIZE_BYTES = PDF_MAX_TOTAL_SIZE_MB * 1024 * 1024;
-const CHAPTERS_PER_EXPORT_PART = 3;
+const EXPORT_VOLUME_COUNT = 3;
 const EXPORT_FILENAME_BASE = 'Relatorio_Museus_Centro';
 const SECOES_RELATORIO = REPORT_CHAPTER_IDS;
 function getCapituloLabel(sectionId) {
@@ -46,7 +46,7 @@ function getCapituloLabel(sectionId) {
 }
 
 function buildPartFileName(partNumber, extension = 'html') {
-  return `${EXPORT_FILENAME_BASE}_parte_${String(partNumber).padStart(2, '0')}.${extension}`;
+  return `${EXPORT_FILENAME_BASE}_volume_${String(partNumber).padStart(2, '0')}.${extension}`;
 }
 
 function buildDivisionSummary(parts = []) {
@@ -54,13 +54,14 @@ function buildDivisionSummary(parts = []) {
 
   const linhas = parts.map((part) => {
     const titulos = (part.sectionLabels || []).join(', ');
-    return `Parte ${String(part.partNumber).padStart(2, '0')} — ${titulos}`;
+    return `Volume ${String(part.partNumber).padStart(2, '0')} — ${titulos}`;
   });
 
   return `
     <section style="max-width:210mm;margin:0 auto 18px;padding:0 24px;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;color:#333;">
       <div style="border:1px solid rgba(23,23,23,.16);padding:16px 18px;background:#fff;">
-        <p style="margin:0 0 10px;font-size:13px;font-weight:700;">Relatório dividido em ${parts.length} arquivos</p>
+        <p style="margin:0 0 10px;font-size:13px;font-weight:700;">Sumário comum dos volumes</p>
+        <p style="margin:0 0 10px;font-size:11.5px;line-height:1.5;">Os volumes preservam este mesmo sumário e usam paginação contínua no PDF para posterior junção externa.</p>
         <ul style="margin:0;padding-left:18px;font-size:11.5px;line-height:1.55;">
           ${linhas.map((linha) => `<li>${linha}</li>`).join('')}
         </ul>
@@ -75,14 +76,14 @@ function injectPartMetadata(html, { partNumber, totalParts, sectionLabels = [], 
   const header = `
     <section style="max-width:210mm;margin:0 auto 18px;padding:0 24px;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;color:#333;">
       <div style="border:1px solid rgba(23,23,23,.16);padding:14px 18px;background:#fff;">
-        <p style="margin:0;font-size:13px;font-weight:700;">Relatório Museus Centro — Parte ${String(partNumber).padStart(2, '0')} de ${String(totalParts).padStart(2, '0')}</p>
+        <p style="margin:0;font-size:13px;font-weight:700;">Relatório Museus Centro — Volume ${String(partNumber).padStart(2, '0')} de ${String(totalParts).padStart(2, '0')}</p>
         <p style="margin:6px 0 0;font-size:11.5px;line-height:1.5;">Período do relatório: fevereiro a abril de 2026</p>
-        <p style="margin:4px 0 0;font-size:11.5px;line-height:1.5;">Capítulos desta parte: ${sectionLabels.join(', ')}</p>
+        <p style="margin:4px 0 0;font-size:11.5px;line-height:1.5;">Capítulos deste volume: ${sectionLabels.join(', ')}</p>
       </div>
     </section>
   `;
 
-  const content = `${partNumber === 1 && summaryHtml ? summaryHtml : ''}${header}`;
+  const content = `${summaryHtml || ''}${header}`;
 
   if (html.includes('<body>')) {
     return html.replace('<body>', `<body>${content}`);
@@ -91,52 +92,45 @@ function injectPartMetadata(html, { partNumber, totalParts, sectionLabels = [], 
   return `${content}${html}`;
 }
 
-function buildPartsFromMeasuredSections(sectionMeasures = []) {
-  const orderedMeasures = Array.isArray(sectionMeasures) ? sectionMeasures.filter(Boolean) : [];
-  const parts = [];
-  let currentSections = [];
-  let currentSize = 0;
+function buildBalancedVolumeParts(sectionMeasures = [], volumeCount = EXPORT_VOLUME_COUNT) {
+  const measures = Array.isArray(sectionMeasures) ? sectionMeasures.filter(Boolean) : [];
+  if (measures.length === 0) return [];
 
-  orderedMeasures.forEach((measure) => {
-    if (measure.sizeBytes > MAX_EXPORT_PART_SIZE_BYTES) {
-      if (currentSections.length > 0) {
-        parts.push({ secoes: currentSections, estimatedSizeBytes: currentSize, oversizedSingleChapter: false });
-        currentSections = [];
-        currentSize = 0;
-      }
+  const safeVolumeCount = Math.min(Math.max(1, Number(volumeCount) || EXPORT_VOLUME_COUNT), measures.length);
+  const totalSize = measures.reduce((sum, item) => sum + (item.sizeBytes || 1), 0);
+  const targetSize = Math.max(1, Math.ceil(totalSize / safeVolumeCount));
+  const parts = Array.from({ length: safeVolumeCount }, () => ({
+    secoes: [],
+    estimatedSizeBytes: 0,
+    oversizedSingleChapter: false,
+  }));
+  let partIndex = 0;
 
-      parts.push({
-        secoes: [measure.sectionId],
-        estimatedSizeBytes: measure.sizeBytes,
-        oversizedSingleChapter: true,
-      });
-      return;
-    }
+  measures.forEach((measure, index) => {
+    const remainingSections = measures.length - index;
+    const remainingParts = safeVolumeCount - partIndex;
+    const sectionSize = measure.sizeBytes || 1;
+    const current = parts[partIndex];
+    const shouldAdvance =
+      partIndex < safeVolumeCount - 1 &&
+      current.secoes.length > 0 &&
+      current.estimatedSizeBytes + sectionSize > targetSize &&
+      remainingSections > remainingParts;
 
-    const wouldExceedLimit =
-      currentSections.length > 0 &&
-      currentSize + measure.sizeBytes > MAX_EXPORT_PART_SIZE_BYTES;
+    if (shouldAdvance) partIndex += 1;
 
-    if (wouldExceedLimit) {
-      parts.push({ secoes: currentSections, estimatedSizeBytes: currentSize, oversizedSingleChapter: false });
-      currentSections = [];
-      currentSize = 0;
-    }
-
-    currentSections.push(measure.sectionId);
-    currentSize += measure.sizeBytes;
+    parts[partIndex].secoes.push(measure.sectionId);
+    parts[partIndex].estimatedSizeBytes += sectionSize;
+    parts[partIndex].oversizedSingleChapter =
+      parts[partIndex].oversizedSingleChapter || sectionSize > MAX_EXPORT_PART_SIZE_BYTES;
   });
 
-  if (currentSections.length > 0) {
-    parts.push({ secoes: currentSections, estimatedSizeBytes: currentSize, oversizedSingleChapter: false });
-  }
-
-  return parts;
+  return parts.filter((part) => part.secoes.length > 0);
 }
 
-function buildPartsByChapterCount(sectionIds = [], chunkSize = CHAPTERS_PER_EXPORT_PART) {
+function buildPartsByChapterCount(sectionIds = [], chunkSize = EXPORT_VOLUME_COUNT) {
   const ids = Array.isArray(sectionIds) ? sectionIds.filter(Boolean) : [];
-  const safeChunkSize = Math.max(1, Number(chunkSize) || CHAPTERS_PER_EXPORT_PART);
+  const safeChunkSize = Math.max(1, Math.ceil(ids.length / Math.max(1, Number(chunkSize) || EXPORT_VOLUME_COUNT)));
   const parts = [];
 
   for (let index = 0; index < ids.length; index += safeChunkSize) {
@@ -563,15 +557,10 @@ export default function RelatorioFisicoFinanceiroGenerator() {
           });
         }
 
-        buildPartsFromMeasuredSections(measuredSections);
-        const builtParts = buildPartsByChapterCount(normalizedSelectedSections);
+        const builtParts = buildBalancedVolumeParts(measuredSections);
 
         if (builtParts.length === 0) {
-          builtParts.push({
-            secoes: normalizedSelectedSections,
-            estimatedSizeBytes: htmlSize,
-            oversizedSingleChapter: false,
-          });
+          builtParts.push(...buildPartsByChapterCount(normalizedSelectedSections));
         }
 
         const totalParts = builtParts.length;
@@ -587,7 +576,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
           const part = builtParts[index];
           const partNumber = index + 1;
           const percent = 62 + (partNumber / Math.max(1, totalParts)) * 30;
-          updateProgress(percent, 'Gerando partes do relatório', `${partNumber} de ${totalParts} partes em preparação`);
+          updateProgress(percent, 'Gerando volumes do relatório', `${partNumber} de ${totalParts} volumes em preparação`);
           if (part.oversizedSingleChapter && part.secoes.length === 1) {
             toast.info(`O capítulo ${getCapituloLabel(part.secoes[0])} excede 200 MB e foi exportado em arquivo próprio para preservar a integridade do PDF.`);
           }
@@ -624,7 +613,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
             secoes: part.secoes,
           });
 
-          toast.success(`Parte ${String(partNumber).padStart(2, '0')} preparada com ${splitContext.sectionLabels.join(', ')}.`);
+          toast.success(`Volume ${String(partNumber).padStart(2, '0')} preparado com ${splitContext.sectionLabels.join(', ')}.`);
         }
 
         setResultado({
@@ -634,7 +623,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
           htmlSize,
           parts: finalParts,
         });
-        updateProgress(100, 'Relatório concluído', `${finalParts.length} partes prontas para visualização e download`);
+        updateProgress(100, 'Relatório concluído', `${finalParts.length} volumes prontos para visualização e download`);
         openPreview(finalParts[0]?.html || data.html);
       }
 
@@ -781,7 +770,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
               </p>
               {resultado.exportMode === 'split' && Array.isArray(resultado.parts) && resultado.parts.length > 1 && (
                 <p className="text-xs text-green-700 mt-1">
-                  Exportação preparada em {resultado.parts.length} partes, respeitando a ordem dos capítulos selecionados.
+                  Exportação preparada em {resultado.parts.length} volumes balanceados, respeitando a ordem dos capítulos selecionados.
                 </p>
               )}
             </div>
@@ -792,7 +781,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
               <>
                 <Button variant="outline" size="sm" onClick={() => openPreview(resultado.parts[0]?.html || resultado.html)}>
                   <ExternalLink className="w-4 h-4 mr-2" />
-                  Abrir Parte 01
+                  Abrir Volume 01
                 </Button>
                 <Button
                   variant="outline"
@@ -800,7 +789,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
                   onClick={() => resultado.parts.forEach((part) => downloadNamedHtml(part.html, part.fileName))}
                 >
                   <Download className="w-4 h-4 mr-2" />
-                  Baixar todas as partes
+                  Baixar todos os volumes
                 </Button>
                 {resultado.parts.map((part) => (
                   <Button
@@ -810,7 +799,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
                     onClick={() => downloadNamedHtml(part.html, part.fileName)}
                   >
                     <Download className="w-4 h-4 mr-2" />
-                    {`Parte ${String(part.partNumber).padStart(2, '0')}`}
+                    {`Volume ${String(part.partNumber).padStart(2, '0')}`}
                   </Button>
                 ))}
               </>
@@ -974,7 +963,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
                   className={`rounded-xl border p-4 text-left transition-colors ${exportMode === 'split' ? 'border-black bg-black/5' : 'border-slate-200 bg-white'}`}
                 >
                   <p className="text-sm font-semibold text-slate-900">Dividir em arquivos de até 200 MB</p>
-                  <p className="text-xs text-slate-500 mt-1">Agrupa os capítulos em partes válidas antes da geração final do HTML/PDF.</p>
+                  <p className="text-xs text-slate-500 mt-1">Agrupa os capítulos em 3 volumes balanceados antes da geração final do HTML/PDF.</p>
                 </button>
               </div>
             </div>

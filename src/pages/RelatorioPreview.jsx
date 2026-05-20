@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { REPORT_CHAPTERS, REPORT_CHAPTER_IDS } from '@/config/reportChapters';
 
 const MAX_EXPORT_PART_SIZE_BYTES = 200 * 1024 * 1024;
-const CHAPTERS_PER_PDF_PART = 3;
+const PDF_VOLUME_COUNT = 3;
 const EXPORT_FILENAME_BASE = 'Relatorio_Museus_Centro';
 
 function normalizeText(value) {
@@ -48,7 +48,7 @@ function chapterRenderSignals(chapterId) {
 }
 
 function filenameForPart(partNumber) {
-  return `${EXPORT_FILENAME_BASE}_parte_${String(partNumber).padStart(2, '0')}.pdf`;
+  return `${EXPORT_FILENAME_BASE}_volume_${String(partNumber).padStart(2, '0')}.pdf`;
 }
 
 const EXPORT_STATUS_LABELS = {
@@ -164,15 +164,38 @@ function extractDocumentParts(html, selectedChapterIds) {
 function buildSplitParts(chapters) {
   const source = Array.isArray(chapters) ? chapters.filter(Boolean) : [];
   if (source.length > 0) {
-    const fixedParts = [];
-    for (let index = 0; index < source.length; index += CHAPTERS_PER_PDF_PART) {
-      const current = source.slice(index, index + CHAPTERS_PER_PDF_PART);
-      fixedParts.push({
-        chapters: current,
-        sizeBytes: current.reduce((sum, item) => sum + (item.sizeBytes || 0), 0),
-      });
+    const volumeCount = Math.min(PDF_VOLUME_COUNT, source.length);
+    const totalSize = source.reduce((sum, item) => sum + (item.sizeBytes || 1), 0);
+    const targetSize = Math.max(1, Math.ceil(totalSize / volumeCount));
+    const fixedParts = Array.from({ length: volumeCount }, () => ({
+      chapters: [],
+      sizeBytes: 0,
+    }));
+
+    let partIndex = 0;
+    source.forEach((chapter, index) => {
+      const remainingChapters = source.length - index;
+      const remainingParts = volumeCount - partIndex;
+      const chapterSize = chapter.sizeBytes || 1;
+      const current = fixedParts[partIndex];
+      const shouldAdvance =
+        partIndex < volumeCount - 1 &&
+        current.chapters.length > 0 &&
+        current.sizeBytes + chapterSize > targetSize &&
+        remainingChapters > remainingParts;
+
+      if (shouldAdvance) partIndex += 1;
+
+      fixedParts[partIndex].chapters.push(chapter);
+      fixedParts[partIndex].sizeBytes += chapterSize;
+    });
+
+    const parts = fixedParts.filter((part) => part.chapters.length > 0);
+    const warnings = [];
+    if (parts.length !== PDF_VOLUME_COUNT) {
+      warnings.push(`O relatório possui ${source.length} capítulo(s) selecionado(s), por isso foram gerados ${parts.length} volume(s).`);
     }
-    return { parts: fixedParts, warnings: [] };
+    return { parts, warnings };
   }
 
   const parts = [];
@@ -310,9 +333,10 @@ function buildPartSummary(parts) {
   return `
     <section style="max-width:210mm;margin:0 auto 16px;padding:0 20px;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;">
       <div style="border:1px solid rgba(23,23,23,.16);padding:14px 16px;background:#fff;">
-        <p style="margin:0 0 8px;font-size:13px;font-weight:700;">Relatório dividido em arquivos</p>
+        <p style="margin:0 0 8px;font-size:13px;font-weight:700;">Sumário comum dos volumes</p>
+        <p style="margin:0 0 8px;font-size:11.5px;line-height:1.45;">Os três volumes preservam este mesmo sumário e usam paginação contínua no rodapé para posterior junção externa.</p>
         <ul style="margin:0;padding-left:18px;font-size:11.5px;line-height:1.5;">
-          ${parts.map((part, index) => `<li>Parte ${String(index + 1).padStart(2, '0')} — ${part.chapters.map((chapter) => escapeHtml(chapter.title)).join(', ')}</li>`).join('')}
+          ${parts.map((part, index) => `<li>Volume ${String(index + 1).padStart(2, '0')} — ${part.chapters.map((chapter) => escapeHtml(chapter.title)).join(', ')}</li>`).join('')}
         </ul>
       </div>
     </section>
@@ -323,7 +347,7 @@ function buildPartHtml(documentParts, part, partIndex, totalParts, summaryHtml =
   const partHeader = `
     <section style="max-width:210mm;margin:0 auto 14px;padding:0 20px;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;">
       <div style="border:1px solid rgba(23,23,23,.16);padding:12px 14px;background:#fff;">
-        <p style="margin:0;font-size:13px;font-weight:700;">Relatório Museus Centro — Parte ${String(partIndex).padStart(2, '0')} de ${String(totalParts).padStart(2, '0')}</p>
+        <p style="margin:0;font-size:13px;font-weight:700;">Relatório Museus Centro — Volume ${String(partIndex).padStart(2, '0')} de ${String(totalParts).padStart(2, '0')}</p>
         <p style="margin:6px 0 0;font-size:11.5px;line-height:1.45;">Capítulos: ${part.chapters.map((chapter) => escapeHtml(chapter.title)).join(', ')}</p>
       </div>
     </section>
@@ -335,7 +359,7 @@ function buildPartHtml(documentParts, part, partIndex, totalParts, summaryHtml =
 <body>
   <main class="premium-report">
     ${documentParts.headerHtml || ''}
-    ${partIndex === 1 ? summaryHtml : ''}
+    ${summaryHtml || ''}
     ${partHeader}
     ${part.chapters.map((chapter) => chapter.html).join('\n')}
   </main>
@@ -473,6 +497,27 @@ function addSearchableTextAppendix(pdf, text, options = {}) {
   });
 }
 
+function addContinuousPageNumbers(pdf, options = {}) {
+  const pageCount = pdf.getNumberOfPages();
+  const pageOffset = Number(options.pageNumberOffset || 0);
+  const volumeNumber = options.volumeNumber ? String(options.volumeNumber).padStart(2, '0') : '';
+  const totalVolumes = options.totalVolumes ? String(options.totalVolumes).padStart(2, '0') : '';
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+
+  for (let pageIndex = 1; pageIndex <= pageCount; pageIndex += 1) {
+    pdf.setPage(pageIndex);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(7);
+    pdf.setTextColor(90, 90, 90);
+    const pageNumber = pageOffset + pageIndex;
+    const label = volumeNumber && totalVolumes
+      ? `Volume ${volumeNumber}/${totalVolumes} · página ${pageNumber}`
+      : `página ${pageNumber}`;
+    pdf.text(label, pageWidth / 2, pageHeight - 6, { align: 'center' });
+  }
+}
+
 async function exportHtmlToPdfBlob(html, options = {}) {
   if (!String(html || '').trim()) {
     throw new Error('HTML do relatorio vazio.');
@@ -585,9 +630,18 @@ async function exportHtmlToPdfBlob(html, options = {}) {
       addSearchableTextAppendix(pdf, searchableText);
     }
 
+    addContinuousPageNumbers(pdf, options);
+
     const blob = pdf.output('blob');
     if (!blob || blob.size <= 0) {
       throw new Error('PDF gerado sem conteudo.');
+    }
+
+    if (options.returnMeta) {
+      return {
+        blob,
+        pageCount: pdf.getNumberOfPages(),
+      };
     }
 
     return blob;
@@ -1826,7 +1880,7 @@ export default function RelatorioPreview() {
         return;
       }
 
-      toast.info('Gerando PDF dividido em partes...');
+      toast.info('Gerando PDF dividido em volumes...');
       const selectedChapterIds = loadSelectedChapterIds();
       const documentParts = extractDocumentParts(exportHtml, selectedChapterIds);
 
@@ -1837,12 +1891,12 @@ export default function RelatorioPreview() {
 
       const { parts, warnings } = buildSplitParts(documentParts.chapters);
       if (!Array.isArray(parts) || parts.length === 0) {
-        toast.error('Não foi possível montar partes válidas para exportação.');
+        toast.error('Não foi possível montar volumes válidos para exportação.');
         return;
       }
 
       const queue = parts.map((part, index) => ({
-        id: `parte-${String(index + 1).padStart(2, '0')}`,
+        id: `volume-${String(index + 1).padStart(2, '0')}`,
         filename: filenameForPart(index + 1),
         status: 'waiting',
         chapters: part.chapters.map((chapter) => chapter.title),
@@ -1860,6 +1914,7 @@ export default function RelatorioPreview() {
 
       const summaryHtml = buildPartSummary(parts);
       const totalParts = parts.length;
+      let pageNumberOffset = 0;
 
       for (let i = 0; i < parts.length; i += 1) {
         const partNumber = i + 1;
@@ -1873,11 +1928,18 @@ export default function RelatorioPreview() {
 
         updateExportQueueItem(i, { status: 'preparing_download', blobSize });
 
-        const pdfBlob = await exportHtmlToPdfBlob(partHtml);
+        const pdfResult = await exportHtmlToPdfBlob(partHtml, {
+          pageNumberOffset,
+          volumeNumber: partNumber,
+          totalVolumes: totalParts,
+          returnMeta: true,
+        });
+        const pdfBlob = pdfResult.blob;
+        pageNumberOffset += pdfResult.pageCount || 0;
         await downloadPdfBlob(pdfBlob, filename);
         const ok = true;
         if (!ok) {
-          toast.error(`Não foi possível abrir a parte ${String(partNumber).padStart(2, '0')} para impressão.`);
+          toast.error(`Não foi possível exportar o volume ${String(partNumber).padStart(2, '0')}.`);
           const errorMessage = `Erro ao exportar ${filename}. A exportaÃ§Ã£o foi interrompida para evitar arquivos incompletos.`;
           updateExportQueueItem(i, { status: 'error', blobSize, error: errorMessage });
           setCurrentExportFile(null);
@@ -1889,7 +1951,7 @@ export default function RelatorioPreview() {
         await delay(300);
         updateExportQueueItem(i, { status: 'done', blobSize: pdfBlob.size });
         setExportProgress(Math.round((partNumber / totalParts) * 100));
-        toast.success(`Parte ${String(partNumber).padStart(2, '0')} preparada.`);
+        toast.success(`Volume ${String(partNumber).padStart(2, '0')} preparado.`);
       }
 
       setCurrentExportFile(null);
@@ -2030,7 +2092,7 @@ export default function RelatorioPreview() {
           <DialogHeader>
             <DialogTitle>Exportar relatório em PDF</DialogTitle>
             <DialogDescription>
-              Escolha se deseja gerar o relatório em um único arquivo ou em partes de até 200 MB.
+              Escolha se deseja gerar o relatório em um único arquivo ou em 3 volumes balanceados.
               No modo dividido, os capítulos serão mantidos inteiros sempre que possível.
             </DialogDescription>
           </DialogHeader>
@@ -2052,8 +2114,8 @@ export default function RelatorioPreview() {
               disabled={isExportingPdf}
               className={`w-full rounded-xl border p-4 text-left transition-colors ${exportMode === 'split' ? 'border-black bg-black/5' : 'border-slate-200 bg-white'}`}
             >
-              <p className="text-sm font-semibold text-slate-900">Vários arquivos de até 200 MB</p>
-              <p className="text-xs text-slate-500 mt-1">Agrupa capítulos inteiros em partes, respeitando o limite sempre que possível.</p>
+              <p className="text-sm font-semibold text-slate-900">3 volumes balanceados</p>
+              <p className="text-xs text-slate-500 mt-1">Agrupa capítulos inteiros em volumes com tamanhos próximos e paginação contínua.</p>
             </button>
           </div>
 
