@@ -635,7 +635,6 @@ export default function RelatorioFisicoFinanceiroGenerator() {
       });
 
       updateProgress(48, 'Recalculando metricas oficiais', 'Consolidando indicadores oficiais do dashboard e do periodo', 'pesquisa');
-      const dashboardMetrics = contexto?.dashboard_metrics || {};
 
       updateProgress(65, 'Regerando HTML do relatorio', 'Atualizando relatorio principal, dados e galeria', 'pesquisa');
       const separated = await buildSeparatedReportsHtml({
@@ -681,11 +680,6 @@ export default function RelatorioFisicoFinanceiroGenerator() {
 
       const mainHtml = separated?.data?.html || separated?.single?.html || '';
       const mainContext = separated?.data?.contexto || separated?.single?.contexto || separated?.contexto || contexto;
-      const resolvedDashboardMetrics = separated?.data?.contexto?.dashboard_metrics
-        || mainContext?.dashboard_metrics
-        || contexto?.dashboard_metrics
-        || dashboardMetrics;
-
       if (!String(mainHtml || '').trim()) {
         throw new Error('A pesquisa foi concluida, mas nenhum HTML atualizado foi gerado.');
       }
@@ -693,10 +687,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
       setResultado({
         html: mainHtml,
         galleryHtml: separated?.gallery?.html || '',
-        contexto: {
-          ...mainContext,
-          dashboard_metrics: resolvedDashboardMetrics,
-        },
+        contexto: mainContext,
         fonte: modoPremium ? 'premium_app_forced_refresh' : 'frontend_ia_forced_refresh',
         exportMode: 'data_pdf',
         htmlSize: new Blob([mainHtml], { type: 'text/html;charset=utf-8' }).size,
@@ -709,7 +700,6 @@ export default function RelatorioFisicoFinanceiroGenerator() {
           forcedRefresh: true,
           metricsForcedRefresh: true,
           reportVariant: 'dados',
-          dashboardMetrics: resolvedDashboardMetrics,
         },
         galleryMeta: separated?.gallery?.meta
           ? {
@@ -718,7 +708,6 @@ export default function RelatorioFisicoFinanceiroGenerator() {
               forcedRefresh: true,
               metricsForcedRefresh: true,
               reportVariant: 'galeria',
-              dashboardMetrics: resolvedDashboardMetrics,
             }
           : null,
         refreshedAt,
@@ -729,7 +718,6 @@ export default function RelatorioFisicoFinanceiroGenerator() {
       toast.success('Dados, metricas, HTML e PDF foram atualizados com informacoes reais do app.');
       return {
         ...mainContext,
-        dashboard_metrics: resolvedDashboardMetrics,
       };
     } catch (err) {
       console.error(err);
