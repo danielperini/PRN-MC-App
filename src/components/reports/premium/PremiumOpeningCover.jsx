@@ -2,12 +2,13 @@ import React from 'react';
 import { extractPhotos, fmtInt, normalizeText } from './premiumReportUtils';
 
 function buildCoverCandidateScore(photo = {}, { preferred = false } = {}) {
+  const safePhoto = photo || {};
   const text = normalizeText([
-    photo.legenda,
-    photo.atividade,
-    photo.fileName,
-    photo.museu,
-    photo.credito,
+    safePhoto.legenda,
+    safePhoto.atividade,
+    safePhoto.fileName,
+    safePhoto.museu,
+    safePhoto.credito,
   ].filter(Boolean).join(' '));
 
   let score = preferred ? 20 : 0;
@@ -17,8 +18,8 @@ function buildCoverCandidateScore(photo = {}, { preferred = false } = {}) {
   if (text.includes('publico') || text.includes('participantes') || text.includes('visita') || text.includes('mediada')) score += 7;
   if (text.includes('oficina') || text.includes('atividade') || text.includes('educativo') || text.includes('programacao')) score += 5;
   if (text.includes('auditorio') || text.includes('casarao') || text.includes('galeria') || text.includes('teatro')) score += 3;
-  if (photo.credito) score += 2;
-  if (photo.localizacao?.label) score += 1;
+  if (safePhoto.credito) score += 2;
+  if (safePhoto.localizacao?.label) score += 1;
 
   if (text.includes('nf') || text.includes('xml') || text.includes('recibo') || text.includes('comprovante') || text.includes('contrato')) score -= 18;
   if (text.includes('print') || text.includes('screenshot') || text.includes('captura')) score -= 12;
@@ -28,18 +29,19 @@ function buildCoverCandidateScore(photo = {}, { preferred = false } = {}) {
 }
 
 function normalizeCoverPhoto(photo = {}, options = {}) {
-  const url = photo.imageUrl || photo.url || photo.src || photo.file_url || '';
+  const safePhoto = photo || {};
+  const url = safePhoto.imageUrl || safePhoto.url || safePhoto.src || safePhoto.file_url || '';
   if (!url) return null;
 
   return {
-    id: photo.imageId || photo.id || url,
+    id: safePhoto.imageId || safePhoto.id || url,
     url,
-    legenda: photo.legenda || photo.caption || '',
-    atividade: photo.atividade || photo.assignedActivityTitle || '',
-    fileName: photo.fileName || photo.name || '',
-    museu: photo.museu || photo.museum || '',
-    credito: photo.credito || '',
-    localizacao: photo.localizacao || null,
+    legenda: safePhoto.legenda || safePhoto.caption || '',
+    atividade: safePhoto.atividade || safePhoto.assignedActivityTitle || '',
+    fileName: safePhoto.fileName || safePhoto.name || '',
+    museu: safePhoto.museu || safePhoto.museum || '',
+    credito: safePhoto.credito || '',
+    localizacao: safePhoto.localizacao || null,
     preferred: !!options.preferred,
   };
 }

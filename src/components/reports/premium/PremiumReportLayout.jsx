@@ -576,19 +576,20 @@ A entrada de Daniel Perini na coordenação geral, após a saída de Andréa Mat
 
 
 function getPhotoUrl(photo = {}) {
+  const safePhoto = photo || {};
   return (
-    photo?.link ||
-    photo?.url ||
-    photo?.file_url ||
-    photo?.src ||
-    photo?.arquivo_url ||
-    photo?.thumbnail_url ||
-    photo?.preview_url ||
-    photo?.download_url ||
-    photo?.file?.url ||
-    photo?.file?.file_url ||
-    photo?.attachment?.url ||
-    photo?.attachment?.file_url ||
+    safePhoto.link ||
+    safePhoto.url ||
+    safePhoto.file_url ||
+    safePhoto.src ||
+    safePhoto.arquivo_url ||
+    safePhoto.thumbnail_url ||
+    safePhoto.preview_url ||
+    safePhoto.download_url ||
+    safePhoto.file?.url ||
+    safePhoto.file?.file_url ||
+    safePhoto.attachment?.url ||
+    safePhoto.attachment?.file_url ||
     ''
   );
 }
@@ -658,13 +659,14 @@ function ActivityMiniPhotos({ activity }) {
 
   return (
     <figure className="premium-activity-photo-strip">
-      {selected.map((photo, slot) => {
+      {selected.filter(Boolean).map((photo, slot) => {
         const url = getPhotoUrl(photo);
+        if (!url) return null;
         return (
           <img
             key={url || slot}
             src={url}
-            alt={photo.caption || getActivityTitle(activity)}
+            alt={photo?.caption || getActivityTitle(activity)}
             loading="lazy"
           />
         );

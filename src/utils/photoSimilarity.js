@@ -47,112 +47,117 @@ export function normalizePhotoFileName(value = '') {
 }
 
 export function getPhotoUrl(photo = {}) {
+  const safePhoto = photo || {};
   return (
-    photo.fileUrl ||
-    photo.file_url ||
-    photo.url ||
-    photo.src ||
-    photo.arquivo_original_url ||
-    photo.arquivo_url ||
-    photo.original_url ||
-    photo.imageUrl ||
-    photo.image_url ||
-    photo.imagem_url ||
-    photo.attachment_url ||
-    photo.link ||
+    safePhoto.fileUrl ||
+    safePhoto.file_url ||
+    safePhoto.url ||
+    safePhoto.src ||
+    safePhoto.arquivo_original_url ||
+    safePhoto.arquivo_url ||
+    safePhoto.original_url ||
+    safePhoto.imageUrl ||
+    safePhoto.image_url ||
+    safePhoto.imagem_url ||
+    safePhoto.attachment_url ||
+    safePhoto.link ||
     ''
   );
 }
 
 export function isPhotoImage(photo = {}) {
-  const url = getPhotoUrl(photo);
-  const name = photo.fileName || photo.file_name || photo.name || photo.nome_arquivo || url;
+  const safePhoto = photo || {};
+  const url = getPhotoUrl(safePhoto);
+  const name = safePhoto.fileName || safePhoto.file_name || safePhoto.name || safePhoto.nome_arquivo || url;
   const ext = String(name).split('.').pop()?.toLowerCase() || '';
-  const mime = String(photo.file_type || photo.mime_type || photo.type || '').toLowerCase();
+  const mime = String(safePhoto.file_type || safePhoto.mime_type || safePhoto.type || '').toLowerCase();
 
   return IMAGE_EXTENSIONS.includes(ext) || mime.startsWith('image/');
 }
 
 export function getPhotoIdentity(photo = {}) {
-  const url = normalizePhotoUrl(getPhotoUrl(photo));
+  const safePhoto = photo || {};
+  const url = normalizePhotoUrl(getPhotoUrl(safePhoto));
   if (url) return `url:${url}`;
 
   const fileName = normalizePhotoFileName(
-    photo.fileName ||
-    photo.file_name ||
-    photo.name ||
-    photo.nome_arquivo ||
+    safePhoto.fileName ||
+    safePhoto.file_name ||
+    safePhoto.name ||
+    safePhoto.nome_arquivo ||
     ''
   );
 
   const date = String(
-    photo.date ||
-    photo.data ||
-    photo.created_date ||
-    photo.created_at ||
-    photo.updated_date ||
-    photo.timestamp ||
-    photo.metadataDate ||
+    safePhoto.date ||
+    safePhoto.data ||
+    safePhoto.created_date ||
+    safePhoto.created_at ||
+    safePhoto.updated_date ||
+    safePhoto.timestamp ||
+    safePhoto.metadataDate ||
     ''
   ).slice(0, 10);
 
   const museum = normalizeText(
-    photo.museu ||
-    photo.centro_custo ||
-    photo.sectionKey ||
-    photo.sectionTitle ||
+    safePhoto.museu ||
+    safePhoto.centro_custo ||
+    safePhoto.sectionKey ||
+    safePhoto.sectionTitle ||
     ''
   );
 
   const activity = normalizeText(
-    photo.linkedActivity?.title ||
-    photo.atividade ||
-    photo.atividade_nome ||
-    photo.nome_atividade ||
-    photo.titulo_atividade ||
+    safePhoto.linkedActivity?.title ||
+    safePhoto.atividade ||
+    safePhoto.atividade_nome ||
+    safePhoto.nome_atividade ||
+    safePhoto.titulo_atividade ||
     ''
   ).slice(0, 100);
 
   const caption = normalizeText(
-    photo.legenda ||
-    photo.caption ||
-    photo.descricao ||
-    photo.description ||
+    safePhoto.legenda ||
+    safePhoto.caption ||
+    safePhoto.descricao ||
+    safePhoto.description ||
     ''
   ).slice(0, 100);
 
   const fallback = [fileName, date, museum, activity, caption].filter(Boolean).join('|');
 
-  return fallback || String(photo.attachment_id || photo.attachmentId || photo.sourceId || photo.id || '');
+  return fallback || String(safePhoto.attachment_id || safePhoto.attachmentId || safePhoto.sourceId || safePhoto.id || '');
 }
 
 export function scorePhotoMetadata(photo = {}) {
+  const safePhoto = photo || {};
   return [
-    photo.legenda,
-    photo.caption,
-    photo.descricao,
-    photo.description,
-    photo.museu,
-    photo.centro_custo,
-    photo.sectionKey,
-    photo.sectionTitle,
-    photo.localizacao,
-    photo.geoCoordinates,
-    photo.metadataCoordinates,
-    photo.metadataLocation,
-    photo.metadataDate,
-    photo.linkedActivity?.title,
-    photo.atividade,
-    photo.reportLabel,
-    photo.author_name,
-    photo.autor,
-    photo.credito,
-    photo.credit,
+    safePhoto.legenda,
+    safePhoto.caption,
+    safePhoto.descricao,
+    safePhoto.description,
+    safePhoto.museu,
+    safePhoto.centro_custo,
+    safePhoto.sectionKey,
+    safePhoto.sectionTitle,
+    safePhoto.localizacao,
+    safePhoto.geoCoordinates,
+    safePhoto.metadataCoordinates,
+    safePhoto.metadataLocation,
+    safePhoto.metadataDate,
+    safePhoto.linkedActivity?.title,
+    safePhoto.atividade,
+    safePhoto.reportLabel,
+    safePhoto.author_name,
+    safePhoto.autor,
+    safePhoto.credito,
+    safePhoto.credit,
   ].filter(Boolean).length;
 }
 
 function getPhotoTime(photo = {}) {
-  const date = new Date(photo.timestamp || photo.created_date || photo.created_at || photo.updated_date || photo.date || 0);
+  const safePhoto = photo || {};
+  const date = new Date(safePhoto.timestamp || safePhoto.created_date || safePhoto.created_at || safePhoto.updated_date || safePhoto.date || 0);
   return Number.isNaN(date.getTime()) ? 0 : date.getTime();
 }
 

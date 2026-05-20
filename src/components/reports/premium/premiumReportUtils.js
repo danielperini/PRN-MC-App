@@ -692,6 +692,7 @@ export function extractPhotos(contexto = {}, limit = Infinity) {
     })) : []);
 
   return dedupePhotosByImageIdentity([...fromContext, ...fromActivities, ...fromReports]
+    .filter(Boolean)
     .map((foto) => {
       const url = getPhotoUrl(foto);
       return {

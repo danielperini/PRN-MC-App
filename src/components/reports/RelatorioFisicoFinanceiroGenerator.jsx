@@ -1188,7 +1188,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
                 </div>
 
                 <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
-                  {activity.photos.map((photo) => (
+                  {activity.photos.filter(Boolean).filter((photo) => photo?.imageUrl).map((photo) => (
                     <label key={photo.key} className="rounded-xl border border-slate-200 bg-white p-3 cursor-pointer">
                       <div className="flex items-start gap-3">
                         <Checkbox
