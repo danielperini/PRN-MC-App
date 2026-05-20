@@ -624,18 +624,18 @@ export default function RelatorioFisicoFinanceiroGenerator() {
     setLoading(true);
     setErro(null);
     setResultado(null);
-    updateProgress(5, 'Limpando previas antigas', 'Removendo HTML e PDF gerados anteriormente');
+    updateProgress(5, 'Limpando previas antigas', 'Removendo HTML e PDF gerados anteriormente', 'pesquisa');
 
     try {
       await clearReportPreviewCache();
 
-      updateProgress(15, 'Pesquisando dados reais do app', 'Relatorios, programacao, rubricas, metas, documentos, equipe e evidencias');
+      updateProgress(15, 'Pesquisando dados reais do app', 'Relatorios, programacao, rubricas, metas, documentos, equipe e evidencias', 'pesquisa');
       const { contexto } = await carregarContextoRelatorioDoApp(museu, {
         secoesSelecionadas: normalizedSelectedSections,
         selectedInlinePhotoIds: selectedIds,
       });
 
-      updateProgress(48, 'Recalculando metricas oficiais', 'Consolidando indicadores oficiais do dashboard e do periodo');
+      updateProgress(48, 'Recalculando metricas oficiais', 'Consolidando indicadores oficiais do dashboard e do periodo', 'pesquisa');
       const dashboardMetrics = consolidateOfficialDashboardMetrics({
         reports: contexto?.reports_raw || [],
         programacao: contexto?.programacao_raw || [],
@@ -650,7 +650,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
         period: { from: '2026-02-02', to: '2026-04-30' },
       });
 
-      updateProgress(65, 'Regerando HTML do relatorio', 'Atualizando relatorio principal, dados e galeria');
+      updateProgress(65, 'Regerando HTML do relatorio', 'Atualizando relatorio principal, dados e galeria', 'pesquisa');
       const separated = await buildSeparatedReportsHtml({
         museu,
         premium: modoPremium,
@@ -661,7 +661,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
       const refreshedAt = new Date().toISOString();
 
       if (separated?.data?.html) {
-        updateProgress(78, 'Salvando nova previa', 'Persistindo relatorio principal atualizado');
+        updateProgress(78, 'Salvando nova previa principal', 'Persistindo relatorio principal atualizado', 'pesquisa');
         await saveReportPreview('dados', {
           html: separated.data.html,
           meta: {
@@ -677,7 +677,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
       }
 
       if (separated?.gallery?.html) {
-        updateProgress(88, 'Salvando nova previa', 'Persistindo relatorio galeria atualizado');
+        updateProgress(88, 'Salvando nova previa galeria', 'Persistindo relatorio galeria atualizado', 'pesquisa');
         await saveReportPreview('galeria', {
           html: separated.gallery.html,
           meta: {
@@ -734,7 +734,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
         metricsForcedRefresh: true,
       });
 
-      updateProgress(100, 'PDF pronto para exportacao com dados atualizados', 'HTML e PDF agora usam as metricas recem-pesquisadas');
+      updateProgress(100, 'PDF pronto para exportacao com dados atualizados', 'HTML e PDF agora usam as metricas recem-pesquisadas', 'pesquisa');
       toast.success('Dados, metricas, HTML e PDF foram atualizados com informacoes reais do app.');
       return {
         ...mainContext,
@@ -766,11 +766,12 @@ export default function RelatorioFisicoFinanceiroGenerator() {
     downloadNamedHtml(html, `relatorio-museus-centro-${Date.now()}.html`);
   };
 
-  const updateProgress = (percent, label, detail = '') => {
+  const updateProgress = (percent, label, detail = '', flow = 'exportacao') => {
     setExportProgress({
       percent: Math.max(0, Math.min(100, Math.round(percent))),
       label,
       detail,
+      flow,
     });
   };
 
@@ -1196,13 +1197,15 @@ export default function RelatorioFisicoFinanceiroGenerator() {
 
     setErro(null);
     setLoading(true);
-    updateProgress(5, 'Iniciando geração', 'Preparando pipeline de dois relatórios separados');
+    updateProgress(5, 'Iniciando geração', 'Preparando pipeline de dois relatórios separados', 'geracao');
+    await clearReportPreviewCache();
 
     try {
       // ── ETAPA 1: carregar dados ─────────────────────────────────────────
       console.log('[Relatorio] ETAPA 1: carregando dados do app...');
-      updateProgress(12, 'Carregando dados do app', 'Relatórios, rubricas, compras, programação, fotos e metas');
+      updateProgress(12, 'Carregando dados do app', 'Relatórios, rubricas, compras, programação, fotos e metas', 'geracao');
       const normalizedSections = normalizeSelectedReportChapterIds(secoesSelecionadas);
+      const selectedIds = getSelectedInlineIds();
 
       let result;
       try {
@@ -1210,6 +1213,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
           museu,
           premium: modoPremium,
           secoesSelecionadas: normalizedSections,
+          selectedInlinePhotoIds: selectedIds,
         });
         console.log('[Relatorio] ETAPA 1 concluída. Dados carregados.');
       } catch (dataErr) {
@@ -1219,7 +1223,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
 
       // ── ETAPA 2: montar HTML principal ──────────────────────────────────
       console.log('[Relatorio] ETAPA 2: montando HTML principal...');
-      updateProgress(40, 'Montando HTML principal', 'Dados, textos, tabelas, gráficos, metas e 100% das atividades');
+      updateProgress(40, 'Montando HTML principal', 'Dados, textos, tabelas, gráficos, metas e 100% das atividades', 'geracao');
       const dadosHtml = result?.data?.html || '';
       if (!dadosHtml.trim()) {
         console.error('[Relatorio] ETAPA 2 FALHOU: HTML principal vazio após buildSeparatedReportsHtml');
@@ -1229,7 +1233,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
 
       // ── ETAPA 3: montar HTML galeria ─────────────────────────────────────
       console.log('[Relatorio] ETAPA 3: montando HTML galeria...');
-      updateProgress(55, 'Montando HTML galeria', 'Imagens organizadas por atividade, sem repetição');
+      updateProgress(55, 'Montando HTML galeria', 'Imagens organizadas por atividade, sem repetição', 'geracao');
       const galeriaHtml = result?.gallery?.html || '';
       if (!galeriaHtml.trim()) {
         console.error('[Relatorio] ETAPA 3 FALHOU: HTML galeria vazio após buildSeparatedReportsHtml');
@@ -1239,7 +1243,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
 
       // ── ETAPA 4: salvar localStorage + IndexedDB ─────────────────────────
       console.log('[Relatorio] ETAPA 4: salvando HTMLs em localStorage e IndexedDB...');
-      updateProgress(72, 'Salvando relatórios', 'Persistindo HTML principal e galeria para a prévia');
+      updateProgress(72, 'Salvando relatórios', 'Persistindo HTML principal e galeria para a prévia', 'geracao');
       let localStorageSaved = false;
       try {
         localStorage.setItem('relatorio_fisico_financeiro_dados_html', dadosHtml);
@@ -1257,22 +1261,24 @@ export default function RelatorioFisicoFinanceiroGenerator() {
       // ── ETAPA 5: salvar IndexedDB ─────────────────────────────────────────
       console.log('[Relatorio] ETAPA 5: salvando em IndexedDB...');
       try {
-        await saveReportPreview('dados', {
-          html: dadosHtml,
-          meta: {
-            ...result.data.meta,
-            selectedChapters: normalizedSections.filter((sectionId) => !['galeria_evidencias', 'galeria_premium'].includes(sectionId)),
-            reportVariant: 'dados',
-          },
-        });
-        await saveReportPreview('galeria', {
-          html: galeriaHtml,
-          meta: {
-            ...result.gallery.meta,
-            selectedChapters: normalizedSections,
-            reportVariant: 'galeria',
-          },
-        });
+        await Promise.all([
+          saveReportPreview('dados', {
+            html: dadosHtml,
+            meta: {
+              ...result.data.meta,
+              selectedChapters: normalizedSections.filter((sectionId) => !['galeria_evidencias', 'galeria_premium'].includes(sectionId)),
+              reportVariant: 'dados',
+            },
+          }),
+          saveReportPreview('galeria', {
+            html: galeriaHtml,
+            meta: {
+              ...result.gallery.meta,
+              selectedChapters: normalizedSections,
+              reportVariant: 'galeria',
+            },
+          }),
+        ]);
         console.log('[Relatorio] ETAPA 5 concluída: IndexedDB salvo.');
       } catch (idbErr) {
         console.error('[Relatorio] ETAPA 5 FALHOU ao salvar IndexedDB:', idbErr);
@@ -1284,7 +1290,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
 
       // ── ETAPA 6: verificar prévia ─────────────────────────────────────────
       console.log('[Relatorio] ETAPA 6: verificando prévia salva...');
-      updateProgress(90, 'Verificando prévia', 'Confirmando que os HTMLs estão disponíveis para abertura');
+      updateProgress(90, 'Verificando prévia', 'Confirmando que os HTMLs estão disponíveis para abertura', 'geracao');
       const checkDados = localStorage.getItem('relatorio_fisico_financeiro_dados_html') || '';
       const checkGaleria = localStorage.getItem('relatorio_fisico_financeiro_galeria_html') || '';
       if (!checkDados.trim() && !checkGaleria.trim()) {
@@ -1304,7 +1310,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
         meta: result.data.meta,
         galleryMeta: result.gallery.meta,
       });
-      updateProgress(100, 'Relatórios prontos', 'Principal e galeria salvos e disponíveis para prévia e PDF');
+      updateProgress(100, 'Relatórios prontos', 'Principal e galeria salvos e disponíveis para prévia e PDF', 'geracao');
       setDialogAberto(false);
       toast.success('Relatórios gerados: principal de dados e galeria de imagens.');
     } catch (err) {
@@ -1338,7 +1344,9 @@ export default function RelatorioFisicoFinanceiroGenerator() {
         <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
           <div className="flex items-end justify-between gap-4">
             <div>
-              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Progresso da Exportação</p>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                {exportProgress.flow === 'pesquisa' ? 'Progresso da Pesquisa e Atualização' : 'Progresso da Geração dos Relatórios'}
+              </p>
               <div className="mt-1 flex items-end gap-2">
                 <span className="text-4xl font-bold leading-none text-slate-900 tabular-nums">{exportProgress.percent}%</span>
                 <span className="pb-1 text-sm text-slate-500">concluído</span>
