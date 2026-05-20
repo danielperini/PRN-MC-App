@@ -972,52 +972,121 @@ export default function RelatorioFisicoFinanceiroGenerator() {
 
     setErro(null);
     setLoading(true);
-    updateProgress(8, 'Gerando relatorios separados', 'Consolidando dados no relatorio principal e imagens no relatorio galeria');
+    updateProgress(5, 'Iniciando geração', 'Preparando pipeline de dois relatórios separados');
 
     try {
+      // ── ETAPA 1: carregar dados ─────────────────────────────────────────
+      console.log('[Relatorio] ETAPA 1: carregando dados do app...');
+      updateProgress(12, 'Carregando dados do app', 'Relatórios, rubricas, compras, programação, fotos e metas');
       const normalizedSections = normalizeSelectedReportChapterIds(secoesSelecionadas);
-      const result = await buildSeparatedReportsHtml({
-        museu,
-        premium: modoPremium,
-        secoesSelecionadas: normalizedSections,
-      });
 
-      updateProgress(82, 'Salvando previas', 'Preparando relatorio principal e galeria fotografica');
-      await saveReportPreview('dados', {
-        html: result.data.html,
-        meta: {
-          ...result.data.meta,
-          selectedChapters: normalizedSections.filter((sectionId) => !['galeria_evidencias', 'galeria_premium'].includes(sectionId)),
-          reportVariant: 'dados',
-        },
-      });
-      await saveReportPreview('galeria', {
-        html: result.gallery.html,
-        meta: {
-          ...result.gallery.meta,
-          selectedChapters: normalizedSections,
-          reportVariant: 'galeria',
-        },
-      });
+      let result;
+      try {
+        result = await buildSeparatedReportsHtml({
+          museu,
+          premium: modoPremium,
+          secoesSelecionadas: normalizedSections,
+        });
+        console.log('[Relatorio] ETAPA 1 concluída. Dados carregados.');
+      } catch (dataErr) {
+        console.error('[Relatorio] ETAPA 1 FALHOU ao carregar dados:', dataErr);
+        throw new Error(`Falha ao carregar dados: ${dataErr.message}`);
+      }
+
+      // ── ETAPA 2: montar HTML principal ──────────────────────────────────
+      console.log('[Relatorio] ETAPA 2: montando HTML principal...');
+      updateProgress(40, 'Montando HTML principal', 'Dados, textos, tabelas, gráficos, metas e 100% das atividades');
+      const dadosHtml = result?.data?.html || '';
+      if (!dadosHtml.trim()) {
+        console.error('[Relatorio] ETAPA 2 FALHOU: HTML principal vazio após buildSeparatedReportsHtml');
+        throw new Error('Não foi possível montar o HTML do relatório principal.');
+      }
+      console.log(`[Relatorio] ETAPA 2 concluída. HTML principal: ${Math.round(dadosHtml.length / 1024)} KB`);
+
+      // ── ETAPA 3: montar HTML galeria ─────────────────────────────────────
+      console.log('[Relatorio] ETAPA 3: montando HTML galeria...');
+      updateProgress(55, 'Montando HTML galeria', 'Imagens organizadas por atividade, sem repetição');
+      const galeriaHtml = result?.gallery?.html || '';
+      if (!galeriaHtml.trim()) {
+        console.error('[Relatorio] ETAPA 3 FALHOU: HTML galeria vazio após buildSeparatedReportsHtml');
+        throw new Error('Não foi possível montar o HTML do relatório galeria.');
+      }
+      console.log(`[Relatorio] ETAPA 3 concluída. HTML galeria: ${Math.round(galeriaHtml.length / 1024)} KB`);
+
+      // ── ETAPA 4: salvar localStorage + IndexedDB ─────────────────────────
+      console.log('[Relatorio] ETAPA 4: salvando HTMLs em localStorage e IndexedDB...');
+      updateProgress(72, 'Salvando relatórios', 'Persistindo HTML principal e galeria para a prévia');
+      let localStorageSaved = false;
+      try {
+        localStorage.setItem('relatorio_fisico_financeiro_dados_html', dadosHtml);
+        localStorage.setItem('relatorio_fisico_financeiro_galeria_html', galeriaHtml);
+        localStorage.setItem('relatorio_fisico_financeiro_dados_html_saved_at', new Date().toISOString());
+        localStorage.setItem('relatorio_fisico_financeiro_galeria_html_saved_at', new Date().toISOString());
+        // Verify write
+        const verify = localStorage.getItem('relatorio_fisico_financeiro_dados_html') || '';
+        localStorageSaved = verify.length > 100;
+        console.log(`[Relatorio] ETAPA 4a: localStorage ${localStorageSaved ? 'salvo com sucesso' : 'falhou na verificação'}`);
+      } catch (lsErr) {
+        console.warn('[Relatorio] ETAPA 4a FALHOU: localStorage quota ou erro:', lsErr);
+      }
+
+      // ── ETAPA 5: salvar IndexedDB ─────────────────────────────────────────
+      console.log('[Relatorio] ETAPA 5: salvando em IndexedDB...');
+      try {
+        await saveReportPreview('dados', {
+          html: dadosHtml,
+          meta: {
+            ...result.data.meta,
+            selectedChapters: normalizedSections.filter((sectionId) => !['galeria_evidencias', 'galeria_premium'].includes(sectionId)),
+            reportVariant: 'dados',
+          },
+        });
+        await saveReportPreview('galeria', {
+          html: galeriaHtml,
+          meta: {
+            ...result.gallery.meta,
+            selectedChapters: normalizedSections,
+            reportVariant: 'galeria',
+          },
+        });
+        console.log('[Relatorio] ETAPA 5 concluída: IndexedDB salvo.');
+      } catch (idbErr) {
+        console.error('[Relatorio] ETAPA 5 FALHOU ao salvar IndexedDB:', idbErr);
+        if (!localStorageSaved) {
+          throw new Error(`Falha ao salvar IndexedDB: ${idbErr.message}. localStorage também falhou.`);
+        }
+        console.warn('[Relatorio] ETAPA 5: IndexedDB falhou mas localStorage está disponível.');
+      }
+
+      // ── ETAPA 6: verificar prévia ─────────────────────────────────────────
+      console.log('[Relatorio] ETAPA 6: verificando prévia salva...');
+      updateProgress(90, 'Verificando prévia', 'Confirmando que os HTMLs estão disponíveis para abertura');
+      const checkDados = localStorage.getItem('relatorio_fisico_financeiro_dados_html') || '';
+      const checkGaleria = localStorage.getItem('relatorio_fisico_financeiro_galeria_html') || '';
+      if (!checkDados.trim() && !checkGaleria.trim()) {
+        console.error('[Relatorio] ETAPA 6 FALHOU: HTMLs não encontrados no localStorage após salvar');
+        throw new Error('Os HTMLs foram gerados mas não puderam ser lidos. O localStorage pode estar cheio.');
+      }
+      console.log('[Relatorio] ETAPA 6 concluída: prévia verificada e disponível.');
 
       setResultado({
-        html: result.data.html,
-        galleryHtml: result.gallery.html,
+        html: dadosHtml,
+        galleryHtml: galeriaHtml,
         contexto: result.data.contexto,
         fonte: modoPremium ? 'premium_app' : 'frontend_ia',
         exportMode: 'two_reports',
-        htmlSize: new Blob([result.data.html], { type: 'text/html;charset=utf-8' }).size,
-        galleryHtmlSize: new Blob([result.gallery.html], { type: 'text/html;charset=utf-8' }).size,
+        htmlSize: new Blob([dadosHtml], { type: 'text/html;charset=utf-8' }).size,
+        galleryHtmlSize: new Blob([galeriaHtml], { type: 'text/html;charset=utf-8' }).size,
         meta: result.data.meta,
         galleryMeta: result.gallery.meta,
       });
-      updateProgress(100, 'Relatorios concluidos', 'Principal e galeria estao prontos para previa e exportacao');
+      updateProgress(100, 'Relatórios prontos', 'Principal e galeria salvos e disponíveis para prévia e PDF');
       setDialogAberto(false);
-      toast.success('Relatorios gerados: principal de dados e galeria de imagens.');
+      toast.success('Relatórios gerados: principal de dados e galeria de imagens.');
     } catch (err) {
-      console.error(err);
+      console.error('[Relatorio] Geração falhou:', err);
       setErro(err.message || 'Nao foi possivel gerar os relatorios.');
-      toast.error('Nao foi possivel gerar os relatorios.');
+      toast.error(err.message || 'Nao foi possivel gerar os relatorios.');
     } finally {
       setLoading(false);
       setTimeout(() => setExportProgress(null), 1200);
@@ -1025,6 +1094,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
   };
 
   const handleGerarUnico = async () => {
+
     await generateSeparatedReports();
   };
 
