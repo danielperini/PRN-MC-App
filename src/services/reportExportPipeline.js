@@ -18,6 +18,9 @@ import {
 
 export const EXPORT_VOLUME_COUNT = 3;
 export const EXPORT_FILENAME_BASE = 'Museus-Centro-Relatorio';
+export const SINGLE_REPORT_FILENAME = 'Museus-Centro-Relatorio-Fisico-Financeiro.pdf';
+export const SINGLE_REPORT_HTML_KEY = 'relatorio_fisico_financeiro_html';
+export const SINGLE_REPORT_META_KEY = 'relatorio_fisico_financeiro_meta';
 export const PREVIEW_DB_NAME = 'museus_centro_report_preview';
 export const PREVIEW_DB_STORE = 'previews';
 
@@ -363,6 +366,71 @@ export async function buildVolumeHtml({
   return { html, contexto };
 }
 
+function countHtmlImages(html = '') {
+  if (!String(html || '').trim() || typeof DOMParser === 'undefined') return 0;
+  try {
+    const doc = new DOMParser().parseFromString(String(html), 'text/html');
+    return doc.querySelectorAll('img[src]').length;
+  } catch {
+    return 0;
+  }
+}
+
+function estimateHtmlPages(html = '') {
+  if (!String(html || '').trim()) return 0;
+  const textLength = String(html).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().length;
+  const imageCount = countHtmlImages(html);
+  return Math.max(1, Math.ceil((textLength / 3400) + (imageCount * 0.35)));
+}
+
+function estimateHtmlSizeMB(html = '') {
+  return Number((new Blob([String(html || '')], { type: 'text/html;charset=utf-8' }).size / (1024 * 1024)).toFixed(2));
+}
+
+export function buildSingleReportMeta({ html = '', selectedChapters = [], warnings = [] } = {}) {
+  const imageCount = countHtmlImages(html);
+  const estimatedSizeMB = estimateHtmlSizeMB(html);
+  return {
+    reportType: 'fisico_financeiro',
+    exportMode: 'single_pdf',
+    generatedAt: new Date().toISOString(),
+    selectedChapters: normalizeSelectedReportChapterIds(selectedChapters),
+    estimatedPages: estimateHtmlPages(html),
+    estimatedSizeMB,
+    imageCount,
+    optimizedImageCount: imageCount,
+    removedEmptySections: 0,
+    warnings: [
+      ...(estimatedSizeMB > 180 ? ['HTML pesado para exportacao; imagens foram otimizadas antes da previa.'] : []),
+      ...warnings,
+    ],
+  };
+}
+
+export async function buildSingleReportHtml({
+  museu = 'Todos',
+  premium = true,
+  secoesSelecionadas = REPORT_CHAPTER_IDS,
+  selectedInlinePhotoIds = [],
+} = {}) {
+  const result = await buildVolumeHtml({
+    museu,
+    premium,
+    secoesSelecionadas,
+    splitContext: null,
+    selectedInlinePhotoIds,
+  });
+  const html = cleanEmptyReportSections(result.html);
+  return {
+    html,
+    contexto: result.contexto,
+    meta: buildSingleReportMeta({
+      html,
+      selectedChapters: secoesSelecionadas,
+    }),
+  };
+}
+
 function savePreviewHtmlToIndexedDb(key, value) {
   if (typeof indexedDB === 'undefined') return Promise.resolve(false);
 
@@ -451,6 +519,36 @@ export async function saveVolumePreview({ volumeNumber = 1, html = '', meta = {}
   });
 }
 
+export async function saveSingleReportPreview({ html = '', meta = {} } = {}) {
+  const payloadMeta = {
+    ...buildSingleReportMeta({ html, selectedChapters: meta.selectedChapters || [] }),
+    ...meta,
+    reportType: 'fisico_financeiro',
+    exportMode: 'single_pdf',
+  };
+
+  try {
+    sessionStorage.setItem(SINGLE_REPORT_HTML_KEY, html);
+    sessionStorage.setItem(SINGLE_REPORT_META_KEY, JSON.stringify(payloadMeta));
+  } catch (error) {
+    console.warn('Nao foi possivel salvar previa unica em sessionStorage:', error);
+  }
+
+  try {
+    localStorage.setItem(SINGLE_REPORT_HTML_KEY, html);
+    localStorage.setItem(SINGLE_REPORT_META_KEY, JSON.stringify(payloadMeta));
+    localStorage.setItem(`${SINGLE_REPORT_HTML_KEY}_saved_at`, payloadMeta.generatedAt || new Date().toISOString());
+  } catch (error) {
+    console.warn('Nao foi possivel salvar previa unica em localStorage:', error);
+  }
+
+  await savePreviewHtmlToIndexedDb(SINGLE_REPORT_HTML_KEY, {
+    html,
+    meta: payloadMeta,
+    savedAt: payloadMeta.generatedAt || new Date().toISOString(),
+  });
+}
+
 export async function getVolumePreview(volumeNumber = 1) {
   const htmlKey = getVolumeHtmlKey(volumeNumber);
   const metaKey = getVolumeMetaKey(volumeNumber);
@@ -476,6 +574,25 @@ export async function getVolumePreview(volumeNumber = 1) {
   };
 }
 
+export async function getSingleReportPreview() {
+  let html = '';
+  let meta = null;
+
+  try {
+    html = sessionStorage.getItem(SINGLE_REPORT_HTML_KEY) || localStorage.getItem(SINGLE_REPORT_HTML_KEY) || '';
+    meta = JSON.parse(sessionStorage.getItem(SINGLE_REPORT_META_KEY) || localStorage.getItem(SINGLE_REPORT_META_KEY) || 'null');
+  } catch {
+    meta = null;
+  }
+
+  if (!html) html = await getPreviewHtmlFromIndexedDb(SINGLE_REPORT_HTML_KEY);
+
+  return {
+    html,
+    meta: meta || buildSingleReportMeta({ html }),
+  };
+}
+
 export async function exportVolumePdf({ html, exporter, volumeMeta = {} } = {}) {
   if (typeof exporter !== 'function') {
     throw new Error('Exportador PDF indisponivel.');
@@ -486,5 +603,20 @@ export async function exportVolumePdf({ html, exporter, volumeMeta = {} } = {}) 
     volumeNumber: Number(volumeMeta.volumeNumber) || 1,
     totalVolumes: Number(volumeMeta.totalVolumes) || EXPORT_VOLUME_COUNT,
     includeSearchableAppendix: false,
+  });
+}
+
+export async function exportSingleReportPdf({ html, exporter, meta = {} } = {}) {
+  if (typeof exporter !== 'function') {
+    throw new Error('Exportador PDF indisponivel.');
+  }
+
+  return exporter(html, {
+    pageNumberOffset: 0,
+    reportTitle: 'Museus Centro - Relatorio Fisico-Financeiro',
+    includeSearchableAppendix: false,
+    targetSizeMB: 180,
+    maxSizeMB: 200,
+    meta,
   });
 }

@@ -37,9 +37,11 @@ import {
   buildEditorialVolumePlan as buildPipelineVolumeParts,
   buildPartFileName as buildPipelinePartFileName,
   buildReportDataContext as buildPipelineReportDataContext,
+  buildSingleReportHtml,
   buildVolumeHtml as buildPipelineVolumeHtml,
   buildVolumeMeta,
   cleanEmptyReportSections,
+  saveSingleReportPreview,
   saveVolumePreview,
 } from '@/services/reportExportPipeline';
 
@@ -513,9 +515,9 @@ export default function RelatorioFisicoFinanceiroGenerator() {
   };
 
   const openPreview = async (volumeNumber = 1, autoExportPdf = false) => {
-    const preview = window.open(`/RelatorioPreview?volume=${volumeNumber}${autoExportPdf ? '&export=pdf' : ''}`, '_blank', 'width=1200,height=900');
+    const preview = window.open(`/RelatorioPreview${autoExportPdf ? '?export=pdf' : ''}`, '_blank', 'width=1200,height=900');
     if (preview) return null;
-    toast.error(`Nao foi possivel abrir a previa do Volume ${volumeNumber}.`);
+    toast.error('Nao foi possivel abrir a previa do relatorio.');
     return null;
   };
 
@@ -908,6 +910,96 @@ export default function RelatorioFisicoFinanceiroGenerator() {
     }
   };
 
+  const generateSingleReport = async (selectedIds = getSelectedInlineIds()) => {
+    if (secoesSelecionadas.length === 0) {
+      toast.error('Selecione ao menos um capitulo.');
+      return;
+    }
+
+    setErro(null);
+    setLoading(true);
+    updateProgress(8, 'Gerando relatorio unico', 'Consolidando dados, textos, tabelas e imagens otimizadas');
+
+    try {
+      const result = await buildSingleReportHtml({
+        museu,
+        premium: modoPremium,
+        secoesSelecionadas: normalizeSelectedReportChapterIds(secoesSelecionadas),
+        selectedInlinePhotoIds: selectedIds,
+      });
+
+      updateProgress(82, 'Salvando previa unica', 'Aplicando limpeza editorial e preparando exportacao PDF A4');
+      await saveSingleReportPreview({
+        html: result.html,
+        meta: {
+          ...result.meta,
+          selectedChapters: normalizeSelectedReportChapterIds(secoesSelecionadas),
+        },
+      });
+
+      setResultado({
+        html: result.html,
+        contexto: result.contexto,
+        fonte: modoPremium ? 'premium_app' : 'frontend_ia',
+        exportMode: 'single_pdf',
+        htmlSize: new Blob([result.html], { type: 'text/html;charset=utf-8' }).size,
+        meta: result.meta,
+      });
+      updateProgress(100, 'Relatorio unico concluido', 'Pronto para previa e exportacao em PDF unico');
+      setDialogAberto(false);
+      toast.success('Relatorio Fisico-Financeiro gerado em arquivo unico.');
+    } catch (err) {
+      console.error(err);
+      setErro(err.message || 'Nao foi possivel gerar o relatorio.');
+      toast.error('Nao foi possivel gerar o relatorio.');
+    } finally {
+      setLoading(false);
+      setTimeout(() => setExportProgress(null), 1200);
+    }
+  };
+
+  const handleGerarUnico = async () => {
+    const selectedIds = getSelectedInlineIds();
+
+    setErro(null);
+    setLoading(true);
+    updateProgress(4, 'Analisando fotos vinculadas', 'Verificando imagens vinculadas as atividades');
+
+    try {
+      const { contexto } = await carregarContextoRelatorioDoApp(museu, {
+        secoesSelecionadas,
+        selectedInlinePhotoIds: selectedIds,
+      });
+      const candidates = buildPhotoSelectionCandidates(contexto);
+
+      if (candidates.length > 0) {
+        setPhotoSelectionCandidates(candidates);
+        setSelectedInlinePhotoIds((prev) => {
+          const next = { ...prev };
+          candidates.forEach((activity) => {
+            activity.photos.forEach((photo) => {
+              if (typeof next[photo.id] === 'undefined') next[photo.id] = false;
+            });
+          });
+          return next;
+        });
+        setDialogAberto(false);
+        setPhotoSelectionDialog(true);
+        setLoading(false);
+        setExportProgress(null);
+        return;
+      }
+
+      await generateSingleReport(selectedIds);
+    } catch (err) {
+      console.error(err);
+      setLoading(false);
+      setExportProgress(null);
+      setErro(err.message || 'Nao foi possivel preparar a selecao de fotos.');
+      toast.error('Nao foi possivel preparar a selecao de fotos.');
+    }
+  };
+
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
       <div className="flex items-center gap-3 mb-6">
@@ -980,7 +1072,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
                     ? 'Gerado pela função gerarRelatorioFisicoFinanceiro.'
                     : 'Gerado no frontend com dados reais do app, fotos vinculadas e refinamento textual por IA.'}
               </p>
-              {resultado.exportMode === 'split' && Array.isArray(resultado.parts) && resultado.parts.length > 1 && (
+              {false && resultado.exportMode === 'split' && Array.isArray(resultado.parts) && resultado.parts.length > 1 && (
                 <p className="text-xs text-green-700 mt-1">
                   Exportação preparada em {resultado.parts.length} volumes balanceados, respeitando a ordem dos capítulos selecionados.
                 </p>
@@ -989,7 +1081,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
           </div>
 
           <div className="flex gap-3 flex-wrap">
-            {resultado.exportMode === 'split' && Array.isArray(resultado.parts) && resultado.parts.length > 1 ? (
+            {false && resultado.exportMode === 'split' && Array.isArray(resultado.parts) && resultado.parts.length > 1 ? (
               <>
                 <Button
                   variant="outline"
@@ -1030,13 +1122,17 @@ export default function RelatorioFisicoFinanceiroGenerator() {
               </>
             ) : (
               <>
-                <Button variant="outline" size="sm" onClick={() => openPreview(resultado.volumeNumber || 1)}>
+                <Button variant="outline" size="sm" onClick={() => openPreview(1)}>
                   <ExternalLink className="w-4 h-4 mr-2" />
                   Abrir Relatório
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => downloadHtml(resultado.html)}>
                   <Download className="w-4 h-4 mr-2" />
                   Baixar HTML
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => openPreview(1, true)}>
+                  <Download className="w-4 h-4 mr-2" />
+                  Exportar PDF
                 </Button>
               </>
             )}
@@ -1114,11 +1210,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
               onClick={async () => {
                 const selectedIds = getSelectedInlineIds();
                 setPhotoSelectionDialog(false);
-                if (requestedVolumes.length > 1) {
-                  await runExportBundle(selectedIds, requestedVolumes, true);
-                } else {
-                  await runExport(selectedIds, requestedVolume);
-                }
+                await generateSingleReport(selectedIds);
               }}
               disabled={loading}
             >
@@ -1134,7 +1226,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
           <DialogHeader>
             <DialogTitle>Escolha os conteudos do relatorio</DialogTitle>
             <p className="text-sm text-slate-500">
-              Selecione o museu, o formato editorial e os conteudos que serao distribuidos nos tres volumes do relatorio. Os volumes sao complementares e sequenciais: o Volume 1 abre a publicacao, o Volume 2 continua com a execucao financeira e documental, e o Volume 3 encerra com sistema, auditoria, anexos e conclusao.
+              Selecione o museu, o formato editorial e os capitulos que serao consolidados em um PDF unico A4. O sistema otimiza imagens, remove paginas vazias e preserva o conteudo completo selecionado.
             </p>
           </DialogHeader>
 
@@ -1176,7 +1268,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
               </div>
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+            {false && <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
               <div>
                 <Label>Modo de geracao dos volumes</Label>
                 <div className="mt-3 space-y-2">
@@ -1234,20 +1326,17 @@ export default function RelatorioFisicoFinanceiroGenerator() {
                   )}
                 </div>
               )}
-            </div>
+            </div>}
 
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-4">
               <div className="space-y-2">
-                <Label>Volumes e capitulos editoriais</Label>
+                <Label>Capitulos editoriais</Label>
                 <p className="text-xs leading-5 text-slate-600">
-                  Todo conteudo selecionado sera usado uma unica vez. As imagens serao vinculadas as atividades correspondentes, preservando creditos, GPS e legendas quando disponiveis. Nao havera repeticao de capitulos, paginas institucionais ou imagens entre os volumes.
+                  Todo conteudo selecionado sera consolidado em um arquivo unico. As imagens serao vinculadas as atividades correspondentes, preservando creditos, GPS e legendas quando disponiveis.
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs">
-                <Button type="button" variant="outline" size="sm" onClick={() => toggleTodas(true)}>Selecionar todos os volumes</Button>
-                <Button type="button" variant="outline" size="sm" onClick={() => { setGenerationMode('volume_1'); selectOnlyIds(Array.from(new Set(EDITORIAL_VOLUMES[0].chapters.flatMap((chapter) => chapter.sectionIds)))); }}>Selecionar apenas Volume 1</Button>
-                <Button type="button" variant="outline" size="sm" onClick={() => { setGenerationMode('volume_2'); selectOnlyIds(Array.from(new Set(EDITORIAL_VOLUMES[1].chapters.flatMap((chapter) => chapter.sectionIds)))); }}>Selecionar apenas Volume 2</Button>
-                <Button type="button" variant="outline" size="sm" onClick={() => { setGenerationMode('volume_3'); selectOnlyIds(Array.from(new Set(EDITORIAL_VOLUMES[2].chapters.flatMap((chapter) => chapter.sectionIds)))); }}>Selecionar apenas Volume 3</Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => toggleTodas(true)}>Selecionar todos</Button>
                 <button type="button" onClick={() => toggleTodas(false)} className="ml-auto text-slate-500 hover:underline">Limpar selecao</button>
               </div>
               <div className="space-y-4">
@@ -1259,7 +1348,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
                     <div key={`editorial-volume-${volume.number}`} className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="text-sm font-semibold text-slate-900">{volume.title}</p>
+                          <p className="text-sm font-semibold text-slate-900">{volume.title.replace(/Volume \d+\s*[—-]\s*/, 'Bloco editorial - ')}</p>
                           <p className="mt-1 text-xs leading-5 text-slate-600">{volume.description}</p>
                         </div>
                         <Checkbox checked={volumeChecked} onCheckedChange={(value) => setIdsSelection(volumeSectionIds, !!value)} />
@@ -1298,8 +1387,8 @@ export default function RelatorioFisicoFinanceiroGenerator() {
             <div className="rounded-xl border border-slate-200 bg-white p-4">
               {selectedEditorialChapterCount === allEditorialChapterCount ? (
                 <>
-                  <p className="text-sm font-semibold text-slate-900">{allEditorialChapterCount} capitulos editoriais selecionados em 3 volumes.</p>
-                  <p className="mt-1 text-xs text-slate-600">100% do conteudo antigo sera redistribuido.</p>
+                  <p className="text-sm font-semibold text-slate-900">{allEditorialChapterCount} capitulos editoriais selecionados.</p>
+                  <p className="mt-1 text-xs text-slate-600">100% do conteudo selecionado sera consolidado em PDF unico.</p>
                   <p className="mt-1 text-xs text-slate-600">Imagens serao usadas uma unica vez, vinculadas as atividades.</p>
                 </>
               ) : (
@@ -1317,15 +1406,11 @@ export default function RelatorioFisicoFinanceiroGenerator() {
               {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
               Pesquisar e checar dados
             </Button>
-            <Button variant="outline" onClick={gerarPlanoDosVolumes} disabled={loading || secoesSelecionadas.length === 0}>
+            <Button onClick={() => handleGerarUnico()} disabled={loading || secoesSelecionadas.length === 0}>
               {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
-              Gerar plano dos volumes
+              Gerar relatorio unico
             </Button>
-            <Button onClick={() => handleGerar()} disabled={loading || secoesSelecionadas.length === 0}>
-              {loading && generationMode === 'all_volumes' ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
-              Gerar relatorio em 3 volumes
-            </Button>
-            {[1, 2, 3].map((volumeNumber) => {
+            {false && [1, 2, 3].map((volumeNumber) => {
               const volume = volumeParts.find((part) => part.partNumber === volumeNumber);
               const disabled = loading || secoesSelecionadas.length === 0 || !volume || volume.secoes.length === 0;
               return (

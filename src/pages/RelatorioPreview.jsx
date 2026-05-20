@@ -8,17 +8,37 @@ import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 import { REPORT_CHAPTERS, REPORT_CHAPTER_IDS } from '@/config/reportChapters';
 import {
-  EXPORT_VOLUME_COUNT as PIPELINE_VOLUME_COUNT,
-  buildPartFileName as buildPipelinePartFileName,
-  exportVolumePdf,
-  getVolumePreview,
+  SINGLE_REPORT_FILENAME,
+  exportSingleReportPdf,
+  getSingleReportPreview,
 } from '@/services/reportExportPipeline';
 
-const PDF_VOLUME_COUNT = PIPELINE_VOLUME_COUNT;
 const MAX_EXPORT_PART_SIZE_BYTES = Number.MAX_SAFE_INTEGER;
 
-function filenameForPart(partNumber) {
-  return buildPipelinePartFileName(partNumber, 'pdf');
+const PDF_VOLUME_COUNT = 1;
+const filenameForReport = () => SINGLE_REPORT_FILENAME;
+
+function normalizeText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function chapterLabel(chapterId) {
+  const chapter = REPORT_CHAPTERS.find((item) => item.id === chapterId);
+  return chapter?.title || chapterId;
+}
+
+function chapterRenderSignals(chapterId) {
+  const chapter = REPORT_CHAPTERS.find((item) => item.id === chapterId);
+  const signals = [
+    chapter?.renderTitle,
+    chapter?.title,
+  ].filter(Boolean).map(normalizeText);
+  return Array.from(new Set(signals));
 }
 
 const EXPORT_STATUS_LABELS = {
@@ -547,9 +567,11 @@ function addContinuousPageNumbers(pdf, options = {}) {
     const label = volumeNumber && totalVolumes
       ? `Volume ${volumeNumber}/${totalVolumes} · página ${pageNumber}`
       : `página ${pageNumber}`;
-    const footerLabel = volumeNumber
-      ? `Museus Centro - Relatorio Institucional - Volume ${Number(options.volumeNumber)} | Pagina ${pageNumber}`
-      : label;
+    const footerLabel = options.reportTitle
+      ? `${options.reportTitle} | Pagina ${pageNumber}`
+      : volumeNumber
+        ? `Museus Centro - Relatorio Institucional - Volume ${Number(options.volumeNumber)} | Pagina ${pageNumber}`
+        : label;
     pdf.text(footerLabel, pageWidth / 2, pageHeight - 6, { align: 'center' });
   }
 }
@@ -598,7 +620,7 @@ async function exportHtmlToPdfBlob(html, options = {}) {
       let canvas = null;
       try {
         canvas = await html2canvas(element, {
-          scale: 1.8,
+          scale: options.reportTitle ? 1.45 : 1.8,
           useCORS: true,
           allowTaint: false,
           backgroundColor: '#ffffff',
@@ -637,7 +659,7 @@ async function exportHtmlToPdfBlob(html, options = {}) {
         if (hasPageContent) pdf.addPage();
 
         try {
-          const imageData = pageCanvas.toDataURL('image/jpeg', 0.92);
+          const imageData = pageCanvas.toDataURL('image/jpeg', options.reportTitle ? 0.78 : 0.92);
           const imageHeight = (sliceHeight * pageWidth) / canvas.width;
           pdf.addImage(imageData, 'JPEG', 0, 0, pageWidth, imageHeight, undefined, 'MEDIUM');
           hasPageContent = true;
@@ -1937,7 +1959,6 @@ async function loadReportsForHtml(html) {
 export default function RelatorioPreview() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const requestedVolume = Math.min(3, Math.max(1, Number(searchParams.get('volume') || 1) || 1));
   const autoExportPdf = searchParams.get('export') === 'pdf';
   const [html, setHtml] = useState('');
   const [isExportingPdf, setIsExportingPdf] = useState(false);
@@ -1948,28 +1969,15 @@ export default function RelatorioPreview() {
   const [exportProgressMessage, setExportProgressMessage] = useState('');
   const [exportProgressError, setExportProgressError] = useState(null);
   const [autoExportStarted, setAutoExportStarted] = useState(false);
-  const [volumeMeta, setVolumeMeta] = useState({
-    volumeNumber: 1,
-    totalVolumes: PDF_VOLUME_COUNT,
-    pageNumberOffset: 0,
-  });
+  const [reportMeta, setReportMeta] = useState({});
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      const preview = await getVolumePreview(requestedVolume);
+      const preview = await getSingleReportPreview();
       const finalHtml = preview.html || '';
       if (!cancelled) {
-        setVolumeMeta({
-          volumeNumber: Number(preview.meta?.volumeNumber) || requestedVolume,
-          totalVolumes: Number(preview.meta?.totalVolumes) || PDF_VOLUME_COUNT,
-          pageNumberOffset: Number(preview.meta?.pageNumberOffset) || 0,
-          estimatedPages: Number(preview.meta?.estimatedPages) || 0,
-          estimatedMB: Number(preview.meta?.estimatedMB) || 0,
-          chapterIds: Array.isArray(preview.meta?.chapterIds) ? preview.meta.chapterIds : [],
-          chapterLabels: Array.isArray(preview.meta?.chapterLabels) ? preview.meta.chapterLabels : [],
-          generatedAt: preview.meta?.generatedAt || '',
-        });
+        setReportMeta(preview.meta || {});
         setHtml(finalHtml);
       }
     }
@@ -1979,7 +1987,7 @@ export default function RelatorioPreview() {
     return () => {
       cancelled = true;
     };
-  }, [requestedVolume]);
+  }, []);
 
   /*
       try {
@@ -2028,7 +2036,7 @@ export default function RelatorioPreview() {
 async function getHtmlForExport() {
     if (String(html || '').trim()) return html;
 
-    const preview = await getVolumePreview(requestedVolume);
+    const preview = await getSingleReportPreview();
     return preview.html || '';
   }
 
@@ -2048,16 +2056,16 @@ async function getHtmlForExport() {
     }
 
     setIsExportingPdf(true);
-    toast.info(`Gerando PDF do Volume ${volumeMeta.volumeNumber}...`);
+    toast.info('Gerando PDF do Relatorio Fisico-Financeiro...');
 
     try {
-      const blob = await exportVolumePdf({
+      const blob = await exportSingleReportPdf({
         html: exportHtml,
-        volumeMeta,
+        meta: reportMeta,
         exporter: exportHtmlToPdfBlob,
       });
-      await downloadPdfBlob(blob, filenameForPart(volumeMeta.volumeNumber));
-      toast.success(`Volume ${volumeMeta.volumeNumber} exportado com sucesso.`);
+      await downloadPdfBlob(blob, filenameForReport());
+      toast.success('PDF exportado com sucesso.');
     } catch (error) {
       console.error('Erro ao exportar PDF:', error);
       toast.error('Erro ao exportar PDF.');
@@ -2069,7 +2077,7 @@ async function getHtmlForExport() {
   }
 
   async function handleDownloadHtml() {
-    const htmlForDownload = html || (await getVolumePreview(requestedVolume)).html || '';
+    const htmlForDownload = html || (await getSingleReportPreview()).html || '';
     if (!String(htmlForDownload || '').trim()) {
       toast.error('HTML do relatório não encontrado. Gere o relatório novamente.');
       return;
@@ -2137,7 +2145,7 @@ async function getHtmlForExport() {
               disabled={isExportingPdf}
             >
               {isExportingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
-              {isExportingPdf ? 'Exportando...' : `Exportar PDF Volume ${volumeMeta.volumeNumber}`}
+              {isExportingPdf ? 'Exportando...' : 'Exportar PDF'}
             </Button>
 
           </div>
