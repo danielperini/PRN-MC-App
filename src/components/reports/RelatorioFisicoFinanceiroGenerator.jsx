@@ -83,27 +83,7 @@ function buildDivisionSummary(parts = []) {
   `;
 }
 
-function injectPartMetadata(html, { partNumber, totalParts, sectionLabels = [], summaryHtml = '' } = {}) {
-  if (!html) return html;
 
-  const header = `
-    <section style="max-width:210mm;margin:0 auto 18px;padding:0 24px;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;color:#333;">
-      <div style="border:1px solid rgba(23,23,23,.16);padding:14px 18px;background:#fff;">
-        <p style="margin:0;font-size:13px;font-weight:700;">Relatório Museus Centro — Volume ${String(partNumber).padStart(2, '0')} de ${String(totalParts).padStart(2, '0')}</p>
-        <p style="margin:6px 0 0;font-size:11.5px;line-height:1.5;">Período do relatório: fevereiro a abril de 2026</p>
-        <p style="margin:4px 0 0;font-size:11.5px;line-height:1.5;">Capítulos deste volume: ${sectionLabels.join(', ')}</p>
-      </div>
-    </section>
-  `;
-
-  const content = `${summaryHtml || ''}${header}`;
-
-  if (html.includes('<body>')) {
-    return html.replace('<body>', `<body>${content}`);
-  }
-
-  return `${content}${html}`;
-}
 
 function estimateChapterWeight(sectionId, context = {}) {
   const base = CHAPTER_MUSEUM_WEIGHT[sectionId] || 1;
@@ -114,46 +94,6 @@ function estimateChapterWeight(sectionId, context = {}) {
   return Number((base * multiplier).toFixed(3));
 }
 
-function buildVolumeParts(sectionIds = [], context = {}) {
-  const ids = Array.isArray(sectionIds) ? sectionIds.filter(Boolean) : [];
-  const opening = ids.filter((id) => OPENING_CHAPTER_IDS.includes(id));
-  const body = ids.filter((id) => !OPENING_CHAPTER_IDS.includes(id));
-  const baseParts = Array.from({ length: EXPORT_VOLUME_COUNT }, (_, index) => ({
-    partNumber: index + 1,
-    totalParts: EXPORT_VOLUME_COUNT,
-    secoes: [],
-    estimatedWeight: 0,
-    estimatedPages: 0,
-    estimatedMB: 0,
-    estimatedImages: 0,
-    status: 'adequado',
-  }));
-
-  baseParts[0].secoes.push(...opening);
-  baseParts[0].estimatedWeight += opening.reduce((sum, id) => sum + estimateChapterWeight(id, context), 0);
-  const target = body.reduce((sum, id) => sum + estimateChapterWeight(id, context), 0) / EXPORT_VOLUME_COUNT;
-
-  body.forEach((id) => {
-    const chapterWeight = estimateChapterWeight(id, context);
-    const current = baseParts.reduce((best, part) => {
-      const scoreBest = best.estimatedWeight;
-      const scorePart = part.estimatedWeight;
-      return scorePart < scoreBest ? part : best;
-    }, baseParts[0]);
-    current.secoes.push(id);
-    current.estimatedWeight += chapterWeight;
-  });
-
-  baseParts.forEach((part) => {
-    part.estimatedPages = Math.max(2, Math.round(part.estimatedWeight * 3.4));
-    part.estimatedImages = Math.max(0, Math.round(part.estimatedWeight * 4));
-    part.estimatedMB = Number(Math.max(0.8, part.estimatedWeight * 2.1).toFixed(1));
-    if (part.estimatedMB > 180) part.status = 'volume muito pesado';
-    if (part.estimatedWeight > target * 1.5) part.status = 'revisar distribuição';
-  });
-
-  return baseParts;
-}
 
 function parsePositiveInteger(value) {
   const parsed = Number(value);

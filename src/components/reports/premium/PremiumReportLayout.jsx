@@ -521,73 +521,8 @@ function EmptyChapterNotice({ chapterTitle }) {
   );
 }
 
-function composeIntro(textos = {}, contexto = {}) {
-  const blocked = [
-    'este relatório cobre o período',
-    'o presente relatório cobre o período',
-    'o relatório foi produzido com um aplicativo',
-    'auditoria técnica dos dados',
-  ];
-  const extra = uniqueParagraphs([
-    textos.introducao,
-    textos.contexto_territorial || textos.territorio,
-    textos.publico_alcancado,
-  ].filter(Boolean).join('\n\n'), 5)
-    .filter((paragraph) => {
-      const text = paragraph.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-      return !blocked.some((term) => text.includes(term.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()));
-    });
 
-  return [buildIntroPeriodo(contexto), ...extra].join('\n\n');
-}
 
-function TableOfContents({ secoesSelecionadas = [], contexto = {} }) {
-  const chapters = getReportSummaryChapters(secoesSelecionadas).map((chapter) => ({
-    id: chapter.id,
-    title: chapter.title,
-    detail: chapter.summaryDescription || chapter.group,
-    isAnnex: false,
-  }));
-  const items = hasSection(secoesSelecionadas, 'relatorios_completos')
-    ? [
-        ...chapters,
-        {
-          title: 'Anexos — Relatórios Individuais',
-          detail: 'Relatórios individuais preservados como base documental complementar.',
-          isAnnex: true,
-        },
-      ]
-    : chapters;
-
-  return (
-    <PremiumSection
-      breakBefore
-      chapterId="sumario_executivo"
-      chapterTitle="SumÃ¡rio executivo editorial"
-      eyebrow="Sumário executivo"
-      title="Síntese editorial do período"
-      subtitle="Leitura inicial dos dados reais disponíveis no aplicativo, seguida pelo mapa de capítulos selecionados."
-      text={`O período reúne ${fmtInt(getEffectiveTotalActivities(contexto))} atividades registradas, ${fmtInt(contexto.publico_total)} pessoas em público consolidado quando informado, ${fmtInt(getEffectiveTotalReports(contexto))} relatórios aprovados e registros documentais, financeiros e visuais vinculados ao acompanhamento do projeto.\n\nA síntese executiva não substitui a introdução metodológica. Ela orienta a leitura dos principais blocos do relatório: programação, público, metas, relatórios de equipe, evidências, comunicação, financeiro e governança documental.`}
-    >
-      <PremiumMetrics contexto={contexto} />
-      <ChapterMethodologyPanel
-        chapterId="sumario_executivo"
-        contexto={contexto}
-        evidence={['capítulos selecionados', 'indicadores consolidados', 'registros disponíveis no aplicativo']}
-      />
-      <ol className="catalog-toc">
-        {items.map((item) => (
-          <li key={item.id || item.title} className={item.isAnnex ? 'toc-annex' : undefined}>
-            <div>
-              <strong>{item.title}</strong>
-              {item.detail ? <span>{item.detail}</span> : null}
-            </div>
-          </li>
-        ))}
-      </ol>
-    </PremiumSection>
-  );
-}
 
 function TransitionManagementSection() {
   const itens = [
@@ -1569,24 +1504,6 @@ function GovernanceEvidenceSection({ contexto = {} }) {
   );
 }
 
-function OperationalAuditSection({ contexto = {} }) {
-  return (
-    <PremiumSection
-      chapterId="auditoria_operacional"
-      breakBefore
-      eyebrow="Auditoria operacional"
-      title="Auditoria operacional do período"
-      subtitle="O cruzamento técnico do período aproxima atividades, público, programação, documentos, rubricas, pagamentos e pendências detectáveis a partir dos módulos do app."
-      text={getChapterIntro('auditoria_operacional', contexto) || 'A leitura operacional não cria novos números nem corrige registros automaticamente dentro do relatório. Ela expõe a consistência disponível entre módulos, destacando convergências, lacunas de vínculo e limites de rastreabilidade sempre a partir dos dados reais do sistema.'}
-    >
-      <ChapterMethodologyPanel
-        chapterId="auditoria_operacional"
-        contexto={contexto}
-        evidence={['Report', 'Programação', 'PurchaseRequest', 'TeamPayment', 'Rubrica', 'DocumentIntake', 'Attachment']}
-      />
-    </PremiumSection>
-  );
-}
 
 function DocumentLinkCell({ url, label, fallbackLabel = 'Link indisponível' }) {
   if (!url) return <span>{sanitizeReportText(fallbackLabel)}</span>;
@@ -2231,31 +2148,6 @@ function GalleryMethodologyOnlySection({ contexto, chapterIds = ['galeria_eviden
   );
 }
 
-function BudgetByMuseumSection({ contexto = {} }) {
-  const tables = contexto?.budget_tables || {};
-  const resumo = Array.isArray(tables?.resumo_por_museu) ? tables.resumo_por_museu : [];
-  const rubricas = Array.isArray(tables?.rubricas_por_museu) ? tables.rubricas_por_museu : [];
-  const despesas = Array.isArray(tables?.despesas_vinculadas) ? tables.despesas_vinculadas : [];
-  const alertas = Array.isArray(tables?.alertas_auditoria) ? tables.alertas_auditoria : [];
-
-  return (
-    <PremiumSection
-      chapterId="orcamento_museu"
-      breakBefore
-      eyebrow="Orçamento por Museu"
-      title="Distribuição e execução por equipamento"
-      subtitle="Análise de MIS, MHAB e MUMO com rubricas, solicitações, pagamentos e documentos."
-      text="A análise do orçamento por museu organiza a execução financeira por MIS, MHAB e MUMO com rubricas específicas, compartilhadas e rastreabilidade documental."
-    >
-      <ChapterMethodologyPanel chapterId="orcamento_museu" contexto={contexto} evidence={['Rubrica', 'PurchaseRequest', 'TeamPayment', 'DocumentIntake', 'Attachment', 'Meta', 'ProgramacaoEspelho', 'Report']} />
-      <div className="premium-table-wrap"><table className="premium-table"><thead><tr><th>Museu</th><th>Valor previsto</th><th>Valor utilizado</th><th>Saldo</th><th>% executado</th><th>Nº de solicitações</th><th>Nº de documentos</th></tr></thead><tbody>{resumo.map((item) => (<tr key={item.museu}><td>{item.museu}</td><td>{fmtBRL(item.valorPrevisto)}</td><td>{fmtBRL(item.valorUtilizado)}</td><td>{fmtBRL(item.saldo)}</td><td>{toNumber(item.percentualExecutado).toFixed(1).replace('.', ',')}%</td><td>{fmtInt(item.numeroSolicitacoes)}</td><td>{fmtInt(item.numeroDocumentos)}</td></tr>))}</tbody></table></div>
-      <div className="premium-table-wrap mt-4"><table className="premium-table"><thead><tr><th>Museu</th><th>Grupo</th><th>Rubrica</th><th>Meta</th><th>Valor previsto</th><th>Utilizado</th><th>Saldo</th><th>Status</th></tr></thead><tbody>{rubricas.map((item, index) => (<tr key={`${item.museu}-${item.rubrica}-${index}`}><td>{item.museu}</td><td>{item.grupo || '-'}</td><td>{item.rubrica || '-'}</td><td>{item.meta || '-'}</td><td>{fmtBRL(item.valorPrevisto)}</td><td>{fmtBRL(item.utilizado)}</td><td>{fmtBRL(item.saldo)}</td><td>{item.status || '-'}</td></tr>))}</tbody></table></div>
-      <div className="premium-table-wrap mt-4"><table className="premium-table"><thead><tr><th>Museu</th><th>Solicitação</th><th>Fornecedor</th><th>NF</th><th>Valor</th><th>Rubrica</th><th>Status</th><th>Documento</th></tr></thead><tbody>{despesas.map((item, index) => (<tr key={`${item.museu}-${item.solicitacao}-${index}`}><td>{item.museu}</td><td>{item.solicitacao}</td><td>{item.fornecedor}</td><td>{item.nf}</td><td>{fmtBRL(item.valor)}</td><td>{item.rubrica}</td><td>{item.status}</td><td>{item.documento ? <a href={item.documento} target="_blank" rel="noreferrer">Abrir</a> : 'Dado não localizado no app.'}</td></tr>))}</tbody></table></div>
-      <div className="premium-table-wrap mt-4"><table className="premium-table"><thead><tr><th>Museu</th><th>Tipo de alerta</th><th>Descrição</th><th>Gravidade</th><th>Recomendação</th></tr></thead><tbody>{alertas.length === 0 ? (<tr><td colSpan={5}>Nenhum alerta crítico identificado no recorte.</td></tr>) : alertas.map((item, index) => (<tr key={`${item.museu}-${item.tipo}-${index}`}><td>{item.museu}</td><td>{item.tipo}</td><td>{item.descricao}</td><td>{item.gravidade}</td><td>{item.recomendacao}</td></tr>))}</tbody></table></div>
-    </PremiumSection>
-  );
-}
-
 
 function safeArray(value) {
   return Array.isArray(value) ? value : [];
@@ -2338,10 +2230,7 @@ function hasRealTimelineData(contexto = {}) {
     safeArray(contexto.atividades).length > 0;
 }
 
-function hasSection(selected = [], ...ids) {
-  if (!Array.isArray(selected) || selected.length === 0) return true;
-  return ids.some((id) => selected.includes(id));
-}
+
 
 function selectedChapterIds(selected = [], ids = []) {
   if (!Array.isArray(selected) || selected.length === 0) return ids.filter(Boolean);
