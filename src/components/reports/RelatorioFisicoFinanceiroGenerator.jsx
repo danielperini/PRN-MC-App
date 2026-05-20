@@ -372,8 +372,25 @@ function buildPhotoSelectionCandidates(contexto = {}) {
 function salvarPreview(html) {
   try {
     sessionStorage.setItem('relatorio_fisico_financeiro_html', html);
+    localStorage.setItem('relatorio_fisico_financeiro_html', html);
+    localStorage.setItem('relatorio_fisico_financeiro_html_saved_at', new Date().toISOString());
   } catch (error) {
     console.warn('Não foi possível salvar a prévia do relatório:', error);
+  }
+}
+
+function salvarMetadadosVolume(volumeMeta = {}) {
+  const payload = JSON.stringify({
+    volumeNumber: Number(volumeMeta.volumeNumber) || Number(volumeMeta.partNumber) || 1,
+    totalVolumes: Number(volumeMeta.totalVolumes) || EXPORT_VOLUME_COUNT,
+    pageNumberOffset: Number(volumeMeta.pageNumberOffset) || 0,
+  });
+
+  try {
+    sessionStorage.setItem('relatorio_fisico_financeiro_export_volume', payload);
+    localStorage.setItem('relatorio_fisico_financeiro_export_volume', payload);
+  } catch (error) {
+    console.warn('Não foi possível salvar os metadados do volume:', error);
   }
 }
 
@@ -720,6 +737,11 @@ export default function RelatorioFisicoFinanceiroGenerator() {
       }
 
       const firstPart = builtParts[0];
+      salvarMetadadosVolume({
+        volumeNumber: firstPart.partNumber,
+        totalVolumes: EXPORT_VOLUME_COUNT,
+        pageNumberOffset: firstPart.pageNumberOffset,
+      });
       setResultado({
         html: firstPart.html,
         contexto: fullData.contexto,
@@ -763,15 +785,16 @@ export default function RelatorioFisicoFinanceiroGenerator() {
 
     if (pageNumberOffset === null) return;
 
+    salvarMetadadosVolume({
+      volumeNumber,
+      totalVolumes: EXPORT_VOLUME_COUNT,
+      pageNumberOffset,
+    });
+
     try {
       sessionStorage.setItem('relatorio_fisico_financeiro_selected_chapters', JSON.stringify(selectedVolume.secoes));
       sessionStorage.setItem('relatorio_fisico_financeiro_all_chapters', JSON.stringify(normalizedSelectedSections));
       sessionStorage.setItem('relatorio_fisico_financeiro_export_mode', 'volume');
-      sessionStorage.setItem('relatorio_fisico_financeiro_export_volume', JSON.stringify({
-        volumeNumber,
-        totalVolumes: EXPORT_VOLUME_COUNT,
-        pageNumberOffset,
-      }));
     } catch {}
 
     setLoading(true);

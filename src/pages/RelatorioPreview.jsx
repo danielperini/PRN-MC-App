@@ -674,7 +674,9 @@ async function downloadPdfBlob(blob, filename) {
 
 function getStoredHtml() {
   try {
-    return sessionStorage.getItem('relatorio_fisico_financeiro_html') || '';
+    return sessionStorage.getItem('relatorio_fisico_financeiro_html')
+      || localStorage.getItem('relatorio_fisico_financeiro_html')
+      || '';
   } catch {
     return '';
   }
@@ -1819,6 +1821,14 @@ function prepareFinalHtml(rawHtml, reports = []) {
       'relatorio_fisico_financeiro_html',
       finalHtml
     );
+    localStorage.setItem(
+      'relatorio_fisico_financeiro_html',
+      finalHtml
+    );
+    localStorage.setItem(
+      'relatorio_fisico_financeiro_html_saved_at',
+      new Date().toISOString()
+    );
   } catch {}
 
   return finalHtml;
@@ -1868,7 +1878,11 @@ export default function RelatorioPreview() {
   useEffect(() => {
     let cancelled = false;
     try {
-      const storedVolume = JSON.parse(sessionStorage.getItem('relatorio_fisico_financeiro_export_volume') || 'null');
+      const storedVolume = JSON.parse(
+        sessionStorage.getItem('relatorio_fisico_financeiro_export_volume')
+        || localStorage.getItem('relatorio_fisico_financeiro_export_volume')
+        || 'null'
+      );
       if (storedVolume?.volumeNumber) {
         setVolumeMeta({
           volumeNumber: Number(storedVolume.volumeNumber) || 1,
