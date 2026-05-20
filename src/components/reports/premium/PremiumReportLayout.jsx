@@ -296,14 +296,29 @@ const CATALOG_CSS = `
   .documents-table th, .documents-table td { word-break: break-word; overflow-wrap: anywhere; vertical-align: top; }
   .document-link { word-break: break-word; overflow-wrap: anywhere; }
 
+  /* Correção A4: evita páginas vazias criadas por quebra após capa/último bloco e permite fluxo real das seções. */
+  .premium-report { overflow: visible; }
+  .premium-cover { break-after: auto; page-break-after: auto; }
+  .premium-report > section:last-child { break-after: auto; page-break-after: auto; }
+  .premium-section, .premium-expediente, .premium-museum-block, .premium-communication, .premium-closing { overflow: visible; }
+  .premium-table-wrap, .premium-table, .budget-table, .documents-table, .premium-rubrica-table { overflow: visible; break-inside: auto; page-break-inside: auto; }
+  .premium-table thead, .budget-table thead, .documents-table thead, .premium-rubrica-table thead { display: table-header-group; }
+  .premium-table tr, .budget-table tr, .documents-table tr, .premium-rubrica-table tr { break-inside: avoid; page-break-inside: avoid; }
+
   @media print {
     html, body { width: 210mm; min-height: 297mm; margin: 0; padding: 0; background: #fff; overflow-x: hidden; }
-    .premium-report { width: 210mm; max-width: 210mm; margin: 0 auto; overflow: hidden; background: #fff; }
+    .premium-report { width: 210mm; max-width: 210mm; margin: 0 auto; overflow: visible; background: #f7f3eb; }
     .report-pdf-institutional-header { display: none; }
     .premium-internal-page-header { display: none; }
-    .premium-cover { z-index: 5; }
-    .premium-section, .premium-expediente, .premium-museum-block, .premium-communication, .premium-closing { min-height: auto; }
-    .premium-photo, .premium-activity-card, .premium-timeline-item, .premium-metric, .premium-photo-index-item, .premium-meta-card, .premium-infographic-card, table { break-inside: avoid; page-break-inside: avoid; }
+    .premium-cover { z-index: 5; break-after: auto; page-break-after: auto; }
+    .premium-report > section:first-child { break-before: auto; page-break-before: auto; }
+    .premium-report > section:last-child { break-after: auto; page-break-after: auto; }
+    .premium-section, .premium-expediente, .premium-museum-block, .premium-communication, .premium-closing { min-height: auto; height: auto; overflow: visible; }
+    .premium-photo, .premium-activity-card, .premium-timeline-item, .premium-metric, .premium-photo-index-item, .premium-meta-card, .premium-infographic-card { break-inside: avoid; page-break-inside: avoid; }
+    table { break-inside: auto; page-break-inside: auto; }
+    thead { display: table-header-group; }
+    tfoot { display: table-footer-group; }
+    tr { break-inside: avoid; page-break-inside: avoid; }
   }
 `;
 
