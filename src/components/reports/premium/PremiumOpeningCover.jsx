@@ -10,15 +10,25 @@ function pickCoverPhoto(contexto) {
       localizacao: candidate.localizacao || null,
     };
   }
+
   const photos = extractPhotos(contexto, 48);
-  const peopleHints = ['público', 'publico', 'equipe', 'oficina', 'atividade', 'mediação', 'mediacao', 'participantes', 'libras', 'memórias', 'memorias', 'roda', 'formação', 'formacao'];
-  return photos.find((photo) => {
-    const text = normalizeText([photo.legenda, photo.atividade, photo.fileName].filter(Boolean).join(' '));
-    return peopleHints.some((hint) => text.includes(normalizeText(hint)));
-  }) || photos[0] || {};
+  const rankedPhotos = photos
+    .map((photo) => {
+      const text = normalizeText([photo.legenda, photo.atividade, photo.fileName, photo.museu].filter(Boolean).join(' '));
+      let score = 0;
+      if (text.includes('museu') || text.includes('mhab') || text.includes('mis') || text.includes('mumo')) score += 4;
+      if (text.includes('exposicao') || text.includes('mostra')) score += 4;
+      if (text.includes('publico') || text.includes('participantes') || text.includes('visita')) score += 3;
+      if (text.includes('oficina') || text.includes('atividade') || text.includes('mediacao')) score += 2;
+      if (text.includes('registro') || text.includes('capa')) score += 1;
+      return { photo, score };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  return rankedPhotos[0]?.photo || photos[0] || {};
 }
 
-export default function PremiumOpeningCover({ contexto, filtros = {} }) {
+export default function PremiumOpeningCover({ contexto }) {
   const cover = pickCoverPhoto(contexto);
   const coverPhoto = cover.url;
   const periodo = contexto?.reportEditorial?.periodLabel || contexto?.periodo_extenso || 'Período selecionado';

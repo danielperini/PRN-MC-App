@@ -50,9 +50,9 @@ const CATALOG_CSS = `
   .premium-internal-page-header-text strong { font-weight: 700; }
   .premium-internal-page-header-invert { border-bottom-color: rgba(255,255,255,.16); }
   .premium-internal-page-header-invert .premium-internal-page-header-text { color: rgba(255,255,255,.72); }
-  .premium-cover { page: cover; min-height: 297mm; position: relative; overflow: hidden; display: flex; align-items: flex-end; break-after: page; background: #161616; color: #fff; z-index: 5; }
+  .premium-cover { page: cover; width: 210mm; height: 297mm; min-height: 297mm; position: relative; overflow: hidden; display: flex; align-items: flex-end; break-after: page; background: #161616; color: #fff; z-index: 5; }
   .premium-cover img, .premium-cover-fallback { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-  .premium-cover > img { opacity: .5; }
+  .premium-cover > img { opacity: .82; }
   .premium-cover-fallback { background: linear-gradient(135deg, #111 0%, #39352d 48%, #6e5c45 100%); }
   .premium-cover-overlay { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.05) 0%, rgba(0,0,0,.38) 52%, rgba(0,0,0,.78) 100%); }
   .premium-cover-content { position: relative; width: 100%; padding: 34mm 20mm 24mm; }
@@ -62,8 +62,8 @@ const CATALOG_CSS = `
   .premium-cover-credit { margin: -14px 0 22px; font-size: 10px; color: rgba(255,255,255,.62); letter-spacing: .06em; text-transform: uppercase; }
   .premium-cover-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; max-width: 860px; background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.25); }
   .premium-cover-grid span { padding: 14px; background: rgba(0,0,0,.45); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
-  .premium-section, .premium-museum-block, .premium-communication, .premium-closing { padding: 20mm 18mm; background: #f7f3eb; min-height: 260mm; }
-  .premium-expediente { padding: 22mm 18mm; background: #f7f3eb; min-height: 260mm; color: #171717; }
+  .premium-section, .premium-museum-block, .premium-communication, .premium-closing { padding: 18mm 18mm 16mm; background: #f7f3eb; min-height: auto; }
+  .premium-expediente { padding: 18mm 18mm 16mm; background: #f7f3eb; min-height: auto; color: #171717; }
   .premium-expediente-heading { display: grid; grid-template-columns: minmax(0, .8fr) minmax(260px, .55fr); gap: 28px; align-items: end; padding-bottom: 20px; border-bottom: 1px solid rgba(23,23,23,.2); margin-bottom: 22px; }
   .premium-expediente-heading h2 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 42px; line-height: .98; font-weight: 500; letter-spacing: 0; }
   .premium-expediente-heading p:last-child { margin: 0; font-size: 14px; line-height: 1.68; color: #3d3a35; }
@@ -140,23 +140,28 @@ const CATALOG_CSS = `
   .premium-museum-kpis { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
   .premium-museum-kpis span, .premium-activity-tags span { border: 1px solid rgba(23,23,23,.16); padding: 7px 9px; font-size: 12px; background: rgba(255,255,255,.4); }
   .premium-activity-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
-  .premium-activity-card { display: grid; grid-template-columns: 44px 1fr; gap: 16px; padding: 18px; border: 1px solid rgba(23,23,23,.14); background: rgba(255,255,255,.52); break-inside: avoid; }
+  .premium-activity-card { display: grid; grid-template-columns: 44px 1fr; gap: 16px; margin-bottom: 14px; padding: 16px 18px; border: 1px solid rgba(23,23,23,.14); background: rgba(255,255,255,.52); break-inside: avoid; page-break-inside: avoid; }
   .premium-activity-index { font-size: 18px; font-weight: 800; color: #9f7f4d; }
-  .premium-activity-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 9px; }
-  .premium-activity-photos { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; margin-top: 13px; }
+  .premium-activity-tags { display: none; }
+  .premium-activity-photos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
   .premium-activity-photos figure { margin: 0; min-height: 76px; }
   .premium-activity-photos img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block; background: #ddd4c6; }
-  .premium-activity-photos figcaption { margin-top: 5px; font-size: 9.5px; line-height: 1.35; color: #5e574f; }
+  .premium-activity-photos figcaption { margin-top: 6px; font-size: 9.8pt; line-height: 1.35; color: #5e574f; }
   .premium-activity-photos figcaption span { display: block; }
+  .activity-card-title { margin-bottom: 8px; line-height: 1.25; }
+  .activity-card-body { font-size: 10.5pt; line-height: 1.45; }
+  .activity-card-body p + p { margin-top: 8px; }
   .premium-communication-grid { display: grid; grid-template-columns: minmax(0, 1fr) 210px; gap: 20px; align-items: stretch; }
   .premium-communication-panel { background: #171717; color: #fff; padding: 18px; display: flex; flex-direction: column; justify-content: flex-end; min-height: 130px; }
   .premium-communication-panel strong { font-size: 52px; line-height: .9; }
   .premium-communication-panel span { margin-top: 10px; font-size: 11px; line-height: 1.35; color: rgba(255,255,255,.72); }
-  .premium-table-wrap { margin-top: 20px; overflow: hidden; border: 1px solid rgba(23,23,23,.18); background: rgba(255,255,255,.36); }
+  .premium-table-wrap { margin-top: 18px; overflow: hidden; border: 1px solid rgba(23,23,23,.18); background: rgba(255,255,255,.36); }
   .premium-table { width: 100%; border-collapse: collapse; font-size: 12px; line-height: 1.45; background: rgba(255,255,255,.5); }
   .premium-table th { text-align: left; padding: 13px 14px; background: #171717; color: #fff; font-size: 10.5px; text-transform: uppercase; letter-spacing: .09em; }
   .premium-table td { padding: 14px; border-top: 1px solid rgba(23,23,23,.1); vertical-align: top; }
   .premium-table tbody tr:nth-child(even) td { background: rgba(23,23,23,.035); }
+  .budget-table { width: 100%; table-layout: fixed; border-collapse: collapse; margin-top: 18px; }
+  .budget-table th, .budget-table td { padding: 8px 10px; font-size: 9.5pt; vertical-align: top; word-break: normal; overflow-wrap: anywhere; }
   .premium-finance-grid, .premium-audience-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; }
   .catalog-toc { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px 22px; margin-top: 20px; padding: 0; counter-reset: toc; }
   .catalog-toc li { list-style: none; display: grid; grid-template-columns: 42px 1fr; column-gap: 14px; align-items: start; border-bottom: 1px solid rgba(23,23,23,.14); padding: 9px 0; break-inside: avoid; page-break-inside: avoid; counter-increment: toc; }
@@ -2343,8 +2348,171 @@ function selectedChapterIds(selected = [], ids = []) {
   return ids.filter((id) => selected.includes(id));
 }
 
+let REPORT_SECTION_FILTER = null;
+
+function composeIntro(textos = {}, contexto = {}) {
+  const periodo = contexto?.reportEditorial?.periodLabel || contexto?.periodo_extenso || '2 de fevereiro a 30 de abril de 2026';
+  return [
+    `Este relatório consolida informações executivas do período de ${periodo}, a partir dos dados e registros produzidos pela equipe no aplicativo Museu Centro VP. A leitura editorial baseia-se em informações compartilhadas no sistema, incluindo atividades, anexos, documentos, fotografias, registros de público, programação, solicitações e demais evidências operacionais do projeto.`,
+    'O objetivo é transformar registros operacionais em uma abordagem institucional verificável, capaz de organizar evidências, consolidar resultados e apoiar a leitura pública da execução do Projeto Museus Centro no período.',
+    'O Projeto Museus Centro é realizado em parceria com a Diretoria de Museus da Fundação Municipal de Cultura de Belo Horizonte e o Viaduto das Artes. O presente documento foi elaborado a partir da sistematização dos dados oriundos de um aplicativo desenvolvido especificamente para o projeto, incluindo tratamento de dados com apoio de inteligência artificial.',
+  ].join('\n\n');
+}
+
+function TableOfContents({ secoesSelecionadas = [], contexto = {} }) {
+  const chapters = getReportSummaryChapters(secoesSelecionadas)
+    .filter((chapter) => !REPORT_SECTION_FILTER || REPORT_SECTION_FILTER.has(chapter.id))
+    .map((chapter) => ({
+      id: chapter.id,
+      title: chapter.title,
+      detail: chapter.summaryDescription || chapter.group,
+      isAnnex: false,
+    }));
+
+  return (
+    <PremiumSection
+      breakBefore
+      chapterId="sumario_executivo"
+      chapterTitle="Sumário executivo editorial"
+      eyebrow="Sumário executivo"
+      title="Síntese editorial do período"
+      subtitle="Leitura inicial dos dados reais disponíveis no aplicativo, seguida pelo mapa dos capítulos efetivamente publicados no volume."
+      text={`O período reúne ${fmtInt(getEffectiveTotalActivities(contexto))} atividades registradas, ${fmtInt(contexto.publico_total)} pessoas em público consolidado quando informado e ${fmtInt(getEffectiveTotalReports(contexto))} relatórios aprovados.\n\nO sumário reflete apenas os capítulos editoriais efetivamente renderizados neste volume.`}
+    >
+      <PremiumMetrics contexto={contexto} />
+      <ol className="catalog-toc">
+        {chapters.map((item) => (
+          <li key={item.id || item.title}>
+            <div>
+              <strong>{item.title}</strong>
+              {item.detail ? <span>{item.detail}</span> : null}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </PremiumSection>
+  );
+}
+
+function BudgetByMuseumSection({ contexto = {} }) {
+  const tables = contexto?.budget_tables || {};
+  const resumo = Array.isArray(tables?.resumo_por_museu) ? tables.resumo_por_museu : [];
+  const alertas = Array.isArray(tables?.alertas_auditoria) ? tables.alertas_auditoria : [];
+
+  return (
+    <PremiumSection
+      chapterId="orcamento_museu"
+      breakBefore
+      eyebrow="Orçamento por Museu"
+      title="Orçamento por Museu"
+      subtitle="Síntese da distribuição orçamentária entre MIS, MHAB e MUMO."
+      text="A leitura do orçamento por museu organiza a execução financeira do projeto a partir da distribuição dos recursos entre MIS, MHAB e MUMO, considerando rubricas específicas, rubricas compartilhadas, solicitações aprovadas, pagamentos e documentos vinculados. Essa organização permite relacionar orçamento, programação, atividades e prestação de contas por equipamento cultural, fortalecendo a rastreabilidade da execução."
+    >
+      <div className="premium-table-wrap">
+        <table className="premium-table budget-table">
+          <thead>
+            <tr>
+              <th>Museu</th>
+              <th>Valor previsto</th>
+              <th>Valor utilizado</th>
+              <th>Saldo</th>
+              <th>% executado</th>
+              <th>Nº de solicitações</th>
+              <th>Nº de documentos</th>
+            </tr>
+          </thead>
+          <tbody>
+            {resumo.map((item) => (
+              <tr key={item.museu}>
+                <td>{item.museu}</td>
+                <td>{fmtBRL(item.valorPrevisto)}</td>
+                <td>{fmtBRL(item.valorUtilizado)}</td>
+                <td>{fmtBRL(item.saldo)}</td>
+                <td>{toNumber(item.percentualExecutado).toFixed(1).replace('.', ',')}%</td>
+                <td>{fmtInt(item.numeroSolicitacoes)}</td>
+                <td>{fmtInt(item.numeroDocumentos)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {alertas.length > 0 ? (
+        <div className="premium-method-grid">
+          <article className="premium-method-card">
+            <strong>Alertas de consistência</strong>
+            <ul>
+              {alertas.slice(0, 4).map((item, index) => (
+                <li key={`${item.tipo}-${index}`}>{sanitizeReportText(`${item.museu}: ${item.descricao}`)}</li>
+              ))}
+            </ul>
+          </article>
+        </div>
+      ) : null}
+    </PremiumSection>
+  );
+}
+
+function OperationalAuditSection({ contexto = {} }) {
+  const alertasFinanceiros = Array.isArray(contexto?.budget_alerts) ? contexto.budget_alerts : [];
+  const alertasImagem = Array.isArray(contexto?.imageAlerts) ? contexto.imageAlerts : [];
+  const duplicidades = Array.isArray(contexto?.duplicatedImagesAvoided) ? contexto.duplicatedImagesAvoided.length : 0;
+  const semUso = Array.isArray(contexto?.unusedImages) ? contexto.unusedImages.length : 0;
+
+  return (
+    <PremiumSection
+      chapterId="auditoria_operacional"
+      breakBefore
+      eyebrow="Síntese, alertas e governança"
+      title="Síntese, alertas e governança"
+      subtitle="Leitura final das consistências e pendências detectáveis a partir da exportação deste volume."
+      text="A síntese final organiza alertas relevantes de rastreabilidade, consistência financeira e evidências visuais sem repetir capítulos metodológicos autônomos. O objetivo é registrar apenas os pontos que ajudam a leitura institucional do período e a revisão técnica do relatório."
+    >
+      <div className="premium-callout-grid">
+        <article className="premium-callout">
+          <strong>Alertas financeiros</strong>
+          <div>{fmtInt(alertasFinanceiros.length)} ocorrências no recorte consolidado.</div>
+        </article>
+        <article className="premium-callout">
+          <strong>Duplicidades evitadas</strong>
+          <div>{fmtInt(duplicidades)} imagens repetidas bloqueadas na montagem editorial.</div>
+        </article>
+        <article className="premium-callout">
+          <strong>Imagens sem vínculo suficiente</strong>
+          <div>{fmtInt(semUso)} registros preservados fora do corpo principal.</div>
+        </article>
+      </div>
+      {(alertasFinanceiros.length > 0 || alertasImagem.length > 0) && (
+        <div className="premium-method-grid">
+          <article className="premium-method-card">
+            <strong>Alertas principais</strong>
+            <ul>
+              {alertasFinanceiros.slice(0, 3).map((item, index) => (
+                <li key={`finance-${index}`}>{sanitizeReportText(item?.descricao || item?.message || 'Divergência encontrada. Revisão necessária.')}</li>
+              ))}
+              {alertasImagem.slice(0, 2).map((item, index) => (
+                <li key={`image-${index}`}>{sanitizeReportText(item?.recommendation || item?.reason || 'Revisão recomendada para evidência visual.')}</li>
+              ))}
+            </ul>
+          </article>
+        </div>
+      )}
+    </PremiumSection>
+  );
+}
+
+function hasSection(selected = [], ...ids) {
+  if (!Array.isArray(selected) || selected.length === 0) {
+    return ids.some((id) => !REPORT_SECTION_FILTER || REPORT_SECTION_FILTER.has(id));
+  }
+  return ids.some((id) => selected.includes(id) && (!REPORT_SECTION_FILTER || REPORT_SECTION_FILTER.has(id)));
+}
+
 export default function PremiumReportLayout({ contexto: rawContexto = {}, textos = {}, filtros = {}, secoesSelecionadas = [] }) {
   const contexto = buildEditorialReportContext(rawContexto, filtros, secoesSelecionadas);
+  const isVolumeOne = Number(contexto?.split_context?.partNumber || 0) === 1;
+  REPORT_SECTION_FILTER = isVolumeOne
+    ? new Set(['capa', 'expediente', 'sumario_executivo', 'introducao', 'atividades_museu', 'museus_premium', 'comunicacao', 'comunicacao_premium', 'orcamento_museu', 'auditoria_operacional', 'conclusao'])
+    : null;
 
   return (
     <main className="premium-report">

@@ -160,6 +160,140 @@ function parsePositiveInteger(value) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
+function chapterHasRenderableContent(sectionId, context = {}) {
+  const atividades = Array.isArray(context?.atividades) ? context.atividades : [];
+  const fotos = Array.isArray(context?.fotos) ? context.fotos : [];
+  const rubricas = Array.isArray(context?.rubricas) ? context.rubricas : [];
+  const compras = Array.isArray(context?.compras) ? context.compras : [];
+  const relatorios = Array.isArray(context?.relatorios_equipe) ? context.relatorios_equipe : [];
+  const programacao = Array.isArray(context?.programacao) ? context.programacao : [];
+  const documentos = Array.isArray(context?.attachments_raw) ? context.attachments_raw : [];
+
+  if (OPENING_CHAPTER_IDS.includes(sectionId)) return true;
+
+  switch (sectionId) {
+    case 'atividades_museu':
+    case 'museus_premium':
+      return atividades.length > 0;
+    case 'comunicacao':
+    case 'comunicacao_premium':
+      return atividades.length > 0 || fotos.length > 0;
+    case 'programacao':
+    case 'agenda_programacao':
+    case 'timeline_premium':
+      return programacao.length > 0 || atividades.length > 0;
+    case 'relatorios_completos':
+      return relatorios.length > 0;
+    case 'financeiro':
+    case 'rubricas':
+    case 'orcamento_museu':
+      return rubricas.length > 0 || compras.length > 0;
+    case 'prestacao':
+    case 'notas-fiscais-contratos':
+    case 'governanca_documental':
+      return documentos.length > 0 || compras.length > 0;
+    case 'galeria_evidencias':
+    case 'galeria_premium':
+      return fotos.length > 0;
+    default:
+      return true;
+  }
+}
+
+function buildFullReportPlan(sectionIds = [], context = {}) {
+  const ids = Array.isArray(sectionIds) ? sectionIds.filter(Boolean) : [];
+  return ids
+    .filter((id) => chapterHasRenderableContent(id, context))
+    .map((id) => ({
+      id,
+      title: getCapituloLabel(id),
+      weight: estimateChapterWeight(id, context),
+      onlyVolume1: OPENING_CHAPTER_IDS.includes(id),
+    }));
+}
+
+function buildVolumeParts(sectionIds = [], context = {}) {
+  const plan = buildFullReportPlan(sectionIds, context);
+  const opening = plan.filter((item) => item.onlyVolume1);
+  const body = plan.filter((item) => !item.onlyVolume1);
+  const baseParts = Array.from({ length: EXPORT_VOLUME_COUNT }, (_, index) => ({
+    partNumber: index + 1,
+    totalParts: EXPORT_VOLUME_COUNT,
+    secoes: [],
+    sectionPlan: [],
+    estimatedWeight: 0,
+    estimatedPages: 0,
+    estimatedMB: 0,
+    estimatedImages: 0,
+    status: 'adequado',
+  }));
+
+  opening.forEach((item) => {
+    baseParts[0].secoes.push(item.id);
+    baseParts[0].sectionPlan.push(item);
+    baseParts[0].estimatedWeight += item.weight;
+  });
+
+  const bodyTotalWeight = body.reduce((sum, item) => sum + item.weight, 0);
+  const perPartTarget = bodyTotalWeight > 0 ? bodyTotalWeight / EXPORT_VOLUME_COUNT : 0;
+  let partIndex = 0;
+  let currentBodyWeight = 0;
+
+  body.forEach((item, index) => {
+    const current = baseParts[partIndex];
+    current.secoes.push(item.id);
+    current.sectionPlan.push(item);
+    current.estimatedWeight += item.weight;
+    currentBodyWeight += item.weight;
+
+    const remainingChapters = body.length - index - 1;
+    const remainingParts = EXPORT_VOLUME_COUNT - partIndex - 1;
+    const canAdvance = partIndex < EXPORT_VOLUME_COUNT - 1 && remainingChapters >= remainingParts;
+
+    if (canAdvance && currentBodyWeight >= perPartTarget) {
+      partIndex += 1;
+      currentBodyWeight = 0;
+    }
+  });
+
+  baseParts.forEach((part) => {
+    if (part.secoes.length === 0) {
+      part.status = 'sem conteudo';
+      return;
+    }
+
+    part.estimatedPages = Math.max(2, Math.round(part.estimatedWeight * 3.4));
+    part.estimatedImages = Math.max(0, Math.round(part.estimatedWeight * 4));
+    part.estimatedMB = Number(Math.max(0.8, part.estimatedWeight * 2.1).toFixed(1));
+    if (part.estimatedMB > 180) part.status = 'volume muito pesado';
+  });
+
+  return baseParts;
+}
+
+function injectPartMetadata(html, { partNumber, totalParts, sectionLabels = [], pageNumberOffset = 0 } = {}) {
+  if (!html) return html;
+  if (Number(partNumber) === 1) return html;
+
+  const startPage = Number(pageNumberOffset || 0) + 1;
+  const header = `
+    <section style="max-width:210mm;margin:0 auto 18px;padding:0 24px;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;color:#333;">
+      <div style="border:1px solid rgba(23,23,23,.16);padding:14px 18px;background:#fff;">
+        <p style="margin:0;font-size:13px;font-weight:700;">Relatório Institucional Museus Centro</p>
+        <p style="margin:6px 0 0;font-size:12px;font-weight:700;">Volume ${String(partNumber).padStart(2, '0')} de ${String(totalParts).padStart(2, '0')}</p>
+        <p style="margin:4px 0 0;font-size:11.5px;line-height:1.5;">Continuação do Volume ${String(Math.max(1, Number(partNumber) - 1)).padStart(2, '0')} · início na página ${startPage}</p>
+        <p style="margin:4px 0 0;font-size:11.5px;line-height:1.5;">Neste volume: ${sectionLabels.join(', ')}</p>
+      </div>
+    </section>
+  `;
+
+  if (html.includes('<body>')) {
+    return html.replace('<body>', `<body>${header}`);
+  }
+
+  return `${header}${html}`;
+}
+
 async function safeList(entity, order = '-created_date', limit = 1000) {
   try {
     if (!entity?.list) return [];

@@ -4,7 +4,6 @@ import {
   cleanText,
   fmtInt,
   getActivityDate,
-  getActivityMeta,
   getActivityPublico,
   getActivityText,
   getActivityTitle,
@@ -27,25 +26,44 @@ function isPublicFacingActivity(activity = {}) {
   );
 }
 
-function ActivityCard({ activity, index }) {
-  const text = splitParagraphs(getActivityText(activity), 1)[0] || 'Registro disponível nos relatórios aprovados, mantido como evidência da execução do período.';
-  const complementaryText = splitParagraphs([activity?.sinopse_agenda, activity?.observacoes, activity?.resultado].filter(Boolean).join('\n\n'), 1)[0] || '';
-  const publico = getActivityPublico(activity);
-  const meta = getActivityMeta(activity);
+function ActivityEvidence({ activity }) {
+  const photos = Array.isArray(activity?.fotos_destaque) ? activity.fotos_destaque : [];
+  if (photos.length === 0) return null;
 
   return (
-    <article className="premium-activity-card">
+    <div className="premium-activity-photos">
+      {photos.slice(0, 2).map((photo, index) => (
+        <figure key={photo?.url || photo?.id || index}>
+          <img src={photo?.url} alt={photo?.legenda || activity?.nome || 'Evidência visual da atividade'} loading="lazy" />
+          {(photo?.legenda || photo?.credito) ? (
+            <figcaption>
+              {photo?.legenda ? <span>{cleanText(photo.legenda)}</span> : null}
+              {photo?.credito ? <span>Crédito: {cleanText(photo.credito)}</span> : null}
+            </figcaption>
+          ) : null}
+        </figure>
+      ))}
+    </div>
+  );
+}
+
+function ActivityCard({ activity, index }) {
+  const primaryText = splitParagraphs(getActivityText(activity), 1)[0] || 'Registro disponível nos relatórios aprovados, mantido como evidência da execução do período.';
+  const complementaryText = splitParagraphs([activity?.sinopse_agenda, activity?.observacoes, activity?.resultado].filter(Boolean).join('\n\n'), 1)[0] || '';
+  const publico = getActivityPublico(activity);
+
+  return (
+    <article className="premium-activity-card activity-card">
       <div className="premium-activity-index">{String(index + 1).padStart(2, '0')}</div>
       <div>
-        <p className="premium-card-meta">{[getActivityDate(activity), activity?.mes, activity?.local].filter(Boolean).join(' / ')}</p>
-        <h4>{getActivityTitle(activity)}</h4>
-        <p>{cleanText(text)}</p>
-        {complementaryText ? <p>{cleanText(complementaryText)}</p> : null}
-        <div className="premium-activity-tags">
-          <span>{activity?.categoria_label || activity?.classificacao || 'Eixo institucional'}</span>
-          {publico > 0 ? <span>Público: {fmtInt(publico)}</span> : null}
-          {meta ? <span>Meta: {meta}</span> : null}
+        <p className="premium-card-meta activity-card-meta">{[getActivityDate(activity), activity?.museu].filter(Boolean).join(' · ')}</p>
+        <h4 className="activity-card-title">{getActivityTitle(activity)}</h4>
+        <div className="activity-card-body">
+          <p>{cleanText(primaryText)}</p>
+          {complementaryText ? <p>{cleanText(complementaryText)}</p> : null}
+          {publico > 0 ? <p><strong>Público:</strong> {fmtInt(publico)}</p> : null}
         </div>
+        <ActivityEvidence activity={activity} />
       </div>
     </article>
   );
@@ -55,13 +73,12 @@ export default function PremiumMuseumSection({ contexto, chapterIds = ['atividad
   const atividadesPublicas = (Array.isArray(contexto?.atividades) ? contexto.atividades : []).filter(isPublicFacingActivity);
   const grupos = groupByMuseu(atividadesPublicas);
   const intros = {
-    MHAB: 'No MHAB, a programação dialoga com memória urbana, história pública, mediação territorial e formação de público.',
-    MIS: 'No MIS, as ações mobilizam audiovisual, memória da imagem e do som, documentação cultural e aproximação com públicos diversos.',
-    MUMO: 'No MUMO, os registros aproximam moda, corpo, design, educação e cultura urbana em chave contemporânea.',
-    geral: 'A atuação geral reúne frentes transversais de planejamento, acessibilidade, comunicação, documentação e produção cultural.',
+    MHAB: 'No MHAB, a programação do período articula memória urbana, mediação cultural e ações educativas relacionadas à história da cidade.',
+    MIS: 'No MIS, os registros aproximam audiovisual, memória da imagem, formação de público e ações educativas vinculadas à exposição e à mediação.',
+    MUMO: 'No MUMO, as atividades conectam moda, corpo, manualidade e cultura urbana em diálogo com exposições, oficinas e visitas mediadas.',
+    'Atuação geral': 'A Atuação Geral reúne ações transversais de planejamento, produção, comunicação, acompanhamento institucional e articulação entre equipes.',
   };
   const museus = ['MHAB', 'MIS', 'MUMO', 'Atuação geral'];
-  const totalItems = museus.reduce((sum, museu) => sum + (grupos[museu] || []).length, 0);
 
   return (
     <div
@@ -70,18 +87,6 @@ export default function PremiumMuseumSection({ contexto, chapterIds = ['atividad
       data-report-chapter-ids={chapterIds.filter(Boolean).join(' ')}
       data-report-chapter-title="Atividades por museu"
     >
-      {totalItems === 0 ? (
-        <section className="premium-museum-block premium-page-break">
-          <PremiumInternalPageHeader />
-          <div className="premium-museum-heading">
-            <p className="premium-eyebrow">Ações por equipamento</p>
-            <h2>Atividades por museu</h2>
-          </div>
-          <p className="premium-museum-intro">
-            Não foram localizados registros consolidados para este capítulo no período selecionado. A ausência de dados é apresentada para preservar a rastreabilidade do relatório e evitar preenchimento artificial de informações.
-          </p>
-        </section>
-      ) : null}
       {museus.map((museu) => {
         const items = grupos[museu] || [];
         if (items.length === 0) return null;
@@ -91,17 +96,15 @@ export default function PremiumMuseumSection({ contexto, chapterIds = ['atividad
         return (
           <section className="premium-museum-block premium-page-break" key={museu}>
             <PremiumInternalPageHeader />
-
             <div className="premium-museum-heading">
-              <p className="premium-eyebrow">Ações por equipamento</p>
+              <p className="premium-eyebrow">Atividades por museu</p>
               <h2>{museu}</h2>
               <div className="premium-museum-kpis">
-                <span>{fmtInt(items.length)} ações</span>
+                <span>{fmtInt(items.length)} atividades</span>
                 {publico > 0 ? <span>{fmtInt(publico)} público</span> : null}
               </div>
             </div>
-            <p className="premium-museum-intro">{intros[museu] || intros.geral}</p>
-
+            <p className="premium-museum-intro">{intros[museu]}</p>
             <div className="premium-activity-grid">
               {items.map((activity, index) => (
                 <ActivityCard activity={activity} index={index} key={activity?.id || `${museu}-${index}`} />

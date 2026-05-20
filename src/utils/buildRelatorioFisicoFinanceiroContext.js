@@ -1520,13 +1520,13 @@ export function buildRelatorioFisicoFinanceiroContext({
   const selectedChapters = Array.isArray(filtros?.capitulos) ? filtros.capitulos.filter(Boolean) : [];
   const opening = selectedChapters.filter((id) => ['capa', 'expediente', 'sumario_executivo', 'introducao'].includes(id));
   const body = selectedChapters.filter((id) => !opening.includes(id));
-  const chunkSize = Math.max(1, Math.ceil(body.length / 3));
+  const bodyChunkSize = Math.max(1, Math.ceil(body.length / 3));
   const volumePlan = [0, 1, 2].map((idx) => {
     const chapters = idx === 0
-      ? [...opening, ...body.slice(0, chunkSize)]
-      : body.slice(chunkSize * idx, chunkSize * (idx + 1));
-    const estimatedPages = Math.max(1, Math.round(chapters.length * 2.8));
-    const estimatedMB = Number((Math.max(1, estimatedPages * 0.85)).toFixed(1));
+      ? [...opening, ...body.slice(0, bodyChunkSize)]
+      : body.slice(bodyChunkSize * idx, bodyChunkSize * (idx + 1));
+    const estimatedPages = chapters.length > 0 ? Math.max(1, Math.round(chapters.length * 2.8)) : 0;
+    const estimatedMB = chapters.length > 0 ? Number((Math.max(1, estimatedPages * 0.85)).toFixed(1)) : 0;
     return {
       volume: idx + 1,
       chapters,
