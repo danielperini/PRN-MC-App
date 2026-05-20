@@ -33,6 +33,15 @@ import {
   cleanFileName,
   getPhotoIdentity,
 } from '@/components/reports/premium/premiumReportUtils';
+import {
+  buildEditorialVolumePlan as buildPipelineVolumeParts,
+  buildPartFileName as buildPipelinePartFileName,
+  buildReportDataContext as buildPipelineReportDataContext,
+  buildVolumeHtml as buildPipelineVolumeHtml,
+  buildVolumeMeta,
+  cleanEmptyReportSections,
+  saveVolumePreview,
+} from '@/services/reportExportPipeline';
 
 const MUSEUS = ['Todos', 'MIS', 'MHAB', 'MUMO'];
 const EXPORT_VOLUME_COUNT = 3;
@@ -127,7 +136,7 @@ function getCapituloLabel(sectionId) {
 }
 
 function buildPartFileName(partNumber, extension = 'html') {
-  return `${EXPORT_FILENAME_BASE}-Volume-${partNumber}.${extension}`;
+  return buildPipelinePartFileName(partNumber, extension);
 }
 
 function buildDivisionSummary(parts = []) {
@@ -221,62 +230,7 @@ function buildFullReportPlan(sectionIds = [], context = {}) {
 }
 
 function buildVolumeParts(sectionIds = [], context = {}) {
-  const plan = buildFullReportPlan(sectionIds, context);
-  const opening = plan.filter((item) => item.onlyVolume1);
-  const body = plan.filter((item) => !item.onlyVolume1);
-  const baseParts = Array.from({ length: EXPORT_VOLUME_COUNT }, (_, index) => ({
-    partNumber: index + 1,
-    totalParts: EXPORT_VOLUME_COUNT,
-    secoes: [],
-    sectionPlan: [],
-    estimatedWeight: 0,
-    estimatedPages: 0,
-    estimatedMB: 0,
-    estimatedImages: 0,
-    status: 'adequado',
-  }));
-
-  opening.forEach((item) => {
-    baseParts[0].secoes.push(item.id);
-    baseParts[0].sectionPlan.push(item);
-    baseParts[0].estimatedWeight += item.weight;
-  });
-
-  const bodyTotalWeight = body.reduce((sum, item) => sum + item.weight, 0);
-  const perPartTarget = bodyTotalWeight > 0 ? bodyTotalWeight / EXPORT_VOLUME_COUNT : 0;
-  let partIndex = 0;
-  let currentBodyWeight = 0;
-
-  body.forEach((item, index) => {
-    const current = baseParts[partIndex];
-    current.secoes.push(item.id);
-    current.sectionPlan.push(item);
-    current.estimatedWeight += item.weight;
-    currentBodyWeight += item.weight;
-
-    const remainingChapters = body.length - index - 1;
-    const remainingParts = EXPORT_VOLUME_COUNT - partIndex - 1;
-    const canAdvance = partIndex < EXPORT_VOLUME_COUNT - 1 && remainingChapters >= remainingParts;
-
-    if (canAdvance && currentBodyWeight >= perPartTarget) {
-      partIndex += 1;
-      currentBodyWeight = 0;
-    }
-  });
-
-  baseParts.forEach((part) => {
-    if (part.secoes.length === 0) {
-      part.status = 'sem conteudo';
-      return;
-    }
-
-    part.estimatedPages = Math.max(2, Math.round(part.estimatedWeight * 3.4));
-    part.estimatedImages = Math.max(0, Math.round(part.estimatedWeight * 4));
-    part.estimatedMB = Number(Math.max(0.8, part.estimatedWeight * 2.1).toFixed(1));
-    if (part.estimatedMB > 180) part.status = 'volume muito pesado';
-  });
-
-  return baseParts;
+  return buildPipelineVolumeParts(sectionIds, context);
 }
 
 function injectPartMetadata(html, { partNumber, totalParts, sectionLabels = [], pageNumberOffset = 0 } = {}) {
@@ -439,125 +393,22 @@ function salvarMetadadosVolume(volumeMeta = {}) {
 }
 
 async function carregarContextoRelatorioDoApp(museu, { secoesSelecionadas = SECOES_RELATORIO, splitContext = null, selectedInlinePhotoIds = [] } = {}) {
-  const dateFrom = '2026-02-02';
-  const dateTo = '2026-04-30';
-  const museuFiltro = museu === 'Todos' ? 'todos' : museu;
-
-  const [
-    reportsRaw,
-    rubricasRaw,
-    comprasRaw,
-    teamPaymentsRaw,
-    documentIntakeRaw,
-    attachmentsRaw,
-    galleryRaw,
-    metasRaw,
-    presenceRecordsRaw,
-    programacaoRaw,
-    conhecimentoRaw,
-  ] = await Promise.all([
-    safeList(base44.entities.Report, '-updated_date', 2000),
-    safeList(base44.entities.Rubrica, 'ordem_exibicao', 2000),
-    safeList(base44.entities.PurchaseRequest, '-created_date', 2000),
-    safeList(base44.entities.TeamPayment, '-created_date', 2000),
-    safeList(base44.entities.DocumentIntake, '-created_date', 2000),
-    safeList(base44.entities.Attachment, '-created_date', 3000),
-    safeList(base44.entities.Gallery, '-created_date', 3000),
-    safeList(base44.entities.Meta, 'codigo', 1000),
-    safeList(base44.entities.PresenceRecord, '-data', 3000),
-    safeList(base44.entities.Programacao, '-data_inicio', 3000),
-    carregarBaseConhecimento(),
-  ]);
-
-  const dashboardMetrics = consolidateOfficialDashboardMetrics({
-    reports: reportsRaw,
-    programacao: programacaoRaw,
-    rubricas: rubricasRaw,
-    metas: metasRaw,
-    photos: [...attachmentsRaw, ...galleryRaw],
-    presenceRecords: presenceRecordsRaw,
-  }, {
-    period: {
-      from: dateFrom,
-      to: dateTo,
-    },
-  });
-
-  const contexto = buildRelatorioFisicoFinanceiroContext({
-    reportsRaw,
-    rubricasRaw,
-    comprasRaw,
-    teamPaymentsRaw,
-    documentIntakeRaw,
-    attachmentsRaw,
-    galleryRaw,
-    metasRaw,
-    presenceRecordsRaw,
-    programacaoRaw,
-    conhecimentoRaw,
-    filtros: {
-      dateFrom,
-      dateTo,
-      museu: museuFiltro,
-      capitulos: secoesSelecionadas,
-      split_context: splitContext || undefined,
-    },
-  });
-
-  const contextoComEstrategia = {
-    ...contexto,
-    dashboard_metrics: dashboardMetrics,
-    dashboard_data_source: {
-      reports: reportsRaw.length,
-      programacao: programacaoRaw.length,
-      rubricas: rubricasRaw.length,
-      metas: metasRaw.length,
-      attachments: attachmentsRaw.length,
-      gallery: galleryRaw.length,
-      presenceRecords: presenceRecordsRaw.length,
-    },
-    capitulos_relatorio: REPORT_CHAPTERS,
-    secoesSelecionadas,
-    split_context: splitContext || undefined,
-    selected_inline_photo_ids: selectedInlinePhotoIds,
-  };
-
-  const filtros = {
-    dateFrom,
-    dateTo,
-    museu: museu === 'Todos' ? 'Todos os museus' : museu,
-  };
-
-  return { contexto: contextoComEstrategia, filtros };
-}
-
-async function gerarRelatorioDoApp(museu, { premium = false, secoesSelecionadas = SECOES_RELATORIO, splitContext = null, selectedInlinePhotoIds = [] } = {}) {
-  const { contexto, filtros } = await carregarContextoRelatorioDoApp(museu, {
+  return buildPipelineReportDataContext({
+    museu,
     secoesSelecionadas,
     splitContext,
     selectedInlinePhotoIds,
   });
+}
 
-  const textos = await gerarTextosRelatorioFisicoFinanceiro(
-    contexto,
-    true
-  );
-
-  const htmlInicial = premium ? montarHtmlRelatorioPremium({
-    contexto,
-    textos,
-    filtros,
+async function gerarRelatorioDoApp(museu, { premium = false, secoesSelecionadas = SECOES_RELATORIO, splitContext = null, selectedInlinePhotoIds = [] } = {}) {
+  return buildPipelineVolumeHtml({
+    museu,
+    premium,
     secoesSelecionadas,
-  }) : montarHtmlRelatorioFisicoFinanceiro({
-    contexto,
-    textos,
-    secoesSelecionadas,
-    filtros,
+    splitContext,
+    selectedInlinePhotoIds,
   });
-  const htmlRevisado = revisarHtmlRelatorioAntesDaExportacao(htmlInicial, { modo: premium ? 'premium' : 'fisico_financeiro' });
-  const html = await optimizeReportHtmlImages(htmlRevisado, REPORT_IMAGE_OPTIMIZATION_OPTIONS);
-
-  return { html, contexto };
 }
 
 export default function RelatorioFisicoFinanceiroGenerator() {
@@ -661,15 +512,11 @@ export default function RelatorioFisicoFinanceiroGenerator() {
       .reduce((sum, part) => sum + Number(part.estimatedPages || 0), 0);
   };
 
-  const openPreview = async (html) => {
-    await salvarPreview(html);
-    const preview = window.open('/RelatorioPreview', '_blank', 'width=1200,height=900');
+  const openPreview = async (volumeNumber = 1, autoExportPdf = false) => {
+    const preview = window.open(`/RelatorioPreview?volume=${volumeNumber}${autoExportPdf ? '&export=pdf' : ''}`, '_blank', 'width=1200,height=900');
     if (preview) return null;
-
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    window.open(url, '_blank');
-    return url;
+    toast.error(`Nao foi possivel abrir a previa do Volume ${volumeNumber}.`);
+    return null;
   };
 
   const downloadNamedHtml = (html, fileName) => {
@@ -770,13 +617,19 @@ export default function RelatorioFisicoFinanceiroGenerator() {
           selectedInlinePhotoIds: inlinePhotoIds,
         });
 
-        const htmlPart = injectPartMetadata(localPart.html, {
+        const htmlPart = cleanEmptyReportSections(injectPartMetadata(localPart.html, {
           partNumber: part.partNumber,
           totalParts: EXPORT_VOLUME_COUNT,
           sectionLabels: splitContext.sectionLabels,
           pageNumberOffset,
-        });
+        }));
         validateBeforeExport(htmlPart, part.secoes, localPart.contexto);
+        const volumeMeta = buildVolumeMeta(part, { pageNumberOffset });
+        await saveVolumePreview({
+          volumeNumber: part.partNumber,
+          html: htmlPart,
+          meta: volumeMeta,
+        });
 
         builtParts.push({
           partNumber: part.partNumber,
@@ -787,6 +640,9 @@ export default function RelatorioFisicoFinanceiroGenerator() {
           sectionLabels: splitContext.sectionLabels,
           secoes: part.secoes,
           pageNumberOffset,
+          estimatedPages: part.estimatedPages,
+          estimatedMB: part.estimatedMB,
+          meta: volumeMeta,
         });
       }
 
@@ -808,7 +664,6 @@ export default function RelatorioFisicoFinanceiroGenerator() {
       });
 
       updateProgress(100, 'Relatório concluído', builtParts.length > 1 ? 'Volumes preparados para exportação HTML/PDF.' : `Volume ${firstPart.partNumber} pronto para visualização e PDF`);
-      await openPreview(firstPart.html);
       setDialogAberto(false);
       toast.success(builtParts.length > 1 ? 'Relatório preparado em 3 volumes editoriais.' : `Volume ${firstPart.partNumber} gerado com dados reais do aplicativo.`);
     } catch (err) {
@@ -895,13 +750,20 @@ export default function RelatorioFisicoFinanceiroGenerator() {
       });
       updateProgress(84, 'Distribuindo imagens junto das atividades...', 'Gerando plano de uso único das imagens');
 
-      const htmlPart = injectPartMetadata(localPart.html, {
+      const htmlPart = cleanEmptyReportSections(injectPartMetadata(localPart.html, {
         partNumber: volumeNumber,
         totalParts: EXPORT_VOLUME_COUNT,
         sectionLabels: splitContext.sectionLabels,
         summaryHtml,
-      });
+        pageNumberOffset,
+      }));
       validateBeforeExport(htmlPart, selectedVolume.secoes, localPart.contexto);
+      const volumeMeta = buildVolumeMeta(selectedVolume, { pageNumberOffset });
+      await saveVolumePreview({
+        volumeNumber,
+        html: htmlPart,
+        meta: volumeMeta,
+      });
 
       const finalPart = {
         partNumber: volumeNumber,
@@ -912,6 +774,9 @@ export default function RelatorioFisicoFinanceiroGenerator() {
         sectionLabels: splitContext.sectionLabels,
         secoes: selectedVolume.secoes,
         pageNumberOffset,
+        estimatedPages: selectedVolume.estimatedPages,
+        estimatedMB: selectedVolume.estimatedMB,
+        meta: volumeMeta,
       };
 
       setResultado({
@@ -925,7 +790,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
         parts: [finalPart],
       });
       updateProgress(100, 'Relatorio concluido', `Volume ${volumeNumber} pronto para visualizacao e PDF`);
-      await openPreview(htmlPart);
+      await openPreview(volumeNumber);
       setDialogAberto(false);
       toast.success(`Volume ${volumeNumber} gerado com dados reais do aplicativo.`);
     } catch (err) {
@@ -1139,14 +1004,18 @@ export default function RelatorioFisicoFinanceiroGenerator() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={async () => {
-                        const offset = promptVolumePageOffset(part.partNumber);
-                        if (offset === null) return;
-                        await runExport(getSelectedInlineIds(), part.partNumber, offset);
-                      }}
+                      onClick={() => openPreview(part.partNumber, true)}
                     >
                       <ExternalLink className="w-4 h-4 mr-2" />
-                      {`Abrir Volume ${String(part.partNumber).padStart(2, '0')} para PDF`}
+                      {`Abrir previa Volume ${String(part.partNumber).padStart(2, '0')}`}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openPreview(part.partNumber)}
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      {`Exportar PDF Volume ${String(part.partNumber).padStart(2, '0')}`}
                     </Button>
                     <Button
                       variant="outline"
@@ -1161,7 +1030,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
               </>
             ) : (
               <>
-                <Button variant="outline" size="sm" onClick={() => openPreview(resultado.html)}>
+                <Button variant="outline" size="sm" onClick={() => openPreview(resultado.volumeNumber || 1)}>
                   <ExternalLink className="w-4 h-4 mr-2" />
                   Abrir Relatório
                 </Button>

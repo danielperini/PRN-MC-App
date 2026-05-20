@@ -3,52 +3,22 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertCircle, ArrowLeft, CheckCircle2, Download, FileDown, Loader2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 import { REPORT_CHAPTERS, REPORT_CHAPTER_IDS } from '@/config/reportChapters';
+import {
+  EXPORT_VOLUME_COUNT as PIPELINE_VOLUME_COUNT,
+  buildPartFileName as buildPipelinePartFileName,
+  exportVolumePdf,
+  getVolumePreview,
+} from '@/services/reportExportPipeline';
 
-const MAX_EXPORT_PART_SIZE_BYTES = 200 * 1024 * 1024;
-const PDF_VOLUME_COUNT = 3;
-const EXPORT_FILENAME_BASE = 'Museus-Centro-Relatorio';
-
-function normalizeText(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function loadSelectedChapterIds() {
-  try {
-    const raw = sessionStorage.getItem('relatorio_fisico_financeiro_selected_chapters');
-    const parsed = JSON.parse(raw || '[]');
-    const set = new Set(Array.isArray(parsed) ? parsed : []);
-    const ordered = REPORT_CHAPTER_IDS.filter((id) => set.has(id));
-    return ordered.length > 0 ? ordered : REPORT_CHAPTER_IDS;
-  } catch {
-    return REPORT_CHAPTER_IDS;
-  }
-}
-
-function chapterLabel(chapterId) {
-  const chapter = REPORT_CHAPTERS.find((item) => item.id === chapterId);
-  return chapter?.title || chapterId;
-}
-
-function chapterRenderSignals(chapterId) {
-  const chapter = REPORT_CHAPTERS.find((item) => item.id === chapterId);
-  const signals = [
-    chapter?.renderTitle,
-    chapter?.title,
-  ].filter(Boolean).map(normalizeText);
-  return Array.from(new Set(signals));
-}
+const PDF_VOLUME_COUNT = PIPELINE_VOLUME_COUNT;
+const MAX_EXPORT_PART_SIZE_BYTES = Number.MAX_SAFE_INTEGER;
 
 function filenameForPart(partNumber) {
-  return `${EXPORT_FILENAME_BASE}-Volume-${partNumber}.pdf`;
+  return buildPipelinePartFileName(partNumber, 'pdf');
 }
 
 const EXPORT_STATUS_LABELS = {
@@ -1966,6 +1936,9 @@ async function loadReportsForHtml(html) {
 
 export default function RelatorioPreview() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const requestedVolume = Math.min(3, Math.max(1, Number(searchParams.get('volume') || 1) || 1));
+  const autoExportPdf = searchParams.get('export') === 'pdf';
   const [html, setHtml] = useState('');
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [exportProgressOpen, setExportProgressOpen] = useState(false);
@@ -1974,6 +1947,7 @@ export default function RelatorioPreview() {
   const [currentExportFile, setCurrentExportFile] = useState(null);
   const [exportProgressMessage, setExportProgressMessage] = useState('');
   const [exportProgressError, setExportProgressError] = useState(null);
+  const [autoExportStarted, setAutoExportStarted] = useState(false);
   const [volumeMeta, setVolumeMeta] = useState({
     volumeNumber: 1,
     totalVolumes: PDF_VOLUME_COUNT,
@@ -1982,25 +1956,32 @@ export default function RelatorioPreview() {
 
   useEffect(() => {
     let cancelled = false;
-    try {
-      const storedVolume = JSON.parse(
-        sessionStorage.getItem('relatorio_fisico_financeiro_export_volume')
-        || localStorage.getItem('relatorio_fisico_financeiro_export_volume')
-        || 'null'
-      );
-      if (storedVolume?.volumeNumber) {
-        setVolumeMeta({
-          volumeNumber: Number(storedVolume.volumeNumber) || 1,
-          totalVolumes: Number(storedVolume.totalVolumes) || PDF_VOLUME_COUNT,
-          pageNumberOffset: Number(storedVolume.pageNumberOffset) || 0,
-        });
-      }
-    } catch {}
-
     async function load() {
-      const stored = await getStoredHtml();
+      const preview = await getVolumePreview(requestedVolume);
+      const finalHtml = preview.html || '';
+      if (!cancelled) {
+        setVolumeMeta({
+          volumeNumber: Number(preview.meta?.volumeNumber) || requestedVolume,
+          totalVolumes: Number(preview.meta?.totalVolumes) || PDF_VOLUME_COUNT,
+          pageNumberOffset: Number(preview.meta?.pageNumberOffset) || 0,
+          estimatedPages: Number(preview.meta?.estimatedPages) || 0,
+          estimatedMB: Number(preview.meta?.estimatedMB) || 0,
+          chapterIds: Array.isArray(preview.meta?.chapterIds) ? preview.meta.chapterIds : [],
+          chapterLabels: Array.isArray(preview.meta?.chapterLabels) ? preview.meta.chapterLabels : [],
+          generatedAt: preview.meta?.generatedAt || '',
+        });
+        setHtml(finalHtml);
+      }
+    }
 
-      let finalHtml = '';
+    load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [requestedVolume]);
+
+  /*
       try {
         const reports =
           await loadReportsForHtml(stored);
@@ -2026,6 +2007,8 @@ export default function RelatorioPreview() {
     };
   }, []);
 
+  */
+
   const iframeSrcDoc = useMemo(
     () =>
       html ||
@@ -2033,19 +2016,20 @@ export default function RelatorioPreview() {
     [html]
   );
 
+  useEffect(() => {
+    if (!autoExportPdf || !html || isExportingPdf || autoExportStarted) return;
+    setAutoExportStarted(true);
+    const timer = setTimeout(() => {
+      handleExportPdf();
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [autoExportPdf, html, isExportingPdf, autoExportStarted]);
+
 async function getHtmlForExport() {
     if (String(html || '').trim()) return html;
 
-    const stored = await getStoredHtml();
-    if (!String(stored || '').trim()) return '';
-
-    try {
-      const reports = await loadReportsForHtml(stored);
-      return prepareFinalHtml(stored, reports);
-    } catch (error) {
-      console.warn('Falha ao carregar dados complementares. Exportando HTML salvo:', error);
-      return prepareFinalHtml(stored, []);
-    }
+    const preview = await getVolumePreview(requestedVolume);
+    return preview.html || '';
   }
 
   function updateExportQueueItem(index, patch) {
@@ -2067,11 +2051,10 @@ async function getHtmlForExport() {
     toast.info(`Gerando PDF do Volume ${volumeMeta.volumeNumber}...`);
 
     try {
-      const blob = await exportHtmlToPdfBlob(exportHtml, {
-        pageNumberOffset: volumeMeta.pageNumberOffset,
-        volumeNumber: volumeMeta.volumeNumber,
-        totalVolumes: volumeMeta.totalVolumes,
-        includeSearchableAppendix: false,
+      const blob = await exportVolumePdf({
+        html: exportHtml,
+        volumeMeta,
+        exporter: exportHtmlToPdfBlob,
       });
       await downloadPdfBlob(blob, filenameForPart(volumeMeta.volumeNumber));
       toast.success(`Volume ${volumeMeta.volumeNumber} exportado com sucesso.`);
@@ -2086,7 +2069,7 @@ async function getHtmlForExport() {
   }
 
   async function handleDownloadHtml() {
-    const htmlForDownload = html || await getStoredHtml();
+    const htmlForDownload = html || (await getVolumePreview(requestedVolume)).html || '';
     if (!String(htmlForDownload || '').trim()) {
       toast.error('HTML do relatório não encontrado. Gere o relatório novamente.');
       return;
