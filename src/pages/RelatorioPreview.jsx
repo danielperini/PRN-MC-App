@@ -379,8 +379,13 @@ async function waitForIframeAssets(iframe) {
   await Promise.all(images.map((image) => {
     if (image.complete) return Promise.resolve();
     return new Promise((resolve) => {
-      image.onload = resolve;
-      image.onerror = resolve;
+      const timeout = setTimeout(resolve, 12000);
+      const finish = () => {
+        clearTimeout(timeout);
+        resolve();
+      };
+      image.onerror = finish;
+      image.onload = finish;
     });
   }));
 
@@ -392,8 +397,8 @@ function createHiddenReportIframe(html) {
   iframe.style.position = 'fixed';
   iframe.style.left = '-10000px';
   iframe.style.top = '0';
-  iframe.style.width = '1024px';
-  iframe.style.height = '1448px';
+  iframe.style.width = '794px';
+  iframe.style.height = '1123px';
   iframe.style.opacity = '0';
   iframe.style.pointerEvents = 'none';
   iframe.setAttribute('aria-hidden', 'true');
@@ -406,9 +411,44 @@ function createHiddenReportIframe(html) {
   return iframe;
 }
 
+function hasRenderablePdfContent(element) {
+  if (!element) return false;
+
+  const rect = element.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return false;
+
+  const text = String(element.innerText || element.textContent || '').trim();
+  const visualCount = element.querySelectorAll?.('img, table, canvas, svg, figure, article').length || 0;
+
+  return text.length > 24 || visualCount > 0;
+}
+
+function uniquePdfElements(elements = []) {
+  const seen = new Set();
+  return elements.filter((element) => {
+    if (!element || seen.has(element)) return false;
+    seen.add(element);
+    return true;
+  });
+}
+
+function removeNestedPdfTargets(elements = []) {
+  return elements.filter((element) =>
+    !elements.some((candidate) => candidate !== element && candidate.contains(element))
+  );
+}
+
 function getPdfRenderTargets(root) {
   const MAX_SECTION_HEIGHT = 5200;
   const result = [];
+  const majorSelector = [
+    '.premium-cover',
+    '.premium-expediente',
+    '.premium-section',
+    '.premium-museum-block',
+    '.premium-communication',
+    '.premium-closing',
+  ].join(', ');
 
   function collect(element) {
     if (!element) return;
@@ -417,7 +457,7 @@ function getPdfRenderTargets(root) {
 
     const children = Array.from(element.children || []).filter((child) => {
       const childRect = child.getBoundingClientRect();
-      return childRect.width > 0 && childRect.height > 0;
+      return childRect.width > 0 && childRect.height > 0 && hasRenderablePdfContent(child);
     });
 
     if (element.scrollHeight > MAX_SECTION_HEIGHT && children.length > 0) {
@@ -425,16 +465,29 @@ function getPdfRenderTargets(root) {
       return;
     }
 
-    result.push(element);
+    if (hasRenderablePdfContent(element)) {
+      result.push(element);
+    }
   }
 
-  const children = Array.from(root?.children || []).filter((element) => {
-    const rect = element.getBoundingClientRect();
-    return rect.width > 0 && rect.height > 0;
-  });
+  const directMajorSections = Array.from(root?.children || [])
+    .filter((element) => element.matches?.(majorSelector))
+    .filter(hasRenderablePdfContent);
 
-  (children.length > 0 ? children : [root]).forEach(collect);
-  return result;
+  const directRenderableChildren = Array.from(root?.children || [])
+    .filter(hasRenderablePdfContent);
+
+  uniquePdfElements([...directMajorSections, ...directRenderableChildren]).forEach(collect);
+
+  let targets = removeNestedPdfTargets(uniquePdfElements(result));
+
+  if (targets.length < 4) {
+    const semanticSections = Array.from(root?.querySelectorAll?.(majorSelector) || [])
+      .filter(hasRenderablePdfContent);
+    targets = removeNestedPdfTargets(uniquePdfElements([...targets, ...semanticSections]));
+  }
+
+  return targets.length > 0 ? targets : [root].filter(hasRenderablePdfContent);
 }
 
 function extractSearchableReportText(doc) {
@@ -511,6 +564,16 @@ function addContinuousPageNumbers(pdf, options = {}) {
     pdf.setFontSize(7);
     pdf.setTextColor(90, 90, 90);
     const pageNumber = pageOffset + pageIndex;
+    const shouldDrawHeader = !(Number(options.volumeNumber) === 1 && pageIndex === 1);
+    if (shouldDrawHeader) {
+      pdf.text(
+        'Viaduto das Artes - Av. Olinto Meireles, 45 - Barreiro - Belo Horizonte/MG - viadutodasartes@gmail.com',
+        pageWidth / 2,
+        5,
+        { align: 'center' }
+      );
+    }
+
     const label = volumeNumber && totalVolumes
       ? `Volume ${volumeNumber}/${totalVolumes} · página ${pageNumber}`
       : `página ${pageNumber}`;
@@ -555,19 +618,23 @@ async function exportHtmlToPdfBlob(html, options = {}) {
     const target = doc.querySelector('main.premium-report') || doc.body;
     const searchableText = extractSearchableReportText(doc);
     const renderTargets = getPdfRenderTargets(target);
+    if (!renderTargets.length) {
+      throw new Error('Nenhuma secao renderizavel encontrada para o PDF.');
+    }
+
     let hasPageContent = false;
 
     for (const element of renderTargets) {
       let canvas = null;
       try {
         canvas = await html2canvas(element, {
-          scale: 1.2,
+          scale: 1.8,
           useCORS: true,
           allowTaint: false,
           backgroundColor: '#ffffff',
           logging: false,
           imageTimeout: 12000,
-          windowWidth: Math.max(element.scrollWidth, target.scrollWidth, 1024),
+          windowWidth: Math.max(element.scrollWidth, target.scrollWidth, 794),
           windowHeight: Math.max(element.scrollHeight, element.clientHeight, 800),
         });
       } catch (renderError) {
@@ -600,9 +667,9 @@ async function exportHtmlToPdfBlob(html, options = {}) {
         if (hasPageContent) pdf.addPage();
 
         try {
-          const imageData = pageCanvas.toDataURL('image/jpeg', 0.82);
+          const imageData = pageCanvas.toDataURL('image/jpeg', 0.92);
           const imageHeight = (sliceHeight * pageWidth) / canvas.width;
-          pdf.addImage(imageData, 'JPEG', 0, 0, pageWidth, imageHeight, undefined, 'FAST');
+          pdf.addImage(imageData, 'JPEG', 0, 0, pageWidth, imageHeight, undefined, 'MEDIUM');
           hasPageContent = true;
         } catch (imageError) {
           console.warn('Falha ao inserir imagem no PDF. Tentando continuar com os demais blocos.', imageError);
