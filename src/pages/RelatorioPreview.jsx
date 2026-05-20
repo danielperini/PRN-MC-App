@@ -13,6 +13,7 @@ import {
   exportSingleReportPdf,
   getReportPreview,
   getSingleReportPreview,
+  repairReportEncoding,
 } from '@/services/reportExportPipeline';
 
 const MAX_EXPORT_PART_SIZE_BYTES = Number.MAX_SAFE_INTEGER;
@@ -403,8 +404,141 @@ function createHiddenReportIframe(html) {
   return iframe;
 }
 
+function hasUsefulPdfDomContent(element) {
+  if (!element) return false;
+  const clone = element.cloneNode(true);
+  clone.querySelectorAll?.('.report-pdf-institutional-header, script, style, noscript').forEach((node) => node.remove());
+  const text = String(clone.innerText || clone.textContent || '').replace(/\s+/g, '').trim();
+  const hasVisual = clone.querySelector?.('img, table, canvas, svg, figure, article, .premium-metric, .premium-infographic-card, .premium-activity-card');
+  return text.length > 0 || Boolean(hasVisual);
+}
+
+function normalizeReportDomForPdf(doc) {
+  if (!doc) return;
+
+  doc.querySelectorAll('script, noscript, .report-pdf-institutional-header, .premium-internal-page-header').forEach((node) => node.remove());
+
+  let style = doc.getElementById('pdf-export-a4-normalizer');
+  if (!style) {
+    style = doc.createElement('style');
+    style.id = 'pdf-export-a4-normalizer';
+    doc.head.appendChild(style);
+  }
+
+  style.textContent = `
+    @page { size: A4; margin: 0; }
+    html, body {
+      width: 794px !important;
+      min-width: 794px !important;
+      max-width: 794px !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow-x: hidden !important;
+      background: #ffffff !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      zoom: 1 !important;
+    }
+    main.premium-report,
+    .premium-report {
+      width: 794px !important;
+      min-width: 794px !important;
+      max-width: 794px !important;
+      margin: 0 auto !important;
+      overflow: hidden !important;
+      background: #ffffff !important;
+      transform: none !important;
+    }
+    .premium-cover {
+      width: 794px !important;
+      height: 1123px !important;
+      min-height: 1123px !important;
+      max-height: 1123px !important;
+      padding: 0 !important;
+      overflow: hidden !important;
+    }
+    .premium-cover img {
+      width: 100% !important;
+      height: 100% !important;
+      max-width: none !important;
+      max-height: none !important;
+      object-fit: cover !important;
+      transform: none !important;
+    }
+    .premium-section,
+    .premium-expediente,
+    .premium-museum-block,
+    .premium-communication,
+    .premium-closing {
+      width: 794px !important;
+      max-width: 794px !important;
+      min-height: auto !important;
+      height: auto !important;
+      padding: 68px 57px 68px !important;
+      margin: 0 !important;
+      overflow: hidden !important;
+      transform: none !important;
+    }
+    .premium-report img,
+    .premium-section img,
+    .premium-museum-block img,
+    .premium-communication img {
+      max-width: 100% !important;
+      max-height: 454px !important;
+      height: auto !important;
+      object-fit: contain !important;
+      transform: none !important;
+    }
+    .premium-activity-photos,
+    .premium-activity-photo-strip,
+    .activity-image-grid {
+      display: grid !important;
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      gap: 8px !important;
+    }
+    .premium-activity-photos img,
+    .premium-activity-photo-strip img,
+    .activity-image-grid img {
+      width: 100% !important;
+      height: 265px !important;
+      object-fit: cover !important;
+    }
+    .premium-table,
+    table {
+      width: 100% !important;
+      max-width: 100% !important;
+      table-layout: fixed !important;
+      border-collapse: collapse !important;
+    }
+    th, td {
+      overflow-wrap: anywhere !important;
+      word-break: normal !important;
+    }
+    .premium-page-break {
+      break-before: auto !important;
+      page-break-before: auto !important;
+    }
+  `;
+
+  doc.querySelectorAll('[style]').forEach((node) => {
+    const styleValue = String(node.getAttribute('style') || '')
+      .replace(/transform\s*:[^;]+;?/gi, '')
+      .replace(/zoom\s*:[^;]+;?/gi, '')
+      .replace(/max-width\s*:\s*none\s*;?/gi, '');
+    node.setAttribute('style', styleValue);
+  });
+
+  doc.querySelectorAll('section, article, div').forEach((node) => {
+    const className = String(node.getAttribute('class') || '');
+    if (!/premium|report|section|page|activity|metric|infographic/i.test(className)) return;
+    if (!hasUsefulPdfDomContent(node)) node.remove();
+  });
+}
+
 function hasRenderablePdfContent(element) {
   if (!element) return false;
+  if (element.closest?.('.report-pdf-institutional-header')) return false;
+  if (['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(element.tagName)) return false;
 
   const rect = element.getBoundingClientRect();
   if (rect.width <= 0 || rect.height <= 0) return false;
@@ -444,6 +578,7 @@ function getPdfRenderTargets(root) {
 
   function collect(element) {
     if (!element) return;
+    if (element.classList?.contains('report-pdf-institutional-header')) return;
     const rect = element.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) return;
 
@@ -465,11 +600,7 @@ function getPdfRenderTargets(root) {
   const directMajorSections = Array.from(root?.children || [])
     .filter((element) => element.matches?.(majorSelector))
     .filter(hasRenderablePdfContent);
-
-  const directRenderableChildren = Array.from(root?.children || [])
-    .filter(hasRenderablePdfContent);
-
-  uniquePdfElements([...directMajorSections, ...directRenderableChildren]).forEach(collect);
+  directMajorSections.forEach(collect);
 
   let targets = removeNestedPdfTargets(uniquePdfElements(result));
 
@@ -480,6 +611,26 @@ function getPdfRenderTargets(root) {
   }
 
   return targets.length > 0 ? targets : [root].filter(hasRenderablePdfContent);
+}
+
+function isCanvasSliceMostlyBlank(canvas) {
+  const context = canvas?.getContext?.('2d', { willReadFrequently: true });
+  if (!context || !canvas.width || !canvas.height) return true;
+
+  const stepX = Math.max(8, Math.floor(canvas.width / 28));
+  const stepY = Math.max(8, Math.floor(canvas.height / 40));
+  let samples = 0;
+  let nonWhite = 0;
+
+  for (let y = 0; y < canvas.height; y += stepY) {
+    for (let x = 0; x < canvas.width; x += stepX) {
+      const [r, g, b, a] = context.getImageData(x, y, 1, 1).data;
+      samples += 1;
+      if (a > 12 && (r < 245 || g < 245 || b < 245)) nonWhite += 1;
+    }
+  }
+
+  return samples > 0 && nonWhite / samples < 0.006;
 }
 
 function extractSearchableReportText(doc) {
@@ -574,7 +725,7 @@ function addContinuousPageNumbers(pdf, options = {}) {
       : volumeNumber
         ? `Museus Centro - Relatorio Institucional - Volume ${Number(options.volumeNumber)} | Pagina ${pageNumber}`
         : label;
-    pdf.text(footerLabel, pageWidth / 2, pageHeight - 6, { align: 'center' });
+    pdf.text(repairReportEncoding(footerLabel), pageWidth / 2, pageHeight - 6, { align: 'center' });
   }
 }
 
@@ -588,10 +739,12 @@ async function exportHtmlToPdfBlob(html, options = {}) {
     import('jspdf'),
   ]);
 
-  const iframe = createHiddenReportIframe(html);
+  const iframe = createHiddenReportIframe(repairReportEncoding(html));
 
   try {
+    normalizeReportDomForPdf(iframe.contentDocument);
     await waitForIframeAssets(iframe);
+    normalizeReportDomForPdf(iframe.contentDocument);
 
     const pdf = new jsPDF({
       orientation: 'portrait',
@@ -616,20 +769,39 @@ async function exportHtmlToPdfBlob(html, options = {}) {
       throw new Error('Nenhuma secao renderizavel encontrada para o PDF.');
     }
 
+    const oversized = renderTargets
+      .map((element) => ({
+        element,
+        rect: element.getBoundingClientRect(),
+      }))
+      .filter(({ rect }) => rect.width > 860 || rect.height > 16000);
+
+    if (oversized.length > 0) {
+      console.warn('Elementos fora da escala A4 detectados:', oversized.map(({ element, rect }) => ({
+        tag: element.tagName,
+        className: element.className,
+        width: rect.width,
+        height: rect.height,
+      })));
+      throw new Error('Foram encontrados elementos fora da escala A4. A exportacao foi interrompida para evitar PDF invalido.');
+    }
+
     let hasPageContent = false;
 
     for (const element of renderTargets) {
       let canvas = null;
       try {
         canvas = await html2canvas(element, {
-          scale: options.reportTitle ? 1.45 : 1.8,
+          scale: 1.35,
           useCORS: true,
           allowTaint: false,
           backgroundColor: '#ffffff',
           logging: false,
           imageTimeout: 12000,
-          windowWidth: Math.max(element.scrollWidth, target.scrollWidth, 794),
-          windowHeight: Math.max(element.scrollHeight, element.clientHeight, 800),
+          scrollX: 0,
+          scrollY: 0,
+          windowWidth: 794,
+          windowHeight: 1123,
         });
       } catch (renderError) {
         console.warn('Falha ao renderizar bloco do PDF. O bloco sera ignorado no raster e preservado no fallback textual.', renderError);
@@ -658,10 +830,14 @@ async function exportHtmlToPdfBlob(html, options = {}) {
           sliceHeight
         );
 
+        if (isCanvasSliceMostlyBlank(pageCanvas)) {
+          continue;
+        }
+
         if (hasPageContent) pdf.addPage();
 
         try {
-          const imageData = pageCanvas.toDataURL('image/jpeg', options.reportTitle ? 0.78 : 0.92);
+          const imageData = pageCanvas.toDataURL('image/jpeg', 0.75);
           const imageHeight = (sliceHeight * pageWidth) / canvas.width;
           pdf.addImage(imageData, 'JPEG', 0, 0, pageWidth, imageHeight, undefined, 'MEDIUM');
           hasPageContent = true;
@@ -829,7 +1005,7 @@ export default function RelatorioPreview() {
         finalHtml = await getStoredHtml();
       }
       if (!finalHtml) console.error(`[Preview] HTML nao encontrado para variante "${reportVariant}". Verifique se a geracao foi concluida.`);
-      if (!cancelled) { setReportMeta(preview?.meta || {}); setHtml(finalHtml); }
+      if (!cancelled) { setReportMeta(preview?.meta || {}); setHtml(repairReportEncoding(finalHtml)); }
     }
     load();
     return () => { cancelled = true; };
@@ -837,7 +1013,7 @@ export default function RelatorioPreview() {
 
   const iframeSrcDoc = useMemo(
     () =>
-      html ||
+      repairReportEncoding(html) ||
       '<html><body><p>Prévia não encontrada.</p></body></html>',
     [html]
   );
@@ -857,12 +1033,12 @@ export default function RelatorioPreview() {
   }, [autoExportPdf, html, isExportingPdf, autoExportStarted]);
 
 async function getHtmlForExport() {
-    if (String(html || '').trim()) return html;
+    if (String(html || '').trim()) return repairReportEncoding(html);
 
     const preview = reportVariant === 'single'
       ? await getSingleReportPreview()
       : await getReportPreview(reportVariant);
-    return preview.html || (reportVariant === 'single' ? await getStoredHtml() : '') || '';
+    return repairReportEncoding(preview.html || (reportVariant === 'single' ? await getStoredHtml() : '') || '');
   }
 
   function updateExportQueueItem(index, patch) {

@@ -33,10 +33,10 @@ import {
 } from './premiumReportUtils';
 
 const CATALOG_CSS = `
-  @page { size: A4; margin: 16mm 14mm 16mm 14mm; }
+  @page { size: A4; margin: 0; }
   @page cover { size: A4; margin: 0; }
   * { box-sizing: border-box; }
-  body { margin: 0; background: #e7e3dc; color: #171717; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  html, body { width: 210mm; margin: 0; padding: 0; overflow-x: hidden; background: #fff; color: #171717; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .premium-report { width: 210mm; max-width: 210mm; margin: 0 auto; overflow: hidden; background: #f7f3eb; color: #171717; }
   .report-pdf-institutional-header { display: none; }
   .report-pdf-institutional-logo-wrap { width: 16mm; height: 16mm; flex: 0 0 16mm; }
@@ -154,6 +154,8 @@ const CATALOG_CSS = `
   .activity-card-body { font-size: 10.5pt; line-height: 1.45; }
   .activity-card-body p + p { margin-top: 8px; }
   .premium-activity-card h4, .premium-activity-card p { overflow-wrap: anywhere; }
+  .premium-report img, .premium-section img, .premium-museum-block img, .premium-communication img, .premium-closing img { max-width: 100%; max-height: 120mm; height: auto; object-fit: contain; transform: none !important; }
+  .premium-cover img { max-width: none; max-height: none; width: 100%; height: 100%; object-fit: cover; }
   .premium-communication-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: stretch; }
   .premium-communication-panel { background: #171717; color: #fff; padding: 16px; display: flex; flex-direction: column; justify-content: flex-end; min-height: auto; }
   .premium-communication-panel strong { font-size: 52px; line-height: .9; }
@@ -295,13 +297,13 @@ const CATALOG_CSS = `
   .document-link { word-break: break-word; overflow-wrap: anywhere; }
 
   @media print {
-    body { background: #fff; }
-    .premium-report { background: #fff; }
-    .report-pdf-institutional-header { position: fixed; left: 14mm; right: 14mm; bottom: -11mm; z-index: 1; display: grid; grid-template-columns: 16mm minmax(0,1fr); column-gap: 10mm; align-items: center; box-sizing: border-box; height: 12mm; padding: 2mm 0 0; page-break-inside: avoid; break-inside: avoid; background: #ffffff; border-top: 1px solid rgba(23,23,23,.1); pointer-events: none; }
+    html, body { width: 210mm; min-height: 297mm; margin: 0; padding: 0; background: #fff; overflow-x: hidden; }
+    .premium-report { width: 210mm; max-width: 210mm; margin: 0 auto; overflow: hidden; background: #fff; }
+    .report-pdf-institutional-header { display: none; }
     .premium-internal-page-header { display: none; }
     .premium-cover { z-index: 5; }
     .premium-section, .premium-expediente, .premium-museum-block, .premium-communication, .premium-closing { min-height: auto; }
-    .premium-photo, .premium-activity-card, .premium-timeline-item, .premium-metric, .premium-photo-index-item, .premium-meta-card { break-inside: avoid; }
+    .premium-photo, .premium-activity-card, .premium-timeline-item, .premium-metric, .premium-photo-index-item, .premium-meta-card, .premium-infographic-card, table { break-inside: avoid; page-break-inside: avoid; }
   }
 `;
 
@@ -2731,7 +2733,7 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
   const pageStart = Math.max(1, Number(contexto?.split_context?.pageNumberOffset || 0) + 1);
   const isVolumeOne = volumeNumber === 1;
   REPORT_SECTION_FILTER = isVolumeOne
-    ? new Set(['capa', 'expediente', 'sumario_executivo', 'introducao', 'atividades_museu', 'museus_premium', 'comunicacao', 'comunicacao_premium', 'orcamento_museu', 'auditoria_operacional', 'conclusao'])
+    ? new Set(['capa', 'expediente', 'sumario_executivo', 'introducao', 'indicadores_premium', 'atividades_museu', 'museus_premium', 'comunicacao', 'comunicacao_premium', 'orcamento_museu', 'auditoria_operacional', 'conclusao'])
     : null;
 
   return (

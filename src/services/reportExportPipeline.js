@@ -35,24 +35,85 @@ export const REPORT_PREVIEW_VARIANTS = {
     htmlKey: SINGLE_REPORT_HTML_KEY,
     metaKey: SINGLE_REPORT_META_KEY,
     filename: SINGLE_REPORT_FILENAME,
-    title: 'Museus Centro - Relatorio Fisico-Financeiro',
+    title: 'Museus Centro - Relatório Físico-Financeiro',
     exportMode: 'single_pdf',
   },
   dados: {
     htmlKey: DATA_REPORT_HTML_KEY,
     metaKey: DATA_REPORT_META_KEY,
     filename: DATA_REPORT_FILENAME,
-    title: 'Museus Centro - Relatorio de Dados',
+    title: 'Museus Centro - Relatório de Dados',
     exportMode: 'data_pdf',
   },
   galeria: {
     htmlKey: GALLERY_REPORT_HTML_KEY,
     metaKey: GALLERY_REPORT_META_KEY,
     filename: GALLERY_REPORT_FILENAME,
-    title: 'Museus Centro - Relatorio Galeria',
+    title: 'Museus Centro - Relatório Galeria',
     exportMode: 'gallery_pdf',
   },
 };
+
+const ENCODING_REPAIRS = [
+  ['IntroduÃ§Ã£o', 'Introdução'],
+  ['ComunicaÃ§Ã£o', 'Comunicação'],
+  ['programaÃ§Ã£o', 'programação'],
+  ['ProgramaÃ§Ã£o', 'Programação'],
+  ['execuÃ§Ã£o', 'execução'],
+  ['ExecuÃ§Ã£o', 'Execução'],
+  ['pÃºblico', 'público'],
+  ['PÃºblico', 'Público'],
+  ['orÃ§amento', 'orçamento'],
+  ['OrÃ§amento', 'Orçamento'],
+  ['informaÃ§Ãµes', 'informações'],
+  ['InformaÃ§Ãµes', 'Informações'],
+  ['evidÃªncias', 'evidências'],
+  ['EvidÃªncias', 'Evidências'],
+  ['relatÃ³rio', 'relatório'],
+  ['RelatÃ³rio', 'Relatório'],
+  ['capÃ­tulo', 'capítulo'],
+  ['capÃ­tulos', 'capítulos'],
+  ['perÃ­odo', 'período'],
+  ['PerÃ­odo', 'Período'],
+  ['sÃ­ntese', 'síntese'],
+  ['SÃ­ntese', 'Síntese'],
+  ['memÃ³ria', 'memória'],
+  ['MemÃ³ria', 'Memória'],
+  ['governanÃ§a', 'governança'],
+  ['GovernanÃ§a', 'Governança'],
+  ['prestaÃ§Ã£o', 'prestação'],
+  ['PrestaÃ§Ã£o', 'Prestação'],
+  ['Pagina', 'Página'],
+  ['pagina', 'página'],
+  ['vÃ­nculos', 'vínculos'],
+  ['vÃ­nculo', 'vínculo'],
+  ['nÃ£o', 'não'],
+  ['Ã©', 'é'],
+  ['Ã¡', 'á'],
+  ['Ãª', 'ê'],
+  ['Ã­', 'í'],
+  ['Ã³', 'ó'],
+  ['Ãº', 'ú'],
+  ['Ã§', 'ç'],
+  ['Ã£', 'ã'],
+  ['Ãµ', 'õ'],
+  ['Â·', '·'],
+  ['Âº', 'º'],
+  ['â€”', '—'],
+  ['â€“', '–'],
+  ['â€œ', '"'],
+  ['â€�', '"'],
+  ['â€˜', "'"],
+  ['â€™', "'"],
+];
+
+export function repairReportEncoding(html = '') {
+  let output = String(html || '');
+  ENCODING_REPAIRS.forEach(([broken, fixed]) => {
+    output = output.split(broken).join(fixed);
+  });
+  return output;
+}
 
 const OPENING_CHAPTER_IDS = ['capa', 'expediente', 'sumario_executivo', 'introducao'];
 const CHAPTER_MUSEUM_WEIGHT = {
@@ -414,9 +475,12 @@ export function cleanEmptyReportSections(html = '') {
 
   try {
     const parser = new DOMParser();
-    const doc = parser.parseFromString(String(html), 'text/html');
+    const doc = parser.parseFromString(repairReportEncoding(String(html)), 'text/html');
+
+    doc.querySelector('meta[charset]')?.setAttribute('charset', 'UTF-8');
 
     doc.querySelectorAll('.empty-section, section, article').forEach((node) => {
+      if (node.classList?.contains('premium-cover')) return;
       if (!elementHasUsefulContent(node)) node.remove();
     });
 
@@ -428,6 +492,13 @@ export function cleanEmptyReportSections(html = '') {
       const className = String(node.getAttribute('class') || '');
       if (!/page|section|container|wrapper|premium/i.test(className)) return;
       if (!elementHasUsefulContent(node)) node.remove();
+    });
+
+    doc.querySelectorAll('.premium-page-break').forEach((node) => {
+      const previous = node.previousElementSibling;
+      if (previous?.classList?.contains('premium-page-break') && !elementHasUsefulContent(previous)) {
+        previous.remove();
+      }
     });
 
     return `<!doctype html>\n${doc.documentElement.outerHTML}`;
@@ -492,7 +563,7 @@ export async function buildVolumeHtml({
   });
   const htmlRevisado = revisarHtmlRelatorioAntesDaExportacao(htmlInicial, { modo: premium ? 'premium' : 'fisico_financeiro' });
   const htmlOtimizado = await optimizeReportHtmlImages(htmlRevisado, REPORT_IMAGE_OPTIMIZATION_OPTIONS);
-  const html = cleanEmptyReportSections(htmlOtimizado);
+  const html = cleanEmptyReportSections(repairReportEncoding(htmlOtimizado));
 
   return { html, contexto, filtros };
 }
@@ -746,7 +817,7 @@ export async function buildSingleReportHtml({
     splitContext: null,
     selectedInlinePhotoIds,
   });
-  const html = cleanEmptyReportSections(result.html);
+  const html = cleanEmptyReportSections(repairReportEncoding(result.html));
   return {
     html,
     contexto: result.contexto,
@@ -779,8 +850,8 @@ export async function buildSeparatedReportsHtml({
     selectedChapters: normalizedSections,
   });
   const galleryOptimizedHtml = await optimizeReportHtmlImages(galleryInitialHtml, REPORT_IMAGE_OPTIMIZATION_OPTIONS);
-  const galleryHtml = cleanEmptyReportSections(galleryOptimizedHtml);
-  const dataHtml = cleanEmptyReportSections(stripGalleryImagesFromDataReport(dataResult.html));
+  const galleryHtml = cleanEmptyReportSections(repairReportEncoding(galleryOptimizedHtml));
+  const dataHtml = cleanEmptyReportSections(stripGalleryImagesFromDataReport(repairReportEncoding(dataResult.html)));
 
   return {
     data: {
@@ -897,18 +968,19 @@ export async function saveSingleReportPreview({ html = '', meta = {} } = {}) {
 
 export async function saveReportPreview(variant = 'single', { html = '', meta = {} } = {}) {
   const config = REPORT_PREVIEW_VARIANTS[variant] || REPORT_PREVIEW_VARIANTS.single;
+  const finalHtml = cleanEmptyReportSections(repairReportEncoding(html));
   const payloadMeta = {
-    ...buildSingleReportMeta({ html, selectedChapters: meta.selectedChapters || [] }),
+    ...buildSingleReportMeta({ html: finalHtml, selectedChapters: meta.selectedChapters || [] }),
     ...meta,
     reportType: 'fisico_financeiro',
     exportMode: config.exportMode,
     reportVariant: variant,
   };
   try {
-    sessionStorage.setItem(config.htmlKey, html);
+    sessionStorage.setItem(config.htmlKey, finalHtml);
     sessionStorage.setItem(config.metaKey, JSON.stringify(payloadMeta));
     if (variant === 'single') {
-      sessionStorage.setItem(SINGLE_REPORT_HTML_KEY, html);
+      sessionStorage.setItem(SINGLE_REPORT_HTML_KEY, finalHtml);
       sessionStorage.setItem(SINGLE_REPORT_META_KEY, JSON.stringify(payloadMeta));
     }
   } catch (error) {
@@ -916,11 +988,11 @@ export async function saveReportPreview(variant = 'single', { html = '', meta = 
   }
 
   try {
-    localStorage.setItem(config.htmlKey, html);
+    localStorage.setItem(config.htmlKey, finalHtml);
     localStorage.setItem(config.metaKey, JSON.stringify(payloadMeta));
     localStorage.setItem(`${config.htmlKey}_saved_at`, payloadMeta.generatedAt || new Date().toISOString());
     if (variant === 'single') {
-      localStorage.setItem(SINGLE_REPORT_HTML_KEY, html);
+      localStorage.setItem(SINGLE_REPORT_HTML_KEY, finalHtml);
       localStorage.setItem(SINGLE_REPORT_META_KEY, JSON.stringify(payloadMeta));
       localStorage.setItem(`${SINGLE_REPORT_HTML_KEY}_saved_at`, payloadMeta.generatedAt || new Date().toISOString());
     }
@@ -929,7 +1001,7 @@ export async function saveReportPreview(variant = 'single', { html = '', meta = 
   }
 
   await savePreviewHtmlToIndexedDb(config.htmlKey, {
-    html,
+    html: finalHtml,
     meta: payloadMeta,
     savedAt: payloadMeta.generatedAt || new Date().toISOString(),
   });
