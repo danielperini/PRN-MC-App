@@ -171,7 +171,7 @@ function isEntityNotFoundError(error) {
   return message.includes('entity schema') || message.includes('not found in app');
 }
 
-async function withRetry(fn, { retries = 3, baseDelay = 900 } = {}) {
+async function withRetry(fn, { retries = 5, baseDelay = 1200 } = {}) {
   let lastError = null;
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
@@ -222,10 +222,10 @@ async function loadReportEntitiesSafely() {
     ['rubricasRaw', () => safeList(base44.entities.Rubrica, 'ordem_exibicao', 2000, { cacheKey: 'Rubrica', required: true })],
     ['comprasRaw', () => safeList(base44.entities.PurchaseRequest, '-created_date', 2000, { cacheKey: 'PurchaseRequest' })],
     ['teamPaymentsRaw', () => safeList(base44.entities.TeamPayment, '-created_date', 2000, { cacheKey: 'TeamPayment' })],
-    ['documentIntakeRaw', () => safeList(base44.entities.DocumentIntake, '-created_date', 2000, { cacheKey: 'DocumentIntake' })],
-    ['attachmentsRaw', () => safeList(base44.entities.Attachment, '-created_date', 3000, { cacheKey: 'Attachment' })],
+    ['documentIntakeRaw', () => safeList(base44.entities.DocumentIntake, '-created_date', 2000, { cacheKey: 'DocumentIntake', required: true })],
+    ['attachmentsRaw', () => safeList(base44.entities.Attachment, '-created_date', 3000, { cacheKey: 'Attachment', required: true })],
     ['metasRaw', () => safeList(base44.entities.Meta, 'codigo', 1000, { cacheKey: 'Meta' })],
-    ['programacaoRaw', () => safeList(base44.entities.Programacao, '-data_inicio', 3000, { cacheKey: 'Programacao' })],
+    ['programacaoRaw', () => safeList(base44.entities.Programacao, '-data_inicio', 3000, { cacheKey: 'Programacao', required: true })],
     ['conhecimentoRaw', () => carregarBaseConhecimento()],
   ];
   const data = {};
