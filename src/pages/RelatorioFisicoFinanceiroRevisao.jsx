@@ -63,7 +63,7 @@ export default function RelatorioFisicoFinanceiroRevisao() {
         }
       }
     } catch (err) {
-      toast.error('Erro ao carregar: ' + err.message);
+      console.warn('Relatório físico-financeiro indisponível no carregamento inicial.', err);
     } finally {
       setLoading(false);
     }

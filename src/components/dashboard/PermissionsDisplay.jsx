@@ -25,7 +25,7 @@ export default function PermissionsDisplay({ userEmail }) {
         const userPerms = allPerms.find(p => p.user_email === userEmail);
         setPerms(userPerms || null);
       } catch (error) {
-        console.error('Erro ao carregar permissões:', error);
+        console.warn('Permissões customizadas indisponíveis no dashboard.', error);
       } finally {
         setLoading(false);
       }

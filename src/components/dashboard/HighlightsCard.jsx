@@ -64,7 +64,7 @@ export default function HighlightsCard() {
         const recent = allHighlights.sort((a, b) => new Date(b.data) - new Date(a.data)).slice(0, 5);
         setHighlights(recent);
       } catch (error) {
-        console.error('Erro ao carregar fatos marcantes:', error);
+        console.warn('Fatos marcantes indisponíveis no dashboard. Mantendo lista vazia.', error);
         setHighlights([]);
       } finally {
         setLoading(false);

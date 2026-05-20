@@ -29,7 +29,7 @@ export default function DataSyncAuditPanel() {
         setLastSync(new Date(logs[0].created_date));
       }
     } catch (error) {
-      console.error('Erro ao carregar auditoria:', error);
+      console.warn('Auditoria do dashboard indisponível no carregamento inicial.', error);
     } finally {
       setLoading(false);
     }

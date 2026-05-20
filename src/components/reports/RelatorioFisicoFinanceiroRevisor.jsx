@@ -66,7 +66,7 @@ export default function RelatorioFisicoFinanceiroRevisor({ dateFrom, dateTo, mus
         setTextoEditado(textosIA[secaoAtual] || '');
       }
     } catch (err) {
-      toast.error('Erro ao carregar revisão: ' + err.message);
+      console.warn('Revisão físico-financeira indisponível no carregamento inicial.', err);
     } finally {
       setLoading(false);
     }

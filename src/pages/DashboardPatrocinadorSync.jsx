@@ -558,7 +558,7 @@ export default function DashboardPatrocinadorSync() {
 
       setLastUpdate(new Date());
     } catch (error) {
-      console.error('Erro ao carregar dashboard patrocinador sincronizado:', error);
+      console.warn('Dashboard patrocinador parcialmente indisponível. Mantendo dados disponíveis.', error);
       setLoadError('Alguns dados não puderam ser carregados. O painel exibiu o que estava disponível.');
     } finally {
       isFetchingRef.current = false;

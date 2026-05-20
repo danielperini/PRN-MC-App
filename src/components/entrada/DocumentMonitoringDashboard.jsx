@@ -90,7 +90,7 @@ export default function DocumentMonitoringDashboard() {
         setDocuments(docs.slice(0, 10).sort((a, b) => new Date(b.created_date) - new Date(a.created_date)));
         setLoading(false);
       } catch (error) {
-        console.error('Erro ao carregar métricas:', error);
+        console.warn('Métricas documentais indisponíveis no dashboard. Mantendo valores padrão.', error);
         setLoading(false);
       }
     };

@@ -32,7 +32,7 @@ export default function AgendaCard() {
 
         setItems(filtered);
       } catch (e) {
-        console.error('Erro ao carregar agenda do card:', e);
+        console.warn('Agenda do card indisponível. Mantendo card vazio.', e);
       } finally {
         setLoading(false);
       }

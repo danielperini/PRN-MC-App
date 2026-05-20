@@ -27,7 +27,7 @@ function DashboardFinanceiroInner() {
         const data = await base44.entities.TermoCompromisso.list('-created_date', 500);
         return Array.isArray(data) ? data : [];
       } catch (e) {
-        toastMessages.warning('Erro ao carregar termos.');
+        console.warn('Termos indisponíveis no dashboard financeiro. Mantendo lista vazia.', e);
         return [];
       }
     }
@@ -40,7 +40,7 @@ function DashboardFinanceiroInner() {
         const data = await base44.entities.PagamentoFornecedor.list('-data_pagamento', 500);
         return Array.isArray(data) ? data : [];
       } catch (e) {
-        toastMessages.warning('Erro ao carregar pagamentos.');
+        console.warn('Pagamentos indisponíveis no dashboard financeiro. Mantendo lista vazia.', e);
         return [];
       }
     }

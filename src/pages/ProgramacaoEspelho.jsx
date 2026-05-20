@@ -319,7 +319,7 @@ export default function ProgramacaoEspelho() {
       setAllProgramacoes(normalized);
       await aplicarSelecaoPadrao(normalized);
     } catch (err) {
-      console.error('Erro ao carregar programações:', err);
+      console.warn('Programações indisponíveis no carregamento inicial. Exibindo lista vazia.', err);
       setAllProgramacoes([]);
       setProgramacoes([]);
     } finally {

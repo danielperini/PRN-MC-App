@@ -207,14 +207,13 @@ export default function Agenda() {
         const data = await base44.entities.Programacao.list('-data_inicio', 5000);
         return Array.isArray(data) ? data : [];
       } catch (error) {
-        console.error('Erro ao carregar agenda:', error);
-        toastMessages.warning('Erro ao carregar agenda. Tente novamente.');
-        throw error;
+        console.warn('Agenda indisponível no carregamento inicial. Exibindo lista vazia.', error);
+        return [];
       }
     },
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
-    retry: 1,
+    retry: false,
   });
 
   const availableMonths = useMemo(() => {

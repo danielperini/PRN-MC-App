@@ -144,7 +144,7 @@ export default function NewsCarousel() {
         setItems(curated);
         setIndex(getDailyStartIndex(curated.length, 4));
       } catch (e) {
-        console.error('Erro ao carregar notícias publicadas do LeitorNoticias:', e);
+        console.warn('Notícias publicadas indisponíveis no dashboard. Mantendo carrossel vazio.', e);
         if (isMounted) setItems([]);
       }
     }
