@@ -22,6 +22,7 @@ import { normalizeHtmlForReport } from '@/utils/reportTextHelpers';
 import montarHtmlRelatorioFisicoFinanceiro from '@/utils/relatorioFisicoFinanceiroTemplate';
 import gerarTextosRelatorioFisicoFinanceiro from '@/services/relatorioIAService';
 import { montarHtmlRelatorioPremium } from '@/components/reports/premium/PremiumReportLayout';
+import { saveSingleReportPreview } from '@/services/reportExportPipeline';
 const SECOES = REPORT_CHAPTERS;
 
 const MUSEUS_OPTIONS = [
@@ -82,12 +83,19 @@ async function carregarBaseConhecimento() {
   return [];
 }
 
-function salvarPreview(html) {
+async function salvarPreview(html, meta = {}) {
   try {
     sessionStorage.setItem('relatorio_fisico_financeiro_html', html);
   } catch (error) {
     console.warn('Não foi possível salvar prévia no sessionStorage:', error);
   }
+
+  await saveSingleReportPreview({
+    html,
+    meta: {
+      ...meta,
+    },
+  });
 }
 
 export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
@@ -215,7 +223,9 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
 
     try {
       const html = await gerarHtml();
-      salvarPreview(html);
+      await salvarPreview(html, {
+        selectedChapters: secoesSelecionadas,
+      });
 
       const w = window.open('/RelatorioPreview', '_blank', 'width=1200,height=900');
       if (w) {

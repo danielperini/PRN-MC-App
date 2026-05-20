@@ -1975,7 +1975,7 @@ export default function RelatorioPreview() {
     let cancelled = false;
     async function load() {
       const preview = await getSingleReportPreview();
-      const finalHtml = preview.html || '';
+      const finalHtml = preview.html || await getStoredHtml() || '';
       if (!cancelled) {
         setReportMeta(preview.meta || {});
         setHtml(finalHtml);
@@ -2037,7 +2037,7 @@ async function getHtmlForExport() {
     if (String(html || '').trim()) return html;
 
     const preview = await getSingleReportPreview();
-    return preview.html || '';
+    return preview.html || await getStoredHtml() || '';
   }
 
   function updateExportQueueItem(index, patch) {
@@ -2077,7 +2077,7 @@ async function getHtmlForExport() {
   }
 
   async function handleDownloadHtml() {
-    const htmlForDownload = html || (await getSingleReportPreview()).html || '';
+    const htmlForDownload = html || (await getSingleReportPreview()).html || await getStoredHtml() || '';
     if (!String(htmlForDownload || '').trim()) {
       toast.error('HTML do relatório não encontrado. Gere o relatório novamente.');
       return;
