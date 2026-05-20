@@ -750,8 +750,7 @@ function GaleriaFotosInner() {
             )
         );
       } catch (error) {
-        console.error('Erro ao carregar imagens legadas da galeria:', error);
-        toastMessages.warning('Erro ao carregar imagens da galeria');
+        console.warn('Imagens legadas da galeria indisponíveis. Mantendo imagens já carregadas por MediaLibrary.', error);
       }
 
       let dedupedImages = [];
@@ -766,7 +765,7 @@ function GaleriaFotosInner() {
     enabled: !!currentUser?.email,
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
-    retry: 1,
+    retry: false,
   });
 
   const images = Array.isArray(galleryData) ? galleryData : galleryData.images || [];
