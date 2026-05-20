@@ -2,6 +2,7 @@ import React from 'react';
 import { BarChart3, FileText, User, ShoppingCart, CalendarDays } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import { requestDashboardPriorityRefresh } from '@/utils/dashboardRefresh';
 
 const ROUTES = [
   { name: 'Dashboard', icon: BarChart3, path: 'Dashboard', label: 'Painel', root: '/' },
@@ -35,6 +36,9 @@ export default function MobileBottomTab({ currentPageName }) {
             <button
               key={route.path}
               onClick={() => {
+                if (route.path === 'Dashboard') {
+                  requestDashboardPriorityRefresh('mobile-tab-dashboard-click');
+                }
                 if (isActive && location.pathname !== route.root) {
                   navigate(route.root);
                 } else if (!isActive) {

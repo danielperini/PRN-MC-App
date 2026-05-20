@@ -17,6 +17,7 @@ import {
 import { Activity, Calendar, MapPin, RotateCw, TrendingUp, Users } from 'lucide-react';
 import AgendaCard from '@/components/patrocinador/AgendaCard';
 import { consolidateOfficialDashboardMetrics } from '@/utils/auditoria/institutionalMetrics';
+import { consumeDashboardPriorityRefresh } from '@/utils/dashboardRefresh';
 
 const TOTAL_OFICIAL = 1320000;
 const MUSEUS = ['MIS', 'MHAB', 'MUMO'];
@@ -567,7 +568,8 @@ export default function DashboardPatrocinadorSync() {
   }, []);
 
   useEffect(() => {
-    loadDashboardData(false);
+    const hasPriorityRefresh = consumeDashboardPriorityRefresh();
+    loadDashboardData(!hasPriorityRefresh);
     const interval = setInterval(() => loadDashboardData(true), 60000);
     const onUpdate = () => loadDashboardData(true);
     window.addEventListener('dashboard:update', onUpdate);

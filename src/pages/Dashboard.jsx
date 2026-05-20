@@ -19,6 +19,7 @@ import DashboardProfissional from './DashboardProfissional.jsx';
 import DashboardPatrocinador from './DashboardPatrocinador';
 import GaleriaTickerCarousel from '../components/dashboard/GaleriaTickerCarousel';
 import DiariamenteNosMuseus from '../components/dashboard/DiariamenteNosMuseus';
+import { consumeDashboardPriorityRefresh } from '@/utils/dashboardRefresh';
 
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
 
@@ -345,6 +346,13 @@ function DashboardInner() {
       window.removeEventListener('dashboard:update', handleDashboardUpdate);
       window.removeEventListener('storage', handleStorageUpdate);
     };
+  }, [currentUser?.email, refetchDashboardData]);
+
+  React.useEffect(() => {
+    if (!currentUser?.email) return;
+    const pendingRefresh = consumeDashboardPriorityRefresh();
+    if (!pendingRefresh) return;
+    refetchDashboardData();
   }, [currentUser?.email, refetchDashboardData]);
 
   const handleRefresh = async () => {

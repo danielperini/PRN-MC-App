@@ -36,6 +36,7 @@ import {
   SIDEBAR_PROFISSIONAL,
 } from '@/components/auth/permissions';
 import { normalizeEmail } from '@/utils/auth/recoverExistingUserAccess';
+import { requestDashboardPriorityRefresh } from '@/utils/dashboardRefresh';
 import SidebarTooltip from './SidebarTooltip';
 
 const NAV_GROUPS = [
@@ -246,11 +247,17 @@ const SPONSOR_NAV_GROUPS = [
 
 function NavItem({ item, isActive, collapsed, userPermission, user }) {
   const Icon = item.icon;
+  const isDashboardLink = item.path === 'Dashboard' || item.path === 'DashboardPatrocinador';
 
   return (
     <SidebarTooltip label={item.path} collapsed={collapsed}>
       <Link
         to={`/${item.path}`}
+        onClick={() => {
+          if (isDashboardLink) {
+            requestDashboardPriorityRefresh('sidebar-dashboard-click');
+          }
+        }}
         className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-150 group relative
           ${isActive
             ? 'bg-secondary text-secondary-foreground font-semibold'

@@ -6,6 +6,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import NotificationBell from '@/components/notifications/NotificationBell';
 import PendingActionsAlert from '@/components/notifications/PendingActionsAlert';
+import { requestDashboardPriorityRefresh } from '@/utils/dashboardRefresh';
 import GlobalSearch from './GlobalSearch';
 
 export default function TopNav({ currentUser }) {
@@ -23,7 +24,7 @@ export default function TopNav({ currentUser }) {
 
       {/* Right side */}
       <div className="flex items-center gap-4 ml-auto">
-        <Link to="/">
+        <Link to="/" onClick={() => requestDashboardPriorityRefresh('topnav-dashboard-click')}>
            <Button variant="ghost" className="text-black hover:bg-black hover:text-white h-9 px-3 gap-1.5 text-xs font-medium" title="Voltar ao Dashboard">
              <Home className="w-4 h-4" />
              <span className="hidden sm:inline">Dashboard</span>

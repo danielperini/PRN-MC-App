@@ -3,6 +3,7 @@ import { ChevronLeft, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate, Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import { requestDashboardPriorityRefresh } from '@/utils/dashboardRefresh';
 
 export default function MobileHeader({ title, showBack = true, onBack }) {
   const navigate = useNavigate();
@@ -31,7 +32,10 @@ export default function MobileHeader({ title, showBack = true, onBack }) {
           <div className="w-8" />
         )}
         <h1 className="text-base font-semibold text-black flex-1 text-center">{title}</h1>
-        <Link to={createPageUrl('Dashboard')}>
+        <Link
+          to={createPageUrl('Dashboard')}
+          onClick={() => requestDashboardPriorityRefresh('mobile-header-dashboard-click')}
+        >
           <Button variant="ghost" size="icon" className="h-8 w-8 -mr-2 text-gray-500">
             <Home className="w-4 h-4" />
           </Button>
