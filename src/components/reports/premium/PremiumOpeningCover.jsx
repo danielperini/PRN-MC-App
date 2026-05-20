@@ -2,6 +2,14 @@ import React from 'react';
 import { extractPhotos, fmtInt, normalizeText } from './premiumReportUtils';
 
 function pickCoverPhoto(contexto) {
+  const candidate = contexto?.cover_photo_candidate;
+  if (candidate?.imageUrl || candidate?.url) {
+    return {
+      url: candidate.imageUrl || candidate.url,
+      credito: candidate.credito || '',
+      localizacao: candidate.localizacao || null,
+    };
+  }
   const photos = extractPhotos(contexto, 48);
   const peopleHints = ['público', 'publico', 'equipe', 'oficina', 'atividade', 'mediação', 'mediacao', 'participantes', 'libras', 'memórias', 'memorias', 'roda', 'formação', 'formacao'];
   return photos.find((photo) => {

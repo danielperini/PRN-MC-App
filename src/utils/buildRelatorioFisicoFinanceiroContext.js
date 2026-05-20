@@ -757,6 +757,146 @@ function diffDays(a, b) {
   return Math.abs(Math.round((da.getTime() - db.getTime()) / (1000 * 60 * 60 * 24)));
 }
 
+function normalizeIdentityText(value = '') {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normalizeDateToDay(value = '') {
+  const d = parseDate(value);
+  return d ? d.toISOString().slice(0, 10) : '';
+}
+
+function activityImageSetSignature(atividade = {}) {
+  const photos = Array.isArray(atividade?.fotos) ? atividade.fotos : [];
+  const keys = photos
+    .map((photo) => String(getImageIdentity(photo) || attachmentUrl(photo)))
+    .filter(Boolean)
+    .sort();
+  if (keys.length === 0) return '';
+  return keys.join('|');
+}
+
+function mergeActivityRecords(base = {}, candidate = {}) {
+  const pickLonger = (a, b) => (String(b || '').length > String(a || '').length ? b : a);
+  const safeNumber = (value) => (Number.isFinite(Number(value)) ? Number(value) : null);
+
+  const basePublico = safeNumber(base?.publico);
+  const candidatePublico = safeNumber(candidate?.publico);
+  const mergedPublico = basePublico && candidatePublico
+    ? (basePublico === candidatePublico ? basePublico : Math.max(basePublico, candidatePublico))
+    : (basePublico || candidatePublico || null);
+
+  const fotos = [
+    ...(Array.isArray(base?.fotos) ? base.fotos : []),
+    ...(Array.isArray(candidate?.fotos) ? candidate.fotos : []),
+  ].filter(Boolean);
+
+  const dedupFotos = [];
+  const seen = new Set();
+  fotos.forEach((photo) => {
+    const key = String(getImageIdentity(photo) || attachmentUrl(photo));
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    dedupFotos.push(photo);
+  });
+
+  return {
+    ...base,
+    nome: pickLonger(base?.nome, candidate?.nome),
+    descricao: pickLonger(base?.descricao, candidate?.descricao),
+    sinopse_agenda: pickLonger(base?.sinopse_agenda, candidate?.sinopse_agenda),
+    local: pickLonger(base?.local, candidate?.local),
+    publico: mergedPublico,
+    publico_label: mergedPublico ? mergedPublico.toLocaleString('pt-BR') : 'N/A',
+    fotos: dedupFotos,
+    fotos_destaque: dedupFotos.slice(0, 4),
+    fotos_demais: dedupFotos.slice(4),
+    merged_from_activity_ids: [
+      ...(Array.isArray(base?.merged_from_activity_ids) ? base.merged_from_activity_ids : [base?.id].filter(Boolean)),
+      ...(Array.isArray(candidate?.merged_from_activity_ids) ? candidate.merged_from_activity_ids : [candidate?.id].filter(Boolean)),
+    ],
+  };
+}
+
+function mergeDuplicateActivitiesByImages(atividades = []) {
+  const groups = new Map();
+  (Array.isArray(atividades) ? atividades : []).forEach((atividade) => {
+    const signature = activityImageSetSignature(atividade);
+    if (!signature) return;
+    if (!groups.has(signature)) groups.set(signature, []);
+    groups.get(signature).push(atividade);
+  });
+
+  const mergedActivities = [];
+  const alerts = [];
+  const output = [];
+  const mergedSet = new Set();
+
+  (Array.isArray(atividades) ? atividades : []).forEach((atividade) => {
+    if (!atividade?.id || mergedSet.has(atividade.id)) return;
+    const signature = activityImageSetSignature(atividade);
+    const candidates = signature ? (groups.get(signature) || []) : [];
+
+    if (candidates.length <= 1) {
+      output.push(atividade);
+      mergedSet.add(atividade.id);
+      return;
+    }
+
+    const sameMuseumDay = candidates.every((item) =>
+      normalizeMuseu(item?.museu) === normalizeMuseu(atividade?.museu) &&
+      normalizeDateToDay(item?.data || '') === normalizeDateToDay(atividade?.data || '')
+    );
+    const sameTitleFamily = candidates.every((item) => {
+      const a = normalizeIdentityText(item?.nome || item?.titulo || '');
+      const b = normalizeIdentityText(atividade?.nome || atividade?.titulo || '');
+      return a === b || a.includes(b) || b.includes(a);
+    });
+
+    if (!(sameMuseumDay && sameTitleFamily)) {
+      output.push(atividade);
+      mergedSet.add(atividade.id);
+      candidates.forEach((c) => {
+        if (c.id !== atividade.id) {
+          alerts.push({
+            type: 'imagem_compartilhada_entre_atividades_distintas',
+            severity: 'media',
+            recommendation: 'Revisar vínculo manualmente; atividades mantidas separadas.',
+          });
+        }
+      });
+      return;
+    }
+
+    let merged = atividade;
+    candidates.forEach((candidate) => {
+      if (candidate.id === merged.id) return;
+      merged = mergeActivityRecords(merged, candidate);
+      mergedSet.add(candidate.id);
+    });
+    mergedSet.add(atividade.id);
+    output.push(merged);
+    mergedActivities.push({
+      finalActivityId: merged.id,
+      originalActivityIds: candidates.map((item) => item.id).filter(Boolean),
+      reason: 'Atividades tinham mesmo conjunto de imagens, data e museu.',
+      mergedFields: ['titulo', 'descricao', 'publico', 'imagens'],
+    });
+  });
+
+  return {
+    atividades: output,
+    mergedActivities,
+    alerts,
+  };
+}
+
 function allocateImagesToActivities(atividades = [], attachmentsRaw = [], galleryRaw = []) {
   const pool = [
     ...(Array.isArray(attachmentsRaw) ? attachmentsRaw : []).map((item) => mapImageRecord(item, 'Attachment')),
@@ -766,6 +906,9 @@ function allocateImagesToActivities(atividades = [], attachmentsRaw = [], galler
   const used = new Set();
   const duplicatedImagesAvoided = [];
   const imageAllocation = [];
+  const selectedByImage = new Map();
+  const mergeResult = mergeDuplicateActivitiesByImages(atividades);
+  const atividadesBase = Array.isArray(mergeResult?.atividades) ? mergeResult.atividades : [];
 
   const byMuseu = pool.reduce((acc, image) => {
     const key = image.museu || 'Atuação Geral';
@@ -774,7 +917,7 @@ function allocateImagesToActivities(atividades = [], attachmentsRaw = [], galler
     return acc;
   }, {});
 
-  const enriched = (Array.isArray(atividades) ? atividades : []).map((atividade) => {
+  const enriched = (Array.isArray(atividadesBase) ? atividadesBase : []).map((atividade) => {
     const existing = Array.isArray(atividade?.fotos) ? atividade.fotos : [];
     const currentPhotos = [];
 
@@ -857,6 +1000,138 @@ function allocateImagesToActivities(atividades = [], attachmentsRaw = [], galler
   }));
 
   return { atividades: enriched, imageAllocation, unusedImages, duplicatedImagesAvoided };
+}
+
+function allocateImagesToActivitiesV2(atividades = [], attachmentsRaw = [], galleryRaw = []) {
+  const pool = [
+    ...(Array.isArray(attachmentsRaw) ? attachmentsRaw : []).map((item) => mapImageRecord(item, 'Attachment')),
+    ...(Array.isArray(galleryRaw) ? galleryRaw : []).map((item) => mapImageRecord(item, 'Gallery')),
+  ].filter(Boolean);
+
+  const usedImageIds = new Set();
+  const selectedByImage = new Map();
+  const imageAllocation = [];
+  const duplicatedImagesAvoided = [];
+
+  const mergeResult = mergeDuplicateActivitiesByImages(atividades);
+  const workingActivities = Array.isArray(mergeResult?.atividades) ? mergeResult.atividades : [];
+
+  const byMuseu = pool.reduce((acc, image) => {
+    const key = image.museu || 'Atuação Geral';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(image);
+    return acc;
+  }, {});
+
+  const enriched = workingActivities.map((atividade) => {
+    const existing = Array.isArray(atividade?.fotos) ? atividade.fotos : [];
+    const currentPhotos = [];
+
+    existing.forEach((photo) => {
+      const id = String(getImageIdentity(photo) || attachmentUrl(photo));
+      const url = attachmentUrl(photo);
+      if (!id || !url) return;
+      if (usedImageIds.has(id)) {
+        duplicatedImagesAvoided.push({
+          imageId: id,
+          attemptedActivityIds: [selectedByImage.get(id), atividade.id].filter(Boolean),
+          selectedActivityId: selectedByImage.get(id) || '',
+          reason: 'Imagem já utilizada na atividade com vínculo mais forte.',
+        });
+        return;
+      }
+
+      usedImageIds.add(id);
+      selectedByImage.set(id, atividade.id || '');
+      currentPhotos.push(photo);
+      imageAllocation.push({
+        imageId: id,
+        imageUrl: url,
+        fileName: photo?.fileName || photo?.name || '',
+        assignedActivityId: atividade.id || '',
+        assignedActivityTitle: atividade.nome || '',
+        reportId: atividade.report_id || '',
+        museum: atividade.museu || '',
+        date: atividade.data || '',
+        usage: 'activity_evidence',
+        volume: null,
+        chapterId: 'atividades_museu',
+        confidence: 0.99,
+        reason: 'Imagem vinculada diretamente à atividade no relatório do usuário.',
+      });
+    });
+
+    if (currentPhotos.length < 4) {
+      const museuKey = normalizeMuseu(atividade.museu);
+      const candidates = [
+        ...(byMuseu[museuKey] || []),
+        ...(byMuseu['Atuação Geral'] || []),
+      ].filter((image) => !usedImageIds.has(image.id));
+
+      candidates
+        .sort((a, b) => diffDays(atividade.data, a.data) - diffDays(atividade.data, b.data))
+        .slice(0, Math.max(0, 4 - currentPhotos.length))
+        .forEach((image) => {
+          if (usedImageIds.has(image.id)) return;
+          usedImageIds.add(image.id);
+          selectedByImage.set(image.id, atividade.id || '');
+          currentPhotos.push({
+            id: image.id,
+            url: image.url,
+            legenda: image.legenda,
+            credito: image.credito,
+            atividade: atividade.nome,
+            museu: atividade.museu,
+            mes: atividade.mes,
+            localizacao: image.localizacao,
+            origem: image.origem,
+          });
+          imageAllocation.push({
+            imageId: image.id,
+            imageUrl: image.url,
+            fileName: image.raw?.file_name || image.raw?.name || '',
+            assignedActivityId: atividade.id || '',
+            assignedActivityTitle: atividade.nome || '',
+            reportId: atividade.report_id || '',
+            museum: atividade.museu || '',
+            date: atividade.data || '',
+            usage: 'activity_evidence',
+            volume: null,
+            chapterId: 'atividades_museu',
+            confidence: 0.72,
+            reason: 'Vínculo por museu e proximidade temporal.',
+          });
+        });
+    }
+
+    return {
+      ...atividade,
+      fotos: currentPhotos,
+      fotos_destaque: currentPhotos.slice(0, 4),
+      fotos_demais: currentPhotos.slice(4),
+      galeria_links: currentPhotos.slice(4).map((foto) => foto.url).filter(Boolean),
+    };
+  });
+
+  const unusedImages = pool
+    .filter((image) => !usedImageIds.has(image.id))
+    .map((image) => ({
+      imageId: image.id,
+      imageUrl: image.url,
+      fileName: image.raw?.file_name || image.raw?.name || '',
+      reason: 'Imagem sem vínculo suficiente com atividade.',
+      recommendation: 'Revisar manualmente antes de usar.',
+    }));
+
+  return {
+    atividades: enriched,
+    imageAllocation,
+    duplicatedImagesAvoided,
+    mergedActivities: mergeResult?.mergedActivities || [],
+    alerts: mergeResult?.alerts || [],
+    unusedImages,
+    coverCandidate: unusedImages[0] || null,
+  };
 }
 
 function buildBudgetByMuseum({
@@ -1047,7 +1322,7 @@ export function buildRelatorioFisicoFinanceiroContext({
     });
   });
 
-  const alocacaoImagens = allocateImagesToActivities(atividades, attachmentsRaw, galleryRaw);
+  const alocacaoImagens = allocateImagesToActivitiesV2(atividades, attachmentsRaw, galleryRaw);
   const atividadesComFotos = alocacaoImagens.atividades;
   const atividadesPorCategoria = groupAtividades(atividadesComFotos);
 
@@ -1300,6 +1575,16 @@ export function buildRelatorioFisicoFinanceiroContext({
     imageAllocation: alocacaoImagens.imageAllocation,
     unusedImages: alocacaoImagens.unusedImages,
     duplicatedImagesAvoided: alocacaoImagens.duplicatedImagesAvoided,
+    mergedActivities: alocacaoImagens.mergedActivities,
+    imageAlerts: alocacaoImagens.alerts,
+    cover_photo_candidate: alocacaoImagens.coverCandidate,
+    imageAllocationPlan: {
+      usedImages: alocacaoImagens.imageAllocation,
+      duplicatedImagesAvoided: alocacaoImagens.duplicatedImagesAvoided,
+      mergedActivities: alocacaoImagens.mergedActivities,
+      unassignedImages: alocacaoImagens.unusedImages,
+      alerts: alocacaoImagens.alerts,
+    },
     budget_by_museum: budgetByMuseum.byMuseum,
     budget_tables: {
       resumo_por_museu: budgetByMuseum.resumoPorMuseu,

@@ -538,6 +538,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
         secoesSelecionadas: normalizedSelectedSections,
         selectedInlinePhotoIds: inlinePhotoIds,
       });
+      updateProgress(46, 'Analisando evidências visuais vinculadas às atividades...', 'Detectando imagens repetidas e aplicando uso único');
       allVolumeParts = buildVolumeParts(normalizedSelectedSections, fullData?.contexto || {});
       selectedVolume = allVolumeParts.find((part) => part.partNumber === volumeNumber);
       if (!selectedVolume || selectedVolume.secoes.length === 0) {
@@ -565,6 +566,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
         splitContext,
         selectedInlinePhotoIds: inlinePhotoIds,
       });
+      updateProgress(84, 'Distribuindo imagens junto das atividades...', 'Gerando plano de uso único das imagens');
 
       const htmlPart = injectPartMetadata(localPart.html, {
         partNumber: volumeNumber,
