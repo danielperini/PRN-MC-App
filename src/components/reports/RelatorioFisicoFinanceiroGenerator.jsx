@@ -14,7 +14,6 @@ import montarHtmlRelatorioFisicoFinanceiro from '@/utils/relatorioFisicoFinancei
 import gerarTextosRelatorioFisicoFinanceiro from '@/services/relatorioIAService';
 import { montarHtmlRelatorioPremium } from '@/components/reports/premium/PremiumReportLayout';
 import { revisarHtmlRelatorioAntesDaExportacao } from '@/services/reportEditorialReview';
-import { consolidateOfficialDashboardMetrics } from '@/utils/auditoria/institutionalMetrics';
 import {
   DEFAULT_OPTIONS as REPORT_IMAGE_OPTIMIZATION_OPTIONS,
   optimizeReportHtmlImages,
@@ -636,19 +635,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
       });
 
       updateProgress(48, 'Recalculando metricas oficiais', 'Consolidando indicadores oficiais do dashboard e do periodo', 'pesquisa');
-      const dashboardMetrics = consolidateOfficialDashboardMetrics({
-        reports: contexto?.reports_raw || [],
-        programacao: contexto?.programacao_raw || [],
-        rubricas: contexto?.rubricas_raw || [],
-        metas: contexto?.metas_raw || [],
-        photos: [
-          ...(Array.isArray(contexto?.attachments_raw) ? contexto.attachments_raw : []),
-          ...(Array.isArray(contexto?.gallery_raw) ? contexto.gallery_raw : []),
-        ],
-        presenceRecords: Array.isArray(contexto?.presence_records_raw) ? contexto.presence_records_raw : [],
-      }, {
-        period: { from: '2026-02-02', to: '2026-04-30' },
-      });
+      const dashboardMetrics = contexto?.dashboard_metrics || {};
 
       updateProgress(65, 'Regerando HTML do relatorio', 'Atualizando relatorio principal, dados e galeria', 'pesquisa');
       const separated = await buildSeparatedReportsHtml({
@@ -694,6 +681,10 @@ export default function RelatorioFisicoFinanceiroGenerator() {
 
       const mainHtml = separated?.data?.html || separated?.single?.html || '';
       const mainContext = separated?.data?.contexto || separated?.single?.contexto || separated?.contexto || contexto;
+      const resolvedDashboardMetrics = separated?.data?.contexto?.dashboard_metrics
+        || mainContext?.dashboard_metrics
+        || contexto?.dashboard_metrics
+        || dashboardMetrics;
 
       if (!String(mainHtml || '').trim()) {
         throw new Error('A pesquisa foi concluida, mas nenhum HTML atualizado foi gerado.');
@@ -704,7 +695,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
         galleryHtml: separated?.gallery?.html || '',
         contexto: {
           ...mainContext,
-          dashboard_metrics: dashboardMetrics,
+          dashboard_metrics: resolvedDashboardMetrics,
         },
         fonte: modoPremium ? 'premium_app_forced_refresh' : 'frontend_ia_forced_refresh',
         exportMode: 'data_pdf',
@@ -718,7 +709,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
           forcedRefresh: true,
           metricsForcedRefresh: true,
           reportVariant: 'dados',
-          dashboardMetrics,
+          dashboardMetrics: resolvedDashboardMetrics,
         },
         galleryMeta: separated?.gallery?.meta
           ? {
@@ -727,7 +718,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
               forcedRefresh: true,
               metricsForcedRefresh: true,
               reportVariant: 'galeria',
-              dashboardMetrics,
+              dashboardMetrics: resolvedDashboardMetrics,
             }
           : null,
         refreshedAt,
@@ -738,7 +729,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
       toast.success('Dados, metricas, HTML e PDF foram atualizados com informacoes reais do app.');
       return {
         ...mainContext,
-        dashboard_metrics: dashboardMetrics,
+        dashboard_metrics: resolvedDashboardMetrics,
       };
     } catch (err) {
       console.error(err);
