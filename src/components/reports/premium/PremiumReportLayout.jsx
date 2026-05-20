@@ -37,7 +37,7 @@ const CATALOG_CSS = `
   @page cover { size: A4; margin: 0; }
   * { box-sizing: border-box; }
   body { margin: 0; background: #e7e3dc; color: #171717; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-  .premium-report { background: #f7f3eb; color: #171717; }
+  .premium-report { width: 210mm; max-width: 210mm; margin: 0 auto; overflow: hidden; background: #f7f3eb; color: #171717; }
   .report-pdf-institutional-header { display: none; }
   .report-pdf-institutional-logo-wrap { width: 16mm; height: 16mm; flex: 0 0 16mm; }
   .report-pdf-institutional-logo { width: 16mm; height: 16mm; display: block; object-fit: contain; }
@@ -57,16 +57,16 @@ const CATALOG_CSS = `
   .premium-cover > img { opacity: .82; }
   .premium-cover-fallback { background: linear-gradient(135deg, #111 0%, #39352d 48%, #6e5c45 100%); }
   .premium-cover-overlay { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.05) 0%, rgba(0,0,0,.38) 52%, rgba(0,0,0,.78) 100%); }
-  .premium-cover-content { position: relative; width: 100%; padding: 34mm 20mm 24mm; }
+  .premium-cover-content { position: relative; width: 100%; padding: 34mm 18mm 24mm; }
   .premium-cover-kicker, .premium-eyebrow { margin: 0 0 10px; font-size: 10px; line-height: 1.5; letter-spacing: .18em; text-transform: uppercase; font-weight: 700; color: #9f7f4d; }
   .premium-cover h1 { max-width: 760px; margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 64px; line-height: .92; letter-spacing: 0; font-weight: 500; }
   .premium-cover-period { margin: 20px 0 28px; font-size: 16px; color: rgba(255,255,255,.78); }
   .premium-cover-credit { margin: -14px 0 22px; font-size: 10px; color: rgba(255,255,255,.62); letter-spacing: .06em; text-transform: uppercase; }
-  .premium-cover-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; max-width: 860px; background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.25); }
+  .premium-cover-grid { display: none; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; max-width: 860px; background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.25); }
   .premium-cover-grid span { padding: 14px; background: rgba(0,0,0,.45); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
-  .premium-section, .premium-museum-block, .premium-communication, .premium-closing { padding: 18mm 18mm 16mm; background: #f7f3eb; min-height: auto; }
-  .premium-expediente { padding: 18mm 18mm 16mm; background: #f7f3eb; min-height: auto; color: #171717; }
-  .premium-expediente-heading { display: grid; grid-template-columns: minmax(0, .8fr) minmax(260px, .55fr); gap: 28px; align-items: end; padding-bottom: 20px; border-bottom: 1px solid rgba(23,23,23,.2); margin-bottom: 22px; }
+  .premium-section, .premium-museum-block, .premium-communication, .premium-closing { padding: 16mm 14mm 15mm; background: #f7f3eb; min-height: auto; max-width: 210mm; overflow: hidden; }
+  .premium-expediente { padding: 16mm 14mm 15mm; background: #f7f3eb; min-height: auto; max-width: 210mm; overflow: hidden; color: #171717; }
+  .premium-expediente-heading { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: start; padding-bottom: 18px; border-bottom: 1px solid rgba(23,23,23,.2); margin-bottom: 20px; }
   .premium-expediente-heading h2 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 42px; line-height: .98; font-weight: 500; letter-spacing: 0; }
   .premium-expediente-heading p:last-child { margin: 0; font-size: 14px; line-height: 1.68; color: #3d3a35; }
   .premium-expediente-grid, .premium-expediente-museums { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px; margin-bottom: 16px; }
@@ -83,13 +83,13 @@ const CATALOG_CSS = `
   .premium-expediente-people span { display: block; margin-top: 4px; font-size: 11.5px; line-height: 1.35; color: #5e574f; }
   .premium-page-break { break-before: page; }
   .premium-section-dark { background: #171717; color: #f7f3eb; }
-  .premium-section-heading { display: grid; grid-template-columns: minmax(0, .95fr) minmax(220px, .55fr); gap: 24px; align-items: end; margin-bottom: 22px; border-bottom: 1px solid rgba(23,23,23,.18); padding-bottom: 18px; }
+  .premium-section-heading { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: start; margin-bottom: 20px; border-bottom: 1px solid rgba(23,23,23,.18); padding-bottom: 16px; }
   .premium-section-heading h2, .premium-museum-heading h2, .premium-closing h2 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 38px; line-height: 1; font-weight: 500; letter-spacing: 0; text-align: left; }
   .premium-section-subtitle { margin: 0; color: #5f5f5f; font-size: 14px; line-height: 1.55; }
-  .premium-prose { columns: 2; column-gap: 28px; font-size: 14px; line-height: 1.78; color: #2b2b2b; }
+  .premium-prose { columns: 1; max-width: 100%; font-size: 14px; line-height: 1.7; color: #2b2b2b; }
   .premium-prose p { margin: 0 0 14px; break-inside: avoid; }
   .premium-prose-invert { color: rgba(255,255,255,.82); }
-  .premium-metrics { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin: 22px 0 8px; }
+  .premium-metrics { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; margin: 18px 0 8px; }
   .premium-metric { border: 1px solid rgba(23,23,23,.16); background: rgba(255,255,255,.42); padding: 15px; min-height: 96px; }
   .premium-metric span, .premium-card-meta, .premium-timeline-meta { display: block; font-size: 11px; color: #5f574e; text-transform: uppercase; letter-spacing: .1em; font-weight: 700; }
   .premium-metric strong { display: block; margin-top: 8px; font-size: 28px; line-height: 1; font-weight: 700; }
@@ -138,11 +138,11 @@ const CATALOG_CSS = `
 
   .premium-photo-index-item { border: 1px solid rgba(23,23,23,.14); background: rgba(255,255,255,.45); padding: 11px; font-size: 11.5px; line-height: 1.45; break-inside: avoid; }
   .premium-photo-index-item strong, .premium-photo-index-item span, .premium-photo-index-item small, .premium-photo-index-item a { display: block; margin-bottom: 3px; color: inherit; }
-  .premium-museum-heading { display: flex; justify-content: space-between; align-items: end; gap: 18px; margin-bottom: 18px; padding-bottom: 16px; border-bottom: 1px solid rgba(23,23,23,.18); }
-  .premium-museum-kpis { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .premium-museum-heading { display: grid; grid-template-columns: minmax(0,1fr); align-items: start; gap: 12px; margin-bottom: 18px; padding-bottom: 16px; border-bottom: 1px solid rgba(23,23,23,.18); }
+  .premium-museum-kpis { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-start; }
   .premium-museum-kpis span, .premium-activity-tags span { border: 1px solid rgba(23,23,23,.16); padding: 7px 9px; font-size: 12px; background: rgba(255,255,255,.4); }
   .premium-activity-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
-  .premium-activity-card { display: grid; grid-template-columns: 44px 1fr; gap: 16px; margin-bottom: 14px; padding: 16px 18px; border: 1px solid rgba(23,23,23,.14); background: rgba(255,255,255,.52); break-inside: avoid; page-break-inside: avoid; }
+  .premium-activity-card { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; max-width: 100%; overflow: hidden; margin-bottom: 14px; padding: 12px 14px; border: 1px solid rgba(23,23,23,.14); background: rgba(255,255,255,.52); break-inside: avoid; page-break-inside: avoid; }
   .premium-activity-index { font-size: 18px; font-weight: 800; color: #9f7f4d; }
   .premium-activity-tags { display: none; }
   .premium-activity-photos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
@@ -153,14 +153,15 @@ const CATALOG_CSS = `
   .activity-card-title { margin-bottom: 8px; line-height: 1.25; }
   .activity-card-body { font-size: 10.5pt; line-height: 1.45; }
   .activity-card-body p + p { margin-top: 8px; }
-  .premium-communication-grid { display: grid; grid-template-columns: minmax(0, 1fr) 210px; gap: 20px; align-items: stretch; }
-  .premium-communication-panel { background: #171717; color: #fff; padding: 18px; display: flex; flex-direction: column; justify-content: flex-end; min-height: 130px; }
+  .premium-activity-card h4, .premium-activity-card p { overflow-wrap: anywhere; }
+  .premium-communication-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: stretch; }
+  .premium-communication-panel { background: #171717; color: #fff; padding: 16px; display: flex; flex-direction: column; justify-content: flex-end; min-height: auto; }
   .premium-communication-panel strong { font-size: 52px; line-height: .9; }
   .premium-communication-panel span { margin-top: 10px; font-size: 11px; line-height: 1.35; color: rgba(255,255,255,.72); }
   .premium-table-wrap { margin-top: 18px; overflow: hidden; border: 1px solid rgba(23,23,23,.18); background: rgba(255,255,255,.36); }
-  .premium-table { width: 100%; border-collapse: collapse; font-size: 12px; line-height: 1.45; background: rgba(255,255,255,.5); }
-  .premium-table th { text-align: left; padding: 13px 14px; background: #171717; color: #fff; font-size: 10.5px; text-transform: uppercase; letter-spacing: .09em; }
-  .premium-table td { padding: 14px; border-top: 1px solid rgba(23,23,23,.1); vertical-align: top; }
+  .premium-table { width: 100%; max-width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 10.8px; line-height: 1.35; background: rgba(255,255,255,.5); }
+  .premium-table th { text-align: left; padding: 8px 9px; background: #171717; color: #fff; font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em; overflow-wrap: anywhere; }
+  .premium-table td { padding: 8px 9px; border-top: 1px solid rgba(23,23,23,.1); vertical-align: top; overflow-wrap: anywhere; word-break: normal; }
   .premium-table tbody tr:nth-child(even) td { background: rgba(23,23,23,.035); }
   .budget-table { width: 100%; table-layout: fixed; border-collapse: collapse; margin-top: 18px; }
   .budget-table th, .budget-table td { padding: 8px 10px; font-size: 9.5pt; vertical-align: top; word-break: normal; overflow-wrap: anywhere; }
@@ -178,8 +179,8 @@ const CATALOG_CSS = `
   .premium-alert-list li { border-top: 1px solid rgba(23,23,23,.12); padding-top: 6px; font-size: 11px; line-height: 1.35; color: #4f4a43; }
   .premium-infographic-source { display: block; margin-top: 10px; font-size: 9.5px; line-height: 1.35; color: #756b5f; text-transform: uppercase; letter-spacing: .08em; }
   .premium-finance-grid, .premium-audience-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; }
-  .catalog-toc { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px 22px; margin-top: 20px; padding: 0; counter-reset: toc; }
-  .catalog-toc li { list-style: none; display: grid; grid-template-columns: 42px 1fr; column-gap: 14px; align-items: start; border-bottom: 1px solid rgba(23,23,23,.14); padding: 9px 0; break-inside: avoid; page-break-inside: avoid; counter-increment: toc; }
+  .catalog-toc { display: grid; grid-template-columns: minmax(0,1fr); gap: 6px; margin-top: 16px; padding: 0; counter-reset: toc; }
+  .catalog-toc li { list-style: none; display: grid; grid-template-columns: 34px minmax(0,1fr); column-gap: 12px; align-items: start; border-bottom: 1px solid rgba(23,23,23,.14); padding: 7px 0; break-inside: avoid; page-break-inside: avoid; counter-increment: toc; }
   .catalog-toc li::before { content: counter(toc, decimal-leading-zero); color: #9f7f4d; font-weight: 800; text-align: right; font-size: 11px; letter-spacing: .08em; }
   .catalog-toc li.toc-annex::before { content: "AN"; counter-increment: none; }
   .catalog-toc strong { display: block; font-size: 13px; line-height: 1.25; }
@@ -2286,10 +2287,9 @@ function TableOfContents({ secoesSelecionadas = [], contexto = {} }) {
       chapterTitle="Sumário executivo editorial"
       eyebrow="Sumário executivo"
       title="Síntese editorial do período"
-      subtitle="Leitura inicial dos dados reais disponíveis no aplicativo, seguida pelo mapa dos capítulos efetivamente publicados no volume."
-      text={`O período reúne ${fmtInt(getEffectiveTotalActivities(contexto))} atividades registradas, ${fmtInt(contexto.publico_total)} pessoas em público consolidado quando informado e ${fmtInt(getEffectiveTotalReports(contexto))} relatórios aprovados.\n\nO sumário reflete apenas os capítulos editoriais efetivamente renderizados neste volume.`}
+      subtitle="Mapa dos capítulos efetivamente publicados no relatório."
+      text="O sumário organiza a leitura editorial sem repetir os indicadores consolidados. Os dados quantitativos aparecem em capítulo próprio, com fonte, critério de consolidação e leitura específica."
     >
-      <PremiumMetrics contexto={contexto} />
       <ol className="catalog-toc">
         {chapters.map((item) => (
           <li key={item.id || item.title}>
@@ -2753,8 +2753,6 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
         subtitle="Recorte selecionado como ciclo de acompanhamento, pactuação de rotinas e consolidação dos dados do app."
         text={composeIntro(textos, contexto)}
       >
-        <PremiumMetrics contexto={contexto} />
-        {isVolumeOne && <VolumeInfographicPanel contexto={contexto} volumeNumber={1} />}
         <ChapterMethodologyPanel
           chapterId="introducao"
           contexto={contexto}
@@ -2779,6 +2777,7 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
           evidence={['relatórios', 'programação', 'rubricas', 'solicitações financeiras', 'anexos']}
         />
         <PremiumMetrics contexto={contexto} />
+        {isVolumeOne && <VolumeInfographicPanel contexto={contexto} volumeNumber={1} />}
       </PremiumSection>}
 
       {hasSection(secoesSelecionadas, 'resumo_geral') && <PremiumSection

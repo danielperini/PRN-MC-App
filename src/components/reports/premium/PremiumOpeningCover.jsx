@@ -1,5 +1,5 @@
 import React from 'react';
-import { extractPhotos, fmtInt, normalizeText } from './premiumReportUtils';
+import { extractPhotos, normalizeText } from './premiumReportUtils';
 
 function buildCoverCandidateScore(photo = {}, { preferred = false } = {}) {
   const safePhoto = photo || {};
@@ -89,12 +89,6 @@ export default function PremiumOpeningCover({ contexto }) {
             {[cover.credito ? `Crédito: ${cover.credito}` : '', cover.localizacao?.label ? `GPS: ${cover.localizacao.label}` : ''].filter(Boolean).join(' / ')}
           </p>
         )}
-        <div className="premium-cover-grid">
-          <span>{fmtInt(contexto?.total_relatorios)} relatórios</span>
-          <span>{fmtInt(contexto?.total_atividades)} atividades</span>
-          <span>{fmtInt(contexto?.publico_total)} público</span>
-          <span>{fmtInt(contexto?.programacao_total)} programações</span>
-        </div>
       </div>
     </section>
   );

@@ -444,11 +444,7 @@ function stripGalleryImagesFromDataReport(html = '') {
     const parser = new DOMParser();
     const doc = parser.parseFromString(String(html), 'text/html');
 
-    doc.querySelectorAll('.premium-cover > img').forEach((node) => {
-      const fallback = doc.createElement('div');
-      fallback.className = 'premium-cover-fallback';
-      node.replaceWith(fallback);
-    });
+    doc.querySelectorAll('.premium-internal-page-header, .premium-cover-grid').forEach((node) => node.remove());
 
     doc.querySelectorAll(
       '.premium-activity-photo-strip, .premium-activity-photos, .premium-photo-index, .premium-photo, .premium-gallery, .premium-attachment-thumb'
@@ -457,6 +453,7 @@ function stripGalleryImagesFromDataReport(html = '') {
     doc.querySelectorAll('img').forEach((node) => {
       const src = String(node.getAttribute('src') || '');
       if (src.includes('viaduto-logo')) return;
+      if (node.closest('.premium-cover')) return;
       node.remove();
     });
 
