@@ -19,6 +19,9 @@ import {
 const MAX_EXPORT_PART_SIZE_BYTES = Number.MAX_SAFE_INTEGER;
 
 const PDF_VOLUME_COUNT = 1;
+const PDF_PAGE_WIDTH_PX = 794;
+const PDF_PAGE_HEIGHT_PX = 1123;
+const PDF_PAGE_SAFE_CONTENT_HEIGHT_PX = 940;
 const filenameForReport = (variant = 'single') => REPORT_PREVIEW_VARIANTS[variant]?.filename || SINGLE_REPORT_FILENAME;
 
 function normalizeText(value) {
@@ -413,6 +416,87 @@ function hasUsefulPdfDomContent(element) {
   return text.length > 0 || Boolean(hasVisual);
 }
 
+function getOuterHeightForPdf(element) {
+  if (!element?.getBoundingClientRect) return 0;
+  const rect = element.getBoundingClientRect();
+  const view = element.ownerDocument?.defaultView;
+  const styles = view?.getComputedStyle ? view.getComputedStyle(element) : null;
+  const marginTop = Number.parseFloat(styles?.marginTop || '0') || 0;
+  const marginBottom = Number.parseFloat(styles?.marginBottom || '0') || 0;
+  return Math.ceil(rect.height + marginTop + marginBottom);
+}
+
+function cloneSectionForPdf(section) {
+  const clone = section.cloneNode(false);
+  clone.setAttribute('data-pdf-fragment', 'true');
+  clone.style.breakBefore = 'auto';
+  clone.style.pageBreakBefore = 'auto';
+  clone.style.breakAfter = 'auto';
+  clone.style.pageBreakAfter = 'auto';
+  clone.style.minHeight = 'auto';
+  clone.style.height = 'auto';
+  clone.style.overflow = 'visible';
+  return clone;
+}
+
+function splitOversizedPremiumSectionsForPdf(doc) {
+  if (!doc) return;
+
+  const selector = [
+    '.premium-expediente',
+    '.premium-section',
+    '.premium-museum-block',
+    '.premium-communication',
+  ].join(', ');
+
+  Array.from(doc.querySelectorAll(selector)).forEach((section) => {
+    if (section.closest('[data-pdf-fragment="true"]')) return;
+    if (section.classList?.contains('premium-cover') || section.classList?.contains('premium-closing')) return;
+
+    const children = Array.from(section.children || []).filter(hasUsefulPdfDomContent);
+    if (children.length <= 1) return;
+
+    const rect = section.getBoundingClientRect();
+    const scrollHeight = Math.max(section.scrollHeight || 0, rect.height || 0);
+    if (scrollHeight <= PDF_PAGE_HEIGHT_PX * 0.98) return;
+
+    const fragments = [];
+    let current = cloneSectionForPdf(section);
+    let currentHeight = 0;
+
+    const pushCurrent = () => {
+      if (current.children.length > 0) {
+        fragments.push(current);
+      }
+      current = cloneSectionForPdf(section);
+      currentHeight = 0;
+    };
+
+    children.forEach((child) => {
+      const childHeight = Math.max(24, getOuterHeightForPdf(child));
+      const shouldBreak = current.children.length > 0
+        && currentHeight + childHeight > PDF_PAGE_SAFE_CONTENT_HEIGHT_PX;
+
+      if (shouldBreak) pushCurrent();
+
+      current.appendChild(child.cloneNode(true));
+      currentHeight += childHeight;
+
+      if (childHeight > PDF_PAGE_SAFE_CONTENT_HEIGHT_PX && current.children.length > 0) {
+        pushCurrent();
+      }
+    });
+
+    pushCurrent();
+
+    if (fragments.length <= 1) return;
+
+    const parent = section.parentNode;
+    fragments.forEach((fragment) => parent.insertBefore(fragment, section));
+    section.remove();
+  });
+}
+
 function normalizeReportDomForPdf(doc) {
   if (!doc) return;
 
@@ -428,9 +512,9 @@ function normalizeReportDomForPdf(doc) {
   style.textContent = `
     @page { size: A4; margin: 0; }
     html, body {
-      width: 794px !important;
-      min-width: 794px !important;
-      max-width: 794px !important;
+      width: ${PDF_PAGE_WIDTH_PX}px !important;
+      min-width: ${PDF_PAGE_WIDTH_PX}px !important;
+      max-width: ${PDF_PAGE_WIDTH_PX}px !important;
       margin: 0 !important;
       padding: 0 !important;
       overflow-x: hidden !important;
@@ -441,21 +525,23 @@ function normalizeReportDomForPdf(doc) {
     }
     main.premium-report,
     .premium-report {
-      width: 794px !important;
-      min-width: 794px !important;
-      max-width: 794px !important;
+      width: ${PDF_PAGE_WIDTH_PX}px !important;
+      min-width: ${PDF_PAGE_WIDTH_PX}px !important;
+      max-width: ${PDF_PAGE_WIDTH_PX}px !important;
       margin: 0 auto !important;
-      overflow: hidden !important;
-      background: #ffffff !important;
+      overflow: visible !important;
+      background: #f7f3eb !important;
       transform: none !important;
     }
     .premium-cover {
-      width: 794px !important;
-      height: 1123px !important;
-      min-height: 1123px !important;
-      max-height: 1123px !important;
+      width: ${PDF_PAGE_WIDTH_PX}px !important;
+      height: ${PDF_PAGE_HEIGHT_PX}px !important;
+      min-height: ${PDF_PAGE_HEIGHT_PX}px !important;
+      max-height: ${PDF_PAGE_HEIGHT_PX}px !important;
       padding: 0 !important;
       overflow: hidden !important;
+      break-after: auto !important;
+      page-break-after: auto !important;
     }
     .premium-cover img {
       width: 100% !important;
@@ -470,14 +556,21 @@ function normalizeReportDomForPdf(doc) {
     .premium-museum-block,
     .premium-communication,
     .premium-closing {
-      width: 794px !important;
-      max-width: 794px !important;
+      width: ${PDF_PAGE_WIDTH_PX}px !important;
+      max-width: ${PDF_PAGE_WIDTH_PX}px !important;
       min-height: auto !important;
       height: auto !important;
       padding: 68px 57px 68px !important;
       margin: 0 !important;
-      overflow: hidden !important;
+      overflow: visible !important;
       transform: none !important;
+      break-after: auto !important;
+      page-break-after: auto !important;
+    }
+    .premium-closing {
+      min-height: ${PDF_PAGE_HEIGHT_PX}px !important;
+      background: #171717 !important;
+      color: #f7f3eb !important;
     }
     .premium-report img,
     .premium-section img,
@@ -503,42 +596,70 @@ function normalizeReportDomForPdf(doc) {
       height: 265px !important;
       object-fit: cover !important;
     }
+    .premium-table-wrap,
     .premium-table,
+    .budget-table,
+    .documents-table,
+    .premium-rubrica-table,
     table {
       width: 100% !important;
       max-width: 100% !important;
       table-layout: fixed !important;
       border-collapse: collapse !important;
+      overflow: visible !important;
+      break-inside: auto !important;
+      page-break-inside: auto !important;
+    }
+    thead { display: table-header-group !important; }
+    tfoot { display: table-footer-group !important; }
+    tr {
+      break-inside: avoid !important;
+      page-break-inside: avoid !important;
     }
     th, td {
       overflow-wrap: anywhere !important;
       word-break: normal !important;
     }
+    .premium-metric,
+    .premium-method-card,
+    .premium-infographic-card,
+    .premium-meta-card,
+    .premium-callout,
+    .premium-finance-summary-card,
+    .premium-report-note,
+    .premium-expediente-block,
+    .premium-expediente-people article,
+    .catalog-toc li {
+      break-inside: avoid !important;
+      page-break-inside: avoid !important;
+    }
     .premium-page-break {
       break-before: auto !important;
       page-break-before: auto !important;
+      break-after: auto !important;
+      page-break-after: auto !important;
     }
     .report-shell {
-      width: 794px !important;
-      max-width: 794px !important;
+      width: ${PDF_PAGE_WIDTH_PX}px !important;
+      max-width: ${PDF_PAGE_WIDTH_PX}px !important;
       margin: 0 auto !important;
-      overflow: hidden !important;
+      overflow: visible !important;
       background: #ffffff !important;
     }
     .report-content {
-      width: 794px !important;
-      max-width: 794px !important;
+      width: ${PDF_PAGE_WIDTH_PX}px !important;
+      max-width: ${PDF_PAGE_WIDTH_PX}px !important;
       padding: 34px 42px 42px !important;
       margin: 0 !important;
-      overflow: hidden !important;
+      overflow: visible !important;
     }
     .gallery-cover,
     .gallery-activity,
     .intro {
-      width: 794px !important;
-      max-width: 794px !important;
+      width: ${PDF_PAGE_WIDTH_PX}px !important;
+      max-width: ${PDF_PAGE_WIDTH_PX}px !important;
       margin: 0 !important;
-      overflow: hidden !important;
+      overflow: visible !important;
       transform: none !important;
     }
     .gallery-activity {
@@ -561,7 +682,9 @@ function normalizeReportDomForPdf(doc) {
     const styleValue = String(node.getAttribute('style') || '')
       .replace(/transform\s*:[^;]+;?/gi, '')
       .replace(/zoom\s*:[^;]+;?/gi, '')
-      .replace(/max-width\s*:\s*none\s*;?/gi, '');
+      .replace(/max-width\s*:\s*none\s*;?/gi, '')
+      .replace(/break-after\s*:\s*page\s*;?/gi, '')
+      .replace(/page-break-after\s*:\s*always\s*;?/gi, '');
     node.setAttribute('style', styleValue);
   });
 
@@ -570,6 +693,8 @@ function normalizeReportDomForPdf(doc) {
     if (!/premium|report|section|page|activity|metric|infographic/i.test(className)) return;
     if (!hasUsefulPdfDomContent(node)) node.remove();
   });
+
+  splitOversizedPremiumSectionsForPdf(doc);
 }
 
 function hasRenderablePdfContent(element) {
@@ -602,7 +727,7 @@ function removeNestedPdfTargets(elements = []) {
 }
 
 function getPdfRenderTargets(root) {
-  const MAX_SECTION_HEIGHT = 4200;
+  const MAX_SECTION_HEIGHT = PDF_PAGE_HEIGHT_PX * 1.25;
   const result = [];
   const majorSelector = [
     '.premium-cover',
@@ -841,8 +966,8 @@ async function exportHtmlToPdfBlob(html, options = {}) {
           imageTimeout: 12000,
           scrollX: 0,
           scrollY: 0,
-          windowWidth: 794,
-          windowHeight: 1123,
+          windowWidth: PDF_PAGE_WIDTH_PX,
+          windowHeight: PDF_PAGE_HEIGHT_PX,
         });
       } catch (renderError) {
         console.warn('Falha ao renderizar bloco do PDF. O bloco sera ignorado no raster e preservado no fallback textual.', renderError);
