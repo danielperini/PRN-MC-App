@@ -1,31 +1,71 @@
 import React from 'react';
 import { extractPhotos, fmtInt, normalizeText } from './premiumReportUtils';
 
-function pickCoverPhoto(contexto) {
-  const candidate = contexto?.cover_photo_candidate;
-  if (candidate?.imageUrl || candidate?.url) {
-    return {
-      url: candidate.imageUrl || candidate.url,
-      credito: candidate.credito || '',
-      localizacao: candidate.localizacao || null,
-    };
-  }
+function buildCoverCandidateScore(photo = {}, { preferred = false } = {}) {
+  const text = normalizeText([
+    photo.legenda,
+    photo.atividade,
+    photo.fileName,
+    photo.museu,
+    photo.credito,
+  ].filter(Boolean).join(' '));
 
-  const photos = extractPhotos(contexto, 48);
-  const rankedPhotos = photos
-    .map((photo) => {
-      const text = normalizeText([photo.legenda, photo.atividade, photo.fileName, photo.museu].filter(Boolean).join(' '));
-      let score = 0;
-      if (text.includes('museu') || text.includes('mhab') || text.includes('mis') || text.includes('mumo')) score += 4;
-      if (text.includes('exposicao') || text.includes('mostra')) score += 4;
-      if (text.includes('publico') || text.includes('participantes') || text.includes('visita')) score += 3;
-      if (text.includes('oficina') || text.includes('atividade') || text.includes('mediacao')) score += 2;
-      if (text.includes('registro') || text.includes('capa')) score += 1;
-      return { photo, score };
-    })
+  let score = preferred ? 20 : 0;
+
+  if (text.includes('museu') || text.includes('mhab') || text.includes('mis') || text.includes('mumo')) score += 8;
+  if (text.includes('exposicao') || text.includes('mostra') || text.includes('acervo')) score += 8;
+  if (text.includes('publico') || text.includes('participantes') || text.includes('visita') || text.includes('mediada')) score += 7;
+  if (text.includes('oficina') || text.includes('atividade') || text.includes('educativo') || text.includes('programacao')) score += 5;
+  if (text.includes('auditorio') || text.includes('casarao') || text.includes('galeria') || text.includes('teatro')) score += 3;
+  if (photo.credito) score += 2;
+  if (photo.localizacao?.label) score += 1;
+
+  if (text.includes('nf') || text.includes('xml') || text.includes('recibo') || text.includes('comprovante') || text.includes('contrato')) score -= 18;
+  if (text.includes('print') || text.includes('screenshot') || text.includes('captura')) score -= 12;
+  if (text.includes('selfie') || text.includes('documento')) score -= 8;
+
+  return score;
+}
+
+function normalizeCoverPhoto(photo = {}, options = {}) {
+  const url = photo.imageUrl || photo.url || photo.src || photo.file_url || '';
+  if (!url) return null;
+
+  return {
+    id: photo.imageId || photo.id || url,
+    url,
+    legenda: photo.legenda || photo.caption || '',
+    atividade: photo.atividade || photo.assignedActivityTitle || '',
+    fileName: photo.fileName || photo.name || '',
+    museu: photo.museu || photo.museum || '',
+    credito: photo.credito || '',
+    localizacao: photo.localizacao || null,
+    preferred: !!options.preferred,
+  };
+}
+
+function pickCoverPhoto(contexto) {
+  const preferredPool = [
+    normalizeCoverPhoto(contexto?.cover_photo_candidate, { preferred: true }),
+    ...(Array.isArray(contexto?.unusedImages) ? contexto.unusedImages.map((photo) => normalizeCoverPhoto(photo, { preferred: true })) : []),
+  ].filter(Boolean);
+
+  const fallbackPool = extractPhotos(contexto, 64)
+    .map((photo) => normalizeCoverPhoto(photo))
+    .filter(Boolean);
+
+  const uniqueCandidates = Array.from(
+    new Map([...preferredPool, ...fallbackPool].map((photo) => [photo.id, photo])).values()
+  );
+
+  const rankedPhotos = uniqueCandidates
+    .map((photo) => ({
+      photo,
+      score: buildCoverCandidateScore(photo, { preferred: photo.preferred }),
+    }))
     .sort((a, b) => b.score - a.score);
 
-  return rankedPhotos[0]?.photo || photos[0] || {};
+  return rankedPhotos[0]?.photo || uniqueCandidates[0] || {};
 }
 
 export default function PremiumOpeningCover({ contexto }) {

@@ -33,7 +33,7 @@ import {
 } from './premiumReportUtils';
 
 const CATALOG_CSS = `
-  @page { size: A4; margin: 22mm 14mm 30mm; }
+  @page { size: A4; margin: 16mm 14mm 16mm 14mm; }
   @page cover { size: A4; margin: 0; }
   * { box-sizing: border-box; }
   body { margin: 0; background: #e7e3dc; color: #171717; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
@@ -43,6 +43,8 @@ const CATALOG_CSS = `
   .report-pdf-institutional-logo { width: 16mm; height: 16mm; display: block; object-fit: contain; }
   .report-pdf-institutional-text { flex: 1; margin-left: 0; padding-top: 0; text-align: right; font-size: 9px; font-weight: 700; line-height: 1.32; color: #777777; font-family: Arial, Helvetica, sans-serif; }
   .report-pdf-institutional-text span { display: block; }
+  .report-pdf-footerline { margin-top: 4px; font-size: 8.6px; font-weight: 700; color: #6d6d6d; letter-spacing: .02em; }
+  .report-pdf-page-counter::after { content: counter(page); }
   .premium-internal-page-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; padding: 0 0 18px; border-bottom: 1px solid rgba(0,0,0,0.08); margin-bottom: 22px; break-inside: avoid; page-break-inside: avoid; }
   .premium-internal-page-header-logo img { max-height: 58px; width: auto; display: block; object-fit: contain; }
   .premium-internal-page-header-text { text-align: right; font-size: 12px; line-height: 1.35; color: #777777; font-weight: 600; font-family: Arial, Helvetica, sans-serif; }
@@ -162,6 +164,19 @@ const CATALOG_CSS = `
   .premium-table tbody tr:nth-child(even) td { background: rgba(23,23,23,.035); }
   .budget-table { width: 100%; table-layout: fixed; border-collapse: collapse; margin-top: 18px; }
   .budget-table th, .budget-table td { padding: 8px 10px; font-size: 9.5pt; vertical-align: top; word-break: normal; overflow-wrap: anywhere; }
+  .premium-infographic-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 18px 0 8px; }
+  .premium-infographic-card { border: 1px solid rgba(23,23,23,.14); background: rgba(255,255,255,.46); padding: 14px; break-inside: avoid; page-break-inside: avoid; }
+  .premium-infographic-card h3 { margin: 0 0 5px; font-size: 15px; line-height: 1.25; font-family: Georgia, "Times New Roman", serif; font-weight: 600; }
+  .premium-infographic-card p { margin: 0 0 10px; color: #5e574f; font-size: 11.5px; line-height: 1.45; }
+  .premium-mini-bar-row { display: grid; grid-template-columns: 86px 1fr 54px; gap: 8px; align-items: center; margin-top: 8px; font-size: 11px; line-height: 1.25; }
+  .premium-mini-bar-row strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+  .premium-mini-bar-track { height: 8px; background: rgba(23,23,23,.11); overflow: hidden; }
+  .premium-mini-bar-fill { display: block; height: 100%; background: #9f7f4d; }
+  .premium-flow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; margin-top: 10px; }
+  .premium-flow span { border: 1px solid rgba(23,23,23,.14); background: rgba(255,255,255,.54); padding: 8px; font-size: 10.5px; line-height: 1.3; text-align: center; }
+  .premium-alert-list { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+  .premium-alert-list li { border-top: 1px solid rgba(23,23,23,.12); padding-top: 6px; font-size: 11px; line-height: 1.35; color: #4f4a43; }
+  .premium-infographic-source { display: block; margin-top: 10px; font-size: 9.5px; line-height: 1.35; color: #756b5f; text-transform: uppercase; letter-spacing: .08em; }
   .premium-finance-grid, .premium-audience-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; }
   .catalog-toc { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px 22px; margin-top: 20px; padding: 0; counter-reset: toc; }
   .catalog-toc li { list-style: none; display: grid; grid-template-columns: 42px 1fr; column-gap: 14px; align-items: start; border-bottom: 1px solid rgba(23,23,23,.14); padding: 9px 0; break-inside: avoid; page-break-inside: avoid; counter-increment: toc; }
@@ -281,7 +296,7 @@ const CATALOG_CSS = `
   @media print {
     body { background: #fff; }
     .premium-report { background: #fff; }
-    .report-pdf-institutional-header { position: fixed; left: 14mm; right: 14mm; bottom: -25mm; z-index: 1; display: grid; grid-template-columns: 16mm minmax(0,1fr); column-gap: 10mm; align-items: center; box-sizing: border-box; height: 20mm; padding: 3mm 0 0; page-break-inside: avoid; break-inside: avoid; background: #ffffff; border-top: 1px solid rgba(23,23,23,.1); pointer-events: none; }
+    .report-pdf-institutional-header { position: fixed; left: 14mm; right: 14mm; bottom: -11mm; z-index: 1; display: grid; grid-template-columns: 16mm minmax(0,1fr); column-gap: 10mm; align-items: center; box-sizing: border-box; height: 12mm; padding: 2mm 0 0; page-break-inside: avoid; break-inside: avoid; background: #ffffff; border-top: 1px solid rgba(23,23,23,.1); pointer-events: none; }
     .premium-internal-page-header { display: none; }
     .premium-cover { z-index: 5; }
     .premium-section, .premium-expediente, .premium-museum-block, .premium-communication, .premium-closing { min-height: auto; }
@@ -1395,7 +1410,7 @@ function ReportsArchiveSection({ contexto }) {
   );
 }
 
-function ReportPdfInstitutionalHeader() {
+function ReportPdfInstitutionalHeader({ volumeNumber = 1, pageStart = 1 }) {
   return (
     <div className="report-pdf-institutional-header">
       <div className="report-pdf-institutional-logo-wrap">
@@ -1410,6 +1425,10 @@ function ReportPdfInstitutionalHeader() {
         <div>Viaduto das Artes – Fundado em 16 de junho de 2015</div>
         <div>Av. Olinto Meireles, 45 – Barreiro – Belo Horizonte/MG</div>
         <div>CEP 30640-010 – E-mail: viadutodasartes@gmail.com</div>
+        <div className="report-pdf-footerline">
+          Museus Centro - Relatorio Institucional - Volume {volumeNumber} | Pagina <span className="report-pdf-page-counter" />
+          {pageStart > 1 ? ` (inicio ${pageStart})` : ''}
+        </div>
       </div>
     </div>
   );
@@ -2389,6 +2408,314 @@ function OperationalAuditSection({ contexto = {} }) {
   );
 }
 
+function getVolumeOpeningText(volumeNumber) {
+  if (Number(volumeNumber) === 2) {
+    return [
+      'O Volume 2 da continuidade ao Relatorio Institucional Museus Centro, concentrando a leitura da execucao financeira, da prestacao de contas e da rastreabilidade documental do periodo. A analise parte das rubricas, solicitacoes aprovadas, pagamentos, notas fiscais, contratos, recibos, comprovantes e demais documentos vinculados no aplicativo, buscando relacionar a execucao orcamentaria as atividades, metas e evidencias registradas.',
+      'Este volume nao reinicia o relatorio, mas prossegue a publicacao iniciada no Volume 1. Sua funcao e tornar verificavel a relacao entre orcamento previsto, recursos utilizados, documentos comprobatorios e responsabilidades institucionais, oferecendo uma base de leitura para acompanhamento, revisao e prestacao de contas.',
+    ].join('\n\n');
+  }
+
+  return [
+    'O Volume 3 encerra o Relatorio Institucional Museus Centro com a leitura sobre sistema, governanca de dados, auditoria operacional, anexos analiticos, memoria institucional e conclusao do periodo. A abordagem reune informacoes sobre o uso do aplicativo Museu Centro VP, a qualidade dos registros produzidos, os fluxos de documentacao, os alertas de consistencia e os elementos que apoiam a rastreabilidade das acoes.',
+    'Este volume complementa os volumes anteriores ao explicitar como os dados foram organizados, quais pontos exigem saneamento ou revisao e de que forma a sistematizacao digital contribui para transformar registros cotidianos em memoria institucional, evidencia publica e instrumento de gestao cultural.',
+  ].join('\n\n');
+}
+
+function getReportActivities(contexto = {}) {
+  const candidates = [
+    contexto.atividades,
+    contexto.activities,
+    contexto.report_activities,
+    contexto.atividades_consolidadas,
+  ];
+  return candidates.find(Array.isArray) || [];
+}
+
+function normalizeMuseumKey(value = '') {
+  const normalized = normalizeText(value);
+  if (normalized.includes('mhab') || normalized.includes('abilio')) return 'MHAB';
+  if (normalized.includes('mis') || normalized.includes('imagem') || normalized.includes('som')) return 'MIS';
+  if (normalized.includes('mumo') || normalized.includes('moda')) return 'MUMO';
+  if (normalized.includes('atuacao') || normalized.includes('geral')) return 'Atuacao Geral';
+  return sanitizeReportText(value || 'Sem centro definido') || 'Sem centro definido';
+}
+
+function activityMuseumValue(item = {}) {
+  return item.museu || item.museum || item.equipamento || item.centro || item.centro_custo || item.local || '';
+}
+
+function getActivityDateValue(item = {}) {
+  return item.data || item.date || item.started_at || item.created_at || item.periodo || '';
+}
+
+function getActivityAudienceValue(item = {}) {
+  return toNumber(item.publico ?? item.audience ?? item.publico_total ?? item.total_publico ?? 0);
+}
+
+function countByMuseum(contexto = {}, valueGetter = () => 1) {
+  const rows = getReportActivities(contexto);
+  return rows.reduce((acc, item) => {
+    const key = normalizeMuseumKey(activityMuseumValue(item));
+    acc[key] = (acc[key] || 0) + valueGetter(item);
+    return acc;
+  }, {});
+}
+
+function getTimelineByMonth(contexto = {}) {
+  const labels = ['Fevereiro', 'Marco', 'Abril'];
+  const counts = { Fevereiro: 0, Marco: 0, Abril: 0 };
+  getReportActivities(contexto).forEach((item) => {
+    const raw = String(getActivityDateValue(item));
+    const normalized = normalizeText(raw);
+    if (raw.includes('-02-') || normalized.includes('fevereiro')) counts.Fevereiro += 1;
+    else if (raw.includes('-03-') || normalized.includes('marco') || normalized.includes('marco')) counts.Marco += 1;
+    else if (raw.includes('-04-') || normalized.includes('abril')) counts.Abril += 1;
+  });
+  return labels.map((label) => ({ label, value: counts[label] }));
+}
+
+function getBudgetRows(contexto = {}) {
+  const resumo = contexto?.budget_tables?.resumo_por_museu;
+  return Array.isArray(resumo) ? resumo : [];
+}
+
+function getDocumentStats(contexto = {}) {
+  const attachments = Array.isArray(contexto.attachments_raw) ? contexto.attachments_raw : [];
+  const intake = Array.isArray(contexto.document_intake_raw) ? contexto.document_intake_raw : [];
+  const docs = [...attachments, ...intake];
+  const countByText = (patterns) => docs.filter((doc) => {
+    const haystack = normalizeText([
+      doc?.name,
+      doc?.nome,
+      doc?.filename,
+      doc?.fileName,
+      doc?.tipo,
+      doc?.type,
+      doc?.url,
+    ].filter(Boolean).join(' '));
+    return patterns.some((pattern) => haystack.includes(pattern));
+  }).length;
+
+  return {
+    pdfs: countByText(['pdf']),
+    xmls: countByText(['xml']),
+    recibos: countByText(['recibo']),
+    comprovantes: countByText(['comprovante', 'pagamento']),
+    contratos: countByText(['contrato']),
+    total: docs.length,
+  };
+}
+
+function getImageStats(contexto = {}) {
+  const allocation = Array.isArray(contexto.imageAllocation) ? contexto.imageAllocation : [];
+  const used = allocation.length || toNumber(contexto.imageAllocationPlan?.usedImages?.length || 0);
+  return {
+    used,
+    unused: Array.isArray(contexto.unusedImages) ? contexto.unusedImages.length : 0,
+    duplicated: Array.isArray(contexto.duplicatedImagesAvoided) ? contexto.duplicatedImagesAvoided.length : 0,
+    alerts: Array.isArray(contexto.imageAlerts) ? contexto.imageAlerts.length : 0,
+  };
+}
+
+function MiniBarList({ rows = [], formatter = fmtInt }) {
+  const max = Math.max(1, ...rows.map((row) => toNumber(row.value)));
+  return (
+    <div>
+      {rows.map((row) => (
+        <div className="premium-mini-bar-row" key={row.label}>
+          <strong>{row.label}</strong>
+          <span className="premium-mini-bar-track">
+            <span className="premium-mini-bar-fill" style={{ width: `${Math.max(4, (toNumber(row.value) / max) * 100)}%` }} />
+          </span>
+          <span>{formatter(row.value)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function VolumeOneInfographics({ contexto = {} }) {
+  const activitiesByMuseum = Object.entries(countByMuseum(contexto)).map(([label, value]) => ({ label, value }));
+  const audienceByMuseum = Object.entries(countByMuseum(contexto, getActivityAudienceValue)).map(([label, value]) => ({ label, value }));
+  const timelineRows = getTimelineByMonth(contexto);
+  const budgetRows = getBudgetRows(contexto).map((row) => ({
+    label: row.museu || 'Museu',
+    value: toNumber(row.valorUtilizado),
+  }));
+
+  return (
+    <div className="premium-infographic-grid">
+      <article className="premium-infographic-card">
+        <h3>Mapa de atividades por museu</h3>
+        <p>Distribuicao das atividades registradas por equipamento ou atuacao transversal.</p>
+        <MiniBarList rows={activitiesByMuseum} />
+        <small className="premium-infographic-source">Fonte: atividades consolidadas no aplicativo Museu Centro VP.</small>
+      </article>
+      <article className="premium-infographic-card">
+        <h3>Distribuicao de publico</h3>
+        <p>Leitura por museu considerando apenas publico registrado nas atividades.</p>
+        <MiniBarList rows={audienceByMuseum} />
+        <small className="premium-infographic-source">Criterio: publico informado nos registros do periodo.</small>
+      </article>
+      <article className="premium-infographic-card">
+        <h3>Linha do tempo do periodo</h3>
+        <p>Volume de atividades localizadas em fevereiro, marco e abril.</p>
+        <MiniBarList rows={timelineRows} />
+        <small className="premium-infographic-source">Periodo: 2 de fevereiro a 30 de abril de 2026.</small>
+      </article>
+      <article className="premium-infographic-card">
+        <h3>Orcamento por museu</h3>
+        <p>Valores utilizados por equipamento, quando o centro de custo foi localizado.</p>
+        <MiniBarList rows={budgetRows} formatter={fmtBRL} />
+        <small className="premium-infographic-source">Fonte: rubricas e solicitacoes aprovadas.</small>
+      </article>
+    </div>
+  );
+}
+
+function VolumeTwoInfographics({ contexto = {} }) {
+  const docStats = getDocumentStats(contexto);
+  const financialAlerts = Array.isArray(contexto.budget_alerts) ? contexto.budget_alerts : [];
+  const rubricas = Array.isArray(contexto.rubricas) ? contexto.rubricas : [];
+  const rubricaRows = rubricas.slice(0, 6).map((rubrica) => ({
+    label: sanitizeReportText(rubrica.grupo || rubrica.group || rubrica.nome || rubrica.name || 'Rubrica'),
+    value: toNumber(rubrica.valor_utilizado ?? rubrica.utilizado ?? rubrica.used ?? 0),
+  }));
+
+  return (
+    <div className="premium-infographic-grid">
+      <article className="premium-infographic-card">
+        <h3>Painel financeiro geral</h3>
+        <p>Rubrica e a fonte de verdade; aprovado e tratado como utilizado na leitura executiva.</p>
+        <div className="premium-callout-grid">
+          <article className="premium-callout"><strong>Utilizado</strong><div>{fmtBRL(contexto.valor_utilizado)}</div></article>
+          <article className="premium-callout"><strong>Saldo</strong><div>{fmtBRL(contexto.saldo)}</div></article>
+          <article className="premium-callout"><strong>Execucao</strong><div>{toNumber(contexto.percentual_execucao).toFixed(1).replace('.', ',')}%</div></article>
+        </div>
+        <small className="premium-infographic-source">Fonte: Rubrica, PurchaseRequest e TeamPayment.</small>
+      </article>
+      <article className="premium-infographic-card">
+        <h3>Execucao por grupo de rubrica</h3>
+        <p>Primeiros grupos com valor utilizado informado no periodo.</p>
+        <MiniBarList rows={rubricaRows} formatter={fmtBRL} />
+        <small className="premium-infographic-source">Criterio: valor utilizado informado nas rubricas.</small>
+      </article>
+      <article className="premium-infographic-card">
+        <h3>Fluxo de prestacao de contas</h3>
+        <p>Caminho esperado para cada despesa documentada no app.</p>
+        <div className="premium-flow">
+          <span>Solicitacao</span><span>Aprovacao</span><span>Nota fiscal</span><span>XML/recibo</span><span>Comprovante</span><span>Pagamento</span>
+        </div>
+        <small className="premium-infographic-source">Criterio: vinculo entre solicitacao, rubrica e documento.</small>
+      </article>
+      <article className="premium-infographic-card">
+        <h3>Matriz de documentos</h3>
+        <p>Contagem operacional dos tipos documentais localizados.</p>
+        <MiniBarList rows={[
+          { label: 'PDFs', value: docStats.pdfs },
+          { label: 'XMLs', value: docStats.xmls },
+          { label: 'Recibos', value: docStats.recibos },
+          { label: 'Comprovantes', value: docStats.comprovantes },
+          { label: 'Contratos', value: docStats.contratos },
+        ]} />
+        <small className="premium-infographic-source">Total analisado: {fmtInt(docStats.total)} documentos/anexos.</small>
+      </article>
+      {financialAlerts.length > 0 ? (
+        <article className="premium-infographic-card">
+          <h3>Alertas financeiros</h3>
+          <p>Ocorrencias que exigem revisao administrativa antes da entrega final.</p>
+          <ul className="premium-alert-list">
+            {financialAlerts.slice(0, 5).map((item, index) => (
+              <li key={`financial-alert-${index}`}>{sanitizeReportText(item?.descricao || item?.message || 'Divergencia encontrada. Revisao necessaria.')}</li>
+            ))}
+          </ul>
+        </article>
+      ) : null}
+    </div>
+  );
+}
+
+function VolumeThreeInfographics({ contexto = {} }) {
+  const imageStats = getImageStats(contexto);
+  const financialAlerts = Array.isArray(contexto.budget_alerts) ? contexto.budget_alerts : [];
+  const dataRows = [
+    { label: 'Completos', value: Math.max(0, getEffectiveTotalReports(contexto) - financialAlerts.length) },
+    { label: 'Incompletos', value: Array.isArray(contexto.unusedImages) ? contexto.unusedImages.length : 0 },
+    { label: 'Divergentes', value: financialAlerts.length },
+    { label: 'Duplicados', value: imageStats.duplicated },
+    { label: 'Pendentes', value: imageStats.alerts },
+  ];
+
+  return (
+    <div className="premium-infographic-grid">
+      <article className="premium-infographic-card">
+        <h3>Fluxo do Museu Centro APP</h3>
+        <p>Da entrada operacional ate a consolidacao editorial do relatorio.</p>
+        <div className="premium-flow">
+          <span>Registro</span><span>Relatorio</span><span>Atividade</span><span>Evidencia</span><span>Documento</span><span>Consolidacao</span>
+        </div>
+        <small className="premium-infographic-source">Fonte: modulos do aplicativo Museu Centro VP.</small>
+      </article>
+      <article className="premium-infographic-card">
+        <h3>Mapa de qualidade dos dados</h3>
+        <p>Leitura sintetica de completude, duplicidade e pontos de revisao.</p>
+        <MiniBarList rows={dataRows} />
+        <small className="premium-infographic-source">Criterio: alertas operacionais e plano de imagens.</small>
+      </article>
+      <article className="premium-infographic-card">
+        <h3>Matriz de auditoria operacional</h3>
+        <p>Alertas por tipo detectavel na montagem do relatorio.</p>
+        <MiniBarList rows={[
+          { label: 'Financeiros', value: financialAlerts.length },
+          { label: 'Imagem', value: imageStats.alerts },
+          { label: 'Duplicidades', value: imageStats.duplicated },
+          { label: 'Sem vinculo', value: imageStats.unused },
+        ]} />
+        <small className="premium-infographic-source">Revisao recomendada para registros com vinculo fragil.</small>
+      </article>
+      <article className="premium-infographic-card">
+        <h3>Mapa de imagens e evidencias</h3>
+        <p>Uso unico das imagens no relatorio inteiro.</p>
+        <MiniBarList rows={[
+          { label: 'Usadas', value: imageStats.used },
+          { label: 'Nao usadas', value: imageStats.unused },
+          { label: 'Duplicadas evitadas', value: imageStats.duplicated },
+          { label: 'Alertas', value: imageStats.alerts },
+        ]} />
+        <small className="premium-infographic-source">Regra: cada imagem tem no maximo um destino editorial.</small>
+      </article>
+    </div>
+  );
+}
+
+function VolumeInfographicPanel({ contexto = {}, volumeNumber = 1 }) {
+  const number = Number(volumeNumber) || 1;
+  if (number === 2) return <VolumeTwoInfographics contexto={contexto} />;
+  if (number === 3) return <VolumeThreeInfographics contexto={contexto} />;
+  return <VolumeOneInfographics contexto={contexto} />;
+}
+
+function VolumeOpeningSection({ contexto = {}, volumeNumber = 2, pageStart = 1 }) {
+  const number = Number(volumeNumber) || 2;
+  const title = number === 2
+    ? 'Volume 2 - Execucao financeira e documental'
+    : 'Volume 3 - Sistema, auditoria e conclusao';
+  const subtitle = `Continuacao do Relatorio Institucional Museus Centro a partir da pagina ${fmtInt(pageStart)}.`;
+
+  return (
+    <PremiumSection
+      chapterId={`volume_${number}_abertura`}
+      eyebrow="Relatorio Institucional Museus Centro"
+      title={title}
+      subtitle={subtitle}
+      text={getVolumeOpeningText(number)}
+    >
+      <VolumeInfographicPanel contexto={contexto} volumeNumber={number} />
+    </PremiumSection>
+  );
+}
+
 function hasSection(selected = [], ...ids) {
   if (!Array.isArray(selected) || selected.length === 0) {
     return ids.some((id) => !REPORT_SECTION_FILTER || REPORT_SECTION_FILTER.has(id));
@@ -2398,15 +2725,19 @@ function hasSection(selected = [], ...ids) {
 
 export default function PremiumReportLayout({ contexto: rawContexto = {}, textos = {}, filtros = {}, secoesSelecionadas = [] }) {
   const contexto = buildEditorialReportContext(rawContexto, filtros, secoesSelecionadas);
-  const isVolumeOne = Number(contexto?.split_context?.partNumber || 0) === 1;
+  const volumeNumber = Number(contexto?.split_context?.partNumber || 1) || 1;
+  const pageStart = Math.max(1, Number(contexto?.split_context?.pageNumberOffset || 0) + 1);
+  const isVolumeOne = volumeNumber === 1;
   REPORT_SECTION_FILTER = isVolumeOne
     ? new Set(['capa', 'expediente', 'sumario_executivo', 'introducao', 'atividades_museu', 'museus_premium', 'comunicacao', 'comunicacao_premium', 'orcamento_museu', 'auditoria_operacional', 'conclusao'])
     : null;
 
   return (
-    <main className="premium-report">
+    <main className="premium-report" style={pageStart > 1 ? { counterReset: `page ${pageStart - 1}` } : undefined}>
       {hasSection(secoesSelecionadas, 'capa') && <PremiumOpeningCover contexto={contexto} filtros={filtros} />}
-      <ReportPdfInstitutionalHeader />
+      <ReportPdfInstitutionalHeader volumeNumber={volumeNumber} pageStart={pageStart} />
+
+      {!isVolumeOne && <VolumeOpeningSection contexto={contexto} volumeNumber={volumeNumber} pageStart={pageStart} />}
 
       {hasSection(secoesSelecionadas, 'expediente') && <PremiumExpedienteSection contexto={contexto} />}
 
@@ -2421,6 +2752,7 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
         text={composeIntro(textos, contexto)}
       >
         <PremiumMetrics contexto={contexto} />
+        {isVolumeOne && <VolumeInfographicPanel contexto={contexto} volumeNumber={1} />}
         <ChapterMethodologyPanel
           chapterId="introducao"
           contexto={contexto}

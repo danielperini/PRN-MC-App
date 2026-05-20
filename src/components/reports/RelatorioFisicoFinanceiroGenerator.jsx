@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -22,7 +22,6 @@ import {
 import {
   REPORT_CHAPTERS,
   REPORT_CHAPTER_IDS,
-  buildReportSectionOptions,
   buildReportChapterSelectionState,
   getReportChapterById,
   getSelectedReportChapterIds,
@@ -54,6 +53,75 @@ const CHAPTER_MUSEUM_WEIGHT = {
   'notas-fiscais-contratos': 1.8,
   governanca_documental: 1.2,
 };
+
+const GENERATION_MODE_OPTIONS = [
+  {
+    id: 'all_volumes',
+    title: 'Gerar relatorio em 3 volumes editoriais',
+    description: 'Distribui 100% do conteudo selecionado entre Volume 1, Volume 2 e Volume 3, sem repetir capitulos, imagens ou paginas institucionais.',
+    volumes: [1, 2, 3],
+  },
+  {
+    id: 'volume_1',
+    title: 'Gerar apenas Volume 1',
+    description: 'Gera a abertura institucional, atividades por museu, comunicacao, orcamento por museu e sintese inicial.',
+    volumes: [1],
+  },
+  {
+    id: 'volume_2',
+    title: 'Gerar apenas Volume 2',
+    description: 'Gera a continuacao do relatorio com execucao financeira, prestacao de contas, rubricas, notas fiscais, contratos e governanca financeira.',
+    volumes: [2],
+  },
+  {
+    id: 'volume_3',
+    title: 'Gerar apenas Volume 3',
+    description: 'Gera a continuacao final com Museu Centro APP, auditoria operacional, anexos analiticos, memoria institucional e conclusao.',
+    volumes: [3],
+  },
+];
+
+const EDITORIAL_VOLUMES = [
+  {
+    number: 1,
+    title: 'Volume 1 — Abertura institucional, atividades e orcamento por museu',
+    description: 'Este volume abre a publicacao e apresenta a leitura institucional do periodo, as atividades por equipamento, comunicacao e analise orcamentaria por museu.',
+    chapters: [
+      { code: '1', title: 'Capa editorial', sectionIds: ['capa'] },
+      { code: '2', title: 'Expediente institucional', sectionIds: ['expediente'] },
+      { code: '3', title: 'Sumario executivo', sectionIds: ['sumario_executivo', 'indicadores_premium', 'resumo_geral'] },
+      { code: '4', title: 'Introducao institucional', sectionIds: ['introducao', 'territorio', 'publico'] },
+      { code: '5', title: 'Atividades por museu', sectionIds: ['atividades_museu', 'museus_premium', 'noturno_premium'] },
+      { code: '6', title: 'Comunicacao, registros e evidencias', sectionIds: ['comunicacao'] },
+      { code: '7', title: 'Orcamento por Museu', sectionIds: ['orcamento_museu'] },
+      { code: '8', title: 'Sintese, alertas e governanca', sectionIds: ['auditoria_operacional'] },
+    ],
+  },
+  {
+    number: 2,
+    title: 'Volume 2 — Execucao financeira, prestacao de contas e documentos',
+    description: 'Este volume consolida a execucao financeira, prestacao de contas, rubricas, pagamentos, notas fiscais, contratos e alertas de rastreabilidade.',
+    chapters: [
+      { code: '9', title: 'Execucao financeira', sectionIds: ['financeiro'] },
+      { code: '10', title: 'Prestacao de contas', sectionIds: ['prestacao'] },
+      { code: '11', title: 'Governanca financeira e rastreabilidade', sectionIds: ['governanca_documental', 'rubricas'] },
+      { code: '12', title: 'Metas do 3o Aditivo', sectionIds: ['metas'] },
+      { code: '13', title: 'Sintese financeira do periodo', sectionIds: ['financeiro', 'prestacao', 'rubricas', 'governanca_documental'] },
+    ],
+  },
+  {
+    number: 3,
+    title: 'Volume 3 — Sistema, auditoria, anexos e conclusao',
+    description: 'Este volume encerra o relatorio com sistema, governanca de dados, auditoria operacional, anexos analiticos e conclusao institucional.',
+    chapters: [
+      { code: '14', title: 'Museu Centro APP', sectionIds: ['app_museu_centro', 'sistema_governanca'] },
+      { code: '15', title: 'Auditoria operacional do periodo', sectionIds: ['auditoria_operacional'] },
+      { code: '16', title: 'Comunicacao editorial e memoria institucional', sectionIds: ['comunicacao_premium', 'galeria_premium'] },
+      { code: '17', title: 'Anexos analiticos', sectionIds: ['agenda_programacao', 'relatorios_completos', 'notas-fiscais-contratos', 'galeria_evidencias'] },
+      { code: '18', title: 'Conclusao institucional', sectionIds: ['conclusao'] },
+    ],
+  },
+];
 function getCapituloLabel(sectionId) {
   return getReportChapterById(sectionId)?.title || sectionId;
 }
@@ -439,6 +507,8 @@ export default function RelatorioFisicoFinanceiroGenerator() {
   const [erro, setErro] = useState(null);
   const [modoPremium, setModoPremium] = useState(true);
   const [dialogAberto, setDialogAberto] = useState(false);
+  const [generationMode, setGenerationMode] = useState('all_volumes');
+  const [requestedVolumes, setRequestedVolumes] = useState([1]);
   const [requestedVolume, setRequestedVolume] = useState(1);
   const [lastPageVolume1, setLastPageVolume1] = useState('');
   const [lastPageVolume2, setLastPageVolume2] = useState('');
@@ -452,34 +522,36 @@ export default function RelatorioFisicoFinanceiroGenerator() {
     () => buildVolumeParts(normalizeSelectedReportChapterIds(secoesSelecionadas), {}),
     [secoesSelecionadas]
   );
-  const producedSectionTexts = useMemo(() => Object.fromEntries(
-    REPORT_CHAPTERS.map((chapter) => [
-      chapter.contentKey || `${chapter.id}_text`,
-      [chapter.title, chapter.summaryDescription, chapter.renderTitle].filter(Boolean).join('\n'),
-    ])
-  ), []);
-  const visibleSectionOptions = useMemo(
-    () => buildReportSectionOptions(REPORT_CHAPTERS, producedSectionTexts),
-    [producedSectionTexts]
+  const editorialSectionIds = useMemo(
+    () => Array.from(new Set(EDITORIAL_VOLUMES.flatMap((volume) => volume.chapters.flatMap((chapter) => chapter.sectionIds)))),
+    []
   );
-  const visibleChapterIds = useMemo(
-    () => visibleSectionOptions.map((option) => option.id),
-    [visibleSectionOptions]
+  const allEditorialChapterCount = useMemo(
+    () => EDITORIAL_VOLUMES.reduce((sum, volume) => sum + volume.chapters.length, 0),
+    []
   );
-
-  useEffect(() => {
-    if (typeof console !== 'undefined' && typeof console.table === 'function') {
-      console.table(visibleSectionOptions.map((option) => ({
-        id: option.id,
-        sectionId: option.sectionId,
-        title: option.title,
-        contentKey: option.contentKey,
-      })));
-    }
-  }, [visibleSectionOptions]);
+  const allIdsSelected = (ids = []) => ids.every((id) => secoes[id]);
+  const selectedEditorialChapterCount = useMemo(
+    () => EDITORIAL_VOLUMES.reduce(
+      (sum, volume) => sum + volume.chapters.filter((chapter) => allIdsSelected(chapter.sectionIds)).length,
+      0
+    ),
+    [secoes]
+  );
 
   const toggleSecao = (id) => setSecoes((prev) => ({ ...prev, [id]: !prev[id] }));
-  const toggleTodas = (value) => setSecoes(buildReportChapterSelectionState(value ? visibleChapterIds : []));
+  const toggleTodas = (value) => setSecoes(buildReportChapterSelectionState(value ? editorialSectionIds : []));
+  const setIdsSelection = (ids = [], value = true) => {
+    setSecoes((prev) => {
+      const next = { ...prev };
+      ids.forEach((id) => {
+        next[id] = value;
+      });
+      return next;
+    });
+  };
+  const selectOnlyIds = (ids = []) => setSecoes(buildReportChapterSelectionState(ids));
+  const getModeVolumes = (mode = generationMode) => GENERATION_MODE_OPTIONS.find((item) => item.id === mode)?.volumes || [1, 2, 3];
   const toggleInlinePhoto = (photoId, value) => {
     setSelectedInlinePhotoIds((prev) => ({
       ...prev,
@@ -510,6 +582,12 @@ export default function RelatorioFisicoFinanceiroGenerator() {
     }
 
     return parsed;
+  };
+  const getAutomaticPageOffset = (volumeNumber, parts = volumeParts) => {
+    if (volumeNumber === 1) return 0;
+    return parts
+      .filter((part) => part.partNumber < volumeNumber)
+      .reduce((sum, part) => sum + Number(part.estimatedPages || 0), 0);
   };
 
   const openPreview = (html) => {
@@ -569,6 +647,104 @@ export default function RelatorioFisicoFinanceiroGenerator() {
       console.warn('Alertas antes da exportacao:', warnings);
     }
   };
+
+  const runExportBundle = async (inlinePhotoIds = [], targetVolumes = [1], automaticOffsets = false) => {
+    const normalizedSelectedSections = normalizeSelectedReportChapterIds(secoesSelecionadas);
+    if (normalizedSelectedSections.length === 0) {
+      toast.error('Selecione ao menos um capítulo editorial.');
+      return;
+    }
+
+    setLoading(true);
+    setResultado(null);
+    setErro(null);
+    updateProgress(8, 'Buscando dados do dashboard', 'Preparando distribuição editorial entre os volumes');
+
+    try {
+      const fullData = await gerarRelatorioDoApp(museu, {
+        premium: modoPremium,
+        secoesSelecionadas: normalizedSelectedSections,
+        selectedInlinePhotoIds: inlinePhotoIds,
+      });
+
+      const allVolumeParts = buildVolumeParts(normalizedSelectedSections, fullData?.contexto || {});
+      const selectedParts = allVolumeParts.filter((part) => targetVolumes.includes(part.partNumber) && part.secoes.length > 0);
+      if (selectedParts.length === 0) throw new Error('Nenhum volume possui conteúdo renderizável para a seleção atual.');
+
+      const builtParts = [];
+      for (let index = 0; index < selectedParts.length; index += 1) {
+        const part = selectedParts[index];
+        const pageNumberOffset = automaticOffsets
+          ? getAutomaticPageOffset(part.partNumber, allVolumeParts)
+          : getVolumePageOffset(part.partNumber);
+
+        if (pageNumberOffset === null) {
+          setLoading(false);
+          return;
+        }
+
+        updateProgress(42 + ((index + 1) / selectedParts.length) * 42, `Gerando Volume ${part.partNumber}`, part.secoes.map(getCapituloLabel).join(', '));
+        const splitContext = {
+          enabled: true,
+          partNumber: part.partNumber,
+          totalParts: EXPORT_VOLUME_COUNT,
+          sectionLabels: part.secoes.map(getCapituloLabel),
+          pageNumberOffset,
+          subdivisionOf: null,
+        };
+        const localPart = await gerarRelatorioDoApp(museu, {
+          premium: modoPremium,
+          secoesSelecionadas: part.secoes,
+          splitContext,
+          selectedInlinePhotoIds: inlinePhotoIds,
+        });
+
+        const htmlPart = injectPartMetadata(localPart.html, {
+          partNumber: part.partNumber,
+          totalParts: EXPORT_VOLUME_COUNT,
+          sectionLabels: splitContext.sectionLabels,
+          pageNumberOffset,
+        });
+        validateBeforeExport(htmlPart, part.secoes, localPart.contexto);
+
+        builtParts.push({
+          partNumber: part.partNumber,
+          totalParts: EXPORT_VOLUME_COUNT,
+          fileName: buildPartFileName(part.partNumber),
+          html: htmlPart,
+          sizeBytes: new Blob([htmlPart], { type: 'text/html;charset=utf-8' }).size,
+          sectionLabels: splitContext.sectionLabels,
+          secoes: part.secoes,
+          pageNumberOffset,
+        });
+      }
+
+      const firstPart = builtParts[0];
+      setResultado({
+        html: firstPart.html,
+        contexto: fullData.contexto,
+        fonte: modoPremium ? 'premium_app' : 'frontend_ia',
+        exportMode: builtParts.length > 1 ? 'split' : 'volume',
+        htmlSize: firstPart.sizeBytes,
+        volumeNumber: firstPart.partNumber,
+        pageNumberOffset: firstPart.pageNumberOffset,
+        parts: builtParts,
+      });
+
+      updateProgress(100, 'Relatório concluído', builtParts.length > 1 ? 'Volumes preparados para exportação HTML/PDF.' : `Volume ${firstPart.partNumber} pronto para visualização e PDF`);
+      openPreview(firstPart.html);
+      setDialogAberto(false);
+      toast.success(builtParts.length > 1 ? 'Relatório preparado em 3 volumes editoriais.' : `Volume ${firstPart.partNumber} gerado com dados reais do aplicativo.`);
+    } catch (err) {
+      console.error(err);
+      setErro(err.message || 'Não foi possível gerar os volumes do relatório.');
+      toast.error('Não foi possível gerar os volumes do relatório.');
+    } finally {
+      setLoading(false);
+      setTimeout(() => setExportProgress(null), 1200);
+    }
+  };
+
   const runExport = async (inlinePhotoIds = [], volumeNumber = requestedVolume) => {
     const normalizedSelectedSections = normalizeSelectedReportChapterIds(secoesSelecionadas);
     let allVolumeParts = buildVolumeParts(normalizedSelectedSections, {});
@@ -687,22 +863,61 @@ export default function RelatorioFisicoFinanceiroGenerator() {
     return;
   };
 
+  const pesquisarEChecarDados = async () => {
+    const normalizedSelectedSections = normalizeSelectedReportChapterIds(secoesSelecionadas);
+    if (normalizedSelectedSections.length === 0) {
+      toast.error('Selecione ao menos um capítulo editorial.');
+      return null;
+    }
+    setLoading(true);
+    setErro(null);
+    updateProgress(12, 'Pesquisando e checando dados', 'Consolidando dashboard, relatórios, rubricas, programação e evidências');
+    try {
+      const { contexto } = await carregarContextoRelatorioDoApp(museu, {
+        secoesSelecionadas: normalizedSelectedSections,
+        selectedInlinePhotoIds: getSelectedInlineIds(),
+      });
+      updateProgress(36, 'Pesquisa concluída', 'Dados reais do app consolidados para o plano editorial');
+      toast.success('Pesquisa e checagem concluídas.');
+      return contexto;
+    } catch (err) {
+      console.error(err);
+      setErro(err.message || 'Não foi possível pesquisar e checar os dados.');
+      toast.error('Não foi possível pesquisar e checar os dados.');
+      return null;
+    } finally {
+      setLoading(false);
+      setTimeout(() => setExportProgress(null), 900);
+    }
+  };
+
+  const gerarPlanoDosVolumes = async () => {
+    const contexto = await pesquisarEChecarDados();
+    if (!contexto) return;
+    const parts = buildVolumeParts(normalizeSelectedReportChapterIds(secoesSelecionadas), contexto);
+    toast.success(`Plano editorial gerado em ${parts.filter((part) => part.secoes.length > 0).length} volumes.`);
+  };
+
   const getSelectedInlineIds = () => Object.entries(selectedInlinePhotoIds)
     .filter(([, selected]) => selected)
     .map(([photoId]) => photoId);
 
   const handleGerar = async (volumeNumber) => {
-    setRequestedVolume(volumeNumber);
-    if (getVolumePageOffset(volumeNumber) === null) return;
+    const mode = volumeNumber ? `volume_${volumeNumber}` : generationMode;
+    const targetVolumes = volumeNumber ? [volumeNumber] : getModeVolumes(mode);
+    setGenerationMode(mode);
+    setRequestedVolume(targetVolumes[0] || 1);
+    setRequestedVolumes(targetVolumes);
+    if (targetVolumes.length === 1 && getVolumePageOffset(targetVolumes[0]) === null) return;
 
     if (secoesSelecionadas.length === 0) {
       toast.error('Selecione ao menos um capítulo.');
       return;
     }
 
-    const selectedVolume = volumeParts.find((part) => part.partNumber === volumeNumber);
-    if (!selectedVolume || selectedVolume.secoes.length === 0) {
-      toast.error(`O Volume ${volumeNumber} nao possui capitulos selecionados.`);
+    const selectedTargets = volumeParts.filter((part) => targetVolumes.includes(part.partNumber) && part.secoes.length > 0);
+    if (selectedTargets.length === 0) {
+      toast.error(targetVolumes.length > 1 ? 'Os volumes selecionados não possuem capítulos editoriais.' : `O Volume ${targetVolumes[0]} nao possui capitulos selecionados.`);
       return;
     }
 
@@ -737,7 +952,11 @@ export default function RelatorioFisicoFinanceiroGenerator() {
         return;
       }
 
-      await runExport(selectedIds, volumeNumber);
+      if (targetVolumes.length > 1) {
+        await runExportBundle(selectedIds, targetVolumes, true);
+      } else {
+        await runExport(selectedIds, targetVolumes[0]);
+      }
     } catch (err) {
       console.error(err);
       setLoading(false);
@@ -875,7 +1094,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
           <DialogHeader>
             <DialogTitle>Fotos vinculadas às atividades</DialogTitle>
             <p className="text-sm text-slate-500">
-              Selecione quais fotos devem ser impressas no corpo das atividades. As fotos não selecionadas serão enviadas automaticamente para a galeria final, organizadas por museu, atividade e mês.
+              Selecione quais fotos devem ser impressas no corpo das atividades. Cada imagem sera usada uma unica vez no relatorio, sem repeticao entre capa, atividades e volumes.
             </p>
           </DialogHeader>
 
@@ -940,7 +1159,11 @@ export default function RelatorioFisicoFinanceiroGenerator() {
               onClick={async () => {
                 const selectedIds = getSelectedInlineIds();
                 setPhotoSelectionDialog(false);
-                await runExport(selectedIds, requestedVolume);
+                if (requestedVolumes.length > 1) {
+                  await runExportBundle(selectedIds, requestedVolumes, true);
+                } else {
+                  await runExport(selectedIds, requestedVolume);
+                }
               }}
               disabled={loading}
             >
@@ -954,8 +1177,10 @@ export default function RelatorioFisicoFinanceiroGenerator() {
       <Dialog open={dialogAberto} onOpenChange={setDialogAberto}>
         <DialogContent className="max-w-3xl max-h-[88vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Escolha os capítulos do relatório</DialogTitle>
-            <p className="text-sm text-slate-500">Selecione o formato, o museu, o modo de exportação e os capítulos que entram na geração.</p>
+            <DialogTitle>Escolha os conteudos do relatorio</DialogTitle>
+            <p className="text-sm text-slate-500">
+              Selecione o museu, o formato editorial e os conteudos que serao distribuidos nos tres volumes do relatorio. Os volumes sao complementares e sequenciais: o Volume 1 abre a publicacao, o Volume 2 continua com a execucao financeira e documental, e o Volume 3 encerra com sistema, auditoria, anexos e conclusao.
+            </p>
           </DialogHeader>
 
           <div className="space-y-5 py-2">
@@ -996,85 +1221,165 @@ export default function RelatorioFisicoFinanceiroGenerator() {
               </div>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
               <div>
-                <Label>Ultima pagina do Volume 1</Label>
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={lastPageVolume1}
-                  onChange={(event) => setLastPageVolume1(event.target.value)}
-                  className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-900"
-                  placeholder="Obrigatorio para Volume 2"
-                />
-              </div>
-              <div>
-                <Label>Ultima pagina do Volume 2</Label>
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={lastPageVolume2}
-                  onChange={(event) => setLastPageVolume2(event.target.value)}
-                  className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-900"
-                  placeholder="Obrigatorio para Volume 3"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <Label>Capítulos</Label>
-              <div className="flex gap-2 text-xs">
-                <button type="button" onClick={() => toggleTodas(true)} className="text-blue-600 hover:underline">Todos</button>
-                <span className="text-slate-300">|</span>
-                <button type="button" onClick={() => toggleTodas(false)} className="text-slate-500 hover:underline">Nenhum</button>
-              </div>
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
-              {visibleSectionOptions.map((option) => (
-                <label key={option.id} className="flex items-center gap-2 rounded-lg bg-white border border-slate-100 px-3 py-2 cursor-pointer">
-                  <Checkbox checked={!!secoes[option.id]} onCheckedChange={() => toggleSecao(option.id)} />
-                  <span className="text-sm text-slate-700">{option.title}</span>
-                </label>
-              ))}
-            </div>
-
-            <p className="text-xs text-slate-500">
-              {secoesSelecionadas.filter((id) => visibleChapterIds.includes(id)).length} de {visibleSectionOptions.length} capítulos selecionados.
-            </p>
-
-            <div className="grid md:grid-cols-3 gap-3">
-              {volumeParts.map((part) => (
-                <div key={`volume-plan-${part.partNumber}`} className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-600">
-                  <p className="font-semibold text-slate-900">Volume {part.partNumber}</p>
-                  <p>Capítulos: {part.secoes.length}</p>
-                  <p>Páginas estimadas: {part.estimatedPages}</p>
-                  <p>Imagens estimadas: {part.estimatedImages}</p>
-                  <p>Tamanho estimado: {part.estimatedMB} MB</p>
-                  <p>Status: {part.status}</p>
+                <Label>Modo de geracao dos volumes</Label>
+                <div className="mt-3 space-y-2">
+                  {GENERATION_MODE_OPTIONS.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => setGenerationMode(option.id)}
+                      className={`w-full rounded-xl border p-3 text-left ${generationMode === option.id ? 'border-slate-900 bg-white' : 'border-slate-200 bg-slate-50'}`}
+                    >
+                      <p className="text-sm font-semibold text-slate-900">{option.title}</p>
+                      <p className="mt-1 text-xs text-slate-500">{option.description}</p>
+                    </button>
+                  ))}
                 </div>
-              ))}
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-sm font-semibold text-slate-900">Paginacao continua</p>
+                <p className="mt-2 text-xs leading-5 text-slate-600">
+                  Os volumes serao exportados como partes sequenciais de uma mesma publicacao. O Volume 1 comeca na pagina 1. O Volume 2 comeca na pagina seguinte a ultima pagina real do Volume 1. O Volume 3 comeca na pagina seguinte a ultima pagina real do Volume 2.
+                </p>
+                <p className="mt-2 text-xs leading-5 text-slate-600">
+                  Capa, expediente, sumario executivo geral e introducao institucional aparecem apenas no Volume 1.
+                </p>
+              </div>
+
+              {(generationMode === 'volume_2' || generationMode === 'volume_3') && (
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <Label>Ultima pagina do Volume 1</Label>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={lastPageVolume1}
+                      onChange={(event) => setLastPageVolume1(event.target.value)}
+                      className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-900"
+                      placeholder="Obrigatorio para Volume 2"
+                    />
+                  </div>
+                  {generationMode === 'volume_3' && (
+                    <div>
+                      <Label>Ultima pagina do Volume 2</Label>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={lastPageVolume2}
+                        onChange={(event) => setLastPageVolume2(event.target.value)}
+                        className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-900"
+                        placeholder="Obrigatorio para Volume 3"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-4">
+              <div className="space-y-2">
+                <Label>Volumes e capitulos editoriais</Label>
+                <p className="text-xs leading-5 text-slate-600">
+                  Todo conteudo selecionado sera usado uma unica vez. As imagens serao vinculadas as atividades correspondentes, preservando creditos, GPS e legendas quando disponiveis. Nao havera repeticao de capitulos, paginas institucionais ou imagens entre os volumes.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <Button type="button" variant="outline" size="sm" onClick={() => toggleTodas(true)}>Selecionar todos os volumes</Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => { setGenerationMode('volume_1'); selectOnlyIds(Array.from(new Set(EDITORIAL_VOLUMES[0].chapters.flatMap((chapter) => chapter.sectionIds)))); }}>Selecionar apenas Volume 1</Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => { setGenerationMode('volume_2'); selectOnlyIds(Array.from(new Set(EDITORIAL_VOLUMES[1].chapters.flatMap((chapter) => chapter.sectionIds)))); }}>Selecionar apenas Volume 2</Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => { setGenerationMode('volume_3'); selectOnlyIds(Array.from(new Set(EDITORIAL_VOLUMES[2].chapters.flatMap((chapter) => chapter.sectionIds)))); }}>Selecionar apenas Volume 3</Button>
+                <button type="button" onClick={() => toggleTodas(false)} className="ml-auto text-slate-500 hover:underline">Limpar selecao</button>
+              </div>
+              <div className="space-y-4">
+                {EDITORIAL_VOLUMES.map((volume) => {
+                  const volumeSectionIds = Array.from(new Set(volume.chapters.flatMap((chapter) => chapter.sectionIds)));
+                  const volumeChecked = allIdsSelected(volumeSectionIds);
+                  const part = volumeParts.find((item) => item.partNumber === volume.number);
+                  return (
+                    <div key={`editorial-volume-${volume.number}`} className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">{volume.title}</p>
+                          <p className="mt-1 text-xs leading-5 text-slate-600">{volume.description}</p>
+                        </div>
+                        <Checkbox checked={volumeChecked} onCheckedChange={(value) => setIdsSelection(volumeSectionIds, !!value)} />
+                      </div>
+                      <div className="grid gap-2">
+                        {volume.chapters.map((chapter) => (
+                          <label key={`${volume.number}-${chapter.code}-${chapter.title}`} className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 cursor-pointer">
+                            <Checkbox checked={allIdsSelected(chapter.sectionIds)} onCheckedChange={(value) => setIdsSelection(chapter.sectionIds, !!value)} className="mt-0.5" />
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-slate-800">{chapter.code}. {chapter.title}</p>
+                              <p className="mt-1 text-[11px] leading-5 text-slate-500">{chapter.sectionIds.map(getCapituloLabel).join(' • ')}</p>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                      {part && (
+                        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                          <div><p className="font-medium text-slate-900">Capitulos</p><p>{volume.chapters[0]?.code} a {volume.chapters[volume.chapters.length - 1]?.code}</p></div>
+                          <div><p className="font-medium text-slate-900">Paginas estimadas</p><p>{part.estimatedPages}</p></div>
+                          <div><p className="font-medium text-slate-900">Imagens estimadas</p><p>{part.estimatedImages}</p></div>
+                          <div><p className="font-medium text-slate-900">Tamanho estimado</p><p>{part.estimatedMB} MB - {part.status}</p></div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
+              <p className="text-sm font-semibold text-slate-900">Uso das imagens</p>
+              <p className="mt-2 text-xs leading-5 text-slate-600">As imagens serao usadas como evidencias das atividades as quais estao vinculadas nos relatorios da equipe. Cada imagem sera usada uma unica vez no relatorio inteiro. Imagens usadas na capa, em abertura de volume ou em uma atividade nao serao repetidas em outro capitulo ou volume.</p>
+              <p className="mt-2 text-xs leading-5 text-slate-600">A antiga galeria final sera substituida pela distribuicao das imagens junto as atividades correspondentes, preservando creditos, GPS, legenda e fonte quando disponiveis.</p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
+              {selectedEditorialChapterCount === allEditorialChapterCount ? (
+                <>
+                  <p className="text-sm font-semibold text-slate-900">{allEditorialChapterCount} capitulos editoriais selecionados em 3 volumes.</p>
+                  <p className="mt-1 text-xs text-slate-600">100% do conteudo antigo sera redistribuido.</p>
+                  <p className="mt-1 text-xs text-slate-600">Imagens serao usadas uma unica vez, vinculadas as atividades.</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-semibold text-slate-900">{selectedEditorialChapterCount} de {allEditorialChapterCount} capitulos editoriais selecionados.</p>
+                  <p className="mt-1 text-xs text-amber-700">Atencao: alguns conteudos antigos poderao ficar fora da geracao.</p>
+                </>
+              )}
             </div>
           </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogAberto(false)} disabled={loading}>Cancelar</Button>
+            <Button variant="outline" onClick={pesquisarEChecarDados} disabled={loading || secoesSelecionadas.length === 0}>
+              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
+              Pesquisar e checar dados
+            </Button>
+            <Button variant="outline" onClick={gerarPlanoDosVolumes} disabled={loading || secoesSelecionadas.length === 0}>
+              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
+              Gerar plano dos volumes
+            </Button>
+            <Button onClick={() => handleGerar()} disabled={loading || secoesSelecionadas.length === 0}>
+              {loading && generationMode === 'all_volumes' ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
+              Gerar relatorio em 3 volumes
+            </Button>
             {[1, 2, 3].map((volumeNumber) => {
               const volume = volumeParts.find((part) => part.partNumber === volumeNumber);
               const disabled = loading || secoesSelecionadas.length === 0 || !volume || volume.secoes.length === 0;
               return (
-                <Button key={volumeNumber} onClick={() => handleGerar(volumeNumber)} disabled={disabled}>
-                  {loading && requestedVolume === volumeNumber ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
-                  {`Gerar / Exportar Volume ${volumeNumber}`}
+                <Button key={volumeNumber} variant="outline" onClick={() => handleGerar(volumeNumber)} disabled={disabled}>
+                  {loading && requestedVolume === volumeNumber && requestedVolumes.length === 1 ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
+                  {`Gerar apenas Volume ${volumeNumber}`}
                 </Button>
               );
             })}
-            <Button className="hidden" onClick={handleGerar} disabled={loading || secoesSelecionadas.length === 0}>
-              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
-              Gerar relatório
-            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
