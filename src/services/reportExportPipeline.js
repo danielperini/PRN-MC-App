@@ -149,6 +149,10 @@ export function getCapituloLabel(sectionId) {
 
 const reportDataCache = new Map();
 
+export function clearReportDataCache() {
+  reportDataCache.clear();
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -875,6 +879,7 @@ export async function buildSeparatedReportsHtml({
   museu = 'Todos',
   premium = true,
   secoesSelecionadas = REPORT_CHAPTER_IDS,
+  selectedInlinePhotoIds = [],
 } = {}) {
   const normalizedSections = normalizeSelectedReportChapterIds(secoesSelecionadas);
   const dataSections = normalizedSections.filter((sectionId) => !['galeria_evidencias', 'galeria_premium'].includes(sectionId));
@@ -884,7 +889,7 @@ export async function buildSeparatedReportsHtml({
     premium,
     secoesSelecionadas: dataSections,
     splitContext: null,
-    selectedInlinePhotoIds: [],
+    selectedInlinePhotoIds,
   });
 
   const galleryInitialHtml = buildGalleryReportDocument({

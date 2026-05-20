@@ -41,6 +41,7 @@ import {
   buildSingleReportHtml,
   buildVolumeHtml as buildPipelineVolumeHtml,
   buildVolumeMeta,
+  clearReportDataCache,
   cleanEmptyReportSections,
   saveReportPreview,
   saveSingleReportPreview,
@@ -525,6 +526,229 @@ export default function RelatorioFisicoFinanceiroGenerator() {
     if (preview) return null;
     toast.error('Nao foi possivel abrir a previa do relatorio.');
     return null;
+  };
+
+  const clearReportPreviewCache = async () => {
+    clearReportDataCache();
+
+    const previewKeys = [
+      'relatorio_fisico_financeiro_html',
+      'relatorio_fisico_financeiro_meta',
+      'relatorio_fisico_financeiro_dados_html',
+      'relatorio_fisico_financeiro_dados_meta',
+      'relatorio_fisico_financeiro_galeria_html',
+      'relatorio_fisico_financeiro_galeria_meta',
+      'relatorio_fisico_financeiro_html_saved_at',
+      'relatorio_fisico_financeiro_dados_html_saved_at',
+      'relatorio_fisico_financeiro_galeria_html_saved_at',
+      'relatorio_fisico_financeiro_selected_chapters',
+      'relatorio_fisico_financeiro_all_chapters',
+      'relatorio_fisico_financeiro_export_mode',
+      'relatorio_fisico_financeiro_export_volume',
+    ];
+
+    previewKeys.forEach((key) => {
+      try {
+        sessionStorage.removeItem(key);
+      } catch (error) {
+        console.warn(`Nao foi possivel remover ${key} do sessionStorage:`, error);
+      }
+
+      try {
+        localStorage.removeItem(key);
+      } catch (error) {
+        console.warn(`Nao foi possivel remover ${key} do localStorage:`, error);
+      }
+    });
+
+    if (typeof indexedDB === 'undefined') return;
+
+    try {
+      await new Promise((resolve) => {
+        const request = indexedDB.open(PREVIEW_DB_NAME, 1);
+
+        request.onupgradeneeded = () => {
+          const db = request.result;
+          if (!db.objectStoreNames.contains(PREVIEW_DB_STORE)) {
+            db.createObjectStore(PREVIEW_DB_STORE);
+          }
+        };
+
+        request.onerror = () => {
+          console.warn('Nao foi possivel abrir o IndexedDB de pre-visualizacao para limpeza.');
+          resolve(false);
+        };
+
+        request.onsuccess = () => {
+          const db = request.result;
+          let settled = false;
+          const finalize = () => {
+            if (settled) return;
+            settled = true;
+            db.close();
+            resolve(true);
+          };
+
+          try {
+            const tx = db.transaction(PREVIEW_DB_STORE, 'readwrite');
+            tx.objectStore(PREVIEW_DB_STORE).clear();
+            tx.oncomplete = finalize;
+            tx.onerror = () => {
+              console.warn('Nao foi possivel limpar a store de pre-visualizacao no IndexedDB.');
+              finalize();
+            };
+            tx.onabort = () => {
+              console.warn('A limpeza da store de pre-visualizacao foi abortada no IndexedDB.');
+              finalize();
+            };
+          } catch (error) {
+            console.warn('Falha ao limpar a store de pre-visualizacao no IndexedDB:', error);
+            finalize();
+          }
+        };
+      });
+    } catch (error) {
+      console.warn('Nao foi possivel limpar o cache de pre-visualizacao no IndexedDB:', error);
+    }
+  };
+
+  const pesquisarDadosEAtualizarRelatorio = async () => {
+    const normalizedSelectedSections = normalizeSelectedReportChapterIds(secoesSelecionadas);
+    if (normalizedSelectedSections.length === 0) {
+      toast.error('Selecione ao menos um capitulo editorial.');
+      return null;
+    }
+
+    const selectedIds = getSelectedInlineIds();
+
+    setLoading(true);
+    setErro(null);
+    setResultado(null);
+    updateProgress(5, 'Limpando previas antigas', 'Removendo HTML e PDF gerados anteriormente');
+
+    try {
+      await clearReportPreviewCache();
+
+      updateProgress(15, 'Pesquisando dados reais do app', 'Relatorios, programacao, rubricas, metas, documentos, equipe e evidencias');
+      const { contexto } = await carregarContextoRelatorioDoApp(museu, {
+        secoesSelecionadas: normalizedSelectedSections,
+        selectedInlinePhotoIds: selectedIds,
+      });
+
+      updateProgress(48, 'Recalculando metricas oficiais', 'Consolidando indicadores oficiais do dashboard e do periodo');
+      const dashboardMetrics = consolidateOfficialDashboardMetrics({
+        reports: contexto?.reports_raw || [],
+        programacao: contexto?.programacao_raw || [],
+        rubricas: contexto?.rubricas_raw || [],
+        metas: contexto?.metas_raw || [],
+        photos: [
+          ...(Array.isArray(contexto?.attachments_raw) ? contexto.attachments_raw : []),
+          ...(Array.isArray(contexto?.gallery_raw) ? contexto.gallery_raw : []),
+        ],
+        presenceRecords: Array.isArray(contexto?.presence_records_raw) ? contexto.presence_records_raw : [],
+      }, {
+        period: { from: '2026-02-02', to: '2026-04-30' },
+      });
+
+      updateProgress(65, 'Regerando HTML do relatorio', 'Atualizando relatorio principal, dados e galeria');
+      const separated = await buildSeparatedReportsHtml({
+        museu,
+        premium: modoPremium,
+        secoesSelecionadas: normalizedSelectedSections,
+        selectedInlinePhotoIds: selectedIds,
+      });
+
+      const refreshedAt = new Date().toISOString();
+
+      if (separated?.data?.html) {
+        updateProgress(78, 'Salvando nova previa', 'Persistindo relatorio principal atualizado');
+        await saveReportPreview('dados', {
+          html: separated.data.html,
+          meta: {
+            ...separated.data.meta,
+            selectedChapters: normalizedSelectedSections.filter((sectionId) => !['galeria_evidencias', 'galeria_premium'].includes(sectionId)),
+            refreshedAt,
+            forcedRefresh: true,
+            metricsForcedRefresh: true,
+            reportVariant: 'dados',
+            dashboardMetrics,
+          },
+        });
+      }
+
+      if (separated?.gallery?.html) {
+        updateProgress(88, 'Salvando nova previa', 'Persistindo relatorio galeria atualizado');
+        await saveReportPreview('galeria', {
+          html: separated.gallery.html,
+          meta: {
+            ...separated.gallery.meta,
+            selectedChapters: normalizedSelectedSections,
+            refreshedAt,
+            forcedRefresh: true,
+            metricsForcedRefresh: true,
+            reportVariant: 'galeria',
+            dashboardMetrics,
+          },
+        });
+      }
+
+      const mainHtml = separated?.data?.html || separated?.single?.html || '';
+      const mainContext = separated?.data?.contexto || separated?.single?.contexto || separated?.contexto || contexto;
+
+      if (!String(mainHtml || '').trim()) {
+        throw new Error('A pesquisa foi concluida, mas nenhum HTML atualizado foi gerado.');
+      }
+
+      setResultado({
+        html: mainHtml,
+        galleryHtml: separated?.gallery?.html || '',
+        contexto: {
+          ...mainContext,
+          dashboard_metrics: dashboardMetrics,
+        },
+        fonte: modoPremium ? 'premium_app_forced_refresh' : 'frontend_ia_forced_refresh',
+        exportMode: 'data_pdf',
+        htmlSize: new Blob([mainHtml], { type: 'text/html;charset=utf-8' }).size,
+        galleryHtmlSize: separated?.gallery?.html
+          ? new Blob([separated.gallery.html], { type: 'text/html;charset=utf-8' }).size
+          : 0,
+        meta: {
+          ...separated?.data?.meta,
+          refreshedAt,
+          forcedRefresh: true,
+          metricsForcedRefresh: true,
+          reportVariant: 'dados',
+          dashboardMetrics,
+        },
+        galleryMeta: separated?.gallery?.meta
+          ? {
+              ...separated.gallery.meta,
+              refreshedAt,
+              forcedRefresh: true,
+              metricsForcedRefresh: true,
+              reportVariant: 'galeria',
+              dashboardMetrics,
+            }
+          : null,
+        refreshedAt,
+        metricsForcedRefresh: true,
+      });
+
+      updateProgress(100, 'PDF pronto para exportacao com dados atualizados', 'HTML e PDF agora usam as metricas recem-pesquisadas');
+      toast.success('Dados, metricas, HTML e PDF foram atualizados com informacoes reais do app.');
+      return {
+        ...mainContext,
+        dashboard_metrics: dashboardMetrics,
+      };
+    } catch (err) {
+      console.error(err);
+      setErro(err.message || 'Nao foi possivel pesquisar e checar os dados.');
+      toast.error('Nao foi possivel atualizar os dados do relatorio.');
+      return null;
+    } finally {
+      setLoading(false);
+      setTimeout(() => setExportProgress(null), 1200);
+    }
   };
 
   const downloadNamedHtml = (html, fileName) => {
@@ -1521,9 +1745,9 @@ export default function RelatorioFisicoFinanceiroGenerator() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogAberto(false)} disabled={loading}>Cancelar</Button>
-            <Button variant="outline" onClick={pesquisarEChecarDados} disabled={loading || secoesSelecionadas.length === 0}>
+            <Button variant="outline" onClick={pesquisarDadosEAtualizarRelatorio} disabled={loading || secoesSelecionadas.length === 0}>
               {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
-              Pesquisar e checar dados
+              Pesquisar dados e atualizar relatorio
             </Button>
             <Button onClick={() => handleGerarUnico()} disabled={loading || secoesSelecionadas.length === 0}>
               {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
