@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { AlertCircle, ArrowLeft, CheckCircle2, Download, FileDown, Loader2, Printer } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CheckCircle2, Download, FileDown, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
@@ -10,7 +10,7 @@ import { REPORT_CHAPTERS, REPORT_CHAPTER_IDS } from '@/config/reportChapters';
 
 const MAX_EXPORT_PART_SIZE_BYTES = 200 * 1024 * 1024;
 const PDF_VOLUME_COUNT = 3;
-const EXPORT_FILENAME_BASE = 'Relatorio_Museus_Centro';
+const EXPORT_FILENAME_BASE = 'Museus-Centro-Relatorio';
 
 function normalizeText(value) {
   return String(value || '')
@@ -48,7 +48,7 @@ function chapterRenderSignals(chapterId) {
 }
 
 function filenameForPart(partNumber) {
-  return `${EXPORT_FILENAME_BASE}_volume_${String(partNumber).padStart(2, '0')}.pdf`;
+  return `${EXPORT_FILENAME_BASE}-Volume-${partNumber}.pdf`;
 }
 
 const EXPORT_STATUS_LABELS = {
@@ -309,7 +309,7 @@ function buildSplitParts(chapters) {
           internallySplit: true,
         });
       });
-      warnings.push(`O capítulo ${chapter.title} excedeu 200 MB e foi dividido em subpartes para preservar a integridade do PDF.`);
+      warnings.push(`O capítulo ${chapter.title} excedeu o limite técnico legado e foi dividido em subpartes para preservar a integridade do PDF.`);
       return;
     }
 
@@ -320,7 +320,7 @@ function buildSplitParts(chapters) {
       oversizedSingleChapter: true,
     });
 
-    warnings.push(`O capítulo ${chapter.title} excede 200 MB e foi exportado em arquivo próprio para preservar a integridade do PDF.`);
+    warnings.push(`O capítulo ${chapter.title} excede o limite técnico legado e foi exportado em arquivo próprio para preservar a integridade do PDF.`);
   });
 
   pushCurrent();
@@ -514,7 +514,10 @@ function addContinuousPageNumbers(pdf, options = {}) {
     const label = volumeNumber && totalVolumes
       ? `Volume ${volumeNumber}/${totalVolumes} · página ${pageNumber}`
       : `página ${pageNumber}`;
-    pdf.text(label, pageWidth / 2, pageHeight - 6, { align: 'center' });
+    const footerLabel = volumeNumber
+      ? `Museus Centro - Relatorio Institucional - Volume ${Number(options.volumeNumber)} | Pagina ${pageNumber}`
+      : label;
+    pdf.text(footerLabel, pageWidth / 2, pageHeight - 6, { align: 'center' });
   }
 }
 
@@ -1556,6 +1559,72 @@ function addAnexosCss(html) {
   );
 }
 
+function addPrintA4Css(html) {
+  if (!html || html.includes('relatorio-print-a4-css')) return html;
+
+  const css = `
+    <style id="relatorio-print-a4-css">
+      @media print {
+        @page {
+          size: A4;
+          margin: 18mm 14mm 18mm 14mm;
+        }
+
+        html, body {
+          width: 210mm;
+          background: #fff !important;
+        }
+
+        main.premium-report {
+          width: 210mm !important;
+          max-width: 210mm !important;
+          margin: 0 auto !important;
+          background: #fff !important;
+        }
+
+        section,
+        article,
+        table,
+        img,
+        .premium-section,
+        .premium-activity-card,
+        .premium-photo-index-item,
+        .premium-meta-card,
+        .premium-report-note {
+          break-inside: avoid;
+          page-break-inside: avoid;
+        }
+
+        h1, h2, h3 {
+          break-after: avoid;
+          page-break-after: avoid;
+        }
+
+        img {
+          max-width: 100% !important;
+          height: auto !important;
+        }
+
+        table {
+          width: 100% !important;
+          table-layout: fixed;
+        }
+
+        th, td {
+          overflow-wrap: anywhere;
+          word-break: break-word;
+        }
+      }
+    </style>
+  `;
+
+  if (html.includes('</head>')) {
+    return html.replace('</head>', `${css}</head>`);
+  }
+
+  return html.replace('</style>', `${css}</style>`);
+}
+
 function addAnexosToSummary(html) {
   if (
     !html ||
@@ -1727,6 +1796,7 @@ function prepareFinalHtml(rawHtml, reports = []) {
   let finalHtml = cleanupReportHtmlForPdf(stripEditorialMarkers(rawHtml));
 
   finalHtml = addAnexosCss(finalHtml);
+  finalHtml = addPrintA4Css(finalHtml);
   finalHtml = addAnexosToSummary(finalHtml);
 
   const anexosHtml =
@@ -1782,8 +1852,6 @@ async function loadReportsForHtml(html) {
 export default function RelatorioPreview() {
   const navigate = useNavigate();
   const [html, setHtml] = useState('');
-  const [exportDialogOpen, setExportDialogOpen] = useState(false);
-  const [exportMode, setExportMode] = useState('single');
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [exportProgressOpen, setExportProgressOpen] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
@@ -1791,13 +1859,22 @@ export default function RelatorioPreview() {
   const [currentExportFile, setCurrentExportFile] = useState(null);
   const [exportProgressMessage, setExportProgressMessage] = useState('');
   const [exportProgressError, setExportProgressError] = useState(null);
+  const [volumeMeta, setVolumeMeta] = useState({
+    volumeNumber: 1,
+    totalVolumes: PDF_VOLUME_COUNT,
+    pageNumberOffset: 0,
+  });
 
   useEffect(() => {
     let cancelled = false;
     try {
-      const storedMode = sessionStorage.getItem('relatorio_fisico_financeiro_export_mode');
-      if (storedMode === 'split' || storedMode === 'single') {
-        setExportMode(storedMode);
+      const storedVolume = JSON.parse(sessionStorage.getItem('relatorio_fisico_financeiro_export_volume') || 'null');
+      if (storedVolume?.volumeNumber) {
+        setVolumeMeta({
+          volumeNumber: Number(storedVolume.volumeNumber) || 1,
+          totalVolumes: Number(storedVolume.totalVolumes) || PDF_VOLUME_COUNT,
+          pageNumberOffset: Number(storedVolume.pageNumberOffset) || 0,
+        });
       }
     } catch {}
 
@@ -1860,7 +1937,7 @@ export default function RelatorioPreview() {
     );
   }
 
-  async function handleExportPdf(modeOverride = exportMode) {
+  async function handleExportPdf() {
     const exportHtml = await getHtmlForExport();
     if (!exportHtml) {
       toast.error('HTML do relatório não encontrado. Gere o relatório novamente.');
@@ -1868,110 +1945,25 @@ export default function RelatorioPreview() {
     }
 
     setIsExportingPdf(true);
-    toast.info('Preparando relatório para exportação...');
+    toast.info(`Gerando PDF do Volume ${volumeMeta.volumeNumber}...`);
 
     try {
-      if (modeOverride === 'single') {
-        toast.info('Gerando PDF em arquivo único...');
-        const blob = await exportHtmlToPdfBlob(exportHtml);
-        await downloadPdfBlob(blob, `${EXPORT_FILENAME_BASE}.pdf`);
-        toast.success('PDF exportado com sucesso.');
-        setExportDialogOpen(false);
-        return;
-      }
-
-      toast.info('Gerando PDF dividido em volumes...');
-      const selectedChapterIds = loadSelectedChapterIds();
-      const documentParts = extractDocumentParts(exportHtml, selectedChapterIds);
-
-      if (!documentParts || !Array.isArray(documentParts.chapters) || documentParts.chapters.length === 0) {
-        toast.error('Não foi possível dividir o relatório por capítulos. Tente novamente.');
-        return;
-      }
-
-      const { parts, warnings } = buildSplitParts(documentParts.chapters);
-      if (!Array.isArray(parts) || parts.length === 0) {
-        toast.error('Não foi possível montar volumes válidos para exportação.');
-        return;
-      }
-
-      const queue = parts.map((part, index) => ({
-        id: `volume-${String(index + 1).padStart(2, '0')}`,
-        filename: filenameForPart(index + 1),
-        status: 'waiting',
-        chapters: part.chapters.map((chapter) => chapter.title),
-        blobSize: null,
-        error: null,
-      }));
-
-      setExportQueue(queue);
-      setExportProgress(0);
-      setCurrentExportFile(null);
-      setExportProgressError(null);
-      setExportProgressMessage('Os arquivos estÃ£o sendo gerados em sequÃªncia. Cada arquivo serÃ¡ enviado para download antes do prÃ³ximo comeÃ§ar.');
-      setExportDialogOpen(false);
-      setExportProgressOpen(true);
-
-      const summaryHtml = buildPartSummary(parts);
-      const totalParts = parts.length;
-      let pageNumberOffset = 0;
-
-      for (let i = 0; i < parts.length; i += 1) {
-        const partNumber = i + 1;
-        const queuedFilename = queue[i].filename;
-        setCurrentExportFile(queuedFilename);
-        updateExportQueueItem(i, { status: 'exporting', error: null });
-        toast.info(`Exportando ${queuedFilename}...`);
-        const partHtml = buildPartHtml(documentParts, parts[i], partNumber, totalParts, summaryHtml);
-        const filename = queuedFilename;
-        const blobSize = new Blob([partHtml], { type: 'text/html;charset=utf-8' }).size;
-
-        updateExportQueueItem(i, { status: 'preparing_download', blobSize });
-
-        const pdfResult = await exportHtmlToPdfBlob(partHtml, {
-          pageNumberOffset,
-          volumeNumber: partNumber,
-          totalVolumes: totalParts,
-          returnMeta: true,
-        });
-        const pdfBlob = pdfResult.blob;
-        pageNumberOffset += pdfResult.pageCount || 0;
-        await downloadPdfBlob(pdfBlob, filename);
-        const ok = true;
-        if (!ok) {
-          toast.error(`Não foi possível exportar o volume ${String(partNumber).padStart(2, '0')}.`);
-          const errorMessage = `Erro ao exportar ${filename}. A exportaÃ§Ã£o foi interrompida para evitar arquivos incompletos.`;
-          updateExportQueueItem(i, { status: 'error', blobSize, error: errorMessage });
-          setCurrentExportFile(null);
-          setExportProgressError('O navegador pode ter bloqueado downloads mÃºltiplos. Permita downloads automÃ¡ticos para este site e tente novamente.');
-          throw new Error(errorMessage);
-        }
-
-        updateExportQueueItem(i, { status: 'download_started', blobSize: pdfBlob.size });
-        await delay(300);
-        updateExportQueueItem(i, { status: 'done', blobSize: pdfBlob.size });
-        setExportProgress(Math.round((partNumber / totalParts) * 100));
-        toast.success(`Volume ${String(partNumber).padStart(2, '0')} preparado.`);
-      }
-
-      setCurrentExportFile(null);
-      setExportProgress(100);
-      setExportProgressMessage('ExportaÃ§Ã£o concluÃ­da. Todos os arquivos foram enviados para download.');
-
-      if (warnings.length > 0) {
-        warnings.forEach((warningMessage) => toast.warning(warningMessage));
-        toast.warning('Exportação concluída com avisos.');
-      } else {
-        toast.success('Relatório exportado com sucesso.');
-      }
-
-      setExportDialogOpen(false);
+      const blob = await exportHtmlToPdfBlob(exportHtml, {
+        pageNumberOffset: volumeMeta.pageNumberOffset,
+        volumeNumber: volumeMeta.volumeNumber,
+        totalVolumes: volumeMeta.totalVolumes,
+        includeSearchableAppendix: false,
+      });
+      await downloadPdfBlob(blob, filenameForPart(volumeMeta.volumeNumber));
+      toast.success(`Volume ${volumeMeta.volumeNumber} exportado com sucesso.`);
     } catch (error) {
       console.error('Erro ao exportar PDF:', error);
       toast.error('Erro ao exportar PDF.');
     } finally {
       setIsExportingPdf(false);
     }
+
+    return;
   }
 
   function handleDownloadHtml() {
@@ -2037,25 +2029,15 @@ export default function RelatorioPreview() {
 
             <Button
               onClick={() => {
-                setExportMode('single');
-                handleExportPdf('single');
+                handleExportPdf();
               }}
               className="bg-black hover:bg-gray-800 text-white gap-2"
               disabled={isExportingPdf}
             >
               {isExportingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
-              {isExportingPdf ? 'Exportando...' : 'Exportar PDF direto'}
+              {isExportingPdf ? 'Exportando...' : `Exportar PDF Volume ${volumeMeta.volumeNumber}`}
             </Button>
 
-            <Button
-              variant="outline"
-              onClick={() => setExportDialogOpen(true)}
-              className="gap-2"
-              disabled={isExportingPdf}
-            >
-              <Printer className="w-4 h-4" />
-              Opções PDF
-            </Button>
           </div>
         </div>
 
@@ -2086,50 +2068,6 @@ export default function RelatorioPreview() {
           </CardContent>
         </Card>
       </div>
-
-      <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Exportar relatório em PDF</DialogTitle>
-            <DialogDescription>
-              Escolha se deseja gerar o relatório em um único arquivo ou em 3 volumes balanceados.
-              No modo dividido, os capítulos serão mantidos inteiros sempre que possível.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3">
-            <button
-              type="button"
-              onClick={() => setExportMode('single')}
-              disabled={isExportingPdf}
-              className={`w-full rounded-xl border p-4 text-left transition-colors ${exportMode === 'single' ? 'border-black bg-black/5' : 'border-slate-200 bg-white'}`}
-            >
-              <p className="text-sm font-semibold text-slate-900">Arquivo único</p>
-              <p className="text-xs text-slate-500 mt-1">Mantém o comportamento atual em um único PDF.</p>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setExportMode('split')}
-              disabled={isExportingPdf}
-              className={`w-full rounded-xl border p-4 text-left transition-colors ${exportMode === 'split' ? 'border-black bg-black/5' : 'border-slate-200 bg-white'}`}
-            >
-              <p className="text-sm font-semibold text-slate-900">3 volumes balanceados</p>
-              <p className="text-xs text-slate-500 mt-1">Agrupa capítulos inteiros em volumes com tamanhos próximos e paginação contínua.</p>
-            </button>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setExportDialogOpen(false)} disabled={isExportingPdf}>
-              Cancelar
-            </Button>
-            <Button onClick={() => handleExportPdf()} disabled={isExportingPdf} className="gap-2">
-              {isExportingPdf ? <Printer className="w-4 h-4 animate-pulse" /> : <FileDown className="w-4 h-4" />}
-              {isExportingPdf ? 'Exportando...' : 'Exportar'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <Dialog
         open={exportProgressOpen}

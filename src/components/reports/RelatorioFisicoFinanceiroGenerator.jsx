@@ -17,7 +17,6 @@ import { revisarHtmlRelatorioAntesDaExportacao } from '@/services/reportEditoria
 import { consolidateOfficialDashboardMetrics } from '@/utils/auditoria/institutionalMetrics';
 import {
   DEFAULT_OPTIONS as REPORT_IMAGE_OPTIMIZATION_OPTIONS,
-  PDF_MAX_TOTAL_SIZE_MB,
   optimizeReportHtmlImages,
 } from '@/utils/reportImageOptimizer';
 import {
@@ -37,16 +36,15 @@ import {
 } from '@/components/reports/premium/premiumReportUtils';
 
 const MUSEUS = ['Todos', 'MIS', 'MHAB', 'MUMO'];
-const MAX_EXPORT_PART_SIZE_BYTES = PDF_MAX_TOTAL_SIZE_MB * 1024 * 1024;
 const EXPORT_VOLUME_COUNT = 3;
-const EXPORT_FILENAME_BASE = 'Relatorio_Museus_Centro';
+const EXPORT_FILENAME_BASE = 'Museus-Centro-Relatorio';
 const SECOES_RELATORIO = REPORT_CHAPTER_IDS;
 function getCapituloLabel(sectionId) {
   return getReportChapterById(sectionId)?.title || sectionId;
 }
 
 function buildPartFileName(partNumber, extension = 'html') {
-  return `${EXPORT_FILENAME_BASE}_volume_${String(partNumber).padStart(2, '0')}.${extension}`;
+  return `${EXPORT_FILENAME_BASE}-Volume-${partNumber}.${extension}`;
 }
 
 function buildDivisionSummary(parts = []) {
@@ -92,56 +90,18 @@ function injectPartMetadata(html, { partNumber, totalParts, sectionLabels = [], 
   return `${content}${html}`;
 }
 
-function buildBalancedVolumeParts(sectionMeasures = [], volumeCount = EXPORT_VOLUME_COUNT) {
-  const measures = Array.isArray(sectionMeasures) ? sectionMeasures.filter(Boolean) : [];
-  if (measures.length === 0) return [];
-
-  const safeVolumeCount = Math.min(Math.max(1, Number(volumeCount) || EXPORT_VOLUME_COUNT), measures.length);
-  const totalSize = measures.reduce((sum, item) => sum + (item.sizeBytes || 1), 0);
-  const targetSize = Math.max(1, Math.ceil(totalSize / safeVolumeCount));
-  const parts = Array.from({ length: safeVolumeCount }, () => ({
-    secoes: [],
-    estimatedSizeBytes: 0,
-    oversizedSingleChapter: false,
-  }));
-  let partIndex = 0;
-
-  measures.forEach((measure, index) => {
-    const remainingSections = measures.length - index;
-    const remainingParts = safeVolumeCount - partIndex;
-    const sectionSize = measure.sizeBytes || 1;
-    const current = parts[partIndex];
-    const shouldAdvance =
-      partIndex < safeVolumeCount - 1 &&
-      current.secoes.length > 0 &&
-      current.estimatedSizeBytes + sectionSize > targetSize &&
-      remainingSections > remainingParts;
-
-    if (shouldAdvance) partIndex += 1;
-
-    parts[partIndex].secoes.push(measure.sectionId);
-    parts[partIndex].estimatedSizeBytes += sectionSize;
-    parts[partIndex].oversizedSingleChapter =
-      parts[partIndex].oversizedSingleChapter || sectionSize > MAX_EXPORT_PART_SIZE_BYTES;
-  });
-
-  return parts.filter((part) => part.secoes.length > 0);
+function buildVolumeParts(sectionIds = []) {
+  const ids = Array.isArray(sectionIds) ? sectionIds.filter(Boolean) : [];
+  return [
+    { partNumber: 1, totalParts: EXPORT_VOLUME_COUNT, secoes: ids.slice(0, 10) },
+    { partNumber: 2, totalParts: EXPORT_VOLUME_COUNT, secoes: ids.slice(10, 20) },
+    { partNumber: 3, totalParts: EXPORT_VOLUME_COUNT, secoes: ids.slice(20) },
+  ];
 }
 
-function buildPartsByChapterCount(sectionIds = [], chunkSize = EXPORT_VOLUME_COUNT) {
-  const ids = Array.isArray(sectionIds) ? sectionIds.filter(Boolean) : [];
-  const safeChunkSize = Math.max(1, Math.ceil(ids.length / Math.max(1, Number(chunkSize) || EXPORT_VOLUME_COUNT)));
-  const parts = [];
-
-  for (let index = 0; index < ids.length; index += safeChunkSize) {
-    parts.push({
-      secoes: ids.slice(index, index + safeChunkSize),
-      estimatedSizeBytes: 0,
-      oversizedSingleChapter: false,
-    });
-  }
-
-  return parts;
+function parsePositiveInteger(value) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
 async function safeList(entity, order = '-created_date', limit = 1000) {
@@ -348,14 +308,20 @@ export default function RelatorioFisicoFinanceiroGenerator() {
   const [resultado, setResultado] = useState(null);
   const [erro, setErro] = useState(null);
   const [modoPremium, setModoPremium] = useState(true);
-  const [exportMode, setExportMode] = useState('single');
   const [dialogAberto, setDialogAberto] = useState(false);
+  const [requestedVolume, setRequestedVolume] = useState(1);
+  const [lastPageVolume1, setLastPageVolume1] = useState('');
+  const [lastPageVolume2, setLastPageVolume2] = useState('');
   const [secoes, setSecoes] = useState(buildReportChapterSelectionState());
   const [photoSelectionDialog, setPhotoSelectionDialog] = useState(false);
   const [photoSelectionCandidates, setPhotoSelectionCandidates] = useState([]);
   const [selectedInlinePhotoIds, setSelectedInlinePhotoIds] = useState({});
 
   const secoesSelecionadas = getSelectedReportChapterIds(secoes);
+  const volumeParts = useMemo(
+    () => buildVolumeParts(normalizeSelectedReportChapterIds(secoesSelecionadas)),
+    [secoesSelecionadas]
+  );
   const producedSectionTexts = useMemo(() => Object.fromEntries(
     REPORT_CHAPTERS.map((chapter) => [
       chapter.contentKey || `${chapter.id}_text`,
@@ -398,6 +364,22 @@ export default function RelatorioFisicoFinanceiroGenerator() {
       });
       return next;
     });
+  };
+
+  const getVolumePageOffset = (volumeNumber) => {
+    if (volumeNumber === 1) return 0;
+
+    const inputValue = volumeNumber === 2 ? lastPageVolume1 : lastPageVolume2;
+    const parsed = parsePositiveInteger(inputValue);
+
+    if (!parsed) {
+      toast.error(volumeNumber === 2
+        ? 'Informe a última página do Volume 1 para gerar o Volume 2.'
+        : 'Informe a última página do Volume 2 para gerar o Volume 3.');
+      return null;
+    }
+
+    return parsed;
   };
 
   const openPreview = (html) => {
@@ -457,201 +439,133 @@ export default function RelatorioFisicoFinanceiroGenerator() {
       console.warn('Alertas antes da exportacao:', warnings);
     }
   };
-  const runExport = async (inlinePhotoIds = []) => {
+  const runExport = async (inlinePhotoIds = [], volumeNumber = requestedVolume) => {
     const normalizedSelectedSections = normalizeSelectedReportChapterIds(secoesSelecionadas);
+    const allVolumeParts = buildVolumeParts(normalizedSelectedSections);
+    const selectedVolume = allVolumeParts.find((part) => part.partNumber === volumeNumber);
+    const pageNumberOffset = getVolumePageOffset(volumeNumber);
 
     if (normalizedSelectedSections.length === 0) {
       toast.error('Selecione ao menos um capítulo.');
       return;
     }
 
+    if (!selectedVolume || selectedVolume.secoes.length === 0) {
+      toast.error(`O Volume ${volumeNumber} nao possui capitulos selecionados.`);
+      return;
+    }
+
+    if (pageNumberOffset === null) return;
+
     try {
-      sessionStorage.setItem('relatorio_fisico_financeiro_selected_chapters', JSON.stringify(normalizedSelectedSections));
-      sessionStorage.setItem('relatorio_fisico_financeiro_export_mode', exportMode);
+      sessionStorage.setItem('relatorio_fisico_financeiro_selected_chapters', JSON.stringify(selectedVolume.secoes));
+      sessionStorage.setItem('relatorio_fisico_financeiro_all_chapters', JSON.stringify(normalizedSelectedSections));
+      sessionStorage.setItem('relatorio_fisico_financeiro_export_mode', 'volume');
+      sessionStorage.setItem('relatorio_fisico_financeiro_export_volume', JSON.stringify({
+        volumeNumber,
+        totalVolumes: EXPORT_VOLUME_COUNT,
+        pageNumberOffset,
+      }));
     } catch {}
 
     setLoading(true);
-    updateProgress(4, 'Iniciando geração do relatório', `${normalizedSelectedSections.length} capítulos selecionados`);
+    updateProgress(4, 'Iniciando geracao do relatorio', `Volume ${volumeNumber} com ${selectedVolume.secoes.length} capitulos`);
     setResultado(null);
     setErro(null);
 
     try {
-      toast.info(exportMode === 'split' ? 'Preparando exportação dividida...' : 'Preparando exportação em arquivo único...');
+      toast.info(`Preparando Volume ${volumeNumber} do relatorio...`);
 
-      let data = null;
-      let fonte = modoPremium ? 'premium_app' : 'backend';
-
-      if (!modoPremium) {
-        try {
-          updateProgress(12, 'Consultando geração principal', 'Tentando usar a função evoluída do backend');
-          const response = await base44.functions.invoke('gerarRelatorioFisicoFinanceiro', {
-            museu: museu === 'Todos' ? null : museu,
-            formato: 'abrangente',
-            usar_fotos_app: true,
-            buscar_dados_dashboard: true,
-            incluir_relatorios_equipe: true,
-            refinar_textos_ia: true,
-          });
-
-          if (response?.data?.html) {
-            data = {
-              ...response.data,
-              html: await optimizeReportHtmlImages(response.data.html, REPORT_IMAGE_OPTIMIZATION_OPTIONS),
-            };
-          }
-        } catch (backendError) {
-          console.warn(
-            'gerarRelatorioFisicoFinanceiro indisponível. Gerando no frontend com dados do app e textos refinados por IA.',
-            backendError
-          );
-        }
-      }
-
-      if (!data?.html) {
-        updateProgress(28, 'Buscando dados do dashboard', 'Relatórios, programação, rubricas, metas, presença e galeria');
-        const local = await gerarRelatorioDoApp(museu, {
-          premium: modoPremium,
-          secoesSelecionadas: normalizedSelectedSections,
-          selectedInlinePhotoIds: inlinePhotoIds,
-        });
-        data = { html: local.html, contexto: local.contexto };
-        fonte = modoPremium ? 'premium_app' : 'frontend_ia';
-      }
-
-      const htmlSize = new Blob([data.html], { type: 'text/html;charset=utf-8' }).size;
-
-      if (exportMode === 'single') {
-        updateProgress(88, 'Finalizando arquivo único', 'Preparando prévia e download');
-        if (exportMode === 'split' && htmlSize <= MAX_EXPORT_PART_SIZE_BYTES) {
-          toast.info('O relatório ficou abaixo de 200 MB e foi mantido em arquivo único.');
-        }
-
-        validateBeforeExport(data.html, normalizedSelectedSections, data.contexto);
-
-        setResultado({
-          ...data,
-          fonte,
-          exportMode: 'single',
-          htmlSize,
-        });
-        updateProgress(100, 'Relatório concluído', 'Arquivo único pronto');
-        openPreview(data.html);
-      } else {
-        const measuredSections = [];
-
-        for (let index = 0; index < normalizedSelectedSections.length; index += 1) {
-          const sectionId = normalizedSelectedSections[index];
-          const percent = 30 + ((index + 1) / Math.max(1, normalizedSelectedSections.length)) * 28;
-          updateProgress(percent, 'Medindo capítulos para divisão', `${index + 1} de ${normalizedSelectedSections.length} capítulos analisados`);
-          const chapterResult = await gerarRelatorioDoApp(museu, {
-            premium: modoPremium,
-            secoesSelecionadas: [sectionId],
-            selectedInlinePhotoIds: inlinePhotoIds,
-          });
-          validateBeforeExport(chapterResult.html, [sectionId], chapterResult.contexto);
-          const chapterSize = new Blob([chapterResult.html], { type: 'text/html;charset=utf-8' }).size;
-          measuredSections.push({
-            sectionId,
-            sizeBytes: chapterSize,
-            label: getCapituloLabel(sectionId),
-          });
-        }
-
-        const builtParts = buildBalancedVolumeParts(measuredSections);
-
-        if (builtParts.length === 0) {
-          builtParts.push(...buildPartsByChapterCount(normalizedSelectedSections));
-        }
-
-        const totalParts = builtParts.length;
-        const summaryHtml = buildDivisionSummary(
-          builtParts.map((part, index) => ({
-            partNumber: index + 1,
-            sectionLabels: part.secoes.map(getCapituloLabel),
-          }))
-        );
-
-        const finalParts = [];
-        for (let index = 0; index < builtParts.length; index += 1) {
-          const part = builtParts[index];
-          const partNumber = index + 1;
-          const percent = 62 + (partNumber / Math.max(1, totalParts)) * 30;
-          updateProgress(percent, 'Gerando volumes do relatório', `${partNumber} de ${totalParts} volumes em preparação`);
-          if (part.oversizedSingleChapter && part.secoes.length === 1) {
-            toast.info(`O capítulo ${getCapituloLabel(part.secoes[0])} excede 200 MB e foi exportado em arquivo próprio para preservar a integridade do PDF.`);
-          }
-          const splitContext = {
-            enabled: true,
-            partNumber,
-            totalParts,
-            sectionLabels: part.secoes.map(getCapituloLabel),
-            subdivisionOf: null,
-          };
-
-          const localPart = await gerarRelatorioDoApp(museu, {
-            premium: modoPremium,
-            secoesSelecionadas: part.secoes,
-            splitContext,
-            selectedInlinePhotoIds: inlinePhotoIds,
-          });
-
-          const htmlPart = injectPartMetadata(localPart.html, {
-            partNumber,
-            totalParts,
-            sectionLabels: splitContext.sectionLabels,
-            summaryHtml,
-          });
-          validateBeforeExport(htmlPart, part.secoes, localPart.contexto);
-
-          finalParts.push({
-            partNumber,
-            totalParts,
-            fileName: buildPartFileName(partNumber),
-            html: htmlPart,
-            sizeBytes: new Blob([htmlPart], { type: 'text/html;charset=utf-8' }).size,
-            sectionLabels: splitContext.sectionLabels,
-            secoes: part.secoes,
-          });
-
-          toast.success(`Volume ${String(partNumber).padStart(2, '0')} preparado com ${splitContext.sectionLabels.join(', ')}.`);
-        }
-
-        setResultado({
-          ...data,
-          fonte,
-          exportMode: 'split',
-          htmlSize,
-          parts: finalParts,
-        });
-        updateProgress(100, 'Relatório concluído', `${finalParts.length} volumes prontos para visualização e download`);
-        openPreview(finalParts[0]?.html || data.html);
-      }
-
-      setDialogAberto(false);
-      toast.success(
-        fonte === 'premium_app'
-          ? 'Relatório institucional gerado.'
-          : fonte === 'backend'
-            ? 'Relatório gerado pela função evoluída.'
-            : 'Relatório gerado com dados reais do app e IA.'
+      updateProgress(28, 'Buscando dados do dashboard', 'Relatorios, programacao, rubricas, metas, presenca e galeria');
+      const fullData = await gerarRelatorioDoApp(museu, {
+        premium: modoPremium,
+        secoesSelecionadas: normalizedSelectedSections,
+        selectedInlinePhotoIds: inlinePhotoIds,
+      });
+      const summaryHtml = buildDivisionSummary(
+        allVolumeParts.map((part) => ({
+          partNumber: part.partNumber,
+          sectionLabels: part.secoes.map(getCapituloLabel),
+        }))
       );
+      const splitContext = {
+        enabled: true,
+        partNumber: volumeNumber,
+        totalParts: EXPORT_VOLUME_COUNT,
+        sectionLabels: selectedVolume.secoes.map(getCapituloLabel),
+        pageNumberOffset,
+        subdivisionOf: null,
+      };
+
+      updateProgress(72, `Gerando Volume ${volumeNumber}`, splitContext.sectionLabels.join(', '));
+      const localPart = await gerarRelatorioDoApp(museu, {
+        premium: modoPremium,
+        secoesSelecionadas: selectedVolume.secoes,
+        splitContext,
+        selectedInlinePhotoIds: inlinePhotoIds,
+      });
+
+      const htmlPart = injectPartMetadata(localPart.html, {
+        partNumber: volumeNumber,
+        totalParts: EXPORT_VOLUME_COUNT,
+        sectionLabels: splitContext.sectionLabels,
+        summaryHtml,
+      });
+      validateBeforeExport(htmlPart, selectedVolume.secoes, localPart.contexto);
+
+      const finalPart = {
+        partNumber: volumeNumber,
+        totalParts: EXPORT_VOLUME_COUNT,
+        fileName: buildPartFileName(volumeNumber),
+        html: htmlPart,
+        sizeBytes: new Blob([htmlPart], { type: 'text/html;charset=utf-8' }).size,
+        sectionLabels: splitContext.sectionLabels,
+        secoes: selectedVolume.secoes,
+        pageNumberOffset,
+      };
+
+      setResultado({
+        html: htmlPart,
+        contexto: localPart.contexto || fullData.contexto,
+        fonte: modoPremium ? 'premium_app' : 'frontend_ia',
+        exportMode: 'volume',
+        htmlSize: finalPart.sizeBytes,
+        volumeNumber,
+        pageNumberOffset,
+        parts: [finalPart],
+      });
+      updateProgress(100, 'Relatorio concluido', `Volume ${volumeNumber} pronto para visualizacao e PDF`);
+      openPreview(htmlPart);
+      setDialogAberto(false);
+      toast.success(`Volume ${volumeNumber} gerado com dados reais do aplicativo.`);
     } catch (err) {
       console.error(err);
-      setErro(err.message || 'Não foi possível gerar o relatório.');
-      toast.error('Não foi possível gerar o relatório.');
+      setErro(err.message || 'Nao foi possivel gerar o relatorio.');
+      toast.error('Nao foi possivel gerar o relatorio.');
     } finally {
       setLoading(false);
       setTimeout(() => setExportProgress(null), 1200);
     }
+
+    return;
   };
 
   const getSelectedInlineIds = () => Object.entries(selectedInlinePhotoIds)
     .filter(([, selected]) => selected)
     .map(([photoId]) => photoId);
 
-  const handleGerar = async () => {
+  const handleGerar = async (volumeNumber) => {
+    setRequestedVolume(volumeNumber);
+    if (getVolumePageOffset(volumeNumber) === null) return;
+
     if (secoesSelecionadas.length === 0) {
       toast.error('Selecione ao menos um capítulo.');
+      return;
+    }
+
+    const selectedVolume = volumeParts.find((part) => part.partNumber === volumeNumber);
+    if (!selectedVolume || selectedVolume.secoes.length === 0) {
+      toast.error(`O Volume ${volumeNumber} nao possui capitulos selecionados.`);
       return;
     }
 
@@ -686,7 +600,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
         return;
       }
 
-      await runExport(selectedIds);
+      await runExport(selectedIds, volumeNumber);
     } catch (err) {
       console.error(err);
       setLoading(false);
@@ -889,7 +803,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
               onClick={async () => {
                 const selectedIds = getSelectedInlineIds();
                 setPhotoSelectionDialog(false);
-                await runExport(selectedIds);
+                await runExport(selectedIds, requestedVolume);
               }}
               disabled={loading}
             >
@@ -945,26 +859,30 @@ export default function RelatorioFisicoFinanceiroGenerator() {
               </div>
             </div>
 
-            <div className="space-y-3">
-              <Label>Modo de exportação</Label>
-              <div className="grid md:grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setExportMode('single')}
-                  className={`rounded-xl border p-4 text-left transition-colors ${exportMode === 'single' ? 'border-black bg-black/5' : 'border-slate-200 bg-white'}`}
-                >
-                  <p className="text-sm font-semibold text-slate-900">Exportar em arquivo único</p>
-                  <p className="text-xs text-slate-500 mt-1">Mantém exatamente o fluxo atual da exportação.</p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setExportMode('split')}
-                  className={`rounded-xl border p-4 text-left transition-colors ${exportMode === 'split' ? 'border-black bg-black/5' : 'border-slate-200 bg-white'}`}
-                >
-                  <p className="text-sm font-semibold text-slate-900">Dividir em arquivos de até 200 MB</p>
-                  <p className="text-xs text-slate-500 mt-1">Agrupa os capítulos em 3 volumes balanceados antes da geração final do HTML/PDF.</p>
-                </button>
+            <div className="grid md:grid-cols-2 gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div>
+                <Label>Ultima pagina do Volume 1</Label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={lastPageVolume1}
+                  onChange={(event) => setLastPageVolume1(event.target.value)}
+                  className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-900"
+                  placeholder="Obrigatorio para Volume 2"
+                />
+              </div>
+              <div>
+                <Label>Ultima pagina do Volume 2</Label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={lastPageVolume2}
+                  onChange={(event) => setLastPageVolume2(event.target.value)}
+                  className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-900"
+                  placeholder="Obrigatorio para Volume 3"
+                />
               </div>
             </div>
 
@@ -993,7 +911,17 @@ export default function RelatorioFisicoFinanceiroGenerator() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogAberto(false)} disabled={loading}>Cancelar</Button>
-            <Button onClick={handleGerar} disabled={loading || secoesSelecionadas.length === 0}>
+            {[1, 2, 3].map((volumeNumber) => {
+              const volume = volumeParts.find((part) => part.partNumber === volumeNumber);
+              const disabled = loading || secoesSelecionadas.length === 0 || !volume || volume.secoes.length === 0;
+              return (
+                <Button key={volumeNumber} onClick={() => handleGerar(volumeNumber)} disabled={disabled}>
+                  {loading && requestedVolume === volumeNumber ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
+                  {`Gerar / Exportar Volume ${volumeNumber}`}
+                </Button>
+              );
+            })}
+            <Button className="hidden" onClick={handleGerar} disabled={loading || secoesSelecionadas.length === 0}>
               {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
               Gerar relatório
             </Button>
