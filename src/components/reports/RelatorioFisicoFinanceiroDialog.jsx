@@ -67,6 +67,31 @@ async function safeList(entity, order = '-created_date', limit = 1000) {
   }
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function loadDialogReportEntities() {
+  const loaders = [
+    ['reportsRaw', () => safeList(base44.entities.Report, '-updated_date', 2000)],
+    ['rubricasRaw', () => safeList(base44.entities.Rubrica, 'ordem_exibicao', 2000)],
+    ['comprasRaw', () => safeList(base44.entities.PurchaseRequest, '-created_date', 2000)],
+    ['teamPaymentsRaw', () => safeList(base44.entities.TeamPayment, '-created_date', 2000)],
+    ['documentIntakeRaw', () => safeList(base44.entities.DocumentIntake, '-created_date', 2000)],
+    ['attachmentsRaw', () => safeList(base44.entities.Attachment, '-created_date', 3000)],
+    ['programacaoRaw', () => safeList(base44.entities.Programacao, '-data_inicio', 3000)],
+    ['conhecimentoRaw', () => carregarBaseConhecimento()],
+  ];
+  const data = {};
+
+  for (const [key, loader] of loaders) {
+    data[key] = await loader();
+    await sleep(250);
+  }
+
+  return data;
+}
+
 async function carregarBaseConhecimento() {
   const candidatos = [
     base44?.entities?.BaseConhecimento,
@@ -116,7 +141,7 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
   const secoesSelecionadas = getSelectedReportChapterIds(secoes);
 
   async function coletarDados() {
-    const [
+    const {
       reportsRaw,
       rubricasRaw,
       comprasRaw,
@@ -125,16 +150,7 @@ export default function RelatorioFisicoFinanceiroDialog({ open, onClose }) {
       attachmentsRaw,
       programacaoRaw,
       conhecimentoRaw,
-    ] = await Promise.all([
-      safeList(base44.entities.Report, '-updated_date', 2000),
-      safeList(base44.entities.Rubrica, 'ordem_exibicao', 2000),
-      safeList(base44.entities.PurchaseRequest, '-created_date', 2000),
-      safeList(base44.entities.TeamPayment, '-created_date', 2000),
-      safeList(base44.entities.DocumentIntake, '-created_date', 2000),
-      safeList(base44.entities.Attachment, '-created_date', 3000),
-      safeList(base44.entities.Programacao, '-data_inicio', 3000),
-      carregarBaseConhecimento(),
-    ]);
+    } = await loadDialogReportEntities();
 
     const contexto = buildRelatorioFisicoFinanceiroContext({
       reportsRaw,

@@ -86,15 +86,97 @@ export function getCapituloLabel(sectionId) {
   return getReportChapterById(sectionId)?.title || sectionId;
 }
 
-async function safeList(entity, order = '-created_date', limit = 1000) {
-  try {
-    if (!entity?.list) return [];
-    const res = await entity.list(order, limit);
-    return Array.isArray(res) ? res : [];
-  } catch (error) {
-    console.warn('Falha ao listar entidade do relatorio:', error);
+const reportDataCache = new Map();
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function errorMessage(error) {
+  return String(error?.message || error || '');
+}
+
+function isRateLimitError(error) {
+  const message = errorMessage(error).toLowerCase();
+  return message.includes('rate limit') || message.includes('429');
+}
+
+function isEntityNotFoundError(error) {
+  const message = errorMessage(error).toLowerCase();
+  return message.includes('entity schema') || message.includes('not found in app');
+}
+
+async function withRetry(fn, { retries = 3, baseDelay = 900 } = {}) {
+  let lastError = null;
+
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      if (!isRateLimitError(error) || attempt === retries) throw error;
+      await sleep(baseDelay * Math.pow(2, attempt));
+    }
+  }
+
+  throw lastError;
+}
+
+async function safeList(entity, order = '-created_date', limit = 1000, { cacheKey = '', required = false } = {}) {
+  if (!entity?.list) {
+    if (required) throw new Error(`Entidade obrigatoria indisponivel: ${cacheKey || 'desconhecida'}`);
     return [];
   }
+
+  const key = cacheKey || `${entity?.name || 'entity'}:${order}:${limit}`;
+  if (reportDataCache.has(key)) return reportDataCache.get(key);
+
+  try {
+    const res = await withRetry(() => entity.list(order, limit));
+    const data = Array.isArray(res) ? res : [];
+    reportDataCache.set(key, data);
+    return data;
+  } catch (error) {
+    if (isEntityNotFoundError(error)) {
+      console.warn(`Entidade opcional ausente no relatorio (${key}):`, error);
+      reportDataCache.set(key, []);
+      return [];
+    }
+    if (required) {
+      throw new Error(`Falha ao carregar entidade obrigatoria ${key}: ${errorMessage(error)}`);
+    }
+    console.warn(`Falha ao listar entidade opcional do relatorio (${key}):`, error);
+    reportDataCache.set(key, []);
+    return [];
+  }
+}
+
+async function loadReportEntitiesSafely() {
+  const loaders = [
+    ['reportsRaw', () => safeList(base44.entities.Report, '-updated_date', 2000, { cacheKey: 'Report', required: true })],
+    ['rubricasRaw', () => safeList(base44.entities.Rubrica, 'ordem_exibicao', 2000, { cacheKey: 'Rubrica', required: true })],
+    ['comprasRaw', () => safeList(base44.entities.PurchaseRequest, '-created_date', 2000, { cacheKey: 'PurchaseRequest' })],
+    ['teamPaymentsRaw', () => safeList(base44.entities.TeamPayment, '-created_date', 2000, { cacheKey: 'TeamPayment' })],
+    ['documentIntakeRaw', () => safeList(base44.entities.DocumentIntake, '-created_date', 2000, { cacheKey: 'DocumentIntake' })],
+    ['attachmentsRaw', () => safeList(base44.entities.Attachment, '-created_date', 3000, { cacheKey: 'Attachment' })],
+    ['metasRaw', () => safeList(base44.entities.Meta, 'codigo', 1000, { cacheKey: 'Meta' })],
+    ['programacaoRaw', () => safeList(base44.entities.Programacao, '-data_inicio', 3000, { cacheKey: 'Programacao' })],
+    ['conhecimentoRaw', () => carregarBaseConhecimento()],
+  ];
+  const data = {};
+  const errors = [];
+
+  for (const [key, loader] of loaders) {
+    try {
+      data[key] = await loader();
+    } catch (error) {
+      errors.push({ entity: key, message: errorMessage(error) });
+      throw error;
+    }
+    await sleep(260);
+  }
+
+  return { data, errors };
 }
 
 async function carregarBaseConhecimento() {
@@ -106,7 +188,7 @@ async function carregarBaseConhecimento() {
   ].filter(Boolean);
 
   for (const entity of candidatos) {
-    const lista = await safeList(entity, '-updated_date', 500);
+    const lista = await safeList(entity, '-updated_date', 500, { cacheKey: `Knowledge:${entity?.name || candidatos.indexOf(entity)}` });
     if (lista.length > 0) return lista;
   }
 
@@ -124,31 +206,22 @@ export async function buildReportDataContext({
   const museuFiltro = museu === 'Todos' ? 'todos' : museu;
   const normalizedSections = normalizeSelectedReportChapterIds(secoesSelecionadas);
 
-  const [
-    reportsRaw,
-    rubricasRaw,
-    comprasRaw,
-    teamPaymentsRaw,
-    documentIntakeRaw,
-    attachmentsRaw,
-    galleryRaw,
-    metasRaw,
-    presenceRecordsRaw,
-    programacaoRaw,
-    conhecimentoRaw,
-  ] = await Promise.all([
-    safeList(base44.entities.Report, '-updated_date', 2000),
-    safeList(base44.entities.Rubrica, 'ordem_exibicao', 2000),
-    safeList(base44.entities.PurchaseRequest, '-created_date', 2000),
-    safeList(base44.entities.TeamPayment, '-created_date', 2000),
-    safeList(base44.entities.DocumentIntake, '-created_date', 2000),
-    safeList(base44.entities.Attachment, '-created_date', 3000),
-    safeList(base44.entities.Gallery, '-created_date', 3000),
-    safeList(base44.entities.Meta, 'codigo', 1000),
-    safeList(base44.entities.PresenceRecord, '-data', 3000),
-    safeList(base44.entities.Programacao, '-data_inicio', 3000),
-    carregarBaseConhecimento(),
-  ]);
+  const {
+    data: {
+      reportsRaw = [],
+      rubricasRaw = [],
+      comprasRaw = [],
+      teamPaymentsRaw = [],
+      documentIntakeRaw = [],
+      attachmentsRaw = [],
+      metasRaw = [],
+      programacaoRaw = [],
+      conhecimentoRaw = [],
+    },
+    errors: loadErrors = [],
+  } = await loadReportEntitiesSafely();
+  const galleryRaw = [];
+  const presenceRecordsRaw = [];
 
   const dashboardMetrics = consolidateOfficialDashboardMetrics({
     reports: reportsRaw,
@@ -192,9 +265,10 @@ export async function buildReportDataContext({
         rubricas: rubricasRaw.length,
         metas: metasRaw.length,
         attachments: attachmentsRaw.length,
-        gallery: galleryRaw.length,
-        presenceRecords: presenceRecordsRaw.length,
+        gallery: 0,
+        presenceRecords: 0,
       },
+      data_load_alerts: loadErrors,
       capitulos_relatorio: REPORT_CHAPTERS,
       secoesSelecionadas: normalizedSections,
       split_context: splitContext || undefined,
@@ -423,7 +497,7 @@ export async function buildVolumeHtml({
   const htmlOtimizado = await optimizeReportHtmlImages(htmlRevisado, REPORT_IMAGE_OPTIMIZATION_OPTIONS);
   const html = cleanEmptyReportSections(htmlOtimizado);
 
-  return { html, contexto };
+  return { html, contexto, filtros };
 }
 
 function countHtmlImages(html = '') {
@@ -702,16 +776,9 @@ export async function buildSeparatedReportsHtml({
     selectedInlinePhotoIds: [],
   });
 
-  const { contexto, filtros } = await buildReportDataContext({
-    museu,
-    secoesSelecionadas: normalizedSections,
-    splitContext: null,
-    selectedInlinePhotoIds: [],
-  });
-
   const galleryInitialHtml = buildGalleryReportDocument({
-    contexto,
-    filtros,
+    contexto: dataResult.contexto,
+    filtros: dataResult.filtros,
     selectedChapters: normalizedSections,
   });
   const galleryOptimizedHtml = await optimizeReportHtmlImages(galleryInitialHtml, REPORT_IMAGE_OPTIMIZATION_OPTIONS);
@@ -730,7 +797,7 @@ export async function buildSeparatedReportsHtml({
     },
     gallery: {
       html: galleryHtml,
-      contexto,
+      contexto: dataResult.contexto,
       meta: buildSingleReportMeta({
         html: galleryHtml,
         selectedChapters: normalizedSections,
