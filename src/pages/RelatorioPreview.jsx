@@ -2071,10 +2071,22 @@ async function getHtmlForExport() {
       return;
     }
 
+    const filename = filenameForReport(reportVariant);
     setIsExportingPdf(true);
-    toast.info('Gerando PDF do Relatorio Fisico-Financeiro...');
+    setExportProgressOpen(true);
+    setExportProgress(8);
+    setCurrentExportFile(filename);
+    setExportProgressError(null);
+    setExportProgressMessage('Preparando HTML e layout A4 para exportacao.');
+    toast.info('Gerando PDF...');
 
     try {
+      setExportProgress(22);
+      setExportProgressMessage('Otimizando o documento para impressao em PDF.');
+      await delay(120);
+
+      setExportProgress(48);
+      setExportProgressMessage('Renderizando paginas. Esta etapa pode demorar em relatorios com muitas imagens ou tabelas.');
       const blob = await exportSingleReportPdf({
         html: exportHtml,
         meta: {
@@ -2083,13 +2095,22 @@ async function getHtmlForExport() {
         },
         exporter: exportHtmlToPdfBlob,
       });
-      await downloadPdfBlob(blob, filenameForReport(reportVariant));
+
+      setExportProgress(86);
+      setExportProgressMessage('Preparando download do arquivo PDF.');
+      await downloadPdfBlob(blob, filename);
+
+      setExportProgress(100);
+      setExportProgressMessage('Download iniciado. Verifique a pasta de downloads do navegador.');
       toast.success('PDF exportado com sucesso.');
     } catch (error) {
       console.error('Erro ao exportar PDF:', error);
+      setExportProgressError(error?.message || 'Erro ao exportar PDF.');
+      setExportProgressMessage('A exportacao foi interrompida antes do download.');
       toast.error('Erro ao exportar PDF.');
     } finally {
       setIsExportingPdf(false);
+      setCurrentExportFile(null);
     }
 
     return;
@@ -2209,9 +2230,9 @@ async function getHtmlForExport() {
       >
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Exportando relatÃ³rio em partes</DialogTitle>
+            <DialogTitle>Exportando PDF</DialogTitle>
             <DialogDescription>
-              Cada arquivo serÃ¡ gerado e enviado para download antes do prÃ³ximo comeÃ§ar.
+              O arquivo esta sendo preparado e sera enviado para a pasta de downloads do navegador.
             </DialogDescription>
           </DialogHeader>
 
@@ -2224,7 +2245,7 @@ async function getHtmlForExport() {
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-semibold text-slate-900">
-                    {currentExportFile ? `Exportando agora: ${currentExportFile}` : exportProgress >= 100 ? 'ExportaÃ§Ã£o concluÃ­da' : 'Preparando fila'}
+                    {currentExportFile ? `Arquivo: ${currentExportFile}` : exportProgress >= 100 ? 'Exportacao concluida' : 'Preparando exportacao'}
                   </p>
                   <p className="mt-1 text-xs text-slate-500">{exportProgressMessage}</p>
                 </div>
