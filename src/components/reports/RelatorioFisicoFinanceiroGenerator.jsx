@@ -1100,6 +1100,11 @@ export default function RelatorioFisicoFinanceiroGenerator() {
                     ? 'Gerado pela função gerarRelatorioFisicoFinanceiro.'
                     : 'Gerado no frontend com dados reais do app, fotos vinculadas e refinamento textual por IA.'}
               </p>
+              {resultado.exportMode === 'two_reports' && (
+                <p className="text-xs text-green-700 mt-1">
+                  Resultado esperado: um PDF principal com dados e 100% das atividades, mais um PDF galeria com imagens organizadas por atividade e sem repeticao.
+                </p>
+              )}
               {false && resultado.exportMode === 'split' && Array.isArray(resultado.parts) && resultado.parts.length > 1 && (
                 <p className="text-xs text-green-700 mt-1">
                   Exportação preparada em {resultado.parts.length} volumes balanceados, respeitando a ordem dos capítulos selecionados.
@@ -1152,15 +1157,15 @@ export default function RelatorioFisicoFinanceiroGenerator() {
               <>
                 <Button variant="outline" size="sm" onClick={() => openPreview('dados')}>
                   <ExternalLink className="w-4 h-4 mr-2" />
-                  Abrir Relatório
+                  Abrir principal
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => downloadHtml(resultado.html)}>
                   <Download className="w-4 h-4 mr-2" />
-                  Baixar HTML
+                  HTML principal
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => openPreview('dados', true)}>
                   <Download className="w-4 h-4 mr-2" />
-                  Exportar PDF
+                  PDF principal
                 </Button>
                 {resultado.galleryHtml && (
                   <>

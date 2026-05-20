@@ -363,6 +363,36 @@ export function cleanEmptyReportSections(html = '') {
   }
 }
 
+function stripGalleryImagesFromDataReport(html = '') {
+  if (!String(html || '').trim() || typeof DOMParser === 'undefined') return html;
+
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(String(html), 'text/html');
+
+    doc.querySelectorAll('.premium-cover > img').forEach((node) => {
+      const fallback = doc.createElement('div');
+      fallback.className = 'premium-cover-fallback';
+      node.replaceWith(fallback);
+    });
+
+    doc.querySelectorAll(
+      '.premium-activity-photo-strip, .premium-activity-photos, .premium-photo-index, .premium-photo, .premium-gallery, .premium-attachment-thumb'
+    ).forEach((node) => node.remove());
+
+    doc.querySelectorAll('img').forEach((node) => {
+      const src = String(node.getAttribute('src') || '');
+      if (src.includes('viaduto-logo')) return;
+      node.remove();
+    });
+
+    return `<!doctype html>\n${doc.documentElement.outerHTML}`;
+  } catch (error) {
+    console.warn('Falha ao remover imagens fotograficas do relatorio principal:', error);
+    return html;
+  }
+}
+
 export async function buildVolumeHtml({
   museu = 'Todos',
   premium = true,
@@ -686,7 +716,7 @@ export async function buildSeparatedReportsHtml({
   });
   const galleryOptimizedHtml = await optimizeReportHtmlImages(galleryInitialHtml, REPORT_IMAGE_OPTIMIZATION_OPTIONS);
   const galleryHtml = cleanEmptyReportSections(galleryOptimizedHtml);
-  const dataHtml = cleanEmptyReportSections(dataResult.html);
+  const dataHtml = cleanEmptyReportSections(stripGalleryImagesFromDataReport(dataResult.html));
 
   return {
     data: {
