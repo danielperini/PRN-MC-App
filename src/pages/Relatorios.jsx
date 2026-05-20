@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -63,6 +63,26 @@ const MESES = [
 ];
 
 const MUSEUS = ['MHAB', 'MIS', 'MUMO'];
+const REPORTS_CACHE_KEY = 'relatorios_list_cache_v1';
+
+function readReportsCache() {
+  try {
+    const raw = localStorage.getItem(REPORTS_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveReportsCache(reports = []) {
+  try {
+    localStorage.setItem(REPORTS_CACHE_KEY, JSON.stringify(Array.isArray(reports) ? reports : []));
+  } catch {
+    // noop
+  }
+}
 
 export default function Relatorios() {
   const queryClient = useQueryClient();
@@ -73,6 +93,7 @@ export default function Relatorios() {
   const [returnDialog, setReturnDialog] = useState({ open: false, report: null });
   const [deleteDialog, setDeleteDialog] = useState({ open: false, report: null });
   const [returnComment, setReturnComment] = useState('');
+  const [cachedReports, setCachedReports] = useState(() => readReportsCache());
 
   const isAdmin = user?.role === 'admin';
 
@@ -160,6 +181,7 @@ export default function Relatorios() {
     isLoading,
     isError,
     isFetching,
+    error,
   } = useQuery({
     queryKey: ['relatorios-list'],
     queryFn: async () => {
@@ -169,12 +191,31 @@ export default function Relatorios() {
     enabled: !!user?.email,
     staleTime: 1000 * 60,
     refetchOnWindowFocus: false,
+    retry: (failureCount, err) => {
+      const msg = String(err?.message || '').toLowerCase();
+      const retryable = msg.includes('rate limit') || msg.includes('429') || msg.includes('network') || msg.includes('timeout');
+      return retryable ? failureCount < 5 : failureCount < 2;
+    },
+    retryDelay: (attempt) => Math.min(800 * (2 ** attempt), 8000),
   });
 
+  useEffect(() => {
+    if (Array.isArray(reports) && reports.length > 0) {
+      setCachedReports(reports);
+      saveReportsCache(reports);
+    }
+  }, [reports]);
+
+  const effectiveReports = useMemo(() => {
+    if (Array.isArray(reports) && reports.length > 0) return reports;
+    if (isError && Array.isArray(cachedReports) && cachedReports.length > 0) return cachedReports;
+    return Array.isArray(reports) ? reports : [];
+  }, [reports, isError, cachedReports]);
+
   const myReports = useMemo(() => {
-    if (isAdmin || isCoordenador) return reports;
-    return reports.filter((report) => report.created_by === user?.email);
-  }, [reports, user, isAdmin, isCoordenador]);
+    if (isAdmin || isCoordenador) return effectiveReports;
+    return effectiveReports.filter((report) => report.created_by === user?.email);
+  }, [effectiveReports, user, isAdmin, isCoordenador]);
 
   const filtered = useMemo(() => {
     return myReports.filter((report) => {
@@ -186,6 +227,7 @@ export default function Relatorios() {
   }, [myReports, filterMuseu, filterMes, filterStatus]);
 
   const isInitialPageLoading = userLoading || (!!user?.email && isLoading);
+  const hasCachedFallback = isError && cachedReports.length > 0;
 
   if (isInitialPageLoading) {
     return (
@@ -196,7 +238,7 @@ export default function Relatorios() {
     );
   }
 
-  if (isError) {
+  if (isError && !hasCachedFallback) {
     return (
       <LoadingPage
         error
@@ -240,6 +282,13 @@ export default function Relatorios() {
         {isFetching && !isLoading && (
           <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500">
             Atualizando relatórios...
+          </div>
+        )}
+
+        {hasCachedFallback && (
+          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Exibindo a ultima lista salva por instabilidade temporaria na carga em tempo real
+            {error?.message ? ` (${error.message})` : ''}.
           </div>
         )}
 
