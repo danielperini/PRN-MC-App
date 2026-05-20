@@ -1270,7 +1270,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
           <DialogHeader>
             <DialogTitle>Escolha os conteudos do relatorio</DialogTitle>
             <p className="text-sm text-slate-500">
-              Selecione o museu, o formato editorial e os capitulos que serao consolidados em um PDF unico A4. O sistema otimiza imagens, remove paginas vazias e preserva o conteudo completo selecionado.
+              Selecione o museu, o formato editorial e os capitulos que serao consolidados em dois arquivos: um relatorio principal com dados, textos, tabelas, graficos e atividades; e um relatorio galeria com imagens organizadas por atividade, sem repeticao.
             </p>
           </DialogHeader>
 
@@ -1376,7 +1376,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
               <div className="space-y-2">
                 <Label>Capitulos editoriais</Label>
                 <p className="text-xs leading-5 text-slate-600">
-                  Todo conteudo selecionado sera consolidado em um arquivo unico. As imagens serao vinculadas as atividades correspondentes, preservando creditos, GPS e legendas quando disponiveis.
+                  Todo conteudo selecionado sera preservado. Os dados, textos, tabelas, graficos e atividades entram no relatorio principal; as imagens entram no relatorio galeria, organizadas por atividade e sem repeticao.
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -1424,16 +1424,16 @@ export default function RelatorioFisicoFinanceiroGenerator() {
 
             <div className="rounded-xl border border-slate-200 bg-white p-4">
               <p className="text-sm font-semibold text-slate-900">Uso das imagens</p>
-              <p className="mt-2 text-xs leading-5 text-slate-600">As imagens serao usadas como evidencias das atividades as quais estao vinculadas nos relatorios da equipe. Cada imagem sera usada uma unica vez no relatorio inteiro. Imagens usadas na capa, em abertura de volume ou em uma atividade nao serao repetidas em outro capitulo ou volume.</p>
-              <p className="mt-2 text-xs leading-5 text-slate-600">A antiga galeria final sera substituida pela distribuicao das imagens junto as atividades correspondentes, preservando creditos, GPS, legenda e fonte quando disponiveis.</p>
+              <p className="mt-2 text-xs leading-5 text-slate-600">As imagens serao reunidas em um relatorio galeria separado, organizadas por atividade, museu e periodo conforme os vinculos disponiveis nos relatorios da equipe e nos anexos do app.</p>
+              <p className="mt-2 text-xs leading-5 text-slate-600">Cada imagem sera usada uma unica vez na galeria. O relatorio principal permanece mais leve, com 100% das atividades, dados, textos, tabelas e graficos; a galeria preserva creditos, GPS, legenda, arquivo e fonte quando esses dados estiverem disponiveis.</p>
             </div>
 
             <div className="rounded-xl border border-slate-200 bg-white p-4">
               {selectedEditorialChapterCount === allEditorialChapterCount ? (
                 <>
                   <p className="text-sm font-semibold text-slate-900">{allEditorialChapterCount} capitulos editoriais selecionados.</p>
-                  <p className="mt-1 text-xs text-slate-600">100% do conteudo selecionado sera consolidado em PDF unico.</p>
-                  <p className="mt-1 text-xs text-slate-600">Imagens serao usadas uma unica vez, vinculadas as atividades.</p>
+                  <p className="mt-1 text-xs text-slate-600">100% do conteudo selecionado sera consolidado no relatorio principal.</p>
+                  <p className="mt-1 text-xs text-slate-600">As imagens serao exportadas em relatorio galeria separado, uma unica vez e organizadas por atividade.</p>
                 </>
               ) : (
                 <>
@@ -1452,7 +1452,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
             </Button>
             <Button onClick={() => handleGerarUnico()} disabled={loading || secoesSelecionadas.length === 0}>
               {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
-              Gerar relatorio unico
+              Gerar relatorio principal e galeria
             </Button>
             {false && [1, 2, 3].map((volumeNumber) => {
               const volume = volumeParts.find((part) => part.partNumber === volumeNumber);
