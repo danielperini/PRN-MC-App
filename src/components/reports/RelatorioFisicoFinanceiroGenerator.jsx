@@ -629,10 +629,10 @@ export default function RelatorioFisicoFinanceiroGenerator() {
     });
   };
 
-  const getVolumePageOffset = (volumeNumber) => {
+  const getVolumePageOffset = (volumeNumber, overrideValue = undefined) => {
     if (volumeNumber === 1) return 0;
 
-    const inputValue = volumeNumber === 2 ? lastPageVolume1 : lastPageVolume2;
+    const inputValue = overrideValue ?? (volumeNumber === 2 ? lastPageVolume1 : lastPageVolume2);
     const parsed = parsePositiveInteger(inputValue);
 
     if (!parsed) {
@@ -643,6 +643,16 @@ export default function RelatorioFisicoFinanceiroGenerator() {
     }
 
     return parsed;
+  };
+
+  const promptVolumePageOffset = (volumeNumber) => {
+    if (volumeNumber === 1) return 0;
+
+    const label = volumeNumber === 2 ? 'Volume 1' : 'Volume 2';
+    const value = window.prompt(`Informe a ultima pagina do ${label} para gerar o Volume ${volumeNumber}:`);
+    if (value === null) return null;
+
+    return getVolumePageOffset(volumeNumber, value);
   };
   const getAutomaticPageOffset = (volumeNumber, parts = volumeParts) => {
     if (volumeNumber === 1) return 0;
@@ -811,11 +821,11 @@ export default function RelatorioFisicoFinanceiroGenerator() {
     }
   };
 
-  const runExport = async (inlinePhotoIds = [], volumeNumber = requestedVolume) => {
+  const runExport = async (inlinePhotoIds = [], volumeNumber = requestedVolume, pageNumberOffsetOverride = undefined) => {
     const normalizedSelectedSections = normalizeSelectedReportChapterIds(secoesSelecionadas);
     let allVolumeParts = buildVolumeParts(normalizedSelectedSections, {});
     let selectedVolume = allVolumeParts.find((part) => part.partNumber === volumeNumber);
-    const pageNumberOffset = getVolumePageOffset(volumeNumber);
+    const pageNumberOffset = getVolumePageOffset(volumeNumber, pageNumberOffsetOverride);
 
     if (normalizedSelectedSections.length === 0) {
       toast.error('Selecione ao menos um capítulo.');
@@ -1116,10 +1126,6 @@ export default function RelatorioFisicoFinanceiroGenerator() {
           <div className="flex gap-3 flex-wrap">
             {resultado.exportMode === 'split' && Array.isArray(resultado.parts) && resultado.parts.length > 1 ? (
               <>
-                <Button variant="outline" size="sm" onClick={() => openPreview(resultado.parts[0]?.html || resultado.html)}>
-                  <ExternalLink className="w-4 h-4 mr-2" />
-                  Abrir Volume 01
-                </Button>
                 <Button
                   variant="outline"
                   size="sm"
@@ -1129,15 +1135,28 @@ export default function RelatorioFisicoFinanceiroGenerator() {
                   Baixar todos os volumes
                 </Button>
                 {resultado.parts.map((part) => (
-                  <Button
-                    key={part.fileName}
-                    variant="outline"
-                    size="sm"
-                    onClick={() => downloadNamedHtml(part.html, part.fileName)}
-                  >
-                    <Download className="w-4 h-4 mr-2" />
-                    {`Volume ${String(part.partNumber).padStart(2, '0')}`}
-                  </Button>
+                  <div key={part.fileName} className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        const offset = promptVolumePageOffset(part.partNumber);
+                        if (offset === null) return;
+                        await runExport(getSelectedInlineIds(), part.partNumber, offset);
+                      }}
+                    >
+                      <ExternalLink className="w-4 h-4 mr-2" />
+                      {`Abrir Volume ${String(part.partNumber).padStart(2, '0')} para PDF`}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => downloadNamedHtml(part.html, part.fileName)}
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      HTML
+                    </Button>
+                  </div>
                 ))}
               </>
             ) : (
