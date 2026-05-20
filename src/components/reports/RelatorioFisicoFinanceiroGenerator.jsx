@@ -369,14 +369,58 @@ function buildPhotoSelectionCandidates(contexto = {}) {
     .filter(Boolean);
 }
 
-function salvarPreview(html) {
+const PREVIEW_DB_NAME = 'museus_centro_report_preview';
+const PREVIEW_DB_STORE = 'previews';
+const PREVIEW_HTML_KEY = 'latest_html';
+
+function savePreviewHtmlToIndexedDb(html) {
+  if (typeof indexedDB === 'undefined') return Promise.resolve(false);
+
+  return new Promise((resolve) => {
+    const request = indexedDB.open(PREVIEW_DB_NAME, 1);
+
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(PREVIEW_DB_STORE)) {
+        db.createObjectStore(PREVIEW_DB_STORE);
+      }
+    };
+
+    request.onerror = () => resolve(false);
+    request.onsuccess = () => {
+      const db = request.result;
+      const tx = db.transaction(PREVIEW_DB_STORE, 'readwrite');
+      tx.objectStore(PREVIEW_DB_STORE).put({
+        html,
+        savedAt: new Date().toISOString(),
+      }, PREVIEW_HTML_KEY);
+      tx.oncomplete = () => {
+        db.close();
+        resolve(true);
+      };
+      tx.onerror = () => {
+        db.close();
+        resolve(false);
+      };
+    };
+  });
+}
+
+async function salvarPreview(html) {
   try {
     sessionStorage.setItem('relatorio_fisico_financeiro_html', html);
+  } catch (error) {
+    console.warn('Não foi possível salvar a prévia do relatório em sessionStorage:', error);
+  }
+
+  try {
     localStorage.setItem('relatorio_fisico_financeiro_html', html);
     localStorage.setItem('relatorio_fisico_financeiro_html_saved_at', new Date().toISOString());
   } catch (error) {
-    console.warn('Não foi possível salvar a prévia do relatório:', error);
+    console.warn('Não foi possível salvar a prévia do relatório em localStorage:', error);
   }
+
+  await savePreviewHtmlToIndexedDb(html);
 }
 
 function salvarMetadadosVolume(volumeMeta = {}) {
@@ -607,8 +651,8 @@ export default function RelatorioFisicoFinanceiroGenerator() {
       .reduce((sum, part) => sum + Number(part.estimatedPages || 0), 0);
   };
 
-  const openPreview = (html) => {
-    salvarPreview(html);
+  const openPreview = async (html) => {
+    await salvarPreview(html);
     const preview = window.open('/RelatorioPreview', '_blank', 'width=1200,height=900');
     if (preview) return null;
 
@@ -754,7 +798,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
       });
 
       updateProgress(100, 'Relatório concluído', builtParts.length > 1 ? 'Volumes preparados para exportação HTML/PDF.' : `Volume ${firstPart.partNumber} pronto para visualização e PDF`);
-      openPreview(firstPart.html);
+      await openPreview(firstPart.html);
       setDialogAberto(false);
       toast.success(builtParts.length > 1 ? 'Relatório preparado em 3 volumes editoriais.' : `Volume ${firstPart.partNumber} gerado com dados reais do aplicativo.`);
     } catch (err) {
@@ -871,7 +915,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
         parts: [finalPart],
       });
       updateProgress(100, 'Relatorio concluido', `Volume ${volumeNumber} pronto para visualizacao e PDF`);
-      openPreview(htmlPart);
+      await openPreview(htmlPart);
       setDialogAberto(false);
       toast.success(`Volume ${volumeNumber} gerado com dados reais do aplicativo.`);
     } catch (err) {

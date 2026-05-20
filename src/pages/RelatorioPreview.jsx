@@ -672,14 +672,52 @@ async function downloadPdfBlob(blob, filename) {
   URL.revokeObjectURL(url);
 }
 
-function getStoredHtml() {
+const PREVIEW_DB_NAME = 'museus_centro_report_preview';
+const PREVIEW_DB_STORE = 'previews';
+const PREVIEW_HTML_KEY = 'latest_html';
+
+function getPreviewHtmlFromIndexedDb() {
+  if (typeof indexedDB === 'undefined') return Promise.resolve('');
+
+  return new Promise((resolve) => {
+    const request = indexedDB.open(PREVIEW_DB_NAME, 1);
+
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(PREVIEW_DB_STORE)) {
+        db.createObjectStore(PREVIEW_DB_STORE);
+      }
+    };
+
+    request.onerror = () => resolve('');
+    request.onsuccess = () => {
+      const db = request.result;
+      const tx = db.transaction(PREVIEW_DB_STORE, 'readonly');
+      const getRequest = tx.objectStore(PREVIEW_DB_STORE).get(PREVIEW_HTML_KEY);
+      getRequest.onsuccess = () => {
+        const value = getRequest.result;
+        db.close();
+        resolve(typeof value === 'string' ? value : value?.html || '');
+      };
+      getRequest.onerror = () => {
+        db.close();
+        resolve('');
+      };
+    };
+  });
+}
+
+async function getStoredHtml() {
   try {
-    return sessionStorage.getItem('relatorio_fisico_financeiro_html')
+    const quickHtml = sessionStorage.getItem('relatorio_fisico_financeiro_html')
       || localStorage.getItem('relatorio_fisico_financeiro_html')
       || '';
+    if (quickHtml) return quickHtml;
   } catch {
-    return '';
+    // IndexedDB below remains the most robust fallback for large reports.
   }
+
+  return getPreviewHtmlFromIndexedDb();
 }
 
 function escapeHtml(value) {
@@ -1893,7 +1931,7 @@ export default function RelatorioPreview() {
     } catch {}
 
     async function load() {
-      const stored = getStoredHtml();
+      const stored = await getStoredHtml();
 
       let finalHtml = '';
       try {
@@ -1928,10 +1966,10 @@ export default function RelatorioPreview() {
     [html]
   );
 
-  async function getHtmlForExport() {
+async function getHtmlForExport() {
     if (String(html || '').trim()) return html;
 
-    const stored = getStoredHtml();
+    const stored = await getStoredHtml();
     if (!String(stored || '').trim()) return '';
 
     try {
@@ -1980,8 +2018,8 @@ export default function RelatorioPreview() {
     return;
   }
 
-  function handleDownloadHtml() {
-    const htmlForDownload = html || getStoredHtml();
+  async function handleDownloadHtml() {
+    const htmlForDownload = html || await getStoredHtml();
     if (!String(htmlForDownload || '').trim()) {
       toast.error('HTML do relatório não encontrado. Gere o relatório novamente.');
       return;
