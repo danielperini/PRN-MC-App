@@ -720,6 +720,9 @@ export function buildRelatorioFisicoFinanceiroContext({
   teamPaymentsRaw = [],
   documentIntakeRaw = [],
   attachmentsRaw = [],
+  galleryRaw = [],
+  metasRaw = [],
+  presenceRecordsRaw = [],
   programacaoRaw = [],
   conhecimentoRaw = [],
   filtros = {},
@@ -840,7 +843,12 @@ export function buildRelatorioFisicoFinanceiroContext({
     reports: reportsRaw,
     programacao: programacaoRaw,
     rubricas: rubricasRaw,
-    photos: attachmentsRaw,
+    metas: metasRaw,
+    photos: [
+      ...(Array.isArray(attachmentsRaw) ? attachmentsRaw : []),
+      ...(Array.isArray(galleryRaw) ? galleryRaw : []),
+    ],
+    presenceRecords: presenceRecordsRaw,
   }, {
     period: { from: dateFrom, to: dateTo },
   });

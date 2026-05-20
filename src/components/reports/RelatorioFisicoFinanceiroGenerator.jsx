@@ -14,6 +14,7 @@ import montarHtmlRelatorioFisicoFinanceiro from '@/utils/relatorioFisicoFinancei
 import gerarTextosRelatorioFisicoFinanceiro from '@/services/relatorioIAService';
 import { montarHtmlRelatorioPremium } from '@/components/reports/premium/PremiumReportLayout';
 import { revisarHtmlRelatorioAntesDaExportacao } from '@/services/reportEditorialReview';
+import { consolidateOfficialDashboardMetrics } from '@/utils/auditoria/institutionalMetrics';
 import {
   DEFAULT_OPTIONS as REPORT_IMAGE_OPTIMIZATION_OPTIONS,
   PDF_MAX_TOTAL_SIZE_MB,
@@ -236,6 +237,9 @@ async function carregarContextoRelatorioDoApp(museu, { secoesSelecionadas = SECO
     teamPaymentsRaw,
     documentIntakeRaw,
     attachmentsRaw,
+    galleryRaw,
+    metasRaw,
+    presenceRecordsRaw,
     programacaoRaw,
     conhecimentoRaw,
   ] = await Promise.all([
@@ -245,9 +249,26 @@ async function carregarContextoRelatorioDoApp(museu, { secoesSelecionadas = SECO
     safeList(base44.entities.TeamPayment, '-created_date', 2000),
     safeList(base44.entities.DocumentIntake, '-created_date', 2000),
     safeList(base44.entities.Attachment, '-created_date', 3000),
+    safeList(base44.entities.Gallery, '-created_date', 3000),
+    safeList(base44.entities.Meta, 'codigo', 1000),
+    safeList(base44.entities.PresenceRecord, '-data', 3000),
     safeList(base44.entities.Programacao, '-data_inicio', 3000),
     carregarBaseConhecimento(),
   ]);
+
+  const dashboardMetrics = consolidateOfficialDashboardMetrics({
+    reports: reportsRaw,
+    programacao: programacaoRaw,
+    rubricas: rubricasRaw,
+    metas: metasRaw,
+    photos: [...attachmentsRaw, ...galleryRaw],
+    presenceRecords: presenceRecordsRaw,
+  }, {
+    period: {
+      from: dateFrom,
+      to: dateTo,
+    },
+  });
 
   const contexto = buildRelatorioFisicoFinanceiroContext({
     reportsRaw,
@@ -256,6 +277,9 @@ async function carregarContextoRelatorioDoApp(museu, { secoesSelecionadas = SECO
     teamPaymentsRaw,
     documentIntakeRaw,
     attachmentsRaw,
+    galleryRaw,
+    metasRaw,
+    presenceRecordsRaw,
     programacaoRaw,
     conhecimentoRaw,
     filtros: {
@@ -269,6 +293,16 @@ async function carregarContextoRelatorioDoApp(museu, { secoesSelecionadas = SECO
 
   const contextoComEstrategia = {
     ...contexto,
+    dashboard_metrics: dashboardMetrics,
+    dashboard_data_source: {
+      reports: reportsRaw.length,
+      programacao: programacaoRaw.length,
+      rubricas: rubricasRaw.length,
+      metas: metasRaw.length,
+      attachments: attachmentsRaw.length,
+      gallery: galleryRaw.length,
+      presenceRecords: presenceRecordsRaw.length,
+    },
     capitulos_relatorio: REPORT_CHAPTERS,
     secoesSelecionadas,
     split_context: splitContext || undefined,
@@ -460,6 +494,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
             museu: museu === 'Todos' ? null : museu,
             formato: 'abrangente',
             usar_fotos_app: true,
+            buscar_dados_dashboard: true,
             incluir_relatorios_equipe: true,
             refinar_textos_ia: true,
           });
@@ -479,7 +514,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
       }
 
       if (!data?.html) {
-        updateProgress(28, 'Consolidando dados e capítulos', 'Montando o relatório com dados reais do app');
+        updateProgress(28, 'Buscando dados do dashboard', 'Relatórios, programação, rubricas, metas, presença e galeria');
         const local = await gerarRelatorioDoApp(museu, {
           premium: modoPremium,
           secoesSelecionadas: normalizedSelectedSections,
