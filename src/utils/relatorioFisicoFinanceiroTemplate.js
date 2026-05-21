@@ -111,7 +111,7 @@ function renderReportPdfInstitutionalHeader() {
   return `
     <div class="report-pdf-institutional-header">
       <div class="report-pdf-institutional-logo-wrap">
-        <img src="/viaduto-logo.png" alt="Viaduto das Artes" class="report-pdf-institutional-logo" />
+        <img src="/logo.png" alt="Logo institucional" class="report-pdf-institutional-logo" />
       </div>
       <div class="report-pdf-institutional-text">
         <div>Viaduto das Artes – Fundado em 16 de junho de 2015</div>
@@ -905,7 +905,7 @@ export function montarHtmlRelatorioFisicoFinanceiro({
     --line: #e4e4e7;
     --line-strong: #d1d5db;
     --paper: #ffffff;
-    --page-bg: #f5f5f4;
+    --page-bg: #ffffff;
     --accent: #111111;
     --accent-warm: #c8a96e;
     --cover-dark: rgba(10,10,20,0.55);

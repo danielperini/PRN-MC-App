@@ -36,7 +36,7 @@ const CATALOG_CSS = `
   @page cover { size: A4; margin: 0; }
   * { box-sizing: border-box; }
   html, body { width: 210mm; margin: 0; padding: 0; overflow-x: hidden; background: #fff; color: #171717; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .premium-report { width: 210mm; max-width: 210mm; margin: 0 auto; overflow: hidden; background: #f7f3eb; color: #171717; }
+  .premium-report { width: 210mm; max-width: 210mm; margin: 0 auto; overflow: hidden; background: #ffffff; color: #171717; }
   .report-pdf-institutional-header { display: none; }
   .report-pdf-institutional-logo-wrap { width: 16mm; height: 16mm; flex: 0 0 16mm; }
   .report-pdf-institutional-logo { width: 16mm; height: 16mm; display: block; object-fit: contain; }
@@ -63,8 +63,8 @@ const CATALOG_CSS = `
   .premium-cover-credit { margin: -14px 0 22px; font-size: 10px; color: rgba(255,255,255,.62); letter-spacing: .06em; text-transform: uppercase; }
   .premium-cover-grid { display: none; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; max-width: 860px; background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.25); }
   .premium-cover-grid span { padding: 14px; background: rgba(0,0,0,.45); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
-  .premium-section, .premium-museum-block, .premium-communication, .premium-closing { padding: 16mm 14mm 15mm; background: #f7f3eb; min-height: auto; max-width: 210mm; overflow: hidden; }
-  .premium-expediente { padding: 16mm 14mm 15mm; background: #f7f3eb; min-height: auto; max-width: 210mm; overflow: hidden; color: #171717; }
+  .premium-section, .premium-museum-block, .premium-communication, .premium-closing { padding: 16mm 14mm 15mm; background: #ffffff; min-height: auto; max-width: 210mm; overflow: hidden; }
+  .premium-expediente { padding: 16mm 14mm 15mm; background: #ffffff; min-height: auto; max-width: 210mm; overflow: hidden; color: #171717; }
   .premium-expediente-heading { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: start; padding-bottom: 18px; border-bottom: 1px solid rgba(23,23,23,.2); margin-bottom: 20px; }
   .premium-expediente-heading h2 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 42px; line-height: .98; font-weight: 500; letter-spacing: 0; }
   .premium-expediente-heading p:last-child { margin: 0; font-size: 14px; line-height: 1.68; color: #3d3a35; }
@@ -304,10 +304,34 @@ const CATALOG_CSS = `
   .premium-table-wrap, .premium-table, .budget-table, .documents-table, .premium-rubrica-table { overflow: visible; break-inside: auto; page-break-inside: auto; }
   .premium-table thead, .budget-table thead, .documents-table thead, .premium-rubrica-table thead { display: table-header-group; }
   .premium-table tr, .budget-table tr, .documents-table tr, .premium-rubrica-table tr { break-inside: avoid; page-break-inside: avoid; }
+  .premium-section-dark,
+  .premium-closing,
+  .premium-communication-panel,
+  .premium-finance-group-header,
+  .premium-table th {
+    background: #ffffff !important;
+    color: #171717 !important;
+  }
+  .premium-metric,
+  .premium-photo-index-item,
+  .premium-activity-card,
+  .premium-infographic-card,
+  .premium-finance-summary-card,
+  .premium-finance-group,
+  .premium-table-wrap,
+  .premium-method-card,
+  .premium-report-note,
+  .premium-callout,
+  .premium-meta-card,
+  .premium-audience-chart,
+  .premium-institutional-list article,
+  .premium-month-card {
+    background: #ffffff !important;
+  }
 
   @media print {
     html, body { width: 210mm; min-height: 297mm; margin: 0; padding: 0; background: #fff; overflow-x: hidden; }
-    .premium-report { width: 210mm; max-width: 210mm; margin: 0 auto; overflow: visible; background: #f7f3eb; }
+    .premium-report { width: 210mm; max-width: 210mm; margin: 0 auto; overflow: visible; background: #ffffff; }
     .report-pdf-institutional-header { display: none; }
     .premium-internal-page-header { display: none; }
     .premium-cover { z-index: 5; break-after: auto; page-break-after: auto; }
@@ -419,6 +443,7 @@ function getChapterDataSources(chapterId) {
     comunicacao_premium: ['Report', 'Attachment', 'registros de comunicação'],
     financeiro: ['PurchaseRequest', 'TeamPayment', 'Rubrica'],
     rubricas: ['Rubrica'],
+    orcamento_geral: ['Rubrica', 'PurchaseRequest', 'TeamPayment', 'DocumentIntake', 'Attachment', 'Report', 'Atividades'],
     prestacao: ['PurchaseRequest', 'TeamPayment', 'DocumentIntake', 'Attachment'],
     'notas-fiscais-contratos': ['Attachment', 'DocumentIntake', 'PurchaseRequest', 'TeamPayment'],
     governanca_documental: ['DocumentIntake', 'Attachment', 'PurchaseRequest', 'TeamPayment'],
@@ -456,6 +481,7 @@ function getChapterMethodologyBox(chapterId, contexto = {}) {
     comunicacao_premium: 'Leitura narrativa da comunicação como circulação pública, documentação institucional, memória visual e visibilidade do projeto.',
     financeiro: `Separa solicitado, aprovado, pago, status, rubrica e centro/museu quando disponíveis. Considera ${purchaseCount} solicitações/movimentações no recorte.`,
     rubricas: 'Usa rubricas como fonte de verdade para previsto, utilizado, saldo, percentual, grupo e centro/museu.',
+    orcamento_geral: 'Consolida orçamento geral, relatórios e atividades com todos os campos relevantes para conferência institucional completa.',
     prestacao: 'Cruza solicitações, pagamentos, documentos fiscais, XMLs, recibos e comprovantes. Não substitui a listagem documental de notas fiscais.',
     'notas-fiscais-contratos': 'Lista contratos, notas fiscais, XMLs, recibos e comprovantes com links de rastreabilidade, sem repetir a análise financeira.',
     governanca_documental: 'Mostra cadeia documental, documentos pareados e sem par, vínculos e origem dos arquivos. Não repete a tabela fiscal completa.',
@@ -1426,8 +1452,8 @@ function ReportPdfInstitutionalHeader({ volumeNumber = 1, pageStart = 1 }) {
     <div className="report-pdf-institutional-header">
       <div className="report-pdf-institutional-logo-wrap">
         <img
-          src="/viaduto-logo.png"
-          alt="Viaduto das Artes"
+          src="/logo.png"
+          alt="Logo institucional"
           className="report-pdf-institutional-logo"
         />
       </div>
@@ -2234,6 +2260,21 @@ function getEffectiveTeamCount(contexto = {}) {
   return getRealTeamCount(contexto);
 }
 
+function getDashboardApprovedActivities(contexto = {}) {
+  const dashboard = contexto?.dashboard_metrics || contexto?.dashboardMetrics || contexto?.metricas_dashboard || {};
+  const monthRows = Array.isArray(dashboard?.activities?.byMonth) ? dashboard.activities.byMonth : [];
+  const aprilRow = monthRows.find((row) => {
+    const key = normalizeText(row?.key || row?.month || row?.mes || '');
+    return key.includes('2026-04') || key.includes('abril');
+  });
+  return toNumber(aprilRow?.atividades ?? dashboard?.activities?.approvedInMonth ?? dashboard?.activities?.approved ?? contexto.total_atividades);
+}
+
+function getDashboardAudience(contexto = {}) {
+  const dashboard = contexto?.dashboard_metrics || contexto?.dashboardMetrics || contexto?.metricas_dashboard || {};
+  return toNumber(dashboard?.audience?.publicoTotal ?? contexto.publico_total);
+}
+
 function hasRealPhotos(contexto = {}) {
   const allPhotos = extractPhotos(contexto);
   const { galleryPhotos } = prepareInlineAndGalleryPhotos(
@@ -2381,6 +2422,97 @@ function BudgetByMuseumSection({ contexto = {} }) {
           </article>
         </div>
       ) : null}
+    </PremiumSection>
+  );
+}
+
+function flattenObjectPreview(item = {}) {
+  if (!item || typeof item !== 'object') return '';
+  const skip = new Set(['fotos', 'imagens', 'evidencias', 'attachments', 'anexos', 'inlineSelectedPhotos']);
+  return Object.entries(item)
+    .filter(([key, value]) => !skip.has(key) && value !== null && value !== undefined && String(value).trim() !== '')
+    .slice(0, 16)
+    .map(([key, value]) => `${sanitizeReportText(key)}: ${sanitizeReportText(typeof value === 'object' ? JSON.stringify(value) : value)}`)
+    .join(' | ');
+}
+
+function BudgetGeneralSection({ contexto = {} }) {
+  const reports = getRealReports(contexto);
+  const activities = getRealActivities(contexto);
+  const totalPrevisto = toNumber(contexto.valor_total ?? contexto.valor_previsto_total);
+  const totalUtilizado = toNumber(contexto.valor_utilizado);
+  const saldo = toNumber(contexto.saldo ?? (totalPrevisto - totalUtilizado));
+  const percentual = toNumber(contexto.percentual_execucao);
+
+  return (
+    <PremiumSection
+      chapterId="orcamento_geral"
+      breakBefore
+      eyebrow="Orçamento geral"
+      title="Orçamento geral e consolidação completa"
+      subtitle="Consolidação financeira do período com base completa de relatórios e atividades."
+      text="Este capítulo consolida o orçamento geral do período e reúne todos os campos operacionais relevantes de relatórios e atividades para conferência institucional, sem alterar os dados de origem do aplicativo."
+    >
+      <div className="premium-finance-summary-cards">
+        <article className="premium-finance-summary-card"><span>Valor previsto</span><strong>{fmtBRL(totalPrevisto)}</strong></article>
+        <article className="premium-finance-summary-card"><span>Valor utilizado</span><strong>{fmtBRL(totalUtilizado)}</strong></article>
+        <article className="premium-finance-summary-card"><span>Saldo</span><strong>{fmtBRL(saldo)}</strong></article>
+        <article className="premium-finance-summary-card"><span>Execução</span><strong>{percentual.toFixed(1).replace('.', ',')}%</strong></article>
+      </div>
+
+      <div className="premium-table-wrap">
+        <table className="premium-table">
+          <thead>
+            <tr>
+              <th>Relatório</th>
+              <th>Data</th>
+              <th>Museu</th>
+              <th>Status</th>
+              <th>Público</th>
+              <th>Campos consolidados</th>
+            </tr>
+          </thead>
+          <tbody>
+            {reports.map((report, index) => (
+              <tr key={report.id || `report-${index}`}>
+                <td>{sanitizeReportText(report.titulo || report.nome || report.protocolo || report.id || `Relatório ${index + 1}`)}</td>
+                <td>{sanitizeReportText(report.data || report.created_date || report.updated_date || '')}</td>
+                <td>{sanitizeReportText(report.museu || report.centro_custo || report.equipamento || 'Não informado')}</td>
+                <td>{sanitizeReportText(report.status || 'Não informado')}</td>
+                <td>{fmtInt(toNumber(report.publico_total || report.publico || 0))}</td>
+                <td>{flattenObjectPreview(report)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="premium-table-wrap">
+        <table className="premium-table">
+          <thead>
+            <tr>
+              <th>Atividade</th>
+              <th>Data</th>
+              <th>Museu</th>
+              <th>Público</th>
+              <th>Meta/Rubrica</th>
+              <th>Campos consolidados</th>
+            </tr>
+          </thead>
+          <tbody>
+            {activities.map((activity, index) => (
+              <tr key={activity.id || `activity-${index}`}>
+                <td>{sanitizeReportText(getActivityTitle(activity))}</td>
+                <td>{sanitizeReportText(getActivityDate(activity) || activity.data || '')}</td>
+                <td>{sanitizeReportText(getMuseuLabel(activity.museu || activity.centro_custo || activity.local || 'Não informado'))}</td>
+                <td>{fmtInt(getActivityPublico(activity))}</td>
+                <td>{sanitizeReportText(getActivityMeta(activity) || activity.meta || activity.rubrica || 'Não informado')}</td>
+                <td>{flattenObjectPreview(activity)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </PremiumSection>
   );
 }
@@ -2754,7 +2886,7 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
   const pageStart = Math.max(1, Number(contexto?.split_context?.pageNumberOffset || 0) + 1);
   const isVolumeOne = volumeNumber === 1;
   REPORT_SECTION_FILTER = isVolumeOne
-    ? new Set(['capa', 'expediente', 'sumario_executivo', 'introducao', 'indicadores_premium', 'atividades_museu', 'museus_premium', 'comunicacao', 'comunicacao_premium', 'orcamento_museu', 'auditoria_operacional', 'conclusao'])
+    ? new Set(['capa', 'expediente', 'sumario_executivo', 'introducao', 'indicadores_premium', 'atividades_museu', 'museus_premium', 'comunicacao', 'comunicacao_premium', 'orcamento_museu', 'orcamento_geral', 'auditoria_operacional', 'conclusao'])
     : null;
 
   return (
@@ -2791,7 +2923,7 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
         breakBefore
         eyebrow="Indicadores editoriais"
         title="Painel de leitura do período"
-        subtitle={`${fmtInt(getEffectiveTotalActivities(contexto))} atividades registradas, ${fmtInt(contexto.publico_total)} pessoas no recorte do período e ${fmtInt(getEffectiveTotalReports(contexto))} relatórios consolidados.`}
+        subtitle={`${fmtInt(getDashboardApprovedActivities(contexto))} atividades em abril (aprovados), ${fmtInt(getDashboardAudience(contexto))} pessoas no recorte do período e ${fmtInt(getEffectiveTotalReports(contexto))} relatórios consolidados.`}
         text="Painel sintético de atividades, público, relatórios, fotos/anexos, documentos, solicitações, pagamentos e rubricas disponíveis no aplicativo."
       >
         <ChapterMethodologyPanel
@@ -2957,6 +3089,7 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
       </PremiumSection>}
 
       {hasSection(secoesSelecionadas, 'orcamento_museu') && <BudgetByMuseumSection contexto={contexto} />}
+      {hasSection(secoesSelecionadas, 'orcamento_geral') && <BudgetGeneralSection contexto={contexto} />}
 
       {hasSection(secoesSelecionadas, 'sistema_governanca') && <PremiumSection
         chapterId="sistema_governanca"
