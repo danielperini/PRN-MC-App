@@ -633,6 +633,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
         secoesSelecionadas: normalizedSelectedSections,
         selectedInlinePhotoIds: selectedIds,
       });
+      const dashboardMetrics = contexto?.dashboard_metrics || contexto?.dashboardMetrics || contexto?.metricas_dashboard || null;
 
       updateProgress(48, 'Recalculando metricas oficiais', 'Consolidando indicadores oficiais do dashboard e do periodo', 'pesquisa');
 
@@ -680,6 +681,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
 
       const mainHtml = separated?.data?.html || separated?.single?.html || '';
       const mainContext = separated?.data?.contexto || separated?.single?.contexto || separated?.contexto || contexto;
+      const refreshedDashboardMetrics = mainContext?.dashboard_metrics || mainContext?.dashboardMetrics || dashboardMetrics;
       if (!String(mainHtml || '').trim()) {
         throw new Error('A pesquisa foi concluida, mas nenhum HTML atualizado foi gerado.');
       }
@@ -700,6 +702,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
           forcedRefresh: true,
           metricsForcedRefresh: true,
           reportVariant: 'dados',
+          dashboardMetrics: refreshedDashboardMetrics,
         },
         galleryMeta: separated?.gallery?.meta
           ? {
@@ -1017,33 +1020,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
     return;
   };
 
-  const pesquisarEChecarDados = async () => {
-    const normalizedSelectedSections = normalizeSelectedReportChapterIds(secoesSelecionadas);
-    if (normalizedSelectedSections.length === 0) {
-      toast.error('Selecione ao menos um capítulo editorial.');
-      return null;
-    }
-    setLoading(true);
-    setErro(null);
-    updateProgress(12, 'Pesquisando e checando dados', 'Consolidando dashboard, relatórios, rubricas, programação e evidências');
-    try {
-      const { contexto } = await carregarContextoRelatorioDoApp(museu, {
-        secoesSelecionadas: normalizedSelectedSections,
-        selectedInlinePhotoIds: getSelectedInlineIds(),
-      });
-      updateProgress(36, 'Pesquisa concluída', 'Dados reais do app consolidados para o plano editorial');
-      toast.success('Pesquisa e checagem concluídas.');
-      return contexto;
-    } catch (err) {
-      console.error(err);
-      setErro(err.message || 'Não foi possível pesquisar e checar os dados.');
-      toast.error('Não foi possível pesquisar e checar os dados.');
-      return null;
-    } finally {
-      setLoading(false);
-      setTimeout(() => setExportProgress(null), 900);
-    }
-  };
+  const pesquisarEChecarDados = async () => pesquisarDadosEAtualizarRelatorio();
 
   const gerarPlanoDosVolumes = async () => {
     const contexto = await pesquisarEChecarDados();
