@@ -500,7 +500,7 @@ function splitOversizedPremiumSectionsForPdf(doc) {
 function normalizeReportDomForPdf(doc) {
   if (!doc) return;
 
-  doc.querySelectorAll('script, noscript, .report-pdf-institutional-header, .premium-internal-page-header, .report-header, .report-footer, .legacy-gallery-intro').forEach((node) => node.remove());
+  doc.querySelectorAll('script, noscript, .report-pdf-institutional-header, .report-header, .report-footer, .legacy-gallery-intro').forEach((node) => node.remove());
 
   let style = doc.getElementById('pdf-export-a4-normalizer');
   if (!style) {
@@ -617,7 +617,7 @@ function normalizeReportDomForPdf(doc) {
       page-break-inside: avoid !important;
     }
     th, td {
-      overflow-wrap: anywhere !important;
+      overflow-wrap: break-word !important;
       word-break: normal !important;
     }
     .premium-metric,
@@ -675,6 +675,118 @@ function normalizeReportDomForPdf(doc) {
       height: 240px !important;
       max-height: 240px !important;
       object-fit: cover !important;
+    }
+
+    .premium-report,
+    .premium-report * {
+      word-break: normal !important;
+      overflow-wrap: break-word !important;
+      hyphens: auto !important;
+    }
+
+    .premium-internal-page-header {
+      display: flex !important;
+      align-items: flex-start !important;
+      justify-content: space-between !important;
+      gap: 18px !important;
+      width: 100% !important;
+      min-width: 0 !important;
+      padding: 0 0 18px !important;
+      margin-bottom: 22px !important;
+      border-bottom: 1px solid rgba(0,0,0,.08) !important;
+    }
+
+    .premium-internal-page-header-logo {
+      display: block !important;
+      width: 128px !important;
+      min-width: 128px !important;
+      height: 68px !important;
+      flex: 0 0 128px !important;
+      background-image: url('/viaduto-logo.png') !important;
+      background-repeat: no-repeat !important;
+      background-position: left center !important;
+      background-size: contain !important;
+    }
+
+    .premium-internal-page-header-logo img {
+      max-width: 128px !important;
+      max-height: 68px !important;
+      width: auto !important;
+      height: auto !important;
+      object-fit: contain !important;
+      display: block !important;
+    }
+
+    .premium-internal-page-header-text {
+      flex: 1 1 auto !important;
+      min-width: 0 !important;
+      text-align: right !important;
+      white-space: normal !important;
+    }
+
+    .premium-activity-grid,
+    .premium-month-grid,
+    .premium-report-archive,
+    .premium-museum-block,
+    .premium-section {
+      min-width: 0 !important;
+      max-width: 100% !important;
+    }
+
+    .premium-activity-card {
+      display: block !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      min-width: 0 !important;
+      overflow: visible !important;
+      break-inside: avoid !important;
+      page-break-inside: avoid !important;
+    }
+
+    .premium-activity-card > *,
+    .premium-activity-card article,
+    .premium-activity-card div,
+    .activity-card-meta,
+    .activity-card-title,
+    .activity-card-body,
+    .premium-activity-card h3,
+    .premium-activity-card h4,
+    .premium-activity-card p,
+    .premium-month-card h3,
+    .premium-month-card p,
+    .premium-card-header,
+    .premium-card-header *,
+    .premium-card-facts,
+    .premium-card-facts *,
+    .premium-card-footer,
+    .premium-card-footer * {
+      min-width: 0 !important;
+      max-width: 100% !important;
+      white-space: normal !important;
+      word-break: normal !important;
+      overflow-wrap: break-word !important;
+    }
+
+    .premium-activity-index {
+      display: inline-block !important;
+      width: auto !important;
+      min-width: 0 !important;
+      max-width: none !important;
+      margin: 0 8px 8px 0 !important;
+      white-space: normal !important;
+      overflow-wrap: normal !important;
+      word-break: normal !important;
+      text-align: left !important;
+    }
+
+    .premium-card-header {
+      display: block !important;
+    }
+
+    .premium-card-facts,
+    .premium-card-footer {
+      display: grid !important;
+      grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
     }
   `;
 
@@ -736,6 +848,8 @@ function getPdfRenderTargets(root) {
     '.premium-museum-block',
     '.premium-communication',
     '.premium-closing',
+    '.premium-activity-card',
+    '.premium-month-card',
     '.gallery-cover',
     '.report-content',
     '.gallery-activity',
