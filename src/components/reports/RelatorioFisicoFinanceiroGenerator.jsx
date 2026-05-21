@@ -527,6 +527,16 @@ export default function RelatorioFisicoFinanceiroGenerator() {
     return null;
   };
 
+  const syncDashboardDataBeforeReport = async () => {
+    if (typeof window === 'undefined') return;
+    if (typeof window.museusCentroHardRefresh !== 'function') return;
+    try {
+      await window.museusCentroHardRefresh();
+    } catch (error) {
+      console.warn('Falha ao sincronizar dashboard antes do relatório. Seguindo com dados disponíveis.', error);
+    }
+  };
+
   const clearReportPreviewCache = async () => {
     clearReportDataCache();
 
@@ -626,6 +636,8 @@ export default function RelatorioFisicoFinanceiroGenerator() {
     updateProgress(5, 'Limpando previas antigas', 'Removendo HTML e PDF gerados anteriormente', 'pesquisa');
 
     try {
+      updateProgress(10, 'Sincronizando dados do dashboard', 'Forçando atualização da base antes de pesquisar dados', 'pesquisa');
+      await syncDashboardDataBeforeReport();
       await clearReportPreviewCache();
 
       updateProgress(15, 'Pesquisando dados reais do app', 'Relatorios, programacao, rubricas, metas, documentos, equipe e evidencias', 'pesquisa');
@@ -1154,6 +1166,8 @@ export default function RelatorioFisicoFinanceiroGenerator() {
     setErro(null);
     setLoading(true);
     updateProgress(5, 'Iniciando geração', 'Preparando pipeline de dois relatórios separados', 'geracao');
+    updateProgress(9, 'Sincronizando dados do dashboard', 'Forçando atualização da base antes da geração', 'geracao');
+    await syncDashboardDataBeforeReport();
     await clearReportPreviewCache();
 
     try {

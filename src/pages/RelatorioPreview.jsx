@@ -763,8 +763,28 @@ function normalizeReportDomForPdf(doc) {
       min-width: 0 !important;
       max-width: 100% !important;
       white-space: normal !important;
+      writing-mode: horizontal-tb !important;
+      text-orientation: mixed !important;
+      transform: none !important;
+      letter-spacing: normal !important;
       word-break: normal !important;
       overflow-wrap: break-word !important;
+    }
+
+    .premium-month-card,
+    .premium-month-card * {
+      writing-mode: horizontal-tb !important;
+      text-orientation: mixed !important;
+      transform: none !important;
+      white-space: normal !important;
+      word-break: normal !important;
+      overflow-wrap: break-word !important;
+      max-width: 100% !important;
+    }
+
+    .premium-month-card {
+      overflow: hidden !important;
+      grid-template-columns: minmax(0, 1fr) !important;
     }
 
     .premium-activity-index {
