@@ -300,6 +300,53 @@ function DashboardInner() {
       }
     };
 
+    const clearReportPreviewCaches = () => {
+      const keys = [
+        'relatorio_fisico_financeiro_html',
+        'relatorio_fisico_financeiro_meta',
+        'relatorio_fisico_financeiro_dados_html',
+        'relatorio_fisico_financeiro_dados_meta',
+        'relatorio_fisico_financeiro_galeria_html',
+        'relatorio_fisico_financeiro_galeria_meta',
+        'relatorio_fisico_financeiro_html_saved_at',
+        'relatorio_fisico_financeiro_dados_html_saved_at',
+        'relatorio_fisico_financeiro_galeria_html_saved_at',
+        'relatorio_fisico_financeiro_selected_chapters',
+        'relatorio_fisico_financeiro_all_chapters',
+        'relatorio_fisico_financeiro_export_mode',
+        'relatorio_fisico_financeiro_export_volume',
+      ];
+      keys.forEach((key) => {
+        try { sessionStorage.removeItem(key); } catch {}
+        try { localStorage.removeItem(key); } catch {}
+      });
+    };
+
+    const clearDashboardCaches = () => {
+      const keys = [
+        'dashboard-update',
+        'museus_centro_news_highlight_cache_v2',
+        'museus_centro_news_highlight_cache_v3',
+        'relatorios_list_cache_v1',
+      ];
+      keys.forEach((key) => {
+        try { localStorage.removeItem(key); } catch {}
+      });
+    };
+
+    const hardRefreshHandler = async () => {
+      clearReportPreviewCaches();
+      clearDashboardCaches();
+      window.dispatchEvent(new CustomEvent('dashboard:update'));
+      await refetchDashboardData();
+      try {
+        localStorage.setItem('dashboard-update', Date.now().toString());
+      } catch {}
+      return { ok: true, refreshedAt: new Date().toISOString() };
+    };
+
+    window.museusCentroHardRefresh = hardRefreshHandler;
+
     let unsubReport = null;
     let unsubActivity = null;
 
@@ -345,6 +392,11 @@ function DashboardInner() {
 
       window.removeEventListener('dashboard:update', handleDashboardUpdate);
       window.removeEventListener('storage', handleStorageUpdate);
+      try {
+        if (window.museusCentroHardRefresh === hardRefreshHandler) {
+          delete window.museusCentroHardRefresh;
+        }
+      } catch {}
     };
   }, [currentUser?.email, refetchDashboardData]);
 
