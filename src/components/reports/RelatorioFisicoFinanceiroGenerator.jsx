@@ -1,7 +1,7 @@
 ﻿import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -1248,10 +1248,14 @@ setErro(null);
       updateProgress(72, 'Salvando relatórios', 'Persistindo HTML principal, galeria e atividades para a prévia', 'geracao');
       let localStorageSaved = false;
       try {
-        localStorage.setItem('relatorio_fisico_financeiro_dados_html', dadosHtml);
-        localStorage.setItem('relatorio_fisico_financeiro_galeria_html', galeriaHtml);
-        localStorage.setItem('relatorio_fisico_financeiro_atividades_html', atividadesHtml);
+        if (dadosHtml.length <= 1500000) {
+          localStorage.setItem('relatorio_fisico_financeiro_dados_html', dadosHtml);
+        }
+        if (atividadesHtml.length <= 1500000) {
+          localStorage.setItem('relatorio_fisico_financeiro_atividades_html', atividadesHtml);
+        }
         localStorage.setItem('relatorio_fisico_financeiro_dados_html_saved_at', new Date().toISOString());
+        localStorage.setItem('relatorio_fisico_financeiro_galeria_html_storage', 'indexeddb');
         localStorage.setItem('relatorio_fisico_financeiro_galeria_html_saved_at', new Date().toISOString());
         localStorage.setItem('relatorio_fisico_financeiro_atividades_html_saved_at', new Date().toISOString());
         // Verify write
@@ -1307,8 +1311,7 @@ setErro(null);
       const checkGaleria = localStorage.getItem('relatorio_fisico_financeiro_galeria_html') || '';
       const checkAtividades = localStorage.getItem('relatorio_fisico_financeiro_atividades_html') || '';
       if (!checkDados.trim() && !checkGaleria.trim() && !checkAtividades.trim()) {
-        console.error('[Relatorio] ETAPA 6 FALHOU: HTMLs não encontrados no localStorage após salvar');
-        throw new Error('Os HTMLs foram gerados mas não puderam ser lidos. O localStorage pode estar cheio.');
+        console.warn('[Relatorio] ETAPA 6: HTMLs não encontrados no localStorage; seguindo com IndexedDB.');
       }
       console.log('[Relatorio] ETAPA 6 concluída: prévia verificada e disponível.');
 
@@ -1548,6 +1551,9 @@ setErro(null);
         <DialogContent className="max-w-5xl max-h-[88vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Fotos vinculadas Ã s atividades</DialogTitle>
+            <DialogDescription className="sr-only">
+              Janela de visualizacao, confirmacao ou exportacao do relatorio.
+            </DialogDescription>
             <p className="text-sm text-slate-500">
               Selecione quais fotos devem ser impressas no corpo das atividades. Cada imagem sera usada uma unica vez no relatorio, sem repeticao entre capa, atividades e volumes.
             </p>
@@ -1629,6 +1635,9 @@ setErro(null);
         <DialogContent className="max-w-3xl max-h-[88vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Escolha os conteudos do relatorio</DialogTitle>
+            <DialogDescription className="sr-only">
+              Janela de visualizacao, confirmacao ou exportacao do relatorio.
+            </DialogDescription>
             <p className="text-sm text-slate-500">
               Selecione o museu, o formato editorial e os capitulos que serao consolidados em tres arquivos: relatorio principal, relatorio galeria e relatorio de atividades.
             </p>

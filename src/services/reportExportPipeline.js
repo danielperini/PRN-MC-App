@@ -1534,7 +1534,7 @@ function savePreviewHtmlToIndexedDb(key, value) {
     request.onsuccess = () => {
       const db = request.result;
       const tx = db.transaction(PREVIEW_DB_STORE, 'readwrite');
-      tx.objectStore(PREVIEW_DB_STORE).put(value, key);
+      tx.objectStore(PREVIEW_DB_STORE).put(toCloneSafeValue(value), key);
       tx.oncomplete = () => {
         db.close();
         resolve(true);
@@ -1544,6 +1544,75 @@ function savePreviewHtmlToIndexedDb(key, value) {
         resolve(false);
       };
     };
+  });
+}
+
+function toCloneSafeValue(value, seen = new WeakSet()) {
+  if (value === null || typeof value === 'undefined') return value;
+
+  const type = typeof value;
+
+  if (type === 'string' || type === 'number' || type === 'boolean') return value;
+  if (type === 'bigint') return Number(value);
+  if (type === 'function' || type === 'symbol') return undefined;
+
+  if (value instanceof Date) return value.toISOString();
+  if (
+    (typeof Blob !== 'undefined' && value instanceof Blob) ||
+    (typeof File !== 'undefined' && value instanceof File)
+  ) return value;
+  if (value instanceof RegExp) return String(value);
+
+  if (type === 'object') {
+    if (seen.has(value)) return undefined;
+    seen.add(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => toCloneSafeValue(item, seen))
+      .filter((item) => typeof item !== 'undefined');
+  }
+
+  if (value instanceof Map) {
+    const obj = {};
+    value.forEach((item, key) => {
+      const safe = toCloneSafeValue(item, seen);
+      if (typeof safe !== 'undefined') obj[String(key)] = safe;
+    });
+    return obj;
+  }
+
+  if (value instanceof Set) {
+    return Array.from(value)
+      .map((item) => toCloneSafeValue(item, seen))
+      .filter((item) => typeof item !== 'undefined');
+  }
+
+  const plain = {};
+  Object.entries(value || {}).forEach(([key, item]) => {
+    const safe = toCloneSafeValue(item, seen);
+    if (typeof safe !== 'undefined') plain[key] = safe;
+  });
+
+  return plain;
+}
+
+function shouldStoreHtmlOnlyInIndexedDb(variant, html = '') {
+  return variant === 'galeria' || String(html || '').length > 1500000;
+}
+
+function clearLargeReportStorageKeys() {
+  const keys = [
+    'relatorio_fisico_financeiro_html',
+    'relatorio_fisico_financeiro_dados_html',
+    'relatorio_fisico_financeiro_galeria_html',
+    'relatorio_fisico_financeiro_atividades_html',
+  ];
+
+  keys.forEach((key) => {
+    try { sessionStorage.removeItem(key); } catch {}
+    try { localStorage.removeItem(key); } catch {}
   });
 }
 
@@ -1579,12 +1648,12 @@ function getPreviewHtmlFromIndexedDb(key) {
 export async function saveVolumePreview({ volumeNumber = 1, html = '', meta = {} } = {}) {
   const htmlKey = getVolumeHtmlKey(volumeNumber);
   const metaKey = getVolumeMetaKey(volumeNumber);
-  const payloadMeta = {
+  const payloadMeta = toCloneSafeValue({
     volumeNumber: Number(volumeNumber) || 1,
     totalVolumes: EXPORT_VOLUME_COUNT,
     pageNumberOffset: 0,
     ...meta,
-  };
+  });
 
   try {
     sessionStorage.setItem(htmlKey, html);
@@ -1621,25 +1690,39 @@ export async function saveReportPreview(variant = 'single', { html = '', meta = 
     exportMode: config.exportMode,
     reportVariant: variant,
   };
+  const safeMeta = toCloneSafeValue(payloadMeta);
+  const htmlOnlyInIndexedDb = shouldStoreHtmlOnlyInIndexedDb(variant, finalHtml);
+
+  clearLargeReportStorageKeys();
+
   try {
-    sessionStorage.setItem(config.htmlKey, finalHtml);
-    sessionStorage.setItem(config.metaKey, JSON.stringify(payloadMeta));
+    if (!htmlOnlyInIndexedDb) {
+      sessionStorage.setItem(config.htmlKey, finalHtml);
+    }
+    sessionStorage.setItem(config.metaKey, JSON.stringify(safeMeta));
     if (variant === 'single') {
-      sessionStorage.setItem(SINGLE_REPORT_HTML_KEY, finalHtml);
-      sessionStorage.setItem(SINGLE_REPORT_META_KEY, JSON.stringify(payloadMeta));
+      if (!htmlOnlyInIndexedDb) {
+        sessionStorage.setItem(SINGLE_REPORT_HTML_KEY, finalHtml);
+      }
+      sessionStorage.setItem(SINGLE_REPORT_META_KEY, JSON.stringify(safeMeta));
     }
   } catch (error) {
     console.warn('Nao foi possivel salvar previa unica em sessionStorage:', error);
   }
 
   try {
-    localStorage.setItem(config.htmlKey, finalHtml);
-    localStorage.setItem(config.metaKey, JSON.stringify(payloadMeta));
-    localStorage.setItem(`${config.htmlKey}_saved_at`, payloadMeta.generatedAt || new Date().toISOString());
+    if (!htmlOnlyInIndexedDb) {
+      localStorage.setItem(config.htmlKey, finalHtml);
+    }
+    localStorage.setItem(config.metaKey, JSON.stringify(safeMeta));
+    localStorage.setItem(`${config.htmlKey}_storage`, htmlOnlyInIndexedDb ? 'indexeddb' : 'storage');
+    localStorage.setItem(`${config.htmlKey}_saved_at`, safeMeta.generatedAt || new Date().toISOString());
     if (variant === 'single') {
-      localStorage.setItem(SINGLE_REPORT_HTML_KEY, finalHtml);
-      localStorage.setItem(SINGLE_REPORT_META_KEY, JSON.stringify(payloadMeta));
-      localStorage.setItem(`${SINGLE_REPORT_HTML_KEY}_saved_at`, payloadMeta.generatedAt || new Date().toISOString());
+      if (!htmlOnlyInIndexedDb) {
+        localStorage.setItem(SINGLE_REPORT_HTML_KEY, finalHtml);
+      }
+      localStorage.setItem(SINGLE_REPORT_META_KEY, JSON.stringify(safeMeta));
+      localStorage.setItem(`${SINGLE_REPORT_HTML_KEY}_saved_at`, safeMeta.generatedAt || new Date().toISOString());
     }
   } catch (error) {
     console.warn('Nao foi possivel salvar previa unica em localStorage:', error);
@@ -1647,8 +1730,8 @@ export async function saveReportPreview(variant = 'single', { html = '', meta = 
 
   await savePreviewHtmlToIndexedDb(config.htmlKey, {
     html: finalHtml,
-    meta: payloadMeta,
-    savedAt: payloadMeta.generatedAt || new Date().toISOString(),
+    meta: safeMeta,
+    savedAt: safeMeta.generatedAt || new Date().toISOString(),
   });
 }
 
@@ -1686,8 +1769,14 @@ export async function getReportPreview(variant = 'single') {
   let html = '';
   let meta = null;
 
+  if (variant === 'galeria') {
+    html = await getPreviewHtmlFromIndexedDb(config.htmlKey);
+  }
+
   try {
-    html = sessionStorage.getItem(config.htmlKey) || localStorage.getItem(config.htmlKey) || '';
+    if (!html) {
+      html = sessionStorage.getItem(config.htmlKey) || localStorage.getItem(config.htmlKey) || '';
+    }
     meta = JSON.parse(sessionStorage.getItem(config.metaKey) || localStorage.getItem(config.metaKey) || 'null');
   } catch {
     meta = null;
@@ -1698,7 +1787,7 @@ export async function getReportPreview(variant = 'single') {
 
   return {
     html,
-    meta: meta || buildSingleReportMeta({ html }),
+    meta: meta || buildSingleReportMeta({ html, reportVariant: variant }),
   };
 }
 
