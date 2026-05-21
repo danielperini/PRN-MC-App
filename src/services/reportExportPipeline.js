@@ -607,7 +607,7 @@ export async function buildVolumeHtml({
   });
   const htmlRevisado = revisarHtmlRelatorioAntesDaExportacao(htmlInicial, { modo: premium ? 'premium' : 'fisico_financeiro' });
   const htmlOtimizado = await optimizeReportHtmlImages(htmlRevisado, REPORT_IMAGE_OPTIMIZATION_OPTIONS);
-  const html = cleanEmptyReportSections(repairReportEncoding(htmlOtimizado));
+  const html = removeNegativeAlertBlocksFromReport(cleanEmptyReportSections(repairReportEncoding(htmlOtimizado)));
 
   return { html, contexto, filtros };
 }
@@ -640,6 +640,37 @@ function escapeHtml(value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+export function removeNegativeAlertBlocksFromReport(html = '') {
+  if (!html || typeof DOMParser === 'undefined') return html;
+
+  try {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const patterns = [
+      /Síntese,\s*alertas\s*e\s*governança/i,
+      /Alertas\s*financeiros/i,
+      /Duplicidades\s*evitadas/i,
+      /Imagens\s*sem\s*vínculo\s*suficiente/i,
+      /Alertas\s*principais/i,
+      /Há rubricas sem vínculo explícito/i,
+      /solicitações aprovadas sem rubrica vinculada/i,
+      /Revisar vínculo manualmente/i,
+      /Pendências e limitações/i,
+      /Alertas de consistência/i,
+    ];
+
+    doc.querySelectorAll('section, article, div').forEach((node) => {
+      const text = String(node.textContent || '').replace(/\s+/g, ' ').trim();
+      if (!text) return;
+      const head = text.slice(0, 900);
+      if (patterns.some((pattern) => pattern.test(head))) node.remove();
+    });
+
+    return `<!doctype html>\n${doc.documentElement.outerHTML}`;
+  } catch {
+    return html;
+  }
 }
 
 export function buildGalleryReportHtml(galleryData = {}, options = {}) {
@@ -1044,7 +1075,7 @@ export async function buildSingleReportHtml({
     splitContext: null,
     selectedInlinePhotoIds,
   });
-  const html = cleanEmptyReportSections(repairReportEncoding(result.html));
+  const html = removeNegativeAlertBlocksFromReport(cleanEmptyReportSections(repairReportEncoding(result.html)));
   return {
     html,
     contexto: result.contexto,
@@ -1093,8 +1124,8 @@ export async function buildSeparatedReportsHtml({
     skipExternalErrors: true,
     preserveAspectRatio: true,
   });
-  const galleryHtml = cleanEmptyReportSections(repairReportEncoding(galleryOptimizedHtml));
-  const dataHtml = cleanEmptyReportSections(stripGalleryImagesFromDataReport(repairReportEncoding(dataResult.html)));
+  const galleryHtml = removeNegativeAlertBlocksFromReport(cleanEmptyReportSections(repairReportEncoding(galleryOptimizedHtml)));
+  const dataHtml = removeNegativeAlertBlocksFromReport(cleanEmptyReportSections(stripGalleryImagesFromDataReport(repairReportEncoding(dataResult.html))));
 
   return {
     data: {
@@ -1219,7 +1250,7 @@ export async function saveSingleReportPreview({ html = '', meta = {} } = {}) {
 
 export async function saveReportPreview(variant = 'single', { html = '', meta = {} } = {}) {
   const config = REPORT_PREVIEW_VARIANTS[variant] || REPORT_PREVIEW_VARIANTS.single;
-  const finalHtml = cleanEmptyReportSections(repairReportEncoding(html));
+  const finalHtml = removeNegativeAlertBlocksFromReport(cleanEmptyReportSections(repairReportEncoding(html)));
   const payloadMeta = {
     ...buildSingleReportMeta({ html: finalHtml, selectedChapters: meta.selectedChapters || [] }),
     ...meta,

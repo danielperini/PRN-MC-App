@@ -28,7 +28,7 @@
   { id: 'governanca_documental', title: 'Governança documental e rastreabilidade das evidências', order: 27, group: 'GovernanÃ§a', type: 'governance', selectable: true, defaultSelected: true, includeInSummary: true, exportable: true, canBeSplit: true, dataSources: ['DocumentIntake', 'Attachment', 'PurchaseRequest', 'TeamPayment'], requiresData: false, renderTitle: 'GovernanÃ§a documental e rastreabilidade das evidÃªncias', summaryDescription: 'Pareamento documental, origem dos arquivos e trilha de evidÃªncias' },
   { id: 'app_museu_centro', title: 'Museu Centro APP', order: 28, group: 'GovernanÃ§a', type: 'governance', selectable: true, defaultSelected: true, includeInSummary: true, exportable: true, canBeSplit: true, dataSources: ['mÃ³dulos do app', 'estrutura operacional existente'], requiresData: false, renderTitle: 'Museu Centro APP como memÃ³ria operacional', summaryDescription: 'Infraestrutura digital de registro, consolidaÃ§Ã£o e memÃ³ria' },
   { id: 'sistema_governanca', title: 'Sistema, dados e governança', order: 29, group: 'GovernanÃ§a', type: 'governance', selectable: true, defaultSelected: true, includeInSummary: true, exportable: true, canBeSplit: true, dataSources: ['mÃ³dulos do app', 'vÃ­nculos entre relatÃ³rios, documentos e rubricas'], requiresData: false, renderTitle: 'Museu Centro APP como memÃ³ria operacional', validatePresence: false, summaryDescription: 'Qualidade, consistÃªncia e governanÃ§a dos dados do sistema' },
-  { id: 'auditoria_operacional', title: 'Auditoria operacional do período', order: 30, group: 'GovernanÃ§a', type: 'governance', selectable: true, defaultSelected: true, includeInSummary: true, exportable: true, canBeSplit: true, dataSources: ['Report', 'ProgramacaoEspelho', 'PurchaseRequest', 'TeamPayment', 'Rubrica', 'DocumentIntake', 'Attachment'], requiresData: false, renderTitle: 'Auditoria operacional do perÃ­odo', summaryDescription: 'Cruzamento tÃ©cnico entre atividades, pÃºblico, documentos e financeiro' },
+  { id: 'auditoria_operacional', title: 'Auditoria operacional do período', order: 30, group: 'GovernanÃ§a', type: 'governance', selectable: true, defaultSelected: false, includeInSummary: false, exportable: false, hiddenInExport: true, canBeSplit: true, dataSources: ['Report', 'ProgramacaoEspelho', 'PurchaseRequest', 'TeamPayment', 'Rubrica', 'DocumentIntake', 'Attachment'], requiresData: false, renderTitle: 'Auditoria operacional do perÃ­odo', summaryDescription: 'Cruzamento tÃ©cnico entre atividades, pÃºblico, documentos e financeiro' },
   { id: 'conclusao', title: 'Conclusão', order: 31, group: 'Encerramento', type: 'conclusion', selectable: true, defaultSelected: true, includeInSummary: true, exportable: true, canBeSplit: true, dataSources: ['sÃ­ntese do relatÃ³rio consolidado'], requiresData: false, renderTitle: 'Encerramento', validatePresence: false, summaryDescription: 'Fechamento editorial e institucional do perÃ­odo' },
 ];
 
@@ -69,7 +69,14 @@ export function buildReportChapterSelectionState(selectedIds = null) {
 
 export function normalizeSelectedReportChapterIds(selectedIds = []) {
   const valid = new Set(Array.isArray(selectedIds) ? selectedIds : []);
-  return REPORT_CHAPTER_IDS.filter((chapterId) => valid.has(chapterId));
+  return REPORT_CHAPTER_IDS.filter((chapterId) => {
+    if (!valid.has(chapterId)) return false;
+    const chapter = getReportChapterById(chapterId);
+    if (!chapter) return false;
+    if (chapter.hiddenInExport === true) return false;
+    if (chapter.exportable === false) return false;
+    return true;
+  });
 }
 
 export function getSelectedReportChapterIds(selectionState = {}) {

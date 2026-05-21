@@ -545,14 +545,7 @@ function ChapterMethodologyPanel({ chapterId, contexto = {}, evidence = [] }) {
           </ul>
         </article>
       ) : null}
-      {limitations.length > 0 ? (
-        <article className="premium-method-card">
-          <strong>Pendências e limitações</strong>
-          <ul>
-            {limitations.map((item) => <li key={item}>{item}</li>)}
-          </ul>
-        </article>
-      ) : null}
+      {null}
     </div>
   );
 }
@@ -2518,51 +2511,7 @@ function BudgetGeneralSection({ contexto = {} }) {
 }
 
 function OperationalAuditSection({ contexto = {} }) {
-  const alertasFinanceiros = Array.isArray(contexto?.budget_alerts) ? contexto.budget_alerts : [];
-  const alertasImagem = Array.isArray(contexto?.imageAlerts) ? contexto.imageAlerts : [];
-  const duplicidades = Array.isArray(contexto?.duplicatedImagesAvoided) ? contexto.duplicatedImagesAvoided.length : 0;
-  const semUso = Array.isArray(contexto?.unusedImages) ? contexto.unusedImages.length : 0;
-
-  return (
-    <PremiumSection
-      chapterId="auditoria_operacional"
-      breakBefore
-      eyebrow="Síntese, alertas e governança"
-      title="Síntese, alertas e governança"
-      subtitle="Leitura final das consistências e pendências detectáveis a partir da exportação deste volume."
-      text="A síntese final organiza alertas relevantes de rastreabilidade, consistência financeira e evidências visuais sem repetir capítulos metodológicos autônomos. O objetivo é registrar apenas os pontos que ajudam a leitura institucional do período e a revisão técnica do relatório."
-    >
-      <div className="premium-callout-grid">
-        <article className="premium-callout">
-          <strong>Alertas financeiros</strong>
-          <div>{fmtInt(alertasFinanceiros.length)} ocorrências no recorte consolidado.</div>
-        </article>
-        <article className="premium-callout">
-          <strong>Duplicidades evitadas</strong>
-          <div>{fmtInt(duplicidades)} imagens repetidas bloqueadas na montagem editorial.</div>
-        </article>
-        <article className="premium-callout">
-          <strong>Imagens sem vínculo suficiente</strong>
-          <div>{fmtInt(semUso)} registros preservados fora do corpo principal.</div>
-        </article>
-      </div>
-      {(alertasFinanceiros.length > 0 || alertasImagem.length > 0) && (
-        <div className="premium-method-grid">
-          <article className="premium-method-card">
-            <strong>Alertas principais</strong>
-            <ul>
-              {alertasFinanceiros.slice(0, 3).map((item, index) => (
-                <li key={`finance-${index}`}>{sanitizeReportText(item?.descricao || item?.message || 'Divergência encontrada. Revisão necessária.')}</li>
-              ))}
-              {alertasImagem.slice(0, 2).map((item, index) => (
-                <li key={`image-${index}`}>{sanitizeReportText(item?.recommendation || item?.reason || 'Revisão recomendada para evidência visual.')}</li>
-              ))}
-            </ul>
-          </article>
-        </div>
-      )}
-    </PremiumSection>
-  );
+  return null;
 }
 
 function getVolumeOpeningText(volumeNumber) {
@@ -2778,17 +2727,7 @@ function VolumeTwoInfographics({ contexto = {} }) {
         ]} />
         <small className="premium-infographic-source">Total analisado: {fmtInt(docStats.total)} documentos/anexos.</small>
       </article>
-      {financialAlerts.length > 0 ? (
-        <article className="premium-infographic-card">
-          <h3>Alertas financeiros</h3>
-          <p>Ocorrencias que exigem revisao administrativa antes da entrega final.</p>
-          <ul className="premium-alert-list">
-            {financialAlerts.slice(0, 5).map((item, index) => (
-              <li key={`financial-alert-${index}`}>{sanitizeReportText(item?.descricao || item?.message || 'Divergencia encontrada. Revisao necessaria.')}</li>
-            ))}
-          </ul>
-        </article>
-      ) : null}
+      {null}
     </div>
   );
 }
@@ -2886,7 +2825,7 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
   const pageStart = Math.max(1, Number(contexto?.split_context?.pageNumberOffset || 0) + 1);
   const isVolumeOne = volumeNumber === 1;
   REPORT_SECTION_FILTER = isVolumeOne
-    ? new Set(['capa', 'expediente', 'sumario_executivo', 'introducao', 'indicadores_premium', 'atividades_museu', 'museus_premium', 'comunicacao', 'comunicacao_premium', 'orcamento_museu', 'orcamento_geral', 'auditoria_operacional', 'conclusao'])
+    ? new Set(['capa', 'expediente', 'sumario_executivo', 'introducao', 'indicadores_premium', 'atividades_museu', 'museus_premium', 'comunicacao', 'comunicacao_premium', 'orcamento_museu', 'orcamento_geral', 'conclusao'])
     : null;
 
   return (
@@ -3106,7 +3045,7 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
         />
       </PremiumSection>}
 
-      {hasSection(secoesSelecionadas, 'auditoria_operacional') && <OperationalAuditSection contexto={contexto} />}
+      {null}
 
       {hasSection(secoesSelecionadas, 'conclusao') && <PremiumClosingSection contexto={contexto} />}
     </main>

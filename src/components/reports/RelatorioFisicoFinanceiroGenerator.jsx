@@ -107,7 +107,6 @@ const EDITORIAL_VOLUMES = [
       { code: '5', title: 'Atividades por museu', sectionIds: ['atividades_museu', 'museus_premium', 'noturno_premium'] },
       { code: '6', title: 'Comunicacao, registros e evidencias', sectionIds: ['comunicacao'] },
       { code: '7', title: 'Orcamento por Museu', sectionIds: ['orcamento_museu'] },
-      { code: '8', title: 'Sintese, alertas e governanca', sectionIds: ['auditoria_operacional'] },
     ],
   },
   {
@@ -128,7 +127,6 @@ const EDITORIAL_VOLUMES = [
     description: 'Este volume encerra o relatorio com sistema, governanca de dados, auditoria operacional, anexos analiticos e conclusao institucional.',
     chapters: [
       { code: '14', title: 'Museu Centro APP', sectionIds: ['app_museu_centro', 'sistema_governanca'] },
-      { code: '15', title: 'Auditoria operacional do periodo', sectionIds: ['auditoria_operacional'] },
       { code: '16', title: 'Comunicacao editorial e memoria institucional', sectionIds: ['comunicacao_premium', 'galeria_premium'] },
       { code: '17', title: 'Anexos analiticos', sectionIds: ['agenda_programacao', 'relatorios_completos', 'notas-fiscais-contratos', 'galeria_evidencias'] },
       { code: '18', title: 'Conclusao institucional', sectionIds: ['conclusao'] },
