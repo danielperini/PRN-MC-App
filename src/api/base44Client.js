@@ -16,15 +16,14 @@ const rawBase44 = createClient({
   appBaseUrl,
 });
 
-const MAX_CONCURRENT_REQUESTS = 1;
-const MIN_REQUEST_INTERVAL_MS = 420;
-const REQUEST_TIMEOUT_MS = 26000;
+const MAX_CONCURRENT_READS = 2;
+const MIN_READ_INTERVAL_MS = 180;
 const MAX_RATE_LIMIT_RETRIES = 2;
 const proxyCache = new WeakMap();
 const functionCache = new WeakMap();
-let activeRequests = 0;
-let lastRequestAt = 0;
-const queue = [];
+let activeReads = 0;
+let lastReadAt = 0;
+const readQueue = [];
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -44,96 +43,75 @@ function isMissingEntityError(error) {
   return message.includes('entity schema') && message.includes('not found in app');
 }
 
-function isReadMethod(label = '') {
-  return /\.(list|filter|get|find|search)$/i.test(String(label));
+function isEntityRead(label = '') {
+  return /^base44\.entities\.[^.]+\.(list|filter|get|find|search)$/i.test(String(label));
 }
 
-function fallbackForRead(label = '', error) {
-  if (isMissingEntityError(error)) return [];
-  if (isRateLimitError(error) && isReadMethod(label)) return [];
-  return undefined;
+function isEntityWrite(label = '') {
+  return /^base44\.entities\.[^.]+\.(create|update|delete|bulkCreate|bulkUpdate|bulkDelete)$/i.test(String(label));
 }
 
 function delayForAttempt(attempt) {
-  return 1200 * Math.pow(2, attempt) + Math.floor(Math.random() * 250);
+  return 900 * Math.pow(2, attempt) + Math.floor(Math.random() * 250);
 }
 
-function releaseNext() {
-  if (activeRequests >= MAX_CONCURRENT_REQUESTS) return;
-  const next = queue.shift();
+function releaseNextRead() {
+  if (activeReads >= MAX_CONCURRENT_READS) return;
+  const next = readQueue.shift();
   if (!next) return;
-  activeRequests += 1;
+  activeReads += 1;
   next();
 }
 
-async function enterQueue() {
+async function enterReadQueue() {
   await new Promise((resolve) => {
-    queue.push(resolve);
-    releaseNext();
+    readQueue.push(resolve);
+    releaseNextRead();
   });
 
-  const elapsed = Date.now() - lastRequestAt;
-  if (elapsed < MIN_REQUEST_INTERVAL_MS) {
-    await sleep(MIN_REQUEST_INTERVAL_MS - elapsed);
+  const elapsed = Date.now() - lastReadAt;
+  if (elapsed < MIN_READ_INTERVAL_MS) {
+    await sleep(MIN_READ_INTERVAL_MS - elapsed);
   }
-  lastRequestAt = Date.now();
+  lastReadAt = Date.now();
 }
 
-function leaveQueue() {
-  activeRequests = Math.max(0, activeRequests - 1);
-  releaseNext();
+function leaveReadQueue() {
+  activeReads = Math.max(0, activeReads - 1);
+  releaseNextRead();
 }
 
-function withTimeout(promise, label) {
-  let timeoutId;
-  const timeoutPromise = new Promise((_, reject) => {
-    timeoutId = window.setTimeout(() => {
-      reject(new Error(`Tempo excedido na consulta Base44: ${label}`));
-    }, REQUEST_TIMEOUT_MS);
-  });
-
-  return Promise.race([promise, timeoutPromise]).finally(() => {
-    window.clearTimeout(timeoutId);
-  });
-}
-
-async function guardedRequest(task, label = 'Base44') {
+async function guardedEntityRead(task, label = 'base44.entities.read') {
   let lastError = null;
 
-  await enterQueue();
+  await enterReadQueue();
   try {
     for (let attempt = 0; attempt <= MAX_RATE_LIMIT_RETRIES; attempt += 1) {
       try {
-        return await withTimeout(Promise.resolve().then(task), label);
+        return await Promise.resolve().then(task);
       } catch (error) {
         lastError = error;
 
-        const fallback = fallbackForRead(label, error);
-        if (typeof fallback !== 'undefined') {
-          if (isMissingEntityError(error)) {
-            console.debug(`[${label}] Entidade ausente. Retornando lista vazia.`);
-            return fallback;
-          }
-
-          if (isRateLimitError(error) && attempt < MAX_RATE_LIMIT_RETRIES) {
-            const delay = delayForAttempt(attempt);
-            console.warn(`[${label}] Rate limit Base44. Nova tentativa em ${delay}ms.`);
-            await sleep(delay);
-            continue;
-          }
-
-          console.warn(`[${label}] Rate limit persistente. Retornando lista vazia para não travar a tela.`);
-          return fallback;
+        if (isMissingEntityError(error)) {
+          console.debug(`[${label}] Entidade ausente. Retornando lista vazia.`);
+          return [];
         }
 
-        if (!isRateLimitError(error) || attempt === MAX_RATE_LIMIT_RETRIES) throw error;
-        const delay = delayForAttempt(attempt);
-        console.warn(`[${label}] Rate limit Base44. Nova tentativa em ${delay}ms.`);
-        await sleep(delay);
+        if (!isRateLimitError(error)) throw error;
+
+        if (attempt < MAX_RATE_LIMIT_RETRIES) {
+          const delay = delayForAttempt(attempt);
+          console.warn(`[${label}] Rate limit Base44. Nova tentativa em ${delay}ms.`);
+          await sleep(delay);
+          continue;
+        }
+
+        console.warn(`[${label}] Rate limit persistente. Retornando lista vazia para não travar a tela.`);
+        return [];
       }
     }
   } finally {
-    leaveQueue();
+    leaveReadQueue();
   }
 
   throw lastError;
@@ -143,19 +121,35 @@ function shouldWrap(value) {
   return value && (typeof value === 'object' || typeof value === 'function');
 }
 
-function wrapFunction(fn, label) {
-  if (functionCache.has(fn)) return functionCache.get(fn);
-
-  function wrapped(...args) {
-    return guardedRequest(() => Reflect.apply(fn, this, args), label);
+function wrapFunction(fn, label, receiver) {
+  if (!isEntityRead(label)) {
+    return function rawBase44Function(...args) {
+      return Reflect.apply(fn, receiver || this, args);
+    };
   }
 
-  functionCache.set(fn, wrapped);
-  return wrapped;
+  if (functionCache.has(fn)) return functionCache.get(fn);
+
+  function wrappedEntityRead(...args) {
+    return guardedEntityRead(() => Reflect.apply(fn, receiver || this, args), label);
+  }
+
+  functionCache.set(fn, wrappedEntityRead);
+  return wrappedEntityRead;
 }
 
 function wrapValue(value, label = 'base44') {
   if (!shouldWrap(value)) return value;
+
+  // Nunca interceptar autenticação. O guard anterior colocava timeout em
+  // base44.auth.isAuthenticated e quebrava o bootstrap do app.
+  if (label === 'base44.auth' || label.startsWith('base44.auth.')) return value;
+
+  // Também não enfileirar funções, integrações e operações de escrita.
+  if (label === 'base44.functions' || label.startsWith('base44.functions.')) return value;
+  if (label === 'base44.integrations' || label.startsWith('base44.integrations.')) return value;
+  if (isEntityWrite(label)) return value;
+
   if (typeof value === 'function') return wrapFunction(value, label);
   if (proxyCache.has(value)) return proxyCache.get(value);
 
