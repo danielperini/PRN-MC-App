@@ -6,8 +6,6 @@ import '@/styles/theme-nuit.css'
 import '@/styles/report-print-fixes.css'
 import '@/utils/safeIndexedDbPreviewStorage.js'
 import '@/utils/reportPdfHardLayoutFix'
-import '@/utils/reportGenerationWorkflowGuard.js'
-import '@/utils/mainReportAgendaProgramacaoGuard.js'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <App />
