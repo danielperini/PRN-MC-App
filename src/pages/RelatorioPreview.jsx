@@ -1250,6 +1250,8 @@ async function getStoredHtml(variant = 'single') {
       ? 'relatorio_fisico_financeiro_dados_html'
       : variant === 'galeria'
         ? 'relatorio_fisico_financeiro_galeria_html'
+        : variant === 'atividades'
+          ? 'relatorio_fisico_financeiro_atividades_html'
         : 'relatorio_fisico_financeiro_html';
     const quickHtml = sessionStorage.getItem(key)
       || localStorage.getItem(key)
@@ -1267,6 +1269,8 @@ async function getAnyStoredReportHtml(preferredVariant = 'single') {
     ? ['dados', 'single', 'galeria']
     : preferredVariant === 'galeria'
       ? ['galeria', 'single', 'dados']
+      : preferredVariant === 'atividades'
+        ? ['atividades']
       : ['single', 'dados', 'galeria'];
 
   for (const variant of variantOrder) {
@@ -1285,6 +1289,8 @@ async function getAnyStoredReportHtml(preferredVariant = 'single') {
         ? 'relatorio_fisico_financeiro_dados_html'
         : variant === 'galeria'
           ? 'relatorio_fisico_financeiro_galeria_html'
+          : variant === 'atividades'
+            ? 'relatorio_fisico_financeiro_atividades_html'
           : 'relatorio_fisico_financeiro_html';
       const fromStorage = String(sessionStorage.getItem(key) || localStorage.getItem(key) || '').trim();
       if (fromStorage) return repairReportEncoding(fromStorage);
@@ -1314,7 +1320,9 @@ export default function RelatorioPreview() {
     ? 'galeria'
     : searchParams.get('report') === 'dados' || searchParams.get('kind') === 'dados'
       ? 'dados'
-      : 'single';
+      : searchParams.get('report') === 'atividades' || searchParams.get('kind') === 'atividades'
+        ? 'atividades'
+        : 'single';
   const [html, setHtml] = useState('');
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [exportProgressOpen, setExportProgressOpen] = useState(false);
@@ -1341,10 +1349,13 @@ export default function RelatorioPreview() {
       } else if (!finalHtml && reportVariant === 'galeria') {
         finalHtml = localStorage.getItem('relatorio_fisico_financeiro_galeria_html') || '';
         if (finalHtml) console.log('[Preview] Fallback: galeria do localStorage');
+      } else if (!finalHtml && reportVariant === 'atividades') {
+        finalHtml = localStorage.getItem('relatorio_fisico_financeiro_atividades_html') || '';
+        if (finalHtml) console.log('[Preview] Fallback: atividades do localStorage');
       } else if (!finalHtml) {
         finalHtml = await getStoredHtml(reportVariant);
       }
-      if (!finalHtml) {
+      if (!finalHtml && reportVariant !== 'atividades') {
         finalHtml = await getAnyStoredReportHtml(reportVariant);
       }
       if (!finalHtml) console.error(`[Preview] HTML nao encontrado para variante "${reportVariant}". Verifique se a geracao foi concluida.`);

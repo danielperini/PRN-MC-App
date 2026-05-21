@@ -22,12 +22,15 @@ export const EXPORT_FILENAME_BASE = 'Museus-Centro-Relatorio';
 export const SINGLE_REPORT_FILENAME = 'Museus-Centro-Relatorio-Fisico-Financeiro.pdf';
 export const DATA_REPORT_FILENAME = 'Museus-Centro-Relatorio-Dados.pdf';
 export const GALLERY_REPORT_FILENAME = 'Museus-Centro-Relatorio-Galeria.pdf';
+export const ACTIVITIES_REPORT_FILENAME = 'Museus-Centro-Relatorio-Atividades.pdf';
 export const SINGLE_REPORT_HTML_KEY = 'relatorio_fisico_financeiro_html';
 export const SINGLE_REPORT_META_KEY = 'relatorio_fisico_financeiro_meta';
 export const DATA_REPORT_HTML_KEY = 'relatorio_fisico_financeiro_dados_html';
 export const DATA_REPORT_META_KEY = 'relatorio_fisico_financeiro_dados_meta';
 export const GALLERY_REPORT_HTML_KEY = 'relatorio_fisico_financeiro_galeria_html';
 export const GALLERY_REPORT_META_KEY = 'relatorio_fisico_financeiro_galeria_meta';
+export const ACTIVITIES_REPORT_HTML_KEY = 'relatorio_fisico_financeiro_atividades_html';
+export const ACTIVITIES_REPORT_META_KEY = 'relatorio_fisico_financeiro_atividades_meta';
 export const PREVIEW_DB_NAME = 'museus_centro_report_preview';
 export const PREVIEW_DB_STORE = 'previews';
 
@@ -52,6 +55,13 @@ export const REPORT_PREVIEW_VARIANTS = {
     filename: GALLERY_REPORT_FILENAME,
     title: 'Museus Centro - Relatório Galeria',
     exportMode: 'gallery_pdf',
+  },
+  atividades: {
+    htmlKey: ACTIVITIES_REPORT_HTML_KEY,
+    metaKey: ACTIVITIES_REPORT_META_KEY,
+    filename: ACTIVITIES_REPORT_FILENAME,
+    title: 'Museus Centro - Relatório de Atividades',
+    exportMode: 'activities_pdf',
   },
 };
 
@@ -607,7 +617,7 @@ export async function buildVolumeHtml({
   });
   const htmlRevisado = revisarHtmlRelatorioAntesDaExportacao(htmlInicial, { modo: premium ? 'premium' : 'fisico_financeiro' });
   const htmlOtimizado = await optimizeReportHtmlImages(htmlRevisado, REPORT_IMAGE_OPTIMIZATION_OPTIONS);
-  const html = removeNegativeAlertBlocksFromReport(cleanEmptyReportSections(repairReportEncoding(htmlOtimizado)));
+  const html = removeNegativeAndRemovedBlocksFromReport(cleanEmptyReportSections(repairReportEncoding(htmlOtimizado)));
 
   return { html, contexto, filtros };
 }
@@ -642,7 +652,7 @@ function escapeHtml(value) {
     .replace(/'/g, '&#039;');
 }
 
-export function removeNegativeAlertBlocksFromReport(html = '') {
+export function removeNegativeAndRemovedBlocksFromReport(html = '') {
   if (!html || typeof DOMParser === 'undefined') return html;
 
   try {
@@ -658,6 +668,9 @@ export function removeNegativeAlertBlocksFromReport(html = '') {
       /Revisar vínculo manualmente/i,
       /Pendências e limitações/i,
       /Alertas de consistência/i,
+      /Atividades\s+por\s+museu/i,
+      /Páginas\s+por\s+museu/i,
+      /Seção especial Noturno nos Museus/i,
     ];
 
     doc.querySelectorAll('section, article, div').forEach((node) => {
@@ -671,6 +684,356 @@ export function removeNegativeAlertBlocksFromReport(html = '') {
   } catch {
     return html;
   }
+}
+
+export const removeNegativeAlertBlocksFromReport = removeNegativeAndRemovedBlocksFromReport;
+
+function isApprovedReportStatus(status = '') {
+  const value = String(status || '').trim().toUpperCase();
+  return [
+    'APPROVED',
+    'APROVADO',
+    'APROVADO_COORD',
+    'APROVADO_ADMIN',
+    'APROVADO_COORDENACAO',
+    'APROVADO_COORDENAÇÃO',
+  ].includes(value);
+}
+
+function normalizeActivityRecord(activity = {}, report = {}) {
+  const dateValue = activity?.data || activity?.date || activity?.data_atividade || report?.created_date || report?.updated_date || '';
+  const title = activity?.titulo || activity?.nome || activity?.acao || activity?.atividade || 'Atividade sem título';
+  const museum = activity?.museu || activity?.equipamento || report?.museu || report?.centro_custo || 'Atuação geral';
+  const publico = Number(activity?.publico || activity?.publico_total || activity?.publico_registrado || activity?.participantes || 0);
+  const anexos = [
+    ...(Array.isArray(activity?.anexos) ? activity.anexos : []),
+    ...(Array.isArray(activity?.attachments) ? activity.attachments : []),
+    ...(Array.isArray(activity?.fotos) ? activity.fotos : []),
+    ...(Array.isArray(activity?.imagens) ? activity.imagens : []),
+  ].filter(Boolean);
+
+  return {
+    ...activity,
+    __title: String(title),
+    __date: String(dateValue || ''),
+    __museum: String(museum),
+    __publico: Number.isFinite(publico) ? publico : 0,
+    __anexos: anexos,
+    __reportId: report?.id || '',
+    __reportAuthor: report?.author_name || report?.autor || report?.responsavel || '',
+    __reportStatus: report?.status || '',
+    __reportMonth: report?.mes_referencia || report?.mes || '',
+    __reportYear: report?.ano || '',
+  };
+}
+
+function formatDateForReport(value = '') {
+  if (!value) return '-';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return String(value);
+  return parsed.toLocaleDateString('pt-BR');
+}
+
+function escapeHtmlBlock(text = '') {
+  return escapeHtml(String(text || '')).replace(/\n/g, '<br/>');
+}
+
+function renderLabeledText(value, label) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  return `<div class="activity-text-block"><h4>${escapeHtml(label)}</h4><p>${escapeHtmlBlock(text)}</p></div>`;
+}
+
+export async function loadActivitiesReportData({
+  museu = 'Todos',
+  periodo = null,
+  forceRefresh = false,
+} = {}) {
+  if (forceRefresh) clearReportDataCache();
+  const reportsRaw = await safeList(base44.entities.Report, '-created_date', 3000, { cacheKey: 'ReportActivities', required: true });
+  const approved = (Array.isArray(reportsRaw) ? reportsRaw : []).filter((report) => isApprovedReportStatus(report?.status));
+  const museuFiltro = String(museu || 'Todos');
+  const filteredReports = approved.filter((report) => {
+    if (museuFiltro === 'Todos') return true;
+    const reportMuseum = String(report?.museu || report?.centro_custo || '').trim().toUpperCase();
+    return reportMuseum === museuFiltro.trim().toUpperCase();
+  });
+
+  const reports = filteredReports
+    .map((report) => ({
+      ...report,
+      atividades: Array.isArray(report?.atividades) ? report.atividades : [],
+    }))
+    .sort((a, b) => String(a?.museu || '').localeCompare(String(b?.museu || ''), 'pt-BR')
+      || String(a?.mes_referencia || '').localeCompare(String(b?.mes_referencia || ''), 'pt-BR')
+      || String(a?.created_date || '').localeCompare(String(b?.created_date || ''), 'pt-BR'));
+
+  const activities = reports.flatMap((report) => report.atividades.map((activity) => normalizeActivityRecord(activity, report)));
+  const filteredActivities = Array.isArray(periodo) && periodo.length === 2
+    ? activities.filter((activity) => {
+      const d = new Date(activity.__date);
+      const from = new Date(periodo[0]);
+      const to = new Date(periodo[1]);
+      if (Number.isNaN(d.getTime()) || Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return true;
+      return d >= from && d <= to;
+    })
+    : activities;
+
+  const groupedByMuseum = filteredActivities.reduce((acc, item) => {
+    const key = item.__museum || 'Atuação geral';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(item);
+    return acc;
+  }, {});
+
+  const groupedByMonth = filteredActivities.reduce((acc, item) => {
+    const key = `${item.__reportMonth || '-'}-${item.__reportYear || '-'}`;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(item);
+    return acc;
+  }, {});
+
+  const groupedByAuthor = reports.reduce((acc, report) => {
+    const key = report?.author_name || report?.autor || report?.responsavel || 'Não informado';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(report);
+    return acc;
+  }, {});
+
+  const totalAudience = filteredActivities.reduce((sum, item) => sum + (Number(item.__publico) || 0), 0);
+  const totalPhotos = filteredActivities.reduce((sum, item) => sum + ((item.__anexos || []).length), 0);
+
+  return {
+    reports,
+    activities: filteredActivities,
+    groupedByMuseum,
+    groupedByMonth,
+    groupedByAuthor,
+    summary: {
+      totalReports: reports.length,
+      totalActivities: filteredActivities.length,
+      totalAudience,
+      totalMuseums: Object.keys(groupedByMuseum).length,
+      totalAuthors: Object.keys(groupedByAuthor).length,
+      totalPhotos,
+      totalAttachments: totalPhotos,
+    },
+    generatedAt: new Date().toISOString(),
+    sourcePage: '/Relatorios',
+    warnings: [],
+  };
+}
+
+export function buildActivitiesReportHtml(activitiesData = {}, options = {}) {
+  const reports = Array.isArray(activitiesData?.reports) ? activitiesData.reports : [];
+  const activities = Array.isArray(activitiesData?.activities) ? activitiesData.activities : [];
+  const groupedByMuseum = activitiesData?.groupedByMuseum || {};
+  const summary = activitiesData?.summary || {};
+  const generatedAt = activitiesData?.generatedAt || new Date().toISOString();
+  const periodoLabel = options?.periodoLabel || 'Período consolidado do app';
+
+  const museums = Object.keys(groupedByMuseum);
+  const museumSummaryRows = museums.map((museum) => {
+    const list = groupedByMuseum[museum] || [];
+    const publico = list.reduce((sum, item) => sum + (Number(item.__publico) || 0), 0);
+    return { museum, totalActivities: list.length, totalAudience: publico };
+  });
+
+  const activitiesTableRows = activities.map((activity) => `
+    <tr>
+      <td>${escapeHtml(formatDateForReport(activity.__date))}</td>
+      <td>${escapeHtml(activity.__museum)}</td>
+      <td>${escapeHtml(activity.__title)}</td>
+      <td>${escapeHtml(activity?.natureza || activity?.categoria || activity?.tipo || '-')}</td>
+      <td style="text-align:right">${escapeHtml(String(activity.__publico || 0))}</td>
+      <td>${escapeHtml(activity.__reportAuthor || '-')}</td>
+    </tr>
+  `).join('');
+
+  const museumSections = museums.map((museum) => {
+    const list = groupedByMuseum[museum] || [];
+    const uniqueReports = new Set(list.map((item) => item.__reportId).filter(Boolean));
+    const publico = list.reduce((sum, item) => sum + (Number(item.__publico) || 0), 0);
+    const authors = new Set(list.map((item) => item.__reportAuthor).filter(Boolean));
+
+    const cards = list.map((activity, index) => {
+      const thumbs = (activity.__anexos || []).slice(0, 4);
+      const thumbsHtml = thumbs.length > 0
+        ? `<div class="activity-thumbs">${thumbs.map((asset) => `<img src="${escapeHtml(asset?.url || asset?.file_url || '')}" alt="${escapeHtml(activity.__title)}" loading="lazy" decoding="async" onerror="this.style.display='none'" />`).join('')}</div>`
+        : '';
+
+      return `
+        <article class="activity-full-card avoid-break">
+          <h3>${escapeHtml(`${index + 1}. ${activity.__title}`)}</h3>
+          <div class="activity-meta-grid">
+            <div><span>Data</span><strong>${escapeHtml(formatDateForReport(activity.__date))}</strong></div>
+            <div><span>Museu</span><strong>${escapeHtml(activity.__museum)}</strong></div>
+            <div><span>Natureza</span><strong>${escapeHtml(activity?.natureza || activity?.categoria || activity?.tipo || '-')}</strong></div>
+            <div><span>Público</span><strong>${escapeHtml(String(activity.__publico || 0))}</strong></div>
+            <div><span>Relatório</span><strong>${escapeHtml(activity.__reportAuthor || '-')}</strong></div>
+            <div><span>Status</span><strong>${escapeHtml(activity.__reportStatus || '-')}</strong></div>
+          </div>
+          ${renderLabeledText(activity?.descricao || activity?.descricao_atividade || activity?.resumo, 'Descrição')}
+          ${renderLabeledText(activity?.objetivos, 'Objetivos')}
+          ${renderLabeledText(activity?.resultados, 'Resultados')}
+          ${renderLabeledText(activity?.observacoes || activity?.observações, 'Observações')}
+          ${thumbsHtml}
+        </article>
+      `;
+    }).join('');
+
+    return `
+      <section class="activities-section">
+        <h2>${escapeHtml(museum)}</h2>
+        <p class="museum-kpi">Relatórios: ${uniqueReports.size} · Atividades: ${list.length} · Público: ${publico} · Profissionais: ${authors.size}</p>
+        ${cards}
+      </section>
+    `;
+  }).join('');
+
+  const approvedReportsHtml = reports.map((report) => `
+    <article class="approved-report-card avoid-break">
+      <header>
+        <h3>${escapeHtml(report?.author_name || report?.autor || 'Autor não informado')} — ${escapeHtml(report?.funcao || report?.função || 'Função não informada')}</h3>
+        <p>${escapeHtml(report?.museu || '-')} · ${escapeHtml(report?.mes_referencia || report?.mes || '-')}/${escapeHtml(report?.ano || '-')} · ${escapeHtml(report?.status || '-')}</p>
+      </header>
+      ${renderLabeledText(report?.resumo_executivo, 'Resumo executivo')}
+      ${renderLabeledText(report?.resumo_periodo, 'Resumo do período')}
+      ${renderLabeledText(report?.pontos_positivos, 'Pontos positivos')}
+      ${renderLabeledText(report?.desafios, 'Desafios')}
+      ${renderLabeledText(report?.observacoes || report?.observações, 'Observações')}
+      <p class="report-activity-count">Atividades vinculadas: ${Array.isArray(report?.atividades) ? report.atividades.length : 0}</p>
+    </article>
+  `).join('');
+
+  return `<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Relatório de Atividades</title>
+  <style>
+    @page { size: A4; margin: 14mm 12mm 16mm 12mm; }
+    body { background:#f7f3eb; color:#171717; font-family: Arial, Helvetica, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .activities-report { width:186mm; margin:0 auto; }
+    .activities-cover { min-height:297mm; page-break-after:always; background:#171717; color:#fff; padding:26mm 18mm; display:flex; flex-direction:column; justify-content:space-between; }
+    .activities-section { padding:10mm 0; }
+    .activities-section h2 { font-family: Georgia, "Times New Roman", serif; font-size:26pt; line-height:1.05; margin:0 0 5mm; }
+    .avoid-break { break-inside: avoid; page-break-inside: avoid; }
+    thead { display: table-header-group; }
+    tr { break-inside: avoid; page-break-inside: avoid; }
+    .internal-header { display:flex; align-items:flex-start; justify-content:space-between; gap:10mm; border-bottom:1px solid rgba(23,23,23,.14); padding-bottom:5mm; margin:8mm 0; }
+    .internal-header img { width:34mm; max-width:34mm; height:auto; object-fit:contain; }
+    .internal-header .txt { flex:1; text-align:right; font-size:8.5pt; line-height:1.35; color:#555; font-weight:600; }
+    .summary-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:4mm; margin:6mm 0 8mm; }
+    .summary-card { border:1px solid rgba(23,23,23,.14); background:#fff; padding:4mm; }
+    .summary-card span { display:block; font-size:7.2pt; text-transform:uppercase; letter-spacing:.06em; color:#6b6258; font-weight:700; }
+    .summary-card strong { display:block; font-size:14pt; margin-top:2mm; }
+    .activities-summary-table { width:100%; table-layout:fixed; border-collapse:collapse; font-size:8.5pt; line-height:1.3; background:#fff; }
+    .activities-summary-table th { background:#171717; color:#fff; padding:3mm 2.5mm; text-align:left; font-size:7.2pt; text-transform:uppercase; letter-spacing:.04em; }
+    .activities-summary-table td { padding:2.5mm; border-top:1px solid rgba(23,23,23,.10); vertical-align:top; word-break:normal; overflow-wrap:break-word; }
+    .activities-summary-table tbody tr:nth-child(even) td { background:rgba(23,23,23,.035); }
+    .activity-full-card { break-inside:avoid; page-break-inside:avoid; border:1px solid rgba(23,23,23,.14); background:#fff; padding:5mm; margin-bottom:6mm; }
+    .activity-full-card h3 { margin:0 0 3mm; font-family: Georgia, "Times New Roman", serif; font-size:15pt; line-height:1.2; }
+    .activity-meta-grid { display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:3mm; margin-bottom:4mm; }
+    .activity-meta-grid div { border-top:1px solid rgba(23,23,23,.12); padding-top:2mm; }
+    .activity-meta-grid span { display:block; font-size:7pt; text-transform:uppercase; letter-spacing:.06em; color:#6b6258; font-weight:700; }
+    .activity-meta-grid strong { display:block; margin-top:1mm; font-size:8.5pt; line-height:1.3; }
+    .activity-text-block { margin-top:4mm; font-size:9.5pt; line-height:1.55; }
+    .activity-text-block h4 { margin:4mm 0 1.5mm; font-size:8pt; text-transform:uppercase; letter-spacing:.06em; }
+    .activity-thumbs { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:2mm; margin-top:4mm; }
+    .activity-thumbs img { width:100%; height:24mm; object-fit:cover; display:block; background:#efefef; }
+    .approved-report-card { border:1px solid rgba(23,23,23,.14); background:#fff; padding:5mm; margin-bottom:6mm; }
+    .approved-report-card h3 { margin:0 0 2mm; font-size:12pt; font-family: Georgia, "Times New Roman", serif; }
+    .approved-report-card header p { margin:0; color:#4d4d4d; font-size:9pt; }
+    .report-activity-count { margin-top:4mm; font-size:8.5pt; font-weight:700; }
+    .museum-kpi { margin:0 0 4mm; font-size:9pt; color:#4d4d4d; }
+  </style>
+</head>
+<body>
+  <main class="activities-report">
+    <section class="activities-cover">
+      <div>
+        <p>Projeto Museus Centro — Viaduto das Artes</p>
+        <h1>Relatório de Atividades</h1>
+        <p>Relatório integral das atividades e dos relatórios aprovados no aplicativo.</p>
+      </div>
+      <div>
+        <p>Período: ${escapeHtml(periodoLabel)}</p>
+        <p>Gerado em: ${escapeHtml(formatDateForReport(generatedAt))}</p>
+        <p>Relatórios: ${summary.totalReports || 0} · Atividades: ${summary.totalActivities || 0} · Público: ${summary.totalAudience || 0}</p>
+      </div>
+    </section>
+
+    <section class="internal-header avoid-break">
+      <img src="/viaduto-logo.png" alt="Viaduto das Artes" />
+      <div class="txt">
+        <div>Viaduto das Artes – Fundado em 16 de junho de 2015</div>
+        <div>Av. Olinto Meireles, 45 – Barreiro – Belo Horizonte/MG</div>
+        <div>CEP 30640-010 – E-mail: viadutodasartes@gmail.com</div>
+      </div>
+    </section>
+
+    <section class="activities-section">
+      <h2>Introdução institucional</h2>
+      <p>Este Relatório de Atividades reúne, de forma integral, os registros aprovados pelas equipes do Projeto Museus Centro no período consolidado. A publicação reconhece o trabalho cotidiano de profissionais que atuam nos museus, na produção, na comunicação, na mediação, na gestão administrativa, na coordenação e no acompanhamento das ações culturais, educativas e institucionais.</p>
+      <p>Mais do que uma listagem operacional, este documento evidencia a dedicação das equipes em manter viva a programação, qualificar o atendimento ao público, organizar informações, produzir registros, acompanhar atividades e sustentar a memória institucional do projeto. Cada relatório aprovado e cada atividade registrada expressam uma dimensão concreta do trabalho coletivo realizado nos equipamentos culturais.</p>
+      <p>A organização das informações em formato integral permite preservar a autoria, os contextos, as descrições, os resultados, os desafios e os públicos alcançados. Dessa forma, o relatório fortalece a transparência, a rastreabilidade e o reconhecimento das entregas realizadas nos museus participantes.</p>
+      <p><strong>Síntese do ciclo:</strong> ${summary.totalReports || 0} relatórios aprovados, ${summary.totalActivities || 0} atividades registradas, ${summary.totalAudience || 0} pessoas no público consolidado, ${summary.totalMuseums || 0} museus contemplados e ${summary.totalAuthors || 0} profissionais/autores envolvidos.</p>
+    </section>
+
+    <section class="activities-section">
+      <h2>Sumário executivo</h2>
+      <div class="summary-grid">
+        <article class="summary-card"><span>Relatórios aprovados</span><strong>${summary.totalReports || 0}</strong></article>
+        <article class="summary-card"><span>Atividades consolidadas</span><strong>${summary.totalActivities || 0}</strong></article>
+        <article class="summary-card"><span>Público registrado</span><strong>${summary.totalAudience || 0}</strong></article>
+        <article class="summary-card"><span>Museus contemplados</span><strong>${summary.totalMuseums || 0}</strong></article>
+        <article class="summary-card"><span>Profissionais/autores</span><strong>${summary.totalAuthors || 0}</strong></article>
+        <article class="summary-card"><span>Registros com anexos</span><strong>${summary.totalAttachments || 0}</strong></article>
+      </div>
+    </section>
+
+    <section class="activities-section">
+      <h2>Tabela geral de atividades</h2>
+      <table class="activities-summary-table">
+        <thead>
+          <tr><th>Data</th><th>Museu</th><th>Atividade</th><th>Natureza</th><th>Público</th><th>Relatório/Autor</th></tr>
+        </thead>
+        <tbody>${activitiesTableRows}</tbody>
+      </table>
+    </section>
+
+    ${museumSections}
+
+    <section class="activities-section">
+      <h2>Relatórios aprovados — registros integrais das equipes</h2>
+      ${approvedReportsHtml}
+    </section>
+  </main>
+</body>
+</html>`;
+}
+
+export async function buildActivitiesReport({ museu = 'Todos', periodo = null } = {}) {
+  const data = await loadActivitiesReportData({ museu, periodo, forceRefresh: false });
+  const htmlRaw = buildActivitiesReportHtml(data, { periodoLabel: periodo ? `${periodo?.[0]} a ${periodo?.[1]}` : '2 de fevereiro a 30 de abril de 2026' });
+  const html = removeNegativeAndRemovedBlocksFromReport(cleanEmptyReportSections(repairReportEncoding(htmlRaw)));
+  const meta = {
+    reportVariant: 'atividades',
+    exportMode: 'activities_pdf',
+    generatedAt: data.generatedAt,
+    sourcePage: '/Relatorios',
+    totalReports: data.summary.totalReports,
+    totalActivities: data.summary.totalActivities,
+    totalAudience: data.summary.totalAudience,
+    totalMuseums: data.summary.totalMuseums,
+    totalAuthors: data.summary.totalAuthors,
+    selectedMuseum: museu,
+    period: periodo,
+    filename: ACTIVITIES_REPORT_FILENAME,
+  };
+  return { html, meta, data };
 }
 
 export function buildGalleryReportHtml(galleryData = {}, options = {}) {
@@ -1075,7 +1438,7 @@ export async function buildSingleReportHtml({
     splitContext: null,
     selectedInlinePhotoIds,
   });
-  const html = removeNegativeAlertBlocksFromReport(cleanEmptyReportSections(repairReportEncoding(result.html)));
+  const html = removeNegativeAndRemovedBlocksFromReport(cleanEmptyReportSections(repairReportEncoding(result.html)));
   return {
     html,
     contexto: result.contexto,
@@ -1124,8 +1487,8 @@ export async function buildSeparatedReportsHtml({
     skipExternalErrors: true,
     preserveAspectRatio: true,
   });
-  const galleryHtml = removeNegativeAlertBlocksFromReport(cleanEmptyReportSections(repairReportEncoding(galleryOptimizedHtml)));
-  const dataHtml = removeNegativeAlertBlocksFromReport(cleanEmptyReportSections(stripGalleryImagesFromDataReport(repairReportEncoding(dataResult.html))));
+  const galleryHtml = removeNegativeAndRemovedBlocksFromReport(cleanEmptyReportSections(repairReportEncoding(galleryOptimizedHtml)));
+  const dataHtml = removeNegativeAndRemovedBlocksFromReport(cleanEmptyReportSections(stripGalleryImagesFromDataReport(repairReportEncoding(dataResult.html))));
 
   return {
     data: {
@@ -1250,7 +1613,7 @@ export async function saveSingleReportPreview({ html = '', meta = {} } = {}) {
 
 export async function saveReportPreview(variant = 'single', { html = '', meta = {} } = {}) {
   const config = REPORT_PREVIEW_VARIANTS[variant] || REPORT_PREVIEW_VARIANTS.single;
-  const finalHtml = removeNegativeAlertBlocksFromReport(cleanEmptyReportSections(repairReportEncoding(html)));
+  const finalHtml = removeNegativeAndRemovedBlocksFromReport(cleanEmptyReportSections(repairReportEncoding(html)));
   const payloadMeta = {
     ...buildSingleReportMeta({ html: finalHtml, selectedChapters: meta.selectedChapters || [] }),
     ...meta,

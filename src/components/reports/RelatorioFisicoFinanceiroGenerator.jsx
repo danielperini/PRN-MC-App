@@ -33,6 +33,7 @@ import {
 } from '@/components/reports/premium/premiumReportUtils';
 import {
   buildEditorialVolumePlan as buildPipelineVolumeParts,
+  buildActivitiesReport,
   buildPartFileName as buildPipelinePartFileName,
   buildReportDataContext as buildPipelineReportDataContext,
   buildSeparatedReportsHtml,
@@ -97,14 +98,13 @@ const GENERATION_MODE_OPTIONS = [
 const EDITORIAL_VOLUMES = [
   {
     number: 1,
-    title: 'Volume 1 â€” Abertura institucional, atividades e orcamento por museu',
-    description: 'Este volume abre a publicacao e apresenta a leitura institucional do periodo, as atividades por equipamento, comunicacao e analise orcamentaria por museu.',
+    title: 'Volume 1 â€” Abertura institucional, comunicação e orçamento por museu',
+    description: 'Este volume abre a publicação e apresenta a leitura institucional do período, comunicação e análise orçamentária por museu.',
     chapters: [
       { code: '1', title: 'Capa editorial', sectionIds: ['capa'] },
       { code: '2', title: 'Expediente institucional', sectionIds: ['expediente'] },
       { code: '3', title: 'Sumario executivo', sectionIds: ['sumario_executivo', 'indicadores_premium', 'resumo_geral'] },
       { code: '4', title: 'Introducao institucional', sectionIds: ['introducao', 'territorio', 'publico'] },
-      { code: '5', title: 'Atividades por museu', sectionIds: ['atividades_museu', 'museus_premium', 'noturno_premium'] },
       { code: '6', title: 'Comunicacao, registros e evidencias', sectionIds: ['comunicacao'] },
       { code: '7', title: 'Orcamento por Museu', sectionIds: ['orcamento_museu'] },
     ],
@@ -545,9 +545,12 @@ export default function RelatorioFisicoFinanceiroGenerator() {
       'relatorio_fisico_financeiro_dados_meta',
       'relatorio_fisico_financeiro_galeria_html',
       'relatorio_fisico_financeiro_galeria_meta',
+      'relatorio_fisico_financeiro_atividades_html',
+      'relatorio_fisico_financeiro_atividades_meta',
       'relatorio_fisico_financeiro_html_saved_at',
       'relatorio_fisico_financeiro_dados_html_saved_at',
       'relatorio_fisico_financeiro_galeria_html_saved_at',
+      'relatorio_fisico_financeiro_atividades_html_saved_at',
       'relatorio_fisico_financeiro_selected_chapters',
       'relatorio_fisico_financeiro_all_chapters',
       'relatorio_fisico_financeiro_export_mode',
@@ -1230,15 +1233,27 @@ setErro(null);
       }
       console.log(`[Relatorio] ETAPA 3 concluída. HTML galeria: ${Math.round(galeriaHtml.length / 1024)} KB`);
 
+      // â”€â”€ ETAPA 3.1: montar HTML atividades â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      console.log('[Relatorio] ETAPA 3.1: montando HTML atividades...');
+      updateProgress(64, 'Montando HTML atividades', 'Consolidando relatórios aprovados e atividades integrais', 'geracao');
+      const activitiesResult = await buildActivitiesReport({ museu });
+      const atividadesHtml = activitiesResult?.html || '';
+      if (!atividadesHtml.trim()) {
+        throw new Error('Não foi possível montar o HTML do relatório de atividades.');
+      }
+      console.log(`[Relatorio] ETAPA 3.1 concluída. HTML atividades: ${Math.round(atividadesHtml.length / 1024)} KB`);
+
       // â”€â”€ ETAPA 4: salvar localStorage + IndexedDB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       console.log('[Relatorio] ETAPA 4: salvando HTMLs em localStorage e IndexedDB...');
-      updateProgress(72, 'Salvando relatórios', 'Persistindo HTML principal e galeria para a prévia', 'geracao');
+      updateProgress(72, 'Salvando relatórios', 'Persistindo HTML principal, galeria e atividades para a prévia', 'geracao');
       let localStorageSaved = false;
       try {
         localStorage.setItem('relatorio_fisico_financeiro_dados_html', dadosHtml);
         localStorage.setItem('relatorio_fisico_financeiro_galeria_html', galeriaHtml);
+        localStorage.setItem('relatorio_fisico_financeiro_atividades_html', atividadesHtml);
         localStorage.setItem('relatorio_fisico_financeiro_dados_html_saved_at', new Date().toISOString());
         localStorage.setItem('relatorio_fisico_financeiro_galeria_html_saved_at', new Date().toISOString());
+        localStorage.setItem('relatorio_fisico_financeiro_atividades_html_saved_at', new Date().toISOString());
         // Verify write
         const verify = localStorage.getItem('relatorio_fisico_financeiro_dados_html') || '';
         localStorageSaved = verify.length > 100;
@@ -1267,6 +1282,14 @@ setErro(null);
               reportVariant: 'galeria',
             },
           }),
+          saveReportPreview('atividades', {
+            html: atividadesHtml,
+            meta: {
+              ...(activitiesResult?.meta || {}),
+              reportVariant: 'atividades',
+              selectedChapters: normalizedSections,
+            },
+          }),
         ]);
         console.log('[Relatorio] ETAPA 5 concluída: IndexedDB salvo.');
       } catch (idbErr) {
@@ -1282,7 +1305,8 @@ setErro(null);
       updateProgress(90, 'Verificando prévia', 'Confirmando que os HTMLs estão disponíveis para abertura', 'geracao');
       const checkDados = localStorage.getItem('relatorio_fisico_financeiro_dados_html') || '';
       const checkGaleria = localStorage.getItem('relatorio_fisico_financeiro_galeria_html') || '';
-      if (!checkDados.trim() && !checkGaleria.trim()) {
+      const checkAtividades = localStorage.getItem('relatorio_fisico_financeiro_atividades_html') || '';
+      if (!checkDados.trim() && !checkGaleria.trim() && !checkAtividades.trim()) {
         console.error('[Relatorio] ETAPA 6 FALHOU: HTMLs não encontrados no localStorage após salvar');
         throw new Error('Os HTMLs foram gerados mas não puderam ser lidos. O localStorage pode estar cheio.');
       }
@@ -1291,17 +1315,20 @@ setErro(null);
       setResultado({
         html: dadosHtml,
         galleryHtml: galeriaHtml,
+        activitiesHtml: atividadesHtml,
         contexto: result.data.contexto,
         fonte: modoPremium ? 'premium_app' : 'frontend_ia',
-        exportMode: 'two_reports',
+        exportMode: 'three_reports',
         htmlSize: new Blob([dadosHtml], { type: 'text/html;charset=utf-8' }).size,
         galleryHtmlSize: new Blob([galeriaHtml], { type: 'text/html;charset=utf-8' }).size,
+        activitiesHtmlSize: new Blob([atividadesHtml], { type: 'text/html;charset=utf-8' }).size,
         meta: result.data.meta,
         galleryMeta: result.gallery.meta,
+        activitiesMeta: activitiesResult?.meta || {},
       });
-      updateProgress(100, 'Relatórios prontos', 'Principal e galeria salvos e disponíveis para prévia e PDF', 'geracao');
+      updateProgress(100, 'Relatórios prontos', 'Principal, galeria e atividades salvos e disponíveis para prévia e PDF', 'geracao');
       setDialogAberto(false);
-      toast.success('Relatórios gerados: principal de dados e galeria de imagens.');
+      toast.success('Relatórios gerados: principal, galeria e atividades.');
     } catch (err) {
       console.error('[Relatorio] Geração falhou:', err);
       setErro(err.message || 'Nao foi possivel gerar os relatorios.');
@@ -1325,7 +1352,7 @@ setErro(null);
         </div>
         <div>
           <h2 className="text-lg font-bold text-slate-900">Gerar Relatório</h2>
-          <p className="text-sm text-slate-500">Relatório principal com dados e atividades, mais galeria separada com imagens organizadas sem repetição.</p>
+          <p className="text-sm text-slate-500">Relatório principal de dados, relatório galeria e relatório de atividades integrais.</p>
         </div>
       </div>
 
@@ -1412,9 +1439,9 @@ setErro(null);
                     ? 'Gerado pela função gerarRelatorioFisicoFinanceiro.'
                     : 'Gerado no frontend com dados reais do app, fotos vinculadas e refinamento textual por IA.'}
               </p>
-              {resultado.exportMode === 'two_reports' && (
+              {resultado.exportMode === 'three_reports' && (
                 <p className="text-xs text-green-700 mt-1">
-                  Resultado esperado: um PDF principal com dados e 100% das atividades, mais um PDF galeria com imagens organizadas por atividade e sem repeticao.
+                  Resultado esperado: um PDF principal de dados, um PDF galeria e um PDF de atividades integrais.
                 </p>
               )}
               {false && resultado.exportMode === 'split' && Array.isArray(resultado.parts) && resultado.parts.length > 1 && (
@@ -1492,6 +1519,22 @@ setErro(null);
                     <Button variant="outline" size="sm" onClick={() => openPreview('galeria', true)}>
                       <Download className="w-4 h-4 mr-2" />
                       PDF galeria
+                    </Button>
+                  </>
+                )}
+                {resultado.activitiesHtml && (
+                  <>
+                    <Button variant="outline" size="sm" onClick={() => openPreview('atividades')}>
+                      <ExternalLink className="w-4 h-4 mr-2" />
+                      Abrir atividades
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => downloadNamedHtml(resultado.activitiesHtml, `relatorio-atividades-${Date.now()}.html`)}>
+                      <Download className="w-4 h-4 mr-2" />
+                      HTML atividades
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => openPreview('atividades', true)}>
+                      <Download className="w-4 h-4 mr-2" />
+                      PDF atividades
                     </Button>
                   </>
                 )}
@@ -1587,7 +1630,7 @@ setErro(null);
           <DialogHeader>
             <DialogTitle>Escolha os conteudos do relatorio</DialogTitle>
             <p className="text-sm text-slate-500">
-              Selecione o museu, o formato editorial e os capitulos que serao consolidados em dois arquivos: um relatorio principal com dados, textos, tabelas, graficos e atividades; e um relatorio galeria com imagens organizadas por atividade, sem repeticao.
+              Selecione o museu, o formato editorial e os capitulos que serao consolidados em tres arquivos: relatorio principal, relatorio galeria e relatorio de atividades.
             </p>
           </DialogHeader>
 
@@ -1704,7 +1747,7 @@ setErro(null);
               <div className="space-y-2">
                 <Label>Capitulos editoriais</Label>
                 <p className="text-xs leading-5 text-slate-600">
-                  Todo conteudo selecionado sera preservado. Os dados, textos, tabelas, graficos e atividades entram no relatorio principal; as imagens entram no relatorio galeria, organizadas por atividade e sem repeticao.
+                  Todo conteudo selecionado sera preservado. O relatorio principal organiza dados e sintese, a galeria organiza imagens e o relatorio de atividades preserva integralmente os registros aprovados.
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -1782,7 +1825,7 @@ setErro(null);
             </Button>
             <Button onClick={() => handleGerarUnico()} disabled={loading || secoesSelecionadas.length === 0}>
               {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
-              Gerar relatorio principal e galeria
+              Gerar relatórios
             </Button>
             {false && [1, 2, 3].map((volumeNumber) => {
               const volume = volumeParts.find((part) => part.partNumber === volumeNumber);
