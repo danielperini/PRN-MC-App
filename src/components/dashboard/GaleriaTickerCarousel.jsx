@@ -274,47 +274,47 @@ export default function GaleriaTickerCarousel() {
   const totalWidth = images.length * 88; // 80px + 8px gap
   const duration = images.length * 3.9; // mantém a mesma velocidade proporcional do carrossel original
 
-  return (
-    <div
-      className="relative w-full overflow-hidden rounded-xl hidden"
-      style={{ height: '88px' }}
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}>
-      
-      {/* Fade edges */}
-      <div className="absolute left-0 top-0 bottom-0 w-12 z-10 pointer-events-none"
-      style={{ background: 'linear-gradient(to right, white, transparent)' }} />
-      <div className="absolute right-0 top-0 bottom-0 w-12 z-10 pointer-events-none"
-      style={{ background: 'linear-gradient(to left, white, transparent)' }} />
+  return null;
 
-      <div
-        className="flex items-center gap-2 h-full hidden"
-        style={{
-          width: `${looped.length * 88}px`,
-          animation: `ticker-scroll ${duration}s linear infinite`,
-          animationPlayState: paused ? 'paused' : 'running',
-          willChange: 'transform'
-        }}>
-        
-        {looped.map((url, idx) =>
-        <img
-          key={idx}
-          src={url}
-          alt=""
-          loading="lazy"
-          onClick={goToGallery}
-          className="h-20 w-20 object-cover rounded-lg shrink-0 border border-slate-100 cursor-pointer transition-transform duration-200 hover:scale-105 hover:shadow-md hidden"
-          style={{ minWidth: '80px' }} />
 
-        )}
-      </div>
 
-      <style>{`
-        @keyframes ticker-scroll {
-          0%   { transform: translateX(0); }
-          100% { transform: translateX(-${totalWidth}px); }
-        }
-      `}</style>
-    </div>);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 }
