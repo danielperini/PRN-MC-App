@@ -154,8 +154,8 @@ function buildDivisionSummary(parts = []) {
   return `
     <section style="max-width:210mm;margin:0 auto 18px;padding:0 24px;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;color:#333;">
       <div style="border:1px solid rgba(23,23,23,.16);padding:16px 18px;background:#fff;">
-        <p style="margin:0 0 10px;font-size:13px;font-weight:700;">SumÃ¡rio comum dos volumes</p>
-        <p style="margin:0 0 10px;font-size:11.5px;line-height:1.5;">Os volumes preservam este mesmo sumÃ¡rio e usam paginaÃ§Ã£o contÃ­nua no PDF para posterior junÃ§Ã£o externa.</p>
+        <p style="margin:0 0 10px;font-size:13px;font-weight:700;">Sumário comum dos volumes</p>
+        <p style="margin:0 0 10px;font-size:11.5px;line-height:1.5;">Os volumes preservam este mesmo sumário e usam paginação contínua no PDF para posterior junção externa.</p>
         <ul style="margin:0;padding-left:18px;font-size:11.5px;line-height:1.55;">
           ${linhas.map((linha) => `<li>${linha}</li>`).join('')}
         </ul>
@@ -245,9 +245,9 @@ function injectPartMetadata(html, { partNumber, totalParts, sectionLabels = [], 
   const header = `
     <section style="max-width:210mm;margin:0 auto 18px;padding:0 24px;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;color:#333;">
       <div style="border:1px solid rgba(23,23,23,.16);padding:14px 18px;background:#fff;">
-        <p style="margin:0;font-size:13px;font-weight:700;">RelatÃ³rio Institucional Museus Centro</p>
+        <p style="margin:0;font-size:13px;font-weight:700;">Relatório Institucional Museus Centro</p>
         <p style="margin:6px 0 0;font-size:12px;font-weight:700;">Volume ${String(partNumber).padStart(2, '0')} de ${String(totalParts).padStart(2, '0')}</p>
-        <p style="margin:4px 0 0;font-size:11.5px;line-height:1.5;">ContinuaÃ§Ã£o do Volume ${String(Math.max(1, Number(partNumber) - 1)).padStart(2, '0')} Â· inÃ­cio na pÃ¡gina ${startPage}</p>
+        <p style="margin:4px 0 0;font-size:11.5px;line-height:1.5;">Continuação do Volume ${String(Math.max(1, Number(partNumber) - 1)).padStart(2, '0')} Â· início na página ${startPage}</p>
         <p style="margin:4px 0 0;font-size:11.5px;line-height:1.5;">Neste volume: ${sectionLabels.join(', ')}</p>
       </div>
     </section>
@@ -266,7 +266,7 @@ async function safeList(entity, order = '-created_date', limit = 1000) {
     const res = await entity.list(order, limit);
     return Array.isArray(res) ? res : [];
   } catch (error) {
-    console.warn('Falha ao listar entidade do relatÃ³rio:', error);
+    console.warn('Falha ao listar entidade do relatório:', error);
     return [];
   }
 }
@@ -368,14 +368,14 @@ async function salvarPreview(html) {
   try {
     sessionStorage.setItem('relatorio_fisico_financeiro_html', html);
   } catch (error) {
-    console.warn('NÃ£o foi possÃ­vel salvar a prÃ©via do relatÃ³rio em sessionStorage:', error);
+    console.warn('Não foi possível salvar a prévia do relatório em sessionStorage:', error);
   }
 
   try {
     localStorage.setItem('relatorio_fisico_financeiro_html', html);
     localStorage.setItem('relatorio_fisico_financeiro_html_saved_at', new Date().toISOString());
   } catch (error) {
-    console.warn('NÃ£o foi possÃ­vel salvar a prÃ©via do relatÃ³rio em localStorage:', error);
+    console.warn('Não foi possível salvar a prévia do relatório em localStorage:', error);
   }
 
   await savePreviewHtmlToIndexedDb(html);
@@ -392,7 +392,7 @@ function salvarMetadadosVolume(volumeMeta = {}) {
     sessionStorage.setItem('relatorio_fisico_financeiro_export_volume', payload);
     localStorage.setItem('relatorio_fisico_financeiro_export_volume', payload);
   } catch (error) {
-    console.warn('NÃ£o foi possÃ­vel salvar os metadados do volume:', error);
+    console.warn('Não foi possível salvar os metadados do volume:', error);
   }
 }
 
@@ -492,8 +492,8 @@ export default function RelatorioFisicoFinanceiroGenerator() {
 
     if (!parsed) {
       toast.error(volumeNumber === 2
-        ? 'Informe a Ãºltima pÃ¡gina do Volume 1 para gerar o Volume 2.'
-        : 'Informe a Ãºltima pÃ¡gina do Volume 2 para gerar o Volume 3.');
+        ? 'Informe a última página do Volume 1 para gerar o Volume 2.'
+        : 'Informe a última página do Volume 2 para gerar o Volume 3.');
       return null;
     }
 
@@ -533,7 +533,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
     try {
       await window.museusCentroHardRefresh();
     } catch (error) {
-      console.warn('Falha ao sincronizar dashboard antes do relatÃ³rio. Seguindo com dados disponÃ­veis.', error);
+      console.warn('Falha ao sincronizar dashboard antes do relatório. Seguindo com dados disponíveis.', error);
     }
   };
 
@@ -636,7 +636,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
     updateProgress(5, 'Limpando previas antigas', 'Removendo HTML e PDF gerados anteriormente', 'pesquisa');
 
     try {
-      updateProgress(10, 'Sincronizando dados do dashboard', 'ForÃ§ando atualizaÃ§Ã£o da base antes de pesquisar dados', 'pesquisa');
+      updateProgress(10, 'Sincronizando dados do dashboard', 'Forçando atualização da base antes de pesquisar dados', 'pesquisa');
       await syncDashboardDataBeforeReport();
       await clearReportPreviewCache();
 
@@ -796,14 +796,14 @@ export default function RelatorioFisicoFinanceiroGenerator() {
   const runExportBundle = async (inlinePhotoIds = [], targetVolumes = [1], automaticOffsets = false) => {
     const normalizedSelectedSections = normalizeSelectedReportChapterIds(secoesSelecionadas);
     if (normalizedSelectedSections.length === 0) {
-      toast.error('Selecione ao menos um capÃ­tulo editorial.');
+      toast.error('Selecione ao menos um capítulo editorial.');
       return;
     }
 
     setLoading(true);
     setResultado(null);
     setErro(null);
-    updateProgress(8, 'Buscando dados do dashboard', 'Preparando distribuiÃ§Ã£o editorial entre os volumes');
+    updateProgress(8, 'Buscando dados do dashboard', 'Preparando distribuição editorial entre os volumes');
 
     try {
       const fullData = await gerarRelatorioDoApp(museu, {
@@ -814,7 +814,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
 
       const allVolumeParts = buildVolumeParts(normalizedSelectedSections, fullData?.contexto || {});
       const selectedParts = allVolumeParts.filter((part) => targetVolumes.includes(part.partNumber) && part.secoes.length > 0);
-      if (selectedParts.length === 0) throw new Error('Nenhum volume possui conteÃºdo renderizÃ¡vel para a seleÃ§Ã£o atual.');
+      if (selectedParts.length === 0) throw new Error('Nenhum volume possui conteúdo renderizável para a seleção atual.');
 
       const builtParts = [];
       for (let index = 0; index < selectedParts.length; index += 1) {
@@ -890,13 +890,13 @@ export default function RelatorioFisicoFinanceiroGenerator() {
         parts: builtParts,
       });
 
-      updateProgress(100, 'RelatÃ³rio concluÃ­do', builtParts.length > 1 ? 'Volumes preparados para exportaÃ§Ã£o HTML/PDF.' : `Volume ${firstPart.partNumber} pronto para visualizaÃ§Ã£o e PDF`);
+      updateProgress(100, 'Relatório concluído', builtParts.length > 1 ? 'Volumes preparados para exportação HTML/PDF.' : `Volume ${firstPart.partNumber} pronto para visualização e PDF`);
       setDialogAberto(false);
-      toast.success(builtParts.length > 1 ? 'RelatÃ³rio preparado em 3 volumes editoriais.' : `Volume ${firstPart.partNumber} gerado com dados reais do aplicativo.`);
+      toast.success(builtParts.length > 1 ? 'Relatório preparado em 3 volumes editoriais.' : `Volume ${firstPart.partNumber} gerado com dados reais do aplicativo.`);
     } catch (err) {
       console.error(err);
-      setErro(err.message || 'NÃ£o foi possÃ­vel gerar os volumes do relatÃ³rio.');
-      toast.error('NÃ£o foi possÃ­vel gerar os volumes do relatÃ³rio.');
+      setErro(err.message || 'Não foi possível gerar os volumes do relatório.');
+      toast.error('Não foi possível gerar os volumes do relatório.');
     } finally {
       setLoading(false);
       setTimeout(() => setExportProgress(null), 1200);
@@ -910,7 +910,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
     const pageNumberOffset = getVolumePageOffset(volumeNumber, pageNumberOffsetOverride);
 
     if (normalizedSelectedSections.length === 0) {
-      toast.error('Selecione ao menos um capÃ­tulo.');
+      toast.error('Selecione ao menos um capítulo.');
       return;
     }
 
@@ -947,11 +947,11 @@ export default function RelatorioFisicoFinanceiroGenerator() {
         secoesSelecionadas: normalizedSelectedSections,
         selectedInlinePhotoIds: inlinePhotoIds,
       });
-      updateProgress(46, 'Analisando evidÃªncias visuais vinculadas Ã s atividades...', 'Detectando imagens repetidas e aplicando uso Ãºnico');
+      updateProgress(46, 'Analisando evidências visuais vinculadas Ã s atividades...', 'Detectando imagens repetidas e aplicando uso único');
       allVolumeParts = buildVolumeParts(normalizedSelectedSections, fullData?.contexto || {});
       selectedVolume = allVolumeParts.find((part) => part.partNumber === volumeNumber);
       if (!selectedVolume || selectedVolume.secoes.length === 0) {
-        throw new Error(`Volume ${volumeNumber} sem capÃ­tulos apÃ³s planejamento editorial.`);
+        throw new Error(`Volume ${volumeNumber} sem capítulos após planejamento editorial.`);
       }
       const summaryHtml = buildDivisionSummary(
         allVolumeParts.map((part) => ({
@@ -975,7 +975,7 @@ export default function RelatorioFisicoFinanceiroGenerator() {
         splitContext,
         selectedInlinePhotoIds: inlinePhotoIds,
       });
-      updateProgress(84, 'Distribuindo imagens junto das atividades...', 'Gerando plano de uso Ãºnico das imagens');
+      updateProgress(84, 'Distribuindo imagens junto das atividades...', 'Gerando plano de uso único das imagens');
 
       const htmlPart = cleanEmptyReportSections(injectPartMetadata(localPart.html, {
         partNumber: volumeNumber,
@@ -1077,13 +1077,13 @@ export default function RelatorioFisicoFinanceiroGenerator() {
     if (targetVolumes.length === 1 && getVolumePageOffset(targetVolumes[0]) === null) return;
 
     if (secoesSelecionadas.length === 0) {
-      toast.error('Selecione ao menos um capÃ­tulo.');
+      toast.error('Selecione ao menos um capítulo.');
       return;
     }
 
     const selectedTargets = volumeParts.filter((part) => targetVolumes.includes(part.partNumber) && part.secoes.length > 0);
     if (selectedTargets.length === 0) {
-      toast.error(targetVolumes.length > 1 ? 'Os volumes selecionados nÃ£o possuem capÃ­tulos editoriais.' : `O Volume ${targetVolumes[0]} nao possui capitulos selecionados.`);
+      toast.error(targetVolumes.length > 1 ? 'Os volumes selecionados não possuem capítulos editoriais.' : `O Volume ${targetVolumes[0]} nao possui capitulos selecionados.`);
       return;
     }
 
@@ -1127,8 +1127,8 @@ export default function RelatorioFisicoFinanceiroGenerator() {
       console.error(err);
       setLoading(false);
       setExportProgress(null);
-      setErro(err.message || 'NÃ£o foi possÃ­vel preparar a seleÃ§Ã£o de fotos.');
-      toast.error('NÃ£o foi possÃ­vel preparar a seleÃ§Ã£o de fotos.');
+      setErro(err.message || 'Não foi possível preparar a seleção de fotos.');
+      toast.error('Não foi possível preparar a seleção de fotos.');
     }
   };
 
@@ -1185,15 +1185,15 @@ export default function RelatorioFisicoFinanceiroGenerator() {
 
 setErro(null);
     setLoading(true);
-    updateProgress(5, 'Iniciando geraÃ§Ã£o', 'Preparando pipeline de dois relatÃ³rios separados', 'geracao');
-    updateProgress(9, 'Sincronizando dados do dashboard', 'ForÃ§ando atualizaÃ§Ã£o da base antes da geraÃ§Ã£o', 'geracao');
+    updateProgress(5, 'Iniciando geração', 'Preparando pipeline de dois relatórios separados', 'geracao');
+    updateProgress(9, 'Sincronizando dados do dashboard', 'Forçando atualização da base antes da geração', 'geracao');
     await syncDashboardDataBeforeReport();
     await clearReportPreviewCache();
 
     try {
       // â”€â”€ ETAPA 1: carregar dados â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       console.log('[Relatorio] ETAPA 1: carregando dados do app...');
-      updateProgress(12, 'Carregando dados do app', 'RelatÃ³rios, rubricas, compras, programaÃ§Ã£o, fotos e metas', 'geracao');
+      updateProgress(12, 'Carregando dados do app', 'Relatórios, rubricas, compras, programação, fotos e metas', 'geracao');
       const selectedIds = getSelectedInlineIds();
 
       let result;
@@ -1204,7 +1204,7 @@ setErro(null);
           secoesSelecionadas: normalizedSections,
           selectedInlinePhotoIds: selectedIds,
         });
-        console.log('[Relatorio] ETAPA 1 concluÃ­da. Dados carregados.');
+        console.log('[Relatorio] ETAPA 1 concluída. Dados carregados.');
       } catch (dataErr) {
         console.error('[Relatorio] ETAPA 1 FALHOU ao carregar dados:', dataErr);
         throw new Error(`Falha ao carregar dados: ${dataErr.message}`);
@@ -1212,27 +1212,27 @@ setErro(null);
 
       // â”€â”€ ETAPA 2: montar HTML principal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       console.log('[Relatorio] ETAPA 2: montando HTML principal...');
-      updateProgress(40, 'Montando HTML principal', 'Dados, textos, tabelas, grÃ¡ficos, metas e 100% das atividades', 'geracao');
+      updateProgress(40, 'Montando HTML principal', 'Dados, textos, tabelas, gráficos, metas e 100% das atividades', 'geracao');
       const dadosHtml = result?.data?.html || '';
       if (!dadosHtml.trim()) {
-        console.error('[Relatorio] ETAPA 2 FALHOU: HTML principal vazio apÃ³s buildSeparatedReportsHtml');
-        throw new Error('NÃ£o foi possÃ­vel montar o HTML do relatÃ³rio principal.');
+        console.error('[Relatorio] ETAPA 2 FALHOU: HTML principal vazio após buildSeparatedReportsHtml');
+        throw new Error('Não foi possível montar o HTML do relatório principal.');
       }
-      console.log(`[Relatorio] ETAPA 2 concluÃ­da. HTML principal: ${Math.round(dadosHtml.length / 1024)} KB`);
+      console.log(`[Relatorio] ETAPA 2 concluída. HTML principal: ${Math.round(dadosHtml.length / 1024)} KB`);
 
       // â”€â”€ ETAPA 3: montar HTML galeria â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       console.log('[Relatorio] ETAPA 3: montando HTML galeria...');
-      updateProgress(55, 'Montando HTML galeria', 'Imagens organizadas por atividade, sem repetiÃ§Ã£o', 'geracao');
+      updateProgress(55, 'Montando HTML galeria', 'Imagens organizadas por atividade, sem repetição', 'geracao');
       const galeriaHtml = result?.gallery?.html || '';
       if (!galeriaHtml.trim()) {
-        console.error('[Relatorio] ETAPA 3 FALHOU: HTML galeria vazio apÃ³s buildSeparatedReportsHtml');
-        throw new Error('NÃ£o foi possÃ­vel montar o HTML do relatÃ³rio galeria.');
+        console.error('[Relatorio] ETAPA 3 FALHOU: HTML galeria vazio após buildSeparatedReportsHtml');
+        throw new Error('Não foi possível montar o HTML do relatório galeria.');
       }
-      console.log(`[Relatorio] ETAPA 3 concluÃ­da. HTML galeria: ${Math.round(galeriaHtml.length / 1024)} KB`);
+      console.log(`[Relatorio] ETAPA 3 concluída. HTML galeria: ${Math.round(galeriaHtml.length / 1024)} KB`);
 
       // â”€â”€ ETAPA 4: salvar localStorage + IndexedDB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       console.log('[Relatorio] ETAPA 4: salvando HTMLs em localStorage e IndexedDB...');
-      updateProgress(72, 'Salvando relatÃ³rios', 'Persistindo HTML principal e galeria para a prÃ©via', 'geracao');
+      updateProgress(72, 'Salvando relatórios', 'Persistindo HTML principal e galeria para a prévia', 'geracao');
       let localStorageSaved = false;
       try {
         localStorage.setItem('relatorio_fisico_financeiro_dados_html', dadosHtml);
@@ -1242,7 +1242,7 @@ setErro(null);
         // Verify write
         const verify = localStorage.getItem('relatorio_fisico_financeiro_dados_html') || '';
         localStorageSaved = verify.length > 100;
-        console.log(`[Relatorio] ETAPA 4a: localStorage ${localStorageSaved ? 'salvo com sucesso' : 'falhou na verificaÃ§Ã£o'}`);
+        console.log(`[Relatorio] ETAPA 4a: localStorage ${localStorageSaved ? 'salvo com sucesso' : 'falhou na verificação'}`);
       } catch (lsErr) {
         console.warn('[Relatorio] ETAPA 4a FALHOU: localStorage quota ou erro:', lsErr);
       }
@@ -1268,25 +1268,25 @@ setErro(null);
             },
           }),
         ]);
-        console.log('[Relatorio] ETAPA 5 concluÃ­da: IndexedDB salvo.');
+        console.log('[Relatorio] ETAPA 5 concluída: IndexedDB salvo.');
       } catch (idbErr) {
         console.error('[Relatorio] ETAPA 5 FALHOU ao salvar IndexedDB:', idbErr);
         if (!localStorageSaved) {
-          throw new Error(`Falha ao salvar IndexedDB: ${idbErr.message}. localStorage tambÃ©m falhou.`);
+          throw new Error(`Falha ao salvar IndexedDB: ${idbErr.message}. localStorage também falhou.`);
         }
-        console.warn('[Relatorio] ETAPA 5: IndexedDB falhou mas localStorage estÃ¡ disponÃ­vel.');
+        console.warn('[Relatorio] ETAPA 5: IndexedDB falhou mas localStorage está disponível.');
       }
 
-      // â”€â”€ ETAPA 6: verificar prÃ©via â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-      console.log('[Relatorio] ETAPA 6: verificando prÃ©via salva...');
-      updateProgress(90, 'Verificando prÃ©via', 'Confirmando que os HTMLs estÃ£o disponÃ­veis para abertura', 'geracao');
+      // â”€â”€ ETAPA 6: verificar prévia â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      console.log('[Relatorio] ETAPA 6: verificando prévia salva...');
+      updateProgress(90, 'Verificando prévia', 'Confirmando que os HTMLs estão disponíveis para abertura', 'geracao');
       const checkDados = localStorage.getItem('relatorio_fisico_financeiro_dados_html') || '';
       const checkGaleria = localStorage.getItem('relatorio_fisico_financeiro_galeria_html') || '';
       if (!checkDados.trim() && !checkGaleria.trim()) {
-        console.error('[Relatorio] ETAPA 6 FALHOU: HTMLs nÃ£o encontrados no localStorage apÃ³s salvar');
-        throw new Error('Os HTMLs foram gerados mas nÃ£o puderam ser lidos. O localStorage pode estar cheio.');
+        console.error('[Relatorio] ETAPA 6 FALHOU: HTMLs não encontrados no localStorage após salvar');
+        throw new Error('Os HTMLs foram gerados mas não puderam ser lidos. O localStorage pode estar cheio.');
       }
-      console.log('[Relatorio] ETAPA 6 concluÃ­da: prÃ©via verificada e disponÃ­vel.');
+      console.log('[Relatorio] ETAPA 6 concluída: prévia verificada e disponível.');
 
       setResultado({
         html: dadosHtml,
@@ -1299,11 +1299,11 @@ setErro(null);
         meta: result.data.meta,
         galleryMeta: result.gallery.meta,
       });
-      updateProgress(100, 'RelatÃ³rios prontos', 'Principal e galeria salvos e disponÃ­veis para prÃ©via e PDF', 'geracao');
+      updateProgress(100, 'Relatórios prontos', 'Principal e galeria salvos e disponíveis para prévia e PDF', 'geracao');
       setDialogAberto(false);
-      toast.success('RelatÃ³rios gerados: principal de dados e galeria de imagens.');
+      toast.success('Relatórios gerados: principal de dados e galeria de imagens.');
     } catch (err) {
-      console.error('[Relatorio] GeraÃ§Ã£o falhou:', err);
+      console.error('[Relatorio] Geração falhou:', err);
       setErro(err.message || 'Nao foi possivel gerar os relatorios.');
       toast.error(err.message || 'Nao foi possivel gerar os relatorios.');
     } finally {
@@ -1324,8 +1324,8 @@ setErro(null);
           <FileText className="w-5 h-5 text-white" />
         </div>
         <div>
-          <h2 className="text-lg font-bold text-slate-900">Gerar RelatÃ³rio</h2>
-          <p className="text-sm text-slate-500">RelatÃ³rio principal com dados e atividades, mais galeria separada com imagens organizadas sem repetiÃ§Ã£o.</p>
+          <h2 className="text-lg font-bold text-slate-900">Gerar Relatório</h2>
+          <p className="text-sm text-slate-500">Relatório principal com dados e atividades, mais galeria separada com imagens organizadas sem repetição.</p>
         </div>
       </div>
 
@@ -1334,11 +1334,11 @@ setErro(null);
           <div className="flex items-end justify-between gap-4">
             <div>
               <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                {exportProgress.flow === 'pesquisa' ? 'Progresso da Pesquisa e AtualizaÃ§Ã£o' : 'Progresso da GeraÃ§Ã£o dos RelatÃ³rios'}
+                {exportProgress.flow === 'pesquisa' ? 'Progresso da Pesquisa e Atualização' : 'Progresso da Geração dos Relatórios'}
               </p>
               <div className="mt-1 flex items-end gap-2">
                 <span className="text-4xl font-bold leading-none text-slate-900 tabular-nums">{exportProgress.percent}%</span>
-                <span className="pb-1 text-sm text-slate-500">concluÃ­do</span>
+                <span className="pb-1 text-sm text-slate-500">concluído</span>
               </div>
             </div>
             <div className="text-right">
@@ -1357,14 +1357,14 @@ setErro(null);
 
       <Button onClick={() => setDialogAberto(true)} disabled={loading} className="w-full h-12">
         {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
-        Gerar RelatÃ³rio
+        Gerar Relatório
       </Button>
 
       {loading && (
         <LoadingDataNotice
           className="mt-4"
-          title="RelatÃ³rio carregando dados"
-          message="O app estÃ¡ recuperando relatÃ³rios, programaÃ§Ã£o, rubricas, compras, anexos e textos de apoio. A prÃ©via serÃ¡ aberta quando a consolidaÃ§Ã£o terminar."
+          title="Relatório carregando dados"
+          message="O app está recuperando relatórios, programação, rubricas, compras, anexos e textos de apoio. A prévia será aberta quando a consolidação terminar."
         />
       )}
 
@@ -1372,7 +1372,7 @@ setErro(null);
         <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
           <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm font-medium text-amber-800">NÃ£o foi possÃ­vel gerar o relatÃ³rio</p>
+            <p className="text-sm font-medium text-amber-800">Não foi possível gerar o relatório</p>
             <p className="text-xs text-amber-700 mt-1">{erro}</p>
           </div>
         </div>
@@ -1383,12 +1383,12 @@ setErro(null);
           <div className="flex items-start gap-3 mb-3">
             <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-medium text-green-800">RelatÃ³rio gerado com sucesso!</p>
+              <p className="text-sm font-medium text-green-800">Relatório gerado com sucesso!</p>
               <p className="text-xs text-green-700 mt-1">
                 {resultado.fonte === 'premium_app'
-                  ? 'Gerado no modo relatÃ³rio institucional, usando dados reais do app e refinamento textual editorial.'
+                  ? 'Gerado no modo relatório institucional, usando dados reais do app e refinamento textual editorial.'
                   : resultado.fonte === 'backend'
-                    ? 'Gerado pela funÃ§Ã£o gerarRelatorioFisicoFinanceiro.'
+                    ? 'Gerado pela função gerarRelatorioFisicoFinanceiro.'
                     : 'Gerado no frontend com dados reais do app, fotos vinculadas e refinamento textual por IA.'}
               </p>
               {resultado.exportMode === 'two_reports' && (
@@ -1398,7 +1398,7 @@ setErro(null);
               )}
               {false && resultado.exportMode === 'split' && Array.isArray(resultado.parts) && resultado.parts.length > 1 && (
                 <p className="text-xs text-green-700 mt-1">
-                  ExportaÃ§Ã£o preparada em {resultado.parts.length} volumes balanceados, respeitando a ordem dos capÃ­tulos selecionados.
+                  Exportação preparada em {resultado.parts.length} volumes balanceados, respeitando a ordem dos capítulos selecionados.
                 </p>
               )}
             </div>
@@ -1506,7 +1506,7 @@ setErro(null);
                       Selecionar todas desta atividade
                     </Button>
                     <Button type="button" size="sm" variant="outline" onClick={() => selectAllActivityPhotos(activity, false)}>
-                      NÃ£o imprimir fotos nesta atividade
+                      Não imprimir fotos nesta atividade
                     </Button>
                   </div>
                 </div>
@@ -1555,7 +1555,7 @@ setErro(null);
               disabled={loading}
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
-              Continuar exportaÃ§Ã£o
+              Continuar exportação
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1573,8 +1573,8 @@ setErro(null);
           <div className="space-y-5 py-2">
             {loading && (
               <LoadingDataNotice
-                title="Carregando dados do relatÃ³rio"
-                message="Mantenha esta janela aberta enquanto o sistema consolida dados reais do app e revisa o HTML antes da prÃ©via."
+                title="Carregando dados do relatório"
+                message="Mantenha esta janela aberta enquanto o sistema consolida dados reais do app e revisa o HTML antes da prévia."
               />
             )}
 
@@ -1602,8 +1602,8 @@ setErro(null);
                   className="mt-0.5"
                 />
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">CatÃ¡logo-livro institucional</p>
-                  <p className="text-xs text-slate-500 mt-0.5">Capa full bleed, timeline, museus, Noturno, comunicaÃ§Ã£o, galeria com crÃ©ditos/GPS e tabelas A4.</p>
+                  <p className="text-sm font-semibold text-slate-900">Catálogo-livro institucional</p>
+                  <p className="text-xs text-slate-500 mt-0.5">Capa full bleed, timeline, museus, Noturno, comunicação, galeria com créditos/GPS e tabelas A4.</p>
                 </div>
               </div>
             </div>
