@@ -25,6 +25,7 @@ import {
   dedupePhotosByTechnicalIdentity,
   getPhotoIdentity,
 } from '@/utils/photoSimilarity';
+import { loadGalleryReportData } from '@/utils/galleryReportData';
 
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'heic', 'webp', 'gif', 'bmp', 'avif'];
 const INITIAL_VISIBLE_IMAGES = 36;
@@ -725,56 +726,19 @@ function GaleriaFotosInner() {
   } = useQuery({
     queryKey: ['galeria-fotos-v12-fast-cache', currentUser?.email],
     queryFn: async () => {
-      const cached = readGalleryCache();
-      if (cached) return cached;
+      const payload = await loadGalleryReportData({
+        limitMedia: 450,
+        limitAttachments: 650,
+        useCache: true,
+        cacheKey: GALLERY_CACHE_KEY,
+        cacheTtlMs: GALLERY_CACHE_TTL_MS,
+      });
 
-      const allImages = [];
-      const activityMaps = { byId: new Map(), byText: [] };
-
-      try {
-        const media = await base44.entities.MediaLibrary.list('-created_date', 450);
-
-        allImages.push(
-          ...(Array.isArray(media) ? media : [])
-            .filter((item) => {
-              const tipo = String(item?.tipo || '').toLowerCase();
-
-              return (
-                tipo === 'imagem' ||
-                tipo === 'image' ||
-                isImageByMime(item?.file_type) ||
-                isImageByFileName(item?.file_name)
-              );
-            })
-            .map((item) => mapPhoto(item, activityMaps, null, 'media'))
-        );
-      } catch (error) {
-        console.warn('MediaLibrary indisponível na galeria:', error);
-      }
-
-      try {
-        const attachments = await base44.entities.Attachment.list('-created_date', 650);
-
-        allImages.push(
-          ...(Array.isArray(attachments) ? attachments : [])
-            .filter(
-              (att) => isImageByMime(att.file_type) || isImageByFileName(att.file_name)
-            )
-            .map((att) => mapPhoto(att, activityMaps, null, 'legacy'))
-        );
-      } catch (error) {
-        console.warn('Attachment indisponível na galeria:', error);
-      }
-
-      const dedupedImages = uniqueByFileUrl(allImages);
-      const payload = {
-        images: dedupedImages.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)),
-        rawImages: allImages,
-        duplicateGroups: buildDuplicateGroups(allImages),
+      return {
+        images: Array.isArray(payload?.images) ? payload.images : [],
+        rawImages: Array.isArray(payload?.images) ? payload.images : [],
+        duplicateGroups: buildDuplicateGroups(Array.isArray(payload?.images) ? payload.images : []),
       };
-
-      writeGalleryCache(payload);
-      return payload;
     },
     enabled: !!currentUser?.email,
     staleTime: 1000 * 60 * 5,
@@ -1622,3 +1586,5 @@ export default function GaleriaFotos() {
     </RequireAuth>
   );
 }
+
+

@@ -9,6 +9,7 @@ import {
   DEFAULT_OPTIONS as REPORT_IMAGE_OPTIMIZATION_OPTIONS,
   optimizeReportHtmlImages,
 } from '@/utils/reportImageOptimizer';
+import { loadGalleryReportData } from '@/utils/galleryReportData';
 import {
   REPORT_CHAPTERS,
   REPORT_CHAPTER_IDS,
@@ -641,6 +642,146 @@ function escapeHtml(value) {
     .replace(/'/g, '&#039;');
 }
 
+export function buildGalleryReportHtml(galleryData = {}, options = {}) {
+  const title = options.title || 'Relatório Galeria de Evidências';
+  const periodo = options.periodo || '2 de fevereiro a 30 de abril de 2026';
+  const generatedAt = options.generatedAt ? new Date(options.generatedAt).toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR');
+  const groups = Array.isArray(galleryData?.groups) ? galleryData.groups : [];
+  const totalImages = Number(galleryData?.totalImages || 0);
+  const imagesByMuseum = galleryData?.imagesByMuseum || {};
+
+  const intro = `
+    <p>Este relatório galeria apresenta evidências visuais registradas no aplicativo, organizadas por museu, local, data, legenda e coordenadas, compondo documentação comprobatória das ações culturais, educativas e institucionais do projeto.</p>
+  `;
+
+  const sectionHtml = groups.map((group) => `
+    <section class="gallery-section gallery-page">
+      <header class="report-pdf-institutional-header">
+        <img src="/viaduto-logo.png" alt="Viaduto das Artes" class="report-pdf-institutional-logo" />
+        <div class="report-pdf-institutional-text">
+          <strong>Viaduto das Artes – Fundado em 16 de junho de 2015</strong>
+          <span>Av. Olinto Meireles, 45 – Barreiro – Belo Horizonte/MG</span>
+          <span>CEP 30640-010 – E-mail: viadutodasartes@gmail.com</span>
+        </div>
+      </header>
+      <div class="gallery-section-head">
+        <h2>${escapeHtml(group.sectionTitle || group.shortTitle || 'Museu')}</h2>
+        <p>Total de imagens: ${escapeHtml(String((group.images || []).length))}</p>
+        <p>Coordenadas: ${escapeHtml(group.coordinates || 'Não informado')}</p>
+      </div>
+      <div class="gallery-grid">
+        ${(group.images || []).map((image, index) => {
+          const fileUrl = String(image?.fileUrl || '');
+          const legend = image?.legenda || image?.description || image?.fileName || `Imagem ${index + 1}`;
+          const local = image?.localizacao || 'Localização não informada';
+          const gps = image?.geoCoordinates || 'GPS não informado';
+          const date = image?.date || '';
+          const fileName = image?.fileName || '';
+          const source = image?.sourceEntity || 'Attachment';
+          return `
+            <article class="gallery-card">
+              <div class="gallery-image-wrap">
+                ${fileUrl
+                  ? `<img src="${escapeHtml(fileUrl)}" alt="${escapeHtml(legend)}" loading="lazy" decoding="async" fetchpriority="${index < 4 ? 'high' : 'low'}" onerror="this.style.display='none'; this.parentElement.classList.add('image-missing')" />`
+                  : `<div class="gallery-image-placeholder">Imagem indisponível</div>`}
+              </div>
+              <p class="gallery-caption">${escapeHtml(legend)}</p>
+              <div class="gallery-meta">
+                <div><strong>Museu:</strong> ${escapeHtml(image?.museu || group.shortTitle || 'Não informado')}</div>
+                <div><strong>Data:</strong> ${escapeHtml(date || 'Não informada')}</div>
+                <div><strong>Local:</strong> ${escapeHtml(local)}</div>
+                <div><strong>Coordenadas:</strong> ${escapeHtml(gps)}</div>
+                <div><strong>Arquivo:</strong> ${escapeHtml(fileName || 'Não informado')}</div>
+                <div><strong>Origem:</strong> ${escapeHtml(source)}</div>
+              </div>
+            </article>
+          `;
+        }).join('')}
+      </div>
+    </section>
+  `).join('');
+
+  return `<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${escapeHtml(title)}</title>
+  <style>
+    @page { size: A4; margin: 12mm 10mm 14mm 10mm; }
+    * { box-sizing: border-box; }
+    body { background: #f7f3eb; color: #111827; font-family: Arial, Helvetica, sans-serif; margin: 0; }
+    .gallery-report { width: 190mm; margin: 0 auto; }
+    .gallery-page { page-break-after: always; }
+    .report-cover { min-height: 277mm; background: #111827; color: #fff; padding: 18mm 12mm; display: flex; flex-direction: column; justify-content: space-between; }
+    .report-cover h1 { font-size: 30pt; line-height: 1.05; margin: 0; }
+    .cover-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4mm; margin-top: 8mm; }
+    .cover-stats .item { border: 1px solid rgba(255,255,255,.3); padding: 3mm; }
+    .cover-stats strong { display: block; font-size: 16pt; }
+    .report-pdf-institutional-header { display: flex; justify-content: space-between; gap: 12mm; align-items: flex-start; border-bottom: 1px solid rgba(17, 24, 39, 0.18); padding-bottom: 4mm; margin-bottom: 7mm; }
+    .report-pdf-institutional-logo { width: 34mm; height: auto; object-fit: contain; }
+    .report-pdf-institutional-text { font-size: 8pt; line-height: 1.35; text-align: right; }
+    .report-pdf-institutional-text span, .report-pdf-institutional-text strong { display: block; }
+    .section-box { background: #fff; border: 1px solid rgba(17,24,39,.14); padding: 5mm; margin-bottom: 7mm; }
+    .gallery-section { break-inside: auto; }
+    .gallery-section-head { margin-bottom: 6mm; }
+    .gallery-section-head h2 { margin: 0 0 2mm; font-size: 16pt; }
+    .gallery-section-head p { margin: 0; font-size: 9pt; color: #4b5563; }
+    .gallery-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10mm 7mm; }
+    .gallery-card { break-inside: avoid; page-break-inside: avoid; background: #fff; border: 1px solid rgba(17,24,39,.14); padding: 4mm; }
+    .gallery-card img { width: 100%; height: 58mm; object-fit: cover; display: block; background: #e5e7eb; }
+    .gallery-image-placeholder { width: 100%; height: 58mm; display: grid; place-items: center; background: #e5e7eb; color: #6b7280; font-size: 9pt; }
+    .gallery-card.image-missing .gallery-image-placeholder { display: grid; }
+    .gallery-caption { font-size: 9.5pt; line-height: 1.35; font-weight: 700; margin-top: 3mm; }
+    .gallery-meta { font-size: 7.5pt; line-height: 1.35; color: #4b5563; margin-top: 2mm; }
+  </style>
+</head>
+<body>
+  <main class="gallery-report">
+    <section class="report-cover gallery-page">
+      <div>
+        <h1>${escapeHtml(title)}</h1>
+        <p>Projeto Museus Centro — Viaduto das Artes</p>
+        <p>Período: ${escapeHtml(periodo)}</p>
+      </div>
+      <div class="cover-stats">
+        <div class="item"><strong>${escapeHtml(String(totalImages))}</strong><span>Imagens</span></div>
+        <div class="item"><strong>${escapeHtml(String(imagesByMuseum.MHAB || 0))}</strong><span>MHAB</span></div>
+        <div class="item"><strong>${escapeHtml(String(imagesByMuseum.MIS || 0))}</strong><span>MIS</span></div>
+        <div class="item"><strong>${escapeHtml(String(imagesByMuseum.MUMO || 0))}</strong><span>MUMO</span></div>
+      </div>
+      <p>Fontes: MediaLibrary e Attachment · Gerado em ${escapeHtml(generatedAt)}</p>
+    </section>
+
+    <section class="gallery-page">
+      <header class="report-pdf-institutional-header">
+        <img src="/viaduto-logo.png" alt="Viaduto das Artes" class="report-pdf-institutional-logo" />
+        <div class="report-pdf-institutional-text">
+          <strong>Viaduto das Artes – Fundado em 16 de junho de 2015</strong>
+          <span>Av. Olinto Meireles, 45 – Barreiro – Belo Horizonte/MG</span>
+          <span>CEP 30640-010 – E-mail: viadutodasartes@gmail.com</span>
+        </div>
+      </header>
+      <div class="section-box">
+        <h2>Introdução</h2>
+        ${intro}
+      </div>
+      <div class="section-box">
+        <h2>Sumário por museu</h2>
+        <ul>
+          <li>MHAB: ${escapeHtml(String(imagesByMuseum.MHAB || 0))}</li>
+          <li>MIS: ${escapeHtml(String(imagesByMuseum.MIS || 0))}</li>
+          <li>MUMO: ${escapeHtml(String(imagesByMuseum.MUMO || 0))}</li>
+          <li>Sem identificação: ${escapeHtml(String(imagesByMuseum['Sem identificação'] || imagesByMuseum.SEM_IDENTIFICACAO || 0))}</li>
+        </ul>
+      </div>
+    </section>
+    ${sectionHtml}
+  </main>
+</body>
+</html>`;
+}
+
 function getPhotoUrl(photo = {}) {
   return photo?.url || photo?.file_url || photo?.fileUrl || photo?.src || photo?.link || photo?.arquivo_url || photo?.arquivo_original_url || photo?.imagem_url || '';
 }
@@ -931,12 +1072,27 @@ export async function buildSeparatedReportsHtml({
     selectedInlinePhotoIds,
   });
 
-  const galleryInitialHtml = buildGalleryReportDocument({
-    contexto: dataResult.contexto,
-    filtros: dataResult.filtros,
-    selectedChapters: normalizedSections,
+  const galleryData = await loadGalleryReportData({
+    limitMedia: 450,
+    limitAttachments: 650,
+    useCache: true,
+    cacheKey: 'museus_centro_galeria_fotos_cache_v2',
+    cacheTtlMs: 10 * 60 * 1000,
   });
-  const galleryOptimizedHtml = await optimizeReportHtmlImages(galleryInitialHtml, REPORT_IMAGE_OPTIMIZATION_OPTIONS);
+
+  const periodLabel = `${dataResult?.filtros?.dateFrom || '2026-02-02'} a ${dataResult?.filtros?.dateTo || '2026-04-30'}`;
+  const galleryInitialHtml = buildGalleryReportHtml(galleryData, {
+    title: 'Relatório Galeria de Evidências',
+    periodo: periodLabel,
+    generatedAt: new Date().toISOString(),
+  });
+  const galleryOptimizedHtml = await optimizeReportHtmlImages(galleryInitialHtml, {
+    ...REPORT_IMAGE_OPTIMIZATION_OPTIONS,
+    maxWidth: 900,
+    quality: 0.72,
+    skipExternalErrors: true,
+    preserveAspectRatio: true,
+  });
   const galleryHtml = cleanEmptyReportSections(repairReportEncoding(galleryOptimizedHtml));
   const dataHtml = cleanEmptyReportSections(stripGalleryImagesFromDataReport(repairReportEncoding(dataResult.html)));
 
@@ -953,10 +1109,18 @@ export async function buildSeparatedReportsHtml({
     gallery: {
       html: galleryHtml,
       contexto: dataResult.contexto,
-      meta: buildSingleReportMeta({
+      meta: {
+        ...buildSingleReportMeta({
         html: galleryHtml,
         selectedChapters: normalizedSections,
-      }),
+        }),
+        reportVariant: 'galeria',
+        source: 'GaleriaFotos',
+        totalImages: Number(galleryData?.totalImages || 0),
+        imagesByMuseum: galleryData?.imagesByMuseum || {},
+        generatedAt: new Date().toISOString(),
+        cacheUsed: Boolean(galleryData?.cacheUsed),
+      },
     },
   };
 }
