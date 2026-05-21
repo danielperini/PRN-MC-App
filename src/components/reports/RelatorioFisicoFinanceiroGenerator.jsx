@@ -1034,6 +1034,29 @@ export default function RelatorioFisicoFinanceiroGenerator() {
 
   const pesquisarEChecarDados = async () => pesquisarDadosEAtualizarRelatorio();
 
+  const resetarCacheERegerar = async () => {
+    const normalizedSelectedSections = normalizeSelectedReportChapterIds(secoesSelecionadas);
+    if (normalizedSelectedSections.length === 0) {
+      toast.error('Selecione ao menos um capitulo editorial.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setErro(null);
+      updateProgress(4, 'Limpando previas antigas', 'Removendo cache local antes da nova geracao');
+      await clearReportPreviewCache();
+      updateProgress(12, 'Sincronizando dashboard', 'Buscando dados mais recentes antes de regerar');
+      await syncDashboardDataBeforeReport();
+    } catch (error) {
+      console.warn('Falha ao resetar cache/sincronizar antes da regeracao:', error);
+    } finally {
+      setLoading(false);
+    }
+
+    await handleGerarUnico();
+  };
+
   const gerarPlanoDosVolumes = async () => {
     const contexto = await pesquisarEChecarDados();
     if (!contexto) return;
@@ -1723,6 +1746,10 @@ export default function RelatorioFisicoFinanceiroGenerator() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogAberto(false)} disabled={loading}>Cancelar</Button>
+            <Button variant="outline" onClick={resetarCacheERegerar} disabled={loading || secoesSelecionadas.length === 0}>
+              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Download className="w-4 h-4 mr-2" />}
+              Resetar cache e regerar
+            </Button>
             <Button variant="outline" onClick={pesquisarDadosEAtualizarRelatorio} disabled={loading || secoesSelecionadas.length === 0}>
               {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
               Pesquisar dados e atualizar relatorio

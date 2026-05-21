@@ -1244,10 +1244,15 @@ function getPreviewHtmlFromIndexedDb() {
   });
 }
 
-async function getStoredHtml() {
+async function getStoredHtml(variant = 'single') {
   try {
-    const quickHtml = sessionStorage.getItem('relatorio_fisico_financeiro_html')
-      || localStorage.getItem('relatorio_fisico_financeiro_html')
+    const key = variant === 'dados'
+      ? 'relatorio_fisico_financeiro_dados_html'
+      : variant === 'galeria'
+        ? 'relatorio_fisico_financeiro_galeria_html'
+        : 'relatorio_fisico_financeiro_html';
+    const quickHtml = sessionStorage.getItem(key)
+      || localStorage.getItem(key)
       || '';
     if (quickHtml) return quickHtml;
   } catch {
@@ -1288,7 +1293,7 @@ async function getAnyStoredReportHtml(preferredVariant = 'single') {
     }
   }
 
-  const generic = await getStoredHtml();
+  const generic = await getStoredHtml(preferredVariant);
   return repairReportEncoding(String(generic || ''));
 }
 
@@ -1337,7 +1342,7 @@ export default function RelatorioPreview() {
         finalHtml = localStorage.getItem('relatorio_fisico_financeiro_galeria_html') || '';
         if (finalHtml) console.log('[Preview] Fallback: galeria do localStorage');
       } else if (!finalHtml) {
-        finalHtml = await getStoredHtml();
+        finalHtml = await getStoredHtml(reportVariant);
       }
       if (!finalHtml) {
         finalHtml = await getAnyStoredReportHtml(reportVariant);
@@ -1376,7 +1381,7 @@ async function getHtmlForExport() {
     const preview = reportVariant === 'single'
       ? await getSingleReportPreview()
       : await getReportPreview(reportVariant);
-    const directHtml = repairReportEncoding(preview.html || (reportVariant === 'single' ? await getStoredHtml() : '') || '');
+    const directHtml = repairReportEncoding(preview.html || (await getStoredHtml(reportVariant)) || '');
     if (String(directHtml || '').trim()) return directHtml;
     return getAnyStoredReportHtml(reportVariant);
   }
@@ -1445,7 +1450,7 @@ async function getHtmlForExport() {
     const storedPreview = reportVariant === 'single'
       ? await getSingleReportPreview()
       : await getReportPreview(reportVariant);
-    let htmlForDownload = html || storedPreview.html || (reportVariant === 'single' ? await getStoredHtml() : '') || '';
+    let htmlForDownload = html || storedPreview.html || (await getStoredHtml(reportVariant)) || '';
     if (!String(htmlForDownload || '').trim()) {
       htmlForDownload = await getAnyStoredReportHtml(reportVariant);
     }

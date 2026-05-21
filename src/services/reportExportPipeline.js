@@ -171,6 +171,50 @@ function isEntityNotFoundError(error) {
   return message.includes('entity schema') || message.includes('not found in app');
 }
 
+function toSafeNumber(value, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function applyOfficialDashboardMetricsToContext(contexto = {}, dashboardMetrics = {}, rawData = {}) {
+  if (!contexto || typeof contexto !== 'object') return contexto;
+  const metrics = dashboardMetrics && typeof dashboardMetrics === 'object' ? dashboardMetrics : {};
+
+  const approvedReports = toSafeNumber(metrics?.reports?.approved, toSafeNumber(metrics?.reports?.total, contexto.total_relatorios || 0));
+  const officialActivities = toSafeNumber(metrics?.activities?.total, contexto.total_atividades || 0);
+  const officialAudience = toSafeNumber(metrics?.audience?.publicoTotal, contexto.publico_total || 0);
+  const officialExecPct = toSafeNumber(metrics?.financeiro?.percentualExecucao, contexto.percentual_execucao || 0);
+
+  const programacaoFromMetrics = toSafeNumber(
+    metrics?.programacao?.total,
+    toSafeNumber(metrics?.programacao_total, NaN),
+  );
+  const officialProgramacao = Number.isFinite(programacaoFromMetrics)
+    ? programacaoFromMetrics
+    : toSafeNumber(rawData?.programacaoRaw?.length, contexto.programacao_total || 0);
+
+  const equipeFromMetrics = toSafeNumber(
+    metrics?.equipe?.total,
+    toSafeNumber(metrics?.equipe_total, NaN),
+  );
+  const officialEquipe = Number.isFinite(equipeFromMetrics)
+    ? equipeFromMetrics
+    : toSafeNumber(contexto.equipe_total, 0);
+
+  return {
+    ...contexto,
+    total_relatorios: approvedReports,
+    total_atividades: officialActivities,
+    publico_total: officialAudience,
+    programacao_total: officialProgramacao,
+    equipe_total: officialEquipe,
+    percentual_execucao: officialExecPct,
+    dashboard_metrics: metrics,
+    metricas_dashboard: metrics,
+    dashboardMetrics: metrics,
+  };
+}
+
 async function withRetry(fn, { retries = 5, baseDelay = 1200 } = {}) {
   let lastError = null;
 
@@ -224,6 +268,7 @@ async function loadReportEntitiesSafely() {
     ['teamPaymentsRaw', () => safeList(base44.entities.TeamPayment, '-created_date', 2000, { cacheKey: 'TeamPayment' })],
     ['documentIntakeRaw', () => safeList(base44.entities.DocumentIntake, '-created_date', 2000, { cacheKey: 'DocumentIntake', required: true })],
     ['attachmentsRaw', () => safeList(base44.entities.Attachment, '-created_date', 3000, { cacheKey: 'Attachment', required: true })],
+    ['presenceRecordsRaw', () => safeList(base44.entities.PresenceRecord, '-data', 5000, { cacheKey: 'PresenceRecord' })],
     ['metasRaw', async () => []],
     ['programacaoRaw', () => safeList(base44.entities.Programacao, '-data_inicio', 3000, { cacheKey: 'Programacao', required: true })],
     ['conhecimentoRaw', async () => []],
@@ -267,6 +312,7 @@ export async function buildReportDataContext({
       teamPaymentsRaw = [],
       documentIntakeRaw = [],
       attachmentsRaw = [],
+      presenceRecordsRaw = [],
       metasRaw = [],
       programacaoRaw = [],
       conhecimentoRaw = [],
@@ -274,7 +320,6 @@ export async function buildReportDataContext({
     errors: loadErrors = [],
   } = await loadReportEntitiesSafely();
   const galleryRaw = [];
-  const presenceRecordsRaw = [];
 
   const dashboardMetrics = consolidateOfficialDashboardMetrics({
     reports: reportsRaw,
@@ -308,9 +353,15 @@ export async function buildReportDataContext({
     },
   });
 
+  const contextoComMetricasOficiais = applyOfficialDashboardMetricsToContext(
+    contexto,
+    dashboardMetrics,
+    { programacaoRaw },
+  );
+
   return {
     contexto: {
-      ...contexto,
+      ...contextoComMetricasOficiais,
       dashboard_metrics: dashboardMetrics,
       dashboard_data_source: {
         reports: reportsRaw.length,
@@ -319,7 +370,7 @@ export async function buildReportDataContext({
         metas: metasRaw.length,
         attachments: attachmentsRaw.length,
         gallery: 0,
-        presenceRecords: 0,
+        presenceRecords: presenceRecordsRaw.length,
       },
       data_load_alerts: loadErrors,
       capitulos_relatorio: REPORT_CHAPTERS,
