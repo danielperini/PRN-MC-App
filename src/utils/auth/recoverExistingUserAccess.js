@@ -96,11 +96,9 @@ async function findByEmail(entityName, email, fields = EMAIL_FIELDS, order = '-u
 
 async function logAccessRecovery(payload) {
   try {
-    if (base44.entities.AccessRecoveryLog?.create) {
-      await base44.entities.AccessRecoveryLog.create(payload);
-      return;
-    }
-    await base44.entities.AuditLog?.create?.({
+    const auditLog = base44.entities?.AuditLog;
+    if (!auditLog?.create) return;
+    await auditLog.create({
       action: 'ACCESS_RECOVERY',
       entity_type: 'UserAccess',
       entity_id: payload.email,
@@ -108,8 +106,8 @@ async function logAccessRecovery(payload) {
       details: payload.status,
       metadata: payload,
     });
-  } catch (error) {
-    console.warn('Recuperacao de acesso sem log persistido:', error);
+  } catch {
+    // Log opcional. Não deve bloquear login nem poluir console.
   }
 }
 

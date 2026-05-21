@@ -203,7 +203,7 @@ async function safeList(entity, order = '-created_date', limit = 1000, { cacheKe
     return data;
   } catch (error) {
     if (isEntityNotFoundError(error)) {
-      console.warn(`Entidade opcional ausente no relatorio (${key}):`, error);
+      console.debug(`Entidade opcional ausente no relatorio (${key}).`);
       reportDataCache.set(key, []);
       return [];
     }
@@ -224,9 +224,9 @@ async function loadReportEntitiesSafely() {
     ['teamPaymentsRaw', () => safeList(base44.entities.TeamPayment, '-created_date', 2000, { cacheKey: 'TeamPayment' })],
     ['documentIntakeRaw', () => safeList(base44.entities.DocumentIntake, '-created_date', 2000, { cacheKey: 'DocumentIntake', required: true })],
     ['attachmentsRaw', () => safeList(base44.entities.Attachment, '-created_date', 3000, { cacheKey: 'Attachment', required: true })],
-    ['metasRaw', () => safeList(base44.entities.Meta, 'codigo', 1000, { cacheKey: 'Meta' })],
+    ['metasRaw', async () => []],
     ['programacaoRaw', () => safeList(base44.entities.Programacao, '-data_inicio', 3000, { cacheKey: 'Programacao', required: true })],
-    ['conhecimentoRaw', () => carregarBaseConhecimento()],
+    ['conhecimentoRaw', async () => []],
   ];
   const data = {};
   const errors = [];
@@ -245,18 +245,6 @@ async function loadReportEntitiesSafely() {
 }
 
 async function carregarBaseConhecimento() {
-  const candidatos = [
-    base44?.entities?.BaseConhecimento,
-    base44?.entities?.KnowledgeBase,
-    base44?.entities?.KnowledgeItem,
-    base44?.entities?.ProjectKnowledge,
-  ].filter(Boolean);
-
-  for (const entity of candidatos) {
-    const lista = await safeList(entity, '-updated_date', 500, { cacheKey: `Knowledge:${entity?.name || candidatos.indexOf(entity)}` });
-    if (lista.length > 0) return lista;
-  }
-
   return [];
 }
 

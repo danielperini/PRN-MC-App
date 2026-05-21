@@ -2,6 +2,37 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { ChevronLeft, ChevronRight, ExternalLink, Newspaper } from 'lucide-react';
 
+const NEWS_CACHE_KEY = 'museus_centro_news_highlight_cache_v3';
+const NEWS_REFRESH_MS = 2 * 24 * 60 * 60 * 1000;
+
+function readNewsCache() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(NEWS_CACHE_KEY) || 'null');
+    if (!parsed || !Array.isArray(parsed.items)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeNewsCache(items = []) {
+  try {
+    localStorage.setItem(NEWS_CACHE_KEY, JSON.stringify({
+      items,
+      savedAt: Date.now(),
+    }));
+  } catch {
+    // cache local é apenas otimização
+  }
+}
+
+function isCacheFresh(cache) {
+  return Boolean(
+    cache?.items?.length &&
+    Date.now() - Number(cache.savedAt || 0) < NEWS_REFRESH_MS
+  );
+}
+
 function normalizeText(value = '') {
   return String(value)
     .normalize('NFD')
@@ -128,42 +159,67 @@ export default function NewsCarousel() {
   useEffect(() => {
     let isMounted = true;
 
-    async function load() {
+    async function load({ force = false } = {}) {
+      const cached = readNewsCache();
+
+      if (!force && isCacheFresh(cached)) {
+        if (!isMounted) return;
+        setItems(cached.items);
+        setIndex(getDailyStartIndex(cached.items.length, 4));
+        return;
+      }
+
       try {
-        const noticias = await base44.entities.NewsHighlight.filter({ ativo: true }, '-created_date', 100);
+        const noticias = await base44.entities.NewsHighlight.filter(
+          { ativo: true },
+          '-created_date',
+          100
+        );
 
         const curated = (Array.isArray(noticias) ? noticias : [])
           .filter(isPublishedNews)
-          .filter((n) => normalizeText(n?.titulo) !== normalizeText('Porto submerso egípcio pode levar ao túmulo de Cleópatra'))
+          .filter((n) =>
+            normalizeText(n?.titulo) !==
+            normalizeText('Porto submerso egípcio pode levar ao túmulo de Cleópatra')
+          )
           .sort(sortByPublishedDate)
           .slice(0, 100)
           .map(normalizeNewsItem);
 
-        if (!isMounted) return;
+        writeNewsCache(curated);
 
+        if (!isMounted) return;
         setItems(curated);
         setIndex(getDailyStartIndex(curated.length, 4));
-      } catch (e) {
-        console.warn('Notícias publicadas indisponíveis no dashboard. Mantendo carrossel vazio.', e);
+      } catch (error) {
+        if (cached?.items?.length) {
+          if (!isMounted) return;
+          setItems(cached.items);
+          setIndex(getDailyStartIndex(cached.items.length, 4));
+          return;
+        }
+
+        console.warn(
+          'Notícias publicadas indisponíveis no dashboard. Mantendo carrossel vazio.',
+          error
+        );
+
         if (isMounted) setItems([]);
       }
     }
 
     load();
-    const interval = setInterval(load, 30000);
-    const handleFocus = () => load();
-    const handleVisibility = () => { if (!document.hidden) load(); };
-    const handleStorage = (event) => { if (!event?.key || event.key.includes('news') || event.key.includes('noticia')) load(); };
+    const interval = setInterval(() => load({ force: true }), NEWS_REFRESH_MS);
 
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('storage', handleStorage);
+    const handleVisibility = () => {
+      if (!document.hidden) load();
+    };
+
     document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
       isMounted = false;
       clearInterval(interval);
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('storage', handleStorage);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, []);
