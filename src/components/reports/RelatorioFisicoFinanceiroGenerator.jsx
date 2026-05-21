@@ -7,7 +7,6 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, FileText, Download, CheckCircle2, AlertCircle, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
-import LoadingDataNotice from '@/components/ui/LoadingDataNotice';
 import buildRelatorioFisicoFinanceiroContext from '@/utils/buildRelatorioFisicoFinanceiroContext';
 import { validateReportBeforeExport } from '@/utils/reportDataNormalizer';
 import montarHtmlRelatorioFisicoFinanceiro from '@/utils/relatorioFisicoFinanceiroTemplate';
@@ -1375,11 +1374,21 @@ setErro(null);
       </Button>
 
       {loading && (
-        <LoadingDataNotice
-          className="mt-4"
-          title="Relatório carregando dados"
-          message="O app está recuperando relatórios, programação, rubricas, compras, anexos e textos de apoio. A prévia será aberta quando a consolidação terminar."
-        />
+        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-semibold text-slate-900">Carregando dados do relatório</p>
+            <span className="text-xs font-medium text-slate-600">{exportProgress?.percent ?? 0}%</span>
+          </div>
+          <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-200">
+            <div
+              className="h-full rounded-full bg-slate-900 transition-all duration-300"
+              style={{ width: `${exportProgress?.percent ?? 12}%` }}
+            />
+          </div>
+          <p className="mt-2 text-xs text-slate-600">
+            {exportProgress?.label || 'Consolidando dados reais do app...'}
+          </p>
+        </div>
       )}
 
       {erro && (
@@ -1586,10 +1595,21 @@ setErro(null);
 
           <div className="space-y-5 py-2">
             {loading && (
-              <LoadingDataNotice
-                title="Carregando dados do relatório"
-                message="Mantenha esta janela aberta enquanto o sistema consolida dados reais do app e revisa o HTML antes da prévia."
-              />
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-slate-900">Carregando dados do relatório</p>
+                  <span className="text-xs font-medium text-slate-600">{exportProgress?.percent ?? 0}%</span>
+                </div>
+                <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-200">
+                  <div
+                    className="h-full rounded-full bg-slate-900 transition-all duration-300"
+                    style={{ width: `${exportProgress?.percent ?? 12}%` }}
+                  />
+                </div>
+                <p className="mt-2 text-xs text-slate-600">
+                  {exportProgress?.label || 'Consolidando dados reais do app...'}
+                </p>
+              </div>
             )}
 
             <div className="grid md:grid-cols-2 gap-4">
@@ -1733,24 +1753,22 @@ setErro(null);
             </div>
 
             <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <p className="text-sm font-semibold text-slate-900">Uso das imagens</p>
-              <p className="mt-2 text-xs leading-5 text-slate-600">As imagens serao reunidas em um relatorio galeria separado, organizadas por atividade, museu e periodo conforme os vinculos disponiveis nos relatorios da equipe e nos anexos do app.</p>
-              <p className="mt-2 text-xs leading-5 text-slate-600">Cada imagem sera usada uma unica vez na galeria. O relatorio principal permanece mais leve, com 100% das atividades, dados, textos, tabelas e graficos; a galeria preserva creditos, GPS, legenda, arquivo e fonte quando esses dados estiverem disponiveis.</p>
-            </div>
-
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-              {selectedEditorialChapterCount === allEditorialChapterCount ? (
-                <>
-                  <p className="text-sm font-semibold text-slate-900">{allEditorialChapterCount} capitulos editoriais selecionados.</p>
-                  <p className="mt-1 text-xs text-slate-600">100% do conteudo selecionado sera consolidado no relatorio principal.</p>
-                  <p className="mt-1 text-xs text-slate-600">As imagens serao exportadas em relatorio galeria separado, uma unica vez e organizadas por atividade.</p>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm font-semibold text-slate-900">{selectedEditorialChapterCount} de {allEditorialChapterCount} capitulos editoriais selecionados.</p>
-                  <p className="mt-1 text-xs text-amber-700">Atencao: alguns conteudos antigos poderao ficar fora da geracao.</p>
-                </>
-              )}
+              <p className="text-sm font-semibold text-slate-900">Capítulos que serão gerados</p>
+              <p className="mt-1 text-xs text-slate-600">
+                {selectedEditorialChapterCount} de {allEditorialChapterCount} capítulos editoriais selecionados.
+              </p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {EDITORIAL_VOLUMES.flatMap((volume) => volume.chapters)
+                  .filter((chapter) => allIdsSelected(chapter.sectionIds))
+                  .map((chapter) => (
+                    <div
+                      key={`chapter-selected-${chapter.code}-${chapter.title}`}
+                      className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700"
+                    >
+                      <span className="font-semibold">{chapter.code}.</span> {chapter.title}
+                    </div>
+                  ))}
+              </div>
             </div>
           </div>
 
