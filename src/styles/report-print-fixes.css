@@ -148,6 +148,20 @@
   display: none !important;
 }
 
+.premium-closing,
+.premium-closing h2,
+.premium-closing p,
+.premium-closing span,
+.premium-closing strong,
+.premium-closing .premium-prose,
+.premium-closing .premium-prose p {
+  color: #171717 !important;
+}
+
+.premium-closing {
+  background: #ffffff !important;
+}
+
 @media print {
   .premium-report {
     width: 210mm !important;

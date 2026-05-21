@@ -269,10 +269,14 @@ const CATALOG_CSS = `
   .premium-report-note small { display: block; margin-top: 8px; font-size: 13px; line-height: 1.62; color: #3d3d3d; }
   .premium-callout-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin-top: 18px; }
   .premium-callout { border-left: 4px solid #9f7f4d; background: rgba(255,255,255,.5); padding: 12px; font-size: 11px; line-height: 1.45; }
-  .premium-closing { background: #171717; color: #f7f3eb; display: flex; flex-direction: column; justify-content: space-between; }
+  .premium-closing { background: #ffffff; color: #171717; display: flex; flex-direction: column; justify-content: space-between; }
   .premium-closing h2 { max-width: 760px; font-size: 48px; }
-  .premium-signature { border-top: 1px solid rgba(255,255,255,.2); padding-top: 18px; display: flex; justify-content: space-between; gap: 20px; font-size: 12px; color: rgba(255,255,255,.62); }
-  .premium-signature strong { color: #fff; }
+  .premium-closing .premium-prose,
+  .premium-closing .premium-prose p,
+  .premium-closing .premium-eyebrow,
+  .premium-closing h2 { color: #171717; }
+  .premium-signature { border-top: 1px solid rgba(23,23,23,.18); padding-top: 18px; display: flex; justify-content: space-between; gap: 20px; font-size: 12px; color: #3d3a35; }
+  .premium-signature strong { color: #171717; }
   .premium-audience-chart { grid-column: 1 / -1; border: 1px solid rgba(23,23,23,.18); background: rgba(255,255,255,.5); padding: 18px; break-inside: avoid; }
   .premium-audience-chart h3 { margin: 0 0 6px; font-size: 20px; font-family: Georgia, "Times New Roman", serif; font-weight: 500; }
   .premium-audience-chart p { margin: 0 0 16px; font-size: 12.5px; line-height: 1.5; color: #555; }

@@ -28,13 +28,13 @@ export default function PremiumClosingSection({ contexto = {} }) {
 
   return (
     <section className="premium-closing premium-page-break">
-      <PremiumInternalPageHeader className="premium-internal-page-header-invert" />
+      <PremiumInternalPageHeader />
 
       <div>
         <p className="premium-eyebrow">Encerramento</p>
         <h2>Memória pública, trabalho coletivo e cultura em continuidade</h2>
       </div>
-      <div className="premium-prose premium-prose-invert">
+      <div className="premium-prose">
         {paragraphs.map((paragraph) => (
           <p key={paragraph}>{paragraph}</p>
         ))}
