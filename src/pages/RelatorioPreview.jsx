@@ -1375,7 +1375,9 @@ export default function RelatorioPreview() {
     ? 'Prévia do Relatório Galeria'
     : reportVariant === 'dados'
       ? 'Prévia do Relatório Principal'
-      : 'Prévia do Relatório Físico-Financeiro';
+      : reportVariant === 'atividades'
+        ? 'Prévia do Relatório de Atividades'
+        : 'Prévia do Relatório Físico-Financeiro';
 
   useEffect(() => {
     if (!autoExportPdf || !html || isExportingPdf || autoExportStarted) return;
@@ -1408,7 +1410,11 @@ async function getHtmlForExport() {
   async function handleExportPdf() {
     const exportHtml = await getHtmlForExport();
     if (!exportHtml) {
-      toast.error('HTML do relatório não encontrado. Gere o relatório novamente.');
+      toast.error(
+        reportVariant === 'atividades'
+          ? 'Nenhum Relatório de Atividades atualizado foi encontrado. Volte ao gerador e clique em Gerar relatórios.'
+          : 'HTML do relatório não encontrado. Gere o relatório novamente.'
+      );
       return;
     }
 
@@ -1466,7 +1472,11 @@ async function getHtmlForExport() {
       htmlForDownload = await getAnyStoredReportHtml(reportVariant);
     }
     if (!String(htmlForDownload || '').trim()) {
-      toast.error('HTML do relatório não encontrado. Gere o relatório novamente.');
+      toast.error(
+        reportVariant === 'atividades'
+          ? 'Nenhum Relatório de Atividades atualizado foi encontrado. Volte ao gerador e clique em Gerar relatórios.'
+          : 'HTML do relatório não encontrado. Gere o relatório novamente.'
+      );
       return;
     }
 
@@ -1551,13 +1561,15 @@ async function getHtmlForExport() {
               <div className="min-h-[420px] flex items-center justify-center text-center p-8">
                 <div>
                   <p className="text-base font-semibold text-black">
-                    Nenhuma prévia carregada.
+                    {reportVariant === 'atividades'
+                      ? 'Nenhum Relatório de Atividades atualizado foi encontrado.'
+                      : 'Nenhuma prévia carregada.'}
                   </p>
 
                   <p className="text-sm text-gray-500 mt-1">
-                    Gere a prévia pelo botão
-                    Relatório Físico-Financeiro
-                    em Relatórios.
+                    {reportVariant === 'atividades'
+                      ? 'Volte ao gerador e clique em Gerar relatórios.'
+                      : 'Gere a prévia pelo botão Relatório Físico-Financeiro em Relatórios.'}
                   </p>
                 </div>
               </div>
