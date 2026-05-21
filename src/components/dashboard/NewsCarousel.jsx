@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { ChevronLeft, ChevronRight, ExternalLink, Newspaper } from 'lucide-react';
+import { useCurrentUser } from '@/components/auth/useCurrentUser';
 
 const NEWS_CACHE_KEY = 'museus_centro_news_highlight_cache_v3';
 const NEWS_REFRESH_MS = 2 * 24 * 60 * 60 * 1000;
@@ -153,6 +154,7 @@ function getDailyStartIndex(total, pageSize = 4) {
 }
 
 export default function NewsCarousel() {
+  const { isCoordenador } = useCurrentUser();
   const [items, setItems] = useState([]);
   const [index, setIndex] = useState(0);
 
@@ -161,6 +163,13 @@ export default function NewsCarousel() {
 
     async function load({ force = false } = {}) {
       const cached = readNewsCache();
+
+      if (!isCoordenador && cached?.items?.length) {
+        if (!isMounted) return;
+        setItems(cached.items);
+        setIndex(getDailyStartIndex(cached.items.length, 4));
+        return;
+      }
 
       if (!force && isCacheFresh(cached)) {
         if (!isMounted) return;
@@ -209,20 +218,22 @@ export default function NewsCarousel() {
     }
 
     load();
-    const interval = setInterval(() => load({ force: true }), NEWS_REFRESH_MS);
+    const interval = isCoordenador
+      ? setInterval(() => load({ force: true }), NEWS_REFRESH_MS)
+      : null;
 
     const handleVisibility = () => {
-      if (!document.hidden) load();
+      if (!document.hidden && isCoordenador) load();
     };
 
     document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
       isMounted = false;
-      clearInterval(interval);
+      if (interval) clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, []);
+  }, [isCoordenador]);
 
   const visible = useMemo(() => {
     if (!items.length) return [];

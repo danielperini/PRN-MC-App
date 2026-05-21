@@ -1,8 +1,10 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Quote, Calendar, RefreshCw, BookOpen, ChevronRight } from 'lucide-react';
+import { useCurrentUser } from '@/components/auth/useCurrentUser';
 
 const MUSEUS = ['Todos', 'MIS', 'MHAB', 'MUMO'];
+const FRASES_REFRESH_MS = 2 * 24 * 60 * 60 * 1000; // 48h
 
 const MUSEU_COLORS = {
   MIS:  { bg: 'bg-white', accentBar: 'bg-blue-600',  badge: 'bg-blue-600 text-white',   dot: 'bg-blue-600' },
@@ -110,10 +112,27 @@ function rotateDailyItems(items = [], pageSize = 3) {
 }
 
 function getCacheKey(museu) {
-  return `diariamente_museus_${getDailySeed()}_${museu}`;
+  return `museus_centro_diariamente_cache_v2_${museu}`;
+}
+
+function readFrasesCache(museu) {
+  try {
+    const raw = localStorage.getItem(getCacheKey(museu));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || !Array.isArray(parsed.frases)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function isFrasesCacheFresh(cache) {
+  return Boolean(cache?.frases?.length && (Date.now() - Number(cache.savedAt || 0) < FRASES_REFRESH_MS));
 }
 
 export default function DiariamenteNosMuseus() {
+  const { isCoordenador } = useCurrentUser();
   const [frases, setFrases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [museuFilter, setMuseuFilter] = useState('Todos');
@@ -123,20 +142,19 @@ export default function DiariamenteNosMuseus() {
     setLoading(true);
     setFrases([]);
 
-    const cacheKey = getCacheKey(museu);
+    const cached = readFrasesCache(museu);
 
-    if (!force) {
-      try {
-        const cached = localStorage.getItem(cacheKey);
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (parsed?.frases?.length > 0) {
-            setFrases(parsed.frases);
-            setLoading(false);
-            return;
-          }
-        }
-      } catch {}
+    // Não coordenador: usa sempre o cache existente para ver versão já curada.
+    if (!isCoordenador && cached?.frases?.length) {
+      setFrases(cached.frases);
+      setLoading(false);
+      return;
+    }
+
+    if (!force && isFrasesCacheFresh(cached)) {
+      setFrases(cached.frases);
+      setLoading(false);
+      return;
     }
 
     try {
@@ -151,7 +169,13 @@ export default function DiariamenteNosMuseus() {
       setFrases(resultado);
 
       if (resultado.length > 0) {
-        try { localStorage.setItem(cacheKey, JSON.stringify({ frases: resultado })); } catch {}
+        try {
+          localStorage.setItem(getCacheKey(museu), JSON.stringify({
+            frases: resultado,
+            savedAt: Date.now(),
+            curatedBy: isCoordenador ? 'coordenador' : 'sistema',
+          }));
+        } catch {}
       }
     } catch (e) {
       console.error('DiariamenteNosMuseus:', e);
@@ -159,7 +183,7 @@ export default function DiariamenteNosMuseus() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isCoordenador]);
 
   useEffect(() => {
     load(museuFilter, forceRefresh);
@@ -185,13 +209,15 @@ export default function DiariamenteNosMuseus() {
             ))}
           </div>
 
-          <button
-            onClick={() => { try { localStorage.removeItem(getCacheKey(museuFilter)); } catch {} setForceRefresh(true); }}
-            disabled={loading}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-slate-200 bg-white text-xs text-slate-600 hover:border-slate-400 transition-all disabled:opacity-50"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />Novas frases
-          </button>
+          {isCoordenador && (
+            <button
+              onClick={() => { try { localStorage.removeItem(getCacheKey(museuFilter)); } catch {} setForceRefresh(true); }}
+              disabled={loading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-slate-200 bg-white text-xs text-slate-600 hover:border-slate-400 transition-all disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />Novas frases
+            </button>
+          )}
         </div>
       </div>
 
