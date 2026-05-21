@@ -1257,6 +1257,41 @@ async function getStoredHtml() {
   return getPreviewHtmlFromIndexedDb();
 }
 
+async function getAnyStoredReportHtml(preferredVariant = 'single') {
+  const variantOrder = preferredVariant === 'dados'
+    ? ['dados', 'single', 'galeria']
+    : preferredVariant === 'galeria'
+      ? ['galeria', 'single', 'dados']
+      : ['single', 'dados', 'galeria'];
+
+  for (const variant of variantOrder) {
+    try {
+      const preview = variant === 'single'
+        ? await getSingleReportPreview()
+        : await getReportPreview(variant);
+      const fromPreview = String(preview?.html || '').trim();
+      if (fromPreview) return repairReportEncoding(fromPreview);
+    } catch {
+      // tenta próxima fonte
+    }
+
+    try {
+      const key = variant === 'dados'
+        ? 'relatorio_fisico_financeiro_dados_html'
+        : variant === 'galeria'
+          ? 'relatorio_fisico_financeiro_galeria_html'
+          : 'relatorio_fisico_financeiro_html';
+      const fromStorage = String(sessionStorage.getItem(key) || localStorage.getItem(key) || '').trim();
+      if (fromStorage) return repairReportEncoding(fromStorage);
+    } catch {
+      // tenta próxima fonte
+    }
+  }
+
+  const generic = await getStoredHtml();
+  return repairReportEncoding(String(generic || ''));
+}
+
 function escapeHtml(value) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -1304,6 +1339,9 @@ export default function RelatorioPreview() {
       } else if (!finalHtml) {
         finalHtml = await getStoredHtml();
       }
+      if (!finalHtml) {
+        finalHtml = await getAnyStoredReportHtml(reportVariant);
+      }
       if (!finalHtml) console.error(`[Preview] HTML nao encontrado para variante "${reportVariant}". Verifique se a geracao foi concluida.`);
       if (!cancelled) { setReportMeta(preview?.meta || {}); setHtml(repairReportEncoding(finalHtml)); }
     }
@@ -1338,7 +1376,9 @@ async function getHtmlForExport() {
     const preview = reportVariant === 'single'
       ? await getSingleReportPreview()
       : await getReportPreview(reportVariant);
-    return repairReportEncoding(preview.html || (reportVariant === 'single' ? await getStoredHtml() : '') || '');
+    const directHtml = repairReportEncoding(preview.html || (reportVariant === 'single' ? await getStoredHtml() : '') || '');
+    if (String(directHtml || '').trim()) return directHtml;
+    return getAnyStoredReportHtml(reportVariant);
   }
 
   function updateExportQueueItem(index, patch) {
@@ -1405,7 +1445,10 @@ async function getHtmlForExport() {
     const storedPreview = reportVariant === 'single'
       ? await getSingleReportPreview()
       : await getReportPreview(reportVariant);
-    const htmlForDownload = html || storedPreview.html || (reportVariant === 'single' ? await getStoredHtml() : '') || '';
+    let htmlForDownload = html || storedPreview.html || (reportVariant === 'single' ? await getStoredHtml() : '') || '';
+    if (!String(htmlForDownload || '').trim()) {
+      htmlForDownload = await getAnyStoredReportHtml(reportVariant);
+    }
     if (!String(htmlForDownload || '').trim()) {
       toast.error('HTML do relatório não encontrado. Gere o relatório novamente.');
       return;
