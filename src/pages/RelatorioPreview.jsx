@@ -858,7 +858,16 @@ function removeNestedPdfTargets(elements = []) {
   );
 }
 
-function getPdfRenderTargets(root) {
+function getPdfRenderTargets(root, reportVariant = 'single') {
+  if (reportVariant === 'galeria') {
+    const galleryTargets = Array.from(
+      root?.querySelectorAll?.('.gallery-cover, .gallery-intro, .gallery-section, .gallery-page, .gallery-activity') || []
+    ).filter(hasRenderablePdfContent);
+    if (galleryTargets.length > 0) {
+      return removeNestedPdfTargets(uniquePdfElements(galleryTargets));
+    }
+  }
+
   const MAX_SECTION_HEIGHT = PDF_PAGE_HEIGHT_PX * 1.25;
   const result = [];
   const majorSelector = [
@@ -1064,12 +1073,15 @@ async function exportHtmlToPdfBlob(html, options = {}) {
     const doc = iframe.contentDocument;
     const target = doc.querySelector('main.premium-report') || doc.body;
     const searchableText = extractSearchableReportText(doc);
-    const renderTargets = getPdfRenderTargets(target);
+    const reportVariant = options?.meta?.reportVariant || 'single';
+    const renderTargets = getPdfRenderTargets(target, reportVariant);
     if (!renderTargets.length) {
       throw new Error('Nenhuma secao renderizavel encontrada para o PDF.');
     }
 
-    const oversized = renderTargets
+    const oversized = reportVariant === 'galeria'
+      ? []
+      : renderTargets
       .map((element) => ({
         element,
         rect: element.getBoundingClientRect(),

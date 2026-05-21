@@ -688,6 +688,32 @@ export function removeNegativeAndRemovedBlocksFromReport(html = '') {
 
 export const removeNegativeAlertBlocksFromReport = removeNegativeAndRemovedBlocksFromReport;
 
+export function cleanGalleryReportPdfHtml(html = '') {
+  if (!html || typeof DOMParser === 'undefined') return html;
+
+  try {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+
+    doc.querySelectorAll('button, .pdf-hide, [data-pdf-hide="true"]').forEach((el) => el.remove());
+
+    doc.querySelectorAll('.gallery-card-caption').forEach((el) => {
+      el.textContent = String(el.textContent || '').replace(/\s+/g, ' ').trim();
+    });
+
+    doc.querySelectorAll('.gallery-card-meta, .gallery-file-name').forEach((el) => {
+      el.textContent = String(el.textContent || '').replace(/\s+/g, ' ').trim();
+    });
+
+    doc.body.innerHTML = doc.body.innerHTML
+      .replaceAll('Campos consolidados', '')
+      .replaceAll('Clique para detalhar', '');
+
+    return '<!doctype html>\n' + doc.documentElement.outerHTML;
+  } catch {
+    return html;
+  }
+}
+
 function isApprovedReportStatus(status = '') {
   const value = String(status || '').trim().toUpperCase();
   return [
@@ -1050,9 +1076,9 @@ export function buildGalleryReportHtml(galleryData = {}, options = {}) {
 
   const sectionHtml = groups.map((group) => `
     <section class="gallery-section gallery-page">
-      <header class="report-pdf-institutional-header">
+      <header class="gallery-report-header">
         <img src="/viaduto-logo.png" alt="Viaduto das Artes" class="report-pdf-institutional-logo" />
-        <div class="report-pdf-institutional-text">
+        <div class="gallery-report-header-text">
           <strong>Viaduto das Artes – Fundado em 16 de junho de 2015</strong>
           <span>Av. Olinto Meireles, 45 – Barreiro – Belo Horizonte/MG</span>
           <span>CEP 30640-010 – E-mail: viadutodasartes@gmail.com</span>
@@ -1076,11 +1102,11 @@ export function buildGalleryReportHtml(galleryData = {}, options = {}) {
             <article class="gallery-card">
               <div class="gallery-image-wrap">
                 ${fileUrl
-                  ? `<img src="${escapeHtml(fileUrl)}" alt="${escapeHtml(legend)}" loading="lazy" decoding="async" fetchpriority="${index < 4 ? 'high' : 'low'}" onerror="this.style.display='none'; this.parentElement.classList.add('image-missing')" />`
+                  ? `<img src="${escapeHtml(fileUrl)}" alt="${escapeHtml(legend)}" title="${escapeHtml(legend)}" loading="lazy" decoding="async" fetchpriority="${index < 4 ? 'high' : 'low'}" onerror="this.style.display='none'; this.parentElement.classList.add('image-missing')" />`
                   : `<div class="gallery-image-placeholder">Imagem indisponível</div>`}
               </div>
-              <p class="gallery-caption">${escapeHtml(legend)}</p>
-              <div class="gallery-meta">
+              <p class="gallery-card-caption">${escapeHtml(legend)}</p>
+              <div class="gallery-card-meta">
                 <div><strong>Museu:</strong> ${escapeHtml(image?.museu || group.shortTitle || 'Não informado')}</div>
                 <div><strong>Data:</strong> ${escapeHtml(date || 'Não informada')}</div>
                 <div><strong>Local:</strong> ${escapeHtml(local)}</div>
@@ -1088,6 +1114,7 @@ export function buildGalleryReportHtml(galleryData = {}, options = {}) {
                 <div><strong>Arquivo:</strong> ${escapeHtml(fileName || 'Não informado')}</div>
                 <div><strong>Origem:</strong> ${escapeHtml(source)}</div>
               </div>
+              <p class="gallery-file-name">${escapeHtml(fileName || 'NÃ£o informado')}</p>
             </article>
           `;
         }).join('')}
@@ -1105,29 +1132,31 @@ export function buildGalleryReportHtml(galleryData = {}, options = {}) {
     @page { size: A4; margin: 12mm 10mm 14mm 10mm; }
     * { box-sizing: border-box; }
     body { background: #f7f3eb; color: #111827; font-family: Arial, Helvetica, sans-serif; margin: 0; }
-    .gallery-report { width: 190mm; margin: 0 auto; }
+    .gallery-report { width: 186mm; max-width: 186mm; margin: 0 auto; background: #f7f3eb; color: #171717; font-family: Arial, Helvetica, sans-serif; }
     .gallery-page { page-break-after: always; }
     .report-cover { min-height: 277mm; background: #111827; color: #fff; padding: 18mm 12mm; display: flex; flex-direction: column; justify-content: space-between; }
     .report-cover h1 { font-size: 30pt; line-height: 1.05; margin: 0; }
     .cover-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4mm; margin-top: 8mm; }
     .cover-stats .item { border: 1px solid rgba(255,255,255,.3); padding: 3mm; }
     .cover-stats strong { display: block; font-size: 16pt; }
-    .report-pdf-institutional-header { display: flex; justify-content: space-between; gap: 12mm; align-items: flex-start; border-bottom: 1px solid rgba(17, 24, 39, 0.18); padding-bottom: 4mm; margin-bottom: 7mm; }
+    .gallery-report-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10mm; border-bottom: 1px solid rgba(23,23,23,.14); padding-bottom: 5mm; margin-bottom: 7mm; }
     .report-pdf-institutional-logo { width: 34mm; height: auto; object-fit: contain; }
-    .report-pdf-institutional-text { font-size: 8pt; line-height: 1.35; text-align: right; }
-    .report-pdf-institutional-text span, .report-pdf-institutional-text strong { display: block; }
+    .gallery-report-header-text { flex: 1; text-align: right; font-size: 8pt; line-height: 1.35; color: #555; }
+    .gallery-report-header-text span, .gallery-report-header-text strong { display: block; }
     .section-box { background: #fff; border: 1px solid rgba(17,24,39,.14); padding: 5mm; margin-bottom: 7mm; }
-    .gallery-section { break-inside: auto; }
+    .gallery-section { width: 100%; max-width: 100%; padding: 8mm 0; break-inside: auto; page-break-inside: auto; }
     .gallery-section-head { margin-bottom: 6mm; }
     .gallery-section-head h2 { margin: 0 0 2mm; font-size: 16pt; }
     .gallery-section-head p { margin: 0; font-size: 9pt; color: #4b5563; }
-    .gallery-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10mm 7mm; }
-    .gallery-card { break-inside: avoid; page-break-inside: avoid; background: #fff; border: 1px solid rgba(17,24,39,.14); padding: 4mm; }
-    .gallery-card img { width: 100%; height: 58mm; object-fit: cover; display: block; background: #e5e7eb; }
-    .gallery-image-placeholder { width: 100%; height: 58mm; display: grid; place-items: center; background: #e5e7eb; color: #6b7280; font-size: 9pt; }
+    .gallery-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6mm; width: 100%; max-width: 100%; }
+    .gallery-card { width: 100%; max-width: 100%; min-width: 0; border: 1px solid rgba(23,23,23,.14); background: #fff; padding: 4mm; break-inside: avoid; page-break-inside: avoid; overflow: hidden; }
+    .gallery-card img { width: 100%; height: 54mm; max-height: 54mm; object-fit: cover; display: block; background: #e8e1d8; }
+    .gallery-image-placeholder { width: 100%; height: 54mm; max-height: 54mm; display: grid; place-items: center; background: #e8e1d8; color: #6b7280; font-size: 9pt; }
     .gallery-card.image-missing .gallery-image-placeholder { display: grid; }
-    .gallery-caption { font-size: 9.5pt; line-height: 1.35; font-weight: 700; margin-top: 3mm; }
-    .gallery-meta { font-size: 7.5pt; line-height: 1.35; color: #4b5563; margin-top: 2mm; }
+    .gallery-card-caption { margin-top: 3mm; font-size: 8.8pt; line-height: 1.25; font-weight: 700; color: #171717; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .gallery-card-meta { margin-top: 2mm; font-size: 7.2pt; line-height: 1.25; color: #555; }
+    .gallery-card-meta div, .gallery-card-meta p, .gallery-card-meta span { display: block; max-width: 100%; white-space: normal; word-break: normal; overflow-wrap: break-word; }
+    .gallery-file-name { font-size: 6.8pt; line-height: 1.2; color: #666; margin-top: 1.5mm; word-break: break-word; overflow-wrap: anywhere; }
   </style>
 </head>
 <body>
@@ -1147,7 +1176,7 @@ export function buildGalleryReportHtml(galleryData = {}, options = {}) {
       <p>Fontes: MediaLibrary e Attachment · Gerado em ${escapeHtml(generatedAt)}</p>
     </section>
 
-    <section class="gallery-page">
+    <section class="gallery-page gallery-intro">
       <header class="report-pdf-institutional-header">
         <img src="/viaduto-logo.png" alt="Viaduto das Artes" class="report-pdf-institutional-logo" />
         <div class="report-pdf-institutional-text">
@@ -1487,7 +1516,9 @@ export async function buildSeparatedReportsHtml({
     skipExternalErrors: true,
     preserveAspectRatio: true,
   });
-  const galleryHtml = removeNegativeAndRemovedBlocksFromReport(cleanEmptyReportSections(repairReportEncoding(galleryOptimizedHtml)));
+  const galleryHtml = cleanGalleryReportPdfHtml(
+    removeNegativeAndRemovedBlocksFromReport(cleanEmptyReportSections(repairReportEncoding(galleryOptimizedHtml)))
+  );
   const dataHtml = removeNegativeAndRemovedBlocksFromReport(cleanEmptyReportSections(stripGalleryImagesFromDataReport(repairReportEncoding(dataResult.html))));
 
   return {

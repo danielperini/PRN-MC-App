@@ -44,7 +44,7 @@ function normalizeGalleryPdfHtml(value = '') {
   .gallery-grid {
     display: grid !important;
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 10px !important;
+    gap: 22px !important;
     width: 100% !important;
     max-width: 100% !important;
   }
@@ -60,8 +60,8 @@ function normalizeGalleryPdfHtml(value = '') {
   .gallery-grid img {
     width: 100% !important;
     max-width: 100% !important;
-    height: 240px !important;
-    max-height: 240px !important;
+    height: 205px !important;
+    max-height: 205px !important;
     object-fit: cover !important;
     transform: none !important;
   }
