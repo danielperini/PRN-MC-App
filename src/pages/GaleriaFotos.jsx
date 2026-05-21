@@ -27,10 +27,12 @@ import {
 } from '@/utils/photoSimilarity';
 
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'heic', 'webp', 'gif', 'bmp', 'avif'];
-const INITIAL_VISIBLE_IMAGES = 48;
-const VISIBLE_IMAGES_STEP = 48;
+const INITIAL_VISIBLE_IMAGES = 36;
+const VISIBLE_IMAGES_STEP = 36;
 const VISUAL_ANALYSIS_MAX_PHOTOS = 50;
 const VISUAL_ANALYSIS_BATCH_SIZE = 10;
+const GALLERY_CACHE_KEY = 'museus_centro_galeria_fotos_cache_v2';
+const GALLERY_CACHE_TTL_MS = 10 * 60 * 1000;
 
 const MUSEUM_SECTIONS = {
   MHAB: {
@@ -490,6 +492,40 @@ function uniqueByFileUrl(items = []) {
   return dedupePhotosByTechnicalIdentity(items);
 }
 
+function readGalleryCache() {
+  try {
+    const raw = localStorage.getItem(GALLERY_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || !Array.isArray(parsed?.images)) return null;
+    const savedAt = Number(parsed.savedAt || 0);
+    if (!savedAt || (Date.now() - savedAt) > GALLERY_CACHE_TTL_MS) return null;
+    return parsed.data || null;
+  } catch {
+    return null;
+  }
+}
+
+function writeGalleryCache(data) {
+  try {
+    localStorage.setItem(GALLERY_CACHE_KEY, JSON.stringify({
+      savedAt: Date.now(),
+      data,
+      images: Array.isArray(data?.images) ? data.images : [],
+    }));
+  } catch {
+    // cache é otimização, não bloqueia
+  }
+}
+
+function clearGalleryCache() {
+  try {
+    localStorage.removeItem(GALLERY_CACHE_KEY);
+  } catch {
+    // noop
+  }
+}
+
 function buildDuplicateGroups(items = [], visualRemoved = []) {
   const groups = new Map();
 
@@ -611,7 +647,7 @@ function mapPhoto(item, activityMaps, report = null, prefix = 'media') {
   };
 }
 
-function PhotoCard({ image, onClick }) {
+function PhotoCard({ image, onClick, eager = false }) {
   return (
     <button
       type="button"
@@ -622,8 +658,9 @@ function PhotoCard({ image, onClick }) {
         <img
           src={image.fileUrl}
           alt={image.legenda || image.fileName}
-          loading="lazy"
+          loading={eager ? 'eager' : 'lazy'}
           decoding="async"
+          fetchPriority={eager ? 'high' : 'low'}
           className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
         />
       </div>
@@ -686,30 +723,16 @@ function GaleriaFotosInner() {
     isFetching,
     refetch
   } = useQuery({
-    queryKey: ['galeria-fotos-v11-safe-technical-dedup', currentUser?.email],
+    queryKey: ['galeria-fotos-v12-fast-cache', currentUser?.email],
     queryFn: async () => {
+      const cached = readGalleryCache();
+      if (cached) return cached;
+
       const allImages = [];
-      let reports = [];
-      let programacao = [];
+      const activityMaps = { byId: new Map(), byText: [] };
 
       try {
-        const result = await base44.entities.Report.filter({ status: 'APPROVED' });
-        reports = Array.isArray(result) ? result : [];
-      } catch (error) {
-        console.warn('Relatórios aprovados indisponíveis para vínculo da galeria:', error);
-      }
-
-      try {
-        const result = await base44.entities.Programacao.list('-data_realizacao', 1000);
-        programacao = Array.isArray(result) ? result : [];
-      } catch (error) {
-        console.warn('Programação indisponível para vínculo da galeria:', error);
-      }
-
-      const activityMaps = buildActivityMaps(reports, programacao);
-
-      try {
-        const media = await base44.entities.MediaLibrary.list('-created_date', 1000);
+        const media = await base44.entities.MediaLibrary.list('-created_date', 450);
 
         allImages.push(
           ...(Array.isArray(media) ? media : [])
@@ -726,41 +749,32 @@ function GaleriaFotosInner() {
             .map((item) => mapPhoto(item, activityMaps, null, 'media'))
         );
       } catch (error) {
-        console.warn('MediaLibrary indisponível, usando fallback de Attachment:', error);
+        console.warn('MediaLibrary indisponível na galeria:', error);
       }
 
       try {
-        const approvedIds = new Set(reports.map((r) => r.id));
-        const attachments = await base44.entities.Attachment.list('-created_date', 1200);
+        const attachments = await base44.entities.Attachment.list('-created_date', 650);
 
         allImages.push(
           ...(Array.isArray(attachments) ? attachments : [])
             .filter(
-              (att) =>
-                approvedIds.has(att.report_id) &&
-                (isImageByMime(att.file_type) || isImageByFileName(att.file_name))
+              (att) => isImageByMime(att.file_type) || isImageByFileName(att.file_name)
             )
-            .map((att) =>
-              mapPhoto(
-                att,
-                activityMaps,
-                reports.find((r) => r.id === att.report_id),
-                'legacy'
-              )
-            )
+            .map((att) => mapPhoto(att, activityMaps, null, 'legacy'))
         );
       } catch (error) {
-        console.warn('Imagens legadas da galeria indisponíveis. Mantendo imagens já carregadas por MediaLibrary.', error);
+        console.warn('Attachment indisponível na galeria:', error);
       }
 
-      let dedupedImages = [];
-      dedupedImages = uniqueByFileUrl(allImages);
-
-      return {
+      const dedupedImages = uniqueByFileUrl(allImages);
+      const payload = {
         images: dedupedImages.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)),
         rawImages: allImages,
         duplicateGroups: buildDuplicateGroups(allImages),
       };
+
+      writeGalleryCache(payload);
+      return payload;
     },
     enabled: !!currentUser?.email,
     staleTime: 1000 * 60 * 5,
@@ -826,9 +840,9 @@ function GaleriaFotosInner() {
 
     const byKey = Object.fromEntries(groups.map((group) => [group.key, group]));
 
-    visibleImages.forEach((image) => {
+    visibleImages.forEach((image, renderIndex) => {
       const key = MUSEUM_SECTIONS[image.sectionKey] ? image.sectionKey : 'MHAB';
-      byKey[key].images.push(image);
+      byKey[key].images.push({ image, renderIndex });
     });
 
     return groups.filter((group) => group.images.length > 0);
@@ -1124,7 +1138,7 @@ ${JSON.stringify(candidates, null, 2)}
           </h1>
 
           <p className="text-gray-600">
-            {sortedImages.length} {sortedImages.length === 1 ? 'imagem' : 'imagens'} organizadas por museu, com vínculo a atividades e relatórios.
+            {sortedImages.length} {sortedImages.length === 1 ? 'imagem' : 'imagens'} organizadas por museu.
           </p>
 
           {isFetching && !isLoading && (
@@ -1194,6 +1208,16 @@ ${JSON.stringify(candidates, null, 2)}
             <div className="flex flex-col gap-2 sm:flex-row">
             <button
               type="button"
+              onClick={async () => {
+                clearGalleryCache();
+                await refetch();
+              }}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-100"
+            >
+              Atualizar galeria
+            </button>
+            <button
+              type="button"
               onClick={analyzeCurrentPhotosByVisualSimilarity}
               disabled={isAnalyzingVisualSimilarity}
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
@@ -1250,10 +1274,11 @@ ${JSON.stringify(candidates, null, 2)}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                  {sectionImages.map((image) => (
+                  {sectionImages.map(({ image, renderIndex }) => (
                     <PhotoCard
                       key={image.id}
                       image={image}
+                      eager={renderIndex < 4}
                       onClick={() => setSelectedImage(image)}
                     />
                   ))}
