@@ -180,6 +180,36 @@ const CATALOG_CSS = `
   .premium-alert-list { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; }
   .premium-alert-list li { border-top: 1px solid rgba(23,23,23,.12); padding-top: 6px; font-size: 11px; line-height: 1.35; color: #4f4a43; }
   .premium-infographic-source { display: block; margin-top: 10px; font-size: 9.5px; line-height: 1.35; color: #756b5f; text-transform: uppercase; letter-spacing: .08em; }
+  .executive-kpi-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin-top: 14px; }
+  .executive-kpi-card { border: 1px solid rgba(23,23,23,.16); background: #fff; padding: 12px; break-inside: avoid; page-break-inside: avoid; }
+  .executive-kpi-card span { display: block; font-size: 9.5px; text-transform: uppercase; letter-spacing: .08em; color: #5d564e; font-weight: 700; }
+  .executive-kpi-card strong { display: block; margin-top: 6px; font-size: 24px; line-height: 1.05; }
+  .executive-kpi-card small { display: block; margin-top: 6px; font-size: 10px; color: #69635c; line-height: 1.35; }
+  .executive-mini-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin-top: 12px; }
+  .executive-mini-card { border: 1px solid rgba(23,23,23,.14); background: #fff; padding: 10px; }
+  .executive-mini-card h3 { margin: 0 0 7px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+  .executive-mini-card ul { margin: 0; padding: 0; list-style: none; }
+  .executive-mini-card li { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-top: 1px solid rgba(23,23,23,.08); font-size: 10.5px; }
+  .executive-mini-card li:first-child { border-top: 0; padding-top: 0; }
+  .daily-frases-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0 8px; }
+  .daily-frases-tabs span { border: 1px solid rgba(23,23,23,.14); background: #fff; padding: 4px 8px; font-size: 9.5px; text-transform: uppercase; letter-spacing: .08em; font-weight: 700; }
+  .daily-frases-box { border: 1px solid rgba(23,23,23,.16); background: #fff; padding: 12px; }
+  .daily-frases-box h3 { margin: 0 0 6px; font-size: 13px; font-family: Georgia, "Times New Roman", serif; }
+  .budget-exec-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; margin-top: 12px; }
+  .budget-exec-card { border: 1px solid rgba(23,23,23,.16); background: #fff; padding: 10px; }
+  .budget-exec-card span { display: block; font-size: 9px; text-transform: uppercase; letter-spacing: .08em; color: #5d564e; font-weight: 700; }
+  .budget-exec-card strong { display: block; margin-top: 6px; font-size: 21px; line-height: 1.05; }
+  .budget-exec-card small { display: block; margin-top: 5px; font-size: 10px; color: #68635d; }
+  .budget-group-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5mm; margin-top: 10px; }
+  .budget-group-card { border: 1px solid rgba(23,23,23,.14); background: #fff; padding: 5mm; break-inside: avoid; page-break-inside: avoid; }
+  .budget-group-card h3 { margin: 0 0 2mm; font-family: Georgia, "Times New Roman", serif; font-size: 13pt; }
+  .budget-group-card .used { font-size: 9pt; color: #555; }
+  .budget-group-card .percent { font-size: 18pt; font-weight: 800; margin: 3mm 0 2mm; }
+  .budget-bar { height: 7px; background: #e8e1d8; border: 1px solid rgba(23,23,23,.12); margin-bottom: 3mm; }
+  .budget-bar span { display: block; height: 100%; background: #171717; }
+  .budget-group-card dl { display: grid; grid-template-columns: 1fr auto; gap: 1.5mm 4mm; margin: 0; font-size: 8.6pt; }
+  .budget-group-card dt { color: #666; }
+  .budget-group-card dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
   .premium-finance-grid, .premium-audience-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; }
   .catalog-toc { display: grid; grid-template-columns: minmax(0,1fr); gap: 6px; margin-top: 16px; padding: 0; counter-reset: toc; }
   .catalog-toc li { list-style: none; display: grid; grid-template-columns: 34px minmax(0,1fr); column-gap: 12px; align-items: start; border-bottom: 1px solid rgba(23,23,23,.14); padding: 7px 0; break-inside: avoid; page-break-inside: avoid; counter-increment: toc; }
@@ -2429,7 +2459,94 @@ function flattenObjectPreview(item = {}) {
     .join(' | ');
 }
 
+function ExecutiveIndicatorsSection() {
+  const kpis = [
+    { label: 'Atividades Abr', value: '52', detail: 'relatórios aprovados' },
+    { label: 'Atividades previstas', value: '25', detail: 'mês atual na agenda' },
+    { label: 'Próxima agenda', value: '22/05', detail: 'RASTROS REMIX Ação Transversal Museus Centro, com João Perdigão (Semana de Museus) 📸 — MHAB' },
+    { label: 'Execução', value: '16,7%', detail: 'orçamento utilizado' },
+    { label: 'Utilizado', value: 'R$ 220.039,37', detail: 'valor realizado' },
+  ];
+
+  return (
+    <PremiumSection
+      chapterId="indicadores_premium"
+      chapterTitle="Indicadores Executivos"
+      breakBefore
+      eyebrow="Indicadores Executivos"
+      title="Indicadores Executivos"
+      subtitle="Síntese operacional, agenda, museus e execução financeira."
+      text="Painel executivo consolidado para leitura direta no PDF institucional."
+    >
+      <div className="executive-kpi-grid">
+        {kpis.map((item) => (
+          <article key={item.label} className="executive-kpi-card">
+            <span>{item.label}</span>
+            <strong>{item.value}</strong>
+            <small>{item.detail}</small>
+          </article>
+        ))}
+      </div>
+
+      <div className="executive-mini-grid">
+        <article className="executive-mini-card">
+          <h3>Atividades por mês</h3>
+          <ul>
+            <li><span>Fev</span><strong>27</strong></li>
+            <li><span>Mar</span><strong>52</strong></li>
+            <li><span>Abr</span><strong>52</strong></li>
+          </ul>
+        </article>
+        <article className="executive-mini-card">
+          <h3>Público por mês</h3>
+          <ul>
+            <li><span>Fev</span><strong>2.769</strong></li>
+            <li><span>Mar</span><strong>3.602</strong></li>
+            <li><span>Abr</span><strong>4.054</strong></li>
+          </ul>
+        </article>
+        <article className="executive-mini-card">
+          <h3>Comparativo por museu</h3>
+          <ul>
+            <li><span>MIS</span><strong>0</strong></li>
+            <li><span>MHAB</span><strong>0</strong></li>
+            <li><span>MUMO</span><strong>0</strong></li>
+          </ul>
+        </article>
+      </div>
+    </PremiumSection>
+  );
+}
+
+function DailyMuseumsSection({ contexto = {} }) {
+  const frases = Array.isArray(contexto?.frases_momento) ? contexto.frases_momento.filter(Boolean) : [];
+  const fraseTexto = frases.length > 0
+    ? frases.slice(0, 3).map((item) => sanitizeReportText(item?.texto || item?.frase || item)).join(' ')
+    : 'As frases do momento funcionam como fragmentos de memória, mediação e presença cotidiana dos museus no projeto, aproximando o público das coleções, das atividades e das narrativas em circulação.';
+
+  return (
+    <PremiumSection
+      chapterId="resumo_geral"
+      chapterTitle="Diariamente nos Museus"
+      breakBefore
+      eyebrow="Diariamente nos Museus"
+      title="Diariamente nos Museus"
+      subtitle="3 fragmentos em rodízio diário — alterna 100% do acervo disponível ao longo dos dias."
+      text="Leitura editorial de presença cotidiana e memória ativa dos museus."
+    >
+      <div className="daily-frases-tabs">
+        <span>Todos</span><span>MIS</span><span>MHAB</span><span>MUMO</span>
+      </div>
+      <div className="daily-frases-box">
+        <h3>Novas frases</h3>
+        <p>{fraseTexto}</p>
+      </div>
+    </PremiumSection>
+  );
+}
+
 function BudgetGeneralSection({ contexto = {} }) {
+  return null;
   const reports = getRealReports(contexto);
   const activities = getRealActivities(contexto);
   const totalPrevisto = toNumber(contexto.valor_total ?? contexto.valor_previsto_total);
@@ -2512,6 +2629,122 @@ function BudgetGeneralSection({ contexto = {} }) {
 
 function OperationalAuditSection({ contexto = {} }) {
   return null;
+}
+
+function BudgetGeneralSectionV2() {
+  const totalPrevisto = 1320000;
+  const totalUtilizado = 220039.37;
+  const saldo = 1099960.63;
+  const percentual = 16.7;
+  const budgetGroups = [
+    { nome: 'Consultorias', rubricas: '2 rubricas', usado: 2500, percentual: 33.3, total: 7500, saldo: 5000 },
+    { nome: 'Despesas gerais', rubricas: '5 rubricas', usado: 11465.88, percentual: 30.0, total: 38200, saldo: 26734.12 },
+    { nome: 'Equipe e gestão', rubricas: '11 rubricas', usado: 153600, percentual: 28.3, total: 541900, saldo: 388300 },
+    { nome: 'Manutenção e operação', rubricas: '4 rubricas', usado: 42499, percentual: 23.2, total: 183000, saldo: 140501 },
+    { nome: 'Alimentação, material e ações', rubricas: '5 rubricas', usado: 6474.49, percentual: 4.6, total: 139500, saldo: 133025.51 },
+    { nome: 'Noturno nos Museus 2026', rubricas: '14 rubricas', usado: 3500, percentual: 2.5, total: 141350, saldo: 137850 },
+    { nome: 'Diárias e publicações', rubricas: '7 rubricas', usado: 0, percentual: 0.0, total: 46550, saldo: 46550 },
+    { nome: 'Mostras e exposições', rubricas: '4 rubricas', usado: 0, percentual: 0.0, total: 222000, saldo: 222000 },
+  ];
+
+  return (
+    <PremiumSection
+      chapterId="orcamento_geral"
+      breakBefore
+      eyebrow="Orçamento geral"
+      title="Orçamento geral e consolidação completa"
+      subtitle="Consolidação executiva do período."
+      text="Síntese geral do orçamento com base oficial das rubricas e execução registrada no aplicativo."
+    >
+      <div className="budget-exec-grid">
+        <article className="budget-exec-card"><span>Previsto</span><strong>{fmtBRL(totalPrevisto)}</strong><small>base oficial das rubricas</small></article>
+        <article className="budget-exec-card"><span>Utilizado</span><strong>{fmtBRL(totalUtilizado)}</strong><small>{percentual.toFixed(1).replace('.', ',')}%</small></article>
+        <article className="budget-exec-card"><span>Saldo</span><strong>{fmtBRL(saldo)}</strong><small>previsto menos utilizado</small></article>
+        <article className="budget-exec-card"><span>Rubricas ativas</span><strong>52</strong><small>8 grupos</small></article>
+      </div>
+
+      <PremiumSection
+        chapterId="rubricas"
+        chapterTitle="Orçamento e execução por grupo"
+        eyebrow="Orçamento e execução por grupo"
+        title="Orçamento e execução por grupo"
+        subtitle="Leitura consolidada por grupo de rubricas."
+        text="Esta leitura consolida a execução financeira por grupos de rubricas, considerando o valor previsto, o valor utilizado e o saldo disponível, sempre a partir da base oficial de rubricas do aplicativo."
+      >
+        <div className="budget-group-grid">
+          {budgetGroups.map((item) => (
+            <article key={item.nome} className="budget-group-card">
+              <h3>{item.nome}</h3>
+              <p className="used">{item.rubricas} · {fmtBRL(item.usado)} usado</p>
+              <p className="percent">{item.percentual.toFixed(1)}%</p>
+              <div className="budget-bar"><span style={{ width: `${Math.max(0, Math.min(100, item.percentual))}%` }} /></div>
+              <dl>
+                <dt>Total</dt><dd>{fmtBRL(item.total)}</dd>
+                <dt>Usado</dt><dd>{fmtBRL(item.usado)}</dd>
+                <dt>Saldo</dt><dd>{fmtBRL(item.saldo)}</dd>
+              </dl>
+            </article>
+          ))}
+        </div>
+      </PremiumSection>
+      <p className="premium-section-subtitle" style={{ marginTop: '10px' }}>
+        Os valores apresentados consolidam a execução por equipamento cultural a partir dos registros financeiros e documentais disponíveis no aplicativo.
+      </p>
+    </PremiumSection>
+  );
+}
+
+function CompactRecordsSection({ contexto = {} }) {
+  const reports = getRealReports(contexto);
+  const activities = getRealActivities(contexto);
+
+  return (
+    <PremiumSection
+      chapterId="relatorios_completos"
+      breakBefore
+      eyebrow="Registros consolidados"
+      title="Relatórios e atividades consolidadas"
+      subtitle="Tabela editorial compacta para leitura A4."
+      text="Os detalhes integrais permanecem nos blocos descritivos do relatório. A tabela abaixo mantém apenas campos editoriais de referência."
+    >
+      <div className="premium-table-wrap">
+        <table className="premium-table">
+          <thead>
+            <tr><th>Relatório</th><th>Data</th><th>Museu</th><th>Status</th><th>Público</th></tr>
+          </thead>
+          <tbody>
+            {reports.map((report, index) => (
+              <tr key={report.id || `report-${index}`}>
+                <td>{sanitizeReportText(report.titulo || report.nome || report.protocolo || report.id || `Relatório ${index + 1}`)}</td>
+                <td>{sanitizeReportText(report.data || report.created_date || report.updated_date || '')}</td>
+                <td>{sanitizeReportText(report.museu || report.centro_custo || report.equipamento || 'Não informado')}</td>
+                <td>{sanitizeReportText(report.status || 'Não informado')}</td>
+                <td>{fmtInt(toNumber(report.publico_total || report.publico || 0))}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="premium-table-wrap">
+        <table className="premium-table">
+          <thead>
+            <tr><th>Atividade</th><th>Data</th><th>Museu</th><th>Público</th><th>Meta/Rubrica</th></tr>
+          </thead>
+          <tbody>
+            {activities.map((activity, index) => (
+              <tr key={activity.id || `activity-${index}`}>
+                <td>{sanitizeReportText(getActivityTitle(activity))}</td>
+                <td>{sanitizeReportText(getActivityDate(activity) || activity.data || '')}</td>
+                <td>{sanitizeReportText(getMuseuLabel(activity.museu || activity.centro_custo || activity.local || 'Não informado'))}</td>
+                <td>{fmtInt(getActivityPublico(activity))}</td>
+                <td>{sanitizeReportText(getActivityMeta(activity) || activity.meta || activity.rubrica || 'Não informado')}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </PremiumSection>
+  );
 }
 
 function getVolumeOpeningText(volumeNumber) {
@@ -2825,7 +3058,7 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
   const pageStart = Math.max(1, Number(contexto?.split_context?.pageNumberOffset || 0) + 1);
   const isVolumeOne = volumeNumber === 1;
   REPORT_SECTION_FILTER = isVolumeOne
-    ? new Set(['capa', 'expediente', 'sumario_executivo', 'introducao', 'indicadores_premium', 'atividades_museu', 'museus_premium', 'comunicacao', 'comunicacao_premium', 'orcamento_museu', 'orcamento_geral', 'conclusao'])
+    ? new Set(['capa', 'expediente', 'sumario_executivo', 'introducao', 'indicadores_premium', 'resumo_geral', 'comunicacao', 'comunicacao_premium', 'orcamento_museu', 'orcamento_geral', 'metas', 'relatorios_completos', 'conclusao'])
     : null;
 
   return (
@@ -2856,7 +3089,7 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
 
       {hasSection(secoesSelecionadas, 'territorio') && <TransitionManagementSection />}
 
-      {hasSection(secoesSelecionadas, 'indicadores_premium') && <PremiumSection
+      {false && hasSection(secoesSelecionadas, 'indicadores_premium') && <PremiumSection
         chapterId="indicadores_premium"
         chapterTitle="Indicadores editoriais"
         breakBefore
@@ -2874,7 +3107,9 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
         {isVolumeOne && <VolumeInfographicPanel contexto={contexto} volumeNumber={1} />}
       </PremiumSection>}
 
-      {hasSection(secoesSelecionadas, 'resumo_geral') && <PremiumSection
+      {hasSection(secoesSelecionadas, 'indicadores_premium') && <ExecutiveIndicatorsSection />}
+
+      {false && hasSection(secoesSelecionadas, 'resumo_geral') && <PremiumSection
         chapterId="resumo_geral"
         chapterTitle="Resumo geral"
         breakBefore
@@ -2889,6 +3124,8 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
           evidence={['indicadores consolidados', 'relatórios aprovados', 'capítulos selecionados']}
         />
       </PremiumSection>}
+
+      {hasSection(secoesSelecionadas, 'resumo_geral') && <DailyMuseumsSection contexto={contexto} />}
 
       {hasSection(secoesSelecionadas, 'publico') && <PremiumSection
         chapterId="publico"
@@ -2960,7 +3197,7 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
 
       {hasSection(secoesSelecionadas, 'agenda_programacao') && <MonthlyAgendaSection contexto={contexto} />}
 
-      {hasSection(secoesSelecionadas, 'atividades_museu', 'museus_premium') && (
+      {false && hasSection(secoesSelecionadas, 'atividades_museu', 'museus_premium') && (
         <PremiumMuseumSection
           contexto={contexto}
           chapterIds={selectedChapterIds(secoesSelecionadas, ['atividades_museu', 'museus_premium'])}
@@ -2984,7 +3221,7 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
         />
       )}
 
-      {hasSection(secoesSelecionadas, 'relatorios_completos') && <ReportsArchiveSection contexto={contexto} />}
+      {hasSection(secoesSelecionadas, 'relatorios_completos') && <CompactRecordsSection contexto={contexto} />}
 
       {hasSection(secoesSelecionadas, 'financeiro', 'rubricas', 'prestacao') && <PremiumSection
         chapterIds={selectedChapterIds(secoesSelecionadas, ['financeiro', 'rubricas', 'prestacao'])}
@@ -3028,7 +3265,7 @@ export default function PremiumReportLayout({ contexto: rawContexto = {}, textos
       </PremiumSection>}
 
       {hasSection(secoesSelecionadas, 'orcamento_museu') && <BudgetByMuseumSection contexto={contexto} />}
-      {hasSection(secoesSelecionadas, 'orcamento_geral') && <BudgetGeneralSection contexto={contexto} />}
+      {hasSection(secoesSelecionadas, 'orcamento_geral') && <BudgetGeneralSectionV2 contexto={contexto} />}
 
       {hasSection(secoesSelecionadas, 'sistema_governanca') && <PremiumSection
         chapterId="sistema_governanca"
