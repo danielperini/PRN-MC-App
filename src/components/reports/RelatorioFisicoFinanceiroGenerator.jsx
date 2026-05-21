@@ -51,6 +51,7 @@ const MUSEUS = ['Todos', 'MIS', 'MHAB', 'MUMO'];
 const EXPORT_VOLUME_COUNT = 3;
 const EXPORT_FILENAME_BASE = 'Museus-Centro-Relatorio';
 const SECOES_RELATORIO = REPORT_CHAPTER_IDS;
+const SECOES_RELATORIO_COMPLETO = normalizeSelectedReportChapterIds(REPORT_CHAPTER_IDS);
 const OPENING_CHAPTER_IDS = ['capa', 'expediente', 'sumario_executivo', 'introducao'];
 const CHAPTER_MUSEUM_WEIGHT = {
   agenda_programacao: 1.7,
@@ -622,7 +623,9 @@ export default function RelatorioFisicoFinanceiroGenerator() {
   };
 
   const pesquisarDadosEAtualizarRelatorio = async () => {
-    const normalizedSelectedSections = normalizeSelectedReportChapterIds(secoesSelecionadas);
+    // Pesquisa sempre completa: reseta cache e reconsolida 100% dos capitulos editoriais
+    // para que o relatorio volte ao estado completo com dados atuais do dashboard.
+    const normalizedSelectedSections = SECOES_RELATORIO_COMPLETO;
     if (normalizedSelectedSections.length === 0) {
       toast.error('Selecione ao menos um capitulo editorial.');
       return null;
@@ -1326,6 +1329,17 @@ setErro(null);
         <div>
           <h2 className="text-lg font-bold text-slate-900">Gerar Relatório</h2>
           <p className="text-sm text-slate-500">Relatório principal com dados e atividades, mais galeria separada com imagens organizadas sem repetição.</p>
+        </div>
+      </div>
+
+      <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+        <div className="flex items-start gap-3">
+          <img src="/viaduto-logo.png" alt="Viaduto das Artes" className="h-12 w-12 object-contain rounded bg-white p-1 border border-slate-200" />
+          <div className="text-[11px] leading-4 text-slate-700">
+            <p className="font-semibold text-slate-900">Viaduto das Artes - Fundado em 16 de junho de 2015</p>
+            <p>Av. Olinto Meireles, 45 - Barreiro - Belo Horizonte/MG</p>
+            <p>CEP 30640-010 - E-mail: viadutodasartes@gmail.com</p>
+          </div>
         </div>
       </div>
 
