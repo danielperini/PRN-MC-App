@@ -7,11 +7,11 @@ const CURATION_INTERVAL_MS = 2 * 24 * 60 * 60 * 1000;
 const GALLERY_ROUTE = '/GaleriaFotos';
 
 function normalizeText(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim();
+  return String(value || '').
+  normalize('NFD').
+  replace(/[\u0300-\u036f]/g, '').
+  toLowerCase().
+  trim();
 }
 
 function seededRandom(seed) {
@@ -19,7 +19,7 @@ function seededRandom(seed) {
   if (value <= 0) value += 2147483646;
 
   return () => {
-    value = (value * 16807) % 2147483647;
+    value = value * 16807 % 2147483647;
     return (value - 1) / 2147483646;
   };
 }
@@ -46,32 +46,32 @@ function getImageUrl(item) {
 
 function getMetadataText(item) {
   return normalizeText([
-    item?.filename,
-    item?.file_name,
-    item?.nome,
-    item?.titulo,
-    item?.title,
-    item?.descricao,
-    item?.description,
-    item?.caption,
-    item?.legenda,
-    item?.tags,
-    item?.keywords,
-    item?.tipo,
-    item?.categoria,
-    item?.classificacao,
-    item?.ai_classificacao,
-    item?.ai_categoria,
-    item?.ai_descricao,
-    item?.analise_ia,
-    item?.resultado_ia?.descricao,
-    item?.resultado_ia?.categoria,
-    item?.resultado_ia?.tipo,
-    item?.resultado_ia?.tags,
-    item?.mime_type,
-    item?.file_type,
-    getImageUrl(item),
-  ].filter(Boolean).join(' '));
+  item?.filename,
+  item?.file_name,
+  item?.nome,
+  item?.titulo,
+  item?.title,
+  item?.descricao,
+  item?.description,
+  item?.caption,
+  item?.legenda,
+  item?.tags,
+  item?.keywords,
+  item?.tipo,
+  item?.categoria,
+  item?.classificacao,
+  item?.ai_classificacao,
+  item?.ai_categoria,
+  item?.ai_descricao,
+  item?.analise_ia,
+  item?.resultado_ia?.descricao,
+  item?.resultado_ia?.categoria,
+  item?.resultado_ia?.tipo,
+  item?.resultado_ia?.tags,
+  item?.mime_type,
+  item?.file_type,
+  getImageUrl(item)].
+  filter(Boolean).join(' '));
 }
 
 function isImageItem(item) {
@@ -91,43 +91,43 @@ function isDocumentOrPrint(item) {
   if (/\.(pdf|xml|doc|docx|xls|xlsx|csv|txt|zip|rar)(\?|#|$)/i.test(url)) return true;
 
   const blockedTerms = [
-    'pdf',
-    'xml',
-    'documento',
-    'document',
-    'nota fiscal',
-    'nf ',
-    'nfs',
-    'recibo',
-    'comprovante',
-    'boleto',
-    'contrato',
-    'orcamento',
-    'orçamento',
-    'planilha',
-    'spreadsheet',
-    'relatorio financeiro',
-    'lista',
-    'listagem',
-    'tabela',
-    'print',
-    'screenshot',
-    'captura de tela',
-    'whatsapp',
-    'email',
-    'e-mail',
-    'formulario',
-    'comprovacao',
-    'assinatura',
-    'cnpj',
-    'cpf',
-    'danfe',
-    'fatura',
-    'extrato',
-    'pagamento',
-    'transferencia',
-    'pix',
-  ];
+  'pdf',
+  'xml',
+  'documento',
+  'document',
+  'nota fiscal',
+  'nf ',
+  'nfs',
+  'recibo',
+  'comprovante',
+  'boleto',
+  'contrato',
+  'orcamento',
+  'orçamento',
+  'planilha',
+  'spreadsheet',
+  'relatorio financeiro',
+  'lista',
+  'listagem',
+  'tabela',
+  'print',
+  'screenshot',
+  'captura de tela',
+  'whatsapp',
+  'email',
+  'e-mail',
+  'formulario',
+  'comprovacao',
+  'assinatura',
+  'cnpj',
+  'cpf',
+  'danfe',
+  'fatura',
+  'extrato',
+  'pagamento',
+  'transferencia',
+  'pix'];
+
 
   return blockedTerms.some((term) => text.includes(term));
 }
@@ -137,51 +137,51 @@ function scorePeoplePhoto(item) {
   let score = 0;
 
   const peopleTerms = [
-    'pessoa',
-    'pessoas',
-    'publico',
-    'participante',
-    'participantes',
-    'crianca',
-    'criancas',
-    'adulto',
-    'adultos',
-    'jovem',
-    'jovens',
-    'idoso',
-    'idosos',
-    'familia',
-    'familias',
-    'grupo',
-    'visitante',
-    'visitantes',
-    'oficina',
-    'atividade',
-    'evento',
-    'encontro',
-    'roda',
-    'aula',
-    'turma',
-    'mediacao',
-    'mediacao cultural',
-    'educativo',
-    'educativa',
-    'apresentacao',
-    'show',
-    'espetaculo',
-    'performance',
-    'plateia',
-    'audiencia',
-    'auditorio',
-    'face',
-    'rosto',
-    'portrait',
-    'people',
-    'person',
-    'persons',
-    'crowd',
-    'audience',
-  ];
+  'pessoa',
+  'pessoas',
+  'publico',
+  'participante',
+  'participantes',
+  'crianca',
+  'criancas',
+  'adulto',
+  'adultos',
+  'jovem',
+  'jovens',
+  'idoso',
+  'idosos',
+  'familia',
+  'familias',
+  'grupo',
+  'visitante',
+  'visitantes',
+  'oficina',
+  'atividade',
+  'evento',
+  'encontro',
+  'roda',
+  'aula',
+  'turma',
+  'mediacao',
+  'mediacao cultural',
+  'educativo',
+  'educativa',
+  'apresentacao',
+  'show',
+  'espetaculo',
+  'performance',
+  'plateia',
+  'audiencia',
+  'auditorio',
+  'face',
+  'rosto',
+  'portrait',
+  'people',
+  'person',
+  'persons',
+  'crowd',
+  'audience'];
+
 
   peopleTerms.forEach((term) => {
     if (text.includes(term)) score += 2;
@@ -216,10 +216,10 @@ function curatePeoplePhotos(items) {
   const strongCandidates = candidates.filter((candidate) => candidate.score > 0);
   const source = strongCandidates.length >= CURATED_PHOTO_COUNT ? strongCandidates : candidates;
 
-  const curated = shuffleSeeded(source, seed)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, CURATED_PHOTO_COUNT)
-    .map((candidate) => candidate.url);
+  const curated = shuffleSeeded(source, seed).
+  sort((a, b) => b.score - a.score).
+  slice(0, CURATED_PHOTO_COUNT).
+  map((candidate) => candidate.url);
 
   return curated;
 }
@@ -237,10 +237,10 @@ export default function GaleriaTickerCarousel() {
     async function loadImages() {
       try {
         const [attachments, momentos, reportPhotos] = await Promise.allSettled([
-          base44.entities.Attachment.list('-created_date', 500),
-          base44.entities.Momento.list('-created_date', 300),
-          base44.entities.ReportPhoto.list('-created_date', 300),
-        ]);
+        base44.entities.Attachment.list('-created_date', 500),
+        base44.entities.Momento.list('-created_date', 300),
+        base44.entities.ReportPhoto.list('-created_date', 300)]
+        );
 
         let allItems = [];
         if (attachments.status === 'fulfilled') allItems.push(...(Array.isArray(attachments.value) ? attachments.value : []));
@@ -276,37 +276,37 @@ export default function GaleriaTickerCarousel() {
 
   return (
     <div
-      className="relative w-full overflow-hidden rounded-xl"
+      className="relative w-full overflow-hidden rounded-xl hidden"
       style={{ height: '88px' }}
       onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
-    >
+      onMouseLeave={() => setPaused(false)}>
+      
       {/* Fade edges */}
       <div className="absolute left-0 top-0 bottom-0 w-12 z-10 pointer-events-none"
-        style={{ background: 'linear-gradient(to right, white, transparent)' }} />
+      style={{ background: 'linear-gradient(to right, white, transparent)' }} />
       <div className="absolute right-0 top-0 bottom-0 w-12 z-10 pointer-events-none"
-        style={{ background: 'linear-gradient(to left, white, transparent)' }} />
+      style={{ background: 'linear-gradient(to left, white, transparent)' }} />
 
       <div
-        className="flex items-center gap-2 h-full"
+        className="flex items-center gap-2 h-full hidden"
         style={{
           width: `${looped.length * 88}px`,
           animation: `ticker-scroll ${duration}s linear infinite`,
           animationPlayState: paused ? 'paused' : 'running',
-          willChange: 'transform',
-        }}
-      >
-        {looped.map((url, idx) => (
-          <img
-            key={idx}
-            src={url}
-            alt=""
-            loading="lazy"
-            onClick={goToGallery}
-            className="h-20 w-20 object-cover rounded-lg shrink-0 border border-slate-100 cursor-pointer transition-transform duration-200 hover:scale-105 hover:shadow-md"
-            style={{ minWidth: '80px' }}
-          />
-        ))}
+          willChange: 'transform'
+        }}>
+        
+        {looped.map((url, idx) =>
+        <img
+          key={idx}
+          src={url}
+          alt=""
+          loading="lazy"
+          onClick={goToGallery}
+          className="h-20 w-20 object-cover rounded-lg shrink-0 border border-slate-100 cursor-pointer transition-transform duration-200 hover:scale-105 hover:shadow-md hidden"
+          style={{ minWidth: '80px' }} />
+
+        )}
       </div>
 
       <style>{`
@@ -315,6 +315,6 @@ export default function GaleriaTickerCarousel() {
           100% { transform: translateX(-${totalWidth}px); }
         }
       `}</style>
-    </div>
-  );
+    </div>);
+
 }
