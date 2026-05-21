@@ -73,6 +73,7 @@ function DashboardCoordenadorView({
   rubricas,
   dashboardViewMode,
   setDashboardViewMode,
+  handleHardRefresh,
 }) {
   return (
     <div ref={containerRef} className="min-h-screen bg-background">
@@ -102,6 +103,14 @@ function DashboardCoordenadorView({
               disabled={isRefreshing}
             >
               <RotateCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleHardRefresh}
+              disabled={isRefreshing}
+            >
+              Atualização Forçada
             </Button>
           </div>
         </div>
@@ -423,6 +432,19 @@ function DashboardInner() {
     }
   };
 
+  const handleHardRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      if (typeof window.museusCentroHardRefresh === 'function') {
+        await window.museusCentroHardRefresh();
+      } else {
+        await refetchDashboardData();
+      }
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   const { containerRef } = usePullToRefresh(handleRefresh);
 
   const isInitialPageLoading =
@@ -519,6 +541,7 @@ function DashboardInner() {
       rubricas={rubricas}
       dashboardViewMode={dashboardViewMode}
       setDashboardViewMode={setDashboardViewMode}
+      handleHardRefresh={handleHardRefresh}
     />
   );
 }
