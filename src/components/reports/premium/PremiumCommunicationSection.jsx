@@ -52,8 +52,9 @@ export default function PremiumCommunicationSection({ contexto, textos, chapterI
         </div>
 
         <div className="premium-communication-panel">
+          <span>Registros de comunicaÃ§Ã£o</span>
           <strong>{atividades.length}</strong>
-          <span>registros associados a comunicação, cobertura, audiovisual, pauta ou memória visual</span>
+          <span>aÃ§Ãµes, peÃ§as ou registros consolidados no perÃ­odo</span>
         </div>
       </div>
 

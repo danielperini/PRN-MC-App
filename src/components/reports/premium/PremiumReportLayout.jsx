@@ -210,6 +210,13 @@ const CATALOG_CSS = `
   .budget-group-card dl { display: grid; grid-template-columns: 1fr auto; gap: 1.5mm 4mm; margin: 0; font-size: 8.6pt; }
   .budget-group-card dt { color: #666; }
   .budget-group-card dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .budget-museum-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 18px; }
+  .budget-museum-card { border: 1px solid rgba(23,23,23,.16); background: #fff; padding: 12px; break-inside: avoid; page-break-inside: avoid; }
+  .budget-museum-card h3 { margin: 0 0 8px; font-family: Georgia, "Times New Roman", serif; font-size: 15px; line-height: 1.2; }
+  .budget-museum-card dl { display: grid; grid-template-columns: 1fr auto; gap: 5px 8px; margin: 0; font-size: 10.5px; line-height: 1.3; }
+  .budget-museum-card dt { color: #5f574f; }
+  .budget-museum-card dd { margin: 0; font-weight: 800; font-variant-numeric: tabular-nums; text-align: right; }
+  .budget-museum-card small { display: block; margin-top: 9px; padding-top: 7px; border-top: 1px solid rgba(23,23,23,.1); color: #6b635b; font-size: 9.5px; line-height: 1.35; }
   .premium-finance-grid, .premium-audience-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; }
   .catalog-toc { display: grid; grid-template-columns: minmax(0,1fr); gap: 6px; margin-top: 16px; padding: 0; counter-reset: toc; }
   .catalog-toc li { list-style: none; display: grid; grid-template-columns: 34px minmax(0,1fr); column-gap: 12px; align-items: start; border-bottom: 1px solid rgba(23,23,23,.14); padding: 7px 0; break-inside: avoid; page-break-inside: avoid; counter-increment: toc; }
@@ -2394,59 +2401,33 @@ function TableOfContents({ secoesSelecionadas = [] }) {
 function BudgetByMuseumSection({ contexto = {} }) {
   const tables = contexto?.budget_tables || {};
   const resumo = Array.isArray(tables?.resumo_por_museu) ? tables.resumo_por_museu : [];
-  const alertas = Array.isArray(tables?.alertas_auditoria) ? tables.alertas_auditoria : [];
 
   return (
     <PremiumSection
       chapterId="orcamento_museu"
       breakBefore
-      eyebrow="Orçamento por Museu"
-      title="Orçamento por Museu"
-      subtitle="Síntese da distribuição orçamentária entre MIS, MHAB e MUMO."
-      text="A leitura do orçamento por museu organiza a execução financeira do projeto a partir da distribuição dos recursos entre MIS, MHAB e MUMO, considerando rubricas específicas, rubricas compartilhadas, solicitações aprovadas, pagamentos e documentos vinculados. Essa organização permite relacionar orçamento, programação, atividades e prestação de contas por equipamento cultural, fortalecendo a rastreabilidade da execução."
+      eyebrow="OrÃ§amento por Museu"
+      title="OrÃ§amento por Museu"
+      subtitle="SÃ­ntese da distribuiÃ§Ã£o orÃ§amentÃ¡ria entre MIS, MHAB e MUMO."
+      text="A leitura do orÃ§amento por museu organiza a execuÃ§Ã£o financeira do projeto a partir da distribuiÃ§Ã£o dos recursos entre MIS, MHAB e MUMO, considerando rubricas especÃ­ficas, rubricas compartilhadas, solicitaÃ§Ãµes aprovadas, pagamentos e documentos vinculados. Essa organizaÃ§Ã£o permite relacionar orÃ§amento, programaÃ§Ã£o, atividades e prestaÃ§Ã£o de contas por equipamento cultural, fortalecendo a rastreabilidade da execuÃ§Ã£o."
     >
-      <div className="premium-table-wrap">
-        <table className="premium-table budget-table">
-          <thead>
-            <tr>
-              <th>Museu</th>
-              <th>Valor previsto</th>
-              <th>Valor utilizado</th>
-              <th>Saldo</th>
-              <th>% executado</th>
-              <th>Nº de solicitações</th>
-              <th>Nº de documentos</th>
-            </tr>
-          </thead>
-          <tbody>
-            {resumo.map((item) => (
-              <tr key={item.museu}>
-                <td>{item.museu}</td>
-                <td>{fmtBRL(item.valorPrevisto)}</td>
-                <td>{fmtBRL(item.valorUtilizado)}</td>
-                <td>{fmtBRL(item.saldo)}</td>
-                <td>{toNumber(item.percentualExecutado).toFixed(1).replace('.', ',')}%</td>
-                <td>{fmtInt(item.numeroSolicitacoes)}</td>
-                <td>{fmtInt(item.numeroDocumentos)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {alertas.length > 0 ? (
-        <div className="premium-method-grid">
-          <article className="premium-method-card">
-            <strong>Alertas de consistência</strong>
-            <ul>
-              {alertas.slice(0, 4).map((item, index) => (
-                <li key={`${item.tipo}-${index}`}>{sanitizeReportText(`${item.museu}: ${item.descricao}`)}</li>
-              ))}
-            </ul>
+      <div className="budget-museum-grid">
+        {resumo.map((item) => (
+          <article className="budget-museum-card" key={item.museu}>
+            <h3>{sanitizeReportText(item.museu || 'Museu')}</h3>
+            <dl>
+              <dt>Previsto</dt><dd>{fmtBRL(item.valorPrevisto)}</dd>
+              <dt>Utilizado</dt><dd>{fmtBRL(item.valorUtilizado)}</dd>
+              <dt>Saldo</dt><dd>{fmtBRL(item.saldo)}</dd>
+              <dt>ExecuÃ§Ã£o</dt><dd>{toNumber(item.percentualExecutado).toFixed(1).replace('.', ',')}%</dd>
+            </dl>
+            <small>SolicitaÃ§Ãµes: {fmtInt(item.numeroSolicitacoes)}. Documentos: {fmtInt(item.numeroDocumentos)}.</small>
           </article>
-        </div>
-      ) : null}
+        ))}
+      </div>
     </PremiumSection>
   );
+
 }
 
 function flattenObjectPreview(item = {}) {
@@ -2579,7 +2560,7 @@ function BudgetGeneralSection({ contexto = {} }) {
               <th>Museu</th>
               <th>Status</th>
               <th>Público</th>
-              <th>Campos consolidados</th>
+              <th>Resumo editorial</th>
             </tr>
           </thead>
           <tbody>
@@ -2606,7 +2587,7 @@ function BudgetGeneralSection({ contexto = {} }) {
               <th>Museu</th>
               <th>Público</th>
               <th>Meta/Rubrica</th>
-              <th>Campos consolidados</th>
+              <th>Resumo editorial</th>
             </tr>
           </thead>
           <tbody>
@@ -2695,56 +2676,17 @@ function BudgetGeneralSectionV2() {
 }
 
 function CompactRecordsSection({ contexto = {} }) {
-  const reports = getRealReports(contexto);
-  const activities = getRealActivities(contexto);
-
   return (
     <PremiumSection
       chapterId="relatorios_completos"
       breakBefore
       eyebrow="Registros consolidados"
-      title="Relatórios e atividades consolidadas"
-      subtitle="Tabela editorial compacta para leitura A4."
-      text="Os detalhes integrais permanecem nos blocos descritivos do relatório. A tabela abaixo mantém apenas campos editoriais de referência."
-    >
-      <div className="premium-table-wrap">
-        <table className="premium-table">
-          <thead>
-            <tr><th>Relatório</th><th>Data</th><th>Museu</th><th>Status</th><th>Público</th></tr>
-          </thead>
-          <tbody>
-            {reports.map((report, index) => (
-              <tr key={report.id || `report-${index}`}>
-                <td>{sanitizeReportText(report.titulo || report.nome || report.protocolo || report.id || `Relatório ${index + 1}`)}</td>
-                <td>{sanitizeReportText(report.data || report.created_date || report.updated_date || '')}</td>
-                <td>{sanitizeReportText(report.museu || report.centro_custo || report.equipamento || 'Não informado')}</td>
-                <td>{sanitizeReportText(report.status || 'Não informado')}</td>
-                <td>{fmtInt(toNumber(report.publico_total || report.publico || 0))}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="premium-table-wrap">
-        <table className="premium-table">
-          <thead>
-            <tr><th>Atividade</th><th>Data</th><th>Museu</th><th>Público</th><th>Meta/Rubrica</th></tr>
-          </thead>
-          <tbody>
-            {activities.map((activity, index) => (
-              <tr key={activity.id || `activity-${index}`}>
-                <td>{sanitizeReportText(getActivityTitle(activity))}</td>
-                <td>{sanitizeReportText(getActivityDate(activity) || activity.data || '')}</td>
-                <td>{sanitizeReportText(getMuseuLabel(activity.museu || activity.centro_custo || activity.local || 'Não informado'))}</td>
-                <td>{fmtInt(getActivityPublico(activity))}</td>
-                <td>{sanitizeReportText(getActivityMeta(activity) || activity.meta || activity.rubrica || 'Não informado')}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </PremiumSection>
+      title="RelatÃ³rios e atividades consolidadas"
+      subtitle="SÃ­ntese da base operacional utilizada na consolidaÃ§Ã£o."
+      text="Os relatÃ³rios aprovados pelas equipes foram utilizados como fonte para consolidaÃ§Ã£o dos indicadores executivos, metas, pÃºblico, programaÃ§Ã£o, comunicaÃ§Ã£o e execuÃ§Ã£o financeira. A Ã­ntegra dos registros operacionais, atividades e evidÃªncias associadas compÃµe o RelatÃ³rio de Atividades, documento complementar ao presente volume."
+    />
   );
+
 }
 
 function getVolumeOpeningText(volumeNumber) {
@@ -2756,7 +2698,7 @@ function getVolumeOpeningText(volumeNumber) {
   }
 
   return [
-    'O Volume 3 encerra o Relatorio Institucional Museus Centro com a leitura sobre sistema, governanca de dados, auditoria operacional, anexos analiticos, memoria institucional e conclusao do periodo. A abordagem reune informacoes sobre o uso do aplicativo Museu Centro VP, a qualidade dos registros produzidos, os fluxos de documentacao, os alertas de consistencia e os elementos que apoiam a rastreabilidade das acoes.',
+    'O Volume 3 encerra o Relatorio Institucional Museus Centro com a leitura sobre sistema, governanca de dados, auditoria operacional, anexos analiticos, memoria institucional e conclusao do periodo. A abordagem reune informacoes sobre o uso do aplicativo Museu Centro VP, a qualidade dos registros produzidos, os fluxos de documentacao, pontos de revisao e elementos que apoiam a rastreabilidade das acoes.',
     'Este volume complementa os volumes anteriores ao explicitar como os dados foram organizados, quais pontos exigem saneamento ou revisao e de que forma a sistematizacao digital contribui para transformar registros cotidianos em memoria institucional, evidencia publica e instrumento de gestao cultural.',
   ].join('\n\n');
 }

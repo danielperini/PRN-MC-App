@@ -124,6 +124,30 @@
   max-width: 100% !important;
 }
 
+.budget-group-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 5mm !important;
+}
+
+.budget-group-card,
+.budget-museum-card {
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+}
+
+.budget-museum-grid {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+}
+
+.premium-cover .report-pdf-institutional-header,
+.premium-cover .report-pdf-footerline,
+.premium-cover .premium-internal-page-header {
+  display: none !important;
+}
+
 @media print {
   .premium-report {
     width: 210mm !important;
@@ -145,6 +169,16 @@
 
   .premium-activity-card {
     grid-template-columns: 40px minmax(0, 1fr) !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .budget-group-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .budget-group-card,
+  .budget-museum-card {
     break-inside: avoid !important;
     page-break-inside: avoid !important;
   }

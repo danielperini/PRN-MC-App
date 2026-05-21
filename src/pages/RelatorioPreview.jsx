@@ -14,6 +14,7 @@ import {
   getReportPreview,
   getSingleReportPreview,
   repairReportEncoding,
+  sanitizeReportHtmlBeforeSave,
 } from '@/services/reportExportPipeline';
 
 const MAX_EXPORT_PART_SIZE_BYTES = Number.MAX_SAFE_INTEGER;
@@ -1011,12 +1012,14 @@ function addContinuousPageNumbers(pdf, options = {}) {
   const pageHeight = pdf.internal.pageSize.getHeight();
 
   for (let pageIndex = 1; pageIndex <= pageCount; pageIndex += 1) {
+    const isCoverPage = pageIndex === 1;
+    if (isCoverPage) continue;
     pdf.setPage(pageIndex);
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(7);
     pdf.setTextColor(90, 90, 90);
     const pageNumber = pageOffset + pageIndex;
-    const shouldDrawHeader = !(Number(options.volumeNumber) === 1 && pageIndex === 1);
+    const shouldDrawHeader = true;
     if (shouldDrawHeader) {
       pdf.text(
         'Viaduto das Artes - Av. Olinto Meireles, 45 - Barreiro - Belo Horizonte/MG - viadutodasartes@gmail.com',
@@ -1401,14 +1404,14 @@ export default function RelatorioPreview() {
   }, [autoExportPdf, html, isExportingPdf, autoExportStarted]);
 
 async function getHtmlForExport() {
-    if (String(html || '').trim()) return repairReportEncoding(html);
+    if (String(html || '').trim()) return sanitizeReportHtmlBeforeSave(repairReportEncoding(html));
 
     const preview = reportVariant === 'single'
       ? await getSingleReportPreview()
       : await getReportPreview(reportVariant);
     const directHtml = repairReportEncoding(preview.html || (await getStoredHtml(reportVariant)) || '');
-    if (String(directHtml || '').trim()) return directHtml;
-    return getAnyStoredReportHtml(reportVariant);
+    if (String(directHtml || '').trim()) return sanitizeReportHtmlBeforeSave(directHtml);
+    return sanitizeReportHtmlBeforeSave(await getAnyStoredReportHtml(reportVariant));
   }
 
   function updateExportQueueItem(index, patch) {
@@ -1483,6 +1486,7 @@ async function getHtmlForExport() {
     if (!String(htmlForDownload || '').trim()) {
       htmlForDownload = await getAnyStoredReportHtml(reportVariant);
     }
+    htmlForDownload = sanitizeReportHtmlBeforeSave(repairReportEncoding(htmlForDownload));
     if (!String(htmlForDownload || '').trim()) {
       toast.error(
         reportVariant === 'atividades'

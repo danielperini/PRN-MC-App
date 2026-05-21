@@ -519,9 +519,135 @@ function elementHasUsefulContent(element) {
   if (!element) return false;
   const clone = element.cloneNode(true);
   clone.querySelectorAll('.report-pdf-institutional-header, script, style, noscript').forEach((node) => node.remove());
+  clone.querySelectorAll('table').forEach((table) => {
+    if (table.querySelectorAll('tbody tr, tr').length === 0) table.remove();
+  });
   const text = String(clone.textContent || '').replace(/\s+/g, ' ').trim();
-  const visualCount = clone.querySelectorAll?.('img, table, canvas, svg, figure, article, .premium-metric, .premium-infographic-card').length || 0;
-  return text.length > 18 || visualCount > 0;
+  const usefulTables = Array.from(clone.querySelectorAll?.('table') || [])
+    .filter((table) => String(table.textContent || '').replace(/\s+/g, ' ').trim().length > 18);
+  const visualCount = clone.querySelectorAll?.('img[src], canvas, svg, figure, .premium-metric, .premium-infographic-card').length || 0;
+  return text.length > 18 || usefulTables.length > 0 || visualCount > 0;
+}
+
+function normalizeForReportMatch(value = '') {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function removeTableColumnsByHeader(table, patterns = []) {
+  const headerCells = Array.from(table.querySelectorAll('thead th, tr:first-child th, tr:first-child td'));
+  const indexes = headerCells
+    .map((cell, index) => ({ index, text: normalizeForReportMatch(cell.textContent) }))
+    .filter(({ text }) => patterns.some((pattern) => pattern.test(text)))
+    .map(({ index }) => index);
+
+  if (indexes.length === 0) return;
+
+  Array.from(table.querySelectorAll('tr')).forEach((row) => {
+    indexes.slice().sort((a, b) => b - a).forEach((index) => {
+      row.children[index]?.remove();
+    });
+  });
+}
+
+function removeForbiddenReportResidue(doc) {
+  const forbiddenBlockPatterns = [
+    /campos consolidados/i,
+    /clique para detalhar/i,
+    /ver memoria(?: de calculo| geral)?/i,
+    /created_date/i,
+    /updated_date/i,
+    /\batividades\b.*\[[\s\S]{0,160}\]/i,
+    /\bfotos\b.*\[[\s\S]{0,160}\]/i,
+    /\btrechos\b.*\[[\s\S]{0,160}\]/i,
+    /\bids?\b.*\[[\s\S]{0,160}\]/i,
+    /"\w+"\s*:\s*(?:"[^"]*"|\[|\{)/,
+  ];
+  const forbiddenTextPatterns = [
+    /Campos consolidados/gi,
+    /Clique para detalhar/gi,
+    /Ver mem[oó]ria de c[aá]lculo/gi,
+    /Ver mem[oó]ria geral/gi,
+  ];
+
+  doc.querySelectorAll('table').forEach((table) => {
+    removeTableColumnsByHeader(table, [/campos consolidados/]);
+    const rows = table.querySelectorAll('tbody tr, tr');
+    const usefulText = String(table.textContent || '').replace(/\s+/g, ' ').trim();
+    if (rows.length === 0 || usefulText.length < 12) table.remove();
+  });
+
+  doc.querySelectorAll('pre, code, textarea, .json, [data-json], [data-raw], [data-debug]').forEach((node) => node.remove());
+
+  doc.querySelectorAll('section, article, div, aside, details').forEach((node) => {
+    if (node.classList?.contains('premium-cover')) return;
+    const text = String(node.textContent || '').replace(/\s+/g, ' ').trim();
+    const normalized = normalizeForReportMatch(text);
+    if (!text) return;
+    if (forbiddenBlockPatterns.some((pattern) => pattern.test(normalized) || pattern.test(text))) {
+      node.remove();
+    }
+  });
+
+  const showText = (typeof NodeFilter !== 'undefined' ? NodeFilter : doc.defaultView?.NodeFilter)?.SHOW_TEXT || 4;
+  const walker = doc.createTreeWalker(doc.body || doc.documentElement, showText);
+  const textNodes = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+  textNodes.forEach((node) => {
+    let value = node.nodeValue || '';
+    forbiddenTextPatterns.forEach((pattern) => {
+      value = value.replace(pattern, '');
+    });
+    node.nodeValue = value;
+  });
+}
+
+export function sanitizeReportHtmlBeforeSave(html = '') {
+  if (!String(html || '').trim() || typeof DOMParser === 'undefined') return html;
+
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(repairReportEncoding(String(html)), 'text/html');
+    doc.querySelector('meta[charset]')?.setAttribute('charset', 'UTF-8');
+
+    removeForbiddenReportResidue(doc);
+
+    doc.querySelectorAll('[style]').forEach((node) => {
+      const text = String(node.textContent || '').replace(/\s+/g, ' ').trim();
+      const style = String(node.getAttribute('style') || '');
+      if (!text && /min-height\s*:\s*(?:[2-9]\d{2,}|[12]\d{2,}mm|[4-9]\dvh)/i.test(style)) {
+        node.removeAttribute('style');
+      }
+    });
+
+    doc.querySelectorAll('.premium-page-break').forEach((node) => {
+      if (!elementHasUsefulContent(node)) node.classList.remove('premium-page-break');
+    });
+
+    doc.querySelectorAll('section, article, div').forEach((node) => {
+      if (node.classList?.contains('premium-cover')) return;
+      if (!elementHasUsefulContent(node)) node.remove();
+    });
+
+    doc.querySelectorAll('.premium-page-break').forEach((node) => {
+      let previous = node.previousElementSibling;
+      while (previous && !elementHasUsefulContent(previous)) {
+        const candidate = previous.previousElementSibling;
+        previous.remove();
+        previous = candidate;
+      }
+      if (previous?.classList?.contains('premium-page-break')) node.classList.remove('premium-page-break');
+    });
+
+    return `<!doctype html>\n${doc.documentElement.outerHTML}`;
+  } catch (error) {
+    console.warn('Falha ao sanitizar HTML final do relatorio:', error);
+    return html;
+  }
 }
 
 export function cleanEmptyReportSections(html = '') {
@@ -617,7 +743,9 @@ export async function buildVolumeHtml({
   });
   const htmlRevisado = revisarHtmlRelatorioAntesDaExportacao(htmlInicial, { modo: premium ? 'premium' : 'fisico_financeiro' });
   const htmlOtimizado = await optimizeReportHtmlImages(htmlRevisado, REPORT_IMAGE_OPTIMIZATION_OPTIONS);
-  const html = removeNegativeAndRemovedBlocksFromReport(cleanEmptyReportSections(repairReportEncoding(htmlOtimizado)));
+  const html = sanitizeReportHtmlBeforeSave(
+    removeNegativeAndRemovedBlocksFromReport(cleanEmptyReportSections(repairReportEncoding(htmlOtimizado)))
+  );
 
   return { html, contexto, filtros };
 }
@@ -677,7 +805,8 @@ export function removeNegativeAndRemovedBlocksFromReport(html = '') {
       const text = String(node.textContent || '').replace(/\s+/g, ' ').trim();
       if (!text) return;
       const head = text.slice(0, 900);
-      if (patterns.some((pattern) => pattern.test(head))) node.remove();
+      const normalizedHead = normalizeForReportMatch(head);
+      if (patterns.some((pattern) => pattern.test(head) || pattern.test(normalizedHead))) node.remove();
     });
 
     return `<!doctype html>\n${doc.documentElement.outerHTML}`;
@@ -1467,7 +1596,9 @@ export async function buildSingleReportHtml({
     splitContext: null,
     selectedInlinePhotoIds,
   });
-  const html = removeNegativeAndRemovedBlocksFromReport(cleanEmptyReportSections(repairReportEncoding(result.html)));
+  const html = sanitizeReportHtmlBeforeSave(
+    removeNegativeAndRemovedBlocksFromReport(cleanEmptyReportSections(repairReportEncoding(result.html)))
+  );
   return {
     html,
     contexto: result.contexto,
@@ -1517,9 +1648,13 @@ export async function buildSeparatedReportsHtml({
     preserveAspectRatio: true,
   });
   const galleryHtml = cleanGalleryReportPdfHtml(
-    removeNegativeAndRemovedBlocksFromReport(cleanEmptyReportSections(repairReportEncoding(galleryOptimizedHtml)))
+    sanitizeReportHtmlBeforeSave(
+      removeNegativeAndRemovedBlocksFromReport(cleanEmptyReportSections(repairReportEncoding(galleryOptimizedHtml)))
+    )
   );
-  const dataHtml = removeNegativeAndRemovedBlocksFromReport(cleanEmptyReportSections(stripGalleryImagesFromDataReport(repairReportEncoding(dataResult.html))));
+  const dataHtml = sanitizeReportHtmlBeforeSave(
+    removeNegativeAndRemovedBlocksFromReport(cleanEmptyReportSections(stripGalleryImagesFromDataReport(repairReportEncoding(dataResult.html))))
+  );
 
   return {
     data: {
@@ -1713,7 +1848,9 @@ export async function saveSingleReportPreview({ html = '', meta = {} } = {}) {
 
 export async function saveReportPreview(variant = 'single', { html = '', meta = {} } = {}) {
   const config = REPORT_PREVIEW_VARIANTS[variant] || REPORT_PREVIEW_VARIANTS.single;
-  const finalHtml = removeNegativeAndRemovedBlocksFromReport(cleanEmptyReportSections(repairReportEncoding(html)));
+  const finalHtml = sanitizeReportHtmlBeforeSave(
+    removeNegativeAndRemovedBlocksFromReport(cleanEmptyReportSections(repairReportEncoding(html)))
+  );
   const payloadMeta = {
     ...buildSingleReportMeta({ html: finalHtml, selectedChapters: meta.selectedChapters || [] }),
     ...meta,
