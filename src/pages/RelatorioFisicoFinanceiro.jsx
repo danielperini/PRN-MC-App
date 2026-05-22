@@ -1,6 +1,5 @@
 import RequireCoordinator from '@/components/auth/RequireCoordinator';
 import RelatorioFisicoFinanceiroGenerator from '@/components/reports/RelatorioFisicoFinanceiroGenerator';
-import '@/utils/reportPurgeHardRuntime.js';
 
 export default function RelatorioFisicoFinanceiroPage() {
   return (
