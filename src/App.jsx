@@ -12,8 +12,6 @@ import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import { PatrocinadorViewProvider } from '@/context/PatrocinadorViewContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { AnimatePresence, motion } from 'framer-motion';
-import NFDriveBackupSyncInstaller from '@/lib/nfDriveBackupSync';
-import PublicoAprovadoAuditButton from '@/components/dashboard/PublicoAprovadoAuditButton';
 import { base44 } from '@/api/base44Client';
 import { canAccessPage, isObservador, isPatrocinador } from '@/components/auth/permissions';
 import { normalizeEmail } from '@/utils/auth/recoverExistingUserAccess';
@@ -22,7 +20,17 @@ const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 const MainPage = mainPageKey ? Pages[mainPageKey] : null;
 const PUBLIC_ROUTES = new Set(['/Cadastro', '/Home']);
-const PERMISSION_TIMEOUT_MS = 3500;
+const PERMISSION_TIMEOUT_MS = 2200;
+const PERMISSION_CACHE_TTL_MS = 10 * 60 * 1000;
+const PERMISSION_RATE_LIMIT_COOLDOWN_MS = 90 * 1000;
+
+const permissionCache = new Map();
+const permissionInflight = new Map();
+let permissionRateLimitUntil = 0;
+
+function isRateLimitError(error) {
+  return /rate limit/i.test(String(error?.message || error || ''));
+}
 
 function LoadingScreen() {
   return (
@@ -40,6 +48,73 @@ function withTimeout(promise, timeoutMs, fallbackValue) {
   return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timeoutId));
 }
 
+function readPermissionCache(email) {
+  const key = normalizeEmail(email || '');
+  if (!key) return null;
+  const cached = permissionCache.get(key);
+  if (cached && Date.now() - cached.savedAt <= PERMISSION_CACHE_TTL_MS) return cached.value;
+
+  try {
+    const raw = localStorage.getItem(`museus_centro_user_permission_${key}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.savedAt || Date.now() - Number(parsed.savedAt) > PERMISSION_CACHE_TTL_MS) return null;
+    permissionCache.set(key, { value: parsed.value || null, savedAt: Number(parsed.savedAt) });
+    return parsed.value || null;
+  } catch {
+    return null;
+  }
+}
+
+function writePermissionCache(email, value) {
+  const key = normalizeEmail(email || '');
+  if (!key) return;
+  const payload = { value: value || null, savedAt: Date.now() };
+  permissionCache.set(key, payload);
+  try {
+    localStorage.setItem(`museus_centro_user_permission_${key}`, JSON.stringify(payload));
+  } catch {
+    // cache é otimização; falha não bloqueia a página
+  }
+}
+
+async function loadUserPermissionOnce(email) {
+  const key = normalizeEmail(email || '');
+  if (!key) return null;
+
+  const cached = readPermissionCache(key);
+  if (cached) return cached;
+
+  if (Date.now() < permissionRateLimitUntil) return null;
+  if (permissionInflight.has(key)) return permissionInflight.get(key);
+
+  const promise = withTimeout(
+    base44.entities.UserPermission.filter({ user_email: key }),
+    PERMISSION_TIMEOUT_MS,
+    []
+  )
+    .then((permissions) => {
+      const permission = Array.isArray(permissions) ? permissions[0] || null : null;
+      writePermissionCache(key, permission);
+      return permission;
+    })
+    .catch((error) => {
+      if (isRateLimitError(error)) {
+        permissionRateLimitUntil = Date.now() + PERMISSION_RATE_LIMIT_COOLDOWN_MS;
+        console.warn('[Permissões] Rate limit. Usando perfil básico temporariamente.', error);
+        return readPermissionCache(key) || null;
+      }
+      console.warn('[Permissões] Falha ao carregar permissões. Liberando página com perfil básico.', error);
+      return readPermissionCache(key) || null;
+    })
+    .finally(() => {
+      permissionInflight.delete(key);
+    });
+
+  permissionInflight.set(key, promise);
+  return promise;
+}
+
 const LayoutWrapper = ({ children, currentPageName }) =>
   Layout ? (
     <Layout currentPageName={currentPageName}>{children}</Layout>
@@ -47,57 +122,35 @@ const LayoutWrapper = ({ children, currentPageName }) =>
     <>{children}</>
   );
 
-function DeferredNonEssentialServices() {
-  const [enabled, setEnabled] = useState(false);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setEnabled(true), 3500);
-    return () => window.clearTimeout(timer);
-  }, []);
-
-  if (!enabled) return null;
-
-  return (
-    <>
-      <NFDriveBackupSyncInstaller />
-      <PublicoAprovadoAuditButton />
-    </>
-  );
-}
-
 function SafePage({ Page, pageName }) {
   const { user } = useAuth();
-  const [userPermission, setUserPermission] = useState(null);
-  const [permissionLoaded, setPermissionLoaded] = useState(false);
+  const [userPermission, setUserPermission] = useState(() => readPermissionCache(user?.email));
+  const [permissionLoaded, setPermissionLoaded] = useState(true);
 
   useEffect(() => {
     let mounted = true;
+    const email = user?.email;
+
+    if (!email) {
+      setUserPermission(null);
+      setPermissionLoaded(true);
+      return () => {
+        mounted = false;
+      };
+    }
+
+    const cached = readPermissionCache(email);
+    if (cached) {
+      setUserPermission(cached);
+      setPermissionLoaded(true);
+    }
 
     async function loadPermissions() {
-      if (mounted) setPermissionLoaded(false);
-      if (!user?.email) {
-        if (mounted) setUserPermission(null);
-        if (mounted) setPermissionLoaded(true);
-        return;
-      }
-
-      try {
-        const permissions = await withTimeout(
-          base44.entities.UserPermission.filter({
-            user_email: normalizeEmail(user.email),
-          }),
-          PERMISSION_TIMEOUT_MS,
-          []
-        );
-
-        if (mounted) {
-          setUserPermission(permissions?.[0] || null);
-          setPermissionLoaded(true);
-        }
-      } catch (error) {
-        console.warn('[Permissões] Falha ao carregar permissões. Liberando página com perfil básico.', error);
-        if (mounted) setUserPermission(null);
-        if (mounted) setPermissionLoaded(true);
+      setPermissionLoaded(true);
+      const permission = await loadUserPermissionOnce(email);
+      if (mounted) {
+        setUserPermission(permission || null);
+        setPermissionLoaded(true);
       }
     }
 
@@ -192,33 +245,29 @@ function AuthenticatedApp() {
   }
 
   return (
-    <>
-      <DeferredNonEssentialServices />
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={location.pathname}
+        initial={{ opacity: 0, x: 10 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -10 }}
+        transition={{ duration: 0.2, ease: 'easeInOut' }}
+      >
+        <Routes>
+          <Route path="/" element={<SafePage Page={MainPage} pageName={mainPageKey} />} />
 
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={location.pathname}
-          initial={{ opacity: 0, x: 10 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -10 }}
-          transition={{ duration: 0.2, ease: 'easeInOut' }}
-        >
-          <Routes>
-            <Route path="/" element={<SafePage Page={MainPage} pageName={mainPageKey} />} />
+          {Object.entries(Pages).map(([path, Page]) => (
+            <Route
+              key={path}
+              path={`/${path}`}
+              element={<SafePage Page={Page} pageName={path} />}
+            />
+          ))}
 
-            {Object.entries(Pages).map(([path, Page]) => (
-              <Route
-                key={path}
-                path={`/${path}`}
-                element={<SafePage Page={Page} pageName={path} />}
-              />
-            ))}
-
-            <Route path="*" element={<PageNotFound />} />
-          </Routes>
-        </motion.div>
-      </AnimatePresence>
-    </>
+          <Route path="*" element={<PageNotFound />} />
+        </Routes>
+      </motion.div>
+    </AnimatePresence>
   );
 }
 
