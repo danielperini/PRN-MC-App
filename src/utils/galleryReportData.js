@@ -4,6 +4,8 @@ import { dedupePhotosByTechnicalIdentity, getPhotoIdentity } from '@/utils/photo
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'avif', 'heic'];
 const DEFAULT_CACHE_KEY = 'museus_centro_galeria_fotos_cache_v2';
 const DEFAULT_TTL = 10 * 60 * 1000;
+const DEFAULT_STALE_TTL = 24 * 60 * 60 * 1000;
+const ENTITY_TIMEOUT_MS = 7000;
 
 export const MUSEUM_SECTIONS = {
   MHAB: {
@@ -170,15 +172,18 @@ function mapPhoto(item, sourceEntity = 'Attachment') {
   };
 }
 
-function readCache(cacheKey, cacheTtlMs) {
+function readCache(cacheKey, cacheTtlMs, { allowStale = false, staleTtlMs = DEFAULT_STALE_TTL } = {}) {
   try {
     const raw = localStorage.getItem(cacheKey);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed || !Array.isArray(parsed?.images)) return null;
     const savedAt = Number(parsed.savedAt || 0);
-    if (!savedAt || Date.now() - savedAt > cacheTtlMs) return null;
-    return parsed;
+    if (!savedAt) return null;
+    const age = Date.now() - savedAt;
+    if (age <= cacheTtlMs) return parsed;
+    if (allowStale && age <= staleTtlMs) return { ...parsed, cacheStale: true };
+    return null;
   } catch {
     return null;
   }
@@ -214,47 +219,76 @@ function buildGroups(images = []) {
   }).filter((group) => group.images.length > 0);
 }
 
+function withTimeout(promise, label, timeoutMs = ENTITY_TIMEOUT_MS) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`Tempo excedido ao carregar ${label}`)), timeoutMs);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+async function safeEntityList(entityName, order, limit) {
+  const entity = base44?.entities?.[entityName];
+  if (!entity?.list) return [];
+  try {
+    const result = await withTimeout(entity.list(order, limit), entityName);
+    return Array.isArray(result) ? result : [];
+  } catch (error) {
+    console.warn(`[Galeria] ${entityName} indisponível. Continuando com as demais fontes.`, error);
+    return [];
+  }
+}
+
 export async function loadGalleryReportData({
-  limitMedia = 450,
-  limitAttachments = 650,
+  limitMedia = 160,
+  limitAttachments = 260,
   useCache = true,
   cacheKey = DEFAULT_CACHE_KEY,
   cacheTtlMs = DEFAULT_TTL,
+  staleCacheTtlMs = DEFAULT_STALE_TTL,
 } = {}) {
   if (useCache) {
     const cached = readCache(cacheKey, cacheTtlMs);
     if (cached) return { ...cached, cacheUsed: true };
   }
 
+  const staleCache = useCache
+    ? readCache(cacheKey, cacheTtlMs, { allowStale: true, staleTtlMs: staleCacheTtlMs })
+    : null;
+
   const images = [];
   try {
-    const media = await base44.entities.MediaLibrary.list('-created_date', limitMedia);
+    const [media, attachments] = await Promise.all([
+      safeEntityList('MediaLibrary', '-created_date', limitMedia),
+      safeEntityList('Attachment', '-created_date', limitAttachments),
+    ]);
+
     images.push(
-      ...((Array.isArray(media) ? media : [])
+      ...media
         .filter((item) => {
           const tipo = String(item?.tipo || '').toLowerCase();
           return tipo === 'imagem' || tipo === 'image' || isImageByMime(item?.file_type) || isImageByFileName(item?.file_name);
         })
-        .map((item) => mapPhoto(item, 'MediaLibrary')))
+        .map((item) => mapPhoto(item, 'MediaLibrary'))
     );
-  } catch {
-    // segue com Attachment
-  }
 
-  try {
-    const attachments = await base44.entities.Attachment.list('-created_date', limitAttachments);
     images.push(
-      ...((Array.isArray(attachments) ? attachments : [])
+      ...attachments
         .filter((item) => isImageByMime(item?.file_type) || isImageByFileName(item?.file_name))
-        .map((item) => mapPhoto(item, 'Attachment')))
+        .map((item) => mapPhoto(item, 'Attachment'))
     );
-  } catch {
-    // segue com o que tiver
+  } catch (error) {
+    console.warn('[Galeria] Falha geral ao carregar imagens.', error);
   }
 
-  const deduped = dedupePhotosByTechnicalIdentity(images).sort(
-    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-  );
+  if (!images.length && staleCache) {
+    console.warn('[Galeria] Sem resposta nova do Base44. Usando cache antigo da galeria.');
+    return { ...staleCache, cacheUsed: true, cacheStale: true };
+  }
+
+  const deduped = dedupePhotosByTechnicalIdentity(images)
+    .filter((image) => image.fileUrl)
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   const groups = buildGroups(deduped);
   const imagesByMuseum = groups.reduce((acc, group) => {
     acc[group.shortTitle] = group.images.length;
@@ -271,7 +305,6 @@ export async function loadGalleryReportData({
     cacheUsed: false,
   };
 
-  if (useCache) writeCache(cacheKey, payload);
+  if (useCache && deduped.length) writeCache(cacheKey, payload);
   return payload;
 }
-
