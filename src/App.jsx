@@ -1,4 +1,5 @@
 import React, { Suspense, useEffect, useState } from 'react';
+import '@/utils/formAccessibilityRuntime.js';
 import { Toaster } from 'sonner';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClientInstance } from '@/lib/query-client';
