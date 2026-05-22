@@ -36,6 +36,15 @@ const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 const MainPage = mainPageKey ? Pages[mainPageKey] : null;
 const PUBLIC_ROUTES = new Set(['/Cadastro', '/Home']);
+const PERMISSION_TIMEOUT_MS = 3500;
+
+function withTimeout(promise, timeoutMs, fallbackValue) {
+  let timeoutId;
+  const timeout = new Promise((resolve) => {
+    timeoutId = window.setTimeout(() => resolve(fallbackValue), timeoutMs);
+  });
+  return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timeoutId));
+}
 
 const LayoutWrapper = ({ children, currentPageName }) =>
   Layout ? (
@@ -43,6 +52,24 @@ const LayoutWrapper = ({ children, currentPageName }) =>
   ) : (
     <>{children}</>
   );
+
+function DeferredNonEssentialServices() {
+  const [enabled, setEnabled] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setEnabled(true), 2500);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  if (!enabled) return null;
+
+  return (
+    <>
+      <NFDriveBackupSyncInstaller />
+      <PublicoAprovadoAuditButton />
+    </>
+  );
+}
 
 function SafePage({ Page, pageName }) {
   const { user } = useAuth();
@@ -61,15 +88,20 @@ function SafePage({ Page, pageName }) {
       }
 
       try {
-        const permissions = await base44.entities.UserPermission.filter({
-          user_email: normalizeEmail(user.email),
-        });
+        const permissions = await withTimeout(
+          base44.entities.UserPermission.filter({
+            user_email: normalizeEmail(user.email),
+          }),
+          PERMISSION_TIMEOUT_MS,
+          []
+        );
 
         if (mounted) {
           setUserPermission(permissions?.[0] || null);
           setPermissionLoaded(true);
         }
-      } catch {
+      } catch (error) {
+        console.warn('[Permissões] Falha ao carregar permissões. Liberando página com perfil básico.', error);
         if (mounted) setUserPermission(null);
         if (mounted) setPermissionLoaded(true);
       }
@@ -175,8 +207,7 @@ function AuthenticatedApp() {
 
   return (
     <>
-      <NFDriveBackupSyncInstaller />
-      <PublicoAprovadoAuditButton />
+      <DeferredNonEssentialServices />
 
       <AnimatePresence mode="wait">
         <motion.div
