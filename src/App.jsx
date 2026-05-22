@@ -11,7 +11,6 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import { PatrocinadorViewProvider } from '@/context/PatrocinadorViewContext';
 import { ThemeProvider } from '@/context/ThemeContext';
-import { AnimatePresence, motion } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 import { canAccessPage, isObservador, isPatrocinador } from '@/components/auth/permissions';
 import { normalizeEmail } from '@/utils/auth/recoverExistingUserAccess';
@@ -245,29 +244,21 @@ function AuthenticatedApp() {
   }
 
   return (
-    <AnimatePresence mode="wait">
-      <motion.div
-        key={location.pathname}
-        initial={{ opacity: 0, x: 10 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: -10 }}
-        transition={{ duration: 0.2, ease: 'easeInOut' }}
-      >
-        <Routes>
-          <Route path="/" element={<SafePage Page={MainPage} pageName={mainPageKey} />} />
+    <div key={location.pathname}>
+      <Routes>
+        <Route path="/" element={<SafePage Page={MainPage} pageName={mainPageKey} />} />
 
-          {Object.entries(Pages).map(([path, Page]) => (
-            <Route
-              key={path}
-              path={`/${path}`}
-              element={<SafePage Page={Page} pageName={path} />}
-            />
-          ))}
+        {Object.entries(Pages).map(([path, Page]) => (
+          <Route
+            key={path}
+            path={`/${path}`}
+            element={<SafePage Page={Page} pageName={path} />}
+          />
+        ))}
 
-          <Route path="*" element={<PageNotFound />} />
-        </Routes>
-      </motion.div>
-    </AnimatePresence>
+        <Route path="*" element={<PageNotFound />} />
+      </Routes>
+    </div>
   );
 }
 
