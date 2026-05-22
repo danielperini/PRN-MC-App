@@ -1,72 +1,124 @@
 /**
  * pages.config.js - Page routing configuration
  *
- * Otimização: páginas carregadas sob demanda para reduzir o bundle inicial
- * e evitar que módulos pesados bloqueiem Dashboard/Agenda/Galeria/Compras.
+ * Produção estável: imports estáticos. O lazy loading foi retirado porque
+ * estava causando rotas sem carregamento adequado em produção/Base44.
  */
 
-import React from 'react';
+import ActivityLog from './pages/ActivityLog';
+import AdminUsers from './pages/AdminUsers';
+import ApprovalsMobile from './pages/ApprovalsMobile';
+import AssistentePlanejamento from './pages/AssistentePlanejamento';
+import AuditLog from './pages/AuditLog';
+import AuditoriaInstitucional from './pages/AuditoriaInstitucional';
+import BaseConhecimento from './pages/BaseConhecimento';
+import Cadastro from './pages/Cadastro';
+import Compras from './pages/Compras';
+import ComunicacaoVisibilidade from './pages/ComunicacaoVisibilidadeClippingCompact';
+import ConsolidacaoFinanceira from './pages/ConsolidacaoFinanceira';
+import CoordReview from './pages/CoordReview';
+import Dashboard from './pages/Dashboard';
+import DashboardFinanceiro from './pages/DashboardFinanceiro';
+import DashboardProfissional from './pages/DashboardProfissional';
+import Fornecedores from './pages/Fornecedores';
+import GaleriaFotos from './pages/GaleriaFotos';
+import GeradorListaPresenca from './pages/GeradorListaPresenca';
+import GeradorTermoCompromisso from './pages/GeradorTermoCompromisso';
+import GestaoDocumental from './pages/GestaoDocumentalDedupe';
+import GestaoPagamentos from './pages/GestaoPagamentos';
+import GestorArquivos from './pages/GestorArquivos';
+import HelpManagement from './pages/HelpManagement';
+import Home from './pages/Home';
+import LeitorNoticias from './pages/LeitorNoticias';
+import Manual from './pages/Manual';
+import MeusDados from './pages/MeusDados';
+import MhaabMap from './pages/MhaabMap';
+import MisMap from './pages/MisMap';
+import MonitoringPanel from './pages/MonitoringPanel';
+import MumoMap from './pages/MumoMap';
+import MuseusNoMapa from './pages/MuseusNoMapa';
+import NovaAtividade from './pages/NovaAtividade';
+import PlataformaAdmin from './pages/PlataformaAdmin';
+import PlataformaConfig from './pages/PlataformaConfig';
+import PrestacaoDeContas from './pages/PrestacaoDeContas';
+import ProgramacaoEspelho from './pages/ProgramacaoEspelho';
+import Agenda from './pages/Agenda';
+import RubricasPorMuseu from './pages/RubricasPorMuseu';
+import RelatorioFisicoFinanceiro from './pages/RelatorioFisicoFinanceiro';
+import RelatorioFisicoFinanceiroRevisao from './pages/RelatorioFisicoFinanceiroRevisao';
+import RelatorioMeta from './pages/RelatorioMeta';
+import RelatorioPreview from './pages/RelatorioPreview';
+import Relatorios from './pages/Relatorios';
+import ReportEditor from './pages/ReportEditorGuard';
+import Rubricas from './pages/Rubricas';
+import UserManagement from './pages/UserManagement';
+import ViadutoMap from './pages/ViadutoMap';
+import DashboardPatrocinador from './pages/DashboardPatrocinadorSync';
+import EntradaUnica from './pages/EntradaUnica.jsx';
+import Mensagens from './pages/Mensagens.jsx';
+import GuiaNotaFiscal from './pages/GuiaNotaFiscal';
+import Aparencia from './pages/Aparencia';
+import ConviteAcesso from './pages/ConviteAcesso';
+import NotificationSettings from './pages/NotificationSettings';
 import __Layout from './Layout.jsx';
 
-const lazyPage = (loader) => React.lazy(loader);
-
 export const PAGES = {
-  ActivityLog: lazyPage(() => import('./pages/ActivityLog')),
-  AdminUsers: lazyPage(() => import('./pages/AdminUsers')),
-  ApprovalsMobile: lazyPage(() => import('./pages/ApprovalsMobile')),
-  AssistentePlanejamento: lazyPage(() => import('./pages/AssistentePlanejamento')),
-  AuditLog: lazyPage(() => import('./pages/AuditLog')),
-  AuditoriaInstitucional: lazyPage(() => import('./pages/AuditoriaInstitucional')),
-  BaseConhecimento: lazyPage(() => import('./pages/BaseConhecimento')),
-  Cadastro: lazyPage(() => import('./pages/Cadastro')),
-  Compras: lazyPage(() => import('./pages/Compras')),
-  ComunicacaoVisibilidade: lazyPage(() => import('./pages/ComunicacaoVisibilidadeClippingCompact')),
-  ConsolidacaoFinanceira: lazyPage(() => import('./pages/ConsolidacaoFinanceira')),
-  CoordReview: lazyPage(() => import('./pages/CoordReview')),
-  Dashboard: lazyPage(() => import('./pages/Dashboard')),
-  DashboardFinanceiro: lazyPage(() => import('./pages/DashboardFinanceiro')),
-  DashboardProfissional: lazyPage(() => import('./pages/DashboardProfissional')),
-  Fornecedores: lazyPage(() => import('./pages/Fornecedores')),
-  GaleriaFotos: lazyPage(() => import('./pages/GaleriaFotos')),
-  GeradorListaPresenca: lazyPage(() => import('./pages/GeradorListaPresenca')),
-  GeradorTermoCompromisso: lazyPage(() => import('./pages/GeradorTermoCompromisso')),
-  GestaoDocumental: lazyPage(() => import('./pages/GestaoDocumentalDedupe')),
-  GestaoPagamentos: lazyPage(() => import('./pages/GestaoPagamentos')),
-  GestorArquivos: lazyPage(() => import('./pages/GestorArquivos')),
-  HelpManagement: lazyPage(() => import('./pages/HelpManagement')),
-  Home: lazyPage(() => import('./pages/Home')),
-  LeitorNoticias: lazyPage(() => import('./pages/LeitorNoticias')),
-  Manual: lazyPage(() => import('./pages/Manual')),
-  MeusDados: lazyPage(() => import('./pages/MeusDados')),
-  MhaabMap: lazyPage(() => import('./pages/MhaabMap')),
-  MisMap: lazyPage(() => import('./pages/MisMap')),
-  MonitoringPanel: lazyPage(() => import('./pages/MonitoringPanel')),
-  MumoMap: lazyPage(() => import('./pages/MumoMap')),
-  MuseusNoMapa: lazyPage(() => import('./pages/MuseusNoMapa')),
-  NovaAtividade: lazyPage(() => import('./pages/NovaAtividade')),
-  PlataformaAdmin: lazyPage(() => import('./pages/PlataformaAdmin')),
-  PlataformaConfig: lazyPage(() => import('./pages/PlataformaConfig')),
-  PrestacaoDeContas: lazyPage(() => import('./pages/PrestacaoDeContas')),
-  ProgramacaoEspelho: lazyPage(() => import('./pages/ProgramacaoEspelho')),
-  Agenda: lazyPage(() => import('./pages/Agenda')),
-  RubricasPorMuseu: lazyPage(() => import('./pages/RubricasPorMuseu')),
-  RelatorioFisicoFinanceiro: lazyPage(() => import('./pages/RelatorioFisicoFinanceiro')),
-  RelatorioFisicoFinanceiroRevisao: lazyPage(() => import('./pages/RelatorioFisicoFinanceiroRevisao')),
-  RelatorioMeta: lazyPage(() => import('./pages/RelatorioMeta')),
-  RelatorioPreview: lazyPage(() => import('./pages/RelatorioPreview')),
-  Relatorios: lazyPage(() => import('./pages/Relatorios')),
-  ReportEditor: lazyPage(() => import('./pages/ReportEditorGuard')),
-  Rubricas: lazyPage(() => import('./pages/Rubricas')),
-  UserManagement: lazyPage(() => import('./pages/UserManagement')),
-  ViadutoMap: lazyPage(() => import('./pages/ViadutoMap')),
-  DashboardPatrocinador: lazyPage(() => import('./pages/DashboardPatrocinadorSync')),
-  FinanceiroPatrocinador: lazyPage(() => import('./pages/DashboardPatrocinadorSync')),
-  EntradaUnica: lazyPage(() => import('./pages/EntradaUnica.jsx')),
-  Mensagens: lazyPage(() => import('./pages/Mensagens.jsx')),
-  GuiaNotaFiscal: lazyPage(() => import('./pages/GuiaNotaFiscal')),
-  Aparencia: lazyPage(() => import('./pages/Aparencia')),
-  ConviteAcesso: lazyPage(() => import('./pages/ConviteAcesso')),
-  NotificationSettings: lazyPage(() => import('./pages/NotificationSettings')),
+  ActivityLog,
+  AdminUsers,
+  ApprovalsMobile,
+  AssistentePlanejamento,
+  AuditLog,
+  AuditoriaInstitucional,
+  BaseConhecimento,
+  Cadastro,
+  Compras,
+  ComunicacaoVisibilidade,
+  ConsolidacaoFinanceira,
+  CoordReview,
+  Dashboard,
+  DashboardFinanceiro,
+  DashboardProfissional,
+  Fornecedores,
+  GaleriaFotos,
+  GeradorListaPresenca,
+  GeradorTermoCompromisso,
+  GestaoDocumental,
+  GestaoPagamentos,
+  GestorArquivos,
+  HelpManagement,
+  Home,
+  LeitorNoticias,
+  Manual,
+  MeusDados,
+  MhaabMap,
+  MisMap,
+  MonitoringPanel,
+  MumoMap,
+  MuseusNoMapa,
+  NovaAtividade,
+  PlataformaAdmin,
+  PlataformaConfig,
+  PrestacaoDeContas,
+  ProgramacaoEspelho,
+  Agenda,
+  RubricasPorMuseu,
+  RelatorioFisicoFinanceiro,
+  RelatorioFisicoFinanceiroRevisao,
+  RelatorioMeta,
+  RelatorioPreview,
+  Relatorios,
+  ReportEditor,
+  Rubricas,
+  UserManagement,
+  ViadutoMap,
+  DashboardPatrocinador,
+  FinanceiroPatrocinador: DashboardPatrocinador,
+  EntradaUnica,
+  Mensagens,
+  GuiaNotaFiscal,
+  Aparencia,
+  ConviteAcesso,
+  NotificationSettings,
 };
 
 export const pagesConfig = {
