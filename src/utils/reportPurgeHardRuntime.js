@@ -2,6 +2,7 @@ import { purgeReportPreviewHard } from '@/utils/reportPreviewPurge';
 
 const RUNTIME_FLAG = '__museusCentroReportPurgeHardRuntime';
 const BYPASS_ATTR = 'data-report-purge-hard-bypass';
+const RUNNING_ATTR = 'data-report-purge-hard-running';
 
 function normalize(value = '') {
   return String(value || '').replace(/\s+/g, ' ').trim();
@@ -17,38 +18,52 @@ function isInsideReportGenerator(button) {
   return /Gerar Relat[oó]rio|Escolha os conteudos do relatorio|Escolha os conteúdos do relatório|Relatório principal de dados/i.test(rootText);
 }
 
+function dispatchStatus(status, detail = {}) {
+  try {
+    window.dispatchEvent(new CustomEvent('museus-centro-report-purge-status', {
+      detail: {
+        status,
+        at: new Date().toISOString(),
+        ...detail,
+      },
+    }));
+  } catch {}
+}
+
 async function interceptReportGeneration(event) {
   const button = event.target?.closest?.('button');
-  if (!button || button.disabled || button.getAttribute(BYPASS_ATTR) === 'true') return;
+  if (!button || button.disabled) return;
+  if (button.getAttribute(BYPASS_ATTR) === 'true' || button.getAttribute(RUNNING_ATTR) === 'true') return;
   if (!isReportGenerationButton(button) || !isInsideReportGenerator(button)) return;
 
   event.preventDefault();
   event.stopPropagation();
   event.stopImmediatePropagation?.();
 
-  const originalText = button.textContent;
-  const originalDisabled = button.disabled;
-  button.disabled = true;
-  button.setAttribute('aria-busy', 'true');
+  button.setAttribute(RUNNING_ATTR, 'true');
+  window.__MUSEUS_CENTRO_REPORT_GENERATING__ = true;
+  dispatchStatus('running', { label: 'Limpando cache e relatório antigo' });
 
   try {
-    button.textContent = 'Limpando cache e relatório antigo...';
-    window.__MUSEUS_CENTRO_REPORT_GENERATING__ = true;
     await purgeReportPreviewHard({ reason: 'before-report-generation', deleteDatabase: true });
-    button.textContent = 'Gerando relatório novo...';
+    dispatchStatus('done', { label: 'Cache limpo. Gerando relatório novo.' });
   } catch (error) {
     console.warn('[Relatorio] Purge hard falhou; seguindo com geração para não bloquear o usuário.', error);
+    dispatchStatus('error', { label: 'Falha ao limpar cache. Seguindo com geração.', message: error?.message || String(error) });
   } finally {
-    button.disabled = originalDisabled;
-    button.removeAttribute('aria-busy');
-    button.textContent = originalText;
+    button.removeAttribute(RUNNING_ATTR);
   }
 
-  button.setAttribute(BYPASS_ATTR, 'true');
-  button.click();
+  // Não manipular textContent, disabled ou filhos do botão: React controla esse DOM.
+  // O clique real é reexecutado apenas depois do purge e com bypass pontual.
   window.setTimeout(() => {
-    button.removeAttribute(BYPASS_ATTR);
-  }, 800);
+    try {
+      button.setAttribute(BYPASS_ATTR, 'true');
+      button.click();
+    } finally {
+      window.setTimeout(() => button.removeAttribute(BYPASS_ATTR), 800);
+    }
+  }, 0);
 }
 
 export function installReportPurgeHardRuntime() {
