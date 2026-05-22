@@ -5,7 +5,6 @@ import { usePatrocinadorView } from '@/context/PatrocinadorViewContext';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import NotificationBell from '@/components/notifications/NotificationBell';
-import PendingActionsAlert from '@/components/notifications/PendingActionsAlert';
 import { requestDashboardPriorityRefresh } from '@/utils/dashboardRefresh';
 import GlobalSearch from './GlobalSearch';
 
@@ -31,7 +30,6 @@ export default function TopNav({ currentUser }) {
            </Button>
          </Link>
         {currentUser?.email && <NotificationBell />}
-          {currentUser?.email && <PendingActionsAlert />}
         
         {currentUser?.email && (
           <Button
