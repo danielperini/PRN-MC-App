@@ -227,13 +227,25 @@ function withTimeout(promise, label, timeoutMs = ENTITY_TIMEOUT_MS) {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
-async function safeEntityList(entityName, order, limit) {
+async function safeEntityList(entityName, order, limit, { quietMissing = false } = {}) {
   const entity = base44?.entities?.[entityName];
-  if (!entity?.list) return [];
+  if (!entity?.list) {
+    if (!quietMissing) console.debug(`[Galeria] ${entityName} não existe no schema atual. Fonte ignorada.`);
+    return [];
+  }
+
   try {
     const result = await withTimeout(entity.list(order, limit), entityName);
     return Array.isArray(result) ? result : [];
   } catch (error) {
+    const message = String(error?.message || error || '');
+    const entityMissing = /entity schema|not found in app|schema .* not found/i.test(message);
+
+    if (entityMissing) {
+      if (!quietMissing) console.debug(`[Galeria] ${entityName} não existe no schema atual. Fonte ignorada.`);
+      return [];
+    }
+
     console.warn(`[Galeria] ${entityName} indisponível. Continuando com as demais fontes.`, error);
     return [];
   }
@@ -258,19 +270,26 @@ export async function loadGalleryReportData({
 
   const images = [];
   try {
+    const mediaEntity = base44?.entities?.MediaLibrary;
+    const mediaPromise = mediaEntity?.list
+      ? safeEntityList('MediaLibrary', '-created_date', limitMedia, { quietMissing: true })
+      : Promise.resolve([]);
+
     const [media, attachments] = await Promise.all([
-      safeEntityList('MediaLibrary', '-created_date', limitMedia),
+      mediaPromise,
       safeEntityList('Attachment', '-created_date', limitAttachments),
     ]);
 
-    images.push(
-      ...media
-        .filter((item) => {
-          const tipo = String(item?.tipo || '').toLowerCase();
-          return tipo === 'imagem' || tipo === 'image' || isImageByMime(item?.file_type) || isImageByFileName(item?.file_name);
-        })
-        .map((item) => mapPhoto(item, 'MediaLibrary'))
-    );
+    if (Array.isArray(media) && media.length) {
+      images.push(
+        ...media
+          .filter((item) => {
+            const tipo = String(item?.tipo || '').toLowerCase();
+            return tipo === 'imagem' || tipo === 'image' || isImageByMime(item?.file_type) || isImageByFileName(item?.file_name);
+          })
+          .map((item) => mapPhoto(item, 'MediaLibrary'))
+      );
+    }
 
     images.push(
       ...attachments
