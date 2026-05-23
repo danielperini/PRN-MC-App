@@ -221,6 +221,17 @@ async function resetReportGenerationState() {
   await clearPreviewIndexedDb();
 }
 
+async function syncDashboardDataBeforeReport() {
+  if (typeof window === 'undefined') return;
+  if (typeof window.museusCentroHardRefresh !== 'function') return;
+
+  try {
+    await window.museusCentroHardRefresh();
+  } catch (error) {
+    console.warn('[Relatório] Falha ao sincronizar dashboard antes da geração. Seguindo com dados disponíveis.', error);
+  }
+}
+
 function isCoverImageCandidate(src = '') {
   const value = String(src || '').toLowerCase();
   if (!value) return false;
@@ -330,6 +341,15 @@ function downloadHtml(html = '', fileName = 'relatorio-museus-centro.html') {
   URL.revokeObjectURL(url);
 }
 
+function slugifyFileName(value = 'relatorio') {
+  return String(value || 'relatorio')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '') || 'relatorio';
+}
+
 export default function ReportCardGeneratorDashboard() {
   const [museu, setMuseu] = useState('Todos');
   const [loading, setLoading] = useState(false);
@@ -412,35 +432,50 @@ export default function ReportCardGeneratorDashboard() {
     return { separated, outputs };
   };
 
-  const generateFormat = async (formatId) => {
+  const generateFormat = async (formatId, options = {}) => {
     const config = FORMAT_CONFIGS[formatId] || FORMAT_CONFIGS.geral;
     const sections = normalizeSelectedReportChapterIds(config.sections || REPORT_CHAPTER_IDS);
+    const {
+      fromQueue = false,
+      queuePosition = 1,
+      queueTotal = 1,
+      openPreview: shouldOpenPreview = true,
+    } = options || {};
+    const queuePrefix = fromQueue ? `Fila ${queuePosition}/${queueTotal} · ` : '';
     let previewWindow = null;
 
     setLoading(true);
     setActiveFormat(formatId);
     setErro(null);
-    setResultado(null);
-    setProgress({ percent: 4, label: 'Resetando geração anterior', detail: 'Limpando cache local, localStorage, sessionStorage e IndexedDB.' });
+    if (!fromQueue || queuePosition === 1) setResultado(null);
+    setProgress({
+      percent: 4,
+      label: `${queuePrefix}Resetando geração anterior`,
+      detail: 'Limpando cache local, localStorage, sessionStorage e IndexedDB.',
+    });
 
-    try {
-      previewWindow = window.open('', '_blank', 'width=1200,height=900');
-      if (previewWindow) {
-        previewWindow.document.write('<p style="font-family:Arial;padding:24px">Gerando relatório. A prévia será carregada automaticamente...</p>');
+    if (shouldOpenPreview && !fromQueue) {
+      try {
+        previewWindow = window.open('', '_blank', 'width=1200,height=900');
+        if (previewWindow) {
+          previewWindow.document.write('<p style="font-family:Arial;padding:24px">Gerando relatório. A prévia será carregada automaticamente...</p>');
+        }
+      } catch {
+        previewWindow = null;
       }
-    } catch {
-      previewWindow = null;
     }
 
     try {
       await resetReportGenerationState();
-      setProgress({ percent: 12, label: 'Buscando dados reais do app', detail: `${config.label} · ${selectedMuseumLabel}` });
+      setProgress({ percent: 10, label: `${queuePrefix}Sincronizando Dashboard`, detail: 'Atualizando dados antes da geração do relatório.' });
+      await syncDashboardDataBeforeReport();
+      setProgress({ percent: 12, label: `${queuePrefix}Buscando dados reais do app`, detail: `${config.label} · ${selectedMuseumLabel}` });
 
       let outputs = [];
       let context = null;
 
       if (config.kind === 'activities_report') {
-        setProgress({ percent: 44, label: 'Montando relatório de atividades', detail: 'Consolidando atividades e relatórios aprovados.' });
+        setProgress({ percent: 44, label: `${queuePrefix}Montando relatório de atividades`, detail: 'Consolidando atividades e relatórios aprovados.' });
         const activitiesResult = await buildActivitiesReport({ museu });
         const html = await saveOutput({
           variant: 'atividades',
@@ -460,13 +495,13 @@ export default function ReportCardGeneratorDashboard() {
         }];
         context = activitiesResult.data || null;
       } else {
-        setProgress({ percent: 38, label: 'Montando HTML editorial', detail: 'Gerando relatório principal, galeria ou volumes conforme o card selecionado.' });
+        setProgress({ percent: 38, label: `${queuePrefix}Montando HTML editorial`, detail: 'Gerando relatório principal, galeria ou volumes conforme o card selecionado.' });
         const built = await buildDataAndGalleryOutputs(config, sections);
         outputs = built.outputs;
         context = built.separated?.data?.contexto || built.separated?.gallery?.contexto || null;
 
         if (['complete_bundle', 'volume_bundle'].includes(config.kind)) {
-          setProgress({ percent: 68, label: 'Montando volume de atividades', detail: 'Criando terceiro PDF com atividades integrais.' });
+          setProgress({ percent: 68, label: `${queuePrefix}Montando volume de atividades`, detail: 'Criando terceiro PDF com atividades integrais.' });
           const activitiesResult = await buildActivitiesReport({ museu });
           if (activitiesResult?.html) {
             const activitiesHtml = await saveOutput({
@@ -493,28 +528,60 @@ export default function ReportCardGeneratorDashboard() {
       if (outputs.length === 0) throw new Error('Nenhum HTML foi gerado para o card selecionado.');
 
       const primary = outputs.find((output) => output.variant === config.primaryVariant) || outputs[0];
-      setResultado({
+      const generatedPayload = {
         formatId,
         title: config.label,
         outputs,
         context,
         generatedAt: new Date().toISOString(),
+        queuePosition,
+        queueTotal,
+      };
+
+      setResultado((current) => {
+        if (!fromQueue) return generatedPayload;
+
+        const previousQueue = Array.isArray(current?.queueResults)
+          ? current.queueResults.filter((item) => item.formatId !== formatId)
+          : [];
+        const queueResults = [...previousQueue, generatedPayload]
+          .sort((a, b) => Number(a.queuePosition || 0) - Number(b.queuePosition || 0));
+
+        return {
+          formatId: 'fila_relatorios',
+          title: queueTotal > 1
+            ? `${queueResults.length} de ${queueTotal} relatórios gerados`
+            : config.label,
+          outputs: queueResults.flatMap((item) => (item.outputs || []).map((output) => ({
+            ...output,
+            reportTitle: item.title,
+            queuePosition: item.queuePosition,
+            uniqueKey: `${item.formatId}-${item.queuePosition}-${output.variant}`,
+          }))),
+          queueResults,
+          context,
+          generatedAt: new Date().toISOString(),
+        };
       });
 
-      setProgress({ percent: 100, label: 'Relatório gerado', detail: `${outputs.length} arquivo(s) preparado(s) para prévia e PDF.` });
-      toast.success(`${config.label} gerado com sucesso.`);
+      setProgress({ percent: 100, label: `${queuePrefix}Relatório gerado`, detail: `${outputs.length} arquivo(s) preparado(s) para prévia e PDF.` });
+      toast.success(fromQueue ? `${config.label} gerado (${queuePosition}/${queueTotal}).` : `${config.label} gerado com sucesso.`);
 
       if (previewWindow && primary?.variant) {
         previewWindow.location.href = buildPreviewUrl(primary.variant, false);
       }
     } catch (error) {
       console.error('[Relatório] Falha na geração por card:', error);
-      setErro(error?.message || 'Não foi possível gerar o relatório selecionado.');
-      toast.error(error?.message || 'Não foi possível gerar o relatório selecionado.');
+      setErro(error?.message || `Não foi possível gerar ${config.label}.`);
+      toast.error(error?.message || `Não foi possível gerar ${config.label}.`);
       try { previewWindow?.close?.(); } catch {}
     } finally {
-      setLoading(false);
-      setTimeout(() => setProgress(null), 1400);
+      const shouldFinishLoading = !fromQueue || queuePosition === queueTotal;
+      if (shouldFinishLoading) {
+        setLoading(false);
+        setActiveFormat(null);
+        setTimeout(() => setProgress(null), 1400);
+      }
     }
   };
 
@@ -526,7 +593,8 @@ export default function ReportCardGeneratorDashboard() {
     setProgress({ percent: 10, label: 'Resetando prévias', detail: 'Limpando todos os relatórios salvos localmente.' });
     try {
       await resetReportGenerationState();
-      setProgress({ percent: 100, label: 'Reset concluído', detail: 'Pronto para uma nova geração.' });
+      await syncDashboardDataBeforeReport();
+      setProgress({ percent: 100, label: 'Reset concluído', detail: 'Cache limpo e Dashboard sincronizado.' });
       toast.success('Cache de relatórios limpo.');
     } catch (error) {
       console.warn('[Relatório] Falha ao resetar cache.', error);
@@ -542,11 +610,11 @@ export default function ReportCardGeneratorDashboard() {
       <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
         <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.22em] text-slate-500">Geração direta</p>
-            <h2 className="mt-2 text-2xl font-bold tracking-tight text-black">Escolha um card para gerar o PDF correspondente</h2>
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-slate-500">Geração por fila</p>
+            <h2 className="mt-2 text-2xl font-bold tracking-tight text-black">Selecione os cards e gere na ordem desejada</h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-              Antes de cada nova geração, o app limpa as prévias anteriores e reconstrói o relatório com dados atuais.
-              Cada card abaixo funciona como botão de geração.
+              Os cards abaixo funcionam como seletores de relatórios. A ordem dos cliques define a fila de geração.
+              O botão Gerar relatórios mantém reset de cache, atualização de dados e sincronia com o Dashboard.
             </p>
           </div>
 
@@ -619,7 +687,7 @@ export default function ReportCardGeneratorDashboard() {
           <div className="mb-4 flex items-start gap-3">
             <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0 text-emerald-600" />
             <div>
-              <p className="text-sm font-semibold text-emerald-900">{resultado.title} gerado com sucesso</p>
+              <p className="text-sm font-semibold text-emerald-900">{resultado.title} com sucesso</p>
               <p className="mt-1 text-xs leading-5 text-emerald-800">
                 Foram preparados {resultado.outputs.length} arquivo(s). Use os botões abaixo para abrir a prévia, exportar PDF ou baixar o HTML.
               </p>
@@ -627,31 +695,39 @@ export default function ReportCardGeneratorDashboard() {
           </div>
 
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {resultado.outputs.map((output) => (
-              <div key={`${resultado.formatId}-${output.variant}`} className="rounded-xl border border-emerald-200 bg-white p-3">
-                <p className="text-sm font-bold text-slate-900">{output.label}</p>
-                <p className="mt-1 text-xs text-slate-500">Prévia salva em {output.variant}</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Button size="sm" variant="outline" className="gap-2" onClick={() => openPreview(output.variant, false)}>
-                    <ExternalLink className="h-4 w-4" />
-                    Prévia
-                  </Button>
-                  <Button size="sm" variant="outline" className="gap-2" onClick={() => openPreview(output.variant, true)}>
-                    <Download className="h-4 w-4" />
-                    PDF
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-2"
-                    onClick={() => downloadHtml(output.html, `museus-centro-${output.variant}-${Date.now()}.html`)}
-                  >
-                    <FileText className="h-4 w-4" />
-                    HTML
-                  </Button>
+            {resultado.outputs.map((output) => {
+              const safeTitle = slugifyFileName(output.reportTitle || resultado.title || 'relatorio');
+              return (
+                <div key={`${resultado.formatId}-${output.uniqueKey || output.variant}`} className="rounded-xl border border-emerald-200 bg-white p-3">
+                  {output.reportTitle && (
+                    <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                      Fila {output.queuePosition} · {output.reportTitle}
+                    </p>
+                  )}
+                  <p className="text-sm font-bold text-slate-900">{output.label}</p>
+                  <p className="mt-1 text-xs text-slate-500">Prévia salva em {output.variant}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button size="sm" variant="outline" className="gap-2" onClick={() => openPreview(output.variant, false)}>
+                      <ExternalLink className="h-4 w-4" />
+                      Prévia
+                    </Button>
+                    <Button size="sm" variant="outline" className="gap-2" onClick={() => openPreview(output.variant, true)}>
+                      <Download className="h-4 w-4" />
+                      PDF
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-2"
+                      onClick={() => downloadHtml(output.html, `museus-centro-${safeTitle}-${output.variant}-${Date.now()}.html`)}
+                    >
+                      <FileText className="h-4 w-4" />
+                      HTML
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
