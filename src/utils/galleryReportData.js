@@ -2,10 +2,10 @@ import { base44 } from '@/api/base44Client';
 import { dedupePhotosByTechnicalIdentity, getPhotoIdentity } from '@/utils/photoSimilarity';
 
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'avif', 'heic'];
-const DEFAULT_CACHE_KEY = 'museus_centro_galeria_fotos_cache_v2';
-const DEFAULT_TTL = 10 * 60 * 1000;
+const DEFAULT_CACHE_KEY = 'museus_centro_galeria_fotos_cache_v3_full';
+const DEFAULT_TTL = 2 * 60 * 1000;
 const DEFAULT_STALE_TTL = 24 * 60 * 60 * 1000;
-const ENTITY_TIMEOUT_MS = 7000;
+const ENTITY_TIMEOUT_MS = 12000;
 
 export const MUSEUM_SECTIONS = {
   MHAB: {
@@ -252,8 +252,8 @@ async function safeEntityList(entityName, order, limit, { quietMissing = false }
 }
 
 export async function loadGalleryReportData({
-  limitMedia = 160,
-  limitAttachments = 260,
+  limitMedia = 800,
+  limitAttachments = 1200,
   useCache = true,
   cacheKey = DEFAULT_CACHE_KEY,
   cacheTtlMs = DEFAULT_TTL,
@@ -310,9 +310,16 @@ export async function loadGalleryReportData({
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   const groups = buildGroups(deduped);
   const imagesByMuseum = groups.reduce((acc, group) => {
+    acc[group.key] = group.images.length;
     acc[group.shortTitle] = group.images.length;
     return acc;
-  }, {});
+  }, {
+    MHAB: 0,
+    MIS: 0,
+    MUMO: 0,
+    SEM_IDENTIFICACAO: 0,
+    'Sem identificação': 0,
+  });
 
   const payload = {
     images: deduped,
