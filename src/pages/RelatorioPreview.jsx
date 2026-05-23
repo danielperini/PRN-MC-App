@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertCircle, ArrowLeft, CheckCircle2, Download, FileDown, Loader2 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
+import { base44 } from '@/api/base44Client';
 import {
   REPORT_PREVIEW_VARIANTS,
   SINGLE_REPORT_FILENAME,
@@ -20,6 +21,8 @@ const PDF_PAGE_HEIGHT_PX = 1123;
 const PREVIEW_DB_NAME = 'museus_centro_report_preview';
 const PREVIEW_DB_STORE = 'previews';
 const LEGACY_PREVIEW_HTML_KEY = 'latest_html';
+let rubricasReportCache = null;
+let rubricasReportCacheAt = 0;
 
 const filenameForReport = (variant = 'single') => REPORT_PREVIEW_VARIANTS[variant]?.filename || SINGLE_REPORT_FILENAME;
 
@@ -53,6 +56,199 @@ function metaKeyForVariant(variant = 'single') {
   if (variant === 'galeria') return 'relatorio_fisico_financeiro_galeria_meta';
   if (variant === 'atividades') return 'relatorio_fisico_financeiro_atividades_meta';
   return 'relatorio_fisico_financeiro_meta';
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function formatReportMoney(value) {
+  const number = Number(value || 0);
+  return Number.isFinite(number)
+    ? number.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+    : 'R$ 0,00';
+}
+
+function getRubricaValue(rubrica, keys = []) {
+  for (const key of keys) {
+    const value = rubrica?.[key];
+    if (value !== undefined && value !== null && value !== '') return Number(value) || 0;
+  }
+  return 0;
+}
+
+async function loadRubricasForReport() {
+  if (Array.isArray(rubricasReportCache) && Date.now() - rubricasReportCacheAt < 2 * 60 * 1000) {
+    return rubricasReportCache;
+  }
+  try {
+    const rubricas = await base44.entities.Rubrica.list('ordem_exibicao', 3000);
+    rubricasReportCache = Array.isArray(rubricas) ? rubricas : [];
+    rubricasReportCacheAt = Date.now();
+    return rubricasReportCache;
+  } catch (error) {
+    console.warn('[Relatório] Não foi possível carregar rubricas para tabela completa.', error);
+    return Array.isArray(rubricasReportCache) ? rubricasReportCache : [];
+  }
+}
+
+function buildRubricasTableSection(rubricas = []) {
+  const rows = rubricas.map((rubrica) => {
+    const previsto = getRubricaValue(rubrica, ['valor_rubrica', 'valor_total', 'previsto', 'valor']);
+    const utilizado = getRubricaValue(rubrica, ['valor_utilizado', 'utilizado', 'valor_pago', 'valor_aprovado']);
+    const saldo = Math.max(0, previsto - utilizado);
+    const percentual = previsto > 0 ? ((utilizado / previsto) * 100).toFixed(1) : '0.0';
+    return `
+      <tr>
+        <td>${escapeHtml(rubrica.grupo || rubrica.categoria || rubrica.eixo || '-')}</td>
+        <td>${escapeHtml(rubrica.nome || rubrica.rubrica || rubrica.descricao || rubrica.descrição || '-')}</td>
+        <td>${formatReportMoney(previsto)}</td>
+        <td>${formatReportMoney(utilizado)}</td>
+        <td>${formatReportMoney(saldo)}</td>
+        <td>${percentual}%</td>
+      </tr>`;
+  }).join('');
+
+  return `
+    <section class="premium-section premium-rubricas-completas report-rubricas-completas">
+      <p class="premium-kicker">Tabela de rubricas</p>
+      <h2>Rubricas completas do 3º Aditivo</h2>
+      <p>
+        A tabela abaixo consolida as rubricas registradas no aplicativo, apresentando valor previsto,
+        valor utilizado, saldo e percentual de execução. A rubrica permanece como fonte de verdade
+        para a leitura físico-financeira do projeto.
+      </p>
+      <div class="premium-table-wrap report-rubricas-table-wrap">
+        <table class="premium-rubrica-table report-rubricas-table">
+          <thead>
+            <tr>
+              <th>Grupo</th>
+              <th>Rubrica</th>
+              <th>Valor previsto</th>
+              <th>Valor utilizado</th>
+              <th>Saldo</th>
+              <th>% utilizado</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </section>`;
+}
+
+async function ensureRubricasTableInHtml(html = '', variant = 'single') {
+  if (!['dados', 'single'].includes(variant)) return html;
+  if (!String(html || '').trim() || typeof DOMParser === 'undefined') return html;
+  if (String(html).includes('report-rubricas-completas') || String(html).includes('premium-rubricas-completas')) return html;
+
+  const rubricas = await loadRubricasForReport();
+  if (!rubricas.length) return html;
+
+  try {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    let style = doc.getElementById('report-rubricas-style');
+    if (!style) {
+      style = doc.createElement('style');
+      style.id = 'report-rubricas-style';
+      style.textContent = `
+        .report-rubricas-completas { background:#fff; }
+        .report-rubricas-table-wrap { width:100%; overflow:visible; margin-top:18px; }
+        .report-rubricas-table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:10px; line-height:1.32; }
+        .report-rubricas-table th { background:#171717; color:#fff; text-align:left; padding:7px 8px; text-transform:uppercase; letter-spacing:.04em; font-size:8px; }
+        .report-rubricas-table td { border:1px solid rgba(23,23,23,.12); padding:6px 8px; vertical-align:top; overflow-wrap:anywhere; }
+        .report-rubricas-table tbody tr:nth-child(even) td { background:rgba(23,23,23,.035); }
+      `;
+      doc.head.appendChild(style);
+    }
+
+    const section = doc.createRange().createContextualFragment(buildRubricasTableSection(rubricas));
+    const main = doc.querySelector('main') || doc.body;
+    const anchors = Array.from(doc.querySelectorAll('section, article, div'));
+    const anchor = anchors.find((node) => /orçamento geral|orcamento geral|execução financeira|execucao financeira|consolidação completa|consolidacao completa/i.test(node.textContent || ''));
+
+    if (anchor?.parentNode) anchor.parentNode.insertBefore(section, anchor.nextSibling);
+    else main.appendChild(section);
+
+    return `<!doctype html>\n${doc.documentElement.outerHTML}`;
+  } catch (error) {
+    console.warn('[Relatório] Falha ao inserir tabela de rubricas no HTML.', error);
+    return `${html}\n${buildRubricasTableSection(rubricas)}`;
+  }
+}
+
+function cleanLegendText(value = '', fallback = 'Registro fotográfico') {
+  const cleaned = String(value || '')
+    .replace(/\.[a-z0-9]{3,5}(\?|#|$)?/gi, '')
+    .replace(/[_-]?\d{8,}[^\s]*/g, '')
+    .replace(/https?:\/\/\S+/gi, '')
+    .replace(/[._-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!cleaned || cleaned.length < 3) return fallback;
+  if (/^(img|image|foto|dsc|whatsapp|screenshot|download)\s*\d*$/i.test(cleaned)) return fallback;
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+}
+
+function improveGalleryLegendsInHtml(html = '', variant = 'single') {
+  if (variant !== 'galeria' || !String(html || '').trim() || typeof DOMParser === 'undefined') return html;
+  try {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    let style = doc.getElementById('report-gallery-legend-style');
+    if (!style) {
+      style = doc.createElement('style');
+      style.id = 'report-gallery-legend-style';
+      style.textContent = `
+        .gallery-card figcaption, .gallery-caption, figcaption { font-size:9px; line-height:1.35; color:#403a35; }
+        .gallery-card figcaption strong, .gallery-caption strong, figcaption strong { display:block; font-size:11px; color:#111; margin-bottom:4px; }
+        .gallery-file-name, .technical-file-name { display:none !important; }
+      `;
+      doc.head.appendChild(style);
+    }
+
+    doc.querySelectorAll('.gallery-file-name, .technical-file-name').forEach((node) => node.remove());
+
+    const cards = Array.from(doc.querySelectorAll('.gallery-card, figure, .gallery-grid article'));
+    cards.forEach((card, index) => {
+      const img = card.querySelector('img');
+      const caption = card.querySelector('figcaption, .gallery-caption, div') || card;
+      const sourceText = caption.querySelector('strong')?.textContent || img?.getAttribute('alt') || caption.textContent || '';
+      const legend = cleanLegendText(sourceText, `Registro fotográfico ${index + 1}`);
+
+      let strong = caption.querySelector('strong');
+      if (!strong) {
+        strong = doc.createElement('strong');
+        caption.insertBefore(strong, caption.firstChild);
+      }
+      strong.textContent = legend;
+
+      Array.from(caption.querySelectorAll('span, small, p, div')).forEach((node) => {
+        const text = String(node.textContent || '');
+        if (/\.(jpe?g|png|webp|gif|heic|avif)/i.test(text) || /arquivo\s*:/i.test(text)) {
+          node.textContent = 'Arquivo original preservado no app';
+        }
+      });
+
+      if (img) img.setAttribute('alt', legend);
+    });
+
+    return `<!doctype html>\n${doc.documentElement.outerHTML}`;
+  } catch (error) {
+    console.warn('[Relatório] Falha ao limpar legendas da galeria.', error);
+    return html;
+  }
+}
+
+async function enhanceReportHtml(html = '', variant = 'single') {
+  let output = repairReportEncoding(html);
+  output = await ensureRubricasTableInHtml(output, variant);
+  output = improveGalleryLegendsInHtml(output, variant);
+  return sanitizeReportHtmlBeforeSave(repairReportEncoding(output));
 }
 
 function getPreviewHtmlFromIndexedDb(key) {
@@ -514,6 +710,7 @@ export default function RelatorioPreview() {
       let finalHtml = preview?.html || '';
       if (!finalHtml) finalHtml = await getStoredHtml(reportVariant);
       if (!finalHtml) finalHtml = await getAnyStoredReportHtml(reportVariant);
+      finalHtml = await enhanceReportHtml(finalHtml, reportVariant);
       let finalMeta = preview?.meta || {};
       try {
         const metaRaw = sessionStorage.getItem(metaKeyForVariant(reportVariant)) || localStorage.getItem(metaKeyForVariant(reportVariant));
@@ -547,14 +744,14 @@ export default function RelatorioPreview() {
   }, [autoExportPdf, html, isExportingPdf, autoExportStarted]);
 
   async function getHtmlForExport() {
-    if (String(html || '').trim()) return sanitizeReportHtmlBeforeSave(repairReportEncoding(html));
+    if (String(html || '').trim()) return sanitizeReportHtmlBeforeSave(repairReportEncoding(await enhanceReportHtml(html, reportVariant)));
 
     const preview = reportVariant === 'single'
       ? await getSingleReportPreview()
       : await getReportPreview(reportVariant);
     const directHtml = repairReportEncoding(preview?.html || (await getStoredHtml(reportVariant)) || '');
-    if (String(directHtml || '').trim()) return sanitizeReportHtmlBeforeSave(directHtml);
-    return sanitizeReportHtmlBeforeSave(await getAnyStoredReportHtml(reportVariant));
+    if (String(directHtml || '').trim()) return sanitizeReportHtmlBeforeSave(await enhanceReportHtml(directHtml, reportVariant));
+    return sanitizeReportHtmlBeforeSave(await enhanceReportHtml(await getAnyStoredReportHtml(reportVariant), reportVariant));
   }
 
   function setProgress(percent, message) {
@@ -614,6 +811,7 @@ export default function RelatorioPreview() {
   async function handleDownloadHtml() {
     let htmlForDownload = html || (await getStoredHtml(reportVariant)) || '';
     if (!String(htmlForDownload || '').trim()) htmlForDownload = await getAnyStoredReportHtml(reportVariant);
+    htmlForDownload = await enhanceReportHtml(htmlForDownload, reportVariant);
     htmlForDownload = sanitizeReportHtmlBeforeSave(repairReportEncoding(htmlForDownload));
     if (!String(htmlForDownload || '').trim()) {
       toast.error('HTML do relatório não encontrado. Gere o relatório novamente.');
@@ -639,7 +837,7 @@ export default function RelatorioPreview() {
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
             <h1 className="text-2xl font-semibold text-black tracking-tight">{previewTitle}</h1>
-            <p className="text-sm text-gray-500 mt-1">Visualização do documento final. O PDF agora preserva o layout do HTML e apenas o adapta ao A4.</p>
+            <p className="text-sm text-gray-500 mt-1">Visualização do documento final. O PDF preserva o layout HTML, aplica rubricas no relatório principal e limpa legendas da galeria.</p>
           </div>
 
           <div className="flex gap-2 flex-wrap">
