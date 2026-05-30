@@ -3,9 +3,9 @@ import { base44 } from '@/api/base44Client';
 import { useEffect, useMemo } from 'react';
 
 /**
- * Hook centralizado para carregar e sincronizar linhas orçamentárias / rubricas
- * Todas as páginas e componentes devem usar este hook para acesso consistente
- * Sincronização em tempo real via subscriptions
+ * Hook centralizado para carregar rubricas oficiais da entidade Rubrica.
+ * Retorna dados normalizados com interface compatível com o uso legado de BudgetLine.
+ * Fonte primária: Rubrica (ativo !== false).
  */
 
 function toNumber(value) {
@@ -14,26 +14,24 @@ function toNumber(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
-function normalizeBudgetLine(line) {
-  const rubricaId =
-    line?.rubrica_id ||
-    line?.budgetline_id ||
-    line?.budget_line_id ||
-    '';
-
-  const saldoInicial = toNumber(line?.saldo_inicial);
-  const saldoComprometido = toNumber(line?.saldo_comprometido);
-  const saldoDisponivel = saldoInicial - saldoComprometido;
-
+function normalizeRubricaAsBudgetLine(r) {
+  const valorTotal = toNumber(r?.valor_rubrica ?? r?.valor_total ?? r?.saldo_inicial);
+  const utilizado = toNumber(r?.valor_utilizado);
+  const saldoDisponivel = valorTotal - utilizado;
   return {
-    ...line,
-    rubrica_id: rubricaId,
-    budgetline_id: line?.id || line?.budgetline_id || '',
-    budget_line_id: line?.id || line?.budget_line_id || '',
-    saldo_inicial: saldoInicial,
-    saldo_comprometido: saldoComprometido,
+    ...r,
+    // Compatibilidade com interface legada de BudgetLine
+    id: r.id,
+    nome: r.rubrica || r.nome || r.descricao || '',
+    codigo: r._chave_oficial || r.id,
+    descricao: r.rubrica || r.nome || r.descricao || '',
+    rubrica_id: r.id,
+    budgetline_id: r.id,
+    budget_line_id: r.id,
+    saldo_inicial: valorTotal,
+    saldo_comprometido: 0,
     saldo_disponivel: saldoDisponivel,
-    valor_total_previsto: toNumber(line?.valor_total_previsto || line?.saldo_inicial),
+    valor_total_previsto: valorTotal,
   };
 }
 
@@ -59,24 +57,20 @@ export function useBudgetLines() {
   const { data: budgetLines = [], isLoading, error } = useQuery({
     queryKey: ['budget-lines'],
     queryFn: async () => {
-      const allLines = await base44.entities.BudgetLine.list('codigo', 5000);
-
-      return (allLines || [])
-        .filter((line) => line?.codigo?.startsWith('MC3A'))
-        .map(normalizeBudgetLine)
-        .sort((a, b) => String(a.codigo || '').localeCompare(String(b.codigo || '')));
+      const rubricas = await base44.entities.Rubrica.list('ordem_exibicao', 1000);
+      return (rubricas || [])
+        .filter((r) => r?.ativo !== false)
+        .map(normalizeRubricaAsBudgetLine)
+        .sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR'));
     },
     staleTime: 0,
     gcTime: 5 * 60 * 1000,
   });
 
   useEffect(() => {
-    const unsubscribe = base44.entities.BudgetLine.subscribe(async (event) => {
-      if (event?.data?.codigo?.startsWith('MC3A')) {
-        await invalidateBudgetQueries();
-      }
+    const unsubscribe = base44.entities.Rubrica.subscribe(async () => {
+      await invalidateBudgetQueries();
     });
-
     return unsubscribe;
   }, [queryClient]);
 
@@ -84,8 +78,6 @@ export function useBudgetLines() {
     const map = {};
     for (const line of budgetLines) {
       if (line?.id) map[line.id] = line;
-      if (line?.budgetline_id) map[line.budgetline_id] = line;
-      if (line?.budget_line_id) map[line.budget_line_id] = line;
     }
     return map;
   }, [budgetLines]);
@@ -129,18 +121,12 @@ export function useBudgetLines() {
 
     getBudgetLineByAnyId: (objOrId) => {
       if (!objOrId) return null;
-
-      if (typeof objOrId === 'string') {
-        return budgetLineMap[objOrId] || null;
-      }
-
+      if (typeof objOrId === 'string') return budgetLineMap[objOrId] || null;
       const id =
         objOrId?.budgetline_id ||
         objOrId?.budget_line_id ||
         objOrId?.linha_orcamentaria_id ||
-        objOrId?.id ||
-        '';
-
+        objOrId?.id || '';
       return budgetLineMap[id] || null;
     },
 

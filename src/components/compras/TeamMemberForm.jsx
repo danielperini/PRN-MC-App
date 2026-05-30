@@ -224,10 +224,30 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
     enabled: isOpen,
   });
 
+  // Rubricas de equipe/gestão: GERAL (sem museu explícito) e categoria de equipe/coordenação
   const { data: budgetLinesFromDB = [], isLoading: loadingBudgetLines } = useQuery({
-    queryKey: ['team-member-form-budget-lines'],
-    queryFn: async () => normalizeListResponse(await base44.entities.BudgetLine.list()),
-    enabled: isOpen && (!Array.isArray(budgetLines) || budgetLines.length === 0),
+    queryKey: ['team-member-form-rubricas-equipe'],
+    queryFn: async () => {
+      const all = await base44.entities.Rubrica.list('ordem_exibicao', 1000);
+      const ativas = (all || []).filter((r) => r?.ativo !== false);
+      // Rubricas de equipe: museu_codigo = GERAL ou que contenham termos de equipe/coordenação
+      const equipe = ativas.filter((r) => {
+        const codigo = String(r?.museu_codigo || '').toUpperCase();
+        const nome = String(r?.rubrica || r?.nome || r?.descricao || '').toLowerCase();
+        const grupo = String(r?.grupo || r?.meta || '').toLowerCase();
+        if (codigo === 'GERAL' || !codigo) return true;
+        const termos = ['coordenador', 'analista', 'assistente', 'designer', 'fotografo', 'assessor', 'rede social', 'consultoria', 'producao mis', 'producao mumo', 'producao mhab', 'educador mis', 'educador mumo', 'educador mhab'];
+        return termos.some((t) => nome.includes(t) || grupo.includes(t));
+      });
+      return equipe.map((r) => ({
+        ...r,
+        id: r.id,
+        codigo: r._chave_oficial || r.id,
+        nome: r.rubrica || r.nome || r.descricao || '',
+        descricao: r.rubrica || r.nome || r.descricao || '',
+      }));
+    },
+    enabled: isOpen,
   });
 
   const { data: purchaseRequests = [] } = useQuery({
@@ -248,9 +268,8 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
   }, [users, teamMembers]);
 
   const finalBudgetLines = useMemo(() => {
-    const source = Array.isArray(budgetLines) && budgetLines.length > 0 ? budgetLines : budgetLinesFromDB;
-    const filtradas = source.filter(b => String(b?.codigo || '').startsWith('MC3A'));
-    return filtradas.length > 0 ? filtradas : source;
+    // Usa rubricas de equipe carregadas diretamente da entidade Rubrica
+    return budgetLinesFromDB.length > 0 ? budgetLinesFromDB : (Array.isArray(budgetLines) ? budgetLines : []);
   }, [budgetLines, budgetLinesFromDB]);
 
   // Parcelas vinculadas a solicitações

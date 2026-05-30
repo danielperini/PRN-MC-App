@@ -749,7 +749,8 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
                 value={form.meta_id}
                 onValueChange={(v) => {
                   setField('meta_id', v)
-
+                  setField('rubrica_id', '')
+                  setField('rubrica_nome', '')
                   if (v !== 'MC3A-EXTRA') {
                     setField('meta_extra_descricao', '')
                   }
@@ -760,13 +761,19 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
                 </SelectTrigger>
 
                 <SelectContent>
-                  {metas.map((m) => (
-                    <SelectItem key={m.id} value={m.nome}>
-                      {m.nome}
+                  {/* Metas derivadas das rubricas oficiais ativas */}
+                  {Array.from(new Set(
+                    rubricas
+                      .filter((r) => r?.ativo !== false)
+                      .map((r) => r.grupo || r.meta || '')
+                      .filter(Boolean)
+                  )).sort().map((grupo) => (
+                    <SelectItem key={grupo} value={grupo}>
+                      {grupo}
                     </SelectItem>
                   ))}
 
-                  {form.meta_id && !metas.some((m) => m.nome === form.meta_id) && (
+                  {form.meta_id && !rubricas.some((r) => (r.grupo || r.meta) === form.meta_id) && (
                     <SelectItem value={form.meta_id}>
                       {form.meta_id}
                     </SelectItem>
@@ -832,13 +839,39 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
                 Rubrica
               </label>
 
-              <Select value={form.rubrica_id} onValueChange={(v) => setField('rubrica_id', v)}>
+              <Select
+                value={form.rubrica_id}
+                onValueChange={(v) => {
+                  const r = rubricas.find((x) => x.id === v)
+                  setField('rubrica_id', v)
+                  setField('rubrica_nome', r?.rubrica || r?.nome || '')
+                  if (r?.museu_codigo && r.museu_codigo !== 'GERAL') {
+                    setField('centro_custo', r.museu_codigo === 'MIS' ? 'MIS' : r.museu_codigo === 'MUMO' ? 'MUMO' : r.museu_codigo === 'MHAB' ? 'MHAB' : form.centro_custo)
+                  }
+                  if (r?.escopo_orcamentario === 'NOTURNO') {
+                    setField('centro_custo', 'Noturno nos Museus 2026')
+                  }
+                  if (r?.grupo || r?.meta) {
+                    setField('meta_id', r.grupo || r.meta || form.meta_id)
+                  }
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
 
                 <SelectContent>
-                  {rubricas.map((r) => (
+                  {rubricas
+                    .filter((r) => r?.ativo !== false)
+                    .filter((r) => !form.meta_id || (r.grupo || r.meta) === form.meta_id)
+                    .filter((r) => !form.centro_custo || (() => {
+                      const cc = String(form.centro_custo || '').toUpperCase().replace('MHAB', 'MHAB').replace('MAB', 'MHAB');
+                      const rc = String(r.museu_codigo || '').toUpperCase().replace('MAB', 'MHAB');
+                      if (cc === 'NOTURNO NOS MUSEUS 2026') return (r.escopo_orcamentario === 'NOTURNO');
+                      if (['MIS','MUMO','MHAB'].includes(cc)) return rc === cc;
+                      return true;
+                    })())
+                    .map((r) => (
                     <SelectItem key={r.id} value={r.id}>
                       {r.rubrica || r.nome}
                     </SelectItem>

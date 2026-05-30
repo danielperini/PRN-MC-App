@@ -14,21 +14,7 @@ const CENTROS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
 const MUSEUS_RATEIO = ['MHAB', 'MIS', 'MUMO'];
 const DEFAULT_RATEIO = MUSEUS_RATEIO.map((m) => ({ museu: m, valor: '' }));
 
-const METAS_3_ADITIVO = [
-  { id: 'MC3A-01', nome: 'Meta 1 (Equipe - mês 1-28): Contratação da equipe principal' },
-  { id: 'MC3A-02', nome: 'Meta 2 (mês 1-28): Plano de Comunicação nacional' },
-  { id: 'MC3A-03', nome: 'Meta 3 (mês 2-28): Manutenção das exposições' },
-  { id: 'MC3A-04', nome: 'Meta 4 (mês 6-15): Alteração de núcleos expositivos' },
-  { id: 'MC3A-05', nome: 'Meta 5 (mês 2-18): 60 ações educativas' },
-  { id: 'MC3A-06', nome: 'Meta 6 (mês 2-18): 36 ações culturais' },
-  { id: 'MC3A-07', nome: 'Meta 7 (mês 1-28): Educadores fixos' },
-  { id: 'MC3A-08', nome: 'Meta 8 (mês 1-18): Exposição MHAB Casarão' },
-  { id: 'MC3A-NOTURNO', nome: 'Noturno nos Museus' },
-  { id: 'MC3A-PUBLICACOES', nome: 'Publicações' },
-  { id: 'MC3A-ALIMENTACAO', nome: 'Alimentação / Material' },
-  { id: 'MC3A-CONSULTORIAS', nome: 'Consultorias' },
-  { id: 'MC3A-CUSTOS-GERAIS', nome: 'Custos Gerais' },
-];
+// Metas são derivadas dinamicamente das rubricas oficiais ativas (ver useEffect loadRubricas)
 
 const COORD_EMAILS = [
   'danielperini.mc@viadutodasartes.org.br',
@@ -221,7 +207,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     async function loadRubricas() {
       try {
         const list = await base44.entities.Rubrica.list('', 2000);
-        setRubricas(list || []);
+        setRubricas((list || []).filter((r) => r?.ativo !== false));
 
         // Auto-sugestão de rubrica se ainda não selecionada
         if (!intake.rubrica_id_sugerida) {
@@ -857,18 +843,26 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
           <div className="space-y-1">
             <Label>
-              Meta do 3º Aditivo <span className="text-red-500">*</span>
+              Meta do 3º Aditivo
             </Label>
             <Select value={form.meta_id} onValueChange={(v) => setForm((f) => ({ ...f, meta_id: v }))}>
               <SelectTrigger>
                 <SelectValue placeholder="Selecionar meta" />
               </SelectTrigger>
               <SelectContent>
-                {METAS_3_ADITIVO.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {m.nome}
+                {Array.from(new Set(
+                  rubricas
+                    .filter((r) => r?.ativo !== false)
+                    .map((r) => r.grupo || r.meta || '')
+                    .filter(Boolean)
+                )).sort().map((grupo) => (
+                  <SelectItem key={grupo} value={grupo}>
+                    {grupo}
                   </SelectItem>
                 ))}
+                {form.meta_id && !rubricas.some((r) => (r.grupo || r.meta) === form.meta_id) && (
+                  <SelectItem value={form.meta_id}>{form.meta_id}</SelectItem>
+                )}
               </SelectContent>
             </Select>
           </div>
