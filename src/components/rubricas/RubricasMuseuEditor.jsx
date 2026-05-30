@@ -4,7 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, AlertTriangle } from 'lucide-react';
-import RubricasCompartilhadasRateio from './RubricasCompartilhadasRateio';
+// RubricasCompartilhadasRateio mantido no projeto mas não usado nesta tela (Tarefa 3)
 
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return 0;
@@ -171,18 +171,33 @@ function countMuseuTokens(text = '') {
   return ['MIS', 'MHAB', 'MUMO'].filter((museu) => hasMuseuToken(text, museu)).length;
 }
 
+/**
+ * matchRubricaMuseu — sem rateio (Tarefa 3)
+ * Usa museu_codigo como fonte de verdade primária.
+ * Fallback por tokens de texto para rubricas legadas.
+ * MAB é alias de MHAB.
+ */
 function matchRubricaMuseu(rubrica = {}, museu = '') {
   const normalizedMuseu = normalizeMuseu(museu);
-  const explicitText = getSearchText(rubrica, false);
-
   if (!normalizedMuseu || normalizedMuseu === 'GERAL') return false;
-  if (isHiddenRubrica(explicitText)) return false;
-  if (normalizedMuseu === 'NOTURNO') return isNoturnoRubrica(rubrica) && !isHiddenRubrica(explicitText);
-  if (isNoturnoRubrica(rubrica)) return false;
 
+  const escopoRubrica = String(rubrica?.escopo_orcamentario || '').toUpperCase();
+  if (normalizedMuseu === 'NOTURNO') {
+    return escopoRubrica === 'NOTURNO' || isNoturnoRubrica(rubrica);
+  }
+  if (escopoRubrica === 'NOTURNO' || isNoturnoRubrica(rubrica)) return false;
+
+  // Fonte de verdade: museu_codigo explícito
+  const codigoRubrica = String(rubrica?.museu_codigo || '').toUpperCase().replace('MAB', 'MHAB');
+  if (codigoRubrica && codigoRubrica !== 'GERAL') {
+    return codigoRubrica === normalizedMuseu;
+  }
+
+  // Fallback por tokens de texto (rubricas legadas sem museu_codigo)
+  const explicitText = getSearchText(rubrica, false);
+  if (isHiddenRubrica(explicitText)) return false;
   const tokenCount = countMuseuTokens(explicitText);
   if (tokenCount !== 1) return false;
-
   return hasMuseuToken(explicitText, normalizedMuseu);
 }
 
@@ -470,11 +485,7 @@ export default function RubricasMuseuEditor({
         ))}
       </div>
 
-      {normalizedMuseu !== 'NOTURNO' && (
-        <div className="border-t border-gray-100 pt-6">
-          <RubricasCompartilhadasRateio museu={normalizedMuseu} refreshKey={refreshKey} />
-        </div>
-      )}
+      {/* RubricasCompartilhadasRateio removido desta tela (Tarefa 3: sem rateio ÷3) */}
     </div>
   );
 }

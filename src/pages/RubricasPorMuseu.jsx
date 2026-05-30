@@ -128,38 +128,36 @@ function countMuseuTokens(text = '') {
   return MUSEUS.filter((museu) => hasMuseuToken(text, museu)).length;
 }
 
+/**
+ * matchRubricaMuseu — sem rateio (Tarefa 3)
+ * Usa museu_codigo como fonte de verdade primária.
+ * Fallback por tokens de texto para compatibilidade com rubricas legadas.
+ * MAB é alias de MHAB.
+ * Rubricas do Noturno não aparecem nos cards por museu (escopo separado).
+ * Rubricas GERAL (equipe de gestão, educadoras) não aparecem nos cards.
+ */
 function matchRubricaMuseu(r = {}, museu = '') {
   const normalizedMuseu = normalizeMuseu(museu);
-  const explicitText = getSearchText(r, false);
   if (!normalizedMuseu || normalizedMuseu === 'GERAL') return false;
+
+  // Noturno tem escopo próprio
+  const escopoRubrica = String(r?.escopo_orcamentario || '').toUpperCase();
+  if (normalizedMuseu === 'NOTURNO') {
+    return escopoRubrica === 'NOTURNO' || isNoturno(r);
+  }
+  if (escopoRubrica === 'NOTURNO' || isNoturno(r)) return false;
+
+  // Fonte de verdade: museu_codigo explícito
+  const codigoRubrica = String(r?.museu_codigo || '').toUpperCase().replace('MAB', 'MHAB');
+  if (codigoRubrica && codigoRubrica !== 'GERAL') {
+    return codigoRubrica === normalizedMuseu;
+  }
+
+  // Fallback por tokens de texto (rubricas legadas sem museu_codigo)
+  const explicitText = getSearchText(r, false);
   if (isHiddenRubrica(explicitText)) return false;
-  if (normalizedMuseu === 'NOTURNO') return isNoturno(r) && !isHiddenRubrica(explicitText);
-  if (isNoturno(r)) return false;
   if (countMuseuTokens(explicitText) !== 1) return false;
   return hasMuseuToken(explicitText, normalizedMuseu);
-}
-
-function isAlimentacao(r = {}) {
-  const text = getSearchText(r);
-  return text.includes('alimentacao') || text.includes('alimentacoes');
-}
-
-function isLanches(r = {}) {
-  const text = getSearchText(r);
-  return text.includes('lanche') || text.includes('lanches');
-}
-
-function isExcludedFromRateio(r = {}) {
-  const text = getSearchText(r);
-  if (isLanches(r) || isAlimentacao(r)) return false;
-  return isHiddenRubrica(text) || text.includes('producao') || text.includes('producoes') || isNoturno(r);
-}
-
-function isRubricaCompartilhada(r = {}) {
-  if (isNoturno(r)) return false;
-  const text = getSearchText(r);
-  const count = countMuseuTokens(text);
-  return count === 0 || count >= 2;
 }
 
 function flattenAllRubricas(source = {}) {
@@ -186,31 +184,19 @@ function dedupeRows(rows = []) {
   });
 }
 
-function ensureRubricasFixas(rows = []) {
-  const hasAlimentacao = rows.some(isAlimentacao);
-  if (hasAlimentacao) return rows;
-  return [...rows, {
-    id: 'rateio-fixo-alimentacao-acoes-educativas',
-    rubrica: 'Alimentação',
-    categoria_key: 'Ações educativas',
-    valor_rubrica: 3000,
-    valor_total: 3000,
-    valor_utilizado: 0,
-    valor_pago: 0,
-    valor_lancamentos: 0,
-    ativo: true,
-    __synthetic: true,
-  }];
-}
 
+
+/**
+ * buildResumoRealPorMuseu — sem rateio automático ÷3 (Tarefa 3)
+ * Cada museu soma apenas rubricas com museu_codigo explícito igual ao museu.
+ * Rubricas de equipe de gestão (GERAL) e educadoras não entram nos cards.
+ * Noturno tem total próprio separado e não contamina cards por museu.
+ */
 function buildResumoRealPorMuseu(consolidado = {}) {
   const rows = dedupeRows(flattenAllRubricas(consolidado)).filter((r) => r?.ativo !== false);
-  const sharedRows = ensureRubricasFixas(rows)
-    .filter((r) => r?.ativo !== false)
-    .filter(isRubricaCompartilhada)
-    .filter((r) => !isExcludedFromRateio(r));
 
   return MUSEUS.map((museu) => {
+    // Inclui apenas rubricas explicitamente deste museu, sem Noturno, sem GERAL
     const specific = rows.filter((r) => matchRubricaMuseu(r, museu));
     const acc = { museu, totalOrcado: 0, totalUtilizado: 0, totalPago: 0, totalLancamentos: 0, totalSaldo: 0, pct: 0 };
 
@@ -221,16 +207,6 @@ function buildResumoRealPorMuseu(consolidado = {}) {
       acc.totalUtilizado += utilizado;
       acc.totalPago += getValorPago(r);
       acc.totalLancamentos += getValorLancamentos(r);
-      acc.totalSaldo += orcado - utilizado;
-    });
-
-    sharedRows.forEach((r) => {
-      const orcado = getValorOrcado(r) / 3;
-      const utilizado = getValorUtilizado(r) / 3;
-      acc.totalOrcado += orcado;
-      acc.totalUtilizado += utilizado;
-      acc.totalPago += getValorPago(r) / 3;
-      acc.totalLancamentos += getValorLancamentos(r) / 3;
       acc.totalSaldo += orcado - utilizado;
     });
 
@@ -401,7 +377,7 @@ export default function RubricasPorMuseu() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <KpiCard label="Execução geral" value={fmtPct(percentualGeral)} helper="utilizado sobre previsto" dark />
           <KpiCard label="Previsto" value={fmt(totaisGerais.totalOrcado)} helper="soma real dos museus" />
-          <KpiCard label="Utilizado" value={fmt(totaisGerais.totalUtilizado)} helper="rubricas específicas + rateio" />
+          <KpiCard label="Utilizado" value={fmt(totaisGerais.totalUtilizado)} helper="rubricas específicas por museu" />
           <KpiCard label="Saldo" value={fmt(totaisGerais.totalSaldo)} helper="saldo disponível" />
         </div>
 

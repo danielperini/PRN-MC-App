@@ -4,40 +4,96 @@
   "properties": {
     "rubrica": {
       "type": "string",
-      "description": "Nome da rubrica"
+      "description": "Nome da rubrica (Item/Rubrica)"
+    },
+    "nome": {
+      "type": "string",
+      "description": "Alias para rubrica"
+    },
+    "item_rubrica": {
+      "type": "string",
+      "description": "Alias para rubrica (Item/Rubrica da planilha)"
     },
     "grupo": {
       "type": "string",
-      "description": "Grupo da rubrica (ex: Equipe e gest\u00e3o, Manuten\u00e7\u00e3o e opera\u00e7\u00e3o)"
+      "description": "Grupo da rubrica / Nome da Meta (ex: Contrata\u00e7\u00e3o da equipe principal)"
+    },
+    "nome_natureza": {
+      "type": "string",
+      "description": "Nome Natureza da despesa (ex: Servi\u00e7os de terceiros - Pessoa jur\u00eddica)"
     },
     "meta": {
       "type": "string",
-      "description": "Meta vinculada (ex: MC3A-20, MC3A-21)"
+      "description": "Meta vinculada (ex: 1 - Contrata\u00e7\u00e3o da equipe principal...)"
+    },
+    "natureza_despesa": {
+      "type": "string",
+      "description": "C\u00f3digo da natureza da despesa (ex: 339039)"
+    },
+    "numero_natureza": {
+      "type": "string",
+      "description": "N\u00ba4 da planilha"
     },
     "descricao": {
       "type": "string",
       "description": "Descri\u00e7\u00e3o detalhada da rubrica"
     },
+    "unidade": {
+      "type": "string",
+      "description": "Unidade de medida (m\u00eas, servi\u00e7o, Mostra, etc.)"
+    },
+    "quantidade": {
+      "type": "number",
+      "description": "Quantidade"
+    },
+    "periodo_frequencia": {
+      "type": "number",
+      "description": "Per\u00edodo/Frequ\u00eancia da planilha"
+    },
     "numero_parcelas_unidades": {
       "type": "string",
       "description": "N\u00famero de parcelas/meses/unidades"
     },
+    "valor_unitario": {
+      "type": "number",
+      "description": "Valor Unit\u00e1rio (R$)"
+    },
     "valor_rubrica": {
       "type": "number",
-      "description": "Valor total previsto da rubrica"
+      "description": "Valor total previsto da rubrica (Valor Total R$)"
     },
     "valor_total": {
       "type": "number",
       "description": "Alias para valor_rubrica"
     },
+    "conferencia_valor": {
+      "type": "number",
+      "description": "Confer\u00eancia (Qtd x Per\u00edodo x Vlr Unit.) da planilha"
+    },
+    "origem_recurso": {
+      "type": "string",
+      "description": "Origem do Recurso (ex: 3\u00ba ADITIVO)"
+    },
+    "pagina_pdf": {
+      "type": "number",
+      "description": "P\u00e1gina PDF da planilha oficial"
+    },
+    "museu_codigo": {
+      "type": "string",
+      "description": "C\u00f3digo do museu expl\u00edcito: MIS, MUMO, MHAB, GERAL, NOTURNO. MAB \u00e9 alias legado de MHAB."
+    },
+    "escopo_orcamentario": {
+      "type": "string",
+      "description": "Escopo or\u00e7ament\u00e1rio: GERAL ou NOTURNO (para rubricas do projeto Noturno nos Museus / Ed. 2026)"
+    },
     "valor_utilizado": {
       "type": "number",
       "default": 0,
-      "description": "Valor utilizado (soma dos lan\u00e7amentos)"
+      "description": "Valor utilizado (soma dos lan\u00e7amentos aprovados/pagos)"
     },
     "saldo": {
       "type": "number",
-      "description": "Saldo dispon\u00edvel"
+      "description": "Saldo dispon\u00edvel (valor_rubrica - valor_utilizado)"
     },
     "saldo_real": {
       "type": "number",
@@ -57,6 +113,10 @@
     "ordem_exibicao": {
       "type": "number",
       "default": 0
+    },
+    "_chave_oficial": {
+      "type": "string",
+      "description": "Chave normalizada para idempot\u00eancia: grupo::rubrica::meta"
     }
   },
   "required": [

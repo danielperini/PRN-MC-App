@@ -60,6 +60,7 @@ import GuiaNotaFiscal from './pages/GuiaNotaFiscal';
 import Aparencia from './pages/Aparencia';
 import ConviteAcesso from './pages/ConviteAcesso';
 import NotificationSettings from './pages/NotificationSettings';
+import ImportarRubricasAdmin from './pages/ImportarRubricasAdmin';
 import __Layout from './Layout.jsx';
 
 export const PAGES = {
@@ -119,6 +120,7 @@ export const PAGES = {
   Aparencia,
   ConviteAcesso,
   NotificationSettings,
+  ImportarRubricasAdmin,
 };
 
 export const pagesConfig = {
