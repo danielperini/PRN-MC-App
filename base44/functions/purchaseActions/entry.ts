@@ -1,5 +1,120 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
+// ===== Drive Backup helpers =====
+const DRIVE_ROOT_FOLDER_ID = '1aJ5nfpgXcpu6SrDVecmhIQ2eq4vexqe3';
+const DRIVE_ROOT_FOLDER_NAME = 'notasfiscais-App';
+const MESES_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+function resolverMesAno(purchase: any) {
+  for (const campo of ['competencia','nf_data_emissao','created_date','approved_at']) {
+    const v = purchase[campo];
+    if (v) { const d = new Date(v); if (!isNaN(d.getTime())) return { mes: MESES_PT[d.getMonth()], ano: d.getFullYear() }; }
+  }
+  const now = new Date(); return { mes: MESES_PT[now.getMonth()], ano: now.getFullYear() };
+}
+
+function sanitizeStr(s: string) { return (s||'').replace(/[^a-zA-Z0-9À-ÿ\-_]/g,'_').replace(/_+/g,'_').slice(0,60); }
+
+function gerarNomeArquivo(purchase: any, tipo: string, url: string) {
+  const { mes, ano } = resolverMesAno(purchase);
+  const mm = String(MESES_PT.indexOf(mes)+1).padStart(2,'0');
+  const fornecedor = sanitizeStr(purchase.fornecedor_nome||'fornecedor-nao-informado');
+  const nfNum = purchase.nf_numero ? `NF-${sanitizeStr(purchase.nf_numero)}` : 'sem-nf';
+  const solId = (purchase.id||'sem-id').slice(-8);
+  const ext = (url||'').split('?')[0].split('.').pop()?.toLowerCase().slice(0,6)||'bin';
+  return `${ano}-${mm}__${fornecedor}__${nfNum}__${sanitizeStr(tipo)}__sol-${solId}.${ext}`;
+}
+
+async function driveGetOrCreateFolder(authHeader: any, parentId: string, folderName: string) {
+  const q = encodeURIComponent(`name='${folderName}' and '${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+  const r = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,webViewLink)`, { headers: authHeader });
+  const d = await r.json();
+  if (d.files?.length > 0) return d.files[0];
+  const cr = await fetch('https://www.googleapis.com/drive/v3/files?fields=id,name,webViewLink', {
+    method: 'POST', headers: { ...authHeader, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: folderName, mimeType: 'application/vnd.google-apps.folder', parents: [parentId] })
+  });
+  return await cr.json();
+}
+
+async function driveUploadFile(authHeader: any, folderId: string, fileName: string, fileUrl: string) {
+  const res = await fetch(fileUrl);
+  if (!res.ok) throw new Error(`Download falhou: ${res.status}`);
+  const buf = await res.arrayBuffer();
+  const ext = (fileUrl.split('?')[0].split('.').pop()||'').toLowerCase();
+  const mimeMap: any = { pdf:'application/pdf', xml:'application/xml', png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg' };
+  const mime = mimeMap[ext] || 'application/octet-stream';
+  const metadata = JSON.stringify({ name: fileName, parents: [folderId] });
+  const boundary = 'boundary314159';
+  const bytes = new Uint8Array(buf);
+  let binary = ''; for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+  const base64 = btoa(binary);
+  const body = `\r\n--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n--${boundary}\r\nContent-Type: ${mime}\r\nContent-Transfer-Encoding: base64\r\n\r\n${base64}\r\n--${boundary}--`;
+  const ur = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink', {
+    method: 'POST',
+    headers: { ...authHeader, 'Content-Type': `multipart/related; boundary="${boundary}"` },
+    body
+  });
+  if (!ur.ok) { const e = await ur.text(); throw new Error(`Upload Drive: ${ur.status} - ${e.slice(0,200)}`); }
+  return await ur.json();
+}
+
+function coletarUrlsArquivos(purchase: any) {
+  const pares: { url: string; tipo: string }[] = [];
+  const add = (url: any, tipo: string) => { if (url && typeof url === 'string' && url.startsWith('http')) pares.push({ url, tipo }); };
+  add(purchase.nota_fiscal_url, 'nf-pdf');
+  add(purchase.nf_pdf_url, 'nf-pdf');
+  add(purchase.arquivo_url, 'arquivo');
+  add(purchase.file_url, 'arquivo');
+  add(purchase.documento_url, 'documento');
+  add(purchase.comprovante_url, 'comprovante');
+  add(purchase.comprovante_pagamento_url, 'comprovante-pagamento');
+  add(purchase.orcamento_url, 'orcamento');
+  const seen = new Set<string>();
+  return pares.filter(a => { if (seen.has(a.url)) return false; seen.add(a.url); return true; });
+}
+
+async function dispararBackupDrive(base44: any, purchase: any) {
+  if (purchase.drive_backup_status === 'concluido') return; // idempotente
+  const arquivos = coletarUrlsArquivos(purchase);
+  if (arquivos.length === 0) {
+    await base44.asServiceRole.entities.PurchaseRequest.update(purchase.id, { drive_backup_status: 'sem_arquivos' });
+    return;
+  }
+  // Dispara de forma assíncrona sem bloquear a aprovação
+  (async () => {
+    try {
+      await base44.asServiceRole.entities.PurchaseRequest.update(purchase.id, { drive_backup_status: 'em_processamento' });
+      const conn = await base44.asServiceRole.connectors.getConnection('googledrive');
+      const authHeader = { Authorization: `Bearer ${conn.accessToken}` };
+      const rootFolder = await driveGetOrCreateFolder(authHeader, DRIVE_ROOT_FOLDER_ID, DRIVE_ROOT_FOLDER_NAME);
+      const { mes, ano } = resolverMesAno(purchase);
+      const monthFolder = await driveGetOrCreateFolder(authHeader, rootFolder.id, `${mes} ${ano}`);
+      const uploadados: any[] = [];
+      for (const arq of arquivos) {
+        const nome = gerarNomeArquivo(purchase, arq.tipo, arq.url);
+        const uploaded = await driveUploadFile(authHeader, monthFolder.id, nome, arq.url);
+        uploadados.push({ name: nome, fileId: uploaded.id, url: uploaded.webViewLink, tipo: arq.tipo });
+      }
+      await base44.asServiceRole.entities.PurchaseRequest.update(purchase.id, {
+        drive_backup_status: 'concluido',
+        drive_backup_folder_id: monthFolder.id,
+        drive_backup_folder_url: monthFolder.webViewLink || `https://drive.google.com/drive/folders/${monthFolder.id}`,
+        drive_backup_files: uploadados,
+        drive_backup_at: new Date().toISOString(),
+        drive_backup_error: null
+      });
+    } catch (err: any) {
+      await base44.asServiceRole.entities.PurchaseRequest.update(purchase.id, {
+        drive_backup_status: 'erro',
+        drive_backup_error: err?.message || 'Erro desconhecido'
+      }).catch(() => {});
+    }
+  })();
+}
+// ===== Fim Drive Backup helpers =====
+
+
 function json(data: any, status = 200) {
   return Response.json(data, { status });
 }
@@ -228,6 +343,9 @@ Deno.serve(async (req) => {
 
       await syncAttachments(base44, updated, 'APROVADO');
 
+      // Backup automático no Drive (não bloqueia aprovação)
+      await dispararBackupDrive(base44, updated);
+
       // Disparar e-mail automático para setor financeiro (não bloqueia se falhar)
       try {
         await base44.asServiceRole.functions.invoke('notifyPurchaseApprovedToFinanceiro', {
@@ -334,6 +452,9 @@ Deno.serve(async (req) => {
         data_pagamento: now.toISOString(),
         numero_processamento: numeroProcessamento,
       });
+
+      // Backup automático no Drive (não bloqueia)
+      await dispararBackupDrive(base44, updated);
 
       return json({ success: true, purchase: updated });
     }

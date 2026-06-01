@@ -141,34 +141,27 @@
         "aguardando_comprovante",
         "revisao_manual"
       ],
-      "default": "pendente",
-      "description": "Status granular do pagamento"
+      "default": "pendente"
     },
     "comprovante_pagamento_url": {
-      "type": "string",
-      "description": "URL do comprovante de dep\u00f3sito/transfer\u00eancia em PDF"
+      "type": "string"
     },
     "data_pagamento": {
       "type": "string",
-      "format": "date-time",
-      "description": "Data/hora do pagamento"
+      "format": "date-time"
     },
     "usuario_pagamento": {
-      "type": "string",
-      "description": "Email do coordenador que marcou como pago"
+      "type": "string"
     },
     "usuario_pagamento_nome": {
-      "type": "string",
-      "description": "Nome do coordenador que marcou como pago"
+      "type": "string"
     },
     "confianca_vinculo_pagamento": {
-      "type": "number",
-      "description": "Score 0-100 de confian\u00e7a do v\u00ednculo autom\u00e1tico por IA"
+      "type": "number"
     },
     "vinculo_automatico_ia": {
       "type": "boolean",
-      "default": false,
-      "description": "Se o v\u00ednculo foi feito automaticamente pela IA"
+      "default": false
     },
     "aprov_coord_nome": {
       "type": "string"
@@ -323,6 +316,41 @@
     },
     "team_payment_id": {
       "type": "string"
+    },
+    "drive_backup_status": {
+      "type": "string",
+      "enum": [
+        "pendente",
+        "em_processamento",
+        "concluido",
+        "erro",
+        "sem_arquivos"
+      ],
+      "description": "Status do backup autom\u00e1tico no Google Drive"
+    },
+    "drive_backup_folder_id": {
+      "type": "string",
+      "description": "ID da pasta no Google Drive onde os arquivos foram copiados"
+    },
+    "drive_backup_folder_url": {
+      "type": "string",
+      "description": "URL da pasta no Google Drive"
+    },
+    "drive_backup_files": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "Lista de arquivos copiados para o Drive [{name, fileId, url, tipo}]"
+    },
+    "drive_backup_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data/hora em que o backup foi conclu\u00eddo"
+    },
+    "drive_backup_error": {
+      "type": "string",
+      "description": "Mensagem de erro caso o backup tenha falhado"
     }
   },
   "required": [
