@@ -276,16 +276,31 @@ Responda SOMENTE em JSON válido:
     if (tipoDetectado === 'NOTA_FISCAL_XML') {
       try {
         const xmlResp = await base44.asServiceRole.integrations.Core.InvokeLLM({
-          prompt: `Leia este XML de nota fiscal eletrônica ou NFS-e e extraia os dados fiscais principais.
+          prompt: `Leia INTEGRALMENTE este arquivo XML de nota fiscal eletrônica (NF-e ou NFS-e) e extraia TODOS os dados fiscais disponíveis. Não omita nenhum campo presente no XML.
 
 Responda SOMENTE em JSON válido:
 {
   "nf_numero": "",
+  "nf_serie": "",
+  "nf_chave_acesso": "",
   "nf_valor_total": "",
+  "nf_valor_servicos": "",
+  "nf_valor_iss": "",
+  "nf_aliquota_iss": "",
   "nf_data_emissao": "",
   "nf_emitente_nome": "",
   "nf_emitente_cpf_cnpj": "",
+  "nf_emitente_municipio": "",
+  "nf_emitente_uf": "",
+  "nf_emitente_inscricao_municipal": "",
+  "nf_emitente_email": "",
+  "nf_emitente_telefone": "",
+  "nf_emitente_banco": "",
+  "nf_emitente_agencia": "",
+  "nf_emitente_conta": "",
+  "nf_emitente_pix": "",
   "nf_destinatario_nome": "",
+  "nf_destinatario_cpf_cnpj": "",
   "descricao_servico": "",
   "municipio": "",
   "competencia": ""
@@ -295,11 +310,26 @@ Responda SOMENTE em JSON válido:
             type: 'object',
             properties: {
               nf_numero: { type: 'string' },
+              nf_serie: { type: 'string' },
+              nf_chave_acesso: { type: 'string' },
               nf_valor_total: { type: 'string' },
+              nf_valor_servicos: { type: 'string' },
+              nf_valor_iss: { type: 'string' },
+              nf_aliquota_iss: { type: 'string' },
               nf_data_emissao: { type: 'string' },
               nf_emitente_nome: { type: 'string' },
               nf_emitente_cpf_cnpj: { type: 'string' },
+              nf_emitente_municipio: { type: 'string' },
+              nf_emitente_uf: { type: 'string' },
+              nf_emitente_inscricao_municipal: { type: 'string' },
+              nf_emitente_email: { type: 'string' },
+              nf_emitente_telefone: { type: 'string' },
+              nf_emitente_banco: { type: 'string' },
+              nf_emitente_agencia: { type: 'string' },
+              nf_emitente_conta: { type: 'string' },
+              nf_emitente_pix: { type: 'string' },
               nf_destinatario_nome: { type: 'string' },
+              nf_destinatario_cpf_cnpj: { type: 'string' },
               descricao_servico: { type: 'string' },
               municipio: { type: 'string' },
               competencia: { type: 'string' },
@@ -328,6 +358,8 @@ Responda SOMENTE em JSON válido:
         nf_data_emissao: safeStr(resultadoIa.nf_data_emissao),
         nf_emitente_nome: safeStr(resultadoIa.nf_emitente_nome),
         nf_emitente_cpf_cnpj: safeStr(resultadoIa.nf_emitente_cpf_cnpj),
+        nf_destinatario_nome: safeStr(resultadoIa.nf_destinatario_nome),
+        nf_chave_acesso: safeStr(resultadoIa.nf_chave_acesso),
         nf_tipo_documento: 'xml_nf',
         nf_nome_original: fileName,
         nf_nome_renomeado: nomeFinal || fileName,
@@ -335,6 +367,7 @@ Responda SOMENTE em JSON válido:
         nf_revisado: false,
         nf_pdf_attachment_id: pdfAttachment?.id || '',
         nf_xml_sem_pdf: !pdfAttachment,
+        municipio: safeStr(resultadoIa.municipio || resultadoIa.nf_emitente_municipio),
         backup_done: attachment?.backup_done || false,
       });
 
@@ -377,50 +410,187 @@ Responda SOMENTE em JSON válido:
         const hoje = new Date().toISOString().slice(0, 10);
 
         const iaResp = await base44.asServiceRole.integrations.Core.InvokeLLM({
-          prompt: `Analise este documento PDF e determine:
-1. Se é uma NOTA FISCAL (NF, NFS-e, RPA, fatura) ou um DOCUMENTO ADMINISTRATIVO comum
-2. Se for nota fiscal, extraia os dados principais
-3. Liste possíveis inconsistências REAIS no documento (ex: valores zerados, campos obrigatórios ausentes, CPF/CNPJ inválido). NÃO sinalize como inconsistência datas passadas ou presentes. A data atual é ${hoje}, portanto qualquer data até ${hoje} é válida e NÃO deve ser reportada como "data futura".${orientacoesUsuario ? `\n\nOrientações do usuário: ${orientacoesUsuario}` : ''}
+          prompt: `Leia INTEGRALMENTE este documento PDF e classifique-o com precisão.
+
+Tipos possíveis:
+- NOTA_FISCAL: NF-e, NFS-e, RPA, fatura, recibo com dados fiscais (CNPJ/CPF emitente, número, valor)
+- CONTRATO: contrato de prestação de serviço, termo de serviço, contrato de trabalho, instrumento de acordo entre partes
+- DOCUMENTO_ADMINISTRATIVO: ata, ofício, declaração, proposta, memorando, planilha, relatório ou outro
+
+Leia TODO o texto visível do documento. Para NOTAS FISCAIS extraia absolutamente todos os campos fiscais disponíveis. Para CONTRATOS, extraia todas as partes, valores, vigência e objeto.
+
+A data atual é ${hoje}. Não sinalize datas passadas como "futuras".
+${orientacoesUsuario ? `\nOrientações do usuário: ${orientacoesUsuario}` : ''}
 
 Responda SOMENTE em JSON válido:
 {
-  "eh_nota_fiscal": true,
+  "tipo_documento": "NOTA_FISCAL|CONTRATO|DOCUMENTO_ADMINISTRATIVO",
+  "eh_nota_fiscal": false,
+  "eh_contrato": false,
   "nf_numero": "",
+  "nf_serie": "",
+  "nf_chave_acesso": "",
   "nf_valor_total": "",
+  "nf_valor_servicos": "",
+  "nf_valor_deducoes": "",
+  "nf_valor_iss": "",
+  "nf_aliquota_iss": "",
   "nf_data_emissao": "",
+  "nf_competencia": "",
   "nf_emitente_nome": "",
   "nf_emitente_cpf_cnpj": "",
+  "nf_emitente_municipio": "",
+  "nf_emitente_uf": "",
+  "nf_emitente_endereco": "",
+  "nf_emitente_cep": "",
+  "nf_emitente_inscricao_municipal": "",
+  "nf_emitente_email": "",
+  "nf_emitente_telefone": "",
+  "nf_emitente_banco": "",
+  "nf_emitente_agencia": "",
+  "nf_emitente_conta": "",
+  "nf_emitente_pix": "",
   "nf_destinatario_nome": "",
+  "nf_destinatario_cpf_cnpj": "",
   "descricao_servico": "",
   "municipio": "",
   "competencia": "",
+  "contrato_numero": "",
+  "contrato_objeto": "",
+  "contrato_fornecedor_nome": "",
+  "contrato_fornecedor_cpf_cnpj": "",
+  "contrato_responsavel_tecnico": "",
+  "contrato_vigencia_inicio": "",
+  "contrato_vigencia_fim": "",
+  "contrato_valor_total": "",
+  "contrato_numero_parcelas": "",
+  "contrato_valor_parcela": "",
+  "contrato_banco": "",
+  "contrato_agencia": "",
+  "contrato_conta": "",
+  "contrato_pix": "",
+  "contrato_museu": "",
+  "contrato_meta": "",
+  "contrato_rubrica_sugerida": "",
+  "contrato_membros_equipe": [],
   "inconsistencias": []
 }`,
           file_urls: [fileUrl],
           response_json_schema: {
             type: 'object',
             properties: {
+              tipo_documento: { type: 'string' },
               eh_nota_fiscal: { type: 'boolean' },
+              eh_contrato: { type: 'boolean' },
               nf_numero: { type: 'string' },
+              nf_serie: { type: 'string' },
+              nf_chave_acesso: { type: 'string' },
               nf_valor_total: { type: 'string' },
+              nf_valor_servicos: { type: 'string' },
+              nf_valor_deducoes: { type: 'string' },
+              nf_valor_iss: { type: 'string' },
+              nf_aliquota_iss: { type: 'string' },
               nf_data_emissao: { type: 'string' },
+              nf_competencia: { type: 'string' },
               nf_emitente_nome: { type: 'string' },
               nf_emitente_cpf_cnpj: { type: 'string' },
+              nf_emitente_municipio: { type: 'string' },
+              nf_emitente_uf: { type: 'string' },
+              nf_emitente_endereco: { type: 'string' },
+              nf_emitente_cep: { type: 'string' },
+              nf_emitente_inscricao_municipal: { type: 'string' },
+              nf_emitente_email: { type: 'string' },
+              nf_emitente_telefone: { type: 'string' },
+              nf_emitente_banco: { type: 'string' },
+              nf_emitente_agencia: { type: 'string' },
+              nf_emitente_conta: { type: 'string' },
+              nf_emitente_pix: { type: 'string' },
               nf_destinatario_nome: { type: 'string' },
+              nf_destinatario_cpf_cnpj: { type: 'string' },
               descricao_servico: { type: 'string' },
               municipio: { type: 'string' },
               competencia: { type: 'string' },
+              contrato_numero: { type: 'string' },
+              contrato_objeto: { type: 'string' },
+              contrato_fornecedor_nome: { type: 'string' },
+              contrato_fornecedor_cpf_cnpj: { type: 'string' },
+              contrato_responsavel_tecnico: { type: 'string' },
+              contrato_vigencia_inicio: { type: 'string' },
+              contrato_vigencia_fim: { type: 'string' },
+              contrato_valor_total: { type: 'string' },
+              contrato_numero_parcelas: { type: 'string' },
+              contrato_valor_parcela: { type: 'string' },
+              contrato_banco: { type: 'string' },
+              contrato_agencia: { type: 'string' },
+              contrato_conta: { type: 'string' },
+              contrato_pix: { type: 'string' },
+              contrato_museu: { type: 'string' },
+              contrato_meta: { type: 'string' },
+              contrato_rubrica_sugerida: { type: 'string' },
+              contrato_membros_equipe: { type: 'array', items: { type: 'string' } },
               inconsistencias: { type: 'array', items: { type: 'string' } },
             },
           },
+          model: 'claude_sonnet_4_6',
         });
 
         resultadoIa = iaResp || {};
-        const ehNF = resultadoIa.eh_nota_fiscal === true;
-        tipoDetectado = ehNF ? 'NOTA_FISCAL_PDF' : 'DOCUMENTO_ADMINISTRATIVO';
+        const tipoDocumento = safeStr(resultadoIa.tipo_documento).toUpperCase();
+        const ehNF = resultadoIa.eh_nota_fiscal === true || tipoDocumento === 'NOTA_FISCAL';
+        const ehContrato = resultadoIa.eh_contrato === true || tipoDocumento === 'CONTRATO';
+
+        // Normalizar campos municipio/competencia que podem vir com prefixo nf_
+        if (!resultadoIa.municipio && resultadoIa.nf_emitente_municipio) {
+          resultadoIa.municipio = resultadoIa.nf_emitente_municipio;
+        }
+        if (!resultadoIa.competencia && resultadoIa.nf_competencia) {
+          resultadoIa.competencia = resultadoIa.nf_competencia;
+        }
+
+        // Mapear campos de contrato para o formato esperado pelo ReviewModalContrato
+        if (ehContrato) {
+          resultadoIa.fornecedor_nome = resultadoIa.contrato_fornecedor_nome || resultadoIa.fornecedor_nome || '';
+          resultadoIa.fornecedor_cpf_cnpj = resultadoIa.contrato_fornecedor_cpf_cnpj || resultadoIa.fornecedor_cpf_cnpj || '';
+          resultadoIa.responsavel_tecnico = resultadoIa.contrato_responsavel_tecnico || '';
+          resultadoIa.objeto_contrato = resultadoIa.contrato_objeto || '';
+          resultadoIa.numero_contrato = resultadoIa.contrato_numero || '';
+          resultadoIa.vigencia_inicio = resultadoIa.contrato_vigencia_inicio || '';
+          resultadoIa.vigencia_fim = resultadoIa.contrato_vigencia_fim || '';
+          resultadoIa.valor_total = resultadoIa.contrato_valor_total || '';
+          resultadoIa.numero_parcelas = resultadoIa.contrato_numero_parcelas || '';
+          resultadoIa.valor_parcela = resultadoIa.contrato_valor_parcela || '';
+          resultadoIa.fornecedor_banco = resultadoIa.contrato_banco || '';
+          resultadoIa.fornecedor_agencia = resultadoIa.contrato_agencia || '';
+          resultadoIa.fornecedor_conta = resultadoIa.contrato_conta || '';
+          resultadoIa.fornecedor_pix = resultadoIa.contrato_pix || '';
+          resultadoIa.museu_relacionado = resultadoIa.contrato_museu || '';
+          resultadoIa.meta_contrato = resultadoIa.contrato_meta || '';
+          resultadoIa.rubrica_sugerida = resultadoIa.contrato_rubrica_sugerida || '';
+          resultadoIa.membros_equipe = (resultadoIa.contrato_membros_equipe || []).map(n => ({ nome: n }));
+        }
+
+        if (tipoDocumento !== 'NOTA_FISCAL' && tipoDocumento !== 'CONTRATO') {
+          tipoDetectado = 'DOCUMENTO_ADMINISTRATIVO';
+        } else if (ehContrato) {
+          tipoDetectado = 'CONTRATO';
+        } else {
+          tipoDetectado = 'NOTA_FISCAL_PDF';
+        }
 
         if (Array.isArray(resultadoIa.inconsistencias)) {
           erros = resultadoIa.inconsistencias;
+        }
+
+        if (ehContrato) {
+          const nomeFornecedor = safeStr(resultadoIa.fornecedor_nome || resultadoIa.contrato_fornecedor_nome).substring(0, 40).toUpperCase() || 'CONTRATO';
+          const numContrato = safeStr(resultadoIa.numero_contrato || resultadoIa.contrato_numero) || 'SEM-NUM';
+          nomeFinal = `CONTRATO - ${numContrato} - ${nomeFornecedor} - MUSEUS CENTRO.pdf`;
+
+          await updateSafe(base44.asServiceRole.entities.Attachment, attachment?.id, {
+            description: `Entrada Única - Contrato: ${resultadoIa.objeto_contrato || nomeFornecedor}`,
+            categoria: 'contrato',
+            backup_done: attachment?.backup_done || false,
+          });
         }
 
         if (ehNF) {
@@ -598,6 +768,11 @@ Procure por:
         erros_validacao: erros,
         revisado_pelo_usuario: false,
         grupo_status: grupoStatus,
+        // Campos de contrato (preenchidos apenas quando for CONTRATO)
+        contrato_numero: tipoDetectado === 'CONTRATO' ? (safeStr(resultadoIa.numero_contrato) || '') : (intake.contrato_numero || ''),
+        fornecedor_nome: tipoDetectado === 'CONTRATO' ? (safeStr(resultadoIa.fornecedor_nome) || '') : (intake.fornecedor_nome || ''),
+        nf_emitente_cpf_cnpj: tipoDetectado !== 'CONTRATO' ? safeStr(resultadoIa.nf_emitente_cpf_cnpj) : (intake.nf_emitente_cpf_cnpj || ''),
+        municipio: safeStr(resultadoIa.municipio || resultadoIa.nf_emitente_municipio),
       });
 
       return Response.json({

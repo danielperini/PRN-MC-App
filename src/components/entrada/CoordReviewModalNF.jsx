@@ -841,6 +841,44 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
             <Input value={form.descricao_servico} onChange={(e) => setForm((f) => ({ ...f, descricao_servico: e.target.value }))} />
           </div>
 
+          {/* Dados adicionais extraídos pela IA */}
+          {(ia.nf_emitente_banco || ia.nf_emitente_pix || ia.nf_emitente_email || ia.nf_chave_acesso || ia.nf_valor_iss) && (
+            <div className="border border-slate-200 rounded-xl p-3 space-y-2 bg-slate-50">
+              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Dados adicionais extraídos pela IA</p>
+              <div className="grid grid-cols-2 gap-2 text-xs text-slate-700">
+                {ia.nf_chave_acesso && (
+                  <div className="col-span-2">
+                    <span className="text-slate-500">Chave de acesso: </span>
+                    <span className="font-mono break-all">{ia.nf_chave_acesso}</span>
+                  </div>
+                )}
+                {ia.nf_valor_iss && (
+                  <div><span className="text-slate-500">ISS: </span><strong>R$ {ia.nf_valor_iss}</strong>
+                    {ia.nf_aliquota_iss && <span className="text-slate-400"> ({ia.nf_aliquota_iss}%)</span>}
+                  </div>
+                )}
+                {ia.nf_emitente_inscricao_municipal && (
+                  <div><span className="text-slate-500">Insc. Municipal: </span><strong>{ia.nf_emitente_inscricao_municipal}</strong></div>
+                )}
+                {ia.nf_emitente_email && (
+                  <div><span className="text-slate-500">E-mail emitente: </span><strong>{ia.nf_emitente_email}</strong></div>
+                )}
+                {ia.nf_emitente_telefone && (
+                  <div><span className="text-slate-500">Telefone: </span><strong>{ia.nf_emitente_telefone}</strong></div>
+                )}
+                {ia.nf_emitente_banco && (
+                  <div><span className="text-slate-500">Banco: </span><strong>{ia.nf_emitente_banco}</strong>
+                    {ia.nf_emitente_agencia && <span> / Ag. {ia.nf_emitente_agencia}</span>}
+                    {ia.nf_emitente_conta && <span> / Cc. {ia.nf_emitente_conta}</span>}
+                  </div>
+                )}
+                {ia.nf_emitente_pix && (
+                  <div className="col-span-2"><span className="text-slate-500">PIX: </span><strong>{ia.nf_emitente_pix}</strong></div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="space-y-1">
             <Label>
               Meta do 3º Aditivo

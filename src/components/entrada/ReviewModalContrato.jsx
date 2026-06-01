@@ -81,6 +81,16 @@ export default function ReviewModalContrato({ intake, onClose, onSaved }) {
 
   async function handleSave() {
     if (!intake?.id) return;
+
+    // Validação: contrato DEVE estar vinculado a membro, fornecedor ou NF
+    if (!form.team_member_id && !form.fornecedor_id) {
+      // Aceita criar fornecedor automaticamente se IA identificou nome
+      if (!ia?.fornecedor_nome) {
+        toast.error('Vincule o contrato a um membro da equipe ou fornecedor antes de salvar.');
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       const cnpjLimpo = onlyDigits(ia?.fornecedor_cpf_cnpj || '');
@@ -281,6 +291,17 @@ export default function ReviewModalContrato({ intake, onClose, onSaved }) {
                     <p className="text-sm text-gray-700 line-clamp-3">{ia.objeto_contrato}</p>
                   </div>
                 )}
+                {(ia?.fornecedor_banco || ia?.fornecedor_pix) && (
+                  <div className="col-span-2 border-t border-gray-100 pt-2 mt-1">
+                    <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mb-1">Dados bancários extraídos</p>
+                    <div className="grid grid-cols-2 gap-2 text-xs text-gray-700">
+                      {ia.fornecedor_banco && <span>Banco: <strong>{ia.fornecedor_banco}</strong></span>}
+                      {ia.fornecedor_agencia && <span>Agência: <strong>{ia.fornecedor_agencia}</strong></span>}
+                      {ia.fornecedor_conta && <span>Conta: <strong>{ia.fornecedor_conta}</strong></span>}
+                      {ia.fornecedor_pix && <span className="col-span-2">PIX: <strong>{ia.fornecedor_pix}</strong></span>}
+                    </div>
+                  </div>
+                )}
               </div>
               {intake.arquivo_original_url && (
                 <a href={intake.arquivo_original_url} target="_blank" rel="noreferrer"
@@ -306,9 +327,19 @@ export default function ReviewModalContrato({ intake, onClose, onSaved }) {
               </div>
             </div>
 
+            {/* Aviso vínculo obrigatório */}
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-blue-800 font-medium">
+                  Obrigatório: vincule o contrato a um membro da equipe ou a um fornecedor para salvar. Se o fornecedor não existir, será criado automaticamente com os dados extraídos pela IA.
+                </p>
+              </div>
+            </div>
+
             {/* Vínculo com membro da equipe */}
             <div>
-              <SectionTitle>Vincular ao Membro da Equipe</SectionTitle>
+              <SectionTitle>Vincular ao Membro da Equipe <span className="text-red-500">*</span> (ou ao Fornecedor abaixo)</SectionTitle>
               <div className="space-y-1">
                 <Label className="text-xs">Membro da equipe</Label>
                 <select
@@ -323,7 +354,7 @@ export default function ReviewModalContrato({ intake, onClose, onSaved }) {
                 </select>
                 {ia?.membros_equipe?.length > 0 && (
                   <p className="text-xs text-blue-600 mt-1">
-                    IA identificou: {ia.membros_equipe.map(m => m.nome).join(', ')}
+                    IA identificou: {ia.membros_equipe.map(m => m.nome || m).join(', ')}
                   </p>
                 )}
               </div>
