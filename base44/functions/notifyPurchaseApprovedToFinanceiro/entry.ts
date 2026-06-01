@@ -34,6 +34,13 @@ function getDriveMonthUrl(purchase, arquivosUnicos = []) {
   return fileWithFolder?.drive_folder_url || fileWithFolder?.pasta_drive_url || fileWithFolder?.folder_url || '';
 }
 
+async function isEmailPaused(base44) {
+  try {
+    const configs = await base44.asServiceRole.entities.MetadadosConfig.filter({ categoria: 'sistema', valor: 'notificacoes_email_pausadas' });
+    return Array.isArray(configs) && configs.length > 0 && configs[0].ativo === true;
+  } catch { return false; }
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -41,6 +48,11 @@ Deno.serve(async (req) => {
 
     if (!purchaseId) {
       return Response.json({ error: 'purchaseId obrigatório.' }, { status: 400 });
+    }
+
+    if (await isEmailPaused(base44)) {
+      console.log('[notifyPurchaseApprovedToFinanceiro] Envio de e-mails pausado globalmente.');
+      return Response.json({ success: true, skipped: true, reason: 'email_pausado' });
     }
 
     const purchase = await base44.asServiceRole.entities.PurchaseRequest.get(purchaseId);

@@ -1,9 +1,21 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
+async function isEmailPaused(base44) {
+  try {
+    const configs = await base44.asServiceRole.entities.MetadadosConfig.filter({ categoria: 'sistema', valor: 'notificacoes_email_pausadas' });
+    return Array.isArray(configs) && configs.length > 0 && configs[0].ativo === true;
+  } catch { return false; }
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const { purchaseId, newStatus, comentario } = await req.json();
+
+    if (await isEmailPaused(base44)) {
+      console.log('[notifyPurchaseStatusChange] Envio de e-mails pausado globalmente.');
+      return Response.json({ success: true, skipped: true, reason: 'email_pausado' });
+    }
 
     // Buscar solicitação
     const purchase = await base44.asServiceRole.entities.PurchaseRequest.filter({ id: purchaseId });
