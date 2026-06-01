@@ -9,12 +9,33 @@ import { FileText, Loader2, AlertCircle, CheckCircle2, Send, Trash2, SplitSquare
 import { useToast } from '@/components/ui/use-toast';
 import { findDuplicatePurchaseRequest } from '@/lib/purchaseDuplicateGuard';
 import DuplicatePurchaseDetectedModal from '@/components/compras/DuplicatePurchaseDetectedModal';
+import { getRubricasOficiais3Aditivo } from '@/lib/rubricasOficiais3Aditivo';
 
 const CENTROS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
 const MUSEUS_RATEIO = ['MHAB', 'MIS', 'MUMO'];
 const DEFAULT_RATEIO = MUSEUS_RATEIO.map((m) => ({ museu: m, valor: '' }));
 
-// Metas são derivadas dinamicamente das rubricas oficiais ativas (ver useEffect loadRubricas)
+// Metas e rubricas derivadas exclusivamente da lib oficial do 3º Aditivo
+const RUBRICAS_OFICIAIS_3A = getRubricasOficiais3Aditivo();
+
+// Extrai número da meta (ex: "1 - Contratação..." → 1) para ordenação
+function extrairNumeroMeta(meta) {
+  const m = String(meta || '').match(/^(\d+)/);
+  return m ? parseInt(m[1], 10) : 999;
+}
+
+// Metas únicas ordenadas por número
+const METAS_OFICIAIS_3A = Array.from(
+  new Map(
+    RUBRICAS_OFICIAIS_3A.map((r) => [r.meta, r.meta])
+  ).values()
+).sort((a, b) => extrairNumeroMeta(a) - extrairNumeroMeta(b));
+
+// Conjunto de chaves (rubrica+meta) válidas do 3º Aditivo para validação
+const SET_RUBRICAS_OFICIAIS_NOMES = new Set(
+  RUBRICAS_OFICIAIS_3A.map((r) => String(r.rubrica || '').toLowerCase().trim())
+);
+const SET_METAS_OFICIAIS = new Set(METAS_OFICIAIS_3A.map((m) => m));
 
 const COORD_EMAILS = [
   'danielperini.mc@viadutodasartes.org.br',
@@ -188,7 +209,8 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     centro_custo: ia.centro_custo_sugerido || intake.centro_custo || '',
     rubrica_id: intake.rubrica_id_sugerida || '',
     file_name_final: intake.file_name_final || intake.file_name_original,
-    meta_id: '',
+    // Só pré-preenche meta se pertencer ao 3º Aditivo oficial
+    meta_id: SET_METAS_OFICIAIS.has(ia.meta_id || '') ? (ia.meta_id || '') : '',
     tipo_gasto: ia.tipo_gasto || 'Serviço',
   });
 
@@ -206,11 +228,28 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   useEffect(() => {
     async function loadRubricas() {
       try {
+        // Busca rubricas do banco e filtra SOMENTE as do 3º Aditivo ativas
         const list = await base44.entities.Rubrica.list('', 2000);
-        setRubricas((list || []).filter((r) => r?.ativo !== false));
+        const apenas3Aditivo = (list || []).filter(
+          (r) => r?.ativo !== false && String(r?.origem_recurso || '').includes('3')
+        );
 
-        // Auto-sugestão de rubrica se ainda não selecionada
-        if (!intake.rubrica_id_sugerida) {
+        // Se o banco ainda não tem rubricas com origem_recurso preenchida, usa a lib oficial
+        // como fallback de exibição (não persiste, apenas para o select)
+        const rubricasFinal = apenas3Aditivo.length > 0 ? apenas3Aditivo : [];
+        setRubricas(rubricasFinal);
+
+        // Auto-sugestão de rubrica apenas se for do 3º Aditivo
+        const rubricaIdSugerida = intake.rubrica_id_sugerida;
+        if (rubricaIdSugerida) {
+          // Valida se a rubrica sugerida pertence ao 3º Aditivo
+          const pertence = rubricasFinal.some((r) => r.id === rubricaIdSugerida);
+          if (!pertence) {
+            // Rubrica da IA não é do 3º Aditivo — limpa a sugestão
+            setForm((f) => ({ ...f, rubrica_id: '' }));
+          }
+        } else {
+          // Sem sugestão do intake — tenta por keywords, mas só dentro das rubricas filtradas
           const textosBusca = [
             ia.descricao_servico,
             ia.nf_emitente_nome,
@@ -219,7 +258,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
           ].filter(Boolean).join(' ');
 
           if (textosBusca) {
-            const sugerida = sugerirRubricaPorKeywords(textosBusca, list || []);
+            const sugerida = sugerirRubricaPorKeywords(textosBusca, rubricasFinal);
             if (sugerida) {
               setForm((f) => f.rubrica_id ? f : { ...f, rubrica_id: sugerida });
             }
@@ -498,6 +537,13 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
     if (!form.rubrica_id) {
       toast({ title: 'Selecione a rubrica antes de continuar.', variant: 'destructive', duration: 3000 });
+      return;
+    }
+
+    // Bloqueia se a rubrica selecionada não pertencer ao 3º Aditivo
+    const rubricaSel = rubricas.find((r) => r.id === form.rubrica_id);
+    if (rubricaSel && !String(rubricaSel.origem_recurso || '').includes('3')) {
+      toast({ title: 'Rubrica inválida', description: 'A rubrica selecionada não pertence ao 3º Aditivo.', variant: 'destructive', duration: 4000 });
       return;
     }
 
@@ -891,19 +937,11 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
                 <SelectValue placeholder="Selecionar meta" />
               </SelectTrigger>
               <SelectContent>
-                {Array.from(new Set(
-                  rubricas
-                    .filter((r) => r?.ativo !== false)
-                    .map((r) => r.grupo || r.meta || '')
-                    .filter(Boolean)
-                )).sort().map((grupo) => (
-                  <SelectItem key={grupo} value={grupo}>
-                    {grupo}
+                {METAS_OFICIAIS_3A.map((meta) => (
+                  <SelectItem key={meta} value={meta}>
+                    {meta}
                   </SelectItem>
                 ))}
-                {form.meta_id && !rubricas.some((r) => (r.grupo || r.meta) === form.meta_id) && (
-                  <SelectItem value={form.meta_id}>{form.meta_id}</SelectItem>
-                )}
               </SelectContent>
             </Select>
           </div>
