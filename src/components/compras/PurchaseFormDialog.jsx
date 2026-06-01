@@ -696,7 +696,7 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
       />
 
       <Dialog open={true} onOpenChange={onClose}>
-        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+        <DialogContent className="max-h-[90vh] w-full max-w-3xl overflow-x-hidden overflow-y-auto mx-4">
         <DialogHeader>
           <DialogTitle className="text-lg font-semibold">
             {isEditing ? 'Editar Solicitação' : 'Nova Solicitação'}
