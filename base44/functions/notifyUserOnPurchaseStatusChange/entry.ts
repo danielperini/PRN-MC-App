@@ -12,6 +12,13 @@ function getBaseAppUrl(req: Request): string {
   return 'https://relatorios-perini-pro-mc-viadutodasartes.base44.app';
 }
 
+async function isEmailPaused(base44) {
+  try {
+    const configs = await base44.asServiceRole.entities.MetadadosConfig.filter({ categoria: 'sistema', valor: 'notificacoes_email_pausadas' });
+    return Array.isArray(configs) && configs.length > 0 && configs[0].ativo === true;
+  } catch { return false; }
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -22,6 +29,11 @@ Deno.serve(async (req) => {
         { error: 'purchaseId e newStatus são obrigatórios' },
         { status: 400 }
       );
+    }
+
+    if (await isEmailPaused(base44)) {
+      console.log('[notifyUserOnPurchaseStatusChange] Envio de e-mails pausado globalmente.');
+      return Response.json({ success: true, skipped: true, reason: 'email_pausado' });
     }
 
     const purchases = await base44.asServiceRole.entities.PurchaseRequest.filter({ id: purchaseId });
