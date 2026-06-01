@@ -1,0 +1,52 @@
+{
+  "name": "Momento",
+  "type": "object",
+  "properties": {
+    "titulo": {
+      "type": "string",
+      "description": "T\u00edtulo ou tema do momento especial"
+    },
+    "texto": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o do momento, fala ou depoimento especial"
+    },
+    "imagem_url": {
+      "type": "string",
+      "description": "URL da imagem quadrada do momento"
+    },
+    "data_criacao": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data de cria\u00e7\u00e3o do momento"
+    },
+    "data_expiracao": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de expira\u00e7\u00e3o (45 dias ap\u00f3s cria\u00e7\u00e3o)"
+    },
+    "ativo": {
+      "type": "boolean",
+      "default": true,
+      "description": "Se o momento est\u00e1 ativo para exibi\u00e7\u00e3o"
+    },
+    "deve_ser_publicado": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se o momento deve ser publicado no carrossel"
+    },
+    "incluir_no_pdf": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se o momento deve ser inclu\u00eddo nos relat\u00f3rios PDF exportados"
+    },
+    "created_by_email": {
+      "type": "string",
+      "description": "Email do usu\u00e1rio que criou o momento"
+    }
+  },
+  "required": [
+    "titulo",
+    "texto",
+    "imagem_url"
+  ]
+}

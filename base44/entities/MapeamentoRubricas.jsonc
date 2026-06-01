@@ -1,0 +1,23 @@
+{
+  "name": "MapeamentoRubricas",
+  "type": "object",
+  "properties": {
+    "termo_origem": {
+      "type": "string",
+      "description": "Termo original a ser mapeado (ex: ANALISTA ADMINISTRATIVO FINANCEIRO)"
+    },
+    "rubrica_destino": {
+      "type": "string",
+      "description": "Nome da rubrica destino"
+    },
+    "ativo": {
+      "type": "boolean",
+      "default": true,
+      "description": "Se o mapeamento est\u00e1 ativo"
+    }
+  },
+  "required": [
+    "termo_origem",
+    "rubrica_destino"
+  ]
+}

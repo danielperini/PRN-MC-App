@@ -1,0 +1,61 @@
+{
+  "name": "Suggestion",
+  "type": "object",
+  "properties": {
+    "titulo": {
+      "type": "string",
+      "description": "T\u00edtulo da sugest\u00e3o"
+    },
+    "conteudo": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o detalhada da sugest\u00e3o"
+    },
+    "categoria": {
+      "type": "string",
+      "enum": [
+        "Plataforma",
+        "Fluxo de Trabalho",
+        "Interface",
+        "Projeto",
+        "Relat\u00f3rios",
+        "Outro"
+      ],
+      "description": "Categoria da sugest\u00e3o"
+    },
+    "usuario_email": {
+      "type": "string",
+      "description": "Email do usu\u00e1rio que enviou a sugest\u00e3o"
+    },
+    "usuario_nome": {
+      "type": "string",
+      "description": "Nome completo do usu\u00e1rio"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "RECEBIDA",
+        "ANALISANDO",
+        "APROVADA",
+        "REJEITADA",
+        "IMPLEMENTADA"
+      ],
+      "default": "RECEBIDA",
+      "description": "Status da sugest\u00e3o"
+    },
+    "resposta_coordenador": {
+      "type": "string",
+      "description": "Resposta ou coment\u00e1rio do coordenador"
+    },
+    "respondido_em": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data da resposta"
+    }
+  },
+  "required": [
+    "titulo",
+    "conteudo",
+    "categoria",
+    "usuario_email"
+  ]
+}

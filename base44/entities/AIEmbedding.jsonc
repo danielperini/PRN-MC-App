@@ -1,0 +1,117 @@
+{
+  "name": "AIEmbedding",
+  "type": "object",
+  "properties": {
+    "conteudo_tipo": {
+      "type": "string",
+      "enum": [
+        "relatorio",
+        "release",
+        "programacao",
+        "agenda",
+        "atividade",
+        "imagem",
+        "documento",
+        "contrato",
+        "pdf",
+        "xml"
+      ],
+      "description": "Tipo de conte\u00fado indexado"
+    },
+    "conteudo_id": {
+      "type": "string",
+      "description": "ID da entidade original (Report, Release, Programacao, etc)"
+    },
+    "conteudo_resumo": {
+      "type": "string",
+      "description": "Resumo do conte\u00fado para refer\u00eancia"
+    },
+    "texto_original": {
+      "type": "string",
+      "description": "Texto bruto (at\u00e9 5000 chars) para indexa\u00e7\u00e3o"
+    },
+    "embedding_vector": {
+      "type": "array",
+      "description": "Vetor de embedding (1536 dimens\u00f5es para OpenAI)",
+      "items": {
+        "type": "number"
+      }
+    },
+    "museu": {
+      "type": "string",
+      "description": "Museu relacionado (MHAB, MIS, MUMO, Geral)"
+    },
+    "periodo_mes": {
+      "type": "string",
+      "description": "M\u00eas do per\u00edodo (Janeiro-Dezembro)"
+    },
+    "periodo_ano": {
+      "type": "number",
+      "description": "Ano do per\u00edodo"
+    },
+    "palavras_chave": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Tags extra\u00eddas pela IA"
+    },
+    "entities": {
+      "type": "object",
+      "description": "Entidades nomeadas: museus, pessoas, locais, temas",
+      "properties": {
+        "museus": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "pessoas": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "locais": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "temas": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "atividades": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "confianca_analise": {
+      "type": "number",
+      "description": "Score 0-100 de confian\u00e7a"
+    },
+    "data_indexacao": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Quando foi indexado"
+    },
+    "ativo": {
+      "type": "boolean",
+      "default": true,
+      "description": "Se est\u00e1 ativo para busca"
+    }
+  },
+  "required": [
+    "conteudo_tipo",
+    "conteudo_id",
+    "texto_original",
+    "embedding_vector"
+  ],
+  "rls": {}
+}

@@ -1,0 +1,39 @@
+{
+  "name": "Museu",
+  "type": "object",
+  "properties": {
+    "nome": {
+      "type": "string",
+      "description": "Nome do museu"
+    },
+    "sigla": {
+      "type": "string",
+      "description": "Sigla do museu (ex: MHAB, MIS, MUMO)"
+    },
+    "descricao": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o do museu"
+    },
+    "endereco": {
+      "type": "string",
+      "description": "Endere\u00e7o do museu"
+    },
+    "telefone": {
+      "type": "string",
+      "description": "Telefone de contato"
+    },
+    "email": {
+      "type": "string",
+      "description": "Email de contato"
+    },
+    "ativo": {
+      "type": "boolean",
+      "default": true,
+      "description": "Se o museu est\u00e1 ativo"
+    }
+  },
+  "required": [
+    "nome",
+    "sigla"
+  ]
+}

@@ -1,0 +1,136 @@
+{
+  "name": "ActivityData",
+  "type": "object",
+  "properties": {
+    "report_id": {
+      "type": "string",
+      "description": "ID do relat\u00f3rio associado"
+    },
+    "activity_id": {
+      "type": "string",
+      "description": "ID da atividade associada"
+    },
+    "tipo_atividade": {
+      "type": "string",
+      "enum": [
+        "Oficina",
+        "Exposi\u00e7\u00e3o",
+        "Visita Guiada",
+        "Palestra",
+        "Workshop",
+        "Encontro",
+        "Projeto",
+        "Evento"
+      ],
+      "description": "Tipo de atividade realizada"
+    },
+    "data_realizacao": {
+      "type": "string",
+      "format": "date",
+      "description": "Data da realiza\u00e7\u00e3o"
+    },
+    "dia_semana": {
+      "type": "string",
+      "enum": [
+        "Segunda",
+        "Ter\u00e7a",
+        "Quarta",
+        "Quinta",
+        "Sexta",
+        "S\u00e1bado",
+        "Domingo"
+      ],
+      "description": "Dia da semana"
+    },
+    "horario_inicio": {
+      "type": "string",
+      "format": "time",
+      "description": "Hor\u00e1rio de in\u00edcio"
+    },
+    "horario_fim": {
+      "type": "string",
+      "format": "time",
+      "description": "Hor\u00e1rio de t\u00e9rmino"
+    },
+    "publico_total": {
+      "type": "number",
+      "default": 0,
+      "description": "P\u00fablico total participante"
+    },
+    "faixa_etaria_infantil": {
+      "type": "number",
+      "default": 0,
+      "description": "P\u00fablico infantil (0-12 anos)"
+    },
+    "faixa_etaria_adolescente": {
+      "type": "number",
+      "default": 0,
+      "description": "P\u00fablico adolescente (13-17 anos)"
+    },
+    "faixa_etaria_adulto": {
+      "type": "number",
+      "default": 0,
+      "description": "P\u00fablico adulto (18-59 anos)"
+    },
+    "faixa_etaria_senior": {
+      "type": "number",
+      "default": 0,
+      "description": "P\u00fablico senior (60+ anos)"
+    },
+    "genero_masculino": {
+      "type": "number",
+      "default": 0,
+      "description": "P\u00fablico masculino"
+    },
+    "genero_feminino": {
+      "type": "number",
+      "default": 0,
+      "description": "P\u00fablico feminino"
+    },
+    "genero_nao_binario": {
+      "type": "number",
+      "default": 0,
+      "description": "P\u00fablico n\u00e3o-bin\u00e1ro/outro"
+    },
+    "acessibilidade_fisica": {
+      "type": "boolean",
+      "default": false,
+      "description": "Tinha acessibilidade f\u00edsica"
+    },
+    "acessibilidade_visual": {
+      "type": "boolean",
+      "default": false,
+      "description": "Tinha acessibilidade visual"
+    },
+    "acessibilidade_auditiva": {
+      "type": "boolean",
+      "default": false,
+      "description": "Tinha acessibilidade auditiva"
+    },
+    "local": {
+      "type": "string",
+      "description": "Local onde foi realizado (sala, espa\u00e7o, etc)"
+    },
+    "capacidade_local": {
+      "type": "number",
+      "description": "Capacidade total do local"
+    },
+    "taxa_ocupacao": {
+      "type": "number",
+      "description": "Taxa de ocupa\u00e7\u00e3o em percentual"
+    },
+    "materiais_utilizados": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o dos materiais utilizados"
+    },
+    "observacoes": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es adicionais sobre a atividade"
+    }
+  },
+  "required": [
+    "report_id",
+    "activity_id",
+    "tipo_atividade"
+  ]
+}

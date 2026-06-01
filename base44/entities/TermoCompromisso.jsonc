@@ -1,0 +1,247 @@
+{
+  "name": "TermoCompromisso",
+  "type": "object",
+  "properties": {
+    "numero_termo": {
+      "type": "string",
+      "description": "N\u00famero sequencial do termo (ex: MCe-001/2026)"
+    },
+    "tipo_termo": {
+      "type": "string",
+      "enum": [
+        "monitoria_mediacao",
+        "oficina",
+        "palestra",
+        "acao_cultural",
+        "apresentacao_artistica",
+        "projeto_videografico",
+        "consultoria",
+        "producao_apoio",
+        "expografia",
+        "outro"
+      ],
+      "description": "Tipo do termo de compromisso"
+    },
+    "contratado_nome": {
+      "type": "string",
+      "description": "Nome completo do contratado"
+    },
+    "contratado_cpf": {
+      "type": "string",
+      "description": "CPF do contratado"
+    },
+    "contratado_cnpj": {
+      "type": "string",
+      "description": "CNPJ (se aplic\u00e1vel)"
+    },
+    "contratado_telefone": {
+      "type": "string",
+      "description": "Telefone do contratado"
+    },
+    "contratado_email": {
+      "type": "string",
+      "description": "Email do contratado"
+    },
+    "contratado_endereco": {
+      "type": "string",
+      "description": "Endere\u00e7o do contratado"
+    },
+    "representante_legal_nome": {
+      "type": "string",
+      "description": "Nome do representante legal"
+    },
+    "representante_legal_cpf": {
+      "type": "string",
+      "description": "CPF do representante legal"
+    },
+    "nacionalidade": {
+      "type": "string",
+      "description": "Nacionalidade do contratado"
+    },
+    "estado_civil": {
+      "type": "string",
+      "enum": [
+        "Solteiro",
+        "Casado",
+        "Divorciado",
+        "Vi\u00favo",
+        "Outro"
+      ],
+      "description": "Estado civil"
+    },
+    "profissao": {
+      "type": "string",
+      "description": "Profiss\u00e3o do contratado"
+    },
+    "nome_social": {
+      "type": "string",
+      "description": "Nome social (se aplic\u00e1vel)"
+    },
+    "contratado_banco": {
+      "type": "string",
+      "description": "Banco para transfer\u00eancia"
+    },
+    "contratado_agencia": {
+      "type": "string",
+      "description": "Ag\u00eancia banc\u00e1ria"
+    },
+    "contratado_conta": {
+      "type": "string",
+      "description": "N\u00famero da conta"
+    },
+    "tipo_conta": {
+      "type": "string",
+      "enum": [
+        "Corrente",
+        "Poupan\u00e7a"
+      ],
+      "description": "Tipo de conta banc\u00e1ria"
+    },
+    "pix_key": {
+      "type": "string",
+      "description": "Chave PIX"
+    },
+    "objeto": {
+      "type": "string",
+      "description": "Objeto/descri\u00e7\u00e3o do trabalho"
+    },
+    "escopo": {
+      "type": "string",
+      "description": "Escopo detalhado das atividades"
+    },
+    "local_execucao": {
+      "type": "string",
+      "description": "Local de execu\u00e7\u00e3o"
+    },
+    "data_inicio": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de in\u00edcio"
+    },
+    "data_fim": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de t\u00e9rmino"
+    },
+    "valor_total": {
+      "type": "number",
+      "description": "Valor total"
+    },
+    "forma_pagamento": {
+      "type": "string",
+      "enum": [
+        "unica_parcela",
+        "duas_parcelas",
+        "tres_parcelas",
+        "mensal",
+        "conforme_realizado"
+      ],
+      "description": "Forma de pagamento"
+    },
+    "parcelas": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "numero": {
+            "type": "number"
+          },
+          "valor": {
+            "type": "number"
+          },
+          "data_vencimento": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "description": "Detalhes das parcelas"
+    },
+    "nota_fiscal_numero": {
+      "type": "string",
+      "description": "N\u00famero da nota fiscal"
+    },
+    "nota_fiscal_data": {
+      "type": "string",
+      "format": "date",
+      "description": "Data da nota fiscal"
+    },
+    "museu": {
+      "type": "string",
+      "description": "Museu respons\u00e1vel"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "rascunho",
+        "gerado",
+        "assinado",
+        "finalizado"
+      ],
+      "default": "rascunho",
+      "description": "Status do termo"
+    },
+    "pdf_url": {
+      "type": "string",
+      "description": "URL do PDF gerado"
+    },
+    "observacoes": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es adicionais"
+    },
+    "cria_vinculado_activity": {
+      "type": "string",
+      "description": "ID da atividade vinculada"
+    },
+    "descricao_relatorio": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o para relat\u00f3rio mensal"
+    },
+    "produtos_termo": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Produtos/entregas gerados"
+    },
+    "publico_estimado": {
+      "type": "number",
+      "description": "P\u00fablico estimado"
+    },
+    "acessibilidade": {
+      "type": "string",
+      "enum": [
+        "N\u00e3o",
+        "Parcial",
+        "Total"
+      ],
+      "description": "N\u00edvel de acessibilidade"
+    },
+    "eh_mobilizacao": {
+      "type": "boolean",
+      "description": "\u00c9 atividade de mobiliza\u00e7\u00e3o?"
+    },
+    "envolve_cadeia_cultura": {
+      "type": "boolean",
+      "description": "Envolve profissionais da cadeia da cultura?"
+    },
+    "nota_fiscal_url": {
+      "type": "string",
+      "description": "URL do arquivo de nota fiscal anexado"
+    },
+    "termo_assinado_url": {
+      "type": "string",
+      "description": "URL do arquivo do termo assinado"
+    }
+  },
+  "required": [
+    "tipo_termo",
+    "contratado_nome",
+    "contratado_cpf",
+    "objeto",
+    "data_inicio",
+    "data_fim",
+    "valor_total",
+    "museu"
+  ]
+}

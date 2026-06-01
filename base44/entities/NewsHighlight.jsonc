@@ -1,0 +1,102 @@
+{
+  "name": "NewsHighlight",
+  "type": "object",
+  "properties": {
+    "titulo": {
+      "type": "string",
+      "description": "T\u00edtulo da not\u00edcia ou artigo"
+    },
+    "resumo": {
+      "type": "string",
+      "description": "Resumo/descri\u00e7\u00e3o do conte\u00fado"
+    },
+    "link": {
+      "type": "string",
+      "description": "URL do conte\u00fado"
+    },
+    "imagem_url": {
+      "type": "string",
+      "description": "URL da imagem de capa"
+    },
+    "fonte": {
+      "type": "string",
+      "enum": [
+        "web",
+        "culturadoria_museus",
+        "portal_museus_centro",
+        "oportunidades",
+        "internal"
+      ],
+      "description": "Fonte do conte\u00fado"
+    },
+    "data_publicacao": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de publica\u00e7\u00e3o do conte\u00fado original"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Tags tem\u00e1ticas"
+    },
+    "tipo_conteudo": {
+      "type": "string",
+      "enum": [
+        "NOTICIA",
+        "ARTIGO_DENSO",
+        "OPORTUNIDADE"
+      ],
+      "description": "Tipo de conte\u00fado"
+    },
+    "score_pertinencia": {
+      "type": "number",
+      "description": "Score de 0-100 da pertin\u00eancia ao projeto"
+    },
+    "score_atualidade": {
+      "type": "number",
+      "description": "Score de 0-100 da atualidade do conte\u00fado"
+    },
+    "palavra_chave_geradora": {
+      "type": "string",
+      "description": "Palavra-chave usada para encontrar este conte\u00fado"
+    },
+    "motivo_curadoria": {
+      "type": "string",
+      "description": "Justificativa da curadoria pela IA"
+    },
+    "status_curadoria": {
+      "type": "string",
+      "enum": [
+        "PUBLICADO_AUTO",
+        "PENDENTE",
+        "REJEITADO",
+        "APROVADO_MANUAL"
+      ],
+      "default": "PENDENTE",
+      "description": "Status de curadoria"
+    },
+    "publicado_por_ia": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se foi publicado automaticamente pela IA"
+    },
+    "modelo_curadoria": {
+      "type": "string",
+      "default": "claude",
+      "description": "Modelo de IA que realizou a curadoria"
+    },
+    "ativo": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se est\u00e1 publicado no painel"
+    }
+  },
+  "required": [
+    "titulo",
+    "link",
+    "fonte",
+    "tipo_conteudo"
+  ]
+}

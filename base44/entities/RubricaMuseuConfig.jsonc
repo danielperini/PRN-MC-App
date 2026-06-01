@@ -1,0 +1,43 @@
+{
+  "name": "RubricaMuseuConfig",
+  "type": "object",
+  "properties": {
+    "rubrica_id": {
+      "type": "string",
+      "description": "ID da rubrica (FK \u2192 Rubrica)"
+    },
+    "museu": {
+      "type": "string",
+      "enum": [
+        "MHAB",
+        "MIS",
+        "MUMO"
+      ],
+      "description": "Museu ao qual a rubrica est\u00e1 vinculada"
+    },
+    "categoria_key": {
+      "type": "string",
+      "enum": [
+        "manutencao",
+        "diarias_educador",
+        "lanches",
+        "alimentacao_cartao",
+        "material",
+        "acoes_educativas",
+        "som_luz",
+        "exposicao"
+      ],
+      "description": "Categoria/card onde ser\u00e1 exibida"
+    },
+    "divisor": {
+      "type": "number",
+      "default": 1,
+      "description": "Divisor do valor (1 = rubrica exclusiva, 3 = compartilhada entre 3 museus)"
+    }
+  },
+  "required": [
+    "rubrica_id",
+    "museu",
+    "categoria_key"
+  ]
+}

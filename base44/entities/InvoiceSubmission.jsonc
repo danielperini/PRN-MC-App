@@ -1,0 +1,109 @@
+{
+  "name": "InvoiceSubmission",
+  "type": "object",
+  "properties": {
+    "user_email": {
+      "type": "string",
+      "description": "Email do membro da equipe que fez a submiss\u00e3o"
+    },
+    "user_name": {
+      "type": "string",
+      "description": "Nome do membro da equipe"
+    },
+    "mes_referencia": {
+      "type": "string",
+      "description": "M\u00eas e ano de refer\u00eancia (ex: mar\u00e7o de 2026)"
+    },
+    "data_submissao": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data e hora da submiss\u00e3o"
+    },
+    "notas_fiscais": {
+      "type": "array",
+      "description": "Array de notas fiscais enviadas",
+      "items": {
+        "type": "object",
+        "properties": {
+          "numero": {
+            "type": "string",
+            "description": "N\u00famero da nota fiscal"
+          },
+          "fornecedor": {
+            "type": "string",
+            "description": "Nome do fornecedor"
+          },
+          "valor": {
+            "type": "number",
+            "description": "Valor da nota fiscal"
+          },
+          "file_url": {
+            "type": "string",
+            "description": "URL do arquivo da nota fiscal"
+          },
+          "dados_extraidos": {
+            "type": "object",
+            "description": "Dados extra\u00eddos pela IA",
+            "properties": {
+              "numero_nota": {
+                "type": "string"
+              },
+              "fornecedor_nome": {
+                "type": "string"
+              },
+              "fornecedor_cnpj": {
+                "type": "string"
+              },
+              "data_emissao": {
+                "type": "string"
+              },
+              "valor_total": {
+                "type": "number"
+              },
+              "descricao_servico": {
+                "type": "string"
+              },
+              "categoria_servico": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "valor_total": {
+      "type": "number",
+      "description": "Valor total de todas as notas fiscais"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "PENDENTE_ANALISE",
+        "APROVADO",
+        "REJEITADO"
+      ],
+      "default": "PENDENTE_ANALISE",
+      "description": "Status da submiss\u00e3o"
+    },
+    "observacoes": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es do coordenador (se houver rejei\u00e7\u00e3o)"
+    },
+    "analisado_por_email": {
+      "type": "string",
+      "description": "Email do coordenador que analisou"
+    },
+    "data_analise": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data da an\u00e1lise"
+    }
+  },
+  "required": [
+    "user_email",
+    "user_name",
+    "mes_referencia",
+    "notas_fiscais",
+    "valor_total"
+  ]
+}

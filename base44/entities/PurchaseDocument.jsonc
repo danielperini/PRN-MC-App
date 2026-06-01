@@ -1,0 +1,91 @@
+{
+  "name": "PurchaseDocument",
+  "type": "object",
+  "properties": {
+    "purchase_id": {
+      "type": "string",
+      "description": "ID da solicita\u00e7\u00e3o de compra relacionada (FK \u2192 PurchaseRequest)"
+    },
+    "rubrica_id": {
+      "type": "string",
+      "description": "ID da rubrica relacionada (FK \u2192 Rubrica, opcional)"
+    },
+    "tipo_documento": {
+      "type": "string",
+      "enum": [
+        "orcamento",
+        "contrato",
+        "nota_fiscal",
+        "recibo",
+        "outro"
+      ],
+      "description": "Tipo de documento"
+    },
+    "nome_arquivo": {
+      "type": "string",
+      "description": "Nome original do arquivo"
+    },
+    "file_url": {
+      "type": "string",
+      "description": "URL do arquivo armazenado"
+    },
+    "file_size": {
+      "type": "number",
+      "description": "Tamanho do arquivo em bytes"
+    },
+    "mime_type": {
+      "type": "string",
+      "description": "Tipo MIME do arquivo (ex: application/pdf)"
+    },
+    "descricao": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o adicional do documento"
+    },
+    "numero_documento": {
+      "type": "string",
+      "description": "N\u00famero da NF, contrato, etc (para refer\u00eancia)"
+    },
+    "data_documento": {
+      "type": "string",
+      "format": "date",
+      "description": "Data do documento"
+    },
+    "fornecedor": {
+      "type": "string",
+      "description": "Fornecedor mencionado no documento"
+    },
+    "valor_documento": {
+      "type": "number",
+      "description": "Valor associado ao documento (NF, or\u00e7amento, etc)"
+    },
+    "uploadado_por": {
+      "type": "string",
+      "description": "Email do usu\u00e1rio que fez upload"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pendente_revisao",
+        "aprovado",
+        "rejeitado",
+        "arquivado"
+      ],
+      "default": "pendente_revisao",
+      "description": "Status de revis\u00e3o do documento"
+    },
+    "comentario_revisao": {
+      "type": "string",
+      "description": "Coment\u00e1rio do revisor"
+    },
+    "revisado_por": {
+      "type": "string",
+      "description": "Email do usu\u00e1rio que revisou"
+    }
+  },
+  "required": [
+    "purchase_id",
+    "tipo_documento",
+    "nome_arquivo",
+    "file_url"
+  ]
+}

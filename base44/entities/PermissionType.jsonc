@@ -1,0 +1,45 @@
+{
+  "name": "PermissionType",
+  "type": "object",
+  "properties": {
+    "key": {
+      "type": "string",
+      "description": "Chave \u00fanica da permiss\u00e3o (ex: can_manage_users)"
+    },
+    "label": {
+      "type": "string",
+      "description": "R\u00f3tulo exibido ao usu\u00e1rio"
+    },
+    "description": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o detalhada da permiss\u00e3o"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "Relat\u00f3rios",
+        "Usu\u00e1rios",
+        "Arquivos",
+        "Estrutura",
+        "Auditoria",
+        "Plataforma"
+      ],
+      "default": "Plataforma",
+      "description": "Categoria da permiss\u00e3o"
+    },
+    "ativo": {
+      "type": "boolean",
+      "default": true,
+      "description": "Se a permiss\u00e3o est\u00e1 ativa no sistema"
+    },
+    "ordem": {
+      "type": "number",
+      "default": 0,
+      "description": "Ordem de exibi\u00e7\u00e3o"
+    }
+  },
+  "required": [
+    "key",
+    "label"
+  ]
+}

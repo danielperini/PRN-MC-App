@@ -1,0 +1,70 @@
+{
+  "name": "GastoRubrica",
+  "type": "object",
+  "properties": {
+    "rubrica_id": {
+      "type": "string",
+      "description": "ID da rubrica or\u00e7ament\u00e1ria (FK \u2192 BudgetLine)"
+    },
+    "fornecedor_id": {
+      "type": "string",
+      "description": "ID do fornecedor (FK \u2192 Fornecedor)"
+    },
+    "fornecedor_nome": {
+      "type": "string",
+      "description": "Nome do fornecedor"
+    },
+    "categoria": {
+      "type": "string",
+      "description": "Categoria do fornecedor"
+    },
+    "descricao": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o do gasto"
+    },
+    "valor": {
+      "type": "number",
+      "description": "Valor do gasto"
+    },
+    "data_gasto": {
+      "type": "string",
+      "format": "date",
+      "description": "Data do gasto"
+    },
+    "mes_referencia": {
+      "type": "string",
+      "description": "M\u00eas de refer\u00eancia (ex: 2026-03)"
+    },
+    "tipo_pagamento": {
+      "type": "string",
+      "enum": [
+        "transferencia",
+        "pix",
+        "dinheiro",
+        "cheque",
+        "cartao"
+      ],
+      "description": "Tipo de pagamento"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pendente",
+        "pago",
+        "cancelado"
+      ],
+      "default": "pendente",
+      "description": "Status do gasto"
+    },
+    "observacoes": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es adicionais"
+    }
+  },
+  "required": [
+    "rubrica_id",
+    "fornecedor_nome",
+    "valor",
+    "data_gasto"
+  ]
+}

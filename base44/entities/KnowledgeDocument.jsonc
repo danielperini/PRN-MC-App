@@ -1,0 +1,51 @@
+{
+  "name": "KnowledgeDocument",
+  "type": "object",
+  "properties": {
+    "titulo": {
+      "type": "string",
+      "description": "T\u00edtulo do documento"
+    },
+    "descricao": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o resumida do documento"
+    },
+    "categoria": {
+      "type": "string",
+      "enum": [
+        "Contrato",
+        "Plano de Trabalho",
+        "Manual",
+        "Meta",
+        "Relat\u00f3rio",
+        "Outro"
+      ],
+      "description": "Categoria do documento"
+    },
+    "conteudo_extraido": {
+      "type": "string",
+      "description": "Texto extra\u00eddo do documento para uso como contexto do assistente"
+    },
+    "file_url": {
+      "type": "string",
+      "description": "URL do arquivo original"
+    },
+    "file_name": {
+      "type": "string",
+      "description": "Nome do arquivo original"
+    },
+    "ativo": {
+      "type": "boolean",
+      "default": true,
+      "description": "Se o documento est\u00e1 ativo para uso como refer\u00eancia no chat"
+    },
+    "versao": {
+      "type": "string",
+      "description": "Vers\u00e3o do documento (ex: 3\u00ba Aditivo, Jan/2026)"
+    }
+  },
+  "required": [
+    "titulo",
+    "categoria"
+  ]
+}

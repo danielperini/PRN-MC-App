@@ -1,0 +1,32 @@
+{
+  "name": "EmailConfig",
+  "type": "object",
+  "properties": {
+    "tipo": {
+      "type": "string",
+      "enum": [
+        "convites",
+        "notificacoes"
+      ],
+      "default": "convites",
+      "description": "Tipo de configura\u00e7\u00e3o de email"
+    },
+    "email_sender": {
+      "type": "string",
+      "description": "Email de envio (ex: noreply@museus.org.br)"
+    },
+    "nome_sender": {
+      "type": "string",
+      "description": "Nome do remetente (ex: Plataforma de Relat\u00f3rios)"
+    },
+    "ativo": {
+      "type": "boolean",
+      "default": true,
+      "description": "Se a configura\u00e7\u00e3o est\u00e1 ativa"
+    }
+  },
+  "required": [
+    "tipo",
+    "email_sender"
+  ]
+}

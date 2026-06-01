@@ -17,6 +17,8 @@
         "NOTA_FISCAL_PDF",
         "NOTA_FISCAL_XML",
         "DOCUMENTO_ADMINISTRATIVO",
+        "CONTRATO",
+        "RECIBO_PDF",
         "OUTRO",
         "PENDENTE"
       ],
@@ -33,7 +35,8 @@
         "ENVIADO_APROVACAO",
         "APROVADO",
         "REJEITADO",
-        "ERRO_PROCESSAMENTO"
+        "ERRO_PROCESSAMENTO",
+        "DELETADO"
       ],
       "default": "ENVIADO",
       "description": "Estado do processamento da entrada \u00fanica"
@@ -62,6 +65,8 @@
         "Attachment",
         "Activity",
         "Programacao",
+        "TeamMember",
+        "Fornecedor",
         ""
       ],
       "description": "Entidade de destino ap\u00f3s roteamento"
@@ -79,7 +84,7 @@
       "items": {
         "type": "string"
       },
-      "description": "Lista de erros ou inconsist\u00eancias detectadas"
+      "description": "Lista de erros ou inconsist\u00eancias"
     },
     "rubrica_id_sugerida": {
       "type": "string",
@@ -112,7 +117,7 @@
     },
     "grupo_upload_id": {
       "type": "string",
-      "description": "ID \u00fanico do grupo de upload (formato: grupo_${timestamp})"
+      "description": "ID \u00fanico do grupo de upload"
     },
     "grupo_status": {
       "type": "string",
@@ -132,7 +137,71 @@
         "REMOVIDO"
       ],
       "default": "ATIVO",
-      "description": "Status l\u00f3gico do registro (soft delete)"
+      "description": "Status l\u00f3gico do registro"
+    },
+    "ocultar_entrada_unica": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se deve ser ocultado da fila principal"
+    },
+    "nf_xml_intake_id": {
+      "type": "string"
+    },
+    "nf_xml_url": {
+      "type": "string"
+    },
+    "nf_pdf_intake_id": {
+      "type": "string"
+    },
+    "nf_pdf_url": {
+      "type": "string"
+    },
+    "nf_emitente_cpf_cnpj": {
+      "type": "string"
+    },
+    "fornecedor_cpf_cnpj": {
+      "type": "string"
+    },
+    "municipio": {
+      "type": "string"
+    },
+    "recibo_intake_id": {
+      "type": "string"
+    },
+    "recibo_url": {
+      "type": "string"
+    },
+    "fornecedor_nome": {
+      "type": "string"
+    },
+    "nf_emitente_nome": {
+      "type": "string"
+    },
+    "nf_numero": {
+      "type": "string"
+    },
+    "nf_valor_total": {
+      "type": "number"
+    },
+    "contrato_team_member_id": {
+      "type": "string",
+      "description": "ID do TeamMember vinculado (para CONTRATO)"
+    },
+    "contrato_fornecedor_id": {
+      "type": "string",
+      "description": "ID do Fornecedor vinculado (para CONTRATO)"
+    },
+    "contrato_numero": {
+      "type": "string",
+      "description": "N\u00famero do contrato extra\u00eddo pela IA"
+    },
+    "contrato_drive_url": {
+      "type": "string",
+      "description": "URL do contrato no Google Drive ap\u00f3s backup"
+    },
+    "contrato_drive_folder_id": {
+      "type": "string",
+      "description": "ID da pasta do contrato no Drive"
     }
   },
   "required": [

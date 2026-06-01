@@ -1,0 +1,72 @@
+{
+  "name": "HelpText",
+  "type": "object",
+  "properties": {
+    "component_key": {
+      "type": "string",
+      "description": "Chave \u00fanica do componente (ex: sidebar-relatorios, btn-novo-relatorio)"
+    },
+    "page_route": {
+      "type": "string",
+      "description": "Rota/p\u00e1gina (ex: /relatorios, /dashboard)"
+    },
+    "component_type": {
+      "type": "string",
+      "enum": [
+        "button",
+        "field",
+        "filter",
+        "tab",
+        "graph",
+        "card",
+        "menu_item",
+        "table_action",
+        "workflow_action",
+        "indicator",
+        "upload",
+        "map_widget",
+        "sidebar_item",
+        "other"
+      ],
+      "description": "Tipo do componente"
+    },
+    "label": {
+      "type": "string",
+      "description": "Label/texto exibido do elemento"
+    },
+    "context_description": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o contextual para IA (ex: 'Bot\u00e3o para criar novo relat\u00f3rio mensal')"
+    },
+    "help_text_ptbr": {
+      "type": "string",
+      "description": "Texto de ajuda em portugu\u00eas do Brasil"
+    },
+    "generated_by_model": {
+      "type": "string",
+      "default": "claude-3-5-sonnet",
+      "description": "Modelo de IA que gerou o texto"
+    },
+    "last_generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data da \u00faltima gera\u00e7\u00e3o/atualiza\u00e7\u00e3o"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "description": "Se o texto de ajuda est\u00e1 ativo"
+    },
+    "manually_edited": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se foi editado manualmente"
+    }
+  },
+  "required": [
+    "component_key",
+    "component_type",
+    "label",
+    "help_text_ptbr"
+  ]
+}

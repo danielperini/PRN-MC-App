@@ -1,0 +1,42 @@
+{
+  "name": "FilePermission",
+  "type": "object",
+  "properties": {
+    "file_id": {
+      "type": "string",
+      "description": "ID do arquivo (Attachment) que tem permiss\u00e3o concedida"
+    },
+    "user_email": {
+      "type": "string",
+      "description": "Email do usu\u00e1rio que tem permiss\u00e3o"
+    },
+    "user_name": {
+      "type": "string",
+      "description": "Nome do usu\u00e1rio"
+    },
+    "permission_type": {
+      "type": "string",
+      "enum": [
+        "view",
+        "edit",
+        "delete"
+      ],
+      "description": "Tipo de permiss\u00e3o: visualizar, editar ou deletar"
+    },
+    "granted_by_email": {
+      "type": "string",
+      "description": "Email do coordenador que concedeu a permiss\u00e3o"
+    },
+    "granted_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data de concess\u00e3o da permiss\u00e3o"
+    }
+  },
+  "required": [
+    "file_id",
+    "user_email",
+    "permission_type",
+    "granted_by_email"
+  ]
+}

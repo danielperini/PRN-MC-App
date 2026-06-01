@@ -1,0 +1,173 @@
+{
+  "name": "User",
+  "type": "object",
+  "properties": {
+    "role": {
+      "type": "string",
+      "enum": [
+        "PROFISSIONAL",
+        "COORD_PRODUCAO",
+        "COORD_ADMINISTRATIVA",
+        "COORD_COMUNICACAO",
+        "CONSULTORIA_PROGRAMACAO",
+        "COORDENADOR",
+        "ADMIN"
+      ],
+      "default": "PROFISSIONAL",
+      "description": "Papel do usu\u00e1rio na plataforma"
+    },
+    "funcao": {
+      "type": "string",
+      "description": "Fun\u00e7\u00e3o do profissional"
+    },
+    "museu": {
+      "type": "string",
+      "description": "Museu de atua\u00e7\u00e3o"
+    },
+    "equipe": {
+      "type": "string",
+      "description": "Equipe de atua\u00e7\u00e3o"
+    },
+    "matricula": {
+      "type": "string",
+      "description": "Matr\u00edcula do profissional"
+    },
+    "approval_status": {
+      "type": "string",
+      "enum": [
+        "AUTO_APPROVED",
+        "PENDING_APPROVAL",
+        "APPROVED",
+        "REJECTED"
+      ],
+      "default": "PENDING_APPROVAL",
+      "description": "Status de aprova\u00e7\u00e3o do usu\u00e1rio. AUTO_APPROVED para dom\u00ednios @viadutodasartes.org.br e @periniprojetos.com.br"
+    },
+    "approved_by": {
+      "type": "string",
+      "description": "Email do Coordenador Geral que aprovou"
+    },
+    "approved_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data/hora da aprova\u00e7\u00e3o"
+    },
+    "login_provider": {
+      "type": "string",
+      "enum": [
+        "email",
+        "google",
+        "auto"
+      ],
+      "default": "email",
+      "description": "Origem do login do usu\u00e1rio"
+    },
+    "can_manage_users": {
+      "type": "boolean",
+      "default": false,
+      "description": "Permiss\u00e3o especial: gerenciar usu\u00e1rios (reservada ao Coordenador Geral)"
+    },
+    "can_approve_users": {
+      "type": "boolean",
+      "default": false,
+      "description": "Permiss\u00e3o especial: aprovar novos usu\u00e1rios"
+    },
+    "newly_approved": {
+      "type": "boolean",
+      "default": false,
+      "description": "Flag tempor\u00e1ria usada ap\u00f3s aprova\u00e7\u00e3o para configurar perfil inicial"
+    },
+    "telefone": {
+      "type": "string",
+      "description": "Telefone de contato"
+    },
+    "cpf": {
+      "type": "string",
+      "description": "CPF do profissional"
+    },
+    "email_pessoal": {
+      "type": "string",
+      "description": "Email pessoal (diferente do email de login)"
+    },
+    "tipo_pessoa": {
+      "type": "string",
+      "enum": [
+        "PF",
+        "MEI",
+        "ME"
+      ],
+      "default": "PF",
+      "description": "Tipo de pessoa jur\u00eddica"
+    },
+    "cnpj": {
+      "type": "string",
+      "description": "CNPJ (MEI/ME)"
+    },
+    "empresa_nome": {
+      "type": "string",
+      "description": "Raz\u00e3o Social"
+    },
+    "empresa_endereco": {
+      "type": "string",
+      "description": "Endere\u00e7o da empresa"
+    },
+    "representante_legal_nome": {
+      "type": "string",
+      "description": "Nome do representante legal"
+    },
+    "representante_legal_cpf": {
+      "type": "string",
+      "description": "CPF do representante legal"
+    },
+    "cargo_representante": {
+      "type": "string",
+      "description": "Cargo do representante"
+    },
+    "banco": {
+      "type": "string",
+      "description": "Banco"
+    },
+    "agencia": {
+      "type": "string",
+      "description": "Ag\u00eancia banc\u00e1ria"
+    },
+    "conta": {
+      "type": "string",
+      "description": "Conta banc\u00e1ria"
+    },
+    "tipo_conta": {
+      "type": "string",
+      "enum": [
+        "Corrente",
+        "Poupan\u00e7a"
+      ],
+      "default": "Corrente",
+      "description": "Tipo de conta banc\u00e1ria"
+    },
+    "pix_key": {
+      "type": "string",
+      "description": "Chave PIX"
+    }
+  },
+  "required": [
+    "funcao",
+    "museu",
+    "equipe",
+    "matricula",
+    "approved_by",
+    "approved_at",
+    "telefone",
+    "cpf",
+    "email_pessoal",
+    "cnpj",
+    "empresa_nome",
+    "empresa_endereco",
+    "representante_legal_nome",
+    "representante_legal_cpf",
+    "cargo_representante",
+    "banco",
+    "agencia",
+    "conta",
+    "pix_key"
+  ]
+}

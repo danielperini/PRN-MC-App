@@ -1,0 +1,71 @@
+{
+  "name": "MetaActivity",
+  "type": "object",
+  "properties": {
+    "meta_id": {
+      "type": "string",
+      "description": "ID da meta do projeto (FK \u2192 ProjectMeta)"
+    },
+    "titulo": {
+      "type": "string",
+      "description": "T\u00edtulo da atividade"
+    },
+    "tipo_atividade": {
+      "type": "string",
+      "enum": [
+        "educativo",
+        "oficina",
+        "atividade cultural",
+        "exposicao",
+        "mostra",
+        "evento"
+      ],
+      "description": "Tipo de atividade realizada"
+    },
+    "data_realizacao": {
+      "type": "string",
+      "format": "date",
+      "description": "Data da realiza\u00e7\u00e3o"
+    },
+    "museu": {
+      "type": "string",
+      "enum": [
+        "Museu da Moda",
+        "Museu da Imagem e do Som",
+        "Museu Hist\u00f3rico Ab\u00edlio Barreto"
+      ],
+      "description": "Museu onde foi realizada"
+    },
+    "coordenacao_responsavel": {
+      "type": "string",
+      "enum": [
+        "Coordenador Geral",
+        "Programa\u00e7\u00e3o",
+        "Comunica\u00e7\u00e3o",
+        "Produ\u00e7\u00e3o"
+      ],
+      "description": "Coordena\u00e7\u00e3o respons\u00e1vel"
+    },
+    "descricao": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o da atividade"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "realizada",
+        "planejada",
+        "em andamento"
+      ],
+      "default": "planejada",
+      "description": "Status da atividade"
+    }
+  },
+  "required": [
+    "meta_id",
+    "titulo",
+    "tipo_atividade",
+    "museu",
+    "coordenacao_responsavel"
+  ]
+}

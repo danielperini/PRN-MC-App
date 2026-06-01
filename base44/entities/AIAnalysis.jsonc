@@ -1,0 +1,106 @@
+{
+  "name": "AIAnalysis",
+  "type": "object",
+  "properties": {
+    "conteudo_tipo": {
+      "type": "string",
+      "enum": [
+        "relatorio",
+        "release",
+        "imagem",
+        "pdf",
+        "contrato",
+        "programacao",
+        "atividade"
+      ],
+      "description": "Tipo de conte\u00fado analisado"
+    },
+    "conteudo_id": {
+      "type": "string",
+      "description": "ID da entidade original"
+    },
+    "tipo_analise": {
+      "type": "string",
+      "enum": [
+        "editorial",
+        "multimodal",
+        "ocr",
+        "financeira",
+        "contextual"
+      ],
+      "description": "Tipo de an\u00e1lise realizada"
+    },
+    "resultado": {
+      "type": "object",
+      "description": "Resultado estruturado da an\u00e1lise (varia por tipo)",
+      "properties": {
+        "texto_gerado": {
+          "type": "string"
+        },
+        "sintese": {
+          "type": "string"
+        },
+        "palavras_chave": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "entities_detected": {
+          "type": "object"
+        },
+        "confianca": {
+          "type": "number"
+        }
+      }
+    },
+    "prompt_usado": {
+      "type": "string",
+      "description": "Prompt enviado \u00e0 IA (para auditoria)"
+    },
+    "modelo_usado": {
+      "type": "string",
+      "description": "Modelo de IA utilizado"
+    },
+    "tokens_utilizados": {
+      "type": "number",
+      "description": "Aproxima\u00e7\u00e3o de tokens gastos"
+    },
+    "tempo_processamento_ms": {
+      "type": "number",
+      "description": "Tempo de processamento em ms"
+    },
+    "gerado_por_email": {
+      "type": "string",
+      "description": "Email do usu\u00e1rio que disparou a an\u00e1lise"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "sucesso",
+        "parcial",
+        "erro"
+      ],
+      "description": "Status da an\u00e1lise"
+    },
+    "erro_mensagem": {
+      "type": "string",
+      "description": "Mensagem de erro (se houver)"
+    },
+    "data_analise": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "ativo": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "conteudo_tipo",
+    "conteudo_id",
+    "tipo_analise",
+    "resultado"
+  ],
+  "rls": {}
+}

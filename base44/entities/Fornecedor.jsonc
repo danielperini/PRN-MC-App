@@ -1,0 +1,222 @@
+{
+  "name": "Fornecedor",
+  "type": "object",
+  "properties": {
+    "nome": {
+      "type": "string",
+      "description": "Nome/raz\u00e3o social do fornecedor"
+    },
+    "nome_fantasia": {
+      "type": "string",
+      "description": "Nome fantasia"
+    },
+    "tipo_pessoa": {
+      "type": "string",
+      "enum": [
+        "pessoa_fisica",
+        "MEI",
+        "ME",
+        "pessoa_juridica",
+        "equipe",
+        "prestador"
+      ],
+      "description": "Tipo de pessoa/entidade"
+    },
+    "tipo": {
+      "type": "string",
+      "enum": [
+        "pessoa_fisica",
+        "pessoa_juridica"
+      ],
+      "description": "Tipo legado"
+    },
+    "cpf": {
+      "type": "string",
+      "description": "CPF (pessoa f\u00edsica)"
+    },
+    "cnpj": {
+      "type": "string",
+      "description": "CNPJ"
+    },
+    "cpf_cnpj": {
+      "type": "string",
+      "description": "CPF ou CNPJ unificado (somente d\u00edgitos)"
+    },
+    "email": {
+      "type": "string",
+      "description": "Email de contato"
+    },
+    "telefone": {
+      "type": "string",
+      "description": "Telefone de contato"
+    },
+    "endereco_completo": {
+      "type": "string",
+      "description": "Endere\u00e7o completo"
+    },
+    "municipio": {
+      "type": "string",
+      "description": "Munic\u00edpio"
+    },
+    "estado": {
+      "type": "string",
+      "description": "UF"
+    },
+    "banco": {
+      "type": "string",
+      "description": "Banco"
+    },
+    "agencia": {
+      "type": "string",
+      "description": "Ag\u00eancia"
+    },
+    "conta": {
+      "type": "string",
+      "description": "N\u00famero da conta"
+    },
+    "tipo_conta": {
+      "type": "string",
+      "enum": [
+        "Corrente",
+        "Poupan\u00e7a"
+      ],
+      "description": "Tipo de conta"
+    },
+    "pix": {
+      "type": "string",
+      "description": "Chave PIX"
+    },
+    "categoria": {
+      "type": "string",
+      "enum": [
+        "contabilidade",
+        "audiovisual",
+        "design",
+        "producao",
+        "consultoria",
+        "manutencao",
+        "limpeza",
+        "seguranca",
+        "alimentacao",
+        "transporte",
+        "tecnologia",
+        "equipe",
+        "prestador_servico",
+        "outro"
+      ],
+      "description": "Categoria do fornecedor"
+    },
+    "categorias_servico": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Categorias de servi\u00e7o"
+    },
+    "museus_atuacao": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Museus/centros de atua\u00e7\u00e3o"
+    },
+    "rubricas_utilizadas": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "IDs de rubricas utilizadas"
+    },
+    "contratos_intake_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "IDs de DocumentIntake de contratos vinculados"
+    },
+    "nfs_intake_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "IDs de DocumentIntake de NFs vinculadas"
+    },
+    "team_member_id": {
+      "type": "string",
+      "description": "ID do TeamMember vinculado (se for membro de equipe)"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "ATIVO",
+        "RASCUNHO",
+        "INATIVO"
+      ],
+      "default": "ATIVO",
+      "description": "Status do fornecedor"
+    },
+    "tem_contrato_mensal": {
+      "type": "boolean",
+      "default": false
+    },
+    "valor_mensal": {
+      "type": "number"
+    },
+    "data_inicio_contrato": {
+      "type": "string",
+      "format": "date"
+    },
+    "data_fim_contrato": {
+      "type": "string",
+      "format": "date"
+    },
+    "ativo": {
+      "type": "boolean",
+      "default": true
+    },
+    "revisado_manualmente": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se os dados foram revisados manualmente (n\u00e3o sobrescrever campos revisados)"
+    },
+    "observacoes": {
+      "type": "string"
+    },
+    "historico_servicos": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "string",
+            "format": "date"
+          },
+          "descricao": {
+            "type": "string"
+          },
+          "valor": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "contato_vendedor_nome": {
+      "type": "string"
+    },
+    "contato_vendedor_telefone": {
+      "type": "string"
+    },
+    "contato_vendedor_email": {
+      "type": "string"
+    },
+    "valor_medio_servico": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "nome"
+  ]
+}

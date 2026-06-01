@@ -1,0 +1,53 @@
+{
+  "name": "ReportExemption",
+  "type": "object",
+  "properties": {
+    "user_email": {
+      "type": "string",
+      "description": "Email do usu\u00e1rio desobrigado"
+    },
+    "user_name": {
+      "type": "string",
+      "description": "Nome do usu\u00e1rio"
+    },
+    "mes_referencia": {
+      "type": "string",
+      "enum": [
+        "Janeiro",
+        "Fevereiro",
+        "Mar\u00e7o",
+        "Abril",
+        "Maio",
+        "Junho",
+        "Julho",
+        "Agosto",
+        "Setembro",
+        "Outubro",
+        "Novembro",
+        "Dezembro"
+      ],
+      "description": "M\u00eas da desobriga\u00e7\u00e3o"
+    },
+    "ano": {
+      "type": "number",
+      "description": "Ano da desobriga\u00e7\u00e3o"
+    },
+    "motivo": {
+      "type": "string",
+      "description": "Motivo da desobriga\u00e7\u00e3o"
+    },
+    "desobrigado_por_email": {
+      "type": "string",
+      "description": "Email do coordenador que desobrigou"
+    },
+    "desobrigado_por_nome": {
+      "type": "string",
+      "description": "Nome do coordenador que desobrigou"
+    }
+  },
+  "required": [
+    "user_email",
+    "mes_referencia",
+    "ano"
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "name": "AiOutput",
+  "type": "object",
+  "properties": {
+    "report_id": {
+      "type": "string",
+      "description": "ID do relat\u00f3rio associado (FK \u2192 Report)"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "RESUMO",
+        "SUGESTOES",
+        "REVISAO",
+        "OUTRO"
+      ],
+      "description": "Modo/tipo da sa\u00edda de IA"
+    },
+    "prompt_used": {
+      "type": "string",
+      "description": "Prompt enviado \u00e0 IA"
+    },
+    "output_text": {
+      "type": "string",
+      "description": "Texto gerado pela IA"
+    },
+    "model_used": {
+      "type": "string",
+      "description": "Modelo de IA utilizado"
+    },
+    "generated_by_email": {
+      "type": "string",
+      "description": "Email do usu\u00e1rio que gerou a sa\u00edda"
+    }
+  },
+  "required": [
+    "report_id",
+    "mode",
+    "output_text"
+  ]
+}

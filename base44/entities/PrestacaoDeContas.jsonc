@@ -1,0 +1,114 @@
+{
+  "name": "PrestacaoDeContas",
+  "type": "object",
+  "properties": {
+    "numero_protocolo": {
+      "type": "string",
+      "description": "N\u00famero \u00fanico da presta\u00e7\u00e3o de contas"
+    },
+    "periodo_mes": {
+      "type": "string",
+      "enum": [
+        "Janeiro",
+        "Fevereiro",
+        "Marco",
+        "Abril",
+        "Maio",
+        "Junho",
+        "Julho",
+        "Agosto",
+        "Setembro",
+        "Outubro",
+        "Novembro",
+        "Dezembro"
+      ],
+      "description": "M\u00eas de refer\u00eancia"
+    },
+    "periodo_ano": {
+      "type": "number",
+      "description": "Ano de refer\u00eancia"
+    },
+    "museu": {
+      "type": "string",
+      "description": "Museu respons\u00e1vel"
+    },
+    "responsavel_email": {
+      "type": "string",
+      "description": "Email do respons\u00e1vel"
+    },
+    "responsavel_nome": {
+      "type": "string",
+      "description": "Nome do respons\u00e1vel"
+    },
+    "valor_total": {
+      "type": "number",
+      "description": "Valor total da presta\u00e7\u00e3o"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "rascunho",
+        "sob_analise",
+        "aprovada",
+        "rejeitada"
+      ],
+      "default": "rascunho",
+      "description": "Status da presta\u00e7\u00e3o"
+    },
+    "termos_compromisso": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "IDs dos termos de compromisso vinculados"
+    },
+    "contratos": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "IDs dos contratos vinculados"
+    },
+    "notas_fiscais": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "numero": {
+            "type": "string"
+          },
+          "fornecedor_id": {
+            "type": "string"
+          },
+          "valor": {
+            "type": "number"
+          },
+          "data_emissao": {
+            "type": "string",
+            "format": "date"
+          },
+          "arquivo_url": {
+            "type": "string"
+          },
+          "dados_extraidos": {
+            "type": "object"
+          }
+        }
+      },
+      "description": "Notas fiscais anexadas"
+    },
+    "observacoes": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es gerais"
+    }
+  },
+  "required": [
+    "numero_protocolo",
+    "periodo_mes",
+    "periodo_ano",
+    "museu"
+  ]
+}

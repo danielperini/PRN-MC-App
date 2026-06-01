@@ -1,0 +1,55 @@
+{
+  "name": "MuseuLocalidade",
+  "type": "object",
+  "properties": {
+    "sigla": {
+      "type": "string",
+      "enum": [
+        "MHAB",
+        "MIS",
+        "MUMO",
+        "Viaduto das Artes"
+      ],
+      "description": "Sigla do museu"
+    },
+    "nome_completo": {
+      "type": "string",
+      "description": "Nome completo do museu"
+    },
+    "endereco_completo": {
+      "type": "string",
+      "description": "Endere\u00e7o completo"
+    },
+    "coordenadas_lat": {
+      "type": "number",
+      "description": "Latitude do endere\u00e7o"
+    },
+    "coordenadas_lon": {
+      "type": "number",
+      "description": "Longitude do endere\u00e7o"
+    },
+    "descricao_missao": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o da miss\u00e3o e foco tem\u00e1tico"
+    },
+    "temas_principais": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Temas principais (ex: patrim\u00f4nio, moda, cinema)"
+    },
+    "ativo": {
+      "type": "boolean",
+      "default": true,
+      "description": "Se o museu est\u00e1 ativo"
+    }
+  },
+  "required": [
+    "sigla",
+    "nome_completo",
+    "endereco_completo",
+    "coordenadas_lat",
+    "coordenadas_lon"
+  ]
+}

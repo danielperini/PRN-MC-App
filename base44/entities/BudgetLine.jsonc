@@ -1,0 +1,68 @@
+{
+  "name": "BudgetLine",
+  "type": "object",
+  "properties": {
+    "codigo": {
+      "type": "string",
+      "description": "C\u00f3digo \u00fanico da rubrica (ex: 3A-EQ-001)"
+    },
+    "nome": {
+      "type": "string",
+      "description": "Nome da rubrica"
+    },
+    "categoria": {
+      "type": "string",
+      "description": "Categoria or\u00e7ament\u00e1ria (ex: Equipe e gest\u00e3o, Consultorias)"
+    },
+    "tipo": {
+      "type": "string",
+      "enum": [
+        "mensal",
+        "consultoria",
+        "formacao",
+        "acao",
+        "lote",
+        "servico",
+        "contratacao",
+        "rubrica"
+      ],
+      "description": "Tipo de rubrica"
+    },
+    "descricao": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o detalhada"
+    },
+    "parcelas_ou_unidades": {
+      "type": "number",
+      "description": "N\u00famero de meses, parcelas ou unidades"
+    },
+    "valor_total": {
+      "type": "number",
+      "description": "Valor total previsto"
+    },
+    "valor_comprometido": {
+      "type": "number",
+      "default": 0,
+      "description": "Valor j\u00e1 comprometido/aprovado"
+    },
+    "valor_pago": {
+      "type": "number",
+      "default": 0,
+      "description": "Valor j\u00e1 pago"
+    },
+    "ativo": {
+      "type": "boolean",
+      "default": true,
+      "description": "Se est\u00e1 ativa"
+    }
+  },
+  "required": [
+    "codigo",
+    "nome",
+    "categoria",
+    "tipo",
+    "descricao",
+    "parcelas_ou_unidades",
+    "valor_total"
+  ]
+}
