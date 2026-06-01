@@ -61,6 +61,7 @@ import Aparencia from './pages/Aparencia';
 import ConviteAcesso from './pages/ConviteAcesso';
 import NotificationSettings from './pages/NotificationSettings';
 import ImportarRubricasAdmin from './pages/ImportarRubricasAdmin';
+import RestaurarRubricasAdmin from './pages/RestaurarRubricasAdmin';
 import __Layout from './Layout.jsx';
 
 export const PAGES = {
@@ -121,6 +122,7 @@ export const PAGES = {
   ConviteAcesso,
   NotificationSettings,
   ImportarRubricasAdmin,
+  RestaurarRubricasAdmin,
 };
 
 export const pagesConfig = {
