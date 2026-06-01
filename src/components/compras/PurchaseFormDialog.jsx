@@ -861,27 +861,38 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
                 </SelectTrigger>
 
                 <SelectContent>
+                  {/* Rubrica já salva: sempre aparece, mesmo que não passe nos filtros */}
+                  {form.rubrica_id && !rubricas
+                    .filter((r) => r?.ativo !== false)
+                    .filter((r) => !form.meta_id || (r.grupo || r.meta) === form.meta_id)
+                    .filter((r) => !form.centro_custo || (() => {
+                      const cc = String(form.centro_custo || '').toUpperCase().replace('MAB', 'MHAB');
+                      const rc = String(r.museu_codigo || '').toUpperCase().replace('MAB', 'MHAB');
+                      if (cc === 'NOTURNO NOS MUSEUS 2026') return r.escopo_orcamentario === 'NOTURNO';
+                      if (['MIS','MUMO','MHAB'].includes(cc)) return rc === cc;
+                      return true;
+                    })())
+                    .some((r) => r.id === form.rubrica_id) && (
+                    <SelectItem value={form.rubrica_id}>
+                      {form.rubrica_nome || rubricas.find((r) => r.id === form.rubrica_id)?.rubrica || form.rubrica_id}
+                    </SelectItem>
+                  )}
+
                   {rubricas
                     .filter((r) => r?.ativo !== false)
                     .filter((r) => !form.meta_id || (r.grupo || r.meta) === form.meta_id)
                     .filter((r) => !form.centro_custo || (() => {
-                      const cc = String(form.centro_custo || '').toUpperCase().replace('MHAB', 'MHAB').replace('MAB', 'MHAB');
+                      const cc = String(form.centro_custo || '').toUpperCase().replace('MAB', 'MHAB');
                       const rc = String(r.museu_codigo || '').toUpperCase().replace('MAB', 'MHAB');
-                      if (cc === 'NOTURNO NOS MUSEUS 2026') return (r.escopo_orcamentario === 'NOTURNO');
+                      if (cc === 'NOTURNO NOS MUSEUS 2026') return r.escopo_orcamentario === 'NOTURNO';
                       if (['MIS','MUMO','MHAB'].includes(cc)) return rc === cc;
                       return true;
                     })())
                     .map((r) => (
-                    <SelectItem key={r.id} value={r.id}>
-                      {r.rubrica || r.nome}
-                    </SelectItem>
-                  ))}
-
-                  {form.rubrica_id && !rubricas.some((r) => r.id === form.rubrica_id) && (
-                    <SelectItem value={form.rubrica_id}>
-                      {form.rubrica_nome || form.rubrica_id}
-                    </SelectItem>
-                  )}
+                      <SelectItem key={r.id} value={r.id}>
+                        {r.rubrica || r.nome}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
