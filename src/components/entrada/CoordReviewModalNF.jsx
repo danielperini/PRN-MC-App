@@ -756,7 +756,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       />
 
       <Dialog open onOpenChange={onClose}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-full max-w-3xl max-h-[90vh] overflow-x-hidden overflow-y-auto mx-4">
           <DialogHeader>
           <div className="flex items-start justify-between">
             <DialogTitle className="flex items-center gap-2">
