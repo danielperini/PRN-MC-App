@@ -756,23 +756,26 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       />
 
       <Dialog open onOpenChange={onClose}>
-        <DialogContent className="!max-w-3xl w-full max-h-[90vh] overflow-x-hidden overflow-y-auto">
-          <DialogHeader>
-          <div className="flex items-start justify-between">
-            <DialogTitle className="flex items-center gap-2">
-              <FileText className="w-5 h-5 text-blue-500" />
-              Conferência de Nota Fiscal
-            </DialogTitle>
-            <a href="/GuiaNotaFiscal" target="_blank" rel="noopener noreferrer">
-              <Button variant="outline" size="sm" className="text-xs h-8">
-                <BookOpen className="w-3 h-3 mr-1" />
-                Ver guia
-              </Button>
-            </a>
-          </div>
-        </DialogHeader>
+        <DialogContent className="!max-w-3xl w-full flex flex-col max-h-[calc(100vh-48px)] overflow-hidden p-0">
+          {/* Cabeçalho fixo */}
+          <DialogHeader className="px-6 pt-6 pb-3 border-b flex-shrink-0">
+            <div className="flex items-start justify-between">
+              <DialogTitle className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-blue-500" />
+                Conferência de Nota Fiscal
+              </DialogTitle>
+              <a href="/GuiaNotaFiscal" target="_blank" rel="noopener noreferrer">
+                <Button variant="outline" size="sm" className="text-xs h-8">
+                  <BookOpen className="w-3 h-3 mr-1" />
+                  Ver guia
+                </Button>
+              </a>
+            </div>
+          </DialogHeader>
 
-        <div className="space-y-4">
+          {/* Corpo rolável apenas verticalmente */}
+          <div className="flex-1 overflow-y-auto overflow-x-hidden px-6 py-4 min-w-0 box-border">
+        <div className="space-y-4 w-full min-w-0">
           <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg border border-blue-100 text-sm text-blue-700">
             <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
             Documento analisado pela IA. Campos preenchidos automaticamente.
@@ -796,49 +799,49 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
             </div>
           )}
 
-          <div className="space-y-1">
+          <div className="space-y-1 w-full min-w-0">
             <Label>Nome padronizado do arquivo</Label>
-            <Input value={form.file_name_final} onChange={(e) => setForm((f) => ({ ...f, file_name_final: e.target.value }))} />
+            <Input className="w-full min-w-0" value={form.file_name_final} onChange={(e) => setForm((f) => ({ ...f, file_name_final: e.target.value }))} />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full min-w-0">
+            <div className="space-y-1 min-w-0">
               <Label>Número da NF</Label>
-              <Input value={form.nf_numero} onChange={(e) => setForm((f) => ({ ...f, nf_numero: e.target.value }))} />
+              <Input className="w-full min-w-0" value={form.nf_numero} onChange={(e) => setForm((f) => ({ ...f, nf_numero: e.target.value }))} />
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1 min-w-0">
               <Label>Valor Total (R$)</Label>
-              <Input value={form.nf_valor_total} onChange={(e) => setForm((f) => ({ ...f, nf_valor_total: e.target.value }))} />
+              <Input className="w-full min-w-0" value={form.nf_valor_total} onChange={(e) => setForm((f) => ({ ...f, nf_valor_total: e.target.value }))} />
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1 min-w-0">
               <Label>Data de Emissão</Label>
-              <Input type="date" value={form.nf_data_emissao} onChange={(e) => setForm((f) => ({ ...f, nf_data_emissao: e.target.value }))} />
+              <Input type="date" className="w-full min-w-0" value={form.nf_data_emissao} onChange={(e) => setForm((f) => ({ ...f, nf_data_emissao: e.target.value }))} />
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1 min-w-0">
               <Label>Competência</Label>
-              <Input value={form.competencia} onChange={(e) => setForm((f) => ({ ...f, competencia: e.target.value }))} placeholder="Ex: Março/2026" />
+              <Input className="w-full min-w-0" value={form.competencia} onChange={(e) => setForm((f) => ({ ...f, competencia: e.target.value }))} placeholder="Ex: Março/2026" />
             </div>
           </div>
 
-          <div className="space-y-1">
+          <div className="space-y-1 w-full min-w-0">
             <Label>Fornecedor / Emitente</Label>
-            <Input value={form.nf_emitente_nome} onChange={(e) => setForm((f) => ({ ...f, nf_emitente_nome: e.target.value }))} />
+            <Input className="w-full min-w-0" value={form.nf_emitente_nome} onChange={(e) => setForm((f) => ({ ...f, nf_emitente_nome: e.target.value }))} />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full min-w-0">
+            <div className="space-y-1 min-w-0">
               <Label>CNPJ / CPF do Emitente</Label>
-              <Input value={form.nf_emitente_cpf_cnpj} onChange={(e) => setForm((f) => ({ ...f, nf_emitente_cpf_cnpj: e.target.value }))} />
+              <Input className="w-full min-w-0" value={form.nf_emitente_cpf_cnpj} onChange={(e) => setForm((f) => ({ ...f, nf_emitente_cpf_cnpj: e.target.value }))} />
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1 min-w-0">
               <Label>Município</Label>
-              <Input value={form.municipio} onChange={(e) => setForm((f) => ({ ...f, municipio: e.target.value }))} />
+              <Input className="w-full min-w-0" value={form.municipio} onChange={(e) => setForm((f) => ({ ...f, municipio: e.target.value }))} />
             </div>
           </div>
 
-          <div className="space-y-1">
+          <div className="space-y-1 w-full min-w-0">
             <Label>Descrição do Serviço / Item</Label>
-            <Input value={form.descricao_servico} onChange={(e) => setForm((f) => ({ ...f, descricao_servico: e.target.value }))} />
+            <Input className="w-full min-w-0" value={form.descricao_servico} onChange={(e) => setForm((f) => ({ ...f, descricao_servico: e.target.value }))} />
           </div>
 
           {/* Dados adicionais extraídos pela IA */}
@@ -879,12 +882,12 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
             </div>
           )}
 
-          <div className="space-y-1">
+          <div className="space-y-1 w-full min-w-0">
             <Label>
               Meta do 3º Aditivo
             </Label>
             <Select value={form.meta_id} onValueChange={(v) => setForm((f) => ({ ...f, meta_id: v }))}>
-              <SelectTrigger>
+              <SelectTrigger className="w-full min-w-0">
                 <SelectValue placeholder="Selecionar meta" />
               </SelectTrigger>
               <SelectContent>
@@ -905,12 +908,12 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
             </Select>
           </div>
 
-          <div className="space-y-1">
+          <div className="space-y-1 w-full min-w-0">
             <Label>
               Tipo de Gasto <span className="text-red-500">*</span>
             </Label>
             <Select value={form.tipo_gasto} onValueChange={(v) => setForm((f) => ({ ...f, tipo_gasto: v }))}>
-              <SelectTrigger>
+              <SelectTrigger className="w-full min-w-0">
                 <SelectValue placeholder="Selecionar tipo" />
               </SelectTrigger>
               <SelectContent>
@@ -920,7 +923,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
             </Select>
           </div>
 
-          <div className="space-y-1" ref={rubricaRef}>
+          <div className="space-y-1 w-full min-w-0" ref={rubricaRef}>
             <Label>
               Rubrica <span className="text-red-500">*</span>
             </Label>
@@ -1068,7 +1071,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
                   Centro de Custo <span className="text-red-500">*</span>
                 </Label>
                 <Select value={form.centro_custo} onValueChange={(v) => setForm((f) => ({ ...f, centro_custo: v }))}>
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full min-w-0">
                     <SelectValue placeholder="Selecionar" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1137,7 +1140,11 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
             </div>
           )}
 
-          <div className="flex justify-end gap-2 pt-2 flex-wrap">
+        </div>
+          </div>
+
+          {/* Rodapé fixo */}
+          <div className="flex justify-end gap-2 px-6 py-4 border-t flex-shrink-0 flex-wrap bg-white">
             <Button variant="outline" onClick={onClose}>
               Cancelar
             </Button>
@@ -1181,9 +1188,8 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
               Enviar para Aprovação
             </Button>
           </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
