@@ -12,6 +12,7 @@ import CardRubricaEditor from '@/components/rubricas/CardRubricaEditor';
 import NovaRubricaDialog from '@/components/rubricas/NovaRubricaDialog';
 import { recalculateAllRubricasFromPurchases } from '@/components/compras/AutoRubricasSync';
 import { canManageRubricas } from '@/components/auth/permissions';
+import { getRubricasOficiais3Aditivo, TOTAL_OFICIAL_3_ADITIVO } from '@/lib/rubricasOficiais3Aditivo';
 
 const MUSEUS = ['MHAB', 'MIS', 'MUMO'];
 const ABAS = ['MHAB', 'MIS', 'MUMO', 'NOTURNO'];
@@ -22,203 +23,7 @@ function toNumber(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
-function normalizeText(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
-}
 
-function normalizeMuseu(value) {
-  const text = normalizeText(value);
-  if (!text) return '';
-  if (text === 'mis' || text.includes('imagem') || text.includes('som')) return 'MIS';
-  if (text === 'mhab' || text.includes('abilio') || text.includes('historico')) return 'MHAB';
-  if (text === 'mumo' || text.includes('moda')) return 'MUMO';
-  if (text.includes('noturno')) return 'NOTURNO';
-  return String(value || '').trim().toUpperCase();
-}
-
-function getNome(r = {}) {
-  return String(r?.rubrica || r?.nome || r?.descricao || 'Rubrica sem nome');
-}
-
-function getValorOrcado(r = {}) {
-  return toNumber(r?.totalOrcado ?? r?.valorOrcado ?? r?.valor_rubrica ?? r?.valor_total ?? r?.orcado ?? r?.previsto);
-}
-
-function getValorUtilizado(r = {}) {
-  return toNumber(r?.valorUtilizado ?? r?.valor_utilizado ?? r?.utilizado ?? r?.realizado);
-}
-
-function getValorPago(r = {}) {
-  return toNumber(r?.valorPago ?? r?.valor_pago ?? r?.pago);
-}
-
-function getValorLancamentos(r = {}) {
-  return toNumber(r?.valorLancamentos ?? r?.valor_lancamentos ?? r?.lancamentos);
-}
-
-function getSearchText(r = {}, includeGeneratedOrigin = false) {
-  return normalizeText([
-    r?.rubrica,
-    r?.nome,
-    r?.descricao,
-    r?.grupo,
-    r?.categoria,
-    r?.categoria_key,
-    r?.centro_custo,
-    r?.museu,
-    r?.museu_codigo,
-    r?.unidade,
-    includeGeneratedOrigin ? r?.museu_origem : '',
-    r?.observacao_uso,
-  ].filter(Boolean).join(' '));
-}
-
-function isHiddenRubrica(text = '') {
-  return (
-    text.includes('transporte') ||
-    text.includes('assessoria juridica') ||
-    text.includes('assessor juridico') ||
-    text.includes('juridico') ||
-    text.includes('contador') ||
-    text.includes('contabilidade') ||
-    text.includes('energia eletrica') ||
-    text.includes('formacao sobre ambiente seguro') ||
-    text.includes('ambiente seguro') ||
-    text.includes('diversidade') ||
-    text.includes('inclusao') ||
-    text.includes('material escritorio') ||
-    text.includes('material de escritorio') ||
-    text.includes('fornecimento de som e iluminacao') ||
-    text.includes('fornecimento de som') ||
-    text.includes('coordenador') ||
-    text.includes('coordenacao') ||
-    text.includes('assistente') ||
-    text.includes('analista') ||
-    text.includes('equipe') ||
-    text.includes('gestao') ||
-    text.includes('administrativo') ||
-    text.includes('consultoria') ||
-    text.includes('consultorias') ||
-    text.includes('despesas gerais') ||
-    text.includes('despesa geral') ||
-    text.includes('educador') ||
-    text.includes('educadora') ||
-    text.includes('diaria educador') ||
-    text.includes('diarias educador')
-  );
-}
-
-function isNoturno(r = {}) {
-  return getSearchText(r, true).includes('noturno');
-}
-
-function hasMuseuToken(text = '', museu = '') {
-  if (museu === 'MIS') return text.includes('mis') || text.includes('imagem') || text.includes('som');
-  if (museu === 'MHAB') return text.includes('mhab') || text.includes('abilio') || text.includes('historico');
-  if (museu === 'MUMO') return text.includes('mumo') || text.includes('moda');
-  return false;
-}
-
-function countMuseuTokens(text = '') {
-  return MUSEUS.filter((museu) => hasMuseuToken(text, museu)).length;
-}
-
-/**
- * matchRubricaMuseu — sem rateio (Tarefa 3)
- * Usa museu_codigo como fonte de verdade primária.
- * Fallback por tokens de texto para compatibilidade com rubricas legadas.
- * MAB é alias de MHAB.
- * Rubricas do Noturno não aparecem nos cards por museu (escopo separado).
- * Rubricas GERAL (equipe de gestão, educadoras) não aparecem nos cards.
- */
-function matchRubricaMuseu(r = {}, museu = '') {
-  const normalizedMuseu = normalizeMuseu(museu);
-  if (!normalizedMuseu || normalizedMuseu === 'GERAL') return false;
-
-  // Noturno tem escopo próprio
-  const escopoRubrica = String(r?.escopo_orcamentario || '').toUpperCase();
-  if (normalizedMuseu === 'NOTURNO') {
-    return escopoRubrica === 'NOTURNO' || isNoturno(r);
-  }
-  if (escopoRubrica === 'NOTURNO' || isNoturno(r)) return false;
-
-  // Fonte de verdade: museu_codigo explícito
-  const codigoRubrica = String(r?.museu_codigo || '').toUpperCase().replace('MAB', 'MHAB');
-  if (codigoRubrica && codigoRubrica !== 'GERAL') {
-    return codigoRubrica === normalizedMuseu;
-  }
-
-  // Fallback por tokens de texto (rubricas legadas sem museu_codigo)
-  const explicitText = getSearchText(r, false);
-  if (isHiddenRubrica(explicitText)) return false;
-  if (countMuseuTokens(explicitText) !== 1) return false;
-  return hasMuseuToken(explicitText, normalizedMuseu);
-}
-
-function flattenAllRubricas(source = {}) {
-  const rows = [];
-  if (source?.por_museu && typeof source.por_museu === 'object') {
-    Object.entries(source.por_museu).forEach(([museuKey, categorias]) => {
-      Object.entries(categorias || {}).forEach(([categoriaKey, items]) => {
-        (Array.isArray(items) ? items : []).forEach((item) => {
-          rows.push({ ...item, categoria_key: item?.categoria_key || categoriaKey, museu_origem: normalizeMuseu(museuKey) });
-        });
-      });
-    });
-  }
-  return rows;
-}
-
-function dedupeRows(rows = []) {
-  const seen = new Set();
-  return rows.filter((r) => {
-    const id = r?.id || normalizeText(getNome(r));
-    if (seen.has(id)) return false;
-    seen.add(id);
-    return true;
-  });
-}
-
-
-
-/**
- * buildResumoRealPorMuseu — sem rateio automático ÷3 (Tarefa 3)
- * Cada museu soma apenas rubricas com museu_codigo explícito igual ao museu.
- * Rubricas de equipe de gestão (GERAL) e educadoras não entram nos cards.
- * Noturno tem total próprio separado e não contamina cards por museu.
- */
-function buildResumoRealPorMuseu(consolidado = {}) {
-  const rows = dedupeRows(flattenAllRubricas(consolidado)).filter((r) => r?.ativo !== false);
-
-  return MUSEUS.map((museu) => {
-    // Inclui apenas rubricas explicitamente deste museu, sem Noturno, sem GERAL
-    const specific = rows.filter((r) => matchRubricaMuseu(r, museu));
-    const acc = { museu, totalOrcado: 0, totalUtilizado: 0, totalPago: 0, totalLancamentos: 0, totalSaldo: 0, pct: 0 };
-
-    specific.forEach((r) => {
-      const orcado = getValorOrcado(r);
-      const utilizado = getValorUtilizado(r);
-      acc.totalOrcado += orcado;
-      acc.totalUtilizado += utilizado;
-      acc.totalPago += getValorPago(r);
-      acc.totalLancamentos += getValorLancamentos(r);
-      acc.totalSaldo += orcado - utilizado;
-    });
-
-    acc.totalOrcado = Number(acc.totalOrcado.toFixed(2));
-    acc.totalUtilizado = Number(acc.totalUtilizado.toFixed(2));
-    acc.totalPago = Number(acc.totalPago.toFixed(2));
-    acc.totalLancamentos = Number(acc.totalLancamentos.toFixed(2));
-    acc.totalSaldo = Number(acc.totalSaldo.toFixed(2));
-    acc.pct = acc.totalOrcado > 0 ? Number(((acc.totalUtilizado / acc.totalOrcado) * 100).toFixed(2)) : 0;
-    return acc;
-  });
-}
 
 function KpiCard({ label, value, helper, dark = false }) {
   return (
@@ -268,7 +73,6 @@ export default function RubricasPorMuseu() {
   const [userPermission, setUserPermission] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshNonce, setRefreshNonce] = useState(0);
-  const [lastRecalcResponse, setLastRecalcResponse] = useState(null);
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -286,27 +90,90 @@ export default function RubricasPorMuseu() {
   const isCoordenador = currentUser && ['COORDENADOR', 'ADMIN', 'admin'].includes(currentUser?.role);
   const canEdit = !isSponsor && (isCoordenador || userPermission?.pode_gerenciar_rubricas || userPermission?.gestao_compras || canManageRubricas(currentUser, userPermission));
 
-  const { data: consolidado, refetch: refetchConsolidado } = useQuery({
-    queryKey: ['rubricas-consolidadas', refreshNonce],
-    queryFn: async () => {
-      try {
-        const res = await base44.functions.invoke('getRubricasConsolidadas', {});
-        if (res?.data) return res.data;
-      } catch (err) {
-        console.warn('getRubricasConsolidadas indisponível:', err);
-      }
-      const rubricas = await base44.entities.Rubrica.list('ordem_exibicao', 1000);
-      return { por_museu: { GERAL: { geral: Array.isArray(rubricas) ? rubricas : [] } } };
-    },
+  // Carrega rubricas do banco para pegar valor_utilizado real
+  const { data: rubricasBanco, refetch: refetchRubricas } = useQuery({
+    queryKey: ['rubricas-banco', refreshNonce],
+    queryFn: () => base44.entities.Rubrica.list('ordem_exibicao', 1000),
     staleTime: 0,
     gcTime: 0,
     refetchOnWindowFocus: true,
   });
 
+  // Carrega compras aprovadas para calcular utilizado por rubrica
+  const { data: comprasAprovadas, refetch: refetchCompras } = useQuery({
+    queryKey: ['compras-aprovadas-resumo', refreshNonce],
+    queryFn: () => base44.entities.PurchaseRequest.filter({
+      status: { $in: ['APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO'] }
+    }, '-created_date', 2000),
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnWindowFocus: true,
+  });
+
+  /**
+   * Usa a lib oficial como fonte de verdade para orçamento.
+   * Cruza com rubricas do banco pelo nome normalizado para pegar valor_utilizado.
+   * Compras aprovadas com rubrica_id são somadas diretamente.
+   */
   const resumoPorMuseu = useMemo(() => {
-    const source = lastRecalcResponse || consolidado || {};
-    return buildResumoRealPorMuseu(source);
-  }, [consolidado, lastRecalcResponse]);
+    const oficiais = getRubricasOficiais3Aditivo();
+    const banco = Array.isArray(rubricasBanco) ? rubricasBanco.filter(r => r?.ativo !== false) : [];
+    const compras = Array.isArray(comprasAprovadas) ? comprasAprovadas : [];
+
+    // Mapa: nome normalizado → rubrica do banco
+    function norm(s) {
+      return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+    }
+
+    const bancoPorNome = {};
+    const bancoPorId = {};
+    for (const r of banco) {
+      if (r.id) bancoPorId[r.id] = r;
+      const chave = norm(r.rubrica || r.nome || '');
+      if (chave) bancoPorNome[chave] = r;
+    }
+
+    // Valor utilizado por rubrica_id (compras aprovadas)
+    const utilizadoPorRubricaId = {};
+    for (const c of compras) {
+      const rid = c.rubrica_id;
+      if (!rid) continue;
+      const val = toNumber(c.valor_pago || c.valor_aprovado_admin || c.valor_aprovado || c.valor_solicitado);
+      utilizadoPorRubricaId[rid] = (utilizadoPorRubricaId[rid] || 0) + val;
+    }
+
+    return MUSEUS.map((museu) => {
+      // Apenas rubricas oficiais deste museu (museu_codigo === museu)
+      // Rubricas GERAL e NOTURNO não entram nos totais por museu
+      const minhas = oficiais.filter(r => r.museu_codigo === museu);
+
+      let totalOrcado = 0;
+      let totalUtilizado = 0;
+
+      for (const oficial of minhas) {
+        totalOrcado += oficial.valor_total;
+
+        // Tenta encontrar a rubrica no banco pelo nome
+        const chaveNome = norm(oficial.rubrica);
+        const rubricaBanco = bancoPorNome[chaveNome];
+
+        if (rubricaBanco?.id) {
+          // Prioridade: soma de compras aprovadas vinculadas
+          const utilCompras = utilizadoPorRubricaId[rubricaBanco.id] || 0;
+          // Fallback: valor_utilizado salvo na rubrica
+          const utilRubrica = toNumber(rubricaBanco.valor_utilizado);
+          totalUtilizado += utilCompras > 0 ? utilCompras : utilRubrica;
+        }
+      }
+
+      totalOrcado = Number(totalOrcado.toFixed(2));
+      totalUtilizado = Number(totalUtilizado.toFixed(2));
+      const totalSaldo = Number((totalOrcado - totalUtilizado).toFixed(2));
+      const pct = totalOrcado > 0 ? Number(((totalUtilizado / totalOrcado) * 100).toFixed(2)) : 0;
+
+      return { museu, totalOrcado, totalUtilizado, totalPago: 0, totalLancamentos: 0, totalSaldo, pct };
+    });
+  }, [rubricasBanco, comprasAprovadas]);
 
   const fmt = (v) => toNumber(v).toLocaleString('pt-BR', {
     style: 'currency',
@@ -316,21 +183,20 @@ export default function RubricasPorMuseu() {
   });
   const fmtPct = (v) => `${Number(v || 0).toFixed(1)}%`;
 
-  const totaisGerais = useMemo(() => resumoPorMuseu.reduce((acc, item) => {
-    acc.totalOrcado += toNumber(item.totalOrcado);
-    acc.totalUtilizado += toNumber(item.totalUtilizado);
-    acc.totalPago += toNumber(item.totalPago);
-    acc.totalLancamentos += toNumber(item.totalLancamentos);
-    acc.totalSaldo += toNumber(item.totalSaldo);
-    return acc;
-  }, { totalOrcado: 0, totalUtilizado: 0, totalPago: 0, totalLancamentos: 0, totalSaldo: 0 }), [resumoPorMuseu]);
+  const totaisGerais = useMemo(() => {
+    // Orçamento total sempre é o valor oficial do 3º Aditivo
+    const totalOrcado = TOTAL_OFICIAL_3_ADITIVO;
+    const totalUtilizado = resumoPorMuseu.reduce((acc, item) => acc + toNumber(item.totalUtilizado), 0);
+    const totalSaldo = Number((totalOrcado - totalUtilizado).toFixed(2));
+    return { totalOrcado, totalUtilizado, totalPago: 0, totalLancamentos: 0, totalSaldo };
+  }, [resumoPorMuseu]);
 
   const percentualGeral = totaisGerais.totalOrcado > 0 ? (totaisGerais.totalUtilizado / totaisGerais.totalOrcado) * 100 : 0;
 
   const refreshAllRubricaData = async () => {
     await Promise.all([
-      queryClient.invalidateQueries({ predicate: (query) => String(Array.isArray(query.queryKey) ? query.queryKey.join('|') : query.queryKey || '').toLowerCase().includes('rubrica') }),
-      refetchConsolidado(),
+      refetchRubricas(),
+      refetchCompras(),
     ]);
     setRefreshNonce((prev) => prev + 1);
   };
@@ -338,21 +204,12 @@ export default function RubricasPorMuseu() {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      const res = await base44.functions.invoke('recalculateAllRubricas', { trigger: 'manual_refresh_rubricas_por_museu' });
-      setLastRecalcResponse(res?.data || null);
+      await recalculateAllRubricasFromPurchases();
       await refreshAllRubricaData();
-      toast.success('Rubricas recalculadas e tela atualizada com dados reais');
+      toast.success('Dados atualizados com base nas compras aprovadas');
     } catch (e) {
-      console.warn('recalculateAllRubricas indisponível. Recalculando no frontend:', e);
-      try {
-        const result = await recalculateAllRubricasFromPurchases();
-        setLastRecalcResponse(null);
-        await refreshAllRubricaData();
-        toast.success(`Rubricas atualizadas no app (${result.updated || 0} ajuste${result.updated === 1 ? '' : 's'})`);
-      } catch (fallbackError) {
-        toast.error('Erro ao recalcular rubricas');
-        console.error(fallbackError);
-      }
+      await refreshAllRubricaData();
+      toast.success('Tela atualizada');
     }
     setIsRefreshing(false);
   };
