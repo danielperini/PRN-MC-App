@@ -117,8 +117,9 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
         <table className="w-full text-sm">
           <thead className="bg-gray-100">
             <tr>
-              <th className="p-2">Grupo</th>
-              <th className="p-2">Rubrica</th>
+              <th className="p-2 text-left">Grupo</th>
+              <th className="p-2 text-left">Rubrica</th>
+              <th className="p-2 text-left">Centro de Custo</th>
               <th className="p-2">Valor</th>
               <th className="p-2">Utilizado</th>
               <th className="p-2">Saldo</th>
@@ -132,6 +133,11 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
 
                 <td className="p-2">{r?.grupo}</td>
                 <td className="p-2">{r?.rubrica}</td>
+                <td className="p-2">
+                  <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full whitespace-nowrap">
+                    {r?.centro_custo || '—'}
+                  </span>
+                </td>
 
                 <td
                   className="p-2 cursor-pointer hover:bg-yellow-100"
@@ -168,7 +174,7 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
 
           <tfoot className="bg-gray-50 font-bold">
             <tr>
-              <td colSpan={2} className="p-2">TOTAL</td>
+              <td colSpan={3} className="p-2">TOTAL</td>
               <td className="p-2">R$ {moeda(totais.previsto)}</td>
               <td className="p-2">R$ {moeda(totais.utilizado)}</td>
               <td className="p-2">R$ {moeda(totais.saldo)}</td>
