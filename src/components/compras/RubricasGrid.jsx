@@ -1,6 +1,23 @@
 import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
+import { Pencil, X, Save } from 'lucide-react';
+
+const CENTROS_CUSTO = [
+  'MHAB',
+  'MIS BH',
+  'MUMO',
+  'Geral/Transversal',
+  'Coordenação',
+  'Comunicação',
+  'Educação',
+  'Produção',
+  'Administrativo-financeiro',
+  'Noturno nos Museus',
+  'Publicações',
+  'Consultorias',
+  'Despesas Gerais'
+];
 
 function toNumber(value) {
   const n = Number(value ?? 0);
@@ -20,43 +37,139 @@ function parseMoneda(str) {
   return Number.isFinite(num) ? num : 0;
 }
 
-export default function RubricasGrid({ rubricas = [], onRefresh }) {
-  const [search, setSearch] = useState('');
-  const [editingId, setEditingId] = useState(null);
-  const [editValue, setEditValue] = useState('');
-  const [savingId, setSavingId] = useState(null);
+function EditModal({ rubrica, onClose, onSave }) {
+  const [form, setForm] = useState({
+    grupo: rubrica.grupo || '',
+    rubrica: rubrica.rubrica || '',
+    centro_custo: rubrica.centro_custo || '',
+    valor_rubrica: String(toNumber(rubrica.valor_rubrica || rubrica.valor_total)),
+    valor_utilizado: String(toNumber(rubrica.valor_utilizado))
+  });
+  const [saving, setSaving] = useState(false);
 
-  async function handleEditValor(rubricaId, currentValue) {
-    setEditingId(rubricaId);
-    setEditValue(String(currentValue));
+  function handleChange(field, value) {
+    setForm(f => ({ ...f, [field]: value }));
   }
 
-  async function handleSaveValor(rubricaId) {
-    setSavingId(rubricaId);
-
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setSaving(true);
     try {
-      const newValue = parseMoneda(editValue);
+      const valor_rubrica = parseMoneda(form.valor_rubrica);
+      const valor_utilizado = parseMoneda(form.valor_utilizado);
+      const saldo = valor_rubrica - valor_utilizado;
+      const percentual_utilizado = valor_rubrica > 0 ? (valor_utilizado / valor_rubrica) * 100 : 0;
 
-      if (!Number.isFinite(newValue) || newValue < 0) {
-        toast.error('Informe um valor válido');
-        return;
-      }
-
-      await base44.entities.Rubrica.update(rubricaId, {
-        valor_rubrica: newValue
+      await base44.entities.Rubrica.update(rubrica.id, {
+        grupo: form.grupo,
+        rubrica: form.rubrica,
+        centro_custo: form.centro_custo,
+        valor_rubrica,
+        valor_utilizado,
+        saldo,
+        saldo_real: saldo,
+        percentual_utilizado
       });
 
-      toast.success('Valor atualizado');
-
-      setEditingId(null);
-      if (onRefresh) onRefresh();
-
+      toast.success('Rubrica atualizada');
+      onSave();
     } catch (e) {
-      toast.error('Erro ao salvar');
+      toast.error('Erro ao salvar: ' + e.message);
     } finally {
-      setSavingId(null);
+      setSaving(false);
     }
   }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b px-5 py-4">
+          <h2 className="text-base font-semibold text-gray-900">Editar Rubrica</h2>
+          <button onClick={onClose} className="rounded-lg p-1.5 hover:bg-gray-100">
+            <X className="h-4 w-4 text-gray-500" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4 p-5">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600">Grupo</label>
+            <input
+              value={form.grupo}
+              onChange={e => handleChange('grupo', e.target.value)}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600">Rubrica</label>
+            <input
+              value={form.rubrica}
+              onChange={e => handleChange('rubrica', e.target.value)}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600">Centro de Custo</label>
+            <select
+              value={form.centro_custo}
+              onChange={e => handleChange('centro_custo', e.target.value)}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+            >
+              <option value="">— Selecione —</option>
+              {CENTROS_CUSTO.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600">Valor Previsto (R$)</label>
+              <input
+                value={form.valor_rubrica}
+                onChange={e => handleChange('valor_rubrica', e.target.value)}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                placeholder="0,00"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600">Valor Utilizado (R$)</label>
+              <input
+                value={form.valor_utilizado}
+                onChange={e => handleChange('valor_utilizado', e.target.value)}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                placeholder="0,00"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex items-center gap-2 rounded-lg bg-black px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+            >
+              <Save className="h-3.5 w-3.5" />
+              {saving ? 'Salvando...' : 'Salvar'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+export default function RubricasGrid({ rubricas = [], onRefresh }) {
+  const [search, setSearch] = useState('');
+  const [editingRubrica, setEditingRubrica] = useState(null);
 
   const filtradas = useMemo(() => {
     return rubricas.filter((r) => {
@@ -65,47 +178,27 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
     });
   }, [rubricas, search]);
 
-  // ✅ CÁLCULO CORRETO — SEM COMPROMETIDO
   const dadosProcessados = useMemo(() => {
     return filtradas.map((r) => {
       const valor = toNumber(r?.valor_rubrica || r?.valor_total);
       const utilizado = toNumber(r?.valor_utilizado);
-
       const saldo = valor - utilizado;
-
-      const perc = valor > 0
-        ? (utilizado / valor) * 100
-        : 0;
-
-      return {
-        ...r,
-        valor,
-        utilizado,
-        saldo,
-        perc
-      };
+      const perc = valor > 0 ? (utilizado / valor) * 100 : 0;
+      return { ...r, valor, utilizado, saldo, perc };
     });
   }, [filtradas]);
 
   const totais = useMemo(() => {
-    let previsto = 0;
-    let utilizado = 0;
-
+    let previsto = 0, utilizado = 0;
     for (const r of dadosProcessados) {
       previsto += r.valor;
       utilizado += r.utilizado;
     }
-
-    return {
-      previsto,
-      utilizado,
-      saldo: previsto - utilizado
-    };
+    return { previsto, utilizado, saldo: previsto - utilizado };
   }, [dadosProcessados]);
 
   return (
     <div className="space-y-4">
-
       <input
         placeholder="Buscar rubrica..."
         value={search}
@@ -120,17 +213,17 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
               <th className="p-2 text-left">Grupo</th>
               <th className="p-2 text-left">Rubrica</th>
               <th className="p-2 text-left">Centro de Custo</th>
-              <th className="p-2">Valor</th>
-              <th className="p-2">Utilizado</th>
-              <th className="p-2">Saldo</th>
-              <th className="p-2">%</th>
+              <th className="p-2 text-right">Valor</th>
+              <th className="p-2 text-right">Utilizado</th>
+              <th className="p-2 text-right">Saldo</th>
+              <th className="p-2 text-center">%</th>
+              <th className="p-2 text-center">Ações</th>
             </tr>
           </thead>
 
           <tbody>
             {dadosProcessados.map((r) => (
-              <tr key={r.id} className="border-t">
-
+              <tr key={r.id} className="border-t hover:bg-gray-50">
                 <td className="p-2">{r?.grupo}</td>
                 <td className="p-2">{r?.rubrica}</td>
                 <td className="p-2">
@@ -138,35 +231,20 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
                     {r?.centro_custo || '—'}
                   </span>
                 </td>
-
-                <td
-                  className="p-2 cursor-pointer hover:bg-yellow-100"
-                  onClick={() => handleEditValor(r.id, r.valor)}
-                >
-                  {editingId === r.id ? (
-                    <input
-                      autoFocus
-                      value={editValue}
-                      onChange={(e) => setEditValue(e.target.value)}
-                      onBlur={() => handleSaveValor(r.id)}
-                      className="w-full border rounded px-1"
-                      disabled={savingId === r.id}
-                    />
-                  ) : (
-                    `R$ ${moeda(r.valor)}`
-                  )}
-                </td>
-
-                <td className="p-2 text-blue-700">
-                  R$ {moeda(r.utilizado)}
-                </td>
-
-                <td className={`p-2 font-medium ${r.saldo < 0 ? 'text-red-600' : 'text-green-700'}`}>
+                <td className="p-2 text-right tabular-nums">R$ {moeda(r.valor)}</td>
+                <td className="p-2 text-right tabular-nums text-blue-700">R$ {moeda(r.utilizado)}</td>
+                <td className={`p-2 text-right tabular-nums font-medium ${r.saldo < 0 ? 'text-red-600' : 'text-green-700'}`}>
                   R$ {moeda(r.saldo)}
                 </td>
-
-                <td className="p-2">
-                  {r.perc.toFixed(1)}%
+                <td className="p-2 text-center">{r.perc.toFixed(1)}%</td>
+                <td className="p-2 text-center">
+                  <button
+                    onClick={() => setEditingRubrica(r)}
+                    className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-black transition-colors"
+                    title="Editar rubrica"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
                 </td>
               </tr>
             ))}
@@ -175,15 +253,26 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
           <tfoot className="bg-gray-50 font-bold">
             <tr>
               <td colSpan={3} className="p-2">TOTAL</td>
-              <td className="p-2">R$ {moeda(totais.previsto)}</td>
-              <td className="p-2">R$ {moeda(totais.utilizado)}</td>
-              <td className="p-2">R$ {moeda(totais.saldo)}</td>
+              <td className="p-2 text-right tabular-nums">R$ {moeda(totais.previsto)}</td>
+              <td className="p-2 text-right tabular-nums">R$ {moeda(totais.utilizado)}</td>
+              <td className="p-2 text-right tabular-nums">R$ {moeda(totais.saldo)}</td>
+              <td></td>
               <td></td>
             </tr>
           </tfoot>
-
         </table>
       </div>
+
+      {editingRubrica && (
+        <EditModal
+          rubrica={editingRubrica}
+          onClose={() => setEditingRubrica(null)}
+          onSave={() => {
+            setEditingRubrica(null);
+            if (onRefresh) onRefresh();
+          }}
+        />
+      )}
     </div>
   );
 }
