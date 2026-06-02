@@ -86,6 +86,26 @@
       "type": "string",
       "description": "Escopo or\u00e7ament\u00e1rio: GERAL ou NOTURNO (para rubricas do projeto Noturno nos Museus / Ed. 2026)"
     },
+    "centro_custo": {
+      "type": "string",
+      "enum": [
+        "MHAB",
+        "MIS BH",
+        "MUMO",
+        "Geral/Transversal",
+        "Coordena\u00e7\u00e3o",
+        "Comunica\u00e7\u00e3o",
+        "Educa\u00e7\u00e3o",
+        "Produ\u00e7\u00e3o",
+        "Administrativo-financeiro",
+        "Noturno nos Museus",
+        "Publica\u00e7\u00f5es",
+        "Consultorias",
+        "Despesas Gerais"
+      ],
+      "default": "Geral/Transversal",
+      "description": "Centro de custo da rubrica para agrupamento em dashboards e or\u00e7amento por museu"
+    },
     "valor_utilizado": {
       "type": "number",
       "default": 0,

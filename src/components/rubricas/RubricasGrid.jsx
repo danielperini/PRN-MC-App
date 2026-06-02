@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { calculateRubricaBalance, classifyRubricaBucket, isArchivedRubrica, isCreditRubrica } from '@/utils/finance/exceptionalRubricas';
+import { CENTROS_CUSTO } from '@/lib/centroCustoRubrica';
 
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return 0;
@@ -117,6 +118,7 @@ export default function RubricasGrid({
     rubrica: '',
     numero_parcelas: '',
     valor_rubrica: '',
+    centro_custo: 'Geral/Transversal',
     ativo: true,
   });
 
@@ -201,6 +203,7 @@ export default function RubricasGrid({
       rubrica:         rubrica.raw?.rubrica         || rubrica.rubrica || '',
       numero_parcelas: rubrica.raw?.numero_parcelas || rubrica.raw?.parcelas || '',
       valor_rubrica:   String(toNumber(rubrica.raw?.valor_rubrica)),
+      centro_custo:    rubrica.raw?.centro_custo    || 'Geral/Transversal',
       ativo:           rubrica.raw?.ativo !== false,
     });
   }
@@ -208,7 +211,7 @@ export default function RubricasGrid({
   function cancelarEdicao() {
     setEditingId(null);
     setSavingId(null);
-    setEditForm({ grupo: '', rubrica: '', numero_parcelas: '', valor_rubrica: '', ativo: true });
+    setEditForm({ grupo: '', rubrica: '', numero_parcelas: '', valor_rubrica: '', centro_custo: 'Geral/Transversal', ativo: true });
   }
 
   async function salvarEdicao(id) {
@@ -220,6 +223,7 @@ export default function RubricasGrid({
         numero_parcelas: editForm.numero_parcelas,
         valor_rubrica:   toNumber(editForm.valor_rubrica),
         valor_total:     toNumber(editForm.valor_rubrica),
+        centro_custo:    editForm.centro_custo,
         ativo:           editForm.ativo,
         data_ultima_alteracao: new Date().toISOString(),
       });
@@ -397,6 +401,7 @@ export default function RubricasGrid({
               <tr>
                 <th className="text-left px-4 py-3 font-semibold text-gray-700">Grupo</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-700">Rubrica</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-700">Centro de Custo</th>
                 <th className="text-center px-4 py-3 font-semibold text-gray-700">Nº Parcelas</th>
                 <th className="text-right px-4 py-3 font-semibold text-gray-700">Valor</th>
                 <th className="text-right px-4 py-3 font-semibold text-gray-700">Utilizado</th>
@@ -408,7 +413,7 @@ export default function RubricasGrid({
             <tbody>
               {filtradas.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-gray-400">
+                  <td colSpan={9} className="px-4 py-10 text-center text-gray-400">
                     Nenhuma rubrica encontrada
                   </td>
                 </tr>
@@ -438,6 +443,23 @@ export default function RubricasGrid({
                             <span className="font-medium text-black">{rubrica.rubrica}</span>
                             <p className="text-[11px] text-gray-500 mt-0.5">{rubrica.bucket}{rubrica.semMeta ? ' · sem meta' : ''}</p>
                           </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        {emEdicao ? (
+                          <select
+                            value={editForm.centro_custo}
+                            onChange={(e) => setEditForm((f) => ({ ...f, centro_custo: e.target.value }))}
+                            className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-black bg-white"
+                          >
+                            {CENTROS_CUSTO.map((c) => (
+                              <option key={c} value={c}>{c}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full whitespace-nowrap">
+                            {rubrica.raw?.centro_custo || '—'}
+                          </span>
                         )}
                       </td>
                       <td className="px-4 py-2.5 text-center">
@@ -508,7 +530,7 @@ export default function RubricasGrid({
             {filtradas.length > 0 && (
               <tfoot className="border-t-2 border-gray-300 bg-gray-50">
                 <tr>
-                  <td colSpan={3} className="px-4 py-3 font-semibold text-gray-700 text-sm">
+                  <td colSpan={4} className="px-4 py-3 font-semibold text-gray-700 text-sm">
                     TOTAL ({filtradas.length} rubrica{filtradas.length !== 1 ? 's' : ''})
                   </td>
                   <td className="px-4 py-3 text-right font-semibold tabular-nums">
@@ -523,7 +545,7 @@ export default function RubricasGrid({
                       return <span className={s < 0 ? 'text-red-700' : 'text-green-700'}>R$ {moeda(s)}</span>;
                     })()}
                   </td>
-                  <td colSpan={2} />
+                  <td colSpan={3} />
                 </tr>
               </tfoot>
             )}

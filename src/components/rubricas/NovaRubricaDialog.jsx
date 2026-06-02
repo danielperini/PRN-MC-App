@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { X } from 'lucide-react';
 import { toast } from 'sonner';
 import { RUBRICA_SPECIAL_TYPES, RUBRICA_STATUS, calculateRubricaBalance, isCreditRubrica, toMoneyNumber } from '@/utils/finance/exceptionalRubricas';
+import { CENTROS_CUSTO, sugerirCentroCusto } from '@/lib/centroCustoRubrica';
 
 const GRUPOS = [
   'Equipe e gestão',
@@ -17,7 +18,7 @@ const GRUPOS = [
   'Ajustes Operacionais',
 ];
 
-const CENTROS = ['MHAB', 'MIS', 'MUMO', 'NOTURNO', 'Publicações', 'Geral'];
+// CENTROS_CUSTO importado de @/lib/centroCustoRubrica
 
 const TIPOS = [
   { value: RUBRICA_SPECIAL_TYPES.NORMAL, label: 'Rubrica normal' },
@@ -40,7 +41,7 @@ const EMPTY = {
   categoria: '',
   tipo_especial: RUBRICA_SPECIAL_TYPES.NORMAL,
   subtipo: '',
-  centro_custo: 'Geral',
+  centro_custo: 'Geral/Transversal',
   museu: '',
   natureza: '',
   meta_id: '',
@@ -136,7 +137,14 @@ export default function NovaRubricaDialog({ open, onClose, rubrica = null, curre
 
   if (!open) return null;
 
-  const set = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
+  const set = (key, value) => setForm((prev) => {
+    const next = { ...prev, [key]: value };
+    // Auto-sugerir centro de custo ao alterar nome da rubrica (somente se ainda não foi editado manualmente)
+    if (key === 'nome_rubrica' && !isEdit) {
+      next.centro_custo = sugerirCentroCusto(value);
+    }
+    return next;
+  });
 
   async function handleSave() {
     if (!form.nome_rubrica.trim()) {
@@ -292,7 +300,7 @@ export default function NovaRubricaDialog({ open, onClose, rubrica = null, curre
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <SelectField label="Tipo especial" value={form.tipo_especial} onChange={(value) => set('tipo_especial', value)} options={TIPOS} />
               <SelectField label="Grupo" value={form.grupo} onChange={(value) => set('grupo', value)} options={GRUPOS} />
-              <SelectField label="Centro de custo" value={form.centro_custo} onChange={(value) => set('centro_custo', value)} options={CENTROS} />
+              <SelectField label="Centro de custo *" value={form.centro_custo} onChange={(value) => set('centro_custo', value)} options={CENTROS_CUSTO} />
               <SelectField label="Status" value={form.status_rubrica} onChange={(value) => set('status_rubrica', value)} options={Object.values(RUBRICA_STATUS)} />
               <Input placeholder="Categoria" value={form.categoria} onChange={(event) => set('categoria', event.target.value)} />
               <Input placeholder="Subtipo" value={form.subtipo} onChange={(event) => set('subtipo', event.target.value)} />
