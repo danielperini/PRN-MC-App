@@ -20,15 +20,23 @@ export default function RubricasByMuseuDashboard({ rubricas = [], purchases = []
   const [editValue, setEditValue] = useState('');
   const [savingMuseu, setSavingMuseu] = useState(null);
 
-  const museus = ['MHAB', 'MIS', 'MUMO'];
+  const CENTROS_CUSTO = [
+    'MHAB',
+    'MIS',
+    'MUMO',
+    'Atuação Geral',
+    'Atende a todos',
+    'Noturno',
+    'Noturno Pampulha'
+  ];
 
-  // Calcular dados por museu
+  // Calcular dados por centro de custo
   const dadosPorMuseu = useMemo(() => {
     const map = {};
 
-    museus.forEach((museu) => {
-      map[museu] = {
-        museu,
+    CENTROS_CUSTO.forEach((centro) => {
+      map[centro] = {
+        museu: centro,
         rubricas: [],
         totalPrevisto: 0,
         totalUtilizado: 0,
@@ -36,15 +44,15 @@ export default function RubricasByMuseuDashboard({ rubricas = [], purchases = []
       };
     });
 
-    // Agrupar rubricas por museu
+    // Agrupar rubricas pelo campo centro_custo
     (rubricas || []).forEach((r) => {
-      const museuMatch = museus.find((m) => r?.rubrica?.includes(m) || r?.grupo?.includes(m) || r?.meta?.includes(m));
-      if (museuMatch && map[museuMatch]) {
+      const centroCusto = String(r?.centro_custo || '').trim();
+      if (centroCusto && map[centroCusto]) {
         const valor = toNumber(r?.valor_rubrica || r?.valor_total);
         const utilizado = toNumber(r?.valor_utilizado);
         const disponivel = valor - utilizado;
 
-        map[museuMatch].rubricas.push({
+        map[centroCusto].rubricas.push({
           ...r,
           valor,
           utilizado,
@@ -52,23 +60,24 @@ export default function RubricasByMuseuDashboard({ rubricas = [], purchases = []
           percentual: valor > 0 ? (utilizado / valor) * 100 : 0
         });
 
-        map[museuMatch].totalPrevisto += valor;
-        map[museuMatch].totalUtilizado += utilizado;
-        map[museuMatch].totalDisponivel += disponivel;
+        map[centroCusto].totalPrevisto += valor;
+        map[centroCusto].totalUtilizado += utilizado;
+        map[centroCusto].totalDisponivel += disponivel;
       }
     });
 
-    return Object.values(map).sort((a, b) => a.museu.localeCompare(b.museu));
+    // Retorna apenas centros que têm rubricas
+    return Object.values(map).filter((d) => d.rubricas.length > 0);
   }, [rubricas]);
 
-  // Calcular status por museu
+  // Calcular status por centro de custo
   const statusPorMuseu = useMemo(() => {
     const map = {};
 
-    museus.forEach((museu) => {
+    CENTROS_CUSTO.forEach((centro) => {
       const purchasesMuseu = (purchases || []).filter((p) => {
-        const centro = String(p?.centro_custo || '').trim().toUpperCase();
-        return centro === museu || centro.includes(museu);
+        const centroPurchase = String(p?.centro_custo || '').trim();
+        return centroPurchase === centro;
       });
 
       const aprovados = purchasesMuseu.filter((p) => {
@@ -78,8 +87,8 @@ export default function RubricasByMuseuDashboard({ rubricas = [], purchases = []
 
       const pagos = purchasesMuseu.filter((p) => String(p?.status || '').toUpperCase() === 'PAGO');
 
-      map[museu] = {
-        museu,
+      map[centro] = {
+        museu: centro,
         totalCompras: purchasesMuseu.length,
         aprovadas: aprovados.length,
         pagas: pagos.length,
@@ -123,7 +132,7 @@ export default function RubricasByMuseuDashboard({ rubricas = [], purchases = []
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {dadosPorMuseu.map((dados) => {
           const status = statusPorMuseu[dados.museu] || {};
           const percentualUso = dados.totalPrevisto > 0 ? (dados.totalUtilizado / dados.totalPrevisto) * 100 : 0;
