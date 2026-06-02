@@ -12,10 +12,9 @@ import CardRubricaEditor from '@/components/rubricas/CardRubricaEditor';
 import NovaRubricaDialog from '@/components/rubricas/NovaRubricaDialog';
 import { recalculateAllRubricasFromPurchases } from '@/components/compras/AutoRubricasSync';
 import { canManageRubricas } from '@/components/auth/permissions';
-import { getRubricasOficiais3Aditivo, TOTAL_OFICIAL_3_ADITIVO } from '@/lib/rubricasOficiais3Aditivo';
+import { getRubricasOficiais3Aditivo } from '@/lib/rubricasOficiais3Aditivo';
 
-const MUSEUS = ['MHAB', 'MIS', 'MUMO'];
-const ABAS = ['MHAB', 'MIS', 'MUMO', 'NOTURNO'];
+const CENTROS_CUSTO = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral', 'Atende a todos', 'Noturno', 'Noturno Pampulha'];
 
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return 0;
@@ -65,7 +64,7 @@ function MuseuCard({ item, active, onClick, fmt, fmtPct }) {
 }
 
 export default function RubricasPorMuseu() {
-  const [museuAtivo, setMuseuAtivo] = useState('MHAB');
+  const [museuAtivo, setMuseuAtivo] = useState(CENTROS_CUSTO[0]);
   const [showGerenciar, setShowGerenciar] = useState(false);
   const [showCardEditor, setShowCardEditor] = useState(false);
   const [showNovaRubrica, setShowNovaRubrica] = useState(false);
@@ -111,27 +110,12 @@ export default function RubricasPorMuseu() {
   });
 
   /**
-   * Usa a lib oficial como fonte de verdade para orçamento.
-   * Cruza com rubricas do banco pelo nome normalizado para pegar valor_utilizado.
-   * Compras aprovadas com rubrica_id são somadas diretamente.
+   * Agrupa rubricas do banco pelo campo centro_custo.
+   * Soma valor_rubrica (previsto) e valor_utilizado para cada centro.
    */
   const resumoPorMuseu = useMemo(() => {
-    const oficiais = getRubricasOficiais3Aditivo();
     const banco = Array.isArray(rubricasBanco) ? rubricasBanco.filter(r => r?.ativo !== false) : [];
     const compras = Array.isArray(comprasAprovadas) ? comprasAprovadas : [];
-
-    // Mapa: nome normalizado → rubrica do banco
-    function norm(s) {
-      return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
-    }
-
-    const bancoPorNome = {};
-    const bancoPorId = {};
-    for (const r of banco) {
-      if (r.id) bancoPorId[r.id] = r;
-      const chave = norm(r.rubrica || r.nome || '');
-      if (chave) bancoPorNome[chave] = r;
-    }
 
     // Valor utilizado por rubrica_id (compras aprovadas)
     const utilizadoPorRubricaId = {};
@@ -142,37 +126,35 @@ export default function RubricasPorMuseu() {
       utilizadoPorRubricaId[rid] = (utilizadoPorRubricaId[rid] || 0) + val;
     }
 
-    return MUSEUS.map((museu) => {
-      // Apenas rubricas oficiais deste museu (museu_codigo === museu)
-      // Rubricas GERAL e NOTURNO não entram nos totais por museu
-      const minhas = oficiais.filter(r => r.museu_codigo === museu);
+    // Agrupamento por centro_custo
+    const mapa = {};
+    for (const centro of CENTROS_CUSTO) {
+      mapa[centro] = { museu: centro, totalOrcado: 0, totalUtilizado: 0, totalSaldo: 0, pct: 0, totalPago: 0 };
+    }
 
-      let totalOrcado = 0;
-      let totalUtilizado = 0;
+    for (const r of banco) {
+      const centro = String(r?.centro_custo || '').trim();
+      if (!centro || !mapa[centro]) continue;
 
-      for (const oficial of minhas) {
-        totalOrcado += oficial.valor_total;
+      const previsto = toNumber(r.valor_rubrica || r.valor_total);
+      const utilCompras = utilizadoPorRubricaId[r.id] || 0;
+      const utilRubrica = toNumber(r.valor_utilizado);
+      const utilizado = utilCompras > 0 ? utilCompras : utilRubrica;
 
-        // Tenta encontrar a rubrica no banco pelo nome
-        const chaveNome = norm(oficial.rubrica);
-        const rubricaBanco = bancoPorNome[chaveNome];
+      mapa[centro].totalOrcado += previsto;
+      mapa[centro].totalUtilizado += utilizado;
+    }
 
-        if (rubricaBanco?.id) {
-          // Prioridade: soma de compras aprovadas vinculadas
-          const utilCompras = utilizadoPorRubricaId[rubricaBanco.id] || 0;
-          // Fallback: valor_utilizado salvo na rubrica
-          const utilRubrica = toNumber(rubricaBanco.valor_utilizado);
-          totalUtilizado += utilCompras > 0 ? utilCompras : utilRubrica;
-        }
-      }
-
-      totalOrcado = Number(totalOrcado.toFixed(2));
-      totalUtilizado = Number(totalUtilizado.toFixed(2));
-      const totalSaldo = Number((totalOrcado - totalUtilizado).toFixed(2));
-      const pct = totalOrcado > 0 ? Number(((totalUtilizado / totalOrcado) * 100).toFixed(2)) : 0;
-
-      return { museu, totalOrcado, totalUtilizado, totalPago: 0, totalLancamentos: 0, totalSaldo, pct };
-    });
+    return CENTROS_CUSTO
+      .map((centro) => {
+        const d = mapa[centro];
+        const totalOrcado = Number(d.totalOrcado.toFixed(2));
+        const totalUtilizado = Number(d.totalUtilizado.toFixed(2));
+        const totalSaldo = Number((totalOrcado - totalUtilizado).toFixed(2));
+        const pct = totalOrcado > 0 ? Number(((totalUtilizado / totalOrcado) * 100).toFixed(2)) : 0;
+        return { ...d, totalOrcado, totalUtilizado, totalSaldo, pct };
+      })
+      .filter(d => d.totalOrcado > 0 || d.totalUtilizado > 0); // só mostra centros com dados
   }, [rubricasBanco, comprasAprovadas]);
 
   const fmt = (v) => toNumber(v).toLocaleString('pt-BR', {
@@ -184,8 +166,7 @@ export default function RubricasPorMuseu() {
   const fmtPct = (v) => `${Number(v || 0).toFixed(1)}%`;
 
   const totaisGerais = useMemo(() => {
-    // Orçamento total sempre é o valor oficial do 3º Aditivo
-    const totalOrcado = TOTAL_OFICIAL_3_ADITIVO;
+    const totalOrcado = resumoPorMuseu.reduce((acc, item) => acc + toNumber(item.totalOrcado), 0);
     const totalUtilizado = resumoPorMuseu.reduce((acc, item) => acc + toNumber(item.totalUtilizado), 0);
     const totalSaldo = Number((totalOrcado - totalUtilizado).toFixed(2));
     return { totalOrcado, totalUtilizado, totalPago: 0, totalLancamentos: 0, totalSaldo };
@@ -238,25 +219,39 @@ export default function RubricasPorMuseu() {
           <KpiCard label="Saldo" value={fmt(totaisGerais.totalSaldo)} helper="saldo disponível" />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {resumoPorMuseu.map((item) => <MuseuCard key={item.museu} item={item} active={museuAtivo === item.museu} onClick={() => setMuseuAtivo(item.museu)} fmt={fmt} fmtPct={fmtPct} />)}
         </div>
 
-        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-          <div className="px-4 py-4 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
-            <div>
-              <h2 className="text-base font-semibold text-black">{museuAtivo === 'NOTURNO' ? 'Rubricas do Noturno' : 'Detalhamento por Museu'}</h2>
-              <p className="text-xs text-gray-500 mt-0.5">Visualização e edição das rubricas operacionais, específicas e rateáveis.</p>
+        {resumoPorMuseu.length > 0 && (
+          <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+            <div className="px-4 py-4 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <h2 className="text-base font-semibold text-black">Detalhamento — {museuAtivo}</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Rubricas vinculadas ao centro de custo selecionado.</p>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {resumoPorMuseu.map((item) => (
+                  <button
+                    key={item.museu}
+                    onClick={() => setMuseuAtivo(item.museu)}
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${museuAtivo === item.museu ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                  >
+                    {item.museu}
+                  </button>
+                ))}
+              </div>
             </div>
+
             <Tabs value={museuAtivo} onValueChange={setMuseuAtivo}>
-              <TabsList className="grid grid-cols-4 bg-gray-100 rounded-xl p-1 w-[340px]">{ABAS.map((m) => <TabsTrigger key={m} value={m} className="text-xs font-semibold rounded-lg data-[state=active]:bg-black data-[state=active]:text-white">{m}</TabsTrigger>)}</TabsList>
+              {resumoPorMuseu.map((item) => (
+                <TabsContent key={`${item.museu}-${refreshNonce}`} value={item.museu} className="m-0 p-4 bg-white">
+                  <RubricasMuseuEditor key={`${item.museu}-${refreshNonce}`} museu={item.museu} canEdit={canEdit} refreshKey={refreshNonce} />
+                </TabsContent>
+              ))}
             </Tabs>
           </div>
-
-          <Tabs value={museuAtivo} onValueChange={setMuseuAtivo}>
-            {ABAS.map((m) => <TabsContent key={`${m}-${refreshNonce}`} value={m} className="m-0 p-4 bg-white"><RubricasMuseuEditor key={`${m}-${refreshNonce}`} museu={m} canEdit={canEdit} refreshKey={refreshNonce} /></TabsContent>)}
-          </Tabs>
-        </div>
+        )}
 
         <GerenciarRubricasMuseuDialog open={showGerenciar} onClose={() => setShowGerenciar(false)} />
         <CardRubricaEditor open={showCardEditor} onClose={() => setShowCardEditor(false)} />
