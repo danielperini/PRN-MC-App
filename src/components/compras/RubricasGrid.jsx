@@ -8,7 +8,9 @@ const CENTROS_CUSTO = [
   'MIS',
   'MUMO',
   'Atuação Geral',
-  'Atende a todos'
+  'Atende a todos',
+  'Noturno',
+  'Noturno Pampulha'
 ];
 
 function toNumber(value) {
