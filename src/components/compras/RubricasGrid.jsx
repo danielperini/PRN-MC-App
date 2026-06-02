@@ -5,18 +5,10 @@ import { Pencil, X, Save } from 'lucide-react';
 
 const CENTROS_CUSTO = [
   'MHAB',
-  'MIS BH',
+  'MIS',
   'MUMO',
-  'Geral/Transversal',
-  'Coordenação',
-  'Comunicação',
-  'Educação',
-  'Produção',
-  'Administrativo-financeiro',
-  'Noturno nos Museus',
-  'Publicações',
-  'Consultorias',
-  'Despesas Gerais'
+  'Atuação Geral',
+  'Atende a todos'
 ];
 
 function toNumber(value) {
