@@ -674,6 +674,104 @@ export default function GeradorTermoCompromisso() {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Centro de custo / Projeto vinculado */}
+              <Card className="border-slate-300">
+                <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold">Centro de custo / Projeto vinculado <span className="text-red-500">*</span></CardTitle></CardHeader>
+                <CardContent className="space-y-3">
+                  <div>
+                    <Select value={formData.centro_custo_termo} onValueChange={handleCentroTermo}>
+                      <SelectTrigger className={!formData.centro_custo_termo ? 'border-red-300' : ''}>
+                        <SelectValue placeholder="Selecione o centro de custo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CENTROS_CUSTO_TERMO.map(cc => (
+                          <SelectItem key={cc.value} value={cc.value}>{cc.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {!formData.centro_custo_termo && (
+                      <p className="text-xs text-red-500 mt-1">Campo obrigatorio</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-500 mb-1 block">Rubrica orçamentária vinculada</label>
+                    <Select value={formData.rubrica_vinculada} onValueChange={v => handleField('rubrica_vinculada', v)}>
+                      <SelectTrigger><SelectValue placeholder="Selecione a rubrica (opcional)" /></SelectTrigger>
+                      <SelectContent>
+                        {rubricas.map(r => (
+                          <SelectItem key={r.id} value={r.id}>
+                            {r.rubrica} {r.grupo ? `(${r.grupo})` : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Produtos e entregas */}
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold">Produtos e entregas gerados <span className="text-red-500">*</span></CardTitle></CardHeader>
+                <CardContent className="space-y-3">
+                  <Select value={formData.produto_entrega} onValueChange={v => handleField('produto_entrega', v)}>
+                    <SelectTrigger className={!formData.produto_entrega ? 'border-red-300' : ''}>
+                      <SelectValue placeholder="Selecione o produto ou entrega" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PRODUTOS_ENTREGAS.map(p => (
+                        <SelectItem key={p} value={p}>{p}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {formData.produto_entrega === 'Outro' && (
+                    <div>
+                      <label className="text-xs text-slate-500 mb-1 block">Descreva o produto/entrega <span className="text-red-500">*</span></label>
+                      <Textarea
+                        value={formData.produto_entrega_outro}
+                        onChange={e => handleField('produto_entrega_outro', e.target.value)}
+                        placeholder="Descreva detalhadamente o produto ou entrega gerado"
+                        rows={2}
+                        className={!formData.produto_entrega_outro?.trim() ? 'border-red-300' : ''}
+                      />
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Atividade relacionada */}
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold">Atividade relacionada</CardTitle></CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-xs text-slate-400">
+                    {formData.centro_custo_termo
+                      ? `${atividadesFiltradas.length} atividade(s) de: ${formData.centro_custo_termo}`
+                      : 'Selecione o centro de custo para filtrar atividades'}
+                  </p>
+                  <Select value={formData.atividade_relacionada_id} onValueChange={v => handleField('atividade_relacionada_id', v)}>
+                    <SelectTrigger><SelectValue placeholder="Selecione a atividade (opcional)" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="outra">Outra atividade (preenchimento manual)</SelectItem>
+                      {atividadesFiltradas.map(a => {
+                        const cc = normalizarCentroCusto(a.centro_custo || a.museu || '');
+                        const mes = formatarMesAno(a.data_realizacao || a.data_inicio);
+                        const label = [a.titulo, cc, mes].filter(Boolean).join(' — ');
+                        return <SelectItem key={a.id} value={a.id}>{label}</SelectItem>;
+                      })}
+                    </SelectContent>
+                  </Select>
+                  {formData.atividade_relacionada_id === 'outra' && (
+                    <div>
+                      <label className="text-xs text-slate-500 mb-1 block">Descreva a atividade</label>
+                      <Input
+                        value={formData.atividade_relacionada_manual}
+                        onChange={e => handleField('atividade_relacionada_manual', e.target.value)}
+                        placeholder="Nome ou descrição da atividade"
+                      />
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
 
             {/* Col 2 */}
@@ -754,113 +852,6 @@ export default function GeradorTermoCompromisso() {
                       className="text-xs font-mono"
                     />
                   </div>
-                </CardContent>
-              </Card>
-
-              {/* Centro de custo / Projeto vinculado */}
-              <Card className="border-slate-300">
-                <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold">Centro de custo / Projeto vinculado <span className="text-red-500">*</span></CardTitle></CardHeader>
-                <CardContent className="space-y-3">
-                  <div>
-                    <Select value={formData.centro_custo_termo} onValueChange={handleCentroTermo}>
-                      <SelectTrigger className={!formData.centro_custo_termo ? 'border-red-300' : ''}>
-                        <SelectValue placeholder="Selecione o centro de custo" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {CENTROS_CUSTO_TERMO.map(cc => (
-                          <SelectItem key={cc.value} value={cc.value}>{cc.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {!formData.centro_custo_termo && (
-                      <p className="text-xs text-red-500 mt-1">Campo obrigatorio</p>
-                    )}
-                  </div>
-
-                  {/* Rubrica vinculada */}
-                  <div>
-                    <label className="text-xs text-slate-500 mb-1 block">Rubrica orcamentaria vinculada</label>
-                    <Select value={formData.rubrica_vinculada} onValueChange={v => handleField('rubrica_vinculada', v)}>
-                      <SelectTrigger><SelectValue placeholder="Selecione a rubrica (opcional)" /></SelectTrigger>
-                      <SelectContent>
-                        {rubricas.map(r => (
-                          <SelectItem key={r.id} value={r.id}>
-                            {r.rubrica} {r.grupo ? `(${r.grupo})` : ''}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Produtos e entregas */}
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold">Produtos e entregas gerados <span className="text-red-500">*</span></CardTitle></CardHeader>
-                <CardContent className="space-y-3">
-                  <div>
-                    <Select value={formData.produto_entrega} onValueChange={v => handleField('produto_entrega', v)}>
-                      <SelectTrigger className={!formData.produto_entrega ? 'border-red-300' : ''}>
-                        <SelectValue placeholder="Selecione o produto ou entrega" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {PRODUTOS_ENTREGAS.map(p => (
-                          <SelectItem key={p} value={p}>{p}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {formData.produto_entrega === 'Outro' && (
-                    <div>
-                      <label className="text-xs text-slate-500 mb-1 block">Descreva o produto/entrega <span className="text-red-500">*</span></label>
-                      <Textarea
-                        value={formData.produto_entrega_outro}
-                        onChange={e => handleField('produto_entrega_outro', e.target.value)}
-                        placeholder="Descreva detalhadamente o produto ou entrega gerado"
-                        rows={2}
-                        className={!formData.produto_entrega_outro?.trim() ? 'border-red-300' : ''}
-                      />
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Atividade relacionada */}
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold">Atividade relacionada</CardTitle></CardHeader>
-                <CardContent className="space-y-3">
-                  <p className="text-xs text-slate-400">
-                    {formData.centro_custo_termo
-                      ? `Exibindo atividades de: ${formData.centro_custo_termo} (${atividadesFiltradas.length} encontradas)`
-                      : 'Selecione o centro de custo para filtrar atividades'}
-                  </p>
-                  <Select
-                    value={formData.atividade_relacionada_id}
-                    onValueChange={v => handleField('atividade_relacionada_id', v)}
-                  >
-                    <SelectTrigger><SelectValue placeholder="Selecione a atividade (opcional)" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="outra">Outra atividade (preenchimento manual)</SelectItem>
-                      {atividadesFiltradas.map(a => {
-                        const cc = normalizarCentroCusto(a.centro_custo || a.museu || '');
-                        const mes = formatarMesAno(a.data_realizacao || a.data_inicio);
-                        const label = [a.titulo, cc, mes].filter(Boolean).join(' — ');
-                        return (
-                          <SelectItem key={a.id} value={a.id}>{label}</SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
-                  {formData.atividade_relacionada_id === 'outra' && (
-                    <div>
-                      <label className="text-xs text-slate-500 mb-1 block">Descreva a atividade</label>
-                      <Input
-                        value={formData.atividade_relacionada_manual}
-                        onChange={e => handleField('atividade_relacionada_manual', e.target.value)}
-                        placeholder="Nome ou descricao da atividade"
-                      />
-                    </div>
-                  )}
                 </CardContent>
               </Card>
 
