@@ -10,6 +10,7 @@ import GerenciarRubricasMuseuDialog from '@/components/rubricas/GerenciarRubrica
 import RubricasMuseuEditor from '@/components/rubricas/RubricasMuseuEditor';
 import CardRubricaEditor from '@/components/rubricas/CardRubricaEditor';
 import NovaRubricaDialog from '@/components/rubricas/NovaRubricaDialog';
+import NoturnoPampulhaCard from '@/components/compras/NoturnoPampulhaCard';
 import { recalculateAllRubricasFromPurchases } from '@/components/compras/AutoRubricasSync';
 import { canManageRubricas } from '@/components/auth/permissions';
 import { getRubricasOficiais3Aditivo } from '@/lib/rubricasOficiais3Aditivo';
@@ -290,6 +291,9 @@ export default function RubricasPorMuseu() {
             </Tabs>
           </div>
         )}
+
+        {/* Card específico do 4º Aditivo — Noturno Pampulha */}
+        <NoturnoPampulhaCard />
 
         <GerenciarRubricasMuseuDialog open={showGerenciar} onClose={() => setShowGerenciar(false)} />
         <CardRubricaEditor open={showCardEditor} onClose={() => setShowCardEditor(false)} />

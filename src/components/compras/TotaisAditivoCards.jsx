@@ -15,45 +15,125 @@ function fmtBRL(v) {
 }
 
 const TOTAL_PREVISTO_3_ADITIVO = 1320000;
+const TOTAL_PREVISTO_4_ADITIVO = 81719.85;
+
+function AditivoBlock({ titulo, badge, badgeColor, totalPrevisto, totalUtilizado, saldo, rubricasList }) {
+  const pct = totalPrevisto > 0 ? ((totalUtilizado / totalPrevisto) * 100) : 0;
+  const barColor = pct > 90 ? 'bg-red-500' : pct > 70 ? 'bg-amber-500' : 'bg-black';
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${badgeColor}`}>
+          {badge}
+        </span>
+        <p className="text-sm font-semibold text-gray-800">{titulo}</p>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <p className="text-[11px] text-gray-500 font-medium">Total Previsto</p>
+          <p className="text-base font-bold text-gray-900 tabular-nums">{fmtBRL(totalPrevisto)}</p>
+        </div>
+        <div>
+          <p className="text-[11px] text-gray-500 font-medium">Utilizado</p>
+          <p className="text-base font-bold text-gray-900 tabular-nums">{fmtBRL(totalUtilizado)}</p>
+        </div>
+        <div>
+          <p className="text-[11px] text-gray-500 font-medium">Saldo</p>
+          <p className={`text-base font-bold tabular-nums ${saldo < 0 ? 'text-red-600' : 'text-green-700'}`}>
+            {fmtBRL(saldo)}
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <div className="flex items-center justify-between text-[11px] text-gray-500">
+          <span>Execução</span>
+          <span className="font-semibold text-gray-700">{pct.toFixed(1)}%</span>
+        </div>
+        <div className="h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
+          <div
+            className={`h-1.5 rounded-full transition-all ${barColor}`}
+            style={{ width: `${Math.min(pct, 100)}%` }}
+          />
+        </div>
+      </div>
+
+      {rubricasList && rubricasList.length > 0 && (
+        <details className="mt-1">
+          <summary className="text-[11px] text-gray-400 cursor-pointer hover:text-gray-600 select-none">
+            {rubricasList.length} rubrica{rubricasList.length !== 1 ? 's' : ''} vinculada{rubricasList.length !== 1 ? 's' : ''}
+          </summary>
+          <ul className="mt-2 space-y-1.5 pl-1">
+            {rubricasList.map((r) => {
+              const prev = toNumber(r.valor_rubrica || r.valor_total);
+              const util = toNumber(r.valor_utilizado);
+              const saldoR = prev - util;
+              return (
+                <li key={r.id} className="text-[11px] text-gray-600 flex justify-between gap-2 border-b border-gray-50 pb-1">
+                  <span className="flex-1 truncate">{r.rubrica || r.nome}</span>
+                  <span className={`tabular-nums shrink-0 ${saldoR < 0 ? 'text-red-500' : 'text-gray-700'}`}>
+                    {fmtBRL(prev)}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </details>
+      )}
+    </div>
+  );
+}
 
 export default function TotaisAditivoCards({ rubricas = [] }) {
-  const totais = useMemo(() => {
-    // Soma apenas rubricas ativas do 3º Aditivo
-    const rubricasAditivo3 = rubricas.filter(
-      (r) => r?.ativo !== false && String(r?.origem_recurso || '').includes('3')
+  const { totais3, rubricasPampulha, totais4 } = useMemo(() => {
+    const ativas = rubricas.filter((r) => r?.ativo !== false);
+
+    // 3º Aditivo — rubricas com origem contendo '3' e centro_custo != 'Noturno Pampulha'
+    const rubricasAditivo3 = ativas.filter(
+      (r) =>
+        String(r?.origem_recurso || '').includes('3') &&
+        String(r?.centro_custo || '') !== 'Noturno Pampulha'
     );
-    const totalUtilizado = rubricasAditivo3.reduce(
-      (acc, r) => acc + toNumber(r.valor_utilizado),
-      0
+    const utilizado3 = rubricasAditivo3.reduce((acc, r) => acc + toNumber(r.valor_utilizado), 0);
+    const saldo3 = TOTAL_PREVISTO_3_ADITIVO - utilizado3;
+
+    // 4º Aditivo — rubricas com origem contendo '4' OU centro_custo = 'Noturno Pampulha'
+    const pampulha = ativas.filter(
+      (r) =>
+        String(r?.origem_recurso || '').includes('4') ||
+        String(r?.centro_custo || '') === 'Noturno Pampulha'
     );
-    const saldo = TOTAL_PREVISTO_3_ADITIVO - totalUtilizado;
-    return { totalPrevisto: TOTAL_PREVISTO_3_ADITIVO, totalUtilizado, saldo };
+    const utilizado4 = pampulha.reduce((acc, r) => acc + toNumber(r.valor_utilizado), 0);
+    const saldo4 = TOTAL_PREVISTO_4_ADITIVO - utilizado4;
+
+    return {
+      totais3: { totalPrevisto: TOTAL_PREVISTO_3_ADITIVO, totalUtilizado: utilizado3, saldo: saldo3 },
+      rubricasPampulha: pampulha,
+      totais4: { totalPrevisto: TOTAL_PREVISTO_4_ADITIVO, totalUtilizado: utilizado4, saldo: saldo4 },
+    };
   }, [rubricas]);
 
   return (
-    <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-      <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-        <p className="text-xs font-medium text-gray-500">Total Previsto</p>
-        <p className="mt-1 break-words text-lg font-bold leading-tight text-gray-900 tabular-nums">
-          {fmtBRL(totais.totalPrevisto)}
-        </p>
-        <p className="text-xs text-gray-400">Valor total do 3º Aditivo</p>
-      </div>
-
-      <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-        <p className="text-xs font-medium text-gray-500">Total Utilizado</p>
-        <p className="mt-1 break-words text-lg font-bold leading-tight text-gray-900 tabular-nums">
-          {fmtBRL(totais.totalUtilizado)}
-        </p>
-        <p className="text-xs text-gray-400">Aprovado coord. + admin + pago</p>
-      </div>
-
-      <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-        <p className="text-xs font-medium text-gray-500">Saldo Disponível</p>
-        <p className={`mt-1 break-words text-lg font-bold leading-tight tabular-nums ${totais.saldo < 0 ? 'text-red-600' : 'text-green-700'}`}>
-          {fmtBRL(totais.saldo)}
-        </p>
-      </div>
+    <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <AditivoBlock
+        titulo="3º Termo Aditivo — Noturno Centro"
+        badge="3º Aditivo"
+        badgeColor="bg-blue-100 text-blue-700"
+        totalPrevisto={totais3.totalPrevisto}
+        totalUtilizado={totais3.totalUtilizado}
+        saldo={totais3.saldo}
+      />
+      <AditivoBlock
+        titulo="4º Termo Aditivo — Noturno Pampulha"
+        badge="4º Aditivo"
+        badgeColor="bg-violet-100 text-violet-700"
+        totalPrevisto={totais4.totalPrevisto}
+        totalUtilizado={totais4.totalUtilizado}
+        saldo={totais4.saldo}
+        rubricasList={rubricasPampulha}
+      />
     </div>
   );
 }

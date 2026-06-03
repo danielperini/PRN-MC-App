@@ -12,7 +12,7 @@ import DuplicatePurchaseDetectedModal from './DuplicatePurchaseDetectedModal'
 import NFDuplicateBlockAlert from './NFDuplicateBlockAlert'
 import { notifyPurchaseApproved, notifyPurchaseCreated, notifyPurchaseReturned } from '@/services/notifications/purchaseNotifications'
 
-const CENTROS = ['MUMO','MIS','MHAB','Noturno nos Museus 2026','Publicações','Geral']
+const CENTROS = ['MUMO','MIS','MHAB','Noturno nos Museus 2026','Noturno Pampulha','Publicações','Geral']
 
 const CATEGORIAS = [
   'Serviços (equipe/coordenação)',
