@@ -1,7 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Search } from 'lucide-react';
 
 /* ─── helpers numéricos ─── */
 function toNumber(value) {
@@ -248,6 +248,7 @@ function RubricaCard({ rubrica }) {
  *   compras     — lista de PurchaseRequest aprovadas já carregada pela página pai
  */
 export default function RubricasMuseuEditor({ museu = 'MIS', rubricas = [], compras = [] }) {
+  const [searchTerm, setSearchTerm] = useState('');
   /* 1. Filtrar rubricas pelo centro_custo REAL — sem inferência por nome */
   const rubricasFiltradas = useMemo(() => {
     return rubricas

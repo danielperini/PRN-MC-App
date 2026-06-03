@@ -3,7 +3,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { ExternalLink } from 'lucide-react';
 
-const TOTAL_PREVISTO_4_ADITIVO = 81719.85;
 const DRIVE_PASTA_NFS = 'https://drive.google.com/drive/u/0/folders/1Ov9ci6Dwg297mm7QiqX1wfLIb92EZSGf';
 
 function toNumber(v) {
@@ -56,9 +55,10 @@ export default function NoturnoPampulhaCard() {
     return unsub;
   }, [queryClient]);
 
+  const totalPrevisto = rubricas.reduce((acc, r) => acc + toNumber(r.valor_rubrica || r.valor_total), 0);
   const totalUtilizado = rubricas.reduce((acc, r) => acc + toNumber(r.valor_utilizado), 0);
-  const saldo = TOTAL_PREVISTO_4_ADITIVO - totalUtilizado;
-  const pct = TOTAL_PREVISTO_4_ADITIVO > 0 ? (totalUtilizado / TOTAL_PREVISTO_4_ADITIVO) * 100 : 0;
+  const saldo = totalPrevisto - totalUtilizado;
+  const pct = totalPrevisto > 0 ? (totalUtilizado / totalPrevisto) * 100 : 0;
   const barColor = pct > 90 ? 'bg-red-500' : pct > 70 ? 'bg-amber-500' : 'bg-violet-600';
 
   return (
@@ -87,7 +87,7 @@ export default function NoturnoPampulhaCard() {
       <div className="grid grid-cols-3 divide-x divide-gray-100 border-b border-gray-100">
         <div className="px-4 py-4">
           <p className="text-[11px] uppercase tracking-wide font-semibold text-gray-500">Total Previsto</p>
-          <p className="text-xl font-bold text-gray-900 mt-1 tabular-nums">{fmtBRL(TOTAL_PREVISTO_4_ADITIVO)}</p>
+          <p className="text-xl font-bold text-gray-900 mt-1 tabular-nums">{isLoading ? '...' : fmtBRL(totalPrevisto)}</p>
         </div>
         <div className="px-4 py-4">
           <p className="text-[11px] uppercase tracking-wide font-semibold text-gray-500">Utilizado</p>
