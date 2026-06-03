@@ -5,6 +5,28 @@ function getPhotoUrl(photo = {}) {
   return photo.url || photo.file_url || photo.download_url || photo.anexo_url || photo.src || photo.link || '';
 }
 
+function isImageFile(photo = {}) {
+  const url = getPhotoUrl(photo);
+  const name = String(photo.nome || photo.name || photo.filename || photo.file_name || url || '').toLowerCase();
+  const mime = String(photo.file_type || photo.mime_type || photo.type || '').toLowerCase();
+
+  // Rejeitar claramente não-imagens pelo MIME
+  if (mime && !mime.startsWith('image/')) return false;
+  // Rejeitar PDFs e XMLs pelo nome/URL
+  if (name.endsWith('.pdf') || name.endsWith('.xml') || name.endsWith('.xlsx') || name.endsWith('.docx') || name.endsWith('.doc')) return false;
+  // Rejeitar documentos pela URL
+  if (url.endsWith('.pdf') || url.endsWith('.xml')) return false;
+  // Aceitar formatos de imagem conhecidos
+  if (/\.(jpg|jpeg|png|webp|gif|heic|bmp|avif)(\?|$)/i.test(url)) return true;
+  if (/\.(jpg|jpeg|png|webp|gif|heic|bmp|avif)$/i.test(name)) return true;
+  // Se tem MIME de imagem explícito, aceitar
+  if (mime.startsWith('image/')) return true;
+  // Se não tem MIME e não tem extensão conhecida, verificar se parece PDF pelo nome
+  if (name.includes('nf') || name.includes('nota') || name.includes('fiscal') || name.includes('recibo') || name.includes('comprovante')) return false;
+  // Padrão: aceitar se não foi rejeitado
+  return true;
+}
+
 function getPhotoName(photo = {}) {
   const raw = photo.nome || photo.name || photo.filename || photo.file_name || getPhotoUrl(photo).split('/').pop() || 'foto';
   return String(raw).replace(/^whatsapp\s+image\s+/i, '').replace(/\.(jpg|jpeg|png|webp)$/i, '').replace(/[_-]+/g, ' ').trim();
@@ -23,10 +45,13 @@ export function reconcileGallery(photos = [], activities = []) {
     if (activity._auditKey) activityById.set(String(activity._auditKey), activity);
   });
 
+  // Filtrar apenas arquivos de imagem reais — excluir PDFs, XMLs, NFs
+  const imageOnlyPhotos = (Array.isArray(photos) ? photos : []).filter(isImageFile);
+
   const seen = new Map();
   const duplicates = [];
   const orphanPhotos = [];
-  const normalized = (Array.isArray(photos) ? photos : []).map((photo) => {
+  const normalized = imageOnlyPhotos.map((photo) => {
     const key = getPhotoKey(photo);
     if (seen.has(key)) duplicates.push({ key, kept: seen.get(key), duplicate: photo });
     else seen.set(key, photo);
