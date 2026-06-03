@@ -110,7 +110,7 @@ const NAV_GROUPS = [
       },
       {
         path: 'RubricasPorMuseu',
-        label: 'Orçamento por Museu',
+        label: 'Orçamento por Museu e Noturno',
         icon: DollarSign,
         roles: ['all'],
       },
@@ -231,7 +231,7 @@ const SPONSOR_NAV_GROUPS = [
   {
     label: 'Indicadores',
     items: [
-      { path: 'RubricasPorMuseu', label: 'Orçamento por Museu', icon: DollarSign, roles: ['all'] },
+      { path: 'RubricasPorMuseu', label: 'Orçamento por Museu e Noturno', icon: DollarSign, roles: ['all'] },
     ],
   },
   {

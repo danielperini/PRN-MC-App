@@ -17,7 +17,7 @@ const PAGE_TITLES = {
   DashboardProfissional: 'Meu Painel',
   DashboardFinanceiro: 'Dashboard Financeiro',
   DashboardPatrocinador: 'Painel',
-  RubricasPorMuseu: 'Rubricas por Museu',
+  RubricasPorMuseu: 'Orçamento por Museu e Noturno',
   Relatorios: 'Relatórios',
   ReportEditor: 'Relatório',
   NovaAtividade: 'Atividades',

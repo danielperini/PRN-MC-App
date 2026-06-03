@@ -10,6 +10,7 @@ import { FileText, Download, Check, ChevronRight, AlertCircle, History, External
 import { toast } from 'sonner';
 import TermoIAExtractor from '@/components/termos/TermoIAExtractor';
 import TermoReviewModal from '@/components/termos/TermoReviewModal';
+import { useCentrosCusto } from '@/lib/centroCustoDinamico';
 
 // ── Configurações dos projetos ──────────────────────────────────────────────
 const PROJETOS = {
@@ -123,6 +124,8 @@ export default function GeradorTermoCompromisso() {
     queryKey: ['rubricas-ativas'],
     queryFn: () => base44.entities.Rubrica.filter({ ativo: true }),
   });
+
+  const centrosCusto = useCentrosCusto();
 
   // Busca número TC do backend ao entrar no formulário
   useEffect(() => {
@@ -662,19 +665,7 @@ export default function GeradorTermoCompromisso() {
                     <Select value={formData.centro_custo} onValueChange={handleCentroCusto}>
                       <SelectTrigger><SelectValue placeholder="Selecione o centro de custo" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="MHAB">MHAB</SelectItem>
-                        <SelectItem value="MIS BH">MIS BH</SelectItem>
-                        <SelectItem value="MUMO">MUMO</SelectItem>
-                        <SelectItem value="Geral/Transversal">Geral/Transversal</SelectItem>
-                        <SelectItem value="Coordenação">Coordenação</SelectItem>
-                        <SelectItem value="Comunicação">Comunicação</SelectItem>
-                        <SelectItem value="Educação">Educação</SelectItem>
-                        <SelectItem value="Produção">Produção</SelectItem>
-                        <SelectItem value="Administrativo-financeiro">Administrativo-financeiro</SelectItem>
-                        <SelectItem value="Noturno nos Museus">Noturno nos Museus</SelectItem>
-                        <SelectItem value="Publicações">Publicações</SelectItem>
-                        <SelectItem value="Consultorias">Consultorias</SelectItem>
-                        <SelectItem value="Despesas Gerais">Despesas Gerais</SelectItem>
+                        {centrosCusto.map(cc => <SelectItem key={cc} value={cc}>{cc}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>

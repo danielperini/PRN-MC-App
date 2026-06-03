@@ -14,7 +14,7 @@ import { recalculateAllRubricasFromPurchases } from '@/components/compras/AutoRu
 import { canManageRubricas } from '@/components/auth/permissions';
 import { getRubricasOficiais3Aditivo } from '@/lib/rubricasOficiais3Aditivo';
 
-const CENTROS_CUSTO = ['MHAB', 'MIS', 'MUMO', 'Noturno', 'Noturno Pampulha', 'Atuação Geral', 'MIS BH', 'Geral/Transversal'];
+const CENTROS_CUSTO = ['MHAB', 'MIS BH', 'MUMO', 'Noturno nos Museus', 'Noturno Pampulha', 'Geral/Transversal', 'Coordenação', 'Comunicação', 'Educação', 'Produção', 'Administrativo-financeiro', 'Publicações', 'Consultorias', 'Despesas Gerais'];
 
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return 0;
@@ -200,8 +200,8 @@ export default function RubricasPorMuseu() {
       <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10 space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
-            <h1 className="text-3xl font-semibold text-black tracking-tight flex items-center gap-2"><TrendingUp className="w-6 h-6 text-black" />Rubricas por Museu</h1>
-            <p className="text-gray-500 mt-1 text-sm">Acompanhamento orçamentário consolidado por museu.</p>
+            <h1 className="text-3xl font-semibold text-black tracking-tight flex items-center gap-2"><TrendingUp className="w-6 h-6 text-black" />Orçamento por Museu e Noturno</h1>
+            <p className="text-gray-500 mt-1 text-sm">Acompanhamento orçamentário consolidado por museu — 3º e 4º Aditivo.</p>
           </div>
           {canEdit && (
             <div className="flex gap-2 flex-wrap">
