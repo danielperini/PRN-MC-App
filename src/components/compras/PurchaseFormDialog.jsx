@@ -9,6 +9,7 @@ import { CheckCircle2, RotateCcw, Trash2, Paperclip, X, FileText, Upload, Extern
 import { useSmartToast } from '@/lib/useSmartToast'
 import { findDuplicatePurchaseRequest } from '@/lib/purchaseDuplicateGuard'
 import DuplicatePurchaseDetectedModal from './DuplicatePurchaseDetectedModal'
+import NFDuplicateBlockAlert from './NFDuplicateBlockAlert'
 import { notifyPurchaseApproved, notifyPurchaseCreated, notifyPurchaseReturned } from '@/services/notifications/purchaseNotifications'
 
 const CENTROS = ['MUMO','MIS','MHAB','Noturno nos Museus 2026','Publicações','Geral']
@@ -170,6 +171,9 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
   const [ignoreDuplicate, setIgnoreDuplicate] = useState(false)
   const [linkedAttachments, setLinkedAttachments] = useState([])
   const [duplicidadeConfirmada, setDuplicidadeConfirmada] = useState(false)
+  const [nfDuplicateResult, setNfDuplicateResult] = useState(null)
+  const [nfDuplicateBypass, setNfDuplicateBypass] = useState(false)
+  const [checkingNfDuplicate, setCheckingNfDuplicate] = useState(false)
 
   // Carrega attachments vinculados à solicitação (somente em edição)
   useEffect(() => {
@@ -511,11 +515,48 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
     }
   }
 
+  async function checkNFDuplicate() {
+    const cnpj = String(form.fornecedor_cnpj || form.nf_emitente_cpf_cnpj || '').replace(/\D/g, '')
+    const nfNum = String(form.nf_numero || '').trim()
+    if (!cnpj || !nfNum) return null
+
+    try {
+      const res = await base44.functions.invoke('validateNFDuplicate', {
+        nf_numero: nfNum,
+        nf_emitente_cpf_cnpj: cnpj,
+        nf_valor_total: toNumber(form.valor_solicitado),
+        nf_data_emissao: form.nf_data_emissao || '',
+        exclude_id: prefill?.id || '',
+      })
+      return res?.data || res || null
+    } catch (err) {
+      console.warn('Verificação NF duplicidade falhou:', err)
+      return null
+    }
+  }
+
   async function handleApprove() {
     const rubricaId = form.rubrica_id || prefill?.rubrica_id
     if (!rubricaId) {
       smartToast.error('Vincule uma rubrica antes de aprovar.')
       return
+    }
+
+    // Verificar duplicidade de NF antes de aprovar (se ainda não foi bypass)
+    if (!nfDuplicateBypass) {
+      setCheckingNfDuplicate(true)
+      const dupResult = await checkNFDuplicate()
+      setCheckingNfDuplicate(false)
+
+      if (dupResult?.isDuplicate) {
+        setNfDuplicateResult(dupResult)
+        // Se bloqueante, não prosseguir — usuário precisa confirmar explicitamente
+        if (dupResult.isBlocking) {
+          return
+        }
+        // Se apenas suspeita, mostrar alerta mas pode continuar se confirmar
+        if (!nfDuplicateBypass) return
+      }
     }
 
     setApproving(true)
@@ -530,13 +571,21 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
 
       // Usa purchaseActions para aprovar — trata troca de rubrica corretamente
       const novaRubricaId = form.rubrica_id !== prefill?.rubrica_id ? form.rubrica_id : undefined
-      await base44.functions.invoke('purchaseActions', {
+      const approveRes = await base44.functions.invoke('purchaseActions', {
         action: 'aprovar',
         purchaseId: prefill.id,
         novaRubricaId: novaRubricaId || undefined,
         aprovadorEmail: currentUser?.email || '',
         aprovadorNome: currentUser?.full_name || currentUser?.email || '',
+        bypass_duplicate_check: nfDuplicateBypass,
       })
+
+      // Backend pode ter retornado 409 por duplicidade
+      if (approveRes?.data?.blocked_by_duplicate) {
+        setNfDuplicateResult(approveRes.data.duplicate)
+        smartToast.error('Aprovação bloqueada: nota fiscal possivelmente duplicada.')
+        return
+      }
 
       await notifyPurchaseApproved({
         ...prefill,
@@ -549,7 +598,12 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
       smartToast.success('Solicitação aprovada.')
       onSuccess?.()
     } catch (err) {
-      smartToast.error('Erro ao aprovar', err.message)
+      // Checar se o erro é de duplicidade (409)
+      if (err?.response?.status === 409 || String(err?.message || '').includes('bloqueada')) {
+        smartToast.error('Aprovação bloqueada: ' + (err?.message || 'nota fiscal possivelmente duplicada.'))
+      } else {
+        smartToast.error('Erro ao aprovar', err.message)
+      }
     } finally {
       setApproving(false)
     }
@@ -749,38 +803,39 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
             </div>
           )}
 
-          {/* ── ALERTA DE DUPLICIDADE ── */}
+          {/* ── ALERTA DE DUPLICIDADE DA IA (do intake original) ── */}
           {alertasDuplicidade.length > 0 && !duplicidadeConfirmada && (
-            <div className="rounded-xl border border-red-200 bg-red-50 p-3 space-y-2">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2">
               <div className="flex items-center gap-2">
-                <ShieldAlert className="h-4 w-4 text-red-600 shrink-0" />
-                <span className="text-sm font-semibold text-red-700">Possível nota fiscal duplicada. Verifique antes de aprovar.</span>
+                <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                <span className="text-sm font-semibold text-amber-700">Alertas da análise de IA</span>
               </div>
               <div className="space-y-1.5">
                 {alertasDuplicidade.map((a, i) => (
-                  <div key={i} className={`flex items-start gap-2 rounded-lg px-2.5 py-1.5 text-xs ${a.nivel === 'critico' ? 'bg-red-100 text-red-800' : 'bg-amber-50 text-amber-800 border border-amber-200'}`}>
+                  <div key={i} className="flex items-start gap-2 rounded-lg px-2.5 py-1.5 text-xs bg-amber-100 text-amber-800 border border-amber-200">
                     <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                     <span>{a.mensagem || String(a)}</span>
                   </div>
                 ))}
               </div>
-              <div className="flex items-center gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setDuplicidadeConfirmada(true)}
-                  className="text-xs text-gray-500 underline hover:text-gray-700"
-                >
-                  Confirmar que não é duplicata e continuar
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setDuplicidadeConfirmada(true)}
+                className="text-xs text-gray-500 underline hover:text-gray-700"
+              >
+                Confirmar que não é duplicata
+              </button>
             </div>
           )}
 
-          {alertasDuplicidade.length > 0 && duplicidadeConfirmada && (
-            <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-500">
-              <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
-              Alerta de duplicidade revisado e confirmado pelo coordenador.
-            </div>
+          {/* ── ALERTA DE DUPLICIDADE REAL (verificação no banco ao aprovar) ── */}
+          {nfDuplicateResult && (
+            <NFDuplicateBlockAlert
+              result={nfDuplicateResult}
+              isCoord={isCoordenador}
+              bypassConfirmed={nfDuplicateBypass}
+              onConfirmBypass={() => setNfDuplicateBypass(true)}
+            />
           )}
 
           <div className="space-y-1">
@@ -1305,10 +1360,10 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
                 size="sm"
                 className="gap-1.5 bg-green-600 hover:bg-green-700 text-white"
                 onClick={handleApprove}
-                disabled={approving}
+                disabled={approving || checkingNfDuplicate}
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
-                {approving ? 'Aprovando...' : 'Aprovar'}
+                {checkingNfDuplicate ? 'Verificando NF...' : approving ? 'Aprovando...' : 'Aprovar'}
               </Button>
             )}
           </div>

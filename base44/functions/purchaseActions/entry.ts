@@ -307,6 +307,78 @@ Deno.serve(async (req) => {
     // APROVAR (CORE CORRETO)
     // =========================
     if (action === 'aprovar') {
+      // ── Verificação de duplicidade antes de aprovar ──
+      // Só verifica se não houver bypass explícito do coordenador
+      const bypassDuplicate = body.bypass_duplicate_check === true;
+      if (!bypassDuplicate && !purchase.rubrica_debitada_em) {
+        const cnpj = String(purchase.fornecedor_cnpj || purchase.nf_emitente_cpf_cnpj || '').replace(/\D/g, '');
+        const nfNum = String(purchase.nf_numero || '').trim();
+        const chave = String(purchase.nf_chave_acesso || '').replace(/\D/g, '').slice(0, 44);
+
+        if (cnpj && (nfNum || chave)) {
+          try {
+            const dupRes = await base44.asServiceRole.functions.invoke('validateNFDuplicate', {
+              nf_numero: nfNum,
+              nf_emitente_cpf_cnpj: cnpj,
+              nf_valor_total: purchase.nf_valor_total || purchase.valor_solicitado,
+              nf_data_emissao: purchase.nf_data_emissao || '',
+              nf_chave_acesso: chave,
+              exclude_id: purchase.id,
+            });
+
+            const dup = dupRes?.data || dupRes || {};
+            if (dup.isDuplicate && dup.hasApprovedDuplicate) {
+              // Marcar para auditoria mas NÃO bloquear — registrar e retornar erro
+              await base44.asServiceRole.entities.PurchaseRequest.update(purchase.id, {
+                duplicidade_status: 'suspeita',
+                duplicidade_motivo: dup.motivo || dup.confidence,
+                duplicidade_bloqueada: true,
+                duplicidade_nota_original_id: dup.matches?.[0]?.id || '',
+              }).catch(() => {});
+
+              // Log de auditoria
+              await base44.asServiceRole.entities.AuditLog.create({
+                action: 'UPDATE',
+                entity_type: 'REPORT',
+                entity_id: purchase.id,
+                actor_email: body.aprovadorEmail || 'sistema',
+                actor_name: body.aprovadorNome || 'Sistema',
+                details: `APROVAÇÃO BLOQUEADA POR DUPLICIDADE. Critério: ${dup.motivo}. Match: ${dup.matches?.[0]?.id || ''}`,
+              }).catch(() => {});
+
+              return json({
+                success: false,
+                blocked_by_duplicate: true,
+                duplicate: dup,
+                error: `Aprovação bloqueada: ${dup.message || 'Nota fiscal possivelmente duplicada — já aprovada anteriormente.'}`,
+              }, 409);
+            }
+
+            // Se há suspeita mas não confirmada, registrar para auditoria mas não bloquear
+            if (dup.isDuplicate && !dup.hasApprovedDuplicate) {
+              await base44.asServiceRole.entities.PurchaseRequest.update(purchase.id, {
+                duplicidade_status: 'suspeita',
+                duplicidade_motivo: dup.motivo || dup.confidence,
+                duplicidade_bloqueada: false,
+              }).catch(() => {});
+            }
+          } catch (dupErr) {
+            // Falha na verificação não bloqueia — registra aviso e continua
+            console.warn('Falha na verificação de duplicidade (não bloqueante):', dupErr?.message);
+          }
+        }
+      }
+
+      // Se bypass ativo, registrar que coordenador assumiu responsabilidade
+      if (bypassDuplicate) {
+        await base44.asServiceRole.entities.PurchaseRequest.update(purchase.id, {
+          duplicidade_status: 'revisada',
+          duplicidade_revisado_por: body.aprovadorEmail || '',
+          duplicidade_revisado_em: new Date().toISOString(),
+          duplicidade_bloqueada: false,
+        }).catch(() => {});
+      }
+
       // Verifica se a rubrica foi trocada antes de aprovar
       const rubricaAprovacaoId = novaRubricaId || purchase.rubrica_id;
       if (!rubricaAprovacaoId) {

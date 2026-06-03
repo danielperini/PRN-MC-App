@@ -7,16 +7,13 @@
       "description": "N\u00famero \u00fanico de processamento no formato MMDDYYYYXXXX"
     },
     "report_id": {
-      "type": "string",
-      "description": "ID do relat\u00f3rio mensal vinculado (FK \u2192 Report)"
+      "type": "string"
     },
     "activity_id": {
-      "type": "string",
-      "description": "ID da atividade vinculada (opcional)"
+      "type": "string"
     },
     "product_id": {
-      "type": "string",
-      "description": "ID do produto vinculado (opcional)"
+      "type": "string"
     },
     "meta_id": {
       "type": "string",
@@ -28,20 +25,16 @@
         "MC3A-24",
         "MC3A-25",
         "MC3A-EXTRA"
-      ],
-      "description": "Meta do 3\u00ba Aditivo vinculada"
+      ]
     },
     "meta_extra_descricao": {
-      "type": "string",
-      "description": "Descri\u00e7\u00e3o quando meta = MC3A-EXTRA"
+      "type": "string"
     },
     "budgetline_id": {
-      "type": "string",
-      "description": "ID da rubrica or\u00e7ament\u00e1ria (FK \u2192 BudgetLine)"
+      "type": "string"
     },
     "rubrica_id": {
-      "type": "string",
-      "description": "ID da rubrica direta (FK \u2192 Rubrica)"
+      "type": "string"
     },
     "categoria": {
       "type": "string",
@@ -130,8 +123,7 @@
     },
     "pago": {
       "type": "boolean",
-      "default": false,
-      "description": "Se o pagamento foi realizado"
+      "default": false
     },
     "status_pagamento": {
       "type": "string",
@@ -231,6 +223,10 @@
       "type": "string",
       "format": "date"
     },
+    "nf_chave_acesso": {
+      "type": "string",
+      "description": "Chave de acesso NF-e (44 d\u00edgitos) do XML"
+    },
     "valor_total": {
       "type": "number"
     },
@@ -325,32 +321,60 @@
         "concluido",
         "erro",
         "sem_arquivos"
-      ],
-      "description": "Status do backup autom\u00e1tico no Google Drive"
+      ]
     },
     "drive_backup_folder_id": {
-      "type": "string",
-      "description": "ID da pasta no Google Drive onde os arquivos foram copiados"
+      "type": "string"
     },
     "drive_backup_folder_url": {
-      "type": "string",
-      "description": "URL da pasta no Google Drive"
+      "type": "string"
     },
     "drive_backup_files": {
       "type": "array",
       "items": {
         "type": "object"
-      },
-      "description": "Lista de arquivos copiados para o Drive [{name, fileId, url, tipo}]"
+      }
     },
     "drive_backup_at": {
       "type": "string",
-      "format": "date-time",
-      "description": "Data/hora em que o backup foi conclu\u00eddo"
+      "format": "date-time"
     },
     "drive_backup_error": {
+      "type": "string"
+    },
+    "duplicidade_status": {
       "type": "string",
-      "description": "Mensagem de erro caso o backup tenha falhado"
+      "enum": [
+        "nenhuma",
+        "suspeita",
+        "confirmada",
+        "arquivada",
+        "revisada"
+      ],
+      "default": "nenhuma",
+      "description": "Status de auditoria de duplicidade desta nota fiscal"
+    },
+    "duplicidade_nota_original_id": {
+      "type": "string",
+      "description": "ID da PurchaseRequest original, quando esta for identificada como duplicata"
+    },
+    "duplicidade_motivo": {
+      "type": "string",
+      "description": "Motivo/crit\u00e9rio que gerou a suspeita de duplicidade (ex: mesmo CNPJ + n\u00famero NF)"
+    },
+    "duplicidade_revisado_por": {
+      "type": "string",
+      "description": "Email do coordenador que revisou a duplicidade"
+    },
+    "duplicidade_revisado_em": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data/hora da revis\u00e3o da duplicidade"
+    },
+    "duplicidade_bloqueada": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se true, aprova\u00e7\u00e3o foi bloqueada por duplicidade detectada"
     }
   },
   "required": [
