@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { base44 } from '@/api/base44Client'
-import { CheckCircle2, RotateCcw, Trash2, Paperclip, X, FileText, Upload } from 'lucide-react'
+import { CheckCircle2, RotateCcw, Trash2, Paperclip, X, FileText, Upload, ExternalLink, FolderOpen } from 'lucide-react'
 import { useSmartToast } from '@/lib/useSmartToast'
 import { findDuplicatePurchaseRequest } from '@/lib/purchaseDuplicateGuard'
 import DuplicatePurchaseDetectedModal from './DuplicatePurchaseDetectedModal'
@@ -168,6 +168,15 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
   const [showReturnInput, setShowReturnInput] = useState(false)
   const [duplicateWarning, setDuplicateWarning] = useState(null)
   const [ignoreDuplicate, setIgnoreDuplicate] = useState(false)
+  const [linkedAttachments, setLinkedAttachments] = useState([])
+
+  // Carrega attachments vinculados à solicitação (somente em edição)
+  useEffect(() => {
+    if (!prefill?.id) { setLinkedAttachments([]); return }
+    base44.entities.Attachment.filter({ purchase_request_id: prefill.id }, '-created_date', 50)
+      .then((d) => setLinkedAttachments(Array.isArray(d) ? d : []))
+      .catch(() => setLinkedAttachments([]))
+  }, [prefill?.id])
 
   const isEditing = !!prefill?.id
   const statusKey = String(prefill?.status || '').trim().toUpperCase()
@@ -1034,6 +1043,80 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
               placeholder="Informações adicionais..."
             />
           </div>
+
+          {/* ── ARQUIVOS VINCULADOS (somente consulta) ── */}
+          {isEditing && (() => {
+            // Coleta todas as URLs disponíveis no prefill + attachments carregados
+            const urlsFromPrefill = [
+              prefill?.nf_pdf_url && { label: 'PDF da Nota Fiscal', url: prefill.nf_pdf_url, tipo: 'pdf_nf' },
+              prefill?.nf_xml_url && { label: 'XML da NF-e', url: prefill.nf_xml_url, tipo: 'xml_nf' },
+              prefill?.comprovante_url && { label: 'Comprovante de pagamento', url: prefill.comprovante_url, tipo: 'comprovante' },
+              prefill?.orcamento_url && { label: 'Orçamento / Proposta', url: prefill.orcamento_url, tipo: 'orcamento' },
+              prefill?.nota_fiscal_url && !prefill?.nf_pdf_url && { label: 'Nota Fiscal', url: prefill.nota_fiscal_url, tipo: 'pdf_nf' },
+              prefill?.arquivo_url && !prefill?.nf_pdf_url && !prefill?.nota_fiscal_url && { label: prefill.arquivo_nome || 'Arquivo anexado', url: prefill.arquivo_url, tipo: 'outro' },
+              prefill?.file_url && !prefill?.nf_pdf_url && !prefill?.nota_fiscal_url && !prefill?.arquivo_url && { label: prefill.arquivo_nome || 'Arquivo', url: prefill.file_url, tipo: 'outro' },
+            ].filter(Boolean)
+
+            const urlsFromAttachments = linkedAttachments.map((a) => ({
+              label: a.file_name || a.name || a.nf_nome_renomeado || 'Anexo',
+              url: a.file_url || a.url || '',
+              tipo: a.nf_tipo_documento || (String(a.file_name || '').endsWith('.xml') ? 'xml_nf' : 'pdf_nf'),
+              nf_numero: a.nf_numero,
+            })).filter((a) => a.url)
+
+            // Deduplica por URL
+            const seen = new Set()
+            const allFiles = [...urlsFromPrefill, ...urlsFromAttachments].filter((f) => {
+              if (!f.url || seen.has(f.url)) return false
+              seen.add(f.url)
+              return true
+            })
+
+            const badgeColor = (tipo) => {
+              if (tipo === 'xml_nf') return 'bg-purple-100 text-purple-700'
+              if (tipo === 'pdf_nf') return 'bg-blue-100 text-blue-700'
+              if (tipo === 'comprovante') return 'bg-green-100 text-green-700'
+              return 'bg-gray-100 text-gray-600'
+            }
+            const badgeLabel = (tipo) => {
+              if (tipo === 'xml_nf') return 'XML'
+              if (tipo === 'pdf_nf') return 'PDF'
+              if (tipo === 'comprovante') return 'Comprovante'
+              return 'Arquivo'
+            }
+
+            return (
+              <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <FolderOpen className="h-4 w-4 text-blue-500" />
+                  <span className="text-sm font-medium text-blue-800">Arquivos vinculados</span>
+                  <span className="text-xs text-blue-400">(somente visualização)</span>
+                </div>
+
+                {allFiles.length === 0 ? (
+                  <p className="text-xs text-gray-400 pl-1">Nenhum arquivo anexado a esta solicitação.</p>
+                ) : (
+                  <div className="flex flex-col gap-1.5">
+                    {allFiles.map((f, i) => (
+                      <a
+                        key={i}
+                        href={f.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 rounded-lg border border-blue-100 bg-white px-3 py-2 text-xs text-blue-700 hover:bg-blue-50 hover:border-blue-300 transition-colors group"
+                      >
+                        <FileText className="h-3.5 w-3.5 shrink-0 text-blue-400" />
+                        <span className="flex-1 truncate font-medium">{f.label}</span>
+                        {f.nf_numero && <span className="text-gray-400">NF {f.nf_numero}</span>}
+                        <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${badgeColor(f.tipo)}`}>{badgeLabel(f.tipo)}</span>
+                        <ExternalLink className="h-3 w-3 shrink-0 opacity-50 group-hover:opacity-100" />
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
 
           <div className="space-y-2 rounded-xl border border-gray-100 bg-gray-50/50 p-3">
             <label className="text-sm font-medium text-gray-700">
