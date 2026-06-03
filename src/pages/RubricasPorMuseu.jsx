@@ -14,7 +14,7 @@ import { recalculateAllRubricasFromPurchases } from '@/components/compras/AutoRu
 import { canManageRubricas } from '@/components/auth/permissions';
 import { getRubricasOficiais3Aditivo } from '@/lib/rubricasOficiais3Aditivo';
 
-const CENTROS_CUSTO = ['MHAB', 'MIS BH', 'MUMO', 'Noturno nos Museus', 'Noturno Pampulha', 'Geral/Transversal', 'Coordenação', 'Comunicação', 'Educação', 'Produção', 'Administrativo-financeiro', 'Publicações', 'Consultorias', 'Despesas Gerais'];
+const CENTROS_CUSTO = ['MHAB', 'MIS BH', 'MUMO', 'Noturno nos Museus', 'Noturno Pampulha', 'Coordenação', 'Comunicação', 'Educação', 'Produção', 'Administrativo-financeiro', 'Publicações', 'Consultorias', 'Despesas Gerais'];
 
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return 0;
