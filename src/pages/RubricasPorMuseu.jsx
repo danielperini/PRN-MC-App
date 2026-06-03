@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { TrendingUp, RefreshCw, LayoutGrid, Plus } from 'lucide-react';
@@ -15,7 +15,22 @@ import { recalculateAllRubricasFromPurchases } from '@/components/compras/AutoRu
 import { canManageRubricas } from '@/components/auth/permissions';
 import { getRubricasOficiais3Aditivo } from '@/lib/rubricasOficiais3Aditivo';
 
-const CENTROS_CUSTO = ['MHAB', 'MIS', 'MUMO', 'Noturno Centro', 'Noturno Pampulha', 'Coordenação', 'Comunicação', 'Educação', 'Produção', 'Administrativo-financeiro', 'Publicações', 'Consultorias', 'Despesas Gerais'];
+// Labels visíveis na UI — devem casar com a tabela CENTRO_UI_TO_CANONICAL do RubricasMuseuEditor
+const CENTROS_CUSTO = [
+  'MHAB',
+  'MIS',
+  'MUMO',
+  'Noturno Centro',
+  'Noturno Pampulha',
+  'Coordenação',
+  'Comunicação',
+  'Educação',
+  'Produção',
+  'Administrativo-financeiro',
+  'Publicações',
+  'Consultorias',
+  'Despesas Gerais',
+];
 
 // Grupos de rubrica que representam pessoal/equipe — excluídos dos TOTAIS dos cards de museu
 // (continuam aparecendo no detalhamento das rubricas, mas não somam nos KPIs dos cards)
@@ -41,6 +56,38 @@ function toNumber(value) {
   if (value === null || value === undefined || value === '') return 0;
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * Normaliza centro_custo de uma rubrica para o label canônico da UI.
+ * Deve espelhar EXATAMENTE a lógica do RubricasMuseuEditor (CENTRO_UI_TO_CANONICAL + normalizeCentro).
+ */
+function normalizarCentroCustoParaUI(centroCusto) {
+  const raw = String(centroCusto || '').trim();
+  const up = raw.toUpperCase();
+  if (!up) return null;
+
+  if (up === 'MIS BH' || up === 'MIS') return 'MIS';
+  if (up === 'MHAB' || up === 'MAB') return 'MHAB';
+  if (up === 'MUMO' || up === 'MUMU') return 'MUMO';
+
+  const low = raw.toLowerCase();
+  if (low.includes('noturno') && (low.includes('pampulha') || low.includes('4'))) return 'Noturno Pampulha';
+  if (low.includes('noturno')) return 'Noturno Centro';
+
+  if (up.includes('GERAL') || up.includes('TRANSVERSAL')) return 'Geral/Transversal';
+  if (up === 'COORDENAÇÃO' || up === 'COORDENACAO' || up.startsWith('COORDENA')) return 'Coordenação';
+  if (up === 'COMUNICAÇÃO' || up === 'COMUNICACAO' || up.startsWith('COMUNICA')) return 'Comunicação';
+  if (up === 'EDUCAÇÃO' || up === 'EDUCACAO' || up.startsWith('EDUCA')) return 'Educação';
+  if (up === 'PRODUÇÃO' || up === 'PRODUCAO' || up.startsWith('PRODU')) return 'Produção';
+  if (up.includes('ADMIN') || up.includes('FINANC')) return 'Administrativo-financeiro';
+  if (up.includes('PUBLICA')) return 'Publicações';
+  if (up.includes('CONSULTO')) return 'Consultorias';
+  if (up.includes('DESPESA')) return 'Despesas Gerais';
+
+  // Tenta casar direto com os labels conhecidos
+  const match = CENTROS_CUSTO.find(c => c.toUpperCase() === up);
+  return match || null;
 }
 
 
@@ -112,6 +159,20 @@ export default function RubricasPorMuseu() {
     }).catch(() => {});
   }, []);
 
+  // Reatividade em tempo real: invalida os caches ao detectar alterações nas rubricas ou compras
+  useEffect(() => {
+    const unsubRubricas = base44.entities.Rubrica.subscribe(() => {
+      setRefreshNonce((prev) => prev + 1);
+    });
+    const unsubCompras = base44.entities.PurchaseRequest.subscribe(() => {
+      setRefreshNonce((prev) => prev + 1);
+    });
+    return () => {
+      unsubRubricas();
+      unsubCompras();
+    };
+  }, []);
+
   const userRole = String(userPermission?.base_role || currentUser?.role || '').toUpperCase();
   const isSponsor = userRole === 'PATROCINADOR' || userRole === 'OBSERVADOR';
   const isCoordenador = currentUser && ['COORDENADOR', 'ADMIN', 'admin'].includes(currentUser?.role);
@@ -161,7 +222,8 @@ export default function RubricasPorMuseu() {
     }
 
     for (const r of banco) {
-      const centro = String(r?.centro_custo || '').trim();
+      // Normaliza o centro_custo da rubrica para o label canônico da UI
+      const centro = normalizarCentroCustoParaUI(r?.centro_custo);
       if (!centro || !mapa[centro]) continue;
 
       // Excluir rubricas de pessoal dos totais dos cards de museus físicos

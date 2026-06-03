@@ -1,5 +1,5 @@
-import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { ExternalLink } from 'lucide-react';
 
@@ -20,13 +20,41 @@ function fmtBRL(v) {
   }).format(v ?? 0);
 }
 
+// Valores de centro_custo aceitos na entidade para o Noturno Pampulha
+const PAMPULHA_CENTROS = ['Noturno Pampulha', 'Noturno nos Museus Pampulha'];
+
 export default function NoturnoPampulhaCard() {
+  const queryClient = useQueryClient();
+
   const { data: rubricas = [], isLoading } = useQuery({
     queryKey: ['rubricas-pampulha-4aditivo'],
-    queryFn: () =>
-      base44.entities.Rubrica.filter({ centro_custo: 'Noturno Pampulha', ativo: true }),
-    staleTime: 60 * 1000,
+    queryFn: async () => {
+      // Busca pelas duas variações possíveis de nome do centro de custo
+      const results = await Promise.all(
+        PAMPULHA_CENTROS.map(cc =>
+          base44.entities.Rubrica.filter({ centro_custo: cc, ativo: true })
+        )
+      );
+      // Deduplica por id
+      const seen = new Set();
+      return results.flat().filter(r => {
+        if (seen.has(r.id)) return false;
+        seen.add(r.id);
+        return true;
+      });
+    },
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnWindowFocus: true,
   });
+
+  // Reatividade: invalidar ao mudar rubricas ou compras
+  useEffect(() => {
+    const unsub = base44.entities.Rubrica.subscribe(() => {
+      queryClient.invalidateQueries({ queryKey: ['rubricas-pampulha-4aditivo'] });
+    });
+    return unsub;
+  }, [queryClient]);
 
   const totalUtilizado = rubricas.reduce((acc, r) => acc + toNumber(r.valor_utilizado), 0);
   const saldo = TOTAL_PREVISTO_4_ADITIVO - totalUtilizado;

@@ -64,29 +64,66 @@ function getPct(r = {}) {
 }
 
 /* ─── Normalização de centro_custo para comparação ─── */
-const NOTURNO_TOKENS = ['noturno'];
 
+/**
+ * Normaliza um valor de centro_custo para uma chave canônica usada para comparação.
+ * Lida com variações históricas (MIS BH→MIS, MAB→MHAB, MUMU→MUMO, etc.)
+ * IMPORTANTE: distingue Noturno Centro de Noturno Pampulha.
+ */
 function normalizeCentro(value) {
-  const raw = String(value || '').trim().toUpperCase();
-  if (!raw) return '';
-  if (raw === 'MIS BH' || raw === 'MIS') return 'MIS';
-  if (raw === 'MHAB' || raw === 'MAB') return 'MHAB';
-  if (raw === 'MUMO') return 'MUMO';
-  if (NOTURNO_TOKENS.some((t) => raw.toLowerCase().includes(t))) return 'NOTURNO';
-  if (raw.includes('GERAL') || raw.includes('TRANSVERSAL') || raw.includes('COORDENACAO')) return 'GERAL';
-  return raw;
+  const raw = String(value || '').trim();
+  const up = raw.toUpperCase();
+  if (!up) return '';
+
+  // Museus físicos — aliases legados
+  if (up === 'MIS BH' || up === 'MIS') return 'MIS';
+  if (up === 'MHAB' || up === 'MAB') return 'MHAB';
+  if (up === 'MUMO' || up === 'MUMU') return 'MUMO';
+
+  // Noturno — distinguir Pampulha de Centro
+  const low = raw.toLowerCase();
+  if (low.includes('noturno') && (low.includes('pampulha') || low.includes('4'))) return 'NOTURNO_PAMPULHA';
+  if (low.includes('noturno')) return 'NOTURNO_CENTRO';
+
+  // Transversais
+  if (up.includes('GERAL') || up.includes('TRANSVERSAL')) return 'GERAL/TRANSVERSAL';
+  if (up.includes('COORDENA')) return 'COORDENAÇÃO';
+  if (up.includes('COMUNICA')) return 'COMUNICAÇÃO';
+  if (up.includes('EDUCA')) return 'EDUCAÇÃO';
+  if (up.includes('PRODU')) return 'PRODUÇÃO';
+  if (up.includes('ADMIN') || up.includes('FINANC')) return 'ADMINISTRATIVO-FINANCEIRO';
+  if (up.includes('PUBLICA')) return 'PUBLICAÇÕES';
+  if (up.includes('CONSULTO')) return 'CONSULTORIAS';
+  if (up.includes('DESPESA')) return 'DESPESAS GERAIS';
+
+  return up;
 }
 
 /**
- * Mapeia o museu selecionado na UI para os valores aceitos no campo centro_custo da entidade.
- * centro_custo usa valores do enum: MHAB, MIS BH, MUMO, Noturno nos Museus 2026, etc.
+ * Tabela de mapeamento: label visível na UI → chave canônica esperada nas rubricas.
+ * Centraliza toda a lógica de correspondência num único lugar.
  */
+const CENTRO_UI_TO_CANONICAL = {
+  'MHAB':                    'MHAB',
+  'MIS':                     'MIS',
+  'MUMO':                    'MUMO',
+  'Noturno Centro':          'NOTURNO_CENTRO',
+  'Noturno Pampulha':        'NOTURNO_PAMPULHA',
+  'Coordenação':             'COORDENAÇÃO',
+  'Comunicação':             'COMUNICAÇÃO',
+  'Educação':                'EDUCAÇÃO',
+  'Produção':                'PRODUÇÃO',
+  'Administrativo-financeiro': 'ADMINISTRATIVO-FINANCEIRO',
+  'Publicações':             'PUBLICAÇÕES',
+  'Consultorias':            'CONSULTORIAS',
+  'Despesas Gerais':         'DESPESAS GERAIS',
+};
+
 function centroMatchesMuseu(centroCusto, museuAtivo) {
+  const canonical = CENTRO_UI_TO_CANONICAL[museuAtivo] || normalizeCentro(museuAtivo);
   const cn = normalizeCentro(centroCusto);
-  const mu = normalizeCentro(museuAtivo);
-  if (!mu || mu === 'GERAL') return false;
-  if (mu === 'NOTURNO') return cn === 'NOTURNO';
-  return cn === mu;
+  if (!canonical || canonical === 'GERAL/TRANSVERSAL') return false;
+  return cn === canonical;
 }
 
 /* ─── Auditoria de inconsistências ─── */
