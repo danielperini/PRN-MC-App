@@ -16,27 +16,25 @@ import { getRubricasOficiais3Aditivo } from '@/lib/rubricasOficiais3Aditivo';
 
 const CENTROS_CUSTO = ['MHAB', 'MIS', 'MUMO', 'Noturno Centro', 'Noturno Pampulha', 'Coordenação', 'Comunicação', 'Educação', 'Produção', 'Administrativo-financeiro', 'Publicações', 'Consultorias', 'Despesas Gerais'];
 
-// Centros de custo de museus físicos (MHAB, MIS, MUMO) — excluem rubricas de pessoal do cálculo
-const CENTROS_MUSEU_FISICO = new Set(['MHAB', 'MIS', 'MUMO']);
+// Grupos de rubrica que representam pessoal/equipe — excluídos dos TOTAIS dos cards de museu
+// (continuam aparecendo no detalhamento das rubricas, mas não somam nos KPIs dos cards)
+// Centros afetados: MHAB, MIS, MUMO
+const GRUPOS_PESSOAL = new Set([
+  'Contratação da equipe principal, incluindo os coordenadores da Comissão de Programação',
+  'Contratação da equipe de educadores',
+  'Contratação de educadores',
+  'Contratação de monitores',
+  'Educador',
+  'Educadores',
+  'Monitor',
+  'Monitores',
+  'Coordenação',
+  'Equipe de coordenação',
+  'Equipe principal',
+]);
 
-// Rubricas de pessoal: excluídas do cálculo financeiro dos cards de museu físico (MHAB/MIS/MUMO)
-// O texto do grupo precisa conter uma dessas strings (case-insensitive)
-const KEYWORDS_PESSOAL = [
-  'contratação da equipe',
-  'equipe principal',
-  'educador',
-  'monitor',
-  'produtor',
-  'coordenador',
-  'técnico de',
-  'gestão de equipe',
-];
-
-function isRubricaPessoal(rubrica) {
-  const grupo = String(rubrica?.grupo || '').toLowerCase();
-  const nome = String(rubrica?.rubrica || rubrica?.nome || '').toLowerCase();
-  return KEYWORDS_PESSOAL.some(k => grupo.includes(k) || nome.includes(k));
-}
+// Centros de custo onde a exclusão de pessoal se aplica (museus "físicos", não Noturno)
+const CENTROS_EXCLUIR_PESSOAL = new Set(['MHAB', 'MIS', 'MUMO']);
 
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return 0;
@@ -56,15 +54,22 @@ function KpiCard({ label, value, helper, dark = false }) {
   );
 }
 
+const CENTROS_MUSEU_FISICO = new Set(['MHAB', 'MIS', 'MUMO']);
+const CENTROS_NOTURNO = new Set(['Noturno Centro', 'Noturno Pampulha']);
+
 function MuseuCard({ item, active, onClick, fmt, fmtPct }) {
   const progressWidth = `${Math.min(toNumber(item.pct), 100)}%`;
+  const isMuseuFisico = CENTROS_MUSEU_FISICO.has(item.museu);
+  const isNoturno = CENTROS_NOTURNO.has(item.museu);
+  const label = isNoturno ? (item.museu === 'Noturno Pampulha' ? '4º Aditivo' : '3º Aditivo') : 'Museu';
   return (
     <Card className={`cursor-pointer transition-all rounded-2xl shadow-sm ${active ? 'border-black bg-black text-white shadow-md' : 'border-gray-200 bg-white hover:border-black hover:shadow-md'}`} onClick={onClick}>
       <CardContent className="p-5">
         <div className="flex items-start justify-between gap-3 mb-4">
           <div>
-            <p className={`text-[11px] font-semibold uppercase tracking-wide ${active ? 'text-gray-300' : 'text-gray-500'}`}>Museu</p>
-            <h2 className={`text-3xl font-bold leading-tight mt-1 ${active ? 'text-white' : 'text-black'}`}>{item.museu}</h2>
+            <p className={`text-[11px] font-semibold uppercase tracking-wide ${active ? 'text-gray-300' : 'text-gray-500'}`}>{label}</p>
+            <h2 className={`text-2xl font-bold leading-tight mt-1 ${active ? 'text-white' : 'text-black'}`}>{item.museu}</h2>
+            {isMuseuFisico && <p className={`text-[10px] mt-1 ${active ? 'text-gray-400' : 'text-gray-400'}`}>Excl. pessoal/equipe</p>}
           </div>
           <div className="text-right">
             <p className={`text-[11px] uppercase tracking-wide font-semibold ${active ? 'text-gray-300' : 'text-gray-500'}`}>Execução</p>
@@ -158,8 +163,9 @@ export default function RubricasPorMuseu() {
       const centro = String(r?.centro_custo || '').trim();
       if (!centro || !mapa[centro]) continue;
 
-      // Para museus físicos (MHAB, MIS, MUMO), excluir rubricas de pessoal
-      if (CENTROS_MUSEU_FISICO.has(centro) && isRubricaPessoal(r)) continue;
+      // Excluir rubricas de pessoal dos totais dos cards de museus físicos
+      const grupo = String(r?.grupo || '').trim();
+      if (CENTROS_EXCLUIR_PESSOAL.has(centro) && GRUPOS_PESSOAL.has(grupo)) continue;
 
       const previsto = toNumber(r.valor_rubrica || r.valor_total);
       const utilCompras = utilizadoPorRubricaId[r.id] || 0;
@@ -276,13 +282,7 @@ export default function RubricasPorMuseu() {
                     museu={item.museu}
                     canEdit={canEdit}
                     refreshKey={refreshNonce}
-                    rubricas={
-                      Array.isArray(rubricasBanco)
-                        ? CENTROS_MUSEU_FISICO.has(item.museu)
-                          ? rubricasBanco.filter(r => !isRubricaPessoal(r))
-                          : rubricasBanco
-                        : []
-                    }
+                    rubricas={Array.isArray(rubricasBanco) ? rubricasBanco : []}
                     compras={Array.isArray(comprasAprovadas) ? comprasAprovadas : []}
                   />
                 </TabsContent>
