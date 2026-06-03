@@ -2,9 +2,17 @@
   "name": "TermoCompromisso",
   "type": "object",
   "properties": {
+    "numero_tc": {
+      "type": "string",
+      "description": "Numera\u00e7\u00e3o \u00fanica no padr\u00e3o TC-MC-AAAA-NNN (ex: TC-MC-2026-001)"
+    },
     "numero_termo": {
       "type": "string",
-      "description": "N\u00famero sequencial do termo (ex: MCe-001/2026)"
+      "description": "Campo legado de compatibilidade"
+    },
+    "projeto": {
+      "type": "string",
+      "description": "Chave do projeto selecionado"
     },
     "tipo_termo": {
       "type": "string",
@@ -22,121 +30,106 @@
       ],
       "description": "Tipo do termo de compromisso"
     },
-    "contratado_nome": {
+    "funcao_projeto": {
       "type": "string",
-      "description": "Nome completo do contratado"
+      "description": "Fun\u00e7\u00e3o exercida no projeto (ex: Educadora, Designer)"
+    },
+    "contratado_nome": {
+      "type": "string"
+    },
+    "contratado_cpf_cnpj": {
+      "type": "string"
     },
     "contratado_cpf": {
-      "type": "string",
-      "description": "CPF do contratado"
+      "type": "string"
     },
     "contratado_cnpj": {
-      "type": "string",
-      "description": "CNPJ (se aplic\u00e1vel)"
+      "type": "string"
     },
-    "contratado_telefone": {
-      "type": "string",
-      "description": "Telefone do contratado"
+    "contratado_representante": {
+      "type": "string"
     },
-    "contratado_email": {
-      "type": "string",
-      "description": "Email do contratado"
+    "contratado_cpf_representante": {
+      "type": "string"
     },
     "contratado_endereco": {
-      "type": "string",
-      "description": "Endere\u00e7o do contratado"
+      "type": "string"
     },
-    "representante_legal_nome": {
-      "type": "string",
-      "description": "Nome do representante legal"
+    "contratado_telefone": {
+      "type": "string"
     },
-    "representante_legal_cpf": {
-      "type": "string",
-      "description": "CPF do representante legal"
-    },
-    "nacionalidade": {
-      "type": "string",
-      "description": "Nacionalidade do contratado"
-    },
-    "estado_civil": {
-      "type": "string",
-      "enum": [
-        "Solteiro",
-        "Casado",
-        "Divorciado",
-        "Vi\u00favo",
-        "Outro"
-      ],
-      "description": "Estado civil"
-    },
-    "profissao": {
-      "type": "string",
-      "description": "Profiss\u00e3o do contratado"
-    },
-    "nome_social": {
-      "type": "string",
-      "description": "Nome social (se aplic\u00e1vel)"
+    "contratado_email": {
+      "type": "string"
     },
     "contratado_banco": {
-      "type": "string",
-      "description": "Banco para transfer\u00eancia"
+      "type": "string"
     },
     "contratado_agencia": {
-      "type": "string",
-      "description": "Ag\u00eancia banc\u00e1ria"
+      "type": "string"
     },
     "contratado_conta": {
-      "type": "string",
-      "description": "N\u00famero da conta"
+      "type": "string"
     },
     "tipo_conta": {
       "type": "string",
       "enum": [
         "Corrente",
         "Poupan\u00e7a"
-      ],
-      "description": "Tipo de conta banc\u00e1ria"
+      ]
     },
     "pix_key": {
-      "type": "string",
-      "description": "Chave PIX"
+      "type": "string"
     },
     "objeto": {
-      "type": "string",
-      "description": "Objeto/descri\u00e7\u00e3o do trabalho"
+      "type": "string"
     },
     "escopo": {
-      "type": "string",
-      "description": "Escopo detalhado das atividades"
+      "type": "string"
+    },
+    "museu": {
+      "type": "string"
     },
     "local_execucao": {
-      "type": "string",
-      "description": "Local de execu\u00e7\u00e3o"
+      "type": "string"
+    },
+    "periodo_execucao": {
+      "type": "string"
     },
     "data_inicio": {
       "type": "string",
-      "format": "date",
-      "description": "Data de in\u00edcio"
+      "format": "date"
     },
     "data_fim": {
       "type": "string",
-      "format": "date",
-      "description": "Data de t\u00e9rmino"
+      "format": "date"
+    },
+    "data_assinatura": {
+      "type": "string",
+      "format": "date"
+    },
+    "cidade_assinatura": {
+      "type": "string"
     },
     "valor_total": {
-      "type": "number",
-      "description": "Valor total"
+      "type": "number"
+    },
+    "detalhamento_valores": {
+      "type": "string"
     },
     "forma_pagamento": {
-      "type": "string",
-      "enum": [
-        "unica_parcela",
-        "duas_parcelas",
-        "tres_parcelas",
-        "mensal",
-        "conforme_realizado"
-      ],
-      "description": "Forma de pagamento"
+      "type": "string"
+    },
+    "numero_parcelas": {
+      "type": "number"
+    },
+    "valor_parcela": {
+      "type": "number"
+    },
+    "datas_vencimento": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     },
     "parcelas": {
       "type": "array",
@@ -154,21 +147,28 @@
             "format": "date"
           }
         }
-      },
-      "description": "Detalhes das parcelas"
+      }
     },
-    "nota_fiscal_numero": {
-      "type": "string",
-      "description": "N\u00famero da nota fiscal"
+    "descricao_nf_editavel": {
+      "type": "string"
     },
-    "nota_fiscal_data": {
-      "type": "string",
-      "format": "date",
-      "description": "Data da nota fiscal"
+    "centro_custo": {
+      "type": "string"
     },
-    "museu": {
-      "type": "string",
-      "description": "Museu respons\u00e1vel"
+    "rubrica_vinculada": {
+      "type": "string"
+    },
+    "testemunha1_nome": {
+      "type": "string"
+    },
+    "testemunha1_cpf": {
+      "type": "string"
+    },
+    "testemunha2_nome": {
+      "type": "string"
+    },
+    "testemunha2_cpf": {
+      "type": "string"
     },
     "status": {
       "type": "string",
@@ -176,72 +176,70 @@
         "rascunho",
         "gerado",
         "assinado",
-        "finalizado"
+        "finalizado",
+        "cancelado"
       ],
-      "default": "rascunho",
-      "description": "Status do termo"
+      "default": "rascunho"
     },
     "pdf_url": {
-      "type": "string",
-      "description": "URL do PDF gerado"
+      "type": "string"
     },
-    "observacoes": {
-      "type": "string",
-      "description": "Observa\u00e7\u00f5es adicionais"
+    "drive_backup_url": {
+      "type": "string"
     },
-    "cria_vinculado_activity": {
-      "type": "string",
-      "description": "ID da atividade vinculada"
+    "drive_backup_path": {
+      "type": "string"
     },
-    "descricao_relatorio": {
-      "type": "string",
-      "description": "Descri\u00e7\u00e3o para relat\u00f3rio mensal"
-    },
-    "produtos_termo": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      },
-      "description": "Produtos/entregas gerados"
-    },
-    "publico_estimado": {
-      "type": "number",
-      "description": "P\u00fablico estimado"
-    },
-    "acessibilidade": {
+    "drive_backup_status": {
       "type": "string",
       "enum": [
-        "N\u00e3o",
-        "Parcial",
-        "Total"
-      ],
-      "description": "N\u00edvel de acessibilidade"
+        "pendente",
+        "em_processamento",
+        "concluido",
+        "erro"
+      ]
     },
-    "eh_mobilizacao": {
-      "type": "boolean",
-      "description": "\u00c9 atividade de mobiliza\u00e7\u00e3o?"
+    "drive_backup_at": {
+      "type": "string",
+      "format": "date-time"
     },
-    "envolve_cadeia_cultura": {
-      "type": "boolean",
-      "description": "Envolve profissionais da cadeia da cultura?"
+    "drive_file_id": {
+      "type": "string"
+    },
+    "drive_file_name": {
+      "type": "string"
+    },
+    "gerado_por_email": {
+      "type": "string"
+    },
+    "gerado_por_nome": {
+      "type": "string"
+    },
+    "origem_arquivo_url": {
+      "type": "string"
+    },
+    "dados_extraidos_ia": {
+      "type": "object"
+    },
+    "divergencias_ia": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
     },
     "nota_fiscal_url": {
-      "type": "string",
-      "description": "URL do arquivo de nota fiscal anexado"
+      "type": "string"
     },
     "termo_assinado_url": {
-      "type": "string",
-      "description": "URL do arquivo do termo assinado"
+      "type": "string"
+    },
+    "observacoes": {
+      "type": "string"
     }
   },
   "required": [
-    "tipo_termo",
     "contratado_nome",
-    "contratado_cpf",
     "objeto",
-    "data_inicio",
-    "data_fim",
-    "valor_total",
-    "museu"
+    "valor_total"
   ]
 }
