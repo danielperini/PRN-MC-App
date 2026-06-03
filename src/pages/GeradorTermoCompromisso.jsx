@@ -575,9 +575,9 @@ export default function GeradorTermoCompromisso() {
             <TermoIAExtractor projetoConfig={projetoAtual} onDadosExtraidos={handleDadosExtraidos} />
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-w-0">
             {/* Col 1 */}
-            <div className="space-y-5">
+            <div className="space-y-5 min-w-0">
 
               {/* Número do Termo */}
               <Card>
@@ -775,7 +775,7 @@ export default function GeradorTermoCompromisso() {
             </div>
 
             {/* Col 2 */}
-            <div className="space-y-5">
+            <div className="space-y-5 min-w-0">
 
               {/* Valores */}
               <Card>
@@ -835,7 +835,7 @@ export default function GeradorTermoCompromisso() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <div className="bg-slate-50 rounded-lg p-3 text-xs text-slate-600 space-y-1">
+                  <div className="bg-slate-50 rounded-lg p-3 text-xs text-slate-600 space-y-1 break-all">
                     <p><span className="font-medium">Razão Social:</span> Viaduto das Artes</p>
                     <p><span className="font-medium">Endereço:</span> Av. Olinto Meireles, 45 - Barreiro, Belo Horizonte - MG, 30640-010</p>
                     <p><span className="font-medium">CNPJ:</span> 23.843.648/0001-25</p>
