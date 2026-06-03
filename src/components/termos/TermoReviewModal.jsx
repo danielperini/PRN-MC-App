@@ -48,12 +48,27 @@ Testemunha 2: ${formData.testemunha2_nome || ''} - CPF: ${formData.testemunha2_c
       `.trim();
 
       const res = await base44.integrations.Core.InvokeLLM({
-        prompt: `Você é um revisor jurídico especializado em contratos culturais brasileiros. Revise o seguinte Termo de Compromisso e forneça:
+        prompt: `Você é Dr. Lex, especialista sênior em Direito dos Contratos Culturais brasileiros, com profundo conhecimento em:
+- Lei 13.019/2014 (Marco Regulatório das OSCs) e suas alterações
+- Termo de Colaboração, Termo de Fomento e Acordos de Cooperação
+- Contratos de prestação de serviços (Código Civil, arts. 593-609)
+- Lei de Direitos Autorais (9.610/98)
+- Legislação trabalhista quanto à caracterização de vínculo empregatício
+- Boas práticas em prestação de contas de convênios e parcerias públicas
 
-1. ERROS CRÍTICOS: campos obrigatórios vazios, inconsistências de dados, erros numéricos (parcelas x total), datas inválidas.
-2. ALERTAS: informações suspeitas ou que merecem atenção.
-3. STATUS GERAL: "APROVADO" (pode gerar PDF) ou "REVISAR" (há problemas críticos).
-4. RESUMO: frase curta com o status geral.
+Analise rigorosamente o Termo de Compromisso abaixo e forneça:
+
+1. ERROS CRÍTICOS: campos obrigatórios vazios, inconsistências de valores (verifique se parcelas × quantidade = total), datas inválidas ou incompatíveis, CNPJ/CPF em formato incorreto, ausência de testemunhas, objeto/escopo genérico demais para prestação de contas, rubrica orçamentária incompatível ou com saldo insuficiente.
+
+2. ERROS DE ORTOGRAFIA E REDAÇÃO: erros gramaticais, concordância, pontuação, termos técnico-jurídicos incorretos, linguagem inadequada para instrumento contratual formal.
+
+3. ALERTAS JURÍDICOS: cláusulas que possam caracterizar vínculo empregatício, ausência de prazo determinado, valor que parece desproporcional à função/escopo, descrição da NF incompatível com o objeto, ausência de dados bancários, período de execução anterior à data de assinatura.
+
+4. COMPATIBILIDADE ORÇAMENTÁRIA: verifique se a rubrica vinculada (se informada) é compatível com o objeto e escopo descritos. Se o valor declarado parecer elevado para o tipo de serviço descrito, alerte. Rubrica: "${formData.rubrica_vinculada ? 'vinculada' : 'não informada'}".
+
+5. STATUS GERAL: "APROVADO" (documento apto para assinatura) ou "REVISAR" (há problemas que impedem ou comprometem a validade do instrumento).
+
+6. RESUMO: frase objetiva com o parecer geral do Dr. Lex.
 
 Termo para revisão:
 ${textoCompleto}
@@ -65,6 +80,7 @@ Responda em JSON conforme o schema.`,
             status: { type: 'string', enum: ['APROVADO', 'REVISAR'] },
             resumo: { type: 'string' },
             erros_criticos: { type: 'array', items: { type: 'string' } },
+            erros_ortografia: { type: 'array', items: { type: 'string' } },
             alertas: { type: 'array', items: { type: 'string' } },
           },
         },
@@ -162,14 +178,14 @@ Responda em JSON conforme o schema.`,
               className="w-full flex items-center justify-center gap-2 border border-violet-200 bg-violet-50 hover:bg-violet-100 text-violet-700 rounded-xl py-2.5 text-sm font-medium transition-colors"
             >
               <Sparkles className="w-4 h-4" />
-              Revisar com IA antes de exportar
+              Revisão jurídica e orçamentária com IA (Dr. Lex)
             </button>
           )}
 
           {iaLoading && (
             <div className="flex items-center justify-center gap-2 border border-violet-200 bg-violet-50 rounded-xl py-3 text-sm text-violet-600">
               <RefreshCw className="w-4 h-4 animate-spin" />
-              Analisando o termo com IA...
+              Dr. Lex analisando: ortografia, jurídico e orçamento...
             </div>
           )}
 
@@ -182,26 +198,44 @@ Responda em JSON conforme o schema.`,
 
           {iaRevisao && (
             <div className={`rounded-xl border p-4 ${iaRevisao.status === 'APROVADO' ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
-              <div className="flex items-center gap-2 mb-2">
-                {iaRevisao.status === 'APROVADO'
-                  ? <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
-                  : <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0" />
-                }
-                <span className={`font-semibold text-sm ${iaRevisao.status === 'APROVADO' ? 'text-green-800' : 'text-amber-800'}`}>
-                  {iaRevisao.resumo}
-                </span>
-                <button onClick={handleRevisarIA} className="ml-auto text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                  {iaRevisao.status === 'APROVADO'
+                    ? <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
+                    : <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                  }
+                  <div>
+                    <span className="text-xs font-bold text-slate-500 uppercase">Parecer Dr. Lex</span>
+                    <p className={`text-sm font-semibold ${iaRevisao.status === 'APROVADO' ? 'text-green-800' : 'text-amber-800'}`}>
+                      {iaRevisao.resumo}
+                    </p>
+                  </div>
+                </div>
+                <button onClick={handleRevisarIA} className="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1 flex-shrink-0">
                   <RefreshCw className="w-3 h-3" /> refazer
                 </button>
               </div>
 
               {iaRevisao.erros_criticos?.length > 0 && (
-                <div className="mt-2">
-                  <p className="text-xs font-bold text-red-700 mb-1">Erros críticos:</p>
+                <div className="mt-2 bg-red-50 rounded-lg p-2.5">
+                  <p className="text-xs font-bold text-red-700 mb-1.5">⛔ Erros críticos:</p>
                   <ul className="space-y-1">
                     {iaRevisao.erros_criticos.map((e, i) => (
-                      <li key={i} className="text-xs text-red-700 flex items-start gap-1">
-                        <span className="mt-0.5">•</span> {e}
+                      <li key={i} className="text-xs text-red-700 flex items-start gap-1.5">
+                        <span className="mt-0.5 flex-shrink-0">•</span> {e}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {iaRevisao.erros_ortografia?.length > 0 && (
+                <div className="mt-2 bg-orange-50 rounded-lg p-2.5">
+                  <p className="text-xs font-bold text-orange-700 mb-1.5">✏️ Ortografia e redação:</p>
+                  <ul className="space-y-1">
+                    {iaRevisao.erros_ortografia.map((e, i) => (
+                      <li key={i} className="text-xs text-orange-700 flex items-start gap-1.5">
+                        <span className="mt-0.5 flex-shrink-0">•</span> {e}
                       </li>
                     ))}
                   </ul>
@@ -209,12 +243,12 @@ Responda em JSON conforme o schema.`,
               )}
 
               {iaRevisao.alertas?.length > 0 && (
-                <div className="mt-2">
-                  <p className="text-xs font-bold text-amber-700 mb-1">Alertas:</p>
+                <div className="mt-2 bg-amber-50 rounded-lg p-2.5">
+                  <p className="text-xs font-bold text-amber-700 mb-1.5">⚠️ Alertas jurídicos:</p>
                   <ul className="space-y-1">
                     {iaRevisao.alertas.map((a, i) => (
-                      <li key={i} className="text-xs text-amber-700 flex items-start gap-1">
-                        <span className="mt-0.5">•</span> {a}
+                      <li key={i} className="text-xs text-amber-700 flex items-start gap-1.5">
+                        <span className="mt-0.5 flex-shrink-0">•</span> {a}
                       </li>
                     ))}
                   </ul>
