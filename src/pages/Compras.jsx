@@ -49,6 +49,7 @@ import EntradaUnicaComprovante from '@/components/compras/EntradaUnicaComprovant
 import MeusPagamentosTab from '@/components/compras/MeusPagamentosTab';
 import PagarSolicitacaoDialog from '@/components/compras/PagarSolicitacaoDialog';
 import NovaRubricaDialog from '@/components/rubricas/NovaRubricaDialog';
+import TotaisAditivoCards from '@/components/compras/TotaisAditivoCards';
 import { canManageRubricas } from '@/components/auth/permissions';
 
 const STATUS_CONFIG = {
@@ -73,26 +74,13 @@ function toNumber(value) {
 
 function fmtBRL(v) {
   if (!v && v !== 0) return '—';
-
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(v);
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
 }
 
-function normalizeStatus(value) {
-  return String(value || '').trim().toUpperCase();
-}
+function normalizeStatus(value) { return String(value || '').trim().toUpperCase(); }
 
 function normalizeCentro(value) {
-  const raw = String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase();
-
+  const raw = String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
   if (!raw) return '';
   if (raw === 'mis') return 'MIS';
   if (raw === 'mhab') return 'MHAB';
@@ -104,112 +92,46 @@ function normalizeCentro(value) {
   if (raw.includes('imagem e som')) return 'MIS';
   if (raw.includes('abilio barreto')) return 'MHAB';
   if (raw.includes('moda')) return 'MUMO';
-
   return String(value || '').trim();
 }
 
-function normalizeEmail(value) {
-  return String(value || '').trim().toLowerCase();
-}
-
-function normalizeText(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase();
-}
+function normalizeEmail(value) { return String(value || '').trim().toLowerCase(); }
+function normalizeText(value) { return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase(); }
 
 function getPurchaseValue(p) {
-  return (
-    toNumber(p?.valor_pago) ||
-    toNumber(p?.valor_aprovado_admin) ||
-    toNumber(p?.valor_aprovado) ||
-    toNumber(p?.valor_final) ||
-    toNumber(p?.valor_solicitado) ||
-    toNumber(p?.valor_total) ||
-    toNumber(p?.valor) ||
-    toNumber(p?.rubrica_debitada_valor) ||
-    0
-  );
+  return toNumber(p?.valor_pago) || toNumber(p?.valor_aprovado_admin) || toNumber(p?.valor_aprovado) || toNumber(p?.valor_final) || toNumber(p?.valor_solicitado) || toNumber(p?.valor_total) || toNumber(p?.valor) || toNumber(p?.rubrica_debitada_valor) || 0;
 }
 
 function getChaveFiscal(p) {
   if (p?.nf_numero && (p?.fornecedor_cpf_cnpj || p?.fornecedor_cnpj || p?.nf_emitente_cpf_cnpj)) {
-    return `nf:${String(p.nf_numero).trim()}:${String(
-      p.fornecedor_cpf_cnpj || p.fornecedor_cnpj || p.nf_emitente_cpf_cnpj
-    ).replace(/\D/g, '')}:${getPurchaseValue(p)}`;
+    return `nf:${String(p.nf_numero).trim()}:${String(p.fornecedor_cpf_cnpj || p.fornecedor_cnpj || p.nf_emitente_cpf_cnpj).replace(/\D/g, '')}:${getPurchaseValue(p)}`;
   }
-
   if (p?.nota_fiscal_url) return `url:${p.nota_fiscal_url.trim()}`;
   if (p?.file_url) return `file:${p.file_url.trim()}`;
   if (p?.intake_id) return `intake:${p.intake_id.trim()}`;
-
   return null;
 }
 
-function getPurchaseBudgetlineId(purchase) {
-  return purchase?.budgetline_id || purchase?.budget_line_id || purchase?.linha_orcamentaria_id || null;
-}
+function getPurchaseBudgetlineId(purchase) { return purchase?.budgetline_id || purchase?.budget_line_id || purchase?.linha_orcamentaria_id || null; }
 
 function getPurchaseFileUrl(purchase, attachmentByPurchaseId = {}) {
-  return (
-    purchase?.file_url ||
-    purchase?.arquivo_url ||
-    purchase?.documento_url ||
-    purchase?.nota_fiscal_url ||
-    purchase?.nf_pdf_url ||
-    purchase?.pdf_url ||
-    purchase?.attachment_url ||
-    attachmentByPurchaseId?.[purchase?.id]?.file_url ||
-    ''
-  );
+  return purchase?.file_url || purchase?.arquivo_url || purchase?.documento_url || purchase?.nota_fiscal_url || purchase?.nf_pdf_url || purchase?.pdf_url || purchase?.attachment_url || attachmentByPurchaseId?.[purchase?.id]?.file_url || '';
 }
 
 function getComprovantePagamentoUrl(purchase = {}) {
-  return (
-    purchase.comprovante_pagamento_url ||
-    purchase.comprovante_url ||
-    purchase.payment_receipt_url ||
-    purchase.recibo_url ||
-    ''
-  );
+  return purchase.comprovante_pagamento_url || purchase.comprovante_url || purchase.payment_receipt_url || purchase.recibo_url || '';
 }
 
 function formatDateTimeBR(value) {
   if (!value) return '';
-
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
-
-  return date.toLocaleString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
+  return date.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 function isCompraEquipe(purchase) {
-  const raw = [
-    purchase?.tipo_origem,
-    purchase?.origem,
-    purchase?.categoria,
-    purchase?.tipo_solicitacao,
-    purchase?.descricao_item,
-    purchase?.observacoes
-  ]
-    .map((v) => String(v || '').toLowerCase())
-    .join(' ');
-
-  return (
-    !!purchase?.team_payment_id ||
-    raw.includes('team') ||
-    raw.includes('equipe') ||
-    raw.includes('pagamento da equipe') ||
-    raw.includes('pagamento equipe')
-  );
+  const raw = [purchase?.tipo_origem, purchase?.origem, purchase?.categoria, purchase?.tipo_solicitacao, purchase?.descricao_item, purchase?.observacoes].map((v) => String(v || '').toLowerCase()).join(' ');
+  return !!purchase?.team_payment_id || raw.includes('team') || raw.includes('equipe') || raw.includes('pagamento da equipe') || raw.includes('pagamento equipe');
 }
 
 function isEntradaUnicaAttachment(att) {
@@ -217,50 +139,22 @@ function isEntradaUnicaAttachment(att) {
   const fileName = normalizeText(att?.file_name);
   const nfCategoria = normalizeText(att?.nf_categoria);
   const nfTipo = normalizeText(att?.nf_tipo_documento);
-
-  return (
-    nfCategoria === 'nota_fiscal' ||
-    nfTipo === 'pdf_nf' ||
-    nfTipo === 'xml_nf' ||
-    description.includes('entrada unica') ||
-    description.includes('nota fiscal') ||
-    fileName.includes('museus centro') ||
-    !!att?.nf_numero ||
-    !!att?.nf_emitente_nome ||
-    !!att?.nf_valor_total
-  );
+  return nfCategoria === 'nota_fiscal' || nfTipo === 'pdf_nf' || nfTipo === 'xml_nf' || description.includes('entrada unica') || description.includes('nota fiscal') || fileName.includes('museus centro') || !!att?.nf_numero || !!att?.nf_emitente_nome || !!att?.nf_valor_total;
 }
 
 function dedupById(items) {
   const map = new Map();
-
-  (items || []).forEach((item) => {
-    if (item?.id && !map.has(item.id)) {
-      map.set(item.id, item);
-    }
-  });
-
+  (items || []).forEach((item) => { if (item?.id && !map.has(item.id)) map.set(item.id, item); });
   return Array.from(map.values());
 }
 
 function getPurchaseOwnerEmails(purchase) {
-  return [
-    purchase?.created_by,
-    purchase?.user_email,
-    purchase?.requester_email,
-    purchase?.solicitante_email,
-    purchase?.email_solicitante,
-    purchase?.author_email,
-    purchase?.owner_email
-  ]
-    .map(normalizeEmail)
-    .filter(Boolean);
+  return [purchase?.created_by, purchase?.user_email, purchase?.requester_email, purchase?.solicitante_email, purchase?.email_solicitante, purchase?.author_email, purchase?.owner_email].map(normalizeEmail).filter(Boolean);
 }
 
 function purchaseBelongsToUser(purchase, email) {
   const normalizedEmail = normalizeEmail(email);
   if (!normalizedEmail) return false;
-
   return getPurchaseOwnerEmails(purchase).includes(normalizedEmail);
 }
 
@@ -272,7 +166,6 @@ function extractRubricas(result) {
   if (Array.isArray(result?.body?.rubricas)) return result.body.rubricas;
   if (Array.isArray(result?.results)) return result.results;
   if (Array.isArray(result?.data?.results)) return result.data.results;
-
   return [];
 }
 
@@ -280,130 +173,61 @@ async function carregarRubricas() {
   try {
     const result = await base44.functions.invoke('listAllRubricas', {});
     const viaFunction = extractRubricas(result);
-
-    if (Array.isArray(viaFunction) && viaFunction.length > 0) {
-      return viaFunction;
-    }
-  } catch (error) {
-    console.error('Erro em listAllRubricas:', error);
-  }
-
+    if (Array.isArray(viaFunction) && viaFunction.length > 0) return viaFunction;
+  } catch (error) { console.error('Erro em listAllRubricas:', error); }
   try {
     const diretas = await base44.entities.Rubrica.list('ordem_exibicao', 500);
-
-    if (Array.isArray(diretas)) {
-      return diretas;
-    }
-  } catch (error) {
-    console.error('Erro ao buscar Rubrica direto:', error);
-  }
-
+    if (Array.isArray(diretas)) return diretas;
+  } catch (error) { console.error('Erro ao buscar Rubrica direto:', error); }
   return [];
 }
 
 async function carregarSolicitacoes({ isCoordenador, currentUser }) {
   if (!currentUser) return [];
-
-  if (isCoordenador) {
-    return await base44.entities.PurchaseRequest.list('-created_date', 500);
-  }
-
+  if (isCoordenador) return await base44.entities.PurchaseRequest.list('-created_date', 500);
   const dedup = new Map();
-
   try {
     const listaGeral = await base44.entities.PurchaseRequest.list('-created_date', 500);
-
     listaGeral.filter(Boolean).forEach((p) => {
-      if (p?.id) {
-        if (isCompraEquipe(p)) return;
-
-        const centroCusto = normalizeCentro(p?.centro_custo);
-
-        if (centroCusto === 'Geral') return;
-
-        const museusCentro = ['MHAB', 'MIS', 'MUMO'];
-        const temMuseu = museusCentro.includes(centroCusto);
-
-        if (temMuseu) {
-          dedup.set(p.id, p);
-        }
-      }
+      if (!p?.id) return;
+      if (isCompraEquipe(p)) return;
+      const centroCusto = normalizeCentro(p?.centro_custo);
+      if (centroCusto === 'Geral') return;
+      const museusCentro = ['MHAB', 'MIS', 'MUMO'];
+      if (museusCentro.includes(centroCusto)) dedup.set(p.id, p);
     });
-  } catch (error) {
-    console.error('Erro ao buscar lista geral de PurchaseRequest:', error);
-  }
-
-  return Array.from(dedup.values()).sort(
-    (a, b) => new Date(b?.created_date || 0) - new Date(a?.created_date || 0)
-  );
+  } catch (error) { console.error('Erro ao buscar lista geral de PurchaseRequest:', error); }
+  return Array.from(dedup.values()).sort((a, b) => new Date(b?.created_date || 0) - new Date(a?.created_date || 0));
 }
 
 function categorizeSolicitacoes(purchases) {
-  const categories = {
-    geral: [],
-    mhab: [],
-    mis: [],
-    mumo: [],
-    pessoas: []
-  };
-
+  const categories = { geral: [], mhab: [], mis: [], mumo: [], pessoas: [] };
   purchases.forEach((p) => {
-    if (isCompraEquipe(p)) {
-      categories.pessoas.push(p);
-    } else {
+    if (isCompraEquipe(p)) { categories.pessoas.push(p); }
+    else {
       const centro = normalizeCentro(p?.centro_custo);
-
       if (centro === 'MHAB') categories.mhab.push(p);
       else if (centro === 'MIS') categories.mis.push(p);
       else if (centro === 'MUMO') categories.mumo.push(p);
       else categories.geral.push(p);
     }
   });
-
   return categories;
 }
 
-function TabelaSolicitacoes({
-  purchases,
-  rubricas,
-  attachmentByPurchaseId,
-  isCoordenador,
-  currentUser,
-  podeAprovarSolicitacoes,
-  hasGestaoCompras,
-  onDelete,
-  onApprove,
-  onReturn,
-  onUnapprove,
-  onMarkPaid,
-  onAccess,
-  userPermission
-}) {
+function TabelaSolicitacoes({ purchases, rubricas, attachmentByPurchaseId, isCoordenador, currentUser, podeAprovarSolicitacoes, hasGestaoCompras, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onAccess, userPermission }) {
   const [menuOpenId, setMenuOpenId] = useState(null);
-
   const rubricaById = useMemo(() => {
     const m = {};
-
-    (rubricas || []).forEach((r) => {
-      if (r?.id) {
-        m[r.id] = r;
-      }
-    });
-
+    (rubricas || []).forEach((r) => { if (r?.id) m[r.id] = r; });
     return m;
   }, [rubricas]);
 
   if (!purchases || purchases.length === 0) return null;
 
-  const podeAprovar =
-    isCoordenador ||
-    podeAprovarSolicitacoes === true ||
-    hasGestaoCompras === true;
-
+  const podeAprovar = isCoordenador || podeAprovarSolicitacoes === true || hasGestaoCompras === true;
   const categories = categorizeSolicitacoes(purchases);
-
   const isObservador = !isCoordenador && userPermission?.base_role === 'OBSERVADOR';
-
   const visibleCategories = [
     { key: 'geral', label: 'Geral', visible: isCoordenador },
     { key: 'mhab', label: 'MHAB', visible: !isObservador },
@@ -414,17 +238,7 @@ function TabelaSolicitacoes({
 
   const renderTabela = (items) => (
     <table className="w-full table-fixed border-collapse text-sm">
-      <colgroup>
-        <col className="w-[27%]" />
-        <col className="w-[14%]" />
-        <col className="w-[8%]" />
-        <col className="w-[15%]" />
-        <col className="w-[10%]" />
-        <col className="w-[10%]" />
-        <col className="w-[7%]" />
-        <col className="w-[9%]" />
-      </colgroup>
-
+      <colgroup><col className="w-[27%]" /><col className="w-[14%]" /><col className="w-[8%]" /><col className="w-[15%]" /><col className="w-[10%]" /><col className="w-[10%]" /><col className="w-[7%]" /><col className="w-[9%]" /></colgroup>
       <thead>
         <tr className="border-b border-gray-200 bg-gray-50 text-left">
           <th className="px-3 py-3 font-medium text-gray-600">Descrição</th>
@@ -437,268 +251,61 @@ function TabelaSolicitacoes({
           <th className="px-3 py-3 text-center font-medium text-gray-600">Ações</th>
         </tr>
       </thead>
-
       <tbody>
         {items.map((p, i) => {
           const statusKey = normalizeStatus(p.status);
-          const status =
-            STATUS_CONFIG[statusKey] || {
-              label: p.status || '—',
-              color: 'bg-gray-100 text-gray-600'
-            };
-
+          const status = STATUS_CONFIG[statusKey] || { label: p.status || '—', color: 'bg-gray-100 text-gray-600' };
           const aprovado = STATUS_APROVADOS.has(statusKey);
-          const pendenteAprovacao =
-            !aprovado && statusKey !== 'RECUSADO' && statusKey !== 'CANCELADO';
-
+          const pendenteAprovacao = !aprovado && statusKey !== 'RECUSADO' && statusKey !== 'CANCELADO';
           const rubrica = p.rubrica_id ? rubricaById[p.rubrica_id] : null;
-          const rubricaNome =
-            p?.rubrica_nome ||
-            p?.rubrica ||
-            rubrica?.rubrica ||
-            rubrica?.nome ||
-            '—';
-
+          const rubricaNome = p?.rubrica_nome || p?.rubrica || rubrica?.rubrica || rubrica?.nome || '—';
           const valor = getPurchaseValue(p);
           const fileUrl = getPurchaseFileUrl(p, attachmentByPurchaseId);
           const comprovantePagamentoUrl = getComprovantePagamentoUrl(p);
           const pago = statusKey === 'PAGO';
-          const comprovantePendente =
-            pago && (p.comprovante_pendente === true || !comprovantePagamentoUrl);
+          const comprovantePendente = pago && (p.comprovante_pendente === true || !comprovantePagamentoUrl);
           const pagoEmFormatado = formatDateTimeBR(p.pago_em || p.data_pagamento);
           const compraEquipe = isCompraEquipe(p);
           const menuAberto = menuOpenId === p.id;
           const podeEditarAprovada = isCoordenador && aprovado;
           const podeAcessar = !aprovado || podeEditarAprovada;
-          const podeMarcarPago =
-            podeAprovar && STATUS_ELEGIVEIS_PAGAMENTO.has(statusKey);
-
+          const podeMarcarPago = podeAprovar && STATUS_ELEGIVEIS_PAGAMENTO.has(statusKey);
           return (
-            <tr
-              key={p.id}
-              className={`border-b border-gray-100 transition-colors hover:bg-gray-50 ${
-                i % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'
-              }`}
-            >
+            <tr key={p.id} className={`border-b border-gray-100 transition-colors hover:bg-gray-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'}`}>
               <td className="px-3 py-2.5 align-top">
-                <p className="line-clamp-2 font-medium text-gray-900">
-                  {p.descricao_item || p.objeto || '—'}
-                </p>
-
-                {p.meta_id && (
-                  <p className="truncate text-xs text-gray-400">
-                    {p.meta_id === 'MC3A-EXTRA' && p.meta_extra_descricao
-                      ? p.meta_extra_descricao
-                      : p.meta_id}
-                  </p>
-                )}
-
-                {compraEquipe && (
-                  <span className="mt-1 inline-flex rounded-full bg-purple-50 px-2 py-0.5 text-[11px] font-medium text-purple-700">
-                    Equipe
-                  </span>
-                )}
+                <p className="line-clamp-2 font-medium text-gray-900">{p.descricao_item || p.objeto || '—'}</p>
+                {p.meta_id && <p className="truncate text-xs text-gray-400">{p.meta_id === 'MC3A-EXTRA' && p.meta_extra_descricao ? p.meta_extra_descricao : p.meta_id}</p>}
+                {compraEquipe && <span className="mt-1 inline-flex rounded-full bg-purple-50 px-2 py-0.5 text-[11px] font-medium text-purple-700">Equipe</span>}
               </td>
-
-              <td className="px-3 py-2.5 align-top text-gray-600">
-                <p className="truncate">
-                  {p.fornecedor_nome || p.nf_emitente_nome || '—'}
-                </p>
-              </td>
-
+              <td className="px-3 py-2.5 align-top text-gray-600"><p className="truncate">{p.fornecedor_nome || p.nf_emitente_nome || '—'}</p></td>
               <td className="px-3 py-2.5 align-top">
-                {p._centro_custo_normalizado ? (
-                  <span className="inline-block max-w-full truncate rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
-                    {p._centro_custo_normalizado}
-                  </span>
-                ) : (
-                  <span className="text-xs text-gray-400">—</span>
-                )}
+                {p._centro_custo_normalizado ? <span className="inline-block max-w-full truncate rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">{p._centro_custo_normalizado}</span> : <span className="text-xs text-gray-400">—</span>}
               </td>
-
+              <td className="px-3 py-2.5 align-top"><p className="truncate text-xs text-gray-700">{rubricaNome}</p></td>
               <td className="px-3 py-2.5 align-top">
-                <p className="truncate text-xs text-gray-700">
-                  {rubricaNome}
-                </p>
+                <span className={`inline-block max-w-full truncate rounded-full px-2 py-0.5 text-xs font-medium ${status.color}`}>{status.label}</span>
+                {pagoEmFormatado && <p className="mt-1 text-[11px] leading-tight text-gray-400">{pagoEmFormatado}</p>}
+                {pago && p.pago_por && <p className="mt-0.5 truncate text-[11px] leading-tight text-gray-400">por {p.pago_por}</p>}
+                {comprovantePendente && <span className="mt-1 inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">Comprovante pendente</span>}
+                {comprovantePagamentoUrl && <a href={comprovantePagamentoUrl} target="_blank" rel="noopener noreferrer" className="mt-1 block truncate text-[11px] font-medium text-blue-700 underline underline-offset-2">Abrir comprovante</a>}
               </td>
-
-              <td className="px-3 py-2.5 align-top">
-                <span
-                  className={`inline-block max-w-full truncate rounded-full px-2 py-0.5 text-xs font-medium ${status.color}`}
-                >
-                  {status.label}
-                </span>
-
-                {pagoEmFormatado && (
-                  <p className="mt-1 text-[11px] leading-tight text-gray-400">
-                    {pagoEmFormatado}
-                  </p>
-                )}
-
-                {pago && p.pago_por && (
-                  <p className="mt-0.5 truncate text-[11px] leading-tight text-gray-400">
-                    por {p.pago_por}
-                  </p>
-                )}
-
-                {comprovantePendente && (
-                  <span className="mt-1 inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
-                    Comprovante pendente
-                  </span>
-                )}
-
-                {comprovantePagamentoUrl && (
-                  <a
-                    href={comprovantePagamentoUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-1 block truncate text-[11px] font-medium text-blue-700 underline underline-offset-2"
-                  >
-                    Abrir comprovante
-                  </a>
-                )}
-              </td>
-
-              <td className="px-3 py-2.5 align-top text-right font-medium tabular-nums text-gray-900">
-                <span className="block truncate">{fmtBRL(valor)}</span>
-              </td>
-
+              <td className="px-3 py-2.5 align-top text-right font-medium tabular-nums text-gray-900"><span className="block truncate">{fmtBRL(valor)}</span></td>
               <td className="px-3 py-2.5 align-top text-center">
-                {fileUrl ? (
-                  <a
-                    href={fileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs font-medium text-blue-700 underline underline-offset-2 hover:text-blue-900"
-                  >
-                    Arquivo
-                  </a>
-                ) : (
-                  <span className="text-xs text-gray-400">—</span>
-                )}
+                {fileUrl ? <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-blue-700 underline underline-offset-2 hover:text-blue-900">Arquivo</a> : <span className="text-xs text-gray-400">—</span>}
               </td>
-
               <td className="px-3 py-2.5 align-top">
                 <div className="relative flex items-center justify-center gap-2">
-                  {podeAcessar && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        onAccess(p);
-                      }}
-                      className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-black"
-                      title={aprovado ? 'Apenas coordenadores podem editar aprovadas' : 'Ações'}
-                      disabled={!podeAcessar}
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-
-                  {isCoordenador && (
-                    <button
-                      type="button"
-                      onClick={async (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-
-                        if (window.confirm('Tem certeza que deseja deletar esta solicitação?')) {
-                          await onDelete(p.id);
-                        }
-                      }}
-                      className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                      title="Deletar"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-
-                  {podeMarcarPago && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        onMarkPaid?.(p);
-                      }}
-                      className={`inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
-                        pago
-                          ? 'text-emerald-600 hover:bg-emerald-50'
-                          : 'text-gray-500 hover:bg-emerald-50 hover:text-emerald-700'
-                      }`}
-                      title={pago ? 'Adicionar ou editar comprovante' : 'Marcar como pago'}
-                    >
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      <span className="hidden xl:inline">
-                        {pago ? 'Comprovante' : 'Pago'}
-                      </span>
-                    </button>
-                  )}
-
+                  {podeAcessar && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAccess(p); }} className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-black" disabled={!podeAcessar}><Pencil className="h-3.5 w-3.5" /></button>}
+                  {isCoordenador && <button type="button" onClick={async (e) => { e.preventDefault(); e.stopPropagation(); if (window.confirm('Tem certeza que deseja deletar esta solicitação?')) await onDelete(p.id); }} className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>}
+                  {podeMarcarPago && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onMarkPaid?.(p); }} className={`inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${pago ? 'text-emerald-600 hover:bg-emerald-50' : 'text-gray-500 hover:bg-emerald-50 hover:text-emerald-700'}`}><CheckCircle2 className="h-3.5 w-3.5" /><span className="hidden xl:inline">{pago ? 'Comprovante' : 'Pago'}</span></button>}
                   {menuAberto && (
                     <div className="absolute right-0 top-8 z-30 w-48 rounded-xl border border-gray-200 bg-white p-1.5 text-left shadow-lg">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setMenuOpenId(null);
-                          onAccess(p);
-                        }}
-                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50"
-                      >
-                        <LinkIcon className="h-3.5 w-3.5" />
-                        Acessar solicitação
-                      </button>
-
-                      {podeAprovar && pendenteAprovacao && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setMenuOpenId(null);
-                              onApprove(p);
-                            }}
-                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-green-700 hover:bg-green-50"
-                          >
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                            Aprovar
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setMenuOpenId(null);
-                              onReturn(p);
-                            }}
-                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50"
-                          >
-                            <RotateCcw className="h-3.5 w-3.5" />
-                            Devolver
-                          </button>
-                        </>
-                      )}
-
-                      {podeAprovar && aprovado && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setMenuOpenId(null);
-                            onUnapprove(p);
-                          }}
-                          className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
-                        >
-                          <XCircle className="h-3.5 w-3.5" />
-                          Desaprovar
-                        </button>
-                      )}
+                      <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpenId(null); onAccess(p); }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50"><LinkIcon className="h-3.5 w-3.5" />Acessar solicitação</button>
+                      {podeAprovar && pendenteAprovacao && (<>
+                        <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpenId(null); onApprove(p); }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-green-700 hover:bg-green-50"><CheckCircle2 className="h-3.5 w-3.5" />Aprovar</button>
+                        <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpenId(null); onReturn(p); }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50"><RotateCcw className="h-3.5 w-3.5" />Devolver</button>
+                      </>)}
+                      {podeAprovar && aprovado && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpenId(null); onUnapprove(p); }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-red-700 hover:bg-red-50"><XCircle className="h-3.5 w-3.5" />Desaprovar</button>}
                     </div>
                   )}
                 </div>
@@ -715,18 +322,10 @@ function TabelaSolicitacoes({
       {visibleCategories.map((cat) => (
         <div key={cat.key}>
           <div className="mb-3 flex items-center gap-2">
-            <h3 className="text-lg font-semibold text-gray-900">
-              {cat.label}
-            </h3>
-
-            <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-              {categories[cat.key].length}
-            </span>
+            <h3 className="text-lg font-semibold text-gray-900">{cat.label}</h3>
+            <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">{categories[cat.key].length}</span>
           </div>
-
-          <div className="overflow-x-auto rounded-xl border border-gray-200">
-            {renderTabela(categories[cat.key])}
-          </div>
+          <div className="overflow-x-auto rounded-xl border border-gray-200">{renderTabela(categories[cat.key])}</div>
         </div>
       ))}
     </div>
@@ -736,11 +335,9 @@ function TabelaSolicitacoes({
 function ComprasInner() {
   const smartToast = useSmartToast();
   const isMobile = useIsMobile();
-
   const [currentUser, setCurrentUser] = useState(null);
   const [userLoading, setUserLoading] = useState(true);
   const [userLoadError, setUserLoadError] = useState(false);
-
   const [tab, setTab] = useState('lista');
   const [showForm, setShowForm] = useState(false);
   const [editingPurchase, setEditingPurchase] = useState(null);
@@ -749,53 +346,18 @@ function ComprasInner() {
   const [selectedRubrica, setSelectedRubrica] = useState(null);
   const [paymentPurchase, setPaymentPurchase] = useState(null);
   const [recalculando, setRecalculando] = useState(false);
-
-  const [filters, setFilters] = useState({
-    status: 'all',
-    meta_id: 'all',
-    search: '',
-    rubrica_id: 'all',
-    inconsistencias: 'all',
-    centro_custo: 'all'
-  });
-
+  const [filters, setFilters] = useState({ status: 'all', meta_id: 'all', search: '', rubrica_id: 'all', inconsistencias: 'all', centro_custo: 'all' });
   const queryClient = useQueryClient();
 
   useEffect(() => {
     let mounted = true;
-
     setUserLoading(true);
     setUserLoadError(false);
-
-    base44.auth
-      .me()
-      .then((u) => {
-        if (!mounted) return;
-        setCurrentUser(u || null);
-      })
-      .catch(() => {
-        if (!mounted) return;
-        setCurrentUser(null);
-        setUserLoadError(true);
-      })
-      .finally(() => {
-        if (!mounted) return;
-        setUserLoading(false);
-      });
-
-    return () => {
-      mounted = false;
-    };
+    base44.auth.me().then((u) => { if (!mounted) return; setCurrentUser(u || null); }).catch(() => { if (!mounted) return; setCurrentUser(null); setUserLoadError(true); }).finally(() => { if (!mounted) return; setUserLoading(false); });
+    return () => { mounted = false; };
   }, []);
 
-  const isCoordenador = [
-    'admin',
-    'ADMIN',
-    'COORDENADOR',
-    'COORD_COMUNICACAO',
-    'COORD_ADMINISTRATIVA',
-    'COORD_PRODUCAO'
-  ].includes(currentUser?.role);
+  const isCoordenador = ['admin', 'ADMIN', 'COORDENADOR', 'COORD_COMUNICACAO', 'COORD_ADMINISTRATIVA', 'COORD_PRODUCAO'].includes(currentUser?.role);
 
   const invalidateComprasQueries = useCallback(async () => {
     await Promise.all([
@@ -810,37 +372,19 @@ function ComprasInner() {
     ]);
   }, [queryClient]);
 
-  const {
-    data: userPermission,
-    isLoading: loadingUserPermission
-  } = useQuery({
+  const { data: userPermission, isLoading: loadingUserPermission } = useQuery({
     queryKey: ['user-permission', currentUser?.email],
-    queryFn: async () => {
-      try {
-        const result = await base44.entities.UserPermission.filter({
-          user_email: currentUser?.email
-        });
-
-        return result?.[0] || null;
-      } catch {
-        return null;
-      }
-    },
+    queryFn: async () => { try { const result = await base44.entities.UserPermission.filter({ user_email: currentUser?.email }); return result?.[0] || null; } catch { return null; } },
     enabled: !!currentUser?.email,
     staleTime: 1000 * 60 * 2,
     refetchOnWindowFocus: false
   });
 
   const hasGestaoCompras = isCoordenador || userPermission?.gestao_compras === true;
-  const podeAprovarSolicitacoes =
-    isCoordenador || userPermission?.pode_aprovar_solicitacoes === true;
+  const podeAprovarSolicitacoes = isCoordenador || userPermission?.pode_aprovar_solicitacoes === true;
   const podeGerenciarRubricas = canManageRubricas(currentUser, userPermission);
 
-  const {
-    data: purchases = [],
-    isLoading,
-    isFetching: fetchingPurchases
-  } = useQuery({
+  const { data: purchases = [], isLoading, isFetching: fetchingPurchases } = useQuery({
     queryKey: ['purchases', isCoordenador, currentUser?.email],
     queryFn: () => carregarSolicitacoes({ isCoordenador, currentUser }),
     enabled: !!currentUser,
@@ -848,20 +392,9 @@ function ComprasInner() {
     refetchOnWindowFocus: false
   });
 
-  const {
-    data: anexosCompras = [],
-    isLoading: loadingAnexos,
-    isFetching: fetchingAnexos
-  } = useQuery({
+  const { data: anexosCompras = [], isLoading: loadingAnexos, isFetching: fetchingAnexos } = useQuery({
     queryKey: ['attachments-compras'],
-    queryFn: async () => {
-      const list = await base44.entities.Attachment.list('-created_date', 500);
-      const docs = dedupById((list || []).filter(isEntradaUnicaAttachment));
-
-      return docs.sort(
-        (a, b) => new Date(b?.created_date || 0) - new Date(a?.created_date || 0)
-      );
-    },
+    queryFn: async () => { const list = await base44.entities.Attachment.list('-created_date', 500); const docs = dedupById((list || []).filter(isEntradaUnicaAttachment)); return docs.sort((a, b) => new Date(b?.created_date || 0) - new Date(a?.created_date || 0)); },
     enabled: !!currentUser,
     staleTime: 1000 * 60,
     refetchOnWindowFocus: false
@@ -869,31 +402,13 @@ function ComprasInner() {
 
   const attachmentByPurchaseId = useMemo(() => {
     const map = {};
-
-    (anexosCompras || []).forEach((doc) => {
-      const purchaseId =
-        doc?.purchase_id ||
-        doc?.purchase_request_id ||
-        doc?.purchaseRequestId ||
-        doc?.solicitacao_id;
-
-      if (purchaseId && !map[purchaseId]) {
-        map[purchaseId] = doc;
-      }
-    });
-
+    (anexosCompras || []).forEach((doc) => { const purchaseId = doc?.purchase_id || doc?.purchase_request_id || doc?.purchaseRequestId || doc?.solicitacao_id; if (purchaseId && !map[purchaseId]) map[purchaseId] = doc; });
     return map;
   }, [anexosCompras]);
 
   useQuery({
     queryKey: ['purchase-documents-all', isCoordenador, currentUser?.email],
-    queryFn: async () => {
-      const docs = await base44.entities.PurchaseDocument.list('-created_date', 300);
-
-      if (isCoordenador) return docs;
-
-      return docs.filter((doc) => doc.uploadado_por === currentUser?.email);
-    },
+    queryFn: async () => { const docs = await base44.entities.PurchaseDocument.list('-created_date', 300); if (isCoordenador) return docs; return docs.filter((doc) => doc.uploadado_por === currentUser?.email); },
     enabled: !!currentUser,
     staleTime: 1000 * 60,
     refetchOnWindowFocus: false
@@ -901,35 +416,13 @@ function ComprasInner() {
 
   const { budgetLines } = useBudgetLines();
 
-  const {
-    data: rubricas = [],
-    refetch: refetchRubricas,
-    isLoading: loadingRubricas,
-    isFetching: fetchingRubricas
-  } = useQuery({
+  const { data: rubricas = [], refetch: refetchRubricas, isLoading: loadingRubricas, isFetching: fetchingRubricas } = useQuery({
     queryKey: ['rubricas'],
     queryFn: carregarRubricas,
     enabled: !!currentUser,
     staleTime: 1000 * 60,
     refetchOnWindowFocus: false
   });
-
-  const TOTAL_PREVISTO_3_ADITIVO = 1320000;
-
-  const totaisConsolidados = useMemo(() => {
-    const totalUtilizado = (rubricas || []).reduce(
-      (acc, r) => acc + toNumber(r.valor_utilizado),
-      0
-    );
-
-    const saldo = TOTAL_PREVISTO_3_ADITIVO - totalUtilizado;
-
-    return {
-      totalPrevisto: TOTAL_PREVISTO_3_ADITIVO,
-      totalUtilizado,
-      saldo
-    };
-  }, [rubricas]);
 
   const purchasesWithFlags = useMemo(() => {
     return (purchases || []).map((p) => {
@@ -1441,40 +934,7 @@ function ComprasInner() {
           </div>
         )}
 
-        {isCoordenador && (
-          <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-              <p className="text-xs font-medium text-gray-500">Total Previsto</p>
-              <p className="mt-1 break-words text-lg font-bold leading-tight text-gray-900 tabular-nums">
-                {fmtBRL(totaisConsolidados.totalPrevisto)}
-              </p>
-              <p className="text-xs text-gray-400">Valor total do 3º Aditivo</p>
-            </div>
-
-            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-              <p className="text-xs font-medium text-gray-500">Total Utilizado</p>
-              <p className="mt-1 break-words text-lg font-bold leading-tight text-gray-900 tabular-nums">
-                {fmtBRL(totaisConsolidados.totalUtilizado)}
-              </p>
-              <p className="text-xs text-gray-400">
-                Aprovado coord. + admin + pago
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-              <p className="text-xs font-medium text-gray-500">Saldo Disponível</p>
-              <p
-                className={`mt-1 break-words text-lg font-bold leading-tight tabular-nums ${
-                  totaisConsolidados.saldo < 0
-                    ? 'text-red-600'
-                    : 'text-green-700'
-                }`}
-              >
-                {fmtBRL(totaisConsolidados.saldo)}
-              </p>
-            </div>
-          </div>
-        )}
+        {isCoordenador && <TotaisAditivoCards rubricas={rubricas} />}
 
         {isCoordenador && (
           <div className="mb-6">
@@ -1755,7 +1215,7 @@ function ComprasInner() {
                   onSelectRubrica={setSelectedRubrica}
                   onRefresh={refreshFinanceiroCompleto}
                   isCoordenador={isCoordenador}
-                  totalPrevisto={totaisConsolidados.totalPrevisto}
+                  totalPrevisto={1320000}
                 />
               </>
             )}
@@ -1903,7 +1363,7 @@ function ComprasInner() {
                 onSelectRubrica={setSelectedRubrica}
                 onRefresh={refreshFinanceiroCompleto}
                 isCoordenador={isCoordenador}
-                totalPrevisto={totaisConsolidados.totalPrevisto}
+                totalPrevisto={1320000}
               />
             )}
           </div>
