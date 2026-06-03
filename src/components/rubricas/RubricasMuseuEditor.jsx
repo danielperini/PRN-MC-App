@@ -319,16 +319,25 @@ export default function RubricasMuseuEditor({ museu = 'MIS', rubricas = [], comp
     );
   }, [rubricasEnriquecidas]);
 
-  /* 6. Agrupar por grupo */
+  /* 6. Filtrar por busca e agrupar por grupo */
+  const rubricasFiltradas2 = useMemo(() => {
+    if (!searchTerm.trim()) return rubricasEnriquecidas;
+    const busca = normalizeText(searchTerm);
+    return rubricasEnriquecidas.filter((r) => {
+      const texto = normalizeText(`${getRubricaNome(r)} ${getGrupo(r)} ${r?.centro_custo || ''}`);
+      return texto.includes(busca);
+    });
+  }, [rubricasEnriquecidas, searchTerm]);
+
   const grouped = useMemo(() => {
     const map = new Map();
-    rubricasEnriquecidas.forEach((r) => {
+    rubricasFiltradas2.forEach((r) => {
       const key = getGrupo(r);
       if (!map.has(key)) map.set(key, []);
       map.get(key).push(r);
     });
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b, 'pt-BR'));
-  }, [rubricasEnriquecidas]);
+  }, [rubricasFiltradas2]);
 
   if (rubricasEnriquecidas.length === 0) {
     return (
@@ -361,8 +370,20 @@ export default function RubricasMuseuEditor({ museu = 'MIS', rubricas = [], comp
         </div>
       </div>
 
+      {/* Busca */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Buscar rubrica..."
+          className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-black/20"
+        />
+      </div>
+
       <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-500">
-        Exibindo {rubricasEnriquecidas.length} rubrica{rubricasEnriquecidas.length !== 1 ? 's' : ''} com{' '}
+        Exibindo {rubricasFiltradas2.length} de {rubricasEnriquecidas.length} rubrica{rubricasEnriquecidas.length !== 1 ? 's' : ''} com{' '}
         <strong>centro_custo = {museu}</strong>. Valores calculados a partir das compras aprovadas vinculadas.
       </div>
 

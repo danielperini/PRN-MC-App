@@ -347,12 +347,13 @@ export default function RubricasGrid({
       <div className="flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
         <div className="flex flex-col md:flex-row gap-3 flex-1">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-            <Input
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <input
+              type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Buscar rubrica..."
-              className="pl-9"
+              className="flex h-9 w-full rounded-md border border-input bg-transparent pl-9 pr-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             />
           </div>
           <Select value={groupFilter} onValueChange={setGroupFilter}>
