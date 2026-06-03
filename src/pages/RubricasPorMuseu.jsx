@@ -246,7 +246,14 @@ export default function RubricasPorMuseu() {
             <Tabs value={museuAtivo} onValueChange={setMuseuAtivo}>
               {resumoPorMuseu.map((item) => (
                 <TabsContent key={`${item.museu}-${refreshNonce}`} value={item.museu} className="m-0 p-4 bg-white">
-                  <RubricasMuseuEditor key={`${item.museu}-${refreshNonce}`} museu={item.museu} canEdit={canEdit} refreshKey={refreshNonce} />
+                  <RubricasMuseuEditor
+                    key={`${item.museu}-${refreshNonce}`}
+                    museu={item.museu}
+                    canEdit={canEdit}
+                    refreshKey={refreshNonce}
+                    rubricas={Array.isArray(rubricasBanco) ? rubricasBanco : []}
+                    compras={Array.isArray(comprasAprovadas) ? comprasAprovadas : []}
+                  />
                 </TabsContent>
               ))}
             </Tabs>
