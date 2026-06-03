@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import {
   AlertTriangle,
   CheckCircle2,
+  ClipboardList,
   Download,
   FileSearch,
   RefreshCw,
@@ -10,6 +11,7 @@ import {
   ShieldAlert,
   Table2,
 } from 'lucide-react';
+import AuditoriaRevisaoModal from '@/components/auditoria/AuditoriaRevisaoModal';
 
 const STATUS_APROVADOS = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
 
@@ -327,6 +329,7 @@ export default function AuditoriaSolicitacoes() {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [filtro, setFiltro] = useState('todos');
+  const [showRevisaoModal, setShowRevisaoModal] = useState(false);
   const [data, setData] = useState({
     purchases: [],
     rubricas: [],
@@ -662,6 +665,15 @@ export default function AuditoriaSolicitacoes() {
             </button>
             <button
               type="button"
+              onClick={() => setShowRevisaoModal(true)}
+              disabled={loading}
+              className="inline-flex items-center gap-2 rounded-xl bg-amber-600 px-3 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-60"
+            >
+              <ClipboardList className="h-4 w-4" />
+              Abrir Revisão
+            </button>
+            <button
+              type="button"
               onClick={exportarSolicitacoes}
               className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800"
             >
@@ -868,6 +880,28 @@ export default function AuditoriaSolicitacoes() {
             Foram encontrados {audit.resumo.teamPaymentsOrfaos} registros em TeamPayment sem correspondência clara em PurchaseRequest. Esses casos devem ser migrados/refeitos como solicitação formal com NF/documento e rubrica vinculada.
           </p>
         </section>
+      )}
+
+      {showRevisaoModal && (
+        <AuditoriaRevisaoModal
+          solicitacoes={audit.solicitacoes.filter((l) => l.severity !== 'ok').map((l) => {
+            const purchase = data.purchases.find((p) => p.id === l.id);
+            return {
+              ...l,
+              rubricaId: purchase?.rubrica_id || '',
+              fileUrl: purchase ? (
+                purchase.file_url || purchase.arquivo_url || purchase.nota_fiscal_url ||
+                purchase.nf_pdf_url || purchase.documento_url || ''
+              ) : '',
+            };
+          })}
+          currentUser={currentUser}
+          onClose={() => setShowRevisaoModal(false)}
+          onEditPurchase={(id) => {
+            setShowRevisaoModal(false);
+            window.open(`/Compras?edit=${id}`, '_blank');
+          }}
+        />
       )}
     </div>
   );
