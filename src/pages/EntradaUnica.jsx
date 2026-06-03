@@ -397,16 +397,11 @@ export default function EntradaUnica() {
         100
       );
 
-      await corrigirTravados(list || []);
-      await tentarVincularLista(list || []);
+      // Correções e vinculações em background — sem bloquear nem re-buscar
+      corrigirTravados(list || []).catch(() => {});
+      tentarVincularLista(list || []).catch(() => {});
 
-      const listAtualizada = await base44.entities.DocumentIntake.filter(
-        { user_email: user.email, status_registro: 'ATIVO' },
-        '-created_date',
-        100
-      );
-
-      const filtrados = (listAtualizada || []).filter((i) => {
+      const filtrados = (list || []).filter((i) => {
         const status = String(i.status_processamento || '').toUpperCase();
 
         if (status === 'APROVADO') return false;
