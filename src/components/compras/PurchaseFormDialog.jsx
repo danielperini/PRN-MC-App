@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { base44 } from '@/api/base44Client'
-import { CheckCircle2, RotateCcw, Trash2, Paperclip, X, FileText, Upload, ExternalLink, FolderOpen } from 'lucide-react'
+import { CheckCircle2, RotateCcw, Trash2, Paperclip, X, FileText, Upload, ExternalLink, FolderOpen, AlertTriangle, ShieldAlert } from 'lucide-react'
 import { useSmartToast } from '@/lib/useSmartToast'
 import { findDuplicatePurchaseRequest } from '@/lib/purchaseDuplicateGuard'
 import DuplicatePurchaseDetectedModal from './DuplicatePurchaseDetectedModal'
@@ -169,6 +169,7 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
   const [duplicateWarning, setDuplicateWarning] = useState(null)
   const [ignoreDuplicate, setIgnoreDuplicate] = useState(false)
   const [linkedAttachments, setLinkedAttachments] = useState([])
+  const [duplicidadeConfirmada, setDuplicidadeConfirmada] = useState(false)
 
   // Carrega attachments vinculados à solicitação (somente em edição)
   useEffect(() => {
@@ -177,6 +178,19 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
       .then((d) => setLinkedAttachments(Array.isArray(d) ? d : []))
       .catch(() => setLinkedAttachments([]))
   }, [prefill?.id])
+
+  // Alertas de duplicidade vindos da análise de IA
+  const alertasDuplicidade = (() => {
+    const ia = prefill?.resultado_ia || {}
+    const alertas = Array.isArray(ia.alertas_duplicidade) ? ia.alertas_duplicidade : []
+    // Também verifica erros_validacao que possam conter alertas de duplicidade
+    const erros = Array.isArray(prefill?.erros_validacao) ? prefill.erros_validacao : []
+    const errosDupl = erros.filter(e => String(e).includes('DUPLICIDADE') || String(e).includes('INCONSISTÊNCIA'))
+    // Mescla sem duplicar mensagens já presentes
+    const mensagensAlertas = new Set(alertas.map(a => a.mensagem))
+    const extras = errosDupl.filter(e => !mensagensAlertas.has(e)).map(e => ({ mensagem: e, nivel: 'atencao' }))
+    return [...alertas, ...extras]
+  })()
 
   const isEditing = !!prefill?.id
   const statusKey = String(prefill?.status || '').trim().toUpperCase()
@@ -732,6 +746,40 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
               >
                 {prefill.status}
               </span>
+            </div>
+          )}
+
+          {/* ── ALERTA DE DUPLICIDADE ── */}
+          {alertasDuplicidade.length > 0 && !duplicidadeConfirmada && (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="h-4 w-4 text-red-600 shrink-0" />
+                <span className="text-sm font-semibold text-red-700">Possível nota fiscal duplicada. Verifique antes de aprovar.</span>
+              </div>
+              <div className="space-y-1.5">
+                {alertasDuplicidade.map((a, i) => (
+                  <div key={i} className={`flex items-start gap-2 rounded-lg px-2.5 py-1.5 text-xs ${a.nivel === 'critico' ? 'bg-red-100 text-red-800' : 'bg-amber-50 text-amber-800 border border-amber-200'}`}>
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                    <span>{a.mensagem || String(a)}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setDuplicidadeConfirmada(true)}
+                  className="text-xs text-gray-500 underline hover:text-gray-700"
+                >
+                  Confirmar que não é duplicata e continuar
+                </button>
+              </div>
+            </div>
+          )}
+
+          {alertasDuplicidade.length > 0 && duplicidadeConfirmada && (
+            <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-500">
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+              Alerta de duplicidade revisado e confirmado pelo coordenador.
             </div>
           )}
 

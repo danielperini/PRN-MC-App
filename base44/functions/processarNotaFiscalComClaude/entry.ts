@@ -370,6 +370,109 @@ JSON:
 }
 
 // ======================================================================
+// VERIFICAÇÃO DE DUPLICIDADE NO BANCO
+// ======================================================================
+async function verificarDuplicidadeNF(base44, ia, intakeId) {
+  const nfNumero = safeStr(ia.nf_numero);
+  const cnpjEmitente = onlyDigits(ia.nf_emitente_cpf_cnpj || '');
+  const nomeEmitente = normalizeText(ia.nf_emitente_nome || '');
+  const dataEmissao = safeStr(ia.nf_data_emissao);
+  const valor = parseValor(ia.nf_valor_total);
+
+  if (!nfNumero && !cnpjEmitente) return [];
+
+  const alertas = [];
+
+  try {
+    // Buscar candidatos por CNPJ e por número de NF em paralelo
+    const [intakesCnpj, purchasesCnpj, intakesNum, purchasesNum] = await Promise.all([
+      cnpjEmitente
+        ? base44.asServiceRole.entities.DocumentIntake.filter({ nf_emitente_cpf_cnpj: cnpjEmitente }, '-created_date', 200).catch(() => [])
+        : Promise.resolve([]),
+      cnpjEmitente
+        ? base44.asServiceRole.entities.PurchaseRequest.filter({ fornecedor_cnpj: cnpjEmitente }, '-created_date', 200).catch(() => [])
+        : Promise.resolve([]),
+      nfNumero
+        ? base44.asServiceRole.entities.DocumentIntake.filter({ nf_numero: nfNumero }, '-created_date', 50).catch(() => [])
+        : Promise.resolve([]),
+      nfNumero
+        ? base44.asServiceRole.entities.PurchaseRequest.filter({ nf_numero: nfNumero }, '-created_date', 50).catch(() => [])
+        : Promise.resolve([]),
+    ]);
+
+    // Deduplica candidatos
+    const candidatosMap = new Map();
+    for (const r of [...(intakesCnpj || []), ...(intakesNum || [])]) {
+      if (r?.id && r.id !== intakeId) candidatosMap.set(`intake:${r.id}`, { ...r, _tipo: 'intake' });
+    }
+    for (const r of [...(purchasesCnpj || []), ...(purchasesNum || [])]) {
+      if (r?.id) candidatosMap.set(`purchase:${r.id}`, { ...r, _tipo: 'purchase' });
+    }
+
+    for (const candidato of candidatosMap.values()) {
+      const cNum = safeStr(candidato.nf_numero || '');
+      const cCnpj = onlyDigits(candidato.nf_emitente_cpf_cnpj || candidato.fornecedor_cnpj || '');
+      const cNome = normalizeText(candidato.nf_emitente_nome || candidato.fornecedor_nome || '');
+      const cData = safeStr(candidato.nf_data_emissao || '');
+      const cValor = parseValor(candidato.nf_valor_total || candidato.valor_solicitado || 0);
+
+      const refLabel = candidato._tipo === 'intake'
+        ? `DocumentIntake #${candidato.id.slice(-6)}`
+        : `Solicitação ${candidato.numero_processamento || ('#' + candidato.id.slice(-6))}`;
+      const emissorLabel = candidato.nf_emitente_nome || candidato.fornecedor_nome || '';
+
+      // Regra 1: número NF + CNPJ emitente iguais → duplicidade provável
+      if (nfNumero && cNum && nfNumero === cNum && cnpjEmitente && cCnpj && cnpjEmitente === cCnpj) {
+        alertas.push({
+          tipo: 'duplicidade_provavel',
+          nivel: 'critico',
+          mensagem: `⛔ DUPLICIDADE PROVÁVEL: NF ${nfNumero} do emissor CNPJ ${cnpjEmitente} já existe no sistema (${refLabel}${emissorLabel ? ' — ' + emissorLabel : ''}). Verifique antes de aprovar.`,
+          referencia_id: candidato.id,
+          referencia_tipo: candidato._tipo,
+          referencia_label: refLabel,
+        });
+        continue; // já encontrou o mais grave, não continua para este candidato
+      }
+
+      // Regra 2: número NF igual, CNPJ diferente → inconsistência para revisão
+      if (nfNumero && cNum && nfNumero === cNum && cnpjEmitente && cCnpj && cnpjEmitente !== cCnpj) {
+        alertas.push({
+          tipo: 'inconsistencia_numero',
+          nivel: 'atencao',
+          mensagem: `⚠️ INCONSISTÊNCIA: NF ${nfNumero} já existe no sistema com CNPJ diferente (${refLabel}${emissorLabel ? ' — ' + emissorLabel : ''}). Confira se não é erro de digitação.`,
+          referencia_id: candidato.id,
+          referencia_tipo: candidato._tipo,
+          referencia_label: refLabel,
+        });
+        continue;
+      }
+
+      // Regra 3: CNPJ + nome emitente + data + valor iguais (mesmo sem número igual)
+      const cnpjIgual = cnpjEmitente && cCnpj && cnpjEmitente === cCnpj;
+      const nomeIgual = nomeEmitente.length >= 5 && cNome.length >= 5 && (cNome.startsWith(nomeEmitente.slice(0, 8)) || nomeEmitente.startsWith(cNome.slice(0, 8)));
+      const dataIgual = dataEmissao && cData && dataEmissao === cData;
+      const valorIgual = valor > 0 && cValor > 0 && Math.abs(valor - cValor) < 0.02;
+
+      if (cnpjIgual && nomeIgual && dataIgual && valorIgual) {
+        const valorFmt = valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        alertas.push({
+          tipo: 'possivel_duplicidade',
+          nivel: 'atencao',
+          mensagem: `⚠️ POSSÍVEL DUPLICIDADE: Emissor ${ia.nf_emitente_nome}, data ${dataEmissao} e valor R$ ${valorFmt} já encontrados no sistema (${refLabel}). Verifique antes de aprovar.`,
+          referencia_id: candidato.id,
+          referencia_tipo: candidato._tipo,
+          referencia_label: refLabel,
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('Erro ao verificar duplicidade:', err.message);
+  }
+
+  return alertas;
+}
+
+// ======================================================================
 // VALIDAÇÕES PÓS-EXTRAÇÃO (não bloqueantes)
 // ======================================================================
 function gerarPendenciasEValidacoes(ia, body) {
@@ -495,6 +598,16 @@ Deno.serve(async (req) => {
     // Gerar pendências e validações pós-extração
     const { inconsistencias, pendencias, avisos } = gerarPendenciasEValidacoes(ia, body);
 
+    // Verificar duplicidade no banco de dados
+    const alertasDuplicidade = await verificarDuplicidadeNF(base44, ia, intakeId);
+    for (const alerta of alertasDuplicidade) {
+      if (alerta.nivel === 'critico') {
+        inconsistencias.unshift(alerta.mensagem);
+      } else {
+        pendencias.unshift(alerta.mensagem);
+      }
+    }
+
     // Tipo detectado
     const tipoDetectado = ia.eh_nota_fiscal
       ? (fileUrl.includes('.xml') ? 'NOTA_FISCAL_XML' : 'NOTA_FISCAL_PDF')
@@ -528,6 +641,9 @@ Deno.serve(async (req) => {
       nome_profissional: ia.nome_profissional || '',
       funcao_exercida: ia.funcao_exercida || '',
       museu_atuacao: ia.museu_atuacao || '',
+      // Alertas de duplicidade
+      alertas_duplicidade: alertasDuplicidade,
+      tem_duplicidade: alertasDuplicidade.length > 0,
     };
 
     // Todas as pendências juntas (não bloqueam o envio)
@@ -586,6 +702,8 @@ Deno.serve(async (req) => {
       file_name_final: nomeFinal,
       pendencias: todasPendencias,
       requer_revisao: todasPendencias.length > 0,
+      alertas_duplicidade: alertasDuplicidade,
+      tem_duplicidade: alertasDuplicidade.length > 0,
     });
   } catch (error) {
     return Response.json({ ok: false, error: error.message }, { status: 500 });
