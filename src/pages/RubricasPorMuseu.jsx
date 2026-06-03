@@ -16,17 +16,27 @@ import { getRubricasOficiais3Aditivo } from '@/lib/rubricasOficiais3Aditivo';
 
 const CENTROS_CUSTO = ['MHAB', 'MIS', 'MUMO', 'Noturno Centro', 'Noturno Pampulha', 'Coordenação', 'Comunicação', 'Educação', 'Produção', 'Administrativo-financeiro', 'Publicações', 'Consultorias', 'Despesas Gerais'];
 
-// Grupos de rubrica que representam pessoal/equipe — excluídos do cálculo dos cards de museu
-const GRUPOS_PESSOAL = [
-  'Contratação da equipe principal, incluindo os coordenadores da Comissão de Programação',
-  'Contratação da equipe de educadores',
-  'Contratação de educadores',
-  'Contratação de monitores',
-  'Educadores',
-  'Monitores',
-  'Coordenação',
-  'Equipe de coordenação',
+// Centros de custo de museus físicos (MHAB, MIS, MUMO) — excluem rubricas de pessoal do cálculo
+const CENTROS_MUSEU_FISICO = new Set(['MHAB', 'MIS', 'MUMO']);
+
+// Rubricas de pessoal: excluídas do cálculo financeiro dos cards de museu físico (MHAB/MIS/MUMO)
+// O texto do grupo precisa conter uma dessas strings (case-insensitive)
+const KEYWORDS_PESSOAL = [
+  'contratação da equipe',
+  'equipe principal',
+  'educador',
+  'monitor',
+  'produtor',
+  'coordenador',
+  'técnico de',
+  'gestão de equipe',
 ];
+
+function isRubricaPessoal(rubrica) {
+  const grupo = String(rubrica?.grupo || '').toLowerCase();
+  const nome = String(rubrica?.rubrica || rubrica?.nome || '').toLowerCase();
+  return KEYWORDS_PESSOAL.some(k => grupo.includes(k) || nome.includes(k));
+}
 
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return 0;
@@ -148,6 +158,9 @@ export default function RubricasPorMuseu() {
       const centro = String(r?.centro_custo || '').trim();
       if (!centro || !mapa[centro]) continue;
 
+      // Para museus físicos (MHAB, MIS, MUMO), excluir rubricas de pessoal
+      if (CENTROS_MUSEU_FISICO.has(centro) && isRubricaPessoal(r)) continue;
+
       const previsto = toNumber(r.valor_rubrica || r.valor_total);
       const utilCompras = utilizadoPorRubricaId[r.id] || 0;
       const utilRubrica = toNumber(r.valor_utilizado);
@@ -263,7 +276,13 @@ export default function RubricasPorMuseu() {
                     museu={item.museu}
                     canEdit={canEdit}
                     refreshKey={refreshNonce}
-                    rubricas={Array.isArray(rubricasBanco) ? rubricasBanco : []}
+                    rubricas={
+                      Array.isArray(rubricasBanco)
+                        ? CENTROS_MUSEU_FISICO.has(item.museu)
+                          ? rubricasBanco.filter(r => !isRubricaPessoal(r))
+                          : rubricasBanco
+                        : []
+                    }
                     compras={Array.isArray(comprasAprovadas) ? comprasAprovadas : []}
                   />
                 </TabsContent>
