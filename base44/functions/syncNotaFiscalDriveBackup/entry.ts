@@ -69,19 +69,56 @@ function isAuxiliaryAttachment(attachment: any) {
   return haystack.includes('RECIBO') || haystack.includes('COMPROVANTE') || haystack.includes('PAGAMENTO') || haystack.includes('PIX') || haystack.includes('BOLETO') || haystack.includes('TRANSFERENCIA');
 }
 
+const MUSEUS_VALIDOS_BACKUP = ['MIS', 'MUMO', 'MHAB'];
+
+/**
+ * Padrão: NF [número] - [razão social] - [nome profissional] - MUSEUS CENTRO - [museu] - R$ [valor]
+ * Exemplo: NF 123 - ENGENHARIA E DESIGN LTDA - CAROLINE ABASSE - MUSEUS CENTRO - MIS - R$ 2.600,00
+ */
 function buildFileName(attachment: any, context: any = {}) {
+  // Se já está no padrão correto, não renomear
   const current = safeStr(attachment?.nf_nome_renomeado || attachment?.nome_padronizado_ia || attachment?.file_name);
-  if (/^\d{2}\s+(NF|RECIBO\s+NF)\s+.+\s+-\s+.+\s+-\s+MUSEUS\s+CENTRO\s+-\s+\d{1,3}(?:\.\d{3})*,\d{2}\.(pdf|xml)$/i.test(current)) {
+  if (/^NF \S+ - .+ - MUSEUS CENTRO( - (MIS|MUMO|MHAB))? - R\$ [\d.,]+\.(pdf|xml)$/i.test(current)) {
     return current;
   }
 
   const ext = getExt(current, attachment?.nf_tipo_documento === 'xml_nf' ? 'xml' : 'pdf');
-  const numero = normalizeText(attachment?.nf_numero || context?.nf_numero || 'SEM NUM');
-  const cargo = normalizeText(attachment?.rubrica_nome || context?.rubrica_nome || context?.descricao_item || attachment?.description || 'NOTA FISCAL');
-  const fornecedor = normalizeText(attachment?.nf_emitente_nome || context?.fornecedor_nome || context?.nf_emitente_nome || 'FORNECEDOR');
+  const numero = safeStr(attachment?.nf_numero || context?.nf_numero || 'SEM-NUM');
+
+  // Razão social do emitente
+  const emitente = normalizeText(
+    attachment?.nf_emitente_nome || context?.nf_emitente_nome || context?.fornecedor_nome || 'FORNECEDOR'
+  ).substring(0, 50);
+
+  // Nome do profissional (pessoa física)
+  const nomeProfissional = normalizeText(
+    attachment?.nome_profissional ||
+    context?.nome_profissional ||
+    (attachment?.resultado_ia && attachment.resultado_ia?.nome_profissional) ||
+    ''
+  ).substring(0, 50);
+
+  // Museu de atuação
+  const museuRaw = safeStr(
+    attachment?.museu_atuacao ||
+    context?.museu_atuacao ||
+    (attachment?.resultado_ia && attachment.resultado_ia?.museu_atuacao) ||
+    ''
+  ).toUpperCase();
+  const museu = MUSEUS_VALIDOS_BACKUP.includes(museuRaw) ? museuRaw : '';
+
   const valor = formatValor(attachment?.nf_valor_total || context?.valor_solicitado || context?.valor || 0);
-  const prefix = isAuxiliaryAttachment(attachment) ? '02 RECIBO NF' : '01 NF';
-  return `${prefix} ${numero} ${cargo} - ${fornecedor} - MUSEUS CENTRO - ${valor}.${ext}`;
+
+  // Montar nome
+  const profissionalPart = nomeProfissional && nomeProfissional !== emitente ? ` - ${nomeProfissional}` : '';
+  const museuPart = museu ? ` - ${museu}` : '';
+
+  if (isAuxiliaryAttachment(attachment)) {
+    // Recibos/comprovantes mantêm padrão simplificado
+    return `NF ${numero} - ${emitente}${profissionalPart} - MUSEUS CENTRO${museuPart} - R$ ${valor}.${ext}`;
+  }
+
+  return `NF ${numero} - ${emitente}${profissionalPart} - MUSEUS CENTRO${museuPart} - R$ ${valor}.${ext}`;
 }
 
 async function safeGet(entity: any, id: string) {
