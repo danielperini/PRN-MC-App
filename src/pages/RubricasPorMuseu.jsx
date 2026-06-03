@@ -206,13 +206,21 @@ export default function RubricasPorMuseu() {
     const banco = Array.isArray(rubricasBanco) ? rubricasBanco.filter(r => r?.ativo !== false) : [];
     const compras = Array.isArray(comprasAprovadas) ? comprasAprovadas : [];
 
-    // Valor utilizado por rubrica_id (compras aprovadas)
+    // Indexar compras por rubrica_id — separando utilizado (aprovado+pago) e pago
+    const STATUS_APROVADOS = new Set(['APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
+    const STATUS_PAGO = new Set(['PAGO']);
     const utilizadoPorRubricaId = {};
+    const pagoPorRubricaId = {};
     for (const c of compras) {
       const rid = c.rubrica_id;
       if (!rid) continue;
+      const status = String(c.status || '').toUpperCase();
+      if (!STATUS_APROVADOS.has(status)) continue;
       const val = toNumber(c.valor_pago || c.valor_aprovado_admin || c.valor_aprovado || c.valor_solicitado);
       utilizadoPorRubricaId[rid] = (utilizadoPorRubricaId[rid] || 0) + val;
+      if (STATUS_PAGO.has(status)) {
+        pagoPorRubricaId[rid] = (pagoPorRubricaId[rid] || 0) + val;
+      }
     }
 
     // Agrupamento por centro_custo
@@ -231,12 +239,14 @@ export default function RubricasPorMuseu() {
       if (CENTROS_EXCLUIR_PESSOAL.has(centro) && GRUPOS_PESSOAL.has(grupo)) continue;
 
       const previsto = toNumber(r.valor_rubrica || r.valor_total);
-      const utilCompras = utilizadoPorRubricaId[r.id] || 0;
-      const utilRubrica = toNumber(r.valor_utilizado);
-      const utilizado = utilCompras > 0 ? utilCompras : utilRubrica;
+      // Prioriza cálculo direto das compras; só usa campo do banco se não há compras vinculadas
+      const utilCompras = utilizadoPorRubricaId[r.id];
+      const utilizado = utilCompras !== undefined ? utilCompras : toNumber(r.valor_utilizado);
+      const pago = pagoPorRubricaId[r.id] || 0;
 
       mapa[centro].totalOrcado += previsto;
       mapa[centro].totalUtilizado += utilizado;
+      mapa[centro].totalPago += pago;
     }
 
     return CENTROS_CUSTO
@@ -244,9 +254,10 @@ export default function RubricasPorMuseu() {
         const d = mapa[centro];
         const totalOrcado = Number(d.totalOrcado.toFixed(2));
         const totalUtilizado = Number(d.totalUtilizado.toFixed(2));
+        const totalPago = Number(d.totalPago.toFixed(2));
         const totalSaldo = Number((totalOrcado - totalUtilizado).toFixed(2));
         const pct = totalOrcado > 0 ? Number(((totalUtilizado / totalOrcado) * 100).toFixed(2)) : 0;
-        return { ...d, totalOrcado, totalUtilizado, totalSaldo, pct };
+        return { ...d, totalOrcado, totalUtilizado, totalPago, totalSaldo, pct };
       })
       .filter(d => d.totalOrcado > 0 || d.totalUtilizado > 0); // só mostra centros com dados
   }, [rubricasBanco, comprasAprovadas]);

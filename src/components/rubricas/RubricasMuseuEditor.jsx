@@ -248,14 +248,12 @@ function RubricaCard({ rubrica }) {
  *   compras     — lista de PurchaseRequest aprovadas já carregada pela página pai
  */
 export default function RubricasMuseuEditor({ museu = 'MIS', rubricas = [], compras = [] }) {
-  const museuNorm = normalizeCentro(museu);
-
   /* 1. Filtrar rubricas pelo centro_custo REAL — sem inferência por nome */
   const rubricasFiltradas = useMemo(() => {
     return rubricas
       .filter((r) => r?.ativo !== false)
-      .filter((r) => centroMatchesMuseu(r?.centro_custo, museuNorm));
-  }, [rubricas, museuNorm]);
+      .filter((r) => centroMatchesMuseu(r?.centro_custo, museu));
+  }, [rubricas, museu]);
 
   /* 2. Deduplicar por id (fonte única, sem duplicatas sintéticas) */
   const rubricasDedup = useMemo(() => {
