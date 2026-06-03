@@ -16,26 +16,39 @@ const PROJETOS = {
     nome_projeto: 'Projeto Museus Centro',
     termo_colaboracao: 'Termo de Colaboração 01-031.069/24-80',
     orgao_parceiro: 'Fundação Municipal de Cultura da Prefeitura Municipal de Belo Horizonte – MG (FMC)',
-    descricao_nf: 'Projeto Museus Centro - Termo de Colaboração 01-031.069/24-80, parceria com SMC/FMC',
+    // {museu} será substituído dinamicamente; se omitido (Geral/Comunicação), suprimir
+    descricao_nf_base: 'Projeto Museus Centro - Termo de Colaboração 01-031.069/24-80, parceria com SMC/FMC',
     texto_vinculacao: 'A prestação dos serviços se dará no âmbito do Projeto Museus Centro, objeto do Termo de Colaboração 01-031.069/24-80, firmado entre a CONTRATANTE e a Fundação Municipal de Cultura da Prefeitura Municipal de Belo Horizonte – MG (FMC).',
   },
   museu_centro_noturno: {
     label: 'Museu Centro Noturno',
-    nome_projeto: 'Projeto Museus Centro – Noturno nos Museus',
+    nome_projeto: 'Projeto Museus Centro – Noturno nos Museus Ed. 2026',
     termo_colaboracao: 'Termo de Colaboração 01-031.069/24-80',
     orgao_parceiro: 'Fundação Municipal de Cultura da Prefeitura Municipal de Belo Horizonte – MG (FMC)',
-    descricao_nf: 'Projeto Museus Centro – Noturno nos Museus - Termo de Colaboração 01-031.069/24-80, parceria com SMC/FMC',
-    texto_vinculacao: 'A prestação dos serviços se dará no âmbito do Projeto Museus Centro – Noturno nos Museus, objeto do Termo de Colaboração 01-031.069/24-80, firmado entre a CONTRATANTE e a Fundação Municipal de Cultura da Prefeitura Municipal de Belo Horizonte – MG (FMC).',
+    descricao_nf_base: 'Projeto Museus Centro – Noturno nos Museus Ed. 2026 - Termo de Colaboração 01-031.069/24-80, parceria com SMC/FMC',
+    texto_vinculacao: 'A prestação dos serviços se dará no âmbito do Projeto Museus Centro – Noturno nos Museus Ed. 2026, objeto do Termo de Colaboração 01-031.069/24-80, firmado entre a CONTRATANTE e a Fundação Municipal de Cultura da Prefeitura Municipal de Belo Horizonte – MG (FMC).',
   },
   museu_centro_noturno_pampulha: {
     label: 'Museu Centro Noturno Pampulha',
-    nome_projeto: 'Projeto Museus Centro – Noturno nos Museus (Pampulha)',
+    nome_projeto: 'Projeto Museus Centro – Noturno nos Museus Pampulha Ed. 2026',
     termo_colaboracao: 'Termo de Colaboração 01-031.069/24-80',
     orgao_parceiro: 'Fundação Municipal de Cultura / Fundação Municipal de Parques – Prefeitura Municipal de Belo Horizonte – MG',
-    descricao_nf: 'Projeto Museus Centro – Noturno nos Museus (Pampulha) - Termo de Colaboração 01-031.069/24-80, parceria com SMC/FMC/FMP',
-    texto_vinculacao: 'A prestação dos serviços se dará no âmbito do Projeto Museus Centro – Noturno nos Museus (Pampulha), objeto do Termo de Colaboração 01-031.069/24-80, firmado entre a CONTRATANTE e a Fundação Municipal de Cultura / Fundação Municipal de Parques da Prefeitura Municipal de Belo Horizonte – MG.',
+    descricao_nf_base: 'Projeto Museus Centro – Noturno nos Museus Pampulha Ed. 2026 - Termo de Colaboração 01-031.069/24-80, parceria com SMC/FMC/FMP',
+    texto_vinculacao: 'A prestação dos serviços se dará no âmbito do Projeto Museus Centro – Noturno nos Museus Pampulha Ed. 2026, objeto do Termo de Colaboração 01-031.069/24-80, firmado entre a CONTRATANTE e a Fundação Municipal de Cultura / Fundação Municipal de Parques da Prefeitura Municipal de Belo Horizonte – MG.',
   },
 };
+
+// Centros de custo que NÃO precisam indicar museu na descrição da NF
+const CC_SEM_MUSEU = ['Geral/Transversal', 'Coordenação', 'Comunicação', 'Administrativo-financeiro', 'Consultorias', 'Publicações', 'Despesas Gerais'];
+
+// Monta a descrição da NF dinamicamente conforme projeto e centro de custo selecionados
+function montarDescricaoNF(projeto, centroCusto, museuLocal) {
+  if (!projeto) return '';
+  const base = projeto.descricao_nf_base || '';
+  const semMuseu = !centroCusto || CC_SEM_MUSEU.includes(centroCusto);
+  if (semMuseu || !museuLocal || museuLocal === 'Outro') return base;
+  return `${base} – ${museuLocal}`;
+}
 
 const DADOS_CONTRATANTE = {
   nome: 'OSC Viaduto das Artes',
@@ -146,9 +159,26 @@ export default function GeradorTermoCompromisso() {
     setFormData(prev => ({
       ...prev,
       projeto,
-      descricao_nf_editavel: proj.descricao_nf,
+      descricao_nf_editavel: montarDescricaoNF(proj, prev.centro_custo, prev.museu_local),
     }));
     setStep('form');
+  };
+
+  // Recalcula descrição da NF automaticamente ao mudar CC ou museu
+  const handleCentroCusto = (cc) => {
+    setFormData(prev => ({
+      ...prev,
+      centro_custo: cc,
+      descricao_nf_editavel: montarDescricaoNF(projetoAtual, cc, prev.museu_local),
+    }));
+  };
+
+  const handleMuseuLocal = (museu) => {
+    setFormData(prev => ({
+      ...prev,
+      museu_local: museu,
+      descricao_nf_editavel: montarDescricaoNF(projetoAtual, prev.centro_custo, museu),
+    }));
   };
 
   const projetoAtual = PROJETOS[formData.projeto] || null;
@@ -352,7 +382,7 @@ export default function GeradorTermoCompromisso() {
               <CardContent className="space-y-3">
                 <div>
                   <label className="text-xs text-slate-500 mb-1 block">Museu / Local *</label>
-                  <Select value={formData.museu_local} onValueChange={v => handleField('museu_local', v)}>
+                  <Select value={formData.museu_local} onValueChange={handleMuseuLocal}>
                     <SelectTrigger><SelectValue placeholder="Selecione o local" /></SelectTrigger>
                     <SelectContent>
                       {MUSEUS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
@@ -429,12 +459,12 @@ export default function GeradorTermoCompromisso() {
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="bg-slate-50 rounded-lg p-3 text-xs text-slate-600 space-y-1">
-                  <p><span className="font-medium">Razão Social:</span> {DADOS_CONTRATANTE.nome}</p>
-                  <p><span className="font-medium">Endereço:</span> {DADOS_CONTRATANTE.endereco_nf}</p>
-                  <p><span className="font-medium">CNPJ:</span> {DADOS_CONTRATANTE.cnpj_nf}</p>
-                  <p><span className="font-medium">Inscrição Municipal:</span> {DADOS_CONTRATANTE.inscricao_municipal}</p>
-                  <p><span className="font-medium">Tel.:</span> {DADOS_CONTRATANTE.telefone}</p>
-                  <p><span className="font-medium">Email:</span> {DADOS_CONTRATANTE.email}</p>
+                  <p><span className="font-medium">Razão Social:</span> Viaduto das Artes</p>
+                  <p><span className="font-medium">Endereço:</span> Av. Olinto Meireles, 45 - Barreiro, Belo Horizonte - MG, 30640-010</p>
+                  <p><span className="font-medium">CNPJ:</span> 23.843.648/0001-25</p>
+                  <p><span className="font-medium">Inscrição Municipal:</span> 0.745.690/001-X</p>
+                  <p><span className="font-medium">Tel.:</span> (31) 98802-5140</p>
+                  <p><span className="font-medium">Email:</span> viadutodasartes@viadutodasartes.org.br</p>
                 </div>
                 <div>
                   <label className="text-xs text-slate-500 mb-1 block">Descrição obrigatória da NF (editável) *</label>
@@ -467,7 +497,24 @@ export default function GeradorTermoCompromisso() {
                 </div>
                 <div>
                   <label className="text-xs text-slate-500 mb-1 block">Centro de custo</label>
-                  <Input value={formData.centro_custo} onChange={e => handleField('centro_custo', e.target.value)} placeholder="ex: MUMO, MIS, Geral/Transversal" />
+                  <Select value={formData.centro_custo} onValueChange={handleCentroCusto}>
+                    <SelectTrigger><SelectValue placeholder="Selecione o centro de custo" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="MHAB">MHAB</SelectItem>
+                      <SelectItem value="MIS BH">MIS BH</SelectItem>
+                      <SelectItem value="MUMO">MUMO</SelectItem>
+                      <SelectItem value="Geral/Transversal">Geral/Transversal</SelectItem>
+                      <SelectItem value="Coordenação">Coordenação</SelectItem>
+                      <SelectItem value="Comunicação">Comunicação</SelectItem>
+                      <SelectItem value="Educação">Educação</SelectItem>
+                      <SelectItem value="Produção">Produção</SelectItem>
+                      <SelectItem value="Administrativo-financeiro">Administrativo-financeiro</SelectItem>
+                      <SelectItem value="Noturno nos Museus">Noturno nos Museus</SelectItem>
+                      <SelectItem value="Publicações">Publicações</SelectItem>
+                      <SelectItem value="Consultorias">Consultorias</SelectItem>
+                      <SelectItem value="Despesas Gerais">Despesas Gerais</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </CardContent>
             </Card>

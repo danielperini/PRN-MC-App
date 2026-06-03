@@ -3,6 +3,7 @@ import { jsPDF } from 'npm:jspdf@4.0.0';
 
 const DADOS_CONTRATANTE_PADRAO = {
   nome: 'OSC Viaduto das Artes',
+  nome_nf: 'Viaduto das Artes',
   cnpj: '16.911.508/0001-81',
   cnpj_nf: '23.843.648/0001-25',
   inscricao_municipal: '0.745.690/001-X',
@@ -240,13 +241,13 @@ Deno.serve(async (req) => {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     const nfDados = [
-      `Razão Social: ${contratante.nome}`,
-      `Endereço: ${contratante.endereco_nf}`,
-      `CNPJ: ${contratante.cnpj_nf}`,
-      `Inscrição Municipal: ${contratante.inscricao_municipal}`,
-      `Tel.: ${contratante.telefone}`,
-      `Email: ${contratante.email}`,
-      `Descrição: favor incluir na descrição: "${termo.descricao_nf_editavel || projeto.descricao_nf || ''}"`,
+    `Razão Social: ${contratante.nome_nf || 'Viaduto das Artes'}`,
+    `Endereço: ${contratante.endereco_nf}`,
+    `CNPJ: ${contratante.cnpj_nf}`,
+    `Inscrição Municipal: ${contratante.inscricao_municipal}`,
+    `Tel.: ${contratante.telefone}`,
+    `Email: ${contratante.email}`,
+    `Descrição: favor incluir na descrição: "${termo.descricao_nf_editavel || projeto.descricao_nf_base || ''}"`,
     ];
     nfDados.forEach(linha => {
       para(linha, 9, false, 10);
