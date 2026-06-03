@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { X, Plus } from 'lucide-react';
+import { X, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const GRUPOS_PADRAO = ['Equipe e gestão', 'Manutenção e operação', 'Despesas gerais'];
@@ -21,6 +21,7 @@ export default function EditRubricaDialog({ isOpen, onClose, rubrica = null }) {
   const [novaMeta, setNovaMeta] = useState('');
   const [mostrarNovoGrupo, setMostrarNovoGrupo] = useState(false);
   const [mostrarNovaMeta, setMostrarNovaMeta] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const queryClient = useQueryClient();
 
   // Carrega grupos/metas existentes das rubricas já cadastradas
@@ -224,11 +225,46 @@ export default function EditRubricaDialog({ isOpen, onClose, rubrica = null }) {
           <label className="text-sm text-black">Rubrica ativa</label>
         </div>
 
-        <div className="flex gap-2 justify-end pt-2 border-t">
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button className="bg-black hover:bg-gray-800 text-white" onClick={handleSave}>
-            {rubrica?.id ? 'Atualizar' : 'Criar Rubrica'}
-          </Button>
+        <div className="flex gap-2 justify-between pt-2 border-t">
+          <div>
+            {rubrica?.id && !confirmDelete && (
+              <Button
+                variant="outline"
+                className="text-red-600 border-red-200 hover:bg-red-50"
+                onClick={() => setConfirmDelete(true)}
+              >
+                <Trash2 className="w-4 h-4 mr-1" /> Deletar
+              </Button>
+            )}
+            {rubrica?.id && confirmDelete && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-red-600 font-medium">Confirmar exclusão?</span>
+                <Button
+                  size="sm"
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                  onClick={async () => {
+                    try {
+                      await base44.entities.Rubrica.delete(rubrica.id);
+                      toast.success('Rubrica deletada!');
+                      queryClient.invalidateQueries({ queryKey: ['rubricas'] });
+                      onClose();
+                    } catch (e) {
+                      toast.error('Erro ao deletar: ' + e.message);
+                    }
+                  }}
+                >
+                  Sim, deletar
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setConfirmDelete(false)}>Não</Button>
+              </div>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onClose}>Cancelar</Button>
+            <Button className="bg-black hover:bg-gray-800 text-white" onClick={handleSave}>
+              {rubrica?.id ? 'Atualizar' : 'Criar Rubrica'}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
