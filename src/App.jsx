@@ -265,6 +265,15 @@ function AuthenticatedApp() {
             />
           }
         />
+        <Route
+          path="/CorrecaoRubricasDuplicadas"
+          element={
+            <SafePage
+              Page={React.lazy(() => import('./pages/CorrecaoRubricasDuplicadas'))}
+              pageName="CorrecaoRubricasDuplicadas"
+            />
+          }
+        />
         <Route path="*" element={<PageNotFound />} />
       </Routes>
     </div>
