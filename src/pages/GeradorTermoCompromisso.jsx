@@ -84,11 +84,11 @@ const PROJETOS = {
   },
   museu_centro_noturno_pampulha: {
     label: 'Museu Centro Noturno Pampulha',
-    nome_projeto: 'Projeto Museus Centro – Noturno nos Museus Pampulha Ed. 2026',
-    termo_colaboracao: 'Termo de Colaboração 01-031.069/24-80',
-    orgao_parceiro: 'Fundação Municipal de Cultura / Fundação Municipal de Parques – Prefeitura Municipal de Belo Horizonte – MG',
-    descricao_nf_base: 'Projeto Museus Centro – Noturno nos Museus Pampulha Ed. 2026 - Termo de Colaboração 01-031.069/24-80, parceria com SMC/FMC/FMP',
-    texto_vinculacao: 'A prestação dos serviços se dará no âmbito do Projeto Museus Centro – Noturno nos Museus Pampulha Ed. 2026, objeto do Termo de Colaboração 01-031.069/24-80, firmado entre a CONTRATANTE e a Fundação Municipal de Cultura / Fundação Municipal de Parques da Prefeitura Municipal de Belo Horizonte – MG.',
+    nome_projeto: 'Projeto Museus Centro \u2013 Noturno nos Museus Pampulha Ed. 2026',
+    termo_colaboracao: 'Termo de Colabora\u00e7\u00e3o 01-031.069/24-80',
+    orgao_parceiro: 'Funda\u00e7\u00e3o Municipal de Cultura / Funda\u00e7\u00e3o Municipal de Parques \u2013 Prefeitura Municipal de Belo Horizonte \u2013 MG',
+    descricao_nf_base: 'Projeto Museus Centro \u2013 Noturno nos Museus Pampulha Ed. 2026 - Termo de Colabora\u00e7\u00e3o 01-031.069/24-80, parceria com SMC/FMC/FMP',
+    texto_vinculacao: 'A presta\u00e7\u00e3o dos servi\u00e7os se dar\u00e1 no \u00e2mbito do Projeto Museus Centro \u2013 Noturno nos Museus Pampulha Ed. 2026, objeto do Termo de Colabora\u00e7\u00e3o 01-031.069/24-80, firmado entre a CONTRATANTE e a Funda\u00e7\u00e3o Municipal de Cultura / Funda\u00e7\u00e3o Municipal de Parques da Prefeitura Municipal de Belo Horizonte \u2013 MG.',
   },
 };
 
