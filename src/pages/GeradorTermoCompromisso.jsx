@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,59 @@ import { FileText, Download, Check, ChevronRight, AlertCircle, History, External
 import { toast } from 'sonner';
 import TermoIAExtractor from '@/components/termos/TermoIAExtractor';
 import TermoReviewModal from '@/components/termos/TermoReviewModal';
-import { useCentrosCusto } from '@/lib/centroCustoDinamico';
+
+// ── Centros de custo do Termo (nomenclatura oficial) ────────────────────────
+const CENTROS_CUSTO_TERMO = [
+  { value: 'MIS', label: 'MIS' },
+  { value: 'MHAB', label: 'MHAB' },
+  { value: 'MUMO', label: 'MUMO' },
+  { value: 'Atuacao Geral', label: 'Atuacao Geral' },
+  { value: 'Noturno nos Museus Centro', label: 'Noturno nos Museus Centro' },
+  { value: 'Noturno nos Museus Pampulha', label: 'Noturno nos Museus Pampulha' },
+];
+
+// Normaliza centros legados
+function normalizarCentroCusto(cc) {
+  if (!cc) return cc;
+  const map = { MAB: 'MHAB', MUMU: 'MUMO' };
+  return map[cc.trim().toUpperCase()] || cc;
+}
+
+// Produtos e entregas disponíveis
+const PRODUTOS_ENTREGAS = [
+  'Monitoria e mediacao cultural',
+  'Oficina educativa',
+  'Palestra ou formacao',
+  'Acao cultural',
+  'Apresentacao artistica',
+  'Cobertura fotografica',
+  'Cobertura de video',
+  'Producao de conteudo (texto, post, release)',
+  'Identidade visual / arte grafica',
+  'Expografia',
+  'Catalogo ou publicacao',
+  'Gestao e coordenacao',
+  'Consultoria especializada',
+  'Relatorio tecnico',
+  'Outro',
+];
+
+// Mapeamento centro de custo -> filtro de atividades
+const CC_PARA_FILTRO_ATIVIDADE = {
+  'MIS': ['MIS', 'MIS BH'],
+  'MHAB': ['MHAB', 'MAB'],
+  'MUMO': ['MUMO', 'MUMU'],
+  'Atuacao Geral': ['Geral/Transversal', 'Coordenacao', 'Comunicacao', 'Educacao', 'Producao', 'Administrativo-financeiro', 'Atuacao Geral', 'Geral'],
+  'Noturno nos Museus Centro': ['Noturno nos Museus', 'Noturno Centro'],
+  'Noturno nos Museus Pampulha': ['Noturno Pampulha', 'Noturno nos Museus Pampulha'],
+};
+
+function formatarMesAno(data) {
+  if (!data) return '';
+  const d = new Date(data);
+  if (isNaN(d)) return '';
+  return d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+}
 
 // ── Configurações dos projetos ──────────────────────────────────────────────
 const PROJETOS = {
@@ -91,13 +143,14 @@ const EMPTY_FORM = {
   periodo_execucao: '',
   valor_total: '',
   detalhamento_valores: '',
-  forma_pagamento: 'PIX, transferência online ou depósito bancário',
+  forma_pagamento: 'PIX, transferencia online ou deposito bancario',
   banco: '',
   agencia: '',
   conta: '',
   pix: '',
   descricao_nf_editavel: '',
   rubrica_vinculada: '',
+  centro_custo_termo: '',
   centro_custo: '',
   data_assinatura: '',
   cidade_assinatura: 'Belo Horizonte',
@@ -105,6 +158,10 @@ const EMPTY_FORM = {
   testemunha1_cpf: '',
   testemunha2_nome: '',
   testemunha2_cpf: '',
+  produto_entrega: '',
+  produto_entrega_outro: '',
+  atividade_relacionada_id: '',
+  atividade_relacionada_manual: '',
 };
 
 export default function GeradorTermoCompromisso() {
@@ -125,7 +182,24 @@ export default function GeradorTermoCompromisso() {
     queryFn: () => base44.entities.Rubrica.filter({ ativo: true }),
   });
 
-  const centrosCusto = useCentrosCusto();
+  // Busca atividades de relatórios para o campo "Atividade relacionada"
+  const { data: atividades = [] } = useQuery({
+    queryKey: ['atividades-termo'],
+    queryFn: () => base44.entities.Activity.list('-created_date', 300),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Filtra atividades pelo centro de custo do termo
+  const atividadesFiltradas = useMemo(() => {
+    const cc = formData.centro_custo_termo;
+    if (!cc) return atividades;
+    const filtros = CC_PARA_FILTRO_ATIVIDADE[cc] || [];
+    if (!filtros.length) return atividades;
+    return atividades.filter(a => {
+      const ccAtiv = (a.centro_custo || a.museu || '').trim();
+      return filtros.some(f => ccAtiv.toLowerCase().includes(f.toLowerCase()));
+    });
+  }, [atividades, formData.centro_custo_termo]);
 
   // Busca número TC do backend ao entrar no formulário
   useEffect(() => {
@@ -162,6 +236,17 @@ export default function GeradorTermoCompromisso() {
     }));
     setNumeroTC('');
     setStep('form');
+  };
+
+  const handleCentroTermo = (cc) => {
+    const normalizado = normalizarCentroCusto(cc);
+    setFormData(prev => ({
+      ...prev,
+      centro_custo_termo: normalizado,
+      centro_custo: normalizado,
+      descricao_nf_editavel: montarDescricaoNF(projetoAtual, normalizado, prev.museu_local),
+      atividade_relacionada_id: '',
+    }));
   };
 
   const handleCentroCusto = (cc) => {
@@ -201,7 +286,19 @@ export default function GeradorTermoCompromisso() {
 
   const handleOpenReview = () => {
     if (!formData.contratado_nome || !formData.objeto || !formData.valor_total) {
-      toast.error('Preencha os campos obrigatórios: nome do contratado, objeto e valor total.');
+      toast.error('Preencha os campos obrigatorios: nome do contratado, objeto e valor total.');
+      return;
+    }
+    if (!formData.centro_custo_termo) {
+      toast.error('Selecione o Centro de custo / Projeto vinculado.');
+      return;
+    }
+    if (!formData.produto_entrega) {
+      toast.error('Selecione os Produtos e entregas gerados.');
+      return;
+    }
+    if (formData.produto_entrega === 'Outro' && !formData.produto_entrega_outro?.trim()) {
+      toast.error('Descreva o produto/entrega no campo de texto.');
       return;
     }
     setShowReview(true);
@@ -213,6 +310,10 @@ export default function GeradorTermoCompromisso() {
     try {
       // 1. Salva o registro do termo com numero_tc permanente
       const user = await base44.auth.me();
+      const produtoFinal = formData.produto_entrega === 'Outro'
+        ? formData.produto_entrega_outro
+        : formData.produto_entrega;
+
       const savedTermo = await saveMutation.mutateAsync({
         numero_tc: numeroTC,
         numero_termo: numeroTC,
@@ -229,12 +330,22 @@ export default function GeradorTermoCompromisso() {
         agencia: formData.agencia,
         conta: formData.conta,
         pix_key: formData.pix,
+        centro_custo: formData.centro_custo_termo || formData.centro_custo,
         dados_extraidos_ia: formData.dados_extraidos_ia || null,
         divergencias_ia: formData.divergencias_ia || [],
         gerado_por_email: user?.email || '',
         gerado_por_nome: user?.full_name || '',
         drive_backup_status: 'pendente',
         status: 'gerado',
+        observacoes: [
+          produtoFinal ? `Produto/entrega: ${produtoFinal}` : '',
+          formData.atividade_relacionada_id && formData.atividade_relacionada_id !== 'outra'
+            ? `Atividade vinculada ID: ${formData.atividade_relacionada_id}`
+            : '',
+          formData.atividade_relacionada_manual
+            ? `Atividade manual: ${formData.atividade_relacionada_manual}`
+            : '',
+        ].filter(Boolean).join(' | '),
       });
       termoId = savedTermo?.id;
 
@@ -267,6 +378,8 @@ export default function GeradorTermoCompromisso() {
       for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
       const base64 = btoa(binary);
 
+      const isPampulha = formData.centro_custo_termo === 'Noturno nos Museus Pampulha';
+
       base44.functions.invoke('backupTermoDrive', {
         numero_tc: numeroTC,
         contratado_nome: formData.contratado_nome,
@@ -275,9 +388,10 @@ export default function GeradorTermoCompromisso() {
         ano: new Date().getFullYear(),
         pdf_base64: base64,
         termo_id: termoId,
+        pasta_extra_id: isPampulha ? '1Ov9ci6Dwg297mm7QiqX1wfLIb92EZSGf' : null,
       }).then(res => {
         if (res.data?.success) {
-          toast.success('Backup no Drive concluído!');
+          toast.success('Backup no Drive concluido!');
           queryClient.invalidateQueries({ queryKey: ['termos'] });
         }
       }).catch(() => {
@@ -643,14 +757,31 @@ export default function GeradorTermoCompromisso() {
                 </CardContent>
               </Card>
 
-              {/* Rubrica e CC */}
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold">Classificação Orçamentária</CardTitle></CardHeader>
+              {/* Centro de custo / Projeto vinculado */}
+              <Card className="border-slate-300">
+                <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold">Centro de custo / Projeto vinculado <span className="text-red-500">*</span></CardTitle></CardHeader>
                 <CardContent className="space-y-3">
                   <div>
-                    <label className="text-xs text-slate-500 mb-1 block">Rubrica vinculada</label>
+                    <Select value={formData.centro_custo_termo} onValueChange={handleCentroTermo}>
+                      <SelectTrigger className={!formData.centro_custo_termo ? 'border-red-300' : ''}>
+                        <SelectValue placeholder="Selecione o centro de custo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CENTROS_CUSTO_TERMO.map(cc => (
+                          <SelectItem key={cc.value} value={cc.value}>{cc.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {!formData.centro_custo_termo && (
+                      <p className="text-xs text-red-500 mt-1">Campo obrigatorio</p>
+                    )}
+                  </div>
+
+                  {/* Rubrica vinculada */}
+                  <div>
+                    <label className="text-xs text-slate-500 mb-1 block">Rubrica orcamentaria vinculada</label>
                     <Select value={formData.rubrica_vinculada} onValueChange={v => handleField('rubrica_vinculada', v)}>
-                      <SelectTrigger><SelectValue placeholder="Selecione a rubrica" /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder="Selecione a rubrica (opcional)" /></SelectTrigger>
                       <SelectContent>
                         {rubricas.map(r => (
                           <SelectItem key={r.id} value={r.id}>
@@ -660,15 +791,76 @@ export default function GeradorTermoCompromisso() {
                       </SelectContent>
                     </Select>
                   </div>
+                </CardContent>
+              </Card>
+
+              {/* Produtos e entregas */}
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold">Produtos e entregas gerados <span className="text-red-500">*</span></CardTitle></CardHeader>
+                <CardContent className="space-y-3">
                   <div>
-                    <label className="text-xs text-slate-500 mb-1 block">Centro de custo</label>
-                    <Select value={formData.centro_custo} onValueChange={handleCentroCusto}>
-                      <SelectTrigger><SelectValue placeholder="Selecione o centro de custo" /></SelectTrigger>
+                    <Select value={formData.produto_entrega} onValueChange={v => handleField('produto_entrega', v)}>
+                      <SelectTrigger className={!formData.produto_entrega ? 'border-red-300' : ''}>
+                        <SelectValue placeholder="Selecione o produto ou entrega" />
+                      </SelectTrigger>
                       <SelectContent>
-                        {centrosCusto.map(cc => <SelectItem key={cc} value={cc}>{cc}</SelectItem>)}
+                        {PRODUTOS_ENTREGAS.map(p => (
+                          <SelectItem key={p} value={p}>{p}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
+                  {formData.produto_entrega === 'Outro' && (
+                    <div>
+                      <label className="text-xs text-slate-500 mb-1 block">Descreva o produto/entrega <span className="text-red-500">*</span></label>
+                      <Textarea
+                        value={formData.produto_entrega_outro}
+                        onChange={e => handleField('produto_entrega_outro', e.target.value)}
+                        placeholder="Descreva detalhadamente o produto ou entrega gerado"
+                        rows={2}
+                        className={!formData.produto_entrega_outro?.trim() ? 'border-red-300' : ''}
+                      />
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Atividade relacionada */}
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold">Atividade relacionada</CardTitle></CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-xs text-slate-400">
+                    {formData.centro_custo_termo
+                      ? `Exibindo atividades de: ${formData.centro_custo_termo} (${atividadesFiltradas.length} encontradas)`
+                      : 'Selecione o centro de custo para filtrar atividades'}
+                  </p>
+                  <Select
+                    value={formData.atividade_relacionada_id}
+                    onValueChange={v => handleField('atividade_relacionada_id', v)}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Selecione a atividade (opcional)" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="outra">Outra atividade (preenchimento manual)</SelectItem>
+                      {atividadesFiltradas.map(a => {
+                        const cc = normalizarCentroCusto(a.centro_custo || a.museu || '');
+                        const mes = formatarMesAno(a.data_realizacao || a.data_inicio);
+                        const label = [a.titulo, cc, mes].filter(Boolean).join(' — ');
+                        return (
+                          <SelectItem key={a.id} value={a.id}>{label}</SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                  {formData.atividade_relacionada_id === 'outra' && (
+                    <div>
+                      <label className="text-xs text-slate-500 mb-1 block">Descreva a atividade</label>
+                      <Input
+                        value={formData.atividade_relacionada_manual}
+                        onChange={e => handleField('atividade_relacionada_manual', e.target.value)}
+                        placeholder="Nome ou descricao da atividade"
+                      />
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 

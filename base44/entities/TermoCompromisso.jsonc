@@ -4,7 +4,7 @@
   "properties": {
     "numero_tc": {
       "type": "string",
-      "description": "Numera\u00e7\u00e3o \u00fanica no padr\u00e3o TC-MC-AAAA-NNN (ex: TC-MC-2026-001)"
+      "description": "Numeracao unica no padrao TC-MC-AAAA-NNN (ex: TC-MC-2026-001)"
     },
     "numero_termo": {
       "type": "string",
@@ -32,7 +32,31 @@
     },
     "funcao_projeto": {
       "type": "string",
-      "description": "Fun\u00e7\u00e3o exercida no projeto (ex: Educadora, Designer)"
+      "description": "Funcao exercida no projeto (ex: Educadora, Designer)"
+    },
+    "centro_custo": {
+      "type": "string",
+      "enum": [
+        "MIS",
+        "MHAB",
+        "MUMO",
+        "Atuacao Geral",
+        "Noturno nos Museus Centro",
+        "Noturno nos Museus Pampulha"
+      ],
+      "description": "Centro de custo / Projeto vinculado ao termo"
+    },
+    "produto_entrega": {
+      "type": "string",
+      "description": "Produto ou entrega gerado neste termo"
+    },
+    "atividade_relacionada_id": {
+      "type": "string",
+      "description": "ID da atividade relacionada (FK Activity)"
+    },
+    "atividade_relacionada_manual": {
+      "type": "string",
+      "description": "Descricao manual da atividade quando nao cadastrada"
     },
     "contratado_nome": {
       "type": "string"
@@ -74,7 +98,7 @@
       "type": "string",
       "enum": [
         "Corrente",
-        "Poupan\u00e7a"
+        "Poupanca"
       ]
     },
     "pix_key": {
@@ -150,9 +174,6 @@
       }
     },
     "descricao_nf_editavel": {
-      "type": "string"
-    },
-    "centro_custo": {
       "type": "string"
     },
     "rubrica_vinculada": {
