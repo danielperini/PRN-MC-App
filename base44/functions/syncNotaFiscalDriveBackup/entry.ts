@@ -56,34 +56,67 @@ function getExt(filename: unknown, fallback = 'pdf') {
   return fallback;
 }
 
-function isAuxiliaryAttachment(attachment: any) {
+const MUSEUS_VALIDOS_BACKUP = ['MIS', 'MUMO', 'MHAB'];
+
+/**
+ * Detecta o tipo de documento complementar a partir dos metadados do attachment ou intake.
+ * Retorna 'RECIBO', 'COMPROVANTE' ou null (se for NF normal).
+ */
+function detectTipoComplementar(attachment: any, context: any = {}): string | null {
+  // Tipo explícito salvo pela IA
+  const tipoIa = normalizeText(
+    attachment?.tipo_documento_complementar ||
+    context?.tipo_documento_complementar ||
+    attachment?.resultado_ia?.tipo_documento_complementar ||
+    ''
+  );
+  if (tipoIa.includes('RECIBO')) return 'RECIBO';
+  if (tipoIa.includes('COMPROVANTE') || tipoIa.includes('PAGAMENTO')) return 'COMPROVANTE';
+
+  // Heurística pelo nome/descrição do arquivo
   const haystack = normalizeText([
     attachment?.file_name,
     attachment?.nf_nome_original,
     attachment?.nf_nome_renomeado,
     attachment?.description,
-    attachment?.nf_tipo_documento,
     attachment?.categoria,
   ].filter(Boolean).join(' '));
 
-  return haystack.includes('RECIBO') || haystack.includes('COMPROVANTE') || haystack.includes('PAGAMENTO') || haystack.includes('PIX') || haystack.includes('BOLETO') || haystack.includes('TRANSFERENCIA');
+  if (haystack.includes('RECIBO')) return 'RECIBO';
+  if (haystack.includes('COMPROVANTE') || haystack.includes('PIX') || haystack.includes('TED') || haystack.includes('BOLETO') || haystack.includes('TRANSFERENCIA') || haystack.includes('PAGAMENTO')) return 'COMPROVANTE';
+
+  return null;
 }
 
-const MUSEUS_VALIDOS_BACKUP = ['MIS', 'MUMO', 'MHAB'];
-
 /**
- * Padrão: NF [número] - [razão social] - [nome profissional] - MUSEUS CENTRO - [museu] - R$ [valor]
- * Exemplo: NF 123 - ENGENHARIA E DESIGN LTDA - CAROLINE ABASSE - MUSEUS CENTRO - MIS - R$ 2.600,00
+ * Padrão NF normal:
+ *   NF [número] - [razão social] - [nome profissional] - MUSEUS CENTRO - [museu] - R$ [valor]
+ * Padrão complementar (Recibo/Comprovante):
+ *   NF [número] - [razão social] - [nome profissional] - MUSEUS CENTRO - [museu] - R$ [valor] - RECIBO
+ *   NF [número] - [razão social] - [nome profissional] - MUSEUS CENTRO - [museu] - R$ [valor] - COMPROVANTE
+ * Se sem número de NF:
+ *   DOC COMPLEMENTAR - [razão social] - ... - [tipo]
  */
 function buildFileName(attachment: any, context: any = {}) {
-  // Se já está no padrão correto, não renomear
+  const tipoComplementar = detectTipoComplementar(attachment, context);
+
+  // Se já está no padrão correto para NF normal, não renomear (mas complementares sempre recalculam)
   const current = safeStr(attachment?.nf_nome_renomeado || attachment?.nome_padronizado_ia || attachment?.file_name);
-  if (/^NF \S+ - .+ - MUSEUS CENTRO( - (MIS|MUMO|MHAB))? - R\$ [\d.,]+\.(pdf|xml)$/i.test(current)) {
+  if (!tipoComplementar && /^NF \S+ - .+ - MUSEUS CENTRO( - (MIS|MUMO|MHAB))? - R\$ [\d.,]+\.(pdf|xml)$/i.test(current)) {
     return current;
   }
 
   const ext = getExt(current, attachment?.nf_tipo_documento === 'xml_nf' ? 'xml' : 'pdf');
-  const numero = safeStr(attachment?.nf_numero || context?.nf_numero || 'SEM-NUM');
+
+  // Número da NF: para complementares, usa nf_numero_referenciado se disponível
+  const nfNumeroRef = safeStr(
+    attachment?.nf_numero_referenciado ||
+    attachment?.resultado_ia?.nf_numero_referenciado ||
+    context?.nf_numero_referenciado ||
+    ''
+  );
+  const nfNumero = safeStr(attachment?.nf_numero || context?.nf_numero || 'SEM-NUM');
+  const numero = nfNumeroRef || nfNumero;
 
   // Razão social do emitente
   const emitente = normalizeText(
@@ -94,7 +127,7 @@ function buildFileName(attachment: any, context: any = {}) {
   const nomeProfissional = normalizeText(
     attachment?.nome_profissional ||
     context?.nome_profissional ||
-    (attachment?.resultado_ia && attachment.resultado_ia?.nome_profissional) ||
+    attachment?.resultado_ia?.nome_profissional ||
     ''
   ).substring(0, 50);
 
@@ -102,20 +135,20 @@ function buildFileName(attachment: any, context: any = {}) {
   const museuRaw = safeStr(
     attachment?.museu_atuacao ||
     context?.museu_atuacao ||
-    (attachment?.resultado_ia && attachment.resultado_ia?.museu_atuacao) ||
+    attachment?.resultado_ia?.museu_atuacao ||
     ''
   ).toUpperCase();
   const museu = MUSEUS_VALIDOS_BACKUP.includes(museuRaw) ? museuRaw : '';
 
   const valor = formatValor(attachment?.nf_valor_total || context?.valor_solicitado || context?.valor || 0);
 
-  // Montar nome
   const profissionalPart = nomeProfissional && nomeProfissional !== emitente ? ` - ${nomeProfissional}` : '';
   const museuPart = museu ? ` - ${museu}` : '';
 
-  if (isAuxiliaryAttachment(attachment)) {
-    // Recibos/comprovantes mantêm padrão simplificado
-    return `NF ${numero} - ${emitente}${profissionalPart} - MUSEUS CENTRO${museuPart} - R$ ${valor}.${ext}`;
+  if (tipoComplementar) {
+    // Complementar: sufixo ao final + prefixo DOC se não houver número de NF
+    const prefixo = (nfNumeroRef || (nfNumero !== 'SEM-NUM' && nfNumero)) ? `NF ${numero}` : 'DOC COMPLEMENTAR';
+    return `${prefixo} - ${emitente}${profissionalPart} - MUSEUS CENTRO${museuPart} - R$ ${valor} - ${tipoComplementar}.${ext}`;
   }
 
   return `NF ${numero} - ${emitente}${profissionalPart} - MUSEUS CENTRO${museuPart} - R$ ${valor}.${ext}`;
@@ -204,9 +237,25 @@ async function resolveAttachments(base44: any, body: any, pr: any) {
     byNF.forEach((a: any) => a?.id && attachmentMap.set(a.id, a));
   }
 
+  // Buscar documentos complementares (recibos/comprovantes) vinculados à NF
+  if (pr?.id || body.nf_numero) {
+    const nfNum = safeStr(pr?.nf_numero || body.nf_numero);
+    const cnpjForn = safeStr(pr?.fornecedor_cnpj || pr?.nf_emitente_cpf_cnpj || '').replace(/\D/g, '');
+    const [compByNfRef, compByCnpj] = await Promise.all([
+      nfNum ? safeFilter(base44.asServiceRole.entities.Attachment, { nf_numero_referenciado: nfNum }, '-created_date', 50) : Promise.resolve([]),
+      cnpjForn ? safeFilter(base44.asServiceRole.entities.Attachment, { nf_emitente_cpf_cnpj: cnpjForn }, '-created_date', 100) : Promise.resolve([]),
+    ]);
+    for (const a of [...compByNfRef, ...compByCnpj]) {
+      if (a?.id && (a.tipo_documento_complementar || detectTipoComplementar(a, {}))) {
+        attachmentMap.set(a.id, a);
+      }
+    }
+  }
+
   return Array.from(attachmentMap.values()).filter((attachment) => {
     const isNF = attachment?.nf_categoria === 'nota_fiscal' || ['pdf_nf', 'xml_nf'].includes(attachment?.nf_tipo_documento) || safeStr(attachment?.file_name).toLowerCase().endsWith('.pdf') || safeStr(attachment?.file_name).toLowerCase().endsWith('.xml');
-    return isNF && (!pr || similarNF(pr, attachment));
+    const isComplementar = !!(attachment?.tipo_documento_complementar || detectTipoComplementar(attachment, {}));
+    return (isNF || isComplementar) && (!pr || similarNF(pr, attachment) || isComplementar);
   });
 }
 
