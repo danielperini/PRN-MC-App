@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   FileText, Image, CheckCircle2, Clock, AlertCircle, Loader2,
   Eye, Send, RefreshCw, X, Download, ExternalLink, Link2, Plus } from
@@ -61,11 +61,86 @@ function hasStrongFileNameData(fileName) {
   return /\bnf\s*\d+/i.test(text) || /r\$?\s*\d+[.,]\d{2}/i.test(text) || /museus\s+centro/i.test(text);
 }
 
-export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSentToApproval, onReanalyse, onLinkXml, onAddXmlToPdf, onLinkArquivo }) {
+function normalizeFileName(name) {
+  return String(name || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\.(pdf|xml)$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getValorNumerico(intake) {
+  const ia = intake?.resultado_ia || {};
+  const v = ia.nf_valor_total || ia.valor || ia.valor_total || intake?.nf_valor_total || intake?.valor || 0;
+  return parseValorBR(v);
+}
+
+function getCnpjIntake(intake) {
+  const ia = intake?.resultado_ia || {};
+  return String(ia.nf_emitente_cpf_cnpj || ia.fornecedor_cpf_cnpj || intake?.nf_emitente_cpf_cnpj || intake?.fornecedor_cpf_cnpj || '').replace(/\D/g, '');
+}
+
+function detectarDuplicatas(intake, allIntakes) {
+  if (!allIntakes || allIntakes.length <= 1) return [];
+
+  const outros = allIntakes.filter((i) => i.id !== intake.id);
+  const duplicatas = [];
+
+  const nomeAtual = normalizeFileName(intake.file_name_original || intake.file_name_final || '');
+  const valorAtual = getValorNumerico(intake);
+  const cnpjAtual = getCnpjIntake(intake);
+
+  for (const outro of outros) {
+    const nomeOutro = normalizeFileName(outro.file_name_original || outro.file_name_final || '');
+    const valorOutro = getValorNumerico(outro);
+    const cnpjOutro = getCnpjIntake(outro);
+
+    // Mesmo nome de arquivo
+    if (nomeAtual && nomeAtual === nomeOutro) {
+      duplicatas.push({ id: outro.id, nome: outro.file_name_original || outro.file_name_final, motivo: 'mesmo nome de arquivo' });
+      continue;
+    }
+
+    // Mesmo CNPJ + mesmo valor (> 0)
+    if (cnpjAtual && cnpjOutro && cnpjAtual === cnpjOutro && valorAtual > 0 && valorOutro > 0 && Math.abs(valorAtual - valorOutro) < 0.02) {
+      duplicatas.push({ id: outro.id, nome: outro.file_name_original || outro.file_name_final, motivo: `mesmo CNPJ e valor (R$ ${valorAtual.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})` });
+      continue;
+    }
+  }
+
+  return duplicatas;
+}
+
+export default function DocumentIntakeCard({ intake, allIntakes, onReview, onDeleted, onSentToApproval, onReanalyse, onLinkXml, onAddXmlToPdf, onLinkArquivo }) {
   const [loading, setLoading] = useState(false);
   const [sendingApproval, setSendingApproval] = useState(false);
   const [addingXml, setAddingXml] = useState(false);
+  const [prDuplicatas, setPrDuplicatas] = useState([]);
   const xmlInputRef = useRef(null);
+
+  // Verifica duplicatas em PurchaseRequests existentes (NFs já enviadas p/ aprovação)
+  useEffect(() => {
+    const cnpj = getCnpjIntake(intake);
+    const valor = getValorNumerico(intake);
+    if (!cnpj || valor <= 0) return;
+
+    let mounted = true;
+    base44.entities.PurchaseRequest.filter({ fornecedor_cpf_cnpj: cnpj }, '-created_date', 20)
+      .then((list) => {
+        if (!mounted) return;
+        const duplicadas = (list || []).filter((pr) => {
+          if (pr.entidade_destino_id === intake.id || pr.intake_id === intake.id || pr.documento_intake_id === intake.id) return false;
+          const valorPR = Number(pr.valor_solicitado || pr.valor_total || pr.valor || 0);
+          return valorPR > 0 && Math.abs(valorPR - valor) < 0.02;
+        });
+        setPrDuplicatas(duplicadas);
+      })
+      .catch(() => {});
+
+    return () => { mounted = false; };
+  }, [intake.id, intake.nf_emitente_cpf_cnpj, intake.fornecedor_cpf_cnpj]);
 
   const status = STATUS_CONFIG[intake.status_processamento] || STATUS_CONFIG.ENVIADO;
   const Icon = status.icon;
@@ -107,6 +182,7 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
 
   const valorDisplay = getValorDisplay(intake);
   const tipoLabel = TIPO_LABEL[tipo] || tipo || 'Pendente';
+  const duplicatas = detectarDuplicatas(intake, allIntakes);
 
   async function handleReanalyse() {
     if (!onReanalyse) return;
@@ -323,6 +399,12 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
                 {valorDisplay}
               </span>
             }
+            {(duplicatas.length > 0 || prDuplicatas.length > 0) &&
+              <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-semibold bg-red-100 text-red-700 border border-red-200">
+                <AlertCircle className="w-3 h-3" />
+                Duplicata
+              </span>
+            }
             {isContrato && intake.backup_drive_status &&
               <span className={cn(
                 'inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium',
@@ -454,6 +536,36 @@ export default function DocumentIntakeCard({ intake, onReview, onDeleted, onSent
           </Button>
         </div>
       </div>
+
+      {/* ⚠️ Alerta de DUPLICATA — na fila */}
+      {duplicatas.length > 0 &&
+        <div className="mt-3 flex items-start gap-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-red-600" />
+          <div>
+            <span className="font-semibold">⚠️ Possível duplicata na fila.</span>{' '}
+            {duplicatas.length === 1
+              ? `Outro arquivo com ${duplicatas[0].motivo}: "${duplicatas[0].nome}".`
+              : `${duplicatas.length} outros arquivos na fila com critérios similares.`
+            }
+            {' '}Verifique antes de enviar para aprovação.
+          </div>
+        </div>
+      }
+
+      {/* ⚠️ Alerta de DUPLICATA — já aprovada/solicitada */}
+      {prDuplicatas.length > 0 &&
+        <div className="mt-3 flex items-start gap-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-red-600" />
+          <div>
+            <span className="font-semibold">⚠️ Já existe solicitação com mesmo CNPJ e valor.</span>{' '}
+            {prDuplicatas.length === 1
+              ? `Solicitação: "${prDuplicatas[0].descricao_item || prDuplicatas[0].fornecedor_nome || 'sem descrição'}" (${prDuplicatas[0].status || ''}).`
+              : `${prDuplicatas.length} solicitações existentes com mesmo fornecedor e valor.`
+            }
+            {' '}Confirme que não é um pagamento duplicado antes de prosseguir.
+          </div>
+        </div>
+      }
 
       {/* Aviso de erro (não XML) */}
       {hasError && !isXML &&
