@@ -14,7 +14,19 @@ import { recalculateAllRubricasFromPurchases } from '@/components/compras/AutoRu
 import { canManageRubricas } from '@/components/auth/permissions';
 import { getRubricasOficiais3Aditivo } from '@/lib/rubricasOficiais3Aditivo';
 
-const CENTROS_CUSTO = ['MHAB', 'MIS', 'MUMO', 'Noturno nos Museus', 'Noturno Pampulha', 'Coordenação', 'Comunicação', 'Educação', 'Produção', 'Administrativo-financeiro', 'Publicações', 'Consultorias', 'Despesas Gerais'];
+const CENTROS_CUSTO = ['MHAB', 'MIS', 'MUMO', 'Noturno Centro', 'Noturno Pampulha', 'Coordenação', 'Comunicação', 'Educação', 'Produção', 'Administrativo-financeiro', 'Publicações', 'Consultorias', 'Despesas Gerais'];
+
+// Grupos de rubrica que representam pessoal/equipe — excluídos do cálculo dos cards de museu
+const GRUPOS_PESSOAL = [
+  'Contratação da equipe principal, incluindo os coordenadores da Comissão de Programação',
+  'Contratação da equipe de educadores',
+  'Contratação de educadores',
+  'Contratação de monitores',
+  'Educadores',
+  'Monitores',
+  'Coordenação',
+  'Equipe de coordenação',
+];
 
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return 0;
