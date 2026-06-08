@@ -230,6 +230,22 @@
     "drive_file_name": {
       "type": "string"
     },
+    "drive_backup_extra_url": {
+      "type": "string",
+      "description": "URL do backup espelho em pasta adicional, quando aplicavel"
+    },
+    "drive_backup_extra_path": {
+      "type": "string",
+      "description": "Caminho do backup espelho em pasta adicional, quando aplicavel"
+    },
+    "drive_backup_extra_file_id": {
+      "type": "string",
+      "description": "ID do arquivo de backup espelho no Drive"
+    },
+    "drive_backup_extra_folder_id": {
+      "type": "string",
+      "description": "ID da pasta adicional de backup no Drive"
+    },
     "gerado_por_email": {
       "type": "string"
     },
@@ -259,8 +275,10 @@
     }
   },
   "required": [
+    "numero_tc",
     "contratado_nome",
     "objeto",
     "valor_total"
-  ]
+  ],
+  "rls": {}
 }
