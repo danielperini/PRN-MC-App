@@ -21,6 +21,7 @@ import {
   Clock3,
   CheckCircle2
 } from 'lucide-react';
+import RestaurarRelatoriosDrive from '@/components/entrada/RestaurarRelatoriosDrive';
 
 function normalizeText(value) {
   return String(value || '')
@@ -1090,6 +1091,8 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
             </div>
           </div>
         </div>
+
+        <RestaurarRelatoriosDrive />
 
         <div className="rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden">
           <div className="px-5 md:px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
