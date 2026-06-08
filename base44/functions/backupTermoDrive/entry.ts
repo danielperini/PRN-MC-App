@@ -97,7 +97,7 @@ Deno.serve(async (req) => {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Não autorizado' }, { status: 401 });
 
-    const { numero_tc, contratado_nome, funcao, valor_total, ano, pdf_base64, termo_id } = await req.json();
+    const { numero_tc, contratado_nome, funcao, valor_total, ano, pdf_base64, termo_id, pasta_extra_id, centro_custo, projeto } = await req.json();
 
     if (!pdf_base64) return Response.json({ error: 'pdf_base64 obrigatório' }, { status: 400 });
 
@@ -128,16 +128,37 @@ Deno.serve(async (req) => {
 
     const caminhoCompleto = `Termos de Compromisso/${anoStr}/Museus Centro/${nomeContratadoUpper}/${fileName}`;
 
+    // Backup extra (ex: Noturno Pampulha) — copia o mesmo PDF na pasta específica
+    let extraResult = null;
+    const NOTURNO_PAMPULHA_FOLDER_ID = '1Ov9ci6Dwg297mm7QiqX1wfLIb92EZSGf';
+    const extraFolderId = pasta_extra_id || (
+      (String(centro_custo || '').toLowerCase().includes('pampulha') ||
+       String(projeto || '').toLowerCase().includes('pampulha'))
+        ? NOTURNO_PAMPULHA_FOLDER_ID
+        : null
+    );
+
+    if (extraFolderId) {
+      extraResult = await uploadFile(accessToken, extraFolderId, nomeArquivo, pdf_base64);
+    }
+
     // Atualiza registro do termo com URL do Drive
     if (termo_id) {
-      await base44.asServiceRole.entities.TermoCompromisso.update(termo_id, {
+      const updateData = {
         drive_backup_url: webViewLink,
         drive_backup_path: caminhoCompleto,
         drive_backup_status: 'concluido',
         drive_backup_at: new Date().toISOString(),
         drive_file_id: fileId,
         drive_file_name: fileName,
-      });
+      };
+      if (extraResult) {
+        updateData.drive_backup_extra_url = extraResult.webViewLink;
+        updateData.drive_backup_extra_path = `Noturno Pampulha/${extraResult.fileName}`;
+        updateData.drive_backup_extra_file_id = extraResult.fileId;
+        updateData.drive_backup_extra_folder_id = extraFolderId;
+      }
+      await base44.asServiceRole.entities.TermoCompromisso.update(termo_id, updateData);
     }
 
     return Response.json({
@@ -146,6 +167,7 @@ Deno.serve(async (req) => {
       fileName,
       webViewLink,
       caminho: caminhoCompleto,
+      extra: extraResult ? { fileId: extraResult.fileId, fileName: extraResult.fileName, webViewLink: extraResult.webViewLink } : null,
     });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
