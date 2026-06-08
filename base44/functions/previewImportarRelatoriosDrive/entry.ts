@@ -6,12 +6,33 @@ const MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho','ag
 async function listFolderContents(accessToken, folderId) {
   const q = `'${folderId}' in parents and trashed=false`;
   const fields = 'files(id,name,mimeType,webViewLink,webContentLink,thumbnailLink,createdTime,modifiedTime,size)';
-  const res = await fetch(
-    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=${encodeURIComponent(fields)}&pageSize=200`,
-    { headers: { Authorization: `Bearer ${accessToken}` } }
-  );
-  const data = await res.json();
-  return data.files || [];
+  let allFiles = [];
+  let pageToken = null;
+  do {
+    const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=${encodeURIComponent(fields)}&pageSize=1000${pageToken ? `&pageToken=${pageToken}` : ''}`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+    const data = await res.json();
+    allFiles = allFiles.concat(data.files || []);
+    pageToken = data.nextPageToken || null;
+  } while (pageToken);
+  return allFiles;
+}
+
+async function listAllFilesRecursive(accessToken, folderId, depth = 0) {
+  if (depth > 10) return []; // safety limit
+  const items = await listFolderContents(accessToken, folderId);
+  let allFiles = [];
+  const subfolders = items.filter(f => f.mimeType === 'application/vnd.google-apps.folder');
+  const files = items.filter(f => f.mimeType !== 'application/vnd.google-apps.folder');
+  allFiles = allFiles.concat(files);
+  // Recurse into subfolders in parallel (batched to avoid rate limits)
+  const BATCH = 5;
+  for (let i = 0; i < subfolders.length; i += BATCH) {
+    const batch = subfolders.slice(i, i + BATCH);
+    const results = await Promise.all(batch.map(sf => listAllFilesRecursive(accessToken, sf.id, depth + 1)));
+    for (const r of results) allFiles = allFiles.concat(r);
+  }
+  return allFiles;
 }
 
 async function getFileDownloadUrl(accessToken, fileId) {
@@ -61,8 +82,8 @@ Deno.serve(async (req) => {
 
     const { accessToken } = await base44.asServiceRole.connectors.getConnection('googledrive');
 
-    // List all files in folder
-    const arquivos = await listFolderContents(accessToken, targetFolder);
+    // List all files recursively across all subfolders
+    const arquivos = await listAllFilesRecursive(accessToken, targetFolder);
     const pdfs = arquivos.filter(f => f.mimeType === 'application/pdf');
     const imagens = arquivos.filter(f => f.mimeType?.startsWith('image/'));
 
