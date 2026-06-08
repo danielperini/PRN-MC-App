@@ -28,6 +28,15 @@ const MESES = [
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
 ];
 
+const METAS_FALLBACK = [
+  { id: 'Meta 05 - Atividades educativas e culturais', nome: 'Meta 05 - Atividades educativas e culturais' },
+  { id: 'Metas 10/12 - Mostras e exposições', nome: 'Metas 10/12 - Mostras e exposições' },
+  { id: 'Meta 14 - Acessibilidade', nome: 'Meta 14 - Acessibilidade' },
+  { id: 'Meta de comunicação institucional', nome: 'Meta de comunicação institucional' },
+  { id: 'Rotina', nome: 'Rotina' },
+  { id: 'Extra', nome: 'Extra' },
+];
+
 const ANO_ATUAL = new Date().getFullYear();
 const MES_ATUAL = MESES[new Date().getMonth()];
 
@@ -38,19 +47,81 @@ export default function NovaAtividade() {
     titulo: '',
     descricao: '',
     classificacao: 'ROTINA',
+    meta_id: '',
+    meta_codigo: '',
     museu: '',
     mes: MES_ATUAL,
     ano: String(ANO_ATUAL),
     publico_estimado: '',
     data_realizacao: '',
+    data_inicio: '',
+    data_fim: '',
     observacoes: '',
   });
 
+  const [metas, setMetas] = useState(METAS_FALLBACK);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
 
   const set = (field) => (value) => setForm((prev) => ({ ...prev, [field]: value }));
   const setEv = (field) => (e) => set(field)(e.target.value);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadMetas() {
+      try {
+        const list = await base44.entities.ProjectMeta.list('ordem', 100);
+        const ativos = (list || [])
+          .filter((meta) => meta.ativo !== false)
+          .map((meta) => ({
+            id: meta.id || meta.nome,
+            nome: meta.nome || meta.descricao || meta.id,
+            descricao: meta.descricao || '',
+          }))
+          .filter((meta) => meta.nome);
+
+        if (mounted && ativos.length > 0) {
+          setMetas(ativos);
+        }
+      } catch (error) {
+        if (mounted) setMetas(METAS_FALLBACK);
+      }
+    }
+
+    loadMetas();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  function handleMetaChange(value) {
+    const meta = metas.find((item) => item.id === value || item.nome === value);
+    setForm((prev) => ({
+      ...prev,
+      meta_id: value,
+      meta_codigo: meta?.nome || value,
+      classificacao: value && value !== 'Rotina' && value !== 'Extra' ? 'META' : prev.classificacao,
+    }));
+  }
+
+  function resetForm() {
+    setForm({
+      titulo: '',
+      descricao: '',
+      classificacao: 'ROTINA',
+      meta_id: '',
+      meta_codigo: '',
+      museu: '',
+      mes: MES_ATUAL,
+      ano: String(ANO_ATUAL),
+      publico_estimado: '',
+      data_realizacao: '',
+      data_inicio: '',
+      data_fim: '',
+      observacoes: '',
+    });
+  }
 
   async function handleSubmit() {
     if (!form.titulo.trim()) {
@@ -61,6 +132,14 @@ export default function NovaAtividade() {
       toast.error('Selecione o museu.');
       return;
     }
+    if (form.data_inicio && form.data_fim && form.data_fim < form.data_inicio) {
+      toast.error('A data de fim não pode ser anterior à data de início.');
+      return;
+    }
+
+    const dataInicio = form.data_inicio || form.data_realizacao || null;
+    const dataFim = form.data_fim || form.data_inicio || form.data_realizacao || null;
+    const dataRealizacao = form.data_realizacao || form.data_inicio || null;
 
     setSubmitting(true);
     try {
@@ -69,11 +148,15 @@ export default function NovaAtividade() {
         titulo: form.titulo.trim(),
         descricao: form.descricao.trim(),
         classificacao: form.classificacao,
+        meta_id: form.meta_id || null,
+        meta_codigo: form.meta_codigo || '',
         museu: form.museu,
         mes: form.mes,
         ano: Number(form.ano),
         publico_estimado: form.publico_estimado ? Number(form.publico_estimado) : 0,
-        data_realizacao: form.data_realizacao || null,
+        data_realizacao: dataRealizacao,
+        data_inicio: dataInicio,
+        data_fim: dataFim,
         observacoes: form.observacoes.trim(),
         user_email: user?.email || '',
         user_name: user?.full_name || user?.email || '',
@@ -85,17 +168,7 @@ export default function NovaAtividade() {
       // Reset após 2s
       setTimeout(() => {
         setDone(false);
-        setForm({
-          titulo: '',
-          descricao: '',
-          classificacao: 'ROTINA',
-          museu: '',
-          mes: MES_ATUAL,
-          ano: String(ANO_ATUAL),
-          publico_estimado: '',
-          data_realizacao: '',
-          observacoes: '',
-        });
+        resetForm();
       }, 2000);
     } catch (err) {
       // Fallback: cria direto no banco se a função falhar
@@ -104,7 +177,11 @@ export default function NovaAtividade() {
           titulo: form.titulo.trim(),
           descricao: form.descricao.trim(),
           classificacao: form.classificacao,
-          data_realizacao: form.data_realizacao || null,
+          meta_id: form.meta_id || null,
+          meta_codigo: form.meta_codigo || '',
+          data_realizacao: dataRealizacao,
+          data_inicio: dataInicio,
+          data_fim: dataFim,
           publico_estimado: form.publico_estimado ? Number(form.publico_estimado) : 0,
           observacoes: form.observacoes.trim(),
         });
@@ -171,6 +248,22 @@ export default function NovaAtividade() {
           </div>
 
           <div className="space-y-1.5">
+            <Label>Meta vinculada</Label>
+            <Select value={form.meta_id} onValueChange={handleMetaChange}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione a meta do projeto..." />
+              </SelectTrigger>
+              <SelectContent>
+                {metas.map((meta) => (
+                  <SelectItem key={meta.id || meta.nome} value={meta.id || meta.nome}>
+                    {meta.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
             <Label>Museu *</Label>
             <Select value={form.museu} onValueChange={set('museu')}>
               <SelectTrigger>
@@ -196,6 +289,24 @@ export default function NovaAtividade() {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Data de início</Label>
+            <Input
+              type="date"
+              value={form.data_inicio}
+              onChange={setEv('data_inicio')}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Data de fim</Label>
+            <Input
+              type="date"
+              value={form.data_fim}
+              onChange={setEv('data_fim')}
+            />
           </div>
 
           <div className="space-y-1.5">
