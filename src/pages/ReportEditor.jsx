@@ -75,6 +75,12 @@ function normalizeAtividades(raw) {
     total_produtos: Number(a?.total_produtos) || 0,
     fotos: Array.isArray(a?.fotos) ? a.fotos : [],
     programacao_id: a?.programacao_id || null,
+    meta_id: a?.meta_id || '',
+    meta_codigo: a?.meta_codigo || '',
+    classificacao: a?.classificacao || '',
+    data_inicio: a?.data_inicio || '',
+    data_fim: a?.data_fim || '',
+    data_realizacao: a?.data_realizacao || '',
   }));
 }
 
@@ -230,7 +236,6 @@ export default function ReportEditor() {
       const created = await base44.entities.Report.create(payload);
 
       applyReport(created);
-      toast.success('Novo relatÃ³rio criado.');
     } catch (err) {
       console.error('Erro ao carregar/criar relatório:', err);
       setLoadingError(true);
