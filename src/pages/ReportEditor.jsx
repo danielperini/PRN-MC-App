@@ -77,7 +77,6 @@ function normalizeAtividades(raw) {
     programacao_id: a?.programacao_id || null,
     meta_id: a?.meta_id || '',
     meta_codigo: a?.meta_codigo || '',
-    classificacao: a?.classificacao || '',
     data_inicio: a?.data_inicio || '',
     data_fim: a?.data_fim || '',
     data_realizacao: a?.data_realizacao || '',
