@@ -750,6 +750,10 @@ export default function ReportEditor() {
                   disabled={!canEdit}
                   min={0}
                 />
+                <p className="text-[11px] text-gray-400 leading-tight">
+                  O público de cada atividade já é o total daquela ação — não se multiplica por ocorrências ou produtos.
+                  O campo acima soma automaticamente o público estimado de todas as atividades cadastradas.
+                </p>
               </div>
             </div>
           </Card>
