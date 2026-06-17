@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -174,6 +174,7 @@ export default function ReportEditor() {
   const [secoesPdf, setSecoesPdf] = useState([]);
   const [pagamentos, setPagamentos] = useState([]);
   const [loadingPagamentos, setLoadingPagamentos] = useState(false);
+  const [publicoManual, setPublicoManual] = useState(false);
 
   const {
     data: currentUser,
@@ -252,6 +253,7 @@ export default function ReportEditor() {
     setAttachments([]);
     setDepoimentos([]);
     setPagamentos([]);
+    setPublicoManual(false);
   }
 
   function applyReport(r) {
@@ -321,6 +323,16 @@ export default function ReportEditor() {
       setLoadingPagamentos(false);
     }
   }
+
+  const publicoAtividades = useMemo(() => {
+    return atividades.reduce((sum, a) => sum + (Number(a?.publico_estimado) || 0), 0);
+  }, [atividades]);
+
+  useEffect(() => {
+    if (!publicoManual) {
+      setFormData((prev) => ({ ...prev, publico_geral_declarado: publicoAtividades }));
+    }
+  }, [publicoAtividades, publicoManual]);
 
   const updateField = useCallback((field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -721,12 +733,20 @@ export default function ReportEditor() {
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs text-gray-600">Público Geral Declarado</Label>
+                <Label className="text-xs text-gray-600">
+                  Público Geral Declarado
+                  {!publicoManual && publicoAtividades > 0 && (
+                    <span className="ml-1 text-blue-600 font-normal">(soma automática das atividades)</span>
+                  )}
+                </Label>
                 <Input
                   type="number"
                   value={formData.publico_geral_declarado || 0}
-                  onChange={(e) => updateField('publico_geral_declarado', parseInt(e.target.value, 10) || 0)}
-                  placeholder="Total de visitantes"
+                  onChange={(e) => {
+                    setPublicoManual(true);
+                    updateField('publico_geral_declarado', parseInt(e.target.value, 10) || 0);
+                  }}
+                  placeholder={!publicoManual ? `Soma automática: ${publicoAtividades}` : 'Total de visitantes'}
                   disabled={!canEdit}
                   min={0}
                 />
