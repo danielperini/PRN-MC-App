@@ -21,7 +21,7 @@ const CLASSIFICACOES = [
   { value: 'EXTRA', label: 'Atividade extra' },
 ];
 
-const MUSEUS = ['MHAB', 'MIS', 'MUMO'];
+const MUSEUS = ['MHAB', 'MIS', 'MUMO', 'Geral'];
 
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -29,9 +29,21 @@ const MESES = [
 ];
 
 const METAS_FALLBACK = [
-  { id: 'Meta 05 - Atividades educativas e culturais', nome: 'Meta 05 - Atividades educativas e culturais' },
-  { id: 'Metas 10/12 - Mostras e exposições', nome: 'Metas 10/12 - Mostras e exposições' },
-  { id: 'Meta 14 - Acessibilidade', nome: 'Meta 14 - Acessibilidade' },
+  { id: '1 - Contratação da equipe principal', nome: '1 - Contratação da equipe principal' },
+  { id: '3 - Manutenção de exposições', nome: '3 - Manutenção de exposições' },
+  { id: '7 - Educador', nome: '7 - Educador' },
+  { id: '10 - 18 pequenas mostras', nome: '10 - 18 pequenas mostras' },
+  { id: '11 - Noturno nos Museus Ed. 2026', nome: '11 - Noturno nos Museus Ed. 2026' },
+  { id: '14 - Acessibilidade', nome: '14 - Acessibilidade' },
+  { id: '16 - 101 Diárias', nome: '16 - 101 Diárias' },
+  { id: '17 - Publicações', nome: '17 - Publicações' },
+  { id: '18 - Custeios atividades educativas', nome: '18 - Custeios atividades educativas' },
+  { id: '20 - 30 ações educativas e culturais', nome: '20 - 30 ações educativas e culturais' },
+  { id: '21 - Exposição MUMO', nome: '21 - Exposição MUMO' },
+  { id: '22 - Consultorias', nome: '22 - Consultorias' },
+  { id: '23 - Despesas Gerais', nome: '23 - Despesas Gerais' },
+  { id: '24 - Emenda Parlamentar', nome: '24 - Emenda Parlamentar' },
+  { id: '25 - Outras Ações', nome: '25 - Outras Ações' },
   { id: 'Meta de comunicação institucional', nome: 'Meta de comunicação institucional' },
   { id: 'Rotina', nome: 'Rotina' },
   { id: 'Extra', nome: 'Extra' },
