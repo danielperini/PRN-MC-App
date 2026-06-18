@@ -562,7 +562,11 @@ REGRA CRÍTICA:
 - Se algum campo não existir no documento, retorne string vazia.
 - Verifique se há indícios de duplicidade: mesmo número de NF, mesmo CNPJ com mesmo valor em datas próximas.
 
-Se for recibo, comprovante, boleto ou comprovante PIX, classifique como RECIBO_PDF.
+IMPORTANTE — CLASSIFICAÇÃO DO TIPO DE DOCUMENTO:
+- Se o documento tem número de nota fiscal, CNPJ/CPF de emitente, valor total e data de emissão → é NOTA_FISCAL_PDF.
+- DOCUMENTO_ADMINISTRATIVO é APENAS para documentos sem características fiscais: atas, ofícios, declarações, autorizações, certidões, relatórios internos.
+- Se houver qualquer indício de nota fiscal (número NF, valor, CFOP, natureza da operação) → classifique como NOTA_FISCAL_PDF.
+- Recibo, comprovante, boleto ou comprovante PIX → classifique como RECIBO_PDF.
 
 {
   "tipo_documento": "NOTA_FISCAL_PDF | NOTA_FISCAL_XML | RECIBO_PDF | DOCUMENTO_ADMINISTRATIVO | OUTRO",
@@ -645,12 +649,14 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
 
       const resultadoNormalizado = normalizarResultadoNotaFiscal(resultado || {});
 
+      // Se a análise rápida já identificou como NOTA_FISCAL, não permitir que a análise detalhada classifique como DOCUMENTO_ADMINISTRATIVO.
+      // DOCUMENTO_ADMINISTRATIVO só é válido quando a análise rápida retornou OUTRO.
       const tipoDetectado =
         resultadoNormalizado?.tipo_documento === 'NOTA_FISCAL_XML'
           ? 'NOTA_FISCAL_XML'
           : resultadoNormalizado?.tipo_documento === 'RECIBO_PDF'
             ? 'RECIBO_PDF'
-            : resultadoNormalizado?.tipo_documento === 'DOCUMENTO_ADMINISTRATIVO'
+            : resultadoNormalizado?.tipo_documento === 'DOCUMENTO_ADMINISTRATIVO' && tipoRapido !== 'NOTA_FISCAL'
               ? 'DOCUMENTO_ADMINISTRATIVO'
               : resultadoNormalizado?.tipo_documento === 'NOTA_FISCAL_PDF'
                 ? 'NOTA_FISCAL_PDF'
