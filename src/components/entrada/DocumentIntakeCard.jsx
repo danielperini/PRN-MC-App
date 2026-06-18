@@ -82,30 +82,45 @@ function getCnpjIntake(intake) {
   return String(ia.nf_emitente_cpf_cnpj || ia.fornecedor_cpf_cnpj || intake?.nf_emitente_cpf_cnpj || intake?.fornecedor_cpf_cnpj || '').replace(/\D/g, '');
 }
 
+function getNFNumberIntake(intake) {
+  const ia = intake?.resultado_ia || {};
+  return String(ia.nf_numero || intake?.nf_numero || '').replace(/\D/g, '');
+}
+
+function getNFDateIntake(intake) {
+  const ia = intake?.resultado_ia || {};
+  return String(ia.nf_data_emissao || ia.data_emissao || intake?.nf_data_emissao || '').trim();
+}
+
 function detectarDuplicatas(intake, allIntakes) {
   if (!allIntakes || allIntakes.length <= 1) return [];
 
   const outros = allIntakes.filter((i) => i.id !== intake.id);
   const duplicatas = [];
 
-  const nomeAtual = normalizeFileName(intake.file_name_original || intake.file_name_final || '');
-  const valorAtual = getValorNumerico(intake);
   const cnpjAtual = getCnpjIntake(intake);
+  const valorAtual = getValorNumerico(intake);
+  const nfNumeroAtual = getNFNumberIntake(intake);
+  const nfDataAtual = getNFDateIntake(intake);
 
   for (const outro of outros) {
-    const nomeOutro = normalizeFileName(outro.file_name_original || outro.file_name_final || '');
-    const valorOutro = getValorNumerico(outro);
     const cnpjOutro = getCnpjIntake(outro);
+    const valorOutro = getValorNumerico(outro);
+    const nfNumeroOutro = getNFNumberIntake(outro);
+    const nfDataOutro = getNFDateIntake(outro);
 
-    // Mesmo nome de arquivo
-    if (nomeAtual && nomeAtual === nomeOutro) {
-      duplicatas.push({ id: outro.id, nome: outro.file_name_original || outro.file_name_final, motivo: 'mesmo nome de arquivo' });
-      continue;
-    }
-
-    // Mesmo CNPJ + mesmo valor (> 0)
-    if (cnpjAtual && cnpjOutro && cnpjAtual === cnpjOutro && valorAtual > 0 && valorOutro > 0 && Math.abs(valorAtual - valorOutro) < 0.02) {
-      duplicatas.push({ id: outro.id, nome: outro.file_name_original || outro.file_name_final, motivo: `mesmo CNPJ e valor (R$ ${valorAtual.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})` });
+    // Duplicata confirmada: mesmo CNPJ + mesmo número NF + mesmo valor + mesma data de emissão
+    if (
+      cnpjAtual && cnpjOutro && cnpjAtual === cnpjOutro &&
+      nfNumeroAtual && nfNumeroOutro && nfNumeroAtual === nfNumeroOutro &&
+      valorAtual > 0 && valorOutro > 0 && Math.abs(valorAtual - valorOutro) < 0.02 &&
+      nfDataAtual && nfDataOutro && nfDataAtual === nfDataOutro
+    ) {
+      duplicatas.push({
+        id: outro.id,
+        nome: outro.file_name_original || outro.file_name_final,
+        motivo: `NF ${nfNumeroAtual} — mesmo CNPJ, valor e data`
+      });
       continue;
     }
   }
@@ -121,10 +136,13 @@ export default function DocumentIntakeCard({ intake, allIntakes, onReview, onDel
   const xmlInputRef = useRef(null);
 
   // Verifica duplicatas em PurchaseRequests existentes (NFs já enviadas p/ aprovação)
+  // Requer: mesmo CNPJ + mesmo número NF + mesmo valor + mesma data de emissão
   useEffect(() => {
     const cnpj = getCnpjIntake(intake);
     const valor = getValorNumerico(intake);
-    if (!cnpj || valor <= 0) return;
+    const nfNumero = getNFNumberIntake(intake);
+    const nfData = getNFDateIntake(intake);
+    if (!cnpj || valor <= 0 || !nfNumero) return;
 
     let mounted = true;
     base44.entities.PurchaseRequest.filter({ fornecedor_cpf_cnpj: cnpj }, '-created_date', 20)
@@ -133,7 +151,13 @@ export default function DocumentIntakeCard({ intake, allIntakes, onReview, onDel
         const duplicadas = (list || []).filter((pr) => {
           if (pr.entidade_destino_id === intake.id || pr.intake_id === intake.id || pr.documento_intake_id === intake.id) return false;
           const valorPR = Number(pr.valor_solicitado || pr.valor_total || pr.valor || 0);
-          return valorPR > 0 && Math.abs(valorPR - valor) < 0.02;
+          const nfPR = String(pr.nf_numero || '').replace(/\D/g, '');
+          const dataPR = String(pr.nf_data_emissao || '').trim();
+          return (
+            valorPR > 0 && Math.abs(valorPR - valor) < 0.02 &&
+            nfPR === nfNumero &&
+            nfData && dataPR && nfData === dataPR
+          );
         });
         setPrDuplicatas(duplicadas);
       })

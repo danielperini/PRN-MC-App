@@ -120,12 +120,14 @@ export function buildDuplicateKey(item = {}) {
   const nf = getNFNumber(item);
   const doc = getSupplierDocument(item);
   const value = getNFValue(item);
+  const date = getNFDate(item);
 
+  // Chave completa: CNPJ + NF + valor + data = unicidade real
+  if (nf && doc && value > 0 && date) return `NF:${doc}:${nf}:${value.toFixed(2)}:${date}`;
+  if (nf && doc && value > 0) return `NF:${doc}:${nf}:${value.toFixed(2)}`;
   if (nf && doc) return `NF:${doc}:${nf}`;
-  if (nf && value > 0) return `NFVAL:${nf}:${value.toFixed(2)}`;
 
   const name = getSupplierName(item);
-  const date = getNFDate(item);
   if (name && value > 0 && date) return `FNV:${name}:${date}:${value.toFixed(2)}`;
 
   return '';
@@ -138,21 +140,24 @@ export function isDuplicateCandidate(existing = {}, incoming = {}, currentId = n
   const status = normalizeText(existing.status);
   if (IGNORED_DUPLICATE_STATUSES.has(status)) return false;
 
-  const existingKey = existing.duplicate_key || buildDuplicateKey(existing);
-  const incomingKey = incoming.duplicate_key || buildDuplicateKey(incoming);
-
-  if (existingKey && incomingKey && existingKey === incomingKey) return true;
-
-  const existingNF = getNFNumber(existing);
-  const incomingNF = getNFNumber(incoming);
+  // Duplicata confirmada requer TODOS os 4 critérios:
+  // mesmo emissor (CNPJ) + mesmo número NF + mesmo valor + mesma data de emissão
   const existingDoc = getSupplierDocument(existing);
   const incomingDoc = getSupplierDocument(incoming);
+  const existingNF = getNFNumber(existing);
+  const incomingNF = getNFNumber(incoming);
   const existingValue = getNFValue(existing);
   const incomingValue = getNFValue(incoming);
+  const existingDate = getNFDate(existing);
+  const incomingDate = getNFDate(incoming);
 
-  if (existingNF && incomingNF && existingNF === incomingNF) {
-    if (existingDoc && incomingDoc && existingDoc === incomingDoc) return true;
-    if (existingValue > 0 && incomingValue > 0 && Math.abs(existingValue - incomingValue) < 0.01) return true;
+  if (
+    existingDoc && incomingDoc && existingDoc === incomingDoc &&
+    existingNF && incomingNF && existingNF === incomingNF &&
+    existingValue > 0 && incomingValue > 0 && Math.abs(existingValue - incomingValue) < 0.01 &&
+    existingDate && incomingDate && existingDate === incomingDate
+  ) {
+    return true;
   }
 
   return false;

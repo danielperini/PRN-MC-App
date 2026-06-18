@@ -560,7 +560,7 @@ REGRA CRÍTICA:
 - Nunca use CPF/CNPJ, município ou endereço do TOMADOR/DESTINATÁRIO.
 - Se o documento tiver prestador de serviço, o prestador é o emitente.
 - Se algum campo não existir no documento, retorne string vazia.
-- Verifique se há indícios de duplicidade: mesmo número de NF, mesmo CNPJ com mesmo valor em datas próximas.
+- Só marque como duplicata se TODOS os 4 campos coincidirem exatamente: mesmo CNPJ do emitente + mesmo número da NF + mesmo valor total + mesma data de emissão.
 
 IMPORTANTE — CLASSIFICAÇÃO DO TIPO DE DOCUMENTO:
 - Se o documento tem número de nota fiscal, CNPJ/CPF de emitente, valor total e data de emissão → é NOTA_FISCAL_PDF.
