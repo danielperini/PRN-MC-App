@@ -285,15 +285,27 @@ export default function EntradaUnica() {
       if (status !== 'ANALISANDO_IA') continue;
 
       const created = new Date(item.updated_date || item.created_date || 0).getTime();
-      const passouTempo = created && agora - created > 45000;
+      // Timeout aumentado para 120s para documentos grandes
+      const passouTempo = created && agora - created > 120000;
 
       if (!passouTempo) continue;
 
-      await base44.entities.DocumentIntake.update(item.id, {
-        status_processamento: 'AGUARDANDO_REVISAO',
-        tipo_detectado: getTipoByFile(item),
-        erros_validacao: ['IA não conseguiu concluir a análise. Revise manualmente.'],
-      }).catch(() => {});
+      // Tentar reanalisar automaticamente em vez de desistir
+      try {
+        await analisarComIA(
+          item.id,
+          item.arquivo_original_url,
+          item.mime_type,
+          item.resultado_ia?.orientacoes_usuario
+        );
+      } catch (e) {
+        // Se falhar novamente, libera para revisão manual
+        await base44.entities.DocumentIntake.update(item.id, {
+          status_processamento: 'AGUARDANDO_REVISAO',
+          tipo_detectado: getTipoByFile(item),
+          erros_validacao: [`IA não conseguiu concluir após 2 tentativas. Erro: ${e?.message || 'timeout'}. Revise manualmente.`],
+        }).catch(() => {});
+      }
     }
   }, []);
 
@@ -533,16 +545,22 @@ Responda apenas com uma palavra: CONTRATO ou NOTA_FISCAL ou OUTRO.`,
         return;
       }
 
+      const hoje = new Date().toISOString().slice(0, 10);
       const prompt = `Você é um especialista em notas fiscais, XML fiscal, recibos e comprovantes brasileiros.
-Analise o documento anexado e extraia os campos em JSON.
+Analise o documento anexado INTEGRALMENTE e extraia TODOS os campos disponíveis em JSON.
+
+A data atual é ${hoje}. Não sinalize datas passadas como "futuras".
 
 REGRA CRÍTICA:
-- Os campos nf_emitente_cpf_cnpj e municipio são OBRIGATÓRIOS quando existirem na nota fiscal.
-- Leia o PDF inteiro, inclusive cabeçalho, rodapé, bloco do prestador/emitente e dados cadastrais.
+- TODO documento PDF DEVE ser analisado 100%. Não pare no meio. Leia cada página.
+- Os campos nf_emitente_cpf_cnpj, municipio, nf_numero, nf_valor_total, nf_data_emissao e descricao_servico são OBRIGATÓRIOS quando existirem.
+- Extraia o HORÁRIO de emissão se visível (campo nf_horario_emissao no formato HH:MM:SS).
+- Leia o PDF inteiro, inclusive cabeçalho, rodapé, bloco do prestador/emitente, dados cadastrais, dados bancários.
 - Use sempre os dados do EMITENTE/PRESTADOR/FORNECEDOR.
-- Nunca use CPF/CNPJ ou município do TOMADOR/DESTINATÁRIO.
+- Nunca use CPF/CNPJ, município ou endereço do TOMADOR/DESTINATÁRIO.
 - Se o documento tiver prestador de serviço, o prestador é o emitente.
-- Se algum desses campos não existir no documento, retorne string vazia.
+- Se algum campo não existir no documento, retorne string vazia.
+- Verifique se há indícios de duplicidade: mesmo número de NF, mesmo CNPJ com mesmo valor em datas próximas.
 
 Se for recibo, comprovante, boleto ou comprovante PIX, classifique como RECIBO_PDF.
 
@@ -550,18 +568,22 @@ Se for recibo, comprovante, boleto ou comprovante PIX, classifique como RECIBO_P
   "tipo_documento": "NOTA_FISCAL_PDF | NOTA_FISCAL_XML | RECIBO_PDF | DOCUMENTO_ADMINISTRATIVO | OUTRO",
   "nf_numero": "número da NF (somente dígitos ou alfanumérico exato)",
   "nf_data_emissao": "YYYY-MM-DD",
+  "nf_horario_emissao": "HH:MM:SS (horário exato de emissão se visível na nota)",
   "nf_valor_total": número,
   "nf_emitente_nome": "razão social completa do EMITENTE/PRESTADOR/FORNECEDOR",
   "nf_emitente_cpf_cnpj": "CPF ou CNPJ do EMITENTE/PRESTADOR/FORNECEDOR, somente dígitos",
   "fornecedor_cpf_cnpj": "mesmo CPF ou CNPJ do EMITENTE/PRESTADOR/FORNECEDOR, somente dígitos",
+  "fornecedor_nome": "razão social do fornecedor/emitente",
   "nf_destinatario_nome": "razão social do destinatário/tomador",
-  "descricao_servico": "descrição completa do serviço ou produto fornecido",
+  "nf_destinatario_cpf_cnpj": "CPF ou CNPJ do destinatário/tomador, somente dígitos",
+  "descricao_servico": "descrição COMPLETA do serviço ou produto, sem abreviar",
   "municipio": "município do EMITENTE/PRESTADOR/FORNECEDOR",
   "municipio_emitente": "município do EMITENTE/PRESTADOR/FORNECEDOR",
   "cidade_emitente": "cidade do EMITENTE/PRESTADOR/FORNECEDOR",
   "estado": "UF do emitente/prestador/fornecedor",
+  "endereco_emitente": "endereço completo do emitente",
   "competencia": "Mês/Ano de referência (ex: Março/2026)",
-  "centro_custo_sugerido": "MIS | MHAB | MUMO | Geral | Atuação Geral",
+  "centro_custo_sugerido": "MIS | MHAB | MUMO | Geral | Atuação Geral | Noturno",
   "banco": "nome do banco do emitente se informado no documento",
   "agencia": "número da agência bancária se informado",
   "conta": "número da conta bancária se informado",
@@ -571,50 +593,55 @@ Se for recibo, comprovante, boleto ou comprovante PIX, classifique como RECIBO_P
   "tipo_gasto": "Produto | Serviço",
   "categoria_sugerida": "categoria do gasto",
   "rubrica_nome_sugerida": "nome da rubrica orçamentária mais provável",
-  "justificativa_ia": "em 1-2 frases explique porque classificou assim"
+  "justificativa_ia": "em 1-2 frases explique porque classificou assim",
+  "indicios_duplicidade": "se houver, descreva indícios de que esta NF pode ser duplicata de outra",
+  "inconsistencias": ["lista de problemas encontrados no documento, como CNPJ inválido, valor divergente, data incoerente"]
 }
 ${orientacoes ? `\nOrientações do usuário: ${orientacoes}` : ''}
 Retorne apenas o JSON válido, sem explicações adicionais.`;
 
-      const resultado = await Promise.race([
-        base44.integrations.Core.InvokeLLM({
-          prompt,
-          file_urls: [fileUrl],
-          response_json_schema: {
-            type: 'object',
-            properties: {
-              tipo_documento: { type: 'string' },
-              nf_numero: { type: 'string' },
-              nf_data_emissao: { type: 'string' },
-              nf_valor_total: { type: 'number' },
-              nf_emitente_nome: { type: 'string' },
-              nf_emitente_cpf_cnpj: { type: 'string' },
-              fornecedor_cpf_cnpj: { type: 'string' },
-              cnpj_emitente: { type: 'string' },
-              cpf_cnpj_emitente: { type: 'string' },
-              nf_destinatario_nome: { type: 'string' },
-              descricao_servico: { type: 'string' },
-              municipio: { type: 'string' },
-              municipio_emitente: { type: 'string' },
-              cidade_emitente: { type: 'string' },
-              estado: { type: 'string' },
-              competencia: { type: 'string' },
-              centro_custo_sugerido: { type: 'string' },
-              banco: { type: 'string' },
-              agencia: { type: 'string' },
-              conta: { type: 'string' },
-              tipo_conta: { type: 'string' },
-              pix: { type: 'string' },
-              meta_sugerida: { type: 'string' },
-              tipo_gasto: { type: 'string' },
-              categoria_sugerida: { type: 'string' },
-              rubrica_nome_sugerida: { type: 'string' },
-              justificativa_ia: { type: 'string' },
-            },
+      const resultado = await base44.integrations.Core.InvokeLLM({
+        prompt,
+        file_urls: [fileUrl],
+        response_json_schema: {
+          type: 'object',
+          properties: {
+            tipo_documento: { type: 'string' },
+            nf_numero: { type: 'string' },
+            nf_data_emissao: { type: 'string' },
+            nf_horario_emissao: { type: 'string' },
+            nf_valor_total: { type: 'number' },
+            nf_emitente_nome: { type: 'string' },
+            nf_emitente_cpf_cnpj: { type: 'string' },
+            fornecedor_cpf_cnpj: { type: 'string' },
+            fornecedor_nome: { type: 'string' },
+            cnpj_emitente: { type: 'string' },
+            cpf_cnpj_emitente: { type: 'string' },
+            nf_destinatario_nome: { type: 'string' },
+            nf_destinatario_cpf_cnpj: { type: 'string' },
+            descricao_servico: { type: 'string' },
+            municipio: { type: 'string' },
+            municipio_emitente: { type: 'string' },
+            cidade_emitente: { type: 'string' },
+            estado: { type: 'string' },
+            endereco_emitente: { type: 'string' },
+            competencia: { type: 'string' },
+            centro_custo_sugerido: { type: 'string' },
+            banco: { type: 'string' },
+            agencia: { type: 'string' },
+            conta: { type: 'string' },
+            tipo_conta: { type: 'string' },
+            pix: { type: 'string' },
+            meta_sugerida: { type: 'string' },
+            tipo_gasto: { type: 'string' },
+            categoria_sugerida: { type: 'string' },
+            rubrica_nome_sugerida: { type: 'string' },
+            justificativa_ia: { type: 'string' },
+            indicios_duplicidade: { type: 'string' },
+            inconsistencias: { type: 'array', items: { type: 'string' } },
           },
-        }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 30000)),
-      ]);
+        },
+      });
 
       const resultadoNormalizado = normalizarResultadoNotaFiscal(resultado || {});
 
@@ -632,6 +659,11 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
                 ? 'RECIBO_PDF'
                 : tipoFallback;
 
+      // Mesclar inconsistências da IA com erros já existentes
+      const inconsistencias = Array.isArray(resultadoNormalizado?.inconsistencias)
+        ? resultadoNormalizado.inconsistencias
+        : [];
+
       await base44.entities.DocumentIntake.update(intakeId, {
         status_processamento: 'AGUARDANDO_REVISAO',
         tipo_detectado: tipoDetectado,
@@ -641,17 +673,36 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
           resultadoNormalizado?.fornecedor_cpf_cnpj ||
           resultadoNormalizado?.nf_emitente_cpf_cnpj ||
           '',
+        fornecedor_nome:
+          resultadoNormalizado?.fornecedor_nome ||
+          resultadoNormalizado?.nf_emitente_nome ||
+          '',
         municipio: resultadoNormalizado?.municipio || '',
         centro_custo: resultadoNormalizado?.centro_custo_sugerido || '',
         rubrica_nome_sugerida: resultadoNormalizado?.rubrica_nome_sugerida || '',
         rubrica_justificativa: resultadoNormalizado?.justificativa_ia || '',
+        nf_numero: resultadoNormalizado?.nf_numero || '',
+        nf_valor_total: resultadoNormalizado?.nf_valor_total || 0,
+        erros_validacao: inconsistencias.length > 0 ? inconsistencias : [],
       });
 
       await loadIntakes();
     } catch (err) {
-      console.error('Erro na análise por IA:', err);
-      await aplicarFallback();
-      await loadIntakes();
+      console.error('Erro na análise por IA (frontend):', err);
+      // Tentar via backend como fallback para análise mais robusta
+      try {
+        await base44.functions.invoke('classifyAndRouteDocument', {
+          intake_id: intakeId,
+          file_url: fileUrl,
+          file_name: fileUrl,
+          orientacoes_usuario: orientacoes || '',
+        });
+        await loadIntakes();
+      } catch (backendErr) {
+        console.error('Fallback backend também falhou:', backendErr);
+        await aplicarFallback();
+        await loadIntakes();
+      }
     }
   }
 

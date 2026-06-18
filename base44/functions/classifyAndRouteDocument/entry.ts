@@ -410,71 +410,73 @@ Responda SOMENTE em JSON válido:
         const hoje = new Date().toISOString().slice(0, 10);
 
         const iaResp = await base44.asServiceRole.integrations.Core.InvokeLLM({
-          prompt: `Leia INTEGRALMENTE este documento PDF e classifique-o com precisão.
+          prompt: `Leia INTEGRALMENTE este documento PDF e classifique-o com precisão. Analise CADA PÁGINA sem pular nenhuma.
 
-Tipos possíveis:
-- NOTA_FISCAL: NF-e, NFS-e, RPA, fatura, recibo com dados fiscais (CNPJ/CPF emitente, número, valor)
-- CONTRATO: contrato de prestação de serviço, termo de serviço, contrato de trabalho, instrumento de acordo entre partes
-- DOCUMENTO_ADMINISTRATIVO: ata, ofício, declaração, proposta, memorando, planilha, relatório ou outro
+          Tipos possíveis:
+          - NOTA_FISCAL: NF-e, NFS-e, RPA, fatura, recibo com dados fiscais (CNPJ/CPF emitente, número, valor)
+          - CONTRATO: contrato de prestação de serviço, termo de serviço, contrato de trabalho, instrumento de acordo entre partes
+          - DOCUMENTO_ADMINISTRATIVO: ata, ofício, declaração, proposta, memorando, planilha, relatório ou outro
 
-Leia TODO o texto visível do documento. Para NOTAS FISCAIS extraia absolutamente todos os campos fiscais disponíveis. Para CONTRATOS, extraia todas as partes, valores, vigência e objeto.
+          Leia TODO o texto visível do documento. Para NOTAS FISCAIS extraia absolutamente todos os campos fiscais disponíveis, incluindo o HORÁRIO de emissão. Para CONTRATOS, extraia todas as partes, valores, vigência e objeto.
 
-A data atual é ${hoje}. Não sinalize datas passadas como "futuras".
-${orientacoesUsuario ? `\nOrientações do usuário: ${orientacoesUsuario}` : ''}
+          A data atual é ${hoje}. Não sinalize datas passadas como "futuras".
+          ${orientacoesUsuario ? `\nOrientações do usuário: ${orientacoesUsuario}` : ''}
 
-Responda SOMENTE em JSON válido:
-{
-  "tipo_documento": "NOTA_FISCAL|CONTRATO|DOCUMENTO_ADMINISTRATIVO",
-  "eh_nota_fiscal": false,
-  "eh_contrato": false,
-  "nf_numero": "",
-  "nf_serie": "",
-  "nf_chave_acesso": "",
-  "nf_valor_total": "",
-  "nf_valor_servicos": "",
-  "nf_valor_deducoes": "",
-  "nf_valor_iss": "",
-  "nf_aliquota_iss": "",
-  "nf_data_emissao": "",
-  "nf_competencia": "",
-  "nf_emitente_nome": "",
-  "nf_emitente_cpf_cnpj": "",
-  "nf_emitente_municipio": "",
-  "nf_emitente_uf": "",
-  "nf_emitente_endereco": "",
-  "nf_emitente_cep": "",
-  "nf_emitente_inscricao_municipal": "",
-  "nf_emitente_email": "",
-  "nf_emitente_telefone": "",
-  "nf_emitente_banco": "",
-  "nf_emitente_agencia": "",
-  "nf_emitente_conta": "",
-  "nf_emitente_pix": "",
-  "nf_destinatario_nome": "",
-  "nf_destinatario_cpf_cnpj": "",
-  "descricao_servico": "",
-  "municipio": "",
-  "competencia": "",
-  "contrato_numero": "",
-  "contrato_objeto": "",
-  "contrato_fornecedor_nome": "",
-  "contrato_fornecedor_cpf_cnpj": "",
-  "contrato_responsavel_tecnico": "",
-  "contrato_vigencia_inicio": "",
-  "contrato_vigencia_fim": "",
-  "contrato_valor_total": "",
-  "contrato_numero_parcelas": "",
-  "contrato_valor_parcela": "",
-  "contrato_banco": "",
-  "contrato_agencia": "",
-  "contrato_conta": "",
-  "contrato_pix": "",
-  "contrato_museu": "",
-  "contrato_meta": "",
-  "contrato_rubrica_sugerida": "",
-  "contrato_membros_equipe": [],
-  "inconsistencias": []
-}`,
+          Responda SOMENTE em JSON válido:
+          {
+          "tipo_documento": "NOTA_FISCAL|CONTRATO|DOCUMENTO_ADMINISTRATIVO",
+          "eh_nota_fiscal": false,
+          "eh_contrato": false,
+          "nf_numero": "",
+          "nf_serie": "",
+          "nf_chave_acesso": "",
+          "nf_valor_total": "",
+          "nf_valor_servicos": "",
+          "nf_valor_deducoes": "",
+          "nf_valor_iss": "",
+          "nf_aliquota_iss": "",
+          "nf_data_emissao": "",
+          "nf_horario_emissao": "",
+          "nf_competencia": "",
+          "nf_emitente_nome": "",
+          "nf_emitente_cpf_cnpj": "",
+          "nf_emitente_municipio": "",
+          "nf_emitente_uf": "",
+          "nf_emitente_endereco": "",
+          "nf_emitente_cep": "",
+          "nf_emitente_inscricao_municipal": "",
+          "nf_emitente_email": "",
+          "nf_emitente_telefone": "",
+          "nf_emitente_banco": "",
+          "nf_emitente_agencia": "",
+          "nf_emitente_conta": "",
+          "nf_emitente_pix": "",
+          "nf_destinatario_nome": "",
+          "nf_destinatario_cpf_cnpj": "",
+          "descricao_servico": "",
+          "municipio": "",
+          "competencia": "",
+          "indicios_duplicidade": "",
+          "contrato_numero": "",
+          "contrato_objeto": "",
+          "contrato_fornecedor_nome": "",
+          "contrato_fornecedor_cpf_cnpj": "",
+          "contrato_responsavel_tecnico": "",
+          "contrato_vigencia_inicio": "",
+          "contrato_vigencia_fim": "",
+          "contrato_valor_total": "",
+          "contrato_numero_parcelas": "",
+          "contrato_valor_parcela": "",
+          "contrato_banco": "",
+          "contrato_agencia": "",
+          "contrato_conta": "",
+          "contrato_pix": "",
+          "contrato_museu": "",
+          "contrato_meta": "",
+          "contrato_rubrica_sugerida": "",
+          "contrato_membros_equipe": [],
+          "inconsistencias": []
+          }`,
           file_urls: [fileUrl],
           response_json_schema: {
             type: 'object',
@@ -491,6 +493,7 @@ Responda SOMENTE em JSON válido:
               nf_valor_iss: { type: 'string' },
               nf_aliquota_iss: { type: 'string' },
               nf_data_emissao: { type: 'string' },
+              nf_horario_emissao: { type: 'string' },
               nf_competencia: { type: 'string' },
               nf_emitente_nome: { type: 'string' },
               nf_emitente_cpf_cnpj: { type: 'string' },
@@ -510,6 +513,7 @@ Responda SOMENTE em JSON válido:
               descricao_servico: { type: 'string' },
               municipio: { type: 'string' },
               competencia: { type: 'string' },
+              indicios_duplicidade: { type: 'string' },
               contrato_numero: { type: 'string' },
               contrato_objeto: { type: 'string' },
               contrato_fornecedor_nome: { type: 'string' },

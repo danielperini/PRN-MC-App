@@ -200,6 +200,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     nf_numero: ia.nf_numero || (iaIncompleta ? fallbackArquivo.nf_numero || '' : ''),
     nf_valor_total: ia.nf_valor_total || (iaIncompleta ? fallbackArquivo.nf_valor_total || '' : ''),
     nf_data_emissao: normalizeDateToInput(dataEmissaoIA),
+    nf_horario_emissao: ia.nf_horario_emissao || ia.horario_emissao || '',
     nf_emitente_nome: ia.nf_emitente_nome || (iaIncompleta ? fallbackArquivo.nf_emitente_nome_fallback || '' : ''),
     nf_emitente_cpf_cnpj: ia.nf_emitente_cpf_cnpj || '',
     nf_destinatario_nome: ia.nf_destinatario_nome || '',
@@ -862,6 +863,10 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
             <div className="space-y-1 min-w-0">
               <Label>Data de Emissão</Label>
               <Input type="date" className="w-full min-w-0" value={form.nf_data_emissao} onChange={(e) => setForm((f) => ({ ...f, nf_data_emissao: e.target.value }))} />
+            </div>
+            <div className="space-y-1 min-w-0">
+              <Label>Horário de Emissão</Label>
+              <Input className="w-full min-w-0" value={form.nf_horario_emissao} onChange={(e) => setForm((f) => ({ ...f, nf_horario_emissao: e.target.value }))} placeholder="HH:MM:SS" />
             </div>
             <div className="space-y-1 min-w-0">
               <Label>Competência</Label>
