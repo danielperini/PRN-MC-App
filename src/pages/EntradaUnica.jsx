@@ -650,14 +650,16 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
           ? 'NOTA_FISCAL_XML'
           : resultadoNormalizado?.tipo_documento === 'RECIBO_PDF'
             ? 'RECIBO_PDF'
-            : resultadoNormalizado?.tipo_documento === 'NOTA_FISCAL_PDF'
-              ? 'NOTA_FISCAL_PDF'
-              : isReciboLike({
-                  file_name_original: fileUrl,
-                  resultado_ia: resultadoNormalizado
-                })
-                ? 'RECIBO_PDF'
-                : tipoFallback;
+            : resultadoNormalizado?.tipo_documento === 'DOCUMENTO_ADMINISTRATIVO'
+              ? 'DOCUMENTO_ADMINISTRATIVO'
+              : resultadoNormalizado?.tipo_documento === 'NOTA_FISCAL_PDF'
+                ? 'NOTA_FISCAL_PDF'
+                : isReciboLike({
+                    file_name_original: fileUrl,
+                    resultado_ia: resultadoNormalizado
+                  })
+                  ? 'RECIBO_PDF'
+                  : tipoFallback;
 
       // Mesclar inconsistências da IA com erros já existentes
       const inconsistencias = Array.isArray(resultadoNormalizado?.inconsistencias)
