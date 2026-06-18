@@ -15,6 +15,7 @@ import BudgetByGroupCards from '../components/dashboard/BudgetByGroupCards';
 import NewsCarousel from '../components/dashboard/NewsCarousel';
 import ExecutiveIndicators from '../components/dashboard/ExecutiveIndicators';
 import MetasAditivoSection from '../components/dashboard/MetasAditivoSection';
+import ResumoAtividadesPorMeta from '../components/dashboard/ResumoAtividadesPorMeta';
 import DashboardProfissional from './DashboardProfissional.jsx';
 import DashboardPatrocinador from './DashboardPatrocinador';
 import GaleriaTickerCarousel from '../components/dashboard/GaleriaTickerCarousel';
@@ -133,6 +134,8 @@ function DashboardCoordenadorView({
         />
 
         <MetasAditivoSection rubricas={rubricas} />
+
+        <ResumoAtividadesPorMeta />
       </div>
     </div>
   );
@@ -521,6 +524,7 @@ function DashboardInner() {
           <NewsCarousel />
           <DiariamenteNosMuseus />
           <MetasAditivoSection rubricas={rubricas} />
+          <ResumoAtividadesPorMeta />
           <DashboardPatrocinador />
         </div>
       </div>
