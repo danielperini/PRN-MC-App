@@ -1170,9 +1170,9 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
   }
 
   const tipo = reviewIntake?.tipo_detectado;
-  const isNF = tipo === 'NOTA_FISCAL_PDF' || tipo === 'NOTA_FISCAL_XML';
+  const isNF = tipo === 'NOTA_FISCAL_PDF' || tipo === 'NOTA_FISCAL_XML' || tipo === 'DOCUMENTO_ADMINISTRATIVO';
   const isFoto = tipo === 'FOTO_ATIVIDADE';
-  const isDocAdmin = tipo === 'DOCUMENTO_ADMINISTRATIVO';
+  const isDocAdmin = false;
   const isContrato = isContractIntakeType(tipo);
 
   const isInitialPageLoading = userLoading || (!!user && loadingIntakes);
