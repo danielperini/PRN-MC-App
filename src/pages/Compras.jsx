@@ -592,6 +592,16 @@ function ComprasInner() {
         });
       }
 
+      // Atualização otimista do cache para mudança imediata na tabela
+      queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email], (old) => {
+        if (!Array.isArray(old)) return old;
+        return old.map((item) =>
+          item.id === purchase.id
+            ? { ...item, status: 'APROVADO_COORD', aprov_coord_data: new Date().toISOString(), aprov_coord_nome: currentUser?.email }
+            : item
+        );
+      });
+
       await refreshFinanceiroCompleto();
 
       await notifyPurchaseApproved(
@@ -634,6 +644,16 @@ function ComprasInner() {
         throw new Error(result?.error || 'Falha ao devolver.');
       }
 
+      // Atualização otimista do cache
+      queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email], (old) => {
+        if (!Array.isArray(old)) return old;
+        return old.map((item) =>
+          item.id === purchase.id
+            ? { ...item, status: 'DEVOLVIDO', comentario_devolucao: comentario || '' }
+            : item
+        );
+      });
+
       await refreshFinanceiroCompleto();
 
       await notifyPurchaseReturned(
@@ -653,6 +673,16 @@ function ComprasInner() {
         await base44.entities.PurchaseRequest.update(purchase.id, {
           status: 'DEVOLVIDO',
           comentario_devolucao: comentario || ''
+        });
+
+        // Atualização otimista do cache (fallback)
+        queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email], (old) => {
+          if (!Array.isArray(old)) return old;
+          return old.map((item) =>
+            item.id === purchase.id
+              ? { ...item, status: 'DEVOLVIDO', comentario_devolucao: comentario || '' }
+              : item
+          );
         });
 
         await refreshFinanceiroCompleto();
@@ -698,6 +728,16 @@ function ComprasInner() {
         throw new Error(result?.error || 'Falha ao desaprovar.');
       }
 
+      // Atualização otimista do cache
+      queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email], (old) => {
+        if (!Array.isArray(old)) return old;
+        return old.map((item) =>
+          item.id === purchase.id
+            ? { ...item, status: 'RECUSADO', comentario_devolucao: comentario || '' }
+            : item
+        );
+      });
+
       await refreshFinanceiroCompleto();
 
       await notifyPurchaseRejected(
@@ -740,6 +780,16 @@ function ComprasInner() {
           rubrica_debitada_em: null,
           rubrica_debitada_valor: null,
           financeiro_lancado_em: null
+        });
+
+        // Atualização otimista do cache (fallback)
+        queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email], (old) => {
+          if (!Array.isArray(old)) return old;
+          return old.map((item) =>
+            item.id === purchase.id
+              ? { ...item, status: 'RECUSADO', rubrica_debitada_em: null, rubrica_debitada_valor: null, financeiro_lancado_em: null }
+              : item
+          );
         });
 
         await refreshFinanceiroCompleto();
