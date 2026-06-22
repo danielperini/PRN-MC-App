@@ -205,16 +205,6 @@ export default function DocumentUploadZone({ onFilesSelected, disabled, uploadin
         </div>
       )}
 
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800 space-y-1 leading-relaxed">
-        <p className="font-medium text-sm">💡 Dica para Notas Fiscais</p>
-        <p>
-          Para que o sistema vincule automaticamente, arraste o <strong>PDF da nota fiscal</strong>{' '}
-          <strong>junto com o recibo/comprovante</strong> de uma só vez — ou envie o <strong>XML</strong>{' '}
-          com nome igual ou similar ao PDF (ex: <em>NF 42 - Fornecedor.pdf</em> e{' '}
-          <em>NF 42 - Fornecedor.xml</em>).
-        </p>
-      </div>
-
       {fileErrors.length > 0 && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-3 space-y-1">
           {fileErrors.map((error, idx) => (
