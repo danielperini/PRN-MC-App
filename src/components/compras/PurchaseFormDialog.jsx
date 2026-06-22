@@ -935,6 +935,12 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
       <DuplicatePurchaseDetectedModal
         duplicate={duplicateWarning}
         onClose={() => setDuplicateWarning(null)}
+        onIgnore={() => {
+          // Ignorar a duplicata: fecha o modal e não cria nova solicitação
+          setDuplicateWarning(null);
+          setIgnoreDuplicate(true);
+          onClose?.();
+        }}
         onProceed={() => {
           setIgnoreDuplicate(true)
           setDuplicateWarning(null)
