@@ -2,11 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, ExternalLink, CheckCircle2, Wallet } from 'lucide-react';
+import { AlertCircle, ExternalLink, CheckCircle2, Wallet, Trash2 } from 'lucide-react';
 import { getNFNumber, getSupplierName, getNFValue } from '@/lib/purchaseDuplicateGuard';
 import { base44 } from '@/api/base44Client';
 
-export default function DuplicatePurchaseDetectedModal({ duplicate, onClose, onProceed, onIgnore }) {
+export default function DuplicatePurchaseDetectedModal({ duplicate, onClose, onProceed, onIgnore, onRemoveDuplicate }) {
   const [rubricaInfo, setRubricaInfo] = useState(null);
   const [loadingRubrica, setLoadingRubrica] = useState(false);
 
@@ -152,6 +152,17 @@ export default function DuplicatePurchaseDetectedModal({ duplicate, onClose, onP
             >
               <CheckCircle2 className="h-4 w-4" />
               Ignorar duplicata – manter a existente
+            </Button>
+          )}
+
+          {onRemoveDuplicate && duplicate?.id && (
+            <Button
+              variant="outline"
+              onClick={onRemoveDuplicate}
+              className="gap-2 border-red-200 text-red-600 hover:bg-red-50"
+            >
+              <Trash2 className="h-4 w-4" />
+              Remover esta solicitação
             </Button>
           )}
 

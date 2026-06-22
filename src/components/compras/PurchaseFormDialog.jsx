@@ -7,6 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { base44 } from '@/api/base44Client'
 import { CheckCircle2, RotateCcw, Trash2, Paperclip, X, FileText, Upload, ExternalLink, FolderOpen, AlertTriangle, ShieldAlert, Sparkles } from 'lucide-react'
 import { useSmartToast } from '@/lib/useSmartToast'
+import { toast } from 'sonner'
+import { deletePurchaseRequest } from '@/lib/deleteIntegrado'
 import { findDuplicatePurchaseRequest } from '@/lib/purchaseDuplicateGuard'
 import DuplicatePurchaseDetectedModal from './DuplicatePurchaseDetectedModal'
 import NFDuplicateBlockAlert from './NFDuplicateBlockAlert'
@@ -937,6 +939,21 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
         onClose={() => setDuplicateWarning(null)}
         onIgnore={() => {
           // Ignorar a duplicata: fecha o modal e não cria nova solicitação
+          setDuplicateWarning(null);
+          setIgnoreDuplicate(true);
+          onClose?.();
+        }}
+        onRemoveDuplicate={async () => {
+          // Remove a solicitação duplicada existente e fecha o modal
+          if (!duplicateWarning?.id) return;
+          try {
+            const pr = await base44.entities.PurchaseRequest.get(duplicateWarning.id).catch(() => null);
+            if (pr) await deletePurchaseRequest(pr);
+            else await base44.entities.PurchaseRequest.delete(duplicateWarning.id).catch(() => {});
+            toast.success('Solicitação duplicada removida.');
+          } catch (e) {
+            toast.error('Erro ao remover duplicata: ' + (e?.message || 'desconhecido'));
+          }
           setDuplicateWarning(null);
           setIgnoreDuplicate(true);
           onClose?.();
