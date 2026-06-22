@@ -165,6 +165,19 @@ Deno.serve(async (req) => {
           const attData = await attRes.json();
           const rawBytes = Uint8Array.from(atob(attData.data.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
 
+          // Verificar duplicidade: mesmo arquivo já importado do Gmail?
+          const existing = await base44.asServiceRole.entities.DocumentIntake.filter({
+            file_name_original: filename,
+            origem: 'gmail',
+            status_registro: 'ATIVO',
+          }, '', 1);
+
+          if (existing.length > 0) {
+            resultados.push({ messageId: msg.id, subject, filename, status: 'ignorado', motivo: 'já importado anteriormente' });
+            ignorados++;
+            continue;
+          }
+
           // Upload para storage
           const file = new File([rawBytes], filename, { type: mimeType || 'application/octet-stream' });
           const uploadRes = await base44.asServiceRole.integrations.Core.UploadFile({ file });
