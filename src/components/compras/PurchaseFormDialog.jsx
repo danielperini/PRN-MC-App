@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -943,6 +943,46 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
     }
   }
 
+  // ── RUBRICAS FILTRADAS ──
+  const filteredRubricItems = React.useMemo(() => {
+    const ativas = rubricas.filter((r) => r?.ativo !== false && r?.id);
+    if (ativas.length === 0) return [];
+
+    // Filtro por meta (grupo da rubrica)
+    const matchMeta = (r) => {
+      if (!form.meta_id) return true;
+      const metaR = (r.grupo || r.meta || '').toLowerCase().trim();
+      const metaF = String(form.meta_id).toLowerCase().trim();
+      return metaR && metaF && (metaR === metaF || metaR.includes(metaF) || metaF.includes(metaR));
+    };
+
+    // Filtro por centro de custo
+    const matchCentro = (r) => {
+      if (!form.centro_custo) return true;
+      const cc = String(form.centro_custo).toUpperCase().replace('MAB', 'MHAB').trim();
+      const rc = String(r.museu_codigo || '').toUpperCase().replace('MAB', 'MHAB').trim();
+      if (cc === 'NOTURNO NOS MUSEUS 2026' || cc === 'NOTURNO PAMPULHA') {
+        return r.escopo_orcamentario === 'NOTURNO';
+      }
+      if (['MIS', 'MUMO', 'MHAB'].includes(cc)) return rc === cc;
+      return true; // centros genéricos mostram tudo
+    };
+
+    let filtradas = ativas.filter(matchMeta).filter(matchCentro);
+    if (filtradas.length === 0) filtradas = ativas;
+
+    // Garante que a rubrica atual aparece mesmo fora dos filtros
+    const atual = form.rubrica_id ? ativas.find((r) => r.id === form.rubrica_id) : null;
+    if (atual && !filtradas.some((r) => r.id === form.rubrica_id)) {
+      filtradas = [atual, ...filtradas];
+    }
+
+    return filtradas.map((r) => ({
+      id: r.id,
+      label: r.rubrica || r.nome || r.id,
+    }));
+  }, [rubricas, form.meta_id, form.centro_custo, form.rubrica_id]);
+
   const existingFileUrl =
     attachedFile?.url ||
     form.file_url ||
@@ -1229,49 +1269,11 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
                 </SelectTrigger>
 
                 <SelectContent>
-                  {(() => {
-                    const rubricasAtivas = rubricas.filter((r) => r?.ativo !== false);
-
-                    const filtraMeta = (r) => {
-                      if (!form.meta_id) return true;
-                      const metaRubrica = (r.grupo || r.meta || '').toLowerCase().trim();
-                      const metaForm = form.meta_id.toLowerCase().trim();
-                      return metaRubrica === metaForm || metaRubrica.includes(metaForm) || metaForm.includes(metaRubrica);
-                    };
-
-                    const filtraCentro = (r) => {
-                      if (!form.centro_custo) return true;
-                      const cc = String(form.centro_custo || '').toUpperCase().replace('MAB', 'MHAB');
-                      const rc = String(r.museu_codigo || '').toUpperCase().replace('MAB', 'MHAB');
-                      if (cc === 'NOTURNO NOS MUSEUS 2026') return r.escopo_orcamentario === 'NOTURNO';
-                      if (['MIS','MUMO','MHAB'].includes(cc)) return rc === cc;
-                      return true;
-                    };
-
-                    const filtradas = rubricasAtivas.filter(filtraMeta).filter(filtraCentro);
-
-                    // Se o filtro esvaziou a lista, mostra todas (fallback)
-                    const lista = filtradas.length > 0 ? filtradas : rubricasAtivas;
-
-                    // Rubrica atual sempre visível, mesmo fora dos filtros
-                    const rubricaAtual = form.rubrica_id ? rubricasAtivas.find((r) => r.id === form.rubrica_id) : null;
-                    const rubricaAtualNaLista = rubricaAtual && lista.some((r) => r.id === form.rubrica_id);
-
-                    return (
-                      <>
-                        {rubricaAtual && !rubricaAtualNaLista && (
-                          <SelectItem value={form.rubrica_id}>
-                            ⚠ {form.rubrica_nome || rubricaAtual.rubrica || rubricaAtual.nome || form.rubrica_id}
-                          </SelectItem>
-                        )}
-                        {lista.map((r) => (
-                          <SelectItem key={r.id} value={r.id}>
-                            {r.rubrica || r.nome}
-                          </SelectItem>
-                        ))}
-                      </>
-                    );
-                  })()}
+                  {filteredRubricItems.map((r) => (
+                    <SelectItem key={r.id} value={r.id}>
+                      {r.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
