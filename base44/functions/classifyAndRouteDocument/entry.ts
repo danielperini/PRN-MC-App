@@ -759,7 +759,7 @@ Procure por:
 
       const grupoStatus = await resolveGrupoStatus(base44, intake, tipoDetectado);
 
-      await base44.asServiceRole.entities.DocumentIntake.update(intakeId, {
+      const updatePayload = {
         tipo_detectado: tipoDetectado,
         status_processamento: 'AGUARDANDO_REVISAO',
         resultado_ia: resultadoIa,
@@ -777,7 +777,17 @@ Procure por:
         fornecedor_nome: tipoDetectado === 'CONTRATO' ? (safeStr(resultadoIa.fornecedor_nome) || '') : (intake.fornecedor_nome || ''),
         nf_emitente_cpf_cnpj: tipoDetectado !== 'CONTRATO' ? safeStr(resultadoIa.nf_emitente_cpf_cnpj) : (intake.nf_emitente_cpf_cnpj || ''),
         municipio: safeStr(resultadoIa.municipio || resultadoIa.nf_emitente_municipio),
-      });
+      };
+
+      // Para NOTA_FISCAL_PDF, persistir campos fiscais diretamente no intake
+      if (tipoDetectado === 'NOTA_FISCAL_PDF') {
+        updatePayload.nf_numero = safeStr(resultadoIa.nf_numero);
+        updatePayload.nf_valor_total = parseValor(resultadoIa.nf_valor_total);
+        updatePayload.centro_custo = safeStr(resultadoIa.centro_custo_sugerido || resultadoIa.centro_custo || '');
+        updatePayload.fornecedor_cpf_cnpj = safeStr(resultadoIa.nf_emitente_cpf_cnpj || resultadoIa.fornecedor_cpf_cnpj);
+      }
+
+      await base44.asServiceRole.entities.DocumentIntake.update(intakeId, updatePayload);
 
       return Response.json({
         ok: true,
