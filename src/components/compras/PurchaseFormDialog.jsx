@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import SearchableSelect from '@/components/ui/searchable-select'
 import { base44 } from '@/api/base44Client'
 import { CheckCircle2, RotateCcw, Trash2, Paperclip, X, FileText, Upload, ExternalLink, FolderOpen, AlertTriangle, ShieldAlert, Sparkles } from 'lucide-react'
 import { useSmartToast } from '@/lib/useSmartToast'
@@ -943,8 +944,23 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
     }
   }
 
+  // ── ITEMS DE META (derivados das rubricas) ──
+  const metaItems = useMemo(() => {
+    const grupos = new Map();
+    for (const r of rubricas) {
+      if (r?.ativo === false) continue;
+      const nome = r.grupo || r.meta || '';
+      if (!nome.trim()) continue;
+      if (!grupos.has(nome)) grupos.set(nome, nome);
+    }
+    return Array.from(grupos.keys()).sort().map((nome) => ({
+      value: nome,
+      label: nome,
+    }));
+  }, [rubricas]);
+
   // ── RUBRICAS FILTRADAS ──
-  const filteredRubricItems = React.useMemo(() => {
+  const filteredRubricItems = useMemo(() => {
     const ativas = rubricas.filter((r) => r?.ativo !== false && r?.id);
     if (ativas.length === 0) return [];
 
@@ -1051,14 +1067,14 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
       />
 
       <Dialog open={true} onOpenChange={onClose}>
-        <DialogContent className="!max-w-3xl w-full max-h-[90vh] overflow-x-hidden overflow-y-auto">
+        <DialogContent className="!max-w-3xl w-full max-h-[95vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-lg font-semibold">
             {isEditing ? 'Editar Solicitação' : 'Nova Solicitação'}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
+        <div className="space-y-4 py-2 overflow-y-auto flex-1">
           {/* ── RESUMO DA ANÁLISE UNIFICADA DE DOCUMENTOS ── */}
           {(dadosAnalise || aiAnalisando) && (
             <AnalysisSummary
@@ -1153,7 +1169,7 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
                 Meta
               </label>
 
-              <Select
+              <SearchableSelect
                 value={form.meta_id}
                 onValueChange={(v) => {
                   setField('meta_id', v)
@@ -1163,31 +1179,9 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
                     setField('meta_extra_descricao', '')
                   }
                 }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-
-                <SelectContent>
-                  {/* Metas derivadas das rubricas oficiais ativas */}
-                  {Array.from(new Set(
-                    rubricas
-                      .filter((r) => r?.ativo !== false)
-                      .map((r) => r.grupo || r.meta || '')
-                      .filter(Boolean)
-                  )).sort().map((grupo) => (
-                    <SelectItem key={grupo} value={grupo}>
-                      {grupo}
-                    </SelectItem>
-                  ))}
-
-                  {form.meta_id && !rubricas.some((r) => (r.grupo || r.meta) === form.meta_id) && (
-                    <SelectItem value={form.meta_id}>
-                      {form.meta_id}
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
+                items={metaItems}
+                placeholder="Selecione"
+              />
             </div>
 
             <div className="space-y-1">
@@ -1247,7 +1241,7 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
                 Rubrica
               </label>
 
-              <Select
+              <SearchableSelect
                 value={form.rubrica_id}
                 onValueChange={(v) => {
                   const r = rubricas.find((x) => x.id === v)
@@ -1263,19 +1257,9 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
                     setField('meta_id', r.grupo || r.meta || form.meta_id)
                   }
                 }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-
-                <SelectContent>
-                  {filteredRubricItems.map((r) => (
-                    <SelectItem key={r.id} value={r.id}>
-                      {r.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                items={filteredRubricItems}
+                placeholder="Selecione"
+              />
             </div>
           </div>
 
