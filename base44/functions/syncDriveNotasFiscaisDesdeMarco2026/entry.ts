@@ -246,69 +246,175 @@ async function importAndAnalyze(base44, file) {
     );
 
     if (!downloadRes.ok) {
-      return { success: false, motivo: `Falha no download: HTTP ${downloadRes.status}` };
+      console.error(`Download falhou para ${file.name}: HTTP ${downloadRes.status} ${downloadRes.statusText}`);
+      const errorBody = await downloadRes.text().catch(() => '');
+      console.error(`Detalhes: ${errorBody}`);
+      return { success: false, motivo: `Download Drive falhou: HTTP ${downloadRes.status}` };
     }
 
     const fileBytes = await downloadRes.arrayBuffer();
+    console.log(`Download OK: ${file.name} (${(fileBytes.byteLength / 1024).toFixed(1)} KB)`);
 
     // (2) Upload para Storage Base44
     let fileUrl;
     try {
+      const fileObj = new File([fileBytes], file.name, { type: file.mimeType });
       const uploadResult = await base44.asServiceRole.integrations.Core.UploadFile({
-        file: fileBytes,
+        file: fileObj,
       });
       fileUrl = uploadResult.file_url;
+      console.log(`Upload OK: ${file.name} → ${fileUrl}`);
     } catch (uploadErr) {
-      // Fallback: tentar como string base64
-      console.warn('Upload primário falhou, tentando fallback:', uploadErr.message);
-      const b64 = btoa(String.fromCharCode(...new Uint8Array(fileBytes)));
-      const uploadResult = await base44.asServiceRole.integrations.Core.UploadFile({
-        file: b64,
-      });
-      fileUrl = uploadResult.file_url;
+      console.error(`Upload falhou para ${file.name}:`, uploadErr.message);
+      return { success: false, motivo: `Upload storage falhou: ${uploadErr.message}` };
     }
 
     if (!fileUrl) {
-      return { success: false, motivo: 'Falha no upload para storage' };
+      return { success: false, motivo: 'Falha no upload para storage — URL não retornada' };
     }
 
     // (3) Criar registro em DocumentIntake com ANALISANDO_IA
-    const intake = await base44.asServiceRole.entities.DocumentIntake.create({
-      user_email: SYSTEM_EMAIL,
-      user_name: 'Sistema — Sincronização Drive',
-      tipo_detectado: 'PENDENTE',
-      status_processamento: 'ANALISANDO_IA',
-      arquivo_original_url: fileUrl,
-      file_name_original: file.name,
-      file_name_final: file.name,
-      mime_type: file.mimeType,
-      origem: 'DRIVE_SYNC',
-      resultado_ia: {
-        drive_file_id: file.id,
-        drive_hash: driveHash,
-        drive_folder_path: file._folderPath || '',
-        drive_modified_time: file.modifiedTime,
-        drive_created_time: file.createdTime,
-      },
-    });
+    let intake;
+    try {
+      intake = await base44.asServiceRole.entities.DocumentIntake.create({
+        user_email: SYSTEM_EMAIL,
+        user_name: 'Sistema — Sincronização Drive',
+        tipo_detectado: 'PENDENTE',
+        status_processamento: 'ANALISANDO_IA',
+        arquivo_original_url: fileUrl,
+        file_name_original: file.name,
+        file_name_final: file.name,
+        mime_type: file.mimeType,
+        origem: 'DRIVE_SYNC',
+        resultado_ia: {
+          drive_file_id: file.id,
+          drive_hash: driveHash,
+          drive_folder_path: file._folderPath || '',
+          drive_modified_time: file.modifiedTime,
+          drive_created_time: file.createdTime,
+        },
+      });
+      console.log(`Intake criado: ${intake.id} para ${file.name}`);
+    } catch (createErr) {
+      console.error(`Falha ao criar DocumentIntake para ${file.name}:`, createErr.message);
+      return { success: false, motivo: `Falha ao criar DocumentIntake: ${createErr.message}` };
+    }
 
-    // (4) Chamar processarNotaFiscalComClaude
-    const analiseResult = await base44.asServiceRole.functions.invoke(
-      'processarNotaFiscalComClaude',
-      {
-        intake_id: intake.id,
-        file_url: fileUrl,
-        orientacoes_usuario: 'Documento importado automaticamente do Google Drive. Analise com atenção redobrada.',
-        modelo: 'claude',
-      },
-    );
+    // (4) Análise por IA diretamente (Claude)
+    try {
+      const hoje = new Date().toISOString().slice(0, 10);
+      const iaResp = await base44.asServiceRole.integrations.Core.InvokeLLM({
+        model: 'claude_sonnet_4_6',
+        prompt: `VOCÊ É UM ESPECIALISTA EM DOCUMENTOS FISCAIS para o projeto MUSEUS CENTRO.
+Data atual: ${hoje}. Datas até ${hoje} são VÁLIDAS.
 
-    if (!analiseResult?.data?.ok) {
-      console.warn(`Análise IA falhou para ${file.name}:`, analiseResult?.data?.error);
-      // Marcar como AGUARDANDO_REVISAO mesmo se IA falhou parcialmente
+TOMADOR: Viaduto das Artes, CNPJ 23.843.648/0001-25.
+
+Documento importado automaticamente do Google Drive (pasta: ${file._folderPath || 'raiz'}).
+Leia INTEGRALMENTE e classifique: Nota Fiscal, Recibo, Comprovante, ou Documento Complementar.
+
+Extraia TODOS os dados fiscais disponíveis no JSON:
+{
+  "eh_nota_fiscal": boolean,
+  "eh_documento_complementar": boolean,
+  "tipo_documento_complementar": "RECIBO|COMPROVANTE_PAGAMENTO|DOCUMENTO_COMPLEMENTAR|null",
+  "documento_valido": true,
+  "documento_cancelado": false,
+  "nf_numero": "",
+  "nf_chave_acesso": "",
+  "nf_data_emissao": "",
+  "nf_horario_emissao": "",
+  "nf_valor_total": "",
+  "nf_emitente_nome": "",
+  "nf_emitente_cpf_cnpj": "",
+  "nf_tomador_nome": "",
+  "nf_tomador_cpf_cnpj": "",
+  "descricao_servico": "",
+  "municipio_emissao": "",
+  "competencia": "",
+  "tipo_servico": "",
+  "codigo_servico": "",
+  "aliquota": "",
+  "iss_retido": false,
+  "valor_iss": "",
+  "centro_custo_sugerido": "",
+  "museu_sugerido": "",
+  "categoria_sugerida": "",
+  "rubrica_nome_sugerida": "",
+  "justificativa_rubrica": "",
+  "inconsistencias": [],
+  "avisos": [],
+  "motivo_rejeicao": "",
+  "score_confiabilidade": 0
+}`,
+        file_urls: [fileUrl],
+        response_json_schema: {
+          type: 'object',
+          properties: {
+            eh_nota_fiscal: { type: 'boolean' },
+            eh_documento_complementar: { type: 'boolean' },
+            tipo_documento_complementar: { type: 'string' },
+            documento_valido: { type: 'boolean' },
+            documento_cancelado: { type: 'boolean' },
+            nf_numero: { type: 'string' },
+            nf_chave_acesso: { type: 'string' },
+            nf_data_emissao: { type: 'string' },
+            nf_horario_emissao: { type: 'string' },
+            nf_valor_total: { type: 'string' },
+            nf_emitente_nome: { type: 'string' },
+            nf_emitente_cpf_cnpj: { type: 'string' },
+            nf_tomador_nome: { type: 'string' },
+            nf_tomador_cpf_cnpj: { type: 'string' },
+            descricao_servico: { type: 'string' },
+            municipio_emissao: { type: 'string' },
+            competencia: { type: 'string' },
+            tipo_servico: { type: 'string' },
+            codigo_servico: { type: 'string' },
+            aliquota: { type: 'string' },
+            iss_retido: { type: 'boolean' },
+            valor_iss: { type: 'string' },
+            centro_custo_sugerido: { type: 'string' },
+            museu_sugerido: { type: 'string' },
+            categoria_sugerida: { type: 'string' },
+            rubrica_nome_sugerida: { type: 'string' },
+            justificativa_rubrica: { type: 'string' },
+            inconsistencias: { type: 'array', items: { type: 'string' } },
+            avisos: { type: 'array', items: { type: 'string' } },
+            motivo_rejeicao: { type: 'string' },
+            score_confiabilidade: { type: 'number' },
+          },
+        },
+      });
+
+      const ia = iaResp || {};
+      console.log(`IA OK para ${file.name}: eh_nota_fiscal=${ia.eh_nota_fiscal}, score=${ia.score_confiabilidade}`);
+
+      // Atualizar intake com resultado da IA
+      await base44.asServiceRole.entities.DocumentIntake.update(intake.id, {
+        resultado_ia: {
+          ...intake.resultado_ia,
+          ...ia,
+          drive_file_id: file.id,
+          drive_hash: driveHash,
+          drive_folder_path: file._folderPath || '',
+        },
+        tipo_detectado: ia.eh_nota_fiscal ? 'NOTA_FISCAL_PDF' : 'PENDENTE',
+        nf_numero: safeStr(ia.nf_numero),
+        nf_valor_total: parseValor(ia.nf_valor_total) || null,
+        nf_emitente_nome: safeStr(ia.nf_emitente_nome),
+        nf_emitente_cpf_cnpj: onlyDigits(ia.nf_emitente_cpf_cnpj),
+        municipio: safeStr(ia.municipio_emissao),
+        fornecedor_nome: safeStr(ia.nf_emitente_nome),
+        fornecedor_cpf_cnpj: onlyDigits(ia.nf_emitente_cpf_cnpj),
+        centro_custo: safeStr(ia.centro_custo_sugerido),
+        rubrica_nome_sugerida: safeStr(ia.rubrica_nome_sugerida),
+        erros_validacao: Array.isArray(ia.inconsistencias) ? ia.inconsistencias : [],
+      });
+    } catch (iaErr) {
+      console.error(`IA falhou para ${file.name}:`, iaErr.message);
       await base44.asServiceRole.entities.DocumentIntake.update(intake.id, {
         status_processamento: 'AGUARDANDO_REVISAO',
-        erros_validacao: ['Análise IA retornou com ressalvas. Revisão manual recomendada.'],
+        erros_validacao: [`Erro na análise IA: ${iaErr.message}. Revisão manual necessária.`],
       });
     }
 
