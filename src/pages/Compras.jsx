@@ -345,7 +345,7 @@ function ComprasInner() {
   const [selectedRubrica, setSelectedRubrica] = useState(null);
   const [paymentPurchase, setPaymentPurchase] = useState(null);
   const [recalculando, setRecalculando] = useState(false);
-  const [filters, setFilters] = useState({ status: 'all', meta_id: 'all', search: '', rubrica_id: 'all', inconsistencias: 'all', centro_custo: 'all' });
+  const [filters, setFilters] = useState({ status: 'all', meta_id: 'all', search: '', rubrica_id: 'all', inconsistencias: 'all', centro_custo: 'all', data_inicio: '', data_fim: '' });
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -426,6 +426,17 @@ function ComprasInner() {
     refetchOnWindowFocus: false
   });
 
+  const { data: metas = [] } = useQuery({
+    queryKey: ['project-metas'],
+    queryFn: async () => {
+      const list = await base44.entities.ProjectMeta.list('ordem', 50);
+      return (list || []).filter(m => m.ativo !== false);
+    },
+    enabled: !!currentUser,
+    staleTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false
+  });
+
   const purchasesWithFlags = useMemo(() => {
     return (purchases || []).map((p) => {
       const hasBudgetline = !!getPurchaseBudgetlineId(p);
@@ -470,7 +481,13 @@ function ComprasInner() {
     }
 
     if (!matchMeta) {
-      matchMeta = p.meta_id === filters.meta_id;
+      // Busca por nome da meta no meta_id, meta_extra_descricao ou nome da meta
+      const metaNome = filters.meta_id;
+      const metaNum = metaNome.match(/^(\d+)\s*[-–—]/)?.[1] || '';
+      matchMeta =
+        p.meta_id === metaNome ||
+        (p.meta_extra_descricao && normalizeText(p.meta_extra_descricao).includes(normalizeText(metaNome))) ||
+        (metaNum && p.meta_id === `MC3A-${metaNum}`);
     }
 
     const matchRubrica =
@@ -496,13 +513,26 @@ function ComprasInner() {
       String(p.fornecedor_nome || '').toLowerCase().includes(busca) ||
       String(p.objeto || '').toLowerCase().includes(busca);
 
+    // Filtro por período (data de criação)
+    let matchPeriodo = true;
+    if (filters.data_inicio || filters.data_fim) {
+      const dataCriacao = p.created_date ? new Date(p.created_date) : null;
+      if (!dataCriacao || isNaN(dataCriacao.getTime())) {
+        matchPeriodo = false;
+      } else {
+        if (filters.data_inicio && dataCriacao < new Date(filters.data_inicio + 'T00:00:00')) matchPeriodo = false;
+        if (filters.data_fim && dataCriacao > new Date(filters.data_fim + 'T23:59:59')) matchPeriodo = false;
+      }
+    }
+
     return (
       matchStatus &&
       matchMeta &&
       matchRubrica &&
       matchInconsistencia &&
       matchCentro &&
-      matchSearch
+      matchSearch &&
+      matchPeriodo
     );
   });
 
@@ -1048,6 +1078,39 @@ function ComprasInner() {
                 />
               </div>
 
+              {!isMobile && (
+                <>
+                  <Input
+                    type="date"
+                    className="w-36"
+                    value={filters.data_inicio}
+                    onChange={(e) => setFilters((f) => ({ ...f, data_inicio: e.target.value }))}
+                    placeholder="Data início"
+                  />
+                  <Input
+                    type="date"
+                    className="w-36"
+                    value={filters.data_fim}
+                    onChange={(e) => setFilters((f) => ({ ...f, data_fim: e.target.value }))}
+                    placeholder="Data fim"
+                  />
+                  <Select
+                    value={filters.meta_id}
+                    onValueChange={(v) => setFilters((f) => ({ ...f, meta_id: v }))}
+                  >
+                    <SelectTrigger className="w-56">
+                      <SelectValue placeholder="Meta orçamentária" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas as metas</SelectItem>
+                      {metas.map((m) => (
+                        <SelectItem key={m.id} value={m.nome}>{m.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </>
+              )}
+
               {isMobile ? (
                 <>
                   <NativeSelect
@@ -1079,6 +1142,21 @@ function ComprasInner() {
                           value: r.id,
                           label: r.rubrica || r.nome
                         }))
+                    ]}
+                  />
+
+                  <NativeSelect
+                    value={filters.meta_id}
+                    onValueChange={(v) =>
+                      setFilters((f) => ({ ...f, meta_id: v }))
+                    }
+                    placeholder="Meta"
+                    items={[
+                      { value: 'all', label: 'Todas as metas' },
+                      ...metas.map((m) => ({
+                        value: m.nome,
+                        label: m.nome
+                      }))
                     ]}
                   />
 
