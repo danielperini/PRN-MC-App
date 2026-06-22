@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSmartToast } from '@/lib/useSmartToast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { toast } from 'sonner';
 import {
   Select,
   SelectContent,
@@ -22,6 +23,7 @@ import {
   User,
   FileText,
   AlertTriangle,
+  Scissors,
   Pencil,
   Trash2,
   LinkIcon,
@@ -345,6 +347,7 @@ function ComprasInner() {
   const [selectedRubrica, setSelectedRubrica] = useState(null);
   const [paymentPurchase, setPaymentPurchase] = useState(null);
   const [recalculando, setRecalculando] = useState(false);
+  const [limpandoDuplicatas, setLimpandoDuplicatas] = useState(false);
   const [filters, setFilters] = useState({ status: 'all', meta_id: 'all', search: '', rubrica_id: 'all', inconsistencias: 'all', centro_custo: 'all', data_inicio: '', data_fim: '' });
   const queryClient = useQueryClient();
 
@@ -934,6 +937,33 @@ function ComprasInner() {
     }
   }
 
+  async function limparSolicitacoesDuplicadas() {
+    if (!window.confirm(
+      'ATENÇÃO: Esta ação irá:\n\n' +
+      '1. Identificar solicitações duplicadas (mesmo CNPJ + NF + valor + data)\n' +
+      '2. Manter apenas 1 solicitação por nota fiscal (preferindo aprovadas/pagas)\n' +
+      '3. Remover as demais solicitações duplicadas\n' +
+      '4. Remover anexos duplicados (manter 1 arquivo por solicitação)\n\n' +
+      'Esta ação é irreversível. Deseja continuar?'
+    )) return;
+
+    setLimpandoDuplicatas(true);
+    try {
+      const res = await base44.functions.invoke('removerSolicitacoesDuplicadas', {});
+      const result = res?.data || res;
+      if (result?.success) {
+        toast.success(result.message || 'Limpeza concluída.');
+      } else {
+        toast.error(result?.error || 'Erro ao executar limpeza.');
+      }
+      await refreshFinanceiroCompleto();
+    } catch (err) {
+      toast.error('Erro ao executar limpeza: ' + (err?.message || 'erro desconhecido'));
+    } finally {
+      setLimpandoDuplicatas(false);
+    }
+  }
+
   const isInitialPageLoading =
     userLoading ||
     (!!currentUser &&
@@ -998,6 +1028,18 @@ function ComprasInner() {
           </div>
 
           <div className="flex gap-2">
+            {isCoordenador && (
+              <Button
+                variant="outline"
+                className="gap-2 border-amber-300 text-amber-700 hover:bg-amber-50"
+                onClick={limparSolicitacoesDuplicadas}
+                disabled={limpandoDuplicatas}
+              >
+                <Scissors className="h-4 w-4" />
+                {limpandoDuplicatas ? 'Limpando...' : 'Remover Duplicatas'}
+              </Button>
+            )}
+
             {isCoordenador && (
               <Button
                 variant="outline"
