@@ -174,6 +174,8 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
   const [nfDuplicateResult, setNfDuplicateResult] = useState(null)
   const [nfDuplicateBypass, setNfDuplicateBypass] = useState(false)
   const [checkingNfDuplicate, setCheckingNfDuplicate] = useState(false)
+  const [aiPreenchendo, setAiPreenchendo] = useState(false)
+  const [aiPreenchido, setAiPreenchido] = useState(false)
 
   // Carrega attachments vinculados à solicitação (somente em edição)
   useEffect(() => {
@@ -340,7 +342,90 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
     setReturnComment('')
     setShowReturnInput(false)
     setAttachedFile(null)
+    setAiPreenchido(false)
   }, [prefill, metas])
+
+  // Dispara preenchimento automático via IA quando campos essenciais estão vazios
+  useEffect(() => {
+    if (!prefill?.id) return;
+    if (aiPreenchido || aiPreenchendo) return;
+
+    // Verifica se campos essenciais estão vazios/zero
+    const precisaPreencher =
+      !form.fornecedor_cnpj?.trim() ||
+      !form.fornecedor_nome?.trim() ||
+      form.fornecedor_nome === 'Fornecedor não informado' ||
+      !toNumber(form.valor_solicitado) ||
+      !form.centro_custo?.trim() ||
+      !form.rubrica_id?.trim();
+
+    if (!precisaPreencher) return;
+
+    // Só dispara se houver arquivo vinculado
+    const temArquivo =
+      prefill.nf_pdf_url ||
+      prefill.nota_fiscal_url ||
+      prefill.arquivo_url ||
+      prefill.file_url ||
+      prefill.documento_url ||
+      prefill.orcamento_url ||
+      prefill.intake_id ||
+      prefill.documento_intake_id;
+
+    if (!temArquivo) return;
+
+    setAiPreenchendo(true);
+
+    base44.functions.invoke('preencherFormularioComIA', { purchaseId: prefill.id })
+      .then((res) => {
+        const data = res?.data || res;
+        if (!data?.success) {
+          console.warn('Preenchimento IA:', data?.error || 'sem dados');
+          return;
+        }
+
+        // Recarrega os dados do PurchaseRequest atualizado
+        return base44.entities.PurchaseRequest.get(prefill.id);
+      })
+      .then((updated) => {
+        if (!updated) return;
+        // Atualiza o form com os dados completos
+        const ia = updated.resultado_ia?.preenchimento_auto_ia || {};
+
+        setForm((prev) => ({
+          ...prev,
+          descricao_item: firstFilled(updated.descricao_item, ia.descricao_servico, prev.descricao_item),
+          fornecedor_nome: firstFilled(updated.fornecedor_nome, ia.fornecedor_nome, prev.fornecedor_nome),
+          fornecedor_cnpj: firstFilled(updated.fornecedor_cnpj, updated.fornecedor_cpf_cnpj, ia.fornecedor_cpf_cnpj, prev.fornecedor_cnpj),
+          centro_custo: firstFilled(updated.centro_custo, ia.centro_custo, prev.centro_custo),
+          rubrica_id: firstFilled(updated.rubrica_id, prev.rubrica_id),
+          rubrica_nome: firstFilled(updated.rubrica_nome, ia.rubrica_nome, prev.rubrica_nome),
+          categoria: firstFilled(updated.categoria, ia.categoria, prev.categoria),
+          tipo_gasto: firstFilled(updated.tipo_gasto, ia.tipo_gasto, prev.tipo_gasto),
+          meta_id: firstFilled(updated.meta_id, ia.meta_sugerida, prev.meta_id),
+          valor_solicitado: firstFilled(updated.valor_solicitado, updated.nf_valor_total, ia.nf_valor_total, prev.valor_solicitado),
+          valor_total: firstFilled(updated.valor_total, updated.nf_valor_total, ia.nf_valor_total, prev.valor_total),
+          valor: firstFilled(updated.valor_solicitado, updated.nf_valor_total, prev.valor),
+          meio_pagamento: firstFilled(updated.meio_pagamento, ia.meio_pagamento, prev.meio_pagamento),
+          detalhe_pagamento: firstFilled(updated.detalhe_pagamento, ia.dados_bancarios, ia.chave_pix, prev.detalhe_pagamento),
+          observacoes: firstFilled(updated.observacoes, ia.observacoes, prev.observacoes),
+          nf_numero: firstFilled(updated.nf_numero, ia.nf_numero, prev.nf_numero),
+          nf_data_emissao: firstFilled(updated.nf_data_emissao, ia.nf_data_emissao, prev.nf_data_emissao),
+          nf_valor_total: firstFilled(updated.nf_valor_total, ia.nf_valor_total, prev.nf_valor_total),
+          nf_emitente_nome: firstFilled(updated.nf_emitente_nome, ia.fornecedor_nome, prev.nf_emitente_nome),
+          nf_emitente_cpf_cnpj: firstFilled(updated.nf_emitente_cpf_cnpj, ia.fornecedor_cpf_cnpj, prev.nf_emitente_cpf_cnpj),
+        }));
+
+        smartToast.success('Campos preenchidos automaticamente pela IA. Confira os dados.');
+      })
+      .catch((err) => {
+        console.warn('Erro no preenchimento IA:', err);
+      })
+      .finally(() => {
+        setAiPreenchendo(false);
+        setAiPreenchido(true);
+      });
+  }, [prefill?.id, form.fornecedor_cnpj, form.fornecedor_nome, form.valor_solicitado, form.centro_custo, form.rubrica_id]);
 
   function setField(key, value) {
     setForm((f) => ({ ...f, [key]: value }))
