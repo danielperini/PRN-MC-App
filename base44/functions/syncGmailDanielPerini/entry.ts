@@ -68,8 +68,8 @@ Deno.serve(async (req) => {
     const { accessToken } = await base44.asServiceRole.connectors.getConnection('gmail');
     const authHeader = { Authorization: `Bearer ${accessToken}` };
 
-    // Buscar e-mails recentes não lidos da caixa de entrada
-    const searchQuery = `is:unread has:attachment`;
+    // Buscar e-mails com anexo a partir de março de 2026 (lidos e não lidos)
+    const searchQuery = `has:attachment after:2026/02/28`;
     const listUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(searchQuery)}&maxResults=${maxResults}`;
 
     const listRes = await fetch(listUrl, { headers: authHeader });
@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
     const messages = listData.messages || [];
 
     if (messages.length === 0) {
-      return Response.json({ success: true, mensagem: 'Nenhum e-mail não lido com anexo encontrado.', importados: 0 });
+      return Response.json({ success: true, mensagem: 'Nenhum e-mail com anexo encontrado a partir de março de 2026.', importados: 0 });
     }
 
     const resultados = [];
@@ -198,17 +198,7 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Marcar e-mail como lido após processamento (se não for dry-run e processou algo)
-        if (!dryRun && importados > 0) {
-          await fetch(
-            `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}/modify`,
-            {
-              method: 'POST',
-              headers: { ...authHeader, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ removeLabelIds: ['UNREAD'] }),
-            }
-          ).catch(e => console.error('Erro ao marcar como lido:', e.message));
-        }
+        // Não marcamos como lido — processamos lidos e não lidos
 
       } catch (msgErr) {
         console.error(`Erro processando mensagem ${msg.id}:`, msgErr.message);
