@@ -111,7 +111,7 @@ export default function NFDuplicateBlockAlert({ result, isCoord, onConfirmBypass
 
       {/* Botão de bypass — apenas coordenadores, apenas em alertas não-certeza */}
       {isCoord && !bypassConfirmed && !isBlocking && (
-        <div className="border-t border-amber-200 pt-3">
+        <div className="border-t border-amber-200 pt-3 flex flex-wrap gap-2 items-center">
           <button
             type="button"
             onClick={onConfirmBypass}
@@ -119,6 +119,19 @@ export default function NFDuplicateBlockAlert({ result, isCoord, onConfirmBypass
           >
             Confirmar que não é duplicata e continuar
           </button>
+          {onDeleteDuplicate && result.matches?.some(m => m.source === 'PurchaseRequest' && m.id) && (
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              className="gap-1.5 text-xs"
+              onClick={() => onDeleteDuplicate(result.matches.filter(m => m.source === 'PurchaseRequest' && m.id))}
+              disabled={deletingDuplicate}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              {deletingDuplicate ? 'Removendo...' : 'Remover duplicata'}
+            </Button>
+          )}
         </div>
       )}
 
