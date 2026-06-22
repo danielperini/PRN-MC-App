@@ -409,20 +409,30 @@ export default function EntradaUnica() {
     setLoadingIntakes(true);
     setIntakesLoadError(false);
 
-    // Timeout de segurança: se o filter travar, libera a tela
-    const safetyTimer = setTimeout(() => {
-      setLoadingIntakes(false);
-      setIntakesLoadError(true);
-    }, 15000);
-
     try {
-      const list = await base44.entities.DocumentIntake.filter(
-        { user_email: user.email, status_registro: 'ATIVO' },
-        '-created_date',
-        50
-      );
+      // Tenta filter com timeout de 10s via Promise.race
+      let list = null;
+      try {
+        list = await Promise.race([
+          base44.entities.DocumentIntake.filter(
+            { user_email: user.email, status_registro: 'ATIVO' },
+            '-created_date',
+            50
+          ),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('FILTER_TIMEOUT')), 10000)),
+        ]);
+      } catch (filterErr) {
+        console.warn('Filter falhou/timeout, usando list() como fallback:', filterErr?.message);
+        list = null;
+      }
 
-      clearTimeout(safetyTimer);
+      // Fallback: se filter falhou, usa list() e filtra no cliente
+      if (!list || list.length === 0) {
+        const all = await base44.entities.DocumentIntake.list('-created_date', 200);
+        list = (all || []).filter(
+          (d) => d.user_email === user.email && d.status_registro !== 'REMOVIDO'
+        ).slice(0, 50);
+      }
 
       // Correções e vinculações em background — sem bloquear nem re-buscar
       corrigirTravados(list || []).catch(() => {});
@@ -452,11 +462,9 @@ export default function EntradaUnica() {
 
       setIntakes(filtrados);
     } catch (e) {
-      console.error(e);
-      clearTimeout(safetyTimer);
+      console.error('loadIntakes fatal:', e);
       setIntakesLoadError(true);
     } finally {
-      clearTimeout(safetyTimer);
       setLoadingIntakes(false);
     }
   }, [user, corrigirTravados, tentarVincularLista]);
@@ -791,18 +799,66 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
 
     setSyncGmailLoading(true);
     try {
-      const res = await base44.functions.invoke('syncGmailDanielPerini', {
-        maxResults: 20,
-        dryRun: false,
-      });
+      // 1. Primeiro contar — cria o job e mostra resumo
+      const countRes = await base44.functions.invoke('syncGmailBlocos', { action: 'contar' });
+      const countData = countRes?.data || {};
 
-      const data = res?.data || {};
-      if (data.success) {
-        toast.success(data.mensagem || `Sincronização concluída: ${data.importados || 0} importados.`);
-        await loadIntakes();
-      } else {
-        toast.error(data.error || 'Erro na sincronização de e-mails.');
+      if (!countData.success) {
+        toast.error(countData.error || 'Erro ao iniciar contagem de e-mails.');
+        setSyncGmailLoading(false);
+        return;
       }
+
+      const { job, resumo } = countData;
+      const total = resumo?.total_arquivos_validos || 0;
+      const jaSync = resumo?.total_ja_sincronizados || 0;
+      const pendentes = resumo?.total_pendentes || 0;
+
+      if (pendentes === 0) {
+        toast.success(`Nenhum novo e-mail pendente. ${jaSync} já sincronizados de ${total} encontrados.`);
+        setSyncGmailLoading(false);
+        return;
+      }
+
+      toast.info(`Encontrados ${total} arquivos em e-mails (${jaSync} já sincronizados). Processando ${pendentes} pendentes em blocos de ${resumo?.tamanho_bloco || 25}...`);
+
+      // 2. Processar todos os blocos sequencialmente
+      let continuar = true;
+      let blocos = 0;
+
+      while (continuar) {
+        const procRes = await base44.functions.invoke('syncGmailBlocos', { action: 'processar_todos' });
+        const procData = procRes?.data || {};
+
+        if (!procData.success) {
+          toast.warning(`Bloco ${blocos + 1}: ${procData.error || 'erro ao processar'}`);
+          break;
+        }
+
+        blocos++;
+        continuar = procData.continuar === true;
+
+        // Usa os acumulados do job (sempre reflete o total até agora)
+        const j = procData.job || {};
+        const restantes = j.remaining_count ?? '?';
+
+        if (continuar) {
+          toast.info(`Bloco ${blocos} de ${j.total_batches || '?'} concluído — ${restantes} restantes.`);
+        } else {
+          // Último bloco — pega os totais finais do job
+          const criados = j.created_count || 0;
+          const dups = j.duplicate_count || 0;
+          const erros = j.error_count || 0;
+
+          if (erros > 0) {
+            toast.warning(`Concluído: ${criados} importados, ${dups} duplicados, ${erros} erros.`);
+          } else {
+            toast.success(`Concluído! ${criados} documentos importados, ${dups} duplicados ignorados.`);
+          }
+        }
+      }
+
+      await loadIntakes();
     } catch (e) {
       console.error('Erro ao sincronizar Gmail:', e);
       toast.error('Erro ao executar sincronização de e-mails: ' + (e?.message || e));
