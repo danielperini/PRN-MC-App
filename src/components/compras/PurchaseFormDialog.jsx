@@ -562,14 +562,16 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
     setApproving(true)
 
     try {
-      // Salva metadados da aprovação primeiro
-      await base44.entities.PurchaseRequest.update(prefill.id, {
-        ...buildPayload('APROVADO_COORD'),
-        aprov_coord_nome: currentUser?.full_name || currentUser?.email,
-        aprov_coord_data: new Date().toISOString().split('T')[0]
-      })
+      // ATUALIZA primeiro os campos do formulário (se houve edição)
+      if (form.descricao_item !== prefill?.descricao_item ||
+          form.fornecedor_nome !== prefill?.fornecedor_nome ||
+          form.rubrica_id !== prefill?.rubrica_id ||
+          form.centro_custo !== prefill?.centro_custo ||
+          form.meta_id !== prefill?.meta_id) {
+        await base44.entities.PurchaseRequest.update(prefill.id, buildPayload(prefill?.status))
+      }
 
-      // Usa purchaseActions para aprovar — trata troca de rubrica corretamente
+      // Usa purchaseActions para aprovar — backend faz TUDO: débito, status, backup, auditoria
       const novaRubricaId = form.rubrica_id !== prefill?.rubrica_id ? form.rubrica_id : undefined
       const approveRes = await base44.functions.invoke('purchaseActions', {
         action: 'aprovar',
@@ -580,11 +582,18 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
         bypass_duplicate_check: nfDuplicateBypass,
       })
 
+      const result = approveRes?.data || approveRes
+
       // Backend pode ter retornado 409 por duplicidade
-      if (approveRes?.data?.blocked_by_duplicate) {
-        setNfDuplicateResult(approveRes.data.duplicate)
+      if (result?.blocked_by_duplicate) {
+        setNfDuplicateResult(result.duplicate)
+        setApproving(false)
         smartToast.error('Aprovação bloqueada: nota fiscal possivelmente duplicada.')
         return
+      }
+
+      if (!result?.success) {
+        throw new Error(result?.error || 'Falha ao aprovar no backend.')
       }
 
       await notifyPurchaseApproved({
@@ -592,10 +601,11 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
         ...buildPayload('APROVADO_COORD'),
         status: 'APROVADO_COORD',
       }, currentUser).catch((error) => {
-        console.warn('Falha ao notificar aprovação de compra:', error)
+        console.warn('Falha ao notificar aprovação:', error)
       })
 
-      smartToast.success('Solicitação aprovada.')
+      const rubricaInfo = form.rubrica_nome || prefill?.rubrica_nome || ''
+      smartToast.success(`✅ Solicitação aprovada!${rubricaInfo ? ` Valor debitado da rubrica "${rubricaInfo}".` : ''} Backup no Drive iniciado.`)
       onSuccess?.()
     } catch (err) {
       // Checar se o erro é de duplicidade (409)
@@ -604,6 +614,8 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
       } else {
         smartToast.error('Erro ao aprovar', err.message)
       }
+      setApproving(false)
+      return
     } finally {
       setApproving(false)
     }

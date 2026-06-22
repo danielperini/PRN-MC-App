@@ -12,6 +12,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import ConformidadeBadge from '@/components/compras/ConformidadeBadge';
+import { isStatusPendente, isStatusFinalizado } from '@/lib/normalizeStatus';
 
 function toNumber(v) {
   return Number(v || 0);
@@ -27,10 +28,6 @@ function parseJSON(str, fb = []) {
   } catch {
     return fb;
   }
-}
-
-function normalizeStatus(value) {
-  return String(value || '').trim().toUpperCase();
 }
 
 function getValorPurchase(p) {
@@ -82,9 +79,19 @@ export default function AprovacoesFila({
     hasGestaoCompras === true ||
     podeAprovarSolicitacoes === true;
 
+  // Usa normalização canônica: inclui SOLICITADO, PENDENTE, EM_ANALISE, etc.
   const pendentes = (purchases || []).filter(
-    (p) => normalizeStatus(p?.status) === 'SOLICITADO'
+    (p) => isStatusPendente(p?.status) || (
+      // Também inclui registros sem status explícito mas que têm dados de entrada
+      !p?.status && (p?.documento_intake_id || p?.intake_id || p?.origem === 'EntradaUnica')
+    )
   );
+
+  const totalEncontrado = (purchases || []).length;
+  const totalPendentes = pendentes.length;
+  const totalComErro = (purchases || []).filter(
+    (p) => p?.status && !isStatusPendente(p.status) && !isStatusFinalizado(p.status)
+  ).length;
 
   useEffect(() => {
     let active = true;
@@ -262,14 +269,26 @@ export default function AprovacoesFila({
 
   if (pendentes.length === 0) {
     return (
-      <div className="rounded-xl border bg-white p-8 text-center text-gray-400">
-        Nenhuma solicitação pendente de aprovação
+      <div className="rounded-xl border bg-white p-8 text-center space-y-2">
+        <p className="text-gray-400">Nenhuma solicitação pendente de aprovação</p>
+        <p className="text-xs text-gray-300">
+          {totalEncontrado} solicitaç{totalEncontrado !== 1 ? 'ões' : 'ão'} encontrada{totalEncontrado !== 1 ? 's' : ''} no total
+          {totalComErro > 0 && ` • ${totalComErro} com erro de vínculo`}
+        </p>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between text-sm">
+        <span className="text-gray-600">
+          <strong className="text-gray-900">{totalPendentes}</strong> pendente{totalPendentes !== 1 ? 's' : ''} de <strong className="text-gray-900">{totalEncontrado}</strong> solicitaç{totalEncontrado !== 1 ? 'ões' : 'ão'}
+        </span>
+        {totalComErro > 0 && (
+          <span className="text-red-500 text-xs">{totalComErro} com erro de vínculo</span>
+        )}
+      </div>
       {pendentes.map((p) => {
         const tp = teamPayments[p.id];
         const duvidas = parseJSON(tp?.conformidade_duvidas, []);

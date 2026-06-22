@@ -51,6 +51,7 @@ import PagarSolicitacaoDialog from '@/components/compras/PagarSolicitacaoDialog'
 import NovaRubricaDialog from '@/components/rubricas/NovaRubricaDialog';
 import TotaisAditivoCards from '@/components/compras/TotaisAditivoCards';
 import { canManageRubricas } from '@/components/auth/permissions';
+import { normalizeStatus, isStatusPendente, isStatusAprovado, getStatusLabel, getStatusColor } from '@/lib/normalizeStatus';
 
 const STATUS_CONFIG = {
   RASCUNHO: { label: 'Rascunho', color: 'bg-gray-100 text-gray-700' },
@@ -76,8 +77,6 @@ function fmtBRL(v) {
   if (!v && v !== 0) return '—';
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
 }
-
-function normalizeStatus(value) { return String(value || '').trim().toUpperCase(); }
 
 function normalizeCentro(value) {
   const raw = String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();

@@ -1,0 +1,148 @@
+{
+  "name": "EmailSyncJob",
+  "type": "object",
+  "properties": {
+    "account": {
+      "type": "string",
+      "description": "Email da conta sincronizada (ex: danielperini@...)"
+    },
+    "provider": {
+      "type": "string",
+      "enum": [
+        "gmail"
+      ],
+      "default": "gmail",
+      "description": "Provedor de email"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "CONTANDO",
+        "AGUARDANDO_CONFIRMACAO",
+        "PROCESSANDO",
+        "PAUSADO",
+        "CONCLUIDO",
+        "CONCLUIDO_COM_ERROS",
+        "FALHOU"
+      ],
+      "default": "CONTANDO",
+      "description": "Estado atual da sincroniza\u00e7\u00e3o"
+    },
+    "total_messages": {
+      "type": "number",
+      "default": 0,
+      "description": "Total de mensagens encontradas"
+    },
+    "total_attachments": {
+      "type": "number",
+      "default": 0,
+      "description": "Total de anexos encontrados"
+    },
+    "total_valid_files": {
+      "type": "number",
+      "default": 0,
+      "description": "Total de ficheiros v\u00e1lidos para processamento"
+    },
+    "total_already_synced": {
+      "type": "number",
+      "default": 0,
+      "description": "Total j\u00e1 sincronizados anteriormente"
+    },
+    "total_pending": {
+      "type": "number",
+      "default": 0,
+      "description": "Total pendentes de sincroniza\u00e7\u00e3o"
+    },
+    "batch_size": {
+      "type": "number",
+      "default": 25,
+      "description": "Tamanho do bloco de processamento"
+    },
+    "total_batches": {
+      "type": "number",
+      "default": 0,
+      "description": "N\u00famero total de blocos calculados"
+    },
+    "current_batch": {
+      "type": "number",
+      "default": 0,
+      "description": "Bloco atual em processamento"
+    },
+    "processed_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Total de ficheiros processados"
+    },
+    "created_count": {
+      "type": "number",
+      "default": 0,
+      "description": "DocumentIntake criados"
+    },
+    "updated_count": {
+      "type": "number",
+      "default": 0,
+      "description": "DocumentIntake atualizados"
+    },
+    "duplicate_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Ficheiros duplicados detectados"
+    },
+    "ignored_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Ficheiros ignorados (formato inv\u00e1lido, assinatura, etc)"
+    },
+    "error_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Ficheiros com erro"
+    },
+    "remaining_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Ficheiros restantes para processar"
+    },
+    "last_cursor": {
+      "type": "string",
+      "description": "\u00daltimo messageId Gmail processado com sucesso"
+    },
+    "last_attachment_id": {
+      "type": "string",
+      "description": "\u00daltimo attachmentId processado com sucesso"
+    },
+    "correlation_id": {
+      "type": "string",
+      "description": "ID de correla\u00e7\u00e3o \u00fanico para esta sess\u00e3o"
+    },
+    "percent_complete": {
+      "type": "number",
+      "default": 0,
+      "description": "Percentagem conclu\u00edda (0-100)"
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "In\u00edcio da sincroniza\u00e7\u00e3o"
+    },
+    "finished_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Fim da sincroniza\u00e7\u00e3o"
+    },
+    "last_error": {
+      "type": "string",
+      "description": "\u00daltimo erro registado"
+    },
+    "errors_detail": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "Detalhes dos erros por ficheiro"
+    }
+  },
+  "required": [
+    "account"
+  ]
+}
