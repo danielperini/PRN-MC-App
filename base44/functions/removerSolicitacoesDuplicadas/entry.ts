@@ -8,7 +8,7 @@ function toNumber(v) {
 }
 
 function getPurchaseValue(p) {
-  return toNumber(p?.valor_pago) || toNumber(p?.valor_aprovado_admin) || toNumber(p?.valor_aprovado) || toNumber(p?.valor_solicitado) || toNumber(p?.valor_total) || 0;
+  return toNumber(p?.valor_pago) || toNumber(p?.valor_aprovado_admin) || toNumber(p?.valor_aprovado) || toNumber(p?.valor_solicitado) || toNumber(p?.valor_total) || toNumber(p?.nf_valor_total) || 0;
 }
 
 function getNFNumber(p) {
@@ -24,13 +24,29 @@ function getCNPJ(p) {
   return onlyDigits(p?.fornecedor_cnpj || p?.fornecedor_cpf_cnpj || p?.nf_emitente_cpf_cnpj || '');
 }
 
-function buildFiscalKey(p) {
-  const cnpj = getCNPJ(p);
-  const nf = getNFNumber(p);
-  const valor = getPurchaseValue(p);
-  const data = getNFDate(p);
-  if (cnpj && nf && valor > 0) return `${cnpj}|${nf}|${valor.toFixed(2)}|${data}`;
-  return null;
+/**
+ * Conta quantos dos 3 campos (CNPJ, valor, data) são idênticos entre duas PurchaseRequests.
+ * Retorna um número de 0 a 3.
+ */
+function matchCount(a, b) {
+  let count = 0;
+
+  // CNPJ
+  const cnpjA = getCNPJ(a);
+  const cnpjB = getCNPJ(b);
+  if (cnpjA && cnpjB && cnpjA === cnpjB) count++;
+
+  // Valor (arredondado para 2 casas)
+  const valA = Math.round(getPurchaseValue(a) * 100) / 100;
+  const valB = Math.round(getPurchaseValue(b) * 100) / 100;
+  if (valA > 0 && valB > 0 && valA === valB) count++;
+
+  // Data de emissão
+  const dataA = getNFDate(a);
+  const dataB = getNFDate(b);
+  if (dataA && dataB && dataA === dataB) count++;
+
+  return count;
 }
 
 const STATUS_PRIORITY = {
@@ -68,43 +84,60 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, message: 'Nenhuma solicitação encontrada.', removidas: 0, mantidas: 0 });
     }
 
-    // 2. Agrupar por chave fiscal
-    const groups = {};
+    // 2. Agrupar por nf_numero (ignorar vazios)
+    const byNF = {};
     for (const p of all) {
-      const key = buildFiscalKey(p);
-      if (!key) continue;
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(p);
+      const nf = getNFNumber(p);
+      if (!nf) continue;
+      if (!byNF[nf]) byNF[nf] = [];
+      byNF[nf].push(p);
     }
 
-    // 3. Para cada grupo com >1, decidir qual manter
+    // 3. Dentro de cada grupo com >1, aplicar regra:
+    //    nf_numero idêntico + pelo menos 2 de 3 (CNPJ, valor, data) batem → duplicata
     const toDelete = [];
     const toKeep = [];
-    const stats = { totalGrupos: 0, totalRemovidas: 0, totalMantidas: 0, gruposComMultiplos: 0 };
+    const stats = { totalGruposNF: 0, totalRemovidas: 0, totalMantidas: 0, gruposComDuplicatas: 0 };
 
-    for (const [key, items] of Object.entries(groups)) {
-      if (items.length <= 1) continue;
-      stats.gruposComMultiplos++;
-      stats.totalGrupos++;
+    for (const [nf, grupo] of Object.entries(byNF)) {
+      if (grupo.length < 2) continue;
+
+      stats.totalGruposNF++;
 
       // Ordenar: maior prioridade de status primeiro; empate: mais antigo primeiro
-      items.sort((a, b) => {
+      grupo.sort((a, b) => {
         const pa = getStatusPriority(a);
         const pb = getStatusPriority(b);
-        if (pa !== pb) return pb - pa; // maior prioridade primeiro
-        return new Date(a.created_date || 0) - new Date(b.created_date || 0); // mais antigo primeiro
+        if (pa !== pb) return pb - pa;
+        return new Date(a.created_date || 0) - new Date(b.created_date || 0);
       });
 
-      const keeper = items[0]; // melhor status ou mais antigo
-      const dupes = items.slice(1);
-
+      const keeper = grupo[0];
       toKeep.push(keeper.id);
-      for (const d of dupes) {
-        toDelete.push(d.id);
+
+      let hasDupes = false;
+
+      for (let i = 1; i < grupo.length; i++) {
+        const candidate = grupo[i];
+        const matches = matchCount(keeper, candidate);
+
+        // Regra: nf_numero já é idêntico (agrupamento), + pelo menos 2 dos 3 batem
+        if (matches >= 2) {
+          toDelete.push(candidate.id);
+          hasDupes = true;
+        } else {
+          // Não bateu o suficiente — mantém também
+          toKeep.push(candidate.id);
+        }
       }
-      stats.totalMantidas++;
-      stats.totalRemovidas += dupes.length;
+
+      if (hasDupes) {
+        stats.gruposComDuplicatas++;
+      }
     }
+
+    stats.totalRemovidas = toDelete.length;
+    stats.totalMantidas = toKeep.length;
 
     if (toDelete.length === 0) {
       return Response.json({
@@ -119,22 +152,13 @@ Deno.serve(async (req) => {
     // 4. Deletar as duplicatas em lotes
     let deleted = 0;
     let errors = 0;
-    const errorIds = [];
 
-    for (let i = 0; i < toDelete.length; i += 25) {
-      const batch = toDelete.slice(i, i + 25);
-      for (const id of batch) {
-        try {
-          await base44.asServiceRole.entities.PurchaseRequest.delete(id);
-          deleted++;
-        } catch (e) {
-          errors++;
-          errorIds.push(id);
-        }
-      }
-      // Pequena pausa entre lotes
-      if (i + 25 < toDelete.length) {
-        await new Promise((r) => setTimeout(r, 300));
+    for (const id of toDelete) {
+      try {
+        await base44.asServiceRole.entities.PurchaseRequest.delete(id);
+        deleted++;
+      } catch (e) {
+        errors++;
       }
     }
 
@@ -152,7 +176,6 @@ Deno.serve(async (req) => {
 
       for (const [pid, atts] of Object.entries(attachByPurchase)) {
         if (atts.length <= 1) continue;
-        // Manter o mais antigo
         atts.sort((a, b) => new Date(a.created_date || 0) - new Date(b.created_date || 0));
         const extras = atts.slice(1);
         for (const a of extras) {
@@ -166,7 +189,7 @@ Deno.serve(async (req) => {
 
     return Response.json({
       success: true,
-      message: `Limpeza concluída: ${deleted} solicitações duplicadas removidas, ${toKeep.length} mantidas. ${errors > 0 ? `${errors} erros.` : ''} ${attachRemoved} anexos duplicados removidos.`,
+      message: `Limpeza concluída: ${deleted} duplicatas removidas, ${toKeep.length} mantidas. ${errors > 0 ? `${errors} erros.` : ''} ${attachRemoved} anexos duplicados removidos.`,
       removidas: deleted,
       mantidas: all.length - deleted,
       erros: errors,

@@ -148,6 +148,18 @@ Deno.serve(async (req) => {
         confidence = 'PROVAVEL';
         motivo = `Mesmo CNPJ (${cnpj}) e número NF (${numero})`;
       }
+      // Regra 2b: Número NF idêntico + pelo menos 2 de 3 (CNPJ, valor, data) batem
+      else if (numero && pNum && numero === pNum) {
+        let matchCount = 0;
+        const fields = [];
+        if (cnpj && pCnpj && cnpj === pCnpj) { matchCount++; fields.push(`CNPJ ${cnpj}`); }
+        if (valor > 0 && Math.abs(valor - pValor) < 0.02) { matchCount++; fields.push(`valor R$ ${valor.toFixed(2)}`); }
+        if (dataEmissao && pData && dataEmissao === pData) { matchCount++; fields.push(`data ${dataEmissao}`); }
+        if (matchCount >= 2) {
+          confidence = 'PROVAVEL';
+          motivo = `Mesmo número NF (${numero}) + ${fields.join(' e ')}`;
+        }
+      }
       // Regra 3: CNPJ + valor + data iguais
       else if (
         cnpj && pCnpj && cnpj === pCnpj &&
@@ -189,6 +201,16 @@ Deno.serve(async (req) => {
       if (cnpj && iCnpj && cnpj === iCnpj && numero && iNum && numero === iNum) {
         confidence = 'PROVAVEL';
         motivo = `Mesmo CNPJ (${cnpj}) e número NF (${numero}) no intake`;
+      } else if (numero && iNum && numero === iNum) {
+        // Regra 2b para intakes: mesmo NF + pelo menos 1 de 2 (CNPJ ou valor)
+        let matchCount = 0;
+        const fields = [];
+        if (cnpj && iCnpj && cnpj === iCnpj) { matchCount++; fields.push(`CNPJ ${cnpj}`); }
+        if (valor > 0 && Math.abs(valor - iValor) < 0.02) { matchCount++; fields.push(`valor R$ ${valor.toFixed(2)}`); }
+        if (matchCount >= 1) {
+          confidence = 'PROVAVEL';
+          motivo = `Mesmo número NF (${numero}) + ${fields.join(' e ')} no intake`;
+        }
       } else if (
         cnpj && iCnpj && cnpj === iCnpj &&
         valor > 0 && Math.abs(valor - iValor) < 0.02
