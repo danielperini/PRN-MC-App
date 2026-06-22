@@ -61,8 +61,28 @@ export default function AnalysisSummary({ dadosAnalise, analisando, onReanalisar
   if (!dadosAnalise?.campos || !Object.keys(dadosAnalise.campos).length) return null;
 
   const { campos, resumo, erros } = dadosAnalise;
-  const entries = Object.entries(campos).filter(([, c]) => c?.valor);
+
+  // Só mostra campos que precisam de atenção: sugestões, baixa confiança ou erros
+  const entries = Object.entries(campos).filter(([, c]) => {
+    if (!c?.valor) return false;
+    const conf = c.confianca || 0;
+    // Confiança alta (>90%) + origem XML (extração exata) = ok, não mostra
+    if (conf >= 90 && (c.origem === 'xml' || c.origem === 'cadastro')) return false;
+    return true;
+  });
   const total = entries.length + (resumo?.nao_localizados || 0);
+
+  // Se todos os campos estão com confiança alta e sem alertas, mostra resumo compacto
+  if (entries.length === 0 && !(erros?.length > 0)) {
+    return (
+      <div className="rounded-xl border border-green-200 bg-green-50 p-3 flex items-center gap-2">
+        <CheckCircle2 className="h-4 w-4 text-green-500" />
+        <span className="text-sm text-green-700 font-medium">
+          Todos os campos analisados com alta confiança. Nenhum ajuste necessário.
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">

@@ -958,6 +958,22 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          {/* ── RESUMO DA ANÁLISE UNIFICADA DE DOCUMENTOS ── */}
+          {(dadosAnalise || aiAnalisando) && (
+            <AnalysisSummary
+              dadosAnalise={dadosAnalise}
+              analisando={aiAnalisando}
+              fieldStates={fieldStates}
+              onReanalisar={() => {
+                setAiPreenchido(false);
+                reanalisarDocumentos({
+                  fileUrls: [],
+                  contexto: { ...form, ...prefill },
+                });
+              }}
+            />
+          )}
+
           {isEditing && prefill?.status && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-500">
@@ -1012,22 +1028,6 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
               isCoord={isCoordenador}
               bypassConfirmed={nfDuplicateBypass}
               onConfirmBypass={() => setNfDuplicateBypass(true)}
-            />
-          )}
-
-          {/* ── RESUMO DA ANÁLISE UNIFICADA DE DOCUMENTOS ── */}
-          {(dadosAnalise || aiAnalisando) && (
-            <AnalysisSummary
-              dadosAnalise={dadosAnalise}
-              analisando={aiAnalisando}
-              fieldStates={fieldStates}
-              onReanalisar={() => {
-                setAiPreenchido(false);
-                reanalisarDocumentos({
-                  fileUrls: [],
-                  contexto: { ...form, ...prefill },
-                });
-              }}
             />
           )}
 
@@ -1166,38 +1166,49 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
                 </SelectTrigger>
 
                 <SelectContent>
-                  {/* Rubrica já salva: sempre aparece, mesmo que não passe nos filtros */}
-                  {form.rubrica_id && !rubricas
-                    .filter((r) => r?.ativo !== false)
-                    .filter((r) => !form.meta_id || (r.grupo || r.meta) === form.meta_id)
-                    .filter((r) => !form.centro_custo || (() => {
-                      const cc = String(form.centro_custo || '').toUpperCase().replace('MAB', 'MHAB');
-                      const rc = String(r.museu_codigo || '').toUpperCase().replace('MAB', 'MHAB');
-                      if (cc === 'NOTURNO NOS MUSEUS 2026') return r.escopo_orcamentario === 'NOTURNO';
-                      if (['MIS','MUMO','MHAB'].includes(cc)) return rc === cc;
-                      return true;
-                    })())
-                    .some((r) => r.id === form.rubrica_id) && (
-                    <SelectItem value={form.rubrica_id}>
-                      {form.rubrica_nome || rubricas.find((r) => r.id === form.rubrica_id)?.rubrica || form.rubrica_id}
-                    </SelectItem>
-                  )}
+                  {(() => {
+                    const rubricasAtivas = rubricas.filter((r) => r?.ativo !== false);
 
-                  {rubricas
-                    .filter((r) => r?.ativo !== false)
-                    .filter((r) => !form.meta_id || (r.grupo || r.meta) === form.meta_id)
-                    .filter((r) => !form.centro_custo || (() => {
+                    const filtraMeta = (r) => {
+                      if (!form.meta_id) return true;
+                      const metaRubrica = (r.grupo || r.meta || '').toLowerCase().trim();
+                      const metaForm = form.meta_id.toLowerCase().trim();
+                      return metaRubrica === metaForm || metaRubrica.includes(metaForm) || metaForm.includes(metaRubrica);
+                    };
+
+                    const filtraCentro = (r) => {
+                      if (!form.centro_custo) return true;
                       const cc = String(form.centro_custo || '').toUpperCase().replace('MAB', 'MHAB');
                       const rc = String(r.museu_codigo || '').toUpperCase().replace('MAB', 'MHAB');
                       if (cc === 'NOTURNO NOS MUSEUS 2026') return r.escopo_orcamentario === 'NOTURNO';
                       if (['MIS','MUMO','MHAB'].includes(cc)) return rc === cc;
                       return true;
-                    })())
-                    .map((r) => (
-                      <SelectItem key={r.id} value={r.id}>
-                        {r.rubrica || r.nome}
-                      </SelectItem>
-                    ))}
+                    };
+
+                    const filtradas = rubricasAtivas.filter(filtraMeta).filter(filtraCentro);
+
+                    // Se o filtro esvaziou a lista, mostra todas (fallback)
+                    const lista = filtradas.length > 0 ? filtradas : rubricasAtivas;
+
+                    // Rubrica atual sempre visível, mesmo fora dos filtros
+                    const rubricaAtual = form.rubrica_id ? rubricasAtivas.find((r) => r.id === form.rubrica_id) : null;
+                    const rubricaAtualNaLista = rubricaAtual && lista.some((r) => r.id === form.rubrica_id);
+
+                    return (
+                      <>
+                        {rubricaAtual && !rubricaAtualNaLista && (
+                          <SelectItem value={form.rubrica_id}>
+                            ⚠ {form.rubrica_nome || rubricaAtual.rubrica || rubricaAtual.nome || form.rubrica_id}
+                          </SelectItem>
+                        )}
+                        {lista.map((r) => (
+                          <SelectItem key={r.id} value={r.id}>
+                            {r.rubrica || r.nome}
+                          </SelectItem>
+                        ))}
+                      </>
+                    );
+                  })()}
                 </SelectContent>
               </Select>
             </div>
