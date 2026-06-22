@@ -3,8 +3,9 @@
  *
  * Critérios de duplicidade (em ordem de prioridade):
  *   1. Mesma chave de acesso XML (44 dígitos) — certeza absoluta
- *   2. Mesmo CNPJ/CPF emitente + mesmo número NF — duplicidade provável
- *   3. Mesmo fornecedor + valor + data de emissão — possível duplicidade
+ *   2. Mesmo CNPJ/CPF emitente + mesmo número NF + mesma data de emissão — duplicidade provável
+ *   3. Mesmo número NF + pelo menos 2 de 3 (CNPJ, valor, data) — duplicidade provável
+ *   4. Mesmo CNPJ + valor + data de emissão — possível duplicidade
  *
  * Retorna:
  *   { isDuplicate: bool, confidence: 'CERTEZA'|'PROVAVEL'|'POSSIVEL', motivo, matches: [] }
@@ -143,10 +144,10 @@ Deno.serve(async (req) => {
         confidence = 'CERTEZA';
         motivo = `Chave de acesso XML idêntica: ${chave}`;
       }
-      // Regra 2: CNPJ + número NF iguais
-      else if (cnpj && pCnpj && cnpj === pCnpj && numero && pNum && numero === pNum) {
+      // Regra 2: CNPJ + número NF + data emissão iguais
+      else if (cnpj && pCnpj && cnpj === pCnpj && numero && pNum && numero === pNum && dataEmissao && pData && dataEmissao === pData) {
         confidence = 'PROVAVEL';
-        motivo = `Mesmo CNPJ (${cnpj}) e número NF (${numero})`;
+        motivo = `Mesmo CNPJ (${cnpj}), número NF (${numero}) e data de emissão (${dataEmissao})`;
       }
       // Regra 2b: Número NF idêntico + pelo menos 2 de 3 (CNPJ, valor, data) batem
       else if (numero && pNum && numero === pNum) {
@@ -194,22 +195,27 @@ Deno.serve(async (req) => {
       const iCnpj = onlyDigits(intake.nf_emitente_cpf_cnpj || '');
       const iNum = safeStr(intake.nf_numero);
       const iValor = parseValor(intake.nf_valor_total || 0);
+      const iData = safeStr(intake.nf_data_emissao || '');
 
       let confidence = null;
       let motivo = null;
 
-      if (cnpj && iCnpj && cnpj === iCnpj && numero && iNum && numero === iNum) {
+      if (cnpj && iCnpj && cnpj === iCnpj && numero && iNum && numero === iNum && dataEmissao && iData && dataEmissao === iData) {
         confidence = 'PROVAVEL';
-        motivo = `Mesmo CNPJ (${cnpj}) e número NF (${numero}) no intake`;
+        motivo = `Mesmo CNPJ (${cnpj}), número NF (${numero}) e data de emissão (${dataEmissao}) no intake`;
       } else if (numero && iNum && numero === iNum) {
-        // Regra 2b para intakes: mesmo NF + pelo menos 1 de 2 (CNPJ ou valor)
+        // Regra 2b para intakes: mesmo NF + pelo menos 2 de 3 (CNPJ, valor, data)
         let matchCount = 0;
         const fields = [];
         if (cnpj && iCnpj && cnpj === iCnpj) { matchCount++; fields.push(`CNPJ ${cnpj}`); }
         if (valor > 0 && Math.abs(valor - iValor) < 0.02) { matchCount++; fields.push(`valor R$ ${valor.toFixed(2)}`); }
-        if (matchCount >= 1) {
+        if (dataEmissao && iData && dataEmissao === iData) { matchCount++; fields.push(`data ${dataEmissao}`); }
+        if (matchCount >= 2) {
           confidence = 'PROVAVEL';
           motivo = `Mesmo número NF (${numero}) + ${fields.join(' e ')} no intake`;
+        } else if (matchCount === 1) {
+          confidence = 'POSSIVEL';
+          motivo = `Mesmo número NF (${numero}) + ${fields.join(' e ')} no intake (dados insuficientes)`;
         }
       } else if (
         cnpj && iCnpj && cnpj === iCnpj &&
