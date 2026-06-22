@@ -21,7 +21,8 @@ import {
   Clock3,
   CheckCircle2,
   RefreshCw,
-  HardDrive
+  HardDrive,
+  Mail
 } from 'lucide-react';
 import RestaurarRelatoriosDrive from '@/components/entrada/RestaurarRelatoriosDrive';
 import ImportarPacoteRelatorios from '@/components/entrada/ImportarPacoteRelatorios';
@@ -251,6 +252,7 @@ export default function EntradaUnica() {
   const [linkXmlIntake, setLinkXmlIntake] = useState(null);
   const [linkArquivoIntake, setLinkArquivoIntake] = useState(null);
   const [syncLoading, setSyncLoading] = useState(false);
+  const [syncGmailLoading, setSyncGmailLoading] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -771,6 +773,34 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
     }
   }
 
+  async function handleSyncGmail() {
+    if (!user || user.role !== 'admin') {
+      toast.error('Função exclusiva da coordenação geral.');
+      return;
+    }
+
+    setSyncGmailLoading(true);
+    try {
+      const res = await base44.functions.invoke('syncGmailDanielPerini', {
+        maxResults: 20,
+        dryRun: false,
+      });
+
+      const data = res?.data || {};
+      if (data.success) {
+        toast.success(data.mensagem || `Sincronização concluída: ${data.importados || 0} importados.`);
+        await loadIntakes();
+      } else {
+        toast.error(data.error || 'Erro na sincronização de e-mails.');
+      }
+    } catch (e) {
+      console.error('Erro ao sincronizar Gmail:', e);
+      toast.error('Erro ao executar sincronização de e-mails: ' + (e?.message || e));
+    } finally {
+      setSyncGmailLoading(false);
+    }
+  }
+
   async function handleLinkXml(xmlIntake) {
     setLinkXmlIntake(xmlIntake);
   }
@@ -1137,23 +1167,42 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
                 </div>
 
                 {user?.role === 'admin' && (
-                  <button
-                    onClick={handleSyncDrive}
-                    disabled={syncLoading}
-                    className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm hover:bg-gray-50 transition disabled:opacity-60"
-                  >
-                    {syncLoading ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
-                    ) : (
-                      <HardDrive className="w-4 h-4 text-gray-700" />
-                    )}
-                    <div className="text-left">
-                      <p className="text-xs font-semibold text-gray-700">
-                        {syncLoading ? 'Sincronizando...' : 'Sincronizar Drive'}
-                      </p>
-                      <p className="text-[10px] text-gray-400">Coordenação Geral</p>
-                    </div>
-                  </button>
+                  <>
+                    <button
+                      onClick={handleSyncDrive}
+                      disabled={syncLoading}
+                      className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm hover:bg-gray-50 transition disabled:opacity-60"
+                    >
+                      {syncLoading ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
+                      ) : (
+                        <HardDrive className="w-4 h-4 text-gray-700" />
+                      )}
+                      <div className="text-left">
+                        <p className="text-xs font-semibold text-gray-700">
+                          {syncLoading ? 'Sincronizando...' : 'Sincronizar Drive'}
+                        </p>
+                        <p className="text-[10px] text-gray-400">Coordenação Geral</p>
+                      </div>
+                    </button>
+                    <button
+                      onClick={handleSyncGmail}
+                      disabled={syncGmailLoading}
+                      className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm hover:bg-gray-50 transition disabled:opacity-60"
+                    >
+                      {syncGmailLoading ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
+                      ) : (
+                        <Mail className="w-4 h-4 text-gray-700" />
+                      )}
+                      <div className="text-left">
+                        <p className="text-xs font-semibold text-gray-700">
+                          {syncGmailLoading ? 'Lendo e-mails...' : 'Ler e-mails Daniel'}
+                        </p>
+                        <p className="text-[10px] text-gray-400">Coordenação Geral</p>
+                      </div>
+                    </button>
+                  </>
                 )}
               </div>
             </div>
