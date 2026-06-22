@@ -1,15 +1,17 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { base44 } from '@/api/base44Client'
-import { CheckCircle2, RotateCcw, Trash2, Paperclip, X, FileText, Upload, ExternalLink, FolderOpen, AlertTriangle, ShieldAlert } from 'lucide-react'
+import { CheckCircle2, RotateCcw, Trash2, Paperclip, X, FileText, Upload, ExternalLink, FolderOpen, AlertTriangle, ShieldAlert, Sparkles } from 'lucide-react'
 import { useSmartToast } from '@/lib/useSmartToast'
 import { findDuplicatePurchaseRequest } from '@/lib/purchaseDuplicateGuard'
 import DuplicatePurchaseDetectedModal from './DuplicatePurchaseDetectedModal'
 import NFDuplicateBlockAlert from './NFDuplicateBlockAlert'
+import AnalysisSummary from './AnalysisSummary'
+import useDocumentAnalysis from '@/hooks/useDocumentAnalysis'
 import { notifyPurchaseApproved, notifyPurchaseCreated, notifyPurchaseReturned } from '@/services/notifications/purchaseNotifications'
 
 const CENTROS = ['MUMO','MIS','MHAB','Noturno nos Museus 2026','Noturno Pampulha','Publicações','Geral']
@@ -174,8 +176,18 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
   const [nfDuplicateResult, setNfDuplicateResult] = useState(null)
   const [nfDuplicateBypass, setNfDuplicateBypass] = useState(false)
   const [checkingNfDuplicate, setCheckingNfDuplicate] = useState(false)
-  const [aiPreenchendo, setAiPreenchendo] = useState(false)
   const [aiPreenchido, setAiPreenchido] = useState(false)
+
+  // Hook unificado de análise de documentos
+  const {
+    analisando: aiAnalisando,
+    dadosAnalise,
+    fieldStates,
+    analisar: analisarDocumentos,
+    confirmarCampo,
+    marcarManual,
+    reanalisar: reanalisarDocumentos,
+  } = useDocumentAnalysis()
 
   // Carrega attachments vinculados à solicitação (somente em edição)
   useEffect(() => {
@@ -345,12 +357,104 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
     setAiPreenchido(false)
   }, [prefill, metas])
 
-  // Dispara preenchimento automático via IA quando campos essenciais estão vazios
+  // ── ANÁLISE UNIFICADA DE DOCUMENTOS ──
+  const triggerAnalise = useCallback(async () => {
+    if (aiPreenchido || aiAnalisando) return;
+    setAiPreenchido(true);
+
+    const dados = await analisarDocumentos({
+      fileUrls: [],
+      contexto: { ...form, ...prefill },
+    });
+
+    if (!dados?.campos) return;
+
+    // Auto-preencher campos com alta confiança (>= 85%)
+    setForm((prev) => {
+      const next = { ...prev };
+      for (const [key, campo] of Object.entries(dados.campos)) {
+        if (!campo?.valor) continue;
+        if ((campo.confianca || 0) < 85 && campo.estado !== 'preenchido_ia') continue;
+
+        const val = campo.valor;
+        switch (key) {
+          case 'fornecedor_nome':
+            if (!prev.fornecedor_nome?.trim() || prev.fornecedor_nome === 'Fornecedor não informado')
+              next.fornecedor_nome = String(val);
+            break;
+          case 'fornecedor_cpf_cnpj':
+            if (!prev.fornecedor_cnpj?.trim())
+              next.fornecedor_cnpj = String(val);
+            break;
+          case 'nf_numero':
+            if (!prev.nf_numero) next.nf_numero = String(val);
+            break;
+          case 'nf_valor_total':
+            if (!toNumber(prev.valor_solicitado)) {
+              const v = typeof val === 'number' ? val : toNumber(val);
+              next.valor_solicitado = v;
+              next.valor_total = v;
+              next.valor = v;
+              next.nf_valor_total = v;
+            }
+            break;
+          case 'nf_data_emissao':
+            if (!prev.nf_data_emissao) next.nf_data_emissao = String(val).slice(0, 10);
+            break;
+          case 'descricao_servico':
+            if (!prev.descricao_item?.trim() || prev.descricao_item === 'Fornecedor não informado')
+              next.descricao_item = String(val);
+            break;
+          case 'centro_custo':
+            if (!prev.centro_custo?.trim())
+              next.centro_custo = String(val);
+            break;
+          case 'categoria':
+            if (!prev.categoria?.trim())
+              next.categoria = String(val);
+            break;
+          case 'tipo_gasto':
+            if (!prev.tipo_gasto?.trim())
+              next.tipo_gasto = String(val);
+            break;
+          case 'rubrica':
+            if (!prev.rubrica_id && val?.id) {
+              next.rubrica_id = val.id;
+              next.rubrica_nome = val.nome || '';
+            }
+            break;
+          case 'meta':
+            if (!prev.meta_id?.trim())
+              next.meta_id = String(val);
+            break;
+          case 'meio_pagamento':
+            if (!prev.meio_pagamento?.trim())
+              next.meio_pagamento = String(val);
+            break;
+          case 'dados_bancarios':
+            if (!prev.detalhe_pagamento?.trim())
+              next.detalhe_pagamento = String(val);
+            break;
+          case 'chave_pix':
+            if (!prev.detalhe_pagamento?.trim())
+              next.detalhe_pagamento = String(val);
+            break;
+          case 'observacoes':
+            if (!prev.observacoes?.trim())
+              next.observacoes = String(val);
+            break;
+        }
+      }
+      return next;
+    });
+
+    smartToast.success(`${dados.resumo?.preenchidos || 0} campos preenchidos, ${dados.resumo?.sugeridos || 0} sugeridos para confirmação.`);
+  }, [prefill?.id, aiPreenchido, aiAnalisando, form, analisarDocumentos]);
+
   useEffect(() => {
     if (!prefill?.id) return;
-    if (aiPreenchido || aiPreenchendo) return;
+    if (aiPreenchido || aiAnalisando) return;
 
-    // Verifica se campos essenciais estão vazios/zero
     const precisaPreencher =
       !form.fornecedor_cnpj?.trim() ||
       !form.fornecedor_nome?.trim() ||
@@ -361,7 +465,6 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
 
     if (!precisaPreencher) return;
 
-    // Só dispara se houver arquivo vinculado
     const temArquivo =
       prefill.nf_pdf_url ||
       prefill.nota_fiscal_url ||
@@ -374,61 +477,12 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
 
     if (!temArquivo) return;
 
-    setAiPreenchendo(true);
-
-    base44.functions.invoke('preencherFormularioComIA', { purchaseId: prefill.id })
-      .then((res) => {
-        const data = res?.data || res;
-        if (!data?.success) {
-          console.warn('Preenchimento IA:', data?.error || 'sem dados');
-          return;
-        }
-
-        // Recarrega os dados do PurchaseRequest atualizado
-        return base44.entities.PurchaseRequest.get(prefill.id);
-      })
-      .then((updated) => {
-        if (!updated) return;
-        // Atualiza o form com os dados completos
-        const ia = updated.resultado_ia?.preenchimento_auto_ia || {};
-
-        setForm((prev) => ({
-          ...prev,
-          descricao_item: firstFilled(updated.descricao_item, ia.descricao_servico, prev.descricao_item),
-          fornecedor_nome: firstFilled(updated.fornecedor_nome, ia.fornecedor_nome, prev.fornecedor_nome),
-          fornecedor_cnpj: firstFilled(updated.fornecedor_cnpj, updated.fornecedor_cpf_cnpj, ia.fornecedor_cpf_cnpj, prev.fornecedor_cnpj),
-          centro_custo: firstFilled(updated.centro_custo, ia.centro_custo, prev.centro_custo),
-          rubrica_id: firstFilled(updated.rubrica_id, prev.rubrica_id),
-          rubrica_nome: firstFilled(updated.rubrica_nome, ia.rubrica_nome, prev.rubrica_nome),
-          categoria: firstFilled(updated.categoria, ia.categoria, prev.categoria),
-          tipo_gasto: firstFilled(updated.tipo_gasto, ia.tipo_gasto, prev.tipo_gasto),
-          meta_id: firstFilled(updated.meta_id, ia.meta_sugerida, prev.meta_id),
-          valor_solicitado: firstFilled(updated.valor_solicitado, updated.nf_valor_total, ia.nf_valor_total, prev.valor_solicitado),
-          valor_total: firstFilled(updated.valor_total, updated.nf_valor_total, ia.nf_valor_total, prev.valor_total),
-          valor: firstFilled(updated.valor_solicitado, updated.nf_valor_total, prev.valor),
-          meio_pagamento: firstFilled(updated.meio_pagamento, ia.meio_pagamento, prev.meio_pagamento),
-          detalhe_pagamento: firstFilled(updated.detalhe_pagamento, ia.dados_bancarios, ia.chave_pix, prev.detalhe_pagamento),
-          observacoes: firstFilled(updated.observacoes, ia.observacoes, prev.observacoes),
-          nf_numero: firstFilled(updated.nf_numero, ia.nf_numero, prev.nf_numero),
-          nf_data_emissao: firstFilled(updated.nf_data_emissao, ia.nf_data_emissao, prev.nf_data_emissao),
-          nf_valor_total: firstFilled(updated.nf_valor_total, ia.nf_valor_total, prev.nf_valor_total),
-          nf_emitente_nome: firstFilled(updated.nf_emitente_nome, ia.fornecedor_nome, prev.nf_emitente_nome),
-          nf_emitente_cpf_cnpj: firstFilled(updated.nf_emitente_cpf_cnpj, ia.fornecedor_cpf_cnpj, prev.nf_emitente_cpf_cnpj),
-        }));
-
-        smartToast.success('Campos preenchidos automaticamente pela IA. Confira os dados.');
-      })
-      .catch((err) => {
-        console.warn('Erro no preenchimento IA:', err);
-      })
-      .finally(() => {
-        setAiPreenchendo(false);
-        setAiPreenchido(true);
-      });
+    triggerAnalise();
   }, [prefill?.id, form.fornecedor_cnpj, form.fornecedor_nome, form.valor_solicitado, form.centro_custo, form.rubrica_id]);
 
   function setField(key, value) {
     setForm((f) => ({ ...f, [key]: value }))
+    marcarManual(key)
   }
 
   function buildPayload(statusOverride = null) {
@@ -935,6 +989,22 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
             />
           )}
 
+          {/* ── RESUMO DA ANÁLISE UNIFICADA DE DOCUMENTOS ── */}
+          {(dadosAnalise || aiAnalisando) && (
+            <AnalysisSummary
+              dadosAnalise={dadosAnalise}
+              analisando={aiAnalisando}
+              fieldStates={fieldStates}
+              onReanalisar={() => {
+                setAiPreenchido(false);
+                reanalisarDocumentos({
+                  fileUrls: [],
+                  contexto: { ...form, ...prefill },
+                });
+              }}
+            />
+          )}
+
           <div className="space-y-1">
             <label className="text-sm font-medium text-gray-700">
               Descrição do item *
@@ -1317,6 +1387,40 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
               </div>
             )
           })()}
+
+          {/* ── BOTÕES DE IA ── */}
+          {(prefill?.id || attachedFile) && (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="gap-1.5 border-blue-200 text-blue-600 hover:bg-blue-50 text-xs"
+                onClick={() => {
+                  setAiPreenchido(false);
+                  reanalisarDocumentos({
+                    fileUrls: [],
+                    contexto: { ...form, ...prefill },
+                  });
+                }}
+                disabled={aiAnalisando}
+              >
+                <Sparkles className="h-3 w-3" />
+                {aiAnalisando ? 'Analisando...' : 'Reanalisar documentos'}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="gap-1.5 border-amber-200 text-amber-600 hover:bg-amber-50 text-xs"
+                onClick={triggerAnalise}
+                disabled={aiAnalisando}
+              >
+                <CheckCircle2 className="h-3 w-3" />
+                Preencher campos em falta
+              </Button>
+            </div>
+          )}
 
           <div className="space-y-2 rounded-xl border border-gray-100 bg-gray-50/50 p-3">
             <label className="text-sm font-medium text-gray-700">
