@@ -409,12 +409,20 @@ export default function EntradaUnica() {
     setLoadingIntakes(true);
     setIntakesLoadError(false);
 
+    // Timeout de segurança: se o filter travar, libera a tela
+    const safetyTimer = setTimeout(() => {
+      setLoadingIntakes(false);
+      setIntakesLoadError(true);
+    }, 15000);
+
     try {
       const list = await base44.entities.DocumentIntake.filter(
         { user_email: user.email, status_registro: 'ATIVO' },
         '-created_date',
-        100
+        50
       );
+
+      clearTimeout(safetyTimer);
 
       // Correções e vinculações em background — sem bloquear nem re-buscar
       corrigirTravados(list || []).catch(() => {});
@@ -445,8 +453,10 @@ export default function EntradaUnica() {
       setIntakes(filtrados);
     } catch (e) {
       console.error(e);
+      clearTimeout(safetyTimer);
       setIntakesLoadError(true);
     } finally {
+      clearTimeout(safetyTimer);
       setLoadingIntakes(false);
     }
   }, [user, corrigirTravados, tentarVincularLista]);

@@ -145,25 +145,29 @@ export default function DocumentIntakeCard({ intake, allIntakes, onReview, onDel
     if (!cnpj || valor <= 0 || !nfNumero) return;
 
     let mounted = true;
-    base44.entities.PurchaseRequest.filter({ fornecedor_cpf_cnpj: cnpj }, '-created_date', 20)
-      .then((list) => {
-        if (!mounted) return;
-        const duplicadas = (list || []).filter((pr) => {
-          if (pr.entidade_destino_id === intake.id || pr.intake_id === intake.id || pr.documento_intake_id === intake.id) return false;
-          const valorPR = Number(pr.valor_solicitado || pr.valor_total || pr.valor || 0);
-          const nfPR = String(pr.nf_numero || '').replace(/\D/g, '');
-          const dataPR = String(pr.nf_data_emissao || '').trim();
-          return (
-            valorPR > 0 && Math.abs(valorPR - valor) < 0.02 &&
-            nfPR === nfNumero &&
-            nfData && dataPR && nfData === dataPR
-          );
-        });
-        setPrDuplicatas(duplicadas);
-      })
-      .catch(() => {});
+    // Delay escalonado para evitar sobrecarga de chamadas simultâneas
+    const timer = setTimeout(() => {
+      if (!mounted) return;
+      base44.entities.PurchaseRequest.filter({ fornecedor_cpf_cnpj: cnpj }, '-created_date', 20)
+        .then((list) => {
+          if (!mounted) return;
+          const duplicadas = (list || []).filter((pr) => {
+            if (pr.entidade_destino_id === intake.id || pr.intake_id === intake.id || pr.documento_intake_id === intake.id) return false;
+            const valorPR = Number(pr.valor_solicitado || pr.valor_total || pr.valor || 0);
+            const nfPR = String(pr.nf_numero || '').replace(/\D/g, '');
+            const dataPR = String(pr.nf_data_emissao || '').trim();
+            return (
+              valorPR > 0 && Math.abs(valorPR - valor) < 0.02 &&
+              nfPR === nfNumero &&
+              nfData && dataPR && nfData === dataPR
+            );
+          });
+          setPrDuplicatas(duplicadas);
+        })
+        .catch(() => {});
+    }, 100);
 
-    return () => { mounted = false; };
+    return () => { mounted = false; clearTimeout(timer); };
   }, [intake.id, intake.nf_emitente_cpf_cnpj, intake.fornecedor_cpf_cnpj]);
 
   const status = STATUS_CONFIG[intake.status_processamento] || STATUS_CONFIG.ENVIADO;
