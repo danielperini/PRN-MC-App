@@ -549,6 +549,11 @@ function ComprasInner() {
       return;
     }
 
+    if (!purchase?.meta_id?.trim()) {
+      smartToast.error('Não é possível aprovar sem meta orçamentária definida.');
+      return;
+    }
+
     const jaDebitado = !!purchase.rubrica_debitada_em || !!purchase.financeiro_lancado_em;
     const chaveFiscal = getChaveFiscal(purchase);
 

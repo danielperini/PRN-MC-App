@@ -586,6 +586,26 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
       return
     }
 
+    if (!form.rubrica_id?.trim()) {
+      smartToast.error('Selecione uma rubrica antes de salvar.')
+      return
+    }
+
+    if (!form.meta_id?.trim()) {
+      smartToast.error('Selecione uma meta orçamentária antes de salvar.')
+      return
+    }
+
+    if (!form.centro_custo?.trim()) {
+      smartToast.error('Selecione um centro de custo antes de salvar.')
+      return
+    }
+
+    if (!form.fornecedor_nome?.trim() || form.fornecedor_nome === 'Fornecedor não informado') {
+      smartToast.error('Informe o nome do fornecedor antes de salvar.')
+      return
+    }
+
     // Validar duplicidade apenas ao criar nova solicitação
     if (!isEditing && !ignoreDuplicate) {
       try {
@@ -678,6 +698,12 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
     const rubricaId = form.rubrica_id || prefill?.rubrica_id
     if (!rubricaId) {
       smartToast.error('Vincule uma rubrica antes de aprovar.')
+      return
+    }
+
+    const metaId = form.meta_id || prefill?.meta_id
+    if (!metaId?.trim()) {
+      smartToast.error('Selecione uma meta orçamentária antes de aprovar.')
       return
     }
 

@@ -165,6 +165,11 @@ export default function TeamPaymentSubmit({ userEmail }) {
       return;
     }
 
+    if (!effectiveMember.rubrica_id?.trim()) {
+      toast.error('Este membro da equipe não possui rubrica vinculada. Vincule uma rubrica antes de enviar o pagamento.');
+      return;
+    }
+
     try {
 
       const payload = {
