@@ -27,7 +27,8 @@ async function parseXmlRaw(url) {
       nf_emitente_cpf_cnpj: onlyDigits(tag(/<CNPJ[^>]*>(\d+)<\/CNPJ>/i) || tag(/<CPF[^>]*>(\d+)<\/CPF>/i)),
       nf_emitente_nome: tag(/<xNome[^>]*>([^<]+)<\/xNome>/i) || tag(/<RazaoSocial[^>]*>([^<]+)<\/RazaoSocial>/i),
       nf_numero: onlyDigits(tag(/<nNF[^>]*>(\d+)<\/nNF>/i) || tag(/<Numero[^>]*>(\d+)<\/Numero>/i) || tag(/<nNfse[^>]*>(\d+)<\/nNfse>/i)),
-      nf_valor_total: parseValorBR(tag(/<vNF[^>]*>([\d.,]+)<\/vNF>/i) || tag(/<ValorTotal[^>]*>([\d.,]+)<\/ValorTotal>/i) || tag(/<vLiquidoNfse[^>]*>([\d.,]+)<\/vLiquidoNfse>/i)),
+      nf_valor_total: parseValorBR(tag(/<vNF[^>]*>([\d.,]+)<\/vNF>/i) || tag(/<ValorTotal[^>]*>([\d.,]+)<\/ValorTotal>/i)),
+      nf_valor_liquido: parseValorBR(tag(/<vLiquidoNfse[^>]*>([\d.,]+)<\/vLiquidoNfse>/i) || tag(/<vLiq[^>]*>([\d.,]+)<\/vLiq>/i) || tag(/<vLiquido[^>]*>([\d.,]+)<\/vLiquido>/i) || tag(/<ValorLiquido[^>]*>([\d.,]+)<\/ValorLiquido>/i)),
       nf_data_emissao: (tag(/<dhEmi[^>]*>(\d{4}-\d{2}-\d{2})/i) || tag(/<dEmi[^>]*>(\d{4}-\d{2}-\d{2})/i) || tag(/<DataEmissao[^>]*>(\d{4}-\d{2}-\d{2})/i)).slice(0,10),
       nf_chave_acesso: tag(/<chNFe[^>]*>(\d{44})<\/chNFe>/i) || tag(/<ChaveAcesso[^>]*>(\d+)<\/ChaveAcesso>/i),
       competencia: tag(/<Competencia[^>]*>([^<]+)<\/Competencia>/i),
@@ -202,6 +203,7 @@ Deno.serve(async (req) => {
           campo('fornecedor_nome', xmlRaw.nf_emitente_nome);
           campo('nf_numero', xmlRaw.nf_numero);
           campo('nf_valor_total', xmlRaw.nf_valor_total);
+          campo('nf_valor_liquido', xmlRaw.nf_valor_liquido);
           campo('nf_data_emissao', xmlRaw.nf_data_emissao);
           campo('nf_chave_acesso', xmlRaw.nf_chave_acesso);
           campo('dados_bancarios', xmlRaw.dados_bancarios?.trim());
@@ -225,6 +227,7 @@ Deno.serve(async (req) => {
           INSTRUÇÕES CRÍTICAS:
           - Leia TODAS as páginas de cada PDF. Não pule nenhuma página.
           - Se houver XML e PDF, PREFIRA os dados do XML (é a fonte oficial).
+          - Se houver COMPROVANTE DE PAGAMENTO / RECIBO, extraia dele o VALOR LÍQUIDO efetivamente pago (campo nf_valor_liquido). Este valor pode ser menor que o valor total da NF devido a retenções.
           - Extraia TODOS os campos, mesmo que parcialmente visíveis.
           - NÃO DEIXE CAMPOS EM BRANCO se o dado existir no documento.
           - Para dados bancários, procure em TODAS as páginas: banco, agência, conta, PIX.
@@ -291,8 +294,23 @@ Deno.serve(async (req) => {
         merge('municipio', ia.municipio, dadosXML.municipio);
         merge('contrato_numero', ia.contrato_numero);
         merge('museu_identificado', ia.museu_identificado);
-        merge('nf_valor_liquido', ia.nf_valor_liquido);
-        merge('nf_retencoes', ia.nf_retencoes);
+        // Valor líquido: prioridade = XML (vLiquidoNfse) > IA > diferença (total - retenções)
+        if (!resultado.campos.nf_valor_liquido && !campos_confirmados.nf_valor_liquido) {
+          const liqXML = dadosXML.nf_valor_liquido;
+          const liqIA = ia.nf_valor_liquido;
+          const retencoes = ia.nf_retencoes || 0;
+          const total = dadosXML.nf_valor_total || ia.nf_valor_total || 0;
+          if (liqXML) {
+            resultado.campos.nf_valor_liquido = { valor: liqXML, origem: 'xml', confianca: CONFIANCA('xml'), estado: 'preenchido_ia' };
+          } else if (liqIA) {
+            resultado.campos.nf_valor_liquido = { valor: liqIA, origem: 'ia_pdf', confianca: CONFIANCA('ia_pdf'), estado: 'preenchido_ia' };
+          } else if (total && retencoes) {
+            resultado.campos.nf_valor_liquido = { valor: total - retencoes, origem: 'complementar', confianca: CONFIANCA('complementar'), estado: 'sugerido_ia' };
+          }
+        }
+        if (!resultado.campos.nf_retencoes && ia.nf_retencoes && !campos_confirmados.nf_retencoes) {
+          resultado.campos.nf_retencoes = { valor: ia.nf_retencoes, origem: 'ia_pdf', confianca: CONFIANCA('ia_pdf'), estado: 'preenchido_ia' };
+        }
       } catch (e) {
         resultado.erros.push(`Análise IA falhou: ${e.message}`);
       }

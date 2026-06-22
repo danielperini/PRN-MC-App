@@ -389,7 +389,20 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
           case 'nf_numero':
             if (!prev.nf_numero) next.nf_numero = String(val);
             break;
+          case 'nf_valor_liquido':
+            // Valor líquido do recibo/XML tem PRIORIDADE sobre valor total
+            if (!toNumber(prev.valor_solicitado) || (campo.confianca || 0) >= 80) {
+              const v = typeof val === 'number' ? val : toNumber(val);
+              if (v > 0) {
+                next.valor_solicitado = v;
+                next.valor_total = v;
+                next.valor = v;
+                next.nf_valor_total = v;
+              }
+            }
+            break;
           case 'nf_valor_total':
+            // Só preenche com valor total se o líquido não foi definido
             if (!toNumber(prev.valor_solicitado)) {
               const v = typeof val === 'number' ? val : toNumber(val);
               next.valor_solicitado = v;
