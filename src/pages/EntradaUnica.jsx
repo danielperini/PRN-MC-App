@@ -22,7 +22,8 @@ import {
   CheckCircle2,
   RefreshCw,
   HardDrive,
-  Mail
+  Mail,
+  Link2
 } from 'lucide-react';
 import RestaurarRelatoriosDrive from '@/components/entrada/RestaurarRelatoriosDrive';
 import ImportarPacoteRelatorios from '@/components/entrada/ImportarPacoteRelatorios';
@@ -253,6 +254,7 @@ export default function EntradaUnica() {
   const [linkArquivoIntake, setLinkArquivoIntake] = useState(null);
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncGmailLoading, setSyncGmailLoading] = useState(false);
+  const [autoVinculoLoading, setAutoVinculoLoading] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -434,9 +436,11 @@ export default function EntradaUnica() {
         ).slice(0, 50);
       }
 
-      // Correções e vinculações em background — sem bloquear nem re-buscar
+      // Correções e vinculações em background — via backend
       corrigirTravados(list || []).catch(() => {});
       tentarVincularLista(list || []).catch(() => {});
+      // Também dispara vinculação backend (não bloqueia)
+      base44.functions.invoke('vincularDocumentosAutomatico', { dryRun: false }).catch(() => {});
 
       const filtrados = (list || []).filter((i) => {
         const status = String(i.status_processamento || '').toUpperCase();
@@ -959,6 +963,30 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
     }
   }
 
+  async function handleAutoVinculo() {
+    if (!user || user.role !== 'admin') {
+      toast.error('Função exclusiva da coordenação geral.');
+      return;
+    }
+    setAutoVinculoLoading(true);
+    try {
+      const res = await base44.functions.invoke('vincularDocumentosAutomatico', { dryRun: false });
+      const data = res?.data || {};
+      if (data.vinculos_xml_criados || data.vinculos_recibo_criados || data.duplicatas_excluidas) {
+        toast.success(
+          `Vinculação concluída: ${data.vinculos_xml_criados || 0} XML, ${data.vinculos_recibo_criados || 0} recibos, ${data.duplicatas_excluidas || 0} duplicatas removidas.`
+        );
+        await loadIntakes();
+      } else {
+        toast.info('Nenhum novo vínculo encontrado. Tudo já está vinculado.');
+      }
+    } catch (e) {
+      toast.error('Erro ao vincular documentos: ' + (e?.message || e));
+    } finally {
+      setAutoVinculoLoading(false);
+    }
+  }
+
   async function handleConfirmLinkXml(xmlIntake, pdfIntake) {
     try {
       await base44.entities.DocumentIntake.update(pdfIntake.id, {
@@ -1234,6 +1262,23 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
 
                 {user?.role === 'admin' && (
                   <>
+                    <button
+                      onClick={handleAutoVinculo}
+                      disabled={autoVinculoLoading}
+                      className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm hover:bg-gray-50 transition disabled:opacity-60"
+                    >
+                      {autoVinculoLoading ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
+                      ) : (
+                        <Link2 className="w-4 h-4 text-gray-700" />
+                      )}
+                      <div className="text-left">
+                        <p className="text-xs font-semibold text-gray-700">
+                          {autoVinculoLoading ? 'Vinculando...' : 'Vincular docs'}
+                        </p>
+                        <p className="text-[10px] text-gray-400">XML + Recibos + Dups</p>
+                      </div>
+                    </button>
                     <button
                       onClick={handleSyncDrive}
                       disabled={syncLoading}
