@@ -517,6 +517,9 @@ Deno.serve(async (req) => {
       if (!user) {
         return Response.json({ ok: false, error: 'Não autenticado' }, { status: 401 });
       }
+      if (user.role !== 'admin') {
+        return Response.json({ ok: false, error: 'Função exclusiva da coordenação geral' }, { status: 403 });
+      }
     }
 
     const body = await req.json().catch(() => ({}));

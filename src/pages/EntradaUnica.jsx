@@ -19,7 +19,9 @@ import {
   FileText,
   ShieldCheck,
   Clock3,
-  CheckCircle2
+  CheckCircle2,
+  RefreshCw,
+  HardDrive
 } from 'lucide-react';
 import RestaurarRelatoriosDrive from '@/components/entrada/RestaurarRelatoriosDrive';
 import ImportarPacoteRelatorios from '@/components/entrada/ImportarPacoteRelatorios';
@@ -248,6 +250,7 @@ export default function EntradaUnica() {
   const [reviewIntake, setReviewIntake] = useState(null);
   const [linkXmlIntake, setLinkXmlIntake] = useState(null);
   const [linkArquivoIntake, setLinkArquivoIntake] = useState(null);
+  const [syncLoading, setSyncLoading] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -737,6 +740,37 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
     }
   }
 
+  async function handleSyncDrive() {
+    if (!user || user.role !== 'admin') {
+      toast.error('Função exclusiva da coordenação geral.');
+      return;
+    }
+
+    setSyncLoading(true);
+    try {
+      const res = await base44.functions.invoke('syncDriveNotasFiscaisDesdeMarco2026', {
+        dryRun: false,
+        maxFiles: 50,
+        triggeredBy: 'manual',
+      });
+
+      const data = res?.data || {};
+      if (data.success) {
+        toast.success(
+          `Sincronização concluída: ${data.importados || 0} importados, ${data.ignorados || 0} ignorados, ${data.duplicados || 0} duplicados${data.tem_mais ? ' (há mais arquivos)' : ''}.`
+        );
+        await loadIntakes();
+      } else {
+        toast.error(data.error || 'Erro na sincronização.');
+      }
+    } catch (e) {
+      console.error('Erro ao sincronizar Drive:', e);
+      toast.error('Erro ao executar sincronização: ' + (e?.message || e));
+    } finally {
+      setSyncLoading(false);
+    }
+  }
+
   async function handleLinkXml(xmlIntake) {
     setLinkXmlIntake(xmlIntake);
   }
@@ -1060,45 +1094,67 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2 w-full sm:w-auto">
-                <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
-                  <p className="text-[11px] uppercase tracking-wide font-semibold text-gray-500">
-                    Pendentes
-                  </p>
-                  <p className="text-2xl font-bold text-black mt-1">
-                    {intakes.length}
-                  </p>
+              <div className="flex items-start gap-3 flex-wrap">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
+                    <p className="text-[11px] uppercase tracking-wide font-semibold text-gray-500">
+                      Pendentes
+                    </p>
+                    <p className="text-2xl font-bold text-black mt-1">
+                      {intakes.length}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
+                    <p className="text-[11px] uppercase tracking-wide font-semibold text-gray-500">
+                      IA
+                    </p>
+                    <p className="text-2xl font-bold text-black mt-1">
+                      {
+                        intakes.filter(
+                          (i) =>
+                            String(i.status_processamento || '').toUpperCase() ===
+                            'ANALISANDO_IA'
+                        ).length
+                      }
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-black bg-black px-4 py-3 shadow-sm text-white">
+                    <p className="text-[11px] uppercase tracking-wide font-semibold text-gray-300">
+                      Revisão
+                    </p>
+                    <p className="text-2xl font-bold mt-1">
+                      {
+                        intakes.filter(
+                          (i) =>
+                            String(i.status_processamento || '').toUpperCase() ===
+                            'AGUARDANDO_REVISAO'
+                        ).length
+                      }
+                    </p>
+                  </div>
                 </div>
 
-                <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
-                  <p className="text-[11px] uppercase tracking-wide font-semibold text-gray-500">
-                    IA
-                  </p>
-                  <p className="text-2xl font-bold text-black mt-1">
-                    {
-                      intakes.filter(
-                        (i) =>
-                          String(i.status_processamento || '').toUpperCase() ===
-                          'ANALISANDO_IA'
-                      ).length
-                    }
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-black bg-black px-4 py-3 shadow-sm text-white">
-                  <p className="text-[11px] uppercase tracking-wide font-semibold text-gray-300">
-                    Revisão
-                  </p>
-                  <p className="text-2xl font-bold mt-1">
-                    {
-                      intakes.filter(
-                        (i) =>
-                          String(i.status_processamento || '').toUpperCase() ===
-                          'AGUARDANDO_REVISAO'
-                      ).length
-                    }
-                  </p>
-                </div>
+                {user?.role === 'admin' && (
+                  <button
+                    onClick={handleSyncDrive}
+                    disabled={syncLoading}
+                    className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm hover:bg-gray-50 transition disabled:opacity-60"
+                  >
+                    {syncLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
+                    ) : (
+                      <HardDrive className="w-4 h-4 text-gray-700" />
+                    )}
+                    <div className="text-left">
+                      <p className="text-xs font-semibold text-gray-700">
+                        {syncLoading ? 'Sincronizando...' : 'Sincronizar Drive'}
+                      </p>
+                      <p className="text-[10px] text-gray-400">Coordenação Geral</p>
+                    </div>
+                  </button>
+                )}
               </div>
             </div>
           </div>
