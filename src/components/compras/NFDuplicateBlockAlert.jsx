@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 
 const CONFIDENCE_LABELS = {
   CERTEZA: { label: 'Duplicidade confirmada (chave XML idêntica)', color: 'red' },
-  PROVAVEL: { label: 'Duplicidade provável (CNPJ + número NF)', color: 'red' },
+  PROVAVEL: { label: 'Duplicidade provável (CNPJ + número NF + data de emissão)', color: 'red' },
   POSSIVEL: { label: 'Possível duplicidade (CNPJ + valor + data)', color: 'amber' },
 };
 

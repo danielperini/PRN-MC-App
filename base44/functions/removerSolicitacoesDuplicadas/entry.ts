@@ -1,3 +1,10 @@
+/**
+ * removeSolicitacoesDuplicadas — Limpeza em massa de PurchaseRequests duplicadas.
+ *
+ * Regra: agrupa por nf_numero idêntico e dentro de cada grupo,
+ * considera duplicata quando pelo menos 2 de 3 campos (CNPJ, valor, data de emissão) batem.
+ * Mantém a solicitação com melhor status (Pago > Aprovado > Solicitado).
+ */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
 function onlyDigits(v) { return String(v || '').replace(/\D/g, ''); }
