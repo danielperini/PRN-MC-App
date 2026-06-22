@@ -361,15 +361,18 @@ function ComprasInner() {
 
   const invalidateComprasQueries = useCallback(async () => {
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['purchases'] }),
-      queryClient.invalidateQueries({ queryKey: ['attachments-compras'] }),
-      queryClient.invalidateQueries({ queryKey: ['purchase-documents-all'] }),
-      queryClient.invalidateQueries({ queryKey: ['rubricas'] }),
-      queryClient.invalidateQueries({ queryKey: ['budget-lines'] }),
-      queryClient.invalidateQueries({ queryKey: ['team-member-own'] }),
-      queryClient.invalidateQueries({ queryKey: ['team-members-all-for-coordinator'] }),
-      queryClient.invalidateQueries({ queryKey: ['team-payments'] })
+      queryClient.invalidateQueries({ queryKey: ['purchases'], refetchType: 'all' }),
+      queryClient.invalidateQueries({ queryKey: ['attachments-compras'], refetchType: 'all' }),
+      queryClient.invalidateQueries({ queryKey: ['purchase-documents-all'], refetchType: 'all' }),
+      queryClient.invalidateQueries({ queryKey: ['rubricas'], refetchType: 'all' }),
+      queryClient.invalidateQueries({ queryKey: ['budget-lines'], refetchType: 'all' }),
+      queryClient.invalidateQueries({ queryKey: ['team-member-own'], refetchType: 'all' }),
+      queryClient.invalidateQueries({ queryKey: ['team-members-all-for-coordinator'], refetchType: 'all' }),
+      queryClient.invalidateQueries({ queryKey: ['team-payments'], refetchType: 'all' })
     ]);
+    // Garantir refetch imediato das queries ativas
+    await queryClient.refetchQueries({ queryKey: ['purchases'] });
+    await queryClient.refetchQueries({ queryKey: ['rubricas'] });
   }, [queryClient]);
 
   const { data: userPermission, isLoading: loadingUserPermission } = useQuery({
@@ -614,7 +617,8 @@ function ComprasInner() {
         console.warn('Falha ao notificar aprovação de compra:', error);
       });
 
-      smartToast.success('Solicitação aprovada e rubrica debitada.');
+      const rubricaInfo = purchase.rubrica_nome || purchase.rubrica_id || '';
+      smartToast.success(`✅ Solicitação aprovada!${rubricaInfo ? ` Valor debitado da rubrica "${rubricaInfo}".` : ''} Status atualizado para Aprovado.`);
     } catch (error) {
       console.error('Erro ao aprovar solicitação:', error);
       smartToast.error('Erro ao aprovar', error.message);
@@ -823,6 +827,12 @@ function ComprasInner() {
       } else {
         await base44.entities.PurchaseRequest.delete(purchaseId).catch(() => {});
       }
+
+      // Atualização otimista: remove imediatamente da lista
+      queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email], (old) => {
+        if (!Array.isArray(old)) return old;
+        return old.filter((item) => item.id !== purchaseId);
+      });
 
       await refreshFinanceiroCompleto();
 
