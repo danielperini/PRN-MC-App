@@ -178,6 +178,7 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
   const [nfDuplicateResult, setNfDuplicateResult] = useState(null)
   const [nfDuplicateBypass, setNfDuplicateBypass] = useState(false)
   const [checkingNfDuplicate, setCheckingNfDuplicate] = useState(false)
+  const [deletingDuplicate, setDeletingDuplicate] = useState(false)
   const [aiPreenchido, setAiPreenchido] = useState(false)
 
   // Hook unificado de análise de documentos
@@ -849,6 +850,30 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
     }
   }
 
+  async function handleDeleteDuplicateNF(matches) {
+    if (!matches?.length) return;
+    if (!window.confirm(`Tem certeza que deseja deletar ${matches.length} solicitação(ões) duplicada(s)? Esta ação é irreversível.`)) return;
+
+    setDeletingDuplicate(true);
+    try {
+      for (const m of matches) {
+        if (!m.id) continue;
+        const pr = await base44.entities.PurchaseRequest.get(m.id).catch(() => null);
+        if (pr) await deletePurchaseRequest(pr);
+        else await base44.entities.PurchaseRequest.delete(m.id).catch(() => {});
+      }
+      toast.success('Solicitação(ões) duplicada(s) removida(s) com sucesso.');
+      setNfDuplicateResult(null);
+      setNfDuplicateBypass(false);
+      onClose?.();
+      onSuccess?.();
+    } catch (e) {
+      toast.error('Erro ao remover duplicata: ' + (e?.message || 'desconhecido'));
+    } finally {
+      setDeletingDuplicate(false);
+    }
+  }
+
   async function handleFileUpload(e) {
     const file = e.target.files?.[0]
 
@@ -1064,6 +1089,8 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
               isCoord={isCoordenador}
               bypassConfirmed={nfDuplicateBypass}
               onConfirmBypass={() => setNfDuplicateBypass(true)}
+              onDeleteDuplicate={handleDeleteDuplicateNF}
+              deletingDuplicate={deletingDuplicate}
             />
           )}
 

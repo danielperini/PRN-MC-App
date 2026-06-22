@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldAlert, AlertTriangle, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
+import { ShieldAlert, AlertTriangle, ExternalLink, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const CONFIDENCE_LABELS = {
@@ -25,7 +25,7 @@ const STATUS_LABELS = {
  *   onConfirmBypass — callback quando coordenador confirma que não é duplicata
  *   bypassConfirmed — boolean controlado pelo pai
  */
-export default function NFDuplicateBlockAlert({ result, isCoord, onConfirmBypass, bypassConfirmed }) {
+export default function NFDuplicateBlockAlert({ result, isCoord, onConfirmBypass, bypassConfirmed, onDeleteDuplicate, deletingDuplicate }) {
   const [expanded, setExpanded] = useState(false);
 
   if (!result?.isDuplicate) return null;
@@ -128,15 +128,30 @@ export default function NFDuplicateBlockAlert({ result, isCoord, onConfirmBypass
             ⛔ Aprovação bloqueada. Esta nota fiscal aparenta já ter sido aprovada anteriormente.
             Acesse a auditoria de compras para revisar antes de prosseguir.
           </p>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="border-red-300 text-red-700 hover:bg-red-50 text-xs"
-            onClick={onConfirmBypass}
-          >
-            Confirmar revisão e aprovar mesmo assim (responsabilidade do coordenador)
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="border-red-300 text-red-700 hover:bg-red-50 text-xs"
+              onClick={onConfirmBypass}
+            >
+              Confirmar revisão e aprovar mesmo assim (responsabilidade do coordenador)
+            </Button>
+            {onDeleteDuplicate && result.matches?.some(m => m.source === 'PurchaseRequest' && m.id) && (
+              <Button
+                type="button"
+                size="sm"
+                variant="destructive"
+                className="gap-1.5 text-xs"
+                onClick={() => onDeleteDuplicate(result.matches.filter(m => m.source === 'PurchaseRequest' && m.id))}
+                disabled={deletingDuplicate}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                {deletingDuplicate ? 'Removendo...' : 'Deletar solicitação duplicada'}
+              </Button>
+            )}
+          </div>
         </div>
       )}
 
