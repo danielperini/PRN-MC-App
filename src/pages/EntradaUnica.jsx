@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 import LoadingPage from '@/components/common/LoadingPage';
@@ -255,6 +255,10 @@ export default function EntradaUnica() {
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncGmailLoading, setSyncGmailLoading] = useState(false);
   const [autoVinculoLoading, setAutoVinculoLoading] = useState(false);
+  const [filaProcessando, setFilaProcessando] = useState(false);
+  const [progressoFila, setProgressoFila] = useState({ atual: 0, total: 0 });
+  const filaRef = useRef([]);
+  const abortarRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
@@ -518,7 +522,7 @@ Responda apenas com uma palavra: CONTRATO ou NOTA_FISCAL ou OUTRO.`,
             }
           },
         }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 15000)),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 30000)),
       ]).catch(() => ({ tipo: 'NOTA_FISCAL' }));
 
       const tipoRapido = String(tipagemRapida?.tipo || '').toUpperCase();
@@ -1127,13 +1131,81 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
 
     await loadIntakes();
 
-    for (const { intake, file_url, mime_type } of intakesCriados) {
-      if (intake?.id) {
-        analisarComIA(intake.id, file_url, mime_type, orientacoes)
-          .then(() => loadIntakes())
-          .catch(() => {});
-      }
+    // Coloca na fila sequencial (máx 20 por vez, cada PDF analisado por completo)
+    const novos = intakesCriados.filter((i) => i.intake?.id);
+    if (novos.length > 0) {
+      filaRef.current = [...filaRef.current, ...novos];
+      processarFila();
     }
+  }
+
+  async function processarFila() {
+    if (filaProcessando) return;
+    setFilaProcessando(true);
+    abortarRef.current = false;
+
+    const BATCH_SIZE = 20;
+    let processados = 0;
+
+    try {
+      while (filaRef.current.length > 0 && !abortarRef.current) {
+        const lote = filaRef.current.splice(0, BATCH_SIZE);
+        const totalLote = lote.length;
+        setProgressoFila({ atual: processados, total: processados + filaRef.current.length + totalLote });
+
+        for (let i = 0; i < lote.length; i++) {
+          if (abortarRef.current) break;
+          const { intake, file_url, mime_type } = lote[i];
+          processados++;
+          setProgressoFila({ atual: processados, total: processados + filaRef.current.length });
+
+          try {
+            await analisarComIA(intake.id, file_url, mime_type, null);
+          } catch (e) {
+            console.error(`Falha ao analisar ${intake.file_name_original || intake.id}:`, e);
+          }
+
+          await loadIntakes();
+          // Pequena pausa entre arquivos para não sobrecarregar
+          await new Promise((r) => setTimeout(r, 500));
+        }
+      }
+    } finally {
+      setFilaProcessando(false);
+      setProgressoFila({ atual: 0, total: 0 });
+      filaRef.current = [];
+    }
+  }
+
+  async function handleReanalisarPendentes() {
+    if (filaProcessando) {
+      toast.error('Já existe uma fila de análise em andamento.');
+      return;
+    }
+
+    // Pega todos os intakes que ainda estão em ENVIADO ou ANALISANDO_IA há mais de 60s
+    const pendentes = intakes.filter((i) => {
+      const status = String(i.status_processamento || '').toUpperCase();
+      if (status === 'ENVIADO') return true;
+      if (status === 'ANALISANDO_IA') {
+        const created = new Date(i.updated_date || i.created_date || 0).getTime();
+        return Date.now() - created > 60000;
+      }
+      return false;
+    });
+
+    if (pendentes.length === 0) {
+      toast.info('Nenhum documento pendente de análise.');
+      return;
+    }
+
+    toast.info(`Reanalisando ${pendentes.length} documento(s) com OCR e IA. Cada PDF será lido integralmente.`);
+    filaRef.current = pendentes.map((i) => ({
+      intake: i,
+      file_url: i.arquivo_original_url,
+      mime_type: i.mime_type,
+    }));
+    processarFila();
   }
 
   function handleReview(intake) {
@@ -1262,6 +1334,25 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
 
                 {user?.role === 'admin' && (
                   <>
+                    <button
+                      onClick={handleReanalisarPendentes}
+                      disabled={filaProcessando}
+                      className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 shadow-sm hover:bg-amber-100 transition disabled:opacity-60"
+                    >
+                      {filaProcessando ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
+                      ) : (
+                        <RefreshCw className="w-4 h-4 text-amber-700" />
+                      )}
+                      <div className="text-left">
+                        <p className="text-xs font-semibold text-amber-800">
+                          {filaProcessando
+                            ? `Analisando ${progressoFila.atual}/${progressoFila.total}...`
+                            : 'Reanalisar pendentes'}
+                        </p>
+                        <p className="text-[10px] text-amber-600">OCR + IA completa</p>
+                      </div>
+                    </button>
                     <button
                       onClick={handleAutoVinculo}
                       disabled={autoVinculoLoading}
@@ -1396,6 +1487,28 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
           </div>
 
           <div className="p-4 md:p-6">
+            {filaProcessando && progressoFila.total > 0 && (
+              <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-amber-600" />
+                  <span className="text-sm font-semibold text-amber-800">
+                    Analisando documentos com IA
+                  </span>
+                  <span className="text-xs text-amber-600">
+                    {progressoFila.atual} de {progressoFila.total}
+                  </span>
+                </div>
+                <div className="w-full bg-amber-200 rounded-full h-2">
+                  <div
+                    className="bg-amber-600 h-2 rounded-full transition-all duration-500"
+                    style={{ width: `${progressoFila.total > 0 ? (progressoFila.atual / progressoFila.total) * 100 : 0}%` }}
+                  />
+                </div>
+                <p className="text-xs text-amber-600">
+                  Cada PDF está sendo lido integralmente via OCR + IA. Máximo de 20 por lote.
+                </p>
+              </div>
+            )}
             {intakes.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-gray-400 border-2 border-dashed border-gray-200 rounded-2xl bg-gray-50/50">
                 <InboxIcon className="w-11 h-11 mb-3 text-gray-300" />
