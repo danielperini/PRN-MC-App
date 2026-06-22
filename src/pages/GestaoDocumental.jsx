@@ -959,21 +959,52 @@ export default function GestaoDocumental() {
       return;
     }
 
-    if (!window.confirm(`Apagar ${docsParaApagar.length} arquivos repetidos mantendo sempre o primeiro registro?`)) return;
+    // Coleta IDs de solicitações vinculadas aos arquivos duplicados
+    const purchaseIdsParaRemover = new Set();
+    for (const doc of docsParaApagar) {
+      const pid = doc?.purchase_id || doc?.purchase_request_id || doc?.solicitacao_id;
+      if (pid) purchaseIdsParaRemover.add(pid);
+    }
+
+    const msg = purchaseIdsParaRemover.size > 0
+      ? `Apagar ${docsParaApagar.length} arquivos repetidos E ${purchaseIdsParaRemover.size} solicitações vinculadas? Mantém sempre o primeiro registro.`
+      : `Apagar ${docsParaApagar.length} arquivos repetidos mantendo sempre o primeiro registro?`;
+
+    if (!window.confirm(msg)) return;
+
+    let arquivosApagados = 0;
+    let solicitacoesApagadas = 0;
 
     try {
+      // Apagar arquivos duplicados
       for (const doc of docsParaApagar) {
         try {
           await base44.entities.Attachment.delete(doc.id);
+          arquivosApagados++;
         } catch {
           await base44.entities.Attachment.update(doc.id, {
             status_registro: 'DELETADO'
           });
+          arquivosApagados++;
         }
       }
 
-      toast.success(`${docsParaApagar.length} arquivos repetidos apagados.`);
+      // Apagar solicitações duplicadas vinculadas
+      for (const pid of purchaseIdsParaRemover) {
+        try {
+          const pr = await base44.entities.PurchaseRequest.get(pid).catch(() => null);
+          if (pr) {
+            await deletePurchaseRequest(pr);
+            solicitacoesApagadas++;
+          }
+        } catch (e) {
+          console.warn('Erro ao apagar solicitação vinculada:', pid, e);
+        }
+      }
+
+      toast.success(`${arquivosApagados} arquivos repetidos apagados.${solicitacoesApagadas > 0 ? ` ${solicitacoesApagadas} solicitações removidas.` : ''}`);
       await refreshDocumentos();
+      await queryClient.invalidateQueries({ queryKey: ['purchases'] });
     } catch (e) {
       toast.error('Erro ao apagar repetidos: ' + e.message);
     }
@@ -1109,10 +1140,10 @@ export default function GestaoDocumental() {
             variant={showDuplicatesOnly ? 'default' : 'outline'}
             size="sm"
             onClick={() => setShowDuplicatesOnly((v) => !v)}
-            className="gap-1.5 hidden"
+            className="gap-1.5"
           >
             <Copy className="h-3.5 w-3.5" />
-            {showDuplicatesOnly ? 'Ver todos' : 'Pesquisar repetidos'}
+            {showDuplicatesOnly ? 'Ver todos' : 'Ver repetidos'}
           </Button>
 
           <Button
@@ -1120,7 +1151,7 @@ export default function GestaoDocumental() {
             variant="outline"
             size="sm"
             onClick={handleDeleteDuplicates}
-            className="gap-1.5 text-red-700 hover:text-red-800 hidden"
+            className="gap-1.5 text-red-700 hover:text-red-800"
           >
             <Trash2 className="h-3.5 w-3.5" />
             Apagar repetidos
