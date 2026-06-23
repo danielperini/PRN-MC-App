@@ -107,7 +107,7 @@ const CENTRO_UI_TO_CANONICAL = {
   'MHAB':                    'MHAB',
   'MIS':                     'MIS',
   'MUMO':                    'MUMO',
-  'Noturno Centro':          'NOTURNO_CENTRO',
+  'Noturno 2026':            'NOTURNO_CENTRO',
   'Noturno Pampulha':        'NOTURNO_PAMPULHA',
   'Coordenação':             'COORDENAÇÃO',
   'Comunicação':             'COMUNICAÇÃO',

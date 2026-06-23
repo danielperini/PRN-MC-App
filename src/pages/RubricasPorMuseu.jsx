@@ -20,7 +20,7 @@ const CENTROS_CUSTO = [
   'MHAB',
   'MIS',
   'MUMO',
-  'Noturno Centro',
+  'Noturno 2026',
   'Noturno Pampulha',
   'Coordenação',
   'Comunicação',
@@ -73,7 +73,7 @@ function normalizarCentroCustoParaUI(centroCusto) {
 
   const low = raw.toLowerCase();
   if (low.includes('noturno') && (low.includes('pampulha') || low.includes('4'))) return 'Noturno Pampulha';
-  if (low.includes('noturno')) return 'Noturno Centro';
+  if (low.includes('noturno')) return 'Noturno 2026';
 
   if (up.includes('GERAL') || up.includes('TRANSVERSAL')) return 'Geral/Transversal';
   if (up === 'COORDENAÇÃO' || up === 'COORDENACAO' || up.startsWith('COORDENA')) return 'Coordenação';
@@ -103,7 +103,7 @@ function KpiCard({ label, value, helper, dark = false }) {
 }
 
 const CENTROS_MUSEU_FISICO = new Set(['MHAB', 'MIS', 'MUMO']);
-const CENTROS_NOTURNO = new Set(['Noturno Centro', 'Noturno Pampulha']);
+const CENTROS_NOTURNO = new Set(['Noturno 2026', 'Noturno Pampulha']);
 
 function MuseuCard({ item, active, onClick, fmt, fmtPct }) {
   const progressWidth = `${Math.min(toNumber(item.pct), 100)}%`;
