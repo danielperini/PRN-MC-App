@@ -15,7 +15,14 @@ import { recalculateAllRubricasFromPurchases } from '@/components/compras/AutoRu
 import { canManageRubricas } from '@/components/auth/permissions';
 import { getRubricasOficiais3Aditivo } from '@/lib/rubricasOficiais3Aditivo';
 
-// Labels visíveis na UI — devem casar com a tabela CENTRO_UI_TO_CANONICAL do RubricasMuseuEditor
+// ─── Tokens de museu para classificação por nome ───
+const MUSEU_TOKENS = {
+  MHAB: ['mhab', 'abilio barreto', 'histórico municipal', 'museu histórico', 'mhab'],
+  MIS: ['mis', 'imagem e som', 'imagem do som', 'mis bh'],
+  MUMO: ['mumo', 'moda', 'museu da moda', 'mumu'],
+};
+
+// ─── Centros de custo da UI ───
 const CENTROS_CUSTO = [
   'MHAB',
   'MIS',
@@ -33,8 +40,6 @@ const CENTROS_CUSTO = [
 ];
 
 // Grupos de rubrica que representam pessoal/equipe — excluídos dos TOTAIS dos cards de museu
-// (continuam aparecendo no detalhamento das rubricas, mas não somam nos KPIs dos cards)
-// Centros afetados: MHAB, MIS, MUMO
 const GRUPOS_PESSOAL = new Set([
   'Contratação da equipe principal, incluindo os coordenadores da Comissão de Programação',
   'Contratação da equipe de educadores',
@@ -49,19 +54,84 @@ const GRUPOS_PESSOAL = new Set([
   'Equipe principal',
 ]);
 
-// Centros de custo onde a exclusão de pessoal se aplica (museus "físicos", não Noturno)
 const CENTROS_EXCLUIR_PESSOAL = new Set(['MHAB', 'MIS', 'MUMO']);
 
+// ─── Helpers numéricos e textuais ───
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return 0;
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
 }
 
-/**
- * Normaliza centro_custo de uma rubrica para o label canônico da UI.
- * Deve espelhar EXATAMENTE a lógica do RubricasMuseuEditor (CENTRO_UI_TO_CANONICAL + normalizeCentro).
- */
+function normalizeText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+// ─── Classificação de rubrica por museu ───
+
+/** Verifica se o texto contém tokens de um museu específico */
+function hasMuseuToken(texto, museu) {
+  const tokens = MUSEU_TOKENS[museu] || [];
+  return tokens.some(t => texto.includes(t));
+}
+
+/** Conta quantos museus diferentes são mencionados no texto */
+function countMuseuTokens(texto) {
+  return ['MHAB', 'MIS', 'MUMO'].filter(m => hasMuseuToken(texto, m)).length;
+}
+
+/** Detecta se a rubrica é do Noturno (3º ou 4º Aditivo) */
+function isNoturno(texto) {
+  return texto.includes('noturno');
+}
+
+function isNoturnoPampulha(texto) {
+  return texto.includes('noturno') && (texto.includes('pampulha') || texto.includes('4º') || texto.includes('4 aditivo'));
+}
+
+/** Detecta se é rubrica de alimentação/lanches */
+function isAlimentacao(texto) {
+  return /lanche|alimenta|buffet|coffee|café|refeição|lanchonete/i.test(texto);
+}
+
+/** Rubricas que NÃO devem ser rateadas (exclusivas de um museu) */
+function isExcludedFromRateio(texto) {
+  const excluir = ['bilheteria', 'ingresso', 'bilhete', 'entrada franca', 'gratuidade'];
+  return excluir.some(t => texto.includes(t));
+}
+
+/** Classifica uma rubrica por nome: retorna array de museus (vazio = não classificado) */
+function classificarPorNomeMuseu(rubrica) {
+  const nome = normalizeText(rubrica.rubrica || rubrica.nome || '');
+  const grupo = normalizeText(rubrica.grupo || '');
+  const meta = normalizeText(rubrica.meta || '');
+  const desc = normalizeText(rubrica.descricao || '');
+  const texto = [nome, grupo, meta, desc].join(' ');
+
+  // Verificar Noturno primeiro (palavra-chave forte)
+  if (isNoturnoPampulha(texto)) return ['Noturno Pampulha'];
+  if (isNoturno(texto)) return ['Noturno 2026'];
+
+  // Verificar museus físicos
+  const museus = [];
+  if (hasMuseuToken(texto, 'MHAB')) museus.push('MHAB');
+  if (hasMuseuToken(texto, 'MIS')) museus.push('MIS');
+  if (hasMuseuToken(texto, 'MUMO')) museus.push('MUMO');
+
+  // Se menciona múltiplos museus e não é excluída, é compartilhada (rateio)
+  if (museus.length > 1 && !isExcludedFromRateio(texto)) {
+    return museus; // ratear entre todos os mencionados
+  }
+
+  return museus;
+}
+
+// ─── Normalização de centro_custo para UI ───
 function normalizarCentroCustoParaUI(centroCusto) {
   const raw = String(centroCusto || '').trim();
   const up = raw.toUpperCase();
@@ -85,13 +155,61 @@ function normalizarCentroCustoParaUI(centroCusto) {
   if (up.includes('CONSULTO')) return 'Consultorias';
   if (up.includes('DESPESA')) return 'Despesas Gerais';
 
-  // Tenta casar direto com os labels conhecidos
   const match = CENTROS_CUSTO.find(c => c.toUpperCase() === up);
   return match || null;
 }
 
+// ─── Classificação híbrida: centro_custo → nome → rateio ───
+const MUSEUS_FISICOS = ['MHAB', 'MIS', 'MUMO'];
+const MUSEUS_TODOS = ['MHAB', 'MIS', 'MUMO', 'Noturno 2026', 'Noturno Pampulha'];
 
+/**
+ * Retorna um array de {museu, peso} para rateio.
+ * Se peso = 1 e array tem 1 item → rubrica exclusiva daquele museu.
+ * Se array tem múltiplos itens → rubrica compartilhada, ratear igualmente.
+ */
+function classificarRubrica(rubrica) {
+  // 1. Prioridade: centro_custo explícito e válido
+  const centroUI = normalizarCentroCustoParaUI(rubrica.centro_custo);
+  if (centroUI && MUSEUS_TODOS.includes(centroUI)) {
+    return [{ museu: centroUI, peso: 1 }];
+  }
 
+  // 2. Classificação por nome (tokens de museu)
+  const museusPorNome = classificarPorNomeMuseu(rubrica);
+  if (museusPorNome.length > 0) {
+    const peso = 1 / museusPorNome.length;
+    return museusPorNome.map(m => ({ museu: m, peso }));
+  }
+
+  // 3. Se tem centro_custo transversal (Coordenação, Comunicação, etc.) → ratear entre os 3 museus físicos
+  if (centroUI && ['Coordenação', 'Comunicação', 'Educação', 'Produção', 'Administrativo-financeiro', 'Publicações', 'Consultorias', 'Despesas Gerais', 'Geral/Transversal'].includes(centroUI)) {
+    const nomeTexto = normalizeText(rubrica.rubrica || rubrica.nome || '');
+    const grupoTexto = normalizeText(rubrica.grupo || '');
+    const texto = `${nomeTexto} ${grupoTexto}`;
+
+    // Se o nome/grupo menciona um museu específico com centro transversal → alocar àquele museu
+    for (const m of MUSEUS_FISICOS) {
+      if (hasMuseuToken(texto, m)) return [{ museu: m, peso: 1 }];
+    }
+
+    // Alimentação/lanches com centro geral → ratear entre os 3 museus
+    if (isAlimentacao(texto)) {
+      const peso = 1 / 3;
+      return MUSEUS_FISICOS.map(m => ({ museu: m, peso }));
+    }
+
+    // Outras rubricas transversais → ratear entre os 3 museus
+    const peso = 1 / 3;
+    return MUSEUS_FISICOS.map(m => ({ museu: m, peso }));
+  }
+
+  // 4. Sem centro e sem tokens no nome → ratear entre os 3 museus como fallback
+  const peso = 1 / 3;
+  return MUSEUS_FISICOS.map(m => ({ museu: m, peso }));
+}
+
+// ─── UI Components ───
 function KpiCard({ label, value, helper, dark = false }) {
   return (
     <div className={`rounded-2xl border p-5 shadow-sm min-w-0 ${dark ? 'bg-black border-black text-white shadow-md' : 'bg-white border-gray-200 text-black hover:shadow-md transition-shadow'}`}>
@@ -138,6 +256,7 @@ function MuseuCard({ item, active, onClick, fmt, fmtPct }) {
   );
 }
 
+// ─── Página principal ───
 export default function RubricasPorMuseu() {
   const [museuAtivo, setMuseuAtivo] = useState(CENTROS_CUSTO[0]);
   const [showGerenciar, setShowGerenciar] = useState(false);
@@ -159,18 +278,10 @@ export default function RubricasPorMuseu() {
     }).catch(() => {});
   }, []);
 
-  // Reatividade em tempo real: invalida os caches ao detectar alterações nas rubricas ou compras
   useEffect(() => {
-    const unsubRubricas = base44.entities.Rubrica.subscribe(() => {
-      setRefreshNonce((prev) => prev + 1);
-    });
-    const unsubCompras = base44.entities.PurchaseRequest.subscribe(() => {
-      setRefreshNonce((prev) => prev + 1);
-    });
-    return () => {
-      unsubRubricas();
-      unsubCompras();
-    };
+    const unsubRubricas = base44.entities.Rubrica.subscribe(() => setRefreshNonce((prev) => prev + 1));
+    const unsubCompras = base44.entities.PurchaseRequest.subscribe(() => setRefreshNonce((prev) => prev + 1));
+    return () => { unsubRubricas(); unsubCompras(); };
   }, []);
 
   const userRole = String(userPermission?.base_role || currentUser?.role || '').toUpperCase();
@@ -178,35 +289,28 @@ export default function RubricasPorMuseu() {
   const isCoordenador = currentUser && ['COORDENADOR', 'ADMIN', 'admin'].includes(currentUser?.role);
   const canEdit = !isSponsor && (isCoordenador || userPermission?.pode_gerenciar_rubricas || userPermission?.gestao_compras || canManageRubricas(currentUser, userPermission));
 
-  // Carrega rubricas do banco para pegar valor_utilizado real
   const { data: rubricasBanco, refetch: refetchRubricas } = useQuery({
     queryKey: ['rubricas-banco', refreshNonce],
     queryFn: () => base44.entities.Rubrica.list('ordem_exibicao', 1000),
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnWindowFocus: true,
+    staleTime: 0, gcTime: 0, refetchOnWindowFocus: true,
   });
 
-  // Carrega compras aprovadas para calcular utilizado por rubrica
   const { data: comprasAprovadas, refetch: refetchCompras } = useQuery({
     queryKey: ['compras-aprovadas-resumo', refreshNonce],
     queryFn: () => base44.entities.PurchaseRequest.filter({
       status: { $in: ['APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO'] }
     }, '-created_date', 2000),
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnWindowFocus: true,
+    staleTime: 0, gcTime: 0, refetchOnWindowFocus: true,
   });
 
   /**
-   * Agrupa rubricas do banco pelo campo centro_custo.
-   * Soma valor_rubrica (previsto) e valor_utilizado para cada centro.
+   * RESUMO POR MUSEU — híbrido: centro_custo + nome + rateio
    */
   const resumoPorMuseu = useMemo(() => {
     const banco = Array.isArray(rubricasBanco) ? rubricasBanco.filter(r => r?.ativo !== false) : [];
     const compras = Array.isArray(comprasAprovadas) ? comprasAprovadas : [];
 
-    // Indexar compras por rubrica_id — separando utilizado (aprovado+pago) e pago
+    // Indexar compras por rubrica_id
     const STATUS_APROVADOS = new Set(['APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
     const STATUS_PAGO = new Set(['PAGO']);
     const utilizadoPorRubricaId = {};
@@ -218,35 +322,39 @@ export default function RubricasPorMuseu() {
       if (!STATUS_APROVADOS.has(status)) continue;
       const val = toNumber(c.valor_pago || c.valor_aprovado_admin || c.valor_aprovado || c.valor_solicitado);
       utilizadoPorRubricaId[rid] = (utilizadoPorRubricaId[rid] || 0) + val;
-      if (STATUS_PAGO.has(status)) {
-        pagoPorRubricaId[rid] = (pagoPorRubricaId[rid] || 0) + val;
-      }
+      if (STATUS_PAGO.has(status)) pagoPorRubricaId[rid] = (pagoPorRubricaId[rid] || 0) + val;
     }
 
-    // Agrupamento por centro_custo
+    // Inicializar mapa
     const mapa = {};
     for (const centro of CENTROS_CUSTO) {
       mapa[centro] = { museu: centro, totalOrcado: 0, totalUtilizado: 0, totalSaldo: 0, pct: 0, totalPago: 0 };
     }
 
-    for (const r of banco) {
-      // Normaliza o centro_custo da rubrica para o label canônico da UI
-      const centro = normalizarCentroCustoParaUI(r?.centro_custo);
-      if (!centro || !mapa[centro]) continue;
+    // Deduplicar rubricas por id
+    const seen = new Set();
+    const rubricasUnicas = banco.filter(r => { if (seen.has(r.id)) return false; seen.add(r.id); return true; });
 
-      // Excluir rubricas de pessoal dos totais dos cards de museus físicos
-      const grupo = String(r?.grupo || '').trim();
-      if (CENTROS_EXCLUIR_PESSOAL.has(centro) && GRUPOS_PESSOAL.has(grupo)) continue;
-
+    for (const r of rubricasUnicas) {
       const previsto = toNumber(r.valor_rubrica || r.valor_total);
-      // Prioriza cálculo direto das compras; só usa campo do banco se não há compras vinculadas
       const utilCompras = utilizadoPorRubricaId[r.id];
-      const utilizado = utilCompras !== undefined ? utilCompras : toNumber(r.valor_utilizado);
+      const utilizado = utilCompras !== undefined && utilCompras > 0 ? utilCompras : toNumber(r.valor_utilizado);
       const pago = pagoPorRubricaId[r.id] || 0;
+      const grupo = String(r?.grupo || '').trim();
 
-      mapa[centro].totalOrcado += previsto;
-      mapa[centro].totalUtilizado += utilizado;
-      mapa[centro].totalPago += pago;
+      // Classificar: array de {museu, peso}
+      const alocacoes = classificarRubrica(r);
+
+      for (const { museu, peso } of alocacoes) {
+        if (!mapa[museu]) continue;
+
+        // Excluir pessoal dos totais dos cards de museus físicos
+        if (CENTROS_EXCLUIR_PESSOAL.has(museu) && GRUPOS_PESSOAL.has(grupo)) continue;
+
+        mapa[museu].totalOrcado += previsto * peso;
+        mapa[museu].totalUtilizado += utilizado * peso;
+        mapa[museu].totalPago += pago * peso;
+      }
     }
 
     return CENTROS_CUSTO
@@ -259,15 +367,10 @@ export default function RubricasPorMuseu() {
         const pct = totalOrcado > 0 ? Number(((totalUtilizado / totalOrcado) * 100).toFixed(2)) : 0;
         return { ...d, totalOrcado, totalUtilizado, totalPago, totalSaldo, pct };
       })
-      .filter(d => d.totalOrcado > 0 || d.totalUtilizado > 0); // só mostra centros com dados
+      .filter(d => d.totalOrcado > 0 || d.totalUtilizado > 0);
   }, [rubricasBanco, comprasAprovadas]);
 
-  const fmt = (v) => toNumber(v).toLocaleString('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
+  const fmt = (v) => toNumber(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtPct = (v) => `${Number(v || 0).toFixed(1)}%`;
 
   const totaisGerais = useMemo(() => {
@@ -280,10 +383,7 @@ export default function RubricasPorMuseu() {
   const percentualGeral = totaisGerais.totalOrcado > 0 ? (totaisGerais.totalUtilizado / totaisGerais.totalOrcado) * 100 : 0;
 
   const refreshAllRubricaData = async () => {
-    await Promise.all([
-      refetchRubricas(),
-      refetchCompras(),
-    ]);
+    await Promise.all([refetchRubricas(), refetchCompras()]);
     setRefreshNonce((prev) => prev + 1);
   };
 
@@ -337,11 +437,8 @@ export default function RubricasPorMuseu() {
               </div>
               <div className="flex flex-wrap gap-1">
                 {resumoPorMuseu.map((item) => (
-                  <button
-                    key={item.museu}
-                    onClick={() => setMuseuAtivo(item.museu)}
-                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${museuAtivo === item.museu ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                  >
+                  <button key={item.museu} onClick={() => setMuseuAtivo(item.museu)}
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${museuAtivo === item.museu ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
                     {item.museu}
                   </button>
                 ))}
@@ -370,14 +467,8 @@ export default function RubricasPorMuseu() {
 
         <GerenciarRubricasMuseuDialog open={showGerenciar} onClose={() => setShowGerenciar(false)} />
         <CardRubricaEditor open={showCardEditor} onClose={() => setShowCardEditor(false)} />
-        <NovaRubricaDialog
-          open={showNovaRubrica}
-          currentUser={currentUser}
-          onClose={async () => {
-            setShowNovaRubrica(false);
-            await refreshAllRubricaData();
-          }}
-        />
+        <NovaRubricaDialog open={showNovaRubrica} currentUser={currentUser}
+          onClose={async () => { setShowNovaRubrica(false); await refreshAllRubricaData(); }} />
       </div>
     </div>
   );

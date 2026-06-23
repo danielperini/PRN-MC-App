@@ -19,7 +19,7 @@ export const CENTROS_CUSTO_BASE = [
   'Educação',
   'Produção',
   'Administrativo-financeiro',
-  'Noturno nos Museus',
+  'Noturno 2026',
   'Noturno Pampulha',
   'Publicações',
   'Consultorias',
@@ -44,7 +44,7 @@ export function useCentrosCusto() {
   const todos = [...new Set([...CENTROS_CUSTO_BASE, ...ccDoBanco])];
   return todos.sort((a, b) => {
     // Mantém MHAB, MIS, MUMO no topo
-    const ordem = ['MHAB', 'MIS BH', 'MUMO', 'Noturno nos Museus', 'Noturno Pampulha'];
+    const ordem = ['MHAB', 'MIS BH', 'MUMO', 'Noturno 2026', 'Noturno Pampulha'];
     const ia = ordem.indexOf(a);
     const ib = ordem.indexOf(b);
     if (ia !== -1 && ib !== -1) return ia - ib;
@@ -90,7 +90,7 @@ export const CC_PAMPULHA = ['Noturno Pampulha'];
 /**
  * Centros de custo que pertencem ao Noturno nos Museus (3º Aditivo).
  */
-export const CC_NOTURNO = ['Noturno nos Museus'];
+export const CC_NOTURNO = ['Noturno 2026'];
 
 /**
  * Centros de custo por museu fixo.
@@ -99,6 +99,6 @@ export const CC_POR_MUSEU = {
   MHAB: ['MHAB'],
   MIS: ['MIS BH'],
   MUMO: ['MUMO'],
-  NOTURNO: ['Noturno nos Museus'],
+  NOTURNO: ['Noturno 2026'],
   PAMPULHA: ['Noturno Pampulha'],
 };

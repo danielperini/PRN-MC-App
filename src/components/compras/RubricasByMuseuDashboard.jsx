@@ -15,22 +15,123 @@ function fmtBRL(v) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
 }
 
+function normalizeText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+// ─── Tokens de museu para classificação por nome ───
+const MUSEU_TOKENS = {
+  MHAB: ['mhab', 'abilio barreto', 'histórico municipal', 'museu histórico'],
+  MIS: ['mis', 'imagem e som', 'imagem do som', 'mis bh'],
+  MUMO: ['mumo', 'moda', 'museu da moda', 'mumu'],
+};
+
+function hasMuseuToken(texto, museu) {
+  const tokens = MUSEU_TOKENS[museu] || [];
+  return tokens.some(t => texto.includes(t));
+}
+
+function isNoturno(texto) {
+  return texto.includes('noturno');
+}
+
+function isNoturnoPampulha(texto) {
+  return texto.includes('noturno') && (texto.includes('pampulha') || texto.includes('4º') || texto.includes('4 aditivo'));
+}
+
+// ─── Normalização de centro_custo ───
+function normalizarCentro(cc) {
+  const raw = String(cc || '').trim();
+  const up = raw.toUpperCase();
+  if (!up) return null;
+
+  if (up === 'MIS BH' || up === 'MIS') return 'MIS';
+  if (up === 'MHAB' || up === 'MAB') return 'MHAB';
+  if (up === 'MUMO' || up === 'MUMU') return 'MUMO';
+
+  const low = raw.toLowerCase();
+  if (low.includes('noturno') && (low.includes('pampulha') || low.includes('4'))) return 'Noturno Pampulha';
+  if (low.includes('noturno')) return 'Noturno 2026';
+
+  if (up.includes('GERAL') || up.includes('TRANSVERSAL')) return 'Geral';
+  if (up.includes('COORDENA')) return 'Coordenação';
+  if (up.includes('COMUNICA')) return 'Comunicação';
+  if (up.includes('EDUCA')) return 'Educação';
+  if (up.includes('PRODU')) return 'Produção';
+  if (up.includes('ADMIN') || up.includes('FINANC')) return 'Administrativo-financeiro';
+  if (up.includes('PUBLICA')) return 'Publicações';
+  if (up.includes('CONSULTO')) return 'Consultorias';
+  if (up.includes('DESPESA')) return 'Despesas Gerais';
+
+  return up;
+}
+
+/**
+ * Classifica rubrica em um museu principal para exibição no dashboard.
+ * Prioridade: centro_custo → nome → grupo → meta → descrição.
+ * Nunca retorna null — sempre cai em 'Geral' como fallback.
+ */
+function classificarRubrica(rubrica) {
+  // 1. centro_custo — se for museu físico ou noturno, usar direto
+  const cc = normalizarCentro(rubrica.centro_custo);
+  if (cc && ['MHAB', 'MIS', 'MUMO', 'Noturno 2026', 'Noturno Pampulha'].includes(cc)) return cc;
+
+  // 2. Nome da rubrica
+  const nome = normalizeText(rubrica.rubrica || rubrica.nome || '');
+
+  // 3. Grupo
+  const grupo = normalizeText(rubrica.grupo || '');
+
+  // 4. Meta
+  const meta = normalizeText(rubrica.meta || '');
+
+  // 5. Descrição
+  const desc = normalizeText(rubrica.descricao || '');
+
+  const texto = [nome, grupo, meta, desc].join(' ');
+
+  // Verificar tokens de museu no texto combinado
+  if (isNoturnoPampulha(texto)) return 'Noturno Pampulha';
+  if (isNoturno(texto)) return 'Noturno 2026';
+  if (hasMuseuToken(texto, 'MHAB')) return 'MHAB';
+  if (hasMuseuToken(texto, 'MIS')) return 'MIS';
+  if (hasMuseuToken(texto, 'MUMO')) return 'MUMO';
+
+  // Se tem centro_custo válido (ex: Coordenação), retornar ele
+  if (cc) return cc;
+
+  // Fallback: não deixar rubrica sumir
+  return cc || 'Geral';
+}
+
+const CENTROS_CUSTO = [
+  'MHAB',
+  'MIS',
+  'MUMO',
+  'Noturno 2026',
+  'Noturno Pampulha',
+  'Geral',
+  'Coordenação',
+  'Comunicação',
+  'Educação',
+  'Produção',
+  'Administrativo-financeiro',
+  'Publicações',
+  'Consultorias',
+  'Despesas Gerais',
+];
+
 export default function RubricasByMuseuDashboard({ rubricas = [], purchases = [], onRefresh }) {
   const [editingMuseu, setEditingMuseu] = useState(null);
   const [editValue, setEditValue] = useState('');
   const [savingMuseu, setSavingMuseu] = useState(null);
 
-  const CENTROS_CUSTO = [
-    'MHAB',
-    'MIS',
-    'MUMO',
-    'Atuação Geral',
-    'Atende a todos',
-    'Noturno',
-    'Noturno Pampulha'
-  ];
-
-  // Calcular dados por centro de custo
+  // Calcular dados por centro de custo — usando classificação híbrida
   const dadosPorMuseu = useMemo(() => {
     const map = {};
 
@@ -44,26 +145,37 @@ export default function RubricasByMuseuDashboard({ rubricas = [], purchases = []
       };
     });
 
-    // Agrupar rubricas pelo campo centro_custo
-    (rubricas || []).forEach((r) => {
-      const centroCusto = String(r?.centro_custo || '').trim();
-      if (centroCusto && map[centroCusto]) {
-        const valor = toNumber(r?.valor_rubrica || r?.valor_total);
-        const utilizado = toNumber(r?.valor_utilizado);
-        const disponivel = valor - utilizado;
+    // Deduplicar rubricas por id
+    const seen = new Set();
+    const unicas = (rubricas || []).filter(r => {
+      if (seen.has(r.id)) return false;
+      seen.add(r.id);
+      return true;
+    });
 
-        map[centroCusto].rubricas.push({
-          ...r,
-          valor,
-          utilizado,
-          disponivel,
-          percentual: valor > 0 ? (utilizado / valor) * 100 : 0
-        });
-
-        map[centroCusto].totalPrevisto += valor;
-        map[centroCusto].totalUtilizado += utilizado;
-        map[centroCusto].totalDisponivel += disponivel;
+    unicas.forEach((r) => {
+      const centro = classificarRubrica(r);
+      if (!centro || !map[centro]) {
+        // Garantir que centro existe (criar dinamicamente se necessário)
+        if (centro && !map[centro]) map[centro] = { museu: centro, rubricas: [], totalPrevisto: 0, totalUtilizado: 0, totalDisponivel: 0 };
+        if (!centro || !map[centro]) return;
       }
+
+      const valor = toNumber(r?.valor_rubrica || r?.valor_total);
+      const utilizado = toNumber(r?.valor_utilizado);
+      const disponivel = valor - utilizado;
+
+      map[centro].rubricas.push({
+        ...r,
+        valor,
+        utilizado,
+        disponivel,
+        percentual: valor > 0 ? (utilizado / valor) * 100 : 0
+      });
+
+      map[centro].totalPrevisto += valor;
+      map[centro].totalUtilizado += utilizado;
+      map[centro].totalDisponivel += disponivel;
     });
 
     // Retorna apenas centros que têm rubricas
@@ -76,7 +188,7 @@ export default function RubricasByMuseuDashboard({ rubricas = [], purchases = []
 
     CENTROS_CUSTO.forEach((centro) => {
       const purchasesMuseu = (purchases || []).filter((p) => {
-        const centroPurchase = String(p?.centro_custo || '').trim();
+        const centroPurchase = normalizarCentro(p?.centro_custo);
         return centroPurchase === centro;
       });
 

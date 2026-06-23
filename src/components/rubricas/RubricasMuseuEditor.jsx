@@ -68,7 +68,7 @@ function getPct(r = {}) {
 /**
  * Normaliza um valor de centro_custo para uma chave canônica usada para comparação.
  * Lida com variações históricas (MIS BH→MIS, MAB→MHAB, MUMU→MUMO, etc.)
- * IMPORTANTE: distingue Noturno Centro de Noturno Pampulha.
+ * IMPORTANTE: distingue Noturno 2026 de Noturno Pampulha.
  */
 function normalizeCentro(value) {
   const raw = String(value || '').trim();
