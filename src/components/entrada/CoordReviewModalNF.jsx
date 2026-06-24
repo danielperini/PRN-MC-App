@@ -11,7 +11,7 @@ import { findDuplicatePurchaseRequest } from '@/lib/purchaseDuplicateGuard';
 import DuplicatePurchaseDetectedModal from '@/components/compras/DuplicatePurchaseDetectedModal';
 import { getRubricasOficiais3Aditivo } from '@/lib/rubricasOficiais3Aditivo';
 
-const CENTROS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
+const CENTROS = ['MHAB', 'MIS', 'MUMO', 'Noturno 2026', 'Noturno Pampulha', 'Atuação Geral'];
 const MUSEUS_RATEIO = ['MHAB', 'MIS', 'MUMO'];
 const DEFAULT_RATEIO = MUSEUS_RATEIO.map((m) => ({ museu: m, valor: '' }));
 
@@ -202,10 +202,10 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     nf_data_emissao: normalizeDateToInput(dataEmissaoIA),
     nf_horario_emissao: ia.nf_horario_emissao || ia.horario_emissao || '',
     nf_emitente_nome: ia.nf_emitente_nome || (iaIncompleta ? fallbackArquivo.nf_emitente_nome_fallback || '' : ''),
-    nf_emitente_cpf_cnpj: ia.nf_emitente_cpf_cnpj || '',
+    nf_emitente_cpf_cnpj: ia.nf_emitente_cpf_cnpj || intake.nf_emitente_cpf_cnpj || intake.fornecedor_cpf_cnpj || '',
     nf_destinatario_nome: ia.nf_destinatario_nome || '',
     descricao_servico: ia.descricao_servico || (iaIncompleta ? fallbackArquivo.descricao_servico_fallback || '' : ''),
-    municipio: ia.municipio || '',
+    municipio: ia.municipio || intake.municipio || '',
     competencia: ia.competencia || ia.competencia_sugerida || '',
     centro_custo: ia.centro_custo_sugerido || intake.centro_custo || '',
     rubrica_id: intake.rubrica_id_sugerida || '',
