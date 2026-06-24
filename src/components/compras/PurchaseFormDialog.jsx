@@ -992,8 +992,11 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
       if (!form.centro_custo) return true;
       const cc = String(form.centro_custo).toUpperCase().replace('MAB', 'MHAB').trim();
       const rc = String(r.museu_codigo || '').toUpperCase().replace('MAB', 'MHAB').trim();
-      if (cc === 'NOTURNO NOS MUSEUS 2026' || cc === 'NOTURNO PAMPULHA') {
-        return r.escopo_orcamentario === 'NOTURNO';
+      if (cc === 'NOTURNO PAMPULHA') {
+        return r.escopo_orcamentario === 'NOTURNO' && String(r.centro_custo || '').toUpperCase() === 'NOTURNO PAMPULHA';
+      }
+      if (cc === 'NOTURNO NOS MUSEUS 2026' || cc === 'NOTURNO 2026') {
+        return r.escopo_orcamentario === 'NOTURNO' && String(r.centro_custo || '').toUpperCase() !== 'NOTURNO PAMPULHA';
       }
       if (['MIS', 'MUMO', 'MHAB'].includes(cc)) return rc === cc;
       return true; // centros genéricos mostram tudo
@@ -1300,7 +1303,8 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
                     setField('centro_custo', r.museu_codigo === 'MIS' ? 'MIS' : r.museu_codigo === 'MUMO' ? 'MUMO' : r.museu_codigo === 'MHAB' ? 'MHAB' : form.centro_custo)
                   }
                   if (r?.escopo_orcamentario === 'NOTURNO') {
-                    setField('centro_custo', 'Noturno nos Museus 2026')
+                    const isPampulha = String(r.centro_custo || '').toUpperCase() === 'NOTURNO PAMPULHA';
+                    setField('centro_custo', isPampulha ? 'Noturno Pampulha' : 'Noturno nos Museus 2026')
                   }
                   // Não sobrescreve meta_id ao selecionar rubrica (meta usa código próprio)
                 }}

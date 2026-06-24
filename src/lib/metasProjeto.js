@@ -37,6 +37,8 @@ export const METAS_PROJETO_FALLBACK = [
   { id: '6a32aead6201158ef021b378', label: 'Rotina' },
   { id: '6a32aead6201158ef021b379', label: 'Extra' },
   { id: '6a32aead6201158ef021b37a', label: 'Formação/Diversidade' },
+  { id: '6a3c0b9bfa079f5914d83253', label: '11A - Noturno 2026' },
+  { id: '6a3c0b9bfa079f5914d83254', label: '11B - Noturno Pampulha' },
 ];
 
 // Para compatibilidade com código existente
