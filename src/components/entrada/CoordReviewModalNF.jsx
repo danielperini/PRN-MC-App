@@ -9,33 +9,24 @@ import { FileText, Loader2, AlertCircle, CheckCircle2, Send, Trash2, SplitSquare
 import { useToast } from '@/components/ui/use-toast';
 import { findDuplicatePurchaseRequest } from '@/lib/purchaseDuplicateGuard';
 import DuplicatePurchaseDetectedModal from '@/components/compras/DuplicatePurchaseDetectedModal';
-import { getRubricasOficiais3Aditivo } from '@/lib/rubricasOficiais3Aditivo';
+
 
 const CENTROS = ['MHAB', 'MIS', 'MUMO', 'Noturno 2026', 'Noturno Pampulha', 'Atuação Geral'];
 const MUSEUS_RATEIO = ['MHAB', 'MIS', 'MUMO'];
 const DEFAULT_RATEIO = MUSEUS_RATEIO.map((m) => ({ museu: m, valor: '' }));
 
-// Metas e rubricas derivadas exclusivamente da lib oficial do 3º Aditivo
-const RUBRICAS_OFICIAIS_3A = getRubricasOficiais3Aditivo();
+// Metas do projeto — mesmos valores do enum meta_id em PurchaseRequest
+const METAS_PROJETO = [
+  { id: 'MC3A-20', label: 'MC3A-20 — Meta 1: Equipe principal e coordenadores' },
+  { id: 'MC3A-21', label: 'MC3A-21 — Meta 3: Manutenção de exposições' },
+  { id: 'MC3A-22', label: 'MC3A-22 — Meta 7: Educador' },
+  { id: 'MC3A-23', label: 'MC3A-23 — Meta 10/11: Mostras e Noturno nos Museus' },
+  { id: 'MC3A-24', label: 'MC3A-24 — Meta 16/17/18: Diárias, Publicações e Custeios' },
+  { id: 'MC3A-25', label: 'MC3A-25 — Meta 20/21/22: Ações educativas, Exposição MUMO e Consultorias' },
+  { id: 'MC3A-EXTRA', label: 'MC3A-EXTRA — Meta 23: Despesas Gerais' },
+];
 
-// Extrai número da meta (ex: "1 - Contratação..." → 1) para ordenação
-function extrairNumeroMeta(meta) {
-  const m = String(meta || '').match(/^(\d+)/);
-  return m ? parseInt(m[1], 10) : 999;
-}
-
-// Metas únicas ordenadas por número
-const METAS_OFICIAIS_3A = Array.from(
-  new Map(
-    RUBRICAS_OFICIAIS_3A.map((r) => [r.meta, r.meta])
-  ).values()
-).sort((a, b) => extrairNumeroMeta(a) - extrairNumeroMeta(b));
-
-// Conjunto de chaves (rubrica+meta) válidas do 3º Aditivo para validação
-const SET_RUBRICAS_OFICIAIS_NOMES = new Set(
-  RUBRICAS_OFICIAIS_3A.map((r) => String(r.rubrica || '').toLowerCase().trim())
-);
-const SET_METAS_OFICIAIS = new Set(METAS_OFICIAIS_3A.map((m) => m));
+const SET_METAS_OFICIAIS = new Set(METAS_PROJETO.map((m) => m.id));
 
 const COORD_EMAILS = [
   'danielperini.mc@viadutodasartes.org.br',
@@ -210,7 +201,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     centro_custo: ia.centro_custo_sugerido || intake.centro_custo || '',
     rubrica_id: intake.rubrica_id_sugerida || '',
     file_name_final: intake.file_name_final || intake.file_name_original,
-    // Só pré-preenche meta se pertencer ao 3º Aditivo oficial
+    // Só pré-preenche meta se pertencer às metas oficiais do projeto
     meta_id: SET_METAS_OFICIAIS.has(ia.meta_id || '') ? (ia.meta_id || '') : '',
     tipo_gasto: ia.tipo_gasto || 'Serviço',
   });
@@ -934,17 +925,15 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
           )}
 
           <div className="space-y-1 w-full min-w-0">
-            <Label>
-              Meta do 3º Aditivo
-            </Label>
+            <Label>Meta do Projeto</Label>
             <Select value={form.meta_id} onValueChange={(v) => setForm((f) => ({ ...f, meta_id: v }))}>
               <SelectTrigger className="w-full min-w-0">
                 <SelectValue placeholder="Selecionar meta" />
               </SelectTrigger>
               <SelectContent>
-                {METAS_OFICIAIS_3A.map((meta) => (
-                  <SelectItem key={meta} value={meta}>
-                    {meta}
+                {METAS_PROJETO.map((meta) => (
+                  <SelectItem key={meta.id} value={meta.id}>
+                    {meta.label}
                   </SelectItem>
                 ))}
               </SelectContent>
