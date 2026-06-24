@@ -83,7 +83,7 @@ function getMesExtenso(dataStr: unknown) {
 
 function buildRenamedNF(params: Record<string, unknown>) {
   const numero = safeStr(params.nf_numero) || 'SN';
-  const fornecedor = limparNomeArquivo(params.nf_emitente_nome || params.fornecedor).substring(0, 50) || 'Fornecedor';
+  const fornecedor = limparNomeArquivo(params.nf_emitente_nome || params.fornecedor || 'Fornecedor').substring(0, 50) || 'Fornecedor';
   const centro = normalizarCentro(params.centro_custo_sugerido || params.centro_custo || 'GERAL');
 
   // Natureza da despesa: primeiras 4 palavras significativas
@@ -110,7 +110,7 @@ function buildRenamedNF(params: Record<string, unknown>) {
 
 function buildRenamedComp(params) {
   const numero = safeStr(params.nf_numero || params.recibo_numero) || 'SN';
-  const fornecedor = limparNomeArquivo(params.nf_emitente_nome || params.fornecedor_nome || params.fornecedor).substring(0, 50) || 'Fornecedor';
+  const fornecedor = limparNomeArquivo(params.nf_emitente_nome || params.fornecedor_nome || params.fornecedor || 'Fornecedor').substring(0, 50) || 'Fornecedor';
   const centro = normalizarCentro(params.centro_custo_sugerido || params.centro_custo || 'GERAL');
   const naturezaRaw = limparNomeArquivo(
     params.rubrica_nome || params.categoria_sugerida || params.descricao_servico || 'Comprovante'
