@@ -1257,8 +1257,7 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
     try {
       while (filaRef.current.length > 0 && !abortarRef.current) {
         const lote = filaRef.current.splice(0, BATCH_SIZE);
-        const totalLote = lote.length;
-        setProgressoFila({ atual: processados, total: processados + filaRef.current.length + totalLote });
+        setProgressoFila({ atual: processados, total: processados + filaRef.current.length + lote.length });
 
         for (let i = 0; i < lote.length; i++) {
           if (abortarRef.current) break;
@@ -1266,15 +1265,34 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
           processados++;
           setProgressoFila({ atual: processados, total: processados + filaRef.current.length });
 
+          const isPDF = mime_type?.includes('pdf') || file_url?.toLowerCase().endsWith('.pdf');
+
           try {
-            await analisarComIA(intake.id, file_url, mime_type, null);
+            if (isPDF) {
+              // PDFs: backend robusto (Claude → Gemini → GPT) com normalização completa
+              await base44.functions.invoke('processarNotaFiscalComClaude', {
+                intake_id: intake.id,
+                file_url,
+                orientacoes_usuario: intake.resultado_ia?.orientacoes_usuario || '',
+              });
+            } else {
+              await analisarComIA(intake.id, file_url, mime_type, null);
+            }
           } catch (e) {
             console.error(`Falha ao analisar ${intake.file_name_original || intake.id}:`, e);
+            // Fallback: tenta fluxo frontend
+            try {
+              await analisarComIA(intake.id, file_url, mime_type, null);
+            } catch (e2) {
+              await base44.entities.DocumentIntake.update(intake.id, {
+                status_processamento: 'AGUARDANDO_REVISAO',
+                erros_validacao: ['Análise automática falhou. Revise manualmente ou use o botão "Preencher com IA" no modal de revisão.'],
+              }).catch(() => {});
+            }
           }
 
           await loadIntakes();
-          // Pequena pausa entre arquivos para não sobrecarregar
-          await new Promise((r) => setTimeout(r, 500));
+          await new Promise((r) => setTimeout(r, 300));
         }
       }
     } finally {
