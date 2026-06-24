@@ -51,6 +51,54 @@ function normalizeText(v) {
 }
 
 /**
+ * Normaliza qualquer formato de data para YYYY-MM-DD.
+ * Aceita: DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD, YYYY/MM/DD,
+ *         "15 de março de 2026", "março 2026" (usa dia 01), etc.
+ */
+function normalizeDate(v) {
+  if (!v) return '';
+  const s = String(v).trim();
+
+  // Já está em YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+
+  // DD/MM/YYYY ou DD-MM-YYYY
+  const br = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (br) return `${br[3]}-${br[2].padStart(2,'0')}-${br[1].padStart(2,'0')}`;
+
+  // YYYY/MM/DD
+  const iso2 = s.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})$/);
+  if (iso2) return `${iso2[1]}-${iso2[2]}-${iso2[3]}`;
+
+  // "15 de março de 2026" ou "15/março/2026"
+  const MESES = {
+    janeiro:'01',fevereiro:'02',marco:'03','março':'03',abril:'04',maio:'05',junho:'06',
+    julho:'07',agosto:'08',setembro:'09',outubro:'10',novembro:'11',dezembro:'12',
+    jan:'01',fev:'02',mar:'03',abr:'04',jun:'06',jul:'07',ago:'08',set:'09',out:'10',nov:'11',dez:'12',
+  };
+  const textual = s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .match(/(\d{1,2})\s*(?:de\s*)?([a-zA-Z]+)\s*(?:de\s*)?(\d{4})/);
+  if (textual) {
+    const mes = MESES[textual[2]];
+    if (mes) return `${textual[3]}-${mes}-${textual[1].padStart(2,'0')}`;
+  }
+
+  // "março/2026" ou "março 2026" → usa dia 01
+  const mesAno = s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .match(/^([a-zA-Z]+)[\/\s]+(\d{4})$/);
+  if (mesAno) {
+    const mes = MESES[mesAno[1]];
+    if (mes) return `${mesAno[2]}-${mes}-01`;
+  }
+
+  // Último recurso: tenta Date.parse
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+
+  return '';
+}
+
+/**
  * Constrói o nome padronizado do arquivo conforme o padrão:
  * NF [número] - [razão social/emitente] - [nome profissional] - MUSEUS CENTRO - [museu, se houver] - R$ [valor]
  * Exemplo: NF 123 - ENGENHARIA E DESIGN LTDA - CAROLINE ABASSE - MUSEUS CENTRO - MIS - R$ 2.600,00
@@ -98,9 +146,9 @@ Datas até ${hoje} são VÁLIDAS e NÃO devem ser sinalizadas como futuras.
 "Prestação de serviço de [função exercida] ao Projeto Museus Centro - Termo de Colaboração 01-031.069/24-80, parceria com SMC/FMC: [MÊS/ANO]."
 
 ## TAREFA:
-1. Leia o documento integralmente
+1. Leia o documento integralmente — TODOS os campos visíveis devem ser extraídos
 2. IDENTIFIQUE O TIPO: pode ser Nota Fiscal, Recibo, Comprovante de Pagamento, Comprovante PIX/TED, Boleto ou outro documento complementar de NF
-3. Se for Nota Fiscal: extraia TODOS os dados fiscais
+3. Se for Nota Fiscal: extraia TODOS os dados fiscais sem omitir nenhum campo
 4. Se for Recibo, Comprovante ou documento complementar de uma NF: identifique a qual NF se refere e extraia os dados de correspondência
 5. Verifique se o tomador bate com o Viaduto das Artes (CNPJ 23.843.648/0001-25)
 6. Verifique se a descrição segue o padrão esperado
@@ -109,6 +157,15 @@ Datas até ${hoje} são VÁLIDAS e NÃO devem ser sinalizadas como futuras.
 9. Identifique o MUSEU DE ATUAÇÃO se mencionado: MIS, MUMO ou MHAB
 10. Identifique a FUNÇÃO exercida no projeto
 11. Marque PENDÊNCIAS não bloqueantes (nunca bloqueie o envio, apenas registre)
+
+## REGRAS CRÍTICAS DE EXTRAÇÃO:
+- **nf_data_emissao**: OBRIGATÓRIO. Leia a data exata do documento e retorne SEMPRE no formato YYYY-MM-DD (ex: 2026-03-15). NUNCA deixe em branco se houver qualquer data no documento. Se houver "competência" ou "período de referência" mas não uma data clara, use o primeiro dia do mês/ano indicado.
+- **nf_emitente_cpf_cnpj**: OBRIGATÓRIO. Retorne APENAS dígitos, sem pontos, barras ou hífens (ex: "12345678000195").
+- **nf_valor_total**: OBRIGATÓRIO. Retorne o valor decimal com ponto (ex: "2600.00"). Leia o valor líquido ou total da nota.
+- **nf_emitente_nome**: OBRIGATÓRIO. Razão social completa do emitente/prestador.
+- **nf_numero**: Número da nota fiscal. Se não houver número explícito, procure no cabeçalho ou rodapé.
+- **municipio**: Município de emissão da nota. Leia do endereço do emitente.
+- Campos de dados_pagamento: extraia TODOS os dados bancários visíveis (banco, agência, conta, PIX, CPF/CNPJ do prestador).
 
 ## TIPOS DE DOCUMENTO COMPLEMENTAR (não são NFs mas se vinculam a uma):
 - RECIBO: documento emitido pelo prestador confirmando recebimento de pagamento
@@ -222,6 +279,12 @@ ${orientacoes ? `Orientações: ${orientacoes}` : ''}
 IDENTIFIQUE se é: Nota Fiscal, Recibo, Comprovante de Pagamento, ou outro documento complementar de uma NF.
 Se for Recibo ou Comprovante, identifique o número da NF a que se refere.
 
+REGRAS CRÍTICAS:
+- nf_data_emissao: retorne SEMPRE no formato YYYY-MM-DD. Leia a data real do documento. NUNCA invente.
+- nf_emitente_cpf_cnpj: retorne APENAS dígitos (sem pontos/barras/hífens).
+- nf_valor_total: valor decimal com ponto (ex: 2600.00).
+- Extraia TODOS os campos bancários visíveis (banco, agência, conta, PIX).
+
 JSON:
 {
   "eh_nota_fiscal": boolean,
@@ -318,6 +381,12 @@ ${orientacoes ? `Orientações: ${orientacoes}` : ''}
 
 IDENTIFIQUE se é NF, Recibo, Comprovante ou outro documento complementar de uma NF.
 Se for complementar, identifique o número da NF referenciada.
+
+REGRAS CRÍTICAS:
+- nf_data_emissao: formato YYYY-MM-DD obrigatório. Leia a data real do documento.
+- nf_emitente_cpf_cnpj: apenas dígitos.
+- nf_valor_total: decimal com ponto (ex: 2600.00).
+- Extraia todos os dados bancários visíveis.
 
 JSON:
 {
@@ -715,6 +784,13 @@ Deno.serve(async (req) => {
 
     const ia = resultado.data || {};
 
+    // Normalização imediata dos campos críticos (independente do modelo usado)
+    if (ia.nf_data_emissao) ia.nf_data_emissao = normalizeDate(ia.nf_data_emissao);
+    if (ia.nf_emitente_cpf_cnpj) ia.nf_emitente_cpf_cnpj = onlyDigits(ia.nf_emitente_cpf_cnpj);
+    if (ia.dados_pagamento?.cpf_cnpj) ia.dados_pagamento.cpf_cnpj = onlyDigits(ia.dados_pagamento.cpf_cnpj);
+    if (ia.tomador_cnpj_encontrado) ia.tomador_cnpj_encontrado = onlyDigits(ia.tomador_cnpj_encontrado);
+    console.log(`📋 Campos extraídos — data: "${ia.nf_data_emissao}", CNPJ: "${ia.nf_emitente_cpf_cnpj}", valor: "${ia.nf_valor_total}", num: "${ia.nf_numero}"`);
+
     // Gerar pendências e validações pós-extração
     const { inconsistencias, pendencias, avisos } = gerarPendenciasEValidacoes(ia, body);
 
@@ -826,6 +902,21 @@ Deno.serve(async (req) => {
     // Campos que NÃO devem ser sobrescritos se já houver aprovação
     const jaAprovado = ['APROVADO', 'PAGO'].includes(safeStr(intakeAtual?.status_processamento));
 
+    // Normaliza data de emissão para YYYY-MM-DD antes de salvar
+    const dataNormalizada = normalizeDate(ia.nf_data_emissao);
+    if (dataNormalizada && ia.nf_data_emissao !== dataNormalizada) {
+      console.log(`📅 Data normalizada: "${ia.nf_data_emissao}" → "${dataNormalizada}"`);
+      ia.nf_data_emissao = dataNormalizada;
+      resultadoIaCompleto.nf_data_emissao = dataNormalizada;
+    }
+
+    // Normaliza CNPJ/CPF do emitente (só dígitos)
+    const cnpjNormalizado = onlyDigits(ia.nf_emitente_cpf_cnpj || '');
+    if (cnpjNormalizado) {
+      ia.nf_emitente_cpf_cnpj = cnpjNormalizado;
+      resultadoIaCompleto.nf_emitente_cpf_cnpj = cnpjNormalizado;
+    }
+
     const updatePayload = {
       tipo_detectado: tipoDetectado,
       status_processamento: jaAprovado ? intakeAtual.status_processamento : 'AGUARDANDO_REVISAO',
@@ -839,8 +930,10 @@ Deno.serve(async (req) => {
       nf_emitente_nome: ia.nf_emitente_nome || '',
       nf_numero: ia.nf_numero || '',
       nf_valor_total: parseValor(ia.nf_valor_total) || null,
+      nf_data_emissao: dataNormalizada || undefined,
       municipio: ia.municipio || '',
-      nf_emitente_cpf_cnpj: onlyDigits(ia.nf_emitente_cpf_cnpj || ''),
+      nf_emitente_cpf_cnpj: cnpjNormalizado || '',
+      fornecedor_cpf_cnpj: cnpjNormalizado || '',
     };
 
     await base44.asServiceRole.entities.DocumentIntake.update(intakeId, updatePayload);
