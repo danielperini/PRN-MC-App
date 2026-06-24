@@ -16,6 +16,7 @@ import NFDuplicateBlockAlert from './NFDuplicateBlockAlert'
 import AnalysisSummary from './AnalysisSummary'
 import useDocumentAnalysis from '@/hooks/useDocumentAnalysis'
 import { notifyPurchaseApproved, notifyPurchaseCreated, notifyPurchaseReturned } from '@/services/notifications/purchaseNotifications'
+import { METAS_PROJETO } from '@/lib/metasProjeto'
 
 const CENTROS = ['MUMO','MIS','MHAB','Noturno nos Museus 2026','Noturno Pampulha','Publicações','Geral']
 
@@ -944,16 +945,8 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
     }
   }
 
-  // ── ITEMS DE META — metas oficiais do projeto ──
-  const metaItems = [
-    { value: 'MC3A-20', label: 'MC3A-20 — Meta 1: Equipe principal e coordenadores' },
-    { value: 'MC3A-21', label: 'MC3A-21 — Meta 3: Manutenção de exposições' },
-    { value: 'MC3A-22', label: 'MC3A-22 — Meta 7: Educador' },
-    { value: 'MC3A-23', label: 'MC3A-23 — Meta 10/11: Mostras e Noturno nos Museus' },
-    { value: 'MC3A-24', label: 'MC3A-24 — Meta 16/17/18: Diárias, Publicações e Custeios' },
-    { value: 'MC3A-25', label: 'MC3A-25 — Meta 20/21/22: Ações educativas, Exposição MUMO e Consultorias' },
-    { value: 'MC3A-EXTRA', label: 'MC3A-EXTRA — Meta 23: Despesas Gerais' },
-  ];
+  // ── ITEMS DE META — metas oficiais do projeto (fonte: lib/metasProjeto.js) ──
+  const metaItems = METAS_PROJETO.map((m) => ({ value: m.id, label: m.label }));
 
   // ── RUBRICAS FILTRADAS ──
   const filteredRubricItems = useMemo(() => {

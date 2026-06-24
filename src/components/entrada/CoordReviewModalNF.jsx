@@ -15,18 +15,7 @@ const CENTROS = ['MHAB', 'MIS', 'MUMO', 'Noturno 2026', 'Noturno Pampulha', 'Atu
 const MUSEUS_RATEIO = ['MHAB', 'MIS', 'MUMO'];
 const DEFAULT_RATEIO = MUSEUS_RATEIO.map((m) => ({ museu: m, valor: '' }));
 
-// Metas do projeto — mesmos valores do enum meta_id em PurchaseRequest
-const METAS_PROJETO = [
-  { id: 'MC3A-20', label: 'MC3A-20 — Meta 1: Equipe principal e coordenadores' },
-  { id: 'MC3A-21', label: 'MC3A-21 — Meta 3: Manutenção de exposições' },
-  { id: 'MC3A-22', label: 'MC3A-22 — Meta 7: Educador' },
-  { id: 'MC3A-23', label: 'MC3A-23 — Meta 10/11: Mostras e Noturno nos Museus' },
-  { id: 'MC3A-24', label: 'MC3A-24 — Meta 16/17/18: Diárias, Publicações e Custeios' },
-  { id: 'MC3A-25', label: 'MC3A-25 — Meta 20/21/22: Ações educativas, Exposição MUMO e Consultorias' },
-  { id: 'MC3A-EXTRA', label: 'MC3A-EXTRA — Meta 23: Despesas Gerais' },
-];
-
-const SET_METAS_OFICIAIS = new Set(METAS_PROJETO.map((m) => m.id));
+import { METAS_PROJETO, SET_METAS_OFICIAIS } from '@/lib/metasProjeto';
 
 const COORD_EMAILS = [
   'danielperini.mc@viadutodasartes.org.br',
