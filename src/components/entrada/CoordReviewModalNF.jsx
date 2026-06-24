@@ -209,15 +209,17 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   useEffect(() => {
     async function loadRubricas() {
       try {
-        // Busca rubricas do banco e filtra SOMENTE as do 3º Aditivo ativas
+        // Busca rubricas do banco e filtra as do 3º e 4º Aditivo ativas
         const list = await base44.entities.Rubrica.list('', 2000);
-        const apenas3Aditivo = (list || []).filter(
-          (r) => r?.ativo !== false && String(r?.origem_recurso || '').includes('3')
+        const rubricasValidas = (list || []).filter(
+          (r) => r?.ativo !== false && (
+            String(r?.origem_recurso || '').includes('3') ||
+            String(r?.origem_recurso || '').includes('4') ||
+            String(r?.centro_custo || '').toLowerCase().includes('pampulha')
+          )
         );
 
-        // Se o banco ainda não tem rubricas com origem_recurso preenchida, usa a lib oficial
-        // como fallback de exibição (não persiste, apenas para o select)
-        const rubricasFinal = apenas3Aditivo.length > 0 ? apenas3Aditivo : [];
+        const rubricasFinal = rubricasValidas.length > 0 ? rubricasValidas : [];
         setRubricas(rubricasFinal);
 
         // Auto-sugestão de rubrica apenas se for do 3º Aditivo
@@ -521,10 +523,15 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       return;
     }
 
-    // Bloqueia se a rubrica selecionada não pertencer ao 3º Aditivo
+    // Bloqueia se a rubrica selecionada não pertencer ao 3º ou 4º Aditivo
     const rubricaSel = rubricas.find((r) => r.id === form.rubrica_id);
-    if (rubricaSel && !String(rubricaSel.origem_recurso || '').includes('3')) {
-      toast({ title: 'Rubrica inválida', description: 'A rubrica selecionada não pertence ao 3º Aditivo.', variant: 'destructive', duration: 4000 });
+    const origemValida = rubricaSel && (
+      String(rubricaSel.origem_recurso || '').includes('3') ||
+      String(rubricaSel.origem_recurso || '').includes('4') ||
+      String(rubricaSel.centro_custo || '').toLowerCase().includes('pampulha')
+    );
+    if (rubricaSel && !origemValida) {
+      toast({ title: 'Rubrica inválida', description: 'A rubrica selecionada não pertence ao 3º ou 4º Aditivo.', variant: 'destructive', duration: 4000 });
       return;
     }
 
