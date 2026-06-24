@@ -1072,6 +1072,15 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
                         )}
                       </div>
                       <div className="max-h-52 overflow-y-auto">
+                        {!rubricaBusca && (
+                          <button
+                            type="button"
+                            onClick={() => { setForm((f) => ({ ...f, rubrica_id: '' })); setRubricaDropdownOpen(false); }}
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 text-slate-400 italic"
+                          >
+                            — Nenhuma (limpar seleção) —
+                          </button>
+                        )}
                         {rubricasFiltradas.length === 0 && (
                           <p className="text-sm text-slate-400 text-center py-4">Nenhuma rubrica encontrada</p>
                         )}
