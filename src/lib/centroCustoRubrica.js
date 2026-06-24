@@ -11,6 +11,8 @@ export const CENTROS_CUSTO = [
   'Educação',
   'Produção',
   'Administrativo-financeiro',
+  'Noturno 2026',
+  'Noturno Pampulha',
   'Noturno nos Museus',
   'Publicações',
   'Consultorias',
@@ -40,7 +42,8 @@ export function sugerirCentroCusto(nomeRubrica) {
 
   if (/\bproducao\b/.test(n)) return 'Produção';
 
-  if (/noturno|ed\. 2026|ed 2026|edicao 2026|apresentacao|infraestrutura|vans|seguranca|limpeza|iluminacao/.test(n)) return 'Noturno nos Museus';
+  if (/\bnoturno\b.*\bpampulha\b|\b4[º°]?\s*(aditivo)/.test(n)) return 'Noturno Pampulha';
+  if (/noturno|ed\. 2026|ed 2026|edicao 2026|apresentacao|infraestrutura|vans|seguranca|limpeza|iluminacao/.test(n)) return 'Noturno 2026';
 
   if (/publicacao|impressao|revisao|traducao|pesquisa e texto/.test(n)) return 'Publicações';
 

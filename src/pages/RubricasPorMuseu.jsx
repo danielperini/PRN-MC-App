@@ -144,6 +144,7 @@ function normalizarCentroCustoParaUI(centroCusto) {
   const low = raw.toLowerCase();
   if (low.includes('noturno') && (low.includes('pampulha') || low.includes('4'))) return 'Noturno Pampulha';
   if (low.includes('noturno')) return 'Noturno 2026';
+  if (up.includes('NOTURNO')) return 'Noturno 2026';
 
   if (up.includes('GERAL') || up.includes('TRANSVERSAL')) return 'Geral/Transversal';
   if (up === 'COORDENAÇÃO' || up === 'COORDENACAO' || up.startsWith('COORDENA')) return 'Coordenação';

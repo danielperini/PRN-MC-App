@@ -91,7 +91,11 @@ function normalizeCentro(value) {
   if (raw === 'geral' || raw === 'atuação geral' || raw === 'atuacao geral') return 'Geral';
   if (raw === 'rateado') return 'Rateado';
   if (raw === 'publicacoes') return 'Publicações';
-  if (raw === 'noturno nos museus 2026') return 'Noturno nos Museus 2026';
+  if (raw === 'noturno nos museus 2026' || raw === 'noturno nos museus') return 'Noturno 2026';
+  if (raw === 'noturno 2026') return 'Noturno 2026';
+  if (raw === 'noturno pampulha') return 'Noturno Pampulha';
+  if (raw.includes('pampulha')) return 'Noturno Pampulha';
+  if (raw.includes('noturno')) return 'Noturno 2026';
   if (raw.includes('imagem e som')) return 'MIS';
   if (raw.includes('abilio barreto')) return 'MHAB';
   if (raw.includes('moda')) return 'MUMO';
