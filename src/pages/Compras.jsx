@@ -517,7 +517,10 @@ function ComprasInner() {
       !busca ||
       String(p.descricao_item || '').toLowerCase().includes(busca) ||
       String(p.fornecedor_nome || '').toLowerCase().includes(busca) ||
-      String(p.objeto || '').toLowerCase().includes(busca);
+      String(p.nf_emitente_nome || '').toLowerCase().includes(busca) ||
+      String(p.objeto || '').toLowerCase().includes(busca) ||
+      fmtBRL(getPurchaseValue(p)).toLowerCase().includes(busca) ||
+      String(p.nf_numero || '').toLowerCase().includes(busca);
 
     // Filtro por período (data de criação)
     let matchPeriodo = true;
@@ -1130,7 +1133,7 @@ function ComprasInner() {
               <div className="relative min-w-48 flex-1">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
                 <Input
-                  placeholder="Buscar..."
+                  placeholder="Buscar fornecedor, NF, valor..."
                   className="pl-9"
                   value={filters.search}
                   onChange={(e) =>
