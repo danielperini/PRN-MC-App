@@ -275,6 +275,15 @@ function AuthenticatedApp() {
           }
         />
         <Route
+          path="/NFsDoGmail"
+          element={
+            <SafePage
+              Page={React.lazy(() => import('./pages/NFsDoGmail'))}
+              pageName="NFsDoGmail"
+            />
+          }
+        />
+        <Route
           path="/RelatorioExecucaoObjeto"
           element={
             <SafePage
