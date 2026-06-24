@@ -415,15 +415,18 @@ export default function EntradaUnica() {
     setLoadingIntakes(true);
     setIntakesLoadError(false);
 
+    const isAdmin = user?.role === 'admin';
     try {
       // Tenta filter com timeout de 10s via Promise.race
       let list = null;
       try {
+        const query = { status_registro: 'ATIVO' };
+        if (!isAdmin) query.user_email = user.email;
         list = await Promise.race([
           base44.entities.DocumentIntake.filter(
-            { user_email: user.email, status_registro: 'ATIVO' },
+            query,
             '-created_date',
-            50
+            200
           ),
           new Promise((_, reject) => setTimeout(() => reject(new Error('FILTER_TIMEOUT')), 10000)),
         ]);
@@ -436,8 +439,12 @@ export default function EntradaUnica() {
       if (!list || list.length === 0) {
         const all = await base44.entities.DocumentIntake.list('-created_date', 200);
         list = (all || []).filter(
-          (d) => d.user_email === user.email && d.status_registro !== 'REMOVIDO'
-        ).slice(0, 50);
+          (d) => {
+            if (d.status_registro === 'REMOVIDO') return false;
+            if (!isAdmin && d.user_email !== user.email) return false;
+            return true;
+          }
+        ).slice(0, 200);
       }
 
       // Correções e vinculações em background — via backend
