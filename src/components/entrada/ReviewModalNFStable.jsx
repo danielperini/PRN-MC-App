@@ -9,7 +9,7 @@ import{base44}from'@/api/base44Client';
 import{useToast}from'@/components/ui/use-toast';
 import{Loader2,Send}from'lucide-react';
 // Metas derivadas dinamicamente das rubricas carregadas da entidade Rubrica
-const centros=['MHAB','MIS','MUMO','Atuacao Geral','Geral','Noturno nos Museus 2026','Publicacoes'];
+const centros=['MHAB','MIS','MUMO','Atuacao Geral','Geral','Noturno nos Museus 2026','Noturno Pampulha','Publicacoes'];
 const nrm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
 const num=v=>{const s=String(v||'0').replace(/\s/g,'');if(/^\d{1,3}(\.\d{3})*(,\d+)?$/.test(s))return Number(s.replace(/\./g,'').replace(',','.'))||0;return Number(s.replace(',','.'))||0};
 const clean=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9\s\-]/g,' ').replace(/\s+/g,' ').trim().toUpperCase();

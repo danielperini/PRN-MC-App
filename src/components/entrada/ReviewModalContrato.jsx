@@ -395,7 +395,7 @@ export default function ReviewModalContrato({ intake, onClose, onSaved }) {
                   className="w-full h-9 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700"
                 >
                   <option value="">Selecione</option>
-                  {['MUMO', 'MIS', 'MHAB', 'Noturno nos Museus 2026', 'Publicações', 'Geral'].map(c => (
+                  {['MUMO', 'MIS', 'MHAB', 'Noturno nos Museus 2026', 'Noturno Pampulha', 'Publicações', 'Geral'].map(c => (
                     <option key={c} value={c}>{c}</option>
                   ))}
                 </select>

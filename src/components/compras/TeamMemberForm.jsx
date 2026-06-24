@@ -44,9 +44,9 @@ const CARGOS_FUNCOES = [
   'Auxiliar', 'Prestador(a) de Serviço', 'Outro',
 ];
 
-const MUSEUS = ['MHAB', 'MIS', 'MUMO', 'Noturno nos Museus 2026', 'Publicações', 'Geral'];
+const MUSEUS = ['MHAB', 'MIS', 'MUMO', 'Noturno nos Museus 2026', 'Noturno Pampulha', 'Publicações', 'Geral'];
 
-const CENTROS_CUSTO = ['MUMO', 'MIS', 'MHAB', 'Noturno nos Museus 2026', 'Publicações', 'Geral'];
+const CENTROS_CUSTO = ['MUMO', 'MIS', 'MHAB', 'Noturno nos Museus 2026', 'Noturno Pampulha', 'Publicações', 'Geral'];
 
 function fmt(val) {
   const n = Number(val);
