@@ -49,7 +49,8 @@ const MESES_PADRAO = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Jul
 function limparNomeArquivo(v: unknown) {
   return String(v || '')
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9]/g, '')
+    .replace(/[^a-zA-Z0-9\s]/g, '')
+    .replace(/\s+/g, ' ')
     .trim();
 }
 
@@ -65,7 +66,14 @@ function normalizarCentro(v: unknown) {
 
 function getMesExtenso(dataStr: unknown) {
   try {
-    const d = new Date(safeStr(dataStr));
+    const raw = safeStr(dataStr);
+    let d;
+    const brMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (brMatch) {
+      d = new Date(Number(brMatch[3]), Number(brMatch[2]) - 1, Number(brMatch[1]));
+    } else {
+      d = new Date(raw);
+    }
     if (isNaN(d.getTime())) return { mes: MESES_PADRAO[new Date().getMonth()], ano: String(new Date().getFullYear()) };
     return { mes: MESES_PADRAO[d.getMonth()], ano: String(d.getFullYear()) };
   } catch {
@@ -78,10 +86,11 @@ function buildRenamedNF(params: Record<string, unknown>) {
   const fornecedor = limparNomeArquivo(params.nf_emitente_nome || params.fornecedor).substring(0, 50) || 'Fornecedor';
   const centro = normalizarCentro(params.centro_custo_sugerido || params.centro_custo || 'GERAL');
 
-  // Natureza da despesa (nome da rubrica ou categoria simplificada)
-  const natureza = limparNomeArquivo(
+  // Natureza da despesa: primeiras 4 palavras significativas
+  const naturezaRaw = limparNomeArquivo(
     params.rubrica_nome || params.categoria_sugerida || params.descricao_servico || ''
-  ).substring(0, 40) || 'Geral';
+  );
+  const natureza = naturezaRaw.split(' ').filter(w => w.length > 1).slice(0, 4).join(' ') || 'Geral';
 
   const { mes, ano } = getMesExtenso(params.nf_data_emissao || params.data_emissao);
 
@@ -95,17 +104,18 @@ function buildRenamedNF(params: Record<string, unknown>) {
 
   const nome = `${prefixo}-${numero}-${centro}-${fornecedor}-${natureza}-MuseusCentro-${mes}-${ano}-R$-${valor}.${ext}`;
 
-  // Sanitizar caracteres inválidos
-  return nome.replace(/[\/\:\;\?\*\"\'\(\)\[\]\{\}]/g, '').replace(/\s+/g, '');
+  // Sanitizar caracteres inválidos (mas manter hífens)
+  return nome.replace(/[\/\:\;\?\*\"\'\(\)\[\]\{\}]/g, '').replace(/\s+/g, '-');
 }
 
 function buildRenamedComp(params) {
   const numero = safeStr(params.nf_numero || params.recibo_numero) || 'SN';
   const fornecedor = limparNomeArquivo(params.nf_emitente_nome || params.fornecedor_nome || params.fornecedor).substring(0, 50) || 'Fornecedor';
   const centro = normalizarCentro(params.centro_custo_sugerido || params.centro_custo || 'GERAL');
-  const natureza = limparNomeArquivo(
+  const naturezaRaw = limparNomeArquivo(
     params.rubrica_nome || params.categoria_sugerida || params.descricao_servico || 'Comprovante'
-  ).substring(0, 40) || 'Comprovante';
+  );
+  const natureza = naturezaRaw.split(' ').filter(w => w.length > 1).slice(0, 4).join(' ') || 'Comprovante';
 
   const { mes, ano } = getMesExtenso(params.nf_data_emissao || params.data_emissao || params.created_date);
 
@@ -115,7 +125,7 @@ function buildRenamedComp(params) {
     : '0,00';
 
   const nome = `COMP-${numero}-${centro}-${fornecedor}-${natureza}-MuseusCentro-${mes}-${ano}-R$-${valor}.pdf`;
-  return nome.replace(/[\/\:\;\?\*\"\'\(\)\[\]\{\}]/g, '').replace(/\s+/g, '');
+  return nome.replace(/[\/\:\;\?\*\"\'\(\)\[\]\{\}]/g, '').replace(/\s+/g, '-');
 }
 
 async function updateSafe(entity: any, id: string, payload: Record<string, unknown>) {
@@ -600,7 +610,7 @@ Responda SOMENTE em JSON válido:
           model: 'claude_sonnet_4_6',
         });
 
-        resultadoIa = iaResp || {};
+        resultadoIa = iaResp?.response || iaResp || {};
         const tipoDocumento = safeStr(resultadoIa.tipo_documento).toUpperCase();
         const ehNF = resultadoIa.eh_nota_fiscal === true || tipoDocumento === 'NOTA_FISCAL';
         const ehContrato = resultadoIa.eh_contrato === true || tipoDocumento === 'CONTRATO';
