@@ -8,7 +8,7 @@ import{Textarea}from'@/components/ui/textarea';
 import{base44}from'@/api/base44Client';
 import{useToast}from'@/components/ui/use-toast';
 import{Loader2,Send}from'lucide-react';
-import{METAS_PROJETO}from'@/lib/metasProjeto';
+import{METAS_PROJETO_FALLBACK as METAS_PROJETO}from'@/lib/metasProjeto';
 // Metas derivadas dinamicamente das rubricas carregadas da entidade Rubrica
 const centros=['MHAB','MIS','MUMO','Atuacao Geral','Geral','Noturno nos Museus 2026','Noturno Pampulha','Publicacoes'];
 const nrm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();

@@ -16,7 +16,7 @@ import NFDuplicateBlockAlert from './NFDuplicateBlockAlert'
 import AnalysisSummary from './AnalysisSummary'
 import useDocumentAnalysis from '@/hooks/useDocumentAnalysis'
 import { notifyPurchaseApproved, notifyPurchaseCreated, notifyPurchaseReturned } from '@/services/notifications/purchaseNotifications'
-import { METAS_PROJETO } from '@/lib/metasProjeto'
+import { METAS_PROJETO_FALLBACK } from '@/lib/metasProjeto'
 
 const CENTROS = ['MUMO','MIS','MHAB','Noturno nos Museus 2026','Noturno Pampulha','Publicações','Geral']
 
@@ -101,11 +101,9 @@ function getExistingUrl(prefill = {}) {
 
 function normalizeMetaValue(metaId, metas = []) {
   if (!metaId) return ''
-
+  // Aceita tanto ID do banco quanto nome direto
   const exact = metas.find((m) => m?.id === metaId || m?.nome === metaId)
-
-  if (exact?.nome) return exact.nome
-
+  if (exact?.id) return exact.id
   return metaId
 }
 
@@ -235,9 +233,9 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
     base44.entities.ProjectMeta.list('ordem', 100)
       .then((d) => {
         const ativos = (d || []).filter((m) => m?.ativo !== false)
-        setMetas(ativos)
+        setMetas(ativos.length > 0 ? ativos : METAS_PROJETO_FALLBACK.map(m => ({ id: m.id, nome: m.label })))
       })
-      .catch(() => setMetas([]))
+      .catch(() => setMetas(METAS_PROJETO_FALLBACK.map(m => ({ id: m.id, nome: m.label }))))
   }, [])
 
   useEffect(() => {
@@ -945,8 +943,8 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
     }
   }
 
-  // ── ITEMS DE META — metas oficiais do projeto (fonte: lib/metasProjeto.js) ──
-  const metaItems = METAS_PROJETO.map((m) => ({ value: m.id, label: m.label }));
+  // ── ITEMS DE META — carregadas do banco (ProjectMeta) ──
+  const metaItems = metas.map((m) => ({ value: m.id, label: m.nome || m.label || m.id }));
 
   // ── RUBRICAS FILTRADAS ──
   const filteredRubricItems = useMemo(() => {

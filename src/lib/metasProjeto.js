@@ -1,25 +1,50 @@
 /**
  * METAS OFICIAIS DO PROJETO — 3º ADITIVO
  * Fonte de verdade única para todos os formulários da plataforma.
- * Baseadas nas metas reais do plano de trabalho (rubricas oficiais).
+ * IDs são os IDs reais da entidade ProjectMeta no banco.
+ *
+ * Use loadMetasProjeto() para buscar do banco em tempo de execução.
+ * O METAS_PROJETO_FALLBACK é usado enquanto carrega ou em caso de erro.
  */
 
-export const METAS_PROJETO = [
-  { id: 'MC3A-20', label: 'MC3A-20 — Meta 1: Contratação da equipe principal e coordenadores' },
-  { id: 'MC3A-21', label: 'MC3A-21 — Meta 3: Manutenção de rotina em exposições' },
-  { id: 'MC3A-22', label: 'MC3A-22 — Meta 7: Educadores (MIS, MUMO, MHAB)' },
-  { id: 'MC3A-23', label: 'MC3A-23 — Metas 10/11: Mostras e Noturno nos Museus 2026' },
-  { id: 'MC3A-24', label: 'MC3A-24 — Metas 16/17/18: Diárias, Publicações e Custeios educativos' },
-  { id: 'MC3A-25', label: 'MC3A-25 — Metas 20/21/22: Ações educativas, Exposição MUMO e Consultorias' },
-  { id: 'MC3A-EXTRA', label: 'MC3A-EXTRA — Meta 23: Despesas Gerais' },
+export const METAS_PROJETO_FALLBACK = [
+  { id: '6a32aead6201158ef021b368', label: '1 - Contratação da equipe principal, incluindo os coordenadores da Comissão de Programação' },
+  { id: '6a3b21389ab6f3e9188adf38', label: '2 - Elaborar e executar plano de comunicação de abrangência nacional' },
+  { id: '6a32aead6201158ef021b369', label: '3 - Realizar manutenção de rotina nas exposições dos três museus: MUMO, MIS e MHAB' },
+  { id: '6a3b21382970537f3937612e', label: '4 - Realizar a alteração de dois núcleos/salas das exposições do MUMO e MIS' },
+  { id: '6a3b2138ef98002fd208a1a3', label: '5 - Realizar no mínimo 60 ações educativas' },
+  { id: '6a3b2138c4f755b4bd2dbfbb', label: '6 - Realizar no mínimo 36 ações culturais' },
+  { id: '6a32aead6201158ef021b36a', label: '7 - Contratar educador para MIS-BH, MUMO e MHAB' },
+  { id: '6a3b2139874c41bb0af83e42', label: '8 - Realizar uma exposição e evento de abertura no Casarão secular do MHAB' },
+  { id: '6a3b2139320bc81bec765070', label: '9 - Realizar uma exposição e evento de abertura no MIS' },
+  { id: '6a32aead6201158ef021b36b', label: '10 - Realizar 18 mostras de baixa ou média complexidade nos museus' },
+  { id: '6a32aead6201158ef021b36c', label: '11 - Realizar as edições 2024, 2025 e 2026 do projeto Noturno nos Museus' },
+  { id: '6a3b2139f2e7a20d401b0e49', label: '12 - Contratação de pesquisa, identidade visual, projeto curatorial e expográfico para MHAB' },
+  { id: '6a3b213add810104d6080f35', label: '13 - Contratação de pesquisa, identidade visual, projeto curatorial e expográfico para MUMO' },
+  { id: '6a32aead6201158ef021b36d', label: '14 - Dispositivos acessíveis' },
+  { id: '6a3b213aa726b33a60de42fd', label: '15 - Inscrição do projeto em Leis de Incentivo e outros editais' },
+  { id: '6a32aead6201158ef021b36e', label: '16 - 101 diárias de educador' },
+  { id: '6a32aead6201158ef021b36f', label: '17 - Publicações' },
+  { id: '6a32aead6201158ef021b370', label: '18 - Custeios para atividades educativas contínuas' },
+  { id: '6a3b213a42e432b90cbcafc7', label: '19 - Realizar a atividade "Presente de Iemanjá"' },
+  { id: '6a32aead6201158ef021b371', label: '20 - Realizar 30 ações educativas e/ou culturais' },
+  { id: '6a32aead6201158ef021b372', label: '21 - Realizar uma exposição e evento de abertura no Museu da Moda' },
+  { id: '6a32aead6201158ef021b373', label: '22 - Contratar serviços de consultoria para a execução do projeto' },
+  { id: '6a32aead6201158ef021b374', label: '23 - Despesas Gerais' },
+  { id: '6a32aead6201158ef021b375', label: '24 - Emenda Parlamentar' },
+  { id: '6a32aead6201158ef021b376', label: '25 - Outras Ações' },
+  { id: '6a32aead6201158ef021b377', label: 'Meta de comunicação institucional' },
+  { id: '6a32aead6201158ef021b378', label: 'Rotina' },
+  { id: '6a32aead6201158ef021b379', label: 'Extra' },
 ];
 
-export const METAS_IDS = METAS_PROJETO.map((m) => m.id);
-
+// Para compatibilidade com código existente
+export const METAS_PROJETO = METAS_PROJETO_FALLBACK;
+export const METAS_IDS = METAS_PROJETO_FALLBACK.map((m) => m.id);
 export const SET_METAS_OFICIAIS = new Set(METAS_IDS);
 
 /** Retorna o label legível para um id de meta */
 export function getMetaLabel(metaId) {
-  const meta = METAS_PROJETO.find((m) => m.id === metaId);
+  const meta = METAS_PROJETO_FALLBACK.find((m) => m.id === metaId);
   return meta?.label ?? metaId ?? '';
 }
