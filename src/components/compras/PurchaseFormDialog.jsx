@@ -944,33 +944,24 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
     }
   }
 
-  // ── ITEMS DE META (derivados das rubricas) ──
-  const metaItems = useMemo(() => {
-    const grupos = new Map();
-    for (const r of rubricas) {
-      if (r?.ativo === false) continue;
-      const nome = r.grupo || r.meta || '';
-      if (!nome.trim()) continue;
-      if (!grupos.has(nome)) grupos.set(nome, nome);
-    }
-    return Array.from(grupos.keys()).sort().map((nome) => ({
-      value: nome,
-      label: nome,
-    }));
-  }, [rubricas]);
+  // ── ITEMS DE META — metas oficiais do projeto ──
+  const metaItems = [
+    { value: 'MC3A-20', label: 'MC3A-20 — Meta 1: Equipe principal e coordenadores' },
+    { value: 'MC3A-21', label: 'MC3A-21 — Meta 3: Manutenção de exposições' },
+    { value: 'MC3A-22', label: 'MC3A-22 — Meta 7: Educador' },
+    { value: 'MC3A-23', label: 'MC3A-23 — Meta 10/11: Mostras e Noturno nos Museus' },
+    { value: 'MC3A-24', label: 'MC3A-24 — Meta 16/17/18: Diárias, Publicações e Custeios' },
+    { value: 'MC3A-25', label: 'MC3A-25 — Meta 20/21/22: Ações educativas, Exposição MUMO e Consultorias' },
+    { value: 'MC3A-EXTRA', label: 'MC3A-EXTRA — Meta 23: Despesas Gerais' },
+  ];
 
   // ── RUBRICAS FILTRADAS ──
   const filteredRubricItems = useMemo(() => {
     const ativas = rubricas.filter((r) => r?.ativo !== false && r?.id);
     if (ativas.length === 0) return [];
 
-    // Filtro por meta (grupo da rubrica)
-    const matchMeta = (r) => {
-      if (!form.meta_id) return true;
-      const metaR = (r.grupo || r.meta || '').toLowerCase().trim();
-      const metaF = String(form.meta_id).toLowerCase().trim();
-      return metaR && metaF && (metaR === metaF || metaR.includes(metaF) || metaF.includes(metaR));
-    };
+    // Filtro por meta: não filtra rubricas por meta_id (são códigos diferentes dos grupos)
+    const matchMeta = () => true;
 
     // Filtro por centro de custo
     const matchCentro = (r) => {
@@ -1253,9 +1244,7 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
                   if (r?.escopo_orcamentario === 'NOTURNO') {
                     setField('centro_custo', 'Noturno nos Museus 2026')
                   }
-                  if (r?.grupo || r?.meta) {
-                    setField('meta_id', r.grupo || r.meta || form.meta_id)
-                  }
+                  // Não sobrescreve meta_id ao selecionar rubrica (meta usa código próprio)
                 }}
                 items={filteredRubricItems}
                 placeholder="Selecione"
