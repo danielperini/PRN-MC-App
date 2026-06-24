@@ -329,6 +329,20 @@ export default function EntradaUnica() {
     for (const item of lista || []) {
       const status = String(item.status_processamento || '').toUpperCase();
 
+      // Libera documentos travados em ENVIADO há mais de 3 minutos para revisão manual
+      if (status === 'ENVIADO') {
+        const created = new Date(item.updated_date || item.created_date || 0).getTime();
+        const passouTempo = created && agora - created > 180000; // 3 minutos
+        if (passouTempo) {
+          await base44.entities.DocumentIntake.update(item.id, {
+            status_processamento: 'AGUARDANDO_REVISAO',
+            tipo_detectado: getTipoByFile(item),
+            erros_validacao: ['IA não iniciou a análise. Revise manualmente.'],
+          }).catch(() => {});
+        }
+        continue;
+      }
+
       if (status !== 'ANALISANDO_IA') continue;
 
       const created = new Date(item.updated_date || item.created_date || 0).getTime();

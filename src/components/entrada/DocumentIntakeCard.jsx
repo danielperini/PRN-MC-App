@@ -191,15 +191,18 @@ export default function DocumentIntakeCard({ intake, allIntakes, onReview, onDel
   const fileName = intake.file_name_final || intake.file_name_original || 'Arquivo';
   const statusKey = String(intake.status_processamento || '').toUpperCase();
   const isProcessing = ['ANALISANDO_IA', 'ENVIADO'].includes(statusKey);
+  const isEnviadoTravado = statusKey === 'ENVIADO' && isPDF;
   const canFallbackReview = isPDF && isProcessing && hasStrongFileNameData(fileName);
 
   // XML nunca pode revisar nem enviar. Contrato vai para modal próprio.
   const canReview = (
   ['AGUARDANDO_REVISAO', 'RASCUNHO', 'ERRO_PROCESSAMENTO'].includes(statusKey) ||
-  canFallbackReview) &&
+  canFallbackReview ||
+  isEnviadoTravado) &&
   !isXML;
   const canReviewContrato = isContrato && ['AGUARDANDO_REVISAO', 'RASCUNHO', 'ERRO_PROCESSAMENTO', 'ANALISANDO_IA'].includes(statusKey);
   const hasError = intake.status_processamento === 'ERRO_PROCESSAMENTO';
+  const canReanalisar = hasError || canFallbackReview || isEnviadoTravado;
   const canSendApproval = canReview && isPDF && !isProcessing;
 
   // XML: mostrar "Vincular XML" apenas se não vinculado e não completo
@@ -475,8 +478,8 @@ export default function DocumentIntakeCard({ intake, allIntakes, onReview, onDel
             </Button>
           }
 
-          {/* Reanalisar (em erro ou análise travada, não XML) */}
-          {(hasError || canFallbackReview) && !isXML &&
+          {/* Reanalisar (em erro ou análise travada ou ENVIADO sem IA, não XML) */}
+          {canReanalisar && !isXML &&
           <Button size="sm" variant="outline" onClick={handleReanalyse} disabled={loading}
           className="text-xs h-8 px-2" title="Reanalisar com IA">
               {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}
