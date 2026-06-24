@@ -22,6 +22,7 @@ import {
   ShieldCheck,
   User,
   FileText,
+  FileSpreadsheet,
   AlertTriangle,
   Scissors,
   Pencil,
@@ -40,6 +41,7 @@ import OrcamentoDashboard from '@/components/compras/OrcamentoDashboard';
 import ImportarOrcamento from '@/components/compras/ImportarOrcamento';
 import TeamManager from '@/components/compras/TeamManager';
 import ContractActivityReportGenerator from '@/components/compras/ContractActivityReportGenerator';
+import RelatorioMensalConsolidadoDialog from '@/components/compras/RelatorioMensalConsolidadoDialog';
 import { useBudgetLines } from '@/components/compras/useBudgetLines';
 import GestaoDocumental from '@/pages/GestaoDocumental';
 import RubricasGrid from '@/components/compras/RubricasGrid';
@@ -343,6 +345,7 @@ function ComprasInner() {
   const [showForm, setShowForm] = useState(false);
   const [editingPurchase, setEditingPurchase] = useState(null);
   const [showReportGen, setShowReportGen] = useState(false);
+  const [showRelatorioMensal, setShowRelatorioMensal] = useState(false);
   const [showNovaRubrica, setShowNovaRubrica] = useState(false);
   const [selectedRubrica, setSelectedRubrica] = useState(null);
   const [paymentPurchase, setPaymentPurchase] = useState(null);
@@ -1044,6 +1047,17 @@ function ComprasInner() {
               <Button
                 variant="outline"
                 className="gap-2 border-black"
+                onClick={() => setShowRelatorioMensal(true)}
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                Relatório Mensal NF
+              </Button>
+            )}
+
+            {isCoordenador && (
+              <Button
+                variant="outline"
+                className="gap-2 border-black"
                 onClick={() => setShowReportGen(true)}
               >
                 <FileText className="h-4 w-4" />
@@ -1614,6 +1628,11 @@ function ComprasInner() {
           onClose={() => setShowReportGen(false)}
         />
       )}
+
+      <RelatorioMensalConsolidadoDialog
+        isOpen={showRelatorioMensal}
+        onClose={() => setShowRelatorioMensal(false)}
+      />
 
       {paymentPurchase && (
         <PagarSolicitacaoDialog
