@@ -19,6 +19,8 @@ import { notifyPurchaseApproved, notifyPurchaseCreated, notifyPurchaseReturned }
 import { METAS_PROJETO_FALLBACK } from '@/lib/metasProjeto'
 
 const CENTROS = ['MUMO','MIS','MHAB','Noturno nos Museus 2026','Noturno Pampulha','Publicações','Geral']
+const MUSEUS_RATEIO = ['MHAB', 'MIS', 'MUMO']
+const DEFAULT_RATEIO = MUSEUS_RATEIO.map((m) => ({ museu: m, valor: '' }))
 
 const CATEGORIAS = [
   'Serviços (equipe/coordenação)',
@@ -180,6 +182,8 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
   const [checkingNfDuplicate, setCheckingNfDuplicate] = useState(false)
   const [deletingDuplicate, setDeletingDuplicate] = useState(false)
   const [aiPreenchido, setAiPreenchido] = useState(false)
+  const [dividirEntreMuseus, setDividirEntreMuseus] = useState(false)
+  const [rateio, setRateio] = useState(DEFAULT_RATEIO)
 
   // Hook unificado de análise de documentos
   const {
@@ -501,6 +505,29 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
     marcarManual(key)
   }
 
+  const valorNumerico = toNumber(form.valor_solicitado)
+  const totalRateado = rateio.reduce((sum, r) => sum + (parseFloat(r.valor) || 0), 0)
+  const diferencaRateio = Math.abs(valorNumerico - totalRateado)
+  const rateioValido = dividirEntreMuseus
+    ? diferencaRateio < 0.01 && rateio.some((r) => parseFloat(r.valor) > 0)
+    : true
+
+  function handleRateioValor(museu, valor) {
+    setRateio((prev) => prev.map((r) => (r.museu === museu ? { ...r, valor } : r)))
+  }
+
+  function distribuirIgualmente() {
+    const valorPorMuseu = (valorNumerico / MUSEUS_RATEIO.length).toFixed(2)
+    setRateio(MUSEUS_RATEIO.map((m) => ({ museu: m, valor: valorPorMuseu })))
+  }
+
+  function getRateioPayload() {
+    if (!dividirEntreMuseus) return null
+    return rateio
+      .filter((r) => parseFloat(r.valor) > 0)
+      .map((r) => ({ museu: r.museu, valor: parseFloat(r.valor) }))
+  }
+
   function buildPayload(statusOverride = null) {
     const fileUrl =
       attachedFile?.url ||
@@ -543,7 +570,9 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
       arquivo_nome: fileName,
       arquivo_tipo: fileKind,
       tipo_origem: form.tipo_origem || 'ENTRADA_UNICA',
-      origem: form.origem || 'EntradaUnica'
+      origem: form.origem || 'EntradaUnica',
+      centro_custo: dividirEntreMuseus ? 'Rateado' : form.centro_custo,
+      rateio_museus: getRateioPayload(),
     }
   }
 
@@ -612,8 +641,12 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
       return
     }
 
-    if (!form.centro_custo?.trim()) {
+    if (!dividirEntreMuseus && !form.centro_custo?.trim()) {
       smartToast.error('Selecione um centro de custo antes de salvar.')
+      return
+    }
+    if (dividirEntreMuseus && !rateioValido) {
+      smartToast.error('Ajuste o rateio entre museus — a soma deve ser igual ao valor total.')
       return
     }
 
@@ -1192,30 +1225,64 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
               </Select>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-gray-700">
-                Centro de custo
-              </label>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">Centro de custo</label>
+              <div className="flex flex-col gap-1.5 text-sm">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="rateio_tipo" checked={!dividirEntreMuseus} onChange={() => setDividirEntreMuseus(false)} className="accent-slate-700" />
+                  <span className="text-gray-700">Centro único</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="rateio_tipo" checked={dividirEntreMuseus} onChange={() => setDividirEntreMuseus(true)} className="accent-slate-700" />
+                  <span className="text-gray-700">Dividir entre museus (MHAB, MIS, MUMO)</span>
+                </label>
+              </div>
 
-              <Select value={form.centro_custo} onValueChange={(v) => setField('centro_custo', v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
+              {!dividirEntreMuseus && (
+                <Select value={form.centro_custo} onValueChange={(v) => setField('centro_custo', v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CENTROS.map((c) => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                    {form.centro_custo && !CENTROS.includes(form.centro_custo) && (
+                      <SelectItem value={form.centro_custo}>{form.centro_custo}</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              )}
 
-                <SelectContent>
-                  {CENTROS.map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {c}
-                    </SelectItem>
+              {dividirEntreMuseus && (
+                <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-slate-500">A soma deve ser igual ao valor total da NF.</span>
+                    <button type="button" onClick={distribuirIgualmente} className="text-xs text-blue-600 underline hover:text-blue-800">Dividir igualmente</button>
+                  </div>
+                  {rateio.map((r) => (
+                    <div key={r.museu} className="flex items-center gap-2">
+                      <span className="w-12 text-sm font-medium text-slate-700 shrink-0">{r.museu}</span>
+                      <div className="relative flex-1">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">R$</span>
+                        <input
+                          type="number" min="0" step="0.01" placeholder="0,00"
+                          value={r.valor}
+                          onChange={(e) => handleRateioValor(r.museu, e.target.value)}
+                          className="w-full rounded-md border border-input bg-white pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                        />
+                      </div>
+                    </div>
                   ))}
-
-                  {form.centro_custo && !CENTROS.includes(form.centro_custo) && (
-                    <SelectItem value={form.centro_custo}>
-                      {form.centro_custo}
-                    </SelectItem>
+                  <div className={`flex justify-between text-sm font-medium px-1 py-1.5 rounded border ${rateioValido ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+                    <span>Total rateado:</span>
+                    <span>R$ {totalRateado.toFixed(2)}{valorNumerico > 0 ? ` / R$ ${valorNumerico.toFixed(2)}` : ''}</span>
+                  </div>
+                  {!rateioValido && valorNumerico > 0 && (
+                    <p className="text-xs text-red-500">Diferença de R$ {diferencaRateio.toFixed(2)} — ajuste antes de salvar.</p>
                   )}
-                </SelectContent>
-              </Select>
+                </div>
+              )}
             </div>
 
             <div className="space-y-1">

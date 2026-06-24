@@ -36,6 +36,7 @@ export const METAS_PROJETO_FALLBACK = [
   { id: '6a32aead6201158ef021b377', label: 'Meta de comunicação institucional' },
   { id: '6a32aead6201158ef021b378', label: 'Rotina' },
   { id: '6a32aead6201158ef021b379', label: 'Extra' },
+  { id: '6a32aead6201158ef021b37a', label: 'Formação/Diversidade' },
 ];
 
 // Para compatibilidade com código existente
