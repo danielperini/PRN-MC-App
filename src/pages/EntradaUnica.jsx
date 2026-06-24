@@ -101,11 +101,16 @@ function isOrcamentoLike(intake) {
 function getTipoByFile(intake) {
   const mime = String(intake?.mime_type || '').toLowerCase();
   const ext = getFileExt(intake);
+  const name = normalizeText(intake?.file_name_original || '');
 
   if (mime.includes('xml') || ext === 'xml') return 'NOTA_FISCAL_XML';
 
   // Verificar se é orçamento pelo nome antes de classificar como NF PDF
   if (isOrcamentoLike(intake)) return 'DOCUMENTO_ADMINISTRATIVO';
+
+  // Comprovante/recibo: nome contém COMP, BOL, recibo, comprovante
+  const isComp = /\b(comp|bol|boleto|recibo|comprovante|pix|pagamento)\b/i.test(name);
+  if (isComp && (mime.includes('pdf') || ext === 'pdf')) return 'RECIBO_PDF';
 
   if (mime.includes('pdf') || ext === 'pdf') return 'NOTA_FISCAL_PDF';
 

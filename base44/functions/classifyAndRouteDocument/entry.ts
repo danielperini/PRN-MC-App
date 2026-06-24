@@ -99,6 +99,25 @@ function buildRenamedNF(params: Record<string, unknown>) {
   return nome.replace(/[\/\:\;\?\*\"\'\(\)\[\]\{\}]/g, '').replace(/\s+/g, '');
 }
 
+function buildRenamedComp(params) {
+  const numero = safeStr(params.nf_numero || params.recibo_numero) || 'SN';
+  const fornecedor = limparNomeArquivo(params.nf_emitente_nome || params.fornecedor_nome || params.fornecedor).substring(0, 50) || 'Fornecedor';
+  const centro = normalizarCentro(params.centro_custo_sugerido || params.centro_custo || 'GERAL');
+  const natureza = limparNomeArquivo(
+    params.rubrica_nome || params.categoria_sugerida || params.descricao_servico || 'Comprovante'
+  ).substring(0, 40) || 'Comprovante';
+
+  const { mes, ano } = getMesExtenso(params.nf_data_emissao || params.data_emissao || params.created_date);
+
+  const valorNum = parseValor(params.nf_valor_total || params.valor_total);
+  const valor = valorNum > 0
+    ? valorNum.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+    : '0,00';
+
+  const nome = `COMP-${numero}-${centro}-${fornecedor}-${natureza}-MuseusCentro-${mes}-${ano}-R$-${valor}.pdf`;
+  return nome.replace(/[\/\:\;\?\*\"\'\(\)\[\]\{\}]/g, '').replace(/\s+/g, '');
+}
+
 async function updateSafe(entity: any, id: string, payload: Record<string, unknown>) {
   if (!id) return null;
 
@@ -616,7 +635,12 @@ Responda SOMENTE em JSON válido:
           resultadoIa.membros_equipe = (resultadoIa.contrato_membros_equipe || []).map(n => ({ nome: n }));
         }
 
-        if (tipoDocumento !== 'NOTA_FISCAL' && tipoDocumento !== 'CONTRATO') {
+        const ehRecibo = tipoDocumento === 'RECIBO_PDF' || tipoDocumento === 'RECIBO' ||
+          (safeStr(fileName).toLowerCase().includes('comp') && !ehNF);
+
+        if (ehRecibo) {
+          tipoDetectado = 'RECIBO_PDF';
+        } else if (tipoDocumento !== 'NOTA_FISCAL' && tipoDocumento !== 'CONTRATO') {
           tipoDetectado = 'DOCUMENTO_ADMINISTRATIVO';
         } else if (ehContrato) {
           tipoDetectado = 'CONTRATO';
@@ -636,6 +660,19 @@ Responda SOMENTE em JSON válido:
           await updateSafe(base44.asServiceRole.entities.Attachment, attachment?.id, {
             description: `Entrada Única - Contrato: ${resultadoIa.objeto_contrato || nomeFornecedor}`,
             categoria: 'contrato',
+            backup_done: attachment?.backup_done || false,
+          });
+        }
+
+        if (ehRecibo) {
+          nomeFinal = buildRenamedComp({ ...resultadoIa, file_name_original: fileName });
+
+          await updateSafe(base44.asServiceRole.entities.Attachment, attachment?.id, {
+            file_name: nomeFinal,
+            description: 'Entrada Única - Comprovante/Recibo',
+            categoria: 'comprovante',
+            nf_nome_original: fileName,
+            nf_nome_renomeado: nomeFinal,
             backup_done: attachment?.backup_done || false,
           });
         }
@@ -782,7 +819,7 @@ Procure por:
             nf_revisado: false,
             backup_done: attachment?.backup_done || false,
           });
-        } else {
+        } else if (!ehRecibo) {
           await updateSafe(base44.asServiceRole.entities.Attachment, attachment?.id, {
             description: 'Entrada Única - Documento Administrativo',
             categoria: 'documento_administrativo',

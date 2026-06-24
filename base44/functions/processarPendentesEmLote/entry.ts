@@ -178,18 +178,7 @@ Data atual: ${hoje}`,
           processado_em_lote: new Date().toISOString(),
         };
 
-        // Gerar nome padronizado
-        let nomePadronizado = intake.file_name_original || 'documento.pdf';
-        try {
-          const padResp = await svc.functions.invoke('padronizarNomeArquivosNF', {
-            mode: 'single',
-            intake_id: intake.id,
-          });
-          if (padResp?.data?.detalhes?.[0]?.nome_padronizado) {
-            nomePadronizado = padResp.data.detalhes[0].nome_padronizado;
-          }
-        } catch { /* nome original como fallback */ }
-
+        // Primeiro atualiza o intake com os dados da IA
         await svc.entities.DocumentIntake.update(intake.id, {
           resultado_ia: resultadoIA,
           status_processamento: 'AGUARDANDO_REVISAO',
@@ -203,8 +192,24 @@ Data atual: ${hoje}`,
           centro_custo: resultadoIA.centro_custo,
           rubrica_nome_sugerida: resultadoIA.rubrica_nome,
           rubrica_justificativa: resultadoIA.rubrica_justificativa,
-          file_name_final: nomePadronizado,
           erros_validacao: [],
+        });
+
+        // Agora gera nome padronizado com os dados da IA já salvos
+        let nomePadronizado = intake.file_name_original || 'documento.pdf';
+        try {
+          const padResp = await svc.functions.invoke('padronizarNomeArquivosNF', {
+            mode: 'single',
+            intake_id: intake.id,
+          });
+          if (padResp?.data?.detalhes?.[0]?.nome_padronizado) {
+            nomePadronizado = padResp.data.detalhes[0].nome_padronizado;
+          }
+        } catch { /* nome original como fallback */ }
+
+        // Atualiza o nome final
+        await svc.entities.DocumentIntake.update(intake.id, {
+          file_name_final: nomePadronizado,
         });
 
         resultados.detalhes.push({
