@@ -64,13 +64,16 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const maxResults = body.maxResults || 20;
     const dryRun = body.dryRun === true;
+    const pageToken = body.pageToken || null;
+    const skipUntil = body.skipUntil || null; // pular mensagens até encontrar este messageId
 
     const { accessToken } = await base44.asServiceRole.connectors.getConnection('gmail');
     const authHeader = { Authorization: `Bearer ${accessToken}` };
 
     // Buscar e-mails com anexo a partir de março de 2026 (lidos e não lidos)
     const searchQuery = `has:attachment after:2026/02/28`;
-    const listUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(searchQuery)}&maxResults=${maxResults}`;
+    let listUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(searchQuery)}&maxResults=${maxResults}`;
+    if (pageToken) listUrl += `&pageToken=${encodeURIComponent(pageToken)}`;
 
     const listRes = await fetch(listUrl, { headers: authHeader });
     if (!listRes.ok) {
@@ -81,17 +84,26 @@ Deno.serve(async (req) => {
 
     const listData = await listRes.json();
     const messages = listData.messages || [];
+    const nextPageToken = listData.nextPageToken || null;
 
     if (messages.length === 0) {
-      return Response.json({ success: true, mensagem: 'Nenhum e-mail com anexo encontrado a partir de março de 2026.', importados: 0 });
+      return Response.json({ success: true, mensagem: 'Nenhum e-mail com anexo encontrado a partir de março de 2026.', importados: 0, nextPageToken: null });
     }
 
     const resultados = [];
     let importados = 0;
     let ignorados = 0;
     let erros = 0;
+    let encontrouSkip = !skipUntil;
 
     for (const msg of messages) {
+      // Pular mensagens até encontrar skipUntil
+      if (!encontrouSkip) {
+        if (msg.id === skipUntil) {
+          encontrouSkip = true;
+        }
+        continue;
+      }
       try {
         const msgRes = await fetch(
           `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`,
@@ -165,10 +177,9 @@ Deno.serve(async (req) => {
           const attData = await attRes.json();
           const rawBytes = Uint8Array.from(atob(attData.data.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
 
-          // Verificar duplicidade: mesmo arquivo já importado do Gmail?
+          // Verificar duplicidade: mesmo arquivo já importado?
           const existing = await base44.asServiceRole.entities.DocumentIntake.filter({
             file_name_original: filename,
-            origem: 'gmail',
             status_registro: 'ATIVO',
           }, '', 1);
 
@@ -219,6 +230,9 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Último messageId processado para continuar na próxima chamada
+    const ultimoMsgId = messages.length > 0 ? messages[messages.length - 1].id : null;
+
     return Response.json({
       success: true,
       mensagem: `Processados ${messages.length} e-mails. ${importados} anexos importados, ${ignorados} ignorados, ${erros} erros.`,
@@ -226,6 +240,8 @@ Deno.serve(async (req) => {
       ignorados,
       erros,
       dryRun,
+      nextPageToken,
+      ultimoMsgId,
       resultados,
     });
 
