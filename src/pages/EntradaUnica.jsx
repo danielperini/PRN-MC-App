@@ -818,10 +818,27 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
     try {
       await base44.entities.DocumentIntake.update(intake.id, {
         status_processamento: 'ANALISANDO_IA',
-        erros_validacao: []
+        erros_validacao: [],
+        resultado_ia: {}
       });
 
       await loadIntakes();
+
+      // Tenta primeiro via backend robusto (Claude+Gemini+GPT com normalização completa)
+      const isPDF = intake.mime_type?.includes('pdf') || intake.arquivo_original_url?.toLowerCase().endsWith('.pdf');
+      if (isPDF) {
+        try {
+          await base44.functions.invoke('processarNotaFiscalComClaude', {
+            intake_id: intake.id,
+            file_url: intake.arquivo_original_url,
+            orientacoes_usuario: intake.resultado_ia?.orientacoes_usuario || '',
+          });
+          await loadIntakes();
+          return;
+        } catch (backendErr) {
+          console.warn('Backend processarNotaFiscalComClaude falhou, usando fluxo frontend:', backendErr);
+        }
+      }
 
       await analisarComIA(
         intake.id,

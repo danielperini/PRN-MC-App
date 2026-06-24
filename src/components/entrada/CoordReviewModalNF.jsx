@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { base44 } from '@/api/base44Client';
-import { FileText, Loader2, AlertCircle, CheckCircle2, Send, Trash2, SplitSquareHorizontal, BookOpen, ShieldCheck, RefreshCw, LinkIcon, Search, X } from 'lucide-react';
+import { FileText, Loader2, AlertCircle, CheckCircle2, Send, Trash2, SplitSquareHorizontal, BookOpen, ShieldCheck, RefreshCw, LinkIcon, Search, X, Sparkles } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { findDuplicatePurchaseRequest } from '@/lib/purchaseDuplicateGuard';
 import DuplicatePurchaseDetectedModal from '@/components/compras/DuplicatePurchaseDetectedModal';
@@ -155,6 +155,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   const [approvingDirect, setApprovingDirect] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [reprocessing, setReprocessing] = useState(false);
+  const [preenchendoIA, setPreenchendoIA] = useState(false);
   const [xmlCandidates, setXmlCandidates] = useState([]);
   const [selectedXmlId, setSelectedXmlId] = useState('');
   const [loadingXmls, setLoadingXmls] = useState(false);
@@ -540,6 +541,48 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
       toast({ title: 'Erro ao rereprocessar', description: e.message, variant: 'destructive', duration: 3000 });
     } finally {
       setReprocessing(false);
+    }
+  }
+
+  async function handlePreencherComIA() {
+    setPreenchendoIA(true);
+    try {
+      const res = await base44.functions.invoke('processarNotaFiscalComClaude', {
+        intake_id: intake.id,
+        file_url: intake.arquivo_original_url,
+        orientacoes_usuario: '',
+      });
+      const dados = res?.data?.resultado_ia || res?.data || {};
+      if (!dados.nf_emitente_nome && !dados.nf_valor_total) {
+        toast({ title: 'IA não retornou dados suficientes.', variant: 'destructive', duration: 3000 });
+        return;
+      }
+      // Recarrega o intake atualizado do banco
+      const updated = await base44.entities.DocumentIntake.get(intake.id);
+      const iaAtualizado = updated?.resultado_ia || dados;
+      const dataAtualizada = normalizeDateToInput(
+        iaAtualizado.nf_data_emissao ||
+        iaAtualizado.data_emissao ||
+        iaAtualizado.dataEmissao || ''
+      );
+      setForm((f) => ({
+        ...f,
+        nf_numero: iaAtualizado.nf_numero || f.nf_numero,
+        nf_valor_total: iaAtualizado.nf_valor_total || f.nf_valor_total,
+        nf_data_emissao: dataIAValida(dataAtualizada) ? dataAtualizada : f.nf_data_emissao,
+        nf_emitente_nome: iaAtualizado.nf_emitente_nome || f.nf_emitente_nome,
+        nf_emitente_cpf_cnpj: iaAtualizado.nf_emitente_cpf_cnpj || f.nf_emitente_cpf_cnpj,
+        municipio: iaAtualizado.municipio || f.municipio,
+        descricao_servico: iaAtualizado.descricao_servico || f.descricao_servico,
+        competencia: iaAtualizado.competencia || f.competencia,
+        nf_horario_emissao: iaAtualizado.nf_horario_emissao || f.nf_horario_emissao,
+        centro_custo: iaAtualizado.centro_custo_sugerido || f.centro_custo,
+      }));
+      toast({ title: '✅ Campos preenchidos com IA.', duration: 3000 });
+    } catch (e) {
+      toast({ title: 'Erro ao preencher com IA', description: e?.message, variant: 'destructive', duration: 3000 });
+    } finally {
+      setPreenchendoIA(false);
     }
   }
 
@@ -1210,9 +1253,14 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
               Deletar
             </Button>
 
-            <Button variant="outline" size="sm" onClick={handleRereprocessar} disabled={reprocessing || saving || sending}>
+            <Button variant="outline" size="sm" onClick={handleRereprocessar} disabled={reprocessing || saving || sending || preenchendoIA}>
               {reprocessing ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <RefreshCw className="w-4 h-4 mr-1" />}
               Rereprocessar
+            </Button>
+
+            <Button variant="outline" size="sm" onClick={handlePreencherComIA} disabled={preenchendoIA || saving || sending || reprocessing} className="border-purple-200 text-purple-700 hover:bg-purple-50">
+              {preenchendoIA ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Sparkles className="w-4 h-4 mr-1" />}
+              Preencher com IA
             </Button>
 
             <Button variant="outline" onClick={handleSalvarRascunho} disabled={saving}>
