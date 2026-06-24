@@ -1,9 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
-const MAX_POR_CHAMADA = 10;
-const DELAY_ENTRE_BATCHES_MS = 1500;
-
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+const MAX_POR_CHAMADA = 5;
 
 function safeStr(v) { return String(v || '').trim(); }
 function onlyDigits(v) { return String(v || '').replace(/\D/g, ''); }
@@ -43,54 +40,45 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Apenas admin' }, { status: 403 });
     }
 
+    const { offset = 0 } = await req.json().catch(() => ({}));
     const svc = base44.asServiceRole;
 
-    // Buscar intakes pendentes que PRECISAM de análise (sem dados completos no resultado_ia)
+    // Buscar apenas ENVIADO com tipo PENDENTE (ainda não processados)
     const pendentes = [];
     let skip = 0;
     while (true) {
       const batch = await svc.entities.DocumentIntake.filter(
         {
-          status_processamento: { $in: ['AGUARDANDO_REVISAO', 'ERRO_PROCESSAMENTO', 'ENVIADO'] },
+          status_processamento: 'ENVIADO',
           status_registro: { $ne: 'REMOVIDO' },
-          tipo_detectado: { $in: ['NOTA_FISCAL_PDF', 'NOTA_FISCAL_XML', 'PENDENTE'] },
+          tipo_detectado: 'PENDENTE',
           ocultar_entrada_unica: { $ne: true },
         },
-        '-created_date',
-        50,
+        'created_date',
+        25,
         skip
       );
       if (!batch || !batch.length) break;
-      // Filtrar: só incluir se NÃO tem dados completos no resultado_ia
-      for (const intake of batch) {
-        const ria = intake.resultado_ia;
-        const temDadosCompletos = ria && (
-          (ria.nf_emitente_cpf_cnpj || ria.fornecedor_cpf_cnpj) &&
-          (ria.nf_numero || ria.numero_nf) &&
-          (ria.nf_valor_total || ria.valor_total) &&
-          (ria.nf_emitente_nome || ria.fornecedor_nome)
-        );
-        if (!temDadosCompletos) {
-          pendentes.push(intake);
-        }
-      }
-      skip += 50;
+      pendentes.push(...batch);
+      skip += 25;
     }
 
-    const totalDisponivel = pendentes.length;
-    const paraProcessar = pendentes.slice(0, MAX_POR_CHAMADA);
-    
-    console.log(`Total pendentes: ${totalDisponivel}, processando ${paraProcessar.length} nesta chamada`);
+    const totalPendentes = pendentes.length;
+    const inicio = Math.min(offset, totalPendentes);
+    const paraProcessar = pendentes.slice(inicio, inicio + MAX_POR_CHAMADA);
+
+    console.log(`Total pendentes (ENVIADO/PENDENTE): ${totalPendentes}, offset=${inicio}, batch=${paraProcessar.length}`);
 
     const resultados = {
-      total_disponivel: totalDisponivel,
+      total_pendentes: totalPendentes,
+      offset: inicio,
       nesta_chamada: paraProcessar.length,
       processados: 0,
       com_erro: 0,
+      proximo_offset: inicio + paraProcessar.length,
       detalhes: [],
     };
 
-    // Processar um por um
     for (const intake of paraProcessar) {
       try {
         const urls = [];
@@ -105,6 +93,10 @@ Deno.serve(async (req) => {
         }
 
         if (urls.length === 0) {
+          await svc.entities.DocumentIntake.update(intake.id, {
+            status_processamento: 'ERRO_PROCESSAMENTO',
+            erros_validacao: ['Sem URLs acessíveis'],
+          });
           resultados.detalhes.push({ id: intake.id, file: intake.file_name_original, erro: 'Sem URLs' });
           resultados.com_erro++;
           continue;
