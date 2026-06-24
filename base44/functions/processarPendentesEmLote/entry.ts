@@ -178,6 +178,18 @@ Data atual: ${hoje}`,
           processado_em_lote: new Date().toISOString(),
         };
 
+        // Gerar nome padronizado
+        let nomePadronizado = intake.file_name_original || 'documento.pdf';
+        try {
+          const padResp = await svc.functions.invoke('padronizarNomeArquivosNF', {
+            mode: 'single',
+            intake_id: intake.id,
+          });
+          if (padResp?.data?.detalhes?.[0]?.nome_padronizado) {
+            nomePadronizado = padResp.data.detalhes[0].nome_padronizado;
+          }
+        } catch { /* nome original como fallback */ }
+
         await svc.entities.DocumentIntake.update(intake.id, {
           resultado_ia: resultadoIA,
           status_processamento: 'AGUARDANDO_REVISAO',
@@ -191,6 +203,7 @@ Data atual: ${hoje}`,
           centro_custo: resultadoIA.centro_custo,
           rubrica_nome_sugerida: resultadoIA.rubrica_nome,
           rubrica_justificativa: resultadoIA.rubrica_justificativa,
+          file_name_final: nomePadronizado,
           erros_validacao: [],
         });
 

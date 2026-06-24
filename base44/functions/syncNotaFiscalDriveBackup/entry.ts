@@ -29,6 +29,23 @@ function formatValor(value: unknown) {
   return parseValor(value).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function limparNomeArquivo(v: unknown) {
+  return String(v || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .trim();
+}
+
+function normalizarCentroCusto(v: unknown) {
+  const raw = safeStr(v).toUpperCase();
+  if (raw.includes('MHAB')) return 'MHAB';
+  if (raw.includes('MIS')) return 'MIS';
+  if (raw.includes('MUMO')) return 'MUMO';
+  if (raw.includes('NOTURNO')) return 'NOTURNO';
+  if (raw.includes('PUBLICAC')) return 'PUBLICACOES';
+  return 'GERAL';
+}
+
 function getDateValue(value: unknown) {
   const raw = safeStr(value);
   if (!raw) return null;
@@ -100,58 +117,46 @@ function detectTipoComplementar(attachment: any, context: any = {}): string | nu
 function buildFileName(attachment: any, context: any = {}) {
   const tipoComplementar = detectTipoComplementar(attachment, context);
 
-  // Se já está no padrão correto para NF normal, não renomear (mas complementares sempre recalculam)
   const current = safeStr(attachment?.nf_nome_renomeado || attachment?.nome_padronizado_ia || attachment?.file_name);
-  if (!tipoComplementar && /^NF \S+ - .+ - MUSEUS CENTRO( - (MIS|MUMO|MHAB))? - R\$ [\d.,]+\.(pdf|xml)$/i.test(current)) {
-    return current;
-  }
-
   const ext = getExt(current, attachment?.nf_tipo_documento === 'xml_nf' ? 'xml' : 'pdf');
 
-  // Número da NF: para complementares, usa nf_numero_referenciado se disponível
-  const nfNumeroRef = safeStr(
-    attachment?.nf_numero_referenciado ||
-    attachment?.resultado_ia?.nf_numero_referenciado ||
-    context?.nf_numero_referenciado ||
-    ''
-  );
-  const nfNumero = safeStr(attachment?.nf_numero || context?.nf_numero || 'SEM-NUM');
+  // Número da NF
+  const nfNumeroRef = safeStr(attachment?.nf_numero_referenciado || context?.nf_numero_referenciado || '');
+  const nfNumero = safeStr(attachment?.nf_numero || context?.nf_numero || 'SN');
   const numero = nfNumeroRef || nfNumero;
 
-  // Razão social do emitente
-  const emitente = normalizeText(
+  // Centro de custo
+  const centroCusto = normalizarCentroCusto(
+    context?.centro_custo || attachment?.centro_custo || attachment?.resultado_ia?.centro_custo || ''
+  );
+
+  // Fornecedor (limpo)
+  const emitenteRaw = safeStr(
     attachment?.nf_emitente_nome || context?.nf_emitente_nome || context?.fornecedor_nome || 'FORNECEDOR'
-  ).substring(0, 50);
+  );
+  const fornecedor = limparNomeArquivo(emitenteRaw).substring(0, 50) || 'Fornecedor';
 
-  // Nome do profissional (pessoa física)
-  const nomeProfissional = normalizeText(
-    attachment?.nome_profissional ||
-    context?.nome_profissional ||
-    attachment?.resultado_ia?.nome_profissional ||
-    ''
-  ).substring(0, 50);
+  // Natureza da despesa
+  const natureza = limparNomeArquivo(
+    context?.natureza_despesa || attachment?.rubrica_nome || context?.rubrica_nome || context?.categoria || ''
+  ).substring(0, 40) || 'Geral';
 
-  // Museu de atuação
-  const museuRaw = safeStr(
-    attachment?.museu_atuacao ||
-    context?.museu_atuacao ||
-    attachment?.resultado_ia?.museu_atuacao ||
-    ''
-  ).toUpperCase();
-  const museu = MUSEUS_VALIDOS_BACKUP.includes(museuRaw) ? museuRaw : '';
+  // Mês/Ano
+  const dataRef = safeStr(
+    attachment?.nf_data_emissao || context?.nf_data_emissao || context?.created_date || new Date().toISOString()
+  );
+  const d = getDateValue(dataRef) || new Date();
+  const mesExtenso = MESES[d.getMonth()];
+  const ano = String(d.getFullYear());
 
   const valor = formatValor(attachment?.nf_valor_total || context?.valor_solicitado || context?.valor || 0);
 
-  const profissionalPart = nomeProfissional && nomeProfissional !== emitente ? ` - ${nomeProfissional}` : '';
-  const museuPart = museu ? ` - ${museu}` : '';
+  const prefixo = tipoComplementar ? 'COMP' : (ext === 'xml' ? 'XML' : 'NF');
 
-  if (tipoComplementar) {
-    // Complementar: sufixo ao final + prefixo DOC se não houver número de NF
-    const prefixo = (nfNumeroRef || (nfNumero !== 'SEM-NUM' && nfNumero)) ? `NF ${numero}` : 'DOC COMPLEMENTAR';
-    return `${prefixo} - ${emitente}${profissionalPart} - MUSEUS CENTRO${museuPart} - R$ ${valor} - ${tipoComplementar}.${ext}`;
-  }
+  const nome = `${prefixo}-${numero}-${centroCusto}-${fornecedor}-${natureza}-MuseusCentro-${mesExtenso}-${ano}-R$-${valor}.${ext}`;
 
-  return `NF ${numero} - ${emitente}${profissionalPart} - MUSEUS CENTRO${museuPart} - R$ ${valor}.${ext}`;
+  // Sanitizar caracteres inválidos para Windows/Drive
+  return nome.replace(/[\\\/\:\;\?\*\"\'\(\)\[\]\{\}]/g, '').replace(/\s+/g, '');
 }
 
 async function safeGet(entity: any, id: string) {

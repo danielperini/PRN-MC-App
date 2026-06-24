@@ -23,7 +23,8 @@ import {
   RefreshCw,
   HardDrive,
   Mail,
-  Link2
+  Link2,
+  FileSignature
 } from 'lucide-react';
 import RestaurarRelatoriosDrive from '@/components/entrada/RestaurarRelatoriosDrive';
 import ImportarPacoteRelatorios from '@/components/entrada/ImportarPacoteRelatorios';
@@ -257,6 +258,7 @@ export default function EntradaUnica() {
   const [autoVinculoLoading, setAutoVinculoLoading] = useState(false);
   const [filaProcessando, setFilaProcessando] = useState(false);
   const [progressoFila, setProgressoFila] = useState({ atual: 0, total: 0 });
+  const [padronizarLoading, setPadronizarLoading] = useState(false);
   const filaRef = useRef([]);
   const abortarRef = useRef(false);
 
@@ -974,6 +976,28 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
     }
   }
 
+  async function handlePadronizarNomes() {
+    if (!user || user.role !== 'admin') {
+      toast.error('Função exclusiva da coordenação geral.');
+      return;
+    }
+    setPadronizarLoading(true);
+    try {
+      const res = await base44.functions.invoke('padronizarNomeArquivosNF', { mode: 'migrate' });
+      const data = res?.data || {};
+      if (data.processados > 0) {
+        toast.success(`Padronização concluída: ${data.processados} arquivos renomeados${data.erros ? `, ${data.erros} erros` : ''}.`);
+        await loadIntakes();
+      } else {
+        toast.info('Nenhum arquivo precisou ser renomeado.');
+      }
+    } catch (e) {
+      toast.error('Erro ao padronizar nomes: ' + (e?.message || e));
+    } finally {
+      setPadronizarLoading(false);
+    }
+  }
+
   async function handleAutoVinculo() {
     if (!user || user.role !== 'admin') {
       toast.error('Função exclusiva da coordenação geral.');
@@ -1409,6 +1433,24 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
                           {syncGmailLoading ? 'Lendo e-mails...' : 'Ler e-mails Daniel'}
                         </p>
                         <p className="text-[10px] text-gray-400">Coordenação Geral</p>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={handlePadronizarNomes}
+                      disabled={padronizarLoading}
+                      className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm hover:bg-gray-50 transition disabled:opacity-60"
+                    >
+                      {padronizarLoading ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
+                      ) : (
+                        <FileSignature className="w-4 h-4 text-gray-700" />
+                      )}
+                      <div className="text-left">
+                        <p className="text-xs font-semibold text-gray-700">
+                          {padronizarLoading ? 'Padronizando...' : 'Padronizar nomes'}
+                        </p>
+                        <p className="text-[10px] text-gray-400">Migração</p>
                       </div>
                     </button>
                   </>

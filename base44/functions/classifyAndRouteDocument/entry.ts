@@ -44,22 +44,59 @@ function parseValor(v: unknown) {
   return parseFloat(s.replace(',', '.')) || 0;
 }
 
+const MESES_PADRAO = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+function limparNomeArquivo(v: unknown) {
+  return String(v || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .trim();
+}
+
+function normalizarCentro(v: unknown) {
+  const raw = safeStr(v).toUpperCase();
+  if (raw.includes('MHAB')) return 'MHAB';
+  if (raw.includes('MIS')) return 'MIS';
+  if (raw.includes('MUMO')) return 'MUMO';
+  if (raw.includes('NOTURNO')) return 'NOTURNO';
+  if (raw.includes('PUBLICAC')) return 'PUBLICACOES';
+  return 'GERAL';
+}
+
+function getMesExtenso(dataStr: unknown) {
+  try {
+    const d = new Date(safeStr(dataStr));
+    if (isNaN(d.getTime())) return { mes: MESES_PADRAO[new Date().getMonth()], ano: String(new Date().getFullYear()) };
+    return { mes: MESES_PADRAO[d.getMonth()], ano: String(d.getFullYear()) };
+  } catch {
+    return { mes: MESES_PADRAO[new Date().getMonth()], ano: String(new Date().getFullYear()) };
+  }
+}
+
 function buildRenamedNF(params: Record<string, unknown>) {
-  const numero = safeStr(params.nf_numero) || 'SEM-NUM';
-  const fornecedor =
-    safeStr(params.nf_emitente_nome || params.fornecedor)
-      .substring(0, 40)
-      .toUpperCase() || 'FORNECEDOR';
+  const numero = safeStr(params.nf_numero) || 'SN';
+  const fornecedor = limparNomeArquivo(params.nf_emitente_nome || params.fornecedor).substring(0, 50) || 'Fornecedor';
+  const centro = normalizarCentro(params.centro_custo_sugerido || params.centro_custo || 'GERAL');
+
+  // Natureza da despesa (nome da rubrica ou categoria simplificada)
+  const natureza = limparNomeArquivo(
+    params.rubrica_nome || params.categoria_sugerida || params.descricao_servico || ''
+  ).substring(0, 40) || 'Geral';
+
+  const { mes, ano } = getMesExtenso(params.nf_data_emissao || params.data_emissao);
 
   const valorNum = parseValor(params.nf_valor_total);
-  const valor =
-    valorNum > 0
-      ? valorNum.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
-      : '0,00';
+  const valor = valorNum > 0
+    ? valorNum.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+    : '0,00';
 
   const ext = safeStr(params.extension) || 'pdf';
+  const prefixo = ext === 'xml' ? 'XML' : 'NF';
 
-  return `${numero} - ${fornecedor} - MUSEUS CENTRO - R$ ${valor}.${ext}`;
+  const nome = `${prefixo}-${numero}-${centro}-${fornecedor}-${natureza}-MuseusCentro-${mes}-${ano}-R$-${valor}.${ext}`;
+
+  // Sanitizar caracteres inválidos
+  return nome.replace(/[\/\:\;\?\*\"\'\(\)\[\]\{\}]/g, '').replace(/\s+/g, '');
 }
 
 async function updateSafe(entity: any, id: string, payload: Record<string, unknown>) {
