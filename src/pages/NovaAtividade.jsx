@@ -68,6 +68,8 @@ export default function NovaAtividade() {
     data_realizacao: '',
     data_inicio: '',
     data_fim: '',
+    meta_quantitativa: '',
+    periodo: '',
     observacoes: '',
   });
 
@@ -131,6 +133,8 @@ export default function NovaAtividade() {
       data_realizacao: '',
       data_inicio: '',
       data_fim: '',
+      meta_quantitativa: '',
+      periodo: '',
       observacoes: '',
     });
   }
@@ -169,6 +173,8 @@ export default function NovaAtividade() {
         data_realizacao: dataRealizacao,
         data_inicio: dataInicio,
         data_fim: dataFim,
+        meta_quantitativa: form.meta_quantitativa.trim() || null,
+        periodo: form.periodo.trim() || null,
         observacoes: form.observacoes.trim(),
         user_email: user?.email || '',
         user_name: user?.full_name || user?.email || '',
@@ -338,6 +344,24 @@ export default function NovaAtividade() {
               placeholder="0"
               value={form.publico_estimado}
               onChange={setEv('publico_estimado')}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Período de execução</Label>
+            <Input
+              placeholder="Ex: Janeiro a Março de 2026"
+              value={form.periodo}
+              onChange={setEv('periodo')}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Meta quantitativa</Label>
+            <Input
+              placeholder="Ex: 30 ações, 300 exemplares..."
+              value={form.meta_quantitativa}
+              onChange={setEv('meta_quantitativa')}
             />
           </div>
         </div>
