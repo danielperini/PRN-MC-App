@@ -496,6 +496,11 @@ export default function CardRubricaEditor({ open, onClose }) {
                               >
                                 <div className="flex items-center justify-between gap-2 mb-1">
                                   <div className="flex items-center gap-2 flex-1 min-w-0 flex-wrap">
+                                    {rubrica?.natureza_despesa && (
+                                      <Badge className="text-[10px] px-1.5 shrink-0 font-mono bg-slate-800 text-white hover:bg-slate-700">
+                                        {rubrica.natureza_despesa}
+                                      </Badge>
+                                    )}
                                     <span className="font-medium text-sm text-gray-900 truncate">
                                       {getRubricaNome(rubrica)}
                                     </span>

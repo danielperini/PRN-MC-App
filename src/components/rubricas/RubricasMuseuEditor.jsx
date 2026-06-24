@@ -164,9 +164,16 @@ function RubricaCard({ rubrica }) {
       <CardContent className="p-4 space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h3 className="font-semibold text-sm text-black leading-snug">
-              {getRubricaNome(rubrica)}
-            </h3>
+            <div className="flex items-center gap-1.5 mb-1">
+              {rubrica?.natureza_despesa && (
+                <Badge className="text-[10px] font-mono bg-slate-800 text-white hover:bg-slate-700 shrink-0">
+                  {rubrica.natureza_despesa}
+                </Badge>
+              )}
+              <h3 className="font-semibold text-sm text-black leading-snug">
+                {getRubricaNome(rubrica)}
+              </h3>
+            </div>
             <div className="flex flex-wrap gap-1.5 mt-2">
               {/* Badge mostra o centro_custo REAL da rubrica, nunca inferido */}
               {rubrica?.centro_custo && (

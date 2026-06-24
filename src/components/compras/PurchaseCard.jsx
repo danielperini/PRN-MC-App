@@ -140,7 +140,12 @@ export default function PurchaseCard({
 
           </div>
 
-          <p className="font-semibold mt-1 text-foreground">{purchase.descricao_item}</p>
+          <div className="flex items-center gap-2 flex-wrap mt-1">
+            {purchase.natureza_despesa && (
+              <span className="text-[10px] font-mono bg-slate-800 text-white px-1.5 py-0.5 rounded shrink-0">{purchase.natureza_despesa}</span>
+            )}
+            <p className="font-semibold text-foreground">{purchase.descricao_item}</p>
+          </div>
 
           {isTeamPayment && teamPayment && (
             <div className="text-xs text-foreground mt-2 bg-secondary border border-border p-2 rounded">
