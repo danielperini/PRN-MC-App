@@ -73,11 +73,40 @@ function isReciboLike(intake) {
   );
 }
 
+function isOrcamentoLike(intake) {
+  const name = normalizeText(intake?.file_name_original || '');
+  const ia = intake?.resultado_ia || {};
+  const tipo = normalizeText(ia.tipo_documento || '');
+
+  // Orçamento/proposta: nome contém "orcamento", "orçamento", "proposta", "cotação", "budget"
+  // e NÃO contém "NF " (número de NF) no nome
+  const temIndicioOrcamento = (
+    name.includes('orcamento') ||
+    name.includes('orçamento') ||
+    name.includes('proposta') ||
+    name.includes('cotacao') ||
+    name.includes('cotaçao') ||
+    name.includes('budget') ||
+    tipo.includes('orcamento') ||
+    tipo.includes('proposta')
+  );
+
+  // Se tem "NF " seguido de número, provavelmente é NF real
+  const temNFnoNome = /\bnf\s*\d+/i.test(name) || /\bnota\s+fiscal\b/i.test(name);
+
+  // Só classifica como orçamento se NÃO tem indícios de NF no nome
+  return temIndicioOrcamento && !temNFnoNome;
+}
+
 function getTipoByFile(intake) {
   const mime = String(intake?.mime_type || '').toLowerCase();
   const ext = getFileExt(intake);
 
   if (mime.includes('xml') || ext === 'xml') return 'NOTA_FISCAL_XML';
+
+  // Verificar se é orçamento pelo nome antes de classificar como NF PDF
+  if (isOrcamentoLike(intake)) return 'DOCUMENTO_ADMINISTRATIVO';
+
   if (mime.includes('pdf') || ext === 'pdf') return 'NOTA_FISCAL_PDF';
 
   return intake?.tipo_detectado || 'OUTRO';
@@ -521,8 +550,8 @@ export default function EntradaUnica() {
 
       const tipagemRapida = await Promise.race([
         base44.integrations.Core.InvokeLLM({
-          prompt: `Este documento é um CONTRATO (contrato de prestação de serviços, contrato de trabalho, termo de prestação, etc.) ou uma NOTA FISCAL / RECIBO / OUTRO?
-Responda apenas com uma palavra: CONTRATO ou NOTA_FISCAL ou OUTRO.`,
+          prompt: `Este documento é um CONTRATO (contrato de prestação de serviços, contrato de trabalho, termo de prestação), um ORCAMENTO (proposta comercial, cotação, orçamento sem número de NF) ou uma NOTA FISCAL / RECIBO / OUTRO?
+Responda apenas com uma palavra: CONTRATO ou ORCAMENTO ou NOTA_FISCAL ou OUTRO.`,
           file_urls: [fileUrl],
           response_json_schema: {
             type: 'object',
@@ -535,6 +564,16 @@ Responda apenas com uma palavra: CONTRATO ou NOTA_FISCAL ou OUTRO.`,
       ]).catch(() => ({ tipo: 'NOTA_FISCAL' }));
 
       const tipoRapido = String(tipagemRapida?.tipo || '').toUpperCase();
+
+      if (tipoRapido === 'ORCAMENTO' || tipoRapido === 'PROPOSTA') {
+        await base44.entities.DocumentIntake.update(intakeId, {
+          tipo_detectado: 'DOCUMENTO_ADMINISTRATIVO',
+          status_processamento: 'AGUARDANDO_REVISAO',
+          erros_validacao: ['Este documento é um ORÇAMENTO/PROPOSTA, não uma nota fiscal.'],
+        }).catch(() => {});
+        await loadIntakes();
+        return;
+      }
 
       if (tipoRapido === 'CONTRATO' || tipoRapido === 'CONTRATO_PDF' || tipoRapido === 'TERMO_COMPROMISSO_PDF') {
         const nomeArquivoNormalizado = normalizeText(fileUrl);
@@ -604,8 +643,9 @@ REGRA CRÍTICA:
 
 IMPORTANTE — CLASSIFICAÇÃO DO TIPO DE DOCUMENTO:
 - Se o documento tem número de nota fiscal, CNPJ/CPF de emitente, valor total e data de emissão → é NOTA_FISCAL_PDF.
-- DOCUMENTO_ADMINISTRATIVO é APENAS para documentos sem características fiscais: atas, ofícios, declarações, autorizações, certidões, relatórios internos.
-- Se houver qualquer indício de nota fiscal (número NF, valor, CFOP, natureza da operação) → classifique como NOTA_FISCAL_PDF.
+- Se o documento é um ORÇAMENTO/PROPOSTA/COTAÇÃO (tem título como "Orçamento", "Proposta Comercial", "Cotação", NÃO tem número de NF, pode ter validade da proposta, condições de pagamento) → classifique como DOCUMENTO_ADMINISTRATIVO.
+- DOCUMENTO_ADMINISTRATIVO é para documentos sem características fiscais: atas, ofícios, declarações, autorizações, certidões, relatórios internos, orçamentos, propostas.
+- Se houver qualquer indício de nota fiscal (número NF, DANFE, CFOP, natureza da operação, dados do FISCO) → classifique como NOTA_FISCAL_PDF.
 - Recibo, comprovante, boleto ou comprovante PIX → classifique como RECIBO_PDF.
 
 {

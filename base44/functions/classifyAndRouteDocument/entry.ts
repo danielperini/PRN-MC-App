@@ -454,6 +454,12 @@ Responda SOMENTE em JSON válido:
           - CONTRATO: contrato de prestação de serviço, termo de serviço, contrato de trabalho, instrumento de acordo entre partes
           - DOCUMENTO_ADMINISTRATIVO: ata, ofício, declaração, proposta, memorando, planilha, relatório ou outro
 
+          IMPORTANTE — DISTINÇÃO ENTRE ORÇAMENTO E NOTA FISCAL:
+          - Um ORÇAMENTO/PROPOSTA tem: título "Orçamento" ou "Proposta", CNPJ do emitente, lista de itens/serviços, valor total, prazo de validade, condições de pagamento. NÃO tem número de NF, DANFE, CFOP, dados do fisco.
+          - Uma NOTA FISCAL tem: número da NF, DANFE, CFOP, natureza da operação, dados do fisco (inscrição estadual/municipal), chave de acesso (44 dígitos).
+          - Se for ORÇAMENTO → classifique como DOCUMENTO_ADMINISTRATIVO.
+          - Se for NOTA FISCAL → classifique como NOTA_FISCAL.
+
           Leia TODO o texto visível do documento. Para NOTAS FISCAIS extraia absolutamente todos os campos fiscais disponíveis, incluindo o HORÁRIO de emissão. Para CONTRATOS, extraia todas as partes, valores, vigência e objeto.
 
           A data atual é ${hoje}. Não sinalize datas passadas como "futuras".
