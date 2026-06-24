@@ -69,9 +69,26 @@ function extrairDadosDoNomeArquivo(fileName) {
   const nfMatch = nome.match(/(?:NF|NFE|NFS|NOTA|RPS)[^0-9]*(\d{3,})/i);
   if (nfMatch) result.nf_numero = nfMatch[1];
 
-  // Tenta extrair valor: padrões como R$ 1.234,56 ou 1234.56
-  const valorMatch = nome.match(/R\$\s*([\d.,]+)/i) || nome.match(/([\d]{1,3}(?:[.,]\d{3})*(?:[.,]\d{2}))/);
+  // Tenta extrair valor: padrões como R$ 1.234,56 ou R$1234,00
+  const valorMatch = nome.match(/R\$\s*([\d.,]+)/i);
   if (valorMatch) result.nf_valor_total = valorMatch[1];
+
+  // Tenta extrair CNPJ (14 dígitos) ou CPF (11 dígitos) do nome do arquivo
+  const cnpjMatch = nome.match(/\b(\d{2}[\.\s]?\d{3}[\.\s]?\d{3}[\/\.\s]?\d{4}[-\.\s]?\d{2})\b/);
+  if (cnpjMatch) result.nf_emitente_cpf_cnpj = cnpjMatch[1].replace(/[^\d]/g, '');
+
+  const cpfMatch = !cnpjMatch && nome.match(/\b(\d{3}[\.\s]?\d{3}[\.\s]?\d{3}[-\.\s]?\d{2})\b/);
+  if (cpfMatch) result.nf_emitente_cpf_cnpj = cpfMatch[1].replace(/[^\d]/g, '');
+
+  // Tenta extrair mês/ano para data estimada: padrão "MM-YYYY" ou "MM/YYYY" no nome
+  const mesAnoMatch = nome.match(/\b(0?[1-9]|1[0-2])[-\/](20\d{2})\b/);
+  if (mesAnoMatch) {
+    const mes = String(mesAnoMatch[1]).padStart(2, '0');
+    const ano = mesAnoMatch[2];
+    // Usa o último dia do mês como data estimada de emissão
+    const ultimoDia = new Date(Number(ano), Number(mes), 0).getDate();
+    result.nf_data_emissao_fallback = `${ano}-${mes}-${String(ultimoDia).padStart(2, '0')}`;
+  }
 
   // Usa o nome do arquivo como fornecedor fallback (sem extensão e sem número)
   const fornecedor = nome
@@ -119,6 +136,15 @@ function sugerirRubricaPorKeywords(texto, rubricas) {
   }
 
   return null;
+}
+
+function dataIAValida(dataStr) {
+  if (!dataStr) return false;
+  const d = new Date(dataStr);
+  if (isNaN(d.getTime())) return false;
+  const hoje = new Date();
+  const limite = new Date('2020-01-01');
+  return d >= limite && d <= new Date(hoje.getTime() + 86400000);
 }
 
 export default function ReviewModalNF({ intake, onClose, onSaved }) {
@@ -176,15 +202,20 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   const fallbackArquivo = extrairDadosDoNomeArquivo(intake.file_name_original);
   const iaIncompleta = !ia.nf_numero && !ia.nf_emitente_nome && !ia.nf_valor_total;
 
+  const dataEmissaoNormalizada = normalizeDateToInput(dataEmissaoIA);
+  const dataEmissaoFinal = dataIAValida(dataEmissaoNormalizada)
+    ? dataEmissaoNormalizada
+    : (fallbackArquivo.nf_data_emissao_fallback || '');
+
   const [form, setForm] = useState({
-    nf_numero: ia.nf_numero || (iaIncompleta ? fallbackArquivo.nf_numero || '' : ''),
-    nf_valor_total: ia.nf_valor_total || (iaIncompleta ? fallbackArquivo.nf_valor_total || '' : ''),
-    nf_data_emissao: normalizeDateToInput(dataEmissaoIA),
+    nf_numero: ia.nf_numero || fallbackArquivo.nf_numero || '',
+    nf_valor_total: ia.nf_valor_total || fallbackArquivo.nf_valor_total || '',
+    nf_data_emissao: dataEmissaoFinal,
     nf_horario_emissao: ia.nf_horario_emissao || ia.horario_emissao || '',
-    nf_emitente_nome: ia.nf_emitente_nome || (iaIncompleta ? fallbackArquivo.nf_emitente_nome_fallback || '' : ''),
-    nf_emitente_cpf_cnpj: ia.nf_emitente_cpf_cnpj || intake.nf_emitente_cpf_cnpj || intake.fornecedor_cpf_cnpj || '',
+    nf_emitente_nome: ia.nf_emitente_nome || fallbackArquivo.nf_emitente_nome_fallback || '',
+    nf_emitente_cpf_cnpj: ia.nf_emitente_cpf_cnpj || intake.nf_emitente_cpf_cnpj || intake.fornecedor_cpf_cnpj || fallbackArquivo.nf_emitente_cpf_cnpj || '',
     nf_destinatario_nome: ia.nf_destinatario_nome || '',
-    descricao_servico: ia.descricao_servico || (iaIncompleta ? fallbackArquivo.descricao_servico_fallback || '' : ''),
+    descricao_servico: ia.descricao_servico || fallbackArquivo.descricao_servico_fallback || '',
     municipio: ia.municipio || intake.municipio || '',
     competencia: ia.competencia || ia.competencia_sugerida || '',
     centro_custo: ia.centro_custo_sugerido || intake.centro_custo || '',
@@ -197,14 +228,11 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
   useEffect(() => {
     const normalized = normalizeDateToInput(dataEmissaoIA);
-
-    if (!form.nf_data_emissao && normalized) {
-      setForm((f) => ({
-        ...f,
-        nf_data_emissao: normalized,
-      }));
+    if (!form.nf_data_emissao && normalized && dataIAValida(normalized)) {
+      setForm((f) => ({ ...f, nf_data_emissao: normalized }));
     }
-  }, [dataEmissaoIA, form.nf_data_emissao]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataEmissaoIA]);
 
   useEffect(() => {
     async function loadRubricas() {
