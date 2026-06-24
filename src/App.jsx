@@ -274,6 +274,15 @@ function AuthenticatedApp() {
             />
           }
         />
+        <Route
+          path="/RelatorioExecucaoObjeto"
+          element={
+            <SafePage
+              Page={React.lazy(() => import('./pages/RelatorioExecucaoObjeto'))}
+              pageName="RelatorioExecucaoObjeto"
+            />
+          }
+        />
         <Route path="*" element={<PageNotFound />} />
       </Routes>
     </div>

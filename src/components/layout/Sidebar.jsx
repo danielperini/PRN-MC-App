@@ -23,6 +23,7 @@ import {
   MessageSquare,
   Palette,
   ShieldCheck,
+  ScrollText,
 } from 'lucide-react';
 
 import { base44 } from '@/api/base44Client';
@@ -206,6 +207,12 @@ const NAV_GROUPS = [
         icon: FileText,
         roles: ['all'],
         hideForObservador: true,
+      },
+      {
+        path: 'RelatorioExecucaoObjeto',
+        label: 'Relatório de Execução do Objeto',
+        icon: ScrollText,
+        roles: ['all'],
       },
     ],
   },

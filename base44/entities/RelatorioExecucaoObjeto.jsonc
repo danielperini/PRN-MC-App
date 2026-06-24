@@ -1,0 +1,524 @@
+{
+  "name": "RelatorioExecucaoObjeto",
+  "type": "object",
+  "properties": {
+    "tipo": {
+      "type": "string",
+      "enum": [
+        "parcial",
+        "final"
+      ],
+      "default": "parcial",
+      "description": "Tipo de relat\u00f3rio"
+    },
+    "filtro_museu": {
+      "type": "string",
+      "enum": [
+        "todos",
+        "MHAB",
+        "MIS",
+        "MUMO",
+        "Casa Kubitschek",
+        "Casa do Baile",
+        "MAP"
+      ],
+      "default": "todos"
+    },
+    "filtro_meta_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "IDs das metas filtradas (vazio = todas)"
+    },
+    "filtro_versao": {
+      "type": "string",
+      "enum": [
+        "consolidado",
+        "por_museu",
+        "por_meta",
+        "por_periodo",
+        "noturno",
+        "noturno_pampulha"
+      ],
+      "default": "consolidado"
+    },
+    "data_inicio": {
+      "type": "string",
+      "format": "date"
+    },
+    "data_fim": {
+      "type": "string",
+      "format": "date"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "rascunho",
+        "gerando_ia",
+        "revisao",
+        "aprovado",
+        "exportado"
+      ],
+      "default": "rascunho"
+    },
+    "identificacao_projeto": {
+      "type": "object",
+      "properties": {
+        "organizacao": {
+          "type": "string",
+          "default": "Viaduto das Artes"
+        },
+        "projeto": {
+          "type": "string",
+          "default": "Museus Centro"
+        },
+        "instrumento_juridico": {
+          "type": "string"
+        },
+        "processo_administrativo": {
+          "type": "string"
+        },
+        "vigencia_inicio": {
+          "type": "string",
+          "format": "date"
+        },
+        "vigencia_fim": {
+          "type": "string",
+          "format": "date"
+        },
+        "responsavel": {
+          "type": "string"
+        },
+        "telefone": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        }
+      }
+    },
+    "endereco_execucao": {
+      "type": "object",
+      "properties": {
+        "texto_ia": {
+          "type": "string"
+        },
+        "texto_editado": {
+          "type": "string"
+        },
+        "modo": {
+          "type": "string",
+          "enum": [
+            "ia",
+            "manual",
+            "hibrido"
+          ],
+          "default": "ia"
+        }
+      }
+    },
+    "divulgacao_parceria": {
+      "type": "object",
+      "properties": {
+        "texto_ia": {
+          "type": "string"
+        },
+        "texto_editado": {
+          "type": "string"
+        },
+        "modo": {
+          "type": "string",
+          "enum": [
+            "ia",
+            "manual",
+            "hibrido"
+          ],
+          "default": "ia"
+        }
+      }
+    },
+    "descricao_acoes": {
+      "type": "object",
+      "properties": {
+        "texto_ia": {
+          "type": "string"
+        },
+        "texto_editado": {
+          "type": "string"
+        },
+        "modo": {
+          "type": "string",
+          "enum": [
+            "ia",
+            "manual",
+            "hibrido"
+          ],
+          "default": "ia"
+        }
+      }
+    },
+    "publico_alvo": {
+      "type": "object",
+      "properties": {
+        "previsto_direto": {
+          "type": "number",
+          "default": 0
+        },
+        "previsto_indireto": {
+          "type": "number",
+          "default": 0
+        },
+        "realizado_direto": {
+          "type": "number",
+          "default": 0
+        },
+        "realizado_indireto": {
+          "type": "number",
+          "default": 0
+        },
+        "diferenca_direto": {
+          "type": "number",
+          "default": 0
+        },
+        "diferenca_indireto": {
+          "type": "number",
+          "default": 0
+        },
+        "percentual_direto": {
+          "type": "number",
+          "default": 0
+        },
+        "percentual_indireto": {
+          "type": "number",
+          "default": 0
+        },
+        "texto_interpretativo_ia": {
+          "type": "string"
+        },
+        "texto_interpretativo_editado": {
+          "type": "string"
+        },
+        "modo": {
+          "type": "string",
+          "enum": [
+            "ia",
+            "manual",
+            "hibrido"
+          ],
+          "default": "ia"
+        }
+      }
+    },
+    "pesquisa_satisfacao": {
+      "type": "object",
+      "properties": {
+        "possui_dados": {
+          "type": "boolean",
+          "default": false
+        },
+        "media": {
+          "type": "number"
+        },
+        "nps": {
+          "type": "number"
+        },
+        "satisfacao": {
+          "type": "number"
+        },
+        "justificativa_ia": {
+          "type": "string"
+        },
+        "justificativa_editada": {
+          "type": "string"
+        },
+        "modo": {
+          "type": "string",
+          "enum": [
+            "ia",
+            "manual",
+            "hibrido"
+          ],
+          "default": "ia"
+        }
+      }
+    },
+    "cronograma_metas": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "meta_id": {
+            "type": "string"
+          },
+          "meta_nome": {
+            "type": "string"
+          },
+          "meta_ordem": {
+            "type": "number"
+          },
+          "resultado_esperado": {
+            "type": "string"
+          },
+          "acoes": {
+            "type": "string"
+          },
+          "periodo": {
+            "type": "string"
+          },
+          "documentos_verificacao": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "resultado_alcancado": {
+            "type": "string"
+          },
+          "status_meta": {
+            "type": "string",
+            "enum": [
+              "Realizada Integralmente",
+              "Realizada Parcialmente",
+              "N\u00e3o Realizada"
+            ]
+          },
+          "percentual_execucao": {
+            "type": "number",
+            "default": 0
+          },
+          "justificativa": {
+            "type": "string"
+          },
+          "modo": {
+            "type": "string",
+            "enum": [
+              "ia",
+              "manual",
+              "hibrido"
+            ],
+            "default": "ia"
+          }
+        }
+      }
+    },
+    "equipe_trabalho": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "nome": {
+            "type": "string"
+          },
+          "cargo": {
+            "type": "string"
+          },
+          "tipo_contratacao": {
+            "type": "string"
+          },
+          "carga_horaria": {
+            "type": "string"
+          },
+          "valor": {
+            "type": "number"
+          },
+          "periodo": {
+            "type": "string"
+          },
+          "modo": {
+            "type": "string",
+            "enum": [
+              "ia",
+              "manual",
+              "hibrido"
+            ],
+            "default": "ia"
+          }
+        }
+      }
+    },
+    "impactos_economicos_sociais": {
+      "type": "object",
+      "properties": {
+        "texto_ia": {
+          "type": "string"
+        },
+        "texto_editado": {
+          "type": "string"
+        },
+        "modo": {
+          "type": "string",
+          "enum": [
+            "ia",
+            "manual",
+            "hibrido"
+          ],
+          "default": "ia"
+        }
+      }
+    },
+    "sustentabilidade": {
+      "type": "object",
+      "properties": {
+        "texto_ia": {
+          "type": "string"
+        },
+        "texto_editado": {
+          "type": "string"
+        },
+        "modo": {
+          "type": "string",
+          "enum": [
+            "ia",
+            "manual",
+            "hibrido"
+          ],
+          "default": "ia"
+        }
+      }
+    },
+    "avaliacao_parceria": {
+      "type": "object",
+      "properties": {
+        "texto_ia": {
+          "type": "string"
+        },
+        "texto_editado": {
+          "type": "string"
+        },
+        "modo": {
+          "type": "string",
+          "enum": [
+            "ia",
+            "manual",
+            "hibrido"
+          ],
+          "default": "ia"
+        }
+      }
+    },
+    "assinatura": {
+      "type": "object",
+      "properties": {
+        "nome_representante": {
+          "type": "string"
+        },
+        "cargo": {
+          "type": "string"
+        },
+        "data": {
+          "type": "string",
+          "format": "date"
+        },
+        "modo": {
+          "type": "string",
+          "enum": [
+            "ia",
+            "manual",
+            "hibrido"
+          ],
+          "default": "ia"
+        }
+      }
+    },
+    "anexos_evidencias": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "foto_url": {
+            "type": "string"
+          },
+          "atividade_nome": {
+            "type": "string"
+          },
+          "atividade_data": {
+            "type": "string",
+            "format": "date"
+          },
+          "local": {
+            "type": "string"
+          },
+          "meta_nome": {
+            "type": "string"
+          },
+          "legenda_ia": {
+            "type": "string"
+          },
+          "legenda_editada": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "auditoria_pendencias": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "meta_sem_evidencia",
+              "atividade_sem_foto",
+              "publico_inconsistente",
+              "valor_inconsistente",
+              "foto_duplicada",
+              "atividade_duplicada"
+            ]
+          },
+          "descricao": {
+            "type": "string"
+          },
+          "resolvida": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      }
+    },
+    "export_formats": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "pdf",
+          "docx",
+          "html",
+          "excel"
+        ]
+      }
+    },
+    "export_pdf_url": {
+      "type": "string"
+    },
+    "export_html_url": {
+      "type": "string"
+    },
+    "export_excel_url": {
+      "type": "string"
+    },
+    "gerado_por_email": {
+      "type": "string"
+    },
+    "gerado_por_nome": {
+      "type": "string"
+    },
+    "ia_modelo_usado": {
+      "type": "string"
+    },
+    "ia_tokens": {
+      "type": "number",
+      "default": 0
+    },
+    "ia_tempo_ms": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": [
+    "tipo",
+    "data_inicio",
+    "data_fim"
+  ]
+}
