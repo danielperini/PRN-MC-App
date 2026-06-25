@@ -265,14 +265,13 @@ function TabelaSolicitacoes({ purchases, rubricas, attachmentByPurchaseId, isCoo
 
   const renderTabela = (items) => (
     <table className="w-full table-fixed border-collapse text-sm">
-      <colgroup><col className="w-[23%]" /><col className="w-[12%]" /><col className="w-[7%]" /><col className="w-[13%]" /><col className="w-[9%]" /><col className="w-[9%]" /><col className="w-[9%]" /><col className="w-[9%]" /><col className="w-[9%]" /></colgroup>
+      <colgroup><col className="w-[22%]" /><col className="w-[13%]" /><col className="w-[8%]" /><col className="w-[14%]" /><col className="w-[10%]" /><col className="w-[9%]" /><col className="w-[13%]" /><col className="w-[11%]" /></colgroup>
       <thead>
         <tr className="border-b border-gray-200 bg-gray-50 text-left">
           <th className="px-3 py-3 font-medium text-gray-600">Descrição</th>
           <th className="px-3 py-3 font-medium text-gray-600">Fornecedor</th>
           <th className="px-3 py-3 font-medium text-gray-600">Centro</th>
           <th className="px-3 py-3 font-medium text-gray-600">Rubrica</th>
-          <th className="px-3 py-3 font-medium text-gray-600">Natureza</th>
           <th className="px-3 py-3 font-medium text-gray-600">Status</th>
           <th className="px-3 py-3 text-right font-medium text-gray-600">Valor</th>
           <th className="px-3 py-3 text-center font-medium text-gray-600">Arquivo</th>
@@ -286,10 +285,13 @@ function TabelaSolicitacoes({ purchases, rubricas, attachmentByPurchaseId, isCoo
           const aprovado = STATUS_APROVADOS.has(statusKey);
           const pendenteAprovacao = !aprovado && statusKey !== 'RECUSADO' && statusKey !== 'CANCELADO';
           const rubrica = p.rubrica_id ? rubricaById[p.rubrica_id] : null;
-          const rubricaNome = p?.rubrica_nome || p?.rubrica || rubrica?.rubrica || rubrica?.nome || '—';
+          const rubricaNome = rubrica
+            ? [rubrica.grupo, rubrica.rubrica].filter(Boolean).join(' | ')
+            : (p?.rubrica_nome || p?.rubrica || p?.rubrica_id || '—');
           const valor = getPurchaseValue(p);
-          const fileUrl = getPurchaseFileUrl(p, attachmentByPurchaseId);
           const comprovantePagamentoUrl = getComprovantePagamentoUrl(p);
+          const nfPdfUrl = p.nota_fiscal_pdf_url || p.nota_fiscal_url || p.nf_pdf_url;
+          const xmlUrl = p.nota_fiscal_xml_url || p.xml_url || p.nf_xml_url;
           const pago = statusKey === 'PAGO';
           const comprovantePendente = pago && (p.comprovante_pendente === true || !comprovantePagamentoUrl);
           const pagoEmFormatado = formatDateTimeBR(p.pago_em || p.data_pagamento);
@@ -305,32 +307,31 @@ function TabelaSolicitacoes({ purchases, rubricas, attachmentByPurchaseId, isCoo
                 {p.meta_id && <p className="truncate text-xs text-gray-400">{p.meta_id === 'MC3A-EXTRA' && p.meta_extra_descricao ? p.meta_extra_descricao : p.meta_id}</p>}
                 {compraEquipe && <span className="mt-1 inline-flex rounded-full bg-purple-50 px-2 py-0.5 text-[11px] font-medium text-purple-700">Equipe</span>}
               </td>
-              <td className="px-3 py-2.5 align-top text-gray-600"><p className="truncate">{p.fornecedor_nome || p.nf_emitente_nome || '—'}</p></td>
+              <td className="px-3 py-2.5 align-top text-gray-600"><p className="truncate text-xs">{p.fornecedor_nome || p.nf_emitente_nome || '—'}</p></td>
               <td className="px-3 py-2.5 align-top">
                 {p._centro_custo_normalizado ? <span className="inline-block max-w-full truncate rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">{p._centro_custo_normalizado}</span> : <span className="text-xs text-gray-400">—</span>}
               </td>
-              <td className="px-3 py-2.5 align-top"><p className="truncate text-xs text-gray-700">{rubricaNome}</p></td>
-              <td className="px-3 py-2.5 align-top">
-                <span className="inline-block max-w-full truncate rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
-                  {p.natureza_despesa || rubrica?.natureza_despesa || rubrica?.nome_natureza || '—'}
-                </span>
-              </td>
+              <td className="px-3 py-2.5 align-top"><p className="truncate text-xs text-gray-700" title={rubricaNome}>{rubricaNome}</p></td>
               <td className="px-3 py-2.5 align-top">
                 <span className={`inline-block max-w-full truncate rounded-full px-2 py-0.5 text-xs font-medium ${status.color}`}>{status.label}</span>
                 {pagoEmFormatado && <p className="mt-1 text-[11px] leading-tight text-gray-400">{pagoEmFormatado}</p>}
                 {pago && p.pago_por && <p className="mt-0.5 truncate text-[11px] leading-tight text-gray-400">por {p.pago_por}</p>}
                 {comprovantePendente && <span className="mt-1 inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">Comprovante pendente</span>}
-                {comprovantePagamentoUrl && <a href={comprovantePagamentoUrl} target="_blank" rel="noopener noreferrer" className="mt-1 block truncate text-[11px] font-medium text-blue-700 underline underline-offset-2">Abrir comprovante</a>}
               </td>
               <td className="px-3 py-2.5 align-top text-right font-medium tabular-nums text-gray-900"><span className="block truncate">{fmtBRL(valor)}</span></td>
               <td className="px-3 py-2.5 align-top text-center">
-                {fileUrl ? <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-blue-700 underline underline-offset-2 hover:text-blue-900">Arquivo</a> : <span className="text-xs text-gray-400">—</span>}
+                <div className="flex flex-col items-center gap-1">
+                  {nfPdfUrl && <a href={nfPdfUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-blue-700 underline underline-offset-2 hover:text-blue-900">NF PDF</a>}
+                  {xmlUrl && <a href={xmlUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-green-700 underline underline-offset-2 hover:text-green-900">XML</a>}
+                  {comprovantePagamentoUrl && <a href={comprovantePagamentoUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-purple-700 underline underline-offset-2 hover:text-purple-900">Comprovante</a>}
+                  {!nfPdfUrl && !xmlUrl && !comprovantePagamentoUrl && <span className="text-xs text-gray-400">Sem arquivo</span>}
+                </div>
               </td>
               <td className="px-3 py-2.5 align-top">
-                <div className="relative flex items-center justify-center gap-2">
-                  {podeAcessar && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAccess(p); }} className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-black" disabled={!podeAcessar}><Pencil className="h-3.5 w-3.5" /></button>}
-                  {isCoordenador && <button type="button" onClick={async (e) => { e.preventDefault(); e.stopPropagation(); if (window.confirm('Tem certeza que deseja deletar esta solicitação?')) await onDelete(p.id); }} className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>}
-                  {podeMarcarPago && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onMarkPaid?.(p); }} className={`inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${pago ? 'text-emerald-600 hover:bg-emerald-50' : 'text-gray-500 hover:bg-emerald-50 hover:text-emerald-700'}`}><CheckCircle2 className="h-3.5 w-3.5" /><span className="hidden xl:inline">{pago ? 'Comprovante' : 'Pago'}</span></button>}
+                <div className="relative flex items-center justify-center gap-1">
+                  {podeAcessar && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAccess(p); }} className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-black" title="Editar"><Pencil className="h-3.5 w-3.5" /></button>}
+                  {isCoordenador && <button type="button" onClick={async (e) => { e.preventDefault(); e.stopPropagation(); if (window.confirm('Tem certeza que deseja deletar esta solicitação?')) await onDelete(p.id); }} className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600" title="Deletar"><Trash2 className="h-3.5 w-3.5" /></button>}
+                  {podeMarcarPago && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onMarkPaid?.(p); }} className={`inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${pago ? 'text-emerald-600 hover:bg-emerald-50' : 'text-gray-500 hover:bg-emerald-50 hover:text-emerald-700'}`} title={pago ? 'Comprovante' : 'Marcar pago'}><CheckCircle2 className="h-3.5 w-3.5" /></button>}
                   <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpenId(menuAberto ? null : p.id); }} className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700" title="Mais ações">
                     <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="4" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="16" r="1.5"/></svg>
                   </button>
