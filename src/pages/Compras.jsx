@@ -926,44 +926,89 @@ function ComprasInner() {
 
           <div className="flex gap-2">
             {isCoordenador && (
-              <Button
-                variant="outline"
-                className="gap-2 border-indigo-300 text-indigo-700 hover:bg-indigo-50"
-                onClick={async () => {
-                  if (!window.confirm('Processar backup no Drive para todas as solicitações aprovadas sem backup? Isso pode levar alguns minutos.')) return;
-                  try {
-                    toast.info('Iniciando backup em lote...');
-                    let cursor = 0;
-                    let totalProcessados = 0;
-                    let loops = 0;
-                    const maxLoops = 50; // Segurança
-                    
-                    while (loops < maxLoops) {
-                      loops++;
-                      const res = await base44.functions.invoke('driveBackupPurchase', { cursor: String(cursor) });
-                      const r = res?.data || res;
+              <>
+                <Button
+                  variant="outline"
+                  className="gap-2 border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+                  onClick={async () => {
+                    if (!window.confirm('Processar backup no Drive para todas as solicitações aprovadas sem backup? Isso pode levar alguns minutos.')) return;
+                    try {
+                      toast.info('Iniciando backup em lote...');
+                      let cursor = 0;
+                      let totalProcessados = 0;
+                      let loops = 0;
+                      const maxLoops = 50;
                       
-                      if (!r?.success) throw new Error(r?.error || 'Erro no processamento');
-                      
-                      totalProcessados += (r.processados || 0);
-                      toast.info(`Processando lote ${loops}: ${r.processados || 0} solicitações...`);
-                      
-                      if (!r.temMais) {
-                        toast.success(`✅ Backup concluído! ${totalProcessados} solicitações processadas.`);
-                        break;
+                      while (loops < maxLoops) {
+                        loops++;
+                        const res = await base44.functions.invoke('driveBackupPurchase', { cursor: String(cursor) });
+                        const r = res?.data || res;
+                        
+                        if (!r?.success) throw new Error(r?.error || 'Erro no processamento');
+                        
+                        totalProcessados += (r.processados || 0);
+                        toast.info(`Processando lote ${loops}: ${r.processados || 0} solicitações...`);
+                        
+                        if (!r.temMais) {
+                          toast.success(`✅ Backup concluído! ${totalProcessados} solicitações processadas.`);
+                          break;
+                        }
+                        cursor = r.cursor;
                       }
-                      cursor = r.cursor;
+                      
+                      await refreshFinanceiroCompleto();
+                    } catch (e) {
+                      toast.error('❌ Erro: ' + (e?.message || 'desconhecido'));
                     }
-                    
-                    await refreshFinanceiroCompleto();
-                  } catch (e) {
-                    toast.error('❌ Erro: ' + (e?.message || 'desconhecido'));
-                  }
-                }}
-              >
-                <FileText className="h-4 w-4" />
-                Backup Drive
-              </Button>
+                  }}
+                >
+                  <FileText className="h-4 w-4" />
+                  Backup Compras
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className="gap-2 border-green-300 text-green-700 hover:bg-green-50"
+                  onClick={async () => {
+                    if (!window.confirm('Processar backup no Drive para todos os relatórios aprovados? Isso organiza os relatórios por tipo, ano e mês.')) return;
+                    try {
+                      toast.info('Iniciando backup de relatórios...');
+                      let cursor = 0;
+                      let totalProcessados = 0;
+                      let loops = 0;
+                      const maxLoops = 50;
+                      
+                      while (loops < maxLoops) {
+                        loops++;
+                        const res = await base44.functions.invoke('backupRelatoriosDrive', { cursor: String(cursor) });
+                        const r = res?.data || res;
+                        
+                        if (!r?.success) throw new Error(r?.error || 'Erro no processamento');
+                        
+                        totalProcessados += (r.processados || 0);
+                        if (r.erros > 0) {
+                          toast.warning(`Lote ${loops}: ${r.processados} relatórios processados, ${r.erros} erros`);
+                        } else {
+                          toast.info(`Processando lote ${loops}: ${r.processados} relatórios...`);
+                        }
+                        
+                        if (!r.temMais) {
+                          toast.success(`✅ Backup de relatórios concluído! ${totalProcessados} relatórios processados.`);
+                          break;
+                        }
+                        cursor = r.cursor;
+                      }
+                      
+                      await refreshFinanceiroCompleto();
+                    } catch (e) {
+                      toast.error('❌ Erro: ' + (e?.message || 'desconhecido'));
+                    }
+                  }}
+                >
+                  <FileText className="h-4 w-4" />
+                  Backup Relatórios
+                </Button>
+              </>
             )}
 
             {isCoordenador && (

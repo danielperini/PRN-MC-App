@@ -498,6 +498,31 @@
     "export_excel_url": {
       "type": "string"
     },
+    "drive_backup_url": {
+      "type": "string",
+      "description": "URL do backup no Google Drive"
+    },
+    "drive_backup_id": {
+      "type": "string",
+      "description": "ID do arquivo no Google Drive"
+    },
+    "drive_backup_status": {
+      "type": "string",
+      "enum": [
+        "pendente",
+        "em_processamento",
+        "concluido",
+        "erro",
+        "sem_arquivo"
+      ],
+      "default": "pendente",
+      "description": "Status do backup no Google Drive"
+    },
+    "drive_backup_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data/hora do \u00faltimo backup"
+    },
     "gerado_por_email": {
       "type": "string"
     },

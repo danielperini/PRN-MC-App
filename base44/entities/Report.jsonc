@@ -37,21 +37,7 @@
     },
     "mes_referencia": {
       "type": "string",
-      "enum": [
-        "Janeiro",
-        "Fevereiro",
-        "Mar\u00e7o",
-        "Abril",
-        "Maio",
-        "Junho",
-        "Julho",
-        "Agosto",
-        "Setembro",
-        "Outubro",
-        "Novembro",
-        "Dezembro"
-      ],
-      "description": "M\u00eas de refer\u00eancia"
+      "description": "M\u00eas de refer\u00eancia para organiza\u00e7\u00e3o"
     },
     "ano": {
       "type": "number",
@@ -185,6 +171,55 @@
           }
         }
       }
+    },
+    "pdf_url": {
+      "type": "string",
+      "description": "URL do PDF exportado do relat\u00f3rio"
+    },
+    "export_pdf_url": {
+      "type": "string",
+      "description": "URL alternativa do PDF exportado"
+    },
+    "drive_backup_relatorio_url": {
+      "type": "string",
+      "description": "URL do backup do relat\u00f3rio no Google Drive"
+    },
+    "drive_backup_relatorio_id": {
+      "type": "string",
+      "description": "ID do arquivo no Google Drive"
+    },
+    "drive_backup_status": {
+      "type": "string",
+      "enum": [
+        "pendente",
+        "em_processamento",
+        "concluido",
+        "erro",
+        "sem_arquivo"
+      ],
+      "default": "pendente",
+      "description": "Status do backup no Google Drive"
+    },
+    "drive_backup_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data/hora do \u00faltimo backup"
+    },
+    "tipo": {
+      "type": "string",
+      "enum": [
+        "mensal",
+        "parcial",
+        "final",
+        "atividade",
+        "financeiro"
+      ],
+      "default": "mensal",
+      "description": "Tipo de relat\u00f3rio para organiza\u00e7\u00e3o no Drive"
+    },
+    "ano_referencia": {
+      "type": "number",
+      "description": "Ano de refer\u00eancia para organiza\u00e7\u00e3o"
     }
   },
   "required": [
