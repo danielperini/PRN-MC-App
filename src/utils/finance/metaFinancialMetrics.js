@@ -220,3 +220,6 @@ export function calculateGastosPorMuseuEProjeto(rubricas = []) {
 // Aliases para compatibilidade com código existente
 export const calculateMetaMetrics = calculateMetaFinancialMetrics;
 export const calculateGastosPorMuseuProjeto = calculateGastosPorMuseuEProjeto;
+
+// Exportação da constante METAS_OFICIAIS
+export { METAS_OFICIAIS };
