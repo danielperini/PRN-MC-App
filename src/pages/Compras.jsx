@@ -56,6 +56,7 @@ import MeusPagamentosTab from '@/components/compras/MeusPagamentosTab';
 import PagarSolicitacaoDialog from '@/components/compras/PagarSolicitacaoDialog';
 import NovaRubricaDialog from '@/components/rubricas/NovaRubricaDialog';
 import TotaisAditivoCards from '@/components/compras/TotaisAditivoCards';
+import RubricasConsumoDashboard from '@/components/compras/RubricasConsumoDashboard';
 import { canManageRubricas } from '@/components/auth/permissions';
 import { normalizeStatus, isStatusPendente, isStatusAprovado, getStatusLabel, getStatusColor } from '@/lib/normalizeStatus';
 
@@ -1140,6 +1141,7 @@ function ComprasInner() {
           {[
             { id: 'lista', label: 'Solicitações' },
             ...(podeGerenciarRubricas ? [{ id: 'rubricas', label: 'Rubricas' }] : []),
+            { id: 'consumo', label: 'Consumo Rubricas' },
             { id: 'documentos', label: 'Documentos' },
             ...(isCoordenador ? [{ id: 'equipe', label: 'Equipe' }] : []),
             { id: 'meus_pagamentos', label: 'Meus Pagamentos' }
@@ -1599,6 +1601,10 @@ function ComprasInner() {
               />
             )}
           </div>
+        )}
+
+        {tab === 'consumo' && (
+          <RubricasConsumoDashboard rubricas={rubricas} />
         )}
 
         {tab === 'documentos' && (

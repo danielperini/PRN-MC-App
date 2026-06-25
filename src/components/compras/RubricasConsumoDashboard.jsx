@@ -1,0 +1,181 @@
+import React, { useMemo, useState } from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+
+function fmtBRL(v) {
+  if (!v && v !== 0) return 'R$ 0';
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v);
+}
+
+function toNum(v) {
+  const n = Number(v ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function getCorBarra(pct) {
+  if (pct >= 100) return '#ef4444';
+  if (pct >= 80) return '#f97316';
+  if (pct >= 50) return '#eab308';
+  return '#22c55e';
+}
+
+const CustomTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
+  const d = payload[0]?.payload;
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-lg text-xs">
+      <p className="font-semibold text-gray-900 mb-1 max-w-[220px] break-words">{label}</p>
+      <p className="text-gray-500">Total previsto: <span className="font-medium text-gray-800">{fmtBRL(d?.total)}</span></p>
+      <p className="text-gray-500">Utilizado: <span className="font-medium text-gray-800">{fmtBRL(d?.utilizado)}</span></p>
+      <p className="text-gray-500">Saldo: <span className="font-medium text-gray-800">{fmtBRL(d?.saldo)}</span></p>
+      <p className="text-gray-500">Execução: <span className="font-semibold" style={{ color: getCorBarra(d?.pct) }}>{d?.pct?.toFixed(1)}%</span></p>
+    </div>
+  );
+};
+
+export default function RubricasConsumoDashboard({ rubricas }) {
+  const [grupoBusca, setGrupoBusca] = useState('');
+  const [somenteAtivas, setSomenteAtivas] = useState(true);
+
+  const dados = useMemo(() => {
+    return (rubricas || [])
+      .filter(r => {
+        if (somenteAtivas && r.ativo === false) return false;
+        if (grupoBusca && !String(r.grupo || r.rubrica || '').toLowerCase().includes(grupoBusca.toLowerCase())) return false;
+        return true;
+      })
+      .map(r => {
+        const total = toNum(r.valor_rubrica || r.valor_total);
+        const utilizado = toNum(r.valor_utilizado);
+        const saldo = Math.max(0, total - utilizado);
+        const pct = total > 0 ? (utilizado / total) * 100 : 0;
+        return {
+          id: r.id,
+          nome: r.rubrica || r.nome || 'Sem nome',
+          grupo: r.grupo || '',
+          total,
+          utilizado,
+          saldo,
+          pct,
+          cor: getCorBarra(pct),
+        };
+      })
+      .sort((a, b) => b.pct - a.pct);
+  }, [rubricas, grupoBusca, somenteAtivas]);
+
+  const totais = useMemo(() => {
+    const t = dados.reduce((acc, d) => ({ total: acc.total + d.total, utilizado: acc.utilizado + d.utilizado }), { total: 0, utilizado: 0 });
+    return { ...t, saldo: Math.max(0, t.total - t.utilizado), pct: t.total > 0 ? (t.utilizado / t.total) * 100 : 0 };
+  }, [dados]);
+
+  const grupos = useMemo(() => {
+    const s = new Set((rubricas || []).map(r => r.grupo).filter(Boolean));
+    return Array.from(s).sort();
+  }, [rubricas]);
+
+  // Divide em chunks de 15 para múltiplos gráficos (legibilidade)
+  const chunks = useMemo(() => {
+    const result = [];
+    for (let i = 0; i < dados.length; i += 15) result.push(dados.slice(i, i + 15));
+    return result;
+  }, [dados]);
+
+  return (
+    <div className="space-y-6">
+      {/* Resumo geral */}
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        {[
+          { label: 'Total Previsto', value: fmtBRL(totais.total), color: 'text-gray-900' },
+          { label: 'Total Utilizado', value: fmtBRL(totais.utilizado), color: 'text-orange-600' },
+          { label: 'Saldo Disponível', value: fmtBRL(totais.saldo), color: 'text-green-600' },
+          { label: 'Execução Geral', value: `${totais.pct.toFixed(1)}%`, color: totais.pct >= 80 ? 'text-red-600' : 'text-blue-700' },
+        ].map(card => (
+          <div key={card.label} className="rounded-xl border border-gray-200 bg-white p-4">
+            <p className="text-xs text-gray-500 mb-1">{card.label}</p>
+            <p className={`text-lg font-bold ${card.color}`}>{card.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Legenda */}
+      <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500">
+        <span className="font-medium text-gray-700">Nível de execução:</span>
+        {[
+          { cor: '#22c55e', label: '< 50%' },
+          { cor: '#eab308', label: '50–79%' },
+          { cor: '#f97316', label: '80–99%' },
+          { cor: '#ef4444', label: '≥ 100%' },
+        ].map(l => (
+          <span key={l.label} className="flex items-center gap-1">
+            <span className="inline-block h-3 w-3 rounded-sm" style={{ background: l.cor }} />
+            {l.label}
+          </span>
+        ))}
+      </div>
+
+      {/* Filtros */}
+      <div className="flex flex-wrap gap-3 items-center">
+        <input
+          type="text"
+          placeholder="Buscar rubrica ou grupo..."
+          value={grupoBusca}
+          onChange={e => setGrupoBusca(e.target.value)}
+          className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 w-64"
+        />
+        <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+          <input type="checkbox" checked={somenteAtivas} onChange={e => setSomenteAtivas(e.target.checked)} className="rounded" />
+          Somente rubricas ativas
+        </label>
+        <span className="text-xs text-gray-400">{dados.length} rubricas</span>
+      </div>
+
+      {dados.length === 0 && (
+        <div className="rounded-xl border-2 border-dashed border-gray-200 py-16 text-center text-gray-400 text-sm">
+          Nenhuma rubrica encontrada.
+        </div>
+      )}
+
+      {/* Gráficos por chunk */}
+      {chunks.map((chunk, ci) => (
+        <div key={ci} className="rounded-xl border border-gray-200 bg-white p-4">
+          {chunks.length > 1 && (
+            <p className="text-xs text-gray-400 mb-3">Grupo {ci + 1} de {chunks.length}</p>
+          )}
+          <ResponsiveContainer width="100%" height={chunk.length * 36 + 40}>
+            <BarChart
+              data={chunk}
+              layout="vertical"
+              margin={{ top: 0, right: 16, left: 8, bottom: 0 }}
+              barCategoryGap="25%"
+            >
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
+              <XAxis
+                type="number"
+                tickFormatter={v => fmtBRL(v)}
+                tick={{ fontSize: 10, fill: '#9ca3af' }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                type="category"
+                dataKey="nome"
+                width={180}
+                tick={{ fontSize: 11, fill: '#374151' }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              {/* Barra fundo: total */}
+              <Bar dataKey="total" name="Total Previsto" fill="#e5e7eb" radius={[0, 4, 4, 0]} />
+              {/* Barra sobreposta: utilizado */}
+              <Bar dataKey="utilizado" name="Utilizado" radius={[0, 4, 4, 0]}>
+                {chunk.map((entry) => (
+                  <Cell key={entry.id} fill={entry.cor} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      ))}
+    </div>
+  );
+}
