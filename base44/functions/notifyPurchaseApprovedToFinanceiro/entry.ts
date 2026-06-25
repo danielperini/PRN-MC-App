@@ -78,23 +78,55 @@ Deno.serve(async (req) => {
       toNumber(rubrica?.saldo_comprometido);
     const saldoPosPagamento = saldoAtual - valor;
 
-    const body = `Segue arquivos de nota fiscal aprovados.
+    const appUrl = `https://museus-centro.base44-apps.com/Compras`;
+    const nfDataFormatada = (() => {
+      const d = purchase?.nf_data_emissao || purchase?.data_emissao_nf;
+      if (!d) return '—';
+      const dt = new Date(d + 'T12:00:00');
+      return dt.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+    })();
 
-O pagamento já foi aprovado pela coordenação.
+    const anexosLinhas = [];
+    if (pdfUrl) anexosLinhas.push(`• Nota Fiscal PDF: ${pdfUrl}`);
+    if (xmlUrl) anexosLinhas.push(`• XML da Nota Fiscal: ${xmlUrl}`);
+    if (compUrl) anexosLinhas.push(`• Comprovante/Recibo: ${compUrl}`);
+    const anexosTexto = anexosLinhas.length > 0 ? anexosLinhas.join('\n') : '• Nenhum arquivo anexado';
 
-Dados da solicitação:
-- Centro de custo: ${purchase?.centro_custo || ''}
-- Rubrica: ${rubrica?.grupo || ''} | ${rubrica?.rubrica || rubrica?.nome || ''}
-- Valor da nota fiscal: R$ ${moeda(valor)}
-- Saldo previsto da rubrica após pagamento: R$ ${moeda(saldoPosPagamento)}
-- Emissor da nota fiscal: ${purchase?.fornecedor_nome || ''}
-- Data de emissão da nota fiscal: ${purchase?.nf_data_emissao || purchase?.data_emissao_nf || ''}
-- Dados bancários / depósito: ${purchase?.detalhe_pagamento || ''}
+    const rubricaTexto = [rubrica?.grupo, rubrica?.rubrica || rubrica?.nome].filter(Boolean).join(' › ');
 
-Arquivos anexos:
-- Nota fiscal PDF
-- XML da nota fiscal, se houver
-- Comprovante/recibo/boleto, se houver`;
+    const body = `Prezado(a),
+
+Uma solicitação de pagamento foi aprovada pela coordenação do projeto Museus Centro e está aguardando processamento financeiro.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DADOS DA SOLICITAÇÃO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Fornecedor/Emissor:  ${purchase?.fornecedor_nome || purchase?.nf_emitente_nome || '—'}
+CNPJ/CPF:            ${purchase?.fornecedor_cnpj || purchase?.nf_emitente_cpf_cnpj || '—'}
+Número da NF:        ${purchase?.nf_numero || '—'}
+Data de emissão:     ${nfDataFormatada}
+
+Valor da nota fiscal: R$ ${moeda(valor)}
+Centro de custo:      ${purchase?.centro_custo || '—'}
+Rubrica orçamentária: ${rubricaTexto || '—'}
+Saldo da rubrica após pagamento: R$ ${moeda(saldoPosPagamento)}
+
+${purchase?.detalhe_pagamento ? `Dados para pagamento:\n${purchase.detalhe_pagamento}\n` : ''}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DOCUMENTOS FISCAIS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${anexosTexto}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Acesse a solicitação completa no sistema:
+${appUrl}
+
+Atenciosamente,
+Coordenação — Museus Centro
+Viaduto das Artes`;
 
     const baseName = buildBaseName(purchase, rubrica, valor);
     const pdfUrl = purchase?.nota_fiscal_pdf_url || purchase?.nota_fiscal_url;
