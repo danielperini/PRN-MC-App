@@ -29,8 +29,7 @@ import {
 } from '@/utils/constants';
 import { cacheService } from '@/lib/cacheService';
 import { reconcileFinancialTotals, getRubricaBudget, getRubricaUsed } from '@/utils/auditoria/reconcileFinancialTotals';
-import { calculateMetaFinancialMetrics, calculateGastosPorMuseuEProjeto } from '@/utils/finance/metaFinancialMetrics';
-import { OFFICIAL_ADITIVO_TOTAL } from '@/utils/auditoria/reconcileFinancialTotals';
+import { calculateMetaMetrics, calculateGastosPorMuseuProjeto } from '@/utils/finance/metaFinancialMetrics';
 
 const CHART_COLORS = ['#111827', '#4B5563', '#9CA3AF', '#D1D5DB'];
 const APPROVED_STATUSES = new Set(['APPROVED', 'APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
@@ -432,9 +431,9 @@ export default function DashboardPatrocinadorSync() {
     comparativoMuseu: [],
     duplicateCount: 0,
     consolidatedGroupCount: 0,
-    totalOrcado: 1320000,
+    totalOrcado: 0,
     totalUtilizado: 0,
-    saldoTotal: 1320000,
+    saldoTotal: 0,
     percentualExecucao: 0,
     hasData: false
   });
@@ -548,12 +547,8 @@ export default function DashboardPatrocinadorSync() {
         };
       });
 
-      const totalUtilizado = officialMetrics.financeiro.totalUtilizado;
-      const saldoTotal = officialMetrics.financeiro.saldo;
-      const percentualExecucao = officialMetrics.financeiro.percentualExecucao;
       const publicoMes = atividadesMesInfo.publico || 0;
       const totalPublico = metrics.totalPublico;
-      const officialTotal = officialMetrics.financeiro.officialTotal;
 
       setData({
         periodo: mesReferencia.label,
@@ -571,10 +566,10 @@ export default function DashboardPatrocinadorSync() {
         comparativoMuseu,
         duplicateCount: metrics.duplicateCount,
         consolidatedGroupCount: metrics.consolidatedGroupCount,
-        totalOrcado: officialTotal,
-        totalUtilizado,
-        saldoTotal,
-        percentualExecucao,
+        totalOrcado: financeiro.officialTotal,
+        totalUtilizado: financeiro.totalUtilizado,
+        saldoTotal: financeiro.saldo,
+        percentualExecucao: financeiro.percentualExecucao,
         hasData: metrics.reports.length > 0 || atividadesRealizadas.length > 0
       });
 

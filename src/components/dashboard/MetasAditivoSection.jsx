@@ -93,7 +93,7 @@ function MetaRubricasModal({ meta, rubricas, onClose, onUpdated }) {
     setSavingId(id);
 
     try {
-      await base44.entities.Rubrica.update(id, linked ? { meta: '', meta_titulo: '' } : { meta: meta.numero, meta_titulo: meta.titulo });
+      await base44.entities.Rubrica.update(id, linked ? { meta: '', meta_titulo: '' } : { meta: meta.numeroFormatado || meta.numero, meta_titulo: meta.titulo });
       toast.success(linked ? 'Rubrica retirada da meta' : 'Rubrica vinculada à meta');
       if (onUpdated) await onUpdated();
     } catch (error) {
@@ -133,13 +133,15 @@ function MetaRubricasModal({ meta, rubricas, onClose, onUpdated }) {
         <div className="max-h-[60vh] overflow-auto p-4 space-y-2">
           {filteredRubricas.map((rubrica) => {
             const linked = isRubricaLinkedToMeta(rubrica, meta);
+            const previsto = getRubricaBudget(rubrica);
+            const utilizado = getRubricaUsed(rubrica);
 
             return (
               <div key={rubrica.id} className="flex items-center justify-between rounded-xl border p-3">
                 <div>
                   <p className="font-medium">{getRubricaNome(rubrica)}</p>
                   <p className="text-xs text-neutral-500">
-                    Previsto: {fmtBRL(getRubricaValor(rubrica))} · Utilizado: {fmtBRL(getRubricaUtilizado(rubrica))}
+                    Previsto: {fmtBRL(previsto)} · Utilizado: {fmtBRL(utilizado)}
                   </p>
                 </div>
 
@@ -208,7 +210,7 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRef
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-bold text-slate-900 tracking-tight">Metas do 3º Aditivo</h2>
+        <h2 className="text-xl font-bold text-slate-900 tracking-tight">Metas do 3º e 4º Aditivo</h2>
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">

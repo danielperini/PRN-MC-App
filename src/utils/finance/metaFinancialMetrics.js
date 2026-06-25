@@ -49,31 +49,67 @@ const METAS_OFICIAIS = [
 ];
 
 /**
+ * Normaliza o número da meta para comparação
+ */
+export function normalizeMetaNumber(metaText) {
+  const text = normalizeText(metaText || '');
+  const match = text.match(/^(\d+(?:[A-Z])?)/i);
+  if (match) {
+    return match[1].toUpperCase();
+  }
+  const matchAny = text.match(/(\d+(?:[A-Z])?)/i);
+  if (matchAny) {
+    return matchAny[1].toUpperCase();
+  }
+  return text;
+}
+
+/**
+ * Verifica se uma rubrica está vinculada a uma meta específica
+ */
+export function isRubricaLinkedToMeta(rubrica, meta) {
+  if (rubrica.meta_id && meta.id) {
+    return rubrica.meta_id === meta.id;
+  }
+  
+  const rubricaMeta = normalizeMetaNumber(rubrica.meta || rubrica.meta_numero || rubrica.meta_titulo || '');
+  const metaNumero = normalizeMetaNumber(meta.numero || meta.numeroFormatado || '');
+  
+  if (rubricaMeta && metaNumero) {
+    if (rubricaMeta === metaNumero) {
+      return true;
+    }
+    
+    if (meta.metaPai && rubricaMeta === meta.numero) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+/**
  * Calcula métricas financeiras para todas as metas do 3º e 4º Aditivo
- * @param {Array} rubricas - Lista de rubricas do sistema
- * @returns {Array} Lista de metas com métricas calculadas
  */
 export function calculateMetaFinancialMetrics(rubricas = []) {
+  // Deduplicar rubricas por ID
+  const rubricasUnicas = new Map();
+  (rubricas || []).forEach((rubrica) => {
+    const key = rubrica.id || rubrica.codigo;
+    if (!key || rubrica.ativo === false) return;
+    if (!rubricasUnicas.has(key)) {
+      rubricasUnicas.set(key, rubrica);
+    }
+  });
+  
+  const rubricasArray = Array.from(rubricasUnicas.values());
+  
+  // Calcular métricas para cada meta
   return METAS_OFICIAIS.map(meta => {
     // Filtrar rubricas vinculadas a esta meta
-    const rubricasVinculadas = (rubricas || []).filter(rubrica => {
-      const metaRubrica = normalizeText(rubrica?.meta || rubrica?.meta_numero || rubrica?.meta_titulo || '');
-      const numeroMeta = normalizeText(meta.numero);
-      const numeroFormatado = normalizeText(meta.numeroFormatado);
-      
-      // Verificar vínculo direto pelo número da meta
-      const vinculoDireto = metaRubrica === numeroMeta || 
-                           metaRubrica.includes(numeroMeta) || 
-                           metaRubrica.includes(normalizeText(meta.titulo));
-      
-      // Verificar vínculo pelo número formatado (META 01, META 11A, etc)
-      const vinculoFormatado = metaRubrica === numeroFormatado || 
-                              metaRubrica.includes(numeroFormatado);
-      
-      return vinculoDireto || vinculoFormatado;
-    });
-
-    // Calcular valores financeiros
+    const rubricasVinculadas = rubricasArray.filter(r => isRubricaLinkedToMeta(r, meta));
+    
+    // Calcular valores
     const previsto = rubricasVinculadas.reduce((sum, r) => sum + getRubricaBudget(r), 0);
     const utilizado = rubricasVinculadas.reduce((sum, r) => sum + getRubricaUsed(r), 0);
     const saldo = previsto - utilizado;
@@ -92,48 +128,44 @@ export function calculateMetaFinancialMetrics(rubricas = []) {
       percentualFinanceiro,
       percentualFisico: meta.status === 'CONCLUÍDA' ? 100 : percentualFinanceiro,
       rubricasCount: rubricasVinculadas.length,
-      indicador,
-      rubricasIds: rubricasVinculadas.map(r => r.id)
+      rubricasIds: rubricasVinculadas.map(r => r.id),
+      indicador
     };
   });
 }
 
 /**
  * Calcula gastos por museu e por projeto
- * @param {Array} rubricas - Lista de rubricas do sistema
- * @returns {Object} Objeto com gastos por museu e por projeto
  */
 export function calculateGastosPorMuseuEProjeto(rubricas = []) {
+  // Deduplicar rubricas
+  const rubricasUnicas = new Map();
+  (rubricas || []).forEach((rubrica) => {
+    const key = rubrica.id || rubrica.codigo;
+    if (!key || rubrica.ativo === false) return;
+    if (!rubricasUnicas.has(key)) {
+      rubricasUnicas.set(key, rubrica);
+    }
+  });
+  
+  const rubricasArray = Array.from(rubricasUnicas.values());
+  
+  // Inicializar agrupamentos
   const byMuseum = {};
   const byProject = {};
   
-  // Inicializar museus
   ['MIS', 'MHAB', 'MUMO', 'Noturno', 'Pampulha', 'Geral'].forEach(nome => {
-    byMuseum[nome] = {
-      museu: nome,
-      previsto: 0,
-      utilizado: 0,
-      saldo: 0,
-      percentual: 0,
-      rubricasCount: 0
-    };
+    byMuseum[nome] = { museu: nome, previsto: 0, utilizado: 0, saldo: 0, percentual: 0, rubricasCount: 0 };
   });
   
-  // Inicializar projetos
   ['Museus Centro', 'Noturno 2026', 'Noturno Pampulha', 'Transversal'].forEach(nome => {
-    byProject[nome] = {
-      projeto: nome,
-      previsto: 0,
-      utilizado: 0,
-      saldo: 0,
-      percentual: 0,
-      rubricasCount: 0
-    };
+    byProject[nome] = { projeto: nome, previsto: 0, utilizado: 0, saldo: 0, percentual: 0, rubricasCount: 0 };
   });
   
-  // Agrupar por centro de custo
-  (rubricas || []).forEach(rubrica => {
+  // Classificar rubricas
+  rubricasArray.forEach((rubrica) => {
     const centroCusto = normalizeText(rubrica?.centro_custo || '');
+    const escopo = normalizeText(rubrica?.escopo_orcamentario || '');
     const previsto = getRubricaBudget(rubrica);
     const utilizado = getRubricaUsed(rubrica);
     
@@ -183,213 +215,4 @@ export function calculateGastosPorMuseuEProjeto(rubricas = []) {
     byMuseum: Object.values(byMuseum).filter(m => m.previsto > 0 || m.utilizado > 0),
     byProject: Object.values(byProject).filter(p => p.previsto > 0 || p.utilizado > 0)
   };
-}
-
-/**
- * Normaliza o número da meta para comparação
- * Exemplos:
- * - 'META 01' => '1'
- * - 'Meta 1' => '1'
- * - '1 - Contratação...' => '1'
- * - '11A' => '11A'
- * - '11B' => '11B'
- */
-export function normalizeMetaNumber(metaText) {
-  const text = normalizeText(metaText || '');
-  
-  // Extrair número principal (com sufixo A/B se existir)
-  const match = text.match(/^(\d+(?:[A-Z])?)/i);
-  if (match) {
-    return match[1].toUpperCase();
-  }
-  
-  // Fallback: tentar encontrar número em qualquer posição
-  const matchAny = text.match(/(\d+(?:[A-Z])?)/i);
-  if (matchAny) {
-    return matchAny[1].toUpperCase();
-  }
-  
-  return text;
-}
-
-/**
- * Verifica se uma rubrica está vinculada a uma meta específica
- * Prioridade:
- * 1. ID oficial da meta salvo na rubrica
- * 2. Número normalizado da meta
- * 3. Mapeamento oficial explícito
- */
-export function isRubricaLinkedToMeta(rubrica, meta) {
-  // Verificar vínculo por ID da meta (prioridade máxima)
-  if (rubrica.meta_id && meta.id) {
-    return rubrica.meta_id === meta.id;
-  }
-  
-  // Verificar vínculo por número da meta
-  const rubricaMeta = normalizeMetaNumber(rubrica.meta || rubrica.meta_numero || rubrica.meta_titulo || '');
-  const metaNumero = normalizeMetaNumber(meta.numero || meta.numeroFormatado || '');
-  
-  if (rubricaMeta && metaNumero) {
-    // Verificar correspondência exata
-    if (rubricaMeta === metaNumero) {
-      return true;
-    }
-    
-    // Verificar se é subdivisão (ex: 11A pertence a 11)
-    if (meta.metaPai && rubricaMeta === meta.numero) {
-      return true;
-    }
-  }
-  
-  return false;
-}
-
-/**
- * Calcula métricas financeiras para cada meta
- * @param {Array} rubricas - Lista de rubricas
- * @returns {Array} Metas com dados financeiros calculados
- */
-export function calculateMetaFinancialMetrics(rubricas = []) {
-  // Deduplicar rubricas por ID
-  const rubricasUnicas = new Map();
-  (rubricas || []).forEach((rubrica) => {
-    const key = rubrica.id || rubrica.codigo;
-    if (!key || rubrica.ativo === false) return;
-    if (!rubricasUnicas.has(key)) {
-      rubricasUnicas.set(key, rubrica);
-    }
-  });
-  
-  const rubricasArray = Array.from(rubricasUnicas.values());
-  
-  // Calcular métricas para cada meta
-  return METAS_OFICIAIS.map(meta => {
-    // Filtrar rubricas vinculadas a esta meta
-    const rubricasVinculadas = rubricasArray.filter(r => isRubricaLinkedToMeta(r, meta));
-    
-    // Calcular valores
-    const previsto = rubricasVinculadas.reduce((sum, r) => sum + getRubricaBudget(r), 0);
-    const utilizado = rubricasVinculadas.reduce((sum, r) => sum + getRubricaUsed(r), 0);
-    const saldo = previsto - utilizado;
-    const percentualFinanceiro = previsto > 0 ? Number(((utilizado / previsto) * 100).toFixed(2)) : 0;
-    
-    return {
-      ...meta,
-      previsto,
-      utilizado,
-      saldo,
-      percentualFinanceiro,
-      percentualFisico: meta.status === 'CONCLUÍDA' ? 100 : 0,
-      rubricasCount: rubricasVinculadas.length,
-      rubricasIds: rubricasVinculadas.map(r => r.id),
-      indicador: previsto > 0
-        ? `${formatBRL(utilizado)} utilizado de ${formatBRL(previsto)}`
-        : meta.status === 'CONCLUÍDA' ? '100% concluído' : '0%'
-    };
-  });
-}
-
-/**
- * Calcula gastos por museu/projeto
- * @param {Array} rubricas - Lista de rubricas
- * @returns {Object} com byMuseum e byProject
- */
-export function calculateGastosPorMuseuEProjeto(rubricas = []) {
-  // Deduplicar rubricas
-  const rubricasUnicas = new Map();
-  (rubricas || []).forEach((rubrica) => {
-    const key = rubrica.id || rubrica.codigo;
-    if (!key || rubrica.ativo === false) return;
-    if (!rubricasUnicas.has(key)) {
-      rubricasUnicas.set(key, rubrica);
-    }
-  });
-  
-  const rubricasArray = Array.from(rubricasUnicas.values());
-  
-  // Inicializar agrupamentos
-  const byMuseum = {
-    MIS: { museu: 'MIS', previsto: 0, utilizado: 0, saldo: 0, rubricasCount: 0 },
-    MHAB: { museu: 'MHAB', previsto: 0, utilizado: 0, saldo: 0, rubricasCount: 0 },
-    MUMO: { museu: 'MUMO', previsto: 0, utilizado: 0, saldo: 0, rubricasCount: 0 },
-    Geral: { museu: 'Geral', previsto: 0, utilizado: 0, saldo: 0, rubricasCount: 0 }
-  };
-  
-  const byProject = {
-    'Noturno 2026': { projeto: 'Noturno 2026', previsto: 0, utilizado: 0, saldo: 0, rubricasCount: 0 },
-    'Noturno Pampulha': { projeto: 'Noturno Pampulha', previsto: 0, utilizado: 0, saldo: 0, rubricasCount: 0 },
-    'Geral': { projeto: 'Geral', previsto: 0, utilizado: 0, saldo: 0, rubricasCount: 0 }
-  };
-  
-  // Classificar rubricas
-  rubricasArray.forEach((rubrica) => {
-    const centroCusto = normalizeText(rubrica.centro_custo || '');
-    const escopo = normalizeText(rubrica.escopo_orcamentario || '');
-    const nome = normalizeText(rubrica.rubrica || rubrica.nome || '');
-    
-    const previsto = getRubricaBudget(rubrica);
-    const utilizado = getRubricaUsed(rubrica);
-    
-    // Classificação por museu (centro de custo)
-    let museu = 'Geral';
-    if (centroCusto.includes('mis') || centroCusto.includes('imagem') || centroCusto.includes('som')) {
-      museu = 'MIS';
-    } else if (centroCusto.includes('mhab') || centroCusto.includes('abh') || centroCusto.includes('hist')) {
-      museu = 'MHAB';
-    } else if (centroCusto.includes('mumo') || centroCusto.includes('moda')) {
-      museu = 'MUMO';
-    }
-    
-    // Classificação por projeto
-    let projeto = 'Geral';
-    if (centroCusto.includes('noturno') && centroCusto.includes('pampulha')) {
-      projeto = 'Noturno Pampulha';
-    } else if (centroCusto.includes('noturno')) {
-      projeto = 'Noturno 2026';
-    } else if (escopo.includes('noturno') && escopo.includes('pampulha')) {
-      projeto = 'Noturno Pampulha';
-    } else if (escopo.includes('noturno')) {
-      projeto = 'Noturno 2026';
-    }
-    
-    // Somar nos agrupamentos
-    if (!byMuseum[museu]) {
-      byMuseum[museu] = { museu, previsto: 0, utilizado: 0, saldo: 0, rubricasCount: 0 };
-    }
-    byMuseum[museu].previsto += previsto;
-    byMuseum[museu].utilizado += utilizado;
-    byMuseum[museu].rubricasCount += 1;
-    
-    if (!byProject[projeto]) {
-      byProject[projeto] = { projeto, previsto: 0, utilizado: 0, saldo: 0, rubricasCount: 0 };
-    }
-    byProject[projeto].previsto += previsto;
-    byProject[projeto].utilizado += utilizado;
-    byProject[projeto].rubricasCount += 1;
-  });
-  
-  // Calcular saldos
-  Object.values(byMuseum).forEach(m => {
-    m.saldo = m.previsto - m.utilizado;
-    m.percentual = m.previsto > 0 ? Number(((m.utilizado / m.previsto) * 100).toFixed(2)) : 0;
-  });
-  
-  Object.values(byProject).forEach(p => {
-    p.saldo = p.previsto - p.utilizado;
-    p.percentual = p.previsto > 0 ? Number(((p.utilizado / p.previsto) * 100).toFixed(2)) : 0;
-  });
-  
-  return {
-    byMuseum: Object.values(byMuseum),
-    byProject: Object.values(byProject)
-  };
-}
-
-function formatBRL(value) {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(Number(value || 0));
 }
