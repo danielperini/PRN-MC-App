@@ -47,23 +47,9 @@ const STATUS_CONFIG = {
   ARCHIVED: { label: 'Arquivado', color: 'bg-slate-100 text-slate-600', icon: FileText },
 };
 
-const MESES = [
-  'Janeiro',
-  'Fevereiro',
-  'Março',
-  'Abril',
-  'Maio',
-  'Junho',
-  'Julho',
-  'Agosto',
-  'Setembro',
-  'Outubro',
-  'Novembro',
-  'Dezembro',
-];
+import { MESES, MUSEUS, CACHE_KEYS } from '@/utils/constants';
 
-const MUSEUS = ['MHAB', 'MIS', 'MUMO'];
-const REPORTS_CACHE_KEY = 'relatorios_list_cache_v1';
+const REPORTS_CACHE_KEY = CACHE_KEYS.RELATORIOS_LIST;
 
 function readReportsCache() {
   try {

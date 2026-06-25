@@ -24,7 +24,9 @@ import { consumeDashboardPriorityRefresh } from '@/utils/dashboardRefresh';
 
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
 
-const DASHBOARD_VIEW_KEY = 'museus_centro_dashboard_view_mode';
+import { CACHE_KEYS } from '@/utils/constants';
+
+const DASHBOARD_VIEW_KEY = CACHE_KEYS.DASHBOARD_VIEW_MODE;
 
 function DashboardViewSelector({ value, onChange }) {
   const options = [
@@ -295,7 +297,7 @@ function DashboardInner() {
         await refetchDashboardData();
 
         try {
-          localStorage.setItem('dashboard-update', Date.now().toString());
+          localStorage.setItem(CACHE_KEYS.DASHBOARD_UPDATE, Date.now().toString());
         } catch {}
 
         scheduleDailyUpdate();
@@ -307,7 +309,7 @@ function DashboardInner() {
     };
 
     const handleStorageUpdate = (event) => {
-      if (event.key === 'dashboard-update') {
+      if (event.key === CACHE_KEYS.DASHBOARD_UPDATE) {
         refetchDashboardData();
       }
     };
@@ -337,9 +339,9 @@ function DashboardInner() {
     const clearDashboardCaches = () => {
       const keys = [
         'dashboard-update',
-        'museus_centro_news_highlight_cache_v2',
-        'museus_centro_news_highlight_cache_v3',
-        'relatorios_list_cache_v1',
+        CACHE_KEYS.NEWS_HIGHLIGHT_CACHE_V2,
+        CACHE_KEYS.NEWS_HIGHLIGHT_CACHE_V3,
+        CACHE_KEYS.RELATORIOS_LIST,
       ];
       keys.forEach((key) => {
         try { localStorage.removeItem(key); } catch {}
@@ -352,7 +354,7 @@ function DashboardInner() {
       window.dispatchEvent(new CustomEvent('dashboard:update'));
       await refetchDashboardData();
       try {
-        localStorage.setItem('dashboard-update', Date.now().toString());
+        localStorage.setItem(CACHE_KEYS.DASHBOARD_UPDATE, Date.now().toString());
       } catch {}
       return { ok: true, refreshedAt: new Date().toISOString() };
     };
@@ -367,7 +369,7 @@ function DashboardInner() {
         refetchDashboardData();
 
         try {
-          localStorage.setItem('dashboard-update', Date.now().toString());
+          localStorage.setItem(CACHE_KEYS.DASHBOARD_UPDATE, Date.now().toString());
         } catch {}
       });
     } catch {}
@@ -377,7 +379,7 @@ function DashboardInner() {
         refetchDashboardData();
 
         try {
-          localStorage.setItem('dashboard-update', Date.now().toString());
+          localStorage.setItem(CACHE_KEYS.DASHBOARD_UPDATE, Date.now().toString());
         } catch {}
       });
     } catch {}
@@ -426,7 +428,7 @@ function DashboardInner() {
       await refetchDashboardData();
 
       try {
-        localStorage.setItem('dashboard-update', Date.now().toString());
+        localStorage.setItem(CACHE_KEYS.DASHBOARD_UPDATE, Date.now().toString());
       } catch {}
 
       window.dispatchEvent(new CustomEvent('dashboardRefreshed'));
