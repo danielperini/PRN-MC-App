@@ -216,3 +216,7 @@ export function calculateGastosPorMuseuEProjeto(rubricas = []) {
     byProject: Object.values(byProject).filter(p => p.previsto > 0 || p.utilizado > 0)
   };
 }
+
+// Aliases para compatibilidade com código existente
+export const calculateMetaMetrics = calculateMetaFinancialMetrics;
+export const calculateGastosPorMuseuProjeto = calculateGastosPorMuseuEProjeto;
