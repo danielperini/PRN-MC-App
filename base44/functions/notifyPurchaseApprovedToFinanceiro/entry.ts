@@ -41,19 +41,20 @@ function buildDescricaoEsperada(purchase, rubrica, mes, year) {
   return `Prestação de serviço ${natureza} Museus Centro - Termo de Colaboração 01-031.069/24-80, parceria com SMC/FMC: Referente a ${mes} ${year}`;
 }
 
-// Verifica se a descrição do Noturno é semanticamente válida
-// Aceita qualquer variação que contenha os 6 elementos chave (tolerante a acentuação/maiúsculas)
+// Verifica se a descrição do Noturno é semanticamente válida.
+// Aceita Modelo A (referência mensal), B (atividade no museu), C (serviço para atividade), D (profissional/função do evento).
+// O museu/espaço é OPCIONAL — Modelo D (funções como Assistente de Produção, Educador, etc.) não precisa citar museu.
 function descricaoNoturnoValida(desc) {
   const d = norm(desc);
   const temProjeto = d.includes('museus centro');
   const temTermo = d.includes('01-031.069/24-80') || d.includes('termo de colaboracao');
-  const temParceria = d.includes('smc') || d.includes('fmc') || d.includes('smc/fmc');
-  const temNoturno = d.includes('noturno nos museus') || d.includes('noturno nos museus (2026)') || d.includes('noturno 2026');
+  const temParceria = d.includes('smc') || d.includes('fmc');
+  // Noturno: aceitar com ou sem "(2026)" e variações como "noturno nos museu"
+  const temNoturno = d.includes('noturno nos museu') || d.includes('noturno 2026') ||
+    d.includes('noturno nos museus') || d.includes('11a edicao') || d.includes('11ª edicao');
   const temParcela = d.includes('parcela');
-  // Museu / local — qualquer menção a museu, casa, instituto, espaço cultural
-  const temMuseu = d.includes('museu') || d.includes('casa kubitschek') || d.includes('casa do baile') ||
-    d.includes('mhab') || d.includes('mis ') || d.includes('mumo') || d.includes('abilio barreto') ||
-    d.includes('inhotim') || d.includes('arte') || d.includes('cultural') || d.includes('instituto') || d.includes('espaco');
+  // Museu/local é OPCIONAL — não bloquear se ausente (Modelo D não cita museu específico)
+  const temMuseu = true;
   return { temProjeto, temTermo, temParceria, temNoturno, temParcela, temMuseu };
 }
 
@@ -108,7 +109,8 @@ function validarConformidadeNF(purchase, rubrica) {
     if (faltando.length > 0) {
       erros.push(
         `Descrição da NF (Noturno) está incompleta. Faltando: ${faltando.join(', ')}. ` +
-        `A descrição deve conter: Projeto Museus Centro, Termo 01-031.069/24-80, SMC/FMC, Noturno nos Museus (2026), nome do museu e parcela.`
+        `A descrição deve conter: Projeto Museus Centro, Termo 01-031.069/24-80, SMC/FMC, referência ao Noturno nos Museus (2026) e número da parcela. ` +
+        `O museu/espaço e o nome da atividade são recomendados mas não obrigatórios para funções de equipe.`
       );
     }
     // FUNEMP é opcional — não reprovar por ausência, apenas alertar
