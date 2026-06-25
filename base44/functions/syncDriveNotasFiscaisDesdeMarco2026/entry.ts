@@ -205,11 +205,18 @@ async function checkIdempotency(base44, file) {
 
   // (a) Verificar por drive_file_id em resultado_ia
   try {
-    const byDriveId = await base44.asServiceRole.entities.DocumentIntake.filter(
-      { status_registro: 'ATIVO' },
-      '-created_date',
-      500,
-    ).catch(() => []);
+    // Pagina sem limite para cobrir todos os intakes
+    let byDriveId = [];
+    let _skip = 0;
+    while (true) {
+      const batch = await base44.asServiceRole.entities.DocumentIntake.filter(
+        { status_registro: 'ATIVO' }, '-created_date', 500, _skip
+      ).catch(() => []);
+      if (!batch || batch.length === 0) break;
+      byDriveId = byDriveId.concat(batch);
+      if (batch.length < 500) break;
+      _skip += 500;
+    }
 
     for (const intake of byDriveId || []) {
       const ria = intake.resultado_ia || {};
@@ -524,7 +531,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const dryRun = body.dryRun === true;
-    const maxFiles = Math.min(Math.max(parseInt(body.maxFiles, 10) || 50, 1), 500);
+    const maxFiles = parseInt(body.maxFiles, 10) || 10000; // sem limite máximo — processa tudo
     const cursor = safeStr(body.cursor);
     const triggeredBy = safeStr(body.triggeredBy || (isCron ? 'scheduled' : 'manual'));
 

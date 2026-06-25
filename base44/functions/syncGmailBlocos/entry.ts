@@ -78,13 +78,13 @@ Deno.serve(async (req) => {
           totalMessages += data.messages.length;
         }
         pageToken = data.nextPageToken || null;
-      } while (pageToken && messages.length < 2000);
+      } while (pageToken); // sem limite — pagina até o fim
 
       // Para cada mensagem, contar anexos
       let totalAttachments = 0;
       let totalValidFiles = 0;
 
-      for (const msg of messages.slice(0, 500)) { // Limitar a 500 para a pré-contagem
+      for (const msg of messages) { // percorre todos sem limite
         try {
           const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=metadata&metadataHeaders=Subject&fields=payload/parts`;
           const full = await gmailFetch(url, authHeader);
@@ -191,7 +191,7 @@ Deno.serve(async (req) => {
         const data = await gmailFetch(url, authHeader);
         if (data.messages) messages.push(...data.messages);
         pageToken = data.nextPageToken || null;
-      } while (pageToken && messages.length < 2000);
+      } while (pageToken); // sem limite — pagina até o fim
 
       let processedCount = job.processed_count || 0;
       let createdCount = job.created_count || 0;

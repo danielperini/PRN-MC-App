@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const maxResults = body.maxResults || 20;
+    const maxResults = body.maxResults || 500;
     const dryRun = body.dryRun === true;
     const pageToken = body.pageToken || null;
     const skipUntil = body.skipUntil || null; // pular mensagens até encontrar este messageId
