@@ -2,67 +2,84 @@
   "name": "NotificationLog",
   "type": "object",
   "properties": {
-    "notification_id": {
+    "notification_type": {
       "type": "string",
-      "description": "ID da notifica\u00e7\u00e3o"
+      "description": "Tipo da notifica\u00e7\u00e3o (PURCHASE_DIGEST, PURCHASE_APPROVED, etc.)"
     },
-    "user_email": {
-      "type": "string",
-      "description": "Email do usu\u00e1rio"
-    },
-    "event_type": {
+    "channel": {
       "type": "string",
       "enum": [
-        "sent",
-        "read",
-        "clicked",
-        "archived",
-        "pinned",
-        "email_sent",
-        "email_failed",
-        "unsubscribed",
-        "resubscribed"
+        "EMAIL",
+        "WHATSAPP",
+        "TELEGRAM"
       ],
-      "description": "Tipo de evento"
+      "description": "Canal de envio"
     },
-    "category": {
-      "type": "string",
-      "description": "Categoria da notifica\u00e7\u00e3o"
+    "recipients": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Lista de destinat\u00e1rios"
     },
-    "priority": {
+    "subject": {
       "type": "string",
-      "description": "Prioridade da notifica\u00e7\u00e3o"
+      "description": "Assunto do email"
     },
-    "delivery_method": {
+    "entity_type": {
       "type": "string",
-      "enum": [
-        "in_app",
-        "email",
-        "push"
-      ],
-      "description": "M\u00e9todo de entrega"
+      "description": "Tipo da entidade relacionada (PurchaseRequest, Report, etc.)"
+    },
+    "entity_id": {
+      "type": "string",
+      "description": "ID da entidade relacionada"
+    },
+    "batch_id": {
+      "type": "string",
+      "description": "ID do lote (para notifica\u00e7\u00f5es em lote)"
     },
     "status": {
       "type": "string",
       "enum": [
-        "success",
-        "failed",
-        "pending"
+        "PENDING",
+        "SCHEDULED",
+        "SENDING",
+        "SENT",
+        "FAILED",
+        "CANCELLED"
       ],
-      "description": "Status do evento"
+      "description": "Status do envio"
+    },
+    "provider": {
+      "type": "string",
+      "description": "Provedor utilizado (base44_sendemail, resend, ses, etc.)"
     },
     "error_message": {
       "type": "string",
-      "description": "Mensagem de erro (se houver)"
+      "description": "Mensagem de erro, se houver"
     },
-    "timestamp": {
+    "attempts": {
+      "type": "number",
+      "default": 0,
+      "description": "N\u00famero de tentativas"
+    },
+    "sent_at": {
       "type": "string",
-      "format": "date-time"
+      "format": "date-time",
+      "description": "Data/hora do envio"
+    },
+    "created_by": {
+      "type": "string",
+      "description": "Email do usu\u00e1rio que solicitou"
+    },
+    "metadata_json": {
+      "type": "object",
+      "description": "Metadados adicionais em JSON"
     }
   },
   "required": [
-    "notification_id",
-    "user_email",
-    "event_type"
+    "notification_type",
+    "channel",
+    "status"
   ]
 }

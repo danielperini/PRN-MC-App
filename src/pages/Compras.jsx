@@ -46,6 +46,8 @@ import RubricasByMuseuDashboard from '@/components/compras/RubricasByMuseuDashbo
 import MuseuPerformanceDashboard from '@/components/compras/MuseuPerformanceDashboard';
 import AuditoriaFinanceiraCard from '@/components/compras/AuditoriaFinanceiraCard';
 import NotificacoesCompraLog from '@/components/compras/NotificacoesCompraLog';
+import NotificationHistoryPanel from '@/components/notifications/NotificationHistoryPanel';
+import ResendNotificationBatch from '@/components/notifications/ResendNotificationBatch';
 import TabelaSolicitacoes from '@/components/compras/TabelaSolicitacoes';
 import EntradaUnicaComprovante from '@/components/compras/EntradaUnicaComprovante';
 import MeusPagamentosTab from '@/components/compras/MeusPagamentosTab';
@@ -1589,7 +1591,15 @@ function ComprasInner() {
         )}
 
         {isCoordenador && (
-          <div className="mt-8">
+          <div className="mt-8 space-y-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900">Gerenciar Lotes de Notificações</h3>
+              <div className="flex gap-2">
+                <ResendNotificationBatch batchSlot="manha" onSuccess={refreshFinanceiroCompleto} />
+                <ResendNotificationBatch batchSlot="tarde" onSuccess={refreshFinanceiroCompleto} />
+              </div>
+            </div>
+            <NotificationHistoryPanel />
             <NotificacoesCompraLog />
           </div>
         )}
