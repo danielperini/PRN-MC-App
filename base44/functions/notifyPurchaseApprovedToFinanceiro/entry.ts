@@ -1,6 +1,77 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
-const FIXED_EMAIL = 'daniel@periniprojetos.com.br';
+const FIXED_EMAIL = 'danielperini.mc@viadutodasartes.org.br';
+
+const TOMADOR_VIADUTO = {
+  nome: 'VIADUTO DAS ARTES',
+  cnpj: '23843648000125',
+  inscricao: ['0745690001', '0.745.690/001-X'],
+  email: 'viadutodasartes@viadutodasartes.org.br',
+};
+
+// Detecta se é Noturno Pampulha / Noturno 2026
+function isNoturno(purchase) {
+  const cc = String(purchase?.centro_custo || '').toLowerCase();
+  const desc = String(purchase?.descricao_item || purchase?.observacoes || '').toLowerCase();
+  const rubNome = String(purchase?.rubrica_nome || '').toLowerCase();
+  return cc.includes('pampulha') || cc.includes('noturno') ||
+    desc.includes('pampulha') || desc.includes('noturno') || desc.includes('kubitschek') || desc.includes('casa do baile') ||
+    rubNome.includes('pampulha') || rubNome.includes('noturno');
+}
+
+function buildDescricaoEsperada(purchase, rubrica, mes, year) {
+  if (isNoturno(purchase)) {
+    const atividade = purchase?.descricao_item || '[DESCRIÇÃO DA ATIVIDADE]';
+    const parcela = purchase?.numero_parcela || '1';
+    return `Projeto Museus Centro - Termo de Colaboração 01-031.069/24-80, parceria com SMC/FMC: ${atividade} na 11ª Edição do evento Noturno nos Museus (2026) – Parcela ${parcela}. Despesa paga com recursos oriundos da contrapartida do FUNEMP - Convênio MP "CULTURA NA CIDADE" Nº 056/2023.`;
+  }
+  const natureza = rubrica?.rubrica || rubrica?.nome || purchase?.categoria || '[NATUREZA_DESPESA]';
+  return `Prestação de serviço ${natureza} Museus Centro - Termo de Colaboração 01-031.069/24-80, parceria com SMC/FMC: Referente a ${mes} ${year}`;
+}
+
+function validarConformidadeNF(purchase, rubrica) {
+  const erros = [];
+  const nfDescricao = String(purchase?.nf_descricao || purchase?.descricao_item || '').toLowerCase();
+  const noturno = isNoturno(purchase);
+  const mes = mesExtenso(purchase?.nf_data_emissao || purchase?.created_date);
+  const year = ano(purchase?.nf_data_emissao || purchase?.created_date);
+
+  // Verificar tomador
+  const cnpjTomador = String(purchase?.nf_destinatario_cpf_cnpj || purchase?.tomador_cnpj || '').replace(/\D/g, '');
+  if (cnpjTomador && cnpjTomador !== TOMADOR_VIADUTO.cnpj) {
+    erros.push(`CNPJ do tomador incorreto: encontrado ${cnpjTomador}, esperado ${TOMADOR_VIADUTO.cnpj}`);
+  }
+
+  // Verificar descrição
+  if (noturno) {
+    if (!nfDescricao.includes('termo de colaboração') && !nfDescricao.includes('01-031.069/24-80') && !nfDescricao.includes('noturno nos museus')) {
+      erros.push('Descrição da NF não segue o padrão Noturno: deve mencionar "Projeto Museus Centro - Termo de Colaboração 01-031.069/24-80" e "Noturno nos Museus (2026)"');
+    }
+    if (!nfDescricao.includes('funemp') && !nfDescricao.includes('056/2023')) {
+      erros.push('Descrição Noturno deve mencionar: "Despesa paga com recursos oriundos da contrapartida do FUNEMP - Convênio MP CULTURA NA CIDADE Nº 056/2023"');
+    }
+  } else {
+    if (!nfDescricao.includes('museus centro') && !nfDescricao.includes('01-031.069/24-80')) {
+      erros.push(`Descrição da NF não segue o padrão Museus Centro: deve conter "Museus Centro - Termo de Colaboração 01-031.069/24-80, parceria com SMC/FMC: Referente a ${mes} ${year}"`);
+    }
+  }
+
+  // Verificar dados de pagamento
+  if (!purchase?.detalhe_pagamento || String(purchase.detalhe_pagamento).trim().length < 5) {
+    erros.push('Dados bancários/PIX para pagamento não informados na solicitação');
+  }
+
+  // Verificar XML ausente
+  const xmlUrl = purchase?.nota_fiscal_xml_url || purchase?.xml_url || purchase?.nf_xml_url;
+  if (!xmlUrl) {
+    erros.push('XML da nota fiscal não anexado');
+  }
+
+  const descricaoSugerida = buildDescricaoEsperada(purchase, rubrica, mes, year);
+  const score = Math.max(1, 10 - erros.length * 2);
+
+  return { erros, score, descricaoSugerida, noturno };
+}
 
 function toNumber(value) {
   const n = Number(value || 0);
@@ -52,7 +123,8 @@ Deno.serve(async (req) => {
     user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { purchaseId, recipients = [FIXED_EMAIL] } = await req.json();
+    const body_req = await req.json();
+    const { purchaseId, recipients = [FIXED_EMAIL], action = 'send_approval', correction_recipients = [] } = body_req;
     if (!purchaseId) return Response.json({ error: 'purchaseId obrigatório' }, { status: 400 });
 
     const finalRecipients = [...new Set(
@@ -239,23 +311,103 @@ Deno.serve(async (req) => {
 </body>
 </html>`;
 
-    // Enviar para cada destinatário e registrar resultado
+    // Verificar conformidade
+    const conformidade = validarConformidadeNF(purchase, rubrica);
+
+    // Se action = 'check_only', retornar apenas o resultado da conformidade
+    if (action === 'check_only') {
+      return Response.json({ success: true, conformidade });
+    }
+
     const detalhes = [];
     let algumSucesso = false;
     let algumErro = false;
 
-    for (const recipient of finalRecipients) {
-      try {
-        await base44.integrations.Core.SendEmail({
-          to: recipient,
-          subject: `✅ Pagamento Aprovado — ${purchase?.fornecedor_nome || purchase?.nf_emitente_nome || 'Fornecedor'} · R$ ${moeda(valor)} · Museus Centro`,
-          body,
-        });
-        detalhes.push({ email: recipient, status: 'sucesso' });
-        algumSucesso = true;
-      } catch (err) {
-        detalhes.push({ email: recipient, status: 'falha', erro: err?.message || 'Erro desconhecido' });
-        algumErro = true;
+    if (action === 'request_correction') {
+      // E-mail de correção para quem cadastrou e/ou emissor
+      const correcaoRecipients = [...new Set(
+        correction_recipients.map(e => String(e || '').trim()).filter(e => e.includes('@'))
+      )];
+      if (!correcaoRecipients.length) {
+        return Response.json({ error: 'Nenhum destinatário de correção informado' }, { status: 400 });
+      }
+
+      const errosList = (conformidade.erros || []).map(e => `• ${e}`).join('\n');
+      const correcaoSubject = `⚠️ Correção necessária em nota fiscal — Museus Centro`;
+      const correcaoBody = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:32px 16px;"><tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
+  <tr><td style="background:#b91c1c;border-radius:12px 12px 0 0;padding:28px 32px;">
+    <div style="font-size:11px;color:#fca5a5;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Projeto Museus Centro · Viaduto das Artes</div>
+    <div style="font-size:22px;color:#ffffff;font-weight:700;">⚠️ Correção Necessária na Nota Fiscal</div>
+  </td></tr>
+  <tr><td style="background:#ffffff;padding:28px 32px;">
+    <p style="color:#374151;font-size:14px;line-height:1.7;">Olá,<br><br>A nota fiscal cadastrada precisa de correção antes do processamento final.</p>
+
+    <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;padding:18px 24px;margin:16px 0;">
+      <div style="font-size:12px;color:#b91c1c;font-weight:700;text-transform:uppercase;margin-bottom:10px;">Problemas Identificados</div>
+      <div style="font-size:14px;color:#7f1d1d;white-space:pre-line;">${errosList || '• Verificar conformidade da nota fiscal'}</div>
+    </div>
+
+    <div style="border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;margin:16px 0;">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr style="background:#f9fafb;"><td style="padding:10px 16px;font-size:12px;color:#6b7280;font-weight:600;width:45%;">Centro de custo</td><td style="padding:10px 16px;font-size:14px;color:#111827;">${purchase?.centro_custo || '—'}</td></tr>
+        <tr><td style="padding:10px 16px;font-size:12px;color:#6b7280;font-weight:600;border-top:1px solid #e5e7eb;">Rubrica</td><td style="padding:10px 16px;font-size:13px;color:#111827;border-top:1px solid #e5e7eb;">${rubricaTexto || '—'}</td></tr>
+        <tr style="background:#f9fafb;"><td style="padding:10px 16px;font-size:12px;color:#6b7280;font-weight:600;border-top:1px solid #e5e7eb;">Valor</td><td style="padding:10px 16px;font-size:14px;color:#111827;font-weight:700;border-top:1px solid #e5e7eb;">R$ ${moeda(valor)}</td></tr>
+        <tr><td style="padding:10px 16px;font-size:12px;color:#6b7280;font-weight:600;border-top:1px solid #e5e7eb;">Emissor</td><td style="padding:10px 16px;font-size:14px;color:#111827;border-top:1px solid #e5e7eb;">${purchase?.fornecedor_nome || purchase?.nf_emitente_nome || '—'}</td></tr>
+      </table>
+    </div>
+
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:18px 24px;margin:16px 0;">
+      <div style="font-size:12px;color:#15803d;font-weight:700;text-transform:uppercase;margin-bottom:8px;">Descrição Correta Sugerida</div>
+      <div style="font-size:13px;color:#166534;line-height:1.6;">${conformidade.descricaoSugerida}</div>
+    </div>
+
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:18px 24px;margin:16px 0;">
+      <div style="font-size:12px;color:#1d4ed8;font-weight:700;text-transform:uppercase;margin-bottom:8px;">Dados do Tomador que Devem Constar na Nota</div>
+      <div style="font-size:13px;color:#1e40af;line-height:1.8;">
+        <strong>VIADUTO DAS ARTES</strong><br>
+        CNPJ: 23.843.648/0001-25<br>
+        Inscrição Municipal: 0745690001<br>
+        Endereço: Av. Olinto Meireles, 45 - Barreiro, Belo Horizonte - MG, 30640-010<br>
+        E-mail: viadutodasartes@viadutodasartes.org.br
+      </div>
+    </div>
+
+    <p style="font-size:13px;color:#6b7280;">Favor corrigir e reenviar a nota fiscal (PDF e XML).</p>
+    <p style="font-size:13px;color:#374151;margin-top:16px;">Atenciosamente,<br><strong>Coordenação Museus Centro</strong></p>
+  </td></tr>
+  <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;border-radius:0 0 12px 12px;padding:16px 32px;text-align:center;">
+    <div style="font-size:11px;color:#9ca3af;">Coordenação · Museus Centro · Viaduto das Artes</div>
+  </td></tr>
+</table></td></tr></table></body></html>`;
+
+      for (const recipient of correcaoRecipients) {
+        try {
+          await base44.integrations.Core.SendEmail({ to: recipient, subject: correcaoSubject, body: correcaoBody });
+          detalhes.push({ email: recipient, status: 'sucesso', tipo: 'correcao' });
+          algumSucesso = true;
+        } catch (err) {
+          detalhes.push({ email: recipient, status: 'falha', erro: err?.message || 'Erro', tipo: 'correcao' });
+          algumErro = true;
+        }
+      }
+    } else {
+      // action = 'send_approval' — envio padrão de aprovação
+      for (const recipient of finalRecipients) {
+        try {
+          await base44.integrations.Core.SendEmail({
+            to: recipient,
+            subject: `✅ Pagamento Aprovado — ${purchase?.fornecedor_nome || purchase?.nf_emitente_nome || 'Fornecedor'} · R$ ${moeda(valor)} · Museus Centro`,
+            body,
+          });
+          detalhes.push({ email: recipient, status: 'sucesso', tipo: 'aprovacao' });
+          algumSucesso = true;
+        } catch (err) {
+          detalhes.push({ email: recipient, status: 'falha', erro: err?.message || 'Erro desconhecido', tipo: 'aprovacao' });
+          algumErro = true;
+        }
       }
     }
 
@@ -267,10 +419,11 @@ Deno.serve(async (req) => {
       purchase_descricao: purchase?.descricao_item || purchase?.objeto || '',
       fornecedor: purchase?.fornecedor_nome || purchase?.nf_emitente_nome || '',
       valor,
-      recipients: finalRecipients,
+      recipients: action === 'request_correction' ? correction_recipients : finalRecipients,
       status: statusLog,
       enviado_por: user?.email || '',
       detalhes,
+      erro: conformidade.erros?.join('; ') || null,
       disparado_em: new Date().toISOString(),
     });
 
@@ -278,7 +431,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Falha ao enviar para todos os destinatários', detalhes }, { status: 500 });
     }
 
-    return Response.json({ success: true, status: statusLog, recipients: finalRecipients, detalhes });
+    return Response.json({ success: true, status: statusLog, action, conformidade, detalhes });
   } catch (e) {
     // Tentar registrar falha geral no log
     try {

@@ -231,16 +231,63 @@ function TabelaSolicitacoes({ purchases, rubricas, attachmentByPurchaseId, isCoo
   const [sendingNotif, setSendingNotif] = useState({});
 
   async function handleSendNotification(p) {
-    if (!window.confirm('Enviar notificação desta solicitação para Daniel Perini?')) return;
     setSendingNotif((s) => ({ ...s, [p.id]: true }));
     try {
+      // 1. Checar conformidade
+      const checkRes = await base44.functions.invoke('notifyPurchaseApprovedToFinanceiro', {
+        purchaseId: p.id,
+        action: 'check_only',
+      });
+      const conformidade = checkRes?.data?.conformidade || checkRes?.conformidade || { erros: [], score: 10 };
+      const temErros = conformidade.erros?.length > 0;
+
+      if (temErros) {
+        const errosTxt = conformidade.erros.map(e => `• ${e}`).join('\n');
+        const enviarCorrecao = window.confirm(
+          `⚠️ Foram encontrados problemas na nota (score ${conformidade.score}/10):\n\n${errosTxt}\n\nDeseja enviar solicitação de CORREÇÃO ao usuário que cadastrou a nota?`
+        );
+
+        if (enviarCorrecao) {
+          const correctionRecipients = [];
+          const solicitanteEmail = p.created_by || p.solicitante_email || p.user_email || p.requester_email;
+          if (solicitanteEmail) correctionRecipients.push(solicitanteEmail);
+
+          const enviarEmissor = window.confirm('Deseja enviar também ao emissor/fornecedor da nota?');
+          if (enviarEmissor) {
+            const emailEmissor = p.fornecedor_contato || p.fornecedor_email || p.email_emissor_nf || p.nf_emitente_email;
+            if (emailEmissor && emailEmissor.includes('@')) {
+              correctionRecipients.push(emailEmissor);
+            } else {
+              const emailManual = window.prompt('Informe o e-mail do emissor da nota:');
+              if (emailManual && emailManual.includes('@')) correctionRecipients.push(emailManual);
+            }
+          }
+
+          if (correctionRecipients.length > 0) {
+            await base44.functions.invoke('notifyPurchaseApprovedToFinanceiro', {
+              purchaseId: p.id,
+              action: 'request_correction',
+              correction_recipients: correctionRecipients,
+            });
+            toast.success(`Solicitação de correção enviada para: ${correctionRecipients.join(', ')}`);
+          }
+
+          const enviarAprovacao = window.confirm('Mesmo assim, deseja enviar a notificação de aprovação para Daniel Perini?');
+          if (!enviarAprovacao) return;
+        }
+      }
+
+      // 2. Enviar notificação de aprovação
+      if (!temErros && !window.confirm('Enviar notificação de aprovação para Daniel Perini?')) return;
+
       await base44.functions.invoke('notifyPurchaseApprovedToFinanceiro', {
         purchaseId: p.id,
-        recipients: ['daniel@periniprojetos.com.br'],
+        action: 'send_approval',
+        recipients: ['danielperini.mc@viadutodasartes.org.br'],
       });
-      toast.success('Notificação enviada com sucesso.');
+      toast.success('Notificação de aprovação enviada com sucesso.');
     } catch (e) {
-      toast.error('Erro ao enviar notificação.');
+      toast.error('Erro ao enviar notificação: ' + (e?.message || 'desconhecido'));
     } finally {
       setSendingNotif((s) => ({ ...s, [p.id]: false }));
     }
