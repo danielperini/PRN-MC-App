@@ -542,7 +542,7 @@ export default function DashboardPatrocinadorSync() {
         };
       });
 
-      // Usar dados reconciliados diretamente
+      // Usar dados reconciliados diretamente (variável 'financeiro' declarada na linha 469)
       const totalUtilizado = financeiro.totalUtilizado;
       const saldoTotal = financeiro.saldo;
       const percentualExecucao = financeiro.percentualExecucao;
