@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button';
 import { AlertTriangle } from 'lucide-react';
 
-export default function ConfirmDialog({ 
+export default function ConfirmDialog({
   isOpen, 
   title = 'Confirmar operação', 
   description = 'Tem certeza que deseja continuar?',
@@ -43,3 +43,5 @@ export default function ConfirmDialog({
     </Dialog>
   );
 }
+
+export { ConfirmDialog };
