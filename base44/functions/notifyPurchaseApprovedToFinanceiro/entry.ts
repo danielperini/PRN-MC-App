@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
-const FIXED_EMAIL = 'danielperini.mc@viadutodasartes.org.br';
+const FIXED_EMAIL = 'daniel@periniprojetos.com.br';
 
 function toNumber(value) {
   const n = Number(value || 0);
