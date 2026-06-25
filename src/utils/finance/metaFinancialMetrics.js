@@ -91,7 +91,7 @@ export function isRubricaLinkedToMeta(rubrica, meta) {
 /**
  * Calcula métricas financeiras para todas as metas do 3º e 4º Aditivo
  */
-export function calculateMetaMetrics(rubricas = []) {
+export function calculateMetaFinancialMetrics(rubricas = []) {
   // Deduplicar rubricas por ID
   const rubricasUnicas = new Map();
   (rubricas || []).forEach((rubrica) => {
@@ -137,7 +137,7 @@ export function calculateMetaMetrics(rubricas = []) {
 /**
  * Calcula gastos por museu e por projeto
  */
-export function calculateGastosPorMuseuProjeto(rubricas = []) {
+export function calculateGastosPorMuseuEProjeto(rubricas = []) {
   // Deduplicar rubricas
   const rubricasUnicas = new Map();
   (rubricas || []).forEach((rubrica) => {
@@ -216,3 +216,6 @@ export function calculateGastosPorMuseuProjeto(rubricas = []) {
     byProject: Object.values(byProject).filter(p => p.previsto > 0 || p.utilizado > 0)
   };
 }
+
+// Exportações explícitas
+export { calculateMetaFinancialMetrics, calculateGastosPorMuseuEProjeto, normalizeMetaNumber, isRubricaLinkedToMeta, METAS_OFICIAIS };
