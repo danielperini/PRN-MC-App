@@ -217,5 +217,6 @@ export function calculateGastosPorMuseuEProjeto(rubricas = []) {
   };
 }
 
-// Exportações explícitas
-export { calculateMetaFinancialMetrics, calculateGastosPorMuseuEProjeto, normalizeMetaNumber, isRubricaLinkedToMeta, METAS_OFICIAIS };
+// Aliases para compatibilidade com código existente
+export const calculateMetaMetrics = calculateMetaFinancialMetrics;
+export const calculateGastosPorMuseuProjeto = calculateGastosPorMuseuEProjeto;
