@@ -292,6 +292,24 @@ function AuthenticatedApp() {
             />
           }
         />
+        <Route
+          path="/RelatorioExecucaoDashboard"
+          element={
+            <SafePage
+              Page={React.lazy(() => import('./pages/RelatorioExecucaoDashboard'))}
+              pageName="RelatorioExecucaoDashboard"
+            />
+          }
+        />
+        <Route
+          path="/RelatorioExecucaoDashboard"
+          element={
+            <SafePage
+              Page={React.lazy(() => import('./pages/RelatorioExecucaoDashboard'))}
+              pageName="RelatorioExecucaoDashboard"
+            />
+          }
+        />
         <Route path="*" element={<PageNotFound />} />
       </Routes>
     </div>

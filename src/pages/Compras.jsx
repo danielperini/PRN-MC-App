@@ -48,6 +48,8 @@ import AuditoriaFinanceiraCard from '@/components/compras/AuditoriaFinanceiraCar
 import NotificacoesCompraLog from '@/components/compras/NotificacoesCompraLog';
 import NotificationHistoryPanel from '@/components/notifications/NotificationHistoryPanel';
 import ResendNotificationBatch from '@/components/notifications/ResendNotificationBatch';
+import DashboardRelatorioExecucao from '@/components/relatorio/DashboardRelatorioExecucao.jsx';
+import { Link } from 'react-router-dom';
 import TabelaSolicitacoes from '@/components/compras/TabelaSolicitacoes';
 import EntradaUnicaComprovante from '@/components/compras/EntradaUnicaComprovante';
 import MeusPagamentosTab from '@/components/compras/MeusPagamentosTab';
@@ -1592,15 +1594,31 @@ function ComprasInner() {
 
         {isCoordenador && (
           <div className="mt-8 space-y-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">Gerenciar Lotes de Notificações</h3>
-              <div className="flex gap-2">
-                <ResendNotificationBatch batchSlot="manha" onSuccess={refreshFinanceiroCompleto} />
-                <ResendNotificationBatch batchSlot="tarde" onSuccess={refreshFinanceiroCompleto} />
+            {/* Dashboard de Relatórios */}
+            <div className="border-b pb-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Dashboard de Relatórios e Compras</h3>
+                <Link to="/RelatorioExecucaoDashboard">
+                  <Button variant="outline" size="sm">
+                    Abrir Dashboard Completo
+                  </Button>
+                </Link>
               </div>
+              <DashboardRelatorioExecucao />
             </div>
-            <NotificationHistoryPanel />
-            <NotificacoesCompraLog />
+
+            {/* Gerenciamento de Lotes */}
+            <div className="border-t pt-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Gerenciar Lotes de Notificações</h3>
+                <div className="flex gap-2">
+                  <ResendNotificationBatch batchSlot="manha" onSuccess={refreshFinanceiroCompleto} />
+                  <ResendNotificationBatch batchSlot="tarde" onSuccess={refreshFinanceiroCompleto} />
+                </div>
+              </div>
+              <NotificationHistoryPanel />
+              <NotificacoesCompraLog />
+            </div>
           </div>
         )}
 
