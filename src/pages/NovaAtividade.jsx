@@ -34,6 +34,8 @@ const METAS_FALLBACK = [
   { id: '7 - Educador', nome: '7 - Educador' },
   { id: '10 - 18 pequenas mostras', nome: '10 - 18 pequenas mostras' },
   { id: '11 - Noturno nos Museus Ed. 2026', nome: '11 - Noturno nos Museus Ed. 2026' },
+  { id: '11A - Noturno 2026', nome: '11A - Noturno 2026' },
+  { id: '11B - Noturno Pampulha', nome: '11B - Noturno Pampulha' },
   { id: '14 - Acessibilidade', nome: '14 - Acessibilidade' },
   { id: '16 - 101 Diárias', nome: '16 - 101 Diárias' },
   { id: '17 - Publicações', nome: '17 - Publicações' },
