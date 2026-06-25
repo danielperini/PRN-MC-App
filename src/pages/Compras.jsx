@@ -235,7 +235,7 @@ function TabelaSolicitacoes({ purchases, rubricas, attachmentByPurchaseId, isCoo
     try {
       await base44.functions.invoke('notifyPurchaseApprovedToFinanceiro', {
         purchaseId: p.id,
-        recipients: ['danielperini.mc@viadutodasartes.org.br'],
+        recipients: ['daniel@periniprojetos.com.br'],
       });
       toast.success('Notificação enviada com sucesso.');
     } catch (e) {
