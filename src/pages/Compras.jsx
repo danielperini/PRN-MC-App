@@ -26,13 +26,6 @@ import {
   FileSpreadsheet,
   AlertTriangle,
   Scissors,
-  Pencil,
-  Trash2,
-  LinkIcon,
-  CheckCircle2,
-  RotateCcw,
-  XCircle,
-  Bell,
   Loader2
 } from 'lucide-react';
 
@@ -53,6 +46,7 @@ import RubricasByMuseuDashboard from '@/components/compras/RubricasByMuseuDashbo
 import MuseuPerformanceDashboard from '@/components/compras/MuseuPerformanceDashboard';
 import AuditoriaFinanceiraCard from '@/components/compras/AuditoriaFinanceiraCard';
 import NotificacoesCompraLog from '@/components/compras/NotificacoesCompraLog';
+import TabelaSolicitacoes from '@/components/compras/TabelaSolicitacoes';
 import EntradaUnicaComprovante from '@/components/compras/EntradaUnicaComprovante';
 import MeusPagamentosTab from '@/components/compras/MeusPagamentosTab';
 import PagarSolicitacaoDialog from '@/components/compras/PagarSolicitacaoDialog';
@@ -229,198 +223,7 @@ function categorizeSolicitacoes(purchases) {
   return categories;
 }
 
-function TabelaSolicitacoes({ purchases, rubricas, attachmentByPurchaseId, isCoordenador, currentUser, podeAprovarSolicitacoes, hasGestaoCompras, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onAccess, userPermission }) {
-  const [menuOpenId, setMenuOpenId] = useState(null);
-  const [sendingNotif, setSendingNotif] = useState({});
 
-  async function handleSendNotification(p) {
-    const valor = getPurchaseValue(p);
-    const fornecedor = p.fornecedor_nome || p.nf_emitente_nome || '—';
-    const descricao = p.descricao_item || p.objeto || '—';
-    const centro = p._centro_custo_normalizado || p.centro_custo || '—';
-    const nfNum = p.nf_numero ? ` · NF ${p.nf_numero}` : '';
-    const valorFmt = fmtBRL(valor);
-
-    const texto = [
-      `Fornecedor: ${fornecedor}`,
-      `Descrição: ${descricao}`,
-      `Centro de custo: ${centro}`,
-      `Valor: ${valorFmt}${nfNum}`,
-      '',
-      'Enviar notificação de aprovação para Daniel Perini?',
-    ].join('\n');
-
-    if (!window.confirm(texto)) return;
-
-    setSendingNotif((s) => ({ ...s, [p.id]: true }));
-    try {
-      await base44.functions.invoke('notifyPurchaseApprovedToFinanceiro', {
-        purchaseId: p.id,
-        action: 'send_approval',
-        recipients: ['danielperini.mc@viadutodasartes.org.br', 'daniel@periniprojetos.com.br'],
-      });
-      toast.success('Notificação enviada com sucesso.');
-    } catch (e) {
-      toast.error('Erro ao enviar notificação: ' + (e?.message || 'desconhecido'));
-    } finally {
-      setSendingNotif((s) => ({ ...s, [p.id]: false }));
-    }
-  }
-  const rubricaById = useMemo(() => {
-    const m = {};
-    (rubricas || []).forEach((r) => { if (r?.id) m[r.id] = r; });
-    return m;
-  }, [rubricas]);
-
-  if (!purchases || purchases.length === 0) return null;
-
-  const podeAprovar = isCoordenador || podeAprovarSolicitacoes === true || hasGestaoCompras === true;
-  const categories = categorizeSolicitacoes(purchases);
-  const isObservador = !isCoordenador && userPermission?.base_role === 'OBSERVADOR';
-  const museusCentroCategories = [
-    { key: 'geral', label: 'Geral', visible: isCoordenador },
-    { key: 'mhab', label: 'MHAB', visible: !isObservador },
-    { key: 'mis', label: 'MIS', visible: !isObservador },
-    { key: 'mumo', label: 'MUMO', visible: !isObservador },
-    { key: 'pessoas', label: 'Pessoas', visible: isCoordenador }
-  ].filter((cat) => cat.visible && categories[cat.key].length > 0);
-
-  const noturnoCategorias = [
-    { key: 'noturno2026', label: 'Noturno 2026', visible: true },
-    { key: 'noturnoPampulha', label: 'Noturno Pampulha', visible: true }
-  ].filter((cat) => cat.visible && categories[cat.key].length > 0);
-
-  const visibleCategories = museusCentroCategories;
-
-  const renderTabela = (items) => (
-    <table className="w-full table-fixed border-collapse text-sm">
-      <colgroup><col className="w-[22%]" /><col className="w-[13%]" /><col className="w-[8%]" /><col className="w-[14%]" /><col className="w-[10%]" /><col className="w-[9%]" /><col className="w-[13%]" /><col className="w-[11%]" /></colgroup>
-      <thead>
-        <tr className="border-b border-gray-200 bg-gray-50 text-left">
-          <th className="px-3 py-3 font-medium text-gray-600">Descrição</th>
-          <th className="px-3 py-3 font-medium text-gray-600">Fornecedor</th>
-          <th className="px-3 py-3 font-medium text-gray-600">Centro</th>
-          <th className="px-3 py-3 font-medium text-gray-600">Rubrica</th>
-          <th className="px-3 py-3 font-medium text-gray-600">Status</th>
-          <th className="px-3 py-3 text-right font-medium text-gray-600">Valor</th>
-          <th className="px-3 py-3 text-center font-medium text-gray-600">Arquivo</th>
-          <th className="px-3 py-3 text-center font-medium text-gray-600">Ações</th>
-        </tr>
-      </thead>
-      <tbody>
-        {items.map((p, i) => {
-          const statusKey = normalizeStatus(p.status);
-          const status = STATUS_CONFIG[statusKey] || { label: p.status || '—', color: 'bg-gray-100 text-gray-600' };
-          const aprovado = STATUS_APROVADOS.has(statusKey);
-          const pendenteAprovacao = !aprovado && statusKey !== 'RECUSADO' && statusKey !== 'CANCELADO';
-          const rubrica = p.rubrica_id ? rubricaById[p.rubrica_id] : null;
-          const rubricaNome = rubrica
-            ? [rubrica.grupo, rubrica.rubrica].filter(Boolean).join(' | ')
-            : (p?.rubrica_nome || p?.rubrica || p?.rubrica_id || '—');
-          const valor = getPurchaseValue(p);
-          const comprovantePagamentoUrl = getComprovantePagamentoUrl(p);
-          const nfPdfUrl = p.nota_fiscal_pdf_url || p.nota_fiscal_url || p.nf_pdf_url;
-          const xmlUrl = p.nota_fiscal_xml_url || p.xml_url || p.nf_xml_url;
-          const pago = statusKey === 'PAGO';
-          const comprovantePendente = pago && (p.comprovante_pendente === true || !comprovantePagamentoUrl);
-          const pagoEmFormatado = formatDateTimeBR(p.pago_em || p.data_pagamento);
-          const compraEquipe = isCompraEquipe(p);
-          const menuAberto = menuOpenId === p.id;
-          const podeEditarAprovada = isCoordenador && aprovado;
-          const podeAcessar = !aprovado || podeEditarAprovada;
-          const podeMarcarPago = podeAprovar && STATUS_ELEGIVEIS_PAGAMENTO.has(statusKey);
-          return (
-            <tr key={p.id} className={`border-b border-gray-100 transition-colors hover:bg-gray-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'}`}>
-              <td className="px-3 py-2.5 align-top">
-                <p className="line-clamp-2 font-medium text-gray-900">{p.descricao_item || p.objeto || '—'}</p>
-                {p.meta_id && <p className="truncate text-xs text-gray-400">{p.meta_id === 'MC3A-EXTRA' && p.meta_extra_descricao ? p.meta_extra_descricao : p.meta_id}</p>}
-                {compraEquipe && <span className="mt-1 inline-flex rounded-full bg-purple-50 px-2 py-0.5 text-[11px] font-medium text-purple-700">Equipe</span>}
-              </td>
-              <td className="px-3 py-2.5 align-top text-gray-600"><p className="truncate text-xs">{p.fornecedor_nome || p.nf_emitente_nome || '—'}</p></td>
-              <td className="px-3 py-2.5 align-top">
-                {p._centro_custo_normalizado ? <span className="inline-block max-w-full truncate rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">{p._centro_custo_normalizado}</span> : <span className="text-xs text-gray-400">—</span>}
-              </td>
-              <td className="px-3 py-2.5 align-top"><p className="truncate text-xs text-gray-700" title={rubricaNome}>{rubricaNome}</p></td>
-              <td className="px-3 py-2.5 align-top">
-                <span className={`inline-block max-w-full truncate rounded-full px-2 py-0.5 text-xs font-medium ${status.color}`}>{status.label}</span>
-                {pagoEmFormatado && <p className="mt-1 text-[11px] leading-tight text-gray-400">{pagoEmFormatado}</p>}
-                {pago && p.pago_por && <p className="mt-0.5 truncate text-[11px] leading-tight text-gray-400">por {p.pago_por}</p>}
-                {comprovantePendente && <span className="mt-1 inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">Comprovante pendente</span>}
-              </td>
-              <td className="px-3 py-2.5 align-top text-right font-medium tabular-nums text-gray-900"><span className="block truncate">{fmtBRL(valor)}</span></td>
-              <td className="px-3 py-2.5 align-top text-center">
-                <div className="flex flex-col items-center gap-1">
-                  {nfPdfUrl && <a href={nfPdfUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-blue-700 underline underline-offset-2 hover:text-blue-900">NF PDF</a>}
-                  {xmlUrl && <a href={xmlUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-green-700 underline underline-offset-2 hover:text-green-900">XML</a>}
-                  {comprovantePagamentoUrl && <a href={comprovantePagamentoUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-purple-700 underline underline-offset-2 hover:text-purple-900">Comprovante</a>}
-                  {!nfPdfUrl && !xmlUrl && !comprovantePagamentoUrl && <span className="text-xs text-gray-400">Sem arquivo</span>}
-                </div>
-              </td>
-              <td className="px-3 py-2.5 align-top">
-                <div className="relative flex items-center justify-center gap-1">
-                  {podeAcessar && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAccess(p); }} className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-black" title="Editar"><Pencil className="h-3.5 w-3.5" /></button>}
-                  {isCoordenador && <button type="button" onClick={async (e) => { e.preventDefault(); e.stopPropagation(); if (window.confirm('Tem certeza que deseja deletar esta solicitação?')) await onDelete(p.id); }} className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600" title="Deletar"><Trash2 className="h-3.5 w-3.5" /></button>}
-                  {podeMarcarPago && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onMarkPaid?.(p); }} className={`inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${pago ? 'text-emerald-600 hover:bg-emerald-50' : 'text-gray-500 hover:bg-emerald-50 hover:text-emerald-700'}`} title={pago ? 'Comprovante' : 'Marcar pago'}><CheckCircle2 className="h-3.5 w-3.5" /></button>}
-                  <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpenId(menuAberto ? null : p.id); }} className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700" title="Mais ações">
-                    <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="4" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="16" r="1.5"/></svg>
-                  </button>
-                  {menuAberto && (
-                    <div className="absolute right-0 top-8 z-30 w-48 rounded-xl border border-gray-200 bg-white p-1.5 text-left shadow-lg">
-                      <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpenId(null); onAccess(p); }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50"><LinkIcon className="h-3.5 w-3.5" />Acessar solicitação</button>
-                      {podeAprovar && pendenteAprovacao && (<>
-                        <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpenId(null); onApprove(p); }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-green-700 hover:bg-green-50"><CheckCircle2 className="h-3.5 w-3.5" />Aprovar</button>
-                        <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpenId(null); onReturn(p); }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50"><RotateCcw className="h-3.5 w-3.5" />Devolver</button>
-                      </>)}
-                      {podeAprovar && aprovado && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpenId(null); onUnapprove(p); }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-red-700 hover:bg-red-50"><XCircle className="h-3.5 w-3.5" />Desaprovar</button>}
-                      <div className="my-1 h-px bg-gray-100" />
-                      <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpenId(null); handleSendNotification(p); }} disabled={sendingNotif[p.id]} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-50">
-                        {sendingNotif[p.id] ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Bell className="h-3.5 w-3.5" />}
-                        Enviar Notificação
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
-  );
-
-  return (
-    <div className="space-y-8">
-      {visibleCategories.map((cat) => (
-        <div key={cat.key}>
-          <div className="mb-3 flex items-center gap-2">
-            <h3 className="text-lg font-semibold text-gray-900">{cat.label}</h3>
-            <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">{categories[cat.key].length}</span>
-          </div>
-          <div className="overflow-x-auto rounded-xl border border-gray-200">{renderTabela(categories[cat.key])}</div>
-        </div>
-      ))}
-
-      {noturnoCategorias.length > 0 && (
-        <>
-          <div className="flex items-center gap-3 pt-2">
-            <div className="h-px flex-1 bg-purple-200" />
-            <span className="rounded-full bg-purple-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-purple-700">Noturno nos Museus</span>
-            <div className="h-px flex-1 bg-purple-200" />
-          </div>
-          {noturnoCategorias.map((cat) => (
-            <div key={cat.key}>
-              <div className="mb-3 flex items-center gap-2">
-                <h3 className="text-lg font-semibold text-purple-900">{cat.label}</h3>
-                <span className="inline-flex rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">{categories[cat.key].length}</span>
-              </div>
-              <div className="overflow-x-auto rounded-xl border border-purple-200">{renderTabela(categories[cat.key])}</div>
-            </div>
-          ))}
-        </>
-      )}
-    </div>
-  );
-}
 
 function ComprasInner() {
   const smartToast = useSmartToast();
