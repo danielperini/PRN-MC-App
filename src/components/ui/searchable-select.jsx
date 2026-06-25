@@ -49,7 +49,7 @@ export default function SearchableSelect({
           <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+      <PopoverContent className="min-w-[--radix-popover-trigger-width] w-max max-w-md p-0" align="start">
         <div className="flex items-center border-b px-3 py-2">
           <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
           <Input
@@ -79,7 +79,7 @@ export default function SearchableSelect({
                   (value === item.value || value === item.id) && 'bg-accent text-accent-foreground'
                 )}
               >
-                <span className="truncate">{item.label}</span>
+                <span className="whitespace-normal break-words">{item.label}</span>
                 {(value === item.value || value === item.id) && (
                   <span className="absolute right-2 flex h-3.5 w-3.5 items-center justify-center">
                     <Check className="h-4 w-4" />
