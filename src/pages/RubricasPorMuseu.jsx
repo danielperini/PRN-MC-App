@@ -4,13 +4,14 @@ import { base44 } from '@/api/base44Client';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { TrendingUp, RefreshCw, LayoutGrid, Plus } from 'lucide-react';
+import { TrendingUp, RefreshCw, LayoutGrid, Plus, Database } from 'lucide-react';
 import { toast } from 'sonner';
 import GerenciarRubricasMuseuDialog from '@/components/rubricas/GerenciarRubricasMuseuDialog';
 import RubricasMuseuEditor from '@/components/rubricas/RubricasMuseuEditor';
 import CardRubricaEditor from '@/components/rubricas/CardRubricaEditor';
 import NovaRubricaDialog from '@/components/rubricas/NovaRubricaDialog';
 import NoturnoPampulhaCard from '@/components/compras/NoturnoPampulhaCard';
+import CentrosCustoCards from '@/components/compras/CentrosCustoCards';
 import { recalculateAllRubricasFromPurchases } from '@/components/compras/AutoRubricasSync';
 import { canManageRubricas } from '@/components/auth/permissions';
 import { getRubricasOficiais3Aditivo } from '@/lib/rubricasOficiais3Aditivo';
@@ -52,9 +53,12 @@ const GRUPOS_PESSOAL = new Set([
   'Coordenação',
   'Equipe de coordenação',
   'Equipe principal',
+  'Produção',
+  'Equipe de produção',
+  'Pagamento para produção',
 ]);
 
-const CENTROS_EXCLUIR_PESSOAL = new Set(['MHAB', 'MIS', 'MUMO']);
+const CENTROS_EXCLUIR_PESSOAL = new Set(['MHAB', 'MIS', 'MUMO', 'Noturno 2026', 'Noturno Pampulha']);
 
 // ─── Helpers numéricos e textuais ───
 function toNumber(value) {
@@ -349,8 +353,16 @@ export default function RubricasPorMuseu() {
       for (const { museu, peso } of alocacoes) {
         if (!mapa[museu]) continue;
 
-        // Excluir pessoal dos totais dos cards de museus físicos
-        if (CENTROS_EXCLUIR_PESSOAL.has(museu) && GRUPOS_PESSOAL.has(grupo)) continue;
+        // Excluir pessoal/equipe dos totais dos cards (museus + noturno)
+        const grupoNormalizado = normalizeText(grupo);
+        const ehPessoal = GRUPOS_PESSOAL.has(grupo) || 
+          grupoNormalizado.includes('produç') || 
+          grupoNormalizado.includes('educador') || 
+          grupoNormalizado.includes('coordenador') ||
+          grupoNormalizado.includes('monitor') ||
+          grupoNormalizado.includes('equipe');
+        
+        if (CENTROS_EXCLUIR_PESSOAL.has(museu) && ehPessoal) continue;
 
         mapa[museu].totalOrcado += previsto * peso;
         mapa[museu].totalUtilizado += utilizado * peso;
@@ -377,8 +389,9 @@ export default function RubricasPorMuseu() {
   const totaisGerais = useMemo(() => {
     const totalOrcado = resumoPorMuseu.reduce((acc, item) => acc + toNumber(item.totalOrcado), 0);
     const totalUtilizado = resumoPorMuseu.reduce((acc, item) => acc + toNumber(item.totalUtilizado), 0);
+    const totalPago = resumoPorMuseu.reduce((acc, item) => acc + toNumber(item.totalPago), 0);
     const totalSaldo = Number((totalOrcado - totalUtilizado).toFixed(2));
-    return { totalOrcado, totalUtilizado, totalPago: 0, totalLancamentos: 0, totalSaldo };
+    return { totalOrcado, totalUtilizado, totalPago, totalLancamentos: 0, totalSaldo };
   }, [resumoPorMuseu]);
 
   const percentualGeral = totaisGerais.totalOrcado > 0 ? (totaisGerais.totalUtilizado / totaisGerais.totalOrcado) * 100 : 0;
@@ -393,10 +406,10 @@ export default function RubricasPorMuseu() {
     try {
       await recalculateAllRubricasFromPurchases();
       await refreshAllRubricaData();
-      toast.success('Dados atualizados com base nas compras aprovadas');
+      toast.success('Dados sincronizados com compras e rubricas');
     } catch (e) {
       await refreshAllRubricaData();
-      toast.success('Tela atualizada');
+      toast.success('Sincronização concluída');
     }
     setIsRefreshing(false);
   };
@@ -407,12 +420,12 @@ export default function RubricasPorMuseu() {
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <h1 className="text-3xl font-semibold text-black tracking-tight flex items-center gap-2"><TrendingUp className="w-6 h-6 text-black" />Orçamento por Museu e Noturno</h1>
-            <p className="text-gray-500 mt-1 text-sm">Acompanhamento orçamentário consolidado por museu — 3º e 4º Aditivo.</p>
+            <p className="text-gray-500 mt-1 text-sm">Dados sincronizados com rubricas específicas por centro de custo — excl. equipe/produção/educadores/coordenadores.</p>
           </div>
           {canEdit && (
             <div className="flex gap-2 flex-wrap">
               <Button variant="outline" className="gap-2 border-gray-200 text-black hover:bg-gray-50 rounded-xl" onClick={() => setShowNovaRubrica(true)}><Plus className="w-4 h-4" />Nova Rubrica</Button>
-              <Button variant="outline" className="gap-2 border-gray-200 text-black hover:bg-gray-50 rounded-xl" onClick={handleRefresh} disabled={isRefreshing}><RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />Recalcular</Button>
+              <Button variant="outline" className="gap-2 border-gray-200 text-black hover:bg-gray-50 rounded-xl" onClick={handleRefresh} disabled={isRefreshing}><RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />Sincronizar</Button>
               {isCoordenador && <Button variant="outline" className="gap-2 border-gray-200 text-black hover:bg-gray-50 rounded-xl" onClick={() => setShowCardEditor(true)}><LayoutGrid className="w-4 h-4" />Editor de Cards</Button>}
             </div>
           )}
@@ -423,6 +436,17 @@ export default function RubricasPorMuseu() {
           <KpiCard label="Previsto" value={fmt(totaisGerais.totalOrcado)} helper="soma real dos museus" />
           <KpiCard label="Utilizado" value={fmt(totaisGerais.totalUtilizado)} helper="rubricas específicas por museu" />
           <KpiCard label="Saldo" value={fmt(totaisGerais.totalSaldo)} helper="saldo disponível" />
+        </div>
+
+        {/* Banner informativo */}
+        <div className="flex items-center gap-2 text-xs text-gray-500 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+          <Database className="w-3 h-3 text-blue-600" />
+          <span>Dados sincronizados automaticamente com compras aprovadas e gastos em rubricas. Exclusão: pagamento para produção, educadores, coordenadores e equipe.</span>
+        </div>
+        
+        <div className="flex items-center gap-2 text-xs text-gray-500 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+          <Database className="w-3 h-3 text-blue-600" />
+          <span>Dados sincronizados automaticamente com compras aprovadas e gastos em rubricas. Exclusão: pagamento para produção, educadores, coordenadores e equipe.</span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
@@ -462,6 +486,9 @@ export default function RubricasPorMuseu() {
             </Tabs>
           </div>
         )}
+
+        {/* Cards de Centros de Custo Transversais */}
+        <CentrosCustoCards />
 
         {/* Card específico do 4º Aditivo — Noturno Pampulha */}
         <NoturnoPampulhaCard />

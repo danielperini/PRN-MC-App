@@ -34,11 +34,25 @@ export default function NoturnoPampulhaCard() {
           base44.entities.Rubrica.filter({ centro_custo: cc, ativo: true })
         )
       );
-      // Deduplica por id
+      // Deduplica por id e excluir pessoal/equipe/produção/educadores/coordenadores
       const seen = new Set();
       return results.flat().filter(r => {
         if (seen.has(r.id)) return false;
         seen.add(r.id);
+        
+        // Excluir grupos de pessoal/equipe
+        const grupo = String(r.grupo || '').toLowerCase();
+        const nome = String(r.rubrica || r.nome || '').toLowerCase();
+        const texto = `${grupo} ${nome}`;
+        
+        const excluir = [
+          'produç', 'educador', 'coordenador', 'monitor', 'equipe',
+          'contratação', 'pagamento para'
+        ];
+        
+        // Se contém alguma palavra de exclusão, pula esta rubrica
+        if (excluir.some(p => texto.includes(p))) return false;
+        
         return true;
       });
     },
@@ -70,7 +84,7 @@ export default function NoturnoPampulhaCard() {
             4º Aditivo
           </span>
           <h2 className="text-lg font-bold text-gray-900 leading-tight">Noturno Pampulha</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Museus da Pampulha — Noturno nos Museus Ed. 2026</p>
+          <p className="text-xs text-gray-500 mt-0.5">Rubricas específicas — excl. equipe/produção/educadores</p>
         </div>
         <a
           href={DRIVE_PASTA_NFS}
