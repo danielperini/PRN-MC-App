@@ -19,11 +19,57 @@ import AgendaCard from '@/components/patrocinador/AgendaCard';
 import { consolidateOfficialDashboardMetrics } from '@/utils/auditoria/institutionalMetrics';
 import { consumeDashboardPriorityRefresh } from '@/utils/dashboardRefresh';
 
+import { 
+  MESES, 
+  MUSEUS, 
+  CENTROS_CUSTO, 
+  CACHE_KEYS,
+  CACHE_CONFIG,
+  METAS_ADITIVO 
+} from '@/utils/constants';
+import { cacheService } from '@/lib/cacheService';
+
 const TOTAL_OFICIAL = 1320000;
-const MUSEUS = ['MIS', 'MHAB', 'MUMO'];
 const CHART_COLORS = ['#111827', '#4B5563', '#9CA3AF', '#D1D5DB'];
-const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const APPROVED_STATUSES = new Set(['APPROVED', 'APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
+
+// Metas completas do 3º e 4º Aditivo
+const METAS_COMPLETAS = [
+  // Concluídas
+  { numero: 'META 01', titulo: 'Equipe principal', grupo: 'Equipe principal', percentualBase: 100, status: 'CONCLUÍDA' },
+  { numero: 'META 07', titulo: 'Contratação de educadores', grupo: 'Educadores', percentualBase: 100, status: 'CONCLUÍDA' },
+  { numero: 'META 14', titulo: 'Acessibilidade', grupo: 'Acessibilidade', percentualBase: 100, status: 'CONCLUÍDA' },
+  
+  // Em execução - Exposições
+  { numero: 'META 04', titulo: 'Alteração de núcleos e salas expositivas', grupo: 'Exposições', percentualBase: 0, status: 'EM EXECUÇÃO' },
+  { numero: 'META 12', titulo: 'Exposição MHAB', grupo: 'Exposições', percentualBase: 0, status: 'EM EXECUÇÃO' },
+  { numero: 'META 12B', titulo: 'Exposição MUMO', grupo: 'Exposições', percentualBase: 0, status: 'EM EXECUÇÃO' },
+  { numero: 'META 10', titulo: 'Mostras e exposições', grupo: 'Exposições', percentualBase: 0, status: 'EM EXECUÇÃO' },
+  
+  // Em execução - Atividades
+  { numero: 'META 05', titulo: 'Atividades Educativas e Culturais', grupo: 'Atividades', percentualBase: 0, status: 'EM EXECUÇÃO' },
+  { numero: 'META 17', titulo: 'Custeio das atividades educativas e culturais', grupo: 'Atividades', percentualBase: 0, status: 'EM EXECUÇÃO' },
+  { numero: 'META 15', titulo: 'Diárias de educadores', grupo: 'Atividades', percentualBase: 0, status: 'EM EXECUÇÃO' },
+  
+  // Em execução - Projetos Especiais
+  { numero: 'META 11', titulo: 'Noturno nos Museus', grupo: 'Noturno', percentualBase: 0, status: 'EM EXECUÇÃO' },
+  { numero: 'META 16', titulo: 'Publicações e catálogos', grupo: 'Publicações', percentualBase: 0, status: 'EM EXECUÇÃO' },
+  
+  // Em execução - Manutenção
+  { numero: 'META 03', titulo: 'Manutenção das exposições', grupo: 'Manutenção', percentualBase: 0, status: 'EM EXECUÇÃO' },
+];
+
+// Mapeamento de rubricas por meta/grupo
+const GRUPOS_RUBRICAS = {
+  'Equipe principal': ['Equipe', 'Gestor', 'Coordenador', 'Administrativo'],
+  'Educadores': ['Educador', 'Educadora', 'Mediação'],
+  'Acessibilidade': ['Acessibilidade', 'Libras', 'Audiodescrição'],
+  'Exposições': ['Expografia', 'Montagem', 'Exposição', 'Museografia', 'Cenografia'],
+  'Atividades': ['Atividade', 'Oficina', 'Palestra', 'Curso', 'Formação', 'Lanche', 'Coffee', 'Material'],
+  'Noturno': ['Noturno', 'Pampulha', 'Sonora'],
+  'Publicações': ['Publicação', 'Catálogo', 'Impressão', 'Tradução', 'Revisão', 'Fotógrafo'],
+  'Manutenção': ['Manutenção', 'Conservação', 'Reparo', 'Limpeza']
+};
 
 const fmtBRL = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(v || 0));
 const fmtInt = (v) => Math.round(Number(v || 0)).toLocaleString('pt-BR');
@@ -200,6 +246,120 @@ function getReportMonthDate(report) {
   const ano = getReportYear(report);
   if (mes >= 1 && mes <= 12 && ano) return new Date(ano, mes - 1, 1);
   return getDateValue(report);
+}
+
+// ============================================================================
+// CÁLCULO DE EXECUÇÃO POR META/GRUPO
+// ============================================================================
+
+function calculateMetaExecucao(rubricas, purchases) {
+  const metasCalculadas = METAS_COMPLETAS.map(meta => {
+    const rubricasDoGrupo = GRUPOS_RUBRICAS[meta.grupo] || [];
+    
+    // Filtrar rubricas relacionadas à meta
+    const rubricasVinculadas = (rubricas || []).filter(rubrica => {
+      const nome = normalizeText(rubrica?.rubrica || rubrica?.nome || '');
+      const grupo = normalizeText(rubrica?.grupo || '');
+      const centroCusto = normalizeText(rubrica?.centro_custo || '');
+      
+      // Verificar se rubrica pertence ao grupo da meta
+      const pertenceAoGrupo = rubricasDoGrupo.some(keyword => 
+        nome.includes(normalizeText(keyword)) || 
+        grupo.includes(normalizeText(keyword))
+      );
+      
+      // Verificar se meta está explicitamente vinculada
+      const metaVinculada = normalizeText(rubrica?.meta || '').includes(normalizeText(meta.numero));
+      
+      return pertenceAoGrupo || metaVinculada;
+    });
+    
+    // Calcular valores
+    const previsto = rubricasVinculadas.reduce((sum, r) => {
+      return sum + Number(r?.valor_rubrica || r?.valor_total || r?.previsto || 0);
+    }, 0);
+    
+    const utilizado = rubricasVinculadas.reduce((sum, r) => {
+      return sum + Number(r?.valor_utilizado || r?.utilizado || r?.realizado || 0);
+    }, 0);
+    
+    const percentual = previsto > 0 ? Math.min(Math.round((utilizado / previsto) * 100), 100) : meta.percentualBase;
+    
+    return {
+      ...meta,
+      previsto,
+      utilizado,
+      percentual,
+      rubricasCount: rubricasVinculadas.length,
+      indicador: previsto > 0 
+        ? `${fmtBRL(utilizado)} utilizado de ${fmtBRL(previsto)}`
+        : meta.status === 'CONCLUÍDA' ? '100% concluído' : '0%'
+    };
+  });
+  
+  return metasCalculadas;
+}
+
+// ============================================================================
+// CÁLCULO DE GASTOS POR MUSEU/PROJETO
+// ============================================================================
+
+function calculateGastosPorMuseu(rubricas, purchases) {
+  const gastosPorMuseu = {};
+  
+  // Inicializar museus e projetos
+  ['MIS', 'MHAB', 'MUMO', 'Noturno', 'Pampulha', 'Geral'].forEach(nome => {
+    gastosPorMuseu[nome] = {
+      nome,
+      previsto: 0,
+      utilizado: 0,
+      saldo: 0,
+      percentual: 0,
+      rubricasCount: 0
+    };
+  });
+  
+  // Agrupar por museu/centro de custo
+  (rubricas || []).forEach(rubrica => {
+    const centroCusto = normalizeText(rubrica?.centro_custo || '');
+    const nome = normalizeText(rubrica?.rubrica || rubrica?.nome || '');
+    
+    let museu = 'Geral';
+    
+    if (centroCusto.includes('mis')) museu = 'MIS';
+    else if (centroCusto.includes('mhab') || centroCusto.includes('abh')) museu = 'MHAB';
+    else if (centroCusto.includes('mumo') || centroCusto.includes('moda')) museu = 'MUMO';
+    else if (centroCusto.includes('pampulha') || centroCusto.includes('kubitschek')) museu = 'Pampulha';
+    else if (centroCusto.includes('noturno')) museu = 'Noturno';
+    
+    const previsto = Number(rubrica?.valor_rubrica || rubrica?.valor_total || 0);
+    const utilizado = Number(rubrica?.valor_utilizado || rubrica?.utilizado || 0);
+    
+    if (!gastosPorMuseu[museu]) {
+      gastosPorMuseu[museu] = {
+        nome: museu,
+        previsto: 0,
+        utilizado: 0,
+        saldo: 0,
+        percentual: 0,
+        rubricasCount: 0
+      };
+    }
+    
+    gastosPorMuseu[museu].previsto += previsto;
+    gastosPorMuseu[museu].utilizado += utilizado;
+    gastosPorMuseu[museu].rubricasCount += 1;
+  });
+  
+  // Calcular saldos e percentuais
+  Object.values(gastosPorMuseu).forEach(museu => {
+    museu.saldo = museu.previsto - museu.utilizado;
+    museu.percentual = museu.previsto > 0 
+      ? Math.round((museu.utilizado / museu.previsto) * 100) 
+      : 0;
+  });
+  
+  return Object.values(gastosPorMuseu).filter(m => m.previsto > 0 || m.utilizado > 0);
 }
 
 function getMonthKey(date) {

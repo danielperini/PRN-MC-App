@@ -25,6 +25,7 @@ import { consumeDashboardPriorityRefresh } from '@/utils/dashboardRefresh';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
 
 import { CACHE_KEYS } from '@/utils/constants';
+import { cacheService } from '@/lib/cacheService';
 
 const DASHBOARD_VIEW_KEY = CACHE_KEYS.DASHBOARD_VIEW_MODE;
 
@@ -150,26 +151,17 @@ function DashboardInner() {
   const [isRefreshing, setIsRefreshing] = React.useState(false);
 
   const [dashboardViewMode, setDashboardViewModeState] = React.useState(() => {
-    try {
-      return localStorage.getItem(DASHBOARD_VIEW_KEY) || 'coordenador';
-    } catch {
-      return 'coordenador';
-    }
+    return cacheService.getDashboardViewMode() || 'coordenador';
   });
 
   const setDashboardViewMode = React.useCallback((mode) => {
     setDashboardViewModeState(mode);
-
-    try {
-      localStorage.setItem(DASHBOARD_VIEW_KEY, mode);
-    } catch {}
+    cacheService.saveDashboardViewMode(mode);
   }, []);
 
   React.useEffect(() => {
     if (!isCoordenador) {
-      try {
-        localStorage.removeItem(DASHBOARD_VIEW_KEY);
-      } catch {}
+      cacheService.clearDashboardViewMode();
     }
   }, [isCoordenador]);
 
@@ -505,6 +497,9 @@ function DashboardInner() {
               </h1>
               <p className="text-sm text-muted-foreground mt-1">
                 Visão institucional restaurada para coordenadores.
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Última sincronização: {new Date().toLocaleString('pt-BR')}
               </p>
             </div>
 

@@ -15,7 +15,10 @@ import {
   Clock
 } from 'lucide-react';
 
-const MUSEUS = ['Todos', 'MIS', 'MHAB', 'MUMO', 'Externo'];
+import { MESES, MUSEUS } from '@/utils/constants';
+import { cacheService } from '@/lib/cacheService';
+
+const MUSEUS_FILTER = ['Todos', 'MIS', 'MHAB', 'MUMO', 'Externo'];
 
 const MUSEU_CONFIG = {
   MIS: {
@@ -44,21 +47,7 @@ const MUSEU_CONFIG = {
   },
 };
 
-function getMonthKey(date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function parseMonthKey(key) {
-  const [y, m] = key.split('-').map(Number);
-  return new Date(y, m - 1, 1);
-}
-
-function formatMonthLabel(key) {
-  return parseMonthKey(key).toLocaleDateString('pt-BR', {
-    month: 'long',
-    year: 'numeric'
-  });
-}
+import { getMonthKey, parseMonthKey, formatMonthLabel } from '@/utils/constants';
 
 function prevMonth(key) {
   const d = parseMonthKey(key);
@@ -351,7 +340,7 @@ export default function Agenda() {
         </div>
 
         <div className="flex gap-1.5 flex-wrap">
-          {MUSEUS.map((m) => (
+          {MUSEUS_FILTER.map((m) => (
             <MuseuFilterBtn
               key={m}
               museu={m}

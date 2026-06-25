@@ -1,7 +1,10 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.34';
 
 const DEFAULT_PARENT_FOLDER_ID = '1aJ5nfpgXcpu6SrDVecmhIQ2eq4vexqe3';
 const MESES = ['JANEIRO', 'FEVEREIRO', 'MARCO', 'ABRIL', 'MAIO', 'JUNHO', 'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'];
+const BATCH_SIZE = 10;
+const MAX_LOOPS = 50;
+const SKIP_HOURS = 24;
 
 function safeStr(value: unknown) {
   return String(value || '').trim();
