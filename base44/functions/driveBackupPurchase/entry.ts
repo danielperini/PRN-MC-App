@@ -267,31 +267,43 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, result });
     }
 
-    // Reprocessa TODAS aprovadas/pagas com backup pendente ou erro (sem limite fixo)
+    // Reprocessa em lote de 10 para evitar timeout (504)
+    const cursor = parseInt(body.cursor, 10) || 0;
+    const loteSize = 10;
+    
     let todas = [];
-    let skip = 0;
-    const batchSize = 200;
-    while (true) {
-      const batch = await base44.asServiceRole.entities.PurchaseRequest.list('-created_date', batchSize, skip);
-      if (!batch || batch.length === 0) break;
-      todas = todas.concat(batch);
-      if (batch.length < batchSize) break;
-      skip += batchSize;
+    let skip = Number(cursor);
+    const batch = await base44.asServiceRole.entities.PurchaseRequest.list('-created_date', loteSize, skip);
+    
+    if (!batch || batch.length === 0) {
+      return Response.json({ success: true, total_candidatos: 0, processados: 0, resultados: [], concluido: true });
     }
-
+    
+    todas = batch;
     const pendentes = todas.filter(p =>
       APPROVED_STATUSES.has(p.status) &&
       (!p.drive_backup_status || p.drive_backup_status === 'pendente' || p.drive_backup_status === 'erro')
     );
 
-    console.log(`Reprocessando backup para ${pendentes.length} solicitações aprovadas...`);
+    console.log(`Processando lote ${skip}-${skip + loteSize}: ${pendentes.length} pendentes...`);
     const resultados = [];
     for (const p of pendentes) {
       const r = await executarBackupDrive(base44, p);
       resultados.push({ id: p.id, fornecedor: p.fornecedor_nome, result: r });
     }
 
-    return Response.json({ success: true, total_candidatos: pendentes.length, processados: resultados.length, resultados });
+    const proximoCursor = skip + loteSize;
+    const temMais = batch.length === loteSize;
+
+    return Response.json({ 
+      success: true, 
+      total_candidatos: pendentes.length, 
+      processados: resultados.length, 
+      resultados,
+      cursor: proximoCursor,
+      temMais,
+      mensagem: temMais ? `Continue com cursor=${proximoCursor}` : 'Processamento concluído'
+    });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }

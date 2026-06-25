@@ -933,12 +933,31 @@ function ComprasInner() {
                   if (!window.confirm('Processar backup no Drive para todas as solicitações aprovadas sem backup? Isso pode levar alguns minutos.')) return;
                   try {
                     toast.info('Iniciando backup em lote...');
-                    const res = await base44.functions.invoke('driveBackupPurchase', {});
-                    const r = res?.data || res;
-                    toast.success(`Backup concluído: ${r?.processados || 0} solicitações processadas.`);
+                    let cursor = 0;
+                    let totalProcessados = 0;
+                    let loops = 0;
+                    const maxLoops = 50; // Segurança
+                    
+                    while (loops < maxLoops) {
+                      loops++;
+                      const res = await base44.functions.invoke('driveBackupPurchase', { cursor: String(cursor) });
+                      const r = res?.data || res;
+                      
+                      if (!r?.success) throw new Error(r?.error || 'Erro no processamento');
+                      
+                      totalProcessados += (r.processados || 0);
+                      toast.info(`Processando lote ${loops}: ${r.processados || 0} solicitações...`);
+                      
+                      if (!r.temMais) {
+                        toast.success(`✅ Backup concluído! ${totalProcessados} solicitações processadas.`);
+                        break;
+                      }
+                      cursor = r.cursor;
+                    }
+                    
                     await refreshFinanceiroCompleto();
                   } catch (e) {
-                    toast.error('Erro ao processar backups: ' + (e?.message || 'desconhecido'));
+                    toast.error('❌ Erro: ' + (e?.message || 'desconhecido'));
                   }
                 }}
               >
