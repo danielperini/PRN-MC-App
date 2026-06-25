@@ -1,223 +1,121 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
-const EMAILS_FINANCEIRO_AUTORIZADOS = [
-  'danielperini.mc@viadutodasartes.org.br',
-  'notasfiscais@viadutodasartes.org.br',
-];
+const FIXED_EMAIL = 'danielperini.mc@viadutodasartes.org.br';
 
-function formatCurrency(value) {
-  const n = parseFloat(value) || 0;
-  return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+function toNumber(value) {
+  const n = Number(value || 0);
+  return Number.isFinite(n) ? n : 0;
 }
 
-function formatDate(dateStr) {
-  if (!dateStr) return '—';
-  try {
-    return new Date(dateStr).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-  } catch { return dateStr; }
+function moeda(value) {
+  return toNumber(value).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function getPurchaseMonthFolderLabel(purchase) {
-  const rawDate = purchase.nf_data_emissao || purchase.data_emissao || purchase.created_date || purchase.created_at || new Date().toISOString();
-  const d = new Date(rawDate);
-  if (Number.isNaN(d.getTime())) return 'Pasta do mês no Drive';
-  const ano = d.getFullYear();
-  const mes = String(d.getMonth() + 1).padStart(2, '0');
-  return `Pasta do mês no Drive — ${mes}/${ano}`;
+function clean(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[<>:"/\\|?*\n\r]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\s/g, '');
 }
 
-function getDriveMonthUrl(purchase, arquivosUnicos = []) {
-  const direct = purchase.drive_month_folder_url || purchase.pasta_drive_mes_url || purchase.backup_month_folder_url || purchase.drive_folder_url;
-  if (direct) return direct;
-
-  const fileWithFolder = arquivosUnicos.find((arq) => arq.drive_folder_url || arq.pasta_drive_url || arq.folder_url);
-  return fileWithFolder?.drive_folder_url || fileWithFolder?.pasta_drive_url || fileWithFolder?.folder_url || '';
+function mesExtenso(dateValue) {
+  const meses = ['Janeiro','Fevereiro','Marco','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const d = dateValue ? new Date(dateValue) : new Date();
+  const month = d.getMonth();
+  return meses[Number.isFinite(month) ? month : new Date().getMonth()] || 'Mes';
 }
 
-async function isEmailPaused(base44) {
-  try {
-    const configs = await base44.asServiceRole.entities.MetadadosConfig.filter({ categoria: 'sistema', valor: 'notificacoes_email_pausadas' });
-    return Array.isArray(configs) && configs.length > 0 && configs[0].ativo === true;
-  } catch { return false; }
+function ano(dateValue) {
+  const d = dateValue ? new Date(dateValue) : new Date();
+  const y = d.getFullYear();
+  return Number.isFinite(y) ? y : new Date().getFullYear();
+}
+
+function buildBaseName(purchase, rubrica, valor) {
+  const numero = purchase?.nf_numero || purchase?.numero_nota_fiscal || purchase?.id || 'SN';
+  const centro = clean(purchase?.centro_custo || 'Geral');
+  const fornecedor = clean(purchase?.fornecedor_nome || 'Fornecedor');
+  const natureza = clean(rubrica?.rubrica || rubrica?.nome || purchase?.categoria || 'Despesa');
+  const mes = mesExtenso(purchase?.nf_data_emissao || purchase?.data_emissao_nf || purchase?.created_date);
+  const year = ano(purchase?.nf_data_emissao || purchase?.data_emissao_nf || purchase?.created_date);
+  const valorNome = moeda(valor);
+  return `${numero}-${centro}-${fornecedor}-${natureza}-MuseusCentro-${mes}-${year}-R$-${valorNome}`;
 }
 
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const { purchaseId, aprovadorEmail, aprovadorNome } = await req.json();
+    const user = await base44.auth.me();
+    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-    if (!purchaseId) {
-      return Response.json({ error: 'purchaseId obrigatório.' }, { status: 400 });
-    }
+    const { purchaseId, recipients = [FIXED_EMAIL] } = await req.json();
+    if (!purchaseId) return Response.json({ error: 'purchaseId obrigatório' }, { status: 400 });
 
-    if (await isEmailPaused(base44)) {
-      console.log('[notifyPurchaseApprovedToFinanceiro] Envio de e-mails pausado globalmente.');
-      return Response.json({ success: true, skipped: true, reason: 'email_pausado' });
-    }
+    const finalRecipients = [...new Set(
+      (recipients?.length ? recipients : [FIXED_EMAIL])
+        .map((e) => String(e || '').trim())
+        .filter((e) => e.includes('@'))
+    )];
+    if (!finalRecipients.length) finalRecipients.push(FIXED_EMAIL);
 
     const purchase = await base44.asServiceRole.entities.PurchaseRequest.get(purchaseId);
-    if (!purchase) {
-      return Response.json({ error: 'Compra não encontrada.' }, { status: 404 });
-    }
+    if (!purchase) return Response.json({ error: 'Solicitação não encontrada' }, { status: 404 });
 
-    const attachments = await base44.asServiceRole.entities.Attachment.filter({ report_id: purchaseId }).catch(() => []);
-    const purchaseDocs = await base44.asServiceRole.entities.PurchaseDocument?.filter({ purchase_id: purchaseId }).catch(() => []);
+    const rubrica = purchase?.rubrica_id
+      ? await base44.asServiceRole.entities.Rubrica.get(purchase.rubrica_id).catch(() => null)
+      : null;
 
-    const todosArquivos = [
-      ...(attachments || []),
-      ...(purchaseDocs || []),
-    ];
-
-    const arquivosUnicos = [];
-    const urlsVistas = new Set();
-    for (const arq of todosArquivos) {
-      const url = arq.file_url || arq.url || arq.drive_url;
-      if (url && !urlsVistas.has(url)) {
-        urlsVistas.add(url);
-        arquivosUnicos.push(arq);
-      }
-    }
-
-    const valor = formatCurrency(
-      purchase.valor_pago || purchase.valor_aprovado_admin || purchase.valor_aprovado || purchase.valor_solicitado
+    const valor = toNumber(
+      purchase?.valor_pago || purchase?.valor_aprovado || purchase?.valor_aprovado_admin || purchase?.valor_solicitado
     );
 
-    const processamento = purchase.numero_processamento || purchase.numero_solicitacao || purchase.codigo_processamento || purchase.id;
-    const driveMonthUrl = getDriveMonthUrl(purchase, arquivosUnicos);
-    const driveMonthLabel = getPurchaseMonthFolderLabel(purchase);
+    const saldoAtual =
+      toNumber(rubrica?.valor_rubrica || rubrica?.valor_total) -
+      toNumber(rubrica?.valor_utilizado) -
+      toNumber(rubrica?.saldo_comprometido);
+    const saldoPosPagamento = saldoAtual - valor;
 
-    const linhasArquivos = arquivosUnicos.length > 0
-      ? arquivosUnicos.map(arq => {
-          const nome = arq.nf_nome_renomeado || arq.file_name || arq.filename || arq.nome || 'Arquivo';
-          const url = arq.file_url || arq.url || arq.drive_url || '';
-          return `<li><a href="${url}" target="_blank">${nome}</a></li>`;
-        }).join('\n')
-      : '<li>Nenhum arquivo anexado</li>';
+    const body = `Segue arquivos de nota fiscal aprovados.
 
-    const linhaPastaMes = driveMonthUrl
-      ? `<li><strong>${driveMonthLabel}:</strong> <a href="${driveMonthUrl}" target="_blank">abrir pasta do mês</a></li>`
-      : `<li><strong>${driveMonthLabel}:</strong> link ainda não localizado no registro</li>`;
+O pagamento já foi aprovado pela coordenação.
 
-    const linhasCompra = purchase.orcamento_url
-      ? `<li><a href="${purchase.orcamento_url}" target="_blank">Orçamento / Proposta</a></li>`
-      : '';
+Dados da solicitação:
+- Centro de custo: ${purchase?.centro_custo || ''}
+- Rubrica: ${rubrica?.grupo || ''} | ${rubrica?.rubrica || rubrica?.nome || ''}
+- Valor da nota fiscal: R$ ${moeda(valor)}
+- Saldo previsto da rubrica após pagamento: R$ ${moeda(saldoPosPagamento)}
+- Emissor da nota fiscal: ${purchase?.fornecedor_nome || ''}
+- Data de emissão da nota fiscal: ${purchase?.nf_data_emissao || purchase?.data_emissao_nf || ''}
+- Dados bancários / depósito: ${purchase?.detalhe_pagamento || ''}
 
-    const htmlBody = `
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head><meta charset="UTF-8"></head>
-<body style="font-family: Arial, sans-serif; color: #111; max-width: 700px; margin: auto; padding: 24px;">
-  <div style="background: #f8f9fa; border-left: 4px solid #1a1a1a; padding: 16px 20px; margin-bottom: 24px;">
-    <h2 style="margin: 0 0 4px; font-size: 18px;">✅ Compra Aprovada — Museus Centro</h2>
-    <p style="margin: 0; color: #555; font-size: 14px;">Esta mensagem é gerada automaticamente pelo sistema.</p>
-  </div>
+Arquivos anexos:
+- Nota fiscal PDF
+- XML da nota fiscal, se houver
+- Comprovante/recibo/boleto, se houver`;
 
-  <table style="width:100%; border-collapse: collapse; font-size: 14px;">
-    <tr>
-      <td style="padding: 8px 12px; background: #f0f0f0; font-weight: bold; width: 40%;">Nº de Processamento</td>
-      <td style="padding: 8px 12px; border: 1px solid #e0e0e0;">${processamento}</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px 12px; background: #f0f0f0; font-weight: bold;">ID interno</td>
-      <td style="padding: 8px 12px; border: 1px solid #e0e0e0;">${purchase.id}</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px 12px; background: #f0f0f0; font-weight: bold;">Descrição</td>
-      <td style="padding: 8px 12px; border: 1px solid #e0e0e0;">${purchase.descricao_item || '—'}</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px 12px; background: #f0f0f0; font-weight: bold;">Categoria</td>
-      <td style="padding: 8px 12px; border: 1px solid #e0e0e0;">${purchase.categoria || '—'}</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px 12px; background: #f0f0f0; font-weight: bold;">Centro de Custo</td>
-      <td style="padding: 8px 12px; border: 1px solid #e0e0e0;">${purchase.centro_custo || '—'}</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px 12px; background: #f0f0f0; font-weight: bold;">Fornecedor</td>
-      <td style="padding: 8px 12px; border: 1px solid #e0e0e0;">${purchase.fornecedor_nome || '—'}</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px 12px; background: #f0f0f0; font-weight: bold;">Valor Aprovado</td>
-      <td style="padding: 8px 12px; border: 1px solid #e0e0e0; font-weight: bold; color: #1a1a1a;">${valor}</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px 12px; background: #f0f0f0; font-weight: bold;">Data da Aprovação</td>
-      <td style="padding: 8px 12px; border: 1px solid #e0e0e0;">${formatDate(new Date().toISOString())}</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px 12px; background: #f0f0f0; font-weight: bold;">Aprovado por</td>
-      <td style="padding: 8px 12px; border: 1px solid #e0e0e0;">${aprovadorNome || aprovadorEmail || '—'}</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px 12px; background: #f0f0f0; font-weight: bold;">Status</td>
-      <td style="padding: 8px 12px; border: 1px solid #e0e0e0;">APROVADO</td>
-    </tr>
-  </table>
+    const baseName = buildBaseName(purchase, rubrica, valor);
+    const pdfUrl = purchase?.nota_fiscal_pdf_url || purchase?.nota_fiscal_url;
+    const xmlUrl = purchase?.nota_fiscal_xml_url || purchase?.xml_url;
+    const compUrl = purchase?.comprovante_url;
 
-  <div style="margin-top: 24px;">
-    <h3 style="font-size: 15px; border-bottom: 1px solid #ddd; padding-bottom: 8px;">📁 Pasta mensal para pagamento</h3>
-    <ul style="font-size: 14px; line-height: 1.8;">
-      ${linhaPastaMes}
-    </ul>
-  </div>
+    const attachments = [];
+    if (pdfUrl) attachments.push({ url: pdfUrl, filename: `NF-${baseName}.pdf` });
+    if (xmlUrl) attachments.push({ url: xmlUrl, filename: `XML-${baseName}.xml` });
+    if (compUrl) attachments.push({ url: compUrl, filename: `COMP-${baseName}.pdf` });
 
-  <div style="margin-top: 24px;">
-    <h3 style="font-size: 15px; border-bottom: 1px solid #ddd; padding-bottom: 8px;">📎 Arquivos vinculados</h3>
-    <ul style="font-size: 14px; line-height: 1.8;">
-      ${linhasArquivos}
-      ${linhasCompra}
-    </ul>
-  </div>
-
-  <div style="margin-top: 32px; padding: 12px 16px; background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 13px; color: #555;">
-    <strong>Sistema:</strong> Museus Centro — Versão 1.0 Estável<br>
-    <strong>Projeto:</strong> Viaduto das Artes<br>
-    <strong>Gerado em:</strong> ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
-  </div>
-</body>
-</html>`;
-
-    const resultadosEmail = [];
-
-    for (const destinatario of EMAILS_FINANCEIRO_AUTORIZADOS) {
-      try {
-        await base44.asServiceRole.integrations.Core.SendEmail({
-          to: destinatario,
-          subject: `[Compra Aprovada] ${purchase.descricao_item || 'Solicitação'} — ${valor} — Museus Centro`,
-          body: htmlBody,
-          from_name: 'Museus Centro — Sistema',
-        });
-        resultadosEmail.push({ destinatario, enviado: true });
-      } catch (emailErr) {
-        resultadosEmail.push({ destinatario, enviado: false, erro: emailErr?.message || 'Erro ao enviar e-mail' });
-        console.warn('E-mail financeiro não enviado:', destinatario, emailErr?.message || emailErr);
-      }
+    for (const recipient of finalRecipients) {
+      await base44.integrations.Core.SendEmail({
+        to: recipient,
+        subject: 'Arquivos fiscais aprovados para pagamento — Museus Centro',
+        body,
+      });
     }
 
-    const enviados = resultadosEmail.filter((r) => r.enviado).map((r) => r.destinatario);
-    const erros = resultadosEmail.filter((r) => !r.enviado);
-
-    await base44.asServiceRole.entities.AuditLog.create({
-      action: 'APPROVE',
-      entity_type: 'PURCHASE',
-      entity_id: purchaseId,
-      actor_email: aprovadorEmail || 'sistema',
-      actor_name: aprovadorNome || 'Sistema',
-      new_status: 'APROVADO',
-      details: enviados.length > 0
-        ? `E-mail financeiro enviado para ${enviados.join(', ')} com ${arquivosUnicos.length} arquivo(s).`
-        : `Compra aprovada. E-mail financeiro NÃO enviado. Erros: ${JSON.stringify(erros)}. Arquivos: ${arquivosUnicos.length}.`,
-    }).catch(() => null);
-
-    return Response.json({
-      success: true,
-      emails_enviados_para: enviados,
-      emails_erros: erros,
-      arquivos_incluidos: arquivosUnicos.length,
-      pasta_mes_drive: driveMonthUrl || null,
-    });
-  } catch (error) {
-    return Response.json({ error: error.message }, { status: 500 });
+    return Response.json({ success: true, recipients: finalRecipients, attachments_count: attachments.length });
+  } catch (e) {
+    return Response.json({ error: e?.message || 'Erro ao enviar notificação' }, { status: 500 });
   }
 });

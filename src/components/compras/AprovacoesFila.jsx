@@ -10,6 +10,7 @@ import {
   Trash2,
   CheckCircle2,
   RotateCcw,
+  Bell,
 } from 'lucide-react';
 import ConformidadeBadge from '@/components/compras/ConformidadeBadge';
 import { isStatusPendente, isStatusFinalizado } from '@/lib/normalizeStatus';
@@ -239,6 +240,26 @@ export default function AprovacoesFila({
     }
   }
 
+  const [sendingNotification, setSendingNotification] = useState({});
+
+  async function handleSendNotification(purchase) {
+    const confirmed = window.confirm('Enviar notificação desta solicitação para Daniel Perini?');
+    if (!confirmed) return;
+
+    setSendingNotification((s) => ({ ...s, [purchase.id]: true }));
+    try {
+      await base44.functions.invoke('notifyPurchaseApprovedToFinanceiro', {
+        purchaseId: purchase.id,
+        recipients: ['danielperini.mc@viadutodasartes.org.br'],
+      });
+      toast.success('Notificação enviada com sucesso.', { duration: 3000 });
+    } catch (e) {
+      toast.error('Erro ao enviar notificação.', { duration: 4000 });
+    } finally {
+      setSendingNotification((s) => ({ ...s, [purchase.id]: false }));
+    }
+  }
+
   async function handleExcluir(purchase) {
     if (!podeAprovar) {
       toast.error('Sem permissão', { duration: 3000 });
@@ -458,10 +479,52 @@ export default function AprovacoesFila({
                 )}
                 Excluir
               </Button>
+
+              <Button
+                variant="outline"
+                onClick={() => handleSendNotification(p)}
+                disabled={sendingNotification[p.id]}
+                className="gap-2"
+              >
+                {sendingNotification[p.id] ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Bell className="h-4 w-4" />
+                )}
+                Enviar Notificação
+              </Button>
             </div>
           </div>
         );
       })}
+
+      {/* Solicitações não-pendentes: exibir apenas botão de notificação */}
+      {(purchases || []).filter((p) => !isStatusPendente(p?.status) && p?.status).map((p) => (
+        <div key={`notif-${p.id}`} className="rounded-xl border bg-white p-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-gray-900 truncate">{getTituloPurchase(p)}</p>
+            <p className="text-xs text-gray-500">{getFornecedorPurchase(p)}</p>
+            <div className="mt-1 flex flex-wrap gap-2 text-xs text-gray-500">
+              {p?.status && <span className="rounded-full bg-gray-100 px-2 py-1">{p.status}</span>}
+              {p?.centro_custo && <span className="rounded-full bg-gray-100 px-2 py-1">{p.centro_custo}</span>}
+              {p?.nf_numero && <span className="rounded-full bg-gray-100 px-2 py-1">NF {p.nf_numero}</span>}
+            </div>
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <p className="text-sm font-bold text-gray-900">{formatBRL(getValorPurchase(p))}</p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleSendNotification(p)}
+              disabled={sendingNotification[p.id]}
+              className="gap-2"
+            >
+              {sendingNotification[p.id] ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
+              Enviar Notificação
+            </Button>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
