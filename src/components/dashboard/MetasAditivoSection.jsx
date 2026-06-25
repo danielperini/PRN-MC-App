@@ -2,63 +2,28 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 import { CheckCircle2, AlertCircle, X, Search } from 'lucide-react';
-
-const BASE_METAS_ADITIVO = [
-  { numero: 'META 01', titulo: 'Equipe principal', percentual: 100, detalhe: 'Cargos previstos e cargos ocupados na equipe', indicador: '100% concluído · contagem de cargos ativa', status: 'CONCLUÍDA' },
-  { numero: 'META 07', titulo: 'Contratação de educadores', percentual: 100, detalhe: 'Educadores contratados para MIS, MUMO e MHAB', indicador: '100% concluído', status: 'CONCLUÍDA' },
-  { numero: 'META 03', titulo: 'Manutenção das exposições', percentual: 0, detalhe: 'Execução financeira da rubrica de manutenção e disposição, sem educadoras', indicador: 'Percentual da rubrica utilizada', status: 'EM EXECUÇÃO' },
-  { numero: 'META 04', titulo: 'Alteração de núcleos e salas expositivas', percentual: 0, detalhe: 'Rubricas de núcleos, salas expositivas, montagem, expografia e ambientação', indicador: 'Percentual das rubricas relacionadas utilizadas', status: 'EM EXECUÇÃO' },
-  { numero: 'META 05', titulo: 'Atividades Educativas e Culturais', percentual: 0, detalhe: 'Atividades únicas da Programação/Agenda, filtradas mensalmente desde março/2026', indicador: '0/30 atividades da programação validadas', status: 'EM EXECUÇÃO' },
-  { numero: 'META 10', titulo: 'Mostras e exposições', percentual: 0, detalhe: 'MIS pequeno + MHAB + MUMO grande', indicador: 'MUMO = 70% · MIS + MHAB = 30%', status: 'EM EXECUÇÃO' },
-  { numero: 'META 11', titulo: 'Noturno nos Museus', percentual: 0, detalhe: 'Execução vinculada ao grupo/rubrica Noturno nos Museus', indicador: 'Percentual do custeio Noturno utilizado', status: 'EM EXECUÇÃO' },
-  { numero: 'META 12', titulo: 'Exposição MHAB', percentual: 0, detalhe: 'Rubricas relacionadas à exposição MHAB/MAB', indicador: 'Percentual das rubricas relacionadas utilizadas', status: 'EM EXECUÇÃO' },
-  { numero: 'META 12B', titulo: 'Exposição MUMO', percentual: 0, detalhe: 'Rubricas relacionadas à exposição MUMO', indicador: 'Percentual das rubricas relacionadas utilizadas', status: 'EM EXECUÇÃO' },
-  { numero: 'META 14', titulo: 'Acessibilidade', percentual: 100, detalhe: 'Entrega de dispositivos acessíveis', indicador: '100% entregue', status: 'CONCLUÍDA' },
-  { numero: 'META 15', titulo: 'Diárias de educadores', percentual: 0, detalhe: 'Execução financeira da rubrica Diários Educadores', indicador: 'Percentual da rubrica utilizada', status: 'EM EXECUÇÃO' },
-  { numero: 'META 16', titulo: 'Publicações e catálogos', percentual: 0, detalhe: 'Rubricas de catálogo, publicação, revisão, tradução, impressão, fotógrafo, pesquisa e texto', indicador: 'Percentual das rubricas relacionadas utilizadas', status: 'EM EXECUÇÃO' },
-  { numero: 'META 17', titulo: 'Custeio das atividades educativas e culturais', percentual: 0, detalhe: 'Materiais, lanches e apoio pedagógico', indicador: 'Percentual das rubricas de custeio utilizadas', status: 'EM EXECUÇÃO' },
-].sort((a, b) => {
-  const prioridade = { 'META 01': 0, 'META 07': 1 };
-  const pa = prioridade[a.numero] ?? 2;
-  const pb = prioridade[b.numero] ?? 2;
-  if (pa !== pb) return pa - pb;
-  return a.titulo.localeCompare(b.titulo, 'pt-BR');
-});
-
-function normalizeText(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim();
-}
-
-function toNumber(value) {
-  const n = Number(value || 0);
-  return Number.isFinite(n) ? n : 0;
-}
+import { calculateMetaFinancialMetrics } from '@/utils/finance/metaFinancialMetrics';
+import { getRubricaBudget, getRubricaUsed } from '@/utils/auditoria/reconcileFinancialTotals';
+import { normalizeText } from '@/utils/constants';
 
 function fmtBRL(value) {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(toNumber(value));
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 }).format(Number(value || 0));
 }
 
 function getRubricaNome(rubrica) {
   return rubrica?.rubrica || rubrica?.nome || rubrica?.descricao || 'Rubrica sem nome';
 }
 
-function getRubricaValor(rubrica) {
-  return toNumber(rubrica?.valor_total ?? rubrica?.valor_rubrica ?? rubrica?.valor_previsto ?? rubrica?.previsto);
-}
-
-function getRubricaUtilizado(rubrica) {
-  return toNumber(rubrica?.valor_utilizado ?? rubrica?.utilizado ?? rubrica?.realizado ?? rubrica?.valor_pago);
-}
-
 function isRubricaLinkedToMeta(rubrica, meta) {
   const metaRubrica = normalizeText(rubrica?.meta || rubrica?.meta_numero || rubrica?.meta_titulo);
   const numero = normalizeText(meta.numero);
+  const numeroFormatado = normalizeText(meta.numeroFormatado);
   const titulo = normalizeText(meta.titulo);
-  return metaRubrica === numero || metaRubrica.includes(numero) || metaRubrica.includes(titulo);
+  
+  return metaRubrica === numero || 
+         metaRubrica.includes(numero) || 
+         metaRubrica.includes(numeroFormatado) ||
+         metaRubrica.includes(titulo);
 }
 
 function MetaCard({ meta, onOpen }) {
@@ -222,24 +187,22 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRef
   }
 
   const metasCalculadas = useMemo(() => {
-    return BASE_METAS_ADITIVO.map((meta) => {
-      const vinculadas = (rubricas || []).filter((rubrica) => isRubricaLinkedToMeta(rubrica, meta));
-
-      const previsto = vinculadas.reduce((sum, rubrica) => sum + getRubricaValor(rubrica), 0);
-      const utilizado = vinculadas.reduce((sum, rubrica) => sum + getRubricaUtilizado(rubrica), 0);
-
-      const percentual = previsto > 0 ? Math.min(Math.round((utilizado / previsto) * 100), 100) : meta.percentual;
-
-      return {
-        ...meta,
-        percentual,
-        previsto,
-        utilizado,
-        indicador: previsto > 0
-          ? `${fmtBRL(utilizado)} utilizado de ${fmtBRL(previsto)}`
-          : meta.indicador,
-      };
-    });
+    // Usar função centralizada para cálculos financeiros das metas
+    const metrics = calculateMetaFinancialMetrics(rubricas);
+    
+    return metrics.map(meta => ({
+      numero: meta.numeroFormatado,
+      titulo: meta.titulo,
+      status: meta.status,
+      detalhe: meta.indicador,
+      percentual: meta.percentualFinanceiro,
+      percentualFisico: meta.percentualFisico,
+      previsto: meta.previsto,
+      utilizado: meta.utilizado,
+      saldo: meta.saldo,
+      rubricasCount: meta.rubricasCount,
+      indicador: meta.indicador
+    }));
   }, [rubricas]);
 
   return (

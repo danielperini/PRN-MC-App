@@ -9,13 +9,22 @@ export function getRubricaBudget(rubrica = {}) {
       rubrica.valor_previsto ??
       rubrica.valor_orcado ??
       rubrica.valor_original ??
+      rubrica.valor_rubrica ??
+      rubrica.previsto ??
       rubrica.valor ??
       0
   );
 }
 
 export function getRubricaUsed(rubrica = {}) {
-  return toAuditNumber(rubrica.valor_utilizado ?? rubrica.valor_executado ?? rubrica.utilizado ?? 0);
+  return toAuditNumber(
+    rubrica.valor_utilizado ??
+      rubrica.valor_executado ??
+      rubrica.utilizado ??
+      rubrica.realizado ??
+      rubrica.valor_pago ??
+      0
+  );
 }
 
 export function reconcileFinancialTotals(rubricas = [], options = {}) {
@@ -35,7 +44,8 @@ export function reconcileFinancialTotals(rubricas = [], options = {}) {
   const totalPrevistoRubricas = budgetRubricas.reduce((sum, rubrica) => sum + getRubricaBudget(rubrica), 0);
   const totalCreditosProjeto = creditRubricas.reduce((sum, rubrica) => sum + getRubricaCredit(rubrica), 0);
   const totalUtilizado = uniqueRubricas.reduce((sum, rubrica) => sum + getRubricaUsed(rubrica), 0);
-  const saldo = officialTotal + totalCreditosProjeto - totalUtilizado;
+  const saldoOficial = officialTotal - totalUtilizado;
+  const saldoComCreditos = officialTotal + totalCreditosProjeto - totalUtilizado;
   const percentualExecucao = officialTotal > 0 ? Number(((totalUtilizado / officialTotal) * 100).toFixed(2)) : 0;
 
   const byGroupMap = {};
@@ -84,7 +94,8 @@ export function reconcileFinancialTotals(rubricas = [], options = {}) {
     totalCreditosProjeto,
     totalDisponivelComCreditos: officialTotal + totalCreditosProjeto,
     totalUtilizado,
-    saldo,
+    saldo: saldoOficial,
+    saldoComCreditos,
     percentualExecucao,
     rubricas: uniqueRubricas,
     byGroup: Object.values(byGroupMap).sort((a, b) => a.grupo.localeCompare(b.grupo)),
