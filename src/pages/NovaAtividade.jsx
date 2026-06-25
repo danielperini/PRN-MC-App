@@ -87,7 +87,7 @@ export default function NovaAtividade() {
 
     async function loadMetas() {
       try {
-        const list = await base44.entities.ProjectMeta.list('ordem', 100);
+        const list = await base44.entities.ProjectMeta.list('ordem', 500);
         const ativos = (list || [])
           .filter((meta) => meta.ativo !== false)
           .map((meta) => ({

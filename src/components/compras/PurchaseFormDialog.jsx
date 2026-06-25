@@ -234,7 +234,7 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
       .then((d) => setRubricas((d || []).filter((r) => r?.ativo !== false)))
       .catch(() => {})
 
-    base44.entities.ProjectMeta.list('ordem', 200)
+    base44.entities.ProjectMeta.list('ordem', 500)
       .then((d) => {
         const ativos = (d || []).filter((m) => m?.ativo !== false)
         // Garante que 11B - Noturno Pampulha está na lista mesmo que não venha do banco

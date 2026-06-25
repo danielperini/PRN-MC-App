@@ -14,6 +14,7 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import NativeSelect from '@/components/ui/NativeSelect';
+import SearchableSelect from '@/components/ui/searchable-select';
 import { useIsMobile } from '@/hooks/use-mobile';
 import {
   ShoppingCart,
@@ -522,7 +523,7 @@ function ComprasInner() {
   const { data: metas = [] } = useQuery({
     queryKey: ['project-metas'],
     queryFn: async () => {
-      const list = await base44.entities.ProjectMeta.list('ordem', 50);
+      const list = await base44.entities.ProjectMeta.list('ordem', 500);
       return (list || []).filter(m => m.ativo !== false);
     },
     enabled: !!currentUser,
@@ -1246,20 +1247,16 @@ function ComprasInner() {
                     onChange={(e) => setFilters((f) => ({ ...f, data_fim: e.target.value }))}
                     placeholder="Data fim"
                   />
-                  <Select
+                  <SearchableSelect
                     value={filters.meta_id}
                     onValueChange={(v) => setFilters((f) => ({ ...f, meta_id: v }))}
-                  >
-                    <SelectTrigger className="w-56">
-                      <SelectValue placeholder="Meta orçamentária" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas as metas</SelectItem>
-                      {metas.map((m) => (
-                        <SelectItem key={m.id} value={m.nome}>{m.nome}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    placeholder="Meta orçamentária"
+                    className="w-56"
+                    items={[
+                      { id: 'all', label: 'Todas as metas' },
+                      ...metas.map((m) => ({ id: m.nome, label: m.nome }))
+                    ]}
+                  />
                 </>
               )}
 
@@ -1349,27 +1346,16 @@ function ComprasInner() {
                     </SelectContent>
                   </Select>
 
-                  <Select
+                  <SearchableSelect
                     value={filters.rubrica_id}
-                    onValueChange={(v) =>
-                      setFilters((f) => ({ ...f, rubrica_id: v }))
-                    }
-                  >
-                    <SelectTrigger className="w-64">
-                      <SelectValue placeholder="Rubrica" />
-                    </SelectTrigger>
-
-                    <SelectContent>
-                      <SelectItem value="all">Todas as rubricas</SelectItem>
-                      {(rubricas || [])
-                        .filter((r) => r?.ativo !== false)
-                        .map((r) => (
-                          <SelectItem key={r.id} value={r.id}>
-                            {r.rubrica || r.nome}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+                    onValueChange={(v) => setFilters((f) => ({ ...f, rubrica_id: v }))}
+                    placeholder="Rubrica"
+                    className="w-64"
+                    items={[
+                      { id: 'all', label: 'Todas as rubricas' },
+                      ...(rubricas || []).filter((r) => r?.ativo !== false).map((r) => ({ id: r.id, label: r.rubrica || r.nome }))
+                    ]}
+                  />
 
                   <Select
                     value={filters.centro_custo}
