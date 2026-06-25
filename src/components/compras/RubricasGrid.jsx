@@ -207,6 +207,7 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
               <th className="p-2 text-left">Grupo</th>
               <th className="p-2 text-left">Rubrica</th>
               <th className="p-2 text-left">Centro de Custo</th>
+              <th className="p-2 text-left">Natureza</th>
               <th className="p-2 text-right">Valor</th>
               <th className="p-2 text-right">Utilizado</th>
               <th className="p-2 text-right">Saldo</th>
@@ -223,6 +224,11 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
                 <td className="p-2">
                   <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full whitespace-nowrap">
                     {r?.centro_custo || '—'}
+                  </span>
+                </td>
+                <td className="p-2">
+                  <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full whitespace-nowrap">
+                    {r?.natureza_despesa || r?.nome_natureza || '—'}
                   </span>
                 </td>
                 <td className="p-2 text-right tabular-nums">R$ {moeda(r.valor)}</td>
@@ -246,7 +252,7 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
 
           <tfoot className="bg-gray-50 font-bold">
             <tr>
-              <td colSpan={3} className="p-2">TOTAL</td>
+              <td colSpan={4} className="p-2">TOTAL</td>
               <td className="p-2 text-right tabular-nums">R$ {moeda(totais.previsto)}</td>
               <td className="p-2 text-right tabular-nums">R$ {moeda(totais.utilizado)}</td>
               <td className="p-2 text-right tabular-nums">R$ {moeda(totais.saldo)}</td>

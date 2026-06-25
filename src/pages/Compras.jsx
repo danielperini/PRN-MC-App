@@ -265,13 +265,14 @@ function TabelaSolicitacoes({ purchases, rubricas, attachmentByPurchaseId, isCoo
 
   const renderTabela = (items) => (
     <table className="w-full table-fixed border-collapse text-sm">
-      <colgroup><col className="w-[27%]" /><col className="w-[14%]" /><col className="w-[8%]" /><col className="w-[15%]" /><col className="w-[10%]" /><col className="w-[10%]" /><col className="w-[7%]" /><col className="w-[9%]" /></colgroup>
+      <colgroup><col className="w-[23%]" /><col className="w-[12%]" /><col className="w-[7%]" /><col className="w-[13%]" /><col className="w-[9%]" /><col className="w-[9%]" /><col className="w-[9%]" /><col className="w-[9%]" /><col className="w-[9%]" /></colgroup>
       <thead>
         <tr className="border-b border-gray-200 bg-gray-50 text-left">
           <th className="px-3 py-3 font-medium text-gray-600">Descrição</th>
           <th className="px-3 py-3 font-medium text-gray-600">Fornecedor</th>
           <th className="px-3 py-3 font-medium text-gray-600">Centro</th>
           <th className="px-3 py-3 font-medium text-gray-600">Rubrica</th>
+          <th className="px-3 py-3 font-medium text-gray-600">Natureza</th>
           <th className="px-3 py-3 font-medium text-gray-600">Status</th>
           <th className="px-3 py-3 text-right font-medium text-gray-600">Valor</th>
           <th className="px-3 py-3 text-center font-medium text-gray-600">Arquivo</th>
@@ -309,6 +310,11 @@ function TabelaSolicitacoes({ purchases, rubricas, attachmentByPurchaseId, isCoo
                 {p._centro_custo_normalizado ? <span className="inline-block max-w-full truncate rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">{p._centro_custo_normalizado}</span> : <span className="text-xs text-gray-400">—</span>}
               </td>
               <td className="px-3 py-2.5 align-top"><p className="truncate text-xs text-gray-700">{rubricaNome}</p></td>
+              <td className="px-3 py-2.5 align-top">
+                <span className="inline-block max-w-full truncate rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
+                  {p.natureza_despesa || rubrica?.natureza_despesa || rubrica?.nome_natureza || '—'}
+                </span>
+              </td>
               <td className="px-3 py-2.5 align-top">
                 <span className={`inline-block max-w-full truncate rounded-full px-2 py-0.5 text-xs font-medium ${status.color}`}>{status.label}</span>
                 {pagoEmFormatado && <p className="mt-1 text-[11px] leading-tight text-gray-400">{pagoEmFormatado}</p>}
