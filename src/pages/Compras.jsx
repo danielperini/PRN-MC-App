@@ -212,7 +212,7 @@ async function carregarSolicitacoes({ isCoordenador, currentUser }) {
 }
 
 function categorizeSolicitacoes(purchases) {
-  const categories = { geral: [], mhab: [], mis: [], mumo: [], pessoas: [] };
+  const categories = { geral: [], mhab: [], mis: [], mumo: [], noturno2026: [], noturnoPampulha: [], pessoas: [] };
   purchases.forEach((p) => {
     if (isCompraEquipe(p)) { categories.pessoas.push(p); }
     else {
@@ -220,6 +220,8 @@ function categorizeSolicitacoes(purchases) {
       if (centro === 'MHAB') categories.mhab.push(p);
       else if (centro === 'MIS') categories.mis.push(p);
       else if (centro === 'MUMO') categories.mumo.push(p);
+      else if (centro === 'Noturno 2026') categories.noturno2026.push(p);
+      else if (centro === 'Noturno Pampulha') categories.noturnoPampulha.push(p);
       else categories.geral.push(p);
     }
   });
@@ -274,13 +276,20 @@ function TabelaSolicitacoes({ purchases, rubricas, attachmentByPurchaseId, isCoo
   const podeAprovar = isCoordenador || podeAprovarSolicitacoes === true || hasGestaoCompras === true;
   const categories = categorizeSolicitacoes(purchases);
   const isObservador = !isCoordenador && userPermission?.base_role === 'OBSERVADOR';
-  const visibleCategories = [
+  const museusCentroCategories = [
     { key: 'geral', label: 'Geral', visible: isCoordenador },
     { key: 'mhab', label: 'MHAB', visible: !isObservador },
     { key: 'mis', label: 'MIS', visible: !isObservador },
     { key: 'mumo', label: 'MUMO', visible: !isObservador },
     { key: 'pessoas', label: 'Pessoas', visible: isCoordenador }
   ].filter((cat) => cat.visible && categories[cat.key].length > 0);
+
+  const noturnoCategorias = [
+    { key: 'noturno2026', label: 'Noturno 2026', visible: true },
+    { key: 'noturnoPampulha', label: 'Noturno Pampulha', visible: true }
+  ].filter((cat) => cat.visible && categories[cat.key].length > 0);
+
+  const visibleCategories = museusCentroCategories;
 
   const renderTabela = (items) => (
     <table className="w-full table-fixed border-collapse text-sm">
@@ -389,6 +398,25 @@ function TabelaSolicitacoes({ purchases, rubricas, attachmentByPurchaseId, isCoo
           <div className="overflow-x-auto rounded-xl border border-gray-200">{renderTabela(categories[cat.key])}</div>
         </div>
       ))}
+
+      {noturnoCategorias.length > 0 && (
+        <>
+          <div className="flex items-center gap-3 pt-2">
+            <div className="h-px flex-1 bg-purple-200" />
+            <span className="rounded-full bg-purple-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-purple-700">Noturno nos Museus</span>
+            <div className="h-px flex-1 bg-purple-200" />
+          </div>
+          {noturnoCategorias.map((cat) => (
+            <div key={cat.key}>
+              <div className="mb-3 flex items-center gap-2">
+                <h3 className="text-lg font-semibold text-purple-900">{cat.label}</h3>
+                <span className="inline-flex rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">{categories[cat.key].length}</span>
+              </div>
+              <div className="overflow-x-auto rounded-xl border border-purple-200">{renderTabela(categories[cat.key])}</div>
+            </div>
+          ))}
+        </>
+      )}
     </div>
   );
 }
