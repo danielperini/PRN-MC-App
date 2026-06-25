@@ -458,9 +458,6 @@ export default function DashboardPatrocinadorSync() {
       safeList(base44.entities.PresenceRecord, '-data', 3000)]
       );
 
-      // Reconciliação financeira unificada
-      const financeiro = reconcileFinancialTotals(rubricasRaw);
-      
       const officialMetrics = consolidateOfficialDashboardMetrics({
         reports: reportsAll,
         programacao: programacaoRaw,
@@ -468,11 +465,9 @@ export default function DashboardPatrocinadorSync() {
         presenceRecords,
       });
       
-      // Sobrescrever valores financeiros com os reconciliados
-      officialMetrics.financeiro.officialTotal = financeiro.officialTotal;
-      officialMetrics.financeiro.totalUtilizado = financeiro.totalUtilizado;
-      officialMetrics.financeiro.saldo = financeiro.saldo;
-      officialMetrics.financeiro.percentualExecucao = financeiro.percentualExecucao;
+      // Reconciliação financeira unificada
+      const financeiro = reconcileFinancialTotals(rubricasRaw);
+      
       const publicoGeralPorMuseu = Object.fromEntries(
         (officialMetrics.audience?.byMuseum || []).map((item) => [item.museu, item.total])
       );
@@ -547,8 +542,13 @@ export default function DashboardPatrocinadorSync() {
         };
       });
 
+      // Usar dados reconciliados diretamente
+      const totalUtilizado = financeiro.totalUtilizado;
+      const saldoTotal = financeiro.saldo;
+      const percentualExecucao = financeiro.percentualExecucao;
       const publicoMes = atividadesMesInfo.publico || 0;
       const totalPublico = metrics.totalPublico;
+      const officialTotal = financeiro.officialTotal;
 
       setData({
         periodo: mesReferencia.label,
@@ -566,10 +566,10 @@ export default function DashboardPatrocinadorSync() {
         comparativoMuseu,
         duplicateCount: metrics.duplicateCount,
         consolidatedGroupCount: metrics.consolidatedGroupCount,
-        totalOrcado: financeiro.officialTotal,
-        totalUtilizado: financeiro.totalUtilizado,
-        saldoTotal: financeiro.saldo,
-        percentualExecucao: financeiro.percentualExecucao,
+        totalOrcado: officialTotal,
+        totalUtilizado,
+        saldoTotal,
+        percentualExecucao,
         hasData: metrics.reports.length > 0 || atividadesRealizadas.length > 0
       });
 
