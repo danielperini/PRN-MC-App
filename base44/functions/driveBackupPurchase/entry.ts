@@ -105,6 +105,8 @@ async function uploadToDrive(authHeader, folderId, fileName, fileBuffer, mimeTyp
 
   const body = metaPart + filePart + base64 + closeDelimiter;
 
+  console.log(`Upload: ${fileName} (${bytes.byteLength} bytes)`);
+  
   const res = await fetch(
     'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink',
     {
@@ -116,8 +118,10 @@ async function uploadToDrive(authHeader, folderId, fileName, fileBuffer, mimeTyp
       body
     }
   );
+  
   if (!res.ok) {
     const err = await res.text();
+    console.error(`Erro upload: ${res.status} - ${err}`);
     throw new Error(`Upload Drive falhou: ${res.status} - ${err.slice(0, 200)}`);
   }
   return await res.json();
@@ -271,29 +275,37 @@ Deno.serve(async (req) => {
     const cursor = parseInt(body.cursor, 10) || 0;
     const loteSize = 10;
     
-    let todas = [];
-    let skip = Number(cursor);
-    const batch = await base44.asServiceRole.entities.PurchaseRequest.list('-created_date', loteSize, skip);
+    console.log(`Buscando lote ${cursor}...`);
     
-    if (!batch || batch.length === 0) {
+    // Busca TODAS as aprovadas, depois filtra as sem backup
+    const todas = await base44.asServiceRole.entities.PurchaseRequest.filter(
+      { status: { $in: ['APROVADO_COORD', 'APROVADO_ADMIN', 'APROVADO', 'PAGO'] } },
+      '-approved_at',
+      loteSize + 1,
+      cursor
+    );
+    
+    console.log(`Encontradas ${todas?.length || 0} solicitações aprovadas`);
+    
+    if (!todas || todas.length === 0) {
       return Response.json({ success: true, total_candidatos: 0, processados: 0, resultados: [], concluido: true });
     }
     
-    todas = batch;
+    // Filtra apenas as pendentes de backup
     const pendentes = todas.filter(p =>
-      APPROVED_STATUSES.has(p.status) &&
-      (!p.drive_backup_status || p.drive_backup_status === 'pendente' || p.drive_backup_status === 'erro')
+      !p.drive_backup_status || p.drive_backup_status === 'pendente' || p.drive_backup_status === 'erro'
     );
 
-    console.log(`Processando lote ${skip}-${skip + loteSize}: ${pendentes.length} pendentes...`);
+    console.log(`Lote ${cursor}: ${pendentes.length} pendentes de backup`);
     const resultados = [];
     for (const p of pendentes) {
+      console.log(`Processando: ${p.id} - ${p.fornecedor_nome}`);
       const r = await executarBackupDrive(base44, p);
       resultados.push({ id: p.id, fornecedor: p.fornecedor_nome, result: r });
     }
 
-    const proximoCursor = skip + loteSize;
-    const temMais = batch.length === loteSize;
+    const proximoCursor = cursor + loteSize;
+    const temMais = todas.length > loteSize;
 
     return Response.json({ 
       success: true, 
