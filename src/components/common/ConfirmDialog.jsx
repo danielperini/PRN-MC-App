@@ -44,4 +44,5 @@ export default function ConfirmDialog({
   );
 }
 
+// Named export para compatibilidade com import { ConfirmDialog }
 export { ConfirmDialog };
