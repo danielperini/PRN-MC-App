@@ -29,7 +29,8 @@ import {
 } from '@/utils/constants';
 import { cacheService } from '@/lib/cacheService';
 import { reconcileFinancialTotals, getRubricaBudget, getRubricaUsed } from '@/utils/auditoria/reconcileFinancialTotals';
-import { calculateMetaMetrics, calculateGastosPorMuseuProjeto } from '@/utils/finance/metaFinancialMetrics';
+import { calculateMetaFinancialMetrics, calculateGastosPorMuseuEProjeto } from '@/utils/finance/metaFinancialMetrics';
+import { OFFICIAL_ADITIVO_TOTAL } from '@/utils/auditoria/reconcileFinancialTotals';
 
 const CHART_COLORS = ['#111827', '#4B5563', '#9CA3AF', '#D1D5DB'];
 const APPROVED_STATUSES = new Set(['APPROVED', 'APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
@@ -465,8 +466,7 @@ export default function DashboardPatrocinadorSync() {
         presenceRecords,
       });
       
-      // Reconciliação financeira unificada
-      const financeiro = reconcileFinancialTotals(rubricasRaw);
+      const dadosFinanceiros = reconcileFinancialTotals(rubricasRaw);
       
       const publicoGeralPorMuseu = Object.fromEntries(
         (officialMetrics.audience?.byMuseum || []).map((item) => [item.museu, item.total])
@@ -542,13 +542,13 @@ export default function DashboardPatrocinadorSync() {
         };
       });
 
-      // Usar dados reconciliados diretamente (variável 'financeiro' declarada na linha 469)
-      const totalUtilizado = financeiro.totalUtilizado;
-      const saldoTotal = financeiro.saldo;
-      const percentualExecucao = financeiro.percentualExecucao;
+      // Usar dados reconciliados diretamente
+      const totalUtilizado = dadosFinanceiros.totalUtilizado;
+      const saldoTotal = dadosFinanceiros.saldo;
+      const percentualExecucao = dadosFinanceiros.percentualExecucao;
       const publicoMes = atividadesMesInfo.publico || 0;
       const totalPublico = metrics.totalPublico;
-      const officialTotal = financeiro.officialTotal;
+      const officialTotal = dadosFinanceiros.officialTotal;
 
       setData({
         periodo: mesReferencia.label,
