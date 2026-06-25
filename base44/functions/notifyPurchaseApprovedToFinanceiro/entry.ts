@@ -19,58 +19,125 @@ function isNoturno(purchase) {
     rubNome.includes('pampulha') || rubNome.includes('noturno');
 }
 
+// Normaliza texto: remove acentos e coloca em minúsculas para comparação semântica
+function norm(str) {
+  return String(str || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function buildDescricaoEsperada(purchase, rubrica, mes, year) {
   if (isNoturno(purchase)) {
     const atividade = purchase?.descricao_item || '[DESCRIÇÃO DA ATIVIDADE]';
     const parcela = purchase?.numero_parcela || '1';
-    return `Projeto Museus Centro - Termo de Colaboração 01-031.069/24-80, parceria com SMC/FMC: ${atividade} na 11ª Edição do evento Noturno nos Museus (2026) – Parcela ${parcela}. Despesa paga com recursos oriundos da contrapartida do FUNEMP - Convênio MP "CULTURA NA CIDADE" Nº 056/2023.`;
+    const museu = purchase?.local_execucao || purchase?.museu || '[MUSEU/ESPAÇO]';
+    const natureza = rubrica?.rubrica || rubrica?.nome || purchase?.categoria || '[NATUREZA/SERVIÇO]';
+    return `Serviço de ${natureza} para Projeto Museus Centro - Termo de Colaboração 01-031.069/24-80, parceria com SMC/FMC: ${atividade}, para a 11ª Edição do evento Noturno nos Museus (2026), no ${museu} - Parcela ${parcela}.`;
   }
   const natureza = rubrica?.rubrica || rubrica?.nome || purchase?.categoria || '[NATUREZA_DESPESA]';
   return `Prestação de serviço ${natureza} Museus Centro - Termo de Colaboração 01-031.069/24-80, parceria com SMC/FMC: Referente a ${mes} ${year}`;
 }
 
+// Verifica se a descrição do Noturno é semanticamente válida
+// Aceita qualquer variação que contenha os 6 elementos chave (tolerante a acentuação/maiúsculas)
+function descricaoNoturnoValida(desc) {
+  const d = norm(desc);
+  const temProjeto = d.includes('museus centro');
+  const temTermo = d.includes('01-031.069/24-80') || d.includes('termo de colaboracao');
+  const temParceria = d.includes('smc') || d.includes('fmc') || d.includes('smc/fmc');
+  const temNoturno = d.includes('noturno nos museus') || d.includes('noturno nos museus (2026)') || d.includes('noturno 2026');
+  const temParcela = d.includes('parcela');
+  // Museu / local — qualquer menção a museu, casa, instituto, espaço cultural
+  const temMuseu = d.includes('museu') || d.includes('casa kubitschek') || d.includes('casa do baile') ||
+    d.includes('mhab') || d.includes('mis ') || d.includes('mumo') || d.includes('abilio barreto') ||
+    d.includes('inhotim') || d.includes('arte') || d.includes('cultural') || d.includes('instituto') || d.includes('espaco');
+  return { temProjeto, temTermo, temParceria, temNoturno, temParcela, temMuseu };
+}
+
+// Verifica se a descrição Museus Centro é válida
+function descricaoMuseosValida(desc) {
+  const d = norm(desc);
+  return (d.includes('museus centro') || d.includes('projeto museus')) &&
+    (d.includes('01-031.069/24-80') || d.includes('termo de colaboracao'));
+}
+
+// Verifica se o tomador é o Viaduto das Artes (tolerante)
+function tomadorViadutoValido(cnpjTomador, nomeTomador) {
+  const cnpjLimpo = String(cnpjTomador || '').replace(/\D/g, '');
+  if (cnpjLimpo && cnpjLimpo === TOMADOR_VIADUTO.cnpj) return true;
+  const nomeNorm = norm(nomeTomador || '');
+  return nomeNorm.includes('viaduto das artes') || nomeNorm.includes('viaduto');
+}
+
 function validarConformidadeNF(purchase, rubrica) {
   const erros = [];
-  const nfDescricao = String(purchase?.nf_descricao || purchase?.descricao_item || '').toLowerCase();
+  const alertas = [];
+  const nfDescricaoRaw = String(purchase?.nf_descricao || purchase?.observacoes || purchase?.descricao_item || '');
   const noturno = isNoturno(purchase);
   const mes = mesExtenso(purchase?.nf_data_emissao || purchase?.created_date);
   const year = ano(purchase?.nf_data_emissao || purchase?.created_date);
 
-  // Verificar tomador
+  // === 1. VALIDAR TOMADOR ===
   const cnpjTomador = String(purchase?.nf_destinatario_cpf_cnpj || purchase?.tomador_cnpj || '').replace(/\D/g, '');
-  if (cnpjTomador && cnpjTomador !== TOMADOR_VIADUTO.cnpj) {
-    erros.push(`CNPJ do tomador incorreto: encontrado ${cnpjTomador}, esperado ${TOMADOR_VIADUTO.cnpj}`);
+  const nomeTomador = String(purchase?.nf_destinatario_nome || purchase?.tomador_nome || '');
+  // Só valida se houver dado de tomador preenchido na NF
+  if (cnpjTomador || nomeTomador) {
+    if (!tomadorViadutoValido(cnpjTomador, nomeTomador)) {
+      erros.push(
+        `Tomador da nota não corresponde ao Viaduto das Artes. ` +
+        `Encontrado: "${nomeTomador || cnpjTomador}". ` +
+        `Esperado: VIADUTO DAS ARTES · CNPJ 23.843.648/0001-25`
+      );
+    }
   }
 
-  // Verificar descrição
+  // === 2. VALIDAR DESCRIÇÃO ===
   if (noturno) {
-    if (!nfDescricao.includes('termo de colaboração') && !nfDescricao.includes('01-031.069/24-80') && !nfDescricao.includes('noturno nos museus')) {
-      erros.push('Descrição da NF não segue o padrão Noturno: deve mencionar "Projeto Museus Centro - Termo de Colaboração 01-031.069/24-80" e "Noturno nos Museus (2026)"');
+    const check = descricaoNoturnoValida(nfDescricaoRaw);
+    const faltando = [];
+    if (!check.temProjeto) faltando.push('"Museus Centro"');
+    if (!check.temTermo) faltando.push('"Termo de Colaboração 01-031.069/24-80"');
+    if (!check.temParceria) faltando.push('"parceria com SMC/FMC"');
+    if (!check.temNoturno) faltando.push('"Noturno nos Museus (2026)"');
+    if (!check.temParcela) faltando.push('"Parcela N"');
+    if (!check.temMuseu) faltando.push('nome do museu/espaço');
+
+    if (faltando.length > 0) {
+      erros.push(
+        `Descrição da NF (Noturno) está incompleta. Faltando: ${faltando.join(', ')}. ` +
+        `A descrição deve conter: Projeto Museus Centro, Termo 01-031.069/24-80, SMC/FMC, Noturno nos Museus (2026), nome do museu e parcela.`
+      );
     }
-    if (!nfDescricao.includes('funemp') && !nfDescricao.includes('056/2023')) {
-      erros.push('Descrição Noturno deve mencionar: "Despesa paga com recursos oriundos da contrapartida do FUNEMP - Convênio MP CULTURA NA CIDADE Nº 056/2023"');
+    // FUNEMP é opcional — não reprovar por ausência, apenas alertar
+    const d = norm(nfDescricaoRaw);
+    if (!d.includes('funemp') && !d.includes('056/2023')) {
+      alertas.push('Opcional: A descrição pode incluir "Despesa paga com recursos oriundos da contrapartida do FUNEMP - Convênio MP CULTURA NA CIDADE Nº 056/2023".');
     }
   } else {
-    if (!nfDescricao.includes('museus centro') && !nfDescricao.includes('01-031.069/24-80')) {
-      erros.push(`Descrição da NF não segue o padrão Museus Centro: deve conter "Museus Centro - Termo de Colaboração 01-031.069/24-80, parceria com SMC/FMC: Referente a ${mes} ${year}"`);
+    if (!descricaoMuseosValida(nfDescricaoRaw)) {
+      erros.push(
+        `Descrição da NF não segue o padrão Museus Centro. ` +
+        `Deve conter "Museus Centro - Termo de Colaboração 01-031.069/24-80, parceria com SMC/FMC: Referente a ${mes} ${year}".`
+      );
     }
   }
 
-  // Verificar dados de pagamento
-  if (!purchase?.detalhe_pagamento || String(purchase.detalhe_pagamento).trim().length < 5) {
-    erros.push('Dados bancários/PIX para pagamento não informados na solicitação');
-  }
-
-  // Verificar XML ausente
+  // === 3. XML (alerta, não reprovação) ===
   const xmlUrl = purchase?.nota_fiscal_xml_url || purchase?.xml_url || purchase?.nf_xml_url;
   if (!xmlUrl) {
-    erros.push('XML da nota fiscal não anexado');
+    alertas.push('XML da nota fiscal não anexado (recomendado).');
   }
 
-  const descricaoSugerida = buildDescricaoEsperada(purchase, rubrica, mes, year);
-  const score = Math.max(1, 10 - erros.length * 2);
+  // Dados bancários são OPCIONAIS — não geram erro nem alerta
 
-  return { erros, score, descricaoSugerida, noturno };
+  // Score: começa em 10, desconta apenas por erros reais
+  const score = Math.max(1, 10 - erros.length * 3);
+
+  const descricaoSugerida = buildDescricaoEsperada(purchase, rubrica, mes, year);
+  return { erros, alertas, score, descricaoSugerida, noturno };
 }
 
 function toNumber(value) {
