@@ -928,6 +928,28 @@ function ComprasInner() {
             {isCoordenador && (
               <Button
                 variant="outline"
+                className="gap-2 border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+                onClick={async () => {
+                  if (!window.confirm('Processar backup no Drive para todas as solicitações aprovadas sem backup? Isso pode levar alguns minutos.')) return;
+                  try {
+                    toast.info('Iniciando backup em lote...');
+                    const res = await base44.functions.invoke('driveBackupPurchase', {});
+                    const r = res?.data || res;
+                    toast.success(`Backup concluído: ${r?.processados || 0} solicitações processadas.`);
+                    await refreshFinanceiroCompleto();
+                  } catch (e) {
+                    toast.error('Erro ao processar backups: ' + (e?.message || 'desconhecido'));
+                  }
+                }}
+              >
+                <FileText className="h-4 w-4" />
+                Backup Drive
+              </Button>
+            )}
+
+            {isCoordenador && (
+              <Button
+                variant="outline"
                 className="gap-2 border-amber-300 text-amber-700 hover:bg-amber-50"
                 onClick={limparSolicitacoesDuplicadas}
                 disabled={limpandoDuplicatas}

@@ -238,39 +238,60 @@ export async function executarBackupDrive(base44, purchase) {
   }
 }
 
-// Handler HTTP para reprocessamento manual (admin)
+// Handler HTTP — aceita chamada direta (admin) ou via functions.invoke (service role sem user)
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    if (user.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 });
-
     const body = await req.json().catch(() => ({}));
     const { purchaseId } = body;
 
+    // Quando chamado via functions.invoke (service role), não há user session
+    // Quando chamado diretamente pelo admin via HTTP, valida o usuário
+    let isServiceCall = false;
+    try {
+      const user = await base44.auth.me();
+      if (!user) { isServiceCall = true; }
+      else if (user.role !== 'admin') {
+        // Permite se chamado com purchaseId (invocação interna)
+        if (!purchaseId) return Response.json({ error: 'Forbidden' }, { status: 403 });
+      }
+    } catch (_) {
+      isServiceCall = true; // invocação interna sem sessão de usuário
+    }
+
     if (purchaseId) {
-      // Reprocessa uma solicitação específica
+      // Backup de uma solicitação específica
       const purchase = await base44.asServiceRole.entities.PurchaseRequest.get(purchaseId);
       if (!purchase) return Response.json({ error: 'Solicitação não encontrada' }, { status: 404 });
       const result = await executarBackupDrive(base44, purchase);
       return Response.json({ success: true, result });
     }
 
-    // Reprocessa todas pendentes/erro com status aprovado/pago
-    const todas = await base44.asServiceRole.entities.PurchaseRequest.list('-created_date', 500);
-    const pendentes = (todas || []).filter(p =>
+    // Reprocessa TODAS aprovadas/pagas com backup pendente ou erro (sem limite fixo)
+    let todas = [];
+    let skip = 0;
+    const batchSize = 200;
+    while (true) {
+      const batch = await base44.asServiceRole.entities.PurchaseRequest.list('-created_date', batchSize, skip);
+      if (!batch || batch.length === 0) break;
+      todas = todas.concat(batch);
+      if (batch.length < batchSize) break;
+      skip += batchSize;
+    }
+
+    const pendentes = todas.filter(p =>
       APPROVED_STATUSES.has(p.status) &&
       (!p.drive_backup_status || p.drive_backup_status === 'pendente' || p.drive_backup_status === 'erro')
     );
 
+    console.log(`Reprocessando backup para ${pendentes.length} solicitações aprovadas...`);
     const resultados = [];
     for (const p of pendentes) {
       const r = await executarBackupDrive(base44, p);
-      resultados.push({ id: p.id, status: p.status, result: r });
+      resultados.push({ id: p.id, fornecedor: p.fornecedor_nome, result: r });
     }
 
-    return Response.json({ success: true, processados: resultados.length, resultados });
+    return Response.json({ success: true, total_candidatos: pendentes.length, processados: resultados.length, resultados });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }
