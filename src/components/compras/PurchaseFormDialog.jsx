@@ -230,9 +230,18 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
     !BLOCKED_STATUSES.has(statusKey)
 
   useEffect(() => {
-    base44.entities.Rubrica.list('ordem_exibicao', 500)
-      .then((d) => setRubricas((d || []).filter((r) => r?.ativo !== false)))
-      .catch(() => {})
+    async function loadRubricas() {
+      try {
+        const res = await base44.functions.invoke('listAllRubricas', {});
+        const arr = Array.isArray(res) ? res : Array.isArray(res?.data?.rubricas) ? res.data.rubricas : Array.isArray(res?.rubricas) ? res.rubricas : null;
+        if (arr && arr.length > 0) { setRubricas(arr.filter((r) => r?.ativo !== false)); return; }
+      } catch (_) {}
+      try {
+        const d = await base44.entities.Rubrica.list('ordem_exibicao', 1000);
+        setRubricas((d || []).filter((r) => r?.ativo !== false));
+      } catch (_) {}
+    }
+    loadRubricas()
 
     base44.entities.ProjectMeta.list('ordem', 500)
       .then((d) => {
