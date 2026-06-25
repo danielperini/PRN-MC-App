@@ -51,6 +51,7 @@ import RubricaDetail from '@/components/rubricas/RubricaDetail';
 import RubricasByMuseuDashboard from '@/components/compras/RubricasByMuseuDashboard';
 import MuseuPerformanceDashboard from '@/components/compras/MuseuPerformanceDashboard';
 import AuditoriaFinanceiraCard from '@/components/compras/AuditoriaFinanceiraCard';
+import NotificacoesCompraLog from '@/components/compras/NotificacoesCompraLog';
 import EntradaUnicaComprovante from '@/components/compras/EntradaUnicaComprovante';
 import MeusPagamentosTab from '@/components/compras/MeusPagamentosTab';
 import PagarSolicitacaoDialog from '@/components/compras/PagarSolicitacaoDialog';
@@ -1668,6 +1669,12 @@ function ComprasInner() {
 
         {isCoordenador && (
           <div className="mt-8">
+            <NotificacoesCompraLog />
+          </div>
+        )}
+
+        {isCoordenador && (
+          <div className="mt-6">
             <AuditoriaFinanceiraCard
               purchases={purchases}
               rubricas={rubricas}

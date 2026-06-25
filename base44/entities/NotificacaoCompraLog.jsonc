@@ -1,0 +1,62 @@
+{
+  "name": "NotificacaoCompraLog",
+  "type": "object",
+  "properties": {
+    "purchase_id": {
+      "type": "string",
+      "description": "ID da solicita\u00e7\u00e3o de compra"
+    },
+    "purchase_descricao": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o da solicita\u00e7\u00e3o"
+    },
+    "fornecedor": {
+      "type": "string",
+      "description": "Nome do fornecedor"
+    },
+    "valor": {
+      "type": "number",
+      "description": "Valor da nota fiscal"
+    },
+    "recipients": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Destinat\u00e1rios do email"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "sucesso",
+        "falha_parcial",
+        "falha"
+      ],
+      "description": "Status do envio"
+    },
+    "enviado_por": {
+      "type": "string",
+      "description": "Email do usu\u00e1rio que disparou"
+    },
+    "detalhes": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "Resultado por destinat\u00e1rio"
+    },
+    "erro": {
+      "type": "string",
+      "description": "Mensagem de erro, se houver"
+    },
+    "disparado_em": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data/hora do disparo"
+    }
+  },
+  "required": [
+    "purchase_id",
+    "status"
+  ]
+}

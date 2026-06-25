@@ -35,20 +35,21 @@ function ano(dateValue) {
 }
 
 function buildBaseName(purchase, rubrica, valor) {
-  const numero = purchase?.nf_numero || purchase?.numero_nota_fiscal || purchase?.id || 'SN';
+  const numero = purchase?.nf_numero || purchase?.id || 'SN';
   const centro = clean(purchase?.centro_custo || 'Geral');
   const fornecedor = clean(purchase?.fornecedor_nome || 'Fornecedor');
   const natureza = clean(rubrica?.rubrica || rubrica?.nome || purchase?.categoria || 'Despesa');
-  const mes = mesExtenso(purchase?.nf_data_emissao || purchase?.data_emissao_nf || purchase?.created_date);
-  const year = ano(purchase?.nf_data_emissao || purchase?.data_emissao_nf || purchase?.created_date);
-  const valorNome = moeda(valor);
-  return `${numero}-${centro}-${fornecedor}-${natureza}-MuseusCentro-${mes}-${year}-R$-${valorNome}`;
+  const mes = mesExtenso(purchase?.nf_data_emissao || purchase?.created_date);
+  const year = ano(purchase?.nf_data_emissao || purchase?.created_date);
+  return `${numero}-${centro}-${fornecedor}-${natureza}-MuseusCentro-${mes}-${year}-R$-${moeda(valor)}`;
 }
 
 Deno.serve(async (req) => {
+  const base44 = createClientFromRequest(req);
+  let user = null;
+
   try {
-    const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
+    user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { purchaseId, recipients = [FIXED_EMAIL] } = await req.json();
@@ -77,6 +78,11 @@ Deno.serve(async (req) => {
       toNumber(rubrica?.valor_utilizado) -
       toNumber(rubrica?.saldo_comprometido);
     const saldoPosPagamento = saldoAtual - valor;
+
+    // Declarar URLs antes de usar
+    const pdfUrl = purchase?.nota_fiscal_pdf_url || purchase?.nota_fiscal_url;
+    const xmlUrl = purchase?.nota_fiscal_xml_url || purchase?.xml_url;
+    const compUrl = purchase?.comprovante_url;
 
     const appUrl = `https://museus-centro.base44-apps.com/Compras`;
     const nfDataFormatada = (() => {
@@ -128,26 +134,57 @@ Atenciosamente,
 Coordenação — Museus Centro
 Viaduto das Artes`;
 
-    const baseName = buildBaseName(purchase, rubrica, valor);
-    const pdfUrl = purchase?.nota_fiscal_pdf_url || purchase?.nota_fiscal_url;
-    const xmlUrl = purchase?.nota_fiscal_xml_url || purchase?.xml_url;
-    const compUrl = purchase?.comprovante_url;
-
-    const attachments = [];
-    if (pdfUrl) attachments.push({ url: pdfUrl, filename: `NF-${baseName}.pdf` });
-    if (xmlUrl) attachments.push({ url: xmlUrl, filename: `XML-${baseName}.xml` });
-    if (compUrl) attachments.push({ url: compUrl, filename: `COMP-${baseName}.pdf` });
+    // Enviar para cada destinatário e registrar resultado
+    const detalhes = [];
+    let algumSucesso = false;
+    let algumErro = false;
 
     for (const recipient of finalRecipients) {
-      await base44.integrations.Core.SendEmail({
-        to: recipient,
-        subject: 'Arquivos fiscais aprovados para pagamento — Museus Centro',
-        body,
-      });
+      try {
+        await base44.integrations.Core.SendEmail({
+          to: recipient,
+          subject: 'Arquivos fiscais aprovados para pagamento — Museus Centro',
+          body,
+        });
+        detalhes.push({ email: recipient, status: 'sucesso' });
+        algumSucesso = true;
+      } catch (err) {
+        detalhes.push({ email: recipient, status: 'falha', erro: err?.message || 'Erro desconhecido' });
+        algumErro = true;
+      }
     }
 
-    return Response.json({ success: true, recipients: finalRecipients, attachments_count: attachments.length });
+    const statusLog = algumSucesso && algumErro ? 'falha_parcial' : algumSucesso ? 'sucesso' : 'falha';
+
+    // Gravar log
+    await base44.asServiceRole.entities.NotificacaoCompraLog.create({
+      purchase_id: purchaseId,
+      purchase_descricao: purchase?.descricao_item || purchase?.objeto || '',
+      fornecedor: purchase?.fornecedor_nome || purchase?.nf_emitente_nome || '',
+      valor,
+      recipients: finalRecipients,
+      status: statusLog,
+      enviado_por: user?.email || '',
+      detalhes,
+      disparado_em: new Date().toISOString(),
+    });
+
+    if (statusLog === 'falha') {
+      return Response.json({ error: 'Falha ao enviar para todos os destinatários', detalhes }, { status: 500 });
+    }
+
+    return Response.json({ success: true, status: statusLog, recipients: finalRecipients, detalhes });
   } catch (e) {
+    // Tentar registrar falha geral no log
+    try {
+      await base44.asServiceRole.entities.NotificacaoCompraLog.create({
+        purchase_id: 'desconhecido',
+        status: 'falha',
+        enviado_por: user?.email || '',
+        erro: e?.message || 'Erro desconhecido',
+        disparado_em: new Date().toISOString(),
+      });
+    } catch (_) {}
     return Response.json({ error: e?.message || 'Erro ao enviar notificação' }, { status: 500 });
   }
 });
