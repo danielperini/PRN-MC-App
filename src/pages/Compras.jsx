@@ -30,7 +30,9 @@ import {
   LinkIcon,
   CheckCircle2,
   RotateCcw,
-  XCircle
+  XCircle,
+  Bell,
+  Loader2
 } from 'lucide-react';
 
 import RequireAuth from '@/components/auth/RequireAuth';
@@ -224,6 +226,23 @@ function categorizeSolicitacoes(purchases) {
 
 function TabelaSolicitacoes({ purchases, rubricas, attachmentByPurchaseId, isCoordenador, currentUser, podeAprovarSolicitacoes, hasGestaoCompras, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onAccess, userPermission }) {
   const [menuOpenId, setMenuOpenId] = useState(null);
+  const [sendingNotif, setSendingNotif] = useState({});
+
+  async function handleSendNotification(p) {
+    if (!window.confirm('Enviar notificação desta solicitação para Daniel Perini?')) return;
+    setSendingNotif((s) => ({ ...s, [p.id]: true }));
+    try {
+      await base44.functions.invoke('notifyPurchaseApprovedToFinanceiro', {
+        purchaseId: p.id,
+        recipients: ['danielperini.mc@viadutodasartes.org.br'],
+      });
+      toast.success('Notificação enviada com sucesso.');
+    } catch (e) {
+      toast.error('Erro ao enviar notificação.');
+    } finally {
+      setSendingNotif((s) => ({ ...s, [p.id]: false }));
+    }
+  }
   const rubricaById = useMemo(() => {
     const m = {};
     (rubricas || []).forEach((r) => { if (r?.id) m[r.id] = r; });
@@ -305,6 +324,9 @@ function TabelaSolicitacoes({ purchases, rubricas, attachmentByPurchaseId, isCoo
                   {podeAcessar && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAccess(p); }} className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-black" disabled={!podeAcessar}><Pencil className="h-3.5 w-3.5" /></button>}
                   {isCoordenador && <button type="button" onClick={async (e) => { e.preventDefault(); e.stopPropagation(); if (window.confirm('Tem certeza que deseja deletar esta solicitação?')) await onDelete(p.id); }} className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>}
                   {podeMarcarPago && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onMarkPaid?.(p); }} className={`inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${pago ? 'text-emerald-600 hover:bg-emerald-50' : 'text-gray-500 hover:bg-emerald-50 hover:text-emerald-700'}`}><CheckCircle2 className="h-3.5 w-3.5" /><span className="hidden xl:inline">{pago ? 'Comprovante' : 'Pago'}</span></button>}
+                  <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpenId(menuAberto ? null : p.id); }} className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700" title="Mais ações">
+                    <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="4" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="16" r="1.5"/></svg>
+                  </button>
                   {menuAberto && (
                     <div className="absolute right-0 top-8 z-30 w-48 rounded-xl border border-gray-200 bg-white p-1.5 text-left shadow-lg">
                       <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpenId(null); onAccess(p); }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50"><LinkIcon className="h-3.5 w-3.5" />Acessar solicitação</button>
@@ -313,6 +335,11 @@ function TabelaSolicitacoes({ purchases, rubricas, attachmentByPurchaseId, isCoo
                         <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpenId(null); onReturn(p); }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50"><RotateCcw className="h-3.5 w-3.5" />Devolver</button>
                       </>)}
                       {podeAprovar && aprovado && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpenId(null); onUnapprove(p); }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-red-700 hover:bg-red-50"><XCircle className="h-3.5 w-3.5" />Desaprovar</button>}
+                      <div className="my-1 h-px bg-gray-100" />
+                      <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpenId(null); handleSendNotification(p); }} disabled={sendingNotif[p.id]} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-50">
+                        {sendingNotif[p.id] ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Bell className="h-3.5 w-3.5" />}
+                        Enviar Notificação
+                      </button>
                     </div>
                   )}
                 </div>
