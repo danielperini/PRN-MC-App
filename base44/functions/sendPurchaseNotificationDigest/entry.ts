@@ -18,11 +18,11 @@ Deno.serve(async (req) => {
     const currentMinute = now.getMinutes();
 
     // Determinar qual slot processar
-    // Manhã: 09:00-09:59, Tarde: 16:15-17:00
+    // Manhã: 09:30-10:29, Tarde: 16:45-17:44
     let batchSlot = null;
-    if (currentHour === 9 && currentMinute < 60) {
+    if (currentHour === 9 && currentMinute >= 30) {
       batchSlot = 'manha';
-    } else if (currentHour === 16 && currentMinute >= 15) {
+    } else if (currentHour === 16 && currentMinute >= 45) {
       batchSlot = 'tarde';
     }
 
