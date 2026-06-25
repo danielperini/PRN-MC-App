@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
-const FIXED_EMAIL = 'danielperini.mc@viadutodasartes.org.br';
+const FIXED_EMAILS = ['danielperini.mc@viadutodasartes.org.br', 'daniel@periniprojetos.com.br'];
 
 const TOMADOR_VIADUTO = {
   nome: 'VIADUTO DAS ARTES',
@@ -193,15 +193,15 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body_req = await req.json();
-    const { purchaseId, recipients = [FIXED_EMAIL], action = 'send_approval', correction_recipients = [] } = body_req;
+    const { purchaseId, recipients = FIXED_EMAILS, action = 'send_approval', correction_recipients = [] } = body_req;
     if (!purchaseId) return Response.json({ error: 'purchaseId obrigatório' }, { status: 400 });
 
+    // Sempre inclui os dois emails fixos além de qualquer recipient passado
     const finalRecipients = [...new Set(
-      (recipients?.length ? recipients : [FIXED_EMAIL])
+      [...FIXED_EMAILS, ...(recipients || [])]
         .map((e) => String(e || '').trim())
         .filter((e) => e.includes('@'))
     )];
-    if (!finalRecipients.length) finalRecipients.push(FIXED_EMAIL);
 
     const purchase = await base44.asServiceRole.entities.PurchaseRequest.get(purchaseId);
     if (!purchase) return Response.json({ error: 'Solicitação não encontrada' }, { status: 404 });
@@ -234,6 +234,13 @@ Deno.serve(async (req) => {
     })();
 
     const rubricaTexto = [rubrica?.grupo, rubrica?.rubrica || rubrica?.nome].filter(Boolean).join(' › ');
+    const naturezaCodigo = rubrica?.natureza_despesa || purchase?.natureza_despesa || '';
+    const naturezaNome = rubrica?.nome_natureza || '';
+    const naturezaDisplay = naturezaCodigo
+      ? `${naturezaCodigo}${naturezaNome ? ' — ' + naturezaNome : ''}`
+      : (naturezaNome || '—');
+    const projetoDisplay = 'Museus Centro — Termo de Colaboração 01-031.069/24-80, parceria SMC/FMC';
+    const appComprovante = `https://museus-centro.base44-apps.com/Compras`;
 
     // Link da pasta de backup no Drive
     const driveFolderUrl = purchase?.drive_backup_folder_url || null;
@@ -250,7 +257,8 @@ Deno.serve(async (req) => {
     const docButtons = [
       docButton('📄 Nota Fiscal PDF', pdfUrl, '#1a56db'),
       docButton('📋 XML da NF', xmlUrl, '#0e9f6e'),
-      docButton('🧾 Comprovante', compUrl, '#7e3af2'),
+      docButton('🧾 Comprovante de Pagamento', compUrl, '#7e3af2'),
+      docButton('📎 Anexar Comprovante / Recibo', appComprovante, '#374151'),
     ].filter(Boolean).join('');
 
     const driveFileButtons = driveFileLinks.map(f =>
@@ -334,9 +342,17 @@ Deno.serve(async (req) => {
           <td style="padding:11px 16px;font-size:12px;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb;">Centro de Custo</td>
           <td style="padding:11px 16px;font-size:14px;color:#111827;border-bottom:1px solid #e5e7eb;">${purchase?.centro_custo || '—'}</td>
         </tr>
+        <tr style="background:#f9fafb;">
+          <td style="padding:11px 16px;font-size:12px;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb;">Rubrica Orçamentária</td>
+          <td style="padding:11px 16px;font-size:13px;color:#111827;border-bottom:1px solid #e5e7eb;">${rubricaTexto || '—'}</td>
+        </tr>
         <tr>
-          <td style="padding:11px 16px;font-size:12px;color:#6b7280;font-weight:600;">Rubrica Orçamentária</td>
-          <td style="padding:11px 16px;font-size:13px;color:#111827;">${rubricaTexto || '—'}</td>
+          <td style="padding:11px 16px;font-size:12px;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb;">Natureza da Despesa</td>
+          <td style="padding:11px 16px;font-size:14px;color:#111827;font-weight:600;border-bottom:1px solid #e5e7eb;">${naturezaDisplay}</td>
+        </tr>
+        <tr style="background:#f9fafb;">
+          <td style="padding:11px 16px;font-size:12px;color:#6b7280;font-weight:600;">Projeto</td>
+          <td style="padding:11px 16px;font-size:13px;color:#111827;">${projetoDisplay}</td>
         </tr>
         ${pagamentoSection}
       </table>
@@ -476,6 +492,55 @@ Deno.serve(async (req) => {
         } catch (err) {
           detalhes.push({ email: recipient, status: 'falha', erro: err?.message || 'Erro desconhecido', tipo: 'aprovacao' });
           algumErro = true;
+        }
+      }
+
+      // Marcar solicitação como APROVADO_ADMIN (aguardando pagamento financeiro)
+      try {
+        await base44.asServiceRole.entities.PurchaseRequest.update(purchaseId, {
+          status: 'APROVADO_ADMIN',
+          aprov_admin_nome: user?.full_name || user?.email || 'Sistema',
+          aprov_admin_data: new Date().toISOString().split('T')[0],
+          aprov_admin_comentario: 'Aprovado e notificado ao financeiro.',
+        });
+      } catch (_) {}
+
+      // Enviar email de confirmação para quem cadastrou o documento
+      const cadastradoPor = purchase?.created_by || purchase?.user_email || purchase?.solicitante_email;
+      if (cadastradoPor && cadastradoPor.includes('@')) {
+        const emailCadastrador = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:32px 16px;"><tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
+  <tr><td style="background:#1a56db;border-radius:12px 12px 0 0;padding:28px 32px;">
+    <div style="font-size:11px;color:#bfdbfe;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Projeto Museus Centro · Viaduto das Artes</div>
+    <div style="font-size:22px;color:#ffffff;font-weight:700;">Sua solicitação foi aprovada e<br>encaminhada ao financeiro</div>
+  </td></tr>
+  <tr><td style="background:#ffffff;padding:28px 32px;">
+    <p style="color:#374151;font-size:14px;line-height:1.7;">Olá,<br><br>Sua nota fiscal foi aprovada pela coordenação e encaminhada ao setor financeiro para processamento do pagamento.</p>
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:18px 24px;margin:16px 0;">
+      <div style="font-size:12px;color:#15803d;font-weight:700;margin-bottom:4px;">Valor</div>
+      <div style="font-size:28px;font-weight:800;color:#15803d;">R$ ${moeda(valor)}</div>
+      <div style="font-size:13px;color:#374151;margin-top:8px;">Fornecedor: ${purchase?.fornecedor_nome || purchase?.nf_emitente_nome || '—'}</div>
+      <div style="font-size:13px;color:#374151;">NF: ${purchase?.nf_numero || '—'} · ${nfDataFormatada}</div>
+    </div>
+    <p style="font-size:13px;color:#6b7280;">Após o pagamento ser efetuado, você receberá uma confirmação. Guarde o comprovante de pagamento.</p>
+    <a href="${appComprovante}" target="_blank" style="display:block;text-align:center;background:#111827;color:#ffffff;text-decoration:none;padding:14px 24px;border-radius:8px;font-size:14px;font-weight:600;margin-top:16px;">Acessar Solicitação →</a>
+  </td></tr>
+  <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;border-radius:0 0 12px 12px;padding:16px 32px;text-align:center;">
+    <div style="font-size:11px;color:#9ca3af;">Coordenação · Museus Centro · Viaduto das Artes</div>
+  </td></tr>
+</table></td></tr></table></body></html>`;
+
+        try {
+          await base44.integrations.Core.SendEmail({
+            to: cadastradoPor,
+            subject: `✅ Sua nota foi aprovada — R$ ${moeda(valor)} · Museus Centro`,
+            body: emailCadastrador,
+          });
+          detalhes.push({ email: cadastradoPor, status: 'sucesso', tipo: 'confirmacao_cadastrador' });
+        } catch (err) {
+          detalhes.push({ email: cadastradoPor, status: 'falha', erro: err?.message, tipo: 'confirmacao_cadastrador' });
         }
       }
     }
