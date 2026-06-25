@@ -16,7 +16,7 @@ import NFDuplicateBlockAlert from './NFDuplicateBlockAlert'
 import AnalysisSummary from './AnalysisSummary'
 import useDocumentAnalysis from '@/hooks/useDocumentAnalysis'
 import { notifyPurchaseApproved, notifyPurchaseCreated, notifyPurchaseReturned } from '@/services/notifications/purchaseNotifications'
-import { ConfirmDialog } from '@/components/common/ConfirmDialog'
+import ConfirmDialog from '@/components/common/ConfirmDialog'
 import { METAS_PROJETO_FALLBACK } from '@/lib/metasProjeto'
 
 const CENTROS = ['MUMO','MIS','MHAB','Noturno nos Museus 2026','Noturno Pampulha','Publicações','Geral']
