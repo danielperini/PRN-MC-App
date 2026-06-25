@@ -234,10 +234,14 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
       .then((d) => setRubricas((d || []).filter((r) => r?.ativo !== false)))
       .catch(() => {})
 
-    base44.entities.ProjectMeta.list('ordem', 100)
+    base44.entities.ProjectMeta.list('ordem', 200)
       .then((d) => {
         const ativos = (d || []).filter((m) => m?.ativo !== false)
-        setMetas(ativos.length > 0 ? ativos : METAS_PROJETO_FALLBACK.map(m => ({ id: m.id, nome: m.label })))
+        // Garante que 11B - Noturno Pampulha está na lista mesmo que não venha do banco
+        const ids = new Set(ativos.map(m => m.id))
+        const fallbackExtras = METAS_PROJETO_FALLBACK.filter(m => !ids.has(m.id)).map(m => ({ id: m.id, nome: m.label }))
+        const final = ativos.length > 0 ? [...ativos, ...fallbackExtras] : METAS_PROJETO_FALLBACK.map(m => ({ id: m.id, nome: m.label }))
+        setMetas(final)
       })
       .catch(() => setMetas(METAS_PROJETO_FALLBACK.map(m => ({ id: m.id, nome: m.label }))))
   }, [])
