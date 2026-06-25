@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import SearchableSelect from '@/components/ui/searchable-select'
 import { base44 } from '@/api/base44Client'
-import { CheckCircle2, RotateCcw, Trash2, Paperclip, X, FileText, Upload, ExternalLink, FolderOpen, AlertTriangle, ShieldAlert, Sparkles } from 'lucide-react'
+import { CheckCircle2, RotateCcw, Trash2, Paperclip, X, FileText, Upload, ExternalLink, FolderOpen, AlertTriangle, ShieldAlert, Sparkles, Mail } from 'lucide-react'
 import { useSmartToast } from '@/lib/useSmartToast'
 import { toast } from 'sonner'
 import { deletePurchaseRequest } from '@/lib/deleteIntegrado'
@@ -16,6 +16,7 @@ import NFDuplicateBlockAlert from './NFDuplicateBlockAlert'
 import AnalysisSummary from './AnalysisSummary'
 import useDocumentAnalysis from '@/hooks/useDocumentAnalysis'
 import { notifyPurchaseApproved, notifyPurchaseCreated, notifyPurchaseReturned } from '@/services/notifications/purchaseNotifications'
+import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 import { METAS_PROJETO_FALLBACK } from '@/lib/metasProjeto'
 
 const CENTROS = ['MUMO','MIS','MHAB','Noturno nos Museus 2026','Noturno Pampulha','Publicações','Geral']
@@ -184,6 +185,8 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
   const [aiPreenchido, setAiPreenchido] = useState(false)
   const [dividirEntreMuseus, setDividirEntreMuseus] = useState(false)
   const [rateio, setRateio] = useState(DEFAULT_RATEIO)
+  const [showNotificationConfirm, setShowNotificationConfirm] = useState(false)
+  const [sendingNotification, setSendingNotification] = useState(false)
 
   // Hook unificado de análise de documentos
   const {
@@ -893,6 +896,38 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
       smartToast.error('Erro ao deletar', err.message)
     } finally {
       setDeleting(false)
+    }
+  }
+
+  async function handleSendNotification() {
+    if (!prefill?.id) {
+      smartToast.error('Solicitação precisa estar salva antes de enviar notificação.')
+      return
+    }
+
+    setSendingNotification(true)
+
+    try {
+      const result = await base44.functions.invoke('enqueuePurchaseNotification', {
+        purchaseId: prefill.id
+      })
+
+      if (result?.already_queued) {
+        smartToast.info('Esta solicitação já está no próximo lote de notificações.')
+      } else if (result?.success) {
+        const slotDisplay = result.batchSlot === 'manha' ? '09:00' : '16:15'
+        const scheduledDate = new Date(result.batchScheduledAt)
+        smartToast.success(
+          `Solicitação adicionada ao lote de ${result.batchSlot}. Envio agendado para ${scheduledDate.toLocaleDateString('pt-BR')} às ${slotDisplay}.`
+        )
+      } else {
+        smartToast.error('Erro ao adicionar à fila de notificação.')
+      }
+    } catch (error) {
+      smartToast.error('Erro ao enviar notificação: ' + (error?.message || 'desconhecido'))
+    } finally {
+      setSendingNotification(false)
+      setShowNotificationConfirm(false)
     }
   }
 
@@ -1717,6 +1752,19 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
                 {checkingNfDuplicate ? 'Verificando NF...' : approving ? 'Aprovando...' : 'Aprovar'}
               </Button>
             )}
+
+            {isEditing && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 border-blue-200 text-blue-600 hover:bg-blue-50"
+                onClick={() => setShowNotificationConfirm(true)}
+                disabled={sendingNotification}
+              >
+                <FileText className="h-3.5 w-3.5" />
+                {sendingNotification ? 'Enviando...' : 'Enviar Notificação'}
+              </Button>
+            )}
           </div>
 
           <div className="flex gap-2">
@@ -1736,6 +1784,17 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
         </div>
       </DialogContent>
     </Dialog>
-    </>
+
+    <ConfirmDialog
+      open={showNotificationConfirm}
+      onOpenChange={setShowNotificationConfirm}
+      title="Adicionar ao lote de notificações?"
+      description="Esta solicitação será adicionada ao próximo lote de notificações por e-mail (09:00 ou 16:15). O e-mail não será enviado imediatamente."
+      confirmText="Adicionar ao lote"
+      cancelText="Cancelar"
+      onConfirm={handleSendNotification}
+      confirmVariant="blue"
+    />
+  </>
   )
 }

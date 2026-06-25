@@ -1,0 +1,137 @@
+{
+  "name": "PurchaseNotificationQueue",
+  "type": "object",
+  "properties": {
+    "purchase_id": {
+      "type": "string",
+      "description": "ID da solicita\u00e7\u00e3o de compra"
+    },
+    "purchase_descricao": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o da solicita\u00e7\u00e3o"
+    },
+    "fornecedor_nome": {
+      "type": "string",
+      "description": "Nome do fornecedor"
+    },
+    "fornecedor_cnpj": {
+      "type": "string",
+      "description": "CNPJ do fornecedor"
+    },
+    "centro_custo": {
+      "type": "string",
+      "description": "Centro de custo"
+    },
+    "rubrica_id": {
+      "type": "string",
+      "description": "ID da rubrica vinculada"
+    },
+    "rubrica_nome": {
+      "type": "string",
+      "description": "Nome da rubrica"
+    },
+    "rubrica_grupo": {
+      "type": "string",
+      "description": "Grupo da rubrica"
+    },
+    "natureza_despesa": {
+      "type": "string",
+      "description": "Natureza da despesa"
+    },
+    "valor": {
+      "type": "number",
+      "description": "Valor da nota fiscal"
+    },
+    "status_solicitacao": {
+      "type": "string",
+      "description": "Status da solicita\u00e7\u00e3o no momento do clique"
+    },
+    "nota_fiscal_pdf_url": {
+      "type": "string"
+    },
+    "nota_fiscal_xml_url": {
+      "type": "string"
+    },
+    "xml_url": {
+      "type": "string"
+    },
+    "comprovante_url": {
+      "type": "string"
+    },
+    "drive_backup_nf_pdf_link": {
+      "type": "string"
+    },
+    "drive_backup_nf_xml_link": {
+      "type": "string"
+    },
+    "detalhe_pagamento": {
+      "type": "string"
+    },
+    "data_emissao_nf": {
+      "type": "string",
+      "format": "date"
+    },
+    "link_app_compras": {
+      "type": "string",
+      "description": "Link direto para a solicita\u00e7\u00e3o no app"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pendente_lote",
+        "enviado",
+        "cancelado",
+        "erro"
+      ],
+      "default": "pendente_lote",
+      "description": "Status do registro na fila"
+    },
+    "requested_by": {
+      "type": "string",
+      "description": "Email do usu\u00e1rio que solicitou"
+    },
+    "requested_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data/hora da solicita\u00e7\u00e3o"
+    },
+    "batch_slot": {
+      "type": "string",
+      "enum": [
+        "manha",
+        "tarde"
+      ],
+      "description": "Slot do lote: manha (09h00) ou tarde (16h15)"
+    },
+    "batch_scheduled_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data/hora agendada para envio do lote"
+    },
+    "sent_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data/hora do envio efetivo"
+    },
+    "digest_id": {
+      "type": "string",
+      "description": "ID \u00fanico do lote consolidado"
+    },
+    "purchase_snapshot_json": {
+      "type": "object",
+      "description": "Snapshot completo da solicita\u00e7\u00e3o no momento do clique"
+    },
+    "error_message": {
+      "type": "string",
+      "description": "Mensagem de erro, se houver"
+    }
+  },
+  "required": [
+    "purchase_id",
+    "status",
+    "requested_by",
+    "requested_at",
+    "batch_slot",
+    "batch_scheduled_at"
+  ]
+}
