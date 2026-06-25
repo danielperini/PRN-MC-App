@@ -389,6 +389,7 @@ function ComprasInner() {
   const [paymentPurchase, setPaymentPurchase] = useState(null);
   const [recalculando, setRecalculando] = useState(false);
   const [limpandoDuplicatas, setLimpandoDuplicatas] = useState(false);
+  const [vinculandoNatureza, setVinculandoNatureza] = useState(false);
   const [filters, setFilters] = useState({ status: 'all', meta_id: 'all', search: '', rubrica_id: 'all', inconsistencias: 'all', centro_custo: 'all', data_inicio: '', data_fim: '' });
   const queryClient = useQueryClient();
 
@@ -1438,7 +1439,34 @@ function ComprasInner() {
                 </div>
 
                 {podeGerenciarRubricas && (
-                  <div className="flex justify-end">
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={vinculandoNatureza}
+                      className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50"
+                      onClick={async () => {
+                        if (!window.confirm('Vincular automaticamente a Natureza de Despesa (339030/339035/339036/339039/449052) a todas as rubricas sem natureza definida?')) return;
+                        setVinculandoNatureza(true);
+                        try {
+                          const res = await base44.functions.invoke('vincularNaturezaDespesaRubricas', {});
+                          const result = res?.data || res;
+                          if (result?.success) {
+                            toast.success(result.message || 'Naturezas vinculadas com sucesso.');
+                            await refreshFinanceiroCompleto();
+                          } else {
+                            toast.error(result?.error || 'Erro ao vincular naturezas.');
+                          }
+                        } catch (e) {
+                          toast.error('Erro: ' + (e?.message || 'desconhecido'));
+                        } finally {
+                          setVinculandoNatureza(false);
+                        }
+                      }}
+                    >
+                      <FileText className="h-4 w-4" />
+                      {vinculandoNatureza ? 'Vinculando...' : 'Vincular Natureza'}
+                    </Button>
                     <Button
                       type="button"
                       onClick={() => setShowNovaRubrica(true)}
