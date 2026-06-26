@@ -57,7 +57,7 @@ export default function DashboardRelatorioExecucao() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 hidden">
       {/* Cards de Estatísticas */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="p-4">

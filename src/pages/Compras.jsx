@@ -11,8 +11,8 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue
-} from '@/components/ui/select';
+  SelectValue } from
+'@/components/ui/select';
 import NativeSelect from '@/components/ui/NativeSelect';
 import SearchableSelect from '@/components/ui/searchable-select';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -26,8 +26,8 @@ import {
   FileSpreadsheet,
   AlertTriangle,
   Scissors,
-  Loader2
-} from 'lucide-react';
+  Loader2 } from
+'lucide-react';
 
 import RequireAuth from '@/components/auth/RequireAuth';
 import LoadingPage from '@/components/common/LoadingPage';
@@ -105,8 +105,8 @@ function normalizeCentro(value) {
   return String(value || '').trim();
 }
 
-function normalizeEmail(value) { return String(value || '').trim().toLowerCase(); }
-function normalizeText(value) { return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase(); }
+function normalizeEmail(value) {return String(value || '').trim().toLowerCase();}
+function normalizeText(value) {return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();}
 
 function getPurchaseValue(p) {
   return toNumber(p?.valor_pago) || toNumber(p?.valor_aprovado_admin) || toNumber(p?.valor_aprovado) || toNumber(p?.valor_final) || toNumber(p?.valor_solicitado) || toNumber(p?.valor_total) || toNumber(p?.valor) || toNumber(p?.rubrica_debitada_valor) || 0;
@@ -122,7 +122,7 @@ function getChaveFiscal(p) {
   return null;
 }
 
-function getPurchaseBudgetlineId(purchase) { return purchase?.budgetline_id || purchase?.budget_line_id || purchase?.linha_orcamentaria_id || null; }
+function getPurchaseBudgetlineId(purchase) {return purchase?.budgetline_id || purchase?.budget_line_id || purchase?.linha_orcamentaria_id || null;}
 
 function getPurchaseFileUrl(purchase, attachmentByPurchaseId = {}) {
   return purchase?.file_url || purchase?.arquivo_url || purchase?.documento_url || purchase?.nota_fiscal_url || purchase?.nf_pdf_url || purchase?.pdf_url || purchase?.attachment_url || attachmentByPurchaseId?.[purchase?.id]?.file_url || '';
@@ -154,7 +154,7 @@ function isEntradaUnicaAttachment(att) {
 
 function dedupById(items) {
   const map = new Map();
-  (items || []).forEach((item) => { if (item?.id && !map.has(item.id)) map.set(item.id, item); });
+  (items || []).forEach((item) => {if (item?.id && !map.has(item.id)) map.set(item.id, item);});
   return Array.from(map.values());
 }
 
@@ -184,11 +184,11 @@ async function carregarRubricas() {
     const result = await base44.functions.invoke('listAllRubricas', {});
     const viaFunction = extractRubricas(result);
     if (Array.isArray(viaFunction) && viaFunction.length > 0) return viaFunction;
-  } catch (error) { console.error('Erro em listAllRubricas:', error); }
+  } catch (error) {console.error('Erro em listAllRubricas:', error);}
   try {
     const diretas = await base44.entities.Rubrica.list('ordem_exibicao', 500);
     if (Array.isArray(diretas)) return diretas;
-  } catch (error) { console.error('Erro ao buscar Rubrica direto:', error); }
+  } catch (error) {console.error('Erro ao buscar Rubrica direto:', error);}
   return [];
 }
 
@@ -206,22 +206,22 @@ async function carregarSolicitacoes({ isCoordenador, currentUser }) {
       const museusCentro = ['MHAB', 'MIS', 'MUMO'];
       if (museusCentro.includes(centroCusto)) dedup.set(p.id, p);
     });
-  } catch (error) { console.error('Erro ao buscar lista geral de PurchaseRequest:', error); }
+  } catch (error) {console.error('Erro ao buscar lista geral de PurchaseRequest:', error);}
   return Array.from(dedup.values()).sort((a, b) => new Date(b?.created_date || 0) - new Date(a?.created_date || 0));
 }
 
 function categorizeSolicitacoes(purchases) {
   const categories = { geral: [], mhab: [], mis: [], mumo: [], noturno2026: [], noturnoPampulha: [], pessoas: [] };
   purchases.forEach((p) => {
-    if (isCompraEquipe(p)) { categories.pessoas.push(p); }
-    else {
+    if (isCompraEquipe(p)) {categories.pessoas.push(p);} else
+    {
       const centro = normalizeCentro(p?.centro_custo);
-      if (centro === 'MHAB') categories.mhab.push(p);
-      else if (centro === 'MIS') categories.mis.push(p);
-      else if (centro === 'MUMO') categories.mumo.push(p);
-      else if (centro === 'Noturno 2026') categories.noturno2026.push(p);
-      else if (centro === 'Noturno Pampulha') categories.noturnoPampulha.push(p);
-      else categories.geral.push(p);
+      if (centro === 'MHAB') categories.mhab.push(p);else
+      if (centro === 'MIS') categories.mis.push(p);else
+      if (centro === 'MUMO') categories.mumo.push(p);else
+      if (centro === 'Noturno 2026') categories.noturno2026.push(p);else
+      if (centro === 'Noturno Pampulha') categories.noturnoPampulha.push(p);else
+      categories.geral.push(p);
     }
   });
   return categories;
@@ -253,23 +253,23 @@ function ComprasInner() {
     let mounted = true;
     setUserLoading(true);
     setUserLoadError(false);
-    base44.auth.me().then((u) => { if (!mounted) return; setCurrentUser(u || null); }).catch(() => { if (!mounted) return; setCurrentUser(null); setUserLoadError(true); }).finally(() => { if (!mounted) return; setUserLoading(false); });
-    return () => { mounted = false; };
+    base44.auth.me().then((u) => {if (!mounted) return;setCurrentUser(u || null);}).catch(() => {if (!mounted) return;setCurrentUser(null);setUserLoadError(true);}).finally(() => {if (!mounted) return;setUserLoading(false);});
+    return () => {mounted = false;};
   }, []);
 
   const isCoordenador = ['admin', 'ADMIN', 'COORDENADOR', 'COORD_COMUNICACAO', 'COORD_ADMINISTRATIVA', 'COORD_PRODUCAO'].includes(currentUser?.role);
 
   const invalidateComprasQueries = useCallback(async () => {
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['purchases'], refetchType: 'all' }),
-      queryClient.invalidateQueries({ queryKey: ['attachments-compras'], refetchType: 'all' }),
-      queryClient.invalidateQueries({ queryKey: ['purchase-documents-all'], refetchType: 'all' }),
-      queryClient.invalidateQueries({ queryKey: ['rubricas'], refetchType: 'all' }),
-      queryClient.invalidateQueries({ queryKey: ['budget-lines'], refetchType: 'all' }),
-      queryClient.invalidateQueries({ queryKey: ['team-member-own'], refetchType: 'all' }),
-      queryClient.invalidateQueries({ queryKey: ['team-members-all-for-coordinator'], refetchType: 'all' }),
-      queryClient.invalidateQueries({ queryKey: ['team-payments'], refetchType: 'all' })
-    ]);
+    queryClient.invalidateQueries({ queryKey: ['purchases'], refetchType: 'all' }),
+    queryClient.invalidateQueries({ queryKey: ['attachments-compras'], refetchType: 'all' }),
+    queryClient.invalidateQueries({ queryKey: ['purchase-documents-all'], refetchType: 'all' }),
+    queryClient.invalidateQueries({ queryKey: ['rubricas'], refetchType: 'all' }),
+    queryClient.invalidateQueries({ queryKey: ['budget-lines'], refetchType: 'all' }),
+    queryClient.invalidateQueries({ queryKey: ['team-member-own'], refetchType: 'all' }),
+    queryClient.invalidateQueries({ queryKey: ['team-members-all-for-coordinator'], refetchType: 'all' }),
+    queryClient.invalidateQueries({ queryKey: ['team-payments'], refetchType: 'all' })]
+    );
     // Garantir refetch imediato das queries ativas
     await queryClient.refetchQueries({ queryKey: ['purchases'] });
     await queryClient.refetchQueries({ queryKey: ['rubricas'] });
@@ -277,7 +277,7 @@ function ComprasInner() {
 
   const { data: userPermission, isLoading: loadingUserPermission } = useQuery({
     queryKey: ['user-permission', currentUser?.email],
-    queryFn: async () => { try { const result = await base44.entities.UserPermission.filter({ user_email: currentUser?.email }); return result?.[0] || null; } catch { return null; } },
+    queryFn: async () => {try {const result = await base44.entities.UserPermission.filter({ user_email: currentUser?.email });return result?.[0] || null;} catch {return null;}},
     enabled: !!currentUser?.email,
     staleTime: 1000 * 60 * 2,
     refetchOnWindowFocus: false
@@ -297,7 +297,7 @@ function ComprasInner() {
 
   const { data: anexosCompras = [], isLoading: loadingAnexos, isFetching: fetchingAnexos } = useQuery({
     queryKey: ['attachments-compras'],
-    queryFn: async () => { const list = await base44.entities.Attachment.list('-created_date', 500); const docs = dedupById((list || []).filter(isEntradaUnicaAttachment)); return docs.sort((a, b) => new Date(b?.created_date || 0) - new Date(a?.created_date || 0)); },
+    queryFn: async () => {const list = await base44.entities.Attachment.list('-created_date', 500);const docs = dedupById((list || []).filter(isEntradaUnicaAttachment));return docs.sort((a, b) => new Date(b?.created_date || 0) - new Date(a?.created_date || 0));},
     enabled: !!currentUser,
     staleTime: 1000 * 60,
     refetchOnWindowFocus: false
@@ -305,13 +305,13 @@ function ComprasInner() {
 
   const attachmentByPurchaseId = useMemo(() => {
     const map = {};
-    (anexosCompras || []).forEach((doc) => { const purchaseId = doc?.purchase_id || doc?.purchase_request_id || doc?.purchaseRequestId || doc?.solicitacao_id; if (purchaseId && !map[purchaseId]) map[purchaseId] = doc; });
+    (anexosCompras || []).forEach((doc) => {const purchaseId = doc?.purchase_id || doc?.purchase_request_id || doc?.purchaseRequestId || doc?.solicitacao_id;if (purchaseId && !map[purchaseId]) map[purchaseId] = doc;});
     return map;
   }, [anexosCompras]);
 
   useQuery({
     queryKey: ['purchase-documents-all', isCoordenador, currentUser?.email],
-    queryFn: async () => { const docs = await base44.entities.PurchaseDocument.list('-created_date', 300); if (isCoordenador) return docs; return docs.filter((doc) => doc.uploadado_por === currentUser?.email); },
+    queryFn: async () => {const docs = await base44.entities.PurchaseDocument.list('-created_date', 300);if (isCoordenador) return docs;return docs.filter((doc) => doc.uploadado_por === currentUser?.email);},
     enabled: !!currentUser,
     staleTime: 1000 * 60,
     refetchOnWindowFocus: false
@@ -331,7 +331,7 @@ function ComprasInner() {
     queryKey: ['project-metas'],
     queryFn: async () => {
       const list = await base44.entities.ProjectMeta.list('ordem', 500);
-      return (list || []).filter(m => m.ativo !== false);
+      return (list || []).filter((m) => m.ativo !== false);
     },
     enabled: !!currentUser,
     staleTime: 1000 * 60 * 5,
@@ -369,7 +369,7 @@ function ComprasInner() {
 
   const filtered = purchasesWithFlags.filter((p) => {
     const matchStatus =
-      filters.status === 'all' || normalizeStatus(p.status) === filters.status;
+    filters.status === 'all' || normalizeStatus(p.status) === filters.status;
 
     let matchMeta = filters.meta_id === 'all';
 
@@ -386,36 +386,36 @@ function ComprasInner() {
       const metaNome = filters.meta_id;
       const metaNum = metaNome.match(/^(\d+)\s*[-–—]/)?.[1] || '';
       matchMeta =
-        p.meta_id === metaNome ||
-        (p.meta_extra_descricao && normalizeText(p.meta_extra_descricao).includes(normalizeText(metaNome))) ||
-        (metaNum && p.meta_id === `MC3A-${metaNum}`);
+      p.meta_id === metaNome ||
+      p.meta_extra_descricao && normalizeText(p.meta_extra_descricao).includes(normalizeText(metaNome)) ||
+      metaNum && p.meta_id === `MC3A-${metaNum}`;
     }
 
     const matchRubrica =
-      filters.rubrica_id === 'all' || p.rubrica_id === filters.rubrica_id;
+    filters.rubrica_id === 'all' || p.rubrica_id === filters.rubrica_id;
 
     const matchInconsistencia =
-      filters.inconsistencias === 'all' ||
-      (filters.inconsistencias === 'somente_inconsistentes' &&
-        (!p._has_orcamento_vinculado || p._sem_centro_custo)) ||
-      (filters.inconsistencias === 'somente_ok' &&
-        p._has_orcamento_vinculado &&
-        !p._sem_centro_custo);
+    filters.inconsistencias === 'all' ||
+    filters.inconsistencias === 'somente_inconsistentes' && (
+    !p._has_orcamento_vinculado || p._sem_centro_custo) ||
+    filters.inconsistencias === 'somente_ok' &&
+    p._has_orcamento_vinculado &&
+    !p._sem_centro_custo;
 
     const matchCentro =
-      filters.centro_custo === 'all' ||
-      p._centro_custo_normalizado === filters.centro_custo;
+    filters.centro_custo === 'all' ||
+    p._centro_custo_normalizado === filters.centro_custo;
 
     const busca = filters.search.trim().toLowerCase();
 
     const matchSearch =
-      !busca ||
-      String(p.descricao_item || '').toLowerCase().includes(busca) ||
-      String(p.fornecedor_nome || '').toLowerCase().includes(busca) ||
-      String(p.nf_emitente_nome || '').toLowerCase().includes(busca) ||
-      String(p.objeto || '').toLowerCase().includes(busca) ||
-      fmtBRL(getPurchaseValue(p)).toLowerCase().includes(busca) ||
-      String(p.nf_numero || '').toLowerCase().includes(busca);
+    !busca ||
+    String(p.descricao_item || '').toLowerCase().includes(busca) ||
+    String(p.fornecedor_nome || '').toLowerCase().includes(busca) ||
+    String(p.nf_emitente_nome || '').toLowerCase().includes(busca) ||
+    String(p.objeto || '').toLowerCase().includes(busca) ||
+    fmtBRL(getPurchaseValue(p)).toLowerCase().includes(busca) ||
+    String(p.nf_numero || '').toLowerCase().includes(busca);
 
     // Filtro por período (data de criação)
     let matchPeriodo = true;
@@ -436,8 +436,8 @@ function ComprasInner() {
       matchInconsistencia &&
       matchCentro &&
       matchSearch &&
-      matchPeriodo
-    );
+      matchPeriodo);
+
   });
 
   const refreshFinanceiroCompleto = useCallback(async () => {
@@ -470,9 +470,9 @@ function ComprasInner() {
 
         const duplicada = todasAprovadas.find(
           (p) =>
-            p.id !== purchase.id &&
-            STATUS_APROVADOS.has(normalizeStatus(p.status)) &&
-            getChaveFiscal(p) === chaveFiscal
+          p.id !== purchase.id &&
+          STATUS_APROVADOS.has(normalizeStatus(p.status)) &&
+          getChaveFiscal(p) === chaveFiscal
         );
 
         if (duplicada) {
@@ -511,7 +511,7 @@ function ComprasInner() {
             const utilizadoAtual = toNumber(rubrica.valor_utilizado);
             const novoUtilizado = utilizadoAtual + valor;
             const novoSaldo = total - novoUtilizado;
-            const percentual = total > 0 ? (novoUtilizado / total) * 100 : 0;
+            const percentual = total > 0 ? novoUtilizado / total * 100 : 0;
 
             await base44.entities.Rubrica.update(rubrica.id, {
               valor_utilizado: novoUtilizado,
@@ -525,11 +525,11 @@ function ComprasInner() {
         await base44.entities.PurchaseRequest.update(purchase.id, {
           status: 'APROVADO_COORD',
           rubrica_debitada_em:
-            purchase.rubrica_debitada_em || new Date().toISOString(),
+          purchase.rubrica_debitada_em || new Date().toISOString(),
           rubrica_debitada_valor:
-            purchase.rubrica_debitada_valor || getPurchaseValue(purchase),
+          purchase.rubrica_debitada_valor || getPurchaseValue(purchase),
           financeiro_lancado_em:
-            purchase.financeiro_lancado_em || new Date().toISOString()
+          purchase.financeiro_lancado_em || new Date().toISOString()
         });
       }
 
@@ -537,9 +537,9 @@ function ComprasInner() {
       queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email], (old) => {
         if (!Array.isArray(old)) return old;
         return old.map((item) =>
-          item.id === purchase.id
-            ? { ...item, status: 'APROVADO_COORD', aprov_coord_data: new Date().toISOString(), aprov_coord_nome: currentUser?.email }
-            : item
+        item.id === purchase.id ?
+        { ...item, status: 'APROVADO_COORD', aprov_coord_data: new Date().toISOString(), aprov_coord_nome: currentUser?.email } :
+        item
         );
       });
 
@@ -590,9 +590,9 @@ function ComprasInner() {
       queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email], (old) => {
         if (!Array.isArray(old)) return old;
         return old.map((item) =>
-          item.id === purchase.id
-            ? { ...item, status: 'DEVOLVIDO', comentario_devolucao: comentario || '' }
-            : item
+        item.id === purchase.id ?
+        { ...item, status: 'DEVOLVIDO', comentario_devolucao: comentario || '' } :
+        item
         );
       });
 
@@ -621,9 +621,9 @@ function ComprasInner() {
         queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email], (old) => {
           if (!Array.isArray(old)) return old;
           return old.map((item) =>
-            item.id === purchase.id
-              ? { ...item, status: 'DEVOLVIDO', comentario_devolucao: comentario || '' }
-              : item
+          item.id === purchase.id ?
+          { ...item, status: 'DEVOLVIDO', comentario_devolucao: comentario || '' } :
+          item
           );
         });
 
@@ -674,9 +674,9 @@ function ComprasInner() {
       queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email], (old) => {
         if (!Array.isArray(old)) return old;
         return old.map((item) =>
-          item.id === purchase.id
-            ? { ...item, status: 'RECUSADO', comentario_devolucao: comentario || '' }
-            : item
+        item.id === purchase.id ?
+        { ...item, status: 'RECUSADO', comentario_devolucao: comentario || '' } :
+        item
         );
       });
 
@@ -706,7 +706,7 @@ function ComprasInner() {
             const utilizadoAtual = toNumber(rubrica.valor_utilizado);
             const novoUtilizado = Math.max(0, utilizadoAtual - valor);
             const novoSaldo = total - novoUtilizado;
-            const percentual = total > 0 ? (novoUtilizado / total) * 100 : 0;
+            const percentual = total > 0 ? novoUtilizado / total * 100 : 0;
 
             await base44.entities.Rubrica.update(rubrica.id, {
               valor_utilizado: novoUtilizado,
@@ -728,9 +728,9 @@ function ComprasInner() {
         queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email], (old) => {
           if (!Array.isArray(old)) return old;
           return old.map((item) =>
-            item.id === purchase.id
-              ? { ...item, status: 'RECUSADO', rubrica_debitada_em: null, rubrica_debitada_valor: null, financeiro_lancado_em: null }
-              : item
+          item.id === purchase.id ?
+          { ...item, status: 'RECUSADO', rubrica_debitada_em: null, rubrica_debitada_valor: null, financeiro_lancado_em: null } :
+          item
           );
         });
 
@@ -783,10 +783,10 @@ function ComprasInner() {
 
   async function recalcularTodasRubricas() {
     if (
-      !window.confirm(
-        'Executar agora a restauração/recalculo das rubricas oficiais do 3º Aditivo?'
-      )
-    ) {
+    !window.confirm(
+      'Executar agora a restauração/recalculo das rubricas oficiais do 3º Aditivo?'
+    ))
+    {
       return;
     }
 
@@ -866,20 +866,20 @@ function ComprasInner() {
   }
 
   const isInitialPageLoading =
-    userLoading ||
-    (!!currentUser &&
-      (loadingUserPermission ||
-        isLoading ||
-        loadingRubricas ||
-        loadingAnexos));
+  userLoading ||
+  !!currentUser && (
+  loadingUserPermission ||
+  isLoading ||
+  loadingRubricas ||
+  loadingAnexos);
 
   if (isInitialPageLoading) {
     return (
       <LoadingPage
         message="Carregando página..."
-        description="Estamos carregando solicitações, rubricas, documentos e permissões. Aguarde alguns instantes."
-      />
-    );
+        description="Estamos carregando solicitações, rubricas, documentos e permissões. Aguarde alguns instantes." />);
+
+
   }
 
   if (userLoadError && !currentUser) {
@@ -887,9 +887,9 @@ function ComprasInner() {
       <LoadingPage
         error
         errorTitle="Não foi possível carregar a página"
-        errorDescription="Não conseguimos carregar os dados do usuário. Atualize a página ou tente novamente em alguns instantes."
-      />
-    );
+        errorDescription="Não conseguimos carregar os dados do usuário. Atualize a página ou tente novamente em alguns instantes." />);
+
+
   }
 
   const isSyncingPage = fetchingPurchases || fetchingRubricas || fetchingAnexos;
@@ -907,370 +907,370 @@ function ComprasInner() {
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-bold text-black">Suprimentos</h1>
 
-                {isCoordenador ? (
-                  <span className="flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700">
+                {isCoordenador ?
+                <span className="flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700">
                     <ShieldCheck className="h-3 w-3" />
                     Coordenador
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
+                  </span> :
+
+                <span className="flex items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
                     <User className="h-3 w-3" />
                     Profissional
                   </span>
-                )}
+                }
               </div>
 
               <p className="text-sm text-gray-500">
-                {isCoordenador
-                  ? 'Visão geral — todas as solicitações'
-                  : 'Solicitações — 3º Termo Aditivo'}
+                {isCoordenador ?
+                'Visão geral — todas as solicitações' :
+                'Solicitações — 3º Termo Aditivo'}
               </p>
             </div>
           </div>
 
           <div className="flex gap-2">
-            {isCoordenador && (
-              <>
+            {isCoordenador &&
+            <>
                 <Button
-                  variant="outline"
-                  className="gap-2 border-indigo-300 text-indigo-700 hover:bg-indigo-50"
-                  onClick={async () => {
-                    if (!window.confirm('Processar backup no Drive para todas as solicitações aprovadas sem backup? Isso pode levar alguns minutos.')) return;
-                    try {
-                      toast.info('Iniciando backup em lote...');
-                      let cursor = 0;
-                      let totalProcessados = 0;
-                      let loops = 0;
-                      const maxLoops = 50;
-                      
-                      while (loops < maxLoops) {
-                        loops++;
-                        const res = await base44.functions.invoke('driveBackupPurchase', { cursor: String(cursor) });
-                        const r = res?.data || res;
-                        
-                        if (!r?.success) throw new Error(r?.error || 'Erro no processamento');
-                        
-                        totalProcessados += (r.processados || 0);
-                        toast.info(`Processando lote ${loops}: ${r.processados || 0} solicitações...`);
-                        
-                        if (!r.temMais) {
-                          toast.success(`✅ Backup concluído! ${totalProcessados} solicitações processadas.`);
-                          break;
-                        }
-                        cursor = r.cursor;
+                variant="outline"
+                className="gap-2 border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+                onClick={async () => {
+                  if (!window.confirm('Processar backup no Drive para todas as solicitações aprovadas sem backup? Isso pode levar alguns minutos.')) return;
+                  try {
+                    toast.info('Iniciando backup em lote...');
+                    let cursor = 0;
+                    let totalProcessados = 0;
+                    let loops = 0;
+                    const maxLoops = 50;
+
+                    while (loops < maxLoops) {
+                      loops++;
+                      const res = await base44.functions.invoke('driveBackupPurchase', { cursor: String(cursor) });
+                      const r = res?.data || res;
+
+                      if (!r?.success) throw new Error(r?.error || 'Erro no processamento');
+
+                      totalProcessados += r.processados || 0;
+                      toast.info(`Processando lote ${loops}: ${r.processados || 0} solicitações...`);
+
+                      if (!r.temMais) {
+                        toast.success(`✅ Backup concluído! ${totalProcessados} solicitações processadas.`);
+                        break;
                       }
-                      
-                      await refreshFinanceiroCompleto();
-                    } catch (e) {
-                      toast.error('❌ Erro: ' + (e?.message || 'desconhecido'));
+                      cursor = r.cursor;
                     }
-                  }}
-                >
+
+                    await refreshFinanceiroCompleto();
+                  } catch (e) {
+                    toast.error('❌ Erro: ' + (e?.message || 'desconhecido'));
+                  }
+                }}>
+                
                   <FileText className="h-4 w-4" />
                   Backup Compras
                 </Button>
 
                 <Button
-                  variant="outline"
-                  className="gap-2 border-green-300 text-green-700 hover:bg-green-50"
-                  onClick={async () => {
-                    if (!window.confirm('Processar backup no Drive para todos os relatórios aprovados? Isso organiza os relatórios por tipo, ano e mês.')) return;
-                    try {
-                      toast.info('Iniciando backup de relatórios...');
-                      let cursor = 0;
-                      let totalProcessados = 0;
-                      let loops = 0;
-                      const maxLoops = 50;
-                      
-                      while (loops < maxLoops) {
-                        loops++;
-                        const res = await base44.functions.invoke('backupRelatoriosDrive', { cursor: String(cursor) });
-                        const r = res?.data || res;
-                        
-                        if (!r?.success) throw new Error(r?.error || 'Erro no processamento');
-                        
-                        totalProcessados += (r.processados || 0);
-                        if (r.erros > 0) {
-                          toast.warning(`Lote ${loops}: ${r.processados} relatórios processados, ${r.erros} erros`);
-                        } else {
-                          toast.info(`Processando lote ${loops}: ${r.processados} relatórios...`);
-                        }
-                        
-                        if (!r.temMais) {
-                          toast.success(`✅ Backup de relatórios concluído! ${totalProcessados} relatórios processados.`);
-                          break;
-                        }
-                        cursor = r.cursor;
+                variant="outline"
+                className="gap-2 border-green-300 text-green-700 hover:bg-green-50"
+                onClick={async () => {
+                  if (!window.confirm('Processar backup no Drive para todos os relatórios aprovados? Isso organiza os relatórios por tipo, ano e mês.')) return;
+                  try {
+                    toast.info('Iniciando backup de relatórios...');
+                    let cursor = 0;
+                    let totalProcessados = 0;
+                    let loops = 0;
+                    const maxLoops = 50;
+
+                    while (loops < maxLoops) {
+                      loops++;
+                      const res = await base44.functions.invoke('backupRelatoriosDrive', { cursor: String(cursor) });
+                      const r = res?.data || res;
+
+                      if (!r?.success) throw new Error(r?.error || 'Erro no processamento');
+
+                      totalProcessados += r.processados || 0;
+                      if (r.erros > 0) {
+                        toast.warning(`Lote ${loops}: ${r.processados} relatórios processados, ${r.erros} erros`);
+                      } else {
+                        toast.info(`Processando lote ${loops}: ${r.processados} relatórios...`);
                       }
-                      
-                      await refreshFinanceiroCompleto();
-                    } catch (e) {
-                      toast.error('❌ Erro: ' + (e?.message || 'desconhecido'));
+
+                      if (!r.temMais) {
+                        toast.success(`✅ Backup de relatórios concluído! ${totalProcessados} relatórios processados.`);
+                        break;
+                      }
+                      cursor = r.cursor;
                     }
-                  }}
-                >
+
+                    await refreshFinanceiroCompleto();
+                  } catch (e) {
+                    toast.error('❌ Erro: ' + (e?.message || 'desconhecido'));
+                  }
+                }}>
+                
                   <FileText className="h-4 w-4" />
                   Backup Relatórios
                 </Button>
               </>
-            )}
+            }
 
-            {isCoordenador && (
-              <Button
-                variant="outline"
-                className="gap-2 border-amber-300 text-amber-700 hover:bg-amber-50"
-                onClick={limparSolicitacoesDuplicadas}
-                disabled={limpandoDuplicatas}
-              >
+            {isCoordenador &&
+            <Button
+              variant="outline"
+              className="gap-2 border-amber-300 text-amber-700 hover:bg-amber-50"
+              onClick={limparSolicitacoesDuplicadas}
+              disabled={limpandoDuplicatas}>
+              
                 <Scissors className="h-4 w-4" />
                 {limpandoDuplicatas ? 'Limpando...' : 'Remover Duplicatas'}
               </Button>
-            )}
+            }
 
-            {isCoordenador && (
-              <Button
-                variant="outline"
-                className="gap-2 border-black"
-                onClick={() => setShowRelatorioMensal(true)}
-              >
+            {isCoordenador &&
+            <Button
+              variant="outline"
+              className="gap-2 border-black"
+              onClick={() => setShowRelatorioMensal(true)}>
+              
                 <FileSpreadsheet className="h-4 w-4" />
                 Relatório Mensal NF
               </Button>
-            )}
+            }
 
-            {isCoordenador && (
-              <Button
-                variant="outline"
-                className="gap-2 border-black"
-                onClick={() => setShowReportGen(true)}
-              >
+            {isCoordenador &&
+            <Button
+              variant="outline"
+              className="gap-2 border-black"
+              onClick={() => setShowReportGen(true)}>
+              
                 <FileText className="h-4 w-4" />
                 Relatório PDF
               </Button>
-            )}
+            }
 
             <Button
               className="bg-black text-white hover:bg-gray-800"
               onClick={() => {
                 setEditingPurchase(null);
                 setShowForm(true);
-              }}
-            >
+              }}>
+              
               <Plus className="mr-2 h-4 w-4" />
               Nova Solicitação
             </Button>
           </div>
         </div>
 
-        {isSyncingPage && (
-          <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500">
+        {isSyncingPage &&
+        <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500">
             Atualizando informações financeiras e documentais...
           </div>
-        )}
+        }
 
         {isCoordenador && <TotaisAditivoCards rubricas={rubricas} />}
 
-        {isCoordenador && (
-          <div className="mb-6">
+        {isCoordenador &&
+        <div className="mb-6">
             <OrcamentoDashboard
-              budgetLines={budgetLines || []}
-              purchases={purchases || []}
-              rubricas={rubricas || []}
-            />
+            budgetLines={budgetLines || []}
+            purchases={purchases || []}
+            rubricas={rubricas || []} />
+          
           </div>
-        )}
+        }
 
-        {isCoordenador && (
-          <div className="mb-6">
+        {isCoordenador &&
+        <div className="mb-6">
             <ImportarOrcamento onImportSuccess={refreshFinanceiroCompleto} />
           </div>
-        )}
+        }
 
         <div className="-mx-4 mb-6 flex w-fit gap-1 overflow-x-auto rounded-none bg-gray-100 p-1 px-4 md:-mx-6 md:px-6">
           {[
-            { id: 'lista', label: 'Solicitações' },
-            ...(podeGerenciarRubricas ? [{ id: 'rubricas', label: 'Rubricas' }] : []),
-            { id: 'consumo', label: 'Consumo Rubricas' },
-            { id: 'documentos', label: 'Documentos' },
-            ...(isCoordenador ? [{ id: 'equipe', label: 'Equipe' }] : []),
-            { id: 'meus_pagamentos', label: 'Meus Pagamentos' }
-          ].map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                tab === t.id
-                  ? 'bg-white text-black shadow'
-                  : 'text-gray-500 hover:text-black'
-              }`}
-            >
+          { id: 'lista', label: 'Solicitações' },
+          ...(podeGerenciarRubricas ? [{ id: 'rubricas', label: 'Rubricas' }] : []),
+          { id: 'consumo', label: 'Consumo Rubricas' },
+          { id: 'documentos', label: 'Documentos' },
+          ...(isCoordenador ? [{ id: 'equipe', label: 'Equipe' }] : []),
+          { id: 'meus_pagamentos', label: 'Meus Pagamentos' }].
+          map((t) =>
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+            tab === t.id ?
+            'bg-white text-black shadow' :
+            'text-gray-500 hover:text-black'}`
+            }>
+            
               {t.label}
             </button>
-          ))}
+          )}
         </div>
 
-        {tab === 'lista' && (
-          <div>
+        {tab === 'lista' &&
+        <div>
             <div className="mb-4 flex flex-wrap gap-3">
               <div className="relative min-w-48 flex-1">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
                 <Input
-                  placeholder="Buscar fornecedor, NF, valor..."
-                  className="pl-9"
-                  value={filters.search}
-                  onChange={(e) =>
-                    setFilters((f) => ({ ...f, search: e.target.value }))
-                  }
-                />
+                placeholder="Buscar fornecedor, NF, valor..."
+                className="pl-9"
+                value={filters.search}
+                onChange={(e) =>
+                setFilters((f) => ({ ...f, search: e.target.value }))
+                } />
+              
               </div>
 
-              {!isMobile && (
-                <>
+              {!isMobile &&
+            <>
                   <Input
-                    type="date"
-                    className="w-36"
-                    value={filters.data_inicio}
-                    onChange={(e) => setFilters((f) => ({ ...f, data_inicio: e.target.value }))}
-                    placeholder="Data início"
-                  />
+                type="date"
+                className="w-36"
+                value={filters.data_inicio}
+                onChange={(e) => setFilters((f) => ({ ...f, data_inicio: e.target.value }))}
+                placeholder="Data início" />
+              
                   <Input
-                    type="date"
-                    className="w-36"
-                    value={filters.data_fim}
-                    onChange={(e) => setFilters((f) => ({ ...f, data_fim: e.target.value }))}
-                    placeholder="Data fim"
-                  />
+                type="date"
+                className="w-36"
+                value={filters.data_fim}
+                onChange={(e) => setFilters((f) => ({ ...f, data_fim: e.target.value }))}
+                placeholder="Data fim" />
+              
                   <SearchableSelect
-                    value={filters.meta_id}
-                    onValueChange={(v) => setFilters((f) => ({ ...f, meta_id: v }))}
-                    placeholder="Meta orçamentária"
-                    className="w-56"
-                    items={[
-                      { id: 'all', label: 'Todas as metas' },
-                      ...metas.map((m) => ({ id: m.nome, label: m.nome }))
-                    ]}
-                  />
+                value={filters.meta_id}
+                onValueChange={(v) => setFilters((f) => ({ ...f, meta_id: v }))}
+                placeholder="Meta orçamentária"
+                className="w-56"
+                items={[
+                { id: 'all', label: 'Todas as metas' },
+                ...metas.map((m) => ({ id: m.nome, label: m.nome }))]
+                } />
+              
                 </>
-              )}
+            }
 
-              {isMobile ? (
-                <>
+              {isMobile ?
+            <>
                   <NativeSelect
-                    value={filters.status}
-                    onValueChange={(v) =>
-                      setFilters((f) => ({ ...f, status: v }))
-                    }
-                    placeholder="Status"
-                    items={[
-                      { value: 'all', label: 'Todos os status' },
-                      ...Object.entries(STATUS_CONFIG).map(([k, v]) => ({
-                        value: k,
-                        label: v.label
-                      }))
-                    ]}
-                  />
-
-                  <NativeSelect
-                    value={filters.rubrica_id}
-                    onValueChange={(v) =>
-                      setFilters((f) => ({ ...f, rubrica_id: v }))
-                    }
-                    placeholder="Rubrica"
-                    items={[
-                      { value: 'all', label: 'Todas as rubricas' },
-                      ...(rubricas || [])
-                        .filter((r) => r?.ativo !== false)
-                        .map((r) => ({
-                          value: r.id,
-                          label: r.rubrica || r.nome
-                        }))
-                    ]}
-                  />
+                value={filters.status}
+                onValueChange={(v) =>
+                setFilters((f) => ({ ...f, status: v }))
+                }
+                placeholder="Status"
+                items={[
+                { value: 'all', label: 'Todos os status' },
+                ...Object.entries(STATUS_CONFIG).map(([k, v]) => ({
+                  value: k,
+                  label: v.label
+                }))]
+                } />
+              
 
                   <NativeSelect
-                    value={filters.meta_id}
-                    onValueChange={(v) =>
-                      setFilters((f) => ({ ...f, meta_id: v }))
-                    }
-                    placeholder="Meta"
-                    items={[
-                      { value: 'all', label: 'Todas as metas' },
-                      ...metas.map((m) => ({
-                        value: m.nome,
-                        label: m.nome
-                      }))
-                    ]}
-                  />
+                value={filters.rubrica_id}
+                onValueChange={(v) =>
+                setFilters((f) => ({ ...f, rubrica_id: v }))
+                }
+                placeholder="Rubrica"
+                items={[
+                { value: 'all', label: 'Todas as rubricas' },
+                ...(rubricas || []).
+                filter((r) => r?.ativo !== false).
+                map((r) => ({
+                  value: r.id,
+                  label: r.rubrica || r.nome
+                }))]
+                } />
+              
 
                   <NativeSelect
-                    value={filters.centro_custo}
-                    onValueChange={(v) =>
-                      setFilters((f) => ({ ...f, centro_custo: v }))
-                    }
-                    placeholder="Centro de custo"
-                    items={[
-                      { value: 'all', label: 'Todos os centros' },
-                      ...centrosDisponiveis.map((centro) => ({
-                        value: centro,
-                        label: centro
-                      }))
-                    ]}
-                  />
-                </>
-              ) : (
-                <>
+                value={filters.meta_id}
+                onValueChange={(v) =>
+                setFilters((f) => ({ ...f, meta_id: v }))
+                }
+                placeholder="Meta"
+                items={[
+                { value: 'all', label: 'Todas as metas' },
+                ...metas.map((m) => ({
+                  value: m.nome,
+                  label: m.nome
+                }))]
+                } />
+              
+
+                  <NativeSelect
+                value={filters.centro_custo}
+                onValueChange={(v) =>
+                setFilters((f) => ({ ...f, centro_custo: v }))
+                }
+                placeholder="Centro de custo"
+                items={[
+                { value: 'all', label: 'Todos os centros' },
+                ...centrosDisponiveis.map((centro) => ({
+                  value: centro,
+                  label: centro
+                }))]
+                } />
+              
+                </> :
+
+            <>
                   <Select
-                    value={filters.status}
-                    onValueChange={(v) =>
-                      setFilters((f) => ({ ...f, status: v }))
-                    }
-                  >
+                value={filters.status}
+                onValueChange={(v) =>
+                setFilters((f) => ({ ...f, status: v }))
+                }>
+                
                     <SelectTrigger className="w-44">
                       <SelectValue placeholder="Status" />
                     </SelectTrigger>
 
                     <SelectContent>
                       <SelectItem value="all">Todos os status</SelectItem>
-                      {Object.entries(STATUS_CONFIG).map(([k, v]) => (
-                        <SelectItem key={k} value={k}>
+                      {Object.entries(STATUS_CONFIG).map(([k, v]) =>
+                  <SelectItem key={k} value={k}>
                           {v.label}
                         </SelectItem>
-                      ))}
+                  )}
                     </SelectContent>
                   </Select>
 
                   <SearchableSelect
-                    value={filters.rubrica_id}
-                    onValueChange={(v) => setFilters((f) => ({ ...f, rubrica_id: v }))}
-                    placeholder="Rubrica"
-                    className="w-64"
-                    items={[
-                      { id: 'all', label: 'Todas as rubricas' },
-                      ...(rubricas || []).filter((r) => r?.ativo !== false).map((r) => ({ id: r.id, label: r.rubrica || r.nome }))
-                    ]}
-                  />
+                value={filters.rubrica_id}
+                onValueChange={(v) => setFilters((f) => ({ ...f, rubrica_id: v }))}
+                placeholder="Rubrica"
+                className="w-64"
+                items={[
+                { id: 'all', label: 'Todas as rubricas' },
+                ...(rubricas || []).filter((r) => r?.ativo !== false).map((r) => ({ id: r.id, label: r.rubrica || r.nome }))]
+                } />
+              
 
                   <Select
-                    value={filters.centro_custo}
-                    onValueChange={(v) =>
-                      setFilters((f) => ({ ...f, centro_custo: v }))
-                    }
-                  >
+                value={filters.centro_custo}
+                onValueChange={(v) =>
+                setFilters((f) => ({ ...f, centro_custo: v }))
+                }>
+                
                     <SelectTrigger className="w-44">
                       <SelectValue placeholder="Centro de custo" />
                     </SelectTrigger>
 
                     <SelectContent>
                       <SelectItem value="all">Todos os centros</SelectItem>
-                      {centrosDisponiveis.map((centro) => (
-                        <SelectItem key={centro} value={centro}>
+                      {centrosDisponiveis.map((centro) =>
+                  <SelectItem key={centro} value={centro}>
                           {centro}
                         </SelectItem>
-                      ))}
+                  )}
                     </SelectContent>
                   </Select>
                 </>
-              )}
+            }
             </div>
 
             <div className="mb-3 flex items-center justify-between">
@@ -1278,326 +1278,326 @@ function ComprasInner() {
                 {filtered.length} solicitaç{filtered.length !== 1 ? 'ões' : 'ão'}
               </p>
 
-              {isCoordenador && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={recalcularTodasRubricas}
-                  disabled={recalculando}
-                  className="gap-2 border-amber-300 text-xs text-amber-700 hover:bg-amber-50"
-                >
+              {isCoordenador &&
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={recalcularTodasRubricas}
+              disabled={recalculando}
+              className="gap-2 border-amber-300 text-xs text-amber-700 hover:bg-amber-50">
+              
                   <AlertTriangle className="h-3.5 w-3.5" />
                   {recalculando ? 'Recalculando...' : 'Recalcular Rubricas'}
                 </Button>
-              )}
+            }
             </div>
 
-            {filtered.length === 0 ? (
-              <div className="rounded-2xl border-2 border-dashed border-gray-200 py-16 text-center">
+            {filtered.length === 0 ?
+          <div className="rounded-2xl border-2 border-dashed border-gray-200 py-16 text-center">
                 <ShoppingCart className="mx-auto mb-3 h-12 w-12 text-gray-300" />
                 <p className="font-medium text-gray-400">
                   Nenhuma solicitação encontrada
                 </p>
-              </div>
-            ) : (
-              <TabelaSolicitacoes
-                purchases={filtered}
-                rubricas={rubricas}
-                attachmentByPurchaseId={attachmentByPurchaseId}
-                isCoordenador={isCoordenador}
-                currentUser={currentUser}
-                podeAprovarSolicitacoes={podeAprovarSolicitacoes}
-                hasGestaoCompras={hasGestaoCompras}
-                userPermission={userPermission}
-                onApprove={handleApprovePurchase}
-                onReturn={handleReturnPurchase}
-                onUnapprove={handleUnapprovePurchase}
-                onMarkPaid={(purchase) => setPaymentPurchase(purchase)}
-                onAccess={(purchase) => {
-                  setEditingPurchase({ ...purchase });
-                  setShowForm(true);
-                }}
-                onDelete={handleDeletePurchase}
-              />
-            )}
-          </div>
-        )}
+              </div> :
 
-        {tab === 'rubricas' && podeGerenciarRubricas && (
-          <div className="space-y-6">
-            {selectedRubrica ? (
-              <RubricaDetail
-                rubrica={selectedRubrica}
-                onClose={async () => {
-                  setSelectedRubrica(null);
-                  await refreshFinanceiroCompleto();
-                }}
-              />
-            ) : (
-              <>
+          <TabelaSolicitacoes
+            purchases={filtered}
+            rubricas={rubricas}
+            attachmentByPurchaseId={attachmentByPurchaseId}
+            isCoordenador={isCoordenador}
+            currentUser={currentUser}
+            podeAprovarSolicitacoes={podeAprovarSolicitacoes}
+            hasGestaoCompras={hasGestaoCompras}
+            userPermission={userPermission}
+            onApprove={handleApprovePurchase}
+            onReturn={handleReturnPurchase}
+            onUnapprove={handleUnapprovePurchase}
+            onMarkPaid={(purchase) => setPaymentPurchase(purchase)}
+            onAccess={(purchase) => {
+              setEditingPurchase({ ...purchase });
+              setShowForm(true);
+            }}
+            onDelete={handleDeletePurchase} />
+
+          }
+          </div>
+        }
+
+        {tab === 'rubricas' && podeGerenciarRubricas &&
+        <div className="space-y-6">
+            {selectedRubrica ?
+          <RubricaDetail
+            rubrica={selectedRubrica}
+            onClose={async () => {
+              setSelectedRubrica(null);
+              await refreshFinanceiroCompleto();
+            }} /> :
+
+
+          <>
                 <div className="flex gap-2 border-b border-gray-200">
                   <button
-                    onClick={() => setTab('rubricas-resumo')}
-                    className="border-b-2 border-black px-4 py-2 text-sm font-medium text-gray-900"
-                  >
+                onClick={() => setTab('rubricas-resumo')}
+                className="border-b-2 border-black px-4 py-2 text-sm font-medium text-gray-900">
+                
                     Visão Consolidada
                   </button>
 
                   <button
-                    onClick={() => setTab('rubricas-museus')}
-                    className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900"
-                  >
+                onClick={() => setTab('rubricas-museus')}
+                className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900">
+                
                     Por Museu
                   </button>
 
                   <button
-                    onClick={() => setTab('rubricas-performance')}
-                    className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900"
-                  >
+                onClick={() => setTab('rubricas-performance')}
+                className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900">
+                
                     Performance
                   </button>
 
                   <button
-                    onClick={() => setTab('rubricas-detalhe')}
-                    className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900"
-                  >
+                onClick={() => setTab('rubricas-detalhe')}
+                className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900">
+                
                     Detalhe
                   </button>
                 </div>
 
-                {podeGerenciarRubricas && (
-                  <div className="flex justify-end gap-2">
+                {podeGerenciarRubricas &&
+            <div className="flex justify-end gap-2">
                     <Button
-                      type="button"
-                      variant="outline"
-                      disabled={vinculandoNatureza}
-                      className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50"
-                      onClick={async () => {
-                        if (!window.confirm('Vincular automaticamente a Natureza de Despesa (339030/339035/339036/339039/449052) a todas as rubricas sem natureza definida?')) return;
-                        setVinculandoNatureza(true);
-                        try {
-                          const res = await base44.functions.invoke('vincularNaturezaDespesaRubricas', {});
-                          const result = res?.data || res;
-                          if (result?.success) {
-                            toast.success(result.message || 'Naturezas vinculadas com sucesso.');
-                            await refreshFinanceiroCompleto();
-                          } else {
-                            toast.error(result?.error || 'Erro ao vincular naturezas.');
-                          }
-                        } catch (e) {
-                          toast.error('Erro: ' + (e?.message || 'desconhecido'));
-                        } finally {
-                          setVinculandoNatureza(false);
-                        }
-                      }}
-                    >
+                type="button"
+                variant="outline"
+                disabled={vinculandoNatureza}
+                className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50"
+                onClick={async () => {
+                  if (!window.confirm('Vincular automaticamente a Natureza de Despesa (339030/339035/339036/339039/449052) a todas as rubricas sem natureza definida?')) return;
+                  setVinculandoNatureza(true);
+                  try {
+                    const res = await base44.functions.invoke('vincularNaturezaDespesaRubricas', {});
+                    const result = res?.data || res;
+                    if (result?.success) {
+                      toast.success(result.message || 'Naturezas vinculadas com sucesso.');
+                      await refreshFinanceiroCompleto();
+                    } else {
+                      toast.error(result?.error || 'Erro ao vincular naturezas.');
+                    }
+                  } catch (e) {
+                    toast.error('Erro: ' + (e?.message || 'desconhecido'));
+                  } finally {
+                    setVinculandoNatureza(false);
+                  }
+                }}>
+                
                       <FileText className="h-4 w-4" />
                       {vinculandoNatureza ? 'Vinculando...' : 'Vincular Natureza'}
                     </Button>
                     <Button
-                      type="button"
-                      onClick={() => setShowNovaRubrica(true)}
-                      className="gap-2 bg-black text-white hover:bg-gray-800"
-                    >
+                type="button"
+                onClick={() => setShowNovaRubrica(true)}
+                className="gap-2 bg-black text-white hover:bg-gray-800">
+                
                       <Plus className="h-4 w-4" />
                       Nova Rubrica
                     </Button>
                   </div>
-                )}
+            }
 
                 <RubricasGrid
-                  rubricas={rubricas}
-                  onSelectRubrica={setSelectedRubrica}
-                  onRefresh={refreshFinanceiroCompleto}
-                  isCoordenador={isCoordenador}
-                  totalPrevisto={1320000}
-                />
+              rubricas={rubricas}
+              onSelectRubrica={setSelectedRubrica}
+              onRefresh={refreshFinanceiroCompleto}
+              isCoordenador={isCoordenador}
+              totalPrevisto={1320000} />
+            
               </>
-            )}
+          }
 
-            {fetchingRubricas && (
-              <div className="text-sm text-gray-400">
+            {fetchingRubricas &&
+          <div className="text-sm text-gray-400">
                 Atualizando dados financeiros...
               </div>
-            )}
+          }
           </div>
-        )}
+        }
 
-        {tab === 'rubricas-museus' && podeGerenciarRubricas && (
-          <div className="space-y-6">
+        {tab === 'rubricas-museus' && podeGerenciarRubricas &&
+        <div className="space-y-6">
             <div className="mb-4 flex gap-2 border-b border-gray-200">
               <button
-                onClick={() => setTab('rubricas')}
-                className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900"
-              >
+              onClick={() => setTab('rubricas')}
+              className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900">
+              
                 Visão Consolidada
               </button>
 
               <button
-                onClick={() => setTab('rubricas-museus')}
-                className="border-b-2 border-black px-4 py-2 text-sm font-medium text-gray-900"
-              >
+              onClick={() => setTab('rubricas-museus')}
+              className="border-b-2 border-black px-4 py-2 text-sm font-medium text-gray-900">
+              
                 Por Museu
               </button>
 
               <button
-                onClick={() => setTab('rubricas-performance')}
-                className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900"
-              >
+              onClick={() => setTab('rubricas-performance')}
+              className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900">
+              
                 Performance
               </button>
 
               <button
-                onClick={() => setTab('rubricas-detalhe')}
-                className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900"
-              >
+              onClick={() => setTab('rubricas-detalhe')}
+              className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900">
+              
                 Detalhe
               </button>
             </div>
 
             <RubricasByMuseuDashboard
-              rubricas={rubricas}
-              purchases={purchases}
-              onRefresh={refreshFinanceiroCompleto}
-            />
+            rubricas={rubricas}
+            purchases={purchases}
+            onRefresh={refreshFinanceiroCompleto} />
+          
           </div>
-        )}
+        }
 
-        {tab === 'rubricas-performance' && podeGerenciarRubricas && (
-          <div className="space-y-6">
+        {tab === 'rubricas-performance' && podeGerenciarRubricas &&
+        <div className="space-y-6">
             <div className="mb-4 flex gap-2 border-b border-gray-200">
               <button
-                onClick={() => setTab('rubricas')}
-                className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900"
-              >
+              onClick={() => setTab('rubricas')}
+              className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900">
+              
                 Visão Consolidada
               </button>
 
               <button
-                onClick={() => setTab('rubricas-museus')}
-                className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900"
-              >
+              onClick={() => setTab('rubricas-museus')}
+              className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900">
+              
                 Por Museu
               </button>
 
               <button
-                onClick={() => setTab('rubricas-performance')}
-                className="border-b-2 border-black px-4 py-2 text-sm font-medium text-gray-900"
-              >
+              onClick={() => setTab('rubricas-performance')}
+              className="border-b-2 border-black px-4 py-2 text-sm font-medium text-gray-900">
+              
                 Performance
               </button>
 
               <button
-                onClick={() => setTab('rubricas-detalhe')}
-                className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900"
-              >
+              onClick={() => setTab('rubricas-detalhe')}
+              className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900">
+              
                 Detalhe
               </button>
             </div>
 
             <MuseuPerformanceDashboard purchases={purchases} rubricas={rubricas} />
           </div>
-        )}
+        }
 
-        {tab === 'rubricas-detalhe' && podeGerenciarRubricas && (
-          <div className="space-y-6">
+        {tab === 'rubricas-detalhe' && podeGerenciarRubricas &&
+        <div className="space-y-6">
             <div className="mb-4 flex gap-2 border-b border-gray-200">
               <button
-                onClick={() => setTab('rubricas')}
-                className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900"
-              >
+              onClick={() => setTab('rubricas')}
+              className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900">
+              
                 Visão Consolidada
               </button>
 
               <button
-                onClick={() => setTab('rubricas-museus')}
-                className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900"
-              >
+              onClick={() => setTab('rubricas-museus')}
+              className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900">
+              
                 Por Museu
               </button>
 
               <button
-                onClick={() => setTab('rubricas-performance')}
-                className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900"
-              >
+              onClick={() => setTab('rubricas-performance')}
+              className="border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900">
+              
                 Performance
               </button>
 
               <button
-                onClick={() => setTab('rubricas-detalhe')}
-                className="border-b-2 border-black px-4 py-2 text-sm font-medium text-gray-900"
-              >
+              onClick={() => setTab('rubricas-detalhe')}
+              className="border-b-2 border-black px-4 py-2 text-sm font-medium text-gray-900">
+              
                 Detalhe
               </button>
             </div>
 
-            {!selectedRubrica && podeGerenciarRubricas && (
-              <div className="flex justify-end">
+            {!selectedRubrica && podeGerenciarRubricas &&
+          <div className="flex justify-end">
                 <Button
-                  type="button"
-                  onClick={() => setShowNovaRubrica(true)}
-                  className="gap-2 bg-black text-white hover:bg-gray-800"
-                >
+              type="button"
+              onClick={() => setShowNovaRubrica(true)}
+              className="gap-2 bg-black text-white hover:bg-gray-800">
+              
                   <Plus className="h-4 w-4" />
                   Nova Rubrica
                 </Button>
               </div>
-            )}
+          }
 
-            {selectedRubrica ? (
-              <RubricaDetail
-                rubrica={selectedRubrica}
-                onClose={async () => {
-                  setSelectedRubrica(null);
-                  await refreshFinanceiroCompleto();
-                }}
-              />
-            ) : (
-              <RubricasGrid
-                rubricas={rubricas}
-                onSelectRubrica={setSelectedRubrica}
-                onRefresh={refreshFinanceiroCompleto}
-                isCoordenador={isCoordenador}
-                totalPrevisto={1320000}
-              />
-            )}
+            {selectedRubrica ?
+          <RubricaDetail
+            rubrica={selectedRubrica}
+            onClose={async () => {
+              setSelectedRubrica(null);
+              await refreshFinanceiroCompleto();
+            }} /> :
+
+
+          <RubricasGrid
+            rubricas={rubricas}
+            onSelectRubrica={setSelectedRubrica}
+            onRefresh={refreshFinanceiroCompleto}
+            isCoordenador={isCoordenador}
+            totalPrevisto={1320000} />
+
+          }
           </div>
-        )}
+        }
 
-        {tab === 'consumo' && (
-          <RubricasConsumoDashboard rubricas={rubricas} />
-        )}
+        {tab === 'consumo' &&
+        <RubricasConsumoDashboard rubricas={rubricas} />
+        }
 
-        {tab === 'documentos' && (
-          <div className="max-w-7xl space-y-6">
-            {isCoordenador && (
-              <EntradaUnicaComprovante onSuccess={refreshFinanceiroCompleto} />
-            )}
+        {tab === 'documentos' &&
+        <div className="max-w-7xl space-y-6">
+            {isCoordenador &&
+          <EntradaUnicaComprovante onSuccess={refreshFinanceiroCompleto} />
+          }
 
             <GestaoDocumental />
           </div>
-        )}
+        }
 
-        {tab === 'equipe' && isCoordenador && (
-          <TeamManager budgetLines={budgetLines} />
-        )}
+        {tab === 'equipe' && isCoordenador &&
+        <TeamManager budgetLines={budgetLines} />
+        }
 
-        {tab === 'meus_pagamentos' && (
-          <MeusPagamentosTab
-            purchases={purchasesWithFlags}
-            attachments={anexosCompras}
-            currentUser={currentUser}
-            isCoordenador={isCoordenador}
-            hasGestaoCompras={hasGestaoCompras}
-          />
-        )}
+        {tab === 'meus_pagamentos' &&
+        <MeusPagamentosTab
+          purchases={purchasesWithFlags}
+          attachments={anexosCompras}
+          currentUser={currentUser}
+          isCoordenador={isCoordenador}
+          hasGestaoCompras={hasGestaoCompras} />
 
-        {isCoordenador && (
-          <div className="mt-8 space-y-6">
+        }
+
+        {isCoordenador &&
+        <div className="mt-8 space-y-6">
             {/* Dashboard de Relatórios */}
             <div className="border-b pb-4">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Dashboard de Relatórios e Compras</h3>
+                <h3 className="text-lg font-semibold text-gray-900 hidden">Dashboard de Relatórios e Compras</h3>
                 <Link to="/RelatorioExecucaoDashboard">
                   <Button variant="outline" size="sm">
                     Abrir Dashboard Completo
@@ -1620,62 +1620,62 @@ function ComprasInner() {
               <NotificacoesCompraLog />
             </div>
           </div>
-        )}
+        }
 
-        {isCoordenador && (
-          <div className="mt-6">
+        {isCoordenador &&
+        <div className="mt-6">
             <AuditoriaFinanceiraCard
-              purchases={purchases}
-              rubricas={rubricas}
-              onEditPurchase={(purchase) => {
-                setEditingPurchase({ ...purchase });
-                setShowForm(true);
-                setTab('lista');
-              }}
-            />
+            purchases={purchases}
+            rubricas={rubricas}
+            onEditPurchase={(purchase) => {
+              setEditingPurchase({ ...purchase });
+              setShowForm(true);
+              setTab('lista');
+            }} />
+          
           </div>
-        )}
+        }
       </div>
 
-      {showForm && (
-        <PurchaseFormDialog
-          currentUser={currentUser}
-          prefill={editingPurchase}
-          onClose={() => {
-            setShowForm(false);
-            setEditingPurchase(null);
-          }}
-          onSuccess={async () => {
-            setShowForm(false);
-            setEditingPurchase(null);
-            await refreshFinanceiroCompleto();
-          }}
-        />
-      )}
+      {showForm &&
+      <PurchaseFormDialog
+        currentUser={currentUser}
+        prefill={editingPurchase}
+        onClose={() => {
+          setShowForm(false);
+          setEditingPurchase(null);
+        }}
+        onSuccess={async () => {
+          setShowForm(false);
+          setEditingPurchase(null);
+          await refreshFinanceiroCompleto();
+        }} />
 
-      {showReportGen && (
-        <ContractActivityReportGenerator
-          isOpen={showReportGen}
-          onClose={() => setShowReportGen(false)}
-        />
-      )}
+      }
+
+      {showReportGen &&
+      <ContractActivityReportGenerator
+        isOpen={showReportGen}
+        onClose={() => setShowReportGen(false)} />
+
+      }
 
       <RelatorioMensalConsolidadoDialog
         isOpen={showRelatorioMensal}
-        onClose={() => setShowRelatorioMensal(false)}
-      />
+        onClose={() => setShowRelatorioMensal(false)} />
+      
 
-      {paymentPurchase && (
-        <PagarSolicitacaoDialog
-          purchase={paymentPurchase}
-          currentUser={currentUser}
-          onClose={() => setPaymentPurchase(null)}
-          onSuccess={async () => {
-            setPaymentPurchase(null);
-            await refreshFinanceiroCompleto();
-          }}
-        />
-      )}
+      {paymentPurchase &&
+      <PagarSolicitacaoDialog
+        purchase={paymentPurchase}
+        currentUser={currentUser}
+        onClose={() => setPaymentPurchase(null)}
+        onSuccess={async () => {
+          setPaymentPurchase(null);
+          await refreshFinanceiroCompleto();
+        }} />
+
+      }
 
       <NovaRubricaDialog
         open={showNovaRubrica}
@@ -1683,16 +1683,16 @@ function ComprasInner() {
         onClose={async () => {
           setShowNovaRubrica(false);
           await refreshFinanceiroCompleto();
-        }}
-      />
-    </div>
-  );
+        }} />
+      
+    </div>);
+
 }
 
 export default function Compras() {
   return (
     <RequireAuth>
       <ComprasInner />
-    </RequireAuth>
-  );
+    </RequireAuth>);
+
 }
