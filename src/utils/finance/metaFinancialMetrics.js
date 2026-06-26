@@ -9,7 +9,7 @@ import { normalizeText } from '@/utils/constants';
 import { getRubricaBudget, getRubricaUsed } from '@/utils/auditoria/reconcileFinancialTotals';
 
 // Mapeamento oficial de metas do 3º e 4º Aditivo
-const METAS_OFICIAIS = [
+export const METAS_OFICIAIS = [
   // METAS CONCLUÍDAS
   { numero: '1', numeroFormatado: 'META 01', titulo: 'Equipe principal', status: 'CONCLUÍDA' },
   { numero: '2', numeroFormatado: 'META 02', titulo: 'Plano de comunicação', status: 'CONCLUÍDA' },
@@ -51,7 +51,7 @@ const METAS_OFICIAIS = [
 /**
  * Normaliza o número da meta para comparação
  */
-function normalizeMetaNumber(metaText) {
+export function normalizeMetaNumber(metaText) {
   const text = normalizeText(metaText || '');
   const match = text.match(/^(\d+(?:[A-Z])?)/i);
   if (match) {
@@ -67,7 +67,7 @@ function normalizeMetaNumber(metaText) {
 /**
  * Verifica se uma rubrica está vinculada a uma meta específica
  */
-function isRubricaLinkedToMeta(rubrica, meta) {
+export function isRubricaLinkedToMeta(rubrica, meta) {
   if (rubrica.meta_id && meta.id) {
     return rubrica.meta_id === meta.id;
   }
@@ -91,7 +91,7 @@ function isRubricaLinkedToMeta(rubrica, meta) {
 /**
  * Calcula métricas financeiras para todas as metas do 3º e 4º Aditivo
  */
-function calculateMetaFinancialMetrics(rubricas = []) {
+export function calculateMetaFinancialMetrics(rubricas = []) {
   // Deduplicar rubricas por ID
   const rubricasUnicas = new Map();
   (rubricas || []).forEach((rubrica) => {
@@ -137,7 +137,7 @@ function calculateMetaFinancialMetrics(rubricas = []) {
 /**
  * Calcula gastos por museu e por projeto
  */
-function calculateGastosPorMuseuEProjeto(rubricas = []) {
+export function calculateGastosPorMuseuEProjeto(rubricas = []) {
   // Deduplicar rubricas
   const rubricasUnicas = new Map();
   (rubricas || []).forEach((rubrica) => {
@@ -217,17 +217,6 @@ function calculateGastosPorMuseuEProjeto(rubricas = []) {
   };
 }
 
-// Exportações
-export {
-  normalizeMetaNumber,
-  isRubricaLinkedToMeta,
-  calculateMetaFinancialMetrics,
-  calculateGastosPorMuseuEProjeto,
-  METAS_OFICIAIS
-};
-
 // Aliases para compatibilidade retroativa
-const calculateMetaMetrics = calculateMetaFinancialMetrics;
-const calculateGastosPorMuseuProjeto = calculateGastosPorMuseuEProjeto;
-
-export { calculateMetaMetrics, calculateGastosPorMuseuProjeto };
+export const calculateMetaMetrics = calculateMetaFinancialMetrics;
+export const calculateGastosPorMuseuProjeto = calculateGastosPorMuseuEProjeto;
