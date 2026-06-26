@@ -98,44 +98,44 @@ export default function NotificacoesCompraLog() {
   const falhas = logs.filter((l) => l.status === 'falha').length;
   const parciais = logs.filter((l) => l.status === 'falha_parcial').length;
 
-  return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-5 hidden">
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Bell className="h-5 w-5 text-indigo-600" />
-          <h3 className="text-base font-semibold text-gray-900">Log de Notificações de Compras</h3>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching} className="gap-1.5 text-xs">
-          <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
-          Atualizar
-        </Button>
-      </div>
+  return null;
 
-      {/* Resumo */}
-      <div className="mb-4 flex gap-3">
-        <div className="flex-1 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-center">
-          <p className="text-lg font-bold text-emerald-700">{sucessos}</p>
-          <p className="text-xs text-emerald-600">Enviados</p>
-        </div>
-        <div className="flex-1 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-center">
-          <p className="text-lg font-bold text-amber-700">{parciais}</p>
-          <p className="text-xs text-amber-600">Parciais</p>
-        </div>
-        <div className="flex-1 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-center">
-          <p className="text-lg font-bold text-red-700">{falhas}</p>
-          <p className="text-xs text-red-600">Falhas</p>
-        </div>
-      </div>
 
-      {isLoading ?
-      <div className="py-8 text-center text-sm text-gray-400">Carregando logs...</div> :
-      logs.length === 0 ?
-      <div className="py-8 text-center text-sm text-gray-400">Nenhuma notificação disparada ainda.</div> :
 
-      <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
-          {logs.map((log) => <LogRow key={log.id} log={log} />)}
-        </div>
-      }
-    </div>);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 }

@@ -1597,7 +1597,7 @@ function ComprasInner() {
             {/* Dashboard de Relatórios */}
             <div className="border-b pb-4">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 hidden">Dashboard de Relatórios e Compras</h3>
+                
                 <Link to="/RelatorioExecucaoDashboard">
                   <Button variant="outline" size="sm">
                     Abrir Dashboard Completo
