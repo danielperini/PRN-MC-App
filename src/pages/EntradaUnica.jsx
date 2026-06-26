@@ -1459,94 +1459,94 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
 
                 {user?.role === 'admin' &&
                 <>
-                    <button
-                    onClick={handleReanalisarPendentes}
-                    disabled={filaProcessando}
-                    className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 shadow-sm hover:bg-amber-100 transition disabled:opacity-60 hidden">
                     
-                      {filaProcessando ?
-                    <Loader2 className="w-4 h-4 animate-spin text-amber-600" /> :
 
-                    <RefreshCw className="w-4 h-4 text-amber-700" />
-                    }
-                      <div className="text-left">
-                        <p className="text-xs font-semibold text-amber-800">
-                          {filaProcessando ?
-                        `Analisando ${progressoFila.atual}/${progressoFila.total}...` :
-                        'Reanalisar pendentes'}
-                        </p>
-                        <p className="text-[10px] text-amber-600">OCR + IA completa</p>
-                      </div>
-                    </button>
-                    <button
-                    onClick={handleAutoVinculo}
-                    disabled={autoVinculoLoading}
-                    className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm hover:bg-gray-50 transition disabled:opacity-60 hidden">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                  
                     
-                      {autoVinculoLoading ?
-                    <Loader2 className="w-4 h-4 animate-spin text-gray-500" /> :
 
-                    <Link2 className="w-4 h-4 text-gray-700" />
-                    }
-                      <div className="text-left">
-                        <p className="text-xs font-semibold text-gray-700">
-                          {autoVinculoLoading ? 'Vinculando...' : 'Vincular docs'}
-                        </p>
-                        <p className="text-[10px] text-gray-400">XML + Recibos + Dups</p>
-                      </div>
-                    </button>
-                    <button
-                    onClick={handleSyncDrive}
-                    disabled={syncLoading}
-                    className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm hover:bg-gray-50 transition disabled:opacity-60 hidden">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                  
                     
-                      {syncLoading ?
-                    <Loader2 className="w-4 h-4 animate-spin text-gray-500" /> :
 
-                    <HardDrive className="w-4 h-4 text-gray-700" />
-                    }
-                      <div className="text-left">
-                        <p className="text-xs font-semibold text-gray-700">
-                          {syncLoading ? 'Sincronizando...' : 'Sincronizar Drive'}
-                        </p>
-                        <p className="text-[10px] text-gray-400">Coordenação Geral</p>
-                      </div>
-                    </button>
-                    <button
-                    onClick={handleSyncGmail}
-                    disabled={syncGmailLoading}
-                    className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm hover:bg-gray-50 transition disabled:opacity-60 hidden">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                  
                     
-                      {syncGmailLoading ?
-                    <Loader2 className="w-4 h-4 animate-spin text-gray-500" /> :
 
-                    <Mail className="w-4 h-4 text-gray-700" />
-                    }
-                      <div className="text-left">
-                        <p className="text-xs font-semibold text-gray-700">
-                          {syncGmailLoading ? 'Lendo e-mails...' : 'Ler e-mails Daniel'}
-                        </p>
-                        <p className="text-[10px] text-gray-400">Coordenação Geral</p>
-                      </div>
-                    </button>
 
-                    <button
-                    onClick={handlePadronizarNomes}
-                    disabled={padronizarLoading}
-                    className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm hover:bg-gray-50 transition disabled:opacity-60 hidden">
+
+
+
+
+
+
+
+
+
+
+
+
+
+                  
+
                     
-                      {padronizarLoading ?
-                    <Loader2 className="w-4 h-4 animate-spin text-gray-500" /> :
 
-                    <FileSignature className="w-4 h-4 text-gray-700" />
-                    }
-                      <div className="text-left">
-                        <p className="text-xs font-semibold text-gray-700">
-                          {padronizarLoading ? 'Padronizando...' : 'Padronizar nomes'}
-                        </p>
-                        <p className="text-[10px] text-gray-400">Migração</p>
-                      </div>
-                    </button>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                  
                   </>
                 }
               </div>
