@@ -226,6 +226,8 @@ export {
   METAS_OFICIAIS
 };
 
-// Aliases para compatibilidade
-export const calculateMetaMetrics = calculateMetaFinancialMetrics;
-export const calculateGastosPorMuseuProjeto = calculateGastosPorMuseuEProjeto;
+// Aliases para compatibilidade retroativa
+const calculateMetaMetrics = calculateMetaFinancialMetrics;
+const calculateGastosPorMuseuProjeto = calculateGastosPorMuseuEProjeto;
+
+export { calculateMetaMetrics, calculateGastosPorMuseuProjeto };
