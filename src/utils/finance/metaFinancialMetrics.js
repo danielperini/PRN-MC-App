@@ -221,11 +221,5 @@ export function calculateGastosPorMuseuEProjeto(rubricas = []) {
 export const calculateMetaMetrics = calculateMetaFinancialMetrics;
 export const calculateGastosPorMuseuProjeto = calculateGastosPorMuseuEProjeto;
 
-// Exportações explícitas
-export {
-  calculateMetaFinancialMetrics,
-  calculateGastosPorMuseuEProjeto,
-  normalizeMetaNumber,
-  isRubricaLinkedToMeta,
-  METAS_OFICIAIS
-};
+// Exportação da constante
+export { METAS_OFICIAIS };
