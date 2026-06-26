@@ -223,7 +223,9 @@ export {
   isRubricaLinkedToMeta,
   calculateMetaFinancialMetrics,
   calculateGastosPorMuseuEProjeto,
-  calculateMetaFinancialMetrics as calculateMetaMetrics,
-  calculateGastosPorMuseuEProjeto as calculateGastosPorMuseuProjeto,
   METAS_OFICIAIS
 };
+
+// Aliases para compatibilidade
+export const calculateMetaMetrics = calculateMetaFinancialMetrics;
+export const calculateGastosPorMuseuProjeto = calculateGastosPorMuseuEProjeto;
