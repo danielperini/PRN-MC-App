@@ -24,18 +24,18 @@ import {
   HardDrive,
   Mail,
   Link2,
-  FileSignature
-} from 'lucide-react';
+  FileSignature } from
+'lucide-react';
 import RestaurarRelatoriosDrive from '@/components/entrada/RestaurarRelatoriosDrive';
 import ImportarPacoteRelatorios from '@/components/entrada/ImportarPacoteRelatorios';
 
 function normalizeText(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim();
+  return String(value || '').
+  normalize('NFD').
+  replace(/[\u0300-\u036f]/g, '').
+  toLowerCase().
+  replace(/\s+/g, ' ').
+  trim();
 }
 
 function onlyDigits(value) {
@@ -69,8 +69,8 @@ function isReciboLike(intake) {
     name.includes('boleto') ||
     name.includes('pix') ||
     tipo.includes('recibo') ||
-    tipo.includes('comprovante')
-  );
+    tipo.includes('comprovante'));
+
 }
 
 function isOrcamentoLike(intake) {
@@ -80,16 +80,16 @@ function isOrcamentoLike(intake) {
 
   // Orçamento/proposta: nome contém "orcamento", "orçamento", "proposta", "cotação", "budget"
   // e NÃO contém "NF " (número de NF) no nome
-  const temIndicioOrcamento = (
-    name.includes('orcamento') ||
-    name.includes('orçamento') ||
-    name.includes('proposta') ||
-    name.includes('cotacao') ||
-    name.includes('cotaçao') ||
-    name.includes('budget') ||
-    tipo.includes('orcamento') ||
-    tipo.includes('proposta')
-  );
+  const temIndicioOrcamento =
+  name.includes('orcamento') ||
+  name.includes('orçamento') ||
+  name.includes('proposta') ||
+  name.includes('cotacao') ||
+  name.includes('cotaçao') ||
+  name.includes('budget') ||
+  tipo.includes('orcamento') ||
+  tipo.includes('proposta');
+
 
   // Se tem "NF " seguido de número, provavelmente é NF real
   const temNFnoNome = /\bnf\s*\d+/i.test(name) || /\bnota\s+fiscal\b/i.test(name);
@@ -126,11 +126,11 @@ function getValorNF(intake) {
   const ia = intake?.resultado_ia || {};
   return parseValorBR(
     ia.nf_valor_total ||
-      ia.valor_total ||
-      ia.valor ||
-      intake?.nf_valor_total ||
-      intake?.valor ||
-      ''
+    ia.valor_total ||
+    ia.valor ||
+    intake?.nf_valor_total ||
+    intake?.valor ||
+    ''
   );
 }
 
@@ -138,11 +138,11 @@ function getFornecedor(intake) {
   const ia = intake?.resultado_ia || {};
   return normalizeText(
     ia.nf_emitente_nome ||
-      ia.fornecedor_nome ||
-      intake?.nf_emitente_nome ||
-      intake?.fornecedor_nome ||
-      intake?.file_name_original ||
-      ''
+    ia.fornecedor_nome ||
+    intake?.nf_emitente_nome ||
+    intake?.fornecedor_nome ||
+    intake?.file_name_original ||
+    ''
   );
 }
 
@@ -150,10 +150,10 @@ function getCnpj(intake) {
   const ia = intake?.resultado_ia || {};
   return onlyDigits(
     ia.nf_emitente_cpf_cnpj ||
-      ia.fornecedor_cpf_cnpj ||
-      intake?.nf_emitente_cpf_cnpj ||
-      intake?.fornecedor_cpf_cnpj ||
-      ''
+    ia.fornecedor_cpf_cnpj ||
+    intake?.nf_emitente_cpf_cnpj ||
+    intake?.fornecedor_cpf_cnpj ||
+    ''
   );
 }
 
@@ -218,18 +218,18 @@ function normalizarResultadoNotaFiscal(resultado = {}) {
     ...resultado,
     nf_emitente_cpf_cnpj: cpfCnpjEmitente || resultado.nf_emitente_cpf_cnpj || '',
     fornecedor_cpf_cnpj: cpfCnpjEmitente || resultado.fornecedor_cpf_cnpj || '',
-    municipio: municipioEmitente || resultado.municipio || '',
+    municipio: municipioEmitente || resultado.municipio || ''
   };
 }
 
 function getNomeBase(intake) {
-  return normalizeText(intake?.file_name_original || intake?.file_name_final || '')
-    .replace(/\.pdf$/i, '')
-    .replace(/\.xml$/i, '')
-    .replace(/\bpdf\b/g, '')
-    .replace(/\bxml\b/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return normalizeText(intake?.file_name_original || intake?.file_name_final || '').
+  replace(/\.pdf$/i, '').
+  replace(/\.xml$/i, '').
+  replace(/\bpdf\b/g, '').
+  replace(/\bxml\b/g, '').
+  replace(/\s+/g, ' ').
+  trim();
 }
 
 function calcularScoreVinculo(a, b) {
@@ -254,10 +254,10 @@ function calcularScoreVinculo(a, b) {
   const fornB = getFornecedor(b);
 
   if (
-    fornA &&
-    fornB &&
-    (fornA.includes(fornB.slice(0, 12)) || fornB.includes(fornA.slice(0, 12)))
-  ) {
+  fornA &&
+  fornB && (
+  fornA.includes(fornB.slice(0, 12)) || fornB.includes(fornA.slice(0, 12))))
+  {
     score += 2;
   }
 
@@ -269,8 +269,8 @@ function calcularScoreVinculo(a, b) {
     const palavrasB = nomeB.split(' ').filter((p) => p.length > 2);
     const comuns = palavrasA.filter((p) => palavrasB.includes(p));
 
-    if (comuns.length >= 4) score += 4;
-    else if (comuns.length >= 2) score += 2;
+    if (comuns.length >= 4) score += 4;else
+    if (comuns.length >= 2) score += 2;
   }
 
   return score;
@@ -302,21 +302,21 @@ export default function EntradaUnica() {
     setUserLoading(true);
     setUserLoadError(false);
 
-    base44.auth
-      .me()
-      .then((currentUser) => {
-        if (!mounted) return;
-        setUser(currentUser || null);
-      })
-      .catch(() => {
-        if (!mounted) return;
-        setUser(null);
-        setUserLoadError(true);
-      })
-      .finally(() => {
-        if (!mounted) return;
-        setUserLoading(false);
-      });
+    base44.auth.
+    me().
+    then((currentUser) => {
+      if (!mounted) return;
+      setUser(currentUser || null);
+    }).
+    catch(() => {
+      if (!mounted) return;
+      setUser(null);
+      setUserLoadError(true);
+    }).
+    finally(() => {
+      if (!mounted) return;
+      setUserLoading(false);
+    });
 
     return () => {
       mounted = false;
@@ -337,7 +337,7 @@ export default function EntradaUnica() {
           await base44.entities.DocumentIntake.update(item.id, {
             status_processamento: 'AGUARDANDO_REVISAO',
             tipo_detectado: getTipoByFile(item),
-            erros_validacao: ['IA não iniciou a análise. Revise manualmente.'],
+            erros_validacao: ['IA não iniciou a análise. Revise manualmente.']
           }).catch(() => {});
         }
         continue;
@@ -364,7 +364,7 @@ export default function EntradaUnica() {
         await base44.entities.DocumentIntake.update(item.id, {
           status_processamento: 'AGUARDANDO_REVISAO',
           tipo_detectado: getTipoByFile(item),
-          erros_validacao: [`IA não conseguiu concluir após 2 tentativas. Erro: ${e?.message || 'timeout'}. Revise manualmente.`],
+          erros_validacao: [`IA não conseguiu concluir após 2 tentativas. Erro: ${e?.message || 'timeout'}. Revise manualmente.`]
         }).catch(() => {});
       }
     }
@@ -398,14 +398,14 @@ export default function EntradaUnica() {
       if (melhorPdf && melhorScore >= 2) {
         await base44.entities.DocumentIntake.update(melhorPdf.id, {
           nf_xml_intake_id: xml.id,
-          nf_xml_url: xml.arquivo_original_url,
+          nf_xml_url: xml.arquivo_original_url
         }).catch(() => {});
 
         await base44.entities.DocumentIntake.update(xml.id, {
           grupo_status: 'COMPLETO',
           nf_pdf_intake_id: melhorPdf.id,
           nf_pdf_url: melhorPdf.arquivo_original_url,
-          ocultar_entrada_unica: true,
+          ocultar_entrada_unica: true
         }).catch(() => {});
       }
     }
@@ -431,17 +431,17 @@ export default function EntradaUnica() {
           nf_pdf_intake_id: melhorPdf.id,
           nf_pdf_url: melhorPdf.arquivo_original_url,
           ocultar_entrada_unica: true,
-          ...(melhorPdf.entidade_destino_id
-            ? {
-                entidade_destino_id: melhorPdf.entidade_destino_id,
-                entidade_destino: 'PurchaseRequest'
-              }
-            : {}),
+          ...(melhorPdf.entidade_destino_id ?
+          {
+            entidade_destino_id: melhorPdf.entidade_destino_id,
+            entidade_destino: 'PurchaseRequest'
+          } :
+          {})
         }).catch(() => {});
 
         await base44.entities.DocumentIntake.update(melhorPdf.id, {
           recibo_intake_id: recibo.id,
-          recibo_url: recibo.arquivo_original_url,
+          recibo_url: recibo.arquivo_original_url
         }).catch(() => {});
 
         if (melhorPdf.entidade_destino_id) {
@@ -452,7 +452,7 @@ export default function EntradaUnica() {
             file_url: recibo.arquivo_original_url || '',
             file_type: recibo.mime_type || 'application/pdf',
             description: 'Comprovante/Recibo vinculado — Entrada Única',
-            nf_tipo_documento: 'pdf_nf',
+            nf_tipo_documento: 'pdf_nf'
           }).catch(() => {});
         }
       }
@@ -473,13 +473,13 @@ export default function EntradaUnica() {
         const query = { status_registro: 'ATIVO' };
         if (!isAdmin) query.user_email = user.email;
         list = await Promise.race([
-          base44.entities.DocumentIntake.filter(
-            query,
-            '-created_date',
-            200
-          ),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('FILTER_TIMEOUT')), 10000)),
-        ]);
+        base44.entities.DocumentIntake.filter(
+          query,
+          '-created_date',
+          200
+        ),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('FILTER_TIMEOUT')), 10000))]
+        );
       } catch (filterErr) {
         console.warn('Filter falhou/timeout, usando list() como fallback:', filterErr?.message);
         list = null;
@@ -516,9 +516,9 @@ export default function EntradaUnica() {
         const isRecibo = tipo === 'RECIBO_PDF' || isReciboLike(i);
 
         if (
-          (isXML || isRecibo) &&
-          (i.grupo_status === 'COMPLETO' || i.nf_pdf_intake_id || i.entidade_destino_id)
-        ) {
+        (isXML || isRecibo) && (
+        i.grupo_status === 'COMPLETO' || i.nf_pdf_intake_id || i.entidade_destino_id))
+        {
           return false;
         }
 
@@ -568,19 +568,19 @@ export default function EntradaUnica() {
       });
 
       const tipagemRapida = await Promise.race([
-        base44.integrations.Core.InvokeLLM({
-          prompt: `Este documento é um CONTRATO (contrato de prestação de serviços, contrato de trabalho, termo de prestação), um ORCAMENTO (proposta comercial, cotação, orçamento sem número de NF) ou uma NOTA FISCAL / RECIBO / OUTRO?
+      base44.integrations.Core.InvokeLLM({
+        prompt: `Este documento é um CONTRATO (contrato de prestação de serviços, contrato de trabalho, termo de prestação), um ORCAMENTO (proposta comercial, cotação, orçamento sem número de NF) ou uma NOTA FISCAL / RECIBO / OUTRO?
 Responda apenas com uma palavra: CONTRATO ou ORCAMENTO ou NOTA_FISCAL ou OUTRO.`,
-          file_urls: [fileUrl],
-          response_json_schema: {
-            type: 'object',
-            properties: {
-              tipo: { type: 'string' }
-            }
-          },
-        }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 30000)),
-      ]).catch(() => ({ tipo: 'NOTA_FISCAL' }));
+        file_urls: [fileUrl],
+        response_json_schema: {
+          type: 'object',
+          properties: {
+            tipo: { type: 'string' }
+          }
+        }
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 30000))]
+      ).catch(() => ({ tipo: 'NOTA_FISCAL' }));
 
       const tipoRapido = String(tipagemRapida?.tipo || '').toUpperCase();
 
@@ -588,7 +588,7 @@ Responda apenas com uma palavra: CONTRATO ou ORCAMENTO ou NOTA_FISCAL ou OUTRO.`
         await base44.entities.DocumentIntake.update(intakeId, {
           tipo_detectado: 'DOCUMENTO_ADMINISTRATIVO',
           status_processamento: 'AGUARDANDO_REVISAO',
-          erros_validacao: ['Este documento é um ORÇAMENTO/PROPOSTA, não uma nota fiscal.'],
+          erros_validacao: ['Este documento é um ORÇAMENTO/PROPOSTA, não uma nota fiscal.']
         }).catch(() => {});
         await loadIntakes();
         return;
@@ -597,20 +597,20 @@ Responda apenas com uma palavra: CONTRATO ou ORCAMENTO ou NOTA_FISCAL ou OUTRO.`
       if (tipoRapido === 'CONTRATO' || tipoRapido === 'CONTRATO_PDF' || tipoRapido === 'TERMO_COMPROMISSO_PDF') {
         const nomeArquivoNormalizado = normalizeText(fileUrl);
         const tipoContrato =
-          tipoRapido === 'TERMO_COMPROMISSO_PDF' || nomeArquivoNormalizado.includes('termo')
-            ? 'TERMO_COMPROMISSO_PDF'
-            : 'CONTRATO_PDF';
+        tipoRapido === 'TERMO_COMPROMISSO_PDF' || nomeArquivoNormalizado.includes('termo') ?
+        'TERMO_COMPROMISSO_PDF' :
+        'CONTRATO_PDF';
 
         await base44.entities.DocumentIntake.update(intakeId, {
           tipo_detectado: tipoContrato,
-          status_processamento: 'ANALISANDO_IA',
+          status_processamento: 'ANALISANDO_IA'
         });
 
         try {
           await base44.functions.invoke('processarContratoEntradaUnica', {
             intake_id: intakeId,
             file_url: fileUrl,
-            file_name: orientacoes ? undefined : undefined,
+            file_name: orientacoes ? undefined : undefined
           });
         } catch (contratoErr) {
           console.error('Erro ao processar contrato:', contratoErr);
@@ -618,7 +618,7 @@ Responda apenas com uma palavra: CONTRATO ou ORCAMENTO ou NOTA_FISCAL ou OUTRO.`
           await base44.entities.DocumentIntake.update(intakeId, {
             status_processamento: 'AGUARDANDO_REVISAO',
             tipo_detectado: tipoContrato,
-            erros_validacao: ['Análise de contrato falhou. Revise manualmente.'],
+            erros_validacao: ['Análise de contrato falhou. Revise manualmente.']
           }).catch(() => {});
         }
 
@@ -742,9 +742,9 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
             rubrica_nome_sugerida: { type: 'string' },
             justificativa_ia: { type: 'string' },
             indicios_duplicidade: { type: 'string' },
-            inconsistencias: { type: 'array', items: { type: 'string' } },
-          },
-        },
+            inconsistencias: { type: 'array', items: { type: 'string' } }
+          }
+        }
       });
 
       const resultadoNormalizado = normalizarResultadoNotaFiscal(resultado || {});
@@ -752,25 +752,25 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
       // Se a análise rápida já identificou como NOTA_FISCAL, não permitir que a análise detalhada classifique como DOCUMENTO_ADMINISTRATIVO.
       // DOCUMENTO_ADMINISTRATIVO só é válido quando a análise rápida retornou OUTRO.
       const tipoDetectado =
-        resultadoNormalizado?.tipo_documento === 'NOTA_FISCAL_XML'
-          ? 'NOTA_FISCAL_XML'
-          : resultadoNormalizado?.tipo_documento === 'RECIBO_PDF'
-            ? 'RECIBO_PDF'
-            : resultadoNormalizado?.tipo_documento === 'DOCUMENTO_ADMINISTRATIVO' && tipoRapido !== 'NOTA_FISCAL'
-              ? 'DOCUMENTO_ADMINISTRATIVO'
-              : resultadoNormalizado?.tipo_documento === 'NOTA_FISCAL_PDF'
-                ? 'NOTA_FISCAL_PDF'
-                : isReciboLike({
-                    file_name_original: fileUrl,
-                    resultado_ia: resultadoNormalizado
-                  })
-                  ? 'RECIBO_PDF'
-                  : tipoFallback;
+      resultadoNormalizado?.tipo_documento === 'NOTA_FISCAL_XML' ?
+      'NOTA_FISCAL_XML' :
+      resultadoNormalizado?.tipo_documento === 'RECIBO_PDF' ?
+      'RECIBO_PDF' :
+      resultadoNormalizado?.tipo_documento === 'DOCUMENTO_ADMINISTRATIVO' && tipoRapido !== 'NOTA_FISCAL' ?
+      'DOCUMENTO_ADMINISTRATIVO' :
+      resultadoNormalizado?.tipo_documento === 'NOTA_FISCAL_PDF' ?
+      'NOTA_FISCAL_PDF' :
+      isReciboLike({
+        file_name_original: fileUrl,
+        resultado_ia: resultadoNormalizado
+      }) ?
+      'RECIBO_PDF' :
+      tipoFallback;
 
       // Mesclar inconsistências da IA com erros já existentes
-      const inconsistencias = Array.isArray(resultadoNormalizado?.inconsistencias)
-        ? resultadoNormalizado.inconsistencias
-        : [];
+      const inconsistencias = Array.isArray(resultadoNormalizado?.inconsistencias) ?
+      resultadoNormalizado.inconsistencias :
+      [];
 
       await base44.entities.DocumentIntake.update(intakeId, {
         status_processamento: 'AGUARDANDO_REVISAO',
@@ -778,20 +778,20 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
         resultado_ia: resultadoNormalizado,
         nf_emitente_cpf_cnpj: resultadoNormalizado?.nf_emitente_cpf_cnpj || '',
         fornecedor_cpf_cnpj:
-          resultadoNormalizado?.fornecedor_cpf_cnpj ||
-          resultadoNormalizado?.nf_emitente_cpf_cnpj ||
-          '',
+        resultadoNormalizado?.fornecedor_cpf_cnpj ||
+        resultadoNormalizado?.nf_emitente_cpf_cnpj ||
+        '',
         fornecedor_nome:
-          resultadoNormalizado?.fornecedor_nome ||
-          resultadoNormalizado?.nf_emitente_nome ||
-          '',
+        resultadoNormalizado?.fornecedor_nome ||
+        resultadoNormalizado?.nf_emitente_nome ||
+        '',
         municipio: resultadoNormalizado?.municipio || '',
         centro_custo: resultadoNormalizado?.centro_custo_sugerido || '',
         rubrica_nome_sugerida: resultadoNormalizado?.rubrica_nome_sugerida || '',
         rubrica_justificativa: resultadoNormalizado?.justificativa_ia || '',
         nf_numero: resultadoNormalizado?.nf_numero || '',
         nf_valor_total: resultadoNormalizado?.nf_valor_total || 0,
-        erros_validacao: inconsistencias.length > 0 ? inconsistencias : [],
+        erros_validacao: inconsistencias.length > 0 ? inconsistencias : []
       });
 
       await loadIntakes();
@@ -803,7 +803,7 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
           intake_id: intakeId,
           file_url: fileUrl,
           file_name: fileUrl,
-          orientacoes_usuario: orientacoes || '',
+          orientacoes_usuario: orientacoes || ''
         });
         await loadIntakes();
       } catch (backendErr) {
@@ -831,7 +831,7 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
           await base44.functions.invoke('processarNotaFiscalComClaude', {
             intake_id: intake.id,
             file_url: intake.arquivo_original_url,
-            orientacoes_usuario: intake.resultado_ia?.orientacoes_usuario || '',
+            orientacoes_usuario: intake.resultado_ia?.orientacoes_usuario || ''
           });
           await loadIntakes();
           return;
@@ -864,7 +864,7 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
       const res = await base44.functions.invoke('syncDriveNotasFiscaisDesdeMarco2026', {
         dryRun: false,
         maxFiles: 50,
-        triggeredBy: 'manual',
+        triggeredBy: 'manual'
       });
 
       const data = res?.data || {};
@@ -974,20 +974,20 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
       const alvoTipo = alvoIntake.tipo_detectado || getTipoByFile(alvoIntake);
 
       const pdfNF =
-        origemTipo === 'NOTA_FISCAL_PDF'
-          ? origemIntake
-          : alvoTipo === 'NOTA_FISCAL_PDF'
-            ? alvoIntake
-            : null;
+      origemTipo === 'NOTA_FISCAL_PDF' ?
+      origemIntake :
+      alvoTipo === 'NOTA_FISCAL_PDF' ?
+      alvoIntake :
+      null;
 
       const outro = pdfNF?.id === origemIntake.id ? alvoIntake : origemIntake;
       const outreTipo = outro.tipo_detectado || getTipoByFile(outro);
 
       const purchaseId =
-        pdfNF?.entidade_destino_id ||
-        origemIntake.entidade_destino_id ||
-        alvoIntake.entidade_destino_id ||
-        '';
+      pdfNF?.entidade_destino_id ||
+      origemIntake.entidade_destino_id ||
+      alvoIntake.entidade_destino_id ||
+      '';
 
       if (pdfNF) {
         const pdfUpdate = {};
@@ -1007,12 +1007,12 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
           nf_pdf_intake_id: pdfNF.id,
           nf_pdf_url: pdfNF.arquivo_original_url,
           ocultar_entrada_unica: true,
-          ...(purchaseId
-            ? {
-                entidade_destino_id: purchaseId,
-                entidade_destino: 'PurchaseRequest'
-              }
-            : {}),
+          ...(purchaseId ?
+          {
+            entidade_destino_id: purchaseId,
+            entidade_destino: 'PurchaseRequest'
+          } :
+          {})
         });
 
         if (purchaseId) {
@@ -1023,23 +1023,23 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
             file_url: outro.arquivo_original_url || '',
             file_type: outro.mime_type || 'application/pdf',
             description:
-              outreTipo === 'NOTA_FISCAL_XML'
-                ? 'XML da NF — vinculado manualmente'
-                : 'Comprovante/Recibo — vinculado manualmente',
-            nf_tipo_documento: outreTipo === 'NOTA_FISCAL_XML' ? 'xml_nf' : 'pdf_nf',
+            outreTipo === 'NOTA_FISCAL_XML' ?
+            'XML da NF — vinculado manualmente' :
+            'Comprovante/Recibo — vinculado manualmente',
+            nf_tipo_documento: outreTipo === 'NOTA_FISCAL_XML' ? 'xml_nf' : 'pdf_nf'
           }).catch(() => {});
         }
       } else {
         await base44.entities.DocumentIntake.update(origemIntake.id, {
           grupo_status: 'COMPLETO',
           nf_pdf_intake_id: alvoIntake.id,
-          ocultar_entrada_unica: true,
+          ocultar_entrada_unica: true
         });
 
         await base44.entities.DocumentIntake.update(alvoIntake.id, {
           grupo_status: 'COMPLETO',
           nf_pdf_intake_id: origemIntake.id,
-          ocultar_entrada_unica: true,
+          ocultar_entrada_unica: true
         });
       }
 
@@ -1136,7 +1136,7 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
         status_registro: 'ATIVO',
         tipo_detectado: 'NOTA_FISCAL_XML',
         revisado_pelo_usuario: false,
-        resultado_ia: {},
+        resultado_ia: {}
       });
 
       await base44.entities.DocumentIntake.update(pdfIntake.id, {
@@ -1176,9 +1176,9 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
         let fileToUpload = file;
 
         if (
-          file.name.toLowerCase().endsWith('.xml') &&
-          (!file.type || file.type === 'application/octet-stream')
-        ) {
+        file.name.toLowerCase().endsWith('.xml') && (
+        !file.type || file.type === 'application/octet-stream'))
+        {
           fileToUpload = new File([file], file.name, { type: 'text/xml' });
         }
 
@@ -1192,11 +1192,11 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
 
         const { file_url } = uploadResult;
 
-        const ext = file.name.toLowerCase().endsWith('.xml')
-          ? 'NOTA_FISCAL_XML'
-          : file.name.toLowerCase().endsWith('.pdf')
-            ? 'NOTA_FISCAL_PDF'
-            : 'PENDENTE';
+        const ext = file.name.toLowerCase().endsWith('.xml') ?
+        'NOTA_FISCAL_XML' :
+        file.name.toLowerCase().endsWith('.pdf') ?
+        'NOTA_FISCAL_PDF' :
+        'PENDENTE';
 
         const isXmlFile = ext === 'NOTA_FISCAL_XML';
 
@@ -1210,7 +1210,7 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
           status_registro: 'ATIVO',
           tipo_detectado: ext,
           revisado_pelo_usuario: false,
-          resultado_ia: orientacoes ? { orientacoes_usuario: orientacoes } : {},
+          resultado_ia: orientacoes ? { orientacoes_usuario: orientacoes } : {}
         });
 
         intakesCriados.push({
@@ -1273,7 +1273,7 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
               await base44.functions.invoke('processarNotaFiscalComClaude', {
                 intake_id: intake.id,
                 file_url,
-                orientacoes_usuario: intake.resultado_ia?.orientacoes_usuario || '',
+                orientacoes_usuario: intake.resultado_ia?.orientacoes_usuario || ''
               });
             } else {
               await analisarComIA(intake.id, file_url, mime_type, null);
@@ -1286,7 +1286,7 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
             } catch (e2) {
               await base44.entities.DocumentIntake.update(intake.id, {
                 status_processamento: 'AGUARDANDO_REVISAO',
-                erros_validacao: ['Análise automática falhou. Revise manualmente ou use o botão "Preencher com IA" no modal de revisão.'],
+                erros_validacao: ['Análise automática falhou. Revise manualmente ou use o botão "Preencher com IA" no modal de revisão.']
               }).catch(() => {});
             }
           }
@@ -1328,7 +1328,7 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
     filaRef.current = pendentes.map((i) => ({
       intake: i,
       file_url: i.arquivo_original_url,
-      mime_type: i.mime_type,
+      mime_type: i.mime_type
     }));
     processarFila();
   }
@@ -1372,25 +1372,25 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
   const isDocAdmin = false;
   const isContrato = isContractIntakeType(tipo);
 
-  const isInitialPageLoading = userLoading || (!!user && loadingIntakes);
+  const isInitialPageLoading = userLoading || !!user && loadingIntakes;
 
   if (isInitialPageLoading) {
     return (
       <LoadingPage
         message="Carregando página..."
-        description="Estamos carregando seus documentos, vínculos, pendências e dados de análise da Entrada Única. Aguarde alguns instantes."
-      />
-    );
+        description="Estamos carregando seus documentos, vínculos, pendências e dados de análise da Entrada Única. Aguarde alguns instantes." />);
+
+
   }
 
-  if ((userLoadError && !user) || intakesLoadError) {
+  if (userLoadError && !user || intakesLoadError) {
     return (
       <LoadingPage
         error
         errorTitle="Não foi possível carregar a Entrada Única"
-        errorDescription="Atualize a página ou tente novamente em alguns instantes."
-      />
-    );
+        errorDescription="Atualize a página ou tente novamente em alguns instantes." />);
+
+
   }
 
   return (
@@ -1432,11 +1432,11 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
                     </p>
                     <p className="text-2xl font-bold text-black mt-1">
                       {
-                        intakes.filter(
-                          (i) =>
-                            String(i.status_processamento || '').toUpperCase() ===
-                            'ANALISANDO_IA'
-                        ).length
+                      intakes.filter(
+                        (i) =>
+                        String(i.status_processamento || '').toUpperCase() ===
+                        'ANALISANDO_IA'
+                      ).length
                       }
                     </p>
                   </div>
@@ -1447,47 +1447,47 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
                     </p>
                     <p className="text-2xl font-bold mt-1">
                       {
-                        intakes.filter(
-                          (i) =>
-                            String(i.status_processamento || '').toUpperCase() ===
-                            'AGUARDANDO_REVISAO'
-                        ).length
+                      intakes.filter(
+                        (i) =>
+                        String(i.status_processamento || '').toUpperCase() ===
+                        'AGUARDANDO_REVISAO'
+                      ).length
                       }
                     </p>
                   </div>
                 </div>
 
-                {user?.role === 'admin' && (
-                  <>
+                {user?.role === 'admin' &&
+                <>
                     <button
-                      onClick={handleReanalisarPendentes}
-                      disabled={filaProcessando}
-                      className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 shadow-sm hover:bg-amber-100 transition disabled:opacity-60"
-                    >
-                      {filaProcessando ? (
-                        <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
-                      ) : (
-                        <RefreshCw className="w-4 h-4 text-amber-700" />
-                      )}
+                    onClick={handleReanalisarPendentes}
+                    disabled={filaProcessando}
+                    className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 shadow-sm hover:bg-amber-100 transition disabled:opacity-60 hidden">
+                    
+                      {filaProcessando ?
+                    <Loader2 className="w-4 h-4 animate-spin text-amber-600" /> :
+
+                    <RefreshCw className="w-4 h-4 text-amber-700" />
+                    }
                       <div className="text-left">
                         <p className="text-xs font-semibold text-amber-800">
-                          {filaProcessando
-                            ? `Analisando ${progressoFila.atual}/${progressoFila.total}...`
-                            : 'Reanalisar pendentes'}
+                          {filaProcessando ?
+                        `Analisando ${progressoFila.atual}/${progressoFila.total}...` :
+                        'Reanalisar pendentes'}
                         </p>
                         <p className="text-[10px] text-amber-600">OCR + IA completa</p>
                       </div>
                     </button>
                     <button
-                      onClick={handleAutoVinculo}
-                      disabled={autoVinculoLoading}
-                      className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm hover:bg-gray-50 transition disabled:opacity-60"
-                    >
-                      {autoVinculoLoading ? (
-                        <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
-                      ) : (
-                        <Link2 className="w-4 h-4 text-gray-700" />
-                      )}
+                    onClick={handleAutoVinculo}
+                    disabled={autoVinculoLoading}
+                    className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm hover:bg-gray-50 transition disabled:opacity-60 hidden">
+                    
+                      {autoVinculoLoading ?
+                    <Loader2 className="w-4 h-4 animate-spin text-gray-500" /> :
+
+                    <Link2 className="w-4 h-4 text-gray-700" />
+                    }
                       <div className="text-left">
                         <p className="text-xs font-semibold text-gray-700">
                           {autoVinculoLoading ? 'Vinculando...' : 'Vincular docs'}
@@ -1496,15 +1496,15 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
                       </div>
                     </button>
                     <button
-                      onClick={handleSyncDrive}
-                      disabled={syncLoading}
-                      className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm hover:bg-gray-50 transition disabled:opacity-60"
-                    >
-                      {syncLoading ? (
-                        <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
-                      ) : (
-                        <HardDrive className="w-4 h-4 text-gray-700" />
-                      )}
+                    onClick={handleSyncDrive}
+                    disabled={syncLoading}
+                    className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm hover:bg-gray-50 transition disabled:opacity-60 hidden">
+                    
+                      {syncLoading ?
+                    <Loader2 className="w-4 h-4 animate-spin text-gray-500" /> :
+
+                    <HardDrive className="w-4 h-4 text-gray-700" />
+                    }
                       <div className="text-left">
                         <p className="text-xs font-semibold text-gray-700">
                           {syncLoading ? 'Sincronizando...' : 'Sincronizar Drive'}
@@ -1513,15 +1513,15 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
                       </div>
                     </button>
                     <button
-                      onClick={handleSyncGmail}
-                      disabled={syncGmailLoading}
-                      className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm hover:bg-gray-50 transition disabled:opacity-60"
-                    >
-                      {syncGmailLoading ? (
-                        <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
-                      ) : (
-                        <Mail className="w-4 h-4 text-gray-700" />
-                      )}
+                    onClick={handleSyncGmail}
+                    disabled={syncGmailLoading}
+                    className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm hover:bg-gray-50 transition disabled:opacity-60 hidden">
+                    
+                      {syncGmailLoading ?
+                    <Loader2 className="w-4 h-4 animate-spin text-gray-500" /> :
+
+                    <Mail className="w-4 h-4 text-gray-700" />
+                    }
                       <div className="text-left">
                         <p className="text-xs font-semibold text-gray-700">
                           {syncGmailLoading ? 'Lendo e-mails...' : 'Ler e-mails Daniel'}
@@ -1531,15 +1531,15 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
                     </button>
 
                     <button
-                      onClick={handlePadronizarNomes}
-                      disabled={padronizarLoading}
-                      className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm hover:bg-gray-50 transition disabled:opacity-60"
-                    >
-                      {padronizarLoading ? (
-                        <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
-                      ) : (
-                        <FileSignature className="w-4 h-4 text-gray-700" />
-                      )}
+                    onClick={handlePadronizarNomes}
+                    disabled={padronizarLoading}
+                    className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm hover:bg-gray-50 transition disabled:opacity-60 hidden">
+                    
+                      {padronizarLoading ?
+                    <Loader2 className="w-4 h-4 animate-spin text-gray-500" /> :
+
+                    <FileSignature className="w-4 h-4 text-gray-700" />
+                    }
                       <div className="text-left">
                         <p className="text-xs font-semibold text-gray-700">
                           {padronizarLoading ? 'Padronizando...' : 'Padronizar nomes'}
@@ -1548,7 +1548,7 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
                       </div>
                     </button>
                   </>
-                )}
+                }
               </div>
             </div>
           </div>
@@ -1557,8 +1557,8 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
             <DocumentUploadZone
               onFilesSelected={handleFilesSelected}
               uploading={uploading}
-              disabled={!user}
-            />
+              disabled={!user} />
+            
           </div>
         </div>
 
@@ -1612,11 +1612,11 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
               <h2 className="text-base font-semibold text-black flex items-center gap-2">
                 <InboxIcon className="w-4 h-4 text-black" />
                 Documentos em análise
-                {intakes.length > 0 && (
-                  <span className="ml-1 text-xs font-semibold text-gray-500 rounded-full border border-gray-200 px-2 py-0.5">
+                {intakes.length > 0 &&
+                <span className="ml-1 text-xs font-semibold text-gray-500 rounded-full border border-gray-200 px-2 py-0.5">
                     {intakes.length}
                   </span>
-                )}
+                }
               </h2>
               <p className="text-xs text-gray-500 mt-0.5">
                 Revise, vincule XML, reanalise ou envie documentos para aprovação.
@@ -1630,8 +1630,8 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
           </div>
 
           <div className="p-4 md:p-6">
-            {filaProcessando && progressoFila.total > 0 && (
-              <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2">
+            {filaProcessando && progressoFila.total > 0 &&
+            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2">
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin text-amber-600" />
                   <span className="text-sm font-semibold text-amber-800">
@@ -1643,115 +1643,115 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
                 </div>
                 <div className="w-full bg-amber-200 rounded-full h-2">
                   <div
-                    className="bg-amber-600 h-2 rounded-full transition-all duration-500"
-                    style={{ width: `${progressoFila.total > 0 ? (progressoFila.atual / progressoFila.total) * 100 : 0}%` }}
-                  />
+                  className="bg-amber-600 h-2 rounded-full transition-all duration-500"
+                  style={{ width: `${progressoFila.total > 0 ? progressoFila.atual / progressoFila.total * 100 : 0}%` }} />
+                
                 </div>
                 <p className="text-xs text-amber-600">
                   Cada PDF está sendo lido integralmente via OCR + IA. Máximo de 20 por lote.
                 </p>
               </div>
-            )}
-            {intakes.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-gray-400 border-2 border-dashed border-gray-200 rounded-2xl bg-gray-50/50">
+            }
+            {intakes.length === 0 ?
+            <div className="flex flex-col items-center justify-center py-16 text-gray-400 border-2 border-dashed border-gray-200 rounded-2xl bg-gray-50/50">
                 <InboxIcon className="w-11 h-11 mb-3 text-gray-300" />
                 <p className="text-sm font-semibold text-gray-600">Nenhum documento pendente</p>
                 <p className="text-xs mt-1 text-gray-400">Faça o upload de arquivos acima para começar.</p>
+              </div> :
+
+            <div className="space-y-3">
+                {intakes.map((intake) =>
+              <DocumentIntakeCard
+                key={intake.id}
+                intake={intake}
+                allIntakes={intakes}
+                onReview={handleReview}
+                onDeleted={handleDeleted}
+                onSentToApproval={handleSentToApproval}
+                onReanalyse={handleReanalyse}
+                onLinkXml={handleLinkXml}
+                onAddXmlToPdf={handleAddXmlToPdf}
+                onLinkArquivo={handleLinkArquivo} />
+
+              )}
               </div>
-            ) : (
-              <div className="space-y-3">
-                {intakes.map((intake) => (
-                  <DocumentIntakeCard
-                    key={intake.id}
-                    intake={intake}
-                    allIntakes={intakes}
-                    onReview={handleReview}
-                    onDeleted={handleDeleted}
-                    onSentToApproval={handleSentToApproval}
-                    onReanalyse={handleReanalyse}
-                    onLinkXml={handleLinkXml}
-                    onAddXmlToPdf={handleAddXmlToPdf}
-                    onLinkArquivo={handleLinkArquivo}
-                  />
-                ))}
-              </div>
-            )}
+            }
           </div>
         </div>
 
-        {reviewIntake && isNF && (
-          <ReviewModalNF
-            intake={reviewIntake}
-            onClose={() => setReviewIntake(null)}
-            onSaved={handleSaved}
-          />
-        )}
+        {reviewIntake && isNF &&
+        <ReviewModalNF
+          intake={reviewIntake}
+          onClose={() => setReviewIntake(null)}
+          onSaved={handleSaved} />
 
-        {reviewIntake && isFoto && (
-          <ReviewModalFoto
-            intake={reviewIntake}
-            onClose={() => setReviewIntake(null)}
-            onSaved={handleSaved}
-          />
-        )}
+        }
 
-        {reviewIntake && isDocAdmin && (
-          <ReviewModalDocAdmin
-            intake={reviewIntake}
-            onClose={() => setReviewIntake(null)}
-            onSaved={handleSaved}
-          />
-        )}
+        {reviewIntake && isFoto &&
+        <ReviewModalFoto
+          intake={reviewIntake}
+          onClose={() => setReviewIntake(null)}
+          onSaved={handleSaved} />
 
-        {reviewIntake && isContrato && (
-          <ReviewModalContrato
-            intake={reviewIntake}
-            onClose={() => setReviewIntake(null)}
-            onSaved={handleSaved}
-          />
-        )}
+        }
 
-        {reviewIntake && !isNF && !isFoto && !isDocAdmin && !isContrato && (
-          <ReviewModalOutro
-            intake={reviewIntake}
-            onClose={() => setReviewIntake(null)}
-            onSaved={handleSaved}
-          />
-        )}
+        {reviewIntake && isDocAdmin &&
+        <ReviewModalDocAdmin
+          intake={reviewIntake}
+          onClose={() => setReviewIntake(null)}
+          onSaved={handleSaved} />
 
-        {linkXmlIntake && (
-          <LinkXmlModal
-            xmlIntake={linkXmlIntake}
-            pdfsDisponiveis={intakes.filter(
-              (i) =>
-                getTipoByFile(i) === 'NOTA_FISCAL_PDF' &&
-                !i.nf_xml_intake_id &&
-                i.grupo_status !== 'COMPLETO'
-            )}
-            onConfirm={(pdfIntake) => handleConfirmLinkXml(linkXmlIntake, pdfIntake)}
-            onClose={() => setLinkXmlIntake(null)}
-          />
-        )}
+        }
+
+        {reviewIntake && isContrato &&
+        <ReviewModalContrato
+          intake={reviewIntake}
+          onClose={() => setReviewIntake(null)}
+          onSaved={handleSaved} />
+
+        }
+
+        {reviewIntake && !isNF && !isFoto && !isDocAdmin && !isContrato &&
+        <ReviewModalOutro
+          intake={reviewIntake}
+          onClose={() => setReviewIntake(null)}
+          onSaved={handleSaved} />
+
+        }
+
+        {linkXmlIntake &&
+        <LinkXmlModal
+          xmlIntake={linkXmlIntake}
+          pdfsDisponiveis={intakes.filter(
+            (i) =>
+            getTipoByFile(i) === 'NOTA_FISCAL_PDF' &&
+            !i.nf_xml_intake_id &&
+            i.grupo_status !== 'COMPLETO'
+          )}
+          onConfirm={(pdfIntake) => handleConfirmLinkXml(linkXmlIntake, pdfIntake)}
+          onClose={() => setLinkXmlIntake(null)} />
+
+        }
 
         {linkArquivoIntake &&
-          (() => {
-            const candidatos = intakes.filter((i) => {
-              if (i.id === linkArquivoIntake.id) return false;
-              if (i.grupo_status === 'COMPLETO') return false;
-              if (i.nf_pdf_intake_id) return false;
-              return true;
-            });
+        (() => {
+          const candidatos = intakes.filter((i) => {
+            if (i.id === linkArquivoIntake.id) return false;
+            if (i.grupo_status === 'COMPLETO') return false;
+            if (i.nf_pdf_intake_id) return false;
+            return true;
+          });
 
-            return (
-              <LinkArquivoModal
-                intake={linkArquivoIntake}
-                candidatos={candidatos}
-                onConfirm={(alvo) => handleConfirmLinkArquivo(linkArquivoIntake, alvo)}
-                onClose={() => setLinkArquivoIntake(null)}
-              />
-            );
-          })()}
+          return (
+            <LinkArquivoModal
+              intake={linkArquivoIntake}
+              candidatos={candidatos}
+              onConfirm={(alvo) => handleConfirmLinkArquivo(linkArquivoIntake, alvo)}
+              onClose={() => setLinkArquivoIntake(null)} />);
+
+
+        })()}
       </div>
-    </div>
-  );
+    </div>);
+
 }
