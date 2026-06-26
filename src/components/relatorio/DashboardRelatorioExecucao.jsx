@@ -18,14 +18,14 @@ export default function DashboardRelatorioExecucao() {
     setLoading(true);
     try {
       const [listaRelatorios, listaCompras] = await Promise.all([
-        base44.entities.RelatorioExecucaoObjeto.list('-created_date', 100),
-        base44.entities.PurchaseRequest.list('-created_date', 200)
-      ]);
+      base44.entities.RelatorioExecucaoObjeto.list('-created_date', 100),
+      base44.entities.PurchaseRequest.list('-created_date', 200)]
+      );
 
       setRelatorios(listaRelatorios || []);
-      
+
       const aprovadas = (listaCompras || []).filter(
-        c => c.status === 'APROVADO_COORD' || c.status === 'APROVADO_ADMIN'
+        (c) => c.status === 'APROVADO_COORD' || c.status === 'APROVADO_ADMIN'
       );
       setComprasAprovadas(aprovadas);
     } catch (error) {
@@ -37,23 +37,23 @@ export default function DashboardRelatorioExecucao() {
 
   const estatisticas = {
     total: relatorios.length,
-    aprovados: relatorios.filter(r => r.status === 'aprovado').length,
-    gerando: relatorios.filter(r => r.status === 'gerando_ia').length,
-    revisao: relatorios.filter(r => r.status === 'revisao').length
+    aprovados: relatorios.filter((r) => r.status === 'aprovado').length,
+    gerando: relatorios.filter((r) => r.status === 'gerando_ia').length,
+    revisao: relatorios.filter((r) => r.status === 'revisao').length
   };
 
-  const comprasFiltradas = filtroStatus === 'todos' 
-    ? comprasAprovadas 
-    : comprasAprovadas.filter(c => c.centro_custo === filtroStatus);
+  const comprasFiltradas = filtroStatus === 'todos' ?
+  comprasAprovadas :
+  comprasAprovadas.filter((c) => c.centro_custo === filtroStatus);
 
-  const centrosCusto = [...new Set(comprasAprovadas.map(c => c.centro_custo).filter(Boolean))];
+  const centrosCusto = [...new Set(comprasAprovadas.map((c) => c.centro_custo).filter(Boolean))];
 
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    );
+      </div>);
+
   }
 
   return (
@@ -102,26 +102,26 @@ export default function DashboardRelatorioExecucao() {
       </div>
 
       {/* Compras Aprovadas Pendentes */}
-      <div>
+      <div className="hidden">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold">Compras Aprovadas Pendentes</h3>
           <div className="flex gap-2">
             <select
               value={filtroStatus}
               onChange={(e) => setFiltroStatus(e.target.value)}
-              className="border rounded-md px-3 py-1 text-sm"
-            >
+              className="border rounded-md px-3 py-1 text-sm">
+              
               <option value="todos">Todos os centros</option>
-              {centrosCusto.map(centro => (
-                <option key={centro} value={centro}>{centro}</option>
-              ))}
+              {centrosCusto.map((centro) =>
+              <option key={centro} value={centro}>{centro}</option>
+              )}
             </select>
           </div>
         </div>
 
         <div className="space-y-2">
-          {comprasFiltradas.slice(0, 10).map((compra) => (
-            <Card key={compra.id} className="p-4">
+          {comprasFiltradas.slice(0, 10).map((compra) =>
+          <Card key={compra.id} className="p-4">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <p className="font-medium">{compra.descricao_item || 'Sem descrição'}</p>
@@ -137,9 +137,9 @@ export default function DashboardRelatorioExecucao() {
                     </span>
                   </div>
                   <p className="text-xs text-gray-400 mt-1">
-                    Aprovado em: {compra.approved_at 
-                      ? new Date(compra.approved_at).toLocaleString('pt-BR') 
-                      : '—'}
+                    Aprovado em: {compra.approved_at ?
+                  new Date(compra.approved_at).toLocaleString('pt-BR') :
+                  '—'}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -148,19 +148,19 @@ export default function DashboardRelatorioExecucao() {
                 </div>
               </div>
             </Card>
-          ))}
+          )}
 
-          {comprasFiltradas.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
+          {comprasFiltradas.length === 0 &&
+          <div className="text-center py-8 text-gray-500">
               Nenhuma compra aprovada pendente
             </div>
-          )}
+          }
 
-          {comprasFiltradas.length > 10 && (
-            <p className="text-sm text-gray-500 mt-2 text-center">
+          {comprasFiltradas.length > 10 &&
+          <p className="text-sm text-gray-500 mt-2 text-center">
               + {comprasFiltradas.length - 10} compras não exibidas
             </p>
-          )}
+          }
         </div>
       </div>
 
@@ -168,17 +168,17 @@ export default function DashboardRelatorioExecucao() {
       <div>
         <h3 className="text-lg font-semibold mb-4">Relatórios Recentes</h3>
         <div className="space-y-2">
-          {relatorios.slice(0, 5).map((relatorio) => (
-            <Card key={relatorio.id} className="p-4">
+          {relatorios.slice(0, 5).map((relatorio) =>
+          <Card key={relatorio.id} className="p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-medium">
                     {relatorio.tipo === 'parcial' ? 'Relatório Parcial' : 'Relatório Final'}
                   </p>
                   <p className="text-sm text-gray-600">
-                    {relatorio.data_inicio && relatorio.data_fim 
-                      ? `${new Date(relatorio.data_inicio).toLocaleDateString('pt-BR')} - ${new Date(relatorio.data_fim).toLocaleDateString('pt-BR')}`
-                      : 'Período não informado'}
+                    {relatorio.data_inicio && relatorio.data_fim ?
+                  `${new Date(relatorio.data_inicio).toLocaleDateString('pt-BR')} - ${new Date(relatorio.data_fim).toLocaleDateString('pt-BR')}` :
+                  'Período não informado'}
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
                     Status: {relatorio.status || 'rascunho'}
@@ -186,22 +186,22 @@ export default function DashboardRelatorioExecucao() {
                 </div>
                 <div className="text-right">
                   <p className="text-sm text-gray-600">
-                    Criado em: {relatorio.created_date 
-                      ? new Date(relatorio.created_date).toLocaleString('pt-BR') 
-                      : '—'}
+                    Criado em: {relatorio.created_date ?
+                  new Date(relatorio.created_date).toLocaleString('pt-BR') :
+                  '—'}
                   </p>
                 </div>
               </div>
             </Card>
-          ))}
+          )}
 
-          {relatorios.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
+          {relatorios.length === 0 &&
+          <div className="text-center py-8 text-gray-500">
               Nenhum relatório encontrado
             </div>
-          )}
+          }
         </div>
       </div>
-    </div>
-  );
+    </div>);
+
 }
