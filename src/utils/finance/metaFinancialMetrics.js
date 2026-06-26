@@ -217,8 +217,4 @@ export function calculateGastosPorMuseuEProjeto(rubricas = []) {
   };
 }
 
-// Aliases para compatibilidade retroativa (exportações nomeadas alternativas)
-export {
-  calculateMetaFinancialMetrics as calculateMetaMetrics,
-  calculateGastosPorMuseuEProjeto as calculateGastosPorMuseuProjeto
-};
+// Nota: usar diretamente calculateMetaFinancialMetrics e calculateGastosPorMuseuEProjeto
