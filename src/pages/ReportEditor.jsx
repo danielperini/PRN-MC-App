@@ -69,6 +69,7 @@ function normalizeAtividades(raw) {
     equipe_participante_ids: Array.isArray(a?.equipe_participante_ids) ? a.equipe_participante_ids : [],
     meta_vinculada_ids: Array.isArray(a?.meta_vinculada_ids) ? a.meta_vinculada_ids : [],
     quantas_vezes_ocorreu: Number(a?.quantas_vezes_ocorreu) || 1,
+    publico_total: Number(a?.publico_total) || 0,
     publico_medio_sessao: Number(a?.publico_medio_sessao) || 0,
     publico_estimado: Number(a?.publico_estimado) || 0,
     quantidade_produtos: Number(a?.quantidade_produtos) || 0,
@@ -124,7 +125,7 @@ function getAnoAtual() {
 
 function ReportSummaryStats({ atividades = [], fotos = [] }) {
   const totalAtividades = atividades.length;
-  const totalPublico = atividades.reduce((sum, a) => sum + (Number(a.publico_estimado) || 0), 0);
+  const totalPublico = atividades.reduce((sum, a) => sum + (Number(a.publico_total) || Number(a.publico_estimado) || 0), 0);
   const totalOcorrencias = atividades.reduce((sum, a) => sum + (Number(a.quantas_vezes_ocorreu) || 0), 0);
 
   return (
@@ -325,7 +326,7 @@ export default function ReportEditor() {
   }
 
   const publicoAtividades = useMemo(() => {
-    return atividades.reduce((sum, a) => sum + (Number(a?.publico_estimado) || 0), 0);
+    return atividades.reduce((sum, a) => sum + (Number(a?.publico_total) || Number(a?.publico_estimado) || 0), 0);
   }, [atividades]);
 
   useEffect(() => {
