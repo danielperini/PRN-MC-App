@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { FileText, Loader2, CheckCircle2, AlertTriangle, Eye, Edit3, Download, FileSpreadsheet, FileCode, AlertCircle } from 'lucide-react';
+import { exportarRelatorioExecucaoPDF } from '@/components/relatorio/ExportarRelatorioExecucaoPDF';
 
 const SECOES = [
   { key: 'identificacao', label: '1. Identificação do Projeto', icone: FileText, rapida: true },
@@ -167,8 +168,14 @@ export default function RelatorioExecucaoObjeto() {
   }
 
   // Exportação
-  async function exportarPDF() {
-    toast.info('Exportação PDF em desenvolvimento');
+  function exportarPDF() {
+    if (!relatorio) return;
+    try {
+      exportarRelatorioExecucaoPDF(relatorio);
+      toast.success('PDF gerado com sucesso!');
+    } catch (e) {
+      toast.error('Erro ao gerar PDF: ' + e.message);
+    }
   }
 
   async function exportarHTML() {
