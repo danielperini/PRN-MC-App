@@ -1038,17 +1038,6 @@ function ComprasInner() {
               </Button>
             }
 
-            {isCoordenador &&
-            <Button
-              variant="outline"
-              className="gap-2 border-black"
-              onClick={() => setShowReportGen(true)}>
-              
-                <FileText className="h-4 w-4" />
-                Relatório PDF
-              </Button>
-            }
-
             <Button
               className="bg-black text-white hover:bg-gray-800"
               onClick={() => {
