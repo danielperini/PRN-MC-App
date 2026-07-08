@@ -1,22 +1,19 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
-// Normaliza datas para comparação
-function parseDate(d: string): Date { return new Date(d + 'T00:00:00'); }
-
-function fmtBRL(v: number) {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
-}
-
 function fmtDateBR(d: string) {
   if (!d) return '';
   const p = String(d).split('T')[0].split('-');
   return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : d;
 }
 
+function fmtBRL(v: number) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
+}
+
 function dentroDoPeríodo(data: string | undefined, inicio: Date, fim: Date): boolean {
   if (!data) return false;
-  const d = new Date(data);
-  return d >= inicio && d <= fim;
+  const d = new Date(String(data).split('T')[0]);
+  return !isNaN(d.getTime()) && d >= inicio && d <= fim;
 }
 
 Deno.serve(async (req) => {
@@ -32,29 +29,25 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'relatorio_id, data_inicio e data_fim são obrigatórios' }, { status: 400 });
     }
 
-    const inicio = parseDate(data_inicio);
-    const fim = parseDate(data_fim + 'T23:59:59');
+    const inicio = new Date(data_inicio + 'T00:00:00');
+    const fim = new Date(data_fim + 'T23:59:59');
 
     // ── Buscar dados em paralelo ─────────────────────────────────────────────
-    const [atividades, rubricas, teamMembers, teamPayments, purchases, projectMetas] = await Promise.all([
-      base44.asServiceRole.entities.Activity.filter({}, '-data_realizacao', 500).catch(() => []),
-      base44.asServiceRole.entities.Rubrica.filter({ ativo: true }, 'ordem_exibicao', 300).catch(() => []),
-      base44.asServiceRole.entities.TeamMember.filter({}, '-created_date', 200).catch(() => []),
-      base44.asServiceRole.entities.TeamPayment.filter({}, '-created_date', 200).catch(() => []),
+    const [atividades, teamMembers, teamPayments, purchases, projectMetas] = await Promise.all([
+      base44.asServiceRole.entities.Activity.list('-data_realizacao', 500).catch(() => []),
+      base44.asServiceRole.entities.TeamMember.list('-created_date', 200).catch(() => []),
+      base44.asServiceRole.entities.TeamPayment.list('-created_date', 300).catch(() => []),
       base44.asServiceRole.entities.PurchaseRequest.filter(
         { status: { $in: ['APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO'] } },
         '-created_date', 500
       ).catch(() => []),
-      base44.asServiceRole.entities.ProjectMeta.filter({ ativo: true }, 'ordem', 100).catch(() => []),
+      base44.asServiceRole.entities.ProjectMeta.filter({ ativo: true }, 'ordem', 50).catch(() => []),
     ]);
 
     // ── Filtrar atividades do período ────────────────────────────────────────
     const atividadesPeriodo = (atividades as any[]).filter(a => {
       const d = a.data_realizacao || a.data_inicio || a.created_date;
-      if (!d) return false;
-      const dt = new Date(d);
-      if (isNaN(dt.getTime())) return false;
-      return dt >= inicio && dt <= fim;
+      return dentroDoPeríodo(d, inicio, fim);
     });
 
     // ── Filtrar compras aprovadas do período ─────────────────────────────────
@@ -63,151 +56,166 @@ Deno.serve(async (req) => {
       return dentroDoPeríodo(d, inicio, fim);
     });
 
+    // ── Filtrar pagamentos de equipe do período ───────────────────────────────
+    const pagamentosPeriodo = (teamPayments as any[]).filter(tp => {
+      const d = tp.competencia || tp.data_pagamento || tp.created_date;
+      return dentroDoPeríodo(d, inicio, fim);
+    });
+
     // ── Público total do período ─────────────────────────────────────────────
-    const publicoTotal = atividadesPeriodo.reduce((acc: number, a: any) => acc + (Number(a.publico_total) || 0), 0);
+    const publicoTotal = atividadesPeriodo.reduce((acc: number, a: any) =>
+      acc + (Number(a.publico_total) || 0), 0);
 
     // ── Construir cronograma de metas ────────────────────────────────────────
-    // Agrupa atividades por meta_codigo
     const metaMap = new Map<string, any>();
-    for (const a of atividadesPeriodo) {
-      if (a.classificacao === 'META' && a.meta_codigo) {
-        const key = a.meta_codigo;
-        if (!metaMap.has(key)) {
-          const pm = (projectMetas as any[]).find(m =>
-            String(m.nome || '').includes(key) || String(m.id || '') === key
-          );
-          metaMap.set(key, {
-            meta_id: key,
-            meta_nome: pm ? `${pm.ordem || ''}. ${pm.nome}` : `Meta ${key}`,
-            meta_ordem: pm?.ordem || 0,
-            acoes: [],
-            publico_acumulado: 0,
-            docs: new Set<string>(),
-            resultado_esperado: pm?.descricao || '',
-          });
-        }
-        const m = metaMap.get(key);
-        m.acoes.push(a.titulo || a.descricao || 'Ação realizada');
-        m.publico_acumulado += Number(a.publico_total) || 0;
-        if (a.meta_quantitativa) m.indicador = a.meta_quantitativa;
-        if (a.resultado_alcancado) m.resultado_alcancado_txt = a.resultado_alcancado;
-        if (a.status_meta) m.status_meta_txt = a.status_meta;
-        // docs de verificação
-        if (a.fotos?.length) m.docs.add('Registros fotográficos');
-        if (a.documentos?.length) m.docs.add('Documentos comprobatórios');
-        if (publicoTotal > 0) m.docs.add('Lista de presença');
-      }
+
+    // Inicializar metas com dados de ProjectMeta
+    for (const pm of projectMetas as any[]) {
+      const key = pm.id;
+      metaMap.set(key, {
+        meta_id: key,
+        meta_nome: `${pm.ordem || ''}. ${pm.nome}`.trim(),
+        meta_ordem: pm.ordem || 999,
+        resultado_esperado: pm.descricao || pm.nome || '',
+        acoes_lista: [],
+        publico_acumulado: 0,
+        docs: new Set<string>(['Lista de presença', 'Registros fotográficos']),
+        resultado_alcancado_txts: [],
+        status_metas: [],
+      });
     }
 
-    const cronogramaMetas = Array.from(metaMap.values()).map((m: any) => {
-      const statusMeta = m.status_meta_txt ||
-        (m.publico_acumulado > 0 ? 'Realizada Integralmente' : 'Realizada Parcialmente');
-      const percentual = m.publico_acumulado > 0 ? 100 : 50;
-      return {
-        meta_id: m.meta_id,
-        meta_nome: m.meta_nome,
-        meta_ordem: m.meta_ordem,
-        resultado_esperado: m.resultado_esperado || `Execução das ações previstas na ${m.meta_nome}`,
-        acoes: m.acoes.slice(0, 5).join('; '),
-        periodo: `${fmtDateBR(data_inicio)} a ${fmtDateBR(data_fim)}`,
-        documentos_verificacao: Array.from(m.docs),
-        resultado_alcancado: m.resultado_alcancado_txt || `Realizadas ${m.acoes.length} ação(ões) no período, com ${m.publico_acumulado.toLocaleString('pt-BR')} participantes.`,
-        status_meta: statusMeta,
-        percentual_execucao: percentual,
-        justificativa: '',
-        modo: 'automatico',
-      };
-    }).sort((a: any, b: any) => (a.meta_ordem || 0) - (b.meta_ordem || 0));
+    // Agrupar atividades nas metas
+    for (const a of atividadesPeriodo) {
+      if (a.classificacao !== 'META') continue;
+      const metaKey = a.meta_id || a.meta_codigo;
+      if (!metaKey) continue;
+
+      if (!metaMap.has(metaKey)) {
+        metaMap.set(metaKey, {
+          meta_id: metaKey,
+          meta_nome: `Meta ${metaKey}`,
+          meta_ordem: 999,
+          resultado_esperado: a.indicador_previsto || '',
+          acoes_lista: [],
+          publico_acumulado: 0,
+          docs: new Set<string>(['Lista de presença']),
+          resultado_alcancado_txts: [],
+          status_metas: [],
+        });
+      }
+
+      const m = metaMap.get(metaKey);
+      if (a.titulo) m.acoes_lista.push(a.titulo);
+      m.publico_acumulado += Number(a.publico_total) || 0;
+      if (a.resultado_alcancado) m.resultado_alcancado_txts.push(a.resultado_alcancado);
+      if (a.status_meta) m.status_metas.push(a.status_meta);
+      if (a.fotos?.length) m.docs.add('Registros fotográficos');
+      if (a.documentos?.length) m.docs.add('Documentos comprobatórios');
+    }
+
+    // Montar array final de metas (apenas as que têm atividades ou foram pré-populadas)
+    const cronogramaMetas = Array.from(metaMap.values())
+      .filter((m: any) => m.acoes_lista.length > 0)
+      .map((m: any) => {
+        const statusMeta = m.status_metas[0] ||
+          (m.publico_acumulado > 0 ? 'Realizada Integralmente' : 'Realizada Parcialmente');
+        const percentual = statusMeta.includes('Integral') ? 100 : statusMeta.includes('Parcial') ? 50 : 0;
+        const resultado = m.resultado_alcancado_txts.length > 0
+          ? m.resultado_alcancado_txts[0]
+          : `Realizadas ${m.acoes_lista.length} ação(ões) no período, com ${m.publico_acumulado.toLocaleString('pt-BR')} participantes.`;
+        return {
+          meta_id: m.meta_id,
+          meta_nome: m.meta_nome,
+          meta_ordem: m.meta_ordem,
+          resultado_esperado: m.resultado_esperado || `Execução das ações da ${m.meta_nome}`,
+          acoes: m.acoes_lista.slice(0, 5).join('; '),
+          periodo: `${fmtDateBR(data_inicio)} a ${fmtDateBR(data_fim)}`,
+          documentos_verificacao: Array.from(m.docs),
+          resultado_alcancado: resultado,
+          status_meta: statusMeta,
+          percentual_execucao: percentual,
+          justificativa: '',
+          modo: 'automatico',
+        };
+      })
+      .sort((a: any, b: any) => (a.meta_ordem || 0) - (b.meta_ordem || 0));
 
     // ── Equipe de trabalho ────────────────────────────────────────────────────
     const equipeMap = new Map<string, any>();
     for (const m of teamMembers as any[]) {
-      if (!equipeMap.has(m.id)) {
-        equipeMap.set(m.id, {
-          nome: m.nome || m.full_name || '',
-          cargo: m.cargo || m.funcao || m.funcao_projeto || '',
-          tipo_contratacao: m.tipo_contrato || m.tipo_contratacao || 'RPA',
-          atribuicoes: m.descricao_atividades || m.objeto || '',
-          periodo: `${fmtDateBR(data_inicio)} a ${fmtDateBR(data_fim)}`,
-          carga_horaria: m.carga_horaria_semanal ? `${m.carga_horaria_semanal}h/semana` : '',
-          valor: 0,
-        });
-      }
+      equipeMap.set(m.id, {
+        nome: m.nome || m.full_name || '',
+        cargo: m.cargo || m.funcao || m.funcao_projeto || '',
+        tipo_contratacao: m.tipo_contrato || m.tipo_contratacao || 'RPA',
+        atribuicoes: m.descricao_atividades || m.objeto || m.cargo || '',
+        periodo: `${fmtDateBR(data_inicio)} a ${fmtDateBR(data_fim)}`,
+        carga_horaria: m.carga_horaria_semanal ? `${m.carga_horaria_semanal}h/sem` : '',
+        valor: 0,
+      });
     }
 
-    // Vincular pagamentos à equipe
-    for (const tp of teamPayments as any[]) {
-      const d = tp.competencia || tp.created_date;
-      if (!dentroDoPeríodo(d, inicio, fim)) continue;
+    // Somar pagamentos do período à equipe
+    for (const tp of pagamentosPeriodo as any[]) {
       if (tp.team_member_id && equipeMap.has(tp.team_member_id)) {
         const m = equipeMap.get(tp.team_member_id);
         m.valor += Number(tp.valor_liquido || tp.valor_bruto || tp.valor || 0);
       }
     }
 
-    const equipeTrabalho = Array.from(equipeMap.values());
+    const equipeTrabalho = Array.from(equipeMap.values()).filter(m => m.nome);
 
-    // ── Links de documentos das compras ──────────────────────────────────────
-    const linksDocumentos = comprasPeriodo.map((p: any) => ({
-      id: p.id,
-      descricao: p.descricao_item || '',
-      fornecedor: p.fornecedor_nome || '',
-      nf_numero: p.nf_numero || '',
-      valor: Number(p.valor_pago || p.valor_aprovado_admin || p.valor_aprovado || p.valor_solicitado || 0),
-      data_emissao: p.nf_data_emissao || p.aprov_admin_data || '',
-      centro_custo: p.centro_custo || '',
-      rubrica_nome: p.rubrica_nome || '',
-      nf_pdf_url: p.nota_fiscal_url || p.nf_pdf_url || p.file_url || '',
-      nf_xml_url: p.nf_xml_url || p.xml_url || '',
-      comprovante_url: p.comprovante_pagamento_url || p.comprovante_url || '',
-      drive_folder_url: p.drive_backup_folder_url || '',
-      drive_pdf_url: p.drive_backup_files?.[0]?.url || '',
-    })).filter((d: any) => d.nf_pdf_url || d.nf_xml_url || d.drive_folder_url);
+    // ── Links de documentos (NF, XML, comprovante, Drive) ───────────────────
+    const linksDocumentos = comprasPeriodo
+      .filter((p: any) => p.nota_fiscal_url || p.nf_pdf_url || p.file_url || p.drive_backup_folder_url)
+      .map((p: any) => ({
+        id: p.id,
+        descricao: p.descricao_item || '',
+        fornecedor: p.fornecedor_nome || p.nf_emitente_nome || '',
+        nf_numero: p.nf_numero || '',
+        valor: Number(p.valor_pago || p.valor_aprovado_admin || p.valor_aprovado || p.valor_solicitado || 0),
+        data_emissao: p.nf_data_emissao || p.aprov_admin_data || '',
+        centro_custo: p.centro_custo || '',
+        rubrica_nome: p.rubrica_nome || '',
+        nf_pdf_url: p.nota_fiscal_url || p.nf_pdf_url || p.file_url || '',
+        nf_xml_url: p.nf_xml_url || p.xml_url || '',
+        comprovante_url: p.comprovante_pagamento_url || p.comprovante_url || '',
+        drive_folder_url: p.drive_backup_folder_url || '',
+      }));
 
-    // Total financeiro aprovado do período
+    // Totais
     const totalFinanceiro = comprasPeriodo.reduce((acc: number, p: any) =>
       acc + Number(p.valor_pago || p.valor_aprovado_admin || p.valor_aprovado || p.valor_solicitado || 0), 0);
 
-    // ── Resumo de rubricas ────────────────────────────────────────────────────
-    const rubricasResumo = (rubricas as any[])
-      .filter((r: any) => r.valor_utilizado > 0)
-      .map((r: any) => ({
-        nome: r.rubrica || r.nome || '',
-        grupo: r.grupo || '',
-        valor_previsto: r.valor_rubrica || r.valor_total || 0,
-        valor_utilizado: r.valor_utilizado || 0,
-        saldo: r.saldo || 0,
-        percentual: r.percentual_utilizado || 0,
-      }))
-      .slice(0, 30);
+    // ── Público alvo ─────────────────────────────────────────────────────────
+    const publicoAlvo = {
+      previsto_direto: publicoTotal,
+      previsto_indireto: Math.round(publicoTotal * 1.5),
+      realizado_direto: publicoTotal,
+      realizado_indireto: 0,
+      diferenca_direto: 0,
+      diferenca_indireto: 0,
+      percentual_direto: publicoTotal > 0 ? 100 : 0,
+      percentual_indireto: 0,
+      texto_interpretativo_ia: publicoTotal > 0
+        ? `No período de ${fmtDateBR(data_inicio)} a ${fmtDateBR(data_fim)}, o projeto alcançou ${publicoTotal.toLocaleString('pt-BR')} participantes diretos distribuídos em ${atividadesPeriodo.length} atividades realizadas. As ações envolveram públicos diversificados nos museus participantes, com foco em acessibilidade cultural e formação de público.`
+        : '',
+      modo: 'automatico',
+    };
 
-    // ── Preencher relatório ───────────────────────────────────────────────────
-    const updatePayload: any = {
+    // ── Salvar no relatório ──────────────────────────────────────────────────
+    await base44.asServiceRole.entities.RelatorioExecucaoObjeto.update(relatorio_id, {
       cronograma_metas: cronogramaMetas,
       equipe_trabalho: equipeTrabalho,
-      publico_alvo: {
-        previsto_direto: publicoTotal,
-        previsto_indireto: Math.round(publicoTotal * 1.5),
-        realizado_direto: publicoTotal,
-        realizado_indireto: 0,
-        diferenca_direto: 0,
-        diferenca_indireto: 0,
-        percentual_direto: 100,
-        percentual_indireto: 0,
-        texto_interpretativo_ia: `No período de ${fmtDateBR(data_inicio)} a ${fmtDateBR(data_fim)}, o projeto alcançou ${publicoTotal.toLocaleString('pt-BR')} participantes diretos por meio de ${atividadesPeriodo.length} atividades realizadas. As ações envolveram públicos diversificados nos museus participantes, com foco em acessibilidade cultural e formação de público.`,
-        modo: 'automatico',
-      },
+      publico_alvo: publicoAlvo,
       status: 'revisao',
-      // Metadados adicionais para o PDF
+      // Campos auxiliares para o painel e PDF
       _links_documentos: linksDocumentos,
       _total_financeiro: totalFinanceiro,
       _total_financeiro_fmt: fmtBRL(totalFinanceiro),
-      _rubricas_resumo: rubricasResumo,
       _total_atividades: atividadesPeriodo.length,
       _total_compras_aprovadas: comprasPeriodo.length,
-    };
-
-    await base44.asServiceRole.entities.RelatorioExecucaoObjeto.update(relatorio_id, updatePayload);
+    });
 
     return Response.json({
       success: true,

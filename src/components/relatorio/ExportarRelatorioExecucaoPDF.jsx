@@ -504,6 +504,77 @@ function buildParte1(relatorio) {
   return doc;
 }
 
+function linksDocumentosTable(doc, y, links, totalFmt) {
+  if (!links || links.length === 0) return y;
+  y = check(doc, y, 16);
+  y = subTitle(doc, y, 'DOCUMENTOS COMPROBATÓRIOS VINCULADOS (NF / XML / Comprovantes)');
+
+  if (totalFmt) {
+    y = check(doc, y, 8);
+    doc.setFillColor(232, 255, 232);
+    doc.setDrawColor(100, 190, 100);
+    doc.rect(M, y, CONTENT_W, 7, 'FD');
+    doc.setFontSize(FS.small);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 100, 30);
+    doc.text(`Total financeiro aprovado no período: ${totalFmt}`, M + 3, y + 5);
+    y += 9;
+  }
+
+  const cols = [
+    { h: 'NF Nº', w: 14 },
+    { h: 'FORNECEDOR', w: 38 },
+    { h: 'DESCRIÇÃO', w: 40 },
+    { h: 'VALOR (R$)', w: 24 },
+    { h: 'DATA NF', w: 18 },
+    { h: 'LINKS DISPONÍVEIS', w: 40 },
+  ];
+
+  doc.setFillColor(40, 40, 40);
+  let xc = M;
+  for (const c of cols) {
+    doc.rect(xc, y, c.w, 7, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(5.5);
+    doc.setFont('helvetica', 'bold');
+    doc.text(c.h, xc + 1, y + 4.5);
+    xc += c.w;
+  }
+  y += 7;
+
+  for (const d of links.slice(0, 40)) {
+    const rowH = 7;
+    y = check(doc, y, rowH);
+    const linksTxt = [
+      d.nf_pdf_url ? 'PDF' : '',
+      d.nf_xml_url ? 'XML' : '',
+      d.comprovante_url ? 'Comprovante' : '',
+      d.drive_folder_url ? 'Drive' : '',
+    ].filter(Boolean).join(' • ') || '—';
+    const cells = [
+      txt(d.nf_numero),
+      txt(d.fornecedor).slice(0, 22),
+      txt(d.descricao).slice(0, 24),
+      fmtBRL(d.valor),
+      fmtDate(d.data_emissao),
+      linksTxt,
+    ];
+    xc = M;
+    for (let ci = 0; ci < cols.length; ci++) {
+      doc.setFillColor(ci % 2 === 0 ? 250 : 255, 252, 250);
+      doc.setDrawColor(215, 215, 215);
+      doc.rect(xc, y, cols[ci].w, rowH, 'FD');
+      doc.setTextColor(25, 25, 25);
+      doc.setFontSize(5.5);
+      doc.setFont('helvetica', ci === 0 ? 'bold' : 'normal');
+      doc.text(cells[ci] || '', xc + 1, y + 4.8);
+      xc += cols[ci].w;
+    }
+    y += rowH;
+  }
+  return y + 4;
+}
+
 function buildParte2(relatorio) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   let y = HEADER_H + 4;
@@ -540,6 +611,12 @@ function buildParte2(relatorio) {
   y = sectionTitle(doc, y, '8', 'EQUIPE DE TRABALHO');
   y = instruction(doc, y, 'Inserir no quadro todos os profissionais contratados para a execução da parceria previstos originalmente no plano de trabalho, incluindo as diversas formas de contratação (CLT, RPA, Pessoa Jurídica).');
   y = equipeTable(doc, y, relatorio.equipe_trabalho);
+
+  // Links de documentos (NFs, XMLs, comprovantes, Drive)
+  if (relatorio._links_documentos?.length > 0) {
+    y += 4;
+    y = linksDocumentosTable(doc, y, relatorio._links_documentos, relatorio._total_financeiro_fmt);
+  }
 
   drawAllFooters(doc, 2, 3);
   return doc;
