@@ -1406,33 +1406,31 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
             </div>
           </div>
 
-          {(form.nf_numero || form.nf_data_emissao) && (
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-700">
-                  Número da NF
-                </label>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-gray-700">
+                Número da NF
+              </label>
 
-                <Input
-                  value={form.nf_numero}
-                  onChange={(e) => setField('nf_numero', e.target.value)}
-                  placeholder="Número da nota fiscal"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-700">
-                  Data de emissão
-                </label>
-
-                <Input
-                  type="date"
-                  value={form.nf_data_emissao}
-                  onChange={(e) => setField('nf_data_emissao', e.target.value)}
-                />
-              </div>
+              <Input
+                value={form.nf_numero}
+                onChange={(e) => setField('nf_numero', e.target.value)}
+                placeholder="Número da nota fiscal"
+              />
             </div>
-          )}
+
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-gray-700">
+                Data de emissão
+              </label>
+
+              <Input
+                type="date"
+                value={form.nf_data_emissao}
+                onChange={(e) => setField('nf_data_emissao', e.target.value)}
+              />
+            </div>
+          </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">

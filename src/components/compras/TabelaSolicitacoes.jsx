@@ -149,11 +149,21 @@ function FilesCell({ p }) {
   );
 }
 
-const SORTABLE_COLS = ['natureza', 'fornecedor', 'rubrica', 'centro', 'status', 'valor'];
+const SORTABLE_COLS = ['natureza', 'fornecedor', 'rubrica', 'centro', 'status', 'valor', 'data_nf'];
+
+function formatDateBR(value) {
+  if (!value) return '';
+  // Se já vier no formato YYYY-MM-DD
+  const parts = String(value).split('T')[0].split('-');
+  if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  return value;
+}
 
 function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentUser, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onAccess, sendingNotif, handleSendNotification, menuOpenId, setMenuOpenId }) {
   const [sortField, setSortField] = useState(null);
   const [sortDir, setSortDir] = useState('asc');
+  const [editingDataNF, setEditingDataNF] = useState(null); // id da linha em edição
+  const [dataNFValue, setDataNFValue] = useState('');
 
   function handleSort(field) {
     if (!SORTABLE_COLS.includes(field)) return;
@@ -186,6 +196,12 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
       } else if (sortField === 'valor') {
         return sortDir === 'asc' ? getPurchaseValue(a) - getPurchaseValue(b) : getPurchaseValue(b) - getPurchaseValue(a);
       }
+      if (sortField === 'data_nf') {
+        const da = a.nf_data_emissao || a.aprov_admin_data || a.aprov_coord_data || a.created_date || '';
+        const db = b.nf_data_emissao || b.aprov_admin_data || b.aprov_coord_data || b.created_date || '';
+        const cmp = da.localeCompare(db);
+        return sortDir === 'asc' ? cmp : -cmp;
+      }
       const cmp = String(va).localeCompare(String(vb), 'pt-BR');
       return sortDir === 'asc' ? cmp : -cmp;
     });
@@ -214,9 +230,10 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
           <ThSortable field="centro" className="w-[7%]">Centro</ThSortable>
           <ThSortable field="rubrica" className="w-[14%]">Rubrica</ThSortable>
           <ThSortable field="status" className="w-[9%]">Status</ThSortable>
-          <ThSortable field="valor" className="w-[8%] text-right">Valor</ThSortable>
-          <th className="px-3 py-3 font-medium text-gray-600 w-[10%] text-center">Arquivos</th>
-          <th className="px-3 py-3 font-medium text-gray-600 w-[9%] text-center">Ações</th>
+          <ThSortable field="valor" className="w-[7%] text-right">Valor</ThSortable>
+          <ThSortable field="data_nf" className="w-[8%] text-center">Data NF</ThSortable>
+          <th className="px-3 py-3 font-medium text-gray-600 w-[9%] text-center">Arquivos</th>
+          <th className="px-3 py-3 font-medium text-gray-600 w-[8%] text-center">Ações</th>
         </tr>
       </thead>
       <tbody>
@@ -318,6 +335,40 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
               {/* Valor */}
               <td className="px-3 py-2.5 text-right font-medium tabular-nums text-gray-900" style={tdStyle}>
                 {fmtBRL(valor)}
+              </td>
+
+              {/* Data NF — editável inline */}
+              <td className="px-3 py-2.5 text-center" style={tdStyle}>
+                {editingDataNF === p.id ? (
+                  <input
+                    autoFocus
+                    type="date"
+                    value={dataNFValue}
+                    onChange={(e) => setDataNFValue(e.target.value)}
+                    onBlur={async () => {
+                      setEditingDataNF(null);
+                      if (dataNFValue !== (p.nf_data_emissao || '')) {
+                        try {
+                          await base44.entities.PurchaseRequest.update(p.id, { nf_data_emissao: dataNFValue });
+                          toast.success('Data de emissão atualizada.');
+                        } catch {
+                          toast.error('Erro ao salvar data de emissão.');
+                        }
+                      }
+                    }}
+                    onKeyDown={(e) => { if (e.key === 'Escape') setEditingDataNF(null); }}
+                    className="w-28 rounded border border-gray-300 px-1 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    title="Clique para editar a data de emissão"
+                    onClick={() => { setEditingDataNF(p.id); setDataNFValue(p.nf_data_emissao || ''); }}
+                    className={`rounded px-1.5 py-0.5 text-xs transition-colors hover:bg-blue-50 hover:text-blue-700 ${p.nf_data_emissao ? 'text-gray-700' : 'text-gray-300'}`}
+                  >
+                    {p.nf_data_emissao ? formatDateBR(p.nf_data_emissao) : '—'}
+                  </button>
+                )}
               </td>
 
               {/* Arquivos */}
