@@ -13,7 +13,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
  * DESTINO: 1LgC94VhIomQZBS7kfkQqgBX8MVzwQqzp   (pastas: "07-2026", "03-2026"…)
  */
 
-const SOURCE_FOLDER_ID = '13Lkf42UMaHsyLb8T7Cd0TGUkM3_3YH2T';
+const SOURCE_FOLDER_ID = '10udE1viTbqEtoGdpMZVcRA97SkpcWNsn';
 const DEST_FOLDER_ID   = '1LgC94VhIomQZBS7kfkQqgBX8MVzwQqzp';
 
 // Mapa: nome por extenso (normalizado) → número do mês com zero à esquerda
@@ -203,7 +203,16 @@ Deno.serve(async (req) => {
     const stats = { copiados: 0, ja_existentes: 0, erros: 0, pastas_sem_equivalente: 0 };
     const logs = [];
 
-    await syncTodosMeses(token, stats, logs, limite);
+    // Verifica se a origem contém subpastas mensais ou arquivos diretos
+    const sourceItems = await listFolder(token, SOURCE_FOLDER_ID);
+    const hasMesFolders = sourceItems.some(i => i.mimeType === 'application/vnd.google-apps.folder' && parseFolderName(i.name));
+
+    if (hasMesFolders) {
+      await syncTodosMeses(token, stats, logs, limite);
+    } else {
+      // Modo direto: copia arquivos da origem direto para o destino
+      await syncMesFolder(token, SOURCE_FOLDER_ID, DEST_FOLDER_ID, 'direto', stats, logs, limite);
+    }
 
     const execution_ms = Date.now() - startTime;
 
