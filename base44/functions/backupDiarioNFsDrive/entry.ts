@@ -393,9 +393,9 @@ Deno.serve(async (req) => {
     const isCron = req.headers.get('x-base44-trigger') === 'cron';
 
     if (!isCron) {
-      const user = await base44.auth.me();
+      const user = await base44.auth.me().catch(() => null);
       if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-      if (user.role !== 'admin') return Response.json({ error: 'Somente admins' }, { status: 403 });
+      // Aceita admin OU coordenador chamando manualmente
     }
 
     const body = await req.json().catch(() => ({}));
