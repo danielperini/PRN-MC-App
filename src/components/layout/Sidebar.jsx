@@ -315,7 +315,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
         return SIDEBAR_PATROCINADOR.has(item.path);
       }
       if (item.hideForObservador && obs) return false;
-      if (item.permission === 'canManageUsers' && !canManageUsers(currentUser, userPermission)) return false;
+      if (item.permission === 'canManageUsers' && !canManageUsers(currentUserWithPermission || currentUser, userPermission)) return false;
       if (item.permission === 'canManagePlatform' && currentUser?.role !== 'admin') return false;
       if (item.roles?.includes('admin') && !item.roles?.includes('all') && currentUser?.role !== 'admin') return false;
       if (item.roles?.includes('coord') && !item.roles?.includes('all') && !coord && currentUser?.role !== 'admin') return false;

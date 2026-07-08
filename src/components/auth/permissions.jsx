@@ -326,6 +326,8 @@ export function canViewReport(currentUser, reportAuthorEmail) {
 
 export function canManageUsers(user) {
   if (!user) return false;
+  const email = String(user.email || '').toLowerCase();
+  if (COORD_GERAL_EMAILS.includes(email)) return true;
   return isCoordGeral(user) || user.can_manage_users === true || isCoordenador(user);
 }
 
