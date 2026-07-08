@@ -15,7 +15,8 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
-import { Loader2, Download, FileSpreadsheet, X } from 'lucide-react';
+import { Loader2, Download, FileSpreadsheet, X, HardDrive, ExternalLink, CheckCircle2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 function fmtBRL(v) {
   if (!v && v !== 0) return '—';
@@ -30,6 +31,8 @@ export default function RelatorioMensalConsolidadoDialog({ isOpen, onClose }) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
+  const [uploadingDrive, setUploadingDrive] = useState(false);
+  const [driveResult, setDriveResult] = useState(null);
 
   const meses = [
     { value: '01', label: 'Janeiro' },
@@ -71,8 +74,36 @@ export default function RelatorioMensalConsolidadoDialog({ isOpen, onClose }) {
     if (isOpen) {
       setData(null);
       setError(null);
+      setDriveResult(null);
     }
   }, [isOpen]);
+
+  const enviarParaDrive = useCallback(async () => {
+    if (!data?.relatorio) return;
+    setUploadingDrive(true);
+    setDriveResult(null);
+    try {
+      const res = await base44.functions.invoke('exportarRelatorioConsolidadoParaDrive', {
+        mes,
+        ano,
+        relatorio: data.relatorio,
+        mes_extenso: data.mes_extenso,
+        count_geral: data.count_geral,
+        total_geral_fmt: data.total_geral_fmt
+      });
+      const result = res?.data || res;
+      if (result?.success) {
+        setDriveResult(result);
+        toast.success(`Relatório salvo no Drive: "${result.file_name}"`);
+      } else {
+        toast.error(result?.error || 'Erro ao enviar para o Drive.');
+      }
+    } catch (err) {
+      toast.error(err?.message || 'Erro ao enviar para o Drive.');
+    } finally {
+      setUploadingDrive(false);
+    }
+  }, [data, mes, ano]);
 
   const exportarCSV = () => {
     if (!data?.relatorio) return;
@@ -156,11 +187,37 @@ export default function RelatorioMensalConsolidadoDialog({ isOpen, onClose }) {
               </p>
             </div>
 
-            <div className="flex justify-end">
-              <Button variant="outline" onClick={exportarCSV} className="gap-2">
-                <Download className="h-4 w-4" />
-                Exportar CSV
-              </Button>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" onClick={exportarCSV} className="gap-2">
+                  <Download className="h-4 w-4" />
+                  Exportar CSV
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={enviarParaDrive}
+                  disabled={uploadingDrive}
+                  className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50"
+                >
+                  {uploadingDrive
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : <HardDrive className="h-4 w-4" />}
+                  {uploadingDrive ? 'Enviando para Drive...' : 'Salvar no Google Drive'}
+                </Button>
+              </div>
+
+              {driveResult && (
+                <a
+                  href={driveResult.drive_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-1.5 text-sm font-medium text-green-700 hover:bg-green-100"
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  Abrir no Drive
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              )}
             </div>
 
             {data.relatorio.map((centro) => (
