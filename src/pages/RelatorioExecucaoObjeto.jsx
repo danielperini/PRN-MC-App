@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { FileText, Loader2, CheckCircle2, AlertTriangle, Eye, Edit3, Download, FileSpreadsheet, FileCode, AlertCircle } from 'lucide-react';
 import { exportarRelatorioExecucaoPDF } from '@/components/relatorio/ExportarRelatorioExecucaoPDF';
+import PainelDadosPeriodo from '@/components/relatorio/PainelDadosPeriodo';
 
 const SECOES = [
   { key: 'identificacao', label: '1. Identificação do Projeto', icone: FileText, rapida: true },
@@ -294,6 +295,17 @@ export default function RelatorioExecucaoObjeto() {
         </Card>
       )}
 
+      {/* Painel de Preenchimento Automático — visível assim que há um relatorioId */}
+      {relatorioId && (
+        <PainelDadosPeriodo
+          relatorioId={relatorioId}
+          dataInicio={form.data_inicio}
+          dataFim={form.data_fim}
+          filtroMuseu={form.filtro_museu}
+          onPreenchido={() => carregarRelatorio(relatorioId)}
+        />
+      )}
+
       {/* Relatório Gerado */}
       {relatorio && relatorio.status === 'revisao' && (
         <Card>
@@ -385,36 +397,39 @@ export default function RelatorioExecucaoObjeto() {
 
             {/* Seção 7: Metas */}
             <SecaoCard titulo="7. Cronograma de Execução e Cumprimento de Metas">
+              {relatorio._total_financeiro > 0 && (
+                <div className="mb-3 rounded-lg bg-green-50 border border-green-200 px-3 py-2 flex items-center justify-between">
+                  <span className="text-xs text-green-700 font-medium">Total financeiro aprovado no período</span>
+                  <span className="text-sm font-bold text-green-800">{relatorio._total_financeiro_fmt}</span>
+                </div>
+              )}
               <div className="space-y-3">
                 {(relatorio.cronograma_metas || []).map((meta, idx) => (
                   <Card key={idx} className="border-slate-200">
                     <CardContent className="py-3">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-sm">{meta.meta_nome}</span>
-                            <Badge variant={
-                              meta.status_meta === 'Realizada Integralmente' ? 'default' :
-                              meta.status_meta === 'Realizada Parcialmente' ? 'secondary' : 'destructive'
-                            } className="text-[10px]">
-                              {meta.status_meta}
-                            </Badge>
-                            <Badge variant="outline" className="text-[10px]">{meta.percentual_execucao || 0}%</Badge>
-                          </div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2 text-xs text-slate-600">
-                            <div><strong>Resultado Esperado:</strong> {meta.resultado_esperado}</div>
-                            <div><strong>Ações:</strong> {meta.acoes}</div>
-                            <div><strong>Resultado Alcançado:</strong> {meta.resultado_alcancado}</div>
-                            <div><strong>Período:</strong> {meta.periodo}</div>
-                            {meta.justificativa && <div className="col-span-2"><strong>Justificativa:</strong> {meta.justificativa}</div>}
-                          </div>
-                        </div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="font-semibold text-sm">{meta.meta_nome}</span>
+                        <Badge variant={
+                          (meta.status_meta || '').includes('Integral') ? 'default' :
+                          (meta.status_meta || '').includes('Parcial') ? 'secondary' : 'destructive'
+                        } className="text-[10px]">{meta.status_meta}</Badge>
+                        <Badge variant="outline" className="text-[10px]">{meta.percentual_execucao || 0}%</Badge>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-slate-600">
+                        <div><strong>Resultado Esperado:</strong> {meta.resultado_esperado}</div>
+                        <div><strong>Ações:</strong> {meta.acoes}</div>
+                        <div><strong>Resultado Alcançado:</strong> {meta.resultado_alcancado}</div>
+                        <div><strong>Período:</strong> {meta.periodo}</div>
+                        {meta.documentos_verificacao?.length > 0 && (
+                          <div><strong>Docs Verificação:</strong> {meta.documentos_verificacao.join(', ')}</div>
+                        )}
+                        {meta.justificativa && <div className="col-span-2"><strong>Justificativa:</strong> {meta.justificativa}</div>}
                       </div>
                     </CardContent>
                   </Card>
                 ))}
                 {(!relatorio.cronograma_metas || relatorio.cronograma_metas.length === 0) && (
-                  <p className="text-sm text-slate-400 italic">Nenhuma meta processada</p>
+                  <p className="text-sm text-slate-400 italic">Nenhuma meta processada. Use "Preencher com Dados" para importar automaticamente.</p>
                 )}
               </div>
             </SecaoCard>
@@ -422,26 +437,35 @@ export default function RelatorioExecucaoObjeto() {
             {/* Seção 8: Equipe */}
             <SecaoCard titulo="8. Equipe de Trabalho">
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-xs">
                   <thead>
-                    <tr className="border-b text-left text-xs text-slate-500">
-                      <th className="py-1 pr-2">Nome</th>
-                      <th className="py-1 pr-2">Cargo</th>
-                      <th className="py-1 pr-2">Contratação</th>
-                      <th className="py-1 pr-2">Carga Horária</th>
-                      <th className="py-1">Valor</th>
+                    <tr className="border-b text-left text-slate-500">
+                      <th className="py-1.5 pr-2">Nome</th>
+                      <th className="py-1.5 pr-2">Cargo</th>
+                      <th className="py-1.5 pr-2">Contratação</th>
+                      <th className="py-1.5 pr-2">Período</th>
+                      <th className="py-1.5 pr-2">C.H. Semanal</th>
+                      <th className="py-1.5 text-right">Valor Mensal</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {(relatorio.equipe_trabalho || []).slice(0, 20).map((m, i) => (
-                      <tr key={i} className="border-b border-slate-100">
-                        <td className="py-1 pr-2">{m.nome}</td>
-                        <td className="py-1 pr-2">{m.cargo}</td>
-                        <td className="py-1 pr-2">{m.tipo_contratacao}</td>
-                        <td className="py-1 pr-2">{m.carga_horaria}</td>
-                        <td className="py-1">R$ {(m.valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                    {(relatorio.equipe_trabalho || []).slice(0, 30).map((m, i) => (
+                      <tr key={i} className="border-b border-slate-50">
+                        <td className="py-1.5 pr-2 font-medium">{m.nome || '—'}</td>
+                        <td className="py-1.5 pr-2 text-slate-600">{m.cargo || '—'}</td>
+                        <td className="py-1.5 pr-2">
+                          <Badge variant="outline" className="text-[10px]">{m.tipo_contratacao || '—'}</Badge>
+                        </td>
+                        <td className="py-1.5 pr-2 text-slate-500">{m.periodo || '—'}</td>
+                        <td className="py-1.5 pr-2 text-slate-500">{m.carga_horaria || '—'}</td>
+                        <td className="py-1.5 text-right font-medium tabular-nums">
+                          {m.valor > 0 ? `R$ ${(m.valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}
+                        </td>
                       </tr>
                     ))}
+                    {(!relatorio.equipe_trabalho || relatorio.equipe_trabalho.length === 0) && (
+                      <tr><td colSpan={6} className="py-4 text-center text-slate-400 italic">Nenhum membro importado. Use "Preencher com Dados" para importar a equipe.</td></tr>
+                    )}
                   </tbody>
                 </table>
               </div>
