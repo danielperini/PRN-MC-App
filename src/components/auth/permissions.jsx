@@ -5,8 +5,12 @@
  */
 
 export const COORD_GERAL_EMAIL = 'daniel@periniprojetos.com.br';
+export const COORD_GERAL_EMAILS = [
+  'daniel@periniprojetos.com.br',
+  'danielperini.mc@viadutodasartes.org.br',
+];
 export const COORD_FINANCEIRO_EMAILS = [
-  COORD_GERAL_EMAIL,
+  ...COORD_GERAL_EMAILS,
   'josiane@periniprojetos.com.br',
 ];
 
@@ -25,7 +29,7 @@ export const AUTO_APPROVED_EMAILS = [
 /** Coordenador: acesso total ao sistema */
 export function isCoordenador(user) {
   if (!user) return false;
-  if (user.email === COORD_GERAL_EMAIL) return true;
+  if (COORD_GERAL_EMAILS.includes(String(user.email || '').toLowerCase())) return true;
   if (user.can_manage_users === true) return true;
   const role = String(user.role || '').toUpperCase();
   const baseRole = String(user.base_role || '').toUpperCase();
@@ -72,7 +76,7 @@ export function getUserPerfil(user, userPermission) {
 
 export function isCoordGeral(user) {
   if (!user) return false;
-  return user.email === COORD_GERAL_EMAIL || user.can_manage_users === true;
+  return COORD_GERAL_EMAILS.includes(String(user.email || '').toLowerCase()) || user.can_manage_users === true;
 }
 
 export const OBSERVADOR_PAGES = new Set([
