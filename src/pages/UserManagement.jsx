@@ -90,10 +90,12 @@ function EditDialog({ user, onClose }) {
   async function save() {
     setSaving(true);
     try {
-      await base44.entities.User.update(user.id, {
+      const data = {
         ...form,
         ...(form.role === 'OBSERVADOR' || form.role === 'PATROCINADOR' ? { funcao: 'Observador', equipe: 'Observador' } : {}),
-      });
+      };
+      const res = await base44.functions.invoke('adminUpdateUser', { userId: user.id, data });
+      if (res?.data?.success === false || res?.success === false) throw new Error(res?.data?.error || res?.error || 'Erro ao salvar');
       toast.success('Usuário atualizado!');
       queryClient.invalidateQueries(['user-management']);
       onClose();
@@ -206,9 +208,12 @@ function PermissionsDialog({ user, permissions, onClose }) {
       } else {
         await base44.entities.UserPermission.create(data);
       }
-      await base44.entities.User.update(user.id, {
-        role,
-        ...(role === 'OBSERVADOR' || role === 'PATROCINADOR' ? { funcao: 'Observador', equipe: 'Observador' } : {}),
+      await base44.functions.invoke('adminUpdateUser', {
+        userId: user.id,
+        data: {
+          role,
+          ...(role === 'OBSERVADOR' || role === 'PATROCINADOR' ? { funcao: 'Observador', equipe: 'Observador' } : {}),
+        },
       });
       toast.success('Permissões salvas!');
       queryClient.invalidateQueries(['user-management']);
@@ -512,10 +517,11 @@ export default function UserManagement() {
       } else {
         await base44.entities.UserPermission.create(d);
       }
-      await base44.entities.User.update(user.id, {
+      const userData = {
         role: newRole,
         ...(newRole === 'OBSERVADOR' || newRole === 'PATROCINADOR' ? { funcao: 'Observador', equipe: 'Observador' } : {}),
-      });
+      };
+      await base44.functions.invoke('adminUpdateUser', { userId: user.id, data: userData });
       toast.success(`Papel alterado para ${newRole}`);
       queryClient.invalidateQueries(['user-management']);
     } catch (e) { toast.error('Erro: ' + e.message); }
