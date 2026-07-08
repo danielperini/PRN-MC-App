@@ -96,8 +96,10 @@ export default function TotaisAditivoCards({ rubricas = [] }) {
         String(r?.origem_recurso || '').includes('3') &&
         String(r?.centro_custo || '') !== 'Noturno Pampulha'
     );
+    const previsto3Real = rubricasAditivo3.reduce((acc, r) => acc + toNumber(r.valor_rubrica || r.valor_total), 0);
+    const totalPrevisto3 = previsto3Real > 0 ? previsto3Real : TOTAL_PREVISTO_3_ADITIVO;
     const utilizado3 = rubricasAditivo3.reduce((acc, r) => acc + toNumber(r.valor_utilizado), 0);
-    const saldo3 = TOTAL_PREVISTO_3_ADITIVO - utilizado3;
+    const saldo3 = totalPrevisto3 - utilizado3;
 
     // 4º Aditivo — rubricas com origem contendo '4' OU centro_custo = 'Noturno Pampulha'
     const pampulha = ativas.filter(
@@ -105,13 +107,15 @@ export default function TotaisAditivoCards({ rubricas = [] }) {
         String(r?.origem_recurso || '').includes('4') ||
         String(r?.centro_custo || '') === 'Noturno Pampulha'
     );
+    const previsto4Real = pampulha.reduce((acc, r) => acc + toNumber(r.valor_rubrica || r.valor_total), 0);
+    const totalPrevisto4 = previsto4Real > 0 ? previsto4Real : TOTAL_PREVISTO_4_ADITIVO;
     const utilizado4 = pampulha.reduce((acc, r) => acc + toNumber(r.valor_utilizado), 0);
-    const saldo4 = TOTAL_PREVISTO_4_ADITIVO - utilizado4;
+    const saldo4 = totalPrevisto4 - utilizado4;
 
     return {
-      totais3: { totalPrevisto: TOTAL_PREVISTO_3_ADITIVO, totalUtilizado: utilizado3, saldo: saldo3 },
+      totais3: { totalPrevisto: totalPrevisto3, totalUtilizado: utilizado3, saldo: saldo3 },
       rubricasPampulha: pampulha,
-      totais4: { totalPrevisto: TOTAL_PREVISTO_4_ADITIVO, totalUtilizado: utilizado4, saldo: saldo4 },
+      totais4: { totalPrevisto: totalPrevisto4, totalUtilizado: utilizado4, saldo: saldo4 },
     };
   }, [rubricas]);
 
