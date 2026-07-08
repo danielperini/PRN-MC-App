@@ -64,6 +64,10 @@ function coletarUrlsArquivos(purchase: any) {
   const add = (url: any, tipo: string) => { if (url && typeof url === 'string' && url.startsWith('http')) pares.push({ url, tipo }); };
   add(purchase.nota_fiscal_url, 'nf-pdf');
   add(purchase.nf_pdf_url, 'nf-pdf');
+  // XML da nota fiscal
+  add(purchase.nf_xml_url, 'nf-xml');
+  add(purchase.xml_url, 'nf-xml');
+  add(purchase.nota_fiscal_xml_url, 'nf-xml');
   add(purchase.arquivo_url, 'arquivo');
   add(purchase.file_url, 'arquivo');
   add(purchase.documento_url, 'documento');

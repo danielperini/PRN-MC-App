@@ -135,8 +135,14 @@ function coletarArquivos(purchase) {
       arquivos.push({ url, tipo });
     }
   };
+  // PDF da nota fiscal (todas as variantes de campo)
   add(purchase.nota_fiscal_url, 'nf-pdf');
   add(purchase.nf_pdf_url, 'nf-pdf');
+  // XML da nota fiscal (todas as variantes de campo)
+  add(purchase.nf_xml_url, 'nf-xml');
+  add(purchase.xml_url, 'nf-xml');
+  add(purchase.nota_fiscal_xml_url, 'nf-xml');
+  // Demais documentos
   add(purchase.arquivo_url, 'arquivo');
   add(purchase.file_url, 'arquivo');
   add(purchase.documento_url, 'documento');

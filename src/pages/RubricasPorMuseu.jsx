@@ -404,9 +404,14 @@ export default function RubricasPorMuseu() {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await recalculateAllRubricasFromPurchases();
+      const res = await base44.functions.invoke('recalcularSaldosRubricas', {});
+      const result = res?.data || res;
       await refreshAllRubricaData();
-      toast.success('Dados sincronizados com compras e rubricas');
+      if (result?.success) {
+        toast.success(`Rubricas recalculadas: ${result.atualizadas} atualizadas de ${result.rubricasAtivas} ativas, considerando ${result.comprasContabilizadas} compras aprovadas.`);
+      } else {
+        toast.success('Sincronização concluída');
+      }
     } catch (e) {
       await refreshAllRubricaData();
       toast.success('Sincronização concluída');
@@ -441,12 +446,7 @@ export default function RubricasPorMuseu() {
         {/* Banner informativo */}
         <div className="flex items-center gap-2 text-xs text-gray-500 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
           <Database className="w-3 h-3 text-blue-600" />
-          <span>Dados sincronizados automaticamente com compras aprovadas e gastos em rubricas. Exclusão: pagamento para produção, educadores, coordenadores e equipe.</span>
-        </div>
-        
-        <div className="flex items-center gap-2 text-xs text-gray-500 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
-          <Database className="w-3 h-3 text-blue-600" />
-          <span>Dados sincronizados automaticamente com compras aprovadas e gastos em rubricas. Exclusão: pagamento para produção, educadores, coordenadores e equipe.</span>
+          <span>Saldos calculados diretamente das compras aprovadas por rubrica_id — todos os aditivos e centros de custo. Clique em "Sincronizar" para recalcular agora.</span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
