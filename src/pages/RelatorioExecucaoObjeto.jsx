@@ -168,11 +168,17 @@ export default function RelatorioExecucaoObjeto() {
   }
 
   // Exportação
-  function exportarPDF() {
+  function exportarPDF(modo = 'completo') {
     if (!relatorio) return;
     try {
-      exportarRelatorioExecucaoPDF(relatorio);
-      toast.success('PDF gerado com sucesso!');
+      exportarRelatorioExecucaoPDF(relatorio, modo);
+      const labels = {
+        completo: '3 PDFs gerados (Partes 1, 2 e 3)',
+        parte1: 'Parte 1 — Identificação e Público',
+        parte2: 'Parte 2 — Metas e Equipe',
+        parte3: 'Parte 3 — Impactos, Assinatura e Anexos',
+      };
+      toast.success(`PDF gerado: ${labels[modo] || modo}`);
     } catch (e) {
       toast.error('Erro ao gerar PDF: ' + e.message);
     }
@@ -301,10 +307,19 @@ export default function RelatorioExecucaoObjeto() {
                 {relatorio.data_inicio} a {relatorio.data_fim} • {relatorio.filtro_museu === 'todos' ? 'Todos os museus' : relatorio.filtro_museu} • {relatorio.gerado_por_nome}
               </CardDescription>
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={exportarPDF}><Download className="w-3.5 h-3.5 mr-1" />PDF</Button>
-              <Button variant="outline" size="sm" onClick={exportarHTML}><FileCode className="w-3.5 h-3.5 mr-1" />HTML</Button>
-              <Button variant="outline" size="sm" onClick={exportarExcel}><FileSpreadsheet className="w-3.5 h-3.5 mr-1" />Excel</Button>
+            <div className="flex flex-wrap gap-1">
+              <Button size="sm" onClick={() => exportarPDF('completo')} className="bg-black text-white hover:bg-gray-800 gap-1">
+                <Download className="w-3.5 h-3.5" />PDF Completo (3 partes)
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => exportarPDF('parte1')} className="gap-1 text-xs">
+                <FileText className="w-3 h-3" />Parte 1
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => exportarPDF('parte2')} className="gap-1 text-xs">
+                <FileText className="w-3 h-3" />Parte 2
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => exportarPDF('parte3')} className="gap-1 text-xs">
+                <FileText className="w-3 h-3" />Parte 3
+              </Button>
             </div>
           </CardHeader>
           <CardContent className="space-y-4 max-h-[70vh] overflow-y-auto">

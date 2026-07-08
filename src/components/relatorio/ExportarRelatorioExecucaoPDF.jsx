@@ -1,554 +1,635 @@
 import jsPDF from 'jspdf';
 
+// ─── Constantes de layout ────────────────────────────────────────────────────
 const PAGE_W = 210;
 const PAGE_H = 297;
-const M = 20; // margem
+const M = 18;
 const CONTENT_W = PAGE_W - M * 2;
-const LINE_HEIGHT = 5.5;
-const FONT_NORMAL = 10;
-const FONT_SMALL = 8.5;
-const FONT_TINY = 7.5;
+const LH = 5.5;
+const FS = { tiny: 7, small: 8.5, normal: 10, big: 12 };
+const HEADER_H = 16; // altura do cabeçalho de cada página
+const FOOTER_H = 12;
+const Y_MAX = PAGE_H - FOOTER_H - 6;
 
+// ─── Utilitários ────────────────────────────────────────────────────────────
 function fmtDate(d) {
   if (!d) return 'DD/MM/AAAA';
-  const parts = String(d).split('-');
-  if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
-  return String(d);
+  const p = String(d).split('-');
+  return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : String(d);
 }
-
 function fmtBRL(v) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 }
+function txt(v, fallback = '') { return String(v || fallback); }
 
-function addPage(doc) {
-  doc.addPage();
-  return M;
+// ─── Cabeçalho de cada página ────────────────────────────────────────────────
+function drawPageHeader(doc, parte, totalPartes) {
+  // Barra preta superior
+  doc.setFillColor(12, 12, 12);
+  doc.rect(0, 0, PAGE_W, HEADER_H, 'F');
+  // Logo / nome
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(FS.normal);
+  doc.setFont('helvetica', 'bold');
+  doc.text('VIADUTO DAS ARTES — MUSEUS CENTRO', M, 7);
+  doc.setFontSize(FS.tiny);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Relatório de Execução do Objeto  •  SUCC/PBH', M, 12);
+  if (totalPartes > 1) {
+    doc.text(`Parte ${parte} de ${totalPartes}`, PAGE_W - M, 12, { align: 'right' });
+  }
 }
 
-function checkPageBreak(doc, y, needed = 20) {
-  if (y + needed > PAGE_H - 15) {
-    return addPage(doc);
+// ─── Rodapé de cada página ───────────────────────────────────────────────────
+function drawAllFooters(doc, parte, totalPartes) {
+  const total = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= total; i++) {
+    doc.setPage(i);
+    drawPageHeader(doc, parte, totalPartes);
+    doc.setDrawColor(200, 200, 200);
+    doc.line(M, PAGE_H - FOOTER_H, PAGE_W - M, PAGE_H - FOOTER_H);
+    doc.setFontSize(FS.tiny);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(150, 150, 150);
+    doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, M, PAGE_H - 7);
+    doc.text(`Pág. ${i} / ${total}${totalPartes > 1 ? ` — Parte ${parte}/${totalPartes}` : ''}`, PAGE_W - M, PAGE_H - 7, { align: 'right' });
   }
+}
+
+// ─── Nova página ─────────────────────────────────────────────────────────────
+function newPage(doc) {
+  doc.addPage();
+  return HEADER_H + 4;
+}
+
+function check(doc, y, needed = 16) {
+  if (y + needed > Y_MAX) return newPage(doc);
   return y;
 }
 
-function drawHeader(doc, y) {
-  // Título principal
-  doc.setFillColor(15, 15, 15);
-  doc.rect(M, y, CONTENT_W, 10, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.text('RELATÓRIO DE EXECUÇÃO DO OBJETO', PAGE_W / 2, y + 7, { align: 'center' });
-  y += 12;
-
-  doc.setFillColor(240, 240, 240);
-  doc.rect(M, y, CONTENT_W, 7, 'F');
-  doc.setTextColor(50, 50, 50);
-  doc.setFontSize(FONT_SMALL);
-  doc.setFont('helvetica', 'italic');
-  doc.text('(Preferencialmente em papel timbrado)', PAGE_W / 2, y + 5, { align: 'center' });
-  return y + 10;
-}
-
-function drawSectionTitle(doc, y, num, titulo) {
-  y = checkPageBreak(doc, y, 12);
-  doc.setFillColor(30, 30, 30);
+// ─── Primitivos de desenho ───────────────────────────────────────────────────
+function sectionTitle(doc, y, num, title) {
+  y = check(doc, y, 10);
+  doc.setFillColor(12, 12, 12);
   doc.rect(M, y, CONTENT_W, 7, 'F');
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(FONT_NORMAL);
+  doc.setFontSize(FS.normal);
   doc.setFont('helvetica', 'bold');
-  doc.text(`${num}. ${titulo.toUpperCase()}`, M + 3, y + 5);
+  doc.text(`${num}. ${title.toUpperCase()}`, M + 3, y + 5);
   return y + 9;
 }
 
-function drawSubTitle(doc, y, titulo) {
-  y = checkPageBreak(doc, y, 8);
-  doc.setFillColor(230, 230, 230);
+function subTitle(doc, y, title) {
+  y = check(doc, y, 8);
+  doc.setFillColor(225, 225, 225);
   doc.rect(M, y, CONTENT_W, 6, 'F');
-  doc.setTextColor(40, 40, 40);
-  doc.setFontSize(FONT_SMALL);
+  doc.setTextColor(30, 30, 30);
+  doc.setFontSize(FS.small);
   doc.setFont('helvetica', 'bold');
-  doc.text(titulo, M + 2, y + 4.2);
+  doc.text(title, M + 2, y + 4.2);
   return y + 8;
 }
 
-function drawLabel(doc, y, label, value, fullWidth = false) {
-  y = checkPageBreak(doc, y, LINE_HEIGHT + 2);
-  const colW = fullWidth ? CONTENT_W : CONTENT_W / 2;
-  doc.setFontSize(FONT_TINY);
-  doc.setTextColor(100, 100, 100);
-  doc.setFont('helvetica', 'normal');
-  doc.text(label + ':', M + 1, y + 3);
-  doc.setFontSize(FONT_SMALL);
-  doc.setTextColor(20, 20, 20);
-  doc.setFont('helvetica', 'bold');
-  const val = String(value || '—');
-  doc.text(val, M + 1 + doc.getTextWidth(label + ': '), y + 3);
-  return y + LINE_HEIGHT;
+function instruction(doc, y, text) {
+  y = check(doc, y, 8);
+  const lines = doc.splitTextToSize(text, CONTENT_W - 4);
+  const h = Math.max(6, lines.length * 4.5 + 2);
+  doc.setFillColor(255, 251, 220);
+  doc.rect(M, y, CONTENT_W, h, 'F');
+  doc.setFontSize(FS.tiny);
+  doc.setTextColor(130, 90, 0);
+  doc.setFont('helvetica', 'italic');
+  for (let i = 0; i < lines.length; i++) {
+    doc.text(lines[i], M + 2, y + 4 + i * 4.5);
+  }
+  return y + h + 2;
 }
 
-function drawField(doc, y, label, value, fullWidth = false) {
-  y = checkPageBreak(doc, y, 10);
-  const w = fullWidth ? CONTENT_W : CONTENT_W / 2;
-  doc.setFillColor(250, 250, 250);
-  doc.rect(M, y, fullWidth ? CONTENT_W : w, 8, 'F');
+function checkbox(doc, y, options, selected) {
+  y = check(doc, y, 8);
+  let x = M + 2;
+  for (const op of options) {
+    const on = op === selected;
+    doc.setDrawColor(60, 60, 60);
+    doc.setFillColor(on ? 12 : 255, on ? 12 : 255, on ? 12 : 255);
+    doc.rect(x, y + 1.5, 3.5, 3.5, on ? 'FD' : 'D');
+    if (on) {
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(5.5);
+      doc.text('X', x + 0.6, y + 4.5);
+    }
+    doc.setTextColor(30, 30, 30);
+    doc.setFontSize(FS.small);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`  ${op}`, x + 4, y + 4.5);
+    x += 4 + doc.getTextWidth(`  ${op}`) + 10;
+  }
+  return y + 8;
+}
+
+function field(doc, y, label, value, fullW = false) {
+  y = check(doc, y, 10);
+  const w = fullW ? CONTENT_W : CONTENT_W / 2;
+  doc.setFillColor(248, 248, 248);
   doc.setDrawColor(210, 210, 210);
-  doc.rect(M, y, fullWidth ? CONTENT_W : w, 8, 'S');
-  doc.setFontSize(FONT_TINY);
+  doc.rect(M, y, w, 8, 'FD');
+  doc.setFontSize(FS.tiny);
   doc.setTextColor(110, 110, 110);
   doc.setFont('helvetica', 'normal');
   doc.text(label, M + 2, y + 3);
-  doc.setFontSize(FONT_SMALL);
-  doc.setTextColor(20, 20, 20);
+  doc.setFontSize(FS.small);
+  doc.setTextColor(15, 15, 15);
   doc.setFont('helvetica', 'bold');
-  const txt = String(value || '');
-  const maxW = (fullWidth ? CONTENT_W : w) - 4;
-  const lines = doc.splitTextToSize(txt, maxW);
+  const val = txt(value);
+  const lines = doc.splitTextToSize(val, w - 4);
   doc.text(lines[0] || '', M + 2, y + 6.5);
   return y + 9;
 }
 
-function drawTwoFields(doc, y, f1label, f1val, f2label, f2val) {
-  y = checkPageBreak(doc, y, 10);
-  const hw = CONTENT_W / 2 - 1;
-  // Campo 1
-  doc.setFillColor(250, 250, 250);
-  doc.rect(M, y, hw, 8, 'F');
-  doc.setDrawColor(210, 210, 210);
-  doc.rect(M, y, hw, 8, 'S');
-  doc.setFontSize(FONT_TINY);
-  doc.setTextColor(110, 110, 110);
-  doc.setFont('helvetica', 'normal');
-  doc.text(f1label, M + 2, y + 3);
-  doc.setFontSize(FONT_SMALL);
-  doc.setTextColor(20, 20, 20);
-  doc.setFont('helvetica', 'bold');
-  doc.text(String(f1val || ''), M + 2, y + 6.5);
-  // Campo 2
+function twoFields(doc, y, l1, v1, l2, v2) {
+  y = check(doc, y, 10);
+  const hw = (CONTENT_W - 2) / 2;
   const x2 = M + hw + 2;
-  doc.setFillColor(250, 250, 250);
-  doc.rect(x2, y, hw, 8, 'F');
-  doc.setDrawColor(210, 210, 210);
-  doc.rect(x2, y, hw, 8, 'S');
-  doc.setFontSize(FONT_TINY);
-  doc.setTextColor(110, 110, 110);
-  doc.setFont('helvetica', 'normal');
-  doc.text(f2label, x2 + 2, y + 3);
-  doc.setFontSize(FONT_SMALL);
-  doc.setTextColor(20, 20, 20);
-  doc.setFont('helvetica', 'bold');
-  doc.text(String(f2val || ''), x2 + 2, y + 6.5);
+  for (const [xp, lbl, val] of [[M, l1, v1], [x2, l2, v2]]) {
+    doc.setFillColor(248, 248, 248);
+    doc.setDrawColor(210, 210, 210);
+    doc.rect(xp, y, hw, 8, 'FD');
+    doc.setFontSize(FS.tiny);
+    doc.setTextColor(110, 110, 110);
+    doc.setFont('helvetica', 'normal');
+    doc.text(lbl, xp + 2, y + 3);
+    doc.setFontSize(FS.small);
+    doc.setTextColor(15, 15, 15);
+    doc.setFont('helvetica', 'bold');
+    doc.text(txt(val), xp + 2, y + 6.5);
+  }
   return y + 9;
 }
 
-function drawTextBlock(doc, y, texto, maxChars = 0) {
-  if (!texto) return y + 4;
-  const txt = maxChars > 0 ? texto.slice(0, maxChars) : texto;
-  doc.setFontSize(FONT_SMALL);
-  doc.setTextColor(40, 40, 40);
+function textBlock(doc, y, text, maxChars = 0) {
+  if (!text) {
+    // campo vazio — espaço em branco com borda tracejada
+    y = check(doc, y, 16);
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineDashPattern([1, 1], 0);
+    doc.rect(M, y, CONTENT_W, 14, 'D');
+    doc.setLineDashPattern([], 0);
+    doc.setFontSize(FS.tiny);
+    doc.setTextColor(180, 180, 180);
+    doc.setFont('helvetica', 'italic');
+    doc.text('(Campo a preencher)', M + 3, y + 8);
+    return y + 16;
+  }
+  const t = maxChars > 0 ? text.slice(0, maxChars) : text;
+  doc.setFontSize(FS.small);
+  doc.setTextColor(30, 30, 30);
   doc.setFont('helvetica', 'normal');
-  const lines = doc.splitTextToSize(txt, CONTENT_W - 4);
+  const lines = doc.splitTextToSize(t, CONTENT_W - 4);
   for (const line of lines) {
-    y = checkPageBreak(doc, y, LINE_HEIGHT);
-    doc.text(line, M + 2, y + 3.5);
-    y += LINE_HEIGHT;
+    y = check(doc, y, LH);
+    doc.text(line, M + 2, y + 4);
+    y += LH;
   }
   return y + 2;
 }
 
-function drawInstruction(doc, y, texto) {
-  y = checkPageBreak(doc, y, 8);
-  doc.setFillColor(255, 252, 235);
-  doc.rect(M, y, CONTENT_W, 6, 'F');
-  doc.setFontSize(FONT_TINY);
-  doc.setTextColor(140, 100, 0);
-  doc.setFont('helvetica', 'italic');
-  const lines = doc.splitTextToSize(texto, CONTENT_W - 4);
-  doc.text(lines[0], M + 2, y + 4);
-  return y + 7;
-}
-
-function drawCheckbox(doc, y, opcoes, selecionada) {
-  y = checkPageBreak(doc, y, 8);
-  let x = M + 2;
-  for (const op of opcoes) {
-    const checked = op === selecionada;
-    doc.setDrawColor(80, 80, 80);
-    doc.setFillColor(checked ? 30 : 255, checked ? 30 : 255, checked ? 30 : 255);
-    doc.rect(x, y + 1, 4, 4, checked ? 'FD' : 'D');
-    if (checked) {
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(FONT_TINY - 1);
-      doc.text('✓', x + 0.8, y + 4.5);
-    }
-    doc.setTextColor(40, 40, 40);
-    doc.setFontSize(FONT_SMALL);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`  ${op}`, x + 5, y + 4.5);
-    x += 5 + doc.getTextWidth(`  ${op}`) + 8;
+function blankLines(doc, y, count = 4) {
+  for (let i = 0; i < count; i++) {
+    y = check(doc, y, 6);
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineDashPattern([1, 1], 0);
+    doc.line(M, y + 5, M + CONTENT_W, y + 5);
+    doc.setLineDashPattern([], 0);
+    y += 6;
   }
-  return y + 8;
+  return y + 2;
 }
 
-function drawMetasTable(doc, y, metas) {
-  y = checkPageBreak(doc, y, 20);
-
-  // Cabeçalho da tabela
-  const cols = [
-    { label: '1) METAS', w: 30 },
-    { label: '2) RESULT. ESPERADOS', w: 28 },
-    { label: '3) AÇÕES', w: 28 },
-    { label: '4) PERÍODO', w: 22 },
-    { label: '5) DOCS VERIF.', w: 20 },
-    { label: '6) RESULT. ALCANÇADOS', w: 28 },
-    { label: '7) STATUS', w: 22 },
-    { label: '8) JUSTIF.', w: 22 },
-  ];
-
-  doc.setFillColor(15, 15, 15);
+// ─── Tabela de público alvo ──────────────────────────────────────────────────
+function publicoTable(doc, y, p) {
+  p = p || {};
+  y = check(doc, y, 30);
+  const cw = CONTENT_W / 4;
+  const hdrs = ['PÚBLICO ALVO TOTAL DO PROJETO', 'PREVISTO P/ ATENDIMENTO\n(referente ao período)', 'ATENDIDO DE FATO\n(referente ao período)', 'JUSTIFICATIVA\n(Alcance de Atendidos)'];
+  doc.setFillColor(12, 12, 12);
   let xc = M;
-  for (const col of cols) {
-    doc.rect(xc, y, col.w, 8, 'F');
+  for (const h of hdrs) {
+    doc.rect(xc, y, cw, 9, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(5.5);
     doc.setFont('helvetica', 'bold');
-    const lines = doc.splitTextToSize(col.label, col.w - 1);
-    doc.text(lines, xc + 1, y + 3);
-    xc += col.w;
+    const ls = doc.splitTextToSize(h, cw - 2);
+    ls.forEach((l, i) => doc.text(l, xc + 1, y + 3.5 + i * 3.5));
+    xc += cw;
   }
-  y += 8;
+  y += 9;
+  const rows = [
+    [`DIRETO: ${(p.previsto_direto || 0).toLocaleString('pt-BR')}`, `DIRETO: ${(p.realizado_direto || 0).toLocaleString('pt-BR')} (${p.percentual_direto || 0}%)`, ''],
+    [`INDIRETO: ${(p.previsto_indireto || 0).toLocaleString('pt-BR')}`, `INDIRETO: ${(p.realizado_indireto || 0).toLocaleString('pt-BR')} (${p.percentual_indireto || 0}%)`, ''],
+  ];
+  for (const [idx, row] of rows.entries()) {
+    xc = M;
+    const label = idx === 0 ? 'DIRETO:' : 'INDIRETO:';
+    for (const [ci, cell] of [label, ...row].entries()) {
+      doc.setFillColor(ci % 2 === 0 ? 245 : 255, 248, 255);
+      doc.setDrawColor(210, 210, 210);
+      doc.rect(xc, y, cw, 8, 'FD');
+      doc.setTextColor(20, 20, 20);
+      doc.setFontSize(FS.small);
+      doc.setFont('helvetica', ci === 0 ? 'bold' : 'normal');
+      doc.text(txt(cell), xc + 2, y + 5.5);
+      xc += cw;
+    }
+    y += 8;
+  }
+  return y + 3;
+}
+
+// ─── Tabela de metas ─────────────────────────────────────────────────────────
+function metasTable(doc, y, metas) {
+  y = check(doc, y, 20);
+  const cols = [
+    { h: '1) METAS', w: 28 },
+    { h: '2) RESULT. ESPERADOS', w: 26 },
+    { h: '3) AÇÕES', w: 26 },
+    { h: '4) PERÍODO', w: 20 },
+    { h: '5) DOCS VERIFICAÇÃO', w: 22 },
+    { h: '6) RESULT. ALCANÇADOS', w: 26 },
+    { h: '7) STATUS EXECUÇÃO', w: 22 },
+    { h: '8) JUSTIFICATIVA', w: 24 },
+  ];
+  // header
+  doc.setFillColor(12, 12, 12);
+  let xc = M;
+  for (const c of cols) {
+    doc.rect(xc, y, c.w, 9, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(5.5);
+    doc.setFont('helvetica', 'bold');
+    doc.splitTextToSize(c.h, c.w - 1).forEach((l, i) => doc.text(l, xc + 1, y + 3.5 + i * 3));
+    xc += c.w;
+  }
+  y += 9;
 
   for (const meta of (metas || [])) {
-    const rowH = 14;
-    y = checkPageBreak(doc, y, rowH);
-    const statusColor =
-      meta.status_meta === 'Realizada Integralmente' ? [34, 139, 34] :
-      meta.status_meta === 'Realizada Parcialmente' ? [218, 165, 32] :
-      [200, 50, 50];
-
+    const rowH = 16;
+    y = check(doc, y, rowH);
+    const statusRgb =
+      (meta.status_meta || '').includes('Integral') ? [22, 120, 22] :
+      (meta.status_meta || '').includes('Parcial') ? [180, 130, 0] :
+      [180, 40, 40];
     xc = M;
     const cells = [
-      meta.meta_nome || '',
-      meta.resultado_esperado || '',
-      meta.acoes || '',
-      meta.periodo || '',
-      (meta.documentos_verificacao || []).join(', ') || '',
-      meta.resultado_alcancado || '',
-      `${meta.status_meta || '—'}\n${meta.percentual_execucao ? meta.percentual_execucao + '%' : ''}`,
-      meta.justificativa || '',
+      txt(meta.meta_nome),
+      txt(meta.resultado_esperado),
+      txt(meta.acoes),
+      txt(meta.periodo),
+      (meta.documentos_verificacao || []).join(', '),
+      txt(meta.resultado_alcancado),
+      `${txt(meta.status_meta)}\n${meta.percentual_execucao ? meta.percentual_execucao + '%' : ''}`,
+      txt(meta.justificativa),
     ];
     for (let ci = 0; ci < cols.length; ci++) {
-      const bg = ci === 6 ? statusColor : [255, 255, 255];
+      const bg = ci === 6 ? statusRgb : [255, 255, 255];
       doc.setFillColor(...bg);
       doc.setDrawColor(200, 200, 200);
       doc.rect(xc, y, cols[ci].w, rowH, 'FD');
-      doc.setTextColor(ci === 6 ? 255 : 40, ci === 6 ? 255 : 40, ci === 6 ? 255 : 40);
+      doc.setTextColor(ci === 6 ? 255 : 30, ci === 6 ? 255 : 30, ci === 6 ? 255 : 30);
       doc.setFontSize(5.5);
       doc.setFont('helvetica', ci === 6 ? 'bold' : 'normal');
-      const lines = doc.splitTextToSize(cells[ci], cols[ci].w - 2);
-      doc.text(lines.slice(0, 3), xc + 1, y + 3.5);
+      doc.splitTextToSize(cells[ci], cols[ci].w - 2).slice(0, 3).forEach((l, i) => doc.text(l, xc + 1, y + 4 + i * 4));
       xc += cols[ci].w;
     }
     y += rowH;
   }
-  return y + 4;
+  // 2 linhas em branco para preenchimento manual
+  for (let i = 0; i < 2; i++) {
+    xc = M;
+    for (const c of cols) {
+      doc.setFillColor(255, 255, 255);
+      doc.setDrawColor(210, 210, 210);
+      doc.rect(xc, y, c.w, 12, 'D');
+      xc += c.w;
+    }
+    y += 12;
+  }
+  return y + 3;
 }
 
-function drawEquipeTable(doc, y, equipe) {
-  y = checkPageBreak(doc, y, 20);
-
+// ─── Tabela de equipe ────────────────────────────────────────────────────────
+function equipeTable(doc, y, equipe) {
+  y = check(doc, y, 20);
   const cols = [
-    { label: 'NOME', w: 42 },
-    { label: 'CARGO', w: 30 },
-    { label: 'CONTRATAÇÃO', w: 28 },
-    { label: 'ATRIBUIÇÕES', w: 32 },
-    { label: 'PERÍODO', w: 22 },
-    { label: 'C.H. SEMANAL', w: 18 },
-    { label: 'VALOR MENSAL BRUTO', w: 28 },
+    { h: 'NOME', w: 38 },
+    { h: 'CARGO', w: 28 },
+    { h: 'FORMA DE CONTRATAÇÃO', w: 28 },
+    { h: 'ATRIBUIÇÕES NO PROJETO', w: 32 },
+    { h: 'PERÍODO (INÍCIO/FIM)', w: 22 },
+    { h: 'C.H. SEMANAL', w: 16 },
+    { h: 'VALOR MENSAL BRUTO', w: 30 },
   ];
-
-  doc.setFillColor(15, 15, 15);
+  doc.setFillColor(12, 12, 12);
   let xc = M;
-  for (const col of cols) {
-    doc.rect(xc, y, col.w, 7, 'F');
+  for (const c of cols) {
+    doc.rect(xc, y, c.w, 7, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(5.5);
     doc.setFont('helvetica', 'bold');
-    doc.text(col.label, xc + 1, y + 4.5);
-    xc += col.w;
+    doc.splitTextToSize(c.h, c.w - 1).forEach((l, i) => doc.text(l, xc + 1, y + 3 + i * 3));
+    xc += c.w;
   }
   y += 7;
-
   for (const m of (equipe || [])) {
     const rowH = 8;
-    y = checkPageBreak(doc, y, rowH);
+    y = check(doc, y, rowH);
     xc = M;
-    const cells = [
-      m.nome || '',
-      m.cargo || '',
-      m.tipo_contratacao || '',
-      m.atribuicoes || '',
-      m.periodo || '',
-      m.carga_horaria || '',
-      fmtBRL(m.valor),
-    ];
+    const cells = [txt(m.nome), txt(m.cargo), txt(m.tipo_contratacao), txt(m.atribuicoes), txt(m.periodo), txt(m.carga_horaria), fmtBRL(m.valor)];
     for (let ci = 0; ci < cols.length; ci++) {
-      doc.setFillColor(ci % 2 === 0 ? 250 : 245, 250, 255);
-      doc.setDrawColor(220, 220, 220);
+      doc.setFillColor(ci % 2 === 0 ? 248 : 255, 250, 255);
+      doc.setDrawColor(215, 215, 215);
       doc.rect(xc, y, cols[ci].w, rowH, 'FD');
-      doc.setTextColor(30, 30, 30);
+      doc.setTextColor(25, 25, 25);
       doc.setFontSize(6);
       doc.setFont('helvetica', 'normal');
-      const lines = doc.splitTextToSize(cells[ci], cols[ci].w - 2);
-      doc.text(lines[0] || '', xc + 1, y + 5);
+      doc.text(doc.splitTextToSize(cells[ci], cols[ci].w - 2)[0] || '', xc + 1, y + 5.5);
       xc += cols[ci].w;
     }
     y += rowH;
   }
-
-  // Linha em branco para preenchimento manual
+  // 2 linhas em branco
   for (let i = 0; i < 2; i++) {
-    y = checkPageBreak(doc, y, 8);
     xc = M;
-    for (const col of cols) {
+    for (const c of cols) {
       doc.setFillColor(255, 255, 255);
-      doc.setDrawColor(200, 200, 200);
-      doc.rect(xc, y, col.w, 8, 'D');
-      xc += col.w;
-    }
-    y += 8;
-  }
-  return y + 4;
-}
-
-function drawPublicoTable(doc, y, publico) {
-  y = checkPageBreak(doc, y, 24);
-
-  const p = publico || {};
-  const colW = CONTENT_W / 4;
-
-  // Cabeçalho
-  const headers = ['P. ALVO TOTAL DO PROJETO', 'PREVISTO P/ ATENDIMENTO', 'ATENDIDO DE FATO', 'JUSTIFICATIVA'];
-  doc.setFillColor(30, 30, 30);
-  let xc = M;
-  for (const h of headers) {
-    doc.rect(xc, y, colW, 7, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(6);
-    doc.setFont('helvetica', 'bold');
-    doc.text(h, xc + colW / 2, y + 4.5, { align: 'center' });
-    xc += colW;
-  }
-  y += 7;
-
-  // Linha DIRETO
-  const rows = [
-    ['DIRETO', `DIRETO: ${(p.previsto_direto || 0).toLocaleString('pt-BR')}`, `DIRETO: ${(p.realizado_direto || 0).toLocaleString('pt-BR')} (${p.percentual_direto || 0}%)`, ''],
-    ['INDIRETO', `INDIRETO: ${(p.previsto_indireto || 0).toLocaleString('pt-BR')}`, `INDIRETO: ${(p.realizado_indireto || 0).toLocaleString('pt-BR')} (${p.percentual_indireto || 0}%)`, ''],
-  ];
-  for (const row of rows) {
-    xc = M;
-    for (const cell of row) {
-      doc.setFillColor(250, 250, 250);
       doc.setDrawColor(210, 210, 210);
-      doc.rect(xc, y, colW, 8, 'FD');
-      doc.setTextColor(30, 30, 30);
-      doc.setFontSize(FONT_SMALL);
-      doc.setFont('helvetica', 'bold');
-      doc.text(cell, xc + 2, y + 5.5);
-      xc += colW;
+      doc.rect(xc, y, c.w, 9, 'D');
+      xc += c.w;
     }
-    y += 8;
+    y += 9;
   }
-  return y + 4;
+  return y + 3;
 }
 
-function drawFooter(doc) {
-  const pageCount = doc.internal.getNumberOfPages();
-  for (let i = 1; i <= pageCount; i++) {
-    doc.setPage(i);
-    doc.setFontSize(7);
-    doc.setTextColor(160, 160, 160);
-    doc.setFont('helvetica', 'normal');
-    doc.line(M, PAGE_H - 12, PAGE_W - M, PAGE_H - 12);
-    doc.text(`Viaduto das Artes — Museus Centro  |  Gerado em ${new Date().toLocaleString('pt-BR')}`, M, PAGE_H - 7);
-    doc.text(`Página ${i} de ${pageCount}`, PAGE_W - M, PAGE_H - 7, { align: 'right' });
-  }
+// ─── Bloco de assinatura ─────────────────────────────────────────────────────
+function assinaturaBlock(doc, y, relatorio) {
+  const ident = relatorio.identificacao_projeto || {};
+  y = check(doc, y, 60);
+  // Texto de declaração
+  const decl =
+    'Declaro que são verídicas as informações prestadas neste relatório e que os documentos comprobatórios de cumprimento parcial ou total dos resultados desta parceria se encontram arquivados sob a guarda da OSC e permanecem à disposição da administração pública ou do conselho gestor para qualquer verificação futura, durante 10 anos após a finalização da parceria.\n\n' +
+    'Declaro ainda que os dados registrados pela OSC no Portal das Parcerias (SUCC) correspondem à realidade dos fatos, estando ciente de que o envio irregular poderá dar ensejo à apresentação de relatório de execução financeira, bem como à aplicação de penalidades conforme o art. 68 da Lei nº 13.019/2014 e art. 62 do Decreto Municipal nº 16.746/2017.';
+  y = textBlock(doc, y, decl);
+  y += 6;
+  doc.setFontSize(FS.small);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(20, 20, 20);
+  doc.text('Belo Horizonte, _______ de ___________________________ de 20______', M + 2, y);
+  y += 16;
+  const cx = PAGE_W / 2;
+  doc.setDrawColor(30, 30, 30);
+  doc.line(cx - 50, y, cx + 50, y);
+  y += 5;
+  doc.setFontSize(FS.small);
+  doc.text(txt(relatorio.assinatura?.nome_representante || ident.responsavel || '___________________________________'), cx, y, { align: 'center' });
+  y += 4;
+  doc.setFontSize(FS.tiny);
+  doc.setTextColor(80, 80, 80);
+  doc.text('Nome/Assinatura do Representante Legal da Organização da Sociedade Civil', cx, y, { align: 'center' });
+  return y + 10;
 }
 
-export function exportarRelatorioExecucaoPDF(relatorio) {
-  if (!relatorio) return;
+// ─── Partes do relatório ─────────────────────────────────────────────────────
 
+function buildParte1(relatorio) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const ident = relatorio.identificacao_projeto || {};
-  let y = M;
+  let y = HEADER_H + 4;
 
-  // === CABEÇALHO ===
-  y = drawHeader(doc, y);
-  y += 2;
-
-  // === 1. TIPO DE RELATÓRIO ===
-  y = drawSectionTitle(doc, y, '1', 'TIPO DE RELATÓRIO');
-  y = drawCheckbox(doc, y, ['Parcial', 'Final'], relatorio.tipo === 'parcial' ? 'Parcial' : 'Final');
-  y = drawTwoFields(doc, y,
-    'Período de execução (Início)', fmtDate(relatorio.data_inicio),
-    'Período de execução (Fim)', fmtDate(relatorio.data_fim)
-  );
-  y += 4;
-
-  // === 2. IDENTIFICAÇÃO DO PROJETO ===
-  y = drawSectionTitle(doc, y, '2', 'IDENTIFICAÇÃO DO PROJETO');
-  y = drawField(doc, y, 'Organização da Sociedade Civil', ident.organizacao, true);
-  y = drawField(doc, y, 'Nome do Projeto', ident.projeto, true);
-  y = drawTwoFields(doc, y, 'Instrumento Jurídico', ident.instrumento_juridico, 'Processo Administrativo Nº', ident.processo_administrativo);
-  y = drawTwoFields(doc, y, 'Vigência do Projeto (Início)', fmtDate(ident.vigencia_inicio), 'Vigência do Projeto (Fim)', fmtDate(ident.vigencia_fim));
-  y = drawField(doc, y, 'Responsável pela elaboração do relatório', ident.responsavel, true);
-  y = drawTwoFields(doc, y, 'Telefone', ident.telefone, 'E-mail', ident.email);
-  y += 4;
-
-  // === 3. ENDEREÇO DE EXECUÇÃO ===
-  y = drawSectionTitle(doc, y, '3', 'ENDEREÇO DE EXECUÇÃO DAS AÇÕES DO PROJETO');
-  y = drawCheckbox(doc, y, ['Endereço Físico', 'Endereço Virtual', 'Ambos'], 'Ambos');
-  y = drawSubTitle(doc, y, '3.1. ENDEREÇO FÍSICO');
-  y = drawInstruction(doc, y, 'Orientação: caso a OSC execute o projeto em vários locais, preencher o endereço no qual a OSC tenha preferência em receber visita técnica.');
-  const endTxt = relatorio.endereco_execucao?.texto_editado || relatorio.endereco_execucao?.texto_ia || '';
-  y = drawField(doc, y, 'Endereço', endTxt, true);
-  y = drawTwoFields(doc, y, 'Complemento', '', 'Bairro', '');
-  y = drawTwoFields(doc, y, 'Regional', '', 'Cidade', 'Belo Horizonte');
-  y = drawSubTitle(doc, y, '3.2. ENDEREÇO VIRTUAL (Se houver)');
-  y = drawField(doc, y, 'Site', '', true);
-  y += 4;
-
-  // === 4. DIVULGAÇÃO DA PARCERIA ===
-  y = drawSectionTitle(doc, y, '4', 'DIVULGAÇÃO DA PARCERIA');
-  y = drawInstruction(doc, y, 'Informar os meios utilizados pela instituição para a divulgação e transparência das informações referentes à parceria, conforme art. 11 da Lei Federal.');
-  const divTxt = relatorio.divulgacao_parceria?.texto_editado || relatorio.divulgacao_parceria?.texto_ia || '';
-  y = drawTextBlock(doc, y, divTxt);
-  y += 4;
-
-  // === 5. DESCRIÇÃO SUCINTA ===
-  y = drawSectionTitle(doc, y, '5', 'DESCRIÇÃO SUCINTA DAS AÇÕES EXECUTADAS NO PERÍODO');
-  y = drawInstruction(doc, y, 'Informar os principais pontos de destaque, resultados e benefícios gerados pela execução da parceria (máx. 1500 caracteres).');
-  const descTxt = relatorio.descricao_acoes?.texto_editado || relatorio.descricao_acoes?.texto_ia || '';
-  y = drawTextBlock(doc, y, descTxt, 1500);
-  y += 4;
-
-  // === 6. PÚBLICO ALVO ===
-  y = drawSectionTitle(doc, y, '6', 'PÚBLICO ALVO');
-  y = drawInstruction(doc, y, 'Indicar a qual público as ações do projeto serão destinadas, determinando quantitativamente.');
-  y = drawPublicoTable(doc, y, relatorio.publico_alvo);
-  if (relatorio.publico_alvo?.texto_interpretativo_editado || relatorio.publico_alvo?.texto_interpretativo_ia) {
-    y = drawTextBlock(doc, y, relatorio.publico_alvo.texto_interpretativo_editado || relatorio.publico_alvo.texto_interpretativo_ia);
-  }
-
-  y = drawSubTitle(doc, y, '6.1. PESQUISA DE SATISFAÇÃO DO PÚBLICO ALVO DO PROJETO');
-  const satRealiz = relatorio.pesquisa_satisfacao?.possui_dados;
-  y = drawCheckbox(doc, y, ['Sim', 'Não'], satRealiz ? 'Sim' : 'Não');
-  y = drawInstruction(doc, y, 'Se "sim" descreva o resultado abaixo, se "não" justifique a não realização.');
-  const satTxt = relatorio.pesquisa_satisfacao?.justificativa_editada || relatorio.pesquisa_satisfacao?.justificativa_ia || '';
-  y = drawTextBlock(doc, y, satTxt || 'Não foram aplicados formulários de pesquisa de satisfação neste período de execução.');
-  y += 4;
-
-  // === 7. CRONOGRAMA DE METAS ===
-  y = drawSectionTitle(doc, y, '7', 'CRONOGRAMA DE EXECUÇÃO E CUMPRIMENTO DAS METAS');
-  y = drawInstruction(doc, y, 'Nas colunas 01 a 05 transcreva as informações do plano de trabalho aprovado e acrescente as informações das colunas 06 a 08 conforme a execução das ações.');
-  y = drawMetasTable(doc, y, relatorio.cronograma_metas);
-
-  y = drawSubTitle(doc, y, '7.1. LIÇÕES APRENDIDAS DURANTE O PERÍODO DE EXECUÇÃO');
-  y = drawInstruction(doc, y, 'Quais foram os desafios encontrados e as soluções implementadas? (máximo 1500 caracteres)');
-  y = drawTextBlock(doc, y, relatorio.descricao_acoes?.texto_editado ? '' : '', 1500);
-  // Espaço para preenchimento
-  for (let i = 0; i < 4; i++) {
-    y = checkPageBreak(doc, y, 6);
-    doc.setDrawColor(200, 200, 200);
-    doc.line(M, y + 4, M + CONTENT_W, y + 4);
-    y += 6;
-  }
-  y += 4;
-
-  // === 8. EQUIPE DE TRABALHO ===
-  y = drawSectionTitle(doc, y, '8', 'EQUIPE DE TRABALHO');
-  y = drawInstruction(doc, y, 'Inserir todos os profissionais contratados para a execução da parceria previstos no plano de trabalho (CLT, RPA, PJ).');
-  y = drawEquipeTable(doc, y, relatorio.equipe_trabalho);
-
-  // === 9. IMPACTOS ===
-  y = drawSectionTitle(doc, y, '9', 'IMPACTOS ECONÔMICOS E/OU SOCIAIS DAS AÇÕES DESENVOLVIDAS');
-  y = drawInstruction(doc, y, 'Demonstre a relação direta de causa e efeito entre as ações, os resultados alcançados e como estes modificaram/melhoraram a condição do público-alvo. (máx. 2000 caracteres)');
-  const impTxt = relatorio.impactos_economicos_sociais?.texto_editado || relatorio.impactos_economicos_sociais?.texto_ia || '';
-  y = drawTextBlock(doc, y, impTxt, 2000);
-  y += 4;
-
-  // === 10. SUSTENTABILIDADE (somente relatório final) ===
-  y = drawSectionTitle(doc, y, '10', 'POSSIBILIDADE DE SUSTENTABILIDADE DAS AÇÕES APÓS CONCLUSÃO DA PARCERIA');
-  y = drawInstruction(doc, y, 'Preenchimento somente em relatório final. Fazer análise sobre a possibilidade de sustentabilidade das ações após a conclusão da parceria.');
-  const susTxt = relatorio.sustentabilidade?.texto_editado || relatorio.sustentabilidade?.texto_ia || '';
-  y = drawTextBlock(doc, y, susTxt || (relatorio.tipo === 'parcial' ? '[Campo aplicável apenas ao Relatório Final]' : ''));
-  y += 4;
-
-  // === 11. AVALIAÇÃO DA PARCERIA ===
-  y = drawSectionTitle(doc, y, '11', 'AVALIAÇÃO DA PARCERIA COM A ADMINISTRAÇÃO PÚBLICA');
-  y = drawInstruction(doc, y, 'Informar problemas detectados, sugestões ou críticas construtivas relacionadas à administração pública (Conselho, SMASAC, PGM, outros).');
-  const avalTxt = relatorio.avaliacao_parceria?.texto_editado || relatorio.avaliacao_parceria?.texto_ia || '';
-  y = drawTextBlock(doc, y, avalTxt);
-  y += 4;
-
-  // === 12. ASSINATURA ===
-  y = drawSectionTitle(doc, y, '12', 'ASSINATURA DO REPRESENTANTE LEGAL OSC');
-  y += 2;
-  y = drawInstruction(doc, y,
-    'Declaro que são verídicas as informações prestadas neste relatório e que os documentos comprobatórios se encontram arquivados sob a guarda da OSC durante 10 anos após a finalização da parceria.'
-  );
-  y += 4;
-
-  // Espaço para data
-  y = checkPageBreak(doc, y, 16);
-  doc.setFontSize(FONT_SMALL);
-  doc.setTextColor(30, 30, 30);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Belo Horizonte, ______ de _______________________________ de 20______`, M + 2, y);
-  y += 12;
-
-  // Linha de assinatura
-  y = checkPageBreak(doc, y, 20);
-  const centerX = PAGE_W / 2;
-  doc.setDrawColor(30, 30, 30);
-  doc.line(centerX - 45, y, centerX + 45, y);
-  y += 4;
-  doc.setFontSize(FONT_SMALL);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(60, 60, 60);
-  const nomeSig = relatorio.assinatura?.nome_representante || ident.responsavel || '___________________________________';
-  doc.text(nomeSig, centerX, y, { align: 'center' });
-  y += 4;
-  doc.setFontSize(FONT_TINY);
-  doc.text('Nome/Assinatura do Representante legal da Organização da Sociedade Civil', centerX, y, { align: 'center' });
+  // Título do documento
+  doc.setFillColor(240, 240, 240);
+  doc.rect(M, y, CONTENT_W, 8, 'F');
+  doc.setTextColor(12, 12, 12);
+  doc.setFontSize(FS.big);
+  doc.setFont('helvetica', 'bold');
+  doc.text('RELATÓRIO DE EXECUÇÃO DO OBJETO', PAGE_W / 2, y + 5.5, { align: 'center' });
   y += 10;
+  doc.setFontSize(FS.tiny);
+  doc.setFont('helvetica', 'italic');
+  doc.setTextColor(100, 100, 100);
+  doc.text('(Preferencialmente em papel timbrado)', PAGE_W / 2, y + 3, { align: 'center' });
+  y += 7;
 
-  // === 13. ANEXOS ===
-  y = drawSectionTitle(doc, y, '13', 'ANEXOS');
-  y = drawInstruction(doc, y,
-    'Os documentos de comprovação deverão ser apresentados conforme o cronograma de metas. Fotografias devem conter descrição do evento e data. Quando extensos, é possível inserção por amostragem.'
+  // 1. TIPO
+  y = sectionTitle(doc, y, '1', 'TIPO DE RELATÓRIO');
+  y = checkbox(doc, y, ['Parcial', 'Final'], relatorio.tipo === 'parcial' ? 'Parcial' : 'Final');
+  if (relatorio.tipo === 'parcial') {
+    y = check(doc, y, 8);
+    doc.setFontSize(FS.small);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(30, 30, 30);
+    doc.text('Nº do Relatório Parcial: _______', M + 2, y + 4);
+    y += 8;
+  }
+  y = twoFields(doc, y, 'Período de execução — Início', fmtDate(relatorio.data_inicio), 'Período de execução — Fim', fmtDate(relatorio.data_fim));
+  y += 4;
+
+  // 2. IDENTIFICAÇÃO
+  y = sectionTitle(doc, y, '2', 'IDENTIFICAÇÃO DO PROJETO');
+  y = field(doc, y, 'Organização da Sociedade Civil (OSC)', txt(ident.organizacao, 'Viaduto das Artes'), true);
+  y = field(doc, y, 'Nome do Projeto', txt(ident.projeto, 'Museus Centro'), true);
+  y = twoFields(doc, y, 'Instrumento Jurídico', txt(ident.instrumento_juridico), 'Processo Administrativo Nº', txt(ident.processo_administrativo));
+  y = twoFields(doc, y, 'Vigência do Projeto — Início', fmtDate(ident.vigencia_inicio), 'Vigência do Projeto — Fim', fmtDate(ident.vigencia_fim));
+  y = field(doc, y, 'Data do primeiro repasse pela administração', fmtDate(ident.data_primeiro_repasse || ''), true);
+  y = field(doc, y, 'Responsável pela elaboração do relatório', txt(ident.responsavel), true);
+  y = twoFields(doc, y, 'Telefone', txt(ident.telefone), 'E-mail', txt(ident.email));
+  y += 4;
+
+  // 3. ENDEREÇO
+  y = sectionTitle(doc, y, '3', 'ENDEREÇO DE EXECUÇÃO DAS AÇÕES DO PROJETO');
+  y = checkbox(doc, y, ['Endereço Físico', 'Endereço Virtual', 'Ambos'], 'Ambos');
+  y = subTitle(doc, y, '3.1. ENDEREÇO FÍSICO');
+  y = instruction(doc, y, 'Orientação: caso a OSC execute o projeto em vários locais, preencher o endereço no qual a OSC tenha preferência em receber visita técnica do gestor de parcerias.');
+  const endTxt = txt(relatorio.endereco_execucao?.texto_editado || relatorio.endereco_execucao?.texto_ia);
+  y = field(doc, y, 'Endereço', endTxt, true);
+  y = twoFields(doc, y, 'Complemento', '', 'Bairro', '');
+  y = twoFields(doc, y, 'Regional', '', 'Cidade', 'Belo Horizonte');
+  y = subTitle(doc, y, '3.2. ENDEREÇO VIRTUAL (Se houver)');
+  y = field(doc, y, 'Site / Redes Sociais', '', true);
+  y += 4;
+
+  // 4. DIVULGAÇÃO
+  y = sectionTitle(doc, y, '4', 'DIVULGAÇÃO DA PARCERIA');
+  y = instruction(doc, y, 'Informar os meios utilizados pela instituição para a divulgação e transparência das informações referentes à parceria, conforme disposto no art. 11 da Lei Federal.');
+  const divTxt = txt(relatorio.divulgacao_parceria?.texto_editado || relatorio.divulgacao_parceria?.texto_ia);
+  y = textBlock(doc, y, divTxt);
+  y += 4;
+
+  // 5. DESCRIÇÃO
+  y = sectionTitle(doc, y, '5', 'DESCRIÇÃO SUCINTA DAS AÇÕES EXECUTADAS NO PERÍODO');
+  y = instruction(doc, y, 'Informar os principais pontos de destaque, resultados e benefícios gerados pela execução da parceria (máx. 1500 caracteres).');
+  const descTxt = txt(relatorio.descricao_acoes?.texto_editado || relatorio.descricao_acoes?.texto_ia);
+  y = textBlock(doc, y, descTxt, 1500);
+  y += 4;
+
+  // 6. PÚBLICO ALVO
+  y = sectionTitle(doc, y, '6', 'PÚBLICO ALVO');
+  y = instruction(doc, y, 'Indicar a qual público as ações do projeto serão destinadas, determinando quantitativamente (número de pessoas ou número de instituições beneficiadas).');
+  y = check(doc, y, 8);
+  doc.setFontSize(FS.small);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(30, 30, 30);
+  doc.text('Métrica considerada (pessoa ou instituição): ________________________', M + 2, y + 4);
+  y += 8;
+  y = publicoTable(doc, y, relatorio.publico_alvo);
+  const interpTxt = txt(relatorio.publico_alvo?.texto_interpretativo_editado || relatorio.publico_alvo?.texto_interpretativo_ia);
+  if (interpTxt) y = textBlock(doc, y, interpTxt);
+  y += 2;
+  y = instruction(doc, y, 'Duplicar o quadro caso atenda pessoa e instituição e registrar cada um deles separadamente.');
+  y += 2;
+  y = subTitle(doc, y, '6.1. PESQUISA DE SATISFAÇÃO DO PÚBLICO ALVO DO PROJETO');
+  y = check(doc, y, 8);
+  doc.setFontSize(FS.small);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(30, 30, 30);
+  doc.text('Realizou pesquisa de satisfação?', M + 2, y + 4);
+  y += 6;
+  const satRealiz = relatorio.pesquisa_satisfacao?.possui_dados;
+  y = checkbox(doc, y, ['Sim', 'Não'], satRealiz ? 'Sim' : 'Não');
+  y = instruction(doc, y, 'Se "sim" descreva o resultado abaixo; se "não" justifique a não realização.');
+  const satTxt = txt(relatorio.pesquisa_satisfacao?.justificativa_editada || relatorio.pesquisa_satisfacao?.justificativa_ia);
+  y = textBlock(doc, y, satTxt || (satRealiz ? '' : 'Não foram aplicados formulários de pesquisa de satisfação neste período de execução.'));
+  y += 4;
+
+  drawAllFooters(doc, 1, 3);
+  return doc;
+}
+
+function buildParte2(relatorio) {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  let y = HEADER_H + 4;
+
+  // 7. CRONOGRAMA DE METAS
+  y = sectionTitle(doc, y, '7', 'CRONOGRAMA DE EXECUÇÃO E CUMPRIMENTO DAS METAS');
+  y = instruction(doc, y, 'Nas colunas 01 a 05 transcreva as informações preenchidas no quadro de metas do plano de trabalho aprovado e acrescente as informações das colunas 06 a 08 conforme a execução das ações.');
+  y = metasTable(doc, y, relatorio.cronograma_metas);
+
+  y = check(doc, y, 8);
+  doc.setFontSize(FS.tiny);
+  doc.setFont('helvetica', 'italic');
+  doc.setTextColor(100, 100, 100);
+  doc.text('OBS: Em algumas situações consideramos pertinente a inserção de um parágrafo complementar a fim de esclarecer a metodologia utilizada na execução de uma determinada meta.', M + 2, y + 3, { maxWidth: CONTENT_W - 4 });
+  y += 8;
+
+  y = subTitle(doc, y, '7.1. LIÇÕES APRENDIDAS DURANTE O PERÍODO DE EXECUÇÃO');
+  y = instruction(doc, y, 'Quais foram os desafios encontrados e as soluções implementadas? Registrar o conhecimento aprendido durante a execução do projeto (máximo 1500 caracteres).');
+  // Lições aprendidas — usa avaliacao_desafios se disponível, ou campo próprio
+  const licoesTxt = txt(
+    relatorio.licoes_aprendidas?.texto_editado ||
+    relatorio.licoes_aprendidas?.texto_ia ||
+    relatorio.avaliacao_desafios ||
+    ''
+  );
+  if (licoesTxt) {
+    y = textBlock(doc, y, licoesTxt, 1500);
+  } else {
+    y = blankLines(doc, y, 5);
+  }
+  y += 4;
+
+  // 8. EQUIPE DE TRABALHO
+  y = sectionTitle(doc, y, '8', 'EQUIPE DE TRABALHO');
+  y = instruction(doc, y, 'Inserir no quadro todos os profissionais contratados para a execução da parceria previstos originalmente no plano de trabalho, incluindo as diversas formas de contratação (CLT, RPA, Pessoa Jurídica).');
+  y = equipeTable(doc, y, relatorio.equipe_trabalho);
+
+  drawAllFooters(doc, 2, 3);
+  return doc;
+}
+
+function buildParte3(relatorio) {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  let y = HEADER_H + 4;
+
+  // 9. IMPACTOS
+  y = sectionTitle(doc, y, '9', 'IMPACTOS ECONÔMICOS E/OU SOCIAIS DAS AÇÕES DESENVOLVIDAS');
+  y = instruction(doc, y, 'Demonstre a relação direta de causa e efeito entre as ações executadas no projeto, os resultados alcançados e como estes modificaram/melhoraram a condição social e/ou econômica do público-alvo. (máximo 2000 caracteres)');
+  const impTxt = txt(relatorio.impactos_economicos_sociais?.texto_editado || relatorio.impactos_economicos_sociais?.texto_ia);
+  y = textBlock(doc, y, impTxt, 2000);
+  y += 4;
+
+  // 10. SUSTENTABILIDADE
+  y = sectionTitle(doc, y, '10', 'POSSIBILIDADE DE SUSTENTABILIDADE DAS AÇÕES APÓS CONCLUSÃO DA PARCERIA');
+  y = instruction(doc, y, 'Preenchimento somente em relatório final. Fazer uma análise sobre a possibilidade de sustentabilidade das ações após a conclusão da parceria.');
+  const susTxt = txt(relatorio.sustentabilidade?.texto_editado || relatorio.sustentabilidade?.texto_ia);
+  y = textBlock(doc, y, susTxt || (relatorio.tipo === 'parcial' ? '[Campo aplicável apenas ao Relatório Final]' : ''));
+  y += 4;
+
+  // 11. AVALIAÇÃO DA PARCERIA
+  y = sectionTitle(doc, y, '11', 'AVALIAÇÃO DA PARCERIA COM A ADMINISTRAÇÃO PÚBLICA');
+  y = instruction(doc, y, 'Informar problemas detectados, sugestões ou críticas construtivas relacionadas à administração pública (Conselho, SMASAC, PGM, outros), com o objetivo de apontar melhorias para futuras parcerias.');
+  const avalTxt = txt(relatorio.avaliacao_parceria?.texto_editado || relatorio.avaliacao_parceria?.texto_ia || relatorio.avaliacao_pontos_positivos || '');
+  y = textBlock(doc, y, avalTxt);
+  y += 4;
+
+  // 12. ASSINATURA
+  y = sectionTitle(doc, y, '12', 'ASSINATURA DO REPRESENTANTE LEGAL OSC');
+  y += 2;
+  y = assinaturaBlock(doc, y, relatorio);
+
+  // 13. ANEXOS
+  y = sectionTitle(doc, y, '13', 'ANEXOS');
+  y = instruction(doc, y,
+    'Os documentos de comprovação de cumprimento do objeto deverão ser apresentados conforme as indicações no quadro de cronograma de execução e cumprimento das metas.\n' +
+    'Quando o documento se tratar de "demonstrativo fotográfico" deverão ser apresentados número limitado de registros por relatório, contendo abaixo da fotografia a descrição do evento e a data do registro.\n' +
+    'Quando os documentos de verificação forem extensos é possível fazer a inserção por amostragem, destacando essa opção de envio.'
   );
   const anexos = relatorio.anexos_evidencias || [];
   if (anexos.length === 0) {
-    y = drawTextBlock(doc, y, 'Documentos de evidência a serem anexados conforme cronograma de metas.');
+    y = textBlock(doc, y, 'Documentos de evidência a serem anexados conforme cronograma de metas e atividades realizadas no período.');
   } else {
-    doc.setFontSize(FONT_SMALL);
-    doc.setTextColor(40, 40, 40);
-    doc.setFont('helvetica', 'normal');
-    y += 2;
-    for (let i = 0; i < Math.min(anexos.length, 15); i++) {
-      const a = anexos[i];
-      y = checkPageBreak(doc, y, 6);
-      doc.text(`• ${a.atividade_nome || 'Documento'}${a.atividade_data ? ' — ' + fmtDate(a.atividade_data) : ''}${a.meta_nome ? ' — Meta: ' + a.meta_nome : ''}`, M + 2, y + 4);
+    for (const a of anexos.slice(0, 20)) {
+      y = check(doc, y, 6);
+      doc.setFontSize(FS.small);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(30, 30, 30);
+      const linha = `• ${txt(a.atividade_nome, 'Documento')}${a.atividade_data ? '  —  ' + fmtDate(a.atividade_data) : ''}${a.meta_nome ? '  —  Meta: ' + a.meta_nome : ''}`;
+      doc.text(linha, M + 2, y + 4, { maxWidth: CONTENT_W - 4 });
       y += 6;
     }
   }
 
-  // Rodapé
-  drawFooter(doc);
+  drawAllFooters(doc, 3, 3);
+  return doc;
+}
 
-  const mesRef = relatorio.data_inicio ? relatorio.data_inicio.slice(0, 7).replace('-', '_') : 'relatorio';
-  doc.save(`Relatorio_Execucao_Objeto_${mesRef}.pdf`);
+// ─── Exportação completa (1 PDF) ─────────────────────────────────────────────
+function buildCompleto(relatorio) {
+  // Parte 1 como base, appendPages das partes 2 e 3
+  const d1 = buildParte1(relatorio);
+  const d2 = buildParte2(relatorio);
+  const d3 = buildParte3(relatorio);
+
+  // Juntar manualmente (jsPDF não tem merge nativo — emulamos gerando 3 docs separados e baixando como único PDF usando nome sequencial)
+  // Retornar os 3 docs para download
+  return [d1, d2, d3];
+}
+
+// ─── API pública ─────────────────────────────────────────────────────────────
+export function exportarRelatorioExecucaoPDF(relatorio, modo = 'completo') {
+  if (!relatorio) return;
+  const mesRef = (relatorio.data_inicio || '').slice(0, 7).replace('-', '_') || 'relatorio';
+  const base = `Relatorio_Execucao_Objeto_${mesRef}`;
+
+  if (modo === 'parte1') {
+    buildParte1(relatorio).save(`${base}_Parte1_Identificacao_Publico.pdf`);
+  } else if (modo === 'parte2') {
+    buildParte2(relatorio).save(`${base}_Parte2_Metas_Equipe.pdf`);
+  } else if (modo === 'parte3') {
+    buildParte3(relatorio).save(`${base}_Parte3_Impactos_Assinatura.pdf`);
+  } else {
+    // Completo: baixa as 3 partes em sequência
+    const [d1, d2, d3] = buildCompleto(relatorio);
+    d1.save(`${base}_Parte1_Identificacao_Publico.pdf`);
+    d2.save(`${base}_Parte2_Metas_Equipe.pdf`);
+    d3.save(`${base}_Parte3_Impactos_Assinatura.pdf`);
+  }
 }
