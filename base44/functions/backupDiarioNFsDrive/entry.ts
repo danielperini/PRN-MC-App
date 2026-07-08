@@ -5,8 +5,11 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
  *
  * Rotina diária de backup de notas fiscais aprovadas para o Google Drive.
  *
- * Pasta raiz: 10udE1viTbqEtoGdpMZVcRA97SkpcWNsn
- * Estrutura:  Notas Fiscais / {ANO} / {MES_NOME}
+ * Pasta raiz: 1LgC94VhIomQZBS7kfkQqgBX8MVzwQqzp
+ * Estrutura existente: {MM-YYYY}  (ex: 07-2026)
+ *
+ * Regra: NÃO criar pastas novas — usar apenas pastas que já existem.
+ * Se a pasta do mês não existir, pular o arquivo e logar.
  *
  * Padrão de nome:
  *   NF {NUMERO} {NATUREZA} - {FORNECEDOR} - {PROJETO} - R$ {VALOR}.pdf
@@ -16,8 +19,8 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
  * Regras de data: rejeitar/reanalisar datas anteriores a 2026.
  */
 
-const ROOT_FOLDER_ID = '10udE1viTbqEtoGdpMZVcRA97SkpcWNsn';
-const BATCH_SIZE = 20;
+const ROOT_FOLDER_ID = '1LgC94VhIomQZBS7kfkQqgBX8MVzwQqzp';
+const BATCH_SIZE = 10;
 
 const MESES_PT = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -162,6 +165,13 @@ async function getOrCreate(token, name, parentId) {
 }
 
 /**
+ * Busca uma pasta pelo nome no pai — retorna null se não existir (não cria).
+ */
+async function findFolderOnly(token, name, parentId) {
+  return findFolder(token, name, parentId);
+}
+
+/**
  * Verifica se um arquivo com o mesmo nome já existe na pasta.
  */
 async function fileExistsInFolder(token, fileName, folderId) {
@@ -294,18 +304,21 @@ async function processarPurchase(base44, token, pr, notasFolderCache) {
     log.detalhes.push(`Data corrigida de ${pr.nf_data_emissao} para ${dataCorrigida}`);
   }
 
-  const { ano, mesNome } = dateInfo;
+  const { ano, mesIdx } = dateInfo;
 
-  // Obter/criar pastas: Notas Fiscais / {ANO} / {MES}
-  const cacheKey = `${ano}/${mesNome}`;
+  // Pasta no formato MM-YYYY (ex: 07-2026) — NÃO criar, apenas localizar
+  const mesFormatado = String(mesIdx + 1).padStart(2, '0');
+  const nomePasta = `${mesFormatado}-${ano}`;
+  const cacheKey = nomePasta;
   let mesFolderId = notasFolderCache[cacheKey];
 
   if (!mesFolderId) {
-    const notasFiscaisId = notasFolderCache['__root__'] ||
-      (notasFolderCache['__root__'] = await getOrCreate(token, 'Notas Fiscais', ROOT_FOLDER_ID));
-    const anoFolderId = notasFolderCache[`${ano}`] ||
-      (notasFolderCache[`${ano}`] = await getOrCreate(token, String(ano), notasFiscaisId));
-    mesFolderId = await getOrCreate(token, mesNome, anoFolderId);
+    mesFolderId = await findFolderOnly(token, nomePasta, ROOT_FOLDER_ID);
+    if (!mesFolderId) {
+      log.status = 'pasta_nao_encontrada';
+      log.detalhes.push(`Pasta "${nomePasta}" não existe no Drive — arquivo não enviado`);
+      return log;
+    }
     notasFolderCache[cacheKey] = mesFolderId;
   }
 
@@ -323,6 +336,7 @@ async function processarPurchase(base44, token, pr, notasFolderCache) {
     if (!fileUrl) return null;
     const existing = await fileExistsInFolder(token, fileName, mesFolderId).catch(() => null);
     if (existing) {
+      log.detalhes.push(`JÁ EXISTE: ${fileName}`);
       return { id: existing.id, link: `https://drive.google.com/file/d/${existing.id}/view`, skipped: true };
     }
     const result = await uploadFromUrl(token, fileUrl, fileName, mesFolderId);
@@ -400,6 +414,8 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const dryRun = body.dryRun === true;
+    // limite: processa no máximo N registros por execução (padrão 30; use 0 para todos)
+    const limite = typeof body.limite === 'number' ? body.limite : 30;
     const startTime = Date.now();
 
     // Buscar compras aprovadas com arquivos fiscais
@@ -424,12 +440,16 @@ Deno.serve(async (req) => {
       skip += 100;
     }
 
+    // Filtrar apenas os que ainda não foram sincronizados com sucesso
+    const pendentes = compras.filter(p => p.drive_backup_nf_ok !== true);
+
     if (dryRun) {
       return Response.json({
         ok: true,
         dry_run: true,
         total_compras_com_arquivo: compras.length,
-        ids: compras.map((p) => ({ id: p.id, status: p.status, nf: p.nf_numero, data: p.nf_data_emissao })),
+        total_pendentes: pendentes.length,
+        ids: pendentes.slice(0, 50).map((p) => ({ id: p.id, status: p.status, nf: p.nf_numero, data: p.nf_data_emissao })),
       });
     }
 
@@ -437,12 +457,15 @@ Deno.serve(async (req) => {
     const token = await getToken(base44);
     const notasFolderCache = {};
 
-    const resultados = { enviado: 0, ja_sincronizado: 0, data_invalida: 0, sem_arquivos: 0, erro: 0 };
+    const resultados = { enviado: 0, ja_sincronizado: 0, data_invalida: 0, sem_arquivos: 0, pasta_nao_encontrada: 0, erro: 0 };
     const logs = [];
 
+    // Limitar a quantidade processada por execução para evitar timeout
+    const comprasParaProcessar = limite > 0 ? pendentes.slice(0, limite) : pendentes;
+
     // Processar em lotes de BATCH_SIZE
-    for (let i = 0; i < compras.length; i += BATCH_SIZE) {
-      const lote = compras.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < comprasParaProcessar.length; i += BATCH_SIZE) {
+      const lote = comprasParaProcessar.slice(i, i + BATCH_SIZE);
       for (const pr of lote) {
         try {
           const logItem = await processarPurchase(base44, token, pr, notasFolderCache);
@@ -469,7 +492,9 @@ Deno.serve(async (req) => {
 
     return Response.json({
       ok: true,
-      total_processadas: compras.length,
+      total_com_arquivo: compras.length,
+      total_pendentes: pendentes.length,
+      total_processadas: comprasParaProcessar.length,
       resultados,
       execution_ms: Date.now() - startTime,
       logs: logs.filter((l) => l.status !== 'ja_sincronizado').slice(0, 100),
