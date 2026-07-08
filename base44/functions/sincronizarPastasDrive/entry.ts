@@ -110,23 +110,78 @@ async function copyFile(token, fileId, fileName, destFolderId) {
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 
 /**
+ * Extrai campos-chave de um nome de arquivo padronizado.
+ * Ex: "2026-07__CLARA__NF-05__nf-pdf__sol-abc.pdf"
+ * → { ano: "2026", mes: "07", fornecedor: "CLARA", nf: "NF-05" }
+ */
+function extrairCamposNome(nome) {
+  const partes = nome.replace(/\.[^.]+$/, '').split('__');
+  return {
+    competencia: partes[0] || '',        // YYYY-MM
+    fornecedor: (partes[1] || '').toUpperCase().trim(),
+    nf: (partes[2] || '').toUpperCase().trim(),   // NF-XX
+    raw: nome,
+  };
+}
+
+/**
+ * Verifica se um arquivo é semanticamente duplicado em relação a algum da lista.
+ * Critério: mesma competência + mesmo número de NF + fornecedor similar (>= 80% comum).
+ */
+function jaExisteSemanticamente(candidato, existentes) {
+  const c = extrairCamposNome(candidato);
+  if (!c.competencia || !c.nf) return null; // sem padrão, não compara
+
+  for (const e of existentes) {
+    const ex = extrairCamposNome(e.name);
+    if (c.competencia !== ex.competencia) continue;
+    if (c.nf !== ex.nf) continue;
+
+    // Similaridade de fornecedor por sobreposição de tokens
+    const tokC = new Set(c.fornecedor.split(/[\s_-]+/).filter(Boolean));
+    const tokE = new Set(ex.fornecedor.split(/[\s_-]+/).filter(Boolean));
+    const intersect = [...tokC].filter(t => tokE.has(t)).length;
+    const union = new Set([...tokC, ...tokE]).size;
+    const sim = union > 0 ? intersect / union : 0;
+
+    if (sim >= 0.5) return ex.raw; // duplicata detectada
+  }
+  return null;
+}
+
+/**
  * Copia arquivos de srcFolderId → destFolderId (um nível só, sem recursão).
- * Ignora arquivos que já existem pelo nome. Não cria subpastas.
+ * Ignora arquivos que já existem pelo nome exato OU semanticamente (anti-duplicata com IA leve).
  */
 async function syncMesFolder(token, srcFolderId, destFolderId, mesNome, stats, logs, limite) {
   const items = await listFolder(token, srcFolderId);
+  // Busca todos os arquivos já existentes no destino para comparação semântica
+  const existentes = await listFolder(token, destFolderId);
 
   for (const item of items) {
     if (limite > 0 && stats.copiados >= limite) break;
-    if (item.mimeType === FOLDER_MIME) continue; // ignora subpastas internas
+    if (item.mimeType === FOLDER_MIME) continue;
 
     try {
-      const existe = await fileExistsInFolder(token, item.name, destFolderId);
-      if (existe) {
+      // 1. Verificação por nome exato
+      const existePorNome = existentes.some(e => e.name === item.name);
+      if (existePorNome) {
         stats.ja_existentes++;
+        logs.push({ mes: mesNome, nome: item.name, status: 'ja_existe_nome' });
         continue;
       }
+
+      // 2. Verificação semântica (mesmo NF + competência + fornecedor similar)
+      const duplicaSemantica = jaExisteSemanticamente(item.name, existentes);
+      if (duplicaSemantica) {
+        stats.ja_existentes++;
+        logs.push({ mes: mesNome, nome: item.name, status: 'duplicata_semantica', similar_a: duplicaSemantica });
+        continue;
+      }
+
       await copyFile(token, item.id, item.name, destFolderId);
+      // Adiciona ao cache local para detectar duplicatas dentro do mesmo lote
+      existentes.push({ name: item.name, mimeType: item.mimeType });
       stats.copiados++;
       logs.push({ mes: mesNome, nome: item.name, status: 'copiado' });
     } catch (e) {
