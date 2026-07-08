@@ -315,124 +315,124 @@ export default function OrcamentoDashboard({
     minimumFractionDigits: 2
   })}`;
 
-  return (
-    <div className="space-y-8 hidden">
-      {/* KPI PRINCIPAL */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4"></div>
-
-      {/* BARRA DE PROGRESSO - COMPROMETIMENTO */}
-      <div>
-        
+  return null;
 
 
 
 
-        
-        <div className="h-6 bg-white border-2 border-white rounded-lg overflow-hidden">
-          <div
-            className="h-full bg-black transition-all"
-            style={{
-              width: `${totalInicial > 0 ? Math.min(totalComprometido / totalInicial * 100, 100) : 0}%`
-            }} />
-          
-        </div>
-      </div>
 
-      {/* EQUIPE + RISCO */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="p-5 border rounded-xl bg-purple-50 hidden">
-          <div className="flex items-center gap-2 mb-2">
-            <Users className="w-4 h-4 text-purple-700" />
-            <span className="text-xs text-purple-700">Equipe</span>
-          </div>
-          <p className="break-words text-lg font-bold leading-tight text-purple-800 tabular-nums">{fmt(totalEquipe)}</p>
-          <p className="text-xs text-purple-600">{pctEquipe.toFixed(1)}% Restantes</p>
-        </div>
 
-        <div className="p-5 border rounded-xl bg-red-50 hidden">
-          <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle className="w-4 h-4 text-red-600" />
-            <span className="text-xs text-red-600">Risco IA</span>
-          </div>
 
-          <p className="text-xl font-bold text-red-700">{riscoCompras.length}</p>
 
-          <p className="text-xs text-red-600 mb-2">
-            {riscoCompras.length === 0 ?
-            'nenhuma inconsistência recente' :
-            riscoIaCompras.length > 0 ?
-            'notas fiscais com inconsistência apontada pela IA' :
-            'compras com inconsistência'}
-          </p>
 
-          {riscoRecentes.length > 0 &&
-          <div className="space-y-1">
-              {riscoRecentes.map((item) =>
-            <div key={item.id} className="text-[11px] text-red-700 leading-snug">
-                  • {getItemLabel(item)} — {getPrimaryRiskReason(item)}
-                </div>
-            )}
-            </div>
-          }
-        </div>
-      </div>
 
-      {/* NATUREZA */}
-      <div>
-        
-        <div className="space-y-2">
-          {Object.values(porNatureza).map((n) => {
-            const pct = n.previsto > 0 ? n.comprometido / n.previsto * 100 : 0;
 
-            return (
-              <div key={n.nome} className="p-3 border rounded-lg">
-                <div className="flex justify-between text-xs">
-                  <span>{n.nome}</span>
-                  <span>{pct.toFixed(0)}%</span>
-                </div>
 
-                <div className="h-1 bg-gray-100 mt-1">
-                  <div
-                    className="h-full bg-blue-500"
-                    style={{ width: `${pct}%` }} />
-                  
-                </div>
-              </div>);
 
-          })}
-        </div>
-      </div>
 
-      {/* TABELA */}
-      <table className="w-full text-xs">
-        <thead>
-          <tr>
-            
-            
-            
-            
-            
-          </tr>
-        </thead>
 
-        <tbody>
-          {budgetLines.map((l) => {
-            const saldo = toNumber(l.saldo_inicial) - toNumber(l.saldo_comprometido);
 
-            return (
-              <tr key={l.id}>
-                <td>{l.codigo}</td>
-                <td>{l.descricao}</td>
-                <td>{fmt(l.saldo_inicial)}</td>
-                <td>{fmt(l.saldo_comprometido)}</td>
-                <td className={saldo < 0 ? 'text-red-600' : 'text-green-600'}>
-                  {fmt(saldo)}
-                </td>
-              </tr>);
 
-          })}
-        </tbody>
-      </table>
-    </div>);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 }
