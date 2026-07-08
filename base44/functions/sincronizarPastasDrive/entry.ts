@@ -3,18 +3,38 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 /**
  * sincronizarPastasDrive
  *
- * Sincroniza incrementalmente a pasta ORIGEM para a pasta DESTINO no Google Drive.
- * - Percorre subpastas recursivamente (mesma estrutura)
- * - NÃO deleta arquivos
- * - NÃO sobrescreve arquivos existentes (verifica pelo nome)
- * - Apenas COPIA arquivos que ainda não existem no destino
+ * Sincroniza incrementalmente ORIGEM → DESTINO, mês a mês.
+ * - Mapeia pastas da origem ("Julho 2026") para pastas do destino ("07-2026")
+ * - NÃO cria novas pastas no destino — pula se não existir
+ * - NÃO sobrescreve arquivos — verifica pelo nome antes de copiar
+ * - Apenas COPIA arquivos que faltam
  *
- * ORIGEM:  13Lkf42UMaHsyLb8T7Cd0TGUkM3_3YH2T
- * DESTINO: 1LgC94VhIomQZBS7kfkQqgBX8MVzwQqzp
+ * ORIGEM:  13Lkf42UMaHsyLb8T7Cd0TGUkM3_3YH2T  (pastas: "Julho 2026", "Março 2026"…)
+ * DESTINO: 1LgC94VhIomQZBS7kfkQqgBX8MVzwQqzp   (pastas: "07-2026", "03-2026"…)
  */
 
 const SOURCE_FOLDER_ID = '13Lkf42UMaHsyLb8T7Cd0TGUkM3_3YH2T';
 const DEST_FOLDER_ID   = '1LgC94VhIomQZBS7kfkQqgBX8MVzwQqzp';
+
+// Mapa: nome por extenso (normalizado) → número do mês com zero à esquerda
+const MESES_MAP = {
+  'janeiro': '01', 'fevereiro': '02', 'marco': '03', 'abril': '04',
+  'maio': '05', 'junho': '06', 'julho': '07', 'agosto': '08',
+  'setembro': '09', 'outubro': '10', 'novembro': '11', 'dezembro': '12',
+};
+
+/**
+ * Converte "Julho 2026" → "07-2026", "Março 2026" → "03-2026"
+ * Retorna null se não conseguir parsear.
+ */
+function parseFolderName(name) {
+  const normalized = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  const match = normalized.match(/^([a-z]+)\s+(\d{4})$/);
+  if (!match) return null;
+  const mesNum = MESES_MAP[match[1]];
+  if (!mesNum) return null;
+  return `${mesNum}-${match[2]}`; // ex: "07-2026"
+}
 
 // ── Drive helpers ─────────────────────────────────────────────────────────────
 
@@ -54,22 +74,6 @@ async function findFolder(token, name, parentId) {
   return d.files?.[0]?.id || null;
 }
 
-/** Cria uma pasta no destino. */
-async function createFolder(token, name, parentId) {
-  const r = await driveRequest(token, 'https://www.googleapis.com/drive/v3/files?fields=id', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder', parents: [parentId] }),
-  });
-  const d = await r.json();
-  if (d.error) throw new Error(`Criar pasta "${name}": ${d.error.message}`);
-  return d.id;
-}
-
-/** Encontra ou cria pasta no destino. */
-async function getOrCreateFolder(token, name, parentId) {
-  return (await findFolder(token, name, parentId)) || (await createFolder(token, name, parentId));
-}
 
 /** Verifica se arquivo com esse nome já existe na pasta destino. */
 async function fileExistsInFolder(token, fileName, folderId) {
@@ -101,56 +105,63 @@ async function copyFile(token, fileId, fileName, destFolderId) {
   return d.id;
 }
 
-// ── Sincronização recursiva ───────────────────────────────────────────────────
+// ── Sincronização mês a mês ───────────────────────────────────────────────────
 
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 
 /**
- * Sincroniza srcFolderId → destFolderId recursivamente.
- * Retorna { copiados, ja_existentes, erros, pastas_criadas }
+ * Copia arquivos de srcFolderId → destFolderId (um nível só, sem recursão).
+ * Ignora arquivos que já existem pelo nome. Não cria subpastas.
  */
-async function syncFolder(token, srcFolderId, destFolderId, stats, logs, limite) {
+async function syncMesFolder(token, srcFolderId, destFolderId, mesNome, stats, logs, limite) {
   const items = await listFolder(token, srcFolderId);
 
   for (const item of items) {
     if (limite > 0 && stats.copiados >= limite) break;
+    if (item.mimeType === FOLDER_MIME) continue; // ignora subpastas internas
 
-    if (item.mimeType === FOLDER_MIME) {
-      // Subpasta: encontrar/criar equivalente no destino e entrar recursivamente
-      let destSubId;
-      try {
-        destSubId = await getOrCreateFolder(token, item.name, destFolderId);
-        if (!destSubId) {
-          stats.erros++;
-          logs.push({ nome: item.name, tipo: 'pasta', status: 'erro', detalhe: 'Não foi possível criar subpasta' });
-          continue;
-        }
-        if (!(await findFolder(token, item.name, destFolderId).then(id => !!id).catch(() => false))) {
-          stats.pastas_criadas++;
-        }
-      } catch (e) {
-        stats.erros++;
-        logs.push({ nome: item.name, tipo: 'pasta', status: 'erro', detalhe: e.message });
+    try {
+      const existe = await fileExistsInFolder(token, item.name, destFolderId);
+      if (existe) {
+        stats.ja_existentes++;
         continue;
       }
-      await syncFolder(token, item.id, destSubId, stats, logs, limite);
-
-    } else {
-      // Arquivo: verificar se já existe no destino pelo nome
-      try {
-        const existe = await fileExistsInFolder(token, item.name, destFolderId);
-        if (existe) {
-          stats.ja_existentes++;
-          continue; // não logar — pode ser muitos
-        }
-        await copyFile(token, item.id, item.name, destFolderId);
-        stats.copiados++;
-        logs.push({ nome: item.name, tipo: 'arquivo', status: 'copiado' });
-      } catch (e) {
-        stats.erros++;
-        logs.push({ nome: item.name, tipo: 'arquivo', status: 'erro', detalhe: e.message });
-      }
+      await copyFile(token, item.id, item.name, destFolderId);
+      stats.copiados++;
+      logs.push({ mes: mesNome, nome: item.name, status: 'copiado' });
+    } catch (e) {
+      stats.erros++;
+      logs.push({ mes: mesNome, nome: item.name, status: 'erro', detalhe: e.message });
     }
+  }
+}
+
+/**
+ * Percorre as pastas mensais da ORIGEM, resolve o nome para o formato do DESTINO,
+ * localiza a pasta equivalente no destino (sem criar), e sincroniza os arquivos.
+ */
+async function syncTodosMeses(token, stats, logs, limite) {
+  const srcFolders = await listFolder(token, SOURCE_FOLDER_ID);
+  const mesFolders = srcFolders.filter(i => i.mimeType === FOLDER_MIME);
+
+  for (const srcFolder of mesFolders) {
+    if (limite > 0 && stats.copiados >= limite) break;
+
+    const destNome = parseFolderName(srcFolder.name);
+    if (!destNome) {
+      logs.push({ mes: srcFolder.name, status: 'pasta_ignorada', detalhe: 'Nome não corresponde ao padrão "Mês AAAA"' });
+      continue;
+    }
+
+    // Localizar pasta equivalente no destino — NÃO criar
+    const destFolderId = await findFolder(token, destNome, DEST_FOLDER_ID);
+    if (!destFolderId) {
+      stats.pastas_sem_equivalente++;
+      logs.push({ mes: srcFolder.name, destino_esperado: destNome, status: 'pasta_nao_encontrada_no_destino' });
+      continue;
+    }
+
+    await syncMesFolder(token, srcFolder.id, destFolderId, destNome, stats, logs, limite);
   }
 }
 
@@ -189,10 +200,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    const stats = { copiados: 0, ja_existentes: 0, erros: 0, pastas_criadas: 0 };
+    const stats = { copiados: 0, ja_existentes: 0, erros: 0, pastas_sem_equivalente: 0 };
     const logs = [];
 
-    await syncFolder(token, SOURCE_FOLDER_ID, DEST_FOLDER_ID, stats, logs, limite);
+    await syncTodosMeses(token, stats, logs, limite);
 
     const execution_ms = Date.now() - startTime;
 
