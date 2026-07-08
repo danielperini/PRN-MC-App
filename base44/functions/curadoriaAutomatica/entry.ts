@@ -78,54 +78,19 @@ Que tipo de imagem/visual acompanharia bem este conteúdo?
 
 Retorne como JSON válido. Seja preciso, use citações diretas.`;
 
-    const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
-    if (!apiKey) {
-      return Response.json({ error: 'API não configurada' }, { status: 500 });
-    }
-
-    const llmResponse = await fetch(
-      'https://api.openai.com/v1/chat/completions',
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            {
-              role: 'system',
-              content: 'Você é curador editorial especializado em extrair destaques institucionais. Retorne JSON válido. Use citações diretas, não resumos.'
-            },
-            {
-              role: 'user',
-              content: prompt
-            }
-          ],
-          max_tokens: 2000,
-          temperature: 0.5
-        })
+    const curadoriaDados = await base44.asServiceRole.integrations.Core.InvokeLLM({
+      prompt,
+      response_json_schema: {
+        type: 'object',
+        properties: {
+          frases_impactantes: { type: 'array', items: { type: 'string' } },
+          destaques_tematicos: { type: 'object' },
+          citacoes_carrossel: { type: 'array', items: { type: 'string' } },
+          dados_destaque: { type: 'array', items: { type: 'object' } },
+          sugestao_visual: { type: 'string' }
+        }
       }
-    );
-
-    if (!llmResponse.ok) {
-      return Response.json({ error: 'Falha na curadoria' }, { status: 500 });
-    }
-
-    const llmData = await llmResponse.json();
-    const curadoriaTexto = llmData.choices?.[0]?.message?.content || '';
-
-    // Parse JSON
-    let curadoriaDados = {};
-    try {
-      const jsonMatch = curadoriaTexto.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        curadoriaDados = JSON.parse(jsonMatch[0]);
-      }
-    } catch (e) {
-      curadoriaDados = { texto_bruto: curadoriaTexto };
-    }
+    });
 
     // Salvar curadoria
     const analise = await base44.entities.AIAnalysis.create({
