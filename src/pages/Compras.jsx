@@ -933,7 +933,7 @@ function ComprasInner() {
             <>
                 <Button
                 variant="outline"
-                className="gap-2 border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+                className="gap-2 border-indigo-300 text-indigo-700 hover:bg-indigo-50 hidden"
                 onClick={async () => {
                   if (!window.confirm('Processar backup no Drive para todas as solicitações aprovadas sem backup? Isso pode levar alguns minutos.')) return;
                   try {
@@ -972,7 +972,7 @@ function ComprasInner() {
 
                 <Button
                 variant="outline"
-                className="gap-2 border-green-300 text-green-700 hover:bg-green-50"
+                className="gap-2 border-green-300 text-green-700 hover:bg-green-50 hidden"
                 onClick={async () => {
                   if (!window.confirm('Processar backup no Drive para todos os relatórios aprovados? Isso organiza os relatórios por tipo, ano e mês.')) return;
                   try {
@@ -1018,7 +1018,7 @@ function ComprasInner() {
             {isCoordenador &&
             <Button
               variant="outline"
-              className="gap-2 border-amber-300 text-amber-700 hover:bg-amber-50"
+              className="gap-2 border-amber-300 text-amber-700 hover:bg-amber-50 hidden"
               onClick={limparSolicitacoesDuplicadas}
               disabled={limpandoDuplicatas}>
               
@@ -1030,7 +1030,7 @@ function ComprasInner() {
             {isCoordenador &&
             <Button
               variant="outline"
-              className="gap-2 border-black"
+              className="gap-2 border-black hidden"
               onClick={() => setShowRelatorioMensal(true)}>
               
                 <FileSpreadsheet className="h-4 w-4" />
