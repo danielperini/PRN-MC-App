@@ -577,7 +577,6 @@ export default function RelatorioExecucaoObjeto() {
         <RevisaoFinalDialog
           relatorioId={relatorioId}
           relatorio={relatorio}
-          onExportar={(modo) => { exportarPDF(modo); setRevisaoAberta(false); }}
           onClose={() => setRevisaoAberta(false)}
         />
       )}

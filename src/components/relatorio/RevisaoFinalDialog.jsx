@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { toast } from 'sonner';
+import { exportarRelatorioExecucaoPDF } from '@/components/relatorio/ExportarRelatorioExecucaoPDF';
 import {
   CheckCircle2, XCircle, AlertTriangle, Download, ExternalLink,
   FileText, Users, BarChart2, Link2, ClipboardCheck, X, Loader2,
-  ChevronRight, CheckSquare, Square
+  CheckSquare, Square
 } from 'lucide-react';
 
 function fmtBRL(v) {
@@ -27,10 +29,11 @@ const CHECKLIST_ITEMS = [
   { id: 'assinatura', label: 'Dados de assinatura preenchidos' },
 ];
 
-export default function RevisaoFinalDialog({ relatorioId, relatorio, onExportar, onClose }) {
+export default function RevisaoFinalDialog({ relatorioId, relatorio, onClose }) {
   const [aba, setAba] = useState('resumo');
   const [dados, setDados] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [exportando, setExportando] = useState(false);
   const [checklist, setChecklist] = useState({});
 
   useEffect(() => {
@@ -69,6 +72,27 @@ export default function RevisaoFinalDialog({ relatorioId, relatorio, onExportar,
 
   function toggleCheck(id) {
     setChecklist(prev => ({ ...prev, [id]: !prev[id] }));
+  }
+
+  async function handleExportar(modo) {
+    const dadosExportar = dados || relatorio;
+    if (!dadosExportar) return;
+    setExportando(true);
+    try {
+      exportarRelatorioExecucaoPDF(dadosExportar, modo);
+      const labels = {
+        completo: '3 PDFs gerados (Partes 1, 2 e 3)',
+        parte1: 'Parte 1 — Identificação e Público',
+        parte2: 'Parte 2 — Metas e Equipe',
+        parte3: 'Parte 3 — Impactos, Assinatura e Anexos',
+      };
+      toast.success(`PDF gerado: ${labels[modo] || modo}`);
+      onClose();
+    } catch (e) {
+      toast.error('Erro ao gerar PDF: ' + e.message);
+    } finally {
+      setExportando(false);
+    }
   }
 
   const abas = [
@@ -446,33 +470,35 @@ export default function RevisaoFinalDialog({ relatorioId, relatorio, onExportar,
             <div className="flex items-center gap-2 flex-wrap">
               <Button
                 size="sm"
-                onClick={() => onExportar('parte1')}
+                onClick={() => handleExportar('parte1')}
                 variant="outline"
                 className="gap-1 text-xs"
-                disabled={!allChecked}
+                disabled={!allChecked || exportando}
                 title={!allChecked ? 'Conclua o checklist de revisão primeiro' : 'Exportar Parte 1'}
               >
-                <FileText className="w-3.5 h-3.5" />Parte 1
+                {exportando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+                Parte 1
               </Button>
               <Button
                 size="sm"
-                onClick={() => onExportar('parte2')}
+                onClick={() => handleExportar('parte2')}
                 variant="outline"
                 className="gap-1 text-xs"
-                disabled={!allChecked}
+                disabled={!allChecked || exportando}
                 title={!allChecked ? 'Conclua o checklist de revisão primeiro' : 'Exportar Parte 2'}
               >
-                <FileText className="w-3.5 h-3.5" />Parte 2
+                {exportando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+                Parte 2
               </Button>
               <Button
                 size="sm"
-                onClick={() => onExportar('completo')}
-                className={`gap-1 ${allChecked ? 'bg-slate-900 text-white hover:bg-slate-700' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}
-                disabled={!allChecked}
+                onClick={() => handleExportar('completo')}
+                className={`gap-1 ${allChecked && !exportando ? 'bg-slate-900 text-white hover:bg-slate-700' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}
+                disabled={!allChecked || exportando}
                 title={!allChecked ? 'Conclua o checklist de revisão primeiro' : 'Exportar PDF Completo'}
               >
-                <Download className="w-3.5 h-3.5" />
-                PDF Completo
+                {exportando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                {exportando ? 'Gerando...' : 'PDF Completo'}
               </Button>
             </div>
           </div>
