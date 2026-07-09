@@ -10,9 +10,10 @@ import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { FileText, Loader2, CheckCircle2, AlertTriangle, Eye, Edit3, Download, FileSpreadsheet, FileCode, AlertCircle } from 'lucide-react';
+import { FileText, Loader2, CheckCircle2, AlertTriangle, Eye, Edit3, Download, FileSpreadsheet, FileCode, AlertCircle, ClipboardCheck } from 'lucide-react';
 import { exportarRelatorioExecucaoPDF } from '@/components/relatorio/ExportarRelatorioExecucaoPDF';
 import PainelDadosPeriodo from '@/components/relatorio/PainelDadosPeriodo';
+import RevisaoFinalDialog from '@/components/relatorio/RevisaoFinalDialog';
 
 const SECOES = [
   { key: 'identificacao', label: '1. Identificação do Projeto', icone: FileText, rapida: true },
@@ -45,6 +46,7 @@ export default function RelatorioExecucaoObjeto() {
   const [progresso, setProgresso] = useState({ atual: 0, total: SECOES.length, secaoAtual: '' });
   const [editandoSecao, setEditandoSecao] = useState(null);
   const [textoEditado, setTextoEditado] = useState('');
+  const [revisaoAberta, setRevisaoAberta] = useState(false);
 
   // Carregar relatórios existentes
   const [relatoriosSalvos, setRelatoriosSalvos] = useState([]);
@@ -320,17 +322,11 @@ export default function RelatorioExecucaoObjeto() {
               </CardDescription>
             </div>
             <div className="flex flex-wrap gap-1">
-              <Button size="sm" onClick={() => exportarPDF('completo')} className="bg-black text-white hover:bg-gray-800 gap-1">
-                <Download className="w-3.5 h-3.5" />PDF Completo (3 partes)
+              <Button size="sm" onClick={() => setRevisaoAberta(true)} className="bg-indigo-700 text-white hover:bg-indigo-800 gap-1.5">
+                <ClipboardCheck className="w-3.5 h-3.5" />Revisar e Exportar PDF
               </Button>
-              <Button variant="outline" size="sm" onClick={() => exportarPDF('parte1')} className="gap-1 text-xs">
-                <FileText className="w-3 h-3" />Parte 1
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => exportarPDF('parte2')} className="gap-1 text-xs">
-                <FileText className="w-3 h-3" />Parte 2
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => exportarPDF('parte3')} className="gap-1 text-xs">
-                <FileText className="w-3 h-3" />Parte 3
+              <Button variant="outline" size="sm" onClick={() => exportarPDF('completo')} className="gap-1 text-xs">
+                <Download className="w-3 h-3" />Direto (3 partes)
               </Button>
             </div>
           </CardHeader>
@@ -574,6 +570,16 @@ export default function RelatorioExecucaoObjeto() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Revisão Final */}
+      {revisaoAberta && relatorio && (
+        <RevisaoFinalDialog
+          relatorioId={relatorioId}
+          relatorio={relatorio}
+          onExportar={(modo) => { exportarPDF(modo); setRevisaoAberta(false); }}
+          onClose={() => setRevisaoAberta(false)}
+        />
       )}
 
       {/* Modal de Edição */}
