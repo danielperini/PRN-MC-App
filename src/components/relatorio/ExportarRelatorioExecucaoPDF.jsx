@@ -575,6 +575,79 @@ function linksDocumentosTable(doc, y, links, totalFmt) {
   return y + 4;
 }
 
+function rubricasTable(doc, y, rubricas, totalFmt) {
+  if (!rubricas || rubricas.length === 0) return y;
+  y = check(doc, y, 16);
+  y = subTitle(doc, y, 'RUBRICAS ORÇAMENTÁRIAS EXECUTADAS NO PERÍODO');
+
+  if (totalFmt) {
+    y = check(doc, y, 8);
+    doc.setFillColor(230, 245, 255);
+    doc.setDrawColor(80, 140, 200);
+    doc.rect(M, y, CONTENT_W, 7, 'FD');
+    doc.setFontSize(FS.small);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(20, 60, 120);
+    doc.text(`Total financeiro executado no período: ${totalFmt}`, M + 3, y + 5);
+    y += 9;
+  }
+
+  const cols = [
+    { h: 'RUBRICA', w: 44 },
+    { h: 'GRUPO / META', w: 34 },
+    { h: 'NATUREZA', w: 22 },
+    { h: 'PREVISTO (R$)', w: 24 },
+    { h: 'EXECUTADO (R$)', w: 24 },
+    { h: 'SALDO (R$)', w: 20 },
+    { h: 'NFs', w: 6 },
+  ];
+
+  doc.setFillColor(40, 40, 80);
+  let xc = M;
+  for (const c of cols) {
+    doc.rect(xc, y, c.w, 7, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(5.5);
+    doc.setFont('helvetica', 'bold');
+    doc.text(c.h, xc + 1, y + 4.5);
+    xc += c.w;
+  }
+  y += 7;
+
+  for (const r of rubricas) {
+    const rowH = 8;
+    y = check(doc, y, rowH);
+    const saldo = r.saldo || (r.valor_previsto - r.valor_utilizado);
+    const saldoColor = saldo >= 0 ? [20, 100, 20] : [160, 30, 30];
+    const cells = [
+      txt(r.rubrica_nome),
+      txt(r.grupo),
+      txt(r.natureza_despesa),
+      fmtBRL(r.valor_previsto),
+      fmtBRL(r.total_gasto_periodo),
+      fmtBRL(saldo),
+      String(r.num_nfs || 0),
+    ];
+    xc = M;
+    for (let ci = 0; ci < cols.length; ci++) {
+      doc.setFillColor(ci % 2 === 0 ? 248 : 255, 252, 255);
+      doc.setDrawColor(210, 215, 230);
+      doc.rect(xc, y, cols[ci].w, rowH, 'FD');
+      if (ci === 5) {
+        doc.setTextColor(...saldoColor);
+      } else {
+        doc.setTextColor(25, 25, 25);
+      }
+      doc.setFontSize(5.5);
+      doc.setFont('helvetica', ci === 0 ? 'bold' : 'normal');
+      doc.text(doc.splitTextToSize(cells[ci], cols[ci].w - 2)[0] || '', xc + 1, y + 5.5);
+      xc += cols[ci].w;
+    }
+    y += rowH;
+  }
+  return y + 4;
+}
+
 function buildParte2(relatorio) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   let y = HEADER_H + 4;
@@ -611,6 +684,12 @@ function buildParte2(relatorio) {
   y = sectionTitle(doc, y, '8', 'EQUIPE DE TRABALHO');
   y = instruction(doc, y, 'Inserir no quadro todos os profissionais contratados para a execução da parceria previstos originalmente no plano de trabalho, incluindo as diversas formas de contratação (CLT, RPA, Pessoa Jurídica).');
   y = equipeTable(doc, y, relatorio.equipe_trabalho);
+
+  // Rubricas orçamentárias executadas no período
+  if (relatorio._rubricas_periodo?.length > 0) {
+    y += 4;
+    y = rubricasTable(doc, y, relatorio._rubricas_periodo, relatorio._total_financeiro_fmt);
+  }
 
   // Links de documentos (NFs, XMLs, comprovantes, Drive)
   if (relatorio._links_documentos?.length > 0) {

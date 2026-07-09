@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Zap, Users, FileText, DollarSign, Activity, Link2, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, Zap, Users, FileText, BarChart2, Activity, Link2, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
 
 function fmtBRL(v) {
@@ -33,7 +33,9 @@ export default function PainelDadosPeriodo({ relatorioId, dataInicio, dataFim, f
   const [loading, setLoading] = useState(false);
   const [resumo, setResumo] = useState(null);
   const [expanded, setExpanded] = useState(false);
+  const [expandedTab, setExpandedTab] = useState('links'); // 'links' | 'rubricas'
   const [links, setLinks] = useState([]);
+  const [rubricas, setRubricas] = useState([]);
 
   async function preencherAutomatico() {
     if (!relatorioId) {
@@ -52,6 +54,7 @@ export default function PainelDadosPeriodo({ relatorioId, dataInicio, dataFim, f
       if (result?.success) {
         setResumo(result.resumo);
         setLinks([]);
+        setRubricas([]);
         setExpanded(false);
         toast.success(`✅ ${result.resumo.total_atividades} atividades • ${result.resumo.total_metas_identificadas} metas • ${result.resumo.total_links_documentos} documentos vinculados`);
         onPreenchido?.();
@@ -65,13 +68,18 @@ export default function PainelDadosPeriodo({ relatorioId, dataInicio, dataFim, f
     }
   }
 
-  async function toggleLinks() {
-    const novoEstado = !expanded;
-    setExpanded(novoEstado);
-    if (novoEstado && links.length === 0 && relatorioId) {
+  async function toggleExpanded(tab) {
+    if (expanded && expandedTab === tab) {
+      setExpanded(false);
+      return;
+    }
+    setExpanded(true);
+    setExpandedTab(tab);
+    if (relatorioId) {
       try {
         const r = await base44.entities.RelatorioExecucaoObjeto.get(relatorioId);
         setLinks(r?._links_documentos || []);
+        setRubricas(r?._rubricas_periodo || []);
       } catch (_) {}
     }
   }
@@ -112,25 +120,32 @@ export default function PainelDadosPeriodo({ relatorioId, dataInicio, dataFim, f
         {resumo && (
           <>
             <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-              <StatCard icon={Activity}  label="Atividades"   value={resumo.total_atividades}                                    color="blue"   />
-              <StatCard icon={FileText}  label="Metas"        value={resumo.total_metas_identificadas}                           color="green"  />
-              <StatCard icon={Users}     label="Participantes" value={(resumo.publico_total||0).toLocaleString('pt-BR')}          color="purple" />
-              <StatCard icon={Users}     label="Equipe"       value={resumo.total_equipe}                                        color="slate"  />
-              <StatCard icon={FileText}  label="Compras NF"   value={resumo.total_compras}                                       color="amber"  />
-              <StatCard icon={Link2}     label="Docs Drive"   value={resumo.total_links_documentos} sub={resumo.total_financeiro_fmt} color="green" />
+              <StatCard icon={Activity}   label="Atividades"    value={resumo.total_atividades}                                color="blue"   />
+              <StatCard icon={FileText}   label="Metas"         value={resumo.total_metas_identificadas}                       color="green"  />
+              <StatCard icon={Users}      label="Participantes" value={(resumo.publico_total||0).toLocaleString('pt-BR')}      color="purple" />
+              <StatCard icon={Users}      label="Equipe"        value={resumo.total_equipe}                                    color="slate"  />
+              <StatCard icon={BarChart2}  label="Rubricas"      value={resumo.total_rubricas || 0}                             color="amber"  />
+              <StatCard icon={Link2}      label="Docs Drive"    value={resumo.total_links_documentos} sub={resumo.total_financeiro_fmt} color="green" />
             </div>
 
-            {resumo.total_links_documentos > 0 && (
-              <button
-                onClick={toggleLinks}
-                className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium"
-              >
-                {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                {expanded ? 'Ocultar' : 'Ver'} documentos vinculados ({resumo.total_links_documentos})
-              </button>
-            )}
+            <div className="flex gap-2">
+              {resumo.total_links_documentos > 0 && (
+                <button onClick={() => toggleExpanded('links')}
+                  className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium">
+                  {expanded && expandedTab === 'links' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  {expanded && expandedTab === 'links' ? 'Ocultar' : 'Ver'} documentos ({resumo.total_links_documentos})
+                </button>
+              )}
+              {(resumo.total_rubricas || 0) > 0 && (
+                <button onClick={() => toggleExpanded('rubricas')}
+                  className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 font-medium">
+                  {expanded && expandedTab === 'rubricas' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  {expanded && expandedTab === 'rubricas' ? 'Ocultar' : 'Ver'} rubricas ({resumo.total_rubricas})
+                </button>
+              )}
+            </div>
 
-            {expanded && links.length > 0 && (
+            {expanded && expandedTab === 'links' && links.length > 0 && (
               <div className="rounded-lg border border-indigo-200 bg-white overflow-hidden">
                 <div className="max-h-56 overflow-y-auto">
                   <table className="w-full text-xs">
@@ -150,26 +165,48 @@ export default function PainelDadosPeriodo({ relatorioId, dataInicio, dataFim, f
                           <td className="py-1.5 px-2 text-right font-semibold tabular-nums">{fmtBRL(doc.valor)}</td>
                           <td className="py-1.5 px-2">
                             <div className="flex items-center justify-center gap-1">
-                              {doc.nf_pdf_url && (
-                                <a href={doc.nf_pdf_url} target="_blank" rel="noopener noreferrer"
-                                  className="rounded bg-gray-100 px-1.5 py-0.5 text-[9px] font-semibold text-gray-600 hover:bg-gray-200">PDF</a>
-                              )}
-                              {doc.nf_xml_url && (
-                                <a href={doc.nf_xml_url} target="_blank" rel="noopener noreferrer"
-                                  className="rounded bg-blue-50 px-1.5 py-0.5 text-[9px] font-semibold text-blue-600 hover:bg-blue-100">XML</a>
-                              )}
-                              {doc.comprovante_url && (
-                                <a href={doc.comprovante_url} target="_blank" rel="noopener noreferrer"
-                                  className="rounded bg-green-50 px-1.5 py-0.5 text-[9px] font-semibold text-green-600 hover:bg-green-100">COMP</a>
-                              )}
-                              {doc.drive_folder_url && (
-                                <a href={doc.drive_folder_url} target="_blank" rel="noopener noreferrer"
-                                  className="rounded bg-indigo-50 px-1.5 py-0.5 text-[9px] font-semibold text-indigo-600 hover:bg-indigo-100">Drive</a>
-                              )}
+                              {doc.nf_pdf_url && <a href={doc.nf_pdf_url} target="_blank" rel="noopener noreferrer" className="rounded bg-gray-100 px-1.5 py-0.5 text-[9px] font-semibold text-gray-600 hover:bg-gray-200">PDF</a>}
+                              {doc.nf_xml_url && <a href={doc.nf_xml_url} target="_blank" rel="noopener noreferrer" className="rounded bg-blue-50 px-1.5 py-0.5 text-[9px] font-semibold text-blue-600 hover:bg-blue-100">XML</a>}
+                              {doc.comprovante_url && <a href={doc.comprovante_url} target="_blank" rel="noopener noreferrer" className="rounded bg-green-50 px-1.5 py-0.5 text-[9px] font-semibold text-green-600 hover:bg-green-100">COMP</a>}
+                              {doc.drive_folder_url && <a href={doc.drive_folder_url} target="_blank" rel="noopener noreferrer" className="rounded bg-indigo-50 px-1.5 py-0.5 text-[9px] font-semibold text-indigo-600 hover:bg-indigo-100">Drive</a>}
                             </div>
                           </td>
                         </tr>
                       ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {expanded && expandedTab === 'rubricas' && rubricas.length > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-white overflow-hidden">
+                <div className="max-h-56 overflow-y-auto">
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 bg-amber-50 border-b">
+                      <tr>
+                        <th className="text-left py-2 px-3 text-amber-700 font-medium">Rubrica</th>
+                        <th className="text-left py-2 px-2 text-amber-700 font-medium">Grupo</th>
+                        <th className="text-right py-2 px-2 text-amber-700 font-medium">Previsto</th>
+                        <th className="text-right py-2 px-2 text-amber-700 font-medium">Executado</th>
+                        <th className="text-right py-2 px-2 text-amber-700 font-medium">Saldo</th>
+                        <th className="text-center py-2 px-2 text-amber-700 font-medium">NFs</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rubricas.map((r, i) => {
+                        const saldo = r.saldo || (r.valor_previsto - r.valor_utilizado);
+                        return (
+                          <tr key={i} className="border-b border-slate-50 hover:bg-slate-50">
+                            <td className="py-1.5 px-3 font-medium max-w-[160px] truncate">{r.rubrica_nome}</td>
+                            <td className="py-1.5 px-2 text-slate-500 truncate max-w-[100px]">{r.grupo}</td>
+                            <td className="py-1.5 px-2 text-right tabular-nums text-slate-600">{fmtBRL(r.valor_previsto)}</td>
+                            <td className="py-1.5 px-2 text-right tabular-nums font-semibold">{fmtBRL(r.total_gasto_periodo)}</td>
+                            <td className={`py-1.5 px-2 text-right tabular-nums font-bold ${saldo >= 0 ? 'text-green-700' : 'text-red-600'}`}>{fmtBRL(saldo)}</td>
+                            <td className="py-1.5 px-2 text-center text-slate-500">{r.num_nfs}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
