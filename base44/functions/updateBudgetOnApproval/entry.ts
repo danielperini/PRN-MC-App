@@ -16,8 +16,9 @@ Deno.serve(async (req) => {
     // Suporte a chamada direta com rubricaId
     const rubricaIdDireto = body.rubricaId || body.rubrica_id;
 
-    // Status que contam como "utilizado"
-    const STATUS_APROVADOS = new Set(['APROVADO_COORD', 'APROVADO_ADMIN', 'APROVADO', 'PAGO']);
+    // Status que contam como "utilizado" — apenas aprovação admin e pagamento efetivo
+    // APROVADO_COORD não abate rubrica (só reserva orçamentária, não confirma gasto)
+    const STATUS_UTILIZADO = new Set(['APROVADO_ADMIN', 'PAGO']);
 
     // Se chamado por automação entity, extrai rubrica do registro
     let rubricaId = rubricaIdDireto;
@@ -43,8 +44,9 @@ Deno.serve(async (req) => {
     }, '', 1000);
 
     const purchaseTotal = (purchases || [])
-      .filter((p) => STATUS_APROVADOS.has(p.status))
+      .filter((p) => STATUS_UTILIZADO.has(p.status))
       .reduce((sum, p) => {
+        // Prioriza valor real pago; se APROVADO_ADMIN ainda sem pagamento, usa valor aprovado ou solicitado
         const v = p.valor_pago || p.valor_aprovado_admin || p.valor_aprovado || p.valor_solicitado || p.valor_total || p.valor || 0;
         return sum + (Number(v) || 0);
       }, 0);
@@ -55,8 +57,8 @@ Deno.serve(async (req) => {
     }, '', 500).catch(() => []);
 
     const paymentTotal = (payments || [])
-      .filter((p) => STATUS_APROVADOS.has(p.status))
-      .reduce((sum, p) => sum + (Number(p.valor_total || p.valor || 0)), 0);
+      .filter((p) => STATUS_UTILIZADO.has(p.status))
+      .reduce((sum, p) => sum + (Number(p.valor_nf || p.valor_total || p.valor || 0)), 0);
 
     const totalUtilizado = purchaseTotal + paymentTotal;
 
