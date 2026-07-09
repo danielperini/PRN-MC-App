@@ -12,7 +12,7 @@ import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import { PatrocinadorViewProvider } from '@/context/PatrocinadorViewContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { base44 } from '@/api/base44Client';
-import { canAccessPage, isObservador, isPatrocinador } from '@/components/auth/permissions';
+import { canAccessPage, isObservador, isPatrocinador, COORD_GERAL_EMAILS } from '@/components/auth/permissions';
 import { normalizeEmail } from '@/utils/auth/recoverExistingUserAccess';
 
 const { Pages, Layout, mainPage } = pagesConfig;
@@ -81,8 +81,12 @@ async function loadUserPermissionOnce(email) {
   const key = normalizeEmail(email || '');
   if (!key) return null;
 
-  const cached = readPermissionCache(key);
-  if (cached) return cached;
+  // Coordenadores gerais sempre buscam permissão fresca, ignorando cache
+  const isCoordGeral = COORD_GERAL_EMAILS.includes(key);
+  if (!isCoordGeral) {
+    const cached = readPermissionCache(key);
+    if (cached) return cached;
+  }
 
   if (Date.now() < permissionRateLimitUntil) return null;
   if (permissionInflight.has(key)) return permissionInflight.get(key);
@@ -93,7 +97,11 @@ async function loadUserPermissionOnce(email) {
     []
   )
     .then((permissions) => {
-      const permission = Array.isArray(permissions) ? permissions[0] || null : null;
+      // Pega a permissão mais recente (não a primeira duplicata)
+      const sorted = Array.isArray(permissions)
+        ? [...permissions].sort((a, b) => new Date(b.updated_date || b.created_date || 0) - new Date(a.updated_date || a.created_date || 0))
+        : [];
+      const permission = sorted[0] || null;
       writePermissionCache(key, permission);
       return permission;
     })
