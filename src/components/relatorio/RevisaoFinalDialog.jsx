@@ -171,21 +171,29 @@ export default function RevisaoFinalDialog({ relatorioId, relatorio, onExportar,
                   <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Checklist de Revisão</p>
                 </div>
                 <div className="divide-y">
-                  {CHECKLIST_ITEMS.map(item => (
-                    <button
-                      key={item.id}
-                      onClick={() => toggleCheck(item.id)}
-                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors text-left"
-                    >
-                      {checklist[item.id]
-                        ? <CheckSquare className="w-4 h-4 text-green-600 shrink-0" />
-                        : <Square className="w-4 h-4 text-slate-300 shrink-0" />}
-                      <span className={`text-sm ${checklist[item.id] ? 'text-slate-500 line-through' : 'text-slate-700'}`}>
-                        {item.label}
-                      </span>
-                      {checklist[item.id] && <Badge variant="outline" className="ml-auto text-[10px] text-green-700 border-green-300">OK</Badge>}
-                    </button>
-                  ))}
+                  {CHECKLIST_ITEMS.map(item => {
+                    const checked = !!checklist[item.id];
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => toggleCheck(item.id)}
+                        className={`w-full flex items-center gap-3 px-4 py-3 transition-colors text-left ${
+                          checked ? 'bg-green-50 hover:bg-green-100' : 'hover:bg-slate-50'
+                        }`}
+                      >
+                        {checked
+                          ? <CheckSquare className="w-4 h-4 text-green-600 shrink-0" />
+                          : <Square className="w-4 h-4 text-slate-300 shrink-0" />}
+                        <span className={`text-sm flex-1 ${checked ? 'text-green-800 font-medium' : 'text-slate-700'}`}>
+                          {item.label}
+                        </span>
+                        {checked
+                          ? <span className="text-[10px] font-semibold text-green-600 bg-green-100 border border-green-200 rounded px-1.5 py-0.5">✓ Conferido</span>
+                          : <span className="text-[10px] text-slate-400">Clique para confirmar</span>
+                        }
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -414,39 +422,59 @@ export default function RevisaoFinalDialog({ relatorioId, relatorio, onExportar,
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-4 border-t bg-slate-50 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-xs text-slate-500">
-            <span>{CHECKLIST_ITEMS.filter(i => checklist[i.id]).length}/{CHECKLIST_ITEMS.length} itens revisados</span>
-            {allChecked && <Badge variant="outline" className="text-green-700 border-green-300 text-[10px]"><CheckCircle2 className="w-3 h-3 mr-1" />Pronto</Badge>}
+        <div className="border-t bg-slate-50">
+          {/* Barra de progresso */}
+          <div className="px-5 pt-3 pb-1">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs font-medium text-slate-600">
+                Checklist: {CHECKLIST_ITEMS.filter(i => checklist[i.id]).length} de {CHECKLIST_ITEMS.length} itens revisados
+              </span>
+              {allChecked
+                ? <span className="text-xs font-semibold text-green-600 flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> Pronto para exportar</span>
+                : <span className="text-xs text-slate-400">Marque todos os itens para liberar a exportação</span>
+              }
+            </div>
+            <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-300 ${allChecked ? 'bg-green-500' : 'bg-amber-400'}`}
+                style={{ width: `${(CHECKLIST_ITEMS.filter(i => checklist[i.id]).length / CHECKLIST_ITEMS.length) * 100}%` }}
+              />
+            </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="px-5 py-3 flex items-center justify-between gap-3 flex-wrap">
             <Button variant="outline" size="sm" onClick={onClose}>Voltar</Button>
-            <Button
-              size="sm"
-              onClick={() => onExportar('parte1')}
-              variant="outline"
-              className="gap-1 text-xs"
-            >
-              <FileText className="w-3.5 h-3.5" />Parte 1
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => onExportar('parte2')}
-              variant="outline"
-              className="gap-1 text-xs"
-            >
-              <FileText className="w-3.5 h-3.5" />Parte 2
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => onExportar('completo')}
-              className="gap-1 bg-slate-900 text-white hover:bg-slate-700"
-              disabled={!allChecked}
-              title={!allChecked ? 'Conclua o checklist de revisão primeiro' : ''}
-            >
-              <Download className="w-3.5 h-3.5" />
-              PDF Completo {!allChecked && `(${CHECKLIST_ITEMS.filter(i => checklist[i.id]).length}/${CHECKLIST_ITEMS.length})`}
-            </Button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                size="sm"
+                onClick={() => onExportar('parte1')}
+                variant="outline"
+                className="gap-1 text-xs"
+                disabled={!allChecked}
+                title={!allChecked ? 'Conclua o checklist de revisão primeiro' : 'Exportar Parte 1'}
+              >
+                <FileText className="w-3.5 h-3.5" />Parte 1
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => onExportar('parte2')}
+                variant="outline"
+                className="gap-1 text-xs"
+                disabled={!allChecked}
+                title={!allChecked ? 'Conclua o checklist de revisão primeiro' : 'Exportar Parte 2'}
+              >
+                <FileText className="w-3.5 h-3.5" />Parte 2
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => onExportar('completo')}
+                className={`gap-1 ${allChecked ? 'bg-slate-900 text-white hover:bg-slate-700' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}
+                disabled={!allChecked}
+                title={!allChecked ? 'Conclua o checklist de revisão primeiro' : 'Exportar PDF Completo'}
+              >
+                <Download className="w-3.5 h-3.5" />
+                PDF Completo
+              </Button>
+            </div>
           </div>
         </div>
       </div>
