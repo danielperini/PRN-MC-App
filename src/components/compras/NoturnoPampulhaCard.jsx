@@ -69,7 +69,9 @@ export default function NoturnoPampulhaCard() {
     return unsub;
   }, [queryClient]);
 
-  const totalPrevisto = rubricas.reduce((acc, r) => acc + toNumber(r.valor_rubrica || r.valor_total), 0);
+  // Valor contratual oficial do 4º Aditivo — não derivar das rubricas do banco
+  const TOTAL_PREVISTO_PAMPULHA = 81719.85;
+  const totalPrevisto = TOTAL_PREVISTO_PAMPULHA;
   const totalUtilizado = rubricas.reduce((acc, r) => acc + toNumber(r.valor_utilizado), 0);
   const saldo = totalPrevisto - totalUtilizado;
   const pct = totalPrevisto > 0 ? (totalUtilizado / totalPrevisto) * 100 : 0;

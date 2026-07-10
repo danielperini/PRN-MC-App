@@ -99,11 +99,11 @@ export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
     const rubricasPampulha = ativas.filter((r) => String(r?.centro_custo || '') === 'Noturno Pampulha');
     const previsto4 = rubricasPampulha.reduce((acc, r) => acc + toNumber(r.valor_rubrica || r.valor_total), 0);
 
-    // Utilizado: soma das compras aprovadas/pagas pelo centro_custo da COMPRA
-    const STATUS_OK = new Set(['APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
+    // Utilizado: apenas APROVADO_ADMIN e PAGO contam para o saldo financeiro real
+    const STATUS_OK = new Set(['APROVADO_ADMIN', 'PAGO']);
     const normCC = (cc) => {
       const s = String(cc || '').toLowerCase();
-      if (s.includes('noturno') && (s.includes('pampulha') || s.includes('4'))) return 'pampulha';
+      if (s.includes('pampulha')) return 'pampulha';
       if (s.includes('noturno')) return 'noturno';
       return null;
     };
@@ -111,15 +111,16 @@ export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
     let util3 = 0, util4 = 0;
     for (const c of compras) {
       if (!STATUS_OK.has(String(c.status || '').toUpperCase())) continue;
-      const val = toNumber(c.valor_pago || c.valor_aprovado_admin || c.valor_aprovado || c.valor_solicitado);
+      // Prioridade: valor_pago > valor_aprovado_admin > valor_solicitado
+      const val = toNumber(c.valor_pago || c.valor_aprovado_admin || c.valor_solicitado);
       const cc = normCC(c.centro_custo);
       if (cc === 'noturno') util3 += val;
       else if (cc === 'pampulha') util4 += val;
     }
 
-    // Fallback p/ rubricas caso não haja compras (compatibilidade)
-    if (util3 === 0) util3 = rubricasNoturno.reduce((acc, r) => acc + toNumber(r.valor_utilizado), 0);
-    if (util4 === 0) util4 = rubricasPampulha.reduce((acc, r) => acc + toNumber(r.valor_utilizado), 0);
+    // Fallback: usar valor_utilizado das rubricas somente se não houver nenhuma compra vinculada
+    if (util3 === 0 && compras.length === 0) util3 = rubricasNoturno.reduce((acc, r) => acc + toNumber(r.valor_utilizado), 0);
+    if (util4 === 0 && compras.length === 0) util4 = rubricasPampulha.reduce((acc, r) => acc + toNumber(r.valor_utilizado), 0);
 
     // Sempre usar os valores contratuais oficiais como previsto total
     const totalPrevisto3 = TOTAL_PREVISTO_3_ADITIVO;
