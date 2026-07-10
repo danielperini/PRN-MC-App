@@ -26,7 +26,16 @@ function moeda(value) {
 }
 
 function parseMoneda(str) {
-  const cleaned = String(str || '').replace(/\./g, '').replace(',', '.');
+  // Remove R$, espaços e trata formato BR (1.234,56) e EN (1234.56)
+  let cleaned = String(str || '').replace(/R\$\s*/g, '').trim();
+  // Se tem vírgula E ponto: formato BR => remove pontos, troca vírgula por ponto
+  if (cleaned.includes(',') && cleaned.includes('.')) {
+    cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+  } else if (cleaned.includes(',')) {
+    // Só vírgula: pode ser decimal BR
+    cleaned = cleaned.replace(',', '.');
+  }
+  // Se só ponto: já é decimal EN
   const num = parseFloat(cleaned);
   return Number.isFinite(num) ? num : 0;
 }
