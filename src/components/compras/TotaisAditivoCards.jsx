@@ -99,8 +99,8 @@ export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
     const rubricasPampulha = ativas.filter((r) => String(r?.centro_custo || '') === 'Noturno Pampulha');
     const previsto4 = rubricasPampulha.reduce((acc, r) => acc + toNumber(r.valor_rubrica || r.valor_total), 0);
 
-    // Utilizado: apenas APROVADO_ADMIN e PAGO contam para o saldo financeiro real
-    const STATUS_OK = new Set(['APROVADO_ADMIN', 'PAGO']);
+    // Utilizado: APROVADO_COORD, APROVADO_ADMIN e PAGO contam para o saldo financeiro real
+    const STATUS_OK = new Set(['APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
     const normCC = (cc) => {
       const s = String(cc || '').toLowerCase();
       if (s.includes('pampulha')) return 'pampulha';
