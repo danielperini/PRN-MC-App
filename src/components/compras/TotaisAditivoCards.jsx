@@ -14,7 +14,8 @@ function fmtBRL(v) {
   }).format(v ?? 0);
 }
 
-const TOTAL_PREVISTO_3_ADITIVO = 1320000;
+// Valores base oficiais dos aditivos (usados quando o banco não tem rubricas vinculadas)
+const TOTAL_PREVISTO_3_ADITIVO = 141350;
 const TOTAL_PREVISTO_4_ADITIVO = 81719.85;
 
 function AditivoBlock({ titulo, badge, badgeColor, totalPrevisto, totalUtilizado, saldo, rubricasList }) {
