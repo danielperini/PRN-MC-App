@@ -38,6 +38,23 @@ function clearGalleryCache() {
   }
 }
 
+function FilterChip({ label, active, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all
+        ${active
+          ? 'border-black bg-black text-white shadow'
+          : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400 hover:bg-gray-50'
+        }`}
+    >
+      {label}
+      {active && <X className="h-3 w-3 opacity-70" />}
+    </button>
+  );
+}
+
 function GalleryCard({ image, onClick, eager = false }) {
   const museuLabel = image.sectionKey !== 'SEM_IDENTIFICACAO'
     ? (image.sectionTitle || image.museu || 'Museus Centro')
@@ -79,9 +96,6 @@ function GalleryCard({ image, onClick, eager = false }) {
               {image.localizacao}
             </p>
           )}
-          {image.geoCoordinates && image.geoCoordinates !== image.localizacao && (
-            <p className="text-gray-400 font-mono text-[10px]">{image.geoCoordinates}</p>
-          )}
           {image.date && <p>{formatDateBR(image.date)}</p>}
         </div>
       </div>
@@ -122,25 +136,42 @@ function GaleriaFotosInner() {
 
   const images = Array.isArray(data?.images) ? data.images : [];
 
+  // Chips de museu: chaves únicas presentes nos dados
+  const museuOptions = useMemo(() => {
+    const set = new Set();
+    images.forEach((img) => { set.add(img.sectionKey || 'SEM_IDENTIFICACAO'); });
+    return Array.from(set).sort();
+  }, [images]);
+
+  // Chips de período: reportMes únicos
+  const periodoOptions = useMemo(() => {
+    const set = new Set();
+    images.forEach((img) => { if (img.reportMes) set.add(img.reportMes); });
+    return Array.from(set).sort((a, b) => String(a).localeCompare(String(b), 'pt-BR'));
+  }, [images]);
+
   const filteredImages = useMemo(() => {
     const q = safeText(searchTerm).trim();
-    const base = images.filter((image) => image?.fileUrl);
-    if (!q) return base;
-
-    return base.filter((image) => [
-      image.fileName,
-      image.legenda,
-      image.description,
-      image.museu,
-      image.sectionTitle,
-      image.localizacao,
-      image.geoCoordinates,
-      image.reportLabel,
-      image.activityTitulo,
-      image.reportMes,
-      image.authorName,
-    ].some((value) => safeText(value).includes(q)));
-  }, [images, searchTerm]);
+    return images.filter((image) => {
+      if (!image?.fileUrl) return false;
+      if (filterMuseu && (image.sectionKey || 'SEM_IDENTIFICACAO') !== filterMuseu) return false;
+      if (filterPeriodo && image.reportMes !== filterPeriodo) return false;
+      if (!q) return true;
+      return [
+        image.fileName,
+        image.legenda,
+        image.description,
+        image.museu,
+        image.sectionTitle,
+        image.localizacao,
+        image.geoCoordinates,
+        image.reportLabel,
+        image.activityTitulo,
+        image.reportMes,
+        image.authorName,
+      ].some((value) => safeText(value).includes(q));
+    });
+  }, [images, searchTerm, filterMuseu, filterPeriodo]);
 
   const sortedImages = useMemo(() => {
     return [...filteredImages].sort((a, b) => {
@@ -162,6 +193,14 @@ function GaleriaFotosInner() {
     });
     return Array.from(groups.entries()).map(([key, items]) => ({ key, items }));
   }, [visibleImages]);
+
+  const hasActiveFilters = filterMuseu || filterPeriodo;
+
+  function resetFilters() {
+    setFilterMuseu('');
+    setFilterPeriodo('');
+    setVisibleCount(INITIAL_VISIBLE_IMAGES);
+  }
 
   if (isLoading) {
     return (
@@ -185,11 +224,13 @@ function GaleriaFotosInner() {
   return (
     <div className="min-h-screen bg-white">
       <div className="mx-auto w-full max-w-7xl px-4 py-6 md:px-6 md:py-10">
+        {/* Cabeçalho */}
         <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <h1 className="mb-2 text-3xl font-semibold tracking-tight text-black">Galeria de Fotos</h1>
             <p className="text-gray-600">
-              {sortedImages.length} {sortedImages.length === 1 ? 'imagem encontrada' : 'imagens encontradas'}.
+              {sortedImages.length} {sortedImages.length === 1 ? 'imagem encontrada' : 'imagens encontradas'}
+              {images.length !== sortedImages.length && ` (de ${images.length} total)`}.
               {data?.cacheUsed ? ' Dados carregados do cache local.' : ''}
               {data?.cacheStale ? ' Cache antigo usado para evitar tela vazia.' : ''}
             </p>
@@ -209,7 +250,9 @@ function GaleriaFotosInner() {
           </button>
         </div>
 
-        <div className="mb-8 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+        {/* Painel de filtros */}
+        <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm space-y-4">
+          {/* Busca + Ordenação */}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <Label className="mb-2 block text-sm font-medium text-gray-600">Buscar</Label>
@@ -241,6 +284,71 @@ function GaleriaFotosInner() {
               </select>
             </div>
           </div>
+
+          {/* Chips — Museu */}
+          {museuOptions.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Filter className="h-3.5 w-3.5 text-gray-400" />
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Museu</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {museuOptions.map((key) => (
+                  <FilterChip
+                    key={key}
+                    label={SECTION_LABELS[key] || key}
+                    active={filterMuseu === key}
+                    onClick={() => {
+                      setFilterMuseu(filterMuseu === key ? '' : key);
+                      setVisibleCount(INITIAL_VISIBLE_IMAGES);
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Chips — Período */}
+          {periodoOptions.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Filter className="h-3.5 w-3.5 text-gray-400" />
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Período</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {periodoOptions.map((periodo) => (
+                  <FilterChip
+                    key={periodo}
+                    label={periodo}
+                    active={filterPeriodo === periodo}
+                    onClick={() => {
+                      setFilterPeriodo(filterPeriodo === periodo ? '' : periodo);
+                      setVisibleCount(INITIAL_VISIBLE_IMAGES);
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Limpar filtros */}
+          {hasActiveFilters && (
+            <div className="flex items-center gap-3 pt-1 border-t border-gray-100">
+              <span className="text-xs text-gray-500">
+                Filtros ativos:{' '}
+                {filterMuseu && <span className="font-medium">{SECTION_LABELS[filterMuseu] || filterMuseu}</span>}
+                {filterMuseu && filterPeriodo && ' · '}
+                {filterPeriodo && <span className="font-medium">{filterPeriodo}</span>}
+              </span>
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="text-xs text-red-500 hover:underline font-medium"
+              >
+                Limpar filtros
+              </button>
+            </div>
+          )}
         </div>
 
         {sortedImages.length === 0 ? (
@@ -248,8 +356,19 @@ function GaleriaFotosInner() {
             <Images className="mx-auto mb-4 h-12 w-12 text-gray-300" />
             <p className="font-medium text-black">Nenhuma foto encontrada</p>
             <p className="mt-1 text-sm text-gray-500">
-              A galeria não recebeu imagens da MediaLibrary/Attachment neste carregamento. Tente atualizar novamente após alguns instantes.
+              {hasActiveFilters
+                ? 'Nenhuma foto corresponde aos filtros selecionados. Tente limpar os filtros.'
+                : 'A galeria não recebeu imagens neste carregamento. Tente atualizar novamente após alguns instantes.'}
             </p>
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="mt-4 rounded-full border border-gray-300 bg-white px-4 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Limpar filtros
+              </button>
+            )}
           </div>
         ) : (
           <div className="space-y-10">
@@ -329,6 +448,35 @@ function GaleriaFotosInner() {
                   {selectedImage.localizacao && selectedImage.localizacao !== selectedImage.museu && <span>{selectedImage.localizacao}</span>}
                   {selectedImage.geoCoordinates && <span className="font-mono">📍 {selectedImage.geoCoordinates}</span>}
                   {selectedImage.date && <span>{formatDateBR(selectedImage.date)}</span>}
+                </div>
+                {/* Chips clicáveis no modal para filtrar diretamente */}
+                <div className="flex flex-wrap gap-2 pt-2 border-t border-white/10">
+                  {selectedImage.sectionKey && selectedImage.sectionKey !== 'SEM_IDENTIFICACAO' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFilterMuseu(selectedImage.sectionKey);
+                        setSelectedImage(null);
+                        setVisibleCount(INITIAL_VISIBLE_IMAGES);
+                      }}
+                      className="rounded-full bg-white/10 border border-white/20 px-3 py-1 text-xs text-white/80 hover:bg-white/20"
+                    >
+                      🏛 Filtrar por museu
+                    </button>
+                  )}
+                  {selectedImage.reportMes && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFilterPeriodo(selectedImage.reportMes);
+                        setSelectedImage(null);
+                        setVisibleCount(INITIAL_VISIBLE_IMAGES);
+                      }}
+                      className="rounded-full bg-white/10 border border-white/20 px-3 py-1 text-xs text-white/80 hover:bg-white/20"
+                    >
+                      📅 Filtrar por período
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
