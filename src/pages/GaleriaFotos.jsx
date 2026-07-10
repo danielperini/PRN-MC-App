@@ -5,7 +5,7 @@ import LoadingPage from '@/components/common/LoadingPage';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Images, MapPin, RefreshCw, X } from 'lucide-react';
+import { Images, MapPin, RefreshCw, X, Filter } from 'lucide-react';
 import { loadGalleryReportData } from '@/utils/galleryReportData';
 
 const INITIAL_VISIBLE_IMAGES = 36;
@@ -92,6 +92,8 @@ function GalleryCard({ image, onClick, eager = false }) {
 function GaleriaFotosInner() {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('recent');
+  const [filterMuseu, setFilterMuseu] = useState('');
+  const [filterPeriodo, setFilterPeriodo] = useState('');
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_IMAGES);
   const [selectedImage, setSelectedImage] = useState(null);
 

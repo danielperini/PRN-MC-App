@@ -309,25 +309,30 @@ export default function RubricasPorMuseu() {
   });
 
   /**
-   * RESUMO POR MUSEU — híbrido: centro_custo + nome + rateio
+   * RESUMO POR MUSEU
+   * - Orçado: soma das rubricas classificadas por centro_custo
+   * - Utilizado/Pago: soma das COMPRAS aprovadas, usando o centro_custo da PRÓPRIA COMPRA como fonte de verdade
+   *   Aliases: "Noturno nos Museus 2026" → "Noturno 2026", "Atuação Geral" → rubricas transversais ignoradas nos cards de museu físico
    */
   const resumoPorMuseu = useMemo(() => {
     const banco = Array.isArray(rubricasBanco) ? rubricasBanco.filter(r => r?.ativo !== false) : [];
     const compras = Array.isArray(comprasAprovadas) ? comprasAprovadas : [];
 
-    // Indexar compras por rubrica_id
     const STATUS_APROVADOS = new Set(['APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
     const STATUS_PAGO = new Set(['PAGO']);
-    const utilizadoPorRubricaId = {};
-    const pagoPorRubricaId = {};
-    for (const c of compras) {
-      const rid = c.rubrica_id;
-      if (!rid) continue;
-      const status = String(c.status || '').toUpperCase();
-      if (!STATUS_APROVADOS.has(status)) continue;
-      const val = toNumber(c.valor_pago || c.valor_aprovado_admin || c.valor_aprovado || c.valor_solicitado);
-      utilizadoPorRubricaId[rid] = (utilizadoPorRubricaId[rid] || 0) + val;
-      if (STATUS_PAGO.has(status)) pagoPorRubricaId[rid] = (pagoPorRubricaId[rid] || 0) + val;
+
+    // Normaliza centro_custo de uma compra para a chave do mapa (CENTROS_CUSTO)
+    function normalizarCCCompra(cc) {
+      const raw = String(cc || '').trim();
+      const up = raw.toUpperCase();
+      if (up === 'MIS BH' || up === 'MIS') return 'MIS';
+      if (up === 'MHAB' || up === 'MAB') return 'MHAB';
+      if (up === 'MUMO' || up === 'MUMU') return 'MUMO';
+      const low = raw.toLowerCase();
+      if (low.includes('noturno') && (low.includes('pampulha') || low.includes('4'))) return 'Noturno Pampulha';
+      if (low.includes('noturno')) return 'Noturno 2026';
+      // Aliases genéricos → não mapeia para card de museu específico
+      return null;
     }
 
     // Inicializar mapa
@@ -336,38 +341,38 @@ export default function RubricasPorMuseu() {
       mapa[centro] = { museu: centro, totalOrcado: 0, totalUtilizado: 0, totalSaldo: 0, pct: 0, totalPago: 0 };
     }
 
-    // Deduplicar rubricas por id
+    // ── Orçado: vem das rubricas (centro_custo da rubrica) ──
     const seen = new Set();
     const rubricasUnicas = banco.filter(r => { if (seen.has(r.id)) return false; seen.add(r.id); return true; });
 
     for (const r of rubricasUnicas) {
       const previsto = toNumber(r.valor_rubrica || r.valor_total);
-      const utilCompras = utilizadoPorRubricaId[r.id];
-      const utilizado = utilCompras !== undefined && utilCompras > 0 ? utilCompras : toNumber(r.valor_utilizado);
-      const pago = pagoPorRubricaId[r.id] || 0;
       const grupo = String(r?.grupo || '').trim();
-
-      // Classificar: array de {museu, peso}
       const alocacoes = classificarRubrica(r);
 
       for (const { museu, peso } of alocacoes) {
         if (!mapa[museu]) continue;
-
-        // Excluir pessoal/equipe dos totais dos cards (museus + noturno)
         const grupoNormalizado = normalizeText(grupo);
-        const ehPessoal = GRUPOS_PESSOAL.has(grupo) || 
-          grupoNormalizado.includes('produç') || 
-          grupoNormalizado.includes('educador') || 
+        const ehPessoal = GRUPOS_PESSOAL.has(grupo) ||
+          grupoNormalizado.includes('produç') ||
+          grupoNormalizado.includes('educador') ||
           grupoNormalizado.includes('coordenador') ||
           grupoNormalizado.includes('monitor') ||
           grupoNormalizado.includes('equipe');
-        
         if (CENTROS_EXCLUIR_PESSOAL.has(museu) && ehPessoal) continue;
-
         mapa[museu].totalOrcado += previsto * peso;
-        mapa[museu].totalUtilizado += utilizado * peso;
-        mapa[museu].totalPago += pago * peso;
       }
+    }
+
+    // ── Utilizado/Pago: vem das COMPRAS, usando centro_custo da compra como fonte de verdade ──
+    for (const c of compras) {
+      const status = String(c.status || '').toUpperCase();
+      if (!STATUS_APROVADOS.has(status)) continue;
+      const museu = normalizarCCCompra(c.centro_custo);
+      if (!museu || !mapa[museu]) continue;
+      const val = toNumber(c.valor_pago || c.valor_aprovado_admin || c.valor_aprovado || c.valor_solicitado);
+      mapa[museu].totalUtilizado += val;
+      if (STATUS_PAGO.has(status)) mapa[museu].totalPago += val;
     }
 
     return CENTROS_CUSTO
