@@ -93,7 +93,7 @@ Retorne como JSON válido. Seja preciso, use citações diretas.`;
     });
 
     // Salvar curadoria
-    const analise = await base44.entities.AIAnalysis.create({
+    const analise = await base44.asServiceRole.entities.AIAnalysis.create({
       conteudo_tipo: tipo_fonte,
       conteudo_id: fonte_id,
       tipo_analise: 'editorial',
