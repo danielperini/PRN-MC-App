@@ -19,6 +19,24 @@ const STATUS_CONFIG = {
 
 const STATUS_APROVADOS = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
 const STATUS_ELEGIVEIS_PAGAMENTO = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
+const STATUS_AGUARDANDO_PAGAMENTO = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'APROVADA']);
+
+function getNFDateSortKey(p) {
+  const d = p.nf_data_emissao || p.data_nf || p.data_emissao_nf || p.aprov_admin_data || p.aprov_coord_data || p.created_date || '';
+  return d ? String(d).split('T')[0] : '0000-00-00';
+}
+
+function sortByNFDateDesc(items) {
+  return [...items].sort((a, b) => {
+    const da = getNFDateSortKey(a);
+    const db = getNFDateSortKey(b);
+    if (da === db) {
+      // desempate: created_date desc
+      return String(b.created_date || '').localeCompare(String(a.created_date || ''));
+    }
+    return db.localeCompare(da);
+  });
+}
 
 function toNumber(value) {
   const n = Number(value ?? 0);
@@ -173,7 +191,8 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
   }
 
   const sorted = useMemo(() => {
-    if (!sortField) return items;
+    // Ordenação padrão: data da NF decrescente (mais recente no topo)
+    if (!sortField) return sortByNFDateDesc(items);
     return [...items].sort((a, b) => {
       let va = '', vb = '';
       const ra = a.rubrica_id ? rubricaById[a.rubrica_id] : null;
@@ -260,6 +279,7 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
           const valor = getPurchaseValue(p);
           const comprovantePagamentoUrl = getComprovantePagamentoUrl(p);
           const pago = statusKey === 'PAGO';
+          const aguardandoPagamento = STATUS_AGUARDANDO_PAGAMENTO.has(statusKey) && !pago;
           const comprovantePendente = pago && !comprovantePagamentoUrl;
           const pagoEmFormatado = formatDateTimeBR(p.pago_em || p.data_pagamento);
           const compraEquipe = isCompraEquipe(p);
@@ -275,7 +295,11 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
           const tdStyle = { whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.3' };
 
           return (
-            <tr key={p.id} className={`border-b border-gray-100 align-top transition-colors hover:bg-gray-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'}`}>
+            <tr key={p.id} className={`border-b align-top transition-colors ${
+              aguardandoPagamento
+                ? 'border-orange-200 bg-orange-50/40 hover:bg-orange-50'
+                : `border-gray-100 hover:bg-gray-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'}`
+            }`}>
 
               {/* Descrição — até 3 linhas com tooltip */}
               <td className="px-3 py-2.5" style={tdStyle}>
@@ -330,8 +354,11 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
               </td>
 
               {/* Status */}
-              <td className="px-3 py-2.5" style={tdStyle}>
-                <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${status.color}`}>{status.label}</span>
+              <td className={`py-2.5 ${aguardandoPagamento ? 'pl-2 border-l-4 border-orange-400' : 'px-3'}`} style={tdStyle}>
+                <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${aguardandoPagamento ? 'bg-orange-100 text-orange-800' : status.color}`}>{status.label}</span>
+                {aguardandoPagamento && (
+                  <p className="mt-0.5 text-[11px] font-semibold text-orange-700">⏳ Aguardando pagamento</p>
+                )}
                 {pagoEmFormatado && <p className="mt-1 text-[11px] leading-tight text-gray-400">{pagoEmFormatado}</p>}
                 {comprovantePendente && (
                   <span className="mt-1 inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">Comprovante pendente</span>
