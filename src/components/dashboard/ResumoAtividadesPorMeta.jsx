@@ -41,23 +41,37 @@ function normalize(str) {
 }
 
 function extractMetaCodigo(activity) {
-  // Extrai código da meta: "META 05" ou "05"
-  const codigo = activity.meta_codigo || '';
-  if (codigo) return codigo.trim().toUpperCase();
+  const raw = String(activity.meta_codigo || '').trim();
 
-  // Tenta extrair do meta_id se for um ID numérico
-  const metaId = activity.meta_id || '';
-  return metaId ? `META ${metaId}` : null;
+  // Verifica se contém um padrão de código de meta: "META 05", "META 11A", "05", etc.
+  const match = raw.match(/^(?:META\s*)?(\d+[A-Za-z]?)$/i);
+  if (match) return `META ${match[1].toUpperCase()}`;
+
+  // Tenta padrão "META XX" já formatado no meio da string
+  const embedded = raw.match(/(META\s*\d+[A-Za-z]?)/i);
+  if (embedded) return embedded[1].replace(/\s+/g, ' ').toUpperCase();
+
+  // Classificação META mas sem código reconhecível → sem meta
+  return null;
 }
 
 export default function ResumoAtividadesPorMeta() {
-  // Busca atividades
+  // Busca atividades extraídas dos relatórios (onde elas realmente estão armazenadas)
   const { data: activities = [], isLoading: loadingActivities } = useQuery({
     queryKey: ['resumo-atividades-por-meta'],
     queryFn: async () => {
       try {
-        const data = await base44.entities.Activity.list('-created_date', 2000);
-        return Array.isArray(data) ? data : [];
+        const reports = await base44.entities.Report.list('-created_date', 500);
+        if (!Array.isArray(reports)) return [];
+        // Extrair todas as atividades de todos os relatórios aprovados ou submetidos
+        const allActivities = [];
+        reports.forEach((report) => {
+          if (!Array.isArray(report.atividades)) return;
+          report.atividades.forEach((a) => {
+            allActivities.push({ ...a, _report_status: report.status, _report_mes: report.mes_referencia, _report_ano: report.ano });
+          });
+        });
+        return allActivities;
       } catch {
         return [];
       }
