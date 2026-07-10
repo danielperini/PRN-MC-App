@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
+import { AlertCircle } from 'lucide-react';
 import { Pencil, X, Save, Trash2 } from 'lucide-react';
 
 const CENTROS_CUSTO = [
@@ -60,19 +61,17 @@ function EditModal({ rubrica, onClose, onSave }) {
     try {
       const valor_rubrica = parseMoneda(form.valor_rubrica);
       const valor_utilizado = parseMoneda(form.valor_utilizado);
-      const saldo = valor_rubrica - valor_utilizado;
-      const percentual_utilizado = valor_rubrica > 0 ? (valor_utilizado / valor_rubrica) * 100 : 0;
 
-      await base44.entities.Rubrica.update(rubrica.id, {
+      const res = await base44.functions.invoke('salvarRubrica', {
+        id: rubrica.id,
         grupo: form.grupo,
         rubrica: form.rubrica,
         centro_custo: form.centro_custo,
         valor_rubrica,
         valor_utilizado,
-        saldo,
-        saldo_real: saldo,
-        percentual_utilizado
       });
+
+      if (res?.data?.error) throw new Error(res.data.error);
 
       toast.success('Rubrica atualizada');
       onSave();
