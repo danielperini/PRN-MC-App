@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
-import { Pencil, Trash2, CheckCircle2, RotateCcw, XCircle, Bell, Loader2, LinkIcon, ExternalLink, FileText, FileCode2, HardDrive, ChevronUp, ChevronDown } from 'lucide-react';
+import { Pencil, Trash2, CheckCircle2, RotateCcw, XCircle, Bell, Loader2, LinkIcon, ExternalLink, FileText, FileCode2, HardDrive, ChevronUp, ChevronDown, AlertTriangle } from 'lucide-react';
 import { normalizeStatus } from '@/lib/normalizeStatus';
+import { isFinanciallyActiveStatus } from '@/utils/finance/financeiroUtils';
 
 const STATUS_CONFIG = {
   RASCUNHO: { label: 'Rascunho', color: 'bg-gray-100 text-gray-700' },
@@ -278,6 +279,11 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
 
               {/* Descrição — até 3 linhas com tooltip */}
               <td className="px-3 py-2.5" style={tdStyle}>
+                {(p.duplicada_financeira === true || p.incluir_no_somatorio === false) && (
+                  <div className="mb-1 rounded bg-red-50 px-2 py-0.5 text-[10px] text-red-700 font-medium border border-red-100">
+                    ⚠ Duplicata financeira detectada. Este lançamento não entra no somatório.
+                  </div>
+                )}
                 <Tooltip content={descricaoCompleta}>
                   <p className="font-medium text-gray-900" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                     {descricaoCompleta}
@@ -330,6 +336,19 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
                 {comprovantePendente && (
                   <span className="mt-1 inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">Comprovante pendente</span>
                 )}
+                {/* Badges de auditoria financeira */}
+                <div className="mt-1 flex flex-col gap-0.5">
+                  {isFinanciallyActiveStatus(p.status) ? (
+                    <span className="inline-flex items-center gap-0.5 rounded-full bg-green-50 px-1.5 py-0.5 text-[10px] font-medium text-green-700">✓ No somatório</span>
+                  ) : (
+                    <span className="inline-flex items-center gap-0.5 rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-400">Fora do somatório</span>
+                  )}
+                  {(p.duplicada_financeira === true || p.incluir_no_somatorio === false) && (
+                    <span className="inline-flex items-center gap-0.5 rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700">
+                      <AlertTriangle className="h-2.5 w-2.5" />Duplicata financeira
+                    </span>
+                  )}
+                </div>
               </td>
 
               {/* Valor */}

@@ -370,21 +370,33 @@
     },
     "duplicidade_motivo": {
       "type": "string",
-      "description": "Motivo/crit\u00e9rio que gerou a suspeita de duplicidade (ex: mesmo CNPJ + n\u00famero NF)"
+      "description": "Motivo/crit\u00e9rio que gerou a suspeita de duplicidade"
     },
     "duplicidade_revisado_por": {
-      "type": "string",
-      "description": "Email do coordenador que revisou a duplicidade"
+      "type": "string"
     },
     "duplicidade_revisado_em": {
       "type": "string",
-      "format": "date-time",
-      "description": "Data/hora da revis\u00e3o da duplicidade"
+      "format": "date-time"
     },
     "duplicidade_bloqueada": {
       "type": "boolean",
       "default": false,
       "description": "Se true, aprova\u00e7\u00e3o foi bloqueada por duplicidade detectada"
+    },
+    "duplicada_financeira": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se true, esta NF \u00e9 duplicata financeira e n\u00e3o entra no somat\u00f3rio"
+    },
+    "duplicata_de": {
+      "type": "string",
+      "description": "ID da PurchaseRequest principal (quando esta \u00e9 duplicata)"
+    },
+    "incluir_no_somatorio": {
+      "type": "boolean",
+      "default": true,
+      "description": "Se false, esta NF \u00e9 exclu\u00edda do somat\u00f3rio financeiro (duplicata ou corre\u00e7\u00e3o manual)"
     }
   },
   "required": [

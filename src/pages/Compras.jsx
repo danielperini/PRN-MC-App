@@ -57,6 +57,7 @@ import PagarSolicitacaoDialog from '@/components/compras/PagarSolicitacaoDialog'
 import NovaRubricaDialog from '@/components/rubricas/NovaRubricaDialog';
 import TotaisAditivoCards from '@/components/compras/TotaisAditivoCards';
 import RubricasConsumoDashboard from '@/components/compras/RubricasConsumoDashboard';
+import RecalcularTotaisButton from '@/components/compras/RecalcularTotaisButton';
 import PainelVerificacaoFinanceira from '@/components/compras/PainelVerificacaoFinanceira';
 import { canManageRubricas } from '@/components/auth/permissions';
 import { normalizeStatus, isStatusPendente, isStatusAprovado, getStatusLabel, getStatusColor } from '@/lib/normalizeStatus';
@@ -1264,23 +1265,14 @@ function ComprasInner() {
             }
             </div>
 
-            <div className="mb-3 flex items-center justify-between">
+            <div className="mb-3 flex items-center justify-between gap-3">
               <p className="text-sm text-gray-500">
                 {filtered.length} solicitaç{filtered.length !== 1 ? 'ões' : 'ão'}
               </p>
 
               {isCoordenador &&
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={recalcularTodasRubricas}
-              disabled={recalculando}
-              className="gap-2 border-amber-300 text-xs text-amber-700 hover:bg-amber-50">
-              
-                  <AlertTriangle className="h-3.5 w-3.5" />
-                  {recalculando ? 'Recalculando...' : 'Recalcular Rubricas'}
-                </Button>
-            }
+                <RecalcularTotaisButton onDone={refreshFinanceiroCompleto} />
+              }
             </div>
 
             {filtered.length === 0 ?

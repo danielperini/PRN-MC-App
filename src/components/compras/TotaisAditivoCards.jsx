@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { calculateAditivoTotals, normalizeCentroCusto } from '@/utils/finance/financeiroUtils';
 
 function toNumber(value) {
   const n = Number(value ?? 0);
@@ -14,11 +15,12 @@ function fmtBRL(v) {
   }).format(v ?? 0);
 }
 
-// Valores oficiais fixos dos aditivos (base contratual — não derivar do banco)
+// Valores contratuais oficiais (não derivar do banco)
 const TOTAL_PREVISTO_3_ADITIVO = 1320000;
-const TOTAL_PREVISTO_4_ADITIVO = 81719.85;
+const TOTAL_PREVISTO_4_NOTURNO = 1320000; // 3º Aditivo Noturno 2026 (mesmo contrato base)
+const TOTAL_PREVISTO_4_PAMPULHA = 81719.85;
 
-function AditivoBlock({ titulo, badge, badgeColor, totalPrevisto, totalUtilizado, saldo, rubricasList }) {
+function AditivoBlock({ titulo, badge, badgeColor, totalPrevisto, totalUtilizado, saldo, rubricasList, qtdNFs, qtdDuplicatas }) {
   const pct = totalPrevisto > 0 ? ((totalUtilizado / totalPrevisto) * 100) : 0;
   const barColor = pct > 90 ? 'bg-red-500' : pct > 70 ? 'bg-amber-500' : 'bg-black';
 
@@ -61,6 +63,13 @@ function AditivoBlock({ titulo, badge, badgeColor, totalPrevisto, totalUtilizado
         </div>
       </div>
 
+      <div className="flex items-center gap-3 text-[11px] text-gray-400">
+        <span>{qtdNFs} NF(s) ativas</span>
+        {qtdDuplicatas > 0 && (
+          <span className="text-amber-600 font-medium">{qtdDuplicatas} duplicata(s) ignorada(s)</span>
+        )}
+      </div>
+
       {rubricasList && rubricasList.length > 0 && (
         <details className="mt-1">
           <summary className="text-[11px] text-gray-400 cursor-pointer hover:text-gray-600 select-none">
@@ -88,72 +97,85 @@ function AditivoBlock({ titulo, badge, badgeColor, totalPrevisto, totalUtilizado
 }
 
 export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
-  const { totais3, rubricasNoturno, totais4, rubricasPampulha } = useMemo(() => {
+  const { totais3, totaisN2026, totais4, rubricasNoturno, rubricasPampulha, duplicadas } = useMemo(() => {
     const ativas = rubricas.filter((r) => r?.ativo !== false);
 
-    // 3º Aditivo = Noturno 2026 (centro_custo exato)
+    // Rubricas por grupo
     const rubricasNoturno = ativas.filter((r) => String(r?.centro_custo || '') === 'Noturno 2026');
-    const previsto3 = rubricasNoturno.reduce((acc, r) => acc + toNumber(r.valor_rubrica || r.valor_total), 0);
-
-    // 4º Aditivo = Noturno Pampulha (centro_custo exato)
     const rubricasPampulha = ativas.filter((r) => String(r?.centro_custo || '') === 'Noturno Pampulha');
-    const previsto4 = rubricasPampulha.reduce((acc, r) => acc + toNumber(r.valor_rubrica || r.valor_total), 0);
 
-    // Utilizado: APROVADO_COORD, APROVADO_ADMIN e PAGO contam para o saldo financeiro real
-    const STATUS_OK = new Set(['APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
-    const normCC = (cc) => {
-      const s = String(cc || '').toLowerCase();
-      if (s.includes('pampulha')) return 'pampulha';
-      if (s.includes('noturno')) return 'noturno';
-      return null;
-    };
-
-    let util3 = 0, util4 = 0;
-    for (const c of compras) {
-      if (!STATUS_OK.has(String(c.status || '').toUpperCase())) continue;
-      // Prioridade: valor_pago > valor_aprovado_admin > valor_solicitado
-      const val = toNumber(c.valor_pago || c.valor_aprovado_admin || c.valor_solicitado);
-      const cc = normCC(c.centro_custo);
-      if (cc === 'noturno') util3 += val;
-      else if (cc === 'pampulha') util4 += val;
-    }
-
-    // Fallback: usar valor_utilizado das rubricas somente se não houver nenhuma compra vinculada
-    if (util3 === 0 && compras.length === 0) util3 = rubricasNoturno.reduce((acc, r) => acc + toNumber(r.valor_utilizado), 0);
-    if (util4 === 0 && compras.length === 0) util4 = rubricasPampulha.reduce((acc, r) => acc + toNumber(r.valor_utilizado), 0);
-
-    // Sempre usar os valores contratuais oficiais como previsto total
-    const totalPrevisto3 = TOTAL_PREVISTO_3_ADITIVO;
-    const totalPrevisto4 = TOTAL_PREVISTO_4_ADITIVO;
+    // Calcular totais usando o módulo centralizado (inclui APROVADO_COORD)
+    const aditivoTotals = calculateAditivoTotals(compras);
 
     return {
-      totais3: { totalPrevisto: totalPrevisto3, totalUtilizado: util3, saldo: totalPrevisto3 - util3 },
+      totais3: {
+        totalPrevisto: TOTAL_PREVISTO_3_ADITIVO,
+        totalUtilizado: aditivoTotals.terceiro_aditivo.utilizado,
+        saldo: TOTAL_PREVISTO_3_ADITIVO - aditivoTotals.terceiro_aditivo.utilizado,
+        qtdNFs: aditivoTotals.terceiro_aditivo.quantidade_nfs,
+      },
+      totaisN2026: {
+        totalPrevisto: TOTAL_PREVISTO_4_NOTURNO,
+        totalUtilizado: aditivoTotals.noturno_2026.utilizado,
+        saldo: TOTAL_PREVISTO_4_NOTURNO - aditivoTotals.noturno_2026.utilizado,
+        qtdNFs: aditivoTotals.noturno_2026.quantidade_nfs,
+      },
+      totais4: {
+        totalPrevisto: TOTAL_PREVISTO_4_PAMPULHA,
+        totalUtilizado: aditivoTotals.noturno_pampulha.utilizado,
+        saldo: TOTAL_PREVISTO_4_PAMPULHA - aditivoTotals.noturno_pampulha.utilizado,
+        qtdNFs: aditivoTotals.noturno_pampulha.quantidade_nfs,
+      },
       rubricasNoturno,
-      totais4: { totalPrevisto: totalPrevisto4, totalUtilizado: util4, saldo: totalPrevisto4 - util4 },
       rubricasPampulha,
+      duplicadas: aditivoTotals.duplicadas_ignoradas,
     };
   }, [rubricas, compras]);
 
   return (
-    <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <AditivoBlock
-        titulo="3º Termo Aditivo — Noturno Centro"
-        badge="3º Aditivo"
-        badgeColor="bg-blue-100 text-blue-700"
-        totalPrevisto={totais3.totalPrevisto}
-        totalUtilizado={totais3.totalUtilizado}
-        saldo={totais3.saldo}
-        rubricasList={rubricasNoturno}
-      />
-      <AditivoBlock
-        titulo="4º Termo Aditivo — Noturno Pampulha"
-        badge="4º Aditivo"
-        badgeColor="bg-violet-100 text-violet-700"
-        totalPrevisto={totais4.totalPrevisto}
-        totalUtilizado={totais4.totalUtilizado}
-        saldo={totais4.saldo}
-        rubricasList={rubricasPampulha}
-      />
+    <div className="mb-6 space-y-4">
+      {duplicadas.quantidade > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800 flex items-center gap-2">
+          <span className="font-semibold">⚠</span>
+          {duplicadas.quantidade} NF(s) duplicada(s) detectada(s) — ignoradas no somatório ({fmtBRL(duplicadas.total_valor)})
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <AditivoBlock
+          titulo="3º Termo Aditivo — Museus (Geral)"
+          badge="3º Aditivo"
+          badgeColor="bg-blue-100 text-blue-700"
+          totalPrevisto={totais3.totalPrevisto}
+          totalUtilizado={totais3.totalUtilizado}
+          saldo={totais3.saldo}
+          rubricasList={[]}
+          qtdNFs={totais3.qtdNFs}
+          qtdDuplicatas={duplicadas.quantidade}
+        />
+        <AditivoBlock
+          titulo="4º Aditivo — Noturno 2026 (Centro)"
+          badge="Noturno 2026"
+          badgeColor="bg-indigo-100 text-indigo-700"
+          totalPrevisto={totaisN2026.totalPrevisto}
+          totalUtilizado={totaisN2026.totalUtilizado}
+          saldo={totaisN2026.saldo}
+          rubricasList={rubricasNoturno}
+          qtdNFs={totaisN2026.qtdNFs}
+          qtdDuplicatas={0}
+        />
+        <AditivoBlock
+          titulo="4º Aditivo — Noturno Pampulha"
+          badge="Noturno Pampulha"
+          badgeColor="bg-violet-100 text-violet-700"
+          totalPrevisto={totais4.totalPrevisto}
+          totalUtilizado={totais4.totalUtilizado}
+          saldo={totais4.saldo}
+          rubricasList={rubricasPampulha}
+          qtdNFs={totais4.qtdNFs}
+          qtdDuplicatas={0}
+        />
+      </div>
     </div>
   );
 }

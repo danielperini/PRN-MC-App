@@ -1,0 +1,50 @@
+{
+  "name": "FinanceiroAuditLog",
+  "type": "object",
+  "properties": {
+    "nf_id": {
+      "type": "string",
+      "description": "ID da PurchaseRequest auditada"
+    },
+    "acao": {
+      "type": "string",
+      "enum": [
+        "CENTRO_NORMALIZADO",
+        "RUBRICA_NORMALIZADA",
+        "DUPLICATA_DETECTADA",
+        "DUPLICATA_IGNORADA_NO_TOTAL",
+        "STATUS_INCLUIDO_NO_TOTAL",
+        "TOTAL_RECALCULADO"
+      ],
+      "description": "A\u00e7\u00e3o executada no rec\u00e1lculo"
+    },
+    "campo": {
+      "type": "string",
+      "description": "Campo alterado (ex: centro_custo, duplicada_financeira)"
+    },
+    "valor_anterior": {
+      "type": "string",
+      "description": "Valor antes da corre\u00e7\u00e3o"
+    },
+    "valor_novo": {
+      "type": "string",
+      "description": "Valor ap\u00f3s a corre\u00e7\u00e3o"
+    },
+    "motivo": {
+      "type": "string",
+      "description": "Motivo da altera\u00e7\u00e3o"
+    },
+    "executado_por": {
+      "type": "string",
+      "description": "Email do usu\u00e1rio que executou"
+    },
+    "lote_id": {
+      "type": "string",
+      "description": "ID do lote de rec\u00e1lculo"
+    }
+  },
+  "required": [
+    "nf_id",
+    "acao"
+  ]
+}
