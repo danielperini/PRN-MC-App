@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
-import { Pencil, X, Save } from 'lucide-react';
+import { Pencil, X, Save, Trash2 } from 'lucide-react';
 
 const CENTROS_CUSTO = [
   'MHAB',
@@ -164,6 +164,21 @@ function EditModal({ rubrica, onClose, onSave }) {
 export default function RubricasGrid({ rubricas = [], onRefresh }) {
   const [search, setSearch] = useState('');
   const [editingRubrica, setEditingRubrica] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+
+  async function handleDelete(r) {
+    if (!window.confirm(`Deletar a rubrica "${r.rubrica || r.grupo}"?\n\nEsta ação é irreversível.`)) return;
+    setDeletingId(r.id);
+    try {
+      await base44.entities.Rubrica.delete(r.id);
+      toast.success('Rubrica deletada.');
+      if (onRefresh) onRefresh();
+    } catch (e) {
+      toast.error('Erro ao deletar: ' + e.message);
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   const filtradas = useMemo(() => {
     return rubricas.filter((r) => {
@@ -238,13 +253,23 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
                 </td>
                 <td className="p-2 text-center">{r.perc.toFixed(1)}%</td>
                 <td className="p-2 text-center">
-                  <button
-                    onClick={() => setEditingRubrica(r)}
-                    className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-black transition-colors"
-                    title="Editar rubrica"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
+                  <div className="flex items-center justify-center gap-1">
+                    <button
+                      onClick={() => setEditingRubrica(r)}
+                      className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-black transition-colors"
+                      title="Editar rubrica"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(r)}
+                      disabled={deletingId === r.id}
+                      className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-40"
+                      title="Deletar rubrica"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
