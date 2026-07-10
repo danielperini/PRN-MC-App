@@ -39,6 +39,11 @@ function clearGalleryCache() {
 }
 
 function GalleryCard({ image, onClick, eager = false }) {
+  const museuLabel = image.sectionKey !== 'SEM_IDENTIFICACAO'
+    ? (image.sectionTitle || image.museu || 'Museus Centro')
+    : null;
+  const legendaDisplay = image.activityTitulo || image.legenda || image.fileName || 'Foto da galeria';
+
   return (
     <button
       type="button"
@@ -48,7 +53,7 @@ function GalleryCard({ image, onClick, eager = false }) {
       <div className="aspect-square overflow-hidden bg-gray-100">
         <img
           src={image.fileUrl}
-          alt={image.legenda || image.fileName || 'Foto da galeria'}
+          alt={legendaDisplay}
           loading={eager ? 'eager' : 'lazy'}
           decoding="async"
           className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
@@ -57,17 +62,25 @@ function GalleryCard({ image, onClick, eager = false }) {
           }}
         />
       </div>
-      <div className="space-y-2 p-3">
+      <div className="space-y-1.5 p-3">
         <p className="line-clamp-2 text-sm font-semibold leading-snug text-black">
-          {image.legenda || image.fileName || 'Foto da galeria'}
+          {legendaDisplay}
         </p>
-        <div className="space-y-1 text-[11px] text-gray-500">
-          <p className="font-medium text-gray-700">{image.museu || image.sectionKey || 'Museus Centro'}</p>
-          {image.localizacao && (
+        <div className="space-y-0.5 text-[11px] text-gray-500">
+          {museuLabel && (
+            <p className="font-medium text-gray-700 truncate">{museuLabel}</p>
+          )}
+          {image.reportMes && (
+            <p className="text-gray-500">{image.reportMes}</p>
+          )}
+          {image.localizacao && image.localizacao !== image.museu && image.localizacao !== 'Sem identificação' && (
             <p className="inline-flex items-center gap-1">
               <MapPin className="h-3 w-3" />
               {image.localizacao}
             </p>
+          )}
+          {image.geoCoordinates && image.geoCoordinates !== image.localizacao && (
+            <p className="text-gray-400 font-mono text-[10px]">{image.geoCoordinates}</p>
           )}
           {image.date && <p>{formatDateBR(image.date)}</p>}
         </div>
@@ -121,6 +134,9 @@ function GaleriaFotosInner() {
       image.localizacao,
       image.geoCoordinates,
       image.reportLabel,
+      image.activityTitulo,
+      image.reportMes,
+      image.authorName,
     ].some((value) => safeText(value).includes(q)));
   }, [images, searchTerm]);
 
@@ -295,15 +311,21 @@ function GaleriaFotosInner() {
 
               <div className="space-y-2 bg-black/85 p-5 text-white">
                 <p className="text-lg font-semibold leading-snug">
-                  {selectedImage.legenda || selectedImage.fileName || 'Foto da galeria'}
+                  {selectedImage.activityTitulo || selectedImage.legenda || selectedImage.fileName || 'Foto da galeria'}
                 </p>
-                {selectedImage.description && (
-                  <p className="text-sm text-white/75">{selectedImage.description}</p>
+                {selectedImage.activityTitulo && selectedImage.legenda && selectedImage.legenda !== selectedImage.activityTitulo && (
+                  <p className="text-sm text-white/75">{selectedImage.legenda}</p>
+                )}
+                {selectedImage.description && selectedImage.description !== selectedImage.legenda && (
+                  <p className="text-sm text-white/60">{selectedImage.description}</p>
                 )}
                 <div className="flex flex-wrap gap-3 text-xs text-white/70">
-                  <span>{selectedImage.museu || selectedImage.sectionKey || 'Museus Centro'}</span>
-                  {selectedImage.localizacao && <span>{selectedImage.localizacao}</span>}
-                  {selectedImage.geoCoordinates && <span>Lat/Lon: {selectedImage.geoCoordinates}</span>}
+                  {selectedImage.sectionKey !== 'SEM_IDENTIFICACAO' && (
+                    <span className="font-medium text-white/90">{selectedImage.sectionTitle || selectedImage.museu}</span>
+                  )}
+                  {selectedImage.reportMes && <span>{selectedImage.reportMes}</span>}
+                  {selectedImage.localizacao && selectedImage.localizacao !== selectedImage.museu && <span>{selectedImage.localizacao}</span>}
+                  {selectedImage.geoCoordinates && <span className="font-mono">📍 {selectedImage.geoCoordinates}</span>}
                   {selectedImage.date && <span>{formatDateBR(selectedImage.date)}</span>}
                 </div>
               </div>
