@@ -14,8 +14,8 @@ function fmtBRL(v) {
   }).format(v ?? 0);
 }
 
-// Valores base oficiais dos aditivos (usados quando o banco não tem rubricas vinculadas)
-const TOTAL_PREVISTO_3_ADITIVO = 141350;
+// Valores oficiais fixos dos aditivos (base contratual — não derivar do banco)
+const TOTAL_PREVISTO_3_ADITIVO = 1320000;
 const TOTAL_PREVISTO_4_ADITIVO = 81719.85;
 
 function AditivoBlock({ titulo, badge, badgeColor, totalPrevisto, totalUtilizado, saldo, rubricasList }) {
@@ -121,8 +121,9 @@ export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
     if (util3 === 0) util3 = rubricasNoturno.reduce((acc, r) => acc + toNumber(r.valor_utilizado), 0);
     if (util4 === 0) util4 = rubricasPampulha.reduce((acc, r) => acc + toNumber(r.valor_utilizado), 0);
 
-    const totalPrevisto3 = previsto3 > 0 ? previsto3 : TOTAL_PREVISTO_3_ADITIVO;
-    const totalPrevisto4 = previsto4 > 0 ? previsto4 : TOTAL_PREVISTO_4_ADITIVO;
+    // Sempre usar os valores contratuais oficiais como previsto total
+    const totalPrevisto3 = TOTAL_PREVISTO_3_ADITIVO;
+    const totalPrevisto4 = TOTAL_PREVISTO_4_ADITIVO;
 
     return {
       totais3: { totalPrevisto: totalPrevisto3, totalUtilizado: util3, saldo: totalPrevisto3 - util3 },
