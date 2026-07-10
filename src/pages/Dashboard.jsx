@@ -21,6 +21,7 @@ import DashboardPatrocinador from './DashboardPatrocinador';
 import GaleriaTickerCarousel from '../components/dashboard/GaleriaTickerCarousel';
 import DiariamenteNosMuseus from '../components/dashboard/DiariamenteNosMuseus';
 import { consumeDashboardPriorityRefresh } from '@/utils/dashboardRefresh';
+import WelcomeSplash from '@/components/dashboard/WelcomeSplash';
 
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
 
@@ -147,6 +148,16 @@ function DashboardCoordenadorView({
 function DashboardInner() {
   const { user: currentUser, isLoading: userLoading, isCoordenador } = useCurrentUser();
   const queryClient = useQueryClient();
+
+  const SPLASH_KEY = 'museus_centro_splash_shown';
+  const [showSplash, setShowSplash] = React.useState(() => {
+    try { return !sessionStorage.getItem(SPLASH_KEY); } catch { return false; }
+  });
+
+  const handleSplashDone = React.useCallback(() => {
+    try { sessionStorage.setItem(SPLASH_KEY, '1'); } catch {}
+    setShowSplash(false);
+  }, []);
 
   const [isRefreshing, setIsRefreshing] = React.useState(false);
 
@@ -455,6 +466,10 @@ function DashboardInner() {
     fetchingMy ||
     fetchingRubricas ||
     (isCoordenador && fetchingAll);
+
+  if (showSplash) {
+    return <WelcomeSplash userName={currentUser?.full_name} onDone={handleSplashDone} />;
+  }
 
   if (isInitialPageLoading) {
     return (
