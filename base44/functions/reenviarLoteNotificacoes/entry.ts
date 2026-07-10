@@ -12,8 +12,16 @@ Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
     
-    if (!user || user.role !== 'admin') {
-      return Response.json({ error: 'Unauthorized - Apenas administradores' }, { status: 401 });
+    const COORD_EMAILS = [
+      'danielperini@viadutodasartes.org.br',
+      'daniel@viadutodasartes.org.br',
+      'josiane@viadutodasartes.org.br',
+      'marcos@viadutodasartes.org.br',
+    ];
+    const isAdmin = user.role === 'admin';
+    const isCoord = COORD_EMAILS.includes((user.email || '').toLowerCase());
+    if (!user || (!isAdmin && !isCoord)) {
+      return Response.json({ error: 'Unauthorized - Apenas administradores ou coordenadores' }, { status: 401 });
     }
 
     const { batchSlot } = await req.json();
