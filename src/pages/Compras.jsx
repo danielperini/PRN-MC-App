@@ -57,6 +57,7 @@ import PagarSolicitacaoDialog from '@/components/compras/PagarSolicitacaoDialog'
 import NovaRubricaDialog from '@/components/rubricas/NovaRubricaDialog';
 import TotaisAditivoCards from '@/components/compras/TotaisAditivoCards';
 import RubricasConsumoDashboard from '@/components/compras/RubricasConsumoDashboard';
+import PainelVerificacaoFinanceira from '@/components/compras/PainelVerificacaoFinanceira';
 import { canManageRubricas } from '@/components/auth/permissions';
 import { normalizeStatus, isStatusPendente, isStatusAprovado, getStatusLabel, getStatusColor } from '@/lib/normalizeStatus';
 
@@ -1082,7 +1083,8 @@ function ComprasInner() {
           { id: 'consumo', label: 'Consumo Rubricas' },
           { id: 'documentos', label: 'Documentos' },
           ...(isCoordenador ? [{ id: 'equipe', label: 'Equipe' }] : []),
-          { id: 'meus_pagamentos', label: 'Meus Pagamentos' }].
+          { id: 'meus_pagamentos', label: 'Meus Pagamentos' },
+          ...(isCoordenador ? [{ id: 'verificacao', label: '🔍 Verificação' }] : [])].
           map((t) =>
           <button
             key={t.id}
@@ -1569,6 +1571,10 @@ function ComprasInner() {
 
         {tab === 'equipe' && isCoordenador &&
         <TeamManager budgetLines={budgetLines} />
+        }
+
+        {tab === 'verificacao' && isCoordenador &&
+        <PainelVerificacaoFinanceira onSuccess={refreshFinanceiroCompleto} />
         }
 
         {tab === 'meus_pagamentos' &&
