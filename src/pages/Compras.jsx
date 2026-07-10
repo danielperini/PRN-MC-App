@@ -899,7 +899,7 @@ function ComprasInner() {
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="mx-auto max-w-6xl px-4 py-4 md:px-6 md:py-8">
+      <div className="mx-auto max-w-full px-4 py-4 md:px-6 md:py-6">
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-black">
@@ -1078,7 +1078,7 @@ function ComprasInner() {
           </div>
         }
 
-        <div className="-mx-4 mb-6 flex w-fit gap-1 overflow-x-auto rounded-none bg-gray-100 p-1 px-4 md:-mx-6 md:px-6">
+        <div className="-mx-4 mb-6 flex w-fit gap-1 overflow-x-auto rounded-xl bg-gray-100 p-1 px-4 md:-mx-0 md:px-1">
           {[
           { id: 'lista', label: 'Solicitações' },
           ...(podeGerenciarRubricas ? [{ id: 'rubricas', label: 'Rubricas' }] : []),
@@ -1104,7 +1104,7 @@ function ComprasInner() {
 
         {tab === 'lista' &&
         <div>
-            <div className="mb-4 flex flex-wrap gap-3">
+            <div className="mb-4 flex flex-wrap gap-2">
               <div className="relative min-w-48 flex-1">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
                 <Input

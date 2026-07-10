@@ -25,26 +25,26 @@ function AditivoBlock({ titulo, badge, badgeColor, totalPrevisto, totalUtilizado
   const barColor = pct > 90 ? 'bg-red-500' : pct > 70 ? 'bg-amber-500' : 'bg-black';
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
-      <div className="flex items-center gap-2">
-        <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${badgeColor}`}>
+    <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-3 min-w-0">
+      <div className="flex items-start gap-2 flex-wrap">
+        <span className={`inline-block shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${badgeColor}`}>
           {badge}
         </span>
-        <p className="text-sm font-semibold text-gray-800">{titulo}</p>
+        <p className="text-sm font-semibold text-gray-800 leading-tight">{titulo}</p>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        <div>
+      <div className="grid grid-cols-3 gap-2">
+        <div className="min-w-0">
           <p className="text-[11px] text-gray-500 font-medium">Total Previsto</p>
-          <p className="text-base font-bold text-gray-900 tabular-nums">{fmtBRL(totalPrevisto)}</p>
+          <p className="text-[13px] font-bold text-gray-900 tabular-nums truncate">{fmtBRL(totalPrevisto)}</p>
         </div>
-        <div>
+        <div className="min-w-0">
           <p className="text-[11px] text-gray-500 font-medium">Utilizado</p>
-          <p className="text-base font-bold text-gray-900 tabular-nums">{fmtBRL(totalUtilizado)}</p>
+          <p className="text-[13px] font-bold text-gray-900 tabular-nums truncate">{fmtBRL(totalUtilizado)}</p>
         </div>
-        <div>
+        <div className="min-w-0">
           <p className="text-[11px] text-gray-500 font-medium">Saldo</p>
-          <p className={`text-base font-bold tabular-nums ${saldo < 0 ? 'text-red-600' : 'text-green-700'}`}>
+          <p className={`text-[13px] font-bold tabular-nums truncate ${saldo < 0 ? 'text-red-600' : 'text-green-700'}`}>
             {fmtBRL(saldo)}
           </p>
         </div>
