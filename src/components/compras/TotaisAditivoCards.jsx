@@ -86,38 +86,50 @@ function AditivoBlock({ titulo, badge, badgeColor, totalPrevisto, totalUtilizado
   );
 }
 
-export default function TotaisAditivoCards({ rubricas = [] }) {
-  const { totais3, rubricasPampulha, totais4 } = useMemo(() => {
+export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
+  const { totais3, rubricasNoturno, totais4, rubricasPampulha } = useMemo(() => {
     const ativas = rubricas.filter((r) => r?.ativo !== false);
 
-    // 3º Aditivo — rubricas com origem contendo '3' e centro_custo != 'Noturno Pampulha'
-    const rubricasAditivo3 = ativas.filter(
-      (r) =>
-        String(r?.origem_recurso || '').includes('3') &&
-        String(r?.centro_custo || '') !== 'Noturno Pampulha'
-    );
-    const previsto3Real = rubricasAditivo3.reduce((acc, r) => acc + toNumber(r.valor_rubrica || r.valor_total), 0);
-    const totalPrevisto3 = previsto3Real > 0 ? previsto3Real : TOTAL_PREVISTO_3_ADITIVO;
-    const utilizado3 = rubricasAditivo3.reduce((acc, r) => acc + toNumber(r.valor_utilizado), 0);
-    const saldo3 = totalPrevisto3 - utilizado3;
+    // 3º Aditivo = Noturno 2026 (centro_custo exato)
+    const rubricasNoturno = ativas.filter((r) => String(r?.centro_custo || '') === 'Noturno 2026');
+    const previsto3 = rubricasNoturno.reduce((acc, r) => acc + toNumber(r.valor_rubrica || r.valor_total), 0);
 
-    // 4º Aditivo — rubricas com origem contendo '4' OU centro_custo = 'Noturno Pampulha'
-    const pampulha = ativas.filter(
-      (r) =>
-        String(r?.origem_recurso || '').includes('4') ||
-        String(r?.centro_custo || '') === 'Noturno Pampulha'
-    );
-    const previsto4Real = pampulha.reduce((acc, r) => acc + toNumber(r.valor_rubrica || r.valor_total), 0);
-    const totalPrevisto4 = previsto4Real > 0 ? previsto4Real : TOTAL_PREVISTO_4_ADITIVO;
-    const utilizado4 = pampulha.reduce((acc, r) => acc + toNumber(r.valor_utilizado), 0);
-    const saldo4 = totalPrevisto4 - utilizado4;
+    // 4º Aditivo = Noturno Pampulha (centro_custo exato)
+    const rubricasPampulha = ativas.filter((r) => String(r?.centro_custo || '') === 'Noturno Pampulha');
+    const previsto4 = rubricasPampulha.reduce((acc, r) => acc + toNumber(r.valor_rubrica || r.valor_total), 0);
+
+    // Utilizado: soma das compras aprovadas/pagas pelo centro_custo da COMPRA
+    const STATUS_OK = new Set(['APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
+    const normCC = (cc) => {
+      const s = String(cc || '').toLowerCase();
+      if (s.includes('noturno') && (s.includes('pampulha') || s.includes('4'))) return 'pampulha';
+      if (s.includes('noturno')) return 'noturno';
+      return null;
+    };
+
+    let util3 = 0, util4 = 0;
+    for (const c of compras) {
+      if (!STATUS_OK.has(String(c.status || '').toUpperCase())) continue;
+      const val = toNumber(c.valor_pago || c.valor_aprovado_admin || c.valor_aprovado || c.valor_solicitado);
+      const cc = normCC(c.centro_custo);
+      if (cc === 'noturno') util3 += val;
+      else if (cc === 'pampulha') util4 += val;
+    }
+
+    // Fallback p/ rubricas caso não haja compras (compatibilidade)
+    if (util3 === 0) util3 = rubricasNoturno.reduce((acc, r) => acc + toNumber(r.valor_utilizado), 0);
+    if (util4 === 0) util4 = rubricasPampulha.reduce((acc, r) => acc + toNumber(r.valor_utilizado), 0);
+
+    const totalPrevisto3 = previsto3 > 0 ? previsto3 : TOTAL_PREVISTO_3_ADITIVO;
+    const totalPrevisto4 = previsto4 > 0 ? previsto4 : TOTAL_PREVISTO_4_ADITIVO;
 
     return {
-      totais3: { totalPrevisto: totalPrevisto3, totalUtilizado: utilizado3, saldo: saldo3 },
-      rubricasPampulha: pampulha,
-      totais4: { totalPrevisto: totalPrevisto4, totalUtilizado: utilizado4, saldo: saldo4 },
+      totais3: { totalPrevisto: totalPrevisto3, totalUtilizado: util3, saldo: totalPrevisto3 - util3 },
+      rubricasNoturno,
+      totais4: { totalPrevisto: totalPrevisto4, totalUtilizado: util4, saldo: totalPrevisto4 - util4 },
+      rubricasPampulha,
     };
-  }, [rubricas]);
+  }, [rubricas, compras]);
 
   return (
     <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -128,6 +140,7 @@ export default function TotaisAditivoCards({ rubricas = [] }) {
         totalPrevisto={totais3.totalPrevisto}
         totalUtilizado={totais3.totalUtilizado}
         saldo={totais3.saldo}
+        rubricasList={rubricasNoturno}
       />
       <AditivoBlock
         titulo="4º Termo Aditivo — Noturno Pampulha"

@@ -1057,7 +1057,7 @@ function ComprasInner() {
           </div>
         }
 
-        {isCoordenador && <TotaisAditivoCards rubricas={rubricas} />}
+        {isCoordenador && <TotaisAditivoCards rubricas={rubricas} compras={purchases} />}
 
         {isCoordenador &&
         <div className="mb-6">
