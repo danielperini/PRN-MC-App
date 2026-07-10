@@ -5,8 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/components/ui/use-toast';
+import { toast } from 'sonner';
 import { Send, Save, Users, Eye, ChevronLeft, AlertCircle, CheckCircle2, Loader2, X } from 'lucide-react';
 import MensagensHistorico from '@/components/mensagens/MensagensHistorico';
 import MensagensDestinatarios from '@/components/mensagens/MensagensDestinatarios';
@@ -15,7 +14,6 @@ import MensagensPreview from '@/components/mensagens/MensagensPreview';
 const VIEWS = { form: 'form', preview: 'preview', historico: 'historico' };
 
 export default function Mensagens() {
-  const { toast } = useToast();
   const [user, setUser] = useState(null);
   const [authorized, setAuthorized] = useState(null); // null=loading
   const [readOnlySponsor, setReadOnlySponsor] = useState(false);
@@ -57,7 +55,7 @@ export default function Mensagens() {
 
   async function handleSaveDraft() {
     if (!form.titulo || !form.corpo) {
-      toast({ title: 'Preencha título e corpo da mensagem.', variant: 'destructive' });
+      toast.error('Preencha título e corpo da mensagem.');
       return;
     }
     setLoading(true);
@@ -78,9 +76,9 @@ export default function Mensagens() {
         msg = await base44.entities.SystemMessage.create(data);
         setCurrentMessageId(msg.id);
       }
-      toast({ title: 'Mensagem salva como rascunho.' });
+      toast.success('Mensagem salva como rascunho.');
     } catch (e) {
-      toast({ title: 'Erro ao salvar rascunho.', variant: 'destructive' });
+      toast.error('Erro ao salvar rascunho.');
     } finally {
       setLoading(false);
     }
@@ -88,11 +86,11 @@ export default function Mensagens() {
 
   async function handleSend() {
     if (!form.titulo || !form.assunto || !form.corpo) {
-      toast({ title: 'Preencha título, assunto e corpo.', variant: 'destructive' });
+      toast.error('Preencha título, assunto e corpo.');
       return;
     }
     if (destinatarios.length === 0) {
-      toast({ title: 'Selecione ao menos um destinatário.', variant: 'destructive' });
+      toast.error('Selecione ao menos um destinatário.');
       return;
     }
     setLoading(true);
@@ -123,7 +121,7 @@ export default function Mensagens() {
       });
 
       if (res.data?.ok) {
-        toast({ title: 'Mensagem enviada com sucesso.' });
+        toast.success('Mensagem enviada com sucesso.');
         // Reset
         setForm({ titulo: '', assunto: '', corpo: '', enviar_email: true, exibir_banner: false, data_expiracao: '' });
         setDestinatarios([]);
@@ -131,10 +129,10 @@ export default function Mensagens() {
         setCurrentMessageId(null);
         setView(VIEWS.historico);
       } else {
-        toast({ title: res.data?.error || 'Não foi possível enviar a mensagem.', variant: 'destructive' });
+        toast.error(res.data?.error || 'Não foi possível enviar a mensagem.');
       }
     } catch (e) {
-      toast({ title: 'Erro ao enviar mensagem. Tente novamente.', variant: 'destructive' });
+      toast.error('Erro ao enviar mensagem. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -283,11 +281,11 @@ export default function Mensagens() {
               <Button
                 onClick={() => {
                   if (!form.titulo || !form.assunto || !form.corpo) {
-                    toast({ title: 'Preencha título, assunto e corpo antes de pré-visualizar.', variant: 'destructive' });
+                    toast.error('Preencha título, assunto e corpo antes de pré-visualizar.');
                     return;
                   }
                   if (destinatarios.length === 0) {
-                    toast({ title: 'Selecione ao menos um destinatário.', variant: 'destructive' });
+                    toast.error('Selecione ao menos um destinatário.');
                     return;
                   }
                   setView(VIEWS.preview);
