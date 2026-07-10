@@ -178,6 +178,18 @@ export default function RubricasByMuseuDashboard({ rubricas = [], purchases = []
       map[centro].totalDisponivel += disponivel;
     });
 
+    // Sobrescrever previstos com valores contratuais oficiais
+    const PREVISTOS_OFICIAIS = {
+      'Noturno 2026': 1320000,
+      'Noturno Pampulha': 81719.85,
+    };
+    Object.entries(PREVISTOS_OFICIAIS).forEach(([centro, previsto]) => {
+      if (map[centro] && map[centro].rubricas.length > 0) {
+        map[centro].totalPrevisto = previsto;
+        map[centro].totalDisponivel = previsto - map[centro].totalUtilizado;
+      }
+    });
+
     // Retorna apenas centros que têm rubricas
     return Object.values(map).filter((d) => d.rubricas.length > 0);
   }, [rubricas]);
