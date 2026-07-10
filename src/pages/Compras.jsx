@@ -59,6 +59,7 @@ import TotaisAditivoCards from '@/components/compras/TotaisAditivoCards';
 import RubricasConsumoDashboard from '@/components/compras/RubricasConsumoDashboard';
 import RecalcularTotaisButton from '@/components/compras/RecalcularTotaisButton';
 import PainelVerificacaoFinanceira from '@/components/compras/PainelVerificacaoFinanceira';
+import PainelAuditoriaMetas from '@/components/compras/PainelAuditoriaMetas';
 import { canManageRubricas } from '@/components/auth/permissions';
 import { normalizeStatus, isStatusPendente, isStatusAprovado, getStatusLabel, getStatusColor } from '@/lib/normalizeStatus';
 
@@ -1566,7 +1567,10 @@ function ComprasInner() {
         }
 
         {tab === 'verificacao' && isCoordenador &&
-        <PainelVerificacaoFinanceira onSuccess={refreshFinanceiroCompleto} />
+        <div className="space-y-6">
+            <PainelVerificacaoFinanceira onSuccess={refreshFinanceiroCompleto} />
+            <PainelAuditoriaMetas onSuccess={refreshFinanceiroCompleto} />
+          </div>
         }
 
         {tab === 'meus_pagamentos' &&

@@ -172,12 +172,14 @@ Deno.serve(async (req) => {
     const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
 
     // --------------------------------------------------------
-    // 1. LIMPEZA: desativar conteúdos expirados (> 30 dias para notícias)
+    // 1. LIMPEZA: desativar conteúdos expirados e fazer rodízio real
     // --------------------------------------------------------
     const allExisting = await base44.asServiceRole.entities.NewsHighlight.list('-created_date', 500);
     const existingLinks = new Set(allExisting.map(n => n.link).filter(Boolean));
 
     let deactivatedCount = 0;
+
+    // Desativar expirados
     for (const item of allExisting) {
       if (!item.ativo) continue;
       if (isContentExpired(item, today)) {
@@ -186,7 +188,23 @@ Deno.serve(async (req) => {
         console.log(`[curadoria] Desativado (expirado): ${item.titulo}`);
       }
     }
-    console.log(`[curadoria] Desativados por expiração: ${deactivatedCount}`);
+
+    // Rodízio real: desativar as notícias PUBLICADO_AUTO mais antigas para dar lugar às novas
+    // Manter no máximo 20 notícias ativas ao mesmo tempo
+    const ativas = allExisting.filter(n => n.ativo && n.status_curadoria !== 'APROVADO_MANUAL');
+    const MAX_ATIVAS = 20;
+    if (ativas.length >= MAX_ATIVAS) {
+      // Ordenar por data de criação — mais antigas primeiro
+      const ordenadas = [...ativas].sort((a, b) => new Date(a.created_date || 0) - new Date(b.created_date || 0));
+      const remover = ordenadas.slice(0, Math.max(0, ativas.length - MAX_ATIVAS + 5)); // abrir espaço para 5 novas
+      for (const item of remover) {
+        await base44.asServiceRole.entities.NewsHighlight.update(item.id, { ativo: false });
+        deactivatedCount++;
+        console.log(`[curadoria] Rodízio — desativado: ${item.titulo}`);
+      }
+    }
+
+    console.log(`[curadoria] Desativados por expiração/rodízio: ${deactivatedCount}`);
 
     // --------------------------------------------------------
     // 2. BUSCA — temas do dia sortidos
