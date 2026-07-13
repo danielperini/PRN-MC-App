@@ -143,7 +143,7 @@ function getNomeBase(intake) {
     .replace(/\s+/g, ' ').trim();
 }
 
-// ── SCORING (0–20) ──
+// ── SCORING (0–20+) ──
 function calcularScoreVinculo(a, b) {
   let score = 0;
 
@@ -151,7 +151,7 @@ function calcularScoreVinculo(a, b) {
   if (cnpjA && cnpjB && cnpjA === cnpjB) score += 6;
 
   const nfA = getNFNumero(a), nfB = getNFNumero(b);
-  if (nfA && nfB && nfA === nfB) score += 5;
+  if (nfA && nfB && nfA === nfB) score += 6;
 
   const valA = getValorNF(a), valB = getValorNF(b);
   if (valA > 0 && valB > 0 && Math.abs(valA - valB) < 0.06) score += 4;
@@ -167,6 +167,16 @@ function calcularScoreVinculo(a, b) {
     if (nomeA === nomeB) score += 2;
     else if (nomeA.includes(nomeB.slice(0, 10)) || nomeB.includes(nomeA.slice(0, 10))) score += 1;
   }
+
+  // Nome base idêntico (sem extensão) — forte indicador de par PDF+XML
+  const rawNomeA = (a?.file_name_original || '').toLowerCase().replace(/\.(pdf|xml)$/i, '').trim();
+  const rawNomeB = (b?.file_name_original || '').toLowerCase().replace(/\.(pdf|xml)$/i, '').trim();
+  if (rawNomeA && rawNomeB && rawNomeA === rawNomeB) score += 8;
+
+  // Pasta do Drive em comum
+  const pastaA = normalizeText((a?.resultado_ia || {}).drive_folder_path || '');
+  const pastaB = normalizeText((b?.resultado_ia || {}).drive_folder_path || '');
+  if (pastaA && pastaB && pastaA === pastaB) score += 2;
 
   const baseA = getNomeBase(a), baseB = getNomeBase(b);
   if (baseA && baseB) {
@@ -293,7 +303,7 @@ Deno.serve(async (req) => {
         if (score > melhorScore) { melhorScore = score; melhorXml = xml; }
       }
 
-      if (melhorXml && melhorScore >= 8) {
+      if (melhorXml && melhorScore >= 5) {
         resultado.detalhes.push({
           tipo: 'XML_VINCULO', pdf_id: pdf.id, xml_id: melhorXml.id,
           score: melhorScore, pdf_nome: pdf.file_name_original, xml_nome: melhorXml.file_name_original,
