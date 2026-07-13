@@ -52,6 +52,7 @@ const PAGE_TITLES = {
   RelatorioFisicoFinanceiro: 'Relatório Físico-Financeiro',
   RelatorioFisicoFinanceiroRevisao: 'Revisão e Aprovação do Relatório',
   Movimentacoes: 'Movimentações Bancárias',
+  AprovacaoNFs: 'Aprovação de NFs',
   ChecklistProducao: 'Checklist de Produção',
 };
 
