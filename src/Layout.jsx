@@ -51,6 +51,7 @@ const PAGE_TITLES = {
   NFsDoGmail: 'NFs do Gmail',
   RelatorioFisicoFinanceiro: 'Relatório Físico-Financeiro',
   RelatorioFisicoFinanceiroRevisao: 'Revisão e Aprovação do Relatório',
+  Movimentacoes: 'Movimentações Bancárias',
   ChecklistProducao: 'Checklist de Produção',
 };
 

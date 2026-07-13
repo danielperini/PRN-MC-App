@@ -1,0 +1,106 @@
+{
+  "name": "MovimentacaoBancaria",
+  "type": "object",
+  "properties": {
+    "mes": {
+      "type": "string",
+      "description": "M\u00eas de refer\u00eancia (ex: Janeiro)"
+    },
+    "mes_num": {
+      "type": "number",
+      "description": "N\u00famero do m\u00eas (1-12)"
+    },
+    "ano": {
+      "type": "number",
+      "description": "Ano de refer\u00eancia"
+    },
+    "tipo": {
+      "type": "string",
+      "enum": [
+        "extrato_conta",
+        "extrato_rendimento"
+      ],
+      "description": "Tipo do documento"
+    },
+    "banco": {
+      "type": "string",
+      "description": "Nome do banco/institui\u00e7\u00e3o"
+    },
+    "conta": {
+      "type": "string",
+      "description": "N\u00famero ou identifica\u00e7\u00e3o da conta"
+    },
+    "saldo_inicial": {
+      "type": "number",
+      "default": 0
+    },
+    "saldo_final": {
+      "type": "number",
+      "default": 0
+    },
+    "total_creditos": {
+      "type": "number",
+      "default": 0
+    },
+    "total_debitos": {
+      "type": "number",
+      "default": 0
+    },
+    "total_rendimento": {
+      "type": "number",
+      "default": 0,
+      "description": "Rendimento do per\u00edodo (extratos de rendimento)"
+    },
+    "lancamentos": {
+      "type": "array",
+      "description": "Lista de lan\u00e7amentos extra\u00eddos do extrato",
+      "items": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "string"
+          },
+          "descricao": {
+            "type": "string"
+          },
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "credito",
+              "debito",
+              "rendimento"
+            ]
+          },
+          "valor": {
+            "type": "number"
+          },
+          "saldo": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "drive_file_id": {
+      "type": "string"
+    },
+    "drive_file_url": {
+      "type": "string"
+    },
+    "drive_file_name": {
+      "type": "string"
+    },
+    "processado_em": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "resumo_ia": {
+      "type": "string",
+      "description": "Resumo gerado pela IA"
+    }
+  },
+  "required": [
+    "mes",
+    "ano",
+    "tipo"
+  ]
+}

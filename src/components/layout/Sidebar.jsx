@@ -24,6 +24,7 @@ import {
   Palette,
   ShieldCheck,
   ScrollText,
+  Banknote,
 } from 'lucide-react';
 
 import { base44 } from '@/api/base44Client';
@@ -115,6 +116,12 @@ const NAV_GROUPS = [
         label: 'Orçamento por Museu e Noturno',
         icon: DollarSign,
         roles: ['all'],
+      },
+      {
+        path: 'Movimentacoes',
+        label: 'Movimentações',
+        icon: Banknote,
+        roles: ['coord', 'admin'],
       },
     ],
   },
