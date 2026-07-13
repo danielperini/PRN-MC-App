@@ -364,15 +364,32 @@ function MovimentacoesInner() {
 
   async function handleSincronizar() {
     setSincronizando(true);
-    toast.info('Lendo extratos bancários do Drive com IA… pode levar 1-2 minutos.');
+    toast.info('Lendo extratos bancários do Drive com IA… pode levar 1–2 minutos.');
     try {
       const res = await base44.functions.invoke('lerExtratosBancariosDrive', {});
       const d = res.data;
-      if (!d?.success) throw new Error(d?.error || 'Erro desconhecido');
-      toast.success(`Sincronização concluída: ${d.resumo?.novos_criados || 0} novos · ${d.resumo?.atualizados || 0} atualizados`);
+      if (!d?.success) {
+        if (d?.code === 'DRIVE_NOT_CONNECTED') {
+          toast.error('Google Drive não conectado. Peça ao administrador para conectar o Drive nas configurações da plataforma.', { duration: 8000 });
+        } else {
+          throw new Error(d?.error || 'Erro desconhecido');
+        }
+        return;
+      }
+      const { novos_criados = 0, atualizados = 0, erros = 0, pdfs_encontrados = 0 } = d.resumo || {};
+      if (pdfs_encontrados === 0) {
+        toast.warning('Nenhum PDF encontrado na pasta de extratos do Drive.');
+      } else {
+        toast.success(`Concluído: ${novos_criados} novos · ${atualizados} atualizados · ${pdfs_encontrados} PDFs analisados${erros > 0 ? ` · ${erros} erros` : ''}`);
+      }
       await refetch();
     } catch (e) {
-      toast.error('Erro: ' + (e?.message || e));
+      const msg = e?.message || String(e);
+      if (msg.includes('401') || msg.includes('Unauthorized')) {
+        toast.error('Sessão expirada. Recarregue a página e tente novamente.', { duration: 6000 });
+      } else {
+        toast.error('Erro ao sincronizar: ' + msg, { duration: 6000 });
+      }
     } finally {
       setSincronizando(false);
     }

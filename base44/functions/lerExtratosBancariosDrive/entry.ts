@@ -28,24 +28,38 @@ function extrairAno(texto: string): number {
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    if (!['admin', 'ADMIN'].includes(user.role || '')) {
-      return Response.json({ error: 'Apenas administradores podem executar esta rotina.' }, { status: 403 });
+
+    // Auth — permite admin ou coordenador
+    let user: any = null;
+    try {
+      user = await base44.auth.me();
+    } catch (_) {}
+    if (!user) return Response.json({ error: 'Unauthorized — faça login primeiro.' }, { status: 401 });
+
+    const role = (user.role || '').toLowerCase();
+    if (!['admin', 'coordenador', 'coordinator'].includes(role)) {
+      return Response.json({ error: 'Apenas administradores ou coordenadores podem executar esta rotina.' }, { status: 403 });
     }
 
-    // Obter token do Drive
-    let conn: any = null;
-    try { conn = await base44.connectors.getConnection('googledrive'); } catch (_) {}
-    if (!conn?.access_token) {
-      try { conn = await base44.asServiceRole.connectors.getConnection('googledrive'); } catch (_) {}
-    }
-    if (!conn?.access_token) {
-      return Response.json({ error: 'Conector Google Drive não autenticado.' }, { status: 401 });
-    }
-    const token = conn.access_token;
+    // Obter token do Drive — tenta conexão do usuário primeiro, depois service role
+    let token: string | null = null;
+    const tryConn = async (client: any) => {
+      try {
+        const c = await client.connectors.getConnection('googledrive');
+        if (c?.access_token) return c.access_token;
+      } catch (_) {}
+      return null;
+    };
+    token = await tryConn(base44) || await tryConn(base44.asServiceRole);
 
-    // Listar arquivos PDF na pasta e subpastas
+    if (!token) {
+      return Response.json({
+        error: 'Google Drive não está conectado. Acesse Configurações → Integrações e conecte o Google Drive.',
+        code: 'DRIVE_NOT_CONNECTED'
+      }, { status: 401 });
+    }
+
+    // Listar PDFs recursivamente
     async function listPDFs(folderId: string, depth = 0): Promise<any[]> {
       if (depth > 4) return [];
       let files: any[] = [];
@@ -54,8 +68,16 @@ Deno.serve(async (req) => {
         const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
         const url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,mimeType,createdTime,webViewLink)&pageSize=100${pageToken ? '&pageToken=' + pageToken : ''}`;
         const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) {
+          const errText = await res.text();
+          console.error(`[Drive] Erro ao listar pasta ${folderId}: ${res.status} ${errText}`);
+          break;
+        }
         const data = await res.json();
-        if (data.error) break;
+        if (data.error) {
+          console.error(`[Drive] API error:`, data.error);
+          break;
+        }
         for (const f of (data.files || [])) {
           if (f.mimeType === 'application/vnd.google-apps.folder') {
             const sub = await listPDFs(f.id, depth + 1);
@@ -69,9 +91,37 @@ Deno.serve(async (req) => {
       return files;
     }
 
+    // Fazer download do PDF como base64 para enviar à IA
+    async function downloadPDFBase64(fileId: string): Promise<string | null> {
+      try {
+        const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) {
+          console.error(`[Drive] Falha ao baixar PDF ${fileId}: ${res.status}`);
+          return null;
+        }
+        const buffer = await res.arrayBuffer();
+        // Converter para base64 data URI
+        const bytes = new Uint8Array(buffer);
+        let binary = '';
+        for (let i = 0; i < bytes.length; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        const b64 = btoa(binary);
+        return `data:application/pdf;base64,${b64}`;
+      } catch (e) {
+        console.error(`[Drive] Erro ao baixar PDF:`, e);
+        return null;
+      }
+    }
+
     const pdfs = await listPDFs(DRIVE_FOLDER_ID);
     if (pdfs.length === 0) {
-      return Response.json({ success: true, message: 'Nenhum PDF encontrado na pasta.', processados: 0, criados: 0 });
+      return Response.json({
+        success: true,
+        message: 'Nenhum PDF encontrado na pasta de extratos.',
+        resumo: { pdfs_encontrados: 0, novos_criados: 0, atualizados: 0, erros: 0 }
+      });
     }
 
     // Carregar IDs já processados
@@ -83,81 +133,78 @@ Deno.serve(async (req) => {
     const erros: any[] = [];
 
     for (const pdf of pdfs) {
-      // Verificar se já foi processado
       const jaExiste = idsProcessados.has(pdf.id);
 
-      // Baixar conteúdo do PDF como base64 para enviar à IA
-      let pdfUrl: string;
-      try {
-        // Usar URL de download direto para IA processar
-        pdfUrl = `https://drive.google.com/uc?export=download&id=${pdf.id}`;
-      } catch (_) {
-        erros.push({ arquivo: pdf.name, erro: 'Falha ao obter URL do PDF' });
-        continue;
-      }
-
-      // Determinar tipo pelo nome do arquivo
+      // Determinar tipo pelo nome
       const nomeL = pdf.name.toLowerCase();
-      const isRendimento = nomeL.includes('rendimento') || nomeL.includes('aplicacao') || nomeL.includes('aplicação') || nomeL.includes('investimento') || nomeL.includes('cdb') || nomeL.includes('poupanca');
+      const isRendimento = nomeL.includes('rendimento') || nomeL.includes('aplicacao') ||
+        nomeL.includes('aplicação') || nomeL.includes('investimento') ||
+        nomeL.includes('cdb') || nomeL.includes('poupanca') || nomeL.includes('poupança');
       const tipo = isRendimento ? 'extrato_rendimento' : 'extrato_conta';
 
-      // Extrair mês/ano do nome ou usar data de criação
       const mesInfo = normalizarMes(pdf.name) || normalizarMes(pdf.createdTime || '');
-      const ano = extrairAno(pdf.name) || extrairAno(pdf.createdTime || '') || new Date().getFullYear();
+      const ano = extrairAno(pdf.name) || new Date().getFullYear();
       const mes_num = mesInfo?.mes_num || (new Date(pdf.createdTime || Date.now()).getMonth() + 1);
       const mes = mesInfo?.mes || ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][mes_num - 1];
 
-      // Usar IA para extrair dados do PDF
+      // Tentar baixar o PDF para processamento pela IA
       let dadosExtraidos: any = {};
-      try {
-        const resultado = await base44.asServiceRole.integrations.Core.InvokeLLM({
-          prompt: `Você é um especialista em extratos bancários brasileiros. Analise este extrato bancário/financeiro e extraia as informações em JSON estruturado.
+      const pdfBase64 = await downloadPDFBase64(pdf.id);
 
-Arquivo: ${pdf.name}
-URL do arquivo: ${pdfUrl}
+      if (pdfBase64) {
+        try {
+          // Fazer upload do PDF para storage temporário para usar como file_url
+          const uploadRes = await base44.asServiceRole.integrations.Core.UploadFile({ file: pdfBase64 });
+          const pdfFileUrl = uploadRes?.file_url;
 
-Retorne APENAS o JSON com a estrutura abaixo. Se não conseguir acessar o arquivo, use valores zerados mas retorne a estrutura corretamente.
+          if (pdfFileUrl) {
+            dadosExtraidos = await base44.asServiceRole.integrations.Core.InvokeLLM({
+              prompt: `Analise este extrato bancário/financeiro brasileiro e extraia os dados em JSON.
+Arquivo: "${pdf.name}"
+Tipo detectado: ${tipo === 'extrato_rendimento' ? 'Extrato de Rendimento/Investimento' : 'Extrato de Conta Corrente'}
 
-Estrutura esperada:
-{
-  "banco": "Nome do banco ou instituição financeira",
-  "conta": "Número ou identificação da conta (se disponível)",
-  "saldo_inicial": 0.00,
-  "saldo_final": 0.00,
-  "total_creditos": 0.00,
-  "total_debitos": 0.00,
-  "total_rendimento": 0.00,
-  "lancamentos": [
-    {
-      "data": "DD/MM/AAAA",
-      "descricao": "Descrição do lançamento",
-      "tipo": "credito | debito | rendimento",
-      "valor": 0.00,
-      "saldo": 0.00
-    }
-  ],
-  "resumo_ia": "Resumo breve do período em 1-2 frases"
-}`,
-          file_urls: [pdfUrl],
-          response_json_schema: {
-            type: 'object',
-            properties: {
-              banco: { type: 'string' },
-              conta: { type: 'string' },
-              saldo_inicial: { type: 'number' },
-              saldo_final: { type: 'number' },
-              total_creditos: { type: 'number' },
-              total_debitos: { type: 'number' },
-              total_rendimento: { type: 'number' },
-              lancamentos: { type: 'array', items: { type: 'object' } },
-              resumo_ia: { type: 'string' }
-            }
+Extraia com precisão: banco, conta, saldos, totais de créditos/débitos/rendimentos e todos os lançamentos.
+Para cada lançamento: data no formato DD/MM/AAAA, descrição completa, tipo (credito/debito/rendimento), valor numérico positivo, saldo após o lançamento.
+O campo resumo_ia deve ser uma frase descrevendo o período (ex: "Extrato de janeiro/2026 com 12 créditos e 8 débitos, saldo final positivo").`,
+              file_urls: [pdfFileUrl],
+              response_json_schema: {
+                type: 'object',
+                properties: {
+                  banco: { type: 'string' },
+                  conta: { type: 'string' },
+                  saldo_inicial: { type: 'number' },
+                  saldo_final: { type: 'number' },
+                  total_creditos: { type: 'number' },
+                  total_debitos: { type: 'number' },
+                  total_rendimento: { type: 'number' },
+                  lancamentos: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        data: { type: 'string' },
+                        descricao: { type: 'string' },
+                        tipo: { type: 'string' },
+                        valor: { type: 'number' },
+                        saldo: { type: 'number' }
+                      }
+                    }
+                  },
+                  resumo_ia: { type: 'string' }
+                }
+              }
+            }) || {};
           }
-        });
-        dadosExtraidos = resultado || {};
-      } catch (iaErr) {
-        console.error(`[IA] Erro ao processar ${pdf.name}:`, iaErr);
-        dadosExtraidos = { banco: 'Não identificado', resumo_ia: 'Erro ao processar com IA' };
+        } catch (iaErr) {
+          console.error(`[IA] Erro ao processar ${pdf.name}:`, iaErr);
+          dadosExtraidos = { banco: 'Erro IA', resumo_ia: `Erro ao processar: ${String(iaErr).substring(0, 100)}` };
+        }
+      } else {
+        // Sem PDF baixado — registra só os metadados com aviso
+        dadosExtraidos = {
+          banco: 'Não processado',
+          resumo_ia: 'PDF não pôde ser baixado do Drive para análise pela IA.'
+        };
       }
 
       const registro = {
@@ -167,12 +214,12 @@ Estrutura esperada:
         tipo,
         banco: dadosExtraidos.banco || 'Não identificado',
         conta: dadosExtraidos.conta || '',
-        saldo_inicial: dadosExtraidos.saldo_inicial || 0,
-        saldo_final: dadosExtraidos.saldo_final || 0,
-        total_creditos: dadosExtraidos.total_creditos || 0,
-        total_debitos: dadosExtraidos.total_debitos || 0,
-        total_rendimento: dadosExtraidos.total_rendimento || 0,
-        lancamentos: dadosExtraidos.lancamentos || [],
+        saldo_inicial: Number(dadosExtraidos.saldo_inicial) || 0,
+        saldo_final: Number(dadosExtraidos.saldo_final) || 0,
+        total_creditos: Number(dadosExtraidos.total_creditos) || 0,
+        total_debitos: Number(dadosExtraidos.total_debitos) || 0,
+        total_rendimento: Number(dadosExtraidos.total_rendimento) || 0,
+        lancamentos: Array.isArray(dadosExtraidos.lancamentos) ? dadosExtraidos.lancamentos : [],
         drive_file_id: pdf.id,
         drive_file_url: pdf.webViewLink || `https://drive.google.com/file/d/${pdf.id}/view`,
         drive_file_name: pdf.name,
@@ -210,6 +257,7 @@ Estrutura esperada:
     });
 
   } catch (error) {
-    return Response.json({ error: error.message }, { status: 500 });
+    console.error('[lerExtratosBancariosDrive] Erro geral:', error);
+    return Response.json({ error: String(error?.message || error) }, { status: 500 });
   }
 });
