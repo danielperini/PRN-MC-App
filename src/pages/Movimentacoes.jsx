@@ -382,7 +382,7 @@ function MovimentacoesInner() {
 
   async function handleSincronizar() {
     setSincronizando(true);
-    toast.info('Lendo extratos bancários do Drive com IA… pode levar 1–2 minutos.');
+    toast.info('Processando extratos do Drive (lote de 3 por vez)…');
     try {
       const res = await base44.functions.invoke('lerExtratosBancariosDrive', {});
       const d = res.data;
@@ -394,20 +394,22 @@ function MovimentacoesInner() {
         }
         return;
       }
-      const { novos_criados = 0, atualizados = 0, erros = 0, pdfs_encontrados = 0 } = d.resumo || {};
+      const { novos_criados = 0, pdfs_encontrados = 0, restantes = 0, erros = 0 } = d.resumo || {};
       if (pdfs_encontrados === 0) {
-        toast.warning('Nenhum PDF encontrado na pasta de extratos do Drive.');
+        toast.info('Nenhum PDF encontrado na pasta de extratos do Drive.');
+      } else if (novos_criados === 0 && restantes === 0) {
+        toast.success('Todos os extratos já estão importados.');
       } else {
-        toast.success(`Concluído: ${novos_criados} novos · ${atualizados} atualizados · ${pdfs_encontrados} PDFs${erros > 0 ? ` · ${erros} erros` : ''}`);
+        toast.success(
+          `${novos_criados} extrato${novos_criados !== 1 ? 's' : ''} importado${novos_criados !== 1 ? 's' : ''}` +
+          (restantes > 0 ? ` · Clique novamente para processar ${restantes} restante${restantes !== 1 ? 's' : ''}` : '') +
+          (erros > 0 ? ` · ${erros} erro${erros !== 1 ? 's' : ''}` : ''),
+          { duration: restantes > 0 ? 8000 : 4000 }
+        );
       }
       await refetch();
     } catch (e) {
-      const msg = e?.message || String(e);
-      if (msg.includes('401') || msg.includes('Unauthorized')) {
-        toast.error('Sessão expirada. Recarregue a página e tente novamente.', { duration: 6000 });
-      } else {
-        toast.error('Erro ao sincronizar: ' + msg, { duration: 6000 });
-      }
+      toast.error('Erro ao sincronizar: ' + (e?.message || String(e)), { duration: 6000 });
     } finally {
       setSincronizando(false);
     }
