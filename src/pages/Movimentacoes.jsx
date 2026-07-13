@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -350,21 +350,11 @@ function MovimentacoesInner() {
   const [sincronizando, setSincronizando] = useState(false);
   const [mesSelecionado, setMesSelecionado] = useState(null);
   const [busca, setBusca] = useState('');
-  const autoSyncDone = useRef(false);
-
   const { data: movimentacoes = [], isLoading, refetch } = useQuery({
     queryKey: ['movimentacoes-bancarias'],
     queryFn: () => base44.entities.MovimentacaoBancaria.list('-ano', 500),
     staleTime: 1000 * 60 * 5,
   });
-
-  // Auto-sincroniza silenciosamente ao entrar na página
-  useEffect(() => {
-    if (isLoading) return;
-    if (autoSyncDone.current) return;
-    autoSyncDone.current = true;
-    sincronizarSilencioso();
-  }, [isLoading]);
 
   const grupos = useMemo(() => {
     const map = {};
@@ -389,20 +379,6 @@ function MovimentacoesInner() {
   }), [movimentacoes]);
 
   const registrosMes = useMemo(() => grupos.find(g => g.key === mesSelecionado)?.registros || [], [grupos, mesSelecionado]);
-
-  async function sincronizarSilencioso() {
-    try {
-      const res = await base44.functions.invoke('lerExtratosBancariosDrive', {});
-      const d = res.data;
-      if (d?.success) {
-        const { novos_criados = 0 } = d.resumo || {};
-        if (novos_criados > 0) {
-          await refetch();
-          toast.success(`${novos_criados} extrato${novos_criados !== 1 ? 's' : ''} novo${novos_criados !== 1 ? 's' : ''} importado${novos_criados !== 1 ? 's' : ''}`);
-        }
-      }
-    } catch { /* silencioso */ }
-  }
 
   async function handleSincronizar() {
     setSincronizando(true);
