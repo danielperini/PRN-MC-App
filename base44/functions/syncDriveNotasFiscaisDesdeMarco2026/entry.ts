@@ -162,25 +162,43 @@ async function listFolderRecursive(base44, folderId, folderPath = '') {
 // ======================================================================
 // FLUXO 3 — FILTRAGEM POR DATA E TIPO
 // ======================================================================
+function isXmlFile(file) {
+  return file.mimeType === 'text/xml' ||
+    file.mimeType === 'application/xml' ||
+    file.name.toLowerCase().endsWith('.xml');
+}
+
+function isPdfFile(file) {
+  return file.mimeType === 'application/pdf';
+}
+
 function filterFiles(allFiles, cursor) {
   const filtered = [];
 
   for (const file of allFiles) {
-    // Verificar MIME type
-    if (!ACCEPTED_MIMES.has(file.mimeType)) continue;
+    const isPdf = isPdfFile(file);
+    const isXml = isXmlFile(file);
 
-    // Verificar nome bloqueado
-    if (hasBlockedWord(file.name)) continue;
+    // Aceitar PDF, XML, ou imagem
+    if (!isPdf && !isXml && !ACCEPTED_MIMES.has(file.mimeType)) continue;
 
-    // Verificar data de criação/modificação
-    const fileDate = file.modifiedTime || file.createdTime;
-    if (!fileDate || fileDate < CUTOFF_DATE) continue;
+    // Palavras bloqueadas só para PDFs (XMLs têm nomes técnicos e não devem ser filtrados por nome)
+    if (isPdf && hasBlockedWord(file.name)) continue;
+
+    // Filtro de data — XMLs não têm data confiável no Drive, então aceitamos sempre
+    if (!isXml) {
+      const fileDate = file.modifiedTime || file.createdTime;
+      if (!fileDate || fileDate < CUTOFF_DATE) continue;
+    }
 
     filtered.push(file);
   }
 
-  // Ordenar por modifiedTime ASC para consistência do cursor
+  // Ordenar: XMLs primeiro (precisam ser importados antes para o pareamento), depois PDFs
   filtered.sort((a, b) => {
+    const aIsXml = isXmlFile(a) ? 0 : 1;
+    const bIsXml = isXmlFile(b) ? 0 : 1;
+    if (aIsXml !== bIsXml) return aIsXml - bIsXml;
     const timeA = a.modifiedTime || a.createdTime || '';
     const timeB = b.modifiedTime || b.createdTime || '';
     return timeA.localeCompare(timeB);
@@ -280,7 +298,62 @@ function normalizeFileName(name) {
 }
 
 // ======================================================================
-// FLUXO 5 — IMPORTAÇÃO E ANÁLISE POR IA
+// FLUXO 5a — IMPORTAÇÃO DE XML (extração direta, sem IA)
+// ======================================================================
+async function importXml(base44, file) {
+  const driveHash = buildDriveHash(file.name, file.size, file.modifiedTime);
+  try {
+    const downloadRes = await driveFetch(base44, `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`);
+    if (!downloadRes.ok) return { success: false, motivo: `Download Drive falhou: HTTP ${downloadRes.status}` };
+
+    const xmlText = await downloadRes.text();
+    const dados = extractXmlKey(xmlText);
+
+    // Upload do XML para storage
+    const fileBytes = new TextEncoder().encode(xmlText);
+    const fileObj = new File([fileBytes], file.name, { type: file.mimeType || 'text/xml' });
+    const uploadResult = await base44.asServiceRole.integrations.Core.UploadFile({ file: fileObj });
+    const fileUrl = uploadResult?.file_url;
+    if (!fileUrl) return { success: false, motivo: 'Upload storage falhou para XML' };
+
+    const intake = await base44.asServiceRole.entities.DocumentIntake.create({
+      user_email: SYSTEM_EMAIL,
+      user_name: 'Sistema — Sincronização Drive',
+      tipo_detectado: 'NOTA_FISCAL_XML',
+      status_processamento: 'AGUARDANDO_REVISAO',
+      arquivo_original_url: fileUrl,
+      file_name_original: file.name,
+      file_name_final: file.name,
+      mime_type: file.mimeType || 'text/xml',
+      origem: 'DRIVE_SYNC',
+      nf_emitente_cpf_cnpj: dados.nf_emitente_cpf_cnpj || null,
+      fornecedor_cpf_cnpj: dados.nf_emitente_cpf_cnpj || null,
+      nf_emitente_nome: dados.nf_emitente_nome || null,
+      fornecedor_nome: dados.nf_emitente_nome || null,
+      nf_numero: dados.nf_numero || null,
+      nf_valor_total: dados.nf_valor_total || null,
+      nf_chave_acesso: dados.nf_chave_acesso || null,
+      resultado_ia: {
+        drive_file_id: file.id,
+        drive_hash: driveHash,
+        drive_folder_path: file._folderPath || '',
+        drive_modified_time: file.modifiedTime,
+        drive_created_time: file.createdTime,
+        ...dados,
+        origem_extracao: 'regex_direto',
+      },
+    });
+
+    console.log(`[XML] Importado: ${file.name} | NF=${dados.nf_numero} CNPJ=${dados.nf_emitente_cpf_cnpj}`);
+    return { success: true, intakeId: intake.id, fileUrl, isXml: true, dadosXml: dados };
+  } catch (e) {
+    console.error(`Erro ao importar XML ${file.name}:`, e.message);
+    return { success: false, motivo: e.message };
+  }
+}
+
+// ======================================================================
+// FLUXO 5b — IMPORTAÇÃO DE PDF E ANÁLISE POR IA
 // ======================================================================
 async function importAndAnalyze(base44, file) {
   const driveHash = buildDriveHash(file.name, file.size, file.modifiedTime);
@@ -294,8 +367,6 @@ async function importAndAnalyze(base44, file) {
 
     if (!downloadRes.ok) {
       console.error(`Download falhou para ${file.name}: HTTP ${downloadRes.status} ${downloadRes.statusText}`);
-      const errorBody = await downloadRes.text().catch(() => '');
-      console.error(`Detalhes: ${errorBody}`);
       return { success: false, motivo: `Download Drive falhou: HTTP ${downloadRes.status}` };
     }
 
@@ -306,9 +377,7 @@ async function importAndAnalyze(base44, file) {
     let fileUrl;
     try {
       const fileObj = new File([fileBytes], file.name, { type: file.mimeType });
-      const uploadResult = await base44.asServiceRole.integrations.Core.UploadFile({
-        file: fileObj,
-      });
+      const uploadResult = await base44.asServiceRole.integrations.Core.UploadFile({ file: fileObj });
       fileUrl = uploadResult.file_url;
       console.log(`Upload OK: ${file.name} → ${fileUrl}`);
     } catch (uploadErr) {
@@ -316,9 +385,7 @@ async function importAndAnalyze(base44, file) {
       return { success: false, motivo: `Upload storage falhou: ${uploadErr.message}` };
     }
 
-    if (!fileUrl) {
-      return { success: false, motivo: 'Falha no upload para storage — URL não retornada' };
-    }
+    if (!fileUrl) return { success: false, motivo: 'Falha no upload para storage — URL não retornada' };
 
     // (3) Criar registro em DocumentIntake com ANALISANDO_IA
     let intake;
@@ -341,59 +408,21 @@ async function importAndAnalyze(base44, file) {
           drive_created_time: file.createdTime,
         },
       });
-      console.log(`Intake criado: ${intake.id} para ${file.name}`);
     } catch (createErr) {
       console.error(`Falha ao criar DocumentIntake para ${file.name}:`, createErr.message);
       return { success: false, motivo: `Falha ao criar DocumentIntake: ${createErr.message}` };
     }
 
-    // (4) Análise por IA diretamente (Claude)
+    // (4) Análise por IA (Claude) — apenas para PDFs
     try {
       const hoje = new Date().toISOString().slice(0, 10);
       const iaResp = await base44.asServiceRole.integrations.Core.InvokeLLM({
         model: 'claude_sonnet_4_6',
         prompt: `VOCÊ É UM ESPECIALISTA EM DOCUMENTOS FISCAIS para o projeto MUSEUS CENTRO.
 Data atual: ${hoje}. Datas até ${hoje} são VÁLIDAS.
-
 TOMADOR: Viaduto das Artes, CNPJ 23.843.648/0001-25.
-
-Documento importado automaticamente do Google Drive (pasta: ${file._folderPath || 'raiz'}).
-Leia INTEGRALMENTE e classifique: Nota Fiscal, Recibo, Comprovante, ou Documento Complementar.
-
-Extraia TODOS os dados fiscais disponíveis no JSON:
-{
-  "eh_nota_fiscal": boolean,
-  "eh_documento_complementar": boolean,
-  "tipo_documento_complementar": "RECIBO|COMPROVANTE_PAGAMENTO|DOCUMENTO_COMPLEMENTAR|null",
-  "documento_valido": true,
-  "documento_cancelado": false,
-  "nf_numero": "",
-  "nf_chave_acesso": "",
-  "nf_data_emissao": "",
-  "nf_horario_emissao": "",
-  "nf_valor_total": "",
-  "nf_emitente_nome": "",
-  "nf_emitente_cpf_cnpj": "",
-  "nf_tomador_nome": "",
-  "nf_tomador_cpf_cnpj": "",
-  "descricao_servico": "",
-  "municipio_emissao": "",
-  "competencia": "",
-  "tipo_servico": "",
-  "codigo_servico": "",
-  "aliquota": "",
-  "iss_retido": false,
-  "valor_iss": "",
-  "centro_custo_sugerido": "",
-  "museu_sugerido": "",
-  "categoria_sugerida": "",
-  "rubrica_nome_sugerida": "",
-  "justificativa_rubrica": "",
-  "inconsistencias": [],
-  "avisos": [],
-  "motivo_rejeicao": "",
-  "score_confiabilidade": 0
-}`,
+Documento importado do Google Drive (pasta: ${file._folderPath || 'raiz'}).
+Leia INTEGRALMENTE e classifique. Extraia TODOS os dados fiscais no JSON abaixo.`,
         file_urls: [fileUrl],
         response_json_schema: {
           type: 'object',
@@ -406,7 +435,6 @@ Extraia TODOS os dados fiscais disponíveis no JSON:
             nf_numero: { type: 'string' },
             nf_chave_acesso: { type: 'string' },
             nf_data_emissao: { type: 'string' },
-            nf_horario_emissao: { type: 'string' },
             nf_valor_total: { type: 'string' },
             nf_emitente_nome: { type: 'string' },
             nf_emitente_cpf_cnpj: { type: 'string' },
@@ -414,19 +442,10 @@ Extraia TODOS os dados fiscais disponíveis no JSON:
             nf_tomador_cpf_cnpj: { type: 'string' },
             descricao_servico: { type: 'string' },
             municipio_emissao: { type: 'string' },
-            competencia: { type: 'string' },
-            tipo_servico: { type: 'string' },
-            codigo_servico: { type: 'string' },
-            aliquota: { type: 'string' },
-            iss_retido: { type: 'boolean' },
-            valor_iss: { type: 'string' },
             centro_custo_sugerido: { type: 'string' },
             museu_sugerido: { type: 'string' },
-            categoria_sugerida: { type: 'string' },
             rubrica_nome_sugerida: { type: 'string' },
-            justificativa_rubrica: { type: 'string' },
             inconsistencias: { type: 'array', items: { type: 'string' } },
-            avisos: { type: 'array', items: { type: 'string' } },
             motivo_rejeicao: { type: 'string' },
             score_confiabilidade: { type: 'number' },
           },
@@ -434,17 +453,8 @@ Extraia TODOS os dados fiscais disponíveis no JSON:
       });
 
       const ia = iaResp || {};
-      console.log(`IA OK para ${file.name}: eh_nota_fiscal=${ia.eh_nota_fiscal}, score=${ia.score_confiabilidade}`);
-
-      // Atualizar intake com resultado da IA
       await base44.asServiceRole.entities.DocumentIntake.update(intake.id, {
-        resultado_ia: {
-          ...intake.resultado_ia,
-          ...ia,
-          drive_file_id: file.id,
-          drive_hash: driveHash,
-          drive_folder_path: file._folderPath || '',
-        },
+        resultado_ia: { ...intake.resultado_ia, ...ia, drive_file_id: file.id, drive_hash: driveHash, drive_folder_path: file._folderPath || '' },
         tipo_detectado: ia.eh_nota_fiscal ? 'NOTA_FISCAL_PDF' : 'PENDENTE',
         nf_numero: safeStr(ia.nf_numero),
         nf_valor_total: parseValor(ia.nf_valor_total) || null,
@@ -611,16 +621,29 @@ Deno.serve(async (req) => {
 
     // ── MODO DIAGNÓSTICO: listar estrutura de pastas e arquivos sem importar ──
     if (modoDiagnostico) {
-      const totalPdfs = allFiles.filter(f => f.mimeType === 'application/pdf').length;
-      const totalXmls = allFiles.filter(f => ['text/xml','application/xml'].includes(f.mimeType) || f.name.toLowerCase().endsWith('.xml')).length;
+      const totalPdfs = allFiles.filter(f => isPdfFile(f)).length;
+      const totalXmls = allFiles.filter(f => isXmlFile(f)).length;
       const pastasUnicas = [...new Set(allFiles.map(f => f._folderPath || '/').filter(Boolean))];
-      const pdfsAntigos = allFiles.filter(f => f.mimeType === 'application/pdf' && (f.modifiedTime || f.createdTime || '') < CUTOFF_DATE);
-      const pdfsBloqueados = allFiles.filter(f => f.mimeType === 'application/pdf' && hasBlockedWord(f.name));
+      const pdfsAntigos = allFiles.filter(f => isPdfFile(f) && (f.modifiedTime || f.createdTime || '') < CUTOFF_DATE);
+      const pdfsBloqueados = allFiles.filter(f => isPdfFile(f) && hasBlockedWord(f.name));
       const pdfsValidos = allFiles.filter(f =>
-        f.mimeType === 'application/pdf' &&
-        !hasBlockedWord(f.name) &&
-        (f.modifiedTime || f.createdTime || '') >= CUTOFF_DATE
+        isPdfFile(f) && !hasBlockedWord(f.name) &&
+        (ignorarDataCorte || (f.modifiedTime || f.createdTime || '') >= CUTOFF_DATE)
       );
+      // Analisa paridade PDF+XML por pasta e nome base
+      const xmlsPorPasta = {};
+      for (const f of allFiles.filter(f => isXmlFile(f))) {
+        const chave = `${f._folderPath || '/'}::${normalizeFileName(f.name)}`;
+        xmlsPorPasta[chave] = f;
+      }
+      const pdfsSemXml = pdfsValidos.filter(f => {
+        const chave = `${f._folderPath || '/'}::${normalizeFileName(f.name)}`;
+        return !xmlsPorPasta[chave];
+      });
+      const pdfsComXml = pdfsValidos.filter(f => {
+        const chave = `${f._folderPath || '/'}::${normalizeFileName(f.name)}`;
+        return !!xmlsPorPasta[chave];
+      });
       return Response.json({
         success: true,
         diagnostico: true,
@@ -628,23 +651,32 @@ Deno.serve(async (req) => {
         total_pdfs: totalPdfs,
         total_xmls: totalXmls,
         pdfs_validos_para_importar: pdfsValidos.length,
+        pdfs_com_xml_pareado_no_drive: pdfsComXml.length,
+        pdfs_sem_xml_no_drive: pdfsSemXml.length,
         pdfs_bloqueados_por_nome: pdfsBloqueados.length,
         pdfs_anteriores_ao_corte: pdfsAntigos.length,
         data_corte: CUTOFF_DATE,
         pastas: pastasUnicas.slice(0, 50),
-        amostra_pdfs_validos: pdfsValidos.slice(0, 20).map(f => ({ nome: f.name, pasta: f._folderPath, data: f.modifiedTime || f.createdTime })),
+        amostra_pdfs_validos: pdfsValidos.slice(0, 20).map(f => ({ nome: f.name, pasta: f._folderPath, data: f.modifiedTime || f.createdTime, tem_xml: !!xmlsPorPasta[`${f._folderPath || '/'}::${normalizeFileName(f.name)}`] })),
+        amostra_pdfs_sem_xml: pdfsSemXml.slice(0, 15).map(f => ({ nome: f.name, pasta: f._folderPath })),
         amostra_pdfs_antigos: pdfsAntigos.slice(0, 10).map(f => ({ nome: f.name, pasta: f._folderPath, data: f.modifiedTime || f.createdTime })),
         amostra_pdfs_bloqueados: pdfsBloqueados.slice(0, 10).map(f => ({ nome: f.name, motivo: BLOCKED_WORDS.find(w => normalizeText(f.name).includes(normalizeText(w))) })),
         dica: pdfsAntigos.length > 0 && pdfsValidos.length === 0
           ? `Existem ${pdfsAntigos.length} PDFs mas todos são anteriores à data de corte (${CUTOFF_DATE}). Use ignorarDataCorte=true para importá-los.`
-          : 'Passe modoDiagnostico=false e dryRun=true para simular importação.',
+          : `${pdfsValidos.length} PDFs válidos. ${pdfsComXml.length} já têm XML correspondente no Drive.`,
       });
     }
 
     // ── FLUXO 3: Filtragem ──
     let filteredFiles = ignorarDataCorte
-      ? allFiles.filter(f => ACCEPTED_MIMES.has(f.mimeType) && !hasBlockedWord(f.name))
-          .sort((a, b) => (a.modifiedTime || a.createdTime || '').localeCompare(b.modifiedTime || b.createdTime || ''))
+      ? allFiles.filter(f => (isPdfFile(f) || isXmlFile(f) || ACCEPTED_MIMES.has(f.mimeType)) && !(isPdfFile(f) && hasBlockedWord(f.name)))
+          .sort((a, b) => {
+            // XMLs primeiro para estarem disponíveis quando o PDF chegar
+            const aX = isXmlFile(a) ? 0 : 1;
+            const bX = isXmlFile(b) ? 0 : 1;
+            if (aX !== bX) return aX - bX;
+            return (a.modifiedTime || a.createdTime || '').localeCompare(b.modifiedTime || b.createdTime || '');
+          })
       : filterFiles(allFiles, cursor);
 
     // Aplicar cursor quando ignorarDataCorte=true
@@ -704,16 +736,16 @@ Deno.serve(async (req) => {
     }
 
     // ── FLUXO 4 + 5 + 6: Processamento ──
+    // Mapeia XMLs importados nesta rodada: chave = folderPath::nomeBase → intakeId
+    const xmlsImportadosNestaRodada: Record<string, { id: string; url: string; dados: any }> = {};
+
     for (const file of filteredFiles) {
-      // Verificar palavras bloqueadas
-      if (hasBlockedWord(file.name)) {
+      const isXml = isXmlFile(file);
+
+      // Verificar palavras bloqueadas — apenas para PDFs
+      if (!isXml && hasBlockedWord(file.name)) {
         stats.ignorados++;
-        stats.detalhamento.push({
-          nome: file.name,
-          drive_file_id: file.id,
-          status: 'ignorado',
-          motivo: 'Nome contém palavra bloqueada',
-        });
+        stats.detalhamento.push({ nome: file.name, drive_file_id: file.id, status: 'ignorado', motivo: 'Nome contém palavra bloqueada' });
         continue;
       }
 
@@ -721,48 +753,66 @@ Deno.serve(async (req) => {
       const dupCheck = await checkIdempotency(base44, file);
       if (dupCheck.isDuplicate) {
         stats.duplicados++;
-        stats.detalhamento.push({
-          nome: file.name,
-          drive_file_id: file.id,
-          status: 'duplicado',
-          motivo: dupCheck.motivo,
-        });
+        stats.detalhamento.push({ nome: file.name, drive_file_id: file.id, status: 'duplicado', motivo: dupCheck.motivo });
         continue;
       }
 
-      // Importar e analisar
-      const importResult = await importAndAnalyze(base44, file);
-      if (!importResult.success) {
-        stats.erros++;
-        stats.detalhamento.push({
-          nome: file.name,
-          drive_file_id: file.id,
-          status: 'erro',
-          motivo: importResult.motivo,
-        });
-        continue;
-      }
-
-      // Pós-validação
-      const postResult = await postValidate(base44, importResult.intakeId, file.name);
-
-      if (postResult?.status === 'rejeitado' || postResult?.status === 'cancelado') {
-        stats.cancelados++;
-        stats.detalhamento.push({
-          nome: file.name,
-          drive_file_id: file.id,
-          status: postResult.status,
-          motivo: postResult.motivo,
-          intake_id: importResult.intakeId,
-        });
+      let importResult;
+      if (isXml) {
+        // XMLs: extração direta sem IA
+        importResult = await importXml(base44, file);
+        if (importResult.success) {
+          const chave = `${file._folderPath || '/'}::${normalizeFileName(file.name)}`;
+          xmlsImportadosNestaRodada[chave] = {
+            id: importResult.intakeId,
+            url: importResult.fileUrl,
+            dados: importResult.dadosXml || {},
+          };
+          stats.importados++;
+          stats.detalhamento.push({ nome: file.name, drive_file_id: file.id, status: 'importado', tipo: 'XML', intake_id: importResult.intakeId });
+        } else {
+          stats.erros++;
+          stats.detalhamento.push({ nome: file.name, drive_file_id: file.id, status: 'erro', motivo: importResult.motivo });
+        }
       } else {
-        stats.importados++;
-        stats.detalhamento.push({
-          nome: file.name,
-          drive_file_id: file.id,
-          status: 'importado',
-          intake_id: importResult.intakeId,
-        });
+        // PDFs: análise por IA Claude
+        importResult = await importAndAnalyze(base44, file);
+        if (!importResult.success) {
+          stats.erros++;
+          stats.detalhamento.push({ nome: file.name, drive_file_id: file.id, status: 'erro', motivo: importResult.motivo });
+          continue;
+        }
+
+        // Pós-validação
+        const postResult = await postValidate(base44, importResult.intakeId, file.name);
+
+        if (postResult?.status === 'rejeitado' || postResult?.status === 'cancelado') {
+          stats.cancelados++;
+          stats.detalhamento.push({ nome: file.name, drive_file_id: file.id, status: postResult.status, motivo: postResult.motivo, intake_id: importResult.intakeId });
+        } else {
+          stats.importados++;
+          // Vínculo imediato com XML da mesma pasta (importado antes nesta rodada)
+          const chaveNome = `${file._folderPath || '/'}::${normalizeFileName(file.name)}`;
+          const xmlPareado = xmlsImportadosNestaRodada[chaveNome];
+          if (xmlPareado) {
+            try {
+              await base44.asServiceRole.entities.DocumentIntake.update(importResult.intakeId, {
+                nf_xml_intake_id: xmlPareado.id,
+                nf_xml_url: xmlPareado.url,
+                grupo_status: 'COMPLETO',
+              });
+              await base44.asServiceRole.entities.DocumentIntake.update(xmlPareado.id, {
+                nf_pdf_intake_id: importResult.intakeId,
+                nf_pdf_url: importResult.fileUrl,
+                grupo_status: 'COMPLETO',
+                ocultar_entrada_unica: true,
+              });
+              console.log(`[PareamentoImediato] ${file.name} ↔ XML da mesma pasta`);
+              (stats as any).pareamentos = ((stats as any).pareamentos || 0) + 1;
+            } catch (_) {}
+          }
+          stats.detalhamento.push({ nome: file.name, drive_file_id: file.id, status: 'importado', tipo: 'PDF', xml_pareado: !!xmlPareado, intake_id: importResult.intakeId });
+        }
       }
     }
 
