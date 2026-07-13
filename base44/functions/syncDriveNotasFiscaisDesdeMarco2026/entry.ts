@@ -3,9 +3,20 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 // ======================================================================
 // CONSTANTES
 // ======================================================================
+// Pasta raiz (mantida para compatibilidade) + todas as pastas mensais conhecidas
 const ORIGIN_FOLDER_ID = '1LgC94VhIomQZBS7kfkQqgBX8MVzwQqzp';
 const BACKUP_FOLDER_ID = '1RB2iyHyC4YfXCrnao5vWWXFQFEF0B8UL';
 const CUTOFF_DATE = '2026-03-01T00:00:00Z';
+
+// Pastas mensais adicionais fornecidas pelo usuário — vasculhadas em paralelo
+const EXTRA_FOLDER_IDS = [
+  '1X7Ouq3bWMkw2FKuj5ToNrVqI8GT8fdU1',
+  '1RV2mZM56GXI2CnDkwSJUp4y_s6uA82QX',
+  '1GPGPwo3mXZHmKLEI87GrfsvlHhnt7S9s',
+  '1VaIoAV8U9OFJNpwPQcd7Zg9_FM8NgV44',
+  '155LK95qLqmv8QKRqBHUgJescETB1MOsw',
+  '166UanEeDSixvVKT7RhQ7edsTOtNqYdBT',
+];
 const SYSTEM_EMAIL = 'sistema@museus-centro.org.br';
 
 const ACCEPTED_MIMES = new Set([
@@ -99,19 +110,28 @@ async function driveFetch(base44, url) {
 // FLUXO 1 — VALIDAÇÃO DE ACESSO ÀS PASTAS
 // ======================================================================
 async function validateFolderAccess(base44) {
-  const results = await Promise.allSettled([
+  const [origin, backup] = await Promise.allSettled([
     driveFetch(base44, `https://www.googleapis.com/drive/v3/files/${ORIGIN_FOLDER_ID}?fields=id,name`),
     driveFetch(base44, `https://www.googleapis.com/drive/v3/files/${BACKUP_FOLDER_ID}?fields=id,name`),
   ]);
 
-  const [origin, backup] = results;
-
   if (origin.status === 'rejected' || !origin.value.ok) {
     return { success: false, error: 'SEM_ACESSO_PASTA_ORIGEM' };
   }
-
   if (backup.status === 'rejected' || !backup.value.ok) {
     return { success: false, error: 'SEM_ACESSO_PASTA_BACKUP' };
+  }
+
+  // Testa acesso às pastas extras (best-effort — loga mas não bloqueia)
+  const extrasCheck = await Promise.allSettled(
+    EXTRA_FOLDER_IDS.map(id => driveFetch(base44, `https://www.googleapis.com/drive/v3/files/${id}?fields=id,name`))
+  );
+  const semAcesso = EXTRA_FOLDER_IDS.filter((_, i) => {
+    const r = extrasCheck[i];
+    return r.status === 'rejected' || !r.value.ok;
+  });
+  if (semAcesso.length > 0) {
+    console.warn(`[FolderAccess] Sem acesso a ${semAcesso.length} pastas extras: ${semAcesso.join(', ')}`);
   }
 
   return { success: true };
@@ -616,8 +636,28 @@ Deno.serve(async (req) => {
       }, { status: 403 });
     }
 
-    // ── FLUXO 2: Varredura recursiva ──
-    const allFiles = await listFolderRecursive(base44, ORIGIN_FOLDER_ID);
+    // ── FLUXO 2: Varredura recursiva de TODAS as pastas em paralelo ──
+    const allFolderIds = [ORIGIN_FOLDER_ID, ...EXTRA_FOLDER_IDS];
+    const varreduras = await Promise.allSettled(
+      allFolderIds.map(folderId => listFolderRecursive(base44, folderId))
+    );
+
+    // Agrega e deduplica por drive_file_id (um mesmo arquivo pode aparecer em múltiplas pastas via atalho)
+    const seenFileIds = new Set<string>();
+    const allFiles: any[] = [];
+    for (const r of varreduras) {
+      if (r.status === 'rejected') {
+        console.warn('[Varredura] Pasta falhou:', r.reason?.message);
+        continue;
+      }
+      for (const f of r.value) {
+        if (!seenFileIds.has(f.id)) {
+          seenFileIds.add(f.id);
+          allFiles.push(f);
+        }
+      }
+    }
+    console.log(`[Varredura] Total arquivos únicos encontrados em ${allFolderIds.length} pastas: ${allFiles.length}`);
 
     // ── MODO DIAGNÓSTICO: listar estrutura de pastas e arquivos sem importar ──
     if (modoDiagnostico) {
