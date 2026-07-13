@@ -47,6 +47,7 @@ const PAGE_TITLES = {
   Aparencia: 'Aparência e Manutenção',
   RelatorioExecucaoObjeto: 'Relatório de Execução do Objeto',
   VarreduraDrive: 'Varredura do Google Drive',
+  AuditoriaMensalRubricas: 'Auditoria de Gastos vs. Metas',
   NFsDoGmail: 'NFs do Gmail',
   RelatorioFisicoFinanceiro: 'Relatório Físico-Financeiro',
   RelatorioFisicoFinanceiroRevisao: 'Revisão e Aprovação do Relatório',

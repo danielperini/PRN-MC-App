@@ -301,6 +301,15 @@ function AuthenticatedApp() {
           }
         />
         <Route
+          path="/AuditoriaMensalRubricas"
+          element={
+            <SafePage
+              Page={React.lazy(() => import('./pages/AuditoriaMensalRubricas'))}
+              pageName="AuditoriaMensalRubricas"
+            />
+          }
+        />
+        <Route
           path="/VarreduraDrive"
           element={
             <SafePage
