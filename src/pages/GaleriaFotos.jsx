@@ -5,9 +5,10 @@ import LoadingPage from '@/components/common/LoadingPage';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Images, MapPin, RefreshCw, X, Filter, FolderSync } from 'lucide-react';
+import { Images, MapPin, RefreshCw, X, Filter, FolderSync, Sparkles, CheckCircle2 } from 'lucide-react';
 import { loadGalleryReportData } from '@/utils/galleryReportData';
 import RestaurarFotosDrive from '@/components/gallery/RestaurarFotosDrive';
+import { base44 } from '@/api/base44Client';
 
 const INITIAL_VISIBLE_IMAGES = 36;
 const VISIBLE_IMAGES_STEP = 36;
@@ -60,7 +61,18 @@ function GalleryCard({ image, onClick, eager = false }) {
   const museuLabel = image.sectionKey !== 'SEM_IDENTIFICACAO'
     ? (image.sectionTitle || image.museu || 'Museus Centro')
     : null;
-  const legendaDisplay = image.activityTitulo || image.legenda || image.fileName || 'Foto da galeria';
+  // Prioridade: título de atividade > legenda/caption do banco > extração do nome do arquivo > nome do arquivo
+  function extrairNomeAtv(fileName = '') {
+    const m = fileName.match(/__([^_][^_]+(?:_[^_][^_]+)*)__\d+\.\w+$/);
+    if (m) return m[1].replace(/_/g, ' ').trim();
+    return null;
+  }
+  const legendaDisplay =
+    image.activityTitulo ||
+    image.legenda ||
+    (image.fileName ? extrairNomeAtv(image.fileName) : null) ||
+    image.fileName ||
+    'Foto da galeria';
 
   return (
     <button
@@ -112,6 +124,8 @@ function GaleriaFotosInner() {
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_IMAGES);
   const [selectedImage, setSelectedImage] = useState(null);
   const [showRestaurar, setShowRestaurar] = useState(false);
+  const [reforçandoLegendas, setReforçandoLegendas] = useState(false);
+  const [legendasStatus, setLegendasStatus] = useState(null);
   const queryClient = useQueryClient();
 
   const {
@@ -240,7 +254,7 @@ function GaleriaFotosInner() {
             {isFetching && <p className="mt-2 text-xs text-gray-400">Atualizando galeria...</p>}
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => setShowRestaurar(v => !v)}
@@ -248,6 +262,30 @@ function GaleriaFotosInner() {
             >
               <FolderSync className="h-4 w-4" />
               Restaurar do Drive
+            </button>
+            <button
+              type="button"
+              disabled={reforçandoLegendas}
+              onClick={async () => {
+                setReforçandoLegendas(true);
+                setLegendasStatus(null);
+                try {
+                  const res = await base44.functions.invoke('reforcarLegendasGaleria', { dry_run: false, limit: 300 });
+                  setLegendasStatus(res.data?.mensagem || 'Legendas atualizadas!');
+                  clearGalleryCache();
+                  await refetch();
+                } catch (e) {
+                  setLegendasStatus('Erro ao atualizar legendas.');
+                } finally {
+                  setReforçandoLegendas(false);
+                }
+              }}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-purple-300 bg-purple-50 px-4 py-2 text-sm font-medium text-purple-800 shadow-sm hover:bg-purple-100 disabled:opacity-60"
+            >
+              {reforçandoLegendas
+                ? <><RefreshCw className="h-4 w-4 animate-spin" /> Reforçando...</>
+                : <><Sparkles className="h-4 w-4" /> Reforçar Legendas</>
+              }
             </button>
             <button
               type="button"
@@ -262,6 +300,15 @@ function GaleriaFotosInner() {
             </button>
           </div>
         </div>
+
+        {/* Feedback de reforço de legendas */}
+        {legendasStatus && (
+          <div className="mb-4 flex items-center gap-2 rounded-xl border border-purple-200 bg-purple-50 px-4 py-3 text-sm text-purple-800">
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            <span>{legendasStatus}</span>
+            <button type="button" onClick={() => setLegendasStatus(null)} className="ml-auto text-purple-400 hover:text-purple-700"><X className="h-4 w-4" /></button>
+          </div>
+        )}
 
         {/* Painel restaurar do Drive */}
         {showRestaurar && (

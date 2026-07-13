@@ -137,6 +137,12 @@ function normalizeDate(value) {
   return Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
 }
 
+function extrairAtividadeDoNome(fileName = '') {
+  const match = fileName.match(/__([^_][^_]+(?:_[^_][^_]+)*)__\d+\.\w+$/);
+  if (match) return match[1].replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+  return null;
+}
+
 function mapPhoto(item, sourceEntity = 'Attachment') {
   const metadataLocation = extractLocation(item);
   const metadataCoordinates = extractGeoCoordinates(item);
@@ -155,7 +161,7 @@ function mapPhoto(item, sourceEntity = 'Attachment') {
     sourceEntity,
     fileUrl,
     fileName: item.file_name || item.filename || item.name || 'imagem',
-    legenda: item.legenda || item.caption || item.titulo || item.title || item.descricao || item.description || '',
+    legenda: item.legenda || item.caption || item.titulo || item.title || item.descricao || item.description || extrairAtividadeDoNome(item.file_name || item.filename || item.name || '') || '',
     description: item.descricao || item.description || '',
     museu: section.shortTitle,
     sectionKey,
