@@ -125,6 +125,13 @@ Deno.serve(async (req) => {
         for (const [k, v] of Object.entries(fichaCompleta)) {
           if (!existente[k] && v) updates[k] = v;
         }
+        // CPF/CNPJ: preenche se encontrado pelo nome e estava vazio
+        if (!existente.cpf && cpfLimpo) updates.cpf = cpfLimpo;
+        if (!existente.cnpj && cnpjLimpo) updates.cnpj = cnpjLimpo;
+        // Dados de contato: preenche se vazio
+        if (!existente.email_pessoal && dadosIA.contratado_email) updates.email_pessoal = dadosIA.contratado_email;
+        if (!existente.telefone && dadosIA.contratado_telefone) updates.telefone = dadosIA.contratado_telefone;
+        if (!existente.empresa_endereco && dadosIA.contratado_endereco) updates.empresa_endereco = dadosIA.contratado_endereco;
         // Sempre atualiza contrato_url
         if (fileUrl) updates.contrato_url = fileUrl;
         if (Object.keys(updates).length > 0) {
@@ -167,7 +174,11 @@ Deno.serve(async (req) => {
 
         if (existeM) {
           const upd: Record<string, any> = {};
+          if (!existeM.cpf && cpfM) upd.cpf = cpfM;
           if (!existeM.funcao && membro.funcao) upd.funcao = membro.funcao;
+          if (!existeM.telefone && membro.telefone) upd.telefone = membro.telefone;
+          if (!existeM.email_pessoal && membro.email) upd.email_pessoal = membro.email;
+          if (!existeM.empresa_endereco && membro.endereco) upd.empresa_endereco = membro.endereco;
           if (!existeM.centro_custo && dadosIA.centro_custo) upd.centro_custo = dadosIA.centro_custo;
           if (!existeM.museu_projeto && dadosIA.museu_relacionado) upd.museu_projeto = dadosIA.museu_relacionado;
           if (!existeM.contrato_url && fileUrl) upd.contrato_url = fileUrl;
@@ -176,15 +187,22 @@ Deno.serve(async (req) => {
           }
           membrosResultados.push({ acao: 'atualizado', id: existeM.id, nome: membro.nome });
         } else {
+          const cnpjM = String(membro.cnpj || '').replace(/\D/g, '');
           const emailM = cpfM
             ? `cpf.${cpfM}@contrato.interno`
-            : `membro.${membro.nome.toLowerCase().replace(/\s+/g, '.')}.${Date.now()}@contrato.interno`;
+            : cnpjM
+            ? `cnpj.${cnpjM}@contrato.interno`
+            : `membro.${membro.nome.toLowerCase().replace(/[^a-z0-9]/g, '.')}.${Date.now()}@contrato.interno`;
           const criadoM = await base44.asServiceRole.entities.TeamMember.create({
             user_email: emailM,
             user_name: membro.nome,
-            tipo_pessoa: 'PF',
+            tipo_pessoa: membro.contratado_tipo === 'PJ' ? 'ME' : membro.contratado_tipo === 'MEI' ? 'MEI' : 'PF',
             cpf: cpfM || null,
+            cnpj: cnpjM || null,
             funcao: membro.funcao || '',
+            telefone: membro.telefone || null,
+            email_pessoal: membro.email || null,
+            empresa_endereco: membro.endereco || null,
             valor_parcela: toNumber(membro.valor_mensal),
             museu_projeto: dadosIA.museu_relacionado || '',
             centro_custo: dadosIA.centro_custo || '',

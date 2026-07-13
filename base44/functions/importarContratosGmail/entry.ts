@@ -252,7 +252,7 @@ Testemunhas:
 - testemunha2_nome, testemunha2_cpf
 
 Membros adicionais da equipe mencionados no contrato:
-- membros_equipe: array de objetos {nome, funcao, cpf, valor_mensal}
+- membros_equipe: array de objetos {nome, funcao, cpf, cnpj, telefone, email, endereco, valor_mensal}
 
 Divergências ou pendências:
 - divergencias: array de strings descrevendo inconsistências ou campos ilegíveis`,
@@ -305,6 +305,10 @@ Divergências ou pendências:
                         nome: { type: 'string' },
                         funcao: { type: 'string' },
                         cpf: { type: 'string' },
+                        cnpj: { type: 'string' },
+                        telefone: { type: 'string' },
+                        email: { type: 'string' },
+                        endereco: { type: 'string' },
                         valor_mensal: { type: 'number' },
                       }
                     }
@@ -376,8 +380,12 @@ Divergências ou pendências:
             if (!membro?.nome || normalize(membro.nome) === normalize(dadosIA?.contratado_nome || '')) continue;
             await criarOuAtualizarTeamMember(base44, {
               contratado_nome: membro.nome,
-              contratado_tipo: 'PF',
+              contratado_tipo: membro.contratado_tipo || 'PF',
               contratado_cpf: membro.cpf,
+              contratado_cnpj: membro.cnpj,
+              contratado_telefone: membro.telefone,
+              contratado_email: membro.email,
+              contratado_endereco: membro.endereco,
               funcao_projeto: membro.funcao,
               valor_parcela: membro.valor_mensal,
               museu_relacionado: dadosIA?.museu_relacionado,
@@ -386,6 +394,29 @@ Divergências ou pendências:
               vigencia_fim: dadosIA?.vigencia_fim,
               objeto_contrato: dadosIA?.objeto_contrato,
             }, uploadRes.file_url, intakeCreated?.id);
+          }
+
+          // Processar testemunhas — têm nome e CPF, cadastrar como membros se novos
+          const testemunhas = [
+            { nome: dadosIA?.testemunha1_nome, cpf: dadosIA?.testemunha1_cpf },
+            { nome: dadosIA?.testemunha2_nome, cpf: dadosIA?.testemunha2_cpf },
+          ].filter(t => t.nome && t.cpf);
+          for (const t of testemunhas) {
+            const cpfT = String(t.cpf || '').replace(/\D/g, '');
+            if (!cpfT) continue;
+            const exists = await base44.asServiceRole.entities.TeamMember.filter({ cpf: cpfT }).catch(() => []);
+            if ((exists as any[]).length === 0) {
+              await base44.asServiceRole.entities.TeamMember.create({
+                user_email: `cpf.${cpfT}@contrato.interno`,
+                user_name: t.nome,
+                tipo_pessoa: 'PF',
+                cpf: cpfT,
+                funcao: 'Testemunha',
+                museu_projeto: dadosIA?.museu_relacionado || '',
+                centro_custo: dadosIA?.centro_custo || '',
+                status: 'ATIVO',
+              }).catch(() => {});
+            }
           }
 
           importados++;
@@ -511,8 +542,15 @@ async function criarOuAtualizarTeamMember(base44: any, dadosIA: any, fileUrl: st
         'empresa_nome', 'status_contrato',
       ];
       for (const campo of campos) {
-        if (!existente[campo] && fichaBase[campo]) updates[campo] = fichaBase[campo];
+        if (!existente[campo] && fichaBase[campo as keyof typeof fichaBase]) updates[campo] = fichaBase[campo as keyof typeof fichaBase];
       }
+      // CPF/CNPJ: preenche se encontrado pelo nome e estava vazio
+      if (!existente.cpf && cpfLimpo) updates.cpf = cpfLimpo;
+      if (!existente.cnpj && cnpjLimpo) updates.cnpj = cnpjLimpo;
+      // email_pessoal: preenche se vazio
+      if (!existente.email_pessoal && dadosIA.contratado_email) updates.email_pessoal = dadosIA.contratado_email;
+      // telefone: preenche se vazio
+      if (!existente.telefone && dadosIA.contratado_telefone) updates.telefone = dadosIA.contratado_telefone;
       // Sempre atualiza contrato_url se novo
       if (fileUrl && existente.contrato_url !== fileUrl) updates.contrato_url = fileUrl;
       // Cronograma: só preenche se vazio
