@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -315,21 +315,21 @@ function MovimentacoesInner() {
   const [mesSelecionado, setMesSelecionado] = useState(null);
   const [busca, setBusca] = useState('');
 
+  const autoSyncDone = useRef(false);
+
   const { data: movimentacoes = [], isLoading, refetch } = useQuery({
     queryKey: ['movimentacoes-bancarias'],
     queryFn: () => base44.entities.MovimentacaoBancaria.list('-ano', 500),
     staleTime: 1000 * 60 * 5,
-    onSuccess: (data) => {
-      // auto-seleciona o mês mais recente
-      if (data.length > 0 && !mesSelecionado) {
-        const sorted = [...data].sort((a, b) => {
-          if (b.ano !== a.ano) return b.ano - a.ano;
-          return (b.mes_num || 0) - (a.mes_num || 0);
-        });
-        setMesSelecionado(`${sorted[0].ano}-${String(sorted[0].mes_num || 0).padStart(2, '0')}`);
-      }
-    }
   });
+
+  // Auto-sincroniza ao entrar na página (uma vez por sessão)
+  useEffect(() => {
+    if (isLoading) return;
+    if (autoSyncDone.current) return;
+    autoSyncDone.current = true;
+    handleSincronizarSilencioso();
+  }, [isLoading]);
 
   const grupos = useMemo(() => {
     const map = {};
@@ -344,7 +344,7 @@ function MovimentacoesInner() {
   }, [movimentacoes]);
 
   // Auto-selecionar o mais recente quando carregar
-  useMemo(() => {
+  useEffect(() => {
     if (grupos.length > 0 && !mesSelecionado) {
       setMesSelecionado(grupos[0].key);
     }
@@ -361,6 +361,23 @@ function MovimentacoesInner() {
     const grupo = grupos.find(g => g.key === mesSelecionado);
     return grupo?.registros || [];
   }, [grupos, mesSelecionado]);
+
+  // Sincronização silenciosa (sem toast de início, sem bloquear UI)
+  async function handleSincronizarSilencioso() {
+    try {
+      const res = await base44.functions.invoke('lerExtratosBancariosDrive', {});
+      const d = res.data;
+      if (d?.success) {
+        const { novos_criados = 0 } = d.resumo || {};
+        if (novos_criados > 0) {
+          await refetch();
+          toast.success(`${novos_criados} extrato${novos_criados !== 1 ? 's' : ''} novo${novos_criados !== 1 ? 's' : ''} importado${novos_criados !== 1 ? 's' : ''}`);
+        }
+      }
+    } catch {
+      // Silencioso — erros de auto-sync não interrompem o usuário
+    }
+  }
 
   async function handleSincronizar() {
     setSincronizando(true);
