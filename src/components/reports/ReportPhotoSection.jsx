@@ -15,7 +15,7 @@ function extrairDataDoNome(fileName) {
   return null;
 }
 
-export default function ReportPhotoSection({ photos = [], onAddPhoto, onUpdatePhoto, onDeletePhoto, activityId, reportId, museu = '', mes = '', ano = '' }) {
+export default function ReportPhotoSection({ photos = [], onAddPhoto, onUpdatePhoto, onDeletePhoto, activityId, reportId, museu = '', mes = '', ano = '', atividades = [] }) {
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [editingPhotoId, setEditingPhotoId] = useState(null);
   const [editCaption, setEditCaption] = useState('');
@@ -131,6 +131,10 @@ export default function ReportPhotoSection({ photos = [], onAddPhoto, onUpdatePh
         isOpen={selectorOpen}
         onClose={() => setSelectorOpen(false)}
         onSelectPhoto={handleAddPhoto}
+        atividades={atividades}
+        museu={museu}
+        mes={mes}
+        ano={ano}
       />
 
       {/* Edit Caption Dialog */}

@@ -925,6 +925,7 @@ export default function ReportEditor() {
             museu={formData.museu}
             mes={formData.mes_referencia}
             ano={formData.ano}
+            atividades={atividades}
           />
         </Card>
       )}
