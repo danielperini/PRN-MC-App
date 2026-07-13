@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import {
   TrendingUp, RefreshCw, Loader2, ExternalLink,
   ArrowUpRight, ArrowDownLeft, FileText, Banknote,
-  Wallet, Search, X, CalendarDays, ChevronDown, ChevronUp
+  Wallet, Search, X, CalendarDays, ChevronDown, ChevronUp, FolderSync
 } from 'lucide-react';
 import RequireAuth from '@/components/auth/RequireAuth';
 import FluxoCaixaMensal from '@/components/dashboard/FluxoCaixaMensal';
@@ -348,6 +348,7 @@ function DetalheMes({ registros, busca }) {
 // ── Componente principal ──
 function MovimentacoesInner() {
   const [sincronizando, setSincronizando] = useState(false);
+  const [sincronizandoDocs, setSincronizandoDocs] = useState(false);
   const [mesSelecionado, setMesSelecionado] = useState(null);
   const [busca, setBusca] = useState('');
   const { data: movimentacoes = [], isLoading, refetch } = useQuery({
@@ -379,6 +380,38 @@ function MovimentacoesInner() {
   }), [movimentacoes]);
 
   const registrosMes = useMemo(() => grupos.find(g => g.key === mesSelecionado)?.registros || [], [grupos, mesSelecionado]);
+
+  async function handleSincronizarDocs() {
+    setSincronizandoDocs(true);
+    toast.info('Sincronizando NFs e contratos do Drive (lote de 5)…');
+    try {
+      const res = await base44.functions.invoke('sincronizarDocumentosDrive', { maxPorLote: 5 });
+      const d = res.data;
+      if (!d?.success) {
+        if (d?.code === 'DRIVE_NOT_CONNECTED') {
+          toast.error('Google Drive não conectado.', { duration: 8000 });
+        } else {
+          throw new Error(d?.error || 'Erro desconhecido');
+        }
+        return;
+      }
+      const { criados = 0, novos_no_drive = 0, restantes = 0, erros = 0 } = d.resumo || {};
+      if (novos_no_drive === 0) {
+        toast.success('Todos os documentos já estão importados.');
+      } else {
+        toast.success(
+          `${criados} documento${criados !== 1 ? 's' : ''} importado${criados !== 1 ? 's' : ''}` +
+          (restantes > 0 ? ` · ${restantes} restante${restantes !== 1 ? 's' : ''} — clique novamente` : '') +
+          (erros > 0 ? ` · ${erros} erro${erros !== 1 ? 's' : ''}` : ''),
+          { duration: restantes > 0 ? 8000 : 4000 }
+        );
+      }
+    } catch (e) {
+      toast.error('Erro: ' + (e?.message || String(e)), { duration: 6000 });
+    } finally {
+      setSincronizandoDocs(false);
+    }
+  }
 
   async function handleSincronizar() {
     setSincronizando(true);
@@ -430,16 +463,29 @@ function MovimentacoesInner() {
               <p className="text-sm text-gray-400">Extratos e rendimentos lidos automaticamente do Google Drive</p>
             </div>
           </div>
-          <Button
-            onClick={handleSincronizar}
-            disabled={sincronizando}
-            className="gap-2 bg-slate-900 text-white hover:bg-slate-700 rounded-xl shrink-0"
-          >
-            {sincronizando
-              ? <><Loader2 className="w-4 h-4 animate-spin" />Lendo…</>
-              : <><RefreshCw className="w-4 h-4" />Sincronizar Drive</>
-            }
-          </Button>
+          <div className="flex gap-2 flex-wrap">
+            <Button
+              onClick={handleSincronizarDocs}
+              disabled={sincronizandoDocs}
+              variant="outline"
+              className="gap-2 rounded-xl shrink-0 border-slate-300"
+            >
+              {sincronizandoDocs
+                ? <><Loader2 className="w-4 h-4 animate-spin" />Importando…</>
+                : <><FolderSync className="w-4 h-4" />NFs e Contratos</>
+              }
+            </Button>
+            <Button
+              onClick={handleSincronizar}
+              disabled={sincronizando}
+              className="gap-2 bg-slate-900 text-white hover:bg-slate-700 rounded-xl shrink-0"
+            >
+              {sincronizando
+                ? <><Loader2 className="w-4 h-4 animate-spin" />Lendo…</>
+                : <><RefreshCw className="w-4 h-4" />Extratos Drive</>
+              }
+            </Button>
+          </div>
         </div>
 
         {/* ── Loading ── */}
