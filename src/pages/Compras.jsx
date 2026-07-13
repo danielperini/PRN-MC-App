@@ -52,6 +52,7 @@ import DashboardRelatorioExecucao from '@/components/relatorio/DashboardRelatori
 import { Link } from 'react-router-dom';
 import TabelaSolicitacoes from '@/components/compras/TabelaSolicitacoes';
 import EntradaUnicaComprovante from '@/components/compras/EntradaUnicaComprovante';
+import PainelConferenciaVarredura from '@/components/compras/PainelConferenciaVarredura';
 import MeusPagamentosTab from '@/components/compras/MeusPagamentosTab';
 import PagarSolicitacaoDialog from '@/components/compras/PagarSolicitacaoDialog';
 import NovaRubricaDialog from '@/components/rubricas/NovaRubricaDialog';
@@ -1554,6 +1555,10 @@ function ComprasInner() {
 
         {tab === 'documentos' &&
         <div className="max-w-7xl space-y-6">
+            {isCoordenador &&
+          <PainelConferenciaVarredura onSuccess={refreshFinanceiroCompleto} />
+          }
+
             {isCoordenador &&
           <EntradaUnicaComprovante onSuccess={refreshFinanceiroCompleto} />
           }
