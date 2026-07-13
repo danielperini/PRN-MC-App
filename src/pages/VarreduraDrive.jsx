@@ -389,6 +389,211 @@ function PainelGmailViaduto() {
   );
 }
 
+// ── Painel NFs do Drive com diagnóstico e importação sem corte de data ──
+function PainelNFsDrive() {
+  const [rodando, setRodando] = useState(false);
+  const [resultado, setResultado] = useState(null);
+  const [ignorarCorte, setIgnorarCorte] = useState(false);
+  const [dryRun, setDryRun] = useState(true);
+
+  async function handleDiagnostico() {
+    setRodando(true);
+    setResultado(null);
+    toast.info('Executando diagnóstico das pastas mensais…');
+    try {
+      const res = await base44.functions.invoke('syncDriveNotasFiscaisDesdeMarco2026', {
+        modoDiagnostico: true,
+        triggeredBy: 'manual',
+      });
+      const d = res.data;
+      setResultado({ tipo: 'diagnostico', ...d });
+      toast.success(`Diagnóstico concluído: ${d.total_pdfs} PDFs encontrados, ${d.pdfs_validos_para_importar} válidos para importar`);
+    } catch (e) {
+      toast.error('Erro: ' + (e?.message || e));
+    } finally {
+      setRodando(false);
+    }
+  }
+
+  async function handleImportar() {
+    setRodando(true);
+    setResultado(null);
+    toast.info(dryRun ? 'Simulando importação de NFs…' : `Importando NFs das pastas mensais${ignorarCorte ? ' (sem filtro de data)' : ''}…`);
+    try {
+      const res = await base44.functions.invoke('syncDriveNotasFiscaisDesdeMarco2026', {
+        dryRun,
+        ignorarDataCorte: ignorarCorte,
+        maxFiles: 10,
+        triggeredBy: 'manual',
+      });
+      const d = res.data;
+      setResultado({ tipo: 'importacao', ...d });
+      if (dryRun) {
+        toast.success(`Simulação: ${d.total_lidos} arquivos encontrados, ${d.importados} seriam importados`);
+      } else {
+        toast.success(`Importação: ${d.importados} NFs importadas · ${d.duplicados} duplicadas · ${d.erros} erros`);
+      }
+    } catch (e) {
+      toast.error('Erro: ' + (e?.message || e));
+    } finally {
+      setRodando(false);
+    }
+  }
+
+  const d = resultado;
+
+  return (
+    <div className="rounded-2xl border border-indigo-200 bg-white overflow-hidden">
+      <div className="px-5 py-4 border-b border-indigo-100 bg-indigo-50 flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center">
+            <FolderSearch className="w-3.5 h-3.5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold text-indigo-900">NFs do Drive — Pastas Mensais</h2>
+            <p className="text-xs text-indigo-600">Diagnóstico e importação de PDFs/XMLs nas pastas mensais do projeto</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            onClick={handleDiagnostico}
+            disabled={rodando}
+            variant="outline"
+            size="sm"
+            className="gap-1.5 border-indigo-300 text-indigo-700 hover:bg-indigo-50 rounded-xl"
+          >
+            {rodando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Info className="w-3.5 h-3.5" />}
+            Diagnóstico
+          </Button>
+          <Button
+            onClick={handleImportar}
+            disabled={rodando}
+            size="sm"
+            className="gap-1.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl"
+          >
+            {rodando ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Executando…</> : <><Play className="w-3.5 h-3.5" /> {dryRun ? 'Simular' : 'Importar'}</>}
+          </Button>
+        </div>
+      </div>
+
+      {/* Opções */}
+      <div className="px-5 py-3 border-b border-gray-100 bg-gray-50 flex items-center gap-4 flex-wrap">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" checked={dryRun} onChange={e => setDryRun(e.target.checked)} className="w-3.5 h-3.5 accent-indigo-600" />
+          <span className="text-xs text-gray-600">Simulação (não salva)</span>
+        </label>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" checked={ignorarCorte} onChange={e => setIgnorarCorte(e.target.checked)} className="w-3.5 h-3.5 accent-orange-500" />
+          <span className="text-xs text-gray-600">Ignorar corte de data (busca todos os PDFs, inclusive anteriores a mar/2026)</span>
+        </label>
+      </div>
+
+      {/* Resultado */}
+      {d?.tipo === 'diagnostico' && (
+        <div className="p-5 space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { label: 'Total PDFs', value: d.total_pdfs, color: 'text-gray-700' },
+              { label: 'Válidos p/ importar', value: d.pdfs_validos_para_importar, color: 'text-green-700' },
+              { label: 'Bloqueados por nome', value: d.pdfs_bloqueados_por_nome, color: 'text-orange-600' },
+              { label: 'Anteriores ao corte', value: d.pdfs_anteriores_ao_corte, color: 'text-red-600' },
+            ].map((item, i) => (
+              <div key={i} className="rounded-xl border border-gray-100 bg-gray-50 p-3 text-center">
+                <p className={`text-2xl font-bold ${item.color}`}>{item.value ?? 0}</p>
+                <p className="text-[10px] text-gray-500 mt-0.5 leading-tight">{item.label}</p>
+              </div>
+            ))}
+          </div>
+          {d.dica && (
+            <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-xs text-amber-700">
+              <AlertTriangle className="w-3.5 h-3.5 inline mr-1.5" />
+              {d.dica}
+            </div>
+          )}
+          {d.pastas?.length > 0 && (
+            <details className="rounded-xl border border-gray-100 overflow-hidden">
+              <summary className="bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-500 cursor-pointer">{d.pastas.length} pasta(s) encontrada(s)</summary>
+              <div className="p-3 space-y-1 max-h-40 overflow-y-auto">
+                {d.pastas.map((p, i) => <p key={i} className="text-xs text-gray-600 font-mono">{p || '/'}</p>)}
+              </div>
+            </details>
+          )}
+          {d.amostra_pdfs_validos?.length > 0 && (
+            <details className="rounded-xl border border-green-100 overflow-hidden">
+              <summary className="bg-green-50 px-4 py-2 text-xs font-semibold text-green-700 cursor-pointer">Amostra de PDFs válidos ({d.amostra_pdfs_validos.length})</summary>
+              <div className="p-3 space-y-1 max-h-40 overflow-y-auto">
+                {d.amostra_pdfs_validos.map((f, i) => <p key={i} className="text-xs text-gray-600 truncate"><span className="text-gray-400">{f.pasta}/</span>{f.nome}</p>)}
+              </div>
+            </details>
+          )}
+          {d.amostra_pdfs_antigos?.length > 0 && (
+            <details className="rounded-xl border border-orange-100 overflow-hidden">
+              <summary className="bg-orange-50 px-4 py-2 text-xs font-semibold text-orange-700 cursor-pointer">PDFs anteriores ao corte — use "Ignorar corte de data" para importar ({d.amostra_pdfs_antigos.length})</summary>
+              <div className="p-3 space-y-1 max-h-40 overflow-y-auto">
+                {d.amostra_pdfs_antigos.map((f, i) => <p key={i} className="text-xs text-gray-600 truncate"><span className="text-gray-400">{f.pasta}/</span>{f.nome} <span className="text-gray-400">({f.data?.slice(0,10)})</span></p>)}
+              </div>
+            </details>
+          )}
+        </div>
+      )}
+
+      {d?.tipo === 'importacao' && (
+        <div className="p-5 space-y-4">
+          {d.dry_run_report && (
+            <div className="rounded-xl bg-blue-50 border border-blue-200 px-4 py-3 text-xs text-blue-700">
+              <strong>Simulação:</strong> nenhum dado foi alterado. Desmarque "Simulação" para aplicar.
+            </div>
+          )}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {[
+              { label: 'Encontrados', value: d.total_lidos, color: 'text-gray-700' },
+              { label: 'Importados', value: d.importados, color: 'text-green-700' },
+              { label: 'Duplicados', value: d.duplicados, color: 'text-orange-600' },
+              { label: 'Cancelados', value: d.cancelados, color: 'text-yellow-600' },
+              { label: 'Erros', value: d.erros, color: 'text-red-600' },
+            ].map((item, i) => (
+              <div key={i} className="rounded-xl border border-gray-100 bg-gray-50 p-3 text-center">
+                <p className={`text-2xl font-bold ${item.color}`}>{item.value ?? 0}</p>
+                <p className="text-[10px] text-gray-500 mt-0.5">{item.label}</p>
+              </div>
+            ))}
+          </div>
+          {d.tem_mais && (
+            <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-xs text-amber-700">
+              Há mais arquivos a processar. Execute novamente para continuar.
+            </div>
+          )}
+          {d.detalhamento?.length > 0 && (
+            <details className="rounded-xl border border-gray-100 overflow-hidden">
+              <summary className="bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-500 cursor-pointer">Detalhamento ({d.detalhamento.length} arquivos)</summary>
+              <div className="divide-y divide-gray-50 max-h-56 overflow-y-auto">
+                {d.detalhamento.map((item, i) => (
+                  <div key={i} className="px-4 py-2.5 flex items-start gap-3">
+                    <div className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${item.status === 'importado' ? 'bg-green-400' : item.status === 'duplicado' ? 'bg-orange-400' : item.status === 'ignorado' ? 'bg-gray-300' : 'bg-red-400'}`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-gray-700 truncate font-medium">{item.nome}</p>
+                      <p className="text-[10px] text-gray-400 truncate">{item.pasta || item.motivo || item.status}</p>
+                    </div>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${item.status === 'importado' ? 'bg-green-100 text-green-700' : item.status === 'duplicado' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500'}`}>{item.status}</span>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+        </div>
+      )}
+
+      {!d && !rodando && (
+        <div className="px-5 py-6 text-center">
+          <FolderSearch className="w-8 h-8 text-indigo-200 mx-auto mb-2" />
+          <p className="text-xs text-gray-400">Clique em <strong>Diagnóstico</strong> para ver quantos PDFs existem nas pastas mensais e por que não estão sendo encontrados.</p>
+          <p className="text-xs text-gray-400 mt-1">Se todos os PDFs são anteriores a mar/2026, marque "Ignorar corte de data" e depois clique em Simular/Importar.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Painel Varredura NFs Fev-Jul ──
 function PainelNFsFevJul() {
   const [rodando, setRodando] = useState(false);
@@ -763,6 +968,9 @@ export default function VarreduraDrive() {
           </p>
         </div>
       </div>
+
+      {/* NFs Drive — Diagnóstico + Importação */}
+      <PainelNFsDrive />
 
       {/* NFs Fev-Jul */}
       <PainelNFsFevJul />

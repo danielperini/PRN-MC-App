@@ -571,9 +571,13 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const dryRun = body.dryRun === true;
-    const maxFiles = parseInt(body.maxFiles, 10) || 10000; // sem limite máximo — processa tudo
+    const maxFiles = parseInt(body.maxFiles, 10) || 10000;
     const cursor = safeStr(body.cursor);
     const triggeredBy = safeStr(body.triggeredBy || (isCron ? 'scheduled' : 'manual'));
+    // Se true, ignora o filtro de data de corte (busca todos os PDFs independente da data)
+    const ignorarDataCorte = body.ignorarDataCorte === true;
+    // Se true, retorna apenas diagnóstico das pastas sem importar nada
+    const modoDiagnostico = body.modoDiagnostico === true;
 
     const startTime = Date.now();
 
@@ -603,8 +607,50 @@ Deno.serve(async (req) => {
     // ── FLUXO 2: Varredura recursiva ──
     const allFiles = await listFolderRecursive(base44, ORIGIN_FOLDER_ID);
 
+    // ── MODO DIAGNÓSTICO: listar estrutura de pastas e arquivos sem importar ──
+    if (modoDiagnostico) {
+      const totalPdfs = allFiles.filter(f => f.mimeType === 'application/pdf').length;
+      const totalXmls = allFiles.filter(f => ['text/xml','application/xml'].includes(f.mimeType) || f.name.toLowerCase().endsWith('.xml')).length;
+      const pastasUnicas = [...new Set(allFiles.map(f => f._folderPath || '/').filter(Boolean))];
+      const pdfsAntigos = allFiles.filter(f => f.mimeType === 'application/pdf' && (f.modifiedTime || f.createdTime || '') < CUTOFF_DATE);
+      const pdfsBloqueados = allFiles.filter(f => f.mimeType === 'application/pdf' && hasBlockedWord(f.name));
+      const pdfsValidos = allFiles.filter(f =>
+        f.mimeType === 'application/pdf' &&
+        !hasBlockedWord(f.name) &&
+        (f.modifiedTime || f.createdTime || '') >= CUTOFF_DATE
+      );
+      return Response.json({
+        success: true,
+        diagnostico: true,
+        total_arquivos: allFiles.length,
+        total_pdfs: totalPdfs,
+        total_xmls: totalXmls,
+        pdfs_validos_para_importar: pdfsValidos.length,
+        pdfs_bloqueados_por_nome: pdfsBloqueados.length,
+        pdfs_anteriores_ao_corte: pdfsAntigos.length,
+        data_corte: CUTOFF_DATE,
+        pastas: pastasUnicas.slice(0, 50),
+        amostra_pdfs_validos: pdfsValidos.slice(0, 20).map(f => ({ nome: f.name, pasta: f._folderPath, data: f.modifiedTime || f.createdTime })),
+        amostra_pdfs_antigos: pdfsAntigos.slice(0, 10).map(f => ({ nome: f.name, pasta: f._folderPath, data: f.modifiedTime || f.createdTime })),
+        amostra_pdfs_bloqueados: pdfsBloqueados.slice(0, 10).map(f => ({ nome: f.name, motivo: BLOCKED_WORDS.find(w => normalizeText(f.name).includes(normalizeText(w))) })),
+        dica: pdfsAntigos.length > 0 && pdfsValidos.length === 0
+          ? `Existem ${pdfsAntigos.length} PDFs mas todos são anteriores à data de corte (${CUTOFF_DATE}). Use ignorarDataCorte=true para importá-los.`
+          : 'Passe modoDiagnostico=false e dryRun=true para simular importação.',
+      });
+    }
+
     // ── FLUXO 3: Filtragem ──
-    let filteredFiles = filterFiles(allFiles, cursor);
+    let filteredFiles = ignorarDataCorte
+      ? allFiles.filter(f => ACCEPTED_MIMES.has(f.mimeType) && !hasBlockedWord(f.name))
+          .sort((a, b) => (a.modifiedTime || a.createdTime || '').localeCompare(b.modifiedTime || b.createdTime || ''))
+      : filterFiles(allFiles, cursor);
+
+    // Aplicar cursor quando ignorarDataCorte=true
+    if (ignorarDataCorte && cursor) {
+      const cursorIdx = filteredFiles.findIndex(f => f.id === cursor);
+      if (cursorIdx >= 0) filteredFiles = filteredFiles.slice(cursorIdx + 1);
+    }
+
     const temMais = filteredFiles.length > maxFiles;
     filteredFiles = filteredFiles.slice(0, maxFiles);
 
