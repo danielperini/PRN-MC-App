@@ -10,13 +10,45 @@
       ],
       "description": "Tipo de backup realizado"
     },
+    "entity_type": {
+      "type": "string",
+      "description": "Tipo de entidade processada (ex: REPORT_DRIVE_SYNC, PHOTO_BACKUP)"
+    },
+    "entity_id": {
+      "type": "string",
+      "description": "ID da entidade criada/atualizada"
+    },
+    "drive_file_id": {
+      "type": "string",
+      "description": "ID do arquivo no Google Drive \u2014 usado para deduplica\u00e7\u00e3o diferencial"
+    },
+    "file_name": {
+      "type": "string",
+      "description": "Nome do arquivo processado"
+    },
     "status": {
       "type": "string",
       "enum": [
         "success",
-        "failure"
+        "failure",
+        "concluido",
+        "erro_ia",
+        "sem_autor"
       ],
       "description": "Status da execu\u00e7\u00e3o"
+    },
+    "processed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data/hora do processamento"
+    },
+    "details": {
+      "type": "string",
+      "description": "Detalhes do processamento"
+    },
+    "error_message": {
+      "type": "string",
+      "description": "Mensagem de erro se falhou"
     },
     "total_files": {
       "type": "number",
@@ -31,10 +63,6 @@
     "backup_folder_id": {
       "type": "string",
       "description": "ID da pasta de backup criada no Drive"
-    },
-    "error_message": {
-      "type": "string",
-      "description": "Mensagem de erro se o backup falhou"
     },
     "execution_time_ms": {
       "type": "number",
@@ -58,7 +86,6 @@
     }
   },
   "required": [
-    "backup_type",
     "status"
   ]
 }
