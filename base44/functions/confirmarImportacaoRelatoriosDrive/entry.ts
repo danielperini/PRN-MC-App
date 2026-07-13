@@ -127,16 +127,21 @@ Deno.serve(async (req) => {
           // Ler report atual para pegar atividades já existentes
           const reportAtual = await base44.asServiceRole.entities.Report.get(reportId).catch(() => null);
           const atividadesExistentes: unknown[] = Array.isArray(reportAtual?.atividades) ? reportAtual.atividades : [];
-          const titulosExistentes = new Set(atividadesExistentes.map((a: any) => String(a.titulo || '').toLowerCase().trim()));
+          const titulosExistentes = new Set(atividadesExistentes.map((a: any) => String(a.titulo || a.nome || '').toLowerCase().trim()));
 
           const novasAtividades = atividadesIA
-            .filter((atv: any) => atv.titulo && !titulosExistentes.has(String(atv.titulo).toLowerCase().trim()))
+            .filter((atv: any) => {
+              const key = String(atv.titulo || atv.nome || '').toLowerCase().trim();
+              return key && !titulosExistentes.has(key);
+            })
             .map((atv: any) => {
               const classificacao = ['META','ROTINA','EXTRA'].includes(String(atv.classificacao || '').toUpperCase())
                 ? atv.classificacao.toUpperCase()
                 : 'ROTINA';
+              const tituloAtv = atv.titulo || atv.nome || '';
               return {
-                titulo: atv.titulo || '',
+                titulo: tituloAtv,
+                nome: tituloAtv,
                 descricao: atv.descricao || '',
                 data_realizacao: atv.data_realizacao || null,
                 data_inicio: atv.data_inicio || null,
@@ -149,6 +154,8 @@ Deno.serve(async (req) => {
                 justificativa_tecnica: atv.justificativa_tecnica || '',
                 equipe_responsavel: atv.equipe_responsavel || '',
                 produtos_entregues: atv.produtos_entregues || [],
+                museu_lista: museu ? [museu] : [],
+                local: atv.local || atv.local_realizacao || '',
                 origem: 'restaurado_do_drive',
               };
             });
