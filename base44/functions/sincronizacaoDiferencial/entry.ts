@@ -1,7 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 
 // Pasta raiz de exportações do Drive
-const DRIVE_EXPORTS_FOLDER_ID = '1gMPRXyamu9YANVFg6Xf7VtWoOoF-3CbQ';
+const DRIVE_EXPORTS_FOLDER_ID = '1LgC94VhIomQZBS7kfkQqgBX8MVzwQqzp';
 
 const MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 
