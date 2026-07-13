@@ -6,7 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import {
   FolderSearch, RefreshCw, CheckCircle2, AlertTriangle, ChevronDown,
   ChevronUp, Loader2, User, Calendar, Building2, Activity, Image,
-  ClipboardCheck, X, FileText, FolderOpen, Play, Info
+  ClipboardCheck, X, FileText, FolderOpen, Play, Info, Zap, Clock,
+  RotateCcw, FileCheck2, ImageIcon
 } from 'lucide-react';
 
 const PASTA_RAIZ_PADRAO = '1gMPRXyamu9YANVFg6Xf7VtWoOoF-3CbQ';
@@ -148,6 +149,145 @@ function ResultadoCard({ r }) {
   );
 }
 
+// ── Painel de Sincronização Automática ──
+function PainelSincAuto() {
+  const [rodando, setRodando] = useState(false);
+  const [dryRun, setDryRun] = useState(false);
+  const [resultado, setResultado] = useState(null);
+
+  async function handleSincronizar() {
+    setRodando(true);
+    setResultado(null);
+    toast.info(dryRun ? 'Executando simulação (dry run)…' : 'Sincronizando relatórios do Drive…');
+    try {
+      const res = await base44.functions.invoke('sincronizarRelatoriosDrive', {
+        folder_id: PASTA_RAIZ_PADRAO,
+        dry_run: dryRun,
+        limite_pdfs: 25,
+      });
+      const d = res.data;
+      if (!d?.success) throw new Error(d?.error || 'Erro desconhecido');
+      setResultado(d);
+      const s = d.stats;
+      toast.success(
+        dryRun
+          ? `Simulação concluída: ${s.total_pdfs_varridos} PDFs analisados`
+          : `Sincronização concluída: ${s.relatorios_criados} criado(s), ${s.relatorios_atualizados} atualizado(s)`
+      );
+    } catch (e) {
+      toast.error('Erro na sincronização: ' + (e?.message || e));
+    } finally {
+      setRodando(false);
+    }
+  }
+
+  const s = resultado?.stats;
+
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
+      <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-black flex items-center justify-center">
+            <Zap className="w-3.5 h-3.5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold text-black">Sincronização Automática</h2>
+            <p className="text-xs text-gray-400">Executa todos os dias às 03h · Até 25 PDFs por ciclo</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5">
+            <input
+              type="checkbox"
+              id="dryrun-toggle"
+              checked={dryRun}
+              onChange={e => setDryRun(e.target.checked)}
+              className="w-3.5 h-3.5 accent-black"
+            />
+            <label htmlFor="dryrun-toggle" className="text-xs text-gray-600 cursor-pointer">Simulação</label>
+          </div>
+          <Button
+            onClick={handleSincronizar}
+            disabled={rodando}
+            size="sm"
+            className="gap-1.5 bg-black text-white hover:bg-gray-800 rounded-xl"
+          >
+            {rodando
+              ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Executando…</>
+              : <><RotateCcw className="w-3.5 h-3.5" /> Executar agora</>
+            }
+          </Button>
+        </div>
+      </div>
+
+      {/* Estatísticas da última execução */}
+      {s && (
+        <div className="p-5 space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {[
+              { label: 'PDFs varridos', value: s.total_pdfs_varridos, icon: <FileText className="w-4 h-4 text-gray-400" /> },
+              { label: 'Criados', value: s.relatorios_criados, icon: <FileCheck2 className="w-4 h-4 text-green-500" />, color: 'text-green-700' },
+              { label: 'Atualizados', value: s.relatorios_atualizados, icon: <RefreshCw className="w-4 h-4 text-blue-400" />, color: 'text-blue-700' },
+              { label: 'Atividades restauradas', value: s.atividades_restauradas, icon: <Activity className="w-4 h-4 text-purple-400" />, color: 'text-purple-700' },
+              { label: 'Fotos vinculadas', value: s.fotos_vinculadas, icon: <ImageIcon className="w-4 h-4 text-pink-400" />, color: 'text-pink-700' },
+            ].map((item, i) => (
+              <div key={i} className="rounded-xl border border-gray-100 bg-gray-50 p-3 text-center">
+                <div className="flex justify-center mb-1">{item.icon}</div>
+                <p className={`text-xl font-bold ${item.color || 'text-black'}`}>{item.value}</p>
+                <p className="text-[10px] text-gray-500 mt-0.5 leading-tight">{item.label}</p>
+              </div>
+            ))}
+          </div>
+
+          {resultado?.dry_run && (
+            <div className="rounded-xl bg-blue-50 border border-blue-200 px-4 py-3 text-xs text-blue-700">
+              <strong>Modo simulação:</strong> nenhum dado foi alterado. Remova o modo simulação para aplicar as mudanças.
+            </div>
+          )}
+
+          {s.erros > 0 && (
+            <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-xs text-red-700">
+              <AlertTriangle className="w-3.5 h-3.5 inline mr-1.5" />
+              {s.erros} arquivo(s) com erro durante o processamento.
+            </div>
+          )}
+
+          {s.detalhes?.length > 0 && (
+            <div className="rounded-xl border border-gray-100 overflow-hidden">
+              <div className="bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-500 border-b border-gray-100">
+                Detalhes da execução
+              </div>
+              <div className="divide-y divide-gray-50 max-h-48 overflow-y-auto">
+                {s.detalhes.map((d, i) => (
+                  <div key={i} className="px-4 py-2.5 flex items-start gap-3">
+                    <div className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${d.status === 'ok' ? 'bg-green-400' : d.status === 'sem_autor' ? 'bg-yellow-400' : 'bg-red-400'}`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-gray-700 truncate">{d.arquivo}</p>
+                      {d.usuario && <p className="text-[10px] text-gray-500">{d.usuario} · {d.museu} · {d.mes_ano}</p>}
+                      {d.acoes?.slice(0, 2).map((a, j) => (
+                        <p key={j} className="text-[10px] text-gray-400">{a}</p>
+                      ))}
+                      {d.erro && <p className="text-[10px] text-red-500 truncate">{d.erro}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {!s && !rodando && (
+        <div className="px-5 py-6 text-center">
+          <Clock className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+          <p className="text-xs text-gray-400">A próxima execução automática é às 03h00.</p>
+          <p className="text-xs text-gray-400">Clique em "Executar agora" para rodar imediatamente.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Página principal ──
 export default function VarreduraDrive() {
   const [pastaId, setPastaId] = useState(PASTA_RAIZ_PADRAO);
@@ -259,6 +399,15 @@ export default function VarreduraDrive() {
             Identifica relatórios pendentes nas pastas, analisa PDFs com IA, vincula fotos e importa para o sistema.
           </p>
         </div>
+      </div>
+
+      {/* Sincronização Automática */}
+      <PainelSincAuto />
+
+      <div className="flex items-center gap-3">
+        <div className="flex-1 h-px bg-gray-200" />
+        <span className="text-xs text-gray-400 shrink-0">ou faça uma varredura manual com revisão</span>
+        <div className="flex-1 h-px bg-gray-200" />
       </div>
 
       {/* Configuração de pasta */}
