@@ -149,6 +149,106 @@ function ResultadoCard({ r }) {
   );
 }
 
+// ── Painel Completar Campos com IA ──
+function PainelCompletarCampos() {
+  const [rodando, setRodando] = useState(false);
+  const [resultado, setResultado] = useState(null);
+
+  async function handleCompletar() {
+    setRodando(true);
+    setResultado(null);
+    toast.info('IA preenchendo campos vazios de todos os relatórios… aguarde.');
+    try {
+      const res = await base44.functions.invoke('completarCamposRelatorios', {
+        modo: 'todos',
+        apenas_vazios: true,
+        limite: 50,
+      });
+      const d = res.data;
+      if (!d?.success) throw new Error(d?.error || 'Erro desconhecido');
+      setResultado(d);
+      toast.success(`${d.preenchidos} relatório(s) completados com IA!`);
+    } catch (e) {
+      toast.error('Erro: ' + (e?.message || e));
+    } finally {
+      setRodando(false);
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-green-200 bg-white overflow-hidden">
+      <div className="px-5 py-4 border-b border-green-100 bg-green-50 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-green-600 flex items-center justify-center">
+            <Sparkles className="w-3.5 h-3.5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold text-green-900">Completar Campos com IA</h2>
+            <p className="text-xs text-green-600">Preenche resumo, avaliação e atividades nos relatórios com campos vazios</p>
+          </div>
+        </div>
+        <Button
+          onClick={handleCompletar}
+          disabled={rodando}
+          size="sm"
+          className="gap-1.5 bg-green-600 text-white hover:bg-green-700 rounded-xl"
+        >
+          {rodando
+            ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Preenchendo…</>
+            : <><Sparkles className="w-3.5 h-3.5" /> Completar todos</>
+          }
+        </Button>
+      </div>
+
+      {resultado && (
+        <div className="p-5 space-y-4">
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: 'Verificados', value: resultado.total_verificados, color: 'text-gray-700' },
+              { label: 'Completados', value: resultado.preenchidos, color: 'text-green-700' },
+              { label: 'Erros', value: resultado.erros, color: 'text-red-600' },
+            ].map((item, i) => (
+              <div key={i} className="rounded-xl border border-gray-100 bg-gray-50 p-3 text-center">
+                <p className={`text-2xl font-bold ${item.color}`}>{item.value}</p>
+                <p className="text-[10px] text-gray-500 mt-0.5">{item.label}</p>
+              </div>
+            ))}
+          </div>
+          {resultado.resultados?.filter(r => r.status === 'preenchido').length > 0 && (
+            <div className="rounded-xl border border-gray-100 overflow-hidden">
+              <div className="bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-500 border-b border-gray-100">
+                Relatórios completados
+              </div>
+              <div className="divide-y divide-gray-50 max-h-56 overflow-y-auto">
+                {resultado.resultados.filter(r => r.status === 'preenchido').map((r, i) => (
+                  <div key={i} className="px-4 py-2.5 flex items-start gap-3">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-green-500 mt-0.5 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-gray-700 font-medium">{r.author} — {r.museu}</p>
+                      <p className="text-[10px] text-gray-500">{r.mes}/{r.ano}</p>
+                      {r.campos_preenchidos?.length > 0 && (
+                        <p className="text-[10px] text-green-600">{r.campos_preenchidos.join(' · ')}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {!resultado && !rodando && (
+        <div className="px-5 py-6 text-center">
+          <Sparkles className="w-8 h-8 text-green-200 mx-auto mb-2" />
+          <p className="text-xs text-gray-400">Analisa todos os relatórios e preenche os campos vazios (resumo, pontos positivos, desafios, atividades) usando IA.</p>
+          <p className="text-xs text-gray-400 mt-1">Campos já preenchidos não são sobrescritos.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Painel Gmail Viaduto ──
 function PainelGmailViaduto() {
   const [rodando, setRodando] = useState(false);
@@ -542,6 +642,9 @@ export default function VarreduraDrive() {
 
       {/* Gmail Viaduto */}
       <PainelGmailViaduto />
+
+      {/* Completar campos com IA */}
+      <PainelCompletarCampos />
 
       {/* Sincronização Automática */}
       <PainelSincAuto />
