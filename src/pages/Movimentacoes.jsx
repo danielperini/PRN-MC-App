@@ -9,6 +9,7 @@ import {
   Wallet, Search, X, CalendarDays, ChevronDown, ChevronUp
 } from 'lucide-react';
 import RequireAuth from '@/components/auth/RequireAuth';
+import FluxoCaixaMensal from '@/components/dashboard/FluxoCaixaMensal';
 
 const MESES_NOME = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
@@ -520,6 +521,9 @@ function MovimentacoesInner() {
                 </div>
               </div>
             </div>
+
+            {/* ── Fluxo de caixa mensal (gráfico) ── */}
+            <FluxoCaixaMensal />
 
             {/* ── Cards mensais em scroll horizontal ── */}
             <div>
