@@ -396,29 +396,6 @@ Divergências ou pendências:
             }, uploadRes.file_url, intakeCreated?.id);
           }
 
-          // Processar testemunhas — têm nome e CPF, cadastrar como membros se novos
-          const testemunhas = [
-            { nome: dadosIA?.testemunha1_nome, cpf: dadosIA?.testemunha1_cpf },
-            { nome: dadosIA?.testemunha2_nome, cpf: dadosIA?.testemunha2_cpf },
-          ].filter(t => t.nome && t.cpf);
-          for (const t of testemunhas) {
-            const cpfT = String(t.cpf || '').replace(/\D/g, '');
-            if (!cpfT) continue;
-            const exists = await base44.asServiceRole.entities.TeamMember.filter({ cpf: cpfT }).catch(() => []);
-            if ((exists as any[]).length === 0) {
-              await base44.asServiceRole.entities.TeamMember.create({
-                user_email: `cpf.${cpfT}@contrato.interno`,
-                user_name: t.nome,
-                tipo_pessoa: 'PF',
-                cpf: cpfT,
-                funcao: 'Testemunha',
-                museu_projeto: dadosIA?.museu_relacionado || '',
-                centro_custo: dadosIA?.centro_custo || '',
-                status: 'ATIVO',
-              }).catch(() => {});
-            }
-          }
-
           importados++;
           resultados.push({
             filename,

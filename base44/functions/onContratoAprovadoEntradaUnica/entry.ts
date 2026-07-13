@@ -160,6 +160,9 @@ Deno.serve(async (req) => {
     for (const membro of membrosExtras) {
       if (!membro?.nome) continue;
       if (membro.nome.toLowerCase() === nome.toLowerCase()) continue;
+      // Testemunhas não são cadastradas como membros
+      const role = String(membro.papel || membro.funcao || membro.role || '').toLowerCase();
+      if (role.includes('testemunha') || role.includes('witness')) continue;
       try {
         const cpfM = String(membro.cpf || '').replace(/\D/g, '');
         let existeM: any = null;
