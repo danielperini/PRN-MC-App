@@ -8,7 +8,7 @@ import {
   ArrowUpRight, ArrowDownLeft, FileText, Banknote,
   Wallet, Search, X, CalendarDays, ChevronDown, ChevronUp, FolderSync
 } from 'lucide-react';
-import RequireAuth from '@/components/auth/RequireAuth';
+
 import FluxoCaixaMensal from '@/components/dashboard/FluxoCaixaMensal';
 
 const MESES_NOME = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -602,9 +602,5 @@ function MovimentacoesInner() {
 }
 
 export default function Movimentacoes() {
-  return (
-    <RequireAuth>
-      <MovimentacoesInner />
-    </RequireAuth>
-  );
+  return <MovimentacoesInner />;
 }
