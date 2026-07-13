@@ -293,6 +293,8 @@ export default function EntradaUnica() {
   const [filaProcessando, setFilaProcessando] = useState(false);
   const [progressoFila, setProgressoFila] = useState({ atual: 0, total: 0 });
   const [padronizarLoading, setPadronizarLoading] = useState(false);
+  const [abaAtiva, setAbaAtiva] = useState('pendentes'); // 'pendentes' | 'processados'
+  const [processados, setProcessados] = useState([]);
   const filaRef = useRef([]);
   const abortarRef = useRef(false);
 
@@ -525,7 +527,14 @@ export default function EntradaUnica() {
         return true;
       });
 
+      // Documentos já processados (aprovados, enviados para aprovação ou vinculados)
+      const jaProcessados = (list || []).filter((i) => {
+        const status = String(i.status_processamento || '').toUpperCase();
+        return status === 'APROVADO' || status === 'ENVIADO_APROVACAO';
+      }).sort((a, b) => new Date(b.updated_date || b.created_date) - new Date(a.updated_date || a.created_date));
+
       setIntakes(filtrados);
+      setProcessados(jaProcessados);
     } catch (e) {
       console.error('loadIntakes fatal:', e);
       setIntakesLoadError(true);
@@ -1458,96 +1467,48 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
                 </div>
 
                 {user?.role === 'admin' &&
-                <>
-                    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                  
-                    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                  
-                    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                  
-                    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                  
-
-                    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                  
-                  </>
+                <div className="flex flex-wrap gap-2 mt-1">
+                    <button
+                      onClick={handleSyncDrive}
+                      disabled={syncLoading}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      {syncLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <HardDrive className="w-3.5 h-3.5" />}
+                      Sync Drive
+                    </button>
+                    <button
+                      onClick={handleSyncGmail}
+                      disabled={syncGmailLoading}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      {syncGmailLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
+                      Sync Gmail
+                    </button>
+                    <button
+                      onClick={handleAutoVinculo}
+                      disabled={autoVinculoLoading}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      {autoVinculoLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
+                      Auto-vincular
+                    </button>
+                    <button
+                      onClick={handleReanalisarPendentes}
+                      disabled={filaProcessando}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      {filaProcessando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                      Reanalisar
+                    </button>
+                    <button
+                      onClick={handlePadronizarNomes}
+                      disabled={padronizarLoading}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      {padronizarLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileSignature className="w-3.5 h-3.5" />}
+                      Padronizar nomes
+                    </button>
+                  </div>
                 }
               </div>
             </div>
@@ -1612,25 +1573,71 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
               <h2 className="text-base font-semibold text-black flex items-center gap-2">
                 <InboxIcon className="w-4 h-4 text-black" />
                 Documentos em análise
-                {intakes.length > 0 &&
-                <span className="ml-1 text-xs font-semibold text-gray-500 rounded-full border border-gray-200 px-2 py-0.5">
-                    {intakes.length}
-                  </span>
-                }
               </h2>
               <p className="text-xs text-gray-500 mt-0.5">
                 Revise, vincule XML, reanalise ou envie documentos para aprovação.
               </p>
             </div>
-
             <div className="inline-flex items-center gap-2 rounded-full bg-gray-50 border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600">
               <CheckCircle2 className="w-3.5 h-3.5 text-black" />
               Backend como fonte da verdade
             </div>
           </div>
 
+          {/* Abas */}
+          <div className="flex border-b border-gray-100 px-5 md:px-6">
+            <button
+              onClick={() => setAbaAtiva('pendentes')}
+              className={`py-3 px-4 text-sm font-medium border-b-2 transition-colors ${abaAtiva === 'pendentes' ? 'border-black text-black' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+            >
+              Pendentes
+              {intakes.length > 0 && <span className="ml-1.5 text-xs bg-gray-100 rounded-full px-1.5 py-0.5">{intakes.length}</span>}
+            </button>
+            <button
+              onClick={() => setAbaAtiva('processados')}
+              className={`py-3 px-4 text-sm font-medium border-b-2 transition-colors ${abaAtiva === 'processados' ? 'border-black text-black' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+            >
+              Processados / Aprovados
+              {processados.length > 0 && <span className="ml-1.5 text-xs bg-green-100 text-green-700 rounded-full px-1.5 py-0.5">{processados.length}</span>}
+            </button>
+          </div>
+
           <div className="p-4 md:p-6">
-            {filaProcessando && progressoFila.total > 0 &&
+            {/* Aba processados */}
+            {abaAtiva === 'processados' && (
+              <div>
+                {processados.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-gray-400 border-2 border-dashed border-gray-200 rounded-2xl bg-gray-50/50">
+                    <CheckCircle2 className="w-11 h-11 mb-3 text-gray-300" />
+                    <p className="text-sm font-semibold text-gray-600">Nenhum documento processado ainda</p>
+                    <p className="text-xs mt-1 text-gray-400">Documentos enviados para aprovação aparecerão aqui.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {processados.map((intake) => (
+                      <div key={intake.id} className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`w-2 h-2 rounded-full flex-shrink-0 ${intake.status_processamento === 'APROVADO' ? 'bg-green-500' : 'bg-blue-500'}`} />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-gray-800 truncate">{intake.file_name_final || intake.file_name_original}</p>
+                            <p className="text-xs text-gray-500">
+                              {intake.fornecedor_nome || intake.nf_emitente_nome || '—'}
+                              {intake.nf_valor_total ? ` · R$ ${Number(intake.nf_valor_total).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''}
+                              {intake.nf_numero ? ` · NF ${intake.nf_numero}` : ''}
+                            </p>
+                          </div>
+                        </div>
+                        <span className={`flex-shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full ${intake.status_processamento === 'APROVADO' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                          {intake.status_processamento === 'APROVADO' ? 'Aprovado' : 'Enviado p/ aprovação'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {abaAtiva === 'pendentes' && filaProcessando && progressoFila.total > 0 &&
             <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2">
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin text-amber-600" />
@@ -1652,14 +1659,14 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
                 </p>
               </div>
             }
-            {intakes.length === 0 ?
+            {abaAtiva === 'pendentes' && intakes.length === 0 ?
             <div className="flex flex-col items-center justify-center py-16 text-gray-400 border-2 border-dashed border-gray-200 rounded-2xl bg-gray-50/50">
                 <InboxIcon className="w-11 h-11 mb-3 text-gray-300" />
                 <p className="text-sm font-semibold text-gray-600">Nenhum documento pendente</p>
                 <p className="text-xs mt-1 text-gray-400">Faça o upload de arquivos acima para começar.</p>
               </div> :
 
-            <div className="space-y-3">
+            abaAtiva === 'pendentes' && <div className="space-y-3">
                 {intakes.map((intake) =>
               <DocumentIntakeCard
                 key={intake.id}
