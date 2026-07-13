@@ -38,18 +38,12 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Apenas administradores ou coordenadores podem executar esta rotina.' }, { status: 403 });
     }
 
-    // Obter token do Drive
+    // Obter token do Drive via service role (padrão correto do SDK)
     let token: string | null = null;
     try {
-      const c = await base44.connectors.getConnection('googledrive');
-      if (c?.access_token) token = c.access_token;
+      const { accessToken } = await base44.asServiceRole.connectors.getConnection('googledrive');
+      if (accessToken) token = accessToken;
     } catch (_) {}
-    if (!token) {
-      try {
-        const c = await base44.asServiceRole.connectors.getConnection('googledrive');
-        if (c?.access_token) token = c.access_token;
-      } catch (_) {}
-    }
 
     if (!token) {
       return Response.json({

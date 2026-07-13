@@ -65,20 +65,12 @@ Deno.serve(async (req) => {
       isScheduled = true; // sem sessão = automação agendada, permitido
     }
 
-    // Token do Drive — tenta usuário autenticado primeiro, depois service role
+    // Token do Drive via service role (padrão correto do SDK)
     let token: string | null = null;
-    if (!isScheduled) {
-      try {
-        const c = await base44.connectors.getConnection('googledrive');
-        if (c?.access_token) token = c.access_token;
-      } catch (_) {}
-    }
-    if (!token) {
-      try {
-        const c = await base44.asServiceRole.connectors.getConnection('googledrive');
-        if (c?.access_token) token = c.access_token;
-      } catch (_) {}
-    }
+    try {
+      const { accessToken } = await base44.asServiceRole.connectors.getConnection('googledrive');
+      if (accessToken) token = accessToken;
+    } catch (_) {}
     if (!token) {
       return Response.json({ error: 'Google Drive não conectado.', code: 'DRIVE_NOT_CONNECTED' }, { status: 401 });
     }
@@ -160,10 +152,11 @@ Deno.serve(async (req) => {
           erros.push({ arquivo: arquivo.name, erro: `Download falhou: ${dlRes.status}` });
           continue;
         }
-        const blob = await dlRes.blob();
+        const arrayBuf = await dlRes.arrayBuffer();
+        const fileObj = new File([arrayBuf], arquivo.name, { type: arquivo.mimeType || 'application/octet-stream' });
 
         // Upload para storage Base44
-        const uploadRes = await base44.asServiceRole.integrations.Core.UploadFile({ file: blob });
+        const uploadRes = await base44.asServiceRole.integrations.Core.UploadFile({ file: fileObj });
         const fileUrl = uploadRes?.file_url;
         if (!fileUrl) {
           erros.push({ arquivo: arquivo.name, erro: 'Upload storage falhou' });
