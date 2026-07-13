@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import PainelGmailRelatorios from '@/components/varredura/PainelGmailRelatorios';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -249,7 +250,7 @@ function PainelCompletarCampos() {
   );
 }
 
-// ── Painel Gmail Viaduto ──
+// ── Painel Gmail Viaduto (substituído por componente dedicado) ──
 function PainelGmailViaduto() {
   const [rodando, setRodando] = useState(false);
   const [dryRun, setDryRun] = useState(false);
@@ -766,8 +767,8 @@ export default function VarreduraDrive() {
       {/* NFs Fev-Jul */}
       <PainelNFsFevJul />
 
-      {/* Gmail Viaduto */}
-      <PainelGmailViaduto />
+      {/* Gmail Viaduto — com validação prévia dos dados extraídos pela IA */}
+      <PainelGmailRelatorios />
 
       {/* Completar campos com IA */}
       <PainelCompletarCampos />

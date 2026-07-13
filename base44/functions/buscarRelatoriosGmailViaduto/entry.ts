@@ -3,8 +3,6 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 const VIADUTO_EMAIL = 'danielperini.mc@viadutodasartes.org.br';
 const VIADUTO_USER_NAME = 'Daniel Perini';
 
-const MESES_NOMES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
-
 const RELATORIO_KEYWORDS = [
   'relatório', 'relatorio', 'report', 'mensal', 'atividade', 'museu',
   'mis', 'mhab', 'mumo', 'viaduto', 'museus centro', 'execução', 'execucao',
@@ -48,16 +46,17 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: 'Usuário não encontrado.' }, { status: 401 });
     const userRole = String(user.role || user.base_role || '').toLowerCase();
     const isAdmin = userRole === 'admin' || user.role === 'admin';
-    const isCoord = ['coordenador','coordinator'].includes(userRole);
+    const isCoord = ['coordenador', 'coordinator'].includes(userRole);
     if (!isAdmin && !isCoord) {
       return Response.json({ error: 'Acesso restrito a admins e coordenadores.' }, { status: 403 });
     }
 
     const body = await req.json().catch(() => ({}));
-    const maxResults = body.maxResults || 100;
+    const maxResults = body.maxResults || 50;
+    // dryRun = true: analisa e retorna preview com dados_ia mas NÃO salva nada
+    // dryRun = false: aplica (salva e preenche relatórios)
     const dryRun = body.dryRun === true;
     const pageToken = body.pageToken || null;
-    // Se preencherRelatorios=true, usa IA para analisar e preencher automaticamente
     const preencherRelatorios = body.preencherRelatorios !== false;
 
     const { accessToken } = await base44.asServiceRole.connectors.getConnection('gmail');
@@ -138,12 +137,7 @@ Deno.serve(async (req) => {
             continue;
           }
 
-          if (dryRun) {
-            resultados.push({ messageId: msg.id, subject, filename, status: 'dry-run', mimeType });
-            continue;
-          }
-
-          // Baixar anexo
+          // Baixar e fazer upload do anexo para poder analisar com IA
           const attRes = await fetch(
             `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}/attachments/${part.body.attachmentId}`,
             { headers: authHeader }
@@ -156,57 +150,55 @@ Deno.serve(async (req) => {
             c => c.charCodeAt(0)
           );
 
-          // Upload
           const file = new File([rawBytes], filename, { type: mimeType || 'application/octet-stream' });
           const uploadRes = await base44.asServiceRole.integrations.Core.UploadFile({ file });
           if (!uploadRes?.file_url) { erros++; continue; }
 
-          // Analisar com IA se for PDF ou DOCX (relatório)
+          // Analisar com IA — sempre, inclusive no dryRun (é o ponto de validação)
           let dadosIA: any = null;
-          const isPdfOrDoc = mimeType === 'application/pdf' || 
-            mimeType === 'application/msword' || 
+          const isPdfOrDoc = mimeType === 'application/pdf' ||
+            mimeType === 'application/msword' ||
             mimeType?.includes('wordprocessingml');
 
-          if (preencherRelatorios && isPdfOrDoc) {
+          if (isPdfOrDoc) {
             try {
               dadosIA = await base44.asServiceRole.integrations.Core.InvokeLLM({
                 prompt: `Você é especialista em análise de relatórios mensais de atividades culturais de museus.
-Analise este documento PDF/DOCX que é um RELATÓRIO MENSAL de atividades de um profissional dos Museus Centro (MIS, MHAB, MUMO, Viaduto das Artes) em Belo Horizonte.
+Analise este documento PDF/DOCX — é um RELATÓRIO MENSAL de um profissional dos Museus Centro (MIS, MHAB, MUMO, Viaduto das Artes) em Belo Horizonte.
 
-Extraia TODAS as informações estruturadas possíveis. Seja completo e detalhado.
+Extraia TODAS as informações estruturadas. Seja preciso e completo.
 
-Retorne um JSON com:
-- nome_profissional: nome completo do autor do relatório
+Retorne JSON com:
+- nome_profissional: nome completo do autor
 - email_profissional: email se mencionado
-- funcao: função/cargo do profissional
-- museu: museu principal (MIS, MHAB, MUMO, Viaduto das Artes, ou outro)
-- mes_referencia: mês de referência em português (ex: "maio", "junho")
-- ano: ano de referência (número, ex: 2026)
-- resumo_periodo: resumo geral do período (1-3 parágrafos)
-- resumo_executivo: síntese executiva das principais realizações
-- pontos_positivos: pontos positivos e conquistas do mês
-- desafios: desafios e dificuldades enfrentadas
+- funcao: função/cargo
+- museu: museu principal (MIS, MHAB, MUMO, Viaduto das Artes, ou nome exato encontrado)
+- mes_referencia: mês em português minúsculo (ex: "maio", "junho")
+- ano: ano numérico (ex: 2026)
+- resumo_periodo: resumo geral do período (texto corrido, 1-3 parágrafos)
+- resumo_executivo: síntese das principais realizações (1-2 parágrafos curtos)
+- pontos_positivos: conquistas e pontos positivos do mês
+- desafios: dificuldades enfrentadas
 - sugestoes: sugestões de melhoria
 - comentarios_gerais: observações gerais
-- publico_geral: número total de público/visitantes declarado (número)
-- status_relatorio: "SUBMITTED" se enviado para revisão, "APPROVED" se aprovado
+- publico_geral: número total de visitantes/público declarado (número inteiro)
 - numero_protocolo: número de protocolo se houver
-- atividades: array com cada atividade descrita no relatório, cada uma com:
-  - titulo: nome/título da atividade
+- atividades: array com cada atividade descrita. Para cada uma:
+  - titulo: nome da atividade
   - descricao: descrição detalhada
-  - data_realizacao: data (formato YYYY-MM-DD se possível)
-  - data_inicio: data início se período
-  - data_fim: data fim se período
+  - data_realizacao: data no formato YYYY-MM-DD se possível
+  - data_inicio: data início se for período
+  - data_fim: data fim se for período
   - local: local de realização
   - publico_estimado: público estimado (número)
   - publico_total: público total contabilizado (número)
   - classificacao: "META", "ROTINA" ou "EXTRA"
-  - meta_vinculada: código da meta vinculada (ex: MC3A-20) se mencionado
+  - meta_vinculada: código da meta (ex: MC3A-20) se mencionado
   - resultado_alcancado: resultado concreto alcançado
-  - equipe_responsavel: equipe ou responsáveis
+  - equipe_responsavel: equipe/responsáveis mencionados
   - justificativa_tecnica: justificativa técnica se houver
 
-Se algum campo não estiver disponível no documento, deixe como null ou string vazia.`,
+Campos ausentes: retorne null ou string vazia.`,
                 file_urls: [uploadRes.file_url],
                 response_json_schema: {
                   type: 'object',
@@ -224,7 +216,6 @@ Se algum campo não estiver disponível no documento, deixe como null ou string 
                     sugestoes: { type: 'string' },
                     comentarios_gerais: { type: 'string' },
                     publico_geral: { type: 'number' },
-                    status_relatorio: { type: 'string' },
                     numero_protocolo: { type: 'string' },
                     atividades: {
                       type: 'array',
@@ -255,7 +246,32 @@ Se algum campo não estiver disponível no documento, deixe como null ou string 
             }
           }
 
-          // Criar DocumentIntake
+          // ── DryRun: retorna preview sem salvar ──
+          if (dryRun) {
+            importados++;
+            resultados.push({
+              messageId: msg.id,
+              subject,
+              filename,
+              file_url: uploadRes.file_url,
+              mimeType,
+              status: 'dry-run',
+              dados_ia: dadosIA || null,
+              campos_encontrados: dadosIA ? Object.entries(dadosIA)
+                .filter(([k, v]) => v && k !== 'atividades')
+                .map(([k]) => k) : [],
+              atividades_count: (dadosIA?.atividades || []).length,
+              atividades_preview: (dadosIA?.atividades || []).slice(0, 5).map((a: any) => ({
+                titulo: a.titulo || '',
+                data: a.data_realizacao || '',
+                publico: a.publico_total || a.publico_estimado || 0,
+                classificacao: a.classificacao || 'ROTINA',
+              })),
+            });
+            continue;
+          }
+
+          // ── Modo real: salvar e preencher ──
           const intake = await base44.asServiceRole.entities.DocumentIntake.create({
             user_email: VIADUTO_EMAIL,
             user_name: VIADUTO_USER_NAME,
@@ -273,53 +289,52 @@ Se algum campo não estiver disponível no documento, deixe como null ou string 
 
           importados++;
 
-          // Se temos dados da IA e preencherRelatorios=true, preencher automaticamente
+          // Preencher relatório se temos dados da IA
           if (dadosIA && preencherRelatorios && intake?.id) {
             try {
-              const mesNome = dadosIA.mes_referencia || '';
+              const mesNome = (dadosIA.mes_referencia || '').toLowerCase().trim();
               const ano = dadosIA.ano || new Date().getFullYear();
               const museu = dadosIA.museu || 'Viaduto das Artes';
               const usuarioNome = dadosIA.nome_profissional || VIADUTO_USER_NAME;
 
-              // Buscar usuário pelo email do viaduto
+              // Buscar relatório existente (por usuário ou por nome)
               const usuarios = await base44.asServiceRole.entities.User.filter({ email: VIADUTO_EMAIL }).catch(() => []);
-              const usuarioId = usuarios[0]?.id || null;
+              const usuarioId = (usuarios as any[])[0]?.id || null;
 
-              // Buscar relatório existente
               let existingReport: any = null;
               if (usuarioId) {
                 const candidatos = await base44.asServiceRole.entities.Report.filter(
                   { created_by_id: usuarioId }, '-created_date', 50
                 ).catch(() => []);
-                existingReport = candidatos.find((r: any) =>
-                  r.mes_referencia?.toLowerCase() === mesNome?.toLowerCase() &&
-                  (!r.ano || r.ano === ano)
+                existingReport = (candidatos as any[]).find((r: any) =>
+                  r.mes_referencia?.toLowerCase() === mesNome && (!r.ano || r.ano === ano)
                 ) || null;
               }
 
               if (!existingReport && mesNome) {
                 const todos = await base44.asServiceRole.entities.Report.filter({}, '-created_date', 200).catch(() => []);
-                existingReport = todos.find((r: any) => {
+                existingReport = (todos as any[]).find((r: any) => {
                   const nomeOk = String(r.author_name || '').toLowerCase().includes('daniel');
-                  const mesOk = r.mes_referencia?.toLowerCase() === mesNome.toLowerCase();
+                  const mesOk = r.mes_referencia?.toLowerCase() === mesNome;
                   const anoOk = !r.ano || r.ano === ano;
                   return nomeOk && mesOk && anoOk;
                 }) || null;
               }
 
               const origemObs = `Preenchido via Gmail (${VIADUTO_EMAIL}) em ${new Date().toLocaleDateString('pt-BR')}. Arquivo: ${filename}.`;
+              const camposPreenchidos: string[] = [];
 
               if (existingReport) {
-                // Preencher apenas campos vazios
                 const updates: Record<string, any> = {};
-                if (!existingReport.resumo_periodo && dadosIA.resumo_periodo) updates.resumo_periodo = dadosIA.resumo_periodo;
-                if (!existingReport.resumo_executivo && dadosIA.resumo_executivo) updates.resumo_executivo = dadosIA.resumo_executivo;
-                if (!existingReport.avaliacao_pontos_positivos && dadosIA.pontos_positivos) updates.avaliacao_pontos_positivos = dadosIA.pontos_positivos;
-                if (!existingReport.avaliacao_desafios && dadosIA.desafios) updates.avaliacao_desafios = dadosIA.desafios;
-                if (!existingReport.avaliacao_sugestoes && dadosIA.sugestoes) updates.avaliacao_sugestoes = dadosIA.sugestoes;
-                if (!existingReport.comentarios_gerais && dadosIA.comentarios_gerais) updates.comentarios_gerais = dadosIA.comentarios_gerais;
-                if (!existingReport.publico_geral_declarado && dadosIA.publico_geral) updates.publico_geral_declarado = dadosIA.publico_geral;
-                if (!existingReport.funcao && dadosIA.funcao) updates.funcao = dadosIA.funcao;
+                if (!existingReport.resumo_periodo && dadosIA.resumo_periodo) { updates.resumo_periodo = dadosIA.resumo_periodo; camposPreenchidos.push('resumo_periodo'); }
+                if (!existingReport.resumo_executivo && dadosIA.resumo_executivo) { updates.resumo_executivo = dadosIA.resumo_executivo; camposPreenchidos.push('resumo_executivo'); }
+                if (!existingReport.avaliacao_pontos_positivos && dadosIA.pontos_positivos) { updates.avaliacao_pontos_positivos = dadosIA.pontos_positivos; camposPreenchidos.push('pontos_positivos'); }
+                if (!existingReport.avaliacao_desafios && dadosIA.desafios) { updates.avaliacao_desafios = dadosIA.desafios; camposPreenchidos.push('desafios'); }
+                if (!existingReport.avaliacao_sugestoes && dadosIA.sugestoes) { updates.avaliacao_sugestoes = dadosIA.sugestoes; camposPreenchidos.push('sugestoes'); }
+                if (!existingReport.comentarios_gerais && dadosIA.comentarios_gerais) { updates.comentarios_gerais = dadosIA.comentarios_gerais; camposPreenchidos.push('comentarios_gerais'); }
+                if (!existingReport.publico_geral_declarado && dadosIA.publico_geral) { updates.publico_geral_declarado = dadosIA.publico_geral; camposPreenchidos.push('publico_geral'); }
+                if (!existingReport.funcao && dadosIA.funcao) { updates.funcao = dadosIA.funcao; camposPreenchidos.push('funcao'); }
+
                 const obsAtual = existingReport.historico_observacoes || '';
                 if (!obsAtual.includes('Gmail')) updates.historico_observacoes = obsAtual ? obsAtual + '\n' + origemObs : origemObs;
 
@@ -330,11 +345,11 @@ Se algum campo não estiver disponível no documento, deixe como null ou string 
                   const atividadesExist: any[] = Array.isArray(reportAtual?.atividades) ? reportAtual.atividades : [];
                   const titulosExist = new Set(atividadesExist.map((a: any) => String(a.titulo || a.nome || '').toLowerCase().trim()));
                   const novas = atividadesIA.filter((a: any) => {
-                    const key = String(a.titulo || a.nome || '').toLowerCase().trim();
+                    const key = String(a.titulo || '').toLowerCase().trim();
                     return key && !titulosExist.has(key);
                   }).map((a: any) => ({
-                    titulo: a.titulo || a.nome || '',
-                    nome: a.titulo || a.nome || '',
+                    titulo: a.titulo || '',
+                    nome: a.titulo || '',
                     descricao: a.descricao || '',
                     data_realizacao: a.data_realizacao || null,
                     data_inicio: a.data_inicio || null,
@@ -342,7 +357,7 @@ Se algum campo não estiver disponível no documento, deixe como null ou string 
                     local: a.local || '',
                     publico_estimado: a.publico_estimado || 0,
                     publico_total: a.publico_total || 0,
-                    classificacao: ['META','ROTINA','EXTRA'].includes(String(a.classificacao||'').toUpperCase()) ? a.classificacao.toUpperCase() : 'ROTINA',
+                    classificacao: ['META', 'ROTINA', 'EXTRA'].includes(String(a.classificacao || '').toUpperCase()) ? a.classificacao.toUpperCase() : 'ROTINA',
                     meta_codigo: a.meta_vinculada || '',
                     resultado_alcancado: a.resultado_alcancado || '',
                     equipe_responsavel: a.equipe_responsavel || '',
@@ -350,16 +365,42 @@ Se algum campo não estiver disponível no documento, deixe como null ou string 
                     museu_lista: [museu],
                     origem: 'gmail_viaduto',
                   }));
-                  if (novas.length > 0) updates.atividades = [...atividadesExist, ...novas];
+                  if (novas.length > 0) {
+                    updates.atividades = [...atividadesExist, ...novas];
+                    camposPreenchidos.push(`atividades(${novas.length})`);
+                  }
                 }
 
                 if (Object.keys(updates).length > 0) {
                   await base44.asServiceRole.entities.Report.update(existingReport.id, updates);
                 }
                 relatoriosPreenchidos++;
-                resultados.push({ messageId: msg.id, subject, filename, status: 'preenchido', report_id: existingReport.id, atividades: (dadosIA.atividades || []).length });
+                resultados.push({
+                  messageId: msg.id, subject, filename, status: 'preenchido',
+                  report_id: existingReport.id, campos_preenchidos: camposPreenchidos,
+                  atividades: (dadosIA.atividades || []).length, museu, mes: mesNome, ano,
+                });
               } else {
                 // Criar novo relatório
+                const atividades = (dadosIA.atividades || []).map((a: any) => ({
+                  titulo: a.titulo || '',
+                  nome: a.titulo || '',
+                  descricao: a.descricao || '',
+                  data_realizacao: a.data_realizacao || null,
+                  data_inicio: a.data_inicio || null,
+                  data_fim: a.data_fim || null,
+                  local: a.local || '',
+                  publico_estimado: a.publico_estimado || 0,
+                  publico_total: a.publico_total || 0,
+                  classificacao: ['META', 'ROTINA', 'EXTRA'].includes(String(a.classificacao || '').toUpperCase()) ? a.classificacao.toUpperCase() : 'ROTINA',
+                  meta_codigo: a.meta_vinculada || '',
+                  resultado_alcancado: a.resultado_alcancado || '',
+                  equipe_responsavel: a.equipe_responsavel || '',
+                  justificativa_tecnica: a.justificativa_tecnica || '',
+                  museu_lista: [museu],
+                  origem: 'gmail_viaduto',
+                }));
+
                 const novoReport = await base44.asServiceRole.entities.Report.create({
                   ...(usuarioId ? { created_by_id: usuarioId } : {}),
                   author_name: usuarioNome,
@@ -377,30 +418,16 @@ Se algum campo não estiver disponível no documento, deixe como null ou string 
                   publico_geral_declarado: dadosIA.publico_geral || 0,
                   numero_protocolo: dadosIA.numero_protocolo || '',
                   historico_observacoes: origemObs,
-                  atividades: (dadosIA.atividades || []).map((a: any) => ({
-                    titulo: a.titulo || a.nome || '',
-                    nome: a.titulo || a.nome || '',
-                    descricao: a.descricao || '',
-                    data_realizacao: a.data_realizacao || null,
-                    data_inicio: a.data_inicio || null,
-                    data_fim: a.data_fim || null,
-                    local: a.local || '',
-                    publico_estimado: a.publico_estimado || 0,
-                    publico_total: a.publico_total || 0,
-                    classificacao: ['META','ROTINA','EXTRA'].includes(String(a.classificacao||'').toUpperCase()) ? a.classificacao.toUpperCase() : 'ROTINA',
-                    meta_codigo: a.meta_vinculada || '',
-                    resultado_alcancado: a.resultado_alcancado || '',
-                    equipe_responsavel: a.equipe_responsavel || '',
-                    justificativa_tecnica: a.justificativa_tecnica || '',
-                    museu_lista: [museu],
-                    origem: 'gmail_viaduto',
-                  })),
+                  atividades,
                 });
                 relatoriosPreenchidos++;
-                resultados.push({ messageId: msg.id, subject, filename, status: 'criado', report_id: novoReport.id, atividades: (dadosIA.atividades || []).length });
+                resultados.push({
+                  messageId: msg.id, subject, filename, status: 'criado',
+                  report_id: novoReport.id, campos_preenchidos: ['relatorio_completo'],
+                  atividades: atividades.length, museu, mes: mesNome, ano,
+                });
               }
 
-              // Audit log
               await base44.asServiceRole.entities.AuditLog.create({
                 action: 'CREATE',
                 entity_type: 'REPORT',
@@ -425,7 +452,9 @@ Se algum campo não estiver disponível no documento, deixe como null ou string 
 
     return Response.json({
       success: true,
-      mensagem: `Processados ${messages.length} e-mails. ${importados} arquivos importados, ${relatoriosPreenchidos} relatórios preenchidos/criados, ${ignorados} ignorados, ${erros} erros.`,
+      mensagem: dryRun
+        ? `Simulação: ${importados} arquivo(s) analisados pela IA. Nenhum dado salvo.`
+        : `${importados} arquivo(s) importados · ${relatoriosPreenchidos} relatório(s) preenchidos/criados · ${ignorados} ignorados · ${erros} erros.`,
       importados,
       relatoriosPreenchidos,
       ignorados,
