@@ -285,11 +285,11 @@ function GaleriaFotosInner() {
                   setSincronizando(false);
                 }
               }}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-800 shadow-sm hover:bg-blue-100 disabled:opacity-60"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-violet-300 bg-violet-50 px-4 py-2 text-sm font-medium text-violet-800 shadow-sm hover:bg-violet-100 disabled:opacity-60"
             >
               {sincronizando
-                ? <><RefreshCw className="h-4 w-4 animate-spin" /> Sincronizando...</>
-                : <><GitMerge className="h-4 w-4" /> Sincronizar Drive</>
+                ? <><RefreshCw className="h-4 w-4 animate-spin" /> Gerando legendas com IA...</>
+                : <><GitMerge className="h-4 w-4" /> Vincular Fotos com IA</>
               }
             </button>
             <button
@@ -332,7 +332,7 @@ function GaleriaFotosInner() {
 
         {/* Feedback de sincronização */}
         {syncStatus && (
-          <div className="mb-4 flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+          <div className="mb-4 flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-800">
             <CheckCircle2 className="h-4 w-4 shrink-0" />
             <span>{syncStatus}</span>
             <button type="button" onClick={() => setSyncStatus(null)} className="ml-auto text-blue-400 hover:text-blue-700"><X className="h-4 w-4" /></button>
