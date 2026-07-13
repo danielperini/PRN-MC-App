@@ -922,6 +922,9 @@ export default function ReportEditor() {
             onUpdatePhoto={handleUpdatePhoto}
             onDeletePhoto={handleDeletePhoto}
             reportId={report?.id}
+            museu={formData.museu}
+            mes={formData.mes_referencia}
+            ano={formData.ano}
           />
         </Card>
       )}
@@ -932,6 +935,9 @@ export default function ReportEditor() {
             attachments={attachments}
             setAttachments={setAttachments}
             reportId={report?.id}
+            museu={formData.museu}
+            mes={formData.mes_referencia}
+            ano={formData.ano}
           />
         </Card>
       )}

@@ -7,13 +7,32 @@ import { Label } from '@/components/ui/label';
 import PhotoGallerySelector from './PhotoGallerySelector';
 import PhotoCaptionSuggester from './PhotoCaptionSuggester';
 
-export default function ReportPhotoSection({ photos = [], onAddPhoto, onUpdatePhoto, onDeletePhoto, activityId, reportId }) {
+function extrairDataDoNome(fileName) {
+  const m1 = fileName.match(/(\d{4})(\d{2})(\d{2})/);
+  if (m1) return `${m1[3]}/${m1[2]}/${m1[1]}`;
+  const m2 = fileName.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (m2) return `${m2[3]}/${m2[2]}/${m2[1]}`;
+  return null;
+}
+
+export default function ReportPhotoSection({ photos = [], onAddPhoto, onUpdatePhoto, onDeletePhoto, activityId, reportId, museu = '', mes = '', ano = '' }) {
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [editingPhotoId, setEditingPhotoId] = useState(null);
   const [editCaption, setEditCaption] = useState('');
 
   const handleAddPhoto = async (photo) => {
     if (onAddPhoto) {
+      // Gerar legenda automática se não houver uma
+      if (!photo.caption) {
+        const data = extrairDataDoNome(photo.fileName || photo.file_name || '');
+        const partes = [];
+        if (museu) partes.push(museu);
+        if (mes && ano) partes.push(`${mes} de ${ano}`);
+        if (data) partes.push(`— ${data}`);
+        if (partes.length > 0) {
+          photo = { ...photo, caption: partes.join(', ') };
+        }
+      }
       await onAddPhoto(photo);
       setSelectorOpen(false);
     }
