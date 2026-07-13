@@ -1,4 +1,4 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 
 const MESES_NOMES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 
@@ -31,123 +31,140 @@ Deno.serve(async (req) => {
 
       try {
         const dadosIA = item.dados_ia || {};
-        const usuarioEmail = item.usuario_vinculado?.email || item.profissional_email || null;
         const usuarioId = item.usuario_vinculado?.id || null;
+        const usuarioNome = item.usuario_vinculado?.nome || item.profissional_nome || dadosIA.nome_profissional || '';
+        const usuarioEmail = item.usuario_vinculado?.email || item.profissional_email || dadosIA.email_profissional || null;
         const mesNum = item.mes_num || null;
+        const mesNome = mesNum ? MESES_NOMES[mesNum - 1] : (dadosIA.mes_referencia || '');
         const ano = item.ano || new Date().getFullYear();
         const museu = item.museu || dadosIA.museu || 'Geral';
+        const funcao = dadosIA.funcao || '';
 
-        // Status do relatório restaurado
         const statusIA = String(dadosIA.status_relatorio || '').toUpperCase();
         let reportStatus = 'SUBMITTED';
         if (statusIA.includes('APROVAD') || statusIA === 'APPROVED') reportStatus = 'APPROVED';
         else if (statusIA.includes('REVISAO') || statusIA === 'IN_REVIEW') reportStatus = 'IN_REVIEW';
 
-        const origemObs = `Restaurado do Drive em ${new Date().toLocaleDateString('pt-BR')}. Arquivo original: ${item.arquivo_nome}.`;
+        const origemObs = `Restaurado do Drive em ${new Date().toLocaleDateString('pt-BR')}. Arquivo: ${item.arquivo_nome}.`;
 
-        // Check duplicate before creating
+        // Buscar relatório existente pelo created_by_id do usuário vinculado
         let existingReport = null;
-        if (usuarioEmail && mesNum) {
-          const candidatos = await base44.asServiceRole.entities.Report.filter(
-            { created_by: usuarioEmail },
-            '-created_date',
-            50
-          ).catch(() => []);
-          existingReport = candidatos.find(r =>
-            r.mes_referencia === MESES_NOMES[mesNum - 1] &&
-            (r.ano_referencia === ano || !r.ano_referencia)
-          ) || null;
+        const filtros = [];
+        if (usuarioId) filtros.push({ created_by_id: usuarioId });
+
+        for (const filtro of filtros) {
+          const candidatos = await base44.asServiceRole.entities.Report.filter(filtro, '-created_date', 100).catch(() => []);
+          existingReport = candidatos.find(r => {
+            const mesOk = r.mes_referencia?.toLowerCase() === mesNome?.toLowerCase();
+            const anoOk = !r.ano || r.ano === ano;
+            return mesOk && anoOk;
+          }) || null;
+          if (existingReport) break;
+        }
+
+        // Fallback: buscar por nome do autor e mês/ano
+        if (!existingReport && usuarioNome) {
+          const nomeBusca = usuarioNome.toLowerCase().trim();
+          const todos = await base44.asServiceRole.entities.Report.filter({}, '-created_date', 300).catch(() => []);
+          existingReport = todos.find(r => {
+            const nomeOk = String(r.author_name || '').toLowerCase().includes(nomeBusca.split(' ')[0]);
+            const mesOk = r.mes_referencia?.toLowerCase() === mesNome?.toLowerCase();
+            const anoOk = !r.ano || r.ano === ano;
+            return nomeOk && mesOk && anoOk;
+          }) || null;
         }
 
         let reportId = existingReport?.id || null;
 
         if (existingReport) {
-          // Only update empty fields — never overwrite
-          const updates = {};
+          // Atualiza apenas campos vazios
+          const updates: Record<string, unknown> = {};
           if (!existingReport.resumo_periodo && dadosIA.resumo_periodo) updates.resumo_periodo = dadosIA.resumo_periodo;
           if (!existingReport.resumo_executivo && dadosIA.resumo_executivo) updates.resumo_executivo = dadosIA.resumo_executivo;
-          if (!existingReport.observacoes) updates.observacoes = origemObs;
-          else if (!existingReport.observacoes.includes('Restaurado')) updates.observacoes = existingReport.observacoes + '\n' + origemObs;
-          if (!existingReport.origem) updates.origem = 'restaurado_do_drive';
+          if (!existingReport.avaliacao_pontos_positivos && dadosIA.pontos_positivos) updates.avaliacao_pontos_positivos = dadosIA.pontos_positivos;
+          if (!existingReport.avaliacao_desafios && dadosIA.desafios) updates.avaliacao_desafios = dadosIA.desafios;
+          if (!existingReport.avaliacao_sugestoes && dadosIA.sugestoes) updates.avaliacao_sugestoes = dadosIA.sugestoes;
+          if (!existingReport.comentarios_gerais && dadosIA.comentarios_gerais) updates.comentarios_gerais = dadosIA.comentarios_gerais;
+          if (!existingReport.publico_geral_declarado && dadosIA.publico_geral) updates.publico_geral_declarado = dadosIA.publico_geral;
+          if (!existingReport.funcao && funcao) updates.funcao = funcao;
+          // Adicionar nota de restauração
+          const obsAtual = existingReport.historico_observacoes || '';
+          if (!obsAtual.includes('Restaurado')) updates.historico_observacoes = obsAtual ? obsAtual + '\n' + origemObs : origemObs;
+
           if (Object.keys(updates).length > 0) {
             await base44.asServiceRole.entities.Report.update(existingReport.id, updates);
           }
-          itemResult.avisos.push('Relatório já existia — apenas campos vazios foram preenchidos');
+          itemResult.avisos.push('Relatório já existia — campos vazios preenchidos com dados do Drive');
         } else {
-          // Create new Report
+          // Criar novo relatório no perfil do usuário
           const novoReport = await base44.asServiceRole.entities.Report.create({
             ...(usuarioId ? { created_by_id: usuarioId } : {}),
-            ...(usuarioEmail ? { created_by: usuarioEmail } : {}),
-            museu: museu,
-            mes_referencia: MESES_NOMES[mesNum ? mesNum - 1 : 0] || dadosIA.mes_referencia || '',
-            ano_referencia: ano,
+            author_name: usuarioNome,
+            funcao,
+            museu,
+            mes_referencia: mesNome,
+            ano,
             status: reportStatus,
             resumo_periodo: dadosIA.resumo_periodo || '',
             resumo_executivo: dadosIA.resumo_executivo || '',
-            pontos_positivos: dadosIA.pontos_positivos || '',
-            desafios: dadosIA.desafios || '',
-            sugestoes: dadosIA.sugestoes || '',
-            comentarios: dadosIA.comentarios_gerais || '',
-            publico_total: dadosIA.publico_geral || 0,
+            avaliacao_pontos_positivos: dadosIA.pontos_positivos || '',
+            avaliacao_desafios: dadosIA.desafios || '',
+            avaliacao_sugestoes: dadosIA.sugestoes || '',
+            comentarios_gerais: dadosIA.comentarios_gerais || '',
+            publico_geral_declarado: dadosIA.publico_geral || 0,
             numero_protocolo: dadosIA.numero_protocolo || '',
-            origem: 'restaurado_do_drive',
-            observacoes: origemObs,
-            pdf_original_drive_url: item.arquivo_url || '',
+            historico_observacoes: origemObs,
+            drive_backup_relatorio_url: item.arquivo_url || '',
+            drive_backup_status: 'concluido',
           });
           reportId = novoReport.id;
           itemResult.report_id = reportId;
         }
 
-        // Create Activities
-        const atividades = dadosIA.atividades || [];
-        for (const atv of atividades) {
-          if (!atv.titulo) continue;
+        // Criar atividades como array embedded no Report (campo atividades[])
+        const atividadesIA = dadosIA.atividades || [];
+        if (atividadesIA.length > 0) {
+          // Ler report atual para pegar atividades já existentes
+          const reportAtual = await base44.asServiceRole.entities.Report.get(reportId).catch(() => null);
+          const atividadesExistentes: unknown[] = Array.isArray(reportAtual?.atividades) ? reportAtual.atividades : [];
+          const titulosExistentes = new Set(atividadesExistentes.map((a: any) => String(a.titulo || '').toLowerCase().trim()));
 
-          // Check dup activity
-          const existingAtvs = await base44.asServiceRole.entities.Activity.filter(
-            { report_id: reportId },
-            '-created_date',
-            100
-          ).catch(() => []);
+          const novasAtividades = atividadesIA
+            .filter((atv: any) => atv.titulo && !titulosExistentes.has(String(atv.titulo).toLowerCase().trim()))
+            .map((atv: any) => {
+              const classificacao = ['META','ROTINA','EXTRA'].includes(String(atv.classificacao || '').toUpperCase())
+                ? atv.classificacao.toUpperCase()
+                : 'ROTINA';
+              return {
+                titulo: atv.titulo || '',
+                descricao: atv.descricao || '',
+                data_realizacao: atv.data_realizacao || null,
+                data_inicio: atv.data_inicio || null,
+                data_fim: atv.data_fim || null,
+                publico_estimado: atv.publico_estimado || 0,
+                publico_total: atv.publico_total || 0,
+                classificacao,
+                meta_codigo: atv.meta_vinculada || '',
+                resultado_alcancado: atv.resultado_alcancado || '',
+                justificativa_tecnica: atv.justificativa_tecnica || '',
+                equipe_responsavel: atv.equipe_responsavel || '',
+                produtos_entregues: atv.produtos_entregues || [],
+                origem: 'restaurado_do_drive',
+              };
+            });
 
-          const atvDup = existingAtvs.find(a => {
-            const tA = String(a.titulo || '').toLowerCase().trim();
-            const tB = String(atv.titulo || '').toLowerCase().trim();
-            return tA === tB || (tA.length > 5 && tB.includes(tA.slice(0, 10)));
-          });
-
-          if (atvDup) {
-            itemResult.avisos.push(`Atividade já existe: ${atv.titulo}`);
-            continue;
+          if (novasAtividades.length > 0) {
+            await base44.asServiceRole.entities.Report.update(reportId, {
+              atividades: [...atividadesExistentes, ...novasAtividades],
+            });
+            itemResult.atividades_criadas = novasAtividades.length;
+            const ignoradas = atividadesIA.length - novasAtividades.length;
+            if (ignoradas > 0) itemResult.avisos.push(`${ignoradas} atividade(s) já existiam e foram ignoradas`);
           }
-
-          const classificacao = ['META','ROTINA','EXTRA'].includes(String(atv.classificacao || '').toUpperCase())
-            ? atv.classificacao.toUpperCase()
-            : 'ROTINA';
-
-          await base44.asServiceRole.entities.Activity.create({
-            report_id: reportId,
-            titulo: atv.titulo || '',
-            descricao: atv.descricao || '',
-            data_realizacao: atv.data_realizacao || null,
-            data_inicio: atv.data_inicio || null,
-            data_fim: atv.data_fim || null,
-            publico_estimado: atv.publico_estimado || 0,
-            publico_total: atv.publico_total || 0,
-            classificacao,
-            meta_codigo: atv.meta_vinculada || '',
-            resultado_alcancado: atv.resultado_alcancado || '',
-            justificativa_tecnica: atv.justificativa_tecnica || '',
-            equipe_responsavel: atv.equipe_responsavel || '',
-            produtos_entregues: atv.produtos_entregues || [],
-          });
-          itemResult.atividades_criadas++;
         }
 
-        // Register photos
+        // Registrar fotos vinculadas
         for (const foto of item.fotos_vinculadas || []) {
-          const nomePadronizado = `RELATORIO_${(museu || 'MUSEU').toUpperCase()}_${mesNum || '00'}_${ano}_${(item.profissional_nome || 'AUTOR').toUpperCase().replace(/\s+/g,'_')}_${foto.nome?.replace(/\s+/g,'_') || 'FOTO'}`;
-
           const fotoExistente = await base44.asServiceRole.entities.ReportPhoto.filter(
             { report_id: reportId, drive_file_id: foto.id }
           ).catch(() => []);
@@ -157,14 +174,15 @@ Deno.serve(async (req) => {
             continue;
           }
 
+          const nomePad = `RELATORIO_${(museu).toUpperCase()}_${mesNum||'00'}_${ano}_${(usuarioNome).toUpperCase().replace(/\s+/g,'_')}_${(foto.nome||'FOTO').replace(/\s+/g,'_')}`;
           await base44.asServiceRole.entities.ReportPhoto.create({
             report_id: reportId,
-            file_name: nomePadronizado,
+            file_name: nomePad,
             file_url: foto.url || '',
             drive_file_id: foto.id || '',
-            drive_url: foto.url || '',
-            legenda: foto.nome || '',
-            origem: 'restaurado_do_drive',
+            caption: foto.nome || '',
+            mes_referencia: mesNome,
+            ano,
           }).catch(() => {});
           itemResult.fotos_criadas++;
         }
@@ -176,12 +194,12 @@ Deno.serve(async (req) => {
           entity_id: reportId || 'n/a',
           actor_email: user.email,
           actor_name: user.full_name || user.email,
-          details: `Restauração do Drive: ${item.arquivo_nome}. Atividades criadas: ${itemResult.atividades_criadas}. Fotos: ${itemResult.fotos_criadas}.`,
+          details: `Restauração do Drive: ${item.arquivo_nome}. Usuário: ${usuarioNome} (${usuarioEmail||'sem email'}). Atividades: ${itemResult.atividades_criadas}. Fotos: ${itemResult.fotos_criadas}.`,
         }).catch(() => {});
 
       } catch (e) {
         itemResult.status = 'erro';
-        itemResult.erros.push(e.message);
+        itemResult.erros.push((e as Error).message);
       }
 
       resultados.push(itemResult);
@@ -198,6 +216,6 @@ Deno.serve(async (req) => {
       resultados,
     });
   } catch (error) {
-    return Response.json({ error: error.message }, { status: 500 });
+    return Response.json({ error: (error as Error).message }, { status: 500 });
   }
 });
