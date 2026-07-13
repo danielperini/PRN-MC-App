@@ -14,6 +14,7 @@ import {
   loadLinkingDatasets,
   suggestEntityLinks,
 } from '@/utils/linking/smartEntityLinker';
+import QuickViewIA from '@/components/entrada/QuickViewIA';
 
 const STATUS_CONFIG = {
   ENVIADO: { label: 'Enviado', color: 'bg-blue-100 text-blue-700', icon: Clock },
@@ -653,6 +654,9 @@ export default function DocumentIntakeCard({ intake, allIntakes, onReview, onDel
           </span>
         </div>
       }
+
+      {/* Quick View IA — dados extraídos com validação rápida */}
+      <QuickViewIA intake={intake} onValidated={() => {}} onReview={onReview} />
 
       {/* Aviso recibo sem NF */}
       {isRecibo && !intake.nf_pdf_intake_id && intake.grupo_status !== 'COMPLETO' &&
