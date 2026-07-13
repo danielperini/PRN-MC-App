@@ -544,10 +544,11 @@ function PainelNFsDrive() {
               <strong>Simulação:</strong> nenhum dado foi alterado. Desmarque "Simulação" para aplicar.
             </div>
           )}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
             {[
               { label: 'Encontrados', value: d.total_lidos, color: 'text-gray-700' },
               { label: 'Importados', value: d.importados, color: 'text-green-700' },
+              { label: 'PDF+XML pareados', value: d.pareamentos, color: 'text-indigo-700' },
               { label: 'Duplicados', value: d.duplicados, color: 'text-orange-600' },
               { label: 'Cancelados', value: d.cancelados, color: 'text-yellow-600' },
               { label: 'Erros', value: d.erros, color: 'text-red-600' },
@@ -562,6 +563,23 @@ function PainelNFsDrive() {
             <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-xs text-amber-700">
               Há mais arquivos a processar. Execute novamente para continuar.
             </div>
+          )}
+          {d.detalhe_pareamentos?.length > 0 && (
+            <details className="rounded-xl border border-indigo-100 overflow-hidden" open>
+              <summary className="bg-indigo-50 px-4 py-2 text-xs font-semibold text-indigo-700 cursor-pointer">{d.detalhe_pareamentos.length} par(es) PDF+XML vinculados automaticamente</summary>
+              <div className="divide-y divide-gray-50 max-h-48 overflow-y-auto">
+                {d.detalhe_pareamentos.map((p, i) => (
+                  <div key={i} className="px-4 py-2.5 flex items-start gap-3">
+                    <div className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 bg-indigo-400" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-gray-700 truncate font-medium">{p.pdf}</p>
+                      <p className="text-[10px] text-indigo-600 truncate">↔ {p.xml}</p>
+                      <p className="text-[10px] text-gray-400">score {p.score} · {p.motivo}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </details>
           )}
           {d.detalhamento?.length > 0 && (
             <details className="rounded-xl border border-gray-100 overflow-hidden">

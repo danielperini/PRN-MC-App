@@ -533,7 +533,7 @@ async function postValidate(base44, intakeId, fileName) {
 // ======================================================================
 // FLUXO 8 — RELATÓRIO
 // ======================================================================
-function buildReport(stats) {
+function buildReport(stats: any) {
   return {
     success: true,
     total_lidos: stats.totalLidos,
@@ -545,6 +545,8 @@ function buildReport(stats) {
     next_cursor: stats.nextCursor || null,
     tem_mais: stats.temMais || false,
     detalhamento: stats.detalhamento || [],
+    pareamentos: stats.pareamentos || 0,
+    detalhe_pareamentos: stats.detalhe_pareamentos || [],
   };
 }
 
@@ -764,110 +766,186 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── FLUXO 7: Parear PDF+XML da mesma pasta do Drive (sem chamar IA) ──
-    // Agrupa os intakes recém-criados por pasta e tenta vincular PDF↔XML por nome base
-    if (!dryRun && stats.importados > 0) {
+    // ── FLUXO 7: Parear PDF+XML — enriquece XMLs com dados fiscais e depois casa os pares ──
+    if (!dryRun) {
       try {
-        // Carrega todos os intakes recentes com drive_folder_path
-        const recentIntakes = await base44.asServiceRole.entities.DocumentIntake.filter(
-          { status_registro: 'ATIVO', status_processamento: 'AGUARDANDO_REVISAO' },
-          '-created_date', 500
-        ).catch(() => []);
+        // Carrega TODOS os intakes ativos sem XML vinculado (não só os recém-criados)
+        let recentIntakes: any[] = [];
+        let _skip = 0;
+        while (true) {
+          const batch = await base44.asServiceRole.entities.DocumentIntake.filter(
+            { status_registro: 'ATIVO' }, '-created_date', 500, _skip
+          ).catch(() => []);
+          if (!batch || batch.length === 0) break;
+          recentIntakes = recentIntakes.concat(batch);
+          if (batch.length < 500) break;
+          _skip += 500;
+        }
 
-        const pdfsOrfaos = (recentIntakes || []).filter(i =>
+        // PDFs de NF sem XML vinculado
+        const pdfsOrfaos = recentIntakes.filter(i =>
           (i.tipo_detectado === 'NOTA_FISCAL_PDF' || (i.mime_type || '').includes('pdf')) &&
           !i.nf_xml_intake_id && i.grupo_status !== 'COMPLETO'
         );
-        const xmlsOrfaos = (recentIntakes || []).filter(i =>
+
+        // XMLs sem PDF vinculado
+        const xmlsOrfaos = recentIntakes.filter(i =>
           i.tipo_detectado === 'NOTA_FISCAL_XML' ||
           (i.file_name_original || '').toLowerCase().endsWith('.xml')
         ).filter(x => !x.nf_pdf_intake_id && x.grupo_status !== 'COMPLETO');
 
-        // Para cada XML sem dados, tenta extrair do conteúdo
+        console.log(`[Pareamento] PDFs órfãos: ${pdfsOrfaos.length} | XMLs órfãos: ${xmlsOrfaos.length}`);
+
+        // ── Passo 1: Enriquecer XMLs sem dados fiscais extraindo direto do arquivo ──
         for (const xml of xmlsOrfaos) {
-          const temDados = xml.nf_emitente_cpf_cnpj || xml.nf_numero;
-          if (temDados) continue;
+          const jaTem = onlyDigits(xml.nf_emitente_cpf_cnpj || xml.fornecedor_cpf_cnpj || '') ||
+                        onlyDigits(xml.nf_numero || '');
+          if (jaTem) continue;
           try {
             const res = await fetch(xml.arquivo_original_url);
-            if (res.ok) {
-              const text = await res.text();
-              const dados = extractXmlKey(text);
-              if (dados.nf_emitente_cpf_cnpj || dados.nf_numero) {
-                await base44.asServiceRole.entities.DocumentIntake.update(xml.id, {
-                  resultado_ia: { ...(xml.resultado_ia || {}), ...dados },
-                  nf_emitente_cpf_cnpj: dados.nf_emitente_cpf_cnpj,
-                  fornecedor_cpf_cnpj: dados.nf_emitente_cpf_cnpj,
-                  nf_emitente_nome: dados.nf_emitente_nome,
-                  fornecedor_nome: dados.nf_emitente_nome,
-                  nf_numero: dados.nf_numero,
-                  nf_valor_total: dados.nf_valor_total,
-                  nf_chave_acesso: dados.nf_chave_acesso,
-                  tipo_detectado: 'NOTA_FISCAL_XML',
-                  status_processamento: 'AGUARDANDO_REVISAO',
-                });
-                // Atualiza objeto em memória para uso no score
-                Object.assign(xml, dados, { nf_emitente_cpf_cnpj: dados.nf_emitente_cpf_cnpj, nf_numero: dados.nf_numero });
-              }
+            if (!res.ok) continue;
+            const text = await res.text();
+            const dados = extractXmlKey(text);
+            if (dados.nf_emitente_cpf_cnpj || dados.nf_numero) {
+              await base44.asServiceRole.entities.DocumentIntake.update(xml.id, {
+                resultado_ia: { ...(xml.resultado_ia || {}), ...dados },
+                nf_emitente_cpf_cnpj: dados.nf_emitente_cpf_cnpj,
+                fornecedor_cpf_cnpj: dados.nf_emitente_cpf_cnpj,
+                nf_emitente_nome: dados.nf_emitente_nome,
+                fornecedor_nome: dados.nf_emitente_nome,
+                nf_numero: dados.nf_numero,
+                nf_valor_total: dados.nf_valor_total || null,
+                nf_chave_acesso: dados.nf_chave_acesso,
+                tipo_detectado: 'NOTA_FISCAL_XML',
+                status_processamento: 'AGUARDANDO_REVISAO',
+              }).catch(() => {});
+              // Atualiza em memória para uso imediato no score
+              Object.assign(xml, {
+                nf_emitente_cpf_cnpj: dados.nf_emitente_cpf_cnpj,
+                fornecedor_cpf_cnpj: dados.nf_emitente_cpf_cnpj,
+                nf_numero: dados.nf_numero,
+                nf_valor_total: dados.nf_valor_total,
+                nf_chave_acesso: dados.nf_chave_acesso,
+                nf_emitente_nome: dados.nf_emitente_nome,
+              });
+              console.log(`[XML enriquecido] ${xml.file_name_original}: CNPJ=${dados.nf_emitente_cpf_cnpj} NF=${dados.nf_numero}`);
             }
           } catch (_) {}
         }
 
-        // Tenta vincular por: 1) CNPJ+NF nº, 2) CNPJ+valor, 3) nome base idêntico
-        let vinculosNovos = 0;
-        for (const pdf of pdfsOrfaos) {
+        // ── Passo 2: Score de pareamento multi-critério ──
+        function calcScore(pdf: any, xml: any): number {
+          let score = 0;
+
           const cnpjPdf = onlyDigits(pdf.nf_emitente_cpf_cnpj || pdf.fornecedor_cpf_cnpj || '');
-          const nfPdf = onlyDigits(pdf.nf_numero || '');
-          const valPdf = parseValor(pdf.nf_valor_total || 0);
+          const cnpjXml = onlyDigits(xml.nf_emitente_cpf_cnpj || xml.fornecedor_cpf_cnpj || '');
+          const nfPdf   = onlyDigits(pdf.nf_numero || '');
+          const nfXml   = onlyDigits(xml.nf_numero || '');
+          const valPdf  = parseValor(pdf.nf_valor_total || 0);
+          const valXml  = parseValor(xml.nf_valor_total || 0);
           const nomePdf = normalizeFileName(pdf.file_name_original || '');
+          const nomeXml = normalizeFileName(xml.file_name_original || '');
+          const chavePdf = safeStr(pdf.nf_chave_acesso || (pdf.resultado_ia || {}).nf_chave_acesso || '');
+          const chaveXml = safeStr(xml.nf_chave_acesso || (xml.resultado_ia || {}).nf_chave_acesso || '');
+          const pastaPdf = safeStr((pdf.resultado_ia || {}).drive_folder_path || '');
+          const pastaXml = safeStr((xml.resultado_ia || {}).drive_folder_path || '');
 
-          let melhorXml = null;
-          let melhorScore = 0;
+          // Chave de acesso idêntica — match perfeito (44 dígitos)
+          if (chavePdf.length === 44 && chaveXml.length === 44 && chavePdf === chaveXml) return 100;
 
+          // CNPJ + Número NF — identificação fiscal forte
+          if (cnpjPdf && cnpjXml && cnpjPdf === cnpjXml) score += 8;
+          if (nfPdf && nfXml && nfPdf === nfXml) score += 8;
+
+          // Valor total — tolerância de 1 centavo
+          if (valPdf > 0 && valXml > 0 && Math.abs(valPdf - valXml) < 0.02) score += 5;
+
+          // Nome base idêntico (ex: "22 - MUMO.pdf" ↔ "22 - MUMO.xml")
+          if (nomePdf && nomeXml && nomePdf === nomeXml) score += 10;
+
+          // Nome base similar: prefixo numérico igual (ex: "22 - ..." e "22 - ...")
+          const prefPdf = nomePdf.match(/^(\d+)/)?.[1] || '';
+          const prefXml = nomeXml.match(/^(\d+)/)?.[1] || '';
+          if (prefPdf && prefXml && prefPdf === prefXml) score += 5;
+
+          // Mesma pasta do Drive
+          if (pastaPdf && pastaXml && pastaPdf === pastaXml) score += 3;
+
+          // Palavras do nome em comum (mín 3 palavras com 3+ chars)
+          const palavrasPdf = nomePdf.split(' ').filter(p => p.length >= 3);
+          const palavrasXml = nomeXml.split(' ').filter(p => p.length >= 3);
+          const comuns = palavrasPdf.filter(p => palavrasXml.includes(p));
+          if (comuns.length >= 3) score += 4;
+          else if (comuns.length >= 2) score += 2;
+
+          return score;
+        }
+
+        // ── Passo 3: Algoritmo guloso de pareamento ótimo ──
+        // Pré-calcula todos os scores e seleciona os melhores pares sem conflito
+        type Pair = { pdf: any; xml: any; score: number };
+        const allPairs: Pair[] = [];
+
+        for (const pdf of pdfsOrfaos) {
           for (const xml of xmlsOrfaos) {
-            if (xml.nf_pdf_intake_id) continue;
-            let score = 0;
-            const cnpjXml = onlyDigits(xml.nf_emitente_cpf_cnpj || xml.fornecedor_cpf_cnpj || '');
-            const nfXml = onlyDigits(xml.nf_numero || '');
-            const valXml = parseValor(xml.nf_valor_total || 0);
-            const nomeXml = normalizeFileName(xml.file_name_original || '');
-
-            if (cnpjPdf && cnpjXml && cnpjPdf === cnpjXml) score += 6;
-            if (nfPdf && nfXml && nfPdf === nfXml) score += 6;
-            if (valPdf > 0 && valXml > 0 && Math.abs(valPdf - valXml) < 0.06) score += 4;
-            // Mesmo nome base (ex: "nf_empresa_123.pdf" ↔ "nf_empresa_123.xml")
-            if (nomePdf && nomeXml && nomePdf === nomeXml) score += 8;
-            // Pasta do Drive em common
-            const pastaPdf = safeStr((pdf.resultado_ia || {}).drive_folder_path);
-            const pastaXml = safeStr((xml.resultado_ia || {}).drive_folder_path);
-            if (pastaPdf && pastaXml && pastaPdf === pastaXml) score += 2;
-
-            if (score > melhorScore) { melhorScore = score; melhorXml = xml; }
-          }
-
-          // Threshold 8 para vínculo automático seguro
-          if (melhorXml && melhorScore >= 8) {
-            try {
-              await base44.asServiceRole.entities.DocumentIntake.update(pdf.id, {
-                nf_xml_intake_id: melhorXml.id,
-                nf_xml_url: melhorXml.arquivo_original_url,
-                grupo_status: 'COMPLETO',
-              });
-              await base44.asServiceRole.entities.DocumentIntake.update(melhorXml.id, {
-                nf_pdf_intake_id: pdf.id,
-                nf_pdf_url: pdf.arquivo_original_url,
-                grupo_status: 'COMPLETO',
-                ocultar_entrada_unica: true,
-              });
-              melhorXml.nf_pdf_intake_id = pdf.id; // evitar duplo vínculo
-              vinculosNovos++;
-            } catch (_) {}
+            const score = calcScore(pdf, xml);
+            if (score >= 8) allPairs.push({ pdf, xml, score });
           }
         }
+
+        // Ordena por score decrescente
+        allPairs.sort((a, b) => b.score - a.score);
+
+        const pdfUsados = new Set<string>();
+        const xmlUsados = new Set<string>();
+        let vinculosNovos = 0;
+        const detalhePareamento: any[] = [];
+
+        for (const { pdf, xml, score } of allPairs) {
+          if (pdfUsados.has(pdf.id) || xmlUsados.has(xml.id)) continue;
+
+          try {
+            await base44.asServiceRole.entities.DocumentIntake.update(pdf.id, {
+              nf_xml_intake_id: xml.id,
+              nf_xml_url: xml.arquivo_original_url,
+              grupo_status: 'COMPLETO',
+              status_processamento: 'AGUARDANDO_REVISAO',
+            });
+            await base44.asServiceRole.entities.DocumentIntake.update(xml.id, {
+              nf_pdf_intake_id: pdf.id,
+              nf_pdf_url: pdf.arquivo_original_url,
+              grupo_status: 'COMPLETO',
+              ocultar_entrada_unica: true,
+              status_processamento: 'AGUARDANDO_REVISAO',
+            });
+
+            pdfUsados.add(pdf.id);
+            xmlUsados.add(xml.id);
+            vinculosNovos++;
+            detalhePareamento.push({
+              pdf: pdf.file_name_original,
+              xml: xml.file_name_original,
+              score,
+              motivo: score === 100 ? 'chave_acesso' :
+                score >= 16 ? 'cnpj+nf_numero' :
+                score >= 10 ? 'nome_base_identico' :
+                'multi_criterio',
+            });
+            console.log(`[Pareado score=${score}] ${pdf.file_name_original} ↔ ${xml.file_name_original}`);
+          } catch (_) {}
+        }
+
         if (vinculosNovos > 0) {
-          console.log(`[PareamentoDrive] ${vinculosNovos} pares PDF+XML vinculados automaticamente.`);
+          console.log(`[PareamentoDrive] ${vinculosNovos} pares PDF+XML vinculados. Detalhes: ${JSON.stringify(detalhePareamento)}`);
+          // Adiciona ao stats para retornar na resposta
+          (stats as any).pareamentos = vinculosNovos;
+          (stats as any).detalhe_pareamentos = detalhePareamento;
+        } else {
+          console.log('[PareamentoDrive] Nenhum par novo encontrado.');
         }
+
       } catch (pairErr) {
-        console.warn('[PareamentoDrive] Erro no pareamento:', pairErr?.message);
+        console.warn('[PareamentoDrive] Erro no pareamento:', (pairErr as any)?.message);
       }
     }
 
