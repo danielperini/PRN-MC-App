@@ -9,33 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Image as ImageIcon, Loader2, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
-
-function extrairDataDoNome(fileName) {
-  const m1 = fileName.match(/(\d{4})(\d{2})(\d{2})/);
-  if (m1) return `${m1[3]}/${m1[2]}/${m1[1]}`;
-  const m2 = fileName.match(/(\d{4})-(\d{2})-(\d{2})/);
-  if (m2) return `${m2[3]}/${m2[2]}/${m2[1]}`;
-  return null;
-}
-
-function gerarLegendaAuto({ fileName, museu, mes, ano, atividadeNome, atividadeLocal, atividadeData }) {
-  const partes = [];
-
-  const nomeAtividade = atividadeNome?.trim();
-  if (nomeAtividade) partes.push(nomeAtividade);
-
-  const local = atividadeLocal?.trim() || museu?.trim();
-  if (local) partes.push(local);
-
-  // Data: preferência à data da atividade, depois extrai do nome do arquivo
-  const dataAtividade = atividadeData?.trim();
-  const dataArquivo = extrairDataDoNome(fileName || '');
-  const data = dataAtividade || dataArquivo;
-  if (data) partes.push(data);
-  else if (mes && ano) partes.push(`${mes}/${ano}`);
-
-  return partes.join(' — ');
-}
+import { gerarLegendaFoto } from '@/utils/captionUtils';
 
 export default function PhotoGallerySelector({ isOpen, onClose, onSelectPhoto, atividades = [], museu = '', mes = '', ano = '' }) {
   const [selectedPhoto, setSelectedPhoto] = useState(null);
@@ -91,14 +65,15 @@ export default function PhotoGallerySelector({ isOpen, onClose, onSelectPhoto, a
   useEffect(() => {
     if (!selectedPhoto) return;
     const atividade = atividades.find(a => a.id === atividadeVinculadaId);
-    const legenda = gerarLegendaAuto({
-      fileName: selectedPhoto.fileName,
-      museu: atividade ? (Array.isArray(atividade.museu_lista) ? atividade.museu_lista[0] : '') || museu : museu,
+    const legenda = gerarLegendaFoto({
+      atividadeNome: atividade?.nome || atividade?.titulo || '',
+      atividadeLocal: atividade?.local || atividade?.local_realizacao || '',
+      atividadeMuseus: Array.isArray(atividade?.museu_lista) ? atividade.museu_lista : [],
+      atividadeData: atividade?.data_realizacao || atividade?.data_inicio || atividade?.data || '',
+      museu,
       mes,
       ano,
-      atividadeNome: atividade?.nome || atividade?.titulo || '',
-      atividadeLocal: Array.isArray(atividade?.museu_lista) ? atividade.museu_lista[0] : '',
-      atividadeData: atividade?.data_realizacao || atividade?.data_inicio || '',
+      fileName: selectedPhoto.fileName,
     });
     setCaption(legenda);
   }, [selectedPhoto, atividadeVinculadaId, atividades, museu, mes, ano]);

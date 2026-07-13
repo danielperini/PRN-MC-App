@@ -7,32 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-
-function extrairDataDoNome(fileName) {
-  const m1 = fileName.match(/(\d{4})(\d{2})(\d{2})/);
-  if (m1) return `${m1[3]}/${m1[2]}/${m1[1]}`;
-  const m2 = fileName.match(/(\d{4})-(\d{2})-(\d{2})/);
-  if (m2) return `${m2[3]}/${m2[2]}/${m2[1]}`;
-  return null;
-}
-
-function gerarLegenda({ fileName, museu, atividadeNome, atividadeMuseus, createdAt }) {
-  const partes = [];
-  const nomeAtiv = atividadeNome?.trim();
-  if (nomeAtiv) partes.push(nomeAtiv);
-  const local = (Array.isArray(atividadeMuseus) && atividadeMuseus.length > 0)
-    ? atividadeMuseus.filter(Boolean).join('/')
-    : museu?.trim();
-  if (local) partes.push(local);
-  const dataArquivo = extrairDataDoNome(fileName || '');
-  if (dataArquivo) {
-    partes.push(dataArquivo);
-  } else if (createdAt) {
-    const d = new Date(createdAt);
-    if (!isNaN(d)) partes.push(`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`);
-  }
-  return partes.join(' — ');
-}
+import { gerarLegendaFoto, gerarLegendaDaAtividade } from '@/utils/captionUtils';
 
 export default function AttachmentsSection({
   attachments = [],
@@ -57,7 +32,7 @@ export default function AttachmentsSection({
       for (const file of files) {
         const uploaded = await base44.integrations.Core.UploadFile({ file });
         const createdAt = new Date().toISOString();
-        const legenda = gerarLegenda({ fileName: file.name, museu, createdAt });
+        const legenda = gerarLegendaFoto({ fileName: file.name, museu, createdAt });
 
         novos.push({
           name: file.name,
@@ -94,11 +69,9 @@ export default function AttachmentsSection({
 
   const handleSaveCaption = () => {
     const atividade = atividades.find(a => a.id === editAtivId);
-    const legenda = editCaption || gerarLegenda({
-      fileName: attachments[editingIdx]?.name || '',
+    const legenda = editCaption || gerarLegendaDaAtividade(atividade, {
       museu,
-      atividadeNome: atividade?.nome || atividade?.titulo || '',
-      atividadeMuseus: atividade?.museu_lista || [],
+      fileName: attachments[editingIdx]?.name || '',
       createdAt: attachments[editingIdx]?.created_at,
     });
     const updated = attachments.map((f, i) =>
@@ -112,11 +85,9 @@ export default function AttachmentsSection({
   const handleAtivChange = (atividadeId) => {
     setEditAtivId(atividadeId);
     const atividade = atividades.find(a => a.id === atividadeId);
-    const legenda = gerarLegenda({
-      fileName: attachments[editingIdx]?.name || '',
+    const legenda = gerarLegendaDaAtividade(atividade, {
       museu,
-      atividadeNome: atividade?.nome || atividade?.titulo || '',
-      atividadeMuseus: atividade?.museu_lista || [],
+      fileName: attachments[editingIdx]?.name || '',
       createdAt: attachments[editingIdx]?.created_at,
     });
     setEditCaption(legenda);

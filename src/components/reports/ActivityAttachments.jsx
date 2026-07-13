@@ -10,30 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-
-function extrairDataDoNome(fileName) {
-  const m1 = fileName.match(/(\d{4})(\d{2})(\d{2})/);
-  if (m1) return `${m1[3]}/${m1[2]}/${m1[1]}`;
-  const m2 = fileName.match(/(\d{4})-(\d{2})-(\d{2})/);
-  if (m2) return `${m2[3]}/${m2[2]}/${m2[1]}`;
-  return null;
-}
-
-function gerarLegendaAtividade({ activityName, museus = [], fileName, createdAt }) {
-  const partes = [];
-  if (activityName && activityName !== 'Atividade') partes.push(activityName);
-  const local = Array.isArray(museus) ? museus.filter(Boolean).join('/') : museus;
-  if (local) partes.push(local);
-  // Data: extrai do nome do arquivo ou usa created_at
-  const dataArquivo = extrairDataDoNome(fileName || '');
-  if (dataArquivo) {
-    partes.push(dataArquivo);
-  } else if (createdAt) {
-    const d = new Date(createdAt);
-    if (!isNaN(d)) partes.push(`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`);
-  }
-  return partes.join(' — ');
-}
+import { gerarLegendaFoto } from '@/utils/captionUtils';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 const ALLOWED_EXTENSIONS = ['jpg','jpeg','png','gif','webp','pdf'];
@@ -131,9 +108,9 @@ export default function ActivityAttachments({ reportId, activityIndex, activityI
         const renamedFileName = `${safeName}__${timestamp}.${fileExt}`;
 
         const createdAt = new Date().toISOString();
-        const legenda = gerarLegendaAtividade({
-          activityName,
-          museus: activityMuseus,
+        const legenda = gerarLegendaFoto({
+          atividadeNome: activityName,
+          atividadeMuseus: activityMuseus,
           fileName: file.name,
           createdAt,
         });
