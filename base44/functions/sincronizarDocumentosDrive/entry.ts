@@ -53,21 +53,26 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
 
-    let user: any = null;
-    try { user = await base44.auth.me(); } catch (_) {}
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-
-    const role = (user.role || '').toLowerCase();
-    if (!['admin', 'coordenador', 'coordinator'].includes(role)) {
-      return Response.json({ error: 'Apenas administradores ou coordenadores.' }, { status: 403 });
+    // Suporta execução via automação (sem sessão de usuário) ou via UI (com usuário)
+    let isScheduled = false;
+    try {
+      const user = await base44.auth.me();
+      const role = (user?.role || '').toLowerCase();
+      if (!['admin', 'coordenador', 'coordinator'].includes(role)) {
+        return Response.json({ error: 'Apenas administradores ou coordenadores.' }, { status: 403 });
+      }
+    } catch (_) {
+      isScheduled = true; // sem sessão = automação agendada, permitido
     }
 
-    // Token do Drive
+    // Token do Drive — tenta usuário autenticado primeiro, depois service role
     let token: string | null = null;
-    try {
-      const c = await base44.connectors.getConnection('googledrive');
-      if (c?.access_token) token = c.access_token;
-    } catch (_) {}
+    if (!isScheduled) {
+      try {
+        const c = await base44.connectors.getConnection('googledrive');
+        if (c?.access_token) token = c.access_token;
+      } catch (_) {}
+    }
     if (!token) {
       try {
         const c = await base44.asServiceRole.connectors.getConnection('googledrive');
