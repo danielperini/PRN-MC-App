@@ -7,7 +7,7 @@ import {
   FolderSearch, RefreshCw, CheckCircle2, AlertTriangle, ChevronDown,
   ChevronUp, Loader2, User, Calendar, Building2, Activity, Image,
   ClipboardCheck, X, FileText, FolderOpen, Play, Info, Zap, Clock,
-  RotateCcw, FileCheck2, ImageIcon
+  RotateCcw, FileCheck2, ImageIcon, Mail, Sparkles
 } from 'lucide-react';
 
 const PASTA_RAIZ_PADRAO = '1gMPRXyamu9YANVFg6Xf7VtWoOoF-3CbQ';
@@ -145,6 +145,145 @@ function ResultadoCard({ r }) {
         <p className="text-amber-600 mt-0.5">{r.avisos.slice(0, 2).join(' · ')}{r.avisos.length > 2 ? ` +${r.avisos.length - 2}` : ''}</p>
       )}
       {r.erros?.length > 0 && <p className="text-red-600 mt-0.5">{r.erros[0]}</p>}
+    </div>
+  );
+}
+
+// ── Painel Gmail Viaduto ──
+function PainelGmailViaduto() {
+  const [rodando, setRodando] = useState(false);
+  const [dryRun, setDryRun] = useState(false);
+  const [resultado, setResultado] = useState(null);
+
+  async function handleBuscar() {
+    setRodando(true);
+    setResultado(null);
+    toast.info(dryRun ? 'Simulando busca no Gmail (sem salvar)…' : 'Buscando relatórios no Gmail do Viaduto… isso pode levar alguns minutos.');
+    try {
+      const res = await base44.functions.invoke('buscarRelatoriosGmailViaduto', {
+        maxResults: 100,
+        dryRun,
+        preencherRelatorios: true,
+      });
+      const d = res.data;
+      if (!d?.success) throw new Error(d?.error || 'Erro desconhecido');
+      setResultado(d);
+      if (dryRun) {
+        toast.success(`Simulação: ${d.importados} arquivos encontrados nos e-mails`);
+      } else {
+        toast.success(`${d.importados} arquivos importados · ${d.relatoriosPreenchidos} relatórios preenchidos`);
+      }
+    } catch (e) {
+      toast.error('Erro na busca: ' + (e?.message || e));
+    } finally {
+      setRodando(false);
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-blue-200 bg-white overflow-hidden">
+      <div className="px-5 py-4 border-b border-blue-100 flex items-center justify-between bg-blue-50">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center">
+            <Mail className="w-3.5 h-3.5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold text-blue-900">Buscar Relatórios no Gmail</h2>
+            <p className="text-xs text-blue-600">danielperini.mc@viadutodasartes.org.br · IA lê, analisa e preenche automaticamente</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 py-1.5">
+            <input
+              type="checkbox"
+              id="gmail-dryrun"
+              checked={dryRun}
+              onChange={e => setDryRun(e.target.checked)}
+              className="w-3.5 h-3.5 accent-blue-600"
+            />
+            <label htmlFor="gmail-dryrun" className="text-xs text-blue-700 cursor-pointer">Simulação</label>
+          </div>
+          <Button
+            onClick={handleBuscar}
+            disabled={rodando}
+            size="sm"
+            className="gap-1.5 bg-blue-600 text-white hover:bg-blue-700 rounded-xl"
+          >
+            {rodando
+              ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Buscando…</>
+              : <><Sparkles className="w-3.5 h-3.5" /> Buscar e preencher</>
+            }
+          </Button>
+        </div>
+      </div>
+
+      {resultado && (
+        <div className="p-5 space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { label: 'Emails processados', value: resultado.resultados?.length || 0, color: 'text-gray-700' },
+              { label: 'Arquivos importados', value: resultado.importados || 0, color: 'text-blue-700' },
+              { label: 'Relatórios preenchidos', value: resultado.relatoriosPreenchidos || 0, color: 'text-green-700' },
+              { label: 'Ignorados/duplicados', value: resultado.ignorados || 0, color: 'text-gray-500' },
+            ].map((item, i) => (
+              <div key={i} className="rounded-xl border border-gray-100 bg-gray-50 p-3 text-center">
+                <p className={`text-xl font-bold ${item.color}`}>{item.value}</p>
+                <p className="text-[10px] text-gray-500 mt-0.5 leading-tight">{item.label}</p>
+              </div>
+            ))}
+          </div>
+
+          {resultado.dryRun && (
+            <div className="rounded-xl bg-blue-50 border border-blue-200 px-4 py-3 text-xs text-blue-700">
+              <strong>Modo simulação:</strong> nenhum dado foi alterado. Desmarque "Simulação" para aplicar.
+            </div>
+          )}
+
+          {resultado.resultados?.filter(r => r.status !== 'duplicado' && r.status !== 'ignorado').length > 0 && (
+            <div className="rounded-xl border border-gray-100 overflow-hidden">
+              <div className="bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-500 border-b border-gray-100">
+                Arquivos processados
+              </div>
+              <div className="divide-y divide-gray-50 max-h-60 overflow-y-auto">
+                {resultado.resultados.filter(r => r.status !== 'duplicado' && r.status !== 'ignorado').map((r, i) => (
+                  <div key={i} className="px-4 py-2.5 flex items-start gap-3">
+                    <div className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${
+                      r.status === 'criado' || r.status === 'preenchido' ? 'bg-green-400' :
+                      r.status === 'importado' ? 'bg-blue-400' :
+                      r.status === 'dry-run' ? 'bg-yellow-400' : 'bg-red-400'
+                    }`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-gray-700 truncate font-medium">{r.filename}</p>
+                      <p className="text-[10px] text-gray-500 truncate">{r.subject}</p>
+                      {r.atividades > 0 && <p className="text-[10px] text-green-600">{r.atividades} atividade(s) extraída(s)</p>}
+                      {r.erro && <p className="text-[10px] text-red-500 truncate">{r.erro}</p>}
+                    </div>
+                    <Badge variant="outline" className={`text-[10px] shrink-0 ${
+                      r.status === 'criado' ? 'border-green-300 text-green-700 bg-green-50' :
+                      r.status === 'preenchido' ? 'border-blue-300 text-blue-700 bg-blue-50' :
+                      r.status === 'dry-run' ? 'border-yellow-300 text-yellow-700 bg-yellow-50' :
+                      'border-gray-200 text-gray-500'
+                    }`}>
+                      {r.status === 'criado' ? 'Relatório criado' :
+                       r.status === 'preenchido' ? 'Relatório preenchido' :
+                       r.status === 'importado' ? 'Importado' :
+                       r.status === 'dry-run' ? 'Simulado' : r.status}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {!resultado && !rodando && (
+        <div className="px-5 py-6 text-center">
+          <Mail className="w-8 h-8 text-blue-200 mx-auto mb-2" />
+          <p className="text-xs text-gray-400">Busca e-mails com anexos de relatórios (PDF/DOCX) no Gmail do Viaduto das Artes.</p>
+          <p className="text-xs text-gray-400">A IA lê cada arquivo e preenche automaticamente os relatórios no sistema.</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -400,6 +539,9 @@ export default function VarreduraDrive() {
           </p>
         </div>
       </div>
+
+      {/* Gmail Viaduto */}
+      <PainelGmailViaduto />
 
       {/* Sincronização Automática */}
       <PainelSincAuto />
