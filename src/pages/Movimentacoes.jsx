@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import {
   TrendingUp, RefreshCw, Loader2, ExternalLink,
   ArrowUpRight, ArrowDownLeft, FileText, Banknote,
-  Wallet, Search, X, CalendarDays, ChevronDown, ChevronUp, FolderSync
+  Wallet, Search, X, CalendarDays, ChevronDown, ChevronUp, FolderSync,
+  Upload, CheckCircle2, AlertCircle
 } from 'lucide-react';
 
 import FluxoCaixaMensal from '@/components/dashboard/FluxoCaixaMensal';
@@ -345,6 +346,94 @@ function DetalheMes({ registros, busca }) {
   );
 }
 
+// ── Upload manual de extrato PDF ──
+function UploadExtrato({ onConcluido }) {
+  const [dragging, setDragging] = useState(false);
+  const [processando, setProcessando] = useState(false);
+  const [resultado, setResultado] = useState(null);
+  const inputRef = useRef(null);
+
+  async function processarArquivo(file) {
+    if (!file || file.type !== 'application/pdf') {
+      toast.error('Apenas arquivos PDF são aceitos.');
+      return;
+    }
+    setProcessando(true);
+    setResultado(null);
+    try {
+      // 1. Faz upload do PDF para storage do Base44
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      // 2. Envia para análise via IA
+      const res = await base44.functions.invoke('processarExtratoPDF', { file_url, file_name: file.name });
+      const d = res.data;
+      if (!d?.success) throw new Error(d?.error || 'Erro ao processar');
+      setResultado({ ok: true, banco: d.banco, mes: d.mes, ano: d.ano, lancamentos: d.lancamentos, resumo: d.resumo_ia });
+      toast.success(`Extrato importado: ${d.banco} — ${d.mes}/${d.ano} (${d.lancamentos} lançamentos)`);
+      if (onConcluido) onConcluido();
+    } catch (e) {
+      setResultado({ ok: false, erro: e?.message || String(e) });
+      toast.error('Erro ao processar: ' + (e?.message || String(e)));
+    } finally {
+      setProcessando(false);
+    }
+  }
+
+  function handleDrop(e) {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) processarArquivo(file);
+  }
+
+  return (
+    <div className="rounded-2xl border-2 border-dashed border-gray-200 bg-white p-5 space-y-3 transition-colors"
+      onDragOver={e => { e.preventDefault(); setDragging(true); }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={handleDrop}
+      style={{ borderColor: dragging ? '#64748b' : undefined, background: dragging ? '#f8fafc' : undefined }}
+    >
+      <div className="flex items-center gap-3">
+        <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
+          <Upload className="w-4 h-4 text-slate-600" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-slate-800">Carregar extrato PDF</p>
+          <p className="text-[11px] text-gray-400">Extrato de conta corrente ou investimento — analisado automaticamente pela IA</p>
+        </div>
+        <input ref={inputRef} type="file" accept="application/pdf" className="hidden"
+          onChange={e => { const f = e.target.files?.[0]; if (f) processarArquivo(f); e.target.value = ''; }} />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => inputRef.current?.click()}
+          disabled={processando}
+          className="rounded-xl shrink-0 border-slate-300 gap-1.5"
+        >
+          {processando
+            ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Analisando…</>
+            : <><Upload className="w-3.5 h-3.5" />Selecionar PDF</>
+          }
+        </Button>
+      </div>
+
+      {resultado && (
+        <div className={`rounded-xl px-4 py-3 flex items-start gap-2.5 text-sm ${resultado.ok ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+          {resultado.ok
+            ? <CheckCircle2 className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
+            : <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+          }
+          <div>
+            {resultado.ok
+              ? <><span className="font-semibold text-green-800">{resultado.banco}</span> · {resultado.mes}/{resultado.ano} · {resultado.lancamentos} lançamentos{resultado.resumo && <span className="block text-[11px] text-green-600 mt-0.5">{resultado.resumo}</span>}</>
+              : <span className="text-red-700">{resultado.erro}</span>
+            }
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Componente principal ──
 function MovimentacoesInner() {
   const [sincronizando, setSincronizando] = useState(false);
@@ -495,6 +584,9 @@ function MovimentacoesInner() {
             </div>
           </div>
         </div>
+
+        {/* ── Upload manual ── */}
+        <UploadExtrato onConcluido={() => refetch()} />
 
         {/* ── Loading ── */}
         {isLoading && (
