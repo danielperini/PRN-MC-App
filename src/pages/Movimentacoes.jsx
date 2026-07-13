@@ -463,28 +463,36 @@ function MovimentacoesInner() {
               <p className="text-sm text-gray-400">Extratos e rendimentos lidos automaticamente do Google Drive</p>
             </div>
           </div>
-          <div className="flex gap-2 flex-wrap">
-            <Button
-              onClick={handleSincronizarDocs}
-              disabled={sincronizandoDocs}
-              variant="outline"
-              className="gap-2 rounded-xl shrink-0 border-slate-300"
-            >
-              {sincronizandoDocs
-                ? <><Loader2 className="w-4 h-4 animate-spin" />Importando…</>
-                : <><FolderSync className="w-4 h-4" />NFs e Contratos</>
-              }
-            </Button>
-            <Button
-              onClick={handleSincronizar}
-              disabled={sincronizando}
-              className="gap-2 bg-slate-900 text-white hover:bg-slate-700 rounded-xl shrink-0"
-            >
-              {sincronizando
-                ? <><Loader2 className="w-4 h-4 animate-spin" />Lendo…</>
-                : <><RefreshCw className="w-4 h-4" />Extratos Drive</>
-              }
-            </Button>
+          <div className="flex gap-2 flex-wrap items-center">
+            <div className="flex flex-col items-end gap-1">
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleSincronizarDocs}
+                  disabled={sincronizandoDocs}
+                  variant="outline"
+                  className="gap-2 rounded-xl shrink-0 border-slate-300"
+                >
+                  {sincronizandoDocs
+                    ? <><Loader2 className="w-4 h-4 animate-spin" />Importando…</>
+                    : <><FolderSync className="w-4 h-4" />NFs e Contratos</>
+                  }
+                </Button>
+                <Button
+                  onClick={handleSincronizar}
+                  disabled={sincronizando}
+                  className="gap-2 bg-slate-900 text-white hover:bg-slate-700 rounded-xl shrink-0"
+                >
+                  {sincronizando
+                    ? <><Loader2 className="w-4 h-4 animate-spin" />Lendo…</>
+                    : <><RefreshCw className="w-4 h-4" />Extratos Drive</>
+                  }
+                </Button>
+              </div>
+              <p className="text-[10px] text-gray-400 text-right">
+                <span className="mr-3">↑ Importar NFs e contratos do Drive</span>
+                <span>↑ Ler extratos bancários do Drive</span>
+              </p>
+            </div>
           </div>
         </div>
 
