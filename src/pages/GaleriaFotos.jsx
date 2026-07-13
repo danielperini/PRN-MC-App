@@ -5,7 +5,7 @@ import LoadingPage from '@/components/common/LoadingPage';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Images, MapPin, RefreshCw, X, Filter, FolderSync, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Images, MapPin, RefreshCw, X, Filter, FolderSync, Sparkles, CheckCircle2, GitMerge } from 'lucide-react';
 import { loadGalleryReportData } from '@/utils/galleryReportData';
 import RestaurarFotosDrive from '@/components/gallery/RestaurarFotosDrive';
 import { base44 } from '@/api/base44Client';
@@ -126,6 +126,8 @@ function GaleriaFotosInner() {
   const [showRestaurar, setShowRestaurar] = useState(false);
   const [reforçandoLegendas, setReforçandoLegendas] = useState(false);
   const [legendasStatus, setLegendasStatus] = useState(null);
+  const [sincronizando, setSincronizando] = useState(false);
+  const [syncStatus, setSyncStatus] = useState(null);
   const queryClient = useQueryClient();
 
   const {
@@ -265,6 +267,33 @@ function GaleriaFotosInner() {
             </button>
             <button
               type="button"
+              disabled={sincronizando}
+              onClick={async () => {
+                setSincronizando(true);
+                setSyncStatus(null);
+                try {
+                  const res = await base44.functions.invoke('sincronizacaoFinalDrive', { dry_run: false });
+                  const s = res.data?.stats || {};
+                  const total = (s.report_photos_legenda_atualizada || 0) + (s.attachments_legenda_atualizada || 0);
+                  const vinculadas = (s.report_photos_vinculadas_a_report || 0) + (s.attachments_report_vinculado || 0);
+                  setSyncStatus(`✓ ${total} legendas atualizadas · ${vinculadas} fotos vinculadas a relatórios · ${s.relatorios_fotos_vinculadas || 0} fotos adicionadas a relatórios`);
+                  clearGalleryCache();
+                  await refetch();
+                } catch (e) {
+                  setSyncStatus('Erro na sincronização: ' + (e.message || 'verifique os logs'));
+                } finally {
+                  setSincronizando(false);
+                }
+              }}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-800 shadow-sm hover:bg-blue-100 disabled:opacity-60"
+            >
+              {sincronizando
+                ? <><RefreshCw className="h-4 w-4 animate-spin" /> Sincronizando...</>
+                : <><GitMerge className="h-4 w-4" /> Sincronizar Drive</>
+              }
+            </button>
+            <button
+              type="button"
               disabled={reforçandoLegendas}
               onClick={async () => {
                 setReforçandoLegendas(true);
@@ -300,6 +329,15 @@ function GaleriaFotosInner() {
             </button>
           </div>
         </div>
+
+        {/* Feedback de sincronização */}
+        {syncStatus && (
+          <div className="mb-4 flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            <span>{syncStatus}</span>
+            <button type="button" onClick={() => setSyncStatus(null)} className="ml-auto text-blue-400 hover:text-blue-700"><X className="h-4 w-4" /></button>
+          </div>
+        )}
 
         {/* Feedback de reforço de legendas */}
         {legendasStatus && (
