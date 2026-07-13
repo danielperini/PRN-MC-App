@@ -3,10 +3,37 @@ import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Paperclip, Upload, Trash2, FileText, FileImage,
-  FileVideo, FileAudio, File, ExternalLink, Loader2
+  FileVideo, FileAudio, File, ExternalLink, Loader2, Edit2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+
+function extrairDataDoNome(fileName) {
+  const m1 = fileName.match(/(\d{4})(\d{2})(\d{2})/);
+  if (m1) return `${m1[3]}/${m1[2]}/${m1[1]}`;
+  const m2 = fileName.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (m2) return `${m2[3]}/${m2[2]}/${m2[1]}`;
+  return null;
+}
+
+function gerarLegendaAtividade({ activityName, museus = [], fileName, createdAt }) {
+  const partes = [];
+  if (activityName && activityName !== 'Atividade') partes.push(activityName);
+  const local = Array.isArray(museus) ? museus.filter(Boolean).join('/') : museus;
+  if (local) partes.push(local);
+  // Data: extrai do nome do arquivo ou usa created_at
+  const dataArquivo = extrairDataDoNome(fileName || '');
+  if (dataArquivo) {
+    partes.push(dataArquivo);
+  } else if (createdAt) {
+    const d = new Date(createdAt);
+    if (!isNaN(d)) partes.push(`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`);
+  }
+  return partes.join(' — ');
+}
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 const ALLOWED_EXTENSIONS = ['jpg','jpeg','png','gif','webp','pdf'];
@@ -36,10 +63,12 @@ function formatBytes(bytes) {
  *  - activityName: string (nome da atividade para organização)
  *  - canEdit: boolean
  */
-export default function ActivityAttachments({ reportId, activityIndex, activityId, activityName = 'Atividade', canEdit }) {
+export default function ActivityAttachments({ reportId, activityIndex, activityId, activityName = 'Atividade', activityMuseus = [], canEdit }) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [editCaption, setEditCaption] = useState('');
 
   // Query key única por relatório + atividade
   const qKey = ['act-attachments', reportId, activityId || activityIndex];
@@ -101,6 +130,14 @@ export default function ActivityAttachments({ reportId, activityIndex, activityI
         const timestamp = Date.now();
         const renamedFileName = `${safeName}__${timestamp}.${fileExt}`;
 
+        const createdAt = new Date().toISOString();
+        const legenda = gerarLegendaAtividade({
+          activityName,
+          museus: activityMuseus,
+          fileName: file.name,
+          createdAt,
+        });
+
         const created = await base44.entities.Attachment.create({
           report_id: reportId,
           activity_id: activityId || `activity_${activityIndex}`,
@@ -108,7 +145,7 @@ export default function ActivityAttachments({ reportId, activityIndex, activityI
           file_type: file.type || 'application/octet-stream',
           file_size: file.size,
           file_url,
-          description: file.name, // nome original preservado
+          description: legenda || file.name,
           backup_done: false,
         });
 
@@ -190,8 +227,10 @@ export default function ActivityAttachments({ reportId, activityIndex, activityI
                 )}
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-medium text-gray-700 truncate">{att.file_name}</div>
-                  {att.description && (
-                    <div className="text-xs text-gray-400 truncate">{att.description}</div>
+                  {att.description ? (
+                    <div className="text-xs text-blue-600 italic truncate">{att.description}</div>
+                  ) : (
+                    <div className="text-xs text-gray-400 italic">Sem legenda</div>
                   )}
                 </div>
                 <span className="text-xs text-gray-400 flex-shrink-0">{formatBytes(att.file_size)}</span>
@@ -201,6 +240,14 @@ export default function ActivityAttachments({ reportId, activityIndex, activityI
                       <ExternalLink className="w-3 h-3 text-gray-500" />
                     </Button>
                   </a>
+                  {canEdit && (
+                    <Button
+                      variant="ghost" size="icon" className="h-6 w-6"
+                      onClick={() => { setEditingId(att.id); setEditCaption(att.description || ''); }}
+                    >
+                      <Edit2 className="w-3 h-3 text-blue-500" />
+                    </Button>
+                  )}
                   {canEdit && (
                     <Button
                       variant="ghost" size="icon" className="h-6 w-6"
@@ -216,6 +263,38 @@ export default function ActivityAttachments({ reportId, activityIndex, activityI
           })}
         </div>
       )}
+      {/* Modal edição de legenda */}
+      <Dialog open={!!editingId} onOpenChange={(open) => !open && setEditingId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Legenda da Evidência</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label className="text-sm">Legenda</Label>
+            <Textarea
+              value={editCaption}
+              onChange={(e) => setEditCaption(e.target.value)}
+              placeholder={`${activityName} — ${Array.isArray(activityMuseus) ? activityMuseus.join('/') : activityMuseus} — DD/MM/AAAA`}
+              className="resize-none h-20"
+            />
+            <p className="text-xs text-gray-400">Formato sugerido: Atividade — Local — Data</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingId(null)}>Cancelar</Button>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={async () => {
+                await base44.entities.Attachment.update(editingId, { description: editCaption });
+                queryClient.invalidateQueries(qKey);
+                setEditingId(null);
+                toast.success('Legenda atualizada');
+              }}
+            >
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

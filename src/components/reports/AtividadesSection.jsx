@@ -313,6 +313,7 @@ export default function AtividadesSection({
               activityIndex={index}
               activityId={atividade?.id || atividade?._id}
               activityName={atividade?.nome || atividade?.titulo || `Atividade ${index + 1}`}
+              activityMuseus={atividade?.museu_lista || (museu ? [museu] : [])}
               canEdit={canEdit}
             />
           )}
