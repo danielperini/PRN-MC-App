@@ -58,31 +58,71 @@ Deno.serve(async (req) => {
       }, { status: 401 });
     }
 
-    // Listar PDFs na pasta (sem recursão profunda para evitar timeout)
-    async function listPDFs(folderId: string, depth = 0): Promise<any[]> {
-      if (depth > 3) return [];
+    // Listar itens de uma pasta
+    async function listFolder(folderId: string): Promise<any[]> {
       let files: any[] = [];
       let pageToken: string | null = null;
       do {
         const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
-        const url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,mimeType,createdTime,modifiedTime,webViewLink,webContentLink)&pageSize=100${pageToken ? '&pageToken=' + pageToken : ''}`;
+        const url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,mimeType,createdTime,modifiedTime,webViewLink)&pageSize=100${pageToken ? '&pageToken=' + pageToken : ''}`;
         const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
         if (!res.ok) break;
         const data = await res.json();
-        for (const f of (data.files || [])) {
-          if (f.mimeType === 'application/vnd.google-apps.folder') {
-            const sub = await listPDFs(f.id, depth + 1);
-            files = files.concat(sub);
-          } else if (f.mimeType === 'application/pdf') {
-            files.push(f);
-          }
-        }
+        files = files.concat(data.files || []);
         pageToken = data.nextPageToken || null;
       } while (pageToken);
       return files;
     }
 
-    const pdfs = await listPDFs(DRIVE_FOLDER_ID);
+    // Estrutura: pasta raiz → subpastas mensais → subpasta "extrato" → PDFs
+    // O mês é extraído do nome da pasta mensal (pai), não do arquivo
+    const pdfs: any[] = [];
+
+    const pastasMensais = (await listFolder(DRIVE_FOLDER_ID))
+      .filter((f: any) => f.mimeType === 'application/vnd.google-apps.folder');
+
+    for (const pastaMensal of pastasMensais) {
+      // Detecta mês/ano a partir da pasta mensal
+      const mesInfoPasta = normalizarMes(pastaMensal.name);
+      const anoPasta = extrairAno(pastaMensal.name);
+
+      // Lista conteúdo da pasta mensal
+      const conteudoMensal = await listFolder(pastaMensal.id);
+
+      // Procura subpasta chamada "extrato" (case-insensitive)
+      const subPastaExtrato = conteudoMensal.find((f: any) =>
+        f.mimeType === 'application/vnd.google-apps.folder' &&
+        f.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes('extrato')
+      );
+
+      let arquivosParaVarrer: any[] = [];
+      if (subPastaExtrato) {
+        // PDFs dentro da subpasta "extrato"
+        arquivosParaVarrer = await listFolder(subPastaExtrato.id);
+      } else {
+        // Fallback: PDFs direto na pasta mensal
+        arquivosParaVarrer = conteudoMensal;
+      }
+
+      for (const f of arquivosParaVarrer) {
+        if (f.mimeType === 'application/pdf') {
+          // Injeta contexto de mês/ano da pasta pai para uso posterior
+          pdfs.push({
+            ...f,
+            _mesInfoPasta: mesInfoPasta,
+            _anoPasta: anoPasta,
+          });
+        }
+      }
+    }
+
+    // Fallback: se não encontrou nenhuma pasta mensal, varre direto a raiz
+    if (pdfs.length === 0) {
+      const raiz = await listFolder(DRIVE_FOLDER_ID);
+      for (const f of raiz) {
+        if (f.mimeType === 'application/pdf') pdfs.push(f);
+      }
+    }
     if (pdfs.length === 0) {
       return Response.json({
         success: true,
@@ -111,8 +151,9 @@ Deno.serve(async (req) => {
         nomeL.includes('cdb') || nomeL.includes('poupanca') || nomeL.includes('poupança');
       const tipo = isRendimento ? 'extrato_rendimento' : 'extrato_conta';
 
-      const mesInfo = normalizarMes(pdf.name) || normalizarMes(pdf.createdTime || '');
-      const ano = extrairAno(pdf.name) || new Date().getFullYear();
+      // Prefere mês/ano da pasta mensal pai; fallback para nome do arquivo
+      const mesInfo = pdf._mesInfoPasta || normalizarMes(pdf.name) || normalizarMes(pdf.createdTime || '');
+      const ano = pdf._anoPasta || extrairAno(pdf.name) || new Date().getFullYear();
       const mes_num = mesInfo?.mes_num || (new Date(pdf.createdTime || Date.now()).getMonth() + 1);
       const mes = mesInfo?.mes || ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][mes_num - 1];
 
