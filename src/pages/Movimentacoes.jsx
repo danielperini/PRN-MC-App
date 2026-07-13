@@ -6,277 +6,329 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
   TrendingUp, RefreshCw, Loader2, ExternalLink,
-  CreditCard, ArrowUpRight, ArrowDownLeft, ChevronDown, ChevronUp,
-  FileText, Banknote
+  ArrowUpRight, ArrowDownLeft, ChevronDown, ChevronUp,
+  FileText, Banknote, Wallet, BarChart2, Search, X
 } from 'lucide-react';
 import RequireAuth from '@/components/auth/RequireAuth';
+
+const MESES_NOME = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
 function fmtBRL(v) {
   if (!v && v !== 0) return '—';
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
 }
 
-function DocumentoDetalhe({ registro }) {
-  const [verLancamentos, setVerLancamentos] = useState(false);
-  const lancamentos = registro.lancamentos || [];
-
+// ── Barra de progresso crédito/débito ──
+function BarraFluxo({ creditos, debitos }) {
+  const total = creditos + debitos;
+  if (!total) return null;
+  const pctCred = Math.round((creditos / total) * 100);
   return (
-    <div className="px-5 py-4 space-y-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          <Badge variant="outline" className={`text-[10px] ${registro.tipo === 'extrato_rendimento' ? 'border-blue-300 text-blue-700 bg-blue-50' : 'border-gray-200 text-gray-600'}`}>
-            {registro.tipo === 'extrato_rendimento' ? '📈 Rendimento' : '🏦 Extrato Conta'}
-          </Badge>
-          <span className="text-sm font-medium text-gray-800">{registro.banco}</span>
-          {registro.conta && <span className="text-xs text-gray-400">· {registro.conta}</span>}
-        </div>
-        {registro.drive_file_url && (
-          <a href={registro.drive_file_url} target="_blank" rel="noreferrer"
-            className="flex items-center gap-1 text-xs text-blue-600 hover:underline shrink-0">
-            <ExternalLink className="w-3 h-3" /> Abrir PDF
-          </a>
-        )}
+    <div className="mt-2">
+      <div className="flex justify-between text-[10px] text-gray-400 mb-1">
+        <span>Créditos {pctCred}%</span>
+        <span>Débitos {100 - pctCred}%</span>
       </div>
-
-      {registro.resumo_ia && (
-        <p className="text-xs text-gray-500 italic bg-gray-50 rounded-lg px-3 py-2">{registro.resumo_ia}</p>
-      )}
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-        {!!registro.saldo_inicial && (
-          <div className="rounded-lg border border-gray-100 bg-gray-50 p-2.5 text-center">
-            <p className="text-[10px] text-gray-400">Saldo inicial</p>
-            <p className="text-sm font-semibold text-gray-700">{fmtBRL(registro.saldo_inicial)}</p>
-          </div>
-        )}
-        {registro.total_creditos > 0 && (
-          <div className="rounded-lg border border-green-100 bg-green-50 p-2.5 text-center">
-            <p className="text-[10px] text-green-500 flex items-center justify-center gap-0.5">
-              <ArrowUpRight className="w-2.5 h-2.5" /> Créditos
-            </p>
-            <p className="text-sm font-semibold text-green-700">{fmtBRL(registro.total_creditos)}</p>
-          </div>
-        )}
-        {registro.total_debitos > 0 && (
-          <div className="rounded-lg border border-red-100 bg-red-50 p-2.5 text-center">
-            <p className="text-[10px] text-red-400 flex items-center justify-center gap-0.5">
-              <ArrowDownLeft className="w-2.5 h-2.5" /> Débitos
-            </p>
-            <p className="text-sm font-semibold text-red-600">{fmtBRL(registro.total_debitos)}</p>
-          </div>
-        )}
-        {registro.total_rendimento > 0 && (
-          <div className="rounded-lg border border-blue-100 bg-blue-50 p-2.5 text-center">
-            <p className="text-[10px] text-blue-500 flex items-center justify-center gap-0.5">
-              <TrendingUp className="w-2.5 h-2.5" /> Rendimento
-            </p>
-            <p className="text-sm font-semibold text-blue-700">{fmtBRL(registro.total_rendimento)}</p>
-          </div>
-        )}
-        {!!registro.saldo_final && (
-          <div className="rounded-lg border border-gray-200 bg-white p-2.5 text-center">
-            <p className="text-[10px] text-gray-400">Saldo final</p>
-            <p className="text-sm font-bold text-black">{fmtBRL(registro.saldo_final)}</p>
-          </div>
-        )}
+      <div className="h-1.5 rounded-full bg-red-100 overflow-hidden">
+        <div className="h-full bg-green-400 rounded-full transition-all" style={{ width: `${pctCred}%` }} />
       </div>
-
-      {lancamentos.length > 0 && (
-        <div>
-          <button
-            onClick={() => setVerLancamentos(v => !v)}
-            className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-black transition-colors"
-          >
-            {verLancamentos ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            {verLancamentos ? 'Ocultar' : 'Ver'} {lancamentos.length} lançamento{lancamentos.length !== 1 ? 's' : ''}
-          </button>
-
-          {verLancamentos && (
-            <div className="mt-2 rounded-xl border border-gray-100 overflow-hidden">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-100">
-                    <th className="px-3 py-2 text-left font-semibold text-gray-500">Data</th>
-                    <th className="px-3 py-2 text-left font-semibold text-gray-500">Descrição</th>
-                    <th className="px-3 py-2 text-right font-semibold text-gray-500">Valor</th>
-                    <th className="px-3 py-2 text-right font-semibold text-gray-500 hidden sm:table-cell">Saldo</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {lancamentos.map((l, i) => (
-                    <tr key={i} className="hover:bg-gray-50/50">
-                      <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{l.data || '—'}</td>
-                      <td className="px-3 py-2 text-gray-700 max-w-xs truncate">{l.descricao || '—'}</td>
-                      <td className={`px-3 py-2 text-right font-medium whitespace-nowrap ${
-                        l.tipo === 'credito' || l.tipo === 'rendimento' ? 'text-green-700' : 'text-red-600'
-                      }`}>
-                        {l.tipo === 'debito' ? '-' : '+'}{fmtBRL(Math.abs(l.valor || 0))}
-                      </td>
-                      <td className="px-3 py-2 text-right text-gray-500 hidden sm:table-cell whitespace-nowrap">
-                        {l.saldo != null ? fmtBRL(l.saldo) : '—'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
 
-function CardMes({ registros }) {
-  const [expandido, setExpandido] = useState(false);
-  if (!registros?.length) return null;
-
+// ── Card de resumo mensal (visual compacto) ──
+function CardMesCompacto({ registros, selecionado, onSelecionar }) {
   const extratoConta = registros.filter(r => r.tipo === 'extrato_conta');
-  const extratoRendimento = registros.filter(r => r.tipo === 'extrato_rendimento');
-
-  const totalCreditos = extratoConta.reduce((s, r) => s + (r.total_creditos || 0), 0);
-  const totalDebitos = extratoConta.reduce((s, r) => s + (r.total_debitos || 0), 0);
-  const totalRendimento = extratoRendimento.reduce((s, r) => s + (r.total_rendimento || 0), 0);
+  const extratoRend = registros.filter(r => r.tipo === 'extrato_rendimento');
+  const creditos = extratoConta.reduce((s, r) => s + (r.total_creditos || 0), 0);
+  const debitos = extratoConta.reduce((s, r) => s + (r.total_debitos || 0), 0);
+  const rendimento = extratoRend.reduce((s, r) => s + (r.total_rendimento || 0), 0);
   const saldoFinal = extratoConta.reduce((s, r) => s + (r.saldo_final || 0), 0);
-
-  const { mes, ano } = registros[0];
+  const saldo = saldoFinal || (creditos - debitos);
+  const { mes, mes_num, ano } = registros[0];
+  const mesLabel = MESES_NOME[mes_num] || mes || '?';
 
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
-      <div
-        className="px-5 py-4 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors"
-        onClick={() => setExpandido(v => !v)}
-      >
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-black flex items-center justify-center shrink-0">
-            <CreditCard className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h3 className="font-semibold text-black text-base">{mes}/{ano}</h3>
-            <p className="text-xs text-gray-400">{registros.length} documento{registros.length !== 1 ? 's' : ''}</p>
-          </div>
+    <button
+      onClick={onSelecionar}
+      className={`rounded-2xl border p-4 text-left transition-all w-full ${
+        selecionado
+          ? 'border-black bg-black text-white shadow-lg'
+          : 'border-gray-200 bg-white hover:border-gray-400 hover:shadow-sm'
+      }`}
+    >
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <p className={`text-xs font-semibold uppercase tracking-wide ${selecionado ? 'text-gray-300' : 'text-gray-400'}`}>{mesLabel}</p>
+          <p className={`text-base font-bold ${selecionado ? 'text-white' : 'text-black'}`}>{ano}</p>
         </div>
-
-        <div className="flex items-center gap-4">
-          {totalCreditos > 0 && (
-            <div className="text-right hidden sm:block">
-              <p className="text-[10px] text-gray-400">Créditos</p>
-              <p className="text-sm font-semibold text-green-700">{fmtBRL(totalCreditos)}</p>
-            </div>
-          )}
-          {totalDebitos > 0 && (
-            <div className="text-right hidden sm:block">
-              <p className="text-[10px] text-gray-400">Débitos</p>
-              <p className="text-sm font-semibold text-red-600">{fmtBRL(totalDebitos)}</p>
-            </div>
-          )}
-          {totalRendimento > 0 && (
-            <div className="text-right hidden sm:block">
-              <p className="text-[10px] text-gray-400">Rendimento</p>
-              <p className="text-sm font-semibold text-blue-700">{fmtBRL(totalRendimento)}</p>
-            </div>
-          )}
-          {saldoFinal > 0 && (
-            <div className="text-right hidden sm:block">
-              <p className="text-[10px] text-gray-400">Saldo final</p>
-              <p className="text-sm font-bold text-black">{fmtBRL(saldoFinal)}</p>
-            </div>
-          )}
-          {expandido ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+        <div className={`text-[10px] px-2 py-0.5 rounded-full ${selecionado ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>
+          {registros.length} doc{registros.length !== 1 ? 's' : ''}
         </div>
       </div>
 
-      {/* Mobile summary */}
-      <div className="px-5 pb-3 grid grid-cols-2 gap-2 sm:hidden border-b border-gray-100">
-        {totalCreditos > 0 && (
-          <div className="rounded-lg bg-green-50 p-2 text-center">
-            <p className="text-[10px] text-green-600">Créditos</p>
-            <p className="text-sm font-bold text-green-700">{fmtBRL(totalCreditos)}</p>
+      <div className="space-y-1.5">
+        {creditos > 0 && (
+          <div className="flex justify-between items-center">
+            <span className={`text-[10px] flex items-center gap-0.5 ${selecionado ? 'text-green-300' : 'text-green-600'}`}>
+              <ArrowUpRight className="w-3 h-3" /> Créditos
+            </span>
+            <span className={`text-xs font-semibold ${selecionado ? 'text-green-300' : 'text-green-700'}`}>{fmtBRL(creditos)}</span>
           </div>
         )}
-        {totalDebitos > 0 && (
-          <div className="rounded-lg bg-red-50 p-2 text-center">
-            <p className="text-[10px] text-red-500">Débitos</p>
-            <p className="text-sm font-bold text-red-600">{fmtBRL(totalDebitos)}</p>
+        {debitos > 0 && (
+          <div className="flex justify-between items-center">
+            <span className={`text-[10px] flex items-center gap-0.5 ${selecionado ? 'text-red-300' : 'text-red-500'}`}>
+              <ArrowDownLeft className="w-3 h-3" /> Débitos
+            </span>
+            <span className={`text-xs font-semibold ${selecionado ? 'text-red-300' : 'text-red-600'}`}>{fmtBRL(debitos)}</span>
           </div>
         )}
-        {totalRendimento > 0 && (
-          <div className="rounded-lg bg-blue-50 p-2 text-center col-span-2">
-            <p className="text-[10px] text-blue-500">Rendimento</p>
-            <p className="text-sm font-bold text-blue-700">{fmtBRL(totalRendimento)}</p>
+        {rendimento > 0 && (
+          <div className="flex justify-between items-center">
+            <span className={`text-[10px] flex items-center gap-0.5 ${selecionado ? 'text-blue-300' : 'text-blue-500'}`}>
+              <TrendingUp className="w-3 h-3" /> Rendimento
+            </span>
+            <span className={`text-xs font-semibold ${selecionado ? 'text-blue-300' : 'text-blue-700'}`}>{fmtBRL(rendimento)}</span>
           </div>
         )}
       </div>
 
-      {expandido && (
-        <div className="border-t border-gray-100 divide-y divide-gray-50">
-          {registros.map((r, idx) => (
-            <DocumentoDetalhe key={idx} registro={r} />
-          ))}
+      {(creditos > 0 || debitos > 0) && !selecionado && <BarraFluxo creditos={creditos} debitos={debitos} />}
+
+      {saldo !== 0 && (
+        <div className={`mt-3 pt-2.5 border-t ${selecionado ? 'border-white/20' : 'border-gray-100'}`}>
+          <div className="flex justify-between items-center">
+            <span className={`text-[10px] ${selecionado ? 'text-gray-300' : 'text-gray-400'}`}>Saldo final</span>
+            <span className={`text-sm font-bold ${selecionado ? 'text-white' : saldo >= 0 ? 'text-black' : 'text-red-600'}`}>{fmtBRL(Math.abs(saldo))}</span>
+          </div>
         </div>
       )}
-    </div>
+    </button>
   );
 }
 
-function CardRendimentoTotal({ registros }) {
-  const porMes = useMemo(() => {
-    const map = {};
+// ── Tabela de lançamentos ──
+function TabelaLancamentos({ registros, busca }) {
+  const [tipoFiltro, setTipoFiltro] = useState('todos');
+  const [verMais, setVerMais] = useState(false);
+
+  const todosLancamentos = useMemo(() => {
+    const lista = [];
     registros.forEach(r => {
-      if (r.tipo === 'extrato_rendimento' && r.total_rendimento) {
-        const key = `${String(r.mes_num || 0).padStart(2,'0')}/${r.ano}`;
-        map[key] = (map[key] || 0) + r.total_rendimento;
-      }
+      (r.lancamentos || []).forEach(l => {
+        lista.push({ ...l, banco: r.banco, extrato_tipo: r.tipo });
+      });
     });
-    return Object.entries(map).sort((a, b) => a[0].localeCompare(b[0]));
+    return lista.sort((a, b) => {
+      if (a.data && b.data) return b.data.localeCompare(a.data);
+      return 0;
+    });
   }, [registros]);
 
-  const totalGeral = porMes.reduce((s, entry) => s + entry[1], 0);
-  if (totalGeral === 0) return null;
+  const filtrados = todosLancamentos.filter(l => {
+    if (tipoFiltro !== 'todos' && l.tipo !== tipoFiltro) return false;
+    if (busca) {
+      const b = busca.toLowerCase();
+      return (l.descricao || '').toLowerCase().includes(b) ||
+             (l.banco || '').toLowerCase().includes(b);
+    }
+    return true;
+  });
+
+  const exibidos = verMais ? filtrados : filtrados.slice(0, 20);
+
+  if (todosLancamentos.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-gray-200 py-8 text-center">
+        <p className="text-xs text-gray-400">Nenhum lançamento registrado neste período</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-white overflow-hidden">
-      <div className="px-5 py-4 border-b border-blue-100 flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center shrink-0">
-          <TrendingUp className="w-4 h-4 text-white" />
-        </div>
-        <div className="flex-1">
-          <h3 className="font-semibold text-blue-900">Rendimentos Acumulados</h3>
-          <p className="text-xs text-blue-500">Soma de todos os extratos de rendimento</p>
-        </div>
-        <p className="text-2xl font-bold text-blue-800">{fmtBRL(totalGeral)}</p>
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 flex-wrap">
+        {['todos', 'credito', 'debito', 'rendimento'].map(t => (
+          <button
+            key={t}
+            onClick={() => setTipoFiltro(t)}
+            className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+              tipoFiltro === t
+                ? 'border-black bg-black text-white'
+                : 'border-gray-200 text-gray-500 hover:border-gray-400'
+            }`}
+          >
+            {t === 'todos' ? 'Todos' : t === 'credito' ? '↑ Créditos' : t === 'debito' ? '↓ Débitos' : '📈 Rendimentos'}
+          </button>
+        ))}
+        <span className="text-xs text-gray-400 ml-auto">{filtrados.length} lançamento{filtrados.length !== 1 ? 's' : ''}</span>
       </div>
-      {porMes.length > 1 && (
-        <div className="p-5">
-          <table className="w-full text-sm">
-            <thead>
-              <tr>
-                <th className="text-left text-xs text-gray-400 font-semibold pb-2">Mês/Ano</th>
-                <th className="text-right text-xs text-gray-400 font-semibold pb-2">Rendimento</th>
+
+      <div className="rounded-xl border border-gray-200 overflow-hidden">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-200">
+              <th className="px-4 py-2.5 text-left font-semibold text-gray-500 w-24">Data</th>
+              <th className="px-4 py-2.5 text-left font-semibold text-gray-500">Descrição</th>
+              <th className="px-4 py-2.5 text-left font-semibold text-gray-500 hidden md:table-cell w-32">Banco</th>
+              <th className="px-4 py-2.5 text-right font-semibold text-gray-500 w-32">Valor</th>
+              <th className="px-4 py-2.5 text-right font-semibold text-gray-500 w-32 hidden sm:table-cell">Saldo</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {exibidos.map((l, i) => (
+              <tr key={i} className="hover:bg-gray-50/50 transition-colors">
+                <td className="px-4 py-2.5 text-gray-400 whitespace-nowrap font-mono">{l.data || '—'}</td>
+                <td className="px-4 py-2.5 text-gray-700 max-w-xs">
+                  <span className="line-clamp-1">{l.descricao || '—'}</span>
+                </td>
+                <td className="px-4 py-2.5 text-gray-400 hidden md:table-cell">{l.banco || '—'}</td>
+                <td className={`px-4 py-2.5 text-right font-semibold whitespace-nowrap ${
+                  l.tipo === 'credito' || l.tipo === 'rendimento' ? 'text-green-700' : 'text-red-600'
+                }`}>
+                  <span className="mr-0.5">{l.tipo === 'debito' ? '−' : '+'}</span>
+                  {fmtBRL(Math.abs(l.valor || 0))}
+                </td>
+                <td className="px-4 py-2.5 text-right text-gray-400 hidden sm:table-cell whitespace-nowrap">
+                  {l.saldo != null ? fmtBRL(l.saldo) : '—'}
+                </td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-blue-50">
-              {porMes.map(([mes, valor]) => (
-                <tr key={mes}>
-                  <td className="py-1.5 text-gray-700">{mes}</td>
-                  <td className="py-1.5 text-right font-semibold text-blue-700">{fmtBRL(valor)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+            ))}
+          </tbody>
+        </table>
+
+        {filtrados.length > 20 && (
+          <div className="px-4 py-3 border-t border-gray-100 bg-gray-50 text-center">
+            <button
+              onClick={() => setVerMais(v => !v)}
+              className="text-xs text-gray-500 hover:text-black flex items-center gap-1 mx-auto"
+            >
+              {verMais ? <><ChevronUp className="w-3.5 h-3.5" /> Ver menos</> : <><ChevronDown className="w-3.5 h-3.5" /> Ver todos ({filtrados.length - 20} restantes)</>}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Detalhe do mês selecionado ──
+function DetalheMes({ registros, busca }) {
+  const extratoConta = registros.filter(r => r.tipo === 'extrato_conta');
+  const extratoRend = registros.filter(r => r.tipo === 'extrato_rendimento');
+
+  const creditos = extratoConta.reduce((s, r) => s + (r.total_creditos || 0), 0);
+  const debitos = extratoConta.reduce((s, r) => s + (r.total_debitos || 0), 0);
+  const rendimento = extratoRend.reduce((s, r) => s + (r.total_rendimento || 0), 0);
+  const saldoFinal = extratoConta.reduce((s, r) => s + (r.saldo_final || 0), 0);
+  const { mes, mes_num, ano } = registros[0];
+
+  return (
+    <div className="space-y-5">
+      {/* Cabeçalho do mês */}
+      <div>
+        <h2 className="text-xl font-bold text-black">
+          {MESES_NOME[mes_num] || mes} de {ano}
+        </h2>
+        <p className="text-xs text-gray-400 mt-0.5">{registros.length} documento{registros.length !== 1 ? 's' : ''} importado{registros.length !== 1 ? 's' : ''}</p>
+      </div>
+
+      {/* Cards de resumo */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {[
+          { label: 'Total créditos', value: creditos, color: 'border-green-200 bg-green-50', text: 'text-green-700', icon: <ArrowUpRight className="w-4 h-4 text-green-600" /> },
+          { label: 'Total débitos', value: debitos, color: 'border-red-200 bg-red-50', text: 'text-red-600', icon: <ArrowDownLeft className="w-4 h-4 text-red-500" /> },
+          { label: 'Rendimentos', value: rendimento, color: 'border-blue-200 bg-blue-50', text: 'text-blue-700', icon: <TrendingUp className="w-4 h-4 text-blue-600" /> },
+          { label: 'Saldo final', value: saldoFinal || (creditos - debitos), color: 'border-gray-200 bg-white', text: 'text-black', icon: <Wallet className="w-4 h-4 text-gray-600" /> },
+        ].map((c, i) => (
+          <div key={i} className={`rounded-xl border ${c.color} p-3`}>
+            <div className="flex items-center justify-between mb-1">
+              {c.icon}
+              <span className="text-[10px] text-gray-400">{c.label}</span>
+            </div>
+            <p className={`text-base font-bold ${c.text}`}>{fmtBRL(c.value)}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Barra de fluxo */}
+      {creditos > 0 && debitos > 0 && (
+        <div className="rounded-xl border border-gray-200 bg-white p-4">
+          <p className="text-xs font-semibold text-gray-500 mb-2">Proporção créditos × débitos</p>
+          <BarraFluxo creditos={creditos} debitos={debitos} />
+          <div className="flex justify-between text-xs font-semibold mt-2">
+            <span className="text-green-700">{fmtBRL(creditos)}</span>
+            <span className="text-red-600">{fmtBRL(debitos)}</span>
+          </div>
         </div>
       )}
+
+      {/* Documentos deste mês */}
+      <div className="space-y-2">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Documentos</p>
+        {registros.map((r, i) => (
+          <div key={i} className="rounded-xl border border-gray-200 bg-white px-4 py-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${r.tipo === 'extrato_rendimento' ? 'bg-blue-100' : 'bg-gray-100'}`}>
+                {r.tipo === 'extrato_rendimento'
+                  ? <TrendingUp className="w-3.5 h-3.5 text-blue-600" />
+                  : <Banknote className="w-3.5 h-3.5 text-gray-600" />
+                }
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-black truncate">{r.banco || r.drive_file_name || 'Documento'}</p>
+                <p className="text-[10px] text-gray-400">
+                  {r.tipo === 'extrato_rendimento' ? 'Extrato de Rendimento' : 'Extrato Conta'}{r.conta ? ` · ${r.conta}` : ''}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
+              {r.tipo === 'extrato_rendimento' && r.total_rendimento > 0 && (
+                <span className="text-sm font-semibold text-blue-700">{fmtBRL(r.total_rendimento)}</span>
+              )}
+              {r.tipo === 'extrato_conta' && r.saldo_final > 0 && (
+                <span className="text-sm font-semibold text-black">{fmtBRL(r.saldo_final)}</span>
+              )}
+              {r.drive_file_url && (
+                <a href={r.drive_file_url} target="_blank" rel="noreferrer"
+                  className="text-[10px] flex items-center gap-0.5 text-blue-600 hover:underline border border-blue-200 rounded px-2 py-1 bg-blue-50">
+                  <ExternalLink className="w-3 h-3" />PDF
+                </a>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Tabela de lançamentos */}
+      <div>
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Lançamentos</p>
+        <TabelaLancamentos registros={registros} busca={busca} />
+      </div>
     </div>
   );
 }
 
 function MovimentacoesInner() {
   const [sincronizando, setSincronizando] = useState(false);
+  const [mesSelecionado, setMesSelecionado] = useState(null);
+  const [busca, setBusca] = useState('');
 
   const { data: movimentacoes = [], isLoading, refetch } = useQuery({
     queryKey: ['movimentacoes-bancarias'],
     queryFn: () => base44.entities.MovimentacaoBancaria.list('-ano', 500),
-    staleTime: 1000 * 60 * 5
+    staleTime: 1000 * 60 * 5,
+    onSuccess: (data) => {
+      // auto-seleciona o mês mais recente
+      if (data.length > 0 && !mesSelecionado) {
+        const sorted = [...data].sort((a, b) => {
+          if (b.ano !== a.ano) return b.ano - a.ano;
+          return (b.mes_num || 0) - (a.mes_num || 0);
+        });
+        setMesSelecionado(`${sorted[0].ano}-${String(sorted[0].mes_num || 0).padStart(2, '0')}`);
+      }
+    }
   });
 
   const grupos = useMemo(() => {
@@ -291,12 +343,24 @@ function MovimentacoesInner() {
       .map(([key, registros]) => ({ key, registros }));
   }, [movimentacoes]);
 
-  const totais = useMemo(() => {
-    const totalCreditos = movimentacoes.filter(r => r.tipo === 'extrato_conta').reduce((s, r) => s + (r.total_creditos || 0), 0);
-    const totalDebitos = movimentacoes.filter(r => r.tipo === 'extrato_conta').reduce((s, r) => s + (r.total_debitos || 0), 0);
-    const totalRendimento = movimentacoes.filter(r => r.tipo === 'extrato_rendimento').reduce((s, r) => s + (r.total_rendimento || 0), 0);
-    return { totalCreditos, totalDebitos, totalRendimento };
+  // Auto-selecionar o mais recente quando carregar
+  useMemo(() => {
+    if (grupos.length > 0 && !mesSelecionado) {
+      setMesSelecionado(grupos[0].key);
+    }
+  }, [grupos]);
+
+  const totaisGerais = useMemo(() => {
+    const creditos = movimentacoes.filter(r => r.tipo === 'extrato_conta').reduce((s, r) => s + (r.total_creditos || 0), 0);
+    const debitos = movimentacoes.filter(r => r.tipo === 'extrato_conta').reduce((s, r) => s + (r.total_debitos || 0), 0);
+    const rendimento = movimentacoes.filter(r => r.tipo === 'extrato_rendimento').reduce((s, r) => s + (r.total_rendimento || 0), 0);
+    return { creditos, debitos, rendimento };
   }, [movimentacoes]);
+
+  const registrosMesSelecionado = useMemo(() => {
+    const grupo = grupos.find(g => g.key === mesSelecionado);
+    return grupo?.registros || [];
+  }, [grupos, mesSelecionado]);
 
   async function handleSincronizar() {
     setSincronizando(true);
@@ -305,7 +369,7 @@ function MovimentacoesInner() {
       const res = await base44.functions.invoke('lerExtratosBancariosDrive', {});
       const d = res.data;
       if (!d?.success) throw new Error(d?.error || 'Erro desconhecido');
-      toast.success(`Sincronização concluída: ${d.resumo.novos_criados} novos · ${d.resumo.atualizados} atualizados`);
+      toast.success(`Sincronização concluída: ${d.resumo?.novos_criados || 0} novos · ${d.resumo?.atualizados || 0} atualizados`);
       await refetch();
     } catch (e) {
       toast.error('Erro: ' + (e?.message || e));
@@ -316,9 +380,10 @@ function MovimentacoesInner() {
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+      <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+
         {/* Header */}
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-black flex items-center justify-center shrink-0">
               <Banknote className="w-5 h-5 text-white" />
@@ -334,8 +399,8 @@ function MovimentacoesInner() {
             className="gap-2 bg-black text-white hover:bg-gray-800 rounded-xl shrink-0"
           >
             {sincronizando
-              ? <><Loader2 className="w-4 h-4 animate-spin" /> Lendo…</>
-              : <><RefreshCw className="w-4 h-4" /> Sincronizar Drive</>
+              ? <><Loader2 className="w-4 h-4 animate-spin" />Lendo…</>
+              : <><RefreshCw className="w-4 h-4" />Sincronizar Drive</>
             }
           </Button>
         </div>
@@ -353,41 +418,90 @@ function MovimentacoesInner() {
             <p className="font-medium text-gray-400">Nenhum extrato importado ainda</p>
             <p className="text-xs text-gray-300 mt-1">Clique em "Sincronizar Drive" para ler os PDFs da pasta.</p>
             <Button onClick={handleSincronizar} disabled={sincronizando} className="mt-4 bg-black text-white hover:bg-gray-800 gap-2">
-              {sincronizando ? <><Loader2 className="w-4 h-4 animate-spin" /> Lendo…</> : <><RefreshCw className="w-4 h-4" /> Sincronizar agora</>}
+              {sincronizando ? <><Loader2 className="w-4 h-4 animate-spin" />Lendo…</> : <><RefreshCw className="w-4 h-4" />Sincronizar agora</>}
             </Button>
           </div>
         )}
 
         {!isLoading && movimentacoes.length > 0 && (
           <>
-            {/* Totais gerais */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="rounded-2xl border border-green-200 bg-green-50 p-4 text-center">
-                <ArrowUpRight className="w-6 h-6 text-green-600 mx-auto mb-1" />
-                <p className="text-xs text-green-500 mb-1">Total créditos</p>
-                <p className="text-xl font-bold text-green-700">{fmtBRL(totais.totalCreditos)}</p>
+            {/* Totais consolidados */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="rounded-2xl border border-green-200 bg-green-50 p-4 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-green-200 flex items-center justify-center shrink-0">
+                  <ArrowUpRight className="w-4 h-4 text-green-700" />
+                </div>
+                <div>
+                  <p className="text-[10px] text-green-500 uppercase font-semibold tracking-wide">Total créditos</p>
+                  <p className="text-lg font-bold text-green-700">{fmtBRL(totaisGerais.creditos)}</p>
+                </div>
               </div>
-              <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-center">
-                <ArrowDownLeft className="w-6 h-6 text-red-500 mx-auto mb-1" />
-                <p className="text-xs text-red-400 mb-1">Total débitos</p>
-                <p className="text-xl font-bold text-red-600">{fmtBRL(totais.totalDebitos)}</p>
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-4 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-red-200 flex items-center justify-center shrink-0">
+                  <ArrowDownLeft className="w-4 h-4 text-red-700" />
+                </div>
+                <div>
+                  <p className="text-[10px] text-red-400 uppercase font-semibold tracking-wide">Total débitos</p>
+                  <p className="text-lg font-bold text-red-600">{fmtBRL(totaisGerais.debitos)}</p>
+                </div>
               </div>
-              <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-center">
-                <TrendingUp className="w-6 h-6 text-blue-600 mx-auto mb-1" />
-                <p className="text-xs text-blue-500 mb-1">Total rendimentos</p>
-                <p className="text-xl font-bold text-blue-700">{fmtBRL(totais.totalRendimento)}</p>
+              <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-blue-200 flex items-center justify-center shrink-0">
+                  <TrendingUp className="w-4 h-4 text-blue-700" />
+                </div>
+                <div>
+                  <p className="text-[10px] text-blue-500 uppercase font-semibold tracking-wide">Total rendimentos</p>
+                  <p className="text-lg font-bold text-blue-700">{fmtBRL(totaisGerais.rendimento)}</p>
+                </div>
               </div>
             </div>
 
-            {/* Rendimentos por mês */}
-            <CardRendimentoTotal registros={movimentacoes} />
+            {/* Busca global */}
+            <div className="relative">
+              <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                value={busca}
+                onChange={e => setBusca(e.target.value)}
+                placeholder="Buscar lançamento, banco, descrição…"
+                className="w-full pl-9 pr-10 py-2.5 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-black bg-white"
+              />
+              {busca && (
+                <button onClick={() => setBusca('')} className="absolute right-3 top-2.5 text-gray-400 hover:text-black">
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
 
-            {/* Cards por mês */}
-            <div className="space-y-4">
-              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Extratos por mês</h2>
-              {grupos.map(({ key, registros }) => (
-                <CardMes key={key} registros={registros} />
-              ))}
+            {/* Layout grid: cards mensais à esquerda + detalhe à direita */}
+            <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-6 items-start">
+
+              {/* Coluna: cards mensais */}
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
+                  <BarChart2 className="w-3.5 h-3.5" /> Por mês
+                </p>
+                {grupos.map(({ key, registros }) => (
+                  <CardMesCompacto
+                    key={key}
+                    registros={registros}
+                    selecionado={mesSelecionado === key}
+                    onSelecionar={() => setMesSelecionado(key)}
+                  />
+                ))}
+              </div>
+
+              {/* Coluna: detalhe do mês selecionado */}
+              <div className="min-w-0">
+                {registrosMesSelecionado.length > 0 ? (
+                  <DetalheMes registros={registrosMesSelecionado} busca={busca} />
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-gray-200 py-16 text-center">
+                    <BarChart2 className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                    <p className="text-sm text-gray-400">Selecione um mês para ver os detalhes</p>
+                  </div>
+                )}
+              </div>
             </div>
           </>
         )}
