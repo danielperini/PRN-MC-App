@@ -7,6 +7,7 @@ import {
 } from 'recharts';
 import { ArrowUpRight, ArrowDownLeft, TrendingUp, Wallet, ChevronDown, ChevronUp } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { agruparMovimentacoesPorMes, resumirRegistrosMensais } from '@/utils/movimentacoesMensais';
 
 const MESES_CURTO = ['', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
@@ -44,32 +45,25 @@ export default function FluxoCaixaMensal() {
     staleTime: 1000 * 60 * 10,
   });
 
-  // Agrupa por mês, soma créditos/débitos/rendimentos
   const dadosMensais = useMemo(() => {
-    const map = {};
-    movimentacoes.forEach(r => {
-      const key = `${r.ano}-${String(r.mes_num || 0).padStart(2, '0')}`;
-      if (!map[key]) map[key] = { key, ano: r.ano, mes_num: r.mes_num || 0, creditos: 0, debitos: 0, rendimento: 0 };
-      if (r.tipo === 'extrato_conta') {
-        map[key].creditos += r.total_creditos || 0;
-        map[key].debitos += r.total_debitos || 0;
-      }
-      if (r.tipo === 'extrato_rendimento') {
-        map[key].rendimento += r.total_rendimento || 0;
-      }
-    });
-
-    return Object.values(map)
+    return agruparMovimentacoesPorMes(movimentacoes)
       .sort((a, b) => a.key.localeCompare(b.key))
-      .slice(-12) // últimos 12 meses
-      .map(d => ({
-        ...d,
-        label: `${MESES_CURTO[d.mes_num]}/${String(d.ano).slice(-2)}`,
-        saldo: d.creditos - d.debitos,
-      }));
+      .slice(-12)
+      .map(grupo => {
+        const resumo = resumirRegistrosMensais(grupo.registros);
+        return {
+          key: grupo.key,
+          ano: grupo.ano,
+          mes_num: grupo.mes_num,
+          label: `${MESES_CURTO[grupo.mes_num]}/${String(grupo.ano).slice(-2)}`,
+          creditos: resumo.creditos,
+          debitos: resumo.debitos,
+          rendimento: resumo.rendimento,
+          saldo: resumo.creditos - resumo.debitos,
+        };
+      });
   }, [movimentacoes]);
 
-  // Totais consolidados
   const totais = useMemo(() => ({
     creditos: dadosMensais.reduce((s, d) => s + d.creditos, 0),
     debitos: dadosMensais.reduce((s, d) => s + d.debitos, 0),
@@ -82,7 +76,6 @@ export default function FluxoCaixaMensal() {
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-      {/* Header colapsável */}
       <button
         type="button"
         onClick={() => setExpanded(v => !v)}
@@ -100,8 +93,6 @@ export default function FluxoCaixaMensal() {
 
       {expanded && (
         <div className="px-5 pb-6 border-t border-slate-100 space-y-5">
-
-          {/* KPI cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 pt-4">
             {[
               { label: 'Total créditos', value: totais.creditos, color: 'text-green-700', bg: 'bg-green-50 border-green-200', icon: <ArrowUpRight className="w-4 h-4 text-green-600" /> },
@@ -116,7 +107,6 @@ export default function FluxoCaixaMensal() {
             ))}
           </div>
 
-          {/* Gráfico combinado: barras crédito/débito + linha rendimento */}
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Evolução mensal</p>
             <div className="h-64">
@@ -145,7 +135,6 @@ export default function FluxoCaixaMensal() {
             </div>
           </div>
 
-          {/* Tabela resumo por mês */}
           <div className="overflow-x-auto">
             <table className="w-full text-xs border-collapse">
               <thead>
@@ -178,7 +167,6 @@ export default function FluxoCaixaMensal() {
               Ver detalhes completos →
             </Link>
           </div>
-
         </div>
       )}
     </div>
