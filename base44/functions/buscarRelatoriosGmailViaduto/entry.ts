@@ -345,26 +345,35 @@ Campos ausentes: retorne null ou string vazia.`,
                   const atividadesExist: any[] = Array.isArray(reportAtual?.atividades) ? reportAtual.atividades : [];
                   const titulosExist = new Set(atividadesExist.map((a: any) => String(a.titulo || a.nome || '').toLowerCase().trim()));
                   const novas = atividadesIA.filter((a: any) => {
-                    const key = String(a.titulo || '').toLowerCase().trim();
+                    const key = String(a.titulo || a.nome || '').toLowerCase().trim();
                     return key && !titulosExist.has(key);
-                  }).map((a: any) => ({
-                    titulo: a.titulo || '',
-                    nome: a.titulo || '',
-                    descricao: a.descricao || '',
-                    data_realizacao: a.data_realizacao || null,
-                    data_inicio: a.data_inicio || null,
-                    data_fim: a.data_fim || null,
-                    local: a.local || '',
-                    publico_estimado: a.publico_estimado || 0,
-                    publico_total: a.publico_total || 0,
-                    classificacao: ['META', 'ROTINA', 'EXTRA'].includes(String(a.classificacao || '').toUpperCase()) ? a.classificacao.toUpperCase() : 'ROTINA',
-                    meta_codigo: a.meta_vinculada || '',
-                    resultado_alcancado: a.resultado_alcancado || '',
-                    equipe_responsavel: a.equipe_responsavel || '',
-                    justificativa_tecnica: a.justificativa_tecnica || '',
-                    museu_lista: [museu],
-                    origem: 'gmail_viaduto',
-                  }));
+                  }).map((a: any) => {
+                    const classificacao = ['META','ROTINA','EXTRA'].includes(String(a.classificacao||'').toUpperCase())
+                      ? String(a.classificacao).toUpperCase() : 'ROTINA';
+                    const dataRealizacao = a.data_realizacao || a.data_inicio || null;
+                    const publicoTotal = Number(a.publico_total || a.publico_estimado || 0);
+                    return {
+                      id: `ia_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
+                      nome: a.titulo || a.nome || '',
+                      titulo: a.titulo || a.nome || '',
+                      descricao: a.descricao || '',
+                      data_inicio: dataRealizacao,
+                      data_fim: a.data_fim || null,
+                      data_realizacao: dataRealizacao,
+                      local: a.local || '',
+                      publico_total: publicoTotal,
+                      publico_estimado: Number(a.publico_estimado || 0),
+                      classificacao,
+                      meta_codigo: a.meta_vinculada || '',
+                      meta_id: a.meta_vinculada || '',
+                      resultado_alcancado: a.resultado_alcancado || '',
+                      equipe_responsavel: a.equipe_responsavel || '',
+                      equipe_participante_ids: [],
+                      justificativa_tecnica: a.justificativa_tecnica || '',
+                      museu_lista: [museu],
+                      origem: 'gmail_viaduto',
+                    };
+                  });
                   if (novas.length > 0) {
                     updates.atividades = [...atividadesExist, ...novas];
                     camposPreenchidos.push(`atividades(${novas.length})`);
@@ -382,24 +391,33 @@ Campos ausentes: retorne null ou string vazia.`,
                 });
               } else {
                 // Criar novo relatório
-                const atividades = (dadosIA.atividades || []).map((a: any) => ({
-                  titulo: a.titulo || '',
-                  nome: a.titulo || '',
-                  descricao: a.descricao || '',
-                  data_realizacao: a.data_realizacao || null,
-                  data_inicio: a.data_inicio || null,
-                  data_fim: a.data_fim || null,
-                  local: a.local || '',
-                  publico_estimado: a.publico_estimado || 0,
-                  publico_total: a.publico_total || 0,
-                  classificacao: ['META', 'ROTINA', 'EXTRA'].includes(String(a.classificacao || '').toUpperCase()) ? a.classificacao.toUpperCase() : 'ROTINA',
-                  meta_codigo: a.meta_vinculada || '',
-                  resultado_alcancado: a.resultado_alcancado || '',
-                  equipe_responsavel: a.equipe_responsavel || '',
-                  justificativa_tecnica: a.justificativa_tecnica || '',
-                  museu_lista: [museu],
-                  origem: 'gmail_viaduto',
-                }));
+                const atividades = (dadosIA.atividades || []).map((a: any) => {
+                  const classificacao = ['META','ROTINA','EXTRA'].includes(String(a.classificacao||'').toUpperCase())
+                    ? String(a.classificacao).toUpperCase() : 'ROTINA';
+                  const dataRealizacao = a.data_realizacao || a.data_inicio || null;
+                  const publicoTotal = Number(a.publico_total || a.publico_estimado || 0);
+                  return {
+                    id: `ia_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
+                    nome: a.titulo || a.nome || '',
+                    titulo: a.titulo || a.nome || '',
+                    descricao: a.descricao || '',
+                    data_inicio: dataRealizacao,
+                    data_fim: a.data_fim || null,
+                    data_realizacao: dataRealizacao,
+                    local: a.local || '',
+                    publico_total: publicoTotal,
+                    publico_estimado: Number(a.publico_estimado || 0),
+                    classificacao,
+                    meta_codigo: a.meta_vinculada || '',
+                    meta_id: a.meta_vinculada || '',
+                    resultado_alcancado: a.resultado_alcancado || '',
+                    equipe_responsavel: a.equipe_responsavel || '',
+                    equipe_participante_ids: [],
+                    justificativa_tecnica: a.justificativa_tecnica || '',
+                    museu_lista: [museu],
+                    origem: 'gmail_viaduto',
+                  };
+                });
 
                 const novoReport = await base44.asServiceRole.entities.Report.create({
                   ...(usuarioId ? { created_by_id: usuarioId } : {}),

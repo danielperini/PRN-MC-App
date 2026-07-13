@@ -209,20 +209,42 @@ Extraia em JSON estruturado:
               }) || null;
 
               const origemObs = `Preenchido via Gmail webhook em ${new Date().toLocaleDateString('pt-BR')}. Arquivo: ${filename}.`;
-              const atividadesIA = (dadosIA.atividades || []).map((a: any) => ({
-                titulo: a.titulo || '',
-                nome: a.titulo || '',
-                descricao: a.descricao || '',
-                data_realizacao: a.data_realizacao || null,
-                local: a.local || '',
-                publico_estimado: a.publico_estimado || 0,
-                publico_total: a.publico_total || 0,
-                classificacao: ['META','ROTINA','EXTRA'].includes(String(a.classificacao||'').toUpperCase()) ? a.classificacao.toUpperCase() : 'ROTINA',
-                meta_codigo: a.meta_vinculada || '',
-                resultado_alcancado: a.resultado_alcancado || '',
-                museu_lista: [museu],
-                origem: 'gmail_webhook',
-              }));
+              const atividadesIA = (dadosIA.atividades || []).map((a: any) => {
+                const classificacao = ['META','ROTINA','EXTRA'].includes(String(a.classificacao||'').toUpperCase())
+                  ? String(a.classificacao).toUpperCase()
+                  : 'ROTINA';
+                // data_realizacao → data_inicio (campo usado pela UI)
+                const dataRealizacao = a.data_realizacao || a.data_inicio || null;
+                const dataFim = a.data_fim || null;
+                // publico_total preferido; fallback para publico_estimado
+                const publicoTotal = Number(a.publico_total || a.publico_estimado || 0);
+                return {
+                  id: `ia_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
+                  // campo principal usado pela UI
+                  nome: a.titulo || a.nome || '',
+                  // alias para compatibilidade com entity Activity
+                  titulo: a.titulo || a.nome || '',
+                  descricao: a.descricao || '',
+                  data_inicio: dataRealizacao,
+                  data_fim: dataFim,
+                  data_realizacao: dataRealizacao,
+                  local: a.local || '',
+                  // publico_total é o campo exibido pela UI
+                  publico_total: publicoTotal,
+                  publico_estimado: Number(a.publico_estimado || 0),
+                  classificacao,
+                  // meta_codigo armazena o código da meta (MC3A-XX)
+                  meta_codigo: a.meta_vinculada || '',
+                  // meta_id: tenta mapear pelo código se for um dos conhecidos
+                  meta_id: a.meta_vinculada || '',
+                  resultado_alcancado: a.resultado_alcancado || '',
+                  equipe_responsavel: a.equipe_responsavel || '',
+                  // equipe_participante_ids: vazio — usuário preenche manualmente na UI
+                  equipe_participante_ids: [],
+                  museu_lista: [museu],
+                  origem: 'gmail_webhook',
+                };
+              });
 
               if (existingReport) {
                 const updates: Record<string, any> = {};
@@ -237,7 +259,7 @@ Extraia em JSON estruturado:
                 const reportAtual = await base44.asServiceRole.entities.Report.get(existingReport.id).catch(() => null);
                 const atExist: any[] = Array.isArray(reportAtual?.atividades) ? reportAtual.atividades : [];
                 const titulosExist = new Set(atExist.map((a: any) => normalize(a.titulo || a.nome || '')));
-                const novas = atividadesIA.filter((a: any) => a.titulo && !titulosExist.has(normalize(a.titulo)));
+                const novas = atividadesIA.filter((a: any) => (a.nome || a.titulo) && !titulosExist.has(normalize(a.nome || a.titulo || '')));
                 if (novas.length > 0) updates.atividades = [...atExist, ...novas];
                 updates.historico_observacoes = (existingReport.historico_observacoes ? existingReport.historico_observacoes + '\n' : '') + origemObs;
 
