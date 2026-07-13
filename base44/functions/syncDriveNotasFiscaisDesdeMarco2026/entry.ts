@@ -93,38 +93,41 @@ function isTomadorValido(tomadorNome, tomadorCnpj) {
 // ======================================================================
 // ACESSO AO GOOGLE DRIVE
 // ======================================================================
-async function getDriveToken(base44) {
-  const { accessToken } = await base44.asServiceRole.connectors.getConnection('googledrive');
-  return accessToken;
+// Token é buscado UMA VEZ no início do handler e passado como string
+// para todas as funções — evita múltiplas chamadas ao conector que
+// causam throttling e erros 401 em varreduras longas.
+async function getDriveToken(base44): Promise<string> {
+  const conn = await base44.asServiceRole.connectors.getConnection('googledrive');
+  const token = conn?.accessToken || conn?.access_token;
+  if (!token) throw new Error('Token do Google Drive não disponível — reconecte o conector.');
+  return token;
 }
 
-async function driveFetch(base44, url) {
-  const token = await getDriveToken(base44);
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return res;
+function driveFetch(token: string, url: string) {
+  return fetch(url, { headers: { Authorization: `Bearer ${token}` } });
 }
 
 // ======================================================================
 // FLUXO 1 — VALIDAÇÃO DE ACESSO ÀS PASTAS
 // ======================================================================
-async function validateFolderAccess(base44) {
+async function validateFolderAccess(token: string) {
   const [origin, backup] = await Promise.allSettled([
-    driveFetch(base44, `https://www.googleapis.com/drive/v3/files/${ORIGIN_FOLDER_ID}?fields=id,name`),
-    driveFetch(base44, `https://www.googleapis.com/drive/v3/files/${BACKUP_FOLDER_ID}?fields=id,name`),
+    driveFetch(token, `https://www.googleapis.com/drive/v3/files/${ORIGIN_FOLDER_ID}?fields=id,name`),
+    driveFetch(token, `https://www.googleapis.com/drive/v3/files/${BACKUP_FOLDER_ID}?fields=id,name`),
   ]);
 
   if (origin.status === 'rejected' || !origin.value.ok) {
-    return { success: false, error: 'SEM_ACESSO_PASTA_ORIGEM' };
+    const status = origin.status === 'fulfilled' ? origin.value.status : 'erro';
+    return { success: false, error: `SEM_ACESSO_PASTA_ORIGEM (HTTP ${status})` };
   }
   if (backup.status === 'rejected' || !backup.value.ok) {
-    return { success: false, error: 'SEM_ACESSO_PASTA_BACKUP' };
+    const status = backup.status === 'fulfilled' ? backup.value.status : 'erro';
+    return { success: false, error: `SEM_ACESSO_PASTA_BACKUP (HTTP ${status})` };
   }
 
-  // Testa acesso às pastas extras (best-effort — loga mas não bloqueia)
+  // Testa acesso às pastas extras (best-effort)
   const extrasCheck = await Promise.allSettled(
-    EXTRA_FOLDER_IDS.map(id => driveFetch(base44, `https://www.googleapis.com/drive/v3/files/${id}?fields=id,name`))
+    EXTRA_FOLDER_IDS.map(id => driveFetch(token, `https://www.googleapis.com/drive/v3/files/${id}?fields=id,name`))
   );
   const semAcesso = EXTRA_FOLDER_IDS.filter((_, i) => {
     const r = extrasCheck[i];
@@ -140,18 +143,18 @@ async function validateFolderAccess(base44) {
 // ======================================================================
 // FLUXO 2 — VARREDURA RECURSIVA
 // ======================================================================
-async function listFolderRecursive(base44, folderId, folderPath = '') {
-  const allFiles = [];
-  let pageToken = null;
+async function listFolderRecursive(token: string, folderId: string, folderPath = '') {
+  const allFiles: any[] = [];
+  let pageToken: string | null = null;
 
   do {
     const query = encodeURIComponent(`'${folderId}' in parents and trashed = false`);
     let url = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name,mimeType,size,modifiedTime,createdTime),nextPageToken&pageSize=1000`;
-    if (pageToken) url += `&pageToken=${pageToken}`;
+    if (pageToken) url += `&pageToken=${encodeURIComponent(pageToken)}`;
 
-    const res = await driveFetch(base44, url);
+    const res = await driveFetch(token, url);
     if (!res.ok) {
-      console.warn(`Erro ao listar pasta ${folderId}: ${res.status}`);
+      console.warn(`Erro ao listar pasta ${folderId}: HTTP ${res.status}`);
       break;
     }
 
@@ -162,16 +165,13 @@ async function listFolderRecursive(base44, folderId, folderPath = '') {
     for (const file of files) {
       if (file.mimeType === 'application/vnd.google-apps.folder') {
         const subFiles = await listFolderRecursive(
-          base44,
+          token,
           file.id,
           folderPath ? `${folderPath}/${file.name}` : file.name,
         );
         allFiles.push(...subFiles);
       } else {
-        allFiles.push({
-          ...file,
-          _folderPath: folderPath,
-        });
+        allFiles.push({ ...file, _folderPath: folderPath });
       }
     }
   } while (pageToken);
@@ -320,10 +320,10 @@ function normalizeFileName(name) {
 // ======================================================================
 // FLUXO 5a — IMPORTAÇÃO DE XML (extração direta, sem IA)
 // ======================================================================
-async function importXml(base44, file) {
+async function importXml(base44, token: string, file) {
   const driveHash = buildDriveHash(file.name, file.size, file.modifiedTime);
   try {
-    const downloadRes = await driveFetch(base44, `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`);
+    const downloadRes = await driveFetch(token, `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`);
     if (!downloadRes.ok) return { success: false, motivo: `Download Drive falhou: HTTP ${downloadRes.status}` };
 
     const xmlText = await downloadRes.text();
@@ -375,13 +375,13 @@ async function importXml(base44, file) {
 // ======================================================================
 // FLUXO 5b — IMPORTAÇÃO DE PDF E ANÁLISE POR IA
 // ======================================================================
-async function importAndAnalyze(base44, file) {
+async function importAndAnalyze(base44, token: string, file) {
   const driveHash = buildDriveHash(file.name, file.size, file.modifiedTime);
 
   try {
     // (1) Download do arquivo do Google Drive
     const downloadRes = await driveFetch(
-      base44,
+      token,
       `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`,
     );
 
@@ -589,10 +589,14 @@ Deno.serve(async (req) => {
 
     // Autenticação (apenas quando chamado via HTTP manual)
     const url = new URL(req.url);
-    const isCron = url.searchParams.get('cron') === '1' || req.headers.get('x-base44-trigger') === 'cron';
+    const body = await req.json().catch(() => ({}));
+    const isCron = url.searchParams.get('cron') === '1'
+      || req.headers.get('x-base44-trigger') === 'cron'
+      || body.cron === '1'
+      || body.cron === true;
 
     if (!isCron) {
-      const user = await base44.auth.me();
+      const user = await base44.auth.me().catch(() => null);
       if (!user) {
         return Response.json({ ok: false, error: 'Não autenticado' }, { status: 401 });
       }
@@ -600,8 +604,6 @@ Deno.serve(async (req) => {
         return Response.json({ ok: false, error: 'Função exclusiva da coordenação geral' }, { status: 403 });
       }
     }
-
-    const body = await req.json().catch(() => ({}));
     const dryRun = body.dryRun === true;
     const maxFiles = parseInt(body.maxFiles, 10) || 10000;
     const cursor = safeStr(body.cursor);
@@ -613,8 +615,16 @@ Deno.serve(async (req) => {
 
     const startTime = Date.now();
 
+    // ── Token único para toda a execução — evita throttling e 401 em varreduras longas ──
+    let driveToken: string;
+    try {
+      driveToken = await getDriveToken(base44);
+    } catch (tokenErr) {
+      return Response.json({ success: false, error: tokenErr.message }, { status: 401 });
+    }
+
     // ── FLUXO 1: Validação de acesso ──
-    const accessCheck = await validateFolderAccess(base44);
+    const accessCheck = await validateFolderAccess(driveToken);
     if (!accessCheck.success) {
       // Log de falha
       try {
@@ -639,7 +649,7 @@ Deno.serve(async (req) => {
     // ── FLUXO 2: Varredura recursiva de TODAS as pastas em paralelo ──
     const allFolderIds = [ORIGIN_FOLDER_ID, ...EXTRA_FOLDER_IDS];
     const varreduras = await Promise.allSettled(
-      allFolderIds.map(folderId => listFolderRecursive(base44, folderId))
+      allFolderIds.map(folderId => listFolderRecursive(driveToken, folderId))
     );
 
     // Agrega e deduplica por drive_file_id (um mesmo arquivo pode aparecer em múltiplas pastas via atalho)
@@ -800,7 +810,7 @@ Deno.serve(async (req) => {
       let importResult;
       if (isXml) {
         // XMLs: extração direta sem IA
-        importResult = await importXml(base44, file);
+        importResult = await importXml(base44, driveToken, file);
         if (importResult.success) {
           const chave = `${file._folderPath || '/'}::${normalizeFileName(file.name)}`;
           xmlsImportadosNestaRodada[chave] = {
@@ -816,7 +826,7 @@ Deno.serve(async (req) => {
         }
       } else {
         // PDFs: análise por IA Claude
-        importResult = await importAndAnalyze(base44, file);
+        importResult = await importAndAnalyze(base44, driveToken, file);
         if (!importResult.success) {
           stats.erros++;
           stats.detalhamento.push({ nome: file.name, drive_file_id: file.id, status: 'erro', motivo: importResult.motivo });
