@@ -301,6 +301,15 @@ function AuthenticatedApp() {
           }
         />
         <Route
+          path="/VarreduraDrive"
+          element={
+            <SafePage
+              Page={React.lazy(() => import('./pages/VarreduraDrive'))}
+              pageName="VarreduraDrive"
+            />
+          }
+        />
+        <Route
           path="/RelatorioExecucaoDashboard"
           element={
             <SafePage

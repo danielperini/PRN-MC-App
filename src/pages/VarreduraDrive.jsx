@@ -1,0 +1,429 @@
+import React, { useState } from 'react';
+import { base44 } from '@/api/base44Client';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import {
+  FolderSearch, RefreshCw, CheckCircle2, AlertTriangle, ChevronDown,
+  ChevronUp, Loader2, User, Calendar, Building2, Activity, Image,
+  ClipboardCheck, X, FileText, FolderOpen, Play, Info
+} from 'lucide-react';
+
+const PASTA_RAIZ_PADRAO = '1gMPRXyamu9YANVFg6Xf7VtWoOoF-3CbQ';
+
+// ── Item Card ──
+function ItemCard({ item, onToggle }) {
+  const [expanded, setExpanded] = useState(false);
+  const d = item.dados_ia || {};
+  const atividades = d.atividades || [];
+  const confianca = item.confianca || 0;
+  const colorConf = confianca >= 70
+    ? 'bg-green-100 text-green-800 border-green-200'
+    : confianca >= 40
+      ? 'bg-yellow-100 text-yellow-800 border-yellow-200'
+      : 'bg-red-100 text-red-800 border-red-200';
+
+  return (
+    <div className={`rounded-xl border p-4 space-y-2 transition-all ${item.selecionado ? 'border-black bg-white shadow-sm' : 'border-gray-200 bg-gray-50'}`}>
+      <div className="flex items-start gap-3">
+        <input
+          type="checkbox"
+          checked={!!item.selecionado}
+          onChange={() => onToggle(item)}
+          className="mt-1 w-4 h-4 rounded accent-black shrink-0"
+        />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-black truncate">{item.arquivo_nome}</p>
+          <div className="flex flex-wrap gap-1.5 mt-1">
+            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${colorConf}`}>
+              {confianca}% confiança
+            </span>
+            {item.duplicidade === 'provavel' && (
+              <Badge variant="outline" className="text-[10px] border-orange-300 text-orange-600 bg-orange-50">
+                Possível duplicata
+              </Badge>
+            )}
+            {item.usuario_status === 'localizado' ? (
+              <Badge variant="outline" className="text-[10px] border-blue-200 text-blue-700 bg-blue-50">
+                <User className="w-3 h-3 mr-1" />Usuário ok
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-[10px] border-red-200 text-red-600 bg-red-50">
+                <User className="w-3 h-3 mr-1" />Usuário não localizado
+              </Badge>
+            )}
+            {item.fotos_count > 0 && (
+              <Badge variant="outline" className="text-[10px] border-purple-200 text-purple-700 bg-purple-50">
+                <Image className="w-3 h-3 mr-1" />{item.fotos_count} foto{item.fotos_count !== 1 ? 's' : ''}
+              </Badge>
+            )}
+          </div>
+        </div>
+        <button onClick={() => setExpanded(v => !v)} className="shrink-0 text-gray-400 hover:text-black">
+          {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs pl-7">
+        <span className="flex items-center gap-1 text-gray-600 truncate">
+          <User className="w-3 h-3 shrink-0" />{item.profissional_nome || '—'}
+        </span>
+        <span className="flex items-center gap-1 text-gray-600">
+          <Building2 className="w-3 h-3 shrink-0" />{item.museu || '—'}
+        </span>
+        <span className="flex items-center gap-1 text-gray-600">
+          <Calendar className="w-3 h-3 shrink-0" />{item.mes || '—'}/{item.ano || '—'}
+        </span>
+        <span className="flex items-center gap-1 text-gray-600">
+          <Activity className="w-3 h-3 shrink-0" />{atividades.length} atividade{atividades.length !== 1 ? 's' : ''}
+        </span>
+      </div>
+
+      {expanded && (
+        <div className="pl-7 border-t border-gray-100 pt-3 space-y-2">
+          {item.usuario_vinculado && (
+            <div className="text-xs text-blue-700 bg-blue-50 rounded-lg px-3 py-2">
+              Usuário: <strong>{item.usuario_vinculado.nome}</strong> — {item.usuario_vinculado.email}
+            </div>
+          )}
+          {item.duplicidade === 'provavel' && (
+            <div className="text-xs text-orange-700 bg-orange-50 rounded-lg px-3 py-2 flex items-start gap-1.5">
+              <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />
+              Possível duplicata detectada. Verifique antes de importar.
+            </div>
+          )}
+          {atividades.slice(0, 6).map((a, i) => (
+            <p key={i} className="text-xs text-gray-600">
+              • {a.titulo} {a.classificacao ? <span className="text-gray-400">({a.classificacao})</span> : ''}
+            </p>
+          ))}
+          {atividades.length > 6 && (
+            <p className="text-xs text-gray-400">+ {atividades.length - 6} atividades adicionais...</p>
+          )}
+          {item.campos_ausentes?.length > 0 && (
+            <p className="text-xs text-amber-600">
+              <AlertTriangle className="w-3 h-3 inline mr-1" />
+              Campos ausentes: {item.campos_ausentes.join(', ')}
+            </p>
+          )}
+          {item.fotos_vinculadas?.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {item.fotos_vinculadas.slice(0, 6).map((f, i) => (
+                <a key={i} href={f.url} target="_blank" rel="noreferrer"
+                  className="text-[10px] bg-white border border-gray-200 rounded px-2 py-0.5 text-gray-600 hover:text-black truncate max-w-[120px]">
+                  🖼 {f.nome}
+                </a>
+              ))}
+              {item.fotos_vinculadas.length > 6 && (
+                <span className="text-[10px] text-gray-400">+{item.fotos_vinculadas.length - 6} fotos</span>
+              )}
+            </div>
+          )}
+          {item.arquivo_url && (
+            <a href={item.arquivo_url} target="_blank" rel="noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
+              <FileText className="w-3 h-3" /> Abrir PDF no Drive
+            </a>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Resultado de importação ──
+function ResultadoCard({ r }) {
+  return (
+    <div className={`rounded-lg px-3 py-2.5 text-xs border ${r.status === 'ok' ? 'bg-white border-green-200' : 'bg-red-50 border-red-200'}`}>
+      <p className="font-semibold text-gray-800 truncate">{r.arquivo_nome}</p>
+      <div className="flex gap-3 mt-0.5 text-gray-500">
+        <span>{r.atividades_criadas} atividade{r.atividades_criadas !== 1 ? 's' : ''}</span>
+        <span>{r.fotos_criadas} foto{r.fotos_criadas !== 1 ? 's' : ''}</span>
+      </div>
+      {r.avisos?.length > 0 && (
+        <p className="text-amber-600 mt-0.5">{r.avisos.slice(0, 2).join(' · ')}{r.avisos.length > 2 ? ` +${r.avisos.length - 2}` : ''}</p>
+      )}
+      {r.erros?.length > 0 && <p className="text-red-600 mt-0.5">{r.erros[0]}</p>}
+    </div>
+  );
+}
+
+// ── Página principal ──
+export default function VarreduraDrive() {
+  const [pastaId, setPastaId] = useState(PASTA_RAIZ_PADRAO);
+  const [carregando, setCarregando] = useState(false);
+  const [resultados, setResultados] = useState([]);  // itens do preview
+  const [resumo, setResumo] = useState(null);         // stats da varredura
+  const [importando, setImportando] = useState(false);
+  const [resultadoImport, setResultadoImport] = useState(null);
+  const [etapa, setEtapa] = useState('idle'); // idle | varrendo | revisao | importado
+
+  // ── Varredura ──
+  async function handleVarrer() {
+    if (!pastaId.trim()) { toast.warning('Informe o ID da pasta do Drive.'); return; }
+    setCarregando(true);
+    setResultados([]);
+    setResumo(null);
+    setResultadoImport(null);
+    setEtapa('varrendo');
+    toast.info('Varrendo pastas do Drive com IA… isso pode levar alguns minutos.');
+    try {
+      const res = await base44.functions.invoke('previewImportarRelatoriosDrive', { folder_id: pastaId.trim() });
+      const data = res.data;
+      if (!data?.success) throw new Error(data?.error || 'Erro desconhecido na varredura');
+
+      setResultados(data.resultados || []);
+      setResumo({
+        total_arquivos: data.total_arquivos,
+        total_pdfs: data.total_pdfs,
+        total_imagens: data.total_imagens,
+        pasta_id: data.pasta_id,
+      });
+      setEtapa('revisao');
+      toast.success(`Varredura concluída: ${data.total_pdfs} PDF(s), ${data.total_imagens} imagem(ns).`);
+    } catch (e) {
+      toast.error('Erro na varredura: ' + (e?.message || e));
+      setEtapa('idle');
+    } finally {
+      setCarregando(false);
+    }
+  }
+
+  // ── Toggle seleção ──
+  function handleToggle(item) {
+    setResultados(prev => prev.map(i =>
+      i.arquivo_id === item.arquivo_id ? { ...i, selecionado: !i.selecionado } : i
+    ));
+  }
+
+  function toggleTodos(val) {
+    setResultados(prev => prev.map(i => ({ ...i, selecionado: val })));
+  }
+
+  const selecionados = resultados.filter(i => i.selecionado);
+
+  // ── Confirmar importação ──
+  async function handleImportar() {
+    if (selecionados.length === 0) { toast.warning('Selecione ao menos um relatório.'); return; }
+    setImportando(true);
+    toast.info(`Importando ${selecionados.length} relatório(s)…`);
+    try {
+      const res = await base44.functions.invoke('confirmarImportacaoRelatoriosDrive', {
+        itens_confirmados: selecionados.map(i => ({
+          arquivo_nome: i.arquivo_nome,
+          arquivo_url: i.arquivo_url,
+          dados_ia: i.dados_ia,
+          usuario_vinculado: i.usuario_vinculado,
+          profissional_nome: i.profissional_nome,
+          profissional_email: i.profissional_email,
+          museu: i.museu,
+          mes: i.mes,
+          mes_num: i.mes_num,
+          ano: i.ano,
+          fotos_vinculadas: i.fotos_vinculadas || [],
+        })),
+      });
+      setResultadoImport(res.data);
+      setEtapa('importado');
+      toast.success(`Importação concluída: ${res.data.total_sucesso}/${res.data.total_processados} relatório(s).`);
+    } catch (e) {
+      toast.error('Erro na importação: ' + (e?.message || e));
+    } finally {
+      setImportando(false);
+    }
+  }
+
+  // ── Pós-importação: vincular fotos com IA ──
+  async function handleVincularFotosIA() {
+    toast.info('Vinculando fotos com IA via programação dos museus…');
+    try {
+      const res = await base44.functions.invoke('sincronizacaoFinalDrive', { dry_run: false, limite: 80 });
+      const s = res.data?.stats || {};
+      toast.success(`${s.legendas_geradas_ia || 0} legendas geradas pela IA · ${s.vinculadas_programacao || 0} fotos vinculadas à programação`);
+    } catch (e) {
+      toast.error('Erro ao vincular fotos: ' + (e?.message || e));
+    }
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6 py-4">
+
+      {/* Header */}
+      <div className="flex items-start gap-4">
+        <div className="w-10 h-10 rounded-xl bg-black flex items-center justify-center shrink-0">
+          <FolderSearch className="w-5 h-5 text-white" />
+        </div>
+        <div>
+          <h1 className="text-xl font-bold text-black">Varredura do Google Drive</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Identifica relatórios pendentes nas pastas, analisa PDFs com IA, vincula fotos e importa para o sistema.
+          </p>
+        </div>
+      </div>
+
+      {/* Configuração de pasta */}
+      <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <FolderOpen className="w-4 h-4 text-gray-500" />
+          <h2 className="text-sm font-semibold text-black">Pasta do Drive</h2>
+        </div>
+        <div className="flex gap-3">
+          <input
+            type="text"
+            value={pastaId}
+            onChange={e => setPastaId(e.target.value)}
+            placeholder="ID da pasta raiz do Drive (ex: 1gMPRXyamu9Y...)"
+            className="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+          />
+          <Button
+            onClick={handleVarrer}
+            disabled={carregando}
+            className="gap-2 bg-black text-white hover:bg-gray-800 rounded-xl px-5"
+          >
+            {carregando
+              ? <><Loader2 className="w-4 h-4 animate-spin" /> Varrendo...</>
+              : <><Play className="w-4 h-4" /> Iniciar varredura</>
+            }
+          </Button>
+        </div>
+        <div className="flex items-start gap-2 rounded-xl bg-gray-50 border border-gray-100 px-4 py-3 text-xs text-gray-500">
+          <Info className="w-4 h-4 shrink-0 mt-0.5 text-gray-400" />
+          <p>A varredura percorre <strong>todas as subpastas</strong> recursivamente, analisa cada PDF com IA e vincula as imagens encontradas na mesma pasta ao relatório correspondente.</p>
+        </div>
+      </div>
+
+      {/* Varrendo... skeleton */}
+      {carregando && (
+        <div className="rounded-2xl border border-gray-100 bg-white p-8 flex flex-col items-center gap-4">
+          <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
+            <Loader2 className="w-6 h-6 animate-spin text-gray-500" />
+          </div>
+          <div className="text-center">
+            <p className="text-sm font-semibold text-black">Analisando PDFs com IA…</p>
+            <p className="text-xs text-gray-400 mt-1">Isso pode levar 1–3 minutos dependendo da quantidade de arquivos.</p>
+          </div>
+          <div className="flex gap-2 mt-2">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-1.5 w-16 rounded-full bg-gray-200 overflow-hidden">
+                <div className="h-full bg-black rounded-full animate-pulse" style={{ animationDelay: `${i * 0.3}s` }} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Resumo da varredura */}
+      {resumo && etapa !== 'idle' && (
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: 'Arquivos encontrados', value: resumo.total_arquivos, color: 'bg-gray-50' },
+            { label: 'PDFs de relatórios', value: resumo.total_pdfs, color: 'bg-blue-50' },
+            { label: 'Imagens encontradas', value: resumo.total_imagens, color: 'bg-purple-50' },
+          ].map((s, i) => (
+            <div key={i} className={`${s.color} rounded-xl border border-gray-100 p-4 text-center`}>
+              <p className="text-2xl font-bold text-black">{s.value}</p>
+              <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Lista de resultados para revisão */}
+      {etapa === 'revisao' && resultados.length > 0 && (
+        <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-black">{resultados.length} relatório{resultados.length !== 1 ? 's' : ''} detectado{resultados.length !== 1 ? 's' : ''}</h2>
+              <p className="text-xs text-gray-500">{selecionados.length} selecionado{selecionados.length !== 1 ? 's' : ''} para importação</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <button onClick={() => toggleTodos(true)} className="text-xs text-blue-600 hover:underline">Selecionar todos</button>
+              <span className="text-gray-300">|</span>
+              <button onClick={() => toggleTodos(false)} className="text-xs text-gray-500 hover:underline">Desmarcar</button>
+              <button
+                onClick={handleVarrer}
+                className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-black border border-gray-200 rounded-lg px-3 py-1.5 hover:border-black transition-colors"
+              >
+                <RefreshCw className="w-3 h-3" /> Re-varrer
+              </button>
+            </div>
+          </div>
+
+          <div className="p-5 space-y-2 max-h-[600px] overflow-y-auto">
+            {resultados.map((item, i) => (
+              <ItemCard key={item.arquivo_id || i} item={item} onToggle={handleToggle} />
+            ))}
+          </div>
+
+          <div className="px-5 py-4 border-t border-gray-100 bg-gray-50">
+            <Button
+              onClick={handleImportar}
+              disabled={importando || selecionados.length === 0}
+              className="w-full gap-2 bg-black text-white hover:bg-gray-800 h-11 text-sm"
+            >
+              {importando
+                ? <><Loader2 className="w-4 h-4 animate-spin" /> Importando…</>
+                : <><ClipboardCheck className="w-4 h-4" /> Importar {selecionados.length} relatório{selecionados.length !== 1 ? 's' : ''}</>
+              }
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Resultado da importação */}
+      {etapa === 'importado' && resultadoImport && (
+        <div className="rounded-2xl border border-green-200 bg-white overflow-hidden">
+          <div className="px-5 py-4 bg-green-50 border-b border-green-100 flex items-center gap-3">
+            <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-green-800">
+                Importação concluída — {resultadoImport.total_sucesso}/{resultadoImport.total_processados} relatório{resultadoImport.total_sucesso !== 1 ? 's' : ''} importado{resultadoImport.total_sucesso !== 1 ? 's' : ''}
+              </p>
+              {resultadoImport.total_erro > 0 && (
+                <p className="text-xs text-red-600 mt-0.5">{resultadoImport.total_erro} com erro</p>
+              )}
+            </div>
+          </div>
+
+          <div className="p-5 space-y-2 max-h-80 overflow-y-auto">
+            {resultadoImport.resultados?.map((r, i) => (
+              <ResultadoCard key={i} r={r} />
+            ))}
+          </div>
+
+          {/* Vincular fotos com IA pós-importação */}
+          <div className="px-5 py-4 border-t border-gray-100 bg-gray-50 space-y-3">
+            <p className="text-xs text-gray-500">
+              Os relatórios foram importados. Agora você pode vincular as fotos às atividades usando a IA, cruzando com a programação de cada museu.
+            </p>
+            <div className="flex gap-3">
+              <Button
+                onClick={handleVincularFotosIA}
+                variant="outline"
+                className="flex-1 gap-2 border-purple-300 text-purple-700 hover:bg-purple-50"
+              >
+                <Activity className="w-4 h-4" /> Vincular fotos com IA
+              </Button>
+              <Button
+                onClick={() => { setEtapa('idle'); setResultados([]); setResumo(null); setResultadoImport(null); }}
+                variant="outline"
+                className="flex-1 gap-2"
+              >
+                <RefreshCw className="w-4 h-4" /> Nova varredura
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sem resultados */}
+      {etapa === 'revisao' && resultados.length === 0 && (
+        <div className="rounded-2xl border border-gray-100 bg-white p-10 text-center">
+          <FolderSearch className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+          <p className="text-sm font-semibold text-gray-500">Nenhum PDF de relatório encontrado</p>
+          <p className="text-xs text-gray-400 mt-1">Verifique se o ID da pasta está correto e se existem PDFs nas subpastas.</p>
+        </div>
+      )}
+    </div>
+  );
+}
