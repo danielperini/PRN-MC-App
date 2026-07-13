@@ -40,7 +40,7 @@ function formatBytes(bytes) {
  *  - activityName: string (nome da atividade para organização)
  *  - canEdit: boolean
  */
-export default function ActivityAttachments({ reportId, activityIndex, activityId, activityName = 'Atividade', activityMuseus = [], canEdit }) {
+export default function ActivityAttachments({ reportId, activityIndex, activityId, activityName = 'Atividade', activityMuseus = [], activityLocal = '', activityData = '', canEdit }) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
@@ -111,6 +111,8 @@ export default function ActivityAttachments({ reportId, activityIndex, activityI
         const legenda = gerarLegendaFoto({
           atividadeNome: activityName,
           atividadeMuseus: activityMuseus,
+          atividadeLocal: activityLocal,
+          atividadeData: activityData,
           fileName: file.name,
           createdAt,
         });

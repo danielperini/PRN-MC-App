@@ -175,12 +175,28 @@ Deno.serve(async (req) => {
           }
 
           const nomePad = `RELATORIO_${(museu).toUpperCase()}_${mesNum||'00'}_${ano}_${(usuarioNome).toUpperCase().replace(/\s+/g,'_')}_${(foto.nome||'FOTO').replace(/\s+/g,'_')}`;
+
+          // Gerar legenda automática com atividade, museu, local e data
+          const atividadesDoRelatorio: any[] = dadosIA.atividades || [];
+          const atividadeVinculada = atividadesDoRelatorio.find((a: any) =>
+            foto.nome && (String(a.titulo || '').toLowerCase().includes(foto.nome.toLowerCase().split('_')[0]) ||
+            String(foto.nome).toLowerCase().includes(String(a.titulo || '').toLowerCase().split(' ')[0]))
+          ) || atividadesDoRelatorio[0];
+
+          const captionPartes: string[] = [];
+          if (atividadeVinculada?.titulo) captionPartes.push(atividadeVinculada.titulo);
+          const localFoto = atividadeVinculada?.local || atividadeVinculada?.local_realizacao || museu;
+          if (localFoto) captionPartes.push(localFoto);
+          const dataFoto = atividadeVinculada?.data_realizacao || atividadeVinculada?.data_inicio || (mesNome && ano ? `${mesNome}/${ano}` : '');
+          if (dataFoto) captionPartes.push(dataFoto);
+          const legendaGerada = captionPartes.length > 0 ? captionPartes.join(' — ') : (foto.nome || '');
+
           await base44.asServiceRole.entities.ReportPhoto.create({
             report_id: reportId,
             file_name: nomePad,
             file_url: foto.url || '',
             drive_file_id: foto.id || '',
-            caption: foto.nome || '',
+            caption: legendaGerada,
             mes_referencia: mesNome,
             ano,
           }).catch(() => {});

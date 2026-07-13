@@ -314,6 +314,8 @@ export default function AtividadesSection({
               activityId={atividade?.id || atividade?._id}
               activityName={atividade?.nome || atividade?.titulo || `Atividade ${index + 1}`}
               activityMuseus={atividade?.museu_lista || (museu ? [museu] : [])}
+              activityLocal={atividade?.local || atividade?.local_realizacao || ''}
+              activityData={atividade?.data_realizacao || atividade?.data_inicio || atividade?.data || ''}
               canEdit={canEdit}
             />
           )}

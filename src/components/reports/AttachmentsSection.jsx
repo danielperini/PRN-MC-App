@@ -28,11 +28,13 @@ export default function AttachmentsSection({
     try {
       setUploading(true);
       const novos = [];
+      // Usa a primeira atividade do relatório como contexto padrão para a legenda
+      const primeiraAtividade = atividades[0];
 
       for (const file of files) {
         const uploaded = await base44.integrations.Core.UploadFile({ file });
         const createdAt = new Date().toISOString();
-        const legenda = gerarLegendaFoto({ fileName: file.name, museu, createdAt });
+        const legenda = gerarLegendaDaAtividade(primeiraAtividade, { museu, mes, ano, fileName: file.name, createdAt });
 
         novos.push({
           name: file.name,
