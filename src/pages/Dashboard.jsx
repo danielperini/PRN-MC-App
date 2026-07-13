@@ -16,6 +16,7 @@ import NewsCarousel from '../components/dashboard/NewsCarousel';
 import ExecutiveIndicators from '../components/dashboard/ExecutiveIndicators';
 import MetasAditivoSection from '../components/dashboard/MetasAditivoSection';
 import ResumoAtividadesPorMeta from '../components/dashboard/ResumoAtividadesPorMeta';
+import MetasCumprimentoPorMuseu from '../components/dashboard/MetasCumprimentoPorMuseu';
 import DashboardProfissional from './DashboardProfissional.jsx';
 import DashboardPatrocinador from './DashboardPatrocinador';
 import GaleriaTickerCarousel from '../components/dashboard/GaleriaTickerCarousel';
@@ -136,6 +137,8 @@ function DashboardCoordenadorView({
           reports={isCoordenador ? allReports : myReports}
           rubricas={rubricas}
         />
+
+        <MetasCumprimentoPorMuseu rubricas={rubricas} />
 
         <MetasAditivoSection rubricas={rubricas} />
 
