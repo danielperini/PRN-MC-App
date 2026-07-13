@@ -1,12 +1,13 @@
 import React, { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import RequireAuth from '@/components/auth/RequireAuth';
 import LoadingPage from '@/components/common/LoadingPage';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Images, MapPin, RefreshCw, X, Filter } from 'lucide-react';
+import { Images, MapPin, RefreshCw, X, Filter, FolderSync } from 'lucide-react';
 import { loadGalleryReportData } from '@/utils/galleryReportData';
+import RestaurarFotosDrive from '@/components/gallery/RestaurarFotosDrive';
 
 const INITIAL_VISIBLE_IMAGES = 36;
 const VISIBLE_IMAGES_STEP = 36;
@@ -110,6 +111,8 @@ function GaleriaFotosInner() {
   const [filterPeriodo, setFilterPeriodo] = useState('');
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_IMAGES);
   const [selectedImage, setSelectedImage] = useState(null);
+  const [showRestaurar, setShowRestaurar] = useState(false);
+  const queryClient = useQueryClient();
 
   const {
     data,
@@ -237,18 +240,42 @@ function GaleriaFotosInner() {
             {isFetching && <p className="mt-2 text-xs text-gray-400">Atualizando galeria...</p>}
           </div>
 
-          <button
-            type="button"
-            onClick={async () => {
-              clearGalleryCache();
-              await refetch();
-            }}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-100"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Atualizar galeria
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setShowRestaurar(v => !v)}
+              className={`inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium shadow-sm transition-colors ${showRestaurar ? 'border-black bg-black text-white' : 'border-gray-300 bg-white text-gray-800 hover:bg-gray-100'}`}
+            >
+              <FolderSync className="h-4 w-4" />
+              Restaurar do Drive
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                clearGalleryCache();
+                await refetch();
+              }}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-100"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Atualizar
+            </button>
+          </div>
         </div>
+
+        {/* Painel restaurar do Drive */}
+        {showRestaurar && (
+          <div className="mb-6">
+            <RestaurarFotosDrive
+              onImportConcluida={() => {
+                clearGalleryCache();
+                queryClient.invalidateQueries(['galeria-fotos-stable-v1']);
+                refetch();
+                setShowRestaurar(false);
+              }}
+            />
+          </div>
+        )}
 
         {/* Painel de filtros */}
         <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm space-y-4">

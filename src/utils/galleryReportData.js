@@ -275,9 +275,10 @@ export async function loadGalleryReportData({
       ? safeEntityList('MediaLibrary', '-created_date', limitMedia, { quietMissing: true })
       : Promise.resolve([]);
 
-    const [media, attachments] = await Promise.all([
+    const [media, attachments, reportPhotos] = await Promise.all([
       mediaPromise,
       safeEntityList('Attachment', '-created_date', limitAttachments),
+      safeEntityList('ReportPhoto', '-created_date', 2000, { quietMissing: true }),
     ]);
 
     if (Array.isArray(media) && media.length) {
@@ -296,6 +297,26 @@ export async function loadGalleryReportData({
         .filter((item) => isImageByMime(item?.file_type) || isImageByFileName(item?.file_name))
         .map((item) => mapPhoto(item, 'Attachment'))
     );
+
+    // Incluir fotos restauradas do Drive (ReportPhoto)
+    if (Array.isArray(reportPhotos) && reportPhotos.length) {
+      images.push(
+        ...reportPhotos
+          .filter((item) => item?.file_url && (isImageByFileName(item?.file_name) || String(item?.file_url).match(/\.(jpg|jpeg|png|webp|gif)/i)))
+          .map((item) => {
+            const mapped = mapPhoto({
+              ...item,
+              legenda: item.caption || item.legenda || item.file_name || '',
+              description: item.caption || '',
+            }, 'ReportPhoto');
+            return {
+              ...mapped,
+              reportMes: item.mes_referencia ? `${item.mes_referencia}${item.ano ? `/${item.ano}` : ''}` : mapped.reportMes,
+              authorName: item.author || '',
+            };
+          })
+      );
+    }
   } catch (error) {
     console.warn('[Galeria] Falha geral ao carregar imagens.', error);
   }
