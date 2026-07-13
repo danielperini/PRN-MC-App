@@ -9,7 +9,12 @@ Deno.serve(async (req) => {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const conn = await base44.asServiceRole.connectors.getConnection('googledrive');
+    // Tentar obter token do Drive (user-scoped primeiro, depois service role)
+    let conn: any = null;
+    try { conn = await base44.connectors.getConnection('googledrive'); } catch(_) {}
+    if (!conn?.access_token) {
+      try { conn = await base44.asServiceRole.connectors.getConnection('googledrive'); } catch(_) {}
+    }
     if (!conn || !conn.access_token) {
       return Response.json({ error: 'Conector Google Drive não está autenticado. Reconecte o Drive em Configurações > Conectores.' }, { status: 401 });
     }

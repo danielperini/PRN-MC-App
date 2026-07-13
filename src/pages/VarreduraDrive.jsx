@@ -388,6 +388,129 @@ function PainelGmailViaduto() {
   );
 }
 
+// ── Painel Varredura NFs Fev-Jul ──
+function PainelNFsFevJul() {
+  const [rodando, setRodando] = useState(false);
+  const [resultado, setResultado] = useState(null);
+
+  async function handleVarrer() {
+    setRodando(true);
+    setResultado(null);
+    toast.info('Varrendo Drive em busca de NFs de fev-jul 2026… aguarde.');
+    try {
+      const res = await base44.functions.invoke('auditarNFsDriveFevJul', {});
+      const d = res.data;
+      if (!d?.success) throw new Error(d?.error || 'Erro desconhecido');
+      setResultado(d);
+      toast.success(`Varredura concluída: ${d.resumo.intakes_criados} NF(s) novas importadas · ${d.resumo.duplicatas_descartadas} duplicatas descartadas`);
+    } catch (e) {
+      toast.error('Erro: ' + (e?.message || e));
+    } finally {
+      setRodando(false);
+    }
+  }
+
+  const r = resultado?.resumo;
+
+  return (
+    <div className="rounded-2xl border border-amber-200 bg-white overflow-hidden">
+      <div className="px-5 py-4 border-b border-amber-100 bg-amber-50 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-amber-600 flex items-center justify-center">
+            <FileText className="w-3.5 h-3.5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold text-amber-900">Varredura de NFs — Fev a Jul/2026</h2>
+            <p className="text-xs text-amber-600">Importa XMLs novos do Drive, descarta duplicatas pelos 5 critérios</p>
+          </div>
+        </div>
+        <Button
+          onClick={handleVarrer}
+          disabled={rodando}
+          size="sm"
+          className="gap-1.5 bg-amber-600 text-white hover:bg-amber-700 rounded-xl"
+        >
+          {rodando
+            ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Varrendo…</>
+            : <><FolderSearch className="w-3.5 h-3.5" /> Varrer agora</>
+          }
+        </Button>
+      </div>
+
+      {r && (
+        <div className="p-5 space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { label: 'XMLs encontrados', value: r.xmls_encontrados_drive, color: 'text-gray-700' },
+              { label: 'Duplicatas descartadas', value: r.duplicatas_descartadas, color: 'text-orange-600' },
+              { label: 'NFs novas importadas', value: r.novas_nfs_encontradas, color: 'text-green-700' },
+              { label: 'Intakes criados', value: r.intakes_criados, color: 'text-blue-700' },
+            ].map((item, i) => (
+              <div key={i} className="rounded-xl border border-gray-100 bg-gray-50 p-3 text-center">
+                <p className={`text-2xl font-bold ${item.color}`}>{item.value}</p>
+                <p className="text-[10px] text-gray-500 mt-0.5 leading-tight">{item.label}</p>
+              </div>
+            ))}
+          </div>
+
+          {resultado.novas_importadas?.length > 0 && (
+            <div className="rounded-xl border border-green-100 overflow-hidden">
+              <div className="bg-green-50 px-4 py-2 text-xs font-semibold text-green-700 border-b border-green-100">
+                NFs importadas para revisão
+              </div>
+              <div className="divide-y divide-gray-50 max-h-56 overflow-y-auto">
+                {resultado.novas_importadas.map((nf, i) => (
+                  <div key={i} className="px-4 py-2.5 flex items-center gap-3">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-gray-700 font-medium truncate">{nf.arquivo}</p>
+                      <p className="text-[10px] text-gray-400">Intake criado: {nf.intake_id?.substring(0, 12)}…</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {resultado.duplicatas?.length > 0 && (
+            <details className="rounded-xl border border-orange-100 overflow-hidden">
+              <summary className="bg-orange-50 px-4 py-2 text-xs font-semibold text-orange-700 cursor-pointer">
+                {resultado.duplicatas.length} duplicata(s) descartada(s) — clique para ver
+              </summary>
+              <div className="divide-y divide-gray-50 max-h-48 overflow-y-auto">
+                {resultado.duplicatas.map((d, i) => (
+                  <div key={i} className="px-4 py-2 flex items-start gap-2">
+                    <X className="w-3 h-3 text-orange-400 mt-0.5 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-xs text-gray-600 truncate">{d.arquivo}</p>
+                      <p className="text-[10px] text-orange-600">{d.motivo}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+
+          {resultado.erros?.length > 0 && (
+            <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-xs text-red-700">
+              <AlertTriangle className="w-3.5 h-3.5 inline mr-1.5" />
+              {resultado.erros.length} erro(s) durante o processamento.
+            </div>
+          )}
+        </div>
+      )}
+
+      {!r && !rodando && (
+        <div className="px-5 py-6 text-center">
+          <FileText className="w-8 h-8 text-amber-200 mx-auto mb-2" />
+          <p className="text-xs text-gray-400">Varre a pasta de exportações do Drive, filtra XMLs de NF de fev-jul/2026 e importa apenas as notas únicas.</p>
+          <p className="text-xs text-gray-400 mt-1">NFs já existentes no sistema são descartadas automaticamente pelos 5 critérios (chave, número, valor, data, CNPJ).</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Painel de Sincronização Automática ──
 function PainelSincAuto() {
   const [rodando, setRodando] = useState(false);
@@ -639,6 +762,9 @@ export default function VarreduraDrive() {
           </p>
         </div>
       </div>
+
+      {/* NFs Fev-Jul */}
+      <PainelNFsFevJul />
 
       {/* Gmail Viaduto */}
       <PainelGmailViaduto />
