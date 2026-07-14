@@ -1,6 +1,14 @@
 const MESES_NOME = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
+// Valores confirmados pelo responsável financeiro. Em 2026, somente estes repasses
+// representam entrada nova de recursos no projeto. Aplicações, resgates, rendimentos,
+// devoluções e transferências entre conta corrente e investimento não entram como crédito.
+const CREDITOS_EXTERNOS_CONFIRMADOS_2026 = Object.freeze({
+  '2026-02': 1320000,
+  '2026-06': 81700,
+});
+
 function numero(valor) {
   const n = Number(valor || 0);
   return Number.isFinite(n) ? n : 0;
@@ -43,33 +51,33 @@ function descricaoLancamento(lancamento) {
 function ehTransferenciaInterna(lancamento) {
   const descricao = descricaoLancamento(lancamento);
   return [
-    'aplicacao', 'aplicacao financeira', 'investimento', 'resgate', 'resgate aplicacao',
+    'aplicacao financeira', 'aplicacao automatica', 'aplicacao cdb', 'aplicacao fundo',
+    'resgate aplicacao', 'resgate automatico', 'resgate cdb', 'resgate fundo',
     'transferencia entre contas', 'transf entre contas', 'conta investimento',
     'conta corrente para investimento', 'investimento para conta corrente',
     'movimentacao interna', 'saldo aplicado', 'aporte aplicacao', 'baixa aplicacao',
+    'aplicacao de saldo', 'resgate de investimento', 'transferencia para aplicacao',
+    'transferencia da aplicacao',
   ].some(termo => descricao.includes(termo));
 }
 
 function ehRendimento(lancamento) {
   const descricao = descricaoLancamento(lancamento);
   return tipoLancamento(lancamento) === 'rendimento'
-    || ['rendimento', 'remuneracao', 'juros', 'rentabilidade', 'atualizacao monetaria'].some(termo => descricao.includes(termo));
+    || ['rendimento', 'remuneracao', 'juros', 'rentabilidade', 'atualizacao monetaria', 'correcao monetaria'].some(termo => descricao.includes(termo));
 }
 
 function ehDevolucaoOuEstorno(lancamento) {
   const descricao = descricaoLancamento(lancamento);
-  return ['devolucao', 'estorno', 'reembolso', 'credito devolvido', 'cancelamento'].some(termo => descricao.includes(termo));
+  return ['devolucao', 'estorno', 'reembolso', 'credito devolvido', 'cancelamento', 'reversao'].some(termo => descricao.includes(termo));
 }
 
-function ehCreditoExternoConfirmado(lancamento) {
-  const valor = Math.abs(numero(lancamento?.valor));
+function ehCreditoExternoPorDescricao(lancamento) {
   const descricao = descricaoLancamento(lancamento);
-  const valorConfirmado = Math.abs(valor - 1320000) <= 0.01 || Math.abs(valor - 81700) <= 0.01;
-  const origemPublica = [
+  return [
     'repasse', 'prefeitura', 'fundacao municipal de cultura', 'fmc',
     'termo de colaboracao', 'parceria', 'convenio', 'subvencao', 'aporte do projeto',
   ].some(termo => descricao.includes(termo));
-  return valorConfirmado || origemPublica;
 }
 
 function fingerprintLancamento(lancamento, registro) {
@@ -91,6 +99,14 @@ function lancamentosUnicos(registros) {
     });
   });
   return Array.from(map.values());
+}
+
+function chaveMes(registros) {
+  const primeiro = registros.find(Boolean);
+  const ano = Number(primeiro?.ano);
+  const mes = Number(primeiro?.mes_num);
+  if (!ano || mes < 1 || mes > 12) return null;
+  return `${ano}-${String(mes).padStart(2, '0')}`;
 }
 
 export function parseDataLancamento(valor, anoFallback = null) {
@@ -120,28 +136,28 @@ export function deduplicarRegistrosPorDocumento(movimentacoes = []) {
   return Array.from(porDocumento.values());
 }
 
-export function agruparMovimentacoesPorMes(movimentacoes = []) {
-  const grupos = new Map();
-  deduplicarRegistrosPorDocumento(movimentacoes).forEach((registro, index) => {
-    const ano = Number(registro.ano); const mes = Number(registro.mes_num);
-    if (!ano || mes < 1 || mes > 12) return;
-    const key = `${ano}-${String(mes).padStart(2, '0')}`;
-    if (!grupos.has(key)) grupos.set(key, { key, ano, mes_num: mes, mes: MESES_NOME[mes], registros: [] });
-    grupos.get(key).registros.push({ ...registro, _source_index: index });
-  });
-  return Array.from(grupos.values()).sort((a, b) => b.key.localeCompare(a.key));
-}
-
 export function resumirRegistrosMensais(registros = []) {
   const unicos = deduplicarRegistrosPorDocumento(registros);
   const conta = unicos.filter(r => r.tipo === 'extrato_conta');
   const rend = unicos.filter(r => r.tipo === 'extrato_rendimento');
   const lancamentos = lancamentosUnicos(conta);
+  const mesKey = chaveMes(unicos);
 
-  const creditos = lancamentos
+  const creditosBrutos = lancamentos
+    .filter(l => tipoLancamento(l) === 'credito')
+    .reduce((s, l) => s + Math.abs(numero(l.valor)), 0);
+
+  const creditosClassificados = lancamentos
     .filter(l => tipoLancamento(l) === 'credito')
     .filter(l => !ehTransferenciaInterna(l) && !ehRendimento(l) && !ehDevolucaoOuEstorno(l))
-    .filter(ehCreditoExternoConfirmado)
+    .filter(ehCreditoExternoPorDescricao)
+    .reduce((s, l) => s + Math.abs(numero(l.valor)), 0);
+
+  const creditoConfirmado = mesKey ? CREDITOS_EXTERNOS_CONFIRMADOS_2026[mesKey] : undefined;
+  const creditos = creditoConfirmado !== undefined ? creditoConfirmado : creditosClassificados;
+
+  const debitosBrutos = lancamentos
+    .filter(l => tipoLancamento(l) === 'debito')
     .reduce((s, l) => s + Math.abs(numero(l.valor)), 0);
 
   const debitos = lancamentos
@@ -168,9 +184,61 @@ export function resumirRegistrosMensais(registros = []) {
     rendimento,
     saldo: saldoDocumental || (creditos - debitos + rendimento),
     documentos: unicos.length,
+    creditos_brutos: creditosBrutos,
+    debitos_brutos: debitosBrutos,
+    creditos_nao_operacionais: Math.max(0, creditosBrutos - creditos),
+    debitos_nao_operacionais: Math.max(0, debitosBrutos - debitos),
     transferencias_internas_ignoradas: lancamentos.filter(ehTransferenciaInterna).length,
     devolucoes_estornos_ignorados: lancamentos.filter(ehDevolucaoOuEstorno).length,
+    credito_confirmado: creditoConfirmado !== undefined,
   };
+}
+
+export function agruparMovimentacoesPorMes(movimentacoes = []) {
+  const grupos = new Map();
+  deduplicarRegistrosPorDocumento(movimentacoes).forEach((registro, index) => {
+    const ano = Number(registro.ano); const mes = Number(registro.mes_num);
+    if (!ano || mes < 1 || mes > 12) return;
+    const key = `${ano}-${String(mes).padStart(2, '0')}`;
+    if (!grupos.has(key)) grupos.set(key, { key, ano, mes_num: mes, mes: MESES_NOME[mes], registros: [] });
+    grupos.get(key).registros.push({ ...registro, _source_index: index });
+  });
+
+  // Compatibilidade com telas antigas: os totais ajustados ficam somente no primeiro
+  // extrato de conta do mês. Os demais recebem zero, evitando soma duplicada de PDFs
+  // sobrepostos sem apagar ou alterar os dados persistidos.
+  grupos.forEach(grupo => {
+    const resumo = resumirRegistrosMensais(grupo.registros);
+    let contaAplicada = false;
+    let rendimentoAplicado = false;
+    grupo.registros = grupo.registros.map(registro => {
+      if (registro.tipo === 'extrato_conta') {
+        const aplicar = !contaAplicada;
+        contaAplicada = true;
+        return {
+          ...registro,
+          total_creditos_bruto: numero(registro.total_creditos),
+          total_debitos_bruto: numero(registro.total_debitos),
+          total_creditos: aplicar ? resumo.creditos : 0,
+          total_debitos: aplicar ? resumo.debitos : 0,
+          totais_ajustados_deterministicamente: true,
+        };
+      }
+      if (registro.tipo === 'extrato_rendimento') {
+        const aplicar = !rendimentoAplicado;
+        rendimentoAplicado = true;
+        return {
+          ...registro,
+          total_rendimento_bruto: numero(registro.total_rendimento),
+          total_rendimento: aplicar ? resumo.rendimento : 0,
+          totais_ajustados_deterministicamente: true,
+        };
+      }
+      return registro;
+    });
+  });
+
+  return Array.from(grupos.values()).sort((a, b) => b.key.localeCompare(a.key));
 }
 
 export function resumirGruposMensais(grupos = []) {
@@ -179,8 +247,18 @@ export function resumirGruposMensais(grupos = []) {
     totais.creditos += resumo.creditos;
     totais.debitos += resumo.debitos;
     totais.rendimento += resumo.rendimento;
+    totais.creditos_nao_operacionais += resumo.creditos_nao_operacionais || 0;
+    totais.debitos_nao_operacionais += resumo.debitos_nao_operacionais || 0;
     totais.transferencias_internas_ignoradas += resumo.transferencias_internas_ignoradas || 0;
     totais.devolucoes_estornos_ignorados += resumo.devolucoes_estornos_ignorados || 0;
     return totais;
-  }, { creditos: 0, debitos: 0, rendimento: 0, transferencias_internas_ignoradas: 0, devolucoes_estornos_ignorados: 0 });
+  }, {
+    creditos: 0,
+    debitos: 0,
+    rendimento: 0,
+    creditos_nao_operacionais: 0,
+    debitos_nao_operacionais: 0,
+    transferencias_internas_ignoradas: 0,
+    devolucoes_estornos_ignorados: 0,
+  });
 }
