@@ -39,8 +39,7 @@ export default function ReportPhotoSection({
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [editingPhotoId, setEditingPhotoId] = useState(null);
   const [editData, setEditData] = useState({ caption: '', title: '', location: '', dateTaken: '', activityId: '' });
-  const [tituloLocal, setTituloLocal] = useState(galleryTitle || 'Galeria de Fotos');
-
+  const [tituloLocal, setTituloLocal] = useState(galleryTitle || photos[0]?.albumTitle || 'Galeria de Fotos');
   const atividadePorId = useMemo(() => new Map(atividades.map((atividade) => [atividade.id, atividade])), [atividades]);
 
   const handleAddPhoto = async (photo) => {
@@ -70,6 +69,7 @@ export default function ReportPhotoSection({
       caption,
       location: localFoto,
       dateTaken: dataFoto,
+      albumTitle: tituloLocal,
       activityId: photo.activityId || null,
     });
     setSelectorOpen(false);
@@ -87,19 +87,28 @@ export default function ReportPhotoSection({
   };
 
   const handleSavePhoto = () => {
-    onUpdatePhoto?.(editingPhotoId, {
-      caption: editData.caption.trim(),
-      title: editData.title.trim(),
-      location: editData.location.trim(),
-      dateTaken: editData.dateTaken,
-      activityId: editData.activityId || null,
-    });
+    const photo = photos.find((item) => item.id === editingPhotoId);
+    if (photo) {
+      Object.assign(photo, {
+        caption: editData.caption.trim(),
+        title: editData.title.trim(),
+        location: editData.location.trim(),
+        dateTaken: editData.dateTaken,
+        activityId: editData.activityId || null,
+        albumTitle: tituloLocal,
+      });
+    }
+    onUpdatePhoto?.(editingPhotoId, editData.caption.trim());
     setEditingPhotoId(null);
   };
 
   const salvarTituloGaleria = () => {
     const titulo = tituloLocal.trim() || 'Galeria de Fotos';
     setTituloLocal(titulo);
+    photos.forEach((photo) => {
+      photo.albumTitle = titulo;
+      onUpdatePhoto?.(photo.id, photo.caption || '');
+    });
     onGalleryTitleChange?.(titulo);
   };
 
@@ -145,7 +154,7 @@ export default function ReportPhotoSection({
                         photoUrl={photo.url}
                         activityId={photo.activityId || activityId}
                         reportId={reportId}
-                        onCaptionSuggested={(caption) => onUpdatePhoto?.(photo.id, { caption })}
+                        onCaptionSuggested={(caption) => onUpdatePhoto?.(photo.id, caption)}
                       />
                     </div>
                   )}
