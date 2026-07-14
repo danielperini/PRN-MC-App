@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { base44 } from '@/api/base44Client';
 import { EXTRATO_DRIVE_FOLDERS_2026 } from '@/config/extratoDriveFolders';
-import { CheckCircle2, Loader2, RefreshCw, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, Loader2, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
 function formatTime(seconds) {
@@ -16,10 +16,19 @@ export default function ImportarAuditarTodosMeses({ onConcluido }) {
   const [running, setRunning] = useState(false);
   const [state, setState] = useState({ percent: 0, stage: '', eta: null, imported: 0, updated: 0, errors: 0, corrected: 0 });
 
-  async function run() {
+  async function run({ reprocessar = false } = {}) {
     const months = EXTRATO_DRIVE_FOLDERS_2026.filter(item => item.folder_id);
     setRunning(true);
-    setState({ percent: 1, stage: 'Preparando leitura de todos os meses…', eta: null, imported: 0, updated: 0, errors: 0, corrected: 0 });
+    setState({
+      percent: 1,
+      stage: reprocessar ? 'Preparando reanálise dos extratos já importados…' : 'Preparando leitura de todos os meses…',
+      eta: null,
+      imported: 0,
+      updated: 0,
+      errors: 0,
+      corrected: 0,
+    });
+
     const startedAt = Date.now();
     let completedUnits = 0;
     let totalUnits = months.length;
@@ -29,6 +38,30 @@ export default function ImportarAuditarTodosMeses({ onConcluido }) {
 
     try {
       for (const month of months) {
+        if (reprocessar) {
+          setState(prev => ({ ...prev, stage: `${month.mes}: relendo PDF e reclassificando C/D…` }));
+          const response = await base44.functions.invoke('lerExtratosBancariosDrive', {
+            mes_num: month.mes_num,
+            ano: month.ano,
+            folder_id: month.folder_id,
+            batch_size: 5,
+            reprocessar_existentes: true,
+          });
+          const data = response?.data || response || {};
+          if (!data.success) throw new Error(`${month.mes}: ${data.error || 'falha na reanálise'}`);
+          const summary = data.resumo || {};
+          imported += Number(summary.novos_criados || 0);
+          updated += Number(summary.atualizados || 0);
+          errors += Number(summary.erros || 0);
+          completedUnits += 1;
+          const elapsed = Math.max(1, (Date.now() - startedAt) / 1000);
+          const avg = elapsed / completedUnits;
+          const percent = Math.min(94, Math.max(2, Math.round((completedUnits / totalUnits) * 94)));
+          setState(prev => ({ ...prev, percent, imported, updated, errors, eta: avg * Math.max(0, totalUnits - completedUnits) }));
+          await onConcluido?.();
+          continue;
+        }
+
         let remaining = 1;
         let cycles = 0;
         while (remaining > 0 && cycles < 50) {
@@ -67,12 +100,22 @@ export default function ImportarAuditarTodosMeses({ onConcluido }) {
       const auditErrors = Number(audit.resumo?.erros || 0);
       const duplicateGroups = Number(audit.resumo?.duplicidades_drive_detectadas || 0);
       errors += auditErrors;
-      setState({ percent: 100, stage: 'Importação e auditoria concluídas.', eta: 0, imported, updated, errors, corrected });
+      setState({
+        percent: 100,
+        stage: reprocessar ? 'Reanálise e auditoria concluídas.' : 'Importação e auditoria concluídas.',
+        eta: 0,
+        imported,
+        updated,
+        errors,
+        corrected,
+      });
       await onConcluido?.();
+
+      const prefixo = reprocessar ? 'Reanálise concluída' : 'Concluído';
       if (duplicateGroups > 0) {
-        toast.warning(`Concluído: ${imported} importado(s), ${updated} atualizado(s), ${corrected} corrigido(s). ${duplicateGroups} grupo(s) duplicado(s) sinalizado(s) sem exclusão automática.`, { duration: 12000 });
+        toast.warning(`${prefixo}: ${imported} importado(s), ${updated} atualizado(s), ${corrected} corrigido(s). ${duplicateGroups} grupo(s) duplicado(s) sinalizado(s) sem exclusão automática.`, { duration: 12000 });
       } else {
-        toast.success(`Concluído: ${imported} importado(s), ${updated} atualizado(s) e ${corrected} registro(s) corrigido(s).`);
+        toast.success(`${prefixo}: ${imported} importado(s), ${updated} atualizado(s) e ${corrected} registro(s) corrigido(s).`);
       }
     } catch (error) {
       setState(prev => ({ ...prev, stage: `Interrompido: ${error?.message || String(error)}`, eta: null }));
@@ -90,11 +133,17 @@ export default function ImportarAuditarTodosMeses({ onConcluido }) {
             <ShieldCheck className="w-4 h-4 text-slate-700" />
             <h2 className="text-sm font-bold text-slate-900">Importação e auditoria geral</h2>
           </div>
-          <p className="text-xs text-gray-400 mt-1">Processa todas as pastas configuradas, acrescenta apenas arquivos novos, atualiza os cards e gráficos e reconcilia os totais sem excluir registros.</p>
+          <p className="text-xs text-gray-400 mt-1">Importa arquivos novos ou relê os PDFs já vinculados aplicando a classificação de conta/fundo, indicadores C/D e regras determinísticas.</p>
         </div>
-        <Button onClick={run} disabled={running} className="rounded-xl bg-slate-900 text-white hover:bg-slate-700 gap-2">
-          {running ? <><Loader2 className="w-4 h-4 animate-spin" />Processando…</> : <><RefreshCw className="w-4 h-4" />Processar todos os meses</>}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => run({ reprocessar: true })} disabled={running} variant="outline" className="rounded-xl gap-2">
+            {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            Reanalisar extratos anexados
+          </Button>
+          <Button onClick={() => run({ reprocessar: false })} disabled={running} className="rounded-xl bg-slate-900 text-white hover:bg-slate-700 gap-2">
+            {running ? <><Loader2 className="w-4 h-4 animate-spin" />Processando…</> : <><RefreshCw className="w-4 h-4" />Processar todos os meses</>}
+          </Button>
+        </div>
       </div>
 
       {(running || state.percent > 0) && (
