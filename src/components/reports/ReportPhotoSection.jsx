@@ -174,7 +174,7 @@ export default function ReportPhotoSection({
       const bloco = novas.slice(inicio, inicio + TAMANHO_BLOCO);
       const blocoAtual = Math.floor(inicio / TAMANHO_BLOCO) + 1;
       onProgress?.({
-        atual: importadas + ignoradas,
+        atual: Math.min(lista.length, importadas + ignoradas),
         importadas,
         ignoradas,
         erros,
