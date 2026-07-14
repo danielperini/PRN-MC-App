@@ -1,5 +1,5 @@
 const MESES = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-const CREDITOS_2026 = { '2026-02': 1320000, '2026-06': 81719.85 };
+const CREDITOS_2026 = Object.freeze({ '2026-02': 1320000, '2026-06': 81719.85 });
 
 const num = (v) => Number.isFinite(Number(v || 0)) ? Number(v || 0) : 0;
 const norm = (v) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/\s+/g, ' ');
@@ -7,14 +7,15 @@ const dataRegistro = (r) => String(r?.processado_em || r?.updated_date || r?.cre
 const docId = (r, i = 0) => String(r?.drive_file_id || r?.id || `${r?.ano}-${r?.mes_num}-${i}`);
 
 function desc(l) {
-  return norm([l?.descricao, l?.historico, l?.detalhe, l?.categoria_fluxo].filter(Boolean).join(' '));
+  return norm([l?.descricao, l?.historico, l?.detalhe, l?.categoria_fluxo, l?.categoria].filter(Boolean).join(' '));
 }
 
 function tipo(l) {
-  const t = norm(l?.tipo);
+  const t = norm(l?.tipo || l?.tipo_sugerido);
+  const cd = norm(l?.indicador_cd || l?.natureza_cd || l?.credito_debito);
   if (t.includes('rend')) return 'rendimento';
-  if (t.includes('cred') || t.includes('entrada')) return 'credito';
-  if (t.includes('deb') || t.includes('saida') || t.includes('pagamento')) return 'debito';
+  if (t.includes('cred') || t.includes('entrada') || cd === 'c') return 'credito';
+  if (t.includes('deb') || t.includes('saida') || t.includes('pagamento') || cd === 'd') return 'debito';
   return t;
 }
 
@@ -23,16 +24,28 @@ function nomeDoc(r) {
 }
 
 export function ehTransferenciaInterna(l) {
+  if (l?.transferencia_interna === true) return true;
+  const categoria = norm(l?.categoria || l?.categoria_fluxo);
+  if (categoria.includes('transferencia_interna') || categoria.includes('movimentacao_interna')) return true;
+
   const d = desc(l);
-  return /\bresgate\b/.test(d)
-    || /\baplicacao\b/.test(d)
-    || ['transferencia entre contas', 'transf entre contas', 'conta investimento', 'investimento para conta corrente', 'conta corrente para investimento', 'movimentacao interna']
-      .some((t) => d.includes(t));
+  return /\bresg(?:ate| aut| automat)?\b/.test(d)
+    || /\baplic(?:acao| automat| financeira)?\b/.test(d)
+    || /\bapl(?:ic)?\b/.test(d)
+    || [
+      'transferencia entre contas', 'transf entre contas', 'conta investimento',
+      'investimento para conta corrente', 'conta corrente para investimento',
+      'movimentacao interna', 'saldo aplicado', 'baixa aplicacao',
+      'aporte aplicacao', 'resgate fundo', 'resgate cdb', 'aplicacao cdb',
+      'aplicacao fundo', 'resg aut', 'resgate automat', 'aplic automat',
+    ].some((t) => d.includes(t));
 }
 
 function ehRendimento(l) {
+  const categoria = norm(l?.categoria || l?.categoria_fluxo);
+  if (categoria.includes('rendimento')) return true;
   const d = desc(l);
-  return tipo(l) === 'rendimento' || ['rendimento', 'remuneracao', 'juros', 'rentabilidade', 'correcao monetaria'].some((t) => d.includes(t));
+  return tipo(l) === 'rendimento' || ['rendimento', 'remuneracao', 'juros', 'rentabilidade', 'correcao monetaria', 'rendimento bruto no mes'].some((t) => d.includes(t));
 }
 
 function ehEstorno(l) {
@@ -41,28 +54,41 @@ function ehEstorno(l) {
 }
 
 function ehCreditoExterno(l) {
+  const categoria = norm(l?.categoria || l?.categoria_fluxo);
+  if (categoria.includes('credito_externo')) return true;
   const d = desc(l);
   return ['repasse', 'prefeitura', 'fundacao municipal de cultura', 'fmc', 'termo de colaboracao', 'convenio', 'subvencao'].some((t) => d.includes(t));
 }
 
+function ehDebitoOperacional(l) {
+  const categoria = norm(l?.categoria || l?.categoria_fluxo);
+  if (categoria.includes('debito_operacional')) return true;
+  if (ehTransferenciaInterna(l) || ehRendimento(l) || ehEstorno(l)) return false;
+  const d = desc(l);
+  return tipo(l) === 'debito' && (
+    /\bdeb pix\b/.test(d)
+    || d.includes('envio ted')
+    || d.includes('envio tev')
+    || d.includes('envio transf')
+    || d.includes('pag boleto')
+    || d.includes('pagamento')
+    || d.includes('tarifa')
+    || !d
+  );
+}
+
 function operacionais(r) {
-  return (r?.lancamentos || []).filter((l) => tipo(l) === 'debito' && !ehTransferenciaInterna(l) && !ehRendimento(l) && !ehEstorno(l)).length;
+  return (r?.lancamentos || []).filter(ehDebitoOperacional).length;
 }
 
 function ehDocRendimento(r) {
   const nome = nomeDoc(r);
-  const explicitamenteConta = ['extrato mensal', 'extrato da conta', 'extrato conta', 'conta corrente'].some((t) => nome.includes(t));
-  const explicitamenteRendimento = ['rendimento', 'investimento', 'fundo', 'cdb', 'poupanca'].some((t) => nome.includes(t));
-
-  if (explicitamenteConta) return false;
-  if (explicitamenteRendimento) return true;
+  if (['extrato mensal', 'extrato da conta', 'extrato conta', 'conta corrente'].some((t) => nome.includes(t))) return false;
+  if (['rendimento', 'investimento', 'fundo', 'cdb', 'poupanca'].some((t) => nome.includes(t))) return true;
   if (operacionais(r) > 0) return false;
   if (r?.tipo === 'extrato_rendimento') return true;
-
-  const lancamentos = r?.lancamentos || [];
-  const internos = lancamentos.filter(ehTransferenciaInterna).length;
-  const rendimentos = lancamentos.filter(ehRendimento).length;
-  return lancamentos.length > 0 && internos + rendimentos === lancamentos.length;
+  const ls = r?.lancamentos || [];
+  return ls.length > 0 && ls.every((l) => ehTransferenciaInterna(l) || ehRendimento(l));
 }
 
 export function parseDataLancamento(valor, anoFallback = null) {
@@ -106,15 +132,14 @@ function scoreConta(r) {
 
 function canonicos(registros, rendimento) {
   const mapa = new Map();
-  registros.filter((r) => rendimento ? ehDocRendimento(r) : !ehDocRendimento(r) && r?.tipo === 'extrato_conta').forEach((r, i) => {
+  registros.filter((r) => rendimento ? ehDocRendimento(r) : !ehDocRendimento(r)).forEach((r, i) => {
     const k = chaveConta(r, i);
     const atual = mapa.get(k);
     if (!atual) return mapa.set(k, r);
-    if (rendimento) {
-      if (dataRegistro(r) >= dataRegistro(atual)) mapa.set(k, r);
-    } else if (scoreConta(r) > scoreConta(atual) || (scoreConta(r) === scoreConta(atual) && dataRegistro(r) > dataRegistro(atual))) {
-      mapa.set(k, r);
-    }
+    const melhor = rendimento
+      ? dataRegistro(r) >= dataRegistro(atual)
+      : scoreConta(r) > scoreConta(atual) || (scoreConta(r) === scoreConta(atual) && dataRegistro(r) > dataRegistro(atual));
+    if (melhor) mapa.set(k, r);
   });
   return [...mapa.values()];
 }
@@ -170,8 +195,8 @@ export function resumirRegistrosMensais(registros = []) {
   const creditosClassificados = ls.filter((l) => tipo(l) === 'credito' && !ehTransferenciaInterna(l) && !ehRendimento(l) && !ehEstorno(l) && ehCreditoExterno(l)).reduce((s, l) => s + Math.abs(num(l.valor)), 0);
   const creditos = creditoConfirmado !== undefined ? creditoConfirmado : creditosClassificados;
   const debitosBrutos = ls.filter((l) => tipo(l) === 'debito').reduce((s, l) => s + Math.abs(num(l.valor)), 0);
-  const transferencias = ls.filter((l) => tipo(l) === 'debito' && ehTransferenciaInterna(l)).reduce((s, l) => s + Math.abs(num(l.valor)), 0);
-  const debitos = ls.filter((l) => tipo(l) === 'debito' && !ehTransferenciaInterna(l) && !ehRendimento(l) && !ehEstorno(l)).reduce((s, l) => s + Math.abs(num(l.valor)), 0);
+  const transferencias = ls.filter(ehTransferenciaInterna).reduce((s, l) => s + Math.abs(num(l.valor)), 0);
+  const debitos = ls.filter(ehDebitoOperacional).reduce((s, l) => s + Math.abs(num(l.valor)), 0);
   const rendimentoDoc = investimentos.reduce((s, r) => s + num(r.total_rendimento), 0);
   const rendimento = rendimentoDoc || investimentos.flatMap((r) => r.lancamentos || []).filter(ehRendimento).reduce((s, l) => s + Math.abs(num(l.valor)), 0);
   const saldoConta = contas.reduce((s, r) => s + saldoFinal(r), 0);
@@ -194,7 +219,7 @@ export function resumirRegistrosMensais(registros = []) {
     transferencias_internas_valor: transferencias,
     transferencias_internas_qtd: ls.filter(ehTransferenciaInterna).length,
     creditos_nao_operacionais: Math.max(0, creditosBrutos - creditos),
-    debitos_nao_operacionais: transferencias,
+    debitos_nao_operacionais: Math.max(0, debitosBrutos - debitos),
     devolucoes_estornos_ignorados: ls.filter(ehEstorno).length,
     credito_confirmado: creditoConfirmado !== undefined,
   };
@@ -212,17 +237,14 @@ export function agruparMovimentacoesPorMes(movimentacoes = []) {
     let conta = false;
     let rend = false;
     g.registros = g.registros.map((r) => {
-      if (!ehDocRendimento(r) && r.tipo === 'extrato_conta') {
+      if (!ehDocRendimento(r)) {
         const aplicar = !conta;
         conta = true;
-        return { ...r, total_creditos: aplicar ? resumo.creditos : 0, total_debitos: aplicar ? resumo.debitos : 0, total_transferencias_internas: aplicar ? resumo.transferencias_internas_valor : 0, saldo_final: aplicar ? resumo.saldo : null, totais_ajustados_deterministicamente: true };
+        return { ...r, tipo: 'extrato_conta', total_creditos: aplicar ? resumo.creditos : 0, total_debitos: aplicar ? resumo.debitos : 0, total_transferencias_internas: aplicar ? resumo.transferencias_internas_valor : 0, saldo_final: aplicar ? resumo.saldo : null, totais_ajustados_deterministicamente: true };
       }
-      if (ehDocRendimento(r)) {
-        const aplicar = !rend;
-        rend = true;
-        return { ...r, tipo: 'extrato_rendimento', total_rendimento: aplicar ? resumo.rendimento : 0, totais_ajustados_deterministicamente: true };
-      }
-      return r;
+      const aplicar = !rend;
+      rend = true;
+      return { ...r, tipo: 'extrato_rendimento', total_rendimento: aplicar ? resumo.rendimento : 0, totais_ajustados_deterministicamente: true };
     });
   });
   return [...grupos.values()].sort((a, b) => b.key.localeCompare(a.key));
