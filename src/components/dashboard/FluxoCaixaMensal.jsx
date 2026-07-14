@@ -9,6 +9,7 @@ import { ArrowUpRight, ArrowDownLeft, TrendingUp, Wallet, ChevronDown, ChevronUp
 import { Link } from 'react-router-dom';
 import { agruparMovimentacoesPorMes, resumirRegistrosMensais } from '@/utils/movimentacoesMensais';
 import ExtratosDrivePorMes from '@/components/movimentacoes/ExtratosDrivePorMes';
+import ImportarAuditarTodosMeses from '@/components/movimentacoes/ImportarAuditarTodosMeses';
 
 const MESES_CURTO = ['', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
@@ -42,8 +43,8 @@ export default function FluxoCaixaMensal() {
 
   const { data: movimentacoes = [], isLoading, refetch } = useQuery({
     queryKey: ['movimentacoes-bancarias-dashboard'],
-    queryFn: () => base44.entities.MovimentacaoBancaria.list('-ano', 200),
-    staleTime: 1000 * 60 * 10,
+    queryFn: () => base44.entities.MovimentacaoBancaria.list('-ano', 2000),
+    staleTime: 1000 * 60 * 2,
   });
 
   const dadosMensais = useMemo(() => {
@@ -77,15 +78,12 @@ export default function FluxoCaixaMensal() {
 
   return (
     <div className="space-y-5">
+      <ImportarAuditarTodosMeses onConcluido={refetch} />
       <ExtratosDrivePorMes movimentacoes={movimentacoes} onSincronizado={refetch} />
 
       {movimentacoes.length > 0 && (
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          <button
-            type="button"
-            onClick={() => setExpanded(v => !v)}
-            className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors"
-          >
+          <button type="button" onClick={() => setExpanded(v => !v)} className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors">
             <div className="flex items-center gap-3">
               <Wallet className="w-5 h-5 text-slate-700" />
               <div className="text-left">
@@ -124,9 +122,7 @@ export default function FluxoCaixaMensal() {
                       <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, color: '#64748b' }} />
                       <Bar dataKey="creditos" name="Créditos" fill="#4ade80" radius={[4, 4, 0, 0]} />
                       <Bar dataKey="debitos" name="Débitos" fill="#f87171" radius={[4, 4, 0, 0]} />
-                      {totais.rendimento > 0 && (
-                        <Line type="monotone" dataKey="rendimento" name="Rendimentos" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3, fill: '#3b82f6' }} activeDot={{ r: 5 }} />
-                      )}
+                      {totais.rendimento > 0 && <Line type="monotone" dataKey="rendimento" name="Rendimentos" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3, fill: '#3b82f6' }} activeDot={{ r: 5 }} />}
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>
@@ -134,32 +130,12 @@ export default function FluxoCaixaMensal() {
 
               <div className="overflow-x-auto">
                 <table className="w-full text-xs border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-100">
-                      <th className="text-left py-2 px-2 text-slate-500 font-semibold">Mês</th>
-                      <th className="text-right py-2 px-2 text-green-600 font-semibold">Créditos</th>
-                      <th className="text-right py-2 px-2 text-red-500 font-semibold">Débitos</th>
-                      {totais.rendimento > 0 && <th className="text-right py-2 px-2 text-blue-500 font-semibold">Rendimento</th>}
-                      <th className="text-right py-2 px-2 text-slate-600 font-semibold">Saldo</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dadosMensais.map(d => (
-                      <tr key={d.key} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                        <td className="py-2 px-2 font-semibold text-slate-700">{d.label}</td>
-                        <td className="py-2 px-2 text-right text-green-700 font-medium">{d.creditos > 0 ? fmtBRL(d.creditos) : '—'}</td>
-                        <td className="py-2 px-2 text-right text-red-600 font-medium">{d.debitos > 0 ? fmtBRL(d.debitos) : '—'}</td>
-                        {totais.rendimento > 0 && <td className="py-2 px-2 text-right text-blue-600 font-medium">{d.rendimento > 0 ? fmtBRL(d.rendimento) : '—'}</td>}
-                        <td className={`py-2 px-2 text-right font-bold ${d.saldo >= 0 ? 'text-slate-800' : 'text-orange-600'}`}>{fmtBRL(d.saldo)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
+                  <thead><tr className="border-b border-slate-100"><th className="text-left py-2 px-2 text-slate-500 font-semibold">Mês</th><th className="text-right py-2 px-2 text-green-600 font-semibold">Créditos</th><th className="text-right py-2 px-2 text-red-500 font-semibold">Débitos</th>{totais.rendimento > 0 && <th className="text-right py-2 px-2 text-blue-500 font-semibold">Rendimento</th>}<th className="text-right py-2 px-2 text-slate-600 font-semibold">Saldo</th></tr></thead>
+                  <tbody>{dadosMensais.map(d => <tr key={d.key} className="border-b border-slate-50 hover:bg-slate-50 transition-colors"><td className="py-2 px-2 font-semibold text-slate-700">{d.label}</td><td className="py-2 px-2 text-right text-green-700 font-medium">{d.creditos > 0 ? fmtBRL(d.creditos) : '—'}</td><td className="py-2 px-2 text-right text-red-600 font-medium">{d.debitos > 0 ? fmtBRL(d.debitos) : '—'}</td>{totais.rendimento > 0 && <td className="py-2 px-2 text-right text-blue-600 font-medium">{d.rendimento > 0 ? fmtBRL(d.rendimento) : '—'}</td>}<td className={`py-2 px-2 text-right font-bold ${d.saldo >= 0 ? 'text-slate-800' : 'text-orange-600'}`}>{fmtBRL(d.saldo)}</td></tr>)}</tbody>
                 </table>
               </div>
 
-              <div className="flex justify-end">
-                <Link to="/Movimentacoes" className="text-xs text-slate-500 hover:text-slate-800 underline underline-offset-2 transition-colors">Ver detalhes completos →</Link>
-              </div>
+              <div className="flex justify-end"><Link to="/Movimentacoes" className="text-xs text-slate-500 hover:text-slate-800 underline underline-offset-2 transition-colors">Ver detalhes completos →</Link></div>
             </div>
           )}
         </div>
