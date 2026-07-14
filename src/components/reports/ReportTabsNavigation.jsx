@@ -1,11 +1,9 @@
 import React from 'react';
-import { CheckCircle, AlertCircle } from 'lucide-react';
+import { CheckCircle } from 'lucide-react';
 
 const TABS_INFO = [
   { value: 'relatorio', label: 'Relatório', icon: '📋' },
   { value: 'atividades', label: 'Atividades', icon: '📝' },
-  { value: 'fotos', label: 'Fotos', icon: '📸' },
-  { value: 'financeiro', label: 'Financeiro', icon: '💰' },
   { value: 'validacao', label: 'Validação', icon: '🛡️' },
 ];
 
@@ -13,11 +11,11 @@ export default function ReportTabsNavigation({ currentTab, formData, onTabChange
   const tabProgress = {
     relatorio: !!(formData.mes_referencia && formData.author_name && formData.museu),
     atividades: (formData.atividades || []).length > 0,
-    fotos: (formData.fotos || []).length > 0,
+    validacao: false,
   };
 
   const totalTabs = TABS_INFO.length;
-  const completedTabs = TABS_INFO.filter(t => tabProgress[t.value]).length;
+  const completedTabs = TABS_INFO.filter((tab) => tabProgress[tab.value]).length;
   const progressPercent = Math.round((completedTabs / totalTabs) * 100);
 
   return (
