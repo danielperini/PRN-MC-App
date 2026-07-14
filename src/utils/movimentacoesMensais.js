@@ -6,7 +6,18 @@ export const CREDITOS_EXTERNOS_CONFIRMADOS_2026 = Object.freeze({
   '2026-06': 81719.85,
 });
 
-const num = (v) => Number.isFinite(Number(v || 0)) ? Number(v || 0) : 0;
+const num = (valor) => {
+  if (typeof valor === 'number') return Number.isFinite(valor) ? valor : 0;
+  if (valor == null || valor === '') return 0;
+  let texto = String(valor).trim().replace(/R\$/gi, '').replace(/\s/g, '');
+  const negativo = texto.includes('-') || /\d[\d.,]*D$/i.test(texto);
+  texto = texto.replace(/[CD]$/i, '').replace(/[^\d,.-]/g, '');
+  if (texto.includes(',')) texto = texto.replace(/\./g, '').replace(',', '.');
+  else if ((texto.match(/\./g) || []).length > 1) texto = texto.replace(/\./g, '');
+  const numero = Number(texto.replace(/(?!^)-/g, ''));
+  if (!Number.isFinite(numero)) return 0;
+  return negativo ? -Math.abs(numero) : numero;
+};
 const norm = (v) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/\s+/g, ' ');
 const dataRegistro = (r) => String(r?.processado_em || r?.updated_date || r?.created_date || '');
 const docId = (r, i = 0) => String(r?.drive_file_id || r?.id || `${r?.ano}-${r?.mes_num}-${i}`);
@@ -44,7 +55,7 @@ function ehRendimento(l) {
   const categoria = norm(l?.categoria || l?.categoria_fluxo);
   if (categoria.includes('rendimento')) return true;
   const d = descricao(l);
-  return tipoLancamento(l) === 'rendimento' || ['rendimento', 'remuneracao', 'juros', 'rentabilidade', 'correcao monetaria', 'rendimento bruto no mes'].some((termo) => d.includes(termo));
+  return tipoLancamento(l) === 'rendimento' || ['rendimento', 'remuneracao', 'juros', 'rentabilidade', 'correcao monetaria', 'rendimento bruto no mes', 'rendimento liquido no mes', 'resultado no mes'].some((termo) => d.includes(termo));
 }
 function ehEstorno(l) {
   const d = descricao(l);
@@ -67,7 +78,7 @@ function ehDocumentoRendimento(r) {
   if (r?._credito_confirmado) return false;
   const nome = nomeDocumento(r);
   if (['extrato mensal', 'extrato da conta', 'extrato conta', 'conta corrente'].some((termo) => nome.includes(termo))) return false;
-  if (['rendimento', 'investimento', 'fundo', 'cdb', 'poupanca'].some((termo) => nome.includes(termo))) return true;
+  if (['rendimento', 'investimento', 'fundo', 'cdb', 'poupanca', 'aplicacao'].some((termo) => nome.includes(termo))) return true;
   if (r?.tipo === 'extrato_rendimento') return true;
   const lancamentos = r?.lancamentos || [];
   return lancamentos.length > 0 && lancamentos.every((l) => ehTransferenciaInterna(l) || ehRendimento(l));
@@ -121,6 +132,16 @@ function chaveConta(r, i = 0) {
   const conta = String(r?.conta || '').replace(/\D/g, '');
   return `${ehDocumentoRendimento(r) ? 'investimento' : 'conta'}|${conta || norm(r?.banco) || i}`;
 }
+function rendimentoInformado(r) {
+  const candidatos = [r?.total_rendimento, r?.rendimento_bruto_mes, r?.rendimento_bruto_no_mes, r?.rendimento_mes, r?.rendimentos, r?.rentabilidade_mes, r?.resultado_mes];
+  for (const valor of candidatos) {
+    const convertido = Math.abs(num(valor));
+    if (convertido > 0) return convertido;
+  }
+  const resumo = String(r?.resumo_ia || '');
+  const match = resumo.match(/(?:rendimento(?:\s+bruto|\s+liquido)?(?:\s+no)?\s+mes|total\s+de\s+rendimentos?)\D{0,30}(R\$\s*)?([\d.]+,\d{2}|\d+(?:\.\d{1,2})?)/i);
+  return match ? Math.abs(num(match[2])) : 0;
+}
 function scoreDocumento(r) {
   const nome = nomeDocumento(r);
   const operacionais = (r?.lancamentos || []).filter(ehDebitoOperacional).length;
@@ -128,6 +149,8 @@ function scoreDocumento(r) {
   if (nome.includes('extrato mensal')) score += 1000000;
   if (nome.includes('extrato da conta') || nome.includes('extrato conta')) score += 500000;
   if (nome.includes('rendimento') || nome.includes('investimento')) score += 250000;
+  if (ehDocumentoRendimento(r) && rendimentoInformado(r) > 0) score += 2000000;
+  if (ehDocumentoRendimento(r) && (Math.abs(num(r?.saldo_inicial)) > 0 || Math.abs(num(r?.saldo_final)) > 0)) score += 100000;
   if (r?.drive_file_id) score += 10000;
   return score;
 }
@@ -159,16 +182,24 @@ function saldoFinal(r) {
   return comSaldo.length ? num(comSaldo[comSaldo.length - 1].saldo) : num(r?.saldo_final);
 }
 function rendimentoDoDocumento(r) {
-  if (num(r?.total_rendimento) !== 0) return num(r.total_rendimento);
+  const informado = rendimentoInformado(r);
+  if (informado > 0) return informado;
   const lancamentos = r?.lancamentos || [];
   const explicito = lancamentos.filter(ehRendimento).reduce((s, l) => s + Math.abs(num(l.valor)), 0);
   if (explicito > 0) return explicito;
   const saldoInicial = num(r?.saldo_inicial);
   const saldoFim = num(r?.saldo_final);
   if (!saldoInicial && !saldoFim) return 0;
-  const aplicacoes = lancamentos.filter((l) => ehTransferenciaInterna(l) && indicadorCD(l) === 'C').reduce((s, l) => s + Math.abs(num(l.valor)), 0);
-  const resgates = lancamentos.filter((l) => ehTransferenciaInterna(l) && indicadorCD(l) === 'D').reduce((s, l) => s + Math.abs(num(l.valor)), 0);
-  return Math.max(0, saldoFim - saldoInicial - aplicacoes + resgates);
+  const aplicacoes = lancamentos.filter((l) => {
+    const d = descricao(l);
+    return ehTransferenciaInterna(l) && (indicadorCD(l) === 'C' || d.includes('aplicacao'));
+  }).reduce((s, l) => s + Math.abs(num(l.valor)), 0);
+  const resgates = lancamentos.filter((l) => {
+    const d = descricao(l);
+    return ehTransferenciaInterna(l) && (indicadorCD(l) === 'D' || d.includes('resgate'));
+  }).reduce((s, l) => s + Math.abs(num(l.valor)), 0);
+  const calculado = saldoFim - saldoInicial - aplicacoes + resgates;
+  return calculado > 0 ? calculado : 0;
 }
 function fragmentar(lista = []) {
   return deduplicarRegistrosPorDocumento(lista).flatMap((r, indice) => {
