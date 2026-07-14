@@ -5,7 +5,8 @@ import { AlertTriangle, ExternalLink } from 'lucide-react';
 
 const DRIVE_PASTA_NFS = 'https://drive.google.com/drive/u/0/folders/1Ov9ci6Dwg297mm7QiqX1wfLIb92EZSGf';
 const TOTAL_PREVISTO_PAMPULHA = 81719.85;
-const PAMPULHA_CENTROS = new Set(['noturno pampulha', 'noturno nos museus pampulha']);
+const PAMPULHA_CENTRO_ALIASES = ['Noturno Pampulha', 'Noturno nos Museus Pampulha'];
+const PAMPULHA_CENTROS_NORMALIZADOS = new Set(PAMPULHA_CENTRO_ALIASES.map(normalizeText));
 const STATUS_CONTABILIZADOS = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
 
 function toNumber(v) {
@@ -33,7 +34,7 @@ function normalizeText(value) {
 
 function isPampulha(value) {
   const texto = normalizeText(value);
-  return PAMPULHA_CENTROS.has(texto)
+  return PAMPULHA_CENTROS_NORMALIZADOS.has(texto)
     || (texto.includes('noturno') && texto.includes('pampulha'))
     || (texto.includes('noturno') && texto.includes('4') && texto.includes('aditivo'));
 }
@@ -99,7 +100,7 @@ export default function NoturnoPampulhaCard() {
     queryKey: ['rubricas-pampulha-4aditivo'],
     queryFn: async () => {
       const results = await Promise.all(
-        Array.from(PAMPULHA_CENTROS).map(cc =>
+        PAMPULHA_CENTRO_ALIASES.map(cc =>
           base44.entities.Rubrica.filter({ centro_custo: cc, ativo: true })
         )
       );
