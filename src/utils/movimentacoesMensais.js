@@ -6,7 +6,7 @@ const MESES_NOME = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junh
 // devoluções e transferências entre conta corrente e investimento não entram como crédito.
 const CREDITOS_EXTERNOS_CONFIRMADOS_2026 = Object.freeze({
   '2026-02': 1320000,
-  '2026-06': 81700,
+  '2026-06': 81719.85,
 });
 
 function numero(valor) {
