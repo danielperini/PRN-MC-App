@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
-import { ImagePlus, Trash2, Edit2, Save } from 'lucide-react';
+import { ImagePlus, Trash2, Edit2, Save, CheckCircle2, AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import PhotoGallerySelector from './PhotoGallerySelector';
 import PhotoCaptionSuggester from './PhotoCaptionSuggester';
 import { gerarLegendaFoto } from '@/utils/captionUtils';
+import { toast } from 'sonner';
+
+const TAMANHO_BLOCO = 10;
 
 function formatarData(valor) {
   if (!valor) return '';
@@ -48,6 +51,26 @@ function fotoPersistivel(photo) {
     importFingerprint: chaveFoto(photo),
   };
 }
+function auditarFotos(lista = [], esperadas = []) {
+  const chaves = lista.map(chaveFoto).filter(Boolean);
+  const contagem = new Map();
+  chaves.forEach((chave) => contagem.set(chave, (contagem.get(chave) || 0) + 1));
+  const duplicadas = [...contagem.entries()].filter(([, quantidade]) => quantidade > 1).map(([chave]) => chave);
+  const persistidas = new Set(chaves);
+  const ausentes = esperadas.map(chaveFoto).filter((chave) => chave && !persistidas.has(chave));
+  const semVinculo = lista.filter((foto) => !foto?.activityId).length;
+  const semUrl = lista.filter((foto) => !foto?.url).length;
+  const semLegenda = lista.filter((foto) => !foto?.caption).length;
+  return {
+    total: lista.length,
+    duplicadas: duplicadas.length,
+    ausentes: ausentes.length,
+    semVinculo,
+    semUrl,
+    semLegenda,
+    ok: ausentes.length === 0 && duplicadas.length === 0 && semUrl === 0,
+  };
+}
 
 export default function ReportPhotoSection({
   photos = [], onAddPhoto, onUpdatePhoto, onDeletePhoto, activityId, reportId,
@@ -58,12 +81,44 @@ export default function ReportPhotoSection({
   const [editData, setEditData] = useState({ caption: '', title: '', location: '', dateTaken: '', activityId: '', museum: '' });
   const [tituloLocal, setTituloLocal] = useState(galleryTitle || photos[0]?.albumTitle || 'Galeria de Fotos');
   const [museuGaleria, setMuseuGaleria] = useState(photos[0]?.albumMuseum || photos[0]?.museum || photos[0]?.museu || museu || '');
+  const [verificando, setVerificando] = useState(false);
+  const [auditoria, setAuditoria] = useState(null);
   const atividadePorId = useMemo(() => new Map(atividades.map((atividade) => [atividade.id, atividade])), [atividades]);
   const chavesExistentes = useMemo(() => new Set(photos.map(chaveFoto).filter(Boolean)), [photos]);
 
+  const lerRelatorioPersistido = async () => {
+    if (!reportId) throw new Error('Relatório sem ID. Salve o relatório antes de importar fotos.');
+    const encontrados = await base44.entities.Report.filter({ id: reportId });
+    const relatorio = Array.isArray(encontrados) ? encontrados[0] : null;
+    if (!relatorio) throw new Error('Relatório não encontrado após a gravação.');
+    return Array.isArray(relatorio.fotos) ? relatorio.fotos : [];
+  };
+
+  const verificarPersistencia = async (esperadas = photos, mostrarToast = true) => {
+    setVerificando(true);
+    try {
+      const persistidas = await lerRelatorioPersistido();
+      const resultado = auditarFotos(persistidas, esperadas);
+      setAuditoria(resultado);
+      if (mostrarToast) {
+        if (resultado.ok) toast.success(`${resultado.total} foto(s) confirmadas no relatório, sem duplicidade.`);
+        else toast.warning(`Verificação: ${resultado.ausentes} ausente(s), ${resultado.duplicadas} duplicada(s) e ${resultado.semUrl} sem URL.`);
+      }
+      return { persistidas, resultado };
+    } finally {
+      setVerificando(false);
+    }
+  };
+
   const persistirLista = async (lista) => {
     if (!reportId) throw new Error('Relatório sem ID. Salve o relatório antes de importar fotos.');
-    await base44.entities.Report.update(reportId, { fotos: lista.map(fotoPersistivel) });
+    const normalizadas = lista.map(fotoPersistivel);
+    await base44.entities.Report.update(reportId, { fotos: normalizadas });
+    const { resultado } = await verificarPersistencia(normalizadas, false);
+    if (!resultado.ok) {
+      throw new Error(`A gravação não foi confirmada: ${resultado.ausentes} ausente(s), ${resultado.duplicadas} duplicada(s) e ${resultado.semUrl} sem URL.`);
+    }
+    return resultado;
   };
 
   const persistirFoto = (photo, dados) => {
@@ -90,35 +145,79 @@ export default function ReportPhotoSection({
     const novaLista = [...photos, preparada];
     await persistirLista(novaLista);
     await onAddPhoto(preparada);
+    toast.success('Foto importada e confirmada no relatório.');
     if (!options.keepOpen) setSelectorOpen(false);
   };
 
   const handleAddPhotos = async (lista, onProgress) => {
-    let importadas = 0;
     let ignoradas = 0;
+    let importadas = 0;
     let erros = 0;
     const vistas = new Set(chavesExistentes);
     const novas = [];
-    for (let indice = 0; indice < lista.length; indice += 1) {
-      const preparada = prepararParaSalvar(lista[indice]);
+
+    for (const item of lista) {
+      const preparada = prepararParaSalvar(item);
       const chave = chaveFoto(preparada);
       if (chave && vistas.has(chave)) {
         ignoradas += 1;
       } else {
         novas.push(preparada);
         if (chave) vistas.add(chave);
-        importadas += 1;
       }
-      onProgress?.({ atual: indice + 1, importadas, ignoradas, erros });
-      if ((indice + 1) % 20 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
     }
-    try {
-      await persistirLista([...photos, ...novas]);
-      for (const foto of novas) await onAddPhoto?.(foto);
-    } catch (error) {
-      erros = novas.length;
-      onProgress?.({ atual: lista.length, importadas: 0, ignoradas, erros });
-      throw error;
+
+    const totalBlocos = Math.max(1, Math.ceil(novas.length / TAMANHO_BLOCO));
+    let acumuladas = [...photos];
+
+    for (let inicio = 0; inicio < novas.length; inicio += TAMANHO_BLOCO) {
+      const bloco = novas.slice(inicio, inicio + TAMANHO_BLOCO);
+      const blocoAtual = Math.floor(inicio / TAMANHO_BLOCO) + 1;
+      onProgress?.({
+        atual: Math.min(lista.length, importadas + ignoradas),
+        importadas,
+        ignoradas,
+        erros,
+        blocoAtual,
+        totalBlocos,
+        etapa: `Importando bloco ${blocoAtual} de ${totalBlocos}`,
+      });
+
+      try {
+        const listaDoBloco = [...acumuladas, ...bloco];
+        await persistirLista(listaDoBloco);
+        for (const foto of bloco) await onAddPhoto?.(foto);
+        acumuladas = listaDoBloco;
+        importadas += bloco.length;
+        onProgress?.({
+          atual: Math.min(lista.length, importadas + ignoradas),
+          importadas,
+          ignoradas,
+          erros,
+          blocoAtual,
+          totalBlocos,
+          etapa: `Bloco ${blocoAtual} de ${totalBlocos} concluído`,
+        });
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      } catch (error) {
+        erros += bloco.length;
+        onProgress?.({
+          atual: Math.min(lista.length, importadas + ignoradas + erros),
+          importadas,
+          ignoradas,
+          erros,
+          blocoAtual,
+          totalBlocos,
+          etapa: `Falha no bloco ${blocoAtual} de ${totalBlocos}`,
+        });
+        throw error;
+      }
+    }
+
+    if (!novas.length) {
+      onProgress?.({ atual: lista.length, importadas: 0, ignoradas, erros: 0, blocoAtual: 0, totalBlocos: 0, etapa: 'Nenhuma foto nova para importar' });
+    } else {
+      toast.success(`${importadas} foto(s) importadas em ${totalBlocos} bloco(s) de até 10 e confirmadas no relatório.`);
     }
     setSelectorOpen(false);
   };
@@ -160,8 +259,24 @@ export default function ReportPhotoSection({
       <div className="grid gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4 md:grid-cols-2">
         <div><Label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">Título do álbum</Label><Input value={tituloLocal} onChange={(e) => setTituloLocal(e.target.value)} placeholder="Título da galeria" /></div>
         <div><Label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">Museu/identificação do bloco</Label><Input value={museuGaleria} onChange={(e) => setMuseuGaleria(e.target.value)} placeholder="Ex.: MIS BH, MUMO, MHAB" /></div>
-        <div className="flex flex-wrap gap-2 md:col-span-2"><Button type="button" variant="outline" onClick={salvarDadosGaleria} className="gap-2"><Save className="h-4 w-4" /> Salvar título e museu</Button><Button onClick={() => setSelectorOpen(true)} className="gap-2 bg-green-600 text-white hover:bg-green-700" size="sm"><ImagePlus className="h-4 w-4" /> Pré-visualizar e importar fotos</Button></div>
+        <div className="flex flex-wrap gap-2 md:col-span-2">
+          <Button type="button" variant="outline" onClick={salvarDadosGaleria} className="gap-2"><Save className="h-4 w-4" /> Salvar título e museu</Button>
+          <Button type="button" variant="outline" onClick={() => verificarPersistencia(photos)} disabled={verificando || !reportId} className="gap-2">{verificando ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Verificar importação</Button>
+          <Button onClick={() => setSelectorOpen(true)} className="gap-2 bg-green-600 text-white hover:bg-green-700" size="sm"><ImagePlus className="h-4 w-4" /> Pré-visualizar e importar fotos</Button>
+        </div>
       </div>
+
+      {auditoria && (
+        <div className={`rounded-xl border p-4 ${auditoria.ok ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'}`}>
+          <div className="flex items-start gap-2">
+            {auditoria.ok ? <CheckCircle2 className="mt-0.5 h-5 w-5 text-green-700" /> : <AlertCircle className="mt-0.5 h-5 w-5 text-amber-700" />}
+            <div>
+              <p className={`text-sm font-bold ${auditoria.ok ? 'text-green-800' : 'text-amber-800'}`}>{auditoria.ok ? 'Importação confirmada no Base44' : 'Importação requer revisão'}</p>
+              <p className="mt-1 text-xs text-gray-700">{auditoria.total} persistidas · {auditoria.semVinculo} sem vínculo · {auditoria.semLegenda} sem legenda · {auditoria.duplicadas} duplicadas · {auditoria.ausentes} ausentes · {auditoria.semUrl} sem URL</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {photos.length === 0 ? <div className="rounded-lg border-2 border-dashed border-gray-300 py-8 text-center"><ImagePlus className="mx-auto mb-2 h-12 w-12 text-gray-300" /><p className="text-sm text-gray-600">Nenhuma foto adicionada</p></div> : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">{photos.map((photo) => {

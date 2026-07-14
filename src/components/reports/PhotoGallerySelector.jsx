@@ -9,7 +9,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Image as ImageIcon, Loader2, Sparkles, Link2, Unlink, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { gerarLegendaFoto } from '@/utils/captionUtils';
+
+const TAMANHO_BLOCO = 10;
 
 function normalizar(valor) {
   return String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/\s+/g, ' ');
@@ -38,8 +39,7 @@ function chaveFoto(foto) {
   return String(foto?.drive_file_id || foto?.attachmentId || foto?.sourceAttachmentId || foto?.id || foto?.url || foto?.file_url || '').trim();
 }
 function legendaPadrao(atividade, local, data, fallback = 'Sem vínculo') {
-  const nome = nomeAtividade(atividade) || fallback;
-  return [nome, local, data].filter(Boolean).join(' — ');
+  return [nomeAtividade(atividade) || fallback, local, data].filter(Boolean).join(' — ');
 }
 function melhorAtividade(foto, atividades) {
   const idDireto = String(foto.activityId || foto.atividade_id || foto.activity_id || '');
@@ -73,7 +73,7 @@ export default function PhotoGallerySelector({
   const [atividadeVinculadaId, setAtividadeVinculadaId] = useState('');
   const [vinculosManuais, setVinculosManuais] = useState({});
   const [importando, setImportando] = useState(false);
-  const [progresso, setProgresso] = useState({ atual: 0, total: 0, importadas: 0, ignoradas: 0, erros: 0 });
+  const [progresso, setProgresso] = useState({ atual: 0, total: 0, importadas: 0, ignoradas: 0, erros: 0, blocoAtual: 0, totalBlocos: 0, etapa: '' });
 
   const { data = { images: [], atividadesGlobais: [] }, isLoading } = useQuery({
     queryKey: ['galeria-fotos-selector-global'],
@@ -159,37 +159,48 @@ export default function PhotoGallerySelector({
 
   useEffect(() => {
     if (!selectedPhoto) return;
-    const preparada = prepararFoto({ ...selectedPhoto, activityId: atividadeVinculadaId || selectedPhoto.activityId });
-    setAtividadeVinculadaId(preparada.activityId || '');
-    setTitle(preparada.title);
-    setLocation(preparada.location);
-    setDateTaken(preparada.dateTaken);
-    setCaption(preparada.caption);
+    const activityId = selectedPhoto.activityId || '';
+    const atividade = atividadesDisponiveis.find((item) => idAtividade(item) === String(activityId));
+    const data = selectedPhoto.dateTaken || atividade?.data_realizacao || atividade?.data_inicio || atividade?.data || '';
+    const local = selectedPhoto.location || atividade?.local || atividade?.local_realizacao || selectedPhoto.museu || museu || '';
+    setAtividadeVinculadaId(atividade ? idAtividade(atividade) : '');
+    setTitle(selectedPhoto.title || (atividade ? nomeAtividade(atividade) : 'Registro sem vínculo'));
+    setLocation(local);
+    setDateTaken(data);
+    setCaption(legendaPadrao(atividade, local, data));
   }, [selectedPhoto]);
 
   const importarTodas = async () => {
     const fotos = candidatas.map(prepararFoto);
     if (!fotos.length) return toast.info('Não há fotos novas para importar.');
+    const totalBlocos = Math.ceil(fotos.length / TAMANHO_BLOCO);
     setImportando(true);
-    setProgresso({ atual: 0, total: fotos.length, importadas: 0, ignoradas: existentes.size, erros: 0 });
+    setProgresso({ atual: 0, total: fotos.length, importadas: 0, ignoradas: existentes.size, erros: 0, blocoAtual: 1, totalBlocos, etapa: `Preparando bloco 1 de ${totalBlocos}` });
     try {
       if (onSelectPhotos) {
-        await onSelectPhotos(fotos, (estado) => setProgresso((anterior) => ({ ...anterior, ...estado, total: fotos.length })));
+        await onSelectPhotos(fotos, (estado) => setProgresso((anterior) => ({ ...anterior, ...estado, total: fotos.length, totalBlocos })));
       } else {
         let importadas = 0;
         let erros = 0;
-        for (let indice = 0; indice < fotos.length; indice += 1) {
-          try {
-            await onSelectPhoto(fotos[indice], { keepOpen: true, bulk: true });
-            importadas += 1;
-          } catch {
-            erros += 1;
+        for (let inicio = 0; inicio < fotos.length; inicio += TAMANHO_BLOCO) {
+          const bloco = fotos.slice(inicio, inicio + TAMANHO_BLOCO);
+          const blocoAtual = Math.floor(inicio / TAMANHO_BLOCO) + 1;
+          setProgresso((anterior) => ({ ...anterior, blocoAtual, totalBlocos, etapa: `Importando bloco ${blocoAtual} de ${totalBlocos}` }));
+          for (const foto of bloco) {
+            try {
+              await onSelectPhoto(foto, { keepOpen: true, bulk: true });
+              importadas += 1;
+            } catch {
+              erros += 1;
+            }
           }
-          setProgresso({ atual: indice + 1, total: fotos.length, importadas, ignoradas: existentes.size, erros });
-          if ((indice + 1) % 20 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
+          const atual = Math.min(inicio + bloco.length, fotos.length);
+          setProgresso({ atual, total: fotos.length, importadas, ignoradas: existentes.size, erros, blocoAtual, totalBlocos, etapa: `Bloco ${blocoAtual} de ${totalBlocos} concluído` });
+          await new Promise((resolve) => setTimeout(resolve, 150));
         }
       }
-      toast.success('Importação concluída sem duplicar fotos já existentes.');
+      setProgresso((anterior) => ({ ...anterior, atual: fotos.length, blocoAtual: totalBlocos, totalBlocos, etapa: `Bloco ${totalBlocos} de ${totalBlocos} concluído` }));
+      toast.success('Importação concluída em blocos de 10, sem duplicar fotos já existentes.');
       onClose();
     } catch (error) {
       toast.error(`Erro na importação: ${error?.message || error}`);
@@ -221,6 +232,7 @@ export default function PhotoGallerySelector({
             <p>🔗 Vincula cada foto à atividade correspondente no relatório.</p>
             <p>📝 Gera legenda no formato: Atividade — Local — Data.</p>
             <p>🔁 Não duplica fotos já importadas anteriormente.</p>
+            <p>📦 Importa em blocos de {TAMANHO_BLOCO} para evitar travamento.</p>
           </div>
 
           <Input placeholder="Buscar por título, descrição, museu ou arquivo…" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
@@ -242,7 +254,12 @@ export default function PhotoGallerySelector({
             </div>
           )}
 
-          {(importando || progresso.total > 0) && <div className="space-y-2 rounded-xl border bg-slate-50 p-4"><div className="flex justify-between text-sm"><span>{importando ? 'Importando fotos e vinculando atividades…' : 'Importação concluída'}</span><strong>{percent}%</strong></div><div className="h-3 overflow-hidden rounded-full bg-slate-200"><div className="h-full bg-slate-800 transition-all" style={{ width: `${percent}%` }} /></div><p className="text-xs text-gray-500">{progresso.atual}/{progresso.total} processadas · {progresso.importadas} importadas · {progresso.ignoradas} já existentes · {progresso.erros} erros</p></div>}
+          {(importando || progresso.total > 0) && <div className="space-y-2 rounded-xl border bg-slate-50 p-4">
+            <div className="flex justify-between gap-3 text-sm"><span className="font-semibold">{progresso.etapa || (importando ? 'Importando fotos…' : 'Importação concluída')}</span><strong>{percent}%</strong></div>
+            {progresso.totalBlocos > 0 && <p className="text-sm font-bold text-slate-800">Bloco {progresso.blocoAtual || 0} de {progresso.totalBlocos}</p>}
+            <div className="h-3 overflow-hidden rounded-full bg-slate-200"><div className="h-full bg-slate-800 transition-all" style={{ width: `${percent}%` }} /></div>
+            <p className="text-xs text-gray-500">{progresso.atual}/{progresso.total} processadas · {progresso.importadas} importadas · {progresso.ignoradas} já existentes · {progresso.erros} erros</p>
+          </div>}
 
           {selectedPhoto && <div className="space-y-3 rounded-xl border bg-gray-50 p-4"><div><Label>Atividade</Label><Select value={atividadeVinculadaId || 'sem-vinculo'} onValueChange={(value) => setAtividadeVinculadaId(value === 'sem-vinculo' ? '' : value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="sem-vinculo">Sem Vínculo</SelectItem>{atividadesDisponiveis.map((atividade) => <SelectItem key={idAtividade(atividade)} value={idAtividade(atividade)}>{nomeAtividade(atividade)}</SelectItem>)}</SelectContent></Select></div><div><Label>Título</Label><Input value={title} onChange={(e) => setTitle(e.target.value)} /></div><div className="grid gap-3 sm:grid-cols-2"><div><Label>Local</Label><Input value={location} onChange={(e) => setLocation(e.target.value)} /></div><div><Label>Data</Label><Input type="date" value={dateTaken} onChange={(e) => setDateTaken(e.target.value)} /></div></div><div><Label className="flex items-center gap-1"><Sparkles className="h-4 w-4" /> Legenda</Label><Textarea value={caption} onChange={(e) => setCaption(e.target.value)} /></div></div>}
         </div>
