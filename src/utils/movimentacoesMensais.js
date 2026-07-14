@@ -19,14 +19,7 @@ function tipo(l) {
 }
 
 function nomeDoc(r) {
-  return norm([r?.drive_file_name, r?.file_name, r?.nome_arquivo, r?.resumo_ia].filter(Boolean).join(' '));
-}
-
-function ehDocRendimento(r) {
-  if (r?.tipo === 'extrato_rendimento') return true;
-  const n = nomeDoc(r);
-  return ['rendimento', 'investimento', 'aplicacao', 'cdb', 'fundo', 'poupanca', 'qtde de cotas', 'dados de tributacao']
-    .some((t) => n.includes(t));
+  return norm([r?.drive_file_name, r?.file_name, r?.nome_arquivo].filter(Boolean).join(' '));
 }
 
 export function ehTransferenciaInterna(l) {
@@ -50,6 +43,26 @@ function ehEstorno(l) {
 function ehCreditoExterno(l) {
   const d = desc(l);
   return ['repasse', 'prefeitura', 'fundacao municipal de cultura', 'fmc', 'termo de colaboracao', 'convenio', 'subvencao'].some((t) => d.includes(t));
+}
+
+function operacionais(r) {
+  return (r?.lancamentos || []).filter((l) => tipo(l) === 'debito' && !ehTransferenciaInterna(l) && !ehRendimento(l) && !ehEstorno(l)).length;
+}
+
+function ehDocRendimento(r) {
+  const nome = nomeDoc(r);
+  const explicitamenteConta = ['extrato mensal', 'extrato da conta', 'extrato conta', 'conta corrente'].some((t) => nome.includes(t));
+  const explicitamenteRendimento = ['rendimento', 'investimento', 'fundo', 'cdb', 'poupanca'].some((t) => nome.includes(t));
+
+  if (explicitamenteConta) return false;
+  if (explicitamenteRendimento) return true;
+  if (operacionais(r) > 0) return false;
+  if (r?.tipo === 'extrato_rendimento') return true;
+
+  const lancamentos = r?.lancamentos || [];
+  const internos = lancamentos.filter(ehTransferenciaInterna).length;
+  const rendimentos = lancamentos.filter(ehRendimento).length;
+  return lancamentos.length > 0 && internos + rendimentos === lancamentos.length;
 }
 
 export function parseDataLancamento(valor, anoFallback = null) {
@@ -82,10 +95,6 @@ function chaveConta(r, i = 0) {
   return `${ehDocRendimento(r) ? 'investimento' : 'conta'}|${conta || norm(r?.banco) || i}`;
 }
 
-function operacionais(r) {
-  return (r?.lancamentos || []).filter((l) => tipo(l) === 'debito' && !ehTransferenciaInterna(l) && !ehRendimento(l) && !ehEstorno(l)).length;
-}
-
 function scoreConta(r) {
   const n = nomeDoc(r);
   let s = operacionais(r) * 100 + (r?.lancamentos || []).length;
@@ -103,7 +112,9 @@ function canonicos(registros, rendimento) {
     if (!atual) return mapa.set(k, r);
     if (rendimento) {
       if (dataRegistro(r) >= dataRegistro(atual)) mapa.set(k, r);
-    } else if (scoreConta(r) > scoreConta(atual) || (scoreConta(r) === scoreConta(atual) && dataRegistro(r) > dataRegistro(atual))) mapa.set(k, r);
+    } else if (scoreConta(r) > scoreConta(atual) || (scoreConta(r) === scoreConta(atual) && dataRegistro(r) > dataRegistro(atual))) {
+      mapa.set(k, r);
+    }
   });
   return [...mapa.values()];
 }
@@ -142,7 +153,7 @@ function fragmentar(lista = []) {
     if (!porMes.size && r.ano && r.mes_num) porMes.set(`${r.ano}-${String(r.mes_num).padStart(2, '0')}`, []);
     porMes.forEach((lancamentos, k) => {
       const [ano, mes] = k.split('-').map(Number);
-      out.push({ ...r, tipo: ehDocRendimento(r) ? 'extrato_rendimento' : r.tipo, ano, mes_num: mes, mes: MESES[mes], lancamentos, _documento_original_id: docId(r, idx) });
+      out.push({ ...r, tipo: ehDocRendimento(r) ? 'extrato_rendimento' : 'extrato_conta', ano, mes_num: mes, mes: MESES[mes], lancamentos, _documento_original_id: docId(r, idx) });
     });
   });
   return out;
@@ -166,8 +177,11 @@ export function resumirRegistrosMensais(registros = []) {
   const saldoConta = contas.reduce((s, r) => s + saldoFinal(r), 0);
   const saldoInvestimento = investimentos.reduce((s, r) => s + num(r.saldo_final), 0);
   const saldoDocumental = saldoConta + saldoInvestimento;
+
   return {
-    creditos, debitos, rendimento,
+    creditos,
+    debitos,
+    rendimento,
     saldo: Math.abs(saldoDocumental) > 0.009 ? saldoDocumental : creditos - debitos + rendimento,
     saldo_conta: saldoConta,
     saldo_investimento: saldoInvestimento,
@@ -195,14 +209,17 @@ export function agruparMovimentacoesPorMes(movimentacoes = []) {
   });
   grupos.forEach((g) => {
     const resumo = resumirRegistrosMensais(g.registros);
-    let conta = false; let rend = false;
+    let conta = false;
+    let rend = false;
     g.registros = g.registros.map((r) => {
       if (!ehDocRendimento(r) && r.tipo === 'extrato_conta') {
-        const aplicar = !conta; conta = true;
+        const aplicar = !conta;
+        conta = true;
         return { ...r, total_creditos: aplicar ? resumo.creditos : 0, total_debitos: aplicar ? resumo.debitos : 0, total_transferencias_internas: aplicar ? resumo.transferencias_internas_valor : 0, saldo_final: aplicar ? resumo.saldo : null, totais_ajustados_deterministicamente: true };
       }
       if (ehDocRendimento(r)) {
-        const aplicar = !rend; rend = true;
+        const aplicar = !rend;
+        rend = true;
         return { ...r, tipo: 'extrato_rendimento', total_rendimento: aplicar ? resumo.rendimento : 0, totais_ajustados_deterministicamente: true };
       }
       return r;
@@ -214,9 +231,14 @@ export function agruparMovimentacoesPorMes(movimentacoes = []) {
 export function resumirGruposMensais(grupos = []) {
   return [...grupos].sort((a, b) => a.key.localeCompare(b.key)).reduce((t, g) => {
     const r = resumirRegistrosMensais(g.registros);
-    t.creditos += r.creditos; t.debitos += r.debitos; t.debitos_brutos += r.debitos_brutos;
-    t.transferencias_internas += r.transferencias_internas_valor; t.rendimento += r.rendimento;
-    t.saldo_final = r.saldo; t.saldo_conta = r.saldo_conta; t.saldo_investimento = r.saldo_investimento;
+    t.creditos += r.creditos;
+    t.debitos += r.debitos;
+    t.debitos_brutos += r.debitos_brutos;
+    t.transferencias_internas += r.transferencias_internas_valor;
+    t.rendimento += r.rendimento;
+    t.saldo_final = r.saldo;
+    t.saldo_conta = r.saldo_conta;
+    t.saldo_investimento = r.saldo_investimento;
     t.documentos_ignorados_no_calculo += r.documentos_ignorados_no_calculo;
     return t;
   }, { creditos: 0, debitos: 0, debitos_brutos: 0, transferencias_internas: 0, rendimento: 0, saldo_final: 0, saldo_conta: 0, saldo_investimento: 0, documentos_ignorados_no_calculo: 0 });
