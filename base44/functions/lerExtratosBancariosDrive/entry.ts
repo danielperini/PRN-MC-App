@@ -15,27 +15,84 @@ function num(v:any){const x=Number(v||0);return Number.isFinite(x)?x:0}
 function monthFromText(v:string){const t=normalize(v);for(const [k,m] of Object.entries(MONTH_MAP))if(t.includes(k))return m;return null}
 function yearFromText(v:string){const m=String(v||'').match(/20\d{2}/);return m?Number(m[0]):null}
 function isStatementPdf(f:any){if(f.mimeType!=='application/pdf')return false;const n=normalize(f.name);return n.includes('extrato')||n.includes('rendimento')||n.includes('investimento')||n.includes('aplicacao')}
-function isYield(name:string){const n=normalize(name);return n.includes('rendimento')||n.includes('investimento')||n.includes('aplicacao')||n.includes('cdb')||n.includes('poupanca')}
 function errorMessage(e:any){return String(e?.message||e||'Erro desconhecido').slice(0,800)}
-function normalizedType(v:any){const t=normalize(v);if(t.includes('rend'))return 'rendimento';if(t.includes('cred')||t.includes('entrada'))return 'credito';if(t.includes('deb')||t.includes('saida')||t.includes('pagamento'))return 'debito';return t}
-function fingerprint(l:any){return [normalize(l.data),normalize(l.descricao),normalizedType(l.tipo),Math.abs(num(l.valor)).toFixed(2),l.saldo==null?'':num(l.saldo).toFixed(2)].join('|')}
-function deterministic(extracted:any, recordType:string){
-  const seen=new Set<string>();
-  const launches=(Array.isArray(extracted.lancamentos)?extracted.lancamentos:[]).map((l:any)=>({...l,tipo:normalizedType(l.tipo),valor:Math.abs(num(l.valor)),saldo:l.saldo==null?null:num(l.saldo)})).filter((l:any)=>{const f=fingerprint(l);if(seen.has(f))return false;seen.add(f);return true});
-  const creditos=launches.filter((l:any)=>l.tipo==='credito').reduce((s:number,l:any)=>s+l.valor,0);
-  const debitos=launches.filter((l:any)=>l.tipo==='debito').reduce((s:number,l:any)=>s+l.valor,0);
-  const rendimentos=launches.filter((l:any)=>l.tipo==='rendimento').reduce((s:number,l:any)=>s+l.valor,0);
-  const saldos=launches.filter((l:any)=>l.saldo!=null);
-  const saldoFinal=saldos.length?num(saldos[saldos.length-1].saldo):num(extracted.saldo_final);
-  const saldoInicial=num(extracted.saldo_inicial);
+
+function typeFromFilename(name:string):'extrato_conta'|'extrato_rendimento'|null{
+  const n=normalize(name);
+  if(n.includes('extrato mensal')||n.includes('extrato da conta')||n.includes('extrato conta')||n.includes('conta corrente'))return 'extrato_conta';
+  if(n.includes('rendimento')||n.includes('investimento')||n.includes('fundo')||n.includes('cdb')||n.includes('poupanca')||n.includes('aplicacao'))return 'extrato_rendimento';
+  return null;
+}
+function typeFromAnalysis(v:any):'extrato_conta'|'extrato_rendimento'|null{
+  const t=normalize(v);
+  if(t.includes('fundo')||t.includes('investimento')||t.includes('rendimento')||t.includes('cotas'))return 'extrato_rendimento';
+  if(t.includes('conta corrente')||t.includes('fluxo de caixa')||t.includes('extrato de conta'))return 'extrato_conta';
+  return null;
+}
+function normalizedCD(v:any){const t=normalize(v).replace(/[^cd]/g,'');return t==='c'?'C':t==='d'?'D':''}
+function isInternalDescription(description:string){const d=normalize(description);return /\bresg(ate| aut)?\b/.test(d)||/\baplicacao\b/.test(d)||d.includes('transferencia entre contas')||d.includes('conta investimento')}
+function isOperationalDebitDescription(description:string){const d=normalize(description);return d.includes('deb pix')||d.includes('deb pix ch')||d.includes('envio ted')||d.includes('pag boleto')||d.includes('envio tev')||d.includes('envio transf')||d.includes('tarifa')||d.includes('pagamento')}
+function isYieldDescription(description:string){const d=normalize(description);return d.includes('rendimento bruto')||d.includes('rendimento no mes')||d.includes('rentabilidade')||d.includes('juros')||d.includes('correcao monetaria')}
+
+function classifyLaunch(l:any,recordType:string){
+  const description=String(l?.descricao||l?.historico||'').trim();
+  const cd=normalizedCD(l?.indicador_cd||l?.natureza_cd||l?.credito_debito);
+  const internal=isInternalDescription(description);
+  let launchType='';
+  let category='nao_classificado';
+
+  if(recordType==='extrato_rendimento'){
+    if(isYieldDescription(description) && cd==='C'){
+      launchType='rendimento';category='rendimento_investimento';
+    }else if(internal){
+      launchType=cd==='C'?'credito':'debito';category='transferencia_interna_investimento';
+    }else{
+      launchType=cd==='C'?'credito':cd==='D'?'debito':normalize(l?.tipo);
+      category='movimentacao_investimento';
+    }
+  }else{
+    if(internal){
+      launchType=cd==='D'?'debito':'credito';category='transferencia_interna_conta';
+    }else if(cd==='D' || isOperationalDebitDescription(description)){
+      launchType='debito';category='debito_operacional';
+    }else if(cd==='C'){
+      launchType='credito';category='credito_externo_candidato';
+    }else{
+      const informed=normalize(l?.tipo);
+      launchType=informed.includes('cred')?'credito':informed.includes('deb')?'debito':informed.includes('rend')?'rendimento':informed;
+      category=launchType==='debito'?'debito_operacional':launchType==='credito'?'credito_externo_candidato':'nao_classificado';
+    }
+  }
+
+  return {
+    ...l,
+    descricao:description,
+    indicador_cd:cd,
+    tipo:launchType,
+    categoria,
+    transferencia_interna:internal,
+    valor:Math.abs(num(l?.valor)),
+    saldo:l?.saldo==null?null:num(l.saldo),
+  };
+}
+
+function deterministic(extracted:any,recordType:string){
+  const launches=(Array.isArray(extracted.lancamentos)?extracted.lancamentos:[]).map((l:any)=>classifyLaunch(l,recordType));
+  const credits=launches.filter((l:any)=>l.tipo==='credito').reduce((s:number,l:any)=>s+l.valor,0);
+  const debits=launches.filter((l:any)=>l.tipo==='debito').reduce((s:number,l:any)=>s+l.valor,0);
+  const yields=launches.filter((l:any)=>l.tipo==='rendimento').reduce((s:number,l:any)=>s+l.valor,0);
+  const balances=launches.filter((l:any)=>l.saldo!=null);
+  const finalBalance=balances.length?num(balances[balances.length-1].saldo):num(extracted.saldo_final);
+  const initialBalance=num(extracted.saldo_inicial);
   return {
     lancamentos:launches,
-    saldo_inicial:saldoInicial,
-    saldo_final:saldoFinal,
-    total_creditos:launches.length?creditos:num(extracted.total_creditos),
-    total_debitos:launches.length?debitos:num(extracted.total_debitos),
-    total_rendimento:recordType==='extrato_rendimento'?(rendimentos||Math.max(0,saldoFinal-saldoInicial)||num(extracted.total_rendimento)):num(extracted.total_rendimento),
-    duplicados_removidos:Math.max(0,(extracted.lancamentos||[]).length-launches.length),
+    saldo_inicial:initialBalance,
+    saldo_final:finalBalance,
+    total_creditos:launches.length?credits:num(extracted.total_creditos),
+    total_debitos:launches.length?debits:num(extracted.total_debitos),
+    total_rendimento:recordType==='extrato_rendimento'?(yields||num(extracted.rendimento_bruto_mes)||num(extracted.total_rendimento)):num(extracted.total_rendimento),
+    debitos_operacionais:launches.filter((l:any)=>l.categoria==='debito_operacional').reduce((s:number,l:any)=>s+l.valor,0),
+    transferencias_internas:launches.filter((l:any)=>l.transferencia_interna).reduce((s:number,l:any)=>s+l.valor,0),
   };
 }
 
@@ -67,11 +124,37 @@ Deno.serve(async(req)=>{
     const created:any[]=[],updated:any[]=[],errors:any[]=[];
 
     for(const pdf of batch){let stage='download';try{
-      const type=isYield(pdf.name)?'extrato_rendimento':'extrato_conta';const monthNumber=Number(pdf._mes_num||monthFromText(pdf.name)||new Date(pdf.createdTime||Date.now()).getMonth()+1);const year=Number(pdf._ano||yearFromText(pdf.name)||requestedYear||new Date().getFullYear());
+      const monthNumber=Number(pdf._mes_num||monthFromText(pdf.name)||new Date(pdf.createdTime||Date.now()).getMonth()+1);const year=Number(pdf._ano||yearFromText(pdf.name)||requestedYear||new Date().getFullYear());
       const dl=await fetch(`https://www.googleapis.com/drive/v3/files/${pdf.id}?alt=media&supportsAllDrives=true`,{headers:{Authorization:`Bearer ${token}`}});if(!dl.ok)throw new Error(`Drive download HTTP ${dl.status}: ${await dl.text()}`);
       stage='upload';const bytes=await dl.arrayBuffer();if(!bytes.byteLength)throw new Error('O PDF baixado está vazio');const file=new File([bytes],pdf.name||`${pdf.id}.pdf`,{type:'application/pdf'});const upload=await base44.asServiceRole.integrations.Core.UploadFile({file});const url=upload?.file_url||upload?.url||upload?.data?.file_url;if(!url)throw new Error('Upload temporário não retornou URL');
-      stage='analysis';const extracted=await base44.asServiceRole.integrations.Core.InvokeLLM({prompt:`Extraia fielmente os dados do extrato bancário brasileiro "${pdf.name}". Competência obrigatória: ${MONTH_NAMES[monthNumber]}/${year}. Retorne banco, conta, saldo inicial, saldo final e todos os lançamentos. Para cada lançamento: data DD/MM/AAAA, descrição, tipo credito/debito/rendimento, valor positivo e saldo. Não calcule totais; eles serão calculados deterministicamente pelo sistema.`,file_urls:[url],response_json_schema:{type:'object',properties:{banco:{type:'string'},conta:{type:'string'},saldo_inicial:{type:'number'},saldo_final:{type:'number'},total_creditos:{type:'number'},total_debitos:{type:'number'},total_rendimento:{type:'number'},lancamentos:{type:'array',items:{type:'object',properties:{data:{type:'string'},descricao:{type:'string'},tipo:{type:'string'},valor:{type:'number'},saldo:{type:'number'}}}},resumo_ia:{type:'string'}}}})||{};
-      const totals=deterministic(extracted,type);const payload={mes:MONTH_NAMES[monthNumber],mes_num:monthNumber,ano:year,tipo,banco:extracted.banco||'Não identificado',conta:extracted.conta||'',saldo_inicial:totals.saldo_inicial,saldo_final:totals.saldo_final,total_creditos:totals.total_creditos,total_debitos:totals.total_debitos,total_rendimento:totals.total_rendimento,lancamentos:totals.lancamentos,drive_file_id:pdf.id,drive_file_url:pdf.webViewLink||`https://drive.google.com/file/d/${pdf.id}/view`,drive_file_name:pdf.name,processado_em:new Date().toISOString(),resumo_ia:`${extracted.resumo_ia||''} | Totais recalculados deterministicamente; ${totals.duplicados_removidos} lançamento(s) duplicado(s) removido(s).`.trim()};
+      stage='analysis';const extracted=await base44.asServiceRole.integrations.Core.InvokeLLM({
+        prompt:`Analise fielmente o extrato bancário brasileiro "${pdf.name}". Competência esperada: ${MONTH_NAMES[monthNumber]}/${year}.
+
+ETAPA 1 — CLASSIFIQUE O DOCUMENTO:
+- "extrato_conta_corrente": fluxo diário, PIX, TED, TEV, boletos, recebimentos e saldo da conta.
+- "extrato_fundo_investimento": cotas, aplicações, resgates, rendimento bruto, tributação e saldo do fundo.
+Capture obrigatoriamente: nome_cliente, cpf_cnpj_cliente, mes_referencia, ano_referencia, banco e numero_conta.
+
+ETAPA 2 — LEIA RIGIDAMENTE O INDICADOR C/D AO LADO DE CADA VALOR:
+- C = crédito/entrada NAQUELA conta ou fundo.
+- D = débito/saída DAQUELA conta ou fundo.
+Nunca inverta C e D e não deduza a natureza apenas pelo sinal do número.
+
+ETAPA 3 — SEGREGAÇÃO SEMÂNTICA:
+- No fundo: RESGATE + D = saída do investimento; APLICAÇÃO + C = entrada/compra de cotas.
+- Na conta corrente: RESG AUT ou RESGATE + C = entrada proveniente do investimento; não é receita externa.
+- "Rendimento Bruto no Mês" + C = rendimento do fundo; não é depósito externo.
+- Na conta: crédito C sem RESG pode ser entrada externa candidata.
+- Na conta: DEB PIX CH, ENVIO TED, PAG BOLETO, ENVIO TEV ou ENVIO TRANSF + D = débito operacional.
+
+Retorne todos os lançamentos, sem eliminar linhas iguais. Para cada linha: data DD/MM/AAAA, descrição literal, indicador_cd C/D, valor positivo, saldo quando existir e tipo_sugerido. Não calcule totais; o sistema fará isso deterministicamente.`,
+        file_urls:[url],
+        response_json_schema:{type:'object',properties:{tipo_documento:{type:'string'},nome_cliente:{type:'string'},cpf_cnpj_cliente:{type:'string'},mes_referencia:{type:'number'},ano_referencia:{type:'number'},banco:{type:'string'},numero_conta:{type:'string'},saldo_inicial:{type:'number'},saldo_final:{type:'number'},rendimento_bruto_mes:{type:'number'},total_creditos:{type:'number'},total_debitos:{type:'number'},total_rendimento:{type:'number'},lancamentos:{type:'array',items:{type:'object',properties:{data:{type:'string'},descricao:{type:'string'},indicador_cd:{type:'string'},tipo_sugerido:{type:'string'},valor:{type:'number'},saldo:{type:'number'}}}},resumo_ia:{type:'string'}}}
+      })||{};
+      const type=typeFromFilename(pdf.name)||typeFromAnalysis(extracted.tipo_documento)||'extrato_conta';
+      const totals=deterministic(extracted,type);
+      const metadata=`Tipo documental: ${type}; Cliente: ${extracted.nome_cliente||'não identificado'}; CPF/CNPJ: ${extracted.cpf_cnpj_cliente||'não identificado'}; Conta: ${extracted.numero_conta||extracted.conta||'não identificada'}; Competência lida: ${extracted.mes_referencia||monthNumber}/${extracted.ano_referencia||year}; débitos operacionais: ${totals.debitos_operacionais.toFixed(2)}; transferências internas: ${totals.transferencias_internas.toFixed(2)}.`;
+      const payload={mes:MONTH_NAMES[monthNumber],mes_num:monthNumber,ano:year,tipo,banco:extracted.banco||'Não identificado',conta:extracted.numero_conta||extracted.conta||'',saldo_inicial:totals.saldo_inicial,saldo_final:totals.saldo_final,total_creditos:totals.total_creditos,total_debitos:totals.total_debitos,total_rendimento:totals.total_rendimento,lancamentos:totals.lancamentos,drive_file_id:pdf.id,drive_file_url:pdf.webViewLink||`https://drive.google.com/file/d/${pdf.id}/view`,drive_file_name:pdf.name,processado_em:new Date().toISOString(),resumo_ia:`${extracted.resumo_ia||''} | ${metadata} Classificação C/D validada deterministicamente; nenhuma linha foi removida por semelhança.`.trim()};
       stage='persist';const current=existingByDrive.get(pdf.id);if(current){await base44.asServiceRole.entities.MovimentacaoBancaria.update(current.id,payload);updated.push({arquivo:pdf.name,id:current.id,mes_num:monthNumber,tipo})}else{const record=await base44.asServiceRole.entities.MovimentacaoBancaria.create(payload);existingByDrive.set(pdf.id,record);created.push({arquivo:pdf.name,id:record.id,mes_num:monthNumber,tipo})}
     }catch(e:any){errors.push({arquivo:pdf.name,drive_file_id:pdf.id,etapa:stage,erro:errorMessage(e)})}}
 
