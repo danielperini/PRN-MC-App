@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { base44 } from '@/api/base44Client';
 import { EXTRATO_DRIVE_FOLDERS_2026 } from '@/config/extratoDriveFolders';
-import { Banknote, ExternalLink, FolderOpen, Loader2, RefreshCw, TrendingUp } from 'lucide-react';
+import { AlertCircle, Banknote, ExternalLink, FolderOpen, Loader2, RefreshCw, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 
 function contarDocumentos(registros) {
@@ -10,8 +10,17 @@ function contarDocumentos(registros) {
   return ids.size;
 }
 
+function resumirErros(erros = []) {
+  return erros.slice(0, 3).map(erro => ({
+    arquivo: erro.arquivo || 'Arquivo sem nome',
+    etapa: erro.etapa || 'processamento',
+    mensagem: erro.erro || 'Erro não informado',
+  }));
+}
+
 export default function ExtratosDrivePorMes({ movimentacoes = [], onSincronizado }) {
   const [sincronizandoMes, setSincronizandoMes] = useState(null);
+  const [errosPorMes, setErrosPorMes] = useState({});
 
   const registrosPorMes = useMemo(() => {
     const map = new Map();
@@ -30,6 +39,7 @@ export default function ExtratosDrivePorMes({ movimentacoes = [], onSincronizado
     }
 
     setSincronizandoMes(item.mes_num);
+    setErrosPorMes(prev => ({ ...prev, [item.mes_num]: [] }));
     toast.info(`Buscando extrato de conta e extrato de rendimento em ${item.mes}…`);
     try {
       const response = await base44.functions.invoke('lerExtratosBancariosDrive', {
@@ -41,7 +51,17 @@ export default function ExtratosDrivePorMes({ movimentacoes = [], onSincronizado
       if (!data.success) throw new Error(data.error || 'Falha ao ler a pasta mensal');
 
       const resumo = data.resumo || {};
-      if ((resumo.pdfs_encontrados || 0) === 0) {
+      const erros = resumirErros(data.erros || []);
+      setErrosPorMes(prev => ({ ...prev, [item.mes_num]: erros }));
+
+      if (erros.length > 0) {
+        const primeiro = erros[0];
+        toast.error(
+          `${item.mes}: ${resumo.novos_criados || 0} importado(s), ${resumo.erros || erros.length} erro(s). ` +
+          `${primeiro.etapa}: ${primeiro.mensagem}`,
+          { duration: 12000 }
+        );
+      } else if ((resumo.pdfs_encontrados || 0) === 0) {
         toast.info(`Nenhum extrato PDF encontrado em ${item.mes}.`);
       } else if ((resumo.novos_criados || 0) === 0 && (resumo.restantes || 0) === 0) {
         toast.success(`${item.mes}: todos os extratos já estavam importados.`);
@@ -53,7 +73,9 @@ export default function ExtratosDrivePorMes({ movimentacoes = [], onSincronizado
       }
       await onSincronizado?.();
     } catch (error) {
-      toast.error(`${item.mes}: ${error?.message || String(error)}`);
+      const mensagem = error?.message || String(error);
+      setErrosPorMes(prev => ({ ...prev, [item.mes_num]: [{ arquivo: 'Falha geral', etapa: 'função', mensagem }] }));
+      toast.error(`${item.mes}: ${mensagem}`, { duration: 12000 });
     } finally {
       setSincronizandoMes(null);
     }
@@ -73,6 +95,7 @@ export default function ExtratosDrivePorMes({ movimentacoes = [], onSincronizado
           const contas = registros.filter(r => r.tipo === 'extrato_conta').length;
           const rendimentos = registros.filter(r => r.tipo === 'extrato_rendimento').length;
           const sincronizando = sincronizandoMes === item.mes_num;
+          const erros = errosPorMes[item.mes_num] || [];
 
           return (
             <div key={key} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm space-y-3">
@@ -103,6 +126,21 @@ export default function ExtratosDrivePorMes({ movimentacoes = [], onSincronizado
                 <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
                   Pasta de abril não informada. A pasta repetida de março não foi reutilizada para evitar duplicidade.
                 </p>
+              )}
+
+              {erros.length > 0 && (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-3 space-y-2">
+                  <div className="flex items-center gap-2 text-red-700">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <p className="text-xs font-bold">Falhas desta execução</p>
+                  </div>
+                  {erros.map((erro, index) => (
+                    <div key={`${erro.arquivo}-${index}`} className="text-[11px] text-red-700">
+                      <p className="font-semibold break-words">{erro.arquivo}</p>
+                      <p className="break-words"><span className="font-medium">Etapa:</span> {erro.etapa} · {erro.mensagem}</p>
+                    </div>
+                  ))}
+                </div>
               )}
 
               <div className="flex gap-2">
