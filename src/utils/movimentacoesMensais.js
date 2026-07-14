@@ -1,5 +1,8 @@
 const MESES = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-const CREDITOS_2026 = Object.freeze({ '2026-02': 1320000, '2026-06': 81719.85 });
+export const CREDITOS_EXTERNOS_CONFIRMADOS_2026 = Object.freeze({
+  '2026-02': 1320000,
+  '2026-06': 81719.85,
+});
 
 const num = (v) => Number.isFinite(Number(v || 0)) ? Number(v || 0) : 0;
 const norm = (v) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/\s+/g, ' ');
@@ -9,7 +12,6 @@ const docId = (r, i = 0) => String(r?.drive_file_id || r?.id || `${r?.ano}-${r?.
 function desc(l) {
   return norm([l?.descricao, l?.historico, l?.detalhe, l?.categoria_fluxo, l?.categoria].filter(Boolean).join(' '));
 }
-
 function tipo(l) {
   const t = norm(l?.tipo || l?.tipo_sugerido);
   const cd = norm(l?.indicador_cd || l?.natureza_cd || l?.credito_debito);
@@ -18,7 +20,6 @@ function tipo(l) {
   if (t.includes('deb') || t.includes('saida') || t.includes('pagamento') || cd === 'd') return 'debito';
   return t;
 }
-
 function nomeDoc(r) {
   return norm([r?.drive_file_name, r?.file_name, r?.nome_arquivo].filter(Boolean).join(' '));
 }
@@ -27,61 +28,40 @@ export function ehTransferenciaInterna(l) {
   if (l?.transferencia_interna === true) return true;
   const categoria = norm(l?.categoria || l?.categoria_fluxo);
   if (categoria.includes('transferencia_interna') || categoria.includes('movimentacao_interna')) return true;
-
   const d = desc(l);
   return /\bresg(?:ate| aut| automat)?\b/.test(d)
     || /\baplic(?:acao| automat| financeira)?\b/.test(d)
     || /\bapl(?:ic)?\b/.test(d)
-    || [
-      'transferencia entre contas', 'transf entre contas', 'conta investimento',
-      'investimento para conta corrente', 'conta corrente para investimento',
-      'movimentacao interna', 'saldo aplicado', 'baixa aplicacao',
-      'aporte aplicacao', 'resgate fundo', 'resgate cdb', 'aplicacao cdb',
-      'aplicacao fundo', 'resg aut', 'resgate automat', 'aplic automat',
-    ].some((t) => d.includes(t));
+    || ['transferencia entre contas', 'transf entre contas', 'conta investimento', 'investimento para conta corrente', 'conta corrente para investimento', 'movimentacao interna', 'saldo aplicado', 'baixa aplicacao', 'aporte aplicacao', 'resgate fundo', 'resgate cdb', 'aplicacao cdb', 'aplicacao fundo', 'resg aut', 'resgate automat', 'aplic automat'].some((t) => d.includes(t));
 }
-
 function ehRendimento(l) {
   const categoria = norm(l?.categoria || l?.categoria_fluxo);
   if (categoria.includes('rendimento')) return true;
   const d = desc(l);
   return tipo(l) === 'rendimento' || ['rendimento', 'remuneracao', 'juros', 'rentabilidade', 'correcao monetaria', 'rendimento bruto no mes'].some((t) => d.includes(t));
 }
-
 function ehEstorno(l) {
   const d = desc(l);
   return ['devolucao', 'estorno', 'reembolso', 'cancelamento', 'reversao'].some((t) => d.includes(t));
 }
-
 function ehCreditoExterno(l) {
   const categoria = norm(l?.categoria || l?.categoria_fluxo);
   if (categoria.includes('credito_externo')) return true;
   const d = desc(l);
   return ['repasse', 'prefeitura', 'fundacao municipal de cultura', 'fmc', 'termo de colaboracao', 'convenio', 'subvencao'].some((t) => d.includes(t));
 }
-
 function ehDebitoOperacional(l) {
   const categoria = norm(l?.categoria || l?.categoria_fluxo);
   if (categoria.includes('debito_operacional')) return true;
   if (ehTransferenciaInterna(l) || ehRendimento(l) || ehEstorno(l)) return false;
   const d = desc(l);
-  return tipo(l) === 'debito' && (
-    /\bdeb pix\b/.test(d)
-    || d.includes('envio ted')
-    || d.includes('envio tev')
-    || d.includes('envio transf')
-    || d.includes('pag boleto')
-    || d.includes('pagamento')
-    || d.includes('tarifa')
-    || !d
-  );
+  return tipo(l) === 'debito' && (/\bdeb pix\b/.test(d) || d.includes('envio ted') || d.includes('envio tev') || d.includes('envio transf') || d.includes('pag boleto') || d.includes('pagamento') || d.includes('tarifa') || !d);
 }
-
 function operacionais(r) {
   return (r?.lancamentos || []).filter(ehDebitoOperacional).length;
 }
-
 function ehDocRendimento(r) {
+  if (r?._credito_confirmado) return false;
   const nome = nomeDoc(r);
   if (['extrato mensal', 'extrato da conta', 'extrato conta', 'conta corrente'].some((t) => nome.includes(t))) return false;
   if (['rendimento', 'investimento', 'fundo', 'cdb', 'poupanca'].some((t) => nome.includes(t))) return true;
@@ -115,12 +95,10 @@ export function deduplicarRegistrosPorDocumento(lista = []) {
   });
   return [...mapa.values()];
 }
-
 function chaveConta(r, i = 0) {
   const conta = String(r?.conta || '').replace(/\D/g, '');
   return `${ehDocRendimento(r) ? 'investimento' : 'conta'}|${conta || norm(r?.banco) || i}`;
 }
-
 function scoreConta(r) {
   const n = nomeDoc(r);
   let s = operacionais(r) * 100 + (r?.lancamentos || []).length;
@@ -129,21 +107,17 @@ function scoreConta(r) {
   if (n.includes('conta corrente')) s += 250000;
   return s;
 }
-
 function canonicos(registros, rendimento) {
   const mapa = new Map();
-  registros.filter((r) => rendimento ? ehDocRendimento(r) : !ehDocRendimento(r)).forEach((r, i) => {
+  registros.filter((r) => !r?._credito_confirmado && (rendimento ? ehDocRendimento(r) : !ehDocRendimento(r))).forEach((r, i) => {
     const k = chaveConta(r, i);
     const atual = mapa.get(k);
     if (!atual) return mapa.set(k, r);
-    const melhor = rendimento
-      ? dataRegistro(r) >= dataRegistro(atual)
-      : scoreConta(r) > scoreConta(atual) || (scoreConta(r) === scoreConta(atual) && dataRegistro(r) > dataRegistro(atual));
+    const melhor = rendimento ? dataRegistro(r) >= dataRegistro(atual) : scoreConta(r) > scoreConta(atual) || (scoreConta(r) === scoreConta(atual) && dataRegistro(r) > dataRegistro(atual));
     if (melhor) mapa.set(k, r);
   });
   return [...mapa.values()];
 }
-
 function lancamentosUnicos(registros) {
   const mapa = new Map();
   [...registros].sort((a, b) => scoreConta(b) - scoreConta(a)).forEach((r) => {
@@ -158,12 +132,10 @@ function lancamentosUnicos(registros) {
   });
   return [...mapa.values()];
 }
-
 function saldoFinal(r) {
   const comSaldo = (r?.lancamentos || []).filter((l) => l?.saldo != null);
   return comSaldo.length ? num(comSaldo[comSaldo.length - 1].saldo) : num(r?.saldo_final);
 }
-
 function fragmentar(lista = []) {
   const out = [];
   deduplicarRegistrosPorDocumento(lista).forEach((r, idx) => {
@@ -190,7 +162,7 @@ export function resumirRegistrosMensais(registros = []) {
   const ls = lancamentosUnicos(contas);
   const primeiro = registros[0];
   const key = primeiro ? `${primeiro.ano}-${String(primeiro.mes_num || 0).padStart(2, '0')}` : '';
-  const creditoConfirmado = CREDITOS_2026[key];
+  const creditoConfirmado = CREDITOS_EXTERNOS_CONFIRMADOS_2026[key];
   const creditosBrutos = ls.filter((l) => tipo(l) === 'credito').reduce((s, l) => s + Math.abs(num(l.valor)), 0);
   const creditosClassificados = ls.filter((l) => tipo(l) === 'credito' && !ehTransferenciaInterna(l) && !ehRendimento(l) && !ehEstorno(l) && ehCreditoExterno(l)).reduce((s, l) => s + Math.abs(num(l.valor)), 0);
   const creditos = creditoConfirmado !== undefined ? creditoConfirmado : creditosClassificados;
@@ -202,17 +174,14 @@ export function resumirRegistrosMensais(registros = []) {
   const saldoConta = contas.reduce((s, r) => s + saldoFinal(r), 0);
   const saldoInvestimento = investimentos.reduce((s, r) => s + num(r.saldo_final), 0);
   const saldoDocumental = saldoConta + saldoInvestimento;
-
   return {
-    creditos,
-    debitos,
-    rendimento,
+    creditos, debitos, rendimento,
     saldo: Math.abs(saldoDocumental) > 0.009 ? saldoDocumental : creditos - debitos + rendimento,
     saldo_conta: saldoConta,
     saldo_investimento: saldoInvestimento,
     saldo_sem_rendimento: saldoConta + Math.max(0, saldoInvestimento - rendimento),
     documentos: contas.length + investimentos.length,
-    documentos_ignorados_no_calculo: Math.max(0, registros.length - contas.length - investimentos.length),
+    documentos_ignorados_no_calculo: Math.max(0, registros.filter((r) => !r?._credito_confirmado).length - contas.length - investimentos.length),
     lancamentos_unicos: ls.length,
     creditos_brutos: creditosBrutos,
     debitos_brutos: debitosBrutos,
@@ -222,6 +191,8 @@ export function resumirRegistrosMensais(registros = []) {
     debitos_nao_operacionais: Math.max(0, debitosBrutos - debitos),
     devolucoes_estornos_ignorados: ls.filter(ehEstorno).length,
     credito_confirmado: creditoConfirmado !== undefined,
+    extrato_conta_presente: contas.length > 0,
+    extrato_rendimento_presente: investimentos.length > 0,
   };
 }
 
@@ -232,11 +203,27 @@ export function agruparMovimentacoesPorMes(movimentacoes = []) {
     if (!grupos.has(key)) grupos.set(key, { key, ano: r.ano, mes_num: r.mes_num, mes: MESES[r.mes_num], registros: [] });
     grupos.get(key).registros.push(r);
   });
+
+  Object.keys(CREDITOS_EXTERNOS_CONFIRMADOS_2026).forEach((key) => {
+    const [ano, mes] = key.split('-').map(Number);
+    if (!grupos.has(key)) grupos.set(key, { key, ano, mes_num: mes, mes: MESES[mes], registros: [] });
+    grupos.get(key).registros.push({
+      id: `credito-confirmado-${key}`,
+      ano,
+      mes_num: mes,
+      mes: MESES[mes],
+      tipo: 'credito_confirmado',
+      lancamentos: [],
+      _credito_confirmado: true,
+    });
+  });
+
   grupos.forEach((g) => {
     const resumo = resumirRegistrosMensais(g.registros);
     let conta = false;
     let rend = false;
     g.registros = g.registros.map((r) => {
+      if (r?._credito_confirmado) return r;
       if (!ehDocRendimento(r)) {
         const aplicar = !conta;
         conta = true;
