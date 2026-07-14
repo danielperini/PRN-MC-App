@@ -1,256 +1,212 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 
-const DRIVE_FOLDER_ID = '1sI_XEZpUo3W5gcs2Nik3rGm1v6bAbKTh';
-
-const MESES_MAP: Record<string, number> = {
+const ROOT_FOLDER_ID = '1sI_XEZpUo3W5gcs2Nik3rGm1v6bAbKTh';
+const MONTH_FOLDERS: Record<number, string | null> = {
+  1: '1RV2mZM56GXI2CnDkwSJUp4y_s6uA82QX',
+  2: '1X7Ouq3bWMkw2FKuj5ToNrVqI8GT8fdU1',
+  3: '1GPGPwo3mXZHmKLEI87GrfsvlHhnt7S9s',
+  4: null,
+  5: '155LK95qLqmv8QKRqBHUgJescETB1MOsw',
+  6: '166UanEeDSixvVKT7RhQ7edsTOtNqYdBT',
+  7: '10udE1viTbqEtoGdpMZVcRA97SkpcWNsn',
+};
+const MONTH_NAMES = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+const MONTH_MAP: Record<string, number> = {
   janeiro: 1, fevereiro: 2, marco: 3, março: 3, abril: 4, maio: 5, junho: 6,
   julho: 7, agosto: 8, setembro: 9, outubro: 10, novembro: 11, dezembro: 12,
-  jan: 1, fev: 2, mar: 3, abr: 4, mai: 5, jun: 6,
-  jul: 7, ago: 8, set: 9, out: 10, nov: 11, dez: 12
+  jan: 1, fev: 2, mar: 3, abr: 4, mai: 5, jun: 6, jul: 7, ago: 8, set: 9, out: 10, nov: 11, dez: 12,
 };
 
-function normalizarMes(texto: string): { mes: string; mes_num: number } | null {
-  const lower = texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  for (const [k, v] of Object.entries(MESES_MAP)) {
-    const kn = k.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    if (lower.includes(kn)) {
-      return { mes: k.charAt(0).toUpperCase() + k.slice(1), mes_num: v };
-    }
+function normalize(value: string) {
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+function monthFromText(value: string) {
+  const text = normalize(value);
+  for (const [name, number] of Object.entries(MONTH_MAP)) {
+    if (text.includes(normalize(name))) return number;
   }
   return null;
 }
 
-function extrairAno(texto: string): number {
-  const m = texto.match(/20\d{2}/);
-  return m ? parseInt(m[0]) : new Date().getFullYear();
+function yearFromText(value: string) {
+  const match = String(value || '').match(/20\d{2}/);
+  return match ? Number(match[0]) : null;
+}
+
+function isStatementPdf(file: any) {
+  if (file.mimeType !== 'application/pdf') return false;
+  const name = normalize(file.name);
+  return name.includes('extrato') || name.includes('rendimento') || name.includes('investimento') || name.includes('aplicacao');
+}
+
+function isYieldStatement(name: string) {
+  const text = normalize(name);
+  return text.includes('rendimento') || text.includes('investimento') || text.includes('aplicacao') || text.includes('cdb') || text.includes('poupanca');
 }
 
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
+    const body = await req.json().catch(() => ({}));
 
     let user: any = null;
     try { user = await base44.auth.me(); } catch (_) {}
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!user) return Response.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 
-    const role = (user.role || '').toLowerCase();
+    const role = normalize(user.role || '');
     if (!['admin', 'coordenador', 'coordinator'].includes(role)) {
-      return Response.json({ error: 'Apenas administradores ou coordenadores podem executar esta rotina.' }, { status: 403 });
+      return Response.json({ success: false, error: 'Apenas administradores ou coordenadores podem executar esta rotina.' }, { status: 403 });
     }
 
-    // Obter token do Drive via service role (padrão correto do SDK)
     let token: string | null = null;
     try {
-      const { accessToken } = await base44.asServiceRole.connectors.getConnection('googledrive');
-      if (accessToken) token = accessToken;
+      const connection = await base44.asServiceRole.connectors.getConnection('googledrive');
+      token = connection?.accessToken || null;
     } catch (_) {}
-
     if (!token) {
-      return Response.json({
-        error: 'Google Drive não está conectado.',
-        code: 'DRIVE_NOT_CONNECTED'
-      }, { status: 401 });
+      return Response.json({ success: false, error: 'Google Drive não está conectado.', code: 'DRIVE_NOT_CONNECTED' }, { status: 401 });
     }
 
-    // Listar itens de uma pasta
     async function listFolder(folderId: string): Promise<any[]> {
-      let files: any[] = [];
-      let pageToken: string | null = null;
+      const files: any[] = [];
+      let pageToken = '';
       do {
-        const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
-        const url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,mimeType,createdTime,modifiedTime,webViewLink)&pageSize=100${pageToken ? '&pageToken=' + pageToken : ''}`;
-        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-        if (!res.ok) break;
-        const data = await res.json();
-        files = files.concat(data.files || []);
-        pageToken = data.nextPageToken || null;
+        const query = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
+        const fields = encodeURIComponent('nextPageToken,files(id,name,mimeType,createdTime,modifiedTime,webViewLink)');
+        const url = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=${fields}&pageSize=100${pageToken ? `&pageToken=${pageToken}` : ''}`;
+        const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+        if (!response.ok) throw new Error(`Drive ${response.status}: ${await response.text()}`);
+        const data = await response.json();
+        files.push(...(data.files || []));
+        pageToken = data.nextPageToken || '';
       } while (pageToken);
       return files;
     }
 
-    // Estrutura: pasta raiz → subpastas mensais → subpasta "extrato" → PDFs
-    // O mês é extraído do nome da pasta mensal (pai), não do arquivo
-    const pdfs: any[] = [];
-
-    const pastasMensais = (await listFolder(DRIVE_FOLDER_ID))
-      .filter((f: any) => f.mimeType === 'application/vnd.google-apps.folder');
-
-    for (const pastaMensal of pastasMensais) {
-      // Detecta mês/ano a partir da pasta mensal
-      const mesInfoPasta = normalizarMes(pastaMensal.name);
-      const anoPasta = extrairAno(pastaMensal.name);
-
-      // Lista conteúdo da pasta mensal
-      const conteudoMensal = await listFolder(pastaMensal.id);
-
-      // Procura subpasta chamada "extrato" (case-insensitive)
-      const subPastaExtrato = conteudoMensal.find((f: any) =>
-        f.mimeType === 'application/vnd.google-apps.folder' &&
-        f.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes('extrato')
-      );
-
-      let arquivosParaVarrer: any[] = [];
-      if (subPastaExtrato) {
-        // PDFs dentro da subpasta "extrato"
-        arquivosParaVarrer = await listFolder(subPastaExtrato.id);
-      } else {
-        // Fallback: PDFs direto na pasta mensal
-        arquivosParaVarrer = conteudoMensal;
-      }
-
-      for (const f of arquivosParaVarrer) {
-        if (f.mimeType === 'application/pdf') {
-          // Injeta contexto de mês/ano da pasta pai para uso posterior
-          pdfs.push({
-            ...f,
-            _mesInfoPasta: mesInfoPasta,
-            _anoPasta: anoPasta,
-          });
+    async function collectPdfs(folderId: string, depth = 0): Promise<any[]> {
+      const items = await listFolder(folderId);
+      const pdfs = items.filter(isStatementPdf);
+      if (depth >= 2) return pdfs;
+      const folders = items.filter((item: any) => item.mimeType === 'application/vnd.google-apps.folder');
+      for (const folder of folders) {
+        const folderName = normalize(folder.name);
+        if (folderName.includes('extrato') || folderName.includes('banco') || folderName.includes('financeiro') || depth === 0) {
+          pdfs.push(...await collectPdfs(folder.id, depth + 1));
         }
       }
+      return pdfs;
     }
 
-    // Fallback: se não encontrou nenhuma pasta mensal, varre direto a raiz
-    if (pdfs.length === 0) {
-      const raiz = await listFolder(DRIVE_FOLDER_ID);
-      for (const f of raiz) {
-        if (f.mimeType === 'application/pdf') pdfs.push(f);
+    const requestedMonth = Number(body.mes_num || 0);
+    const requestedYear = Number(body.ano || 2026);
+    const explicitFolderId = String(body.folder_id || '').trim() || null;
+
+    const sources: Array<{ folder_id: string; mes_num: number | null; ano: number }> = [];
+    if (explicitFolderId) {
+      sources.push({ folder_id: explicitFolderId, mes_num: requestedMonth || null, ano: requestedYear });
+    } else if (requestedMonth) {
+      const folderId = MONTH_FOLDERS[requestedMonth];
+      if (!folderId) {
+        return Response.json({
+          success: false,
+          code: 'MONTH_FOLDER_NOT_CONFIGURED',
+          error: `A pasta de ${MONTH_NAMES[requestedMonth] || requestedMonth} não foi informada.`,
+        }, { status: 400 });
+      }
+      sources.push({ folder_id: folderId, mes_num: requestedMonth, ano: requestedYear });
+    } else {
+      for (const [month, folderId] of Object.entries(MONTH_FOLDERS)) {
+        if (folderId) sources.push({ folder_id: folderId, mes_num: Number(month), ano: 2026 });
+      }
+      if (sources.length === 0) sources.push({ folder_id: ROOT_FOLDER_ID, mes_num: null, ano: requestedYear });
+    }
+
+    const pdfsById = new Map<string, any>();
+    for (const source of sources) {
+      const found = await collectPdfs(source.folder_id);
+      for (const file of found) {
+        pdfsById.set(file.id, { ...file, _mes_num: source.mes_num, _ano: source.ano, _folder_id: source.folder_id });
       }
     }
-    if (pdfs.length === 0) {
-      return Response.json({
-        success: true,
-        message: 'Nenhum PDF encontrado na pasta de extratos.',
-        resumo: { pdfs_encontrados: 0, novos_criados: 0, atualizados: 0, erros: 0 }
-      });
-    }
+    const pdfs = Array.from(pdfsById.values());
 
-    // Carregar registros existentes
-    const existentes = await base44.asServiceRole.entities.MovimentacaoBancaria.list('-created_date', 500);
-    const idsProcessados = new Set(existentes.map((e: any) => e.drive_file_id).filter(Boolean));
+    const existing = await base44.asServiceRole.entities.MovimentacaoBancaria.list('-created_date', 1000);
+    const processedIds = new Set(existing.map((item: any) => item.drive_file_id).filter(Boolean));
+    const pending = pdfs.filter((file: any) => !processedIds.has(file.id));
+    const batchSize = Math.max(1, Math.min(5, Number(body.batch_size || 3)));
+    const batch = pending.slice(0, batchSize);
 
-    // Processar apenas PDFs novos (não processados ainda)
-    const pdfsNovos = pdfs.filter((pdf: any) => !idsProcessados.has(pdf.id));
+    const created: any[] = [];
+    const errors: any[] = [];
 
-    // Limitar a 3 por chamada para não exceder timeout
-    const lote = pdfsNovos.slice(0, 3);
-
-    const novos: any[] = [];
-    const erros: any[] = [];
-
-    for (const pdf of lote) {
-      const nomeL = pdf.name.toLowerCase();
-      const isRendimento = nomeL.includes('rendimento') || nomeL.includes('aplicacao') ||
-        nomeL.includes('aplicação') || nomeL.includes('investimento') ||
-        nomeL.includes('cdb') || nomeL.includes('poupanca') || nomeL.includes('poupança');
-      const tipo = isRendimento ? 'extrato_rendimento' : 'extrato_conta';
-
-      // Prefere mês/ano da pasta mensal pai; fallback para nome do arquivo
-      const mesInfo = pdf._mesInfoPasta || normalizarMes(pdf.name) || normalizarMes(pdf.createdTime || '');
-      const ano = pdf._anoPasta || extrairAno(pdf.name) || new Date().getFullYear();
-      const mes_num = mesInfo?.mes_num || (new Date(pdf.createdTime || Date.now()).getMonth() + 1);
-      const mes = mesInfo?.mes || ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][mes_num - 1];
-
-      let dadosExtraidos: any = {};
-
-      // Baixar PDF como ArrayBuffer e fazer upload via SDK (sem converter para string longa)
+    for (const pdf of batch) {
       try {
-        const dlUrl = `https://www.googleapis.com/drive/v3/files/${pdf.id}?alt=media`;
-        const dlRes = await fetch(dlUrl, { headers: { Authorization: `Bearer ${token}` } });
+        const type = isYieldStatement(pdf.name) ? 'extrato_rendimento' : 'extrato_conta';
+        const monthNumber = Number(pdf._mes_num || monthFromText(pdf.name) || new Date(pdf.createdTime || Date.now()).getMonth() + 1);
+        const year = Number(pdf._ano || yearFromText(pdf.name) || requestedYear || new Date().getFullYear());
 
-        if (dlRes.ok) {
-          const blob = await dlRes.blob();
-          const uploadRes = await base44.asServiceRole.integrations.Core.UploadFile({ file: blob });
-          const pdfFileUrl = uploadRes?.file_url;
+        const download = await fetch(`https://www.googleapis.com/drive/v3/files/${pdf.id}?alt=media`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!download.ok) throw new Error(`Falha ao baixar PDF: HTTP ${download.status}`);
 
-          if (pdfFileUrl) {
-            dadosExtraidos = await base44.asServiceRole.integrations.Core.InvokeLLM({
-              prompt: `Analise este extrato bancário brasileiro e extraia os dados em JSON.
-Arquivo: "${pdf.name}"
-Tipo: ${tipo === 'extrato_rendimento' ? 'Extrato de Rendimento/Investimento' : 'Extrato de Conta Corrente'}
+        const blob = await download.blob();
+        const upload = await base44.asServiceRole.integrations.Core.UploadFile({ file: blob });
+        if (!upload?.file_url) throw new Error('Upload temporário do PDF não retornou URL');
 
-Extraia: banco, conta, saldos, totais de créditos/débitos/rendimentos e lançamentos.
-Para cada lançamento: data (DD/MM/AAAA), descrição, tipo (credito/debito/rendimento), valor numérico positivo, saldo.
-resumo_ia: uma frase descrevendo o período.`,
-              file_urls: [pdfFileUrl],
-              response_json_schema: {
-                type: 'object',
-                properties: {
-                  banco: { type: 'string' },
-                  conta: { type: 'string' },
-                  saldo_inicial: { type: 'number' },
-                  saldo_final: { type: 'number' },
-                  total_creditos: { type: 'number' },
-                  total_debitos: { type: 'number' },
-                  total_rendimento: { type: 'number' },
-                  lancamentos: {
-                    type: 'array',
-                    items: {
-                      type: 'object',
-                      properties: {
-                        data: { type: 'string' },
-                        descricao: { type: 'string' },
-                        tipo: { type: 'string' },
-                        valor: { type: 'number' },
-                        saldo: { type: 'number' }
-                      }
-                    }
-                  },
-                  resumo_ia: { type: 'string' }
-                }
-              }
-            }) || {};
-          }
-        }
-      } catch (iaErr) {
-        console.error(`[IA] Erro ao processar ${pdf.name}:`, iaErr);
-        dadosExtraidos = { resumo_ia: `Erro ao processar: ${String(iaErr).substring(0, 100)}` };
-      }
+        const extracted = await base44.asServiceRole.integrations.Core.InvokeLLM({
+          prompt: `Analise o extrato bancário brasileiro "${pdf.name}". A competência obrigatória é ${MONTH_NAMES[monthNumber]}/${year}. Extraia banco, conta, saldos, totais e lançamentos. Para cada lançamento use data DD/MM/AAAA, descrição, tipo credito/debito/rendimento, valor positivo e saldo. Não mova o documento para outro mês com base em datas internas; a pasta mensal define a competência do documento.`,
+          file_urls: [upload.file_url],
+          response_json_schema: {
+            type: 'object',
+            properties: {
+              banco: { type: 'string' }, conta: { type: 'string' },
+              saldo_inicial: { type: 'number' }, saldo_final: { type: 'number' },
+              total_creditos: { type: 'number' }, total_debitos: { type: 'number' }, total_rendimento: { type: 'number' },
+              lancamentos: { type: 'array', items: { type: 'object', properties: {
+                data: { type: 'string' }, descricao: { type: 'string' }, tipo: { type: 'string' }, valor: { type: 'number' }, saldo: { type: 'number' },
+              } } },
+              resumo_ia: { type: 'string' },
+            },
+          },
+        }) || {};
 
-      const registro = {
-        mes,
-        mes_num,
-        ano,
-        tipo,
-        banco: dadosExtraidos.banco || 'Não identificado',
-        conta: dadosExtraidos.conta || '',
-        saldo_inicial: Number(dadosExtraidos.saldo_inicial) || 0,
-        saldo_final: Number(dadosExtraidos.saldo_final) || 0,
-        total_creditos: Number(dadosExtraidos.total_creditos) || 0,
-        total_debitos: Number(dadosExtraidos.total_debitos) || 0,
-        total_rendimento: Number(dadosExtraidos.total_rendimento) || 0,
-        lancamentos: Array.isArray(dadosExtraidos.lancamentos) ? dadosExtraidos.lancamentos : [],
-        drive_file_id: pdf.id,
-        drive_file_url: pdf.webViewLink || `https://drive.google.com/file/d/${pdf.id}/view`,
-        drive_file_name: pdf.name,
-        processado_em: new Date().toISOString(),
-        resumo_ia: dadosExtraidos.resumo_ia || ''
-      };
-
-      try {
-        const criado = await base44.asServiceRole.entities.MovimentacaoBancaria.create(registro);
-        novos.push({ arquivo: pdf.name, id: criado.id });
-      } catch (dbErr) {
-        erros.push({ arquivo: pdf.name, erro: String(dbErr) });
+        const record = await base44.asServiceRole.entities.MovimentacaoBancaria.create({
+          mes: MONTH_NAMES[monthNumber], mes_num: monthNumber, ano: year, tipo: type,
+          banco: extracted.banco || 'Não identificado', conta: extracted.conta || '',
+          saldo_inicial: Number(extracted.saldo_inicial) || 0, saldo_final: Number(extracted.saldo_final) || 0,
+          total_creditos: Number(extracted.total_creditos) || 0, total_debitos: Number(extracted.total_debitos) || 0,
+          total_rendimento: Number(extracted.total_rendimento) || 0,
+          lancamentos: Array.isArray(extracted.lancamentos) ? extracted.lancamentos : [],
+          drive_file_id: pdf.id,
+          drive_file_url: pdf.webViewLink || `https://drive.google.com/file/d/${pdf.id}/view`,
+          drive_file_name: pdf.name,
+          processado_em: new Date().toISOString(),
+          resumo_ia: extracted.resumo_ia || '',
+        });
+        created.push({ arquivo: pdf.name, id: record.id, mes_num: monthNumber, tipo: type });
+      } catch (error: any) {
+        errors.push({ arquivo: pdf.name, erro: error?.message || String(error) });
       }
     }
 
     return Response.json({
       success: true,
       resumo: {
+        pastas_lidas: sources.length,
         pdfs_encontrados: pdfs.length,
-        novos_no_drive: pdfsNovos.length,
-        processados_neste_lote: lote.length,
-        novos_criados: novos.length,
-        restantes: Math.max(0, pdfsNovos.length - lote.length),
-        erros: erros.length
+        novos_no_drive: pending.length,
+        processados_neste_lote: batch.length,
+        novos_criados: created.length,
+        restantes: Math.max(0, pending.length - batch.length),
+        erros: errors.length,
       },
-      novos,
-      erros
+      novos: created,
+      erros: errors,
     });
-
-  } catch (error) {
-    console.error('[lerExtratosBancariosDrive] Erro geral:', error);
-    return Response.json({ error: String(error?.message || error) }, { status: 500 });
+  } catch (error: any) {
+    console.error('[lerExtratosBancariosDrive]', error);
+    return Response.json({ success: false, error: error?.message || String(error) }, { status: 500 });
   }
 });
