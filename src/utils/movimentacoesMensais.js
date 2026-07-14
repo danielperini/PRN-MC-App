@@ -6,6 +6,14 @@ function numero(valor) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function dataRegistro(registro) {
+  return String(registro.processado_em || registro.updated_date || registro.created_date || '');
+}
+
+function chaveDocumento(registro, index) {
+  return String(registro.drive_file_id || registro.id || `${registro.ano}-${registro.mes_num}-${index}`);
+}
+
 export function parseDataLancamento(valor, anoFallback = null) {
   const texto = String(valor || '').trim();
   if (!texto) return null;
@@ -38,136 +46,67 @@ export function parseDataLancamento(valor, anoFallback = null) {
   };
 }
 
-function fingerprintLancamento(lancamento, registro, parsed) {
-  return [
-    parsed?.sortKey || String(lancamento.data || ''),
-    String(lancamento.descricao || '').trim().toLowerCase().replace(/\s+/g, ' '),
-    String(lancamento.tipo || '').toLowerCase(),
-    numero(lancamento.valor).toFixed(2),
-    lancamento.saldo == null ? '' : numero(lancamento.saldo).toFixed(2),
-    String(registro.conta || '').replace(/\D/g, ''),
-  ].join('|');
-}
+export function deduplicarRegistrosPorDocumento(movimentacoes = []) {
+  const porDocumento = new Map();
 
-function resumoLancamentos(lancamentos) {
-  const creditos = lancamentos
-    .filter(l => l.tipo === 'credito')
-    .reduce((s, l) => s + Math.abs(numero(l.valor)), 0);
-  const debitos = lancamentos
-    .filter(l => l.tipo === 'debito')
-    .reduce((s, l) => s + Math.abs(numero(l.valor)), 0);
-  const rendimento = lancamentos
-    .filter(l => l.tipo === 'rendimento')
-    .reduce((s, l) => s + Math.abs(numero(l.valor)), 0);
+  movimentacoes.forEach((registro, index) => {
+    const chave = chaveDocumento(registro, index);
+    const atual = porDocumento.get(chave);
+    if (!atual || dataRegistro(registro) >= dataRegistro(atual)) {
+      porDocumento.set(chave, registro);
+    }
+  });
 
-  const comSaldo = lancamentos
-    .filter(l => l.saldo != null && l._sort_key)
-    .sort((a, b) => b._sort_key.localeCompare(a._sort_key));
-
-  return {
-    creditos,
-    debitos,
-    rendimento,
-    saldoFinal: comSaldo.length ? numero(comSaldo[0].saldo) : null,
-  };
+  return Array.from(porDocumento.values());
 }
 
 export function agruparMovimentacoesPorMes(movimentacoes = []) {
   const grupos = new Map();
-  const fingerprints = new Set();
+  const registrosUnicos = deduplicarRegistrosPorDocumento(movimentacoes);
 
-  const garantirGrupo = (ano, mes) => {
+  registrosUnicos.forEach((registro, index) => {
+    const ano = Number(registro.ano);
+    const mes = Number(registro.mes_num);
+    if (!ano || mes < 1 || mes > 12) return;
+
     const key = `${ano}-${String(mes).padStart(2, '0')}`;
     if (!grupos.has(key)) {
-      grupos.set(key, { key, ano, mes_num: mes, mes: MESES_NOME[mes], registros: [] });
-    }
-    return grupos.get(key);
-  };
-
-  movimentacoes.forEach((registro, registroIndex) => {
-    const porMes = new Map();
-    const anoFallback = Number(registro.ano) || null;
-
-    (registro.lancamentos || []).forEach((lancamento, lancamentoIndex) => {
-      const parsed = parseDataLancamento(lancamento.data, anoFallback);
-      if (!parsed) return;
-
-      const fingerprint = fingerprintLancamento(lancamento, registro, parsed);
-      if (fingerprints.has(fingerprint)) return;
-      fingerprints.add(fingerprint);
-
-      if (!porMes.has(parsed.key)) porMes.set(parsed.key, []);
-      porMes.get(parsed.key).push({
-        ...lancamento,
-        _sort_key: `${parsed.sortKey}-${String(lancamentoIndex).padStart(5, '0')}`,
-      });
-    });
-
-    if (porMes.size === 0) {
-      const ano = Number(registro.ano);
-      const mes = Number(registro.mes_num);
-      if (!ano || mes < 1 || mes > 12) return;
-      const grupo = garantirGrupo(ano, mes);
-      grupo.registros.push({ ...registro, _source_index: registroIndex });
-      return;
-    }
-
-    porMes.forEach((lancamentos, key) => {
-      const [ano, mes] = key.split('-').map(Number);
-      const resumo = resumoLancamentos(lancamentos);
-      const grupo = garantirGrupo(ano, mes);
-      const ehMesReferencia = Number(registro.ano) === ano && Number(registro.mes_num) === mes;
-
-      grupo.registros.push({
-        ...registro,
+      grupos.set(key, {
+        key,
         ano,
         mes_num: mes,
         mes: MESES_NOME[mes],
-        lancamentos,
-        total_creditos: resumo.creditos,
-        total_debitos: resumo.debitos,
-        total_rendimento: registro.tipo === 'extrato_rendimento'
-          ? (resumo.rendimento || (ehMesReferencia ? numero(registro.total_rendimento) : 0))
-          : resumo.rendimento,
-        saldo_final: resumo.saldoFinal ?? (ehMesReferencia ? numero(registro.saldo_final) : 0),
-        _source_index: registroIndex,
+        registros: [],
       });
-    });
-
-    if (registro.tipo === 'extrato_rendimento' && numero(registro.total_rendimento) > 0) {
-      const ano = Number(registro.ano);
-      const mes = Number(registro.mes_num);
-      const key = `${ano}-${String(mes).padStart(2, '0')}`;
-      if (ano && mes >= 1 && mes <= 12 && !porMes.has(key)) {
-        const grupo = garantirGrupo(ano, mes);
-        grupo.registros.push({
-          ...registro,
-          lancamentos: [],
-          total_creditos: 0,
-          total_debitos: 0,
-          total_rendimento: numero(registro.total_rendimento),
-          _source_index: registroIndex,
-        });
-      }
     }
+
+    grupos.get(key).registros.push({
+      ...registro,
+      _source_index: index,
+    });
   });
 
   return Array.from(grupos.values()).sort((a, b) => b.key.localeCompare(a.key));
 }
 
 export function resumirRegistrosMensais(registros = []) {
-  const conta = registros.filter(r => r.tipo === 'extrato_conta');
-  const rend = registros.filter(r => r.tipo === 'extrato_rendimento');
+  const unicos = deduplicarRegistrosPorDocumento(registros);
+  const conta = unicos.filter(r => r.tipo === 'extrato_conta');
+  const rend = unicos.filter(r => r.tipo === 'extrato_rendimento');
+
   const creditos = conta.reduce((s, r) => s + numero(r.total_creditos), 0);
   const debitos = conta.reduce((s, r) => s + numero(r.total_debitos), 0);
   const rendimento = rend.reduce((s, r) => s + numero(r.total_rendimento), 0)
     + conta.reduce((s, r) => s + numero(r.total_rendimento), 0);
 
   const saldosPorConta = new Map();
-  conta.forEach((r, index) => {
-    const contaKey = String(r.conta || r.banco || `registro-${index}`);
-    if (r.saldo_final != null) saldosPorConta.set(contaKey, numero(r.saldo_final));
-  });
+  [...conta]
+    .sort((a, b) => dataRegistro(a).localeCompare(dataRegistro(b)))
+    .forEach((r, index) => {
+      const contaKey = String(r.conta || r.banco || `registro-${index}`);
+      if (r.saldo_final != null) saldosPorConta.set(contaKey, numero(r.saldo_final));
+    });
+
   const saldoDocumental = Array.from(saldosPorConta.values()).reduce((s, v) => s + v, 0);
 
   return {
@@ -175,6 +114,7 @@ export function resumirRegistrosMensais(registros = []) {
     debitos,
     rendimento,
     saldo: saldoDocumental || (creditos - debitos),
+    documentos: unicos.length,
   };
 }
 
