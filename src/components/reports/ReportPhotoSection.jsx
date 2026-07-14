@@ -12,6 +12,8 @@ import PhotoCaptionSuggester from './PhotoCaptionSuggester';
 import { gerarLegendaFoto } from '@/utils/captionUtils';
 import { toast } from 'sonner';
 
+const TAMANHO_BLOCO = 10;
+
 function formatarData(valor) {
   if (!valor) return '';
   const texto = String(valor).trim();
@@ -148,32 +150,74 @@ export default function ReportPhotoSection({
   };
 
   const handleAddPhotos = async (lista, onProgress) => {
-    let importadas = 0;
     let ignoradas = 0;
+    let importadas = 0;
     let erros = 0;
     const vistas = new Set(chavesExistentes);
     const novas = [];
-    for (let indice = 0; indice < lista.length; indice += 1) {
-      const preparada = prepararParaSalvar(lista[indice]);
+
+    for (const item of lista) {
+      const preparada = prepararParaSalvar(item);
       const chave = chaveFoto(preparada);
       if (chave && vistas.has(chave)) {
         ignoradas += 1;
       } else {
         novas.push(preparada);
         if (chave) vistas.add(chave);
-        importadas += 1;
       }
-      onProgress?.({ atual: indice + 1, importadas, ignoradas, erros });
-      if ((indice + 1) % 20 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
     }
-    try {
-      const resultado = await persistirLista([...photos, ...novas]);
-      for (const foto of novas) await onAddPhoto?.(foto);
-      toast.success(`${novas.length} foto(s) importadas e ${resultado.total} confirmadas no relatório.`);
-    } catch (error) {
-      erros = novas.length;
-      onProgress?.({ atual: lista.length, importadas: 0, ignoradas, erros });
-      throw error;
+
+    const totalBlocos = Math.max(1, Math.ceil(novas.length / TAMANHO_BLOCO));
+    let acumuladas = [...photos];
+
+    for (let inicio = 0; inicio < novas.length; inicio += TAMANHO_BLOCO) {
+      const bloco = novas.slice(inicio, inicio + TAMANHO_BLOCO);
+      const blocoAtual = Math.floor(inicio / TAMANHO_BLOCO) + 1;
+      onProgress?.({
+        atual: importadas + ignoradas,
+        importadas,
+        ignoradas,
+        erros,
+        blocoAtual,
+        totalBlocos,
+        etapa: `Importando bloco ${blocoAtual} de ${totalBlocos}`,
+      });
+
+      try {
+        const listaDoBloco = [...acumuladas, ...bloco];
+        await persistirLista(listaDoBloco);
+        for (const foto of bloco) await onAddPhoto?.(foto);
+        acumuladas = listaDoBloco;
+        importadas += bloco.length;
+        onProgress?.({
+          atual: Math.min(lista.length, importadas + ignoradas),
+          importadas,
+          ignoradas,
+          erros,
+          blocoAtual,
+          totalBlocos,
+          etapa: `Bloco ${blocoAtual} de ${totalBlocos} concluído`,
+        });
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      } catch (error) {
+        erros += bloco.length;
+        onProgress?.({
+          atual: Math.min(lista.length, importadas + ignoradas + erros),
+          importadas,
+          ignoradas,
+          erros,
+          blocoAtual,
+          totalBlocos,
+          etapa: `Falha no bloco ${blocoAtual} de ${totalBlocos}`,
+        });
+        throw error;
+      }
+    }
+
+    if (!novas.length) {
+      onProgress?.({ atual: lista.length, importadas: 0, ignoradas, erros: 0, blocoAtual: 0, totalBlocos: 0, etapa: 'Nenhuma foto nova para importar' });
+    } else {
+      toast.success(`${importadas} foto(s) importadas em ${totalBlocos} bloco(s) de até 10 e confirmadas no relatório.`);
     }
     setSelectorOpen(false);
   };
