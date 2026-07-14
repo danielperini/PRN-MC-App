@@ -11,9 +11,27 @@ import { Image as ImageIcon, Loader2, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { gerarLegendaFoto } from '@/utils/captionUtils';
 
+function dataFoto(att) {
+  const metadata = att?.metadata || att?.metadados || att?.exif || {};
+  const valor = att?.date_taken || att?.captured_at || att?.data_captura || metadata?.DateTimeOriginal || metadata?.dateTaken || metadata?.created || '';
+  if (!valor) return '';
+  const texto = String(valor).trim();
+  const exif = texto.match(/^(\d{4}):(\d{2}):(\d{2})/);
+  if (exif) return `${exif[1]}-${exif[2]}-${exif[3]}`;
+  const iso = texto.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return iso ? `${iso[1]}-${iso[2]}-${iso[3]}` : '';
+}
+
+function nomeAtividade(atividade) {
+  return atividade?.nome || atividade?.titulo || atividade?.descricao || '';
+}
+
 export default function PhotoGallerySelector({ isOpen, onClose, onSelectPhoto, atividades = [], museu = '', mes = '', ano = '' }) {
   const [selectedPhoto, setSelectedPhoto] = useState(null);
   const [caption, setCaption] = useState('');
+  const [title, setTitle] = useState('');
+  const [location, setLocation] = useState('');
+  const [dateTaken, setDateTaken] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [atividadeVinculadaId, setAtividadeVinculadaId] = useState('');
 
@@ -22,189 +40,157 @@ export default function PhotoGallerySelector({ isOpen, onClose, onSelectPhoto, a
     queryFn: async () => {
       try {
         const approvedReports = await base44.entities.Report.filter({ status: 'APPROVED' });
-        const approvedReportIds = new Set(approvedReports.map(r => r.id));
+        const approvedReportIds = new Set((approvedReports || []).map((r) => r.id));
         const allAttachments = await base44.entities.Attachment.list();
-
         const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
-        const imageData = allAttachments
-          .filter(att => {
-            const ext = (att.file_name || '').split('.').pop().toLowerCase();
+        const imageData = (Array.isArray(allAttachments) ? allAttachments : [])
+          .filter((att) => {
+            const ext = String(att.file_name || '').split('.').pop().toLowerCase();
             return approvedReportIds.has(att.report_id) && imageExtensions.includes(ext);
           })
-          .map(att => {
-            const report = approvedReports.find(r => r.id === att.report_id);
+          .map((att) => {
+            const report = (approvedReports || []).find((r) => r.id === att.report_id);
             return {
               id: att.id,
               fileName: att.file_name,
               url: att.file_url,
               description: att.description || '',
-              author: report?.author_name || 'Desconhecido',
+              author: report?.author_name || '',
               mes: report?.mes_referencia || '',
               ano: report?.ano || '',
               museu: report?.museu || '',
+              dateTaken: dataFoto(att),
+              location: att.location || att.local || report?.museu || '',
+              title: att.title || att.titulo || '',
             };
           });
 
         if (searchTerm.trim()) {
           const term = searchTerm.toLowerCase();
-          return imageData.filter(img =>
-            img.fileName.toLowerCase().includes(term) ||
-            img.description.toLowerCase().includes(term)
-          );
+          return imageData.filter((img) => [img.title, img.description, img.museu].some((valor) => String(valor || '').toLowerCase().includes(term)));
         }
-        return imageData.sort((a, b) => new Date(b.id) - new Date(a.id));
+        return imageData;
       } catch {
         toast.error('Erro ao carregar fotos');
         return [];
       }
     },
-    enabled: isOpen
+    enabled: isOpen,
   });
 
-  // Quando seleciona foto ou atividade, recalcula legenda automaticamente
   useEffect(() => {
     if (!selectedPhoto) return;
-    const atividade = atividades.find(a => a.id === atividadeVinculadaId);
+    const atividade = atividades.find((a) => a.id === atividadeVinculadaId);
+    const data = selectedPhoto.dateTaken || atividade?.data_realizacao || atividade?.data_inicio || atividade?.data || '';
+    const local = selectedPhoto.location || atividade?.local || atividade?.local_realizacao || museu || '';
+    const titulo = selectedPhoto.title || nomeAtividade(atividade) || 'Registro da atividade';
     const legenda = gerarLegendaFoto({
-      atividadeNome: atividade?.nome || atividade?.titulo || '',
-      atividadeLocal: atividade?.local || atividade?.local_realizacao || '',
+      atividadeNome: nomeAtividade(atividade),
+      atividadeLocal: local,
       atividadeMuseus: Array.isArray(atividade?.museu_lista) ? atividade.museu_lista : [],
-      atividadeData: atividade?.data_realizacao || atividade?.data_inicio || atividade?.data || '',
+      atividadeData: data,
       museu,
       mes,
       ano,
-      fileName: selectedPhoto.fileName,
+      fileName: '',
     });
-    setCaption(legenda);
+    setTitle(titulo);
+    setLocation(local);
+    setDateTaken(data);
+    setCaption(legenda || selectedPhoto.description || '');
   }, [selectedPhoto, atividadeVinculadaId, atividades, museu, mes, ano]);
 
+  const reset = () => {
+    setSelectedPhoto(null);
+    setCaption('');
+    setTitle('');
+    setLocation('');
+    setDateTaken('');
+    setSearchTerm('');
+    setAtividadeVinculadaId('');
+  };
+
   const handleAddPhoto = () => {
-    if (!selectedPhoto) {
-      toast.error('Selecione uma foto');
-      return;
-    }
+    if (!selectedPhoto) return toast.error('Selecione uma foto');
     onSelectPhoto({
       ...selectedPhoto,
       caption,
+      title,
+      location,
+      dateTaken,
       activityId: atividadeVinculadaId || null,
     });
-    setSelectedPhoto(null);
-    setCaption('');
-    setSearchTerm('');
-    setAtividadeVinculadaId('');
+    reset();
     onClose();
     toast.success('Foto adicionada ao relatório');
   };
 
   const handleClose = () => {
-    setSelectedPhoto(null);
-    setCaption('');
-    setSearchTerm('');
-    setAtividadeVinculadaId('');
+    reset();
     onClose();
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Adicionar Foto ao Relatório</DialogTitle>
-        </DialogHeader>
-
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+        <DialogHeader><DialogTitle>Adicionar foto ao relatório</DialogTitle></DialogHeader>
         <div className="space-y-4">
-          {/* Busca */}
           <div>
-            <Label className="text-sm font-medium mb-1 block">Buscar fotos</Label>
-            <Input
-              placeholder="Por nome ou descrição..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="text-sm"
-            />
+            <Label className="mb-1 block text-sm font-medium">Buscar fotos</Label>
+            <Input placeholder="Por título, descrição ou museu..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
           </div>
 
-          {/* Grid de Fotos */}
           {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
-            </div>
+            <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-gray-400" /></div>
           ) : images.length === 0 ? (
-            <div className="text-center py-8">
-              <ImageIcon className="w-12 h-12 text-gray-300 mx-auto mb-2" />
-              <p className="text-gray-600 text-sm">Nenhuma foto encontrada</p>
-            </div>
+            <div className="py-8 text-center"><ImageIcon className="mx-auto mb-2 h-12 w-12 text-gray-300" /><p className="text-sm text-gray-600">Nenhuma foto encontrada</p></div>
           ) : (
-            <div className="grid grid-cols-3 gap-3 max-h-52 overflow-y-auto border border-gray-200 rounded-lg p-3">
-              {images.map(img => (
-                <div
+            <div className="grid max-h-52 grid-cols-3 gap-3 overflow-y-auto rounded-lg border border-gray-200 p-3">
+              {images.map((img) => (
+                <button
+                  type="button"
                   key={img.id}
                   onClick={() => setSelectedPhoto(img)}
-                  className={`cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${
-                    selectedPhoto?.id === img.id
-                      ? 'border-blue-600 ring-2 ring-blue-300'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                  className={`overflow-hidden rounded-lg border-2 text-left transition-all ${selectedPhoto?.id === img.id ? 'border-blue-600 ring-2 ring-blue-300' : 'border-gray-200 hover:border-gray-300'}`}
                 >
-                  <div className="aspect-square bg-gray-100">
-                    <img
-                      src={img.url}
-                      alt={img.fileName}
-                      className="w-full h-full object-cover"
-                      onError={(e) => { e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23f0f0f0" width="100" height="100"/%3E%3C/svg%3E'; }}
-                    />
+                  <div className="aspect-square bg-gray-100"><img src={img.url} alt={img.title || 'Foto'} className="h-full w-full object-cover" /></div>
+                  <div className="p-1.5 text-xs text-gray-600">
+                    <p className="truncate font-medium">{img.title || img.description || 'Foto sem título'}</p>
+                    {img.dateTaken && <p className="text-[10px] text-gray-400">{img.dateTaken}</p>}
                   </div>
-                  <p className="text-xs p-1.5 text-gray-600 truncate">{img.fileName}</p>
-                </div>
+                </button>
               ))}
             </div>
           )}
 
           {selectedPhoto && (
-            <>
-              {/* Vincular atividade */}
-              {atividades.length > 0 && (
-                <div>
-                  <Label className="text-sm font-medium mb-1 block">Atividade vinculada</Label>
-                  <Select value={atividadeVinculadaId} onValueChange={setAtividadeVinculadaId}>
-                    <SelectTrigger className="text-sm">
-                      <SelectValue placeholder="Selecione a atividade (opcional)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={null}>Nenhuma</SelectItem>
-                      {atividades.map(a => (
-                        <SelectItem key={a.id} value={a.id}>
-                          {a.nome || a.titulo || a.id}
-                          {a.data_realizacao ? ` — ${a.data_realizacao}` : ''}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {/* Legenda gerada automaticamente */}
+            <div className="space-y-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
               <div>
-                <Label className="text-sm font-medium mb-1 flex items-center gap-1 block">
-                  <Sparkles className="w-3.5 h-3.5 text-yellow-500" />
-                  Legenda automática (editável)
-                </Label>
-                <Textarea
-                  value={caption}
-                  onChange={(e) => setCaption(e.target.value)}
-                  placeholder="Atividade — Local/Museu — Data"
-                  className="resize-none h-16 text-sm"
-                />
-                <p className="text-xs text-gray-400 mt-0.5">Gerada automaticamente. Edite se necessário.</p>
+                <Label>Atividade vinculada</Label>
+                <Select value={atividadeVinculadaId || 'nenhuma'} onValueChange={(value) => setAtividadeVinculadaId(value === 'nenhuma' ? '' : value)}>
+                  <SelectTrigger><SelectValue placeholder="Selecione a atividade" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="nenhuma">Nenhuma atividade</SelectItem>
+                    {atividades.map((a) => <SelectItem key={a.id} value={a.id}>{nomeAtividade(a) || a.id}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
-            </>
+              <div><Label>Título da foto</Label><Input value={title} onChange={(e) => setTitle(e.target.value)} /></div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div><Label>Local</Label><Input value={location} onChange={(e) => setLocation(e.target.value)} /></div>
+                <div><Label>Data em que a foto foi feita</Label><Input type="date" value={dateTaken} onChange={(e) => setDateTaken(e.target.value)} /></div>
+              </div>
+              <div>
+                <Label className="flex items-center gap-1"><Sparkles className="h-3.5 w-3.5 text-yellow-500" /> Legenda editável</Label>
+                <Textarea value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Atividade — Local — Data" className="h-20 resize-none" />
+                <p className="mt-1 text-xs text-gray-400">O nome do arquivo não será exibido na legenda.</p>
+              </div>
+            </div>
           )}
         </div>
-
         <DialogFooter>
           <Button variant="outline" onClick={handleClose}>Cancelar</Button>
-          <Button onClick={handleAddPhoto} disabled={!selectedPhoto} className="bg-blue-600 hover:bg-blue-700">
-            Adicionar Foto
-          </Button>
+          <Button onClick={handleAddPhoto} disabled={!selectedPhoto} className="bg-blue-600 hover:bg-blue-700">Adicionar foto</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
