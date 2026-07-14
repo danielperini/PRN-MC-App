@@ -159,7 +159,7 @@ export default function PhotoGallerySelector({
 
   useEffect(() => {
     if (!selectedPhoto) return;
-    const activityId = atividadeVinculadaId || selectedPhoto.activityId || '';
+    const activityId = selectedPhoto.activityId || '';
     const atividade = atividadesDisponiveis.find((item) => idAtividade(item) === String(activityId));
     const data = selectedPhoto.dateTaken || atividade?.data_realizacao || atividade?.data_inicio || atividade?.data || '';
     const local = selectedPhoto.location || atividade?.local || atividade?.local_realizacao || selectedPhoto.museu || museu || '';
@@ -231,7 +231,7 @@ export default function PhotoGallerySelector({
             <p>🔗 Vincula cada foto à atividade correspondente no relatório.</p>
             <p>📝 Gera legenda no formato: Atividade — Local — Data.</p>
             <p>🔁 Não duplica fotos já importadas anteriormente.</p>
-            <p>📦 Importa em blocos de 10 para evitar travamento.</p>
+            <p>📦 Importa em blocos de {TAMANHO_BLOCO} para evitar travamento.</p>
           </div>
 
           <Input placeholder="Buscar por título, descrição, museu ou arquivo…" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
