@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { ImagePlus, Trash2, Edit2, Save } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -24,7 +25,28 @@ function identificacaoMuseu(photo, atividade, fallback = '') {
   return photo?.museum || photo?.museu || photo?.albumMuseum || atividade?.museu || fallback || '';
 }
 function chaveFoto(photo) {
-  return String(photo?.drive_file_id || photo?.attachmentId || photo?.sourceAttachmentId || photo?.id || photo?.url || '').trim();
+  return String(photo?.drive_file_id || photo?.attachmentId || photo?.sourceAttachmentId || photo?.importFingerprint || photo?.id || photo?.url || '').trim();
+}
+function fotoPersistivel(photo) {
+  return {
+    id: photo.id,
+    url: photo.url,
+    fileName: photo.fileName || photo.file_name || 'foto',
+    caption: photo.caption || '',
+    author: photo.author || '',
+    activityId: photo.activityId || null,
+    title: photo.title || '',
+    location: photo.location || '',
+    dateTaken: photo.dateTaken || '',
+    albumTitle: photo.activityId ? (photo.albumTitle || '') : 'Sem Vínculo',
+    albumMuseum: photo.albumMuseum || photo.museum || photo.museu || '',
+    museum: photo.museum || photo.museu || '',
+    museu: photo.museu || photo.museum || '',
+    drive_file_id: photo.drive_file_id || '',
+    attachmentId: photo.attachmentId || photo.sourceAttachmentId || '',
+    sourceAttachmentId: photo.sourceAttachmentId || photo.attachmentId || '',
+    importFingerprint: chaveFoto(photo),
+  };
 }
 
 export default function ReportPhotoSection({
@@ -39,6 +61,11 @@ export default function ReportPhotoSection({
   const atividadePorId = useMemo(() => new Map(atividades.map((atividade) => [atividade.id, atividade])), [atividades]);
   const chavesExistentes = useMemo(() => new Set(photos.map(chaveFoto).filter(Boolean)), [photos]);
 
+  const persistirLista = async (lista) => {
+    if (!reportId) throw new Error('Relatório sem ID. Salve o relatório antes de importar fotos.');
+    await base44.entities.Report.update(reportId, { fotos: lista.map(fotoPersistivel) });
+  };
+
   const persistirFoto = (photo, dados) => {
     Object.assign(photo, dados);
     onUpdatePhoto?.(photo.id, dados.caption ?? photo.caption ?? '', dados);
@@ -52,7 +79,7 @@ export default function ReportPhotoSection({
     const museum = photo.museum || photo.museu || museuGaleria || museu || atividade?.museu || '';
     const albumTitle = photo.activityId ? (photo.albumTitle || nomeAtividade(atividade) || tituloLocal) : 'Sem Vínculo';
     const caption = photo.caption || [nomeAtividade(atividade) || 'Sem vínculo', localFoto, dataFoto].filter(Boolean).join(' — ') || gerarLegendaFoto({ atividadeNome: nomeAtividade(atividade), atividadeLocal: localFoto, atividadeMuseus: museum ? [museum] : [], atividadeData: dataFoto, museu: museum, mes, ano, fileName: '' });
-    return { ...photo, title: tituloFoto, caption, location: localFoto, dateTaken: dataFoto, albumTitle, albumMuseum: museum, museum, museu: museum, activityId: photo.activityId || null, importFingerprint: chaveFoto(photo) };
+    return fotoPersistivel({ ...photo, title: tituloFoto, caption, location: localFoto, dateTaken: dataFoto, albumTitle, albumMuseum: museum, museum, museu: museum, activityId: photo.activityId || null, importFingerprint: chaveFoto(photo) });
   };
 
   const handleAddPhoto = async (photo, options = {}) => {
@@ -60,6 +87,8 @@ export default function ReportPhotoSection({
     const preparada = prepararParaSalvar(photo);
     const chave = chaveFoto(preparada);
     if (chave && chavesExistentes.has(chave)) return;
+    const novaLista = [...photos, preparada];
+    await persistirLista(novaLista);
     await onAddPhoto(preparada);
     if (!options.keepOpen) setSelectorOpen(false);
   };
@@ -69,22 +98,27 @@ export default function ReportPhotoSection({
     let ignoradas = 0;
     let erros = 0;
     const vistas = new Set(chavesExistentes);
+    const novas = [];
     for (let indice = 0; indice < lista.length; indice += 1) {
       const preparada = prepararParaSalvar(lista[indice]);
       const chave = chaveFoto(preparada);
       if (chave && vistas.has(chave)) {
         ignoradas += 1;
       } else {
-        try {
-          await onAddPhoto?.(preparada);
-          if (chave) vistas.add(chave);
-          importadas += 1;
-        } catch {
-          erros += 1;
-        }
+        novas.push(preparada);
+        if (chave) vistas.add(chave);
+        importadas += 1;
       }
       onProgress?.({ atual: indice + 1, importadas, ignoradas, erros });
       if ((indice + 1) % 20 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    try {
+      await persistirLista([...photos, ...novas]);
+      for (const foto of novas) await onAddPhoto?.(foto);
+    } catch (error) {
+      erros = novas.length;
+      onProgress?.({ atual: lista.length, importadas: 0, ignoradas, erros });
+      throw error;
     }
     setSelectorOpen(false);
   };
@@ -95,24 +129,29 @@ export default function ReportPhotoSection({
     setEditData({ caption: photo.caption || '', title: photo.title || '', location: photo.location || '', dateTaken: photo.dateTaken || photo.capturedAt || photo.metadataDate || '', activityId: photo.activityId || '', museum: identificacaoMuseu(photo, atividade, museuGaleria || museu) });
   };
 
-  const handleSavePhoto = () => {
+  const handleSavePhoto = async () => {
     const photo = photos.find((item) => item.id === editingPhotoId);
     if (photo) {
       const museum = editData.museum.trim();
-      persistirFoto(photo, { caption: editData.caption.trim(), title: editData.title.trim(), location: editData.location.trim(), dateTaken: editData.dateTaken, activityId: editData.activityId || null, albumTitle: editData.activityId ? tituloLocal : 'Sem Vínculo', albumMuseum: museum, museum, museu: museum });
+      const dados = { caption: editData.caption.trim(), title: editData.title.trim(), location: editData.location.trim(), dateTaken: editData.dateTaken, activityId: editData.activityId || null, albumTitle: editData.activityId ? tituloLocal : 'Sem Vínculo', albumMuseum: museum, museum, museu: museum };
+      const atualizadas = photos.map((item) => item.id === photo.id ? { ...item, ...dados } : item);
+      await persistirLista(atualizadas);
+      persistirFoto(photo, dados);
     }
     setEditingPhotoId(null);
   };
 
-  const salvarDadosGaleria = () => {
+  const salvarDadosGaleria = async () => {
     const titulo = tituloLocal.trim() || 'Galeria de Fotos';
     const museum = museuGaleria.trim();
+    const atualizadas = photos.map((photo) => {
+      const atual = identificacaoMuseu(photo, atividadePorId.get(photo.activityId), '');
+      return { ...photo, albumTitle: photo.activityId ? titulo : 'Sem Vínculo', albumMuseum: museum, museum: atual || museum, museu: atual || museum, caption: photo.caption || '' };
+    });
+    await persistirLista(atualizadas);
     setTituloLocal(titulo);
     setMuseuGaleria(museum);
-    photos.forEach((photo) => {
-      const atual = identificacaoMuseu(photo, atividadePorId.get(photo.activityId), '');
-      persistirFoto(photo, { albumTitle: photo.activityId ? titulo : 'Sem Vínulo', albumMuseum: museum, museum: atual || museum, museu: atual || museum, caption: photo.caption || '' });
-    });
+    atualizadas.forEach((photo) => persistirFoto(photo, photo));
     onGalleryTitleChange?.(titulo);
   };
 
