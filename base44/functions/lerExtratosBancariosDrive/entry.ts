@@ -47,7 +47,7 @@ function classifyLaunch(l:any,recordType:string){
     }else if(internal){
       launchType=cd==='C'?'credito':'debito';category='transferencia_interna_investimento';
     }else{
-      launchType=cd==='C'?'credito':cd==='D'?'debito':normalize(l?.tipo);
+      launchType=cd==='C'?'credito':cd==='D'?'debito':normalize(l?.tipo_sugerido||l?.tipo);
       category='movimentacao_investimento';
     }
   }else{
@@ -58,7 +58,7 @@ function classifyLaunch(l:any,recordType:string){
     }else if(cd==='C'){
       launchType='credito';category='credito_externo_candidato';
     }else{
-      const informed=normalize(l?.tipo);
+      const informed=normalize(l?.tipo_sugerido||l?.tipo);
       launchType=informed.includes('cred')?'credito':informed.includes('deb')?'debito':informed.includes('rend')?'rendimento':informed;
       category=launchType==='debito'?'debito_operacional':launchType==='credito'?'credito_externo_candidato':'nao_classificado';
     }
@@ -69,7 +69,7 @@ function classifyLaunch(l:any,recordType:string){
     descricao:description,
     indicador_cd:cd,
     tipo:launchType,
-    categoria,
+    categoria:category,
     transferencia_interna:internal,
     valor:Math.abs(num(l?.valor)),
     saldo:l?.saldo==null?null:num(l.saldo),
