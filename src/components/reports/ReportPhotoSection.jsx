@@ -1,128 +1,188 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { ImagePlus, Trash2, Edit2 } from 'lucide-react';
+import { ImagePlus, Trash2, Edit2, Save } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import PhotoGallerySelector from './PhotoGallerySelector';
 import PhotoCaptionSuggester from './PhotoCaptionSuggester';
 import { gerarLegendaFoto } from '@/utils/captionUtils';
 
-export default function ReportPhotoSection({ photos = [], onAddPhoto, onUpdatePhoto, onDeletePhoto, activityId, reportId, museu = '', mes = '', ano = '', atividades = [] }) {
+function formatarData(valor) {
+  if (!valor) return '';
+  const texto = String(valor).trim();
+  const iso = texto.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;
+  return texto;
+}
+
+function nomeAtividade(atividade) {
+  return atividade?.nome || atividade?.titulo || atividade?.descricao || '';
+}
+
+export default function ReportPhotoSection({
+  photos = [],
+  onAddPhoto,
+  onUpdatePhoto,
+  onDeletePhoto,
+  activityId,
+  reportId,
+  museu = '',
+  mes = '',
+  ano = '',
+  atividades = [],
+  galleryTitle = '',
+  onGalleryTitleChange,
+}) {
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [editingPhotoId, setEditingPhotoId] = useState(null);
-  const [editCaption, setEditCaption] = useState('');
+  const [editData, setEditData] = useState({ caption: '', title: '', location: '', dateTaken: '', activityId: '' });
+  const [tituloLocal, setTituloLocal] = useState(galleryTitle || photos[0]?.albumTitle || 'Galeria de Fotos');
+  const atividadePorId = useMemo(() => new Map(atividades.map((atividade) => [atividade.id, atividade])), [atividades]);
 
   const handleAddPhoto = async (photo) => {
-    if (onAddPhoto) {
-      if (!photo.caption) {
-        const atividade = atividades.find(a => a.id === photo.activityId);
-        const caption = gerarLegendaFoto({
-          atividadeNome: atividade?.nome || atividade?.titulo || '',
-          atividadeLocal: atividade?.local || atividade?.local_realizacao || '',
-          atividadeMuseus: Array.isArray(atividade?.museu_lista) ? atividade.museu_lista : [],
-          atividadeData: atividade?.data_realizacao || atividade?.data_inicio || '',
-          museu,
-          mes,
-          ano,
-          fileName: photo.fileName || photo.file_name || '',
-        });
-        if (caption) photo = { ...photo, caption };
-      }
-      await onAddPhoto(photo);
-      setSelectorOpen(false);
+    if (!onAddPhoto) return;
+    const atividade = atividades.find((item) => item.id === photo.activityId);
+    const dataFoto = photo.dateTaken || photo.capturedAt || photo.metadataDate || atividade?.data_realizacao || atividade?.data_inicio || '';
+    const localFoto = photo.location || atividade?.local || atividade?.local_realizacao || museu || '';
+    const tituloFoto = photo.title || nomeAtividade(atividade) || 'Registro da atividade';
+    let caption = photo.caption || '';
+
+    if (!caption) {
+      caption = gerarLegendaFoto({
+        atividadeNome: nomeAtividade(atividade),
+        atividadeLocal: localFoto,
+        atividadeMuseus: Array.isArray(atividade?.museu_lista) ? atividade.museu_lista : [],
+        atividadeData: dataFoto,
+        museu,
+        mes,
+        ano,
+        fileName: '',
+      });
     }
+
+    await onAddPhoto({
+      ...photo,
+      title: tituloFoto,
+      caption,
+      location: localFoto,
+      dateTaken: dataFoto,
+      albumTitle: tituloLocal,
+      activityId: photo.activityId || null,
+    });
+    setSelectorOpen(false);
   };
 
   const handleEditClick = (photo) => {
     setEditingPhotoId(photo.id);
-    setEditCaption(photo.caption || '');
+    setEditData({
+      caption: photo.caption || '',
+      title: photo.title || '',
+      location: photo.location || '',
+      dateTaken: photo.dateTaken || photo.capturedAt || photo.metadataDate || '',
+      activityId: photo.activityId || '',
+    });
   };
 
-  const handleSaveCaption = () => {
-    onUpdatePhoto(editingPhotoId, editCaption);
+  const handleSavePhoto = () => {
+    const photo = photos.find((item) => item.id === editingPhotoId);
+    if (photo) {
+      Object.assign(photo, {
+        caption: editData.caption.trim(),
+        title: editData.title.trim(),
+        location: editData.location.trim(),
+        dateTaken: editData.dateTaken,
+        activityId: editData.activityId || null,
+        albumTitle: tituloLocal,
+      });
+    }
+    onUpdatePhoto?.(editingPhotoId, editData.caption.trim());
     setEditingPhotoId(null);
+  };
+
+  const salvarTituloGaleria = () => {
+    const titulo = tituloLocal.trim() || 'Galeria de Fotos';
+    setTituloLocal(titulo);
+    photos.forEach((photo) => {
+      photo.albumTitle = titulo;
+      onUpdatePhoto?.(photo.id, photo.caption || '');
+    });
+    onGalleryTitleChange?.(titulo);
   };
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900">Fotos do Relatório</h3>
-        <Button
-          onClick={() => setSelectorOpen(true)}
-          className="bg-green-600 hover:bg-green-700 text-white gap-2"
-          size="sm"
-        >
-          <ImagePlus className="w-4 h-4" />
-          Adicionar Foto
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex-1">
+          <Label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">Título do álbum</Label>
+          <div className="flex gap-2">
+            <Input value={tituloLocal} onChange={(e) => setTituloLocal(e.target.value)} placeholder="Título da galeria" />
+            <Button type="button" variant="outline" onClick={salvarTituloGaleria} className="gap-2">
+              <Save className="h-4 w-4" /> Salvar título
+            </Button>
+          </div>
+        </div>
+        <Button onClick={() => setSelectorOpen(true)} className="gap-2 bg-green-600 text-white hover:bg-green-700" size="sm">
+          <ImagePlus className="h-4 w-4" /> Adicionar foto
         </Button>
       </div>
 
       {photos.length === 0 ? (
-        <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
-          <ImagePlus className="w-12 h-12 text-gray-300 mx-auto mb-2" />
-          <p className="text-gray-600 text-sm">Nenhuma foto adicionada</p>
-          <p className="text-gray-500 text-xs mt-1">Clique no botão acima para adicionar fotos da galeria</p>
+        <div className="rounded-lg border-2 border-dashed border-gray-300 py-8 text-center">
+          <ImagePlus className="mx-auto mb-2 h-12 w-12 text-gray-300" />
+          <p className="text-sm text-gray-600">Nenhuma foto adicionada</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {photos.map(photo => (
-            <div key={photo.id} className="border border-gray-200 rounded-lg overflow-hidden">
-              <div className="aspect-video bg-gray-100 overflow-hidden relative group">
-                <img
-                  src={photo.url}
-                  alt={photo.fileName}
-                  className="w-full h-full object-cover"
-                  onError={(e) => { e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="225"%3E%3Crect fill="%23f0f0f0" width="400" height="225"/%3E%3C/svg%3E'; }}
-                />
-                {!photo.caption && (
-                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
-                    <PhotoCaptionSuggester
-                      photoUrl={photo.url}
-                      activityId={activityId}
-                      reportId={reportId}
-                      onCaptionSuggested={(caption) => onUpdatePhoto(photo.id, caption)}
-                    />
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {photos.map((photo) => {
+            const atividade = atividadePorId.get(photo.activityId);
+            const atividadeNome = nomeAtividade(atividade);
+            return (
+              <div key={photo.id} className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+                <div className="group relative aspect-video overflow-hidden bg-gray-100">
+                  <img
+                    src={photo.url}
+                    alt={photo.title || photo.caption || 'Foto da atividade'}
+                    className="h-full w-full object-cover"
+                    onError={(e) => { e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="225"%3E%3Crect fill="%23f0f0f0" width="400" height="225"/%3E%3C/svg%3E'; }}
+                  />
+                  {!photo.caption && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-0 opacity-0 transition-all group-hover:bg-opacity-40 group-hover:opacity-100">
+                      <PhotoCaptionSuggester
+                        photoUrl={photo.url}
+                        activityId={photo.activityId || activityId}
+                        reportId={reportId}
+                        onCaptionSuggested={(caption) => onUpdatePhoto?.(photo.id, caption)}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2 p-3">
+                  {photo.title && <h4 className="text-sm font-semibold text-gray-900">{photo.title}</h4>}
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
+                    {(photo.location || atividade?.local || atividade?.local_realizacao) && <span>Local: {photo.location || atividade?.local || atividade?.local_realizacao}</span>}
+                    {(photo.dateTaken || atividade?.data_realizacao || atividade?.data_inicio) && <span>Data: {formatarData(photo.dateTaken || atividade?.data_realizacao || atividade?.data_inicio)}</span>}
+                    {atividadeNome && <span>Atividade: {atividadeNome}</span>}
                   </div>
-                )}
-              </div>
-
-              <div className="p-3 space-y-2">
-                <p className="text-sm font-medium text-gray-900 truncate">{photo.fileName}</p>
-                <p className="text-xs text-gray-600">Autor: {photo.author}</p>
-
-                {photo.caption && (
-                  <div className="bg-gray-50 p-2 rounded text-xs text-gray-700">
-                    <strong>Legenda:</strong> {photo.caption}
+                  {photo.caption && <p className="rounded bg-gray-50 p-2 text-xs text-gray-700">{photo.caption}</p>}
+                  <div className="flex gap-2 pt-2">
+                    <Button onClick={() => handleEditClick(photo)} variant="outline" size="sm" className="flex-1 gap-2">
+                      <Edit2 className="h-3 w-3" /> Editar dados
+                    </Button>
+                    <Button onClick={() => onDeletePhoto(photo.id)} variant="destructive" size="sm">
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
                   </div>
-                )}
-
-                <div className="flex gap-2 pt-2">
-                  <Button
-                    onClick={() => handleEditClick(photo)}
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 gap-2"
-                  >
-                    <Edit2 className="w-3 h-3" />
-                    Legenda
-                  </Button>
-                  <Button
-                    onClick={() => onDeletePhoto(photo.id)}
-                    variant="destructive"
-                    size="sm"
-                    className="flex-1"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
-      {/* Selector Dialog */}
       <PhotoGallerySelector
         isOpen={selectorOpen}
         onClose={() => setSelectorOpen(false)}
@@ -133,38 +193,30 @@ export default function ReportPhotoSection({ photos = [], onAddPhoto, onUpdatePh
         ano={ano}
       />
 
-      {/* Edit Caption Dialog */}
       <Dialog open={!!editingPhotoId} onOpenChange={(open) => !open && setEditingPhotoId(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Editar Legenda da Foto</DialogTitle>
-          </DialogHeader>
-
+        <DialogContent className="max-w-xl">
+          <DialogHeader><DialogTitle>Editar dados da foto</DialogTitle></DialogHeader>
           <div className="space-y-4">
+            <div><Label>Título</Label><Input value={editData.title} onChange={(e) => setEditData((prev) => ({ ...prev, title: e.target.value }))} placeholder="Título da foto" /></div>
+            <div><Label>Legenda</Label><Textarea value={editData.caption} onChange={(e) => setEditData((prev) => ({ ...prev, caption: e.target.value }))} placeholder="Legenda descritiva" className="h-20 resize-none" /></div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div><Label>Local</Label><Input value={editData.location} onChange={(e) => setEditData((prev) => ({ ...prev, location: e.target.value }))} placeholder="Local da atividade" /></div>
+              <div><Label>Data da foto</Label><Input type="date" value={editData.dateTaken} onChange={(e) => setEditData((prev) => ({ ...prev, dateTaken: e.target.value }))} /></div>
+            </div>
             <div>
-              <Label className="text-sm font-medium mb-2 block">Legenda</Label>
-              <Textarea
-                value={editCaption}
-                onChange={(e) => setEditCaption(e.target.value)}
-                placeholder="Digite a legenda para a foto..."
-                className="resize-none h-20"
-              />
+              <Label>Atividade vinculada</Label>
+              <Select value={editData.activityId || 'nenhuma'} onValueChange={(value) => setEditData((prev) => ({ ...prev, activityId: value === 'nenhuma' ? '' : value }))}>
+                <SelectTrigger><SelectValue placeholder="Selecione uma atividade" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="nenhuma">Nenhuma atividade</SelectItem>
+                  {atividades.map((atividade) => <SelectItem key={atividade.id} value={atividade.id}>{nomeAtividade(atividade) || atividade.id}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
           </div>
-
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setEditingPhotoId(null)}
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleSaveCaption}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              Salvar
-            </Button>
+            <Button variant="outline" onClick={() => setEditingPhotoId(null)}>Cancelar</Button>
+            <Button onClick={handleSavePhoto} className="bg-blue-600 hover:bg-blue-700">Salvar alterações</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
