@@ -159,12 +159,15 @@ export default function PhotoGallerySelector({
 
   useEffect(() => {
     if (!selectedPhoto) return;
-    const preparada = prepararFoto({ ...selectedPhoto, activityId: atividadeVinculadaId || selectedPhoto.activityId });
-    setAtividadeVinculadaId(preparada.activityId || '');
-    setTitle(preparada.title);
-    setLocation(preparada.location);
-    setDateTaken(preparada.dateTaken);
-    setCaption(preparada.caption);
+    const activityId = atividadeVinculadaId || selectedPhoto.activityId || '';
+    const atividade = atividadesDisponiveis.find((item) => idAtividade(item) === String(activityId));
+    const data = selectedPhoto.dateTaken || atividade?.data_realizacao || atividade?.data_inicio || atividade?.data || '';
+    const local = selectedPhoto.location || atividade?.local || atividade?.local_realizacao || selectedPhoto.museu || museu || '';
+    setAtividadeVinculadaId(atividade ? idAtividade(atividade) : '');
+    setTitle(selectedPhoto.title || (atividade ? nomeAtividade(atividade) : 'Registro sem vínculo'));
+    setLocation(local);
+    setDateTaken(data);
+    setCaption(legendaPadrao(atividade, local, data));
   }, [selectedPhoto]);
 
   const importarTodas = async () => {
