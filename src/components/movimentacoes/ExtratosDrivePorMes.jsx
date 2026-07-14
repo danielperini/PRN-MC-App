@@ -2,8 +2,13 @@ import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { base44 } from '@/api/base44Client';
 import { EXTRATO_DRIVE_FOLDERS_2026 } from '@/config/extratoDriveFolders';
-import { AlertCircle, Banknote, CheckCircle2, Clock3, ExternalLink, FolderOpen, Loader2, RefreshCw, TrendingUp } from 'lucide-react';
+import { AlertCircle, Banknote, CheckCircle2, Clock3, ExternalLink, FolderOpen, Loader2, RefreshCw, Trash2, TrendingUp, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
+
+function fmtBRL(v) {
+  if (!v && v !== 0) return '—';
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
+}
 
 function contarDocumentos(registros) {
   const ids = new Set(registros.map(r => r.drive_file_id || r.id).filter(Boolean));
@@ -42,6 +47,7 @@ const progressoInicial = {
 
 export default function ExtratosDrivePorMes({ movimentacoes = [], onSincronizado }) {
   const [sincronizandoMes, setSincronizandoMes] = useState(null);
+  const [limpandoMes, setLimpandoMes] = useState(null);
   const [errosPorMes, setErrosPorMes] = useState({});
   const [progressoPorMes, setProgressoPorMes] = useState({});
 
@@ -184,6 +190,27 @@ export default function ExtratosDrivePorMes({ movimentacoes = [], onSincronizado
     }
   }
 
+  async function limparMes(item) {
+    setLimpandoMes(item.mes_num);
+    toast.info(`Limpando duplicados de ${item.mes}…`);
+    try {
+      const res = await base44.functions.invoke('limparExtratosDuplicados', {
+        mes_num: item.mes_num,
+        ano: item.ano,
+      });
+      const d = res.data;
+      if (!d?.success) throw new Error(d?.error || 'Erro ao limpar');
+      const { deletados = 0 } = d.resumo || {};
+      if (deletados === 0) toast.success(`${item.mes}: nenhum duplicado encontrado.`);
+      else toast.success(`${item.mes}: ${deletados} registro(s) duplicado(s) removido(s).`);
+      await onSincronizado?.();
+    } catch (e) {
+      toast.error(`Erro ao limpar ${item.mes}: ${e?.message || String(e)}`);
+    } finally {
+      setLimpandoMes(null);
+    }
+  }
+
   return (
     <section className="space-y-3">
       <div>
@@ -195,14 +222,25 @@ export default function ExtratosDrivePorMes({ movimentacoes = [], onSincronizado
         {EXTRATO_DRIVE_FOLDERS_2026.map(item => {
           const key = `${item.ano}-${String(item.mes_num).padStart(2, '0')}`;
           const registros = registrosPorMes.get(key) || [];
-          const contas = registros.filter(r => r.tipo === 'extrato_conta').length;
-          const rendimentos = registros.filter(r => r.tipo === 'extrato_rendimento').length;
+          const contaReg = registros.filter(r => r.tipo === 'extrato_conta');
+          const rendReg = registros.filter(r => r.tipo === 'extrato_rendimento');
+          const contas = contaReg.length;
+          const rendimentos = rendReg.length;
           const sincronizando = sincronizandoMes === item.mes_num;
+          const limpando = limpandoMes === item.mes_num;
           const erros = errosPorMes[item.mes_num] || [];
           const progresso = progressoPorMes[item.mes_num] || progressoInicial;
+          const temDuplicado = contas > 1 || rendimentos > 1;
+
+          // Calcular saldos financeiros para exibição no card
+          const saldoContaSemRend = contaReg.reduce((s, r) => s + (r.saldo_final || 0), 0);
+          const valorRendimento = rendReg.reduce((s, r) => s + (r.total_rendimento || 0), 0)
+            + contaReg.reduce((s, r) => s + (r.total_rendimento || 0), 0);
+          const saldoComRend = saldoContaSemRend + valorRendimento;
+          const temSaldo = saldoContaSemRend > 0 || valorRendimento > 0;
 
           return (
-            <div key={key} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm space-y-3">
+            <div key={key} className={`rounded-2xl border bg-white p-4 shadow-sm space-y-3 ${temDuplicado ? 'border-amber-300' : 'border-gray-200'}`}>
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-base font-bold text-slate-900">{item.mes} {item.ano}</p>
@@ -214,21 +252,47 @@ export default function ExtratosDrivePorMes({ movimentacoes = [], onSincronizado
               </div>
 
               <div className="grid grid-cols-2 gap-2">
-                <div className="rounded-xl bg-slate-50 border border-slate-100 p-2.5">
-                  <Banknote className="w-3.5 h-3.5 text-slate-600 mb-1" />
+                <div className={`rounded-xl p-2.5 border ${contas > 1 ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-100'}`}>
+                  <Banknote className={`w-3.5 h-3.5 mb-1 ${contas > 1 ? 'text-amber-600' : 'text-slate-600'}`} />
                   <p className="text-[10px] text-gray-400">Extrato de conta</p>
-                  <p className="text-sm font-bold text-slate-800">{contas}</p>
+                  <p className={`text-sm font-bold ${contas > 1 ? 'text-amber-700' : 'text-slate-800'}`}>{contas}</p>
                 </div>
-                <div className="rounded-xl bg-blue-50 border border-blue-100 p-2.5">
-                  <TrendingUp className="w-3.5 h-3.5 text-blue-600 mb-1" />
-                  <p className="text-[10px] text-blue-500">Rendimento</p>
-                  <p className="text-sm font-bold text-blue-700">{rendimentos}</p>
+                <div className={`rounded-xl p-2.5 border ${rendimentos > 1 ? 'bg-amber-50 border-amber-200' : 'bg-blue-50 border-blue-100'}`}>
+                  <TrendingUp className={`w-3.5 h-3.5 mb-1 ${rendimentos > 1 ? 'text-amber-600' : 'text-blue-600'}`} />
+                  <p className={`text-[10px] ${rendimentos > 1 ? 'text-amber-600' : 'text-blue-500'}`}>Rendimento</p>
+                  <p className={`text-sm font-bold ${rendimentos > 1 ? 'text-amber-700' : 'text-blue-700'}`}>{rendimentos}</p>
                 </div>
               </div>
 
+              {/* Saldos financeiros */}
+              {temSaldo && (
+                <div className="rounded-xl bg-slate-50 border border-slate-100 p-3 space-y-2">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-gray-500 flex items-center gap-1.5"><Wallet className="w-3 h-3" />Saldo (sem rend.)</span>
+                    <span className="font-bold text-slate-800">{fmtBRL(saldoContaSemRend)}</span>
+                  </div>
+                  {valorRendimento > 0 && <>
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-blue-500 flex items-center gap-1.5"><TrendingUp className="w-3 h-3" />Rendimento</span>
+                      <span className="font-bold text-blue-700">+ {fmtBRL(valorRendimento)}</span>
+                    </div>
+                    <div className="border-t border-slate-200 pt-2 flex items-center justify-between text-[11px]">
+                      <span className="text-green-600 font-semibold">Saldo total (com rend.)</span>
+                      <span className="font-bold text-green-700">{fmtBRL(saldoComRend)}</span>
+                    </div>
+                  </>}
+                </div>
+              )}
+
+              {temDuplicado && (
+                <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
+                  ⚠️ Duplicados detectados. Use "Limpar" para manter apenas 1 por tipo.
+                </p>
+              )}
+
               {!item.folder_id && (
                 <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
-                  Pasta de abril não informada. A pasta repetida de março não foi reutilizada para evitar duplicidade.
+                  Pasta não informada para este mês.
                 </p>
               )}
 
@@ -276,13 +340,25 @@ export default function ExtratosDrivePorMes({ movimentacoes = [], onSincronizado
                 <Button
                   size="sm"
                   onClick={() => sincronizarPasta(item)}
-                  disabled={!item.folder_id || sincronizandoMes !== null}
+                  disabled={!item.folder_id || sincronizandoMes !== null || limpandoMes !== null}
                   className="flex-1 rounded-xl bg-slate-900 text-white hover:bg-slate-700 gap-1.5"
                 >
                   {sincronizando
                     ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />{Math.round(progresso.percentual)}%</>
                     : <><RefreshCw className="w-3.5 h-3.5" />Ler pasta</>}
                 </Button>
+                {registros.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => limparMes(item)}
+                    disabled={sincronizandoMes !== null || limpandoMes !== null}
+                    className={`rounded-xl gap-1.5 ${temDuplicado ? 'border-amber-400 text-amber-700 hover:bg-amber-50' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                    title="Remover duplicados — manter 1 extrato de conta e 1 de rendimento por mês"
+                  >
+                    {limpando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  </Button>
+                )}
                 {item.folder_url && (
                   <Button asChild size="sm" variant="outline" className="rounded-xl border-slate-300">
                     <a href={item.folder_url} target="_blank" rel="noreferrer" aria-label={`Abrir pasta de ${item.mes}`}>
