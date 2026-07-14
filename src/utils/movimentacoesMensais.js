@@ -6,12 +6,56 @@ function numero(valor) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function normalizar(valor) {
+  return String(valor || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
 function dataRegistro(registro) {
   return String(registro.processado_em || registro.updated_date || registro.created_date || '');
 }
 
 function chaveDocumento(registro, index) {
   return String(registro.drive_file_id || registro.id || `${registro.ano}-${registro.mes_num}-${index}`);
+}
+
+function chaveConta(registro) {
+  const conta = String(registro.conta || '').replace(/\D/g, '');
+  const banco = normalizar(registro.banco || 'banco-nao-identificado');
+  return conta || banco;
+}
+
+function chaveCompetenciaTipoConta(registro) {
+  return [
+    Number(registro.ano) || 0,
+    Number(registro.mes_num) || 0,
+    normalizar(registro.tipo || 'tipo-nao-identificado'),
+    chaveConta(registro),
+  ].join('|');
+}
+
+function pontuacaoCompletude(registro) {
+  const lancamentos = Array.isArray(registro.lancamentos) ? registro.lancamentos.length : 0;
+  let score = lancamentos * 1000;
+  if (numero(registro.total_creditos) > 0) score += 100;
+  if (numero(registro.total_debitos) > 0) score += 100;
+  if (numero(registro.total_rendimento) > 0) score += 100;
+  if (registro.saldo_final != null) score += 50;
+  if (registro.saldo_inicial != null) score += 25;
+  if (registro.drive_file_url) score += 10;
+  return score;
+}
+
+function escolherMaisCompleto(atual, candidato) {
+  if (!atual) return candidato;
+  const scoreAtual = pontuacaoCompletude(atual);
+  const scoreCandidato = pontuacaoCompletude(candidato);
+  if (scoreCandidato !== scoreAtual) return scoreCandidato > scoreAtual ? candidato : atual;
+  return dataRegistro(candidato) >= dataRegistro(atual) ? candidato : atual;
 }
 
 export function parseDataLancamento(valor, anoFallback = null) {
@@ -60,11 +104,24 @@ export function deduplicarRegistrosPorDocumento(movimentacoes = []) {
   return Array.from(porDocumento.values());
 }
 
+export function selecionarExtratosCanonicos(movimentacoes = []) {
+  const documentosUnicos = deduplicarRegistrosPorDocumento(movimentacoes);
+  const porCompetenciaTipoConta = new Map();
+
+  documentosUnicos.forEach(registro => {
+    const chave = chaveCompetenciaTipoConta(registro);
+    const atual = porCompetenciaTipoConta.get(chave);
+    porCompetenciaTipoConta.set(chave, escolherMaisCompleto(atual, registro));
+  });
+
+  return Array.from(porCompetenciaTipoConta.values());
+}
+
 export function agruparMovimentacoesPorMes(movimentacoes = []) {
   const grupos = new Map();
-  const registrosUnicos = deduplicarRegistrosPorDocumento(movimentacoes);
+  const registrosCanonicos = selecionarExtratosCanonicos(movimentacoes);
 
-  registrosUnicos.forEach((registro, index) => {
+  registrosCanonicos.forEach((registro, index) => {
     const ano = Number(registro.ano);
     const mes = Number(registro.mes_num);
     if (!ano || mes < 1 || mes > 12) return;
@@ -90,9 +147,9 @@ export function agruparMovimentacoesPorMes(movimentacoes = []) {
 }
 
 export function resumirRegistrosMensais(registros = []) {
-  const unicos = deduplicarRegistrosPorDocumento(registros);
-  const conta = unicos.filter(r => r.tipo === 'extrato_conta');
-  const rend = unicos.filter(r => r.tipo === 'extrato_rendimento');
+  const canonicos = selecionarExtratosCanonicos(registros);
+  const conta = canonicos.filter(r => r.tipo === 'extrato_conta');
+  const rend = canonicos.filter(r => r.tipo === 'extrato_rendimento');
 
   const creditos = conta.reduce((s, r) => s + numero(r.total_creditos), 0);
   const debitos = conta.reduce((s, r) => s + numero(r.total_debitos), 0);
@@ -103,7 +160,7 @@ export function resumirRegistrosMensais(registros = []) {
   [...conta]
     .sort((a, b) => dataRegistro(a).localeCompare(dataRegistro(b)))
     .forEach((r, index) => {
-      const contaKey = String(r.conta || r.banco || `registro-${index}`);
+      const contaKey = chaveConta(r) || `registro-${index}`;
       if (r.saldo_final != null) saldosPorConta.set(contaKey, numero(r.saldo_final));
     });
 
@@ -114,7 +171,9 @@ export function resumirRegistrosMensais(registros = []) {
     debitos,
     rendimento,
     saldo: saldoDocumental || (creditos - debitos),
-    documentos: unicos.length,
+    documentos: canonicos.length,
+    documentos_brutos: deduplicarRegistrosPorDocumento(registros).length,
+    sobrepostos_ignorados: Math.max(0, deduplicarRegistrosPorDocumento(registros).length - canonicos.length),
   };
 }
 
@@ -124,6 +183,8 @@ export function resumirGruposMensais(grupos = []) {
     totais.creditos += resumo.creditos;
     totais.debitos += resumo.debitos;
     totais.rendimento += resumo.rendimento;
+    totais.documentos += resumo.documentos;
+    totais.sobrepostos_ignorados += resumo.sobrepostos_ignorados;
     return totais;
-  }, { creditos: 0, debitos: 0, rendimento: 0 });
+  }, { creditos: 0, debitos: 0, rendimento: 0, documentos: 0, sobrepostos_ignorados: 0 });
 }
