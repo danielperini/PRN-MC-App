@@ -61,7 +61,7 @@ export default function FluxoCaixaMensal() {
           creditos: resumo.creditos,
           debitos: resumo.debitos,
           rendimento: resumo.rendimento,
-          saldo: resumo.creditos - resumo.debitos,
+          saldo: resumo.saldo,
         };
       });
   }, [movimentacoes]);
@@ -72,7 +72,7 @@ export default function FluxoCaixaMensal() {
     rendimento: dadosMensais.reduce((s, d) => s + d.rendimento, 0),
   }), [dadosMensais]);
 
-  const saldoGeral = totais.creditos - totais.debitos;
+  const saldoGeral = dadosMensais.length ? dadosMensais[dadosMensais.length - 1].saldo : 0;
 
   if (isLoading) return null;
 
@@ -101,7 +101,7 @@ export default function FluxoCaixaMensal() {
                   { label: 'Total créditos', value: totais.creditos, color: 'text-green-700', bg: 'bg-green-50 border-green-200', icon: <ArrowUpRight className="w-4 h-4 text-green-600" /> },
                   { label: 'Total débitos', value: totais.debitos, color: 'text-red-600', bg: 'bg-red-50 border-red-200', icon: <ArrowDownLeft className="w-4 h-4 text-red-500" /> },
                   { label: 'Rendimentos', value: totais.rendimento, color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200', icon: <TrendingUp className="w-4 h-4 text-blue-600" /> },
-                  { label: 'Saldo líquido', value: saldoGeral, color: saldoGeral >= 0 ? 'text-slate-800' : 'text-orange-600', bg: saldoGeral >= 0 ? 'bg-slate-50 border-slate-200' : 'bg-orange-50 border-orange-200', icon: <Wallet className="w-4 h-4 text-slate-500" /> },
+                  { label: 'Saldo atual', value: saldoGeral, color: saldoGeral >= 0 ? 'text-slate-800' : 'text-orange-600', bg: saldoGeral >= 0 ? 'bg-slate-50 border-slate-200' : 'bg-orange-50 border-orange-200', icon: <Wallet className="w-4 h-4 text-slate-500" /> },
                 ].map((c, i) => (
                   <div key={i} className={`rounded-xl border ${c.bg} p-3.5`}>
                     <div className="flex items-center justify-between mb-1.5">{c.icon}<span className="text-[10px] text-gray-400 font-medium">{c.label}</span></div>
@@ -130,7 +130,7 @@ export default function FluxoCaixaMensal() {
 
               <div className="overflow-x-auto">
                 <table className="w-full text-xs border-collapse">
-                  <thead><tr className="border-b border-slate-100"><th className="text-left py-2 px-2 text-slate-500 font-semibold">Mês</th><th className="text-right py-2 px-2 text-green-600 font-semibold">Créditos</th><th className="text-right py-2 px-2 text-red-500 font-semibold">Débitos</th>{totais.rendimento > 0 && <th className="text-right py-2 px-2 text-blue-500 font-semibold">Rendimento</th>}<th className="text-right py-2 px-2 text-slate-600 font-semibold">Saldo</th></tr></thead>
+                  <thead><tr className="border-b border-slate-100"><th className="text-left py-2 px-2 text-slate-500 font-semibold">Mês</th><th className="text-right py-2 px-2 text-green-600 font-semibold">Créditos</th><th className="text-right py-2 px-2 text-red-500 font-semibold">Débitos</th>{totais.rendimento > 0 && <th className="text-right py-2 px-2 text-blue-500 font-semibold">Rendimento</th>}<th className="text-right py-2 px-2 text-slate-600 font-semibold">Saldo final</th></tr></thead>
                   <tbody>{dadosMensais.map(d => <tr key={d.key} className="border-b border-slate-50 hover:bg-slate-50 transition-colors"><td className="py-2 px-2 font-semibold text-slate-700">{d.label}</td><td className="py-2 px-2 text-right text-green-700 font-medium">{d.creditos > 0 ? fmtBRL(d.creditos) : '—'}</td><td className="py-2 px-2 text-right text-red-600 font-medium">{d.debitos > 0 ? fmtBRL(d.debitos) : '—'}</td>{totais.rendimento > 0 && <td className="py-2 px-2 text-right text-blue-600 font-medium">{d.rendimento > 0 ? fmtBRL(d.rendimento) : '—'}</td>}<td className={`py-2 px-2 text-right font-bold ${d.saldo >= 0 ? 'text-slate-800' : 'text-orange-600'}`}>{fmtBRL(d.saldo)}</td></tr>)}</tbody>
                 </table>
               </div>
