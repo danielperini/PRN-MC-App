@@ -199,6 +199,7 @@ export default function PhotoGallerySelector({
           await new Promise((resolve) => setTimeout(resolve, 150));
         }
       }
+      setProgresso((anterior) => ({ ...anterior, atual: fotos.length, blocoAtual: totalBlocos, totalBlocos, etapa: `Bloco ${totalBlocos} de ${totalBlocos} concluído` }));
       toast.success('Importação concluída em blocos de 10, sem duplicar fotos já existentes.');
       onClose();
     } catch (error) {
