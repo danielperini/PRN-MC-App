@@ -46,10 +46,10 @@ export function ehTransferenciaInterna(l) {
   const categoria = norm(l?.categoria || l?.categoria_fluxo);
   if (categoria.includes('transferencia_interna') || categoria.includes('movimentacao_interna')) return true;
   const d = descricao(l);
-  return /\bresg(?:ate| aut| automat)?\b/.test(d)
-    || /\baplic(?:acao| automat| financeira)?\b/.test(d)
+  return /\bresg(?:ate| aut| automat| automatico)?\b/.test(d)
+    || /\baplic(?:acao| automat| automatica| financeira)?\b/.test(d)
     || /\bapl(?:ic)?\b/.test(d)
-    || ['transferencia entre contas', 'transf entre contas', 'conta investimento', 'investimento para conta corrente', 'conta corrente para investimento', 'saldo aplicado', 'baixa aplicacao', 'aporte aplicacao', 'resgate fundo', 'resgate cdb', 'aplicacao cdb', 'aplicacao fundo'].some((termo) => d.includes(termo));
+    || ['transferencia entre contas', 'transf entre contas', 'transferencia conta corrente', 'transferencia para aplicacao', 'conta investimento', 'investimento para conta corrente', 'conta corrente para investimento', 'saldo aplicado', 'baixa aplicacao', 'aporte aplicacao', 'resgate fundo', 'resgate cdb', 'aplicacao cdb', 'aplicacao fundo', 'resg aut', 'resgate automat', 'aplic automat'].some((termo) => d.includes(termo));
 }
 function ehRendimento(l) {
   const categoria = norm(l?.categoria || l?.categoria_fluxo);
@@ -98,25 +98,29 @@ export function parseDataLancamento(valor, anoFallback = null) {
   if (!ano || mes < 1 || mes > 12 || dia < 1 || dia > 31) return null;
   return { ano, mes, dia, key: `${ano}-${String(mes).padStart(2, '0')}`, sortKey: `${ano}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}` };
 }
-function competenciaDocumento(r) {
-  const mesExtraido = Number(r?.mes_referencia || r?.mes_num);
-  const anoExtraido = Number(r?.ano_referencia || r?.ano || 2026);
-  const nome = nomeDocumento(r);
-  const nomeMatch = nome.match(/(?:^|\D)(0?[1-9]|1[0-2])[-_/ ](20\d{2})(?:\D|$)/) || nome.match(/(20\d{2})[-_/ ](0?[1-9]|1[0-2])/);
-  if (nomeMatch) {
-    const primeiro = Number(nomeMatch[1]);
-    const segundo = Number(nomeMatch[2]);
-    const ano = primeiro > 2000 ? primeiro : segundo;
-    const mes = primeiro > 2000 ? segundo : primeiro;
-    return `${ano}-${String(mes).padStart(2, '0')}`;
-  }
-  if (anoExtraido && mesExtraido >= 1 && mesExtraido <= 12) return `${anoExtraido}-${String(mesExtraido).padStart(2, '0')}`;
+function competenciaDominanteLancamentos(r) {
+  const anoFallback = Number(r?.ano_referencia || r?.ano || 2026);
   const contagem = new Map();
   (r?.lancamentos || []).forEach((l) => {
-    const p = parseDataLancamento(l?.data, anoExtraido);
+    const p = parseDataLancamento(l?.data, anoFallback);
     if (p) contagem.set(p.key, (contagem.get(p.key) || 0) + 1);
   });
-  return [...contagem.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+  return [...contagem.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] || null;
+}
+function competenciaDocumento(r) {
+  const dominante = competenciaDominanteLancamentos(r);
+  if (dominante) return dominante;
+  const mesExtraido = Number(r?.mes_referencia || r?.mes_num);
+  const anoExtraido = Number(r?.ano_referencia || r?.ano || 2026);
+  if (anoExtraido && mesExtraido >= 1 && mesExtraido <= 12) return `${anoExtraido}-${String(mesExtraido).padStart(2, '0')}`;
+  const nome = nomeDocumento(r);
+  const nomeMatch = nome.match(/(?:^|\D)(0?[1-9]|1[0-2])[-_/ ](20\d{2})(?:\D|$)/) || nome.match(/(20\d{2})[-_/ ](0?[1-9]|1[0-2])/);
+  if (!nomeMatch) return null;
+  const primeiro = Number(nomeMatch[1]);
+  const segundo = Number(nomeMatch[2]);
+  const ano = primeiro > 2000 ? primeiro : segundo;
+  const mes = primeiro > 2000 ? segundo : primeiro;
+  return `${ano}-${String(mes).padStart(2, '0')}`;
 }
 
 export function deduplicarRegistrosPorDocumento(lista = []) {
@@ -203,14 +207,51 @@ function rendimentoDoDocumento(r) {
 }
 function fragmentar(lista = []) {
   return deduplicarRegistrosPorDocumento(lista).flatMap((r, indice) => {
-    const key = competenciaDocumento(r);
-    if (!key || key < INICIO_PROJETO) return [];
-    const [ano, mes] = key.split('-').map(Number);
-    const lancamentos = (r?.lancamentos || []).filter((l) => {
-      const p = parseDataLancamento(l?.data, ano);
-      return !p || p.key === key;
+    const competenciaBase = competenciaDocumento(r);
+    const anoFallback = Number(r?.ano_referencia || r?.ano || competenciaBase?.slice(0, 4) || 2026);
+    const porMes = new Map();
+    const semData = [];
+
+    (r?.lancamentos || []).forEach((lancamento) => {
+      const parsed = parseDataLancamento(lancamento?.data, anoFallback);
+      if (!parsed) {
+        semData.push(lancamento);
+        return;
+      }
+      if (!porMes.has(parsed.key)) porMes.set(parsed.key, []);
+      porMes.get(parsed.key).push({ ...lancamento, data_bancaria_normalizada: parsed.sortKey });
     });
-    return [{ ...r, tipo: ehDocumentoRendimento(r) ? 'extrato_rendimento' : 'extrato_conta', ano, mes_num: mes, mes: MESES[mes], lancamentos, _documento_original_id: docId(r, indice) }];
+
+    const fallback = competenciaBase || [...porMes.keys()].sort()[0];
+    if (semData.length && fallback) {
+      if (!porMes.has(fallback)) porMes.set(fallback, []);
+      porMes.get(fallback).push(...semData);
+    }
+    if (!porMes.size && fallback) porMes.set(fallback, []);
+
+    const keys = [...porMes.keys()].filter((key) => key >= INICIO_PROJETO).sort();
+    const ultimaCompetencia = keys[keys.length - 1];
+    const tipoDocumento = ehDocumentoRendimento(r) ? 'extrato_rendimento' : 'extrato_conta';
+
+    return keys.map((key) => {
+      const [ano, mes] = key.split('-').map(Number);
+      const recebeTotaisDocumento = key === (competenciaBase || ultimaCompetencia);
+      const recebeSaldoFinal = key === ultimaCompetencia;
+      return {
+        ...r,
+        tipo: tipoDocumento,
+        ano,
+        mes_num: mes,
+        mes: MESES[mes],
+        lancamentos: porMes.get(key) || [],
+        saldo_inicial: key === keys[0] ? r?.saldo_inicial : 0,
+        saldo_final: recebeSaldoFinal ? r?.saldo_final : null,
+        total_rendimento: tipoDocumento === 'extrato_rendimento' && recebeTotaisDocumento ? r?.total_rendimento : 0,
+        _documento_original_id: docId(r, indice),
+        _competencia_documento: competenciaBase,
+        _competencia_lancamentos: key,
+      };
+    });
   });
 }
 

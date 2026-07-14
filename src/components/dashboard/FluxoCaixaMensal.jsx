@@ -13,6 +13,7 @@ import { agruparMovimentacoesPorMes, resumirRegistrosMensais } from '@/utils/mov
 import ExtratosDrivePorMes from '@/components/movimentacoes/ExtratosDrivePorMes';
 import ImportarAuditarTodosMeses from '@/components/movimentacoes/ImportarAuditarTodosMeses';
 import ResumoRubricasExtratos from '@/components/movimentacoes/ResumoRubricasExtratos';
+import NotasDriveForaPrestacao from '@/components/movimentacoes/NotasDriveForaPrestacao';
 
 const MESES_CURTO = ['', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
@@ -131,32 +132,19 @@ export default function FluxoCaixaMensal() {
                 <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                   {[
                     {
-                      label: 'Total de créditos',
-                      value: totais.creditos,
-                      detail: `${dadosMensais.length} período(s)`,
-                      color: 'text-green-700',
-                      bg: 'bg-green-50 border-green-200',
-                      icon: <ArrowUpRight className="h-4 w-4 text-green-600" />,
+                      label: 'Total de créditos', value: totais.creditos, detail: `${dadosMensais.length} período(s)`,
+                      color: 'text-green-700', bg: 'bg-green-50 border-green-200', icon: <ArrowUpRight className="h-4 w-4 text-green-600" />,
                     },
                     {
-                      label: 'Débitos operacionais',
-                      value: totais.debitos,
-                      detail: 'Sem resgates e aplicações',
-                      color: 'text-red-600',
-                      bg: 'bg-red-50 border-red-200',
-                      icon: <ArrowDownLeft className="h-4 w-4 text-red-500" />,
+                      label: 'Débitos operacionais', value: totais.debitos, detail: 'Sem resgates e aplicações',
+                      color: 'text-red-600', bg: 'bg-red-50 border-red-200', icon: <ArrowDownLeft className="h-4 w-4 text-red-500" />,
                     },
                     {
-                      label: 'Rendimentos',
-                      value: totais.rendimento,
-                      detail: 'Extratos de investimento',
-                      color: 'text-blue-700',
-                      bg: 'bg-blue-50 border-blue-200',
-                      icon: <TrendingUp className="h-4 w-4 text-blue-600" />,
+                      label: 'Rendimentos', value: totais.rendimento, detail: 'Extratos de investimento',
+                      color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200', icon: <TrendingUp className="h-4 w-4 text-blue-600" />,
                     },
                     {
-                      label: 'Saldo atual consolidado',
-                      value: saldoAtual,
+                      label: 'Saldo atual consolidado', value: saldoAtual,
                       detail: ultimoPeriodo ? `Conta + investimento · ${ultimoPeriodo.label}` : 'Sem período',
                       color: saldoAtual >= 0 ? 'text-slate-800' : 'text-orange-700',
                       bg: saldoAtual >= 0 ? 'bg-slate-50 border-slate-200' : 'bg-orange-50 border-orange-200',
@@ -164,10 +152,7 @@ export default function FluxoCaixaMensal() {
                     },
                   ].map((card) => (
                     <div key={card.label} className={`rounded-xl border p-4 ${card.bg}`}>
-                      <div className="mb-2 flex items-center justify-between">
-                        {card.icon}
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">{card.label}</span>
-                      </div>
+                      <div className="mb-2 flex items-center justify-between">{card.icon}<span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">{card.label}</span></div>
                       <p className={`text-base font-bold ${card.color}`}>{fmtBRL(card.value)}</p>
                       <p className="mt-1 text-[10px] text-gray-500">{card.detail}</p>
                     </div>
@@ -181,12 +166,7 @@ export default function FluxoCaixaMensal() {
                 )}
 
                 <div>
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Comparação por período</p>
-                      <p className="text-[11px] text-slate-400">As barras mostram entradas e saídas; as linhas mostram rendimento e saldo consolidado.</p>
-                    </div>
-                  </div>
+                  <div className="mb-3 flex items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Comparação por período</p><p className="text-[11px] text-slate-400">As barras mostram entradas e saídas; as linhas mostram rendimento e saldo consolidado.</p></div></div>
                   <div className="h-72 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <ComposedChart data={dadosMensais} barCategoryGap="25%" barGap={3}>
@@ -206,15 +186,7 @@ export default function FluxoCaixaMensal() {
 
                 <div className="overflow-x-auto rounded-xl border border-slate-200">
                   <table className="w-full border-collapse text-xs">
-                    <thead className="bg-slate-50">
-                      <tr className="border-b border-slate-200">
-                        <th className="px-3 py-3 text-left font-semibold text-slate-600">Período</th>
-                        <th className="px-3 py-3 text-right font-semibold text-green-700">Créditos</th>
-                        <th className="px-3 py-3 text-right font-semibold text-red-600">Débitos</th>
-                        <th className="px-3 py-3 text-right font-semibold text-blue-600">Rendimentos</th>
-                        <th className="px-3 py-3 text-right font-semibold text-slate-700">Saldo final</th>
-                      </tr>
-                    </thead>
+                    <thead className="bg-slate-50"><tr className="border-b border-slate-200"><th className="px-3 py-3 text-left font-semibold text-slate-600">Período</th><th className="px-3 py-3 text-right font-semibold text-green-700">Créditos</th><th className="px-3 py-3 text-right font-semibold text-red-600">Débitos</th><th className="px-3 py-3 text-right font-semibold text-blue-600">Rendimentos</th><th className="px-3 py-3 text-right font-semibold text-slate-700">Saldo final</th></tr></thead>
                     <tbody>
                       {dadosMensais.map((periodo) => (
                         <tr key={periodo.key} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
@@ -222,9 +194,7 @@ export default function FluxoCaixaMensal() {
                           <td className="px-3 py-3 text-right font-medium text-green-700">{periodo.creditos ? fmtBRL(periodo.creditos) : '—'}</td>
                           <td className="px-3 py-3 text-right font-medium text-red-600">{periodo.debitos ? fmtBRL(periodo.debitos) : '—'}</td>
                           <td className="px-3 py-3 text-right font-medium text-blue-600">{periodo.rendimento ? fmtBRL(periodo.rendimento) : '—'}</td>
-                          <td className={`px-3 py-3 text-right font-bold ${periodo.saldo >= 0 ? 'text-slate-800' : 'text-orange-700'}`}>
-                            {fmtBRL(periodo.saldo)}
-                          </td>
+                          <td className={`px-3 py-3 text-right font-bold ${periodo.saldo >= 0 ? 'text-slate-800' : 'text-orange-700'}`}>{fmtBRL(periodo.saldo)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -235,6 +205,7 @@ export default function FluxoCaixaMensal() {
           </section>
 
           <ResumoRubricasExtratos movimentacoes={movimentacoes} />
+          <NotasDriveForaPrestacao />
         </>
       )}
     </div>
