@@ -45,6 +45,10 @@ function isYieldStatement(name: string) {
   return text.includes('rendimento') || text.includes('investimento') || text.includes('aplicacao') || text.includes('cdb') || text.includes('poupanca');
 }
 
+function errorMessage(error: any) {
+  return String(error?.message || error || 'Erro desconhecido').slice(0, 800);
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -73,10 +77,10 @@ Deno.serve(async (req) => {
       let pageToken = '';
       do {
         const query = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
-        const fields = encodeURIComponent('nextPageToken,files(id,name,mimeType,createdTime,modifiedTime,webViewLink)');
-        const url = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=${fields}&pageSize=100${pageToken ? `&pageToken=${pageToken}` : ''}`;
+        const fields = encodeURIComponent('nextPageToken,files(id,name,mimeType,size,createdTime,modifiedTime,webViewLink)');
+        const url = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=${fields}&pageSize=100&supportsAllDrives=true&includeItemsFromAllDrives=true${pageToken ? `&pageToken=${pageToken}` : ''}`;
         const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-        if (!response.ok) throw new Error(`Drive ${response.status}: ${await response.text()}`);
+        if (!response.ok) throw new Error(`Drive listagem HTTP ${response.status}: ${await response.text()}`);
         const data = await response.json();
         files.push(...(data.files || []));
         pageToken = data.nextPageToken || '';
@@ -141,23 +145,29 @@ Deno.serve(async (req) => {
     const errors: any[] = [];
 
     for (const pdf of batch) {
+      let stage = 'download';
       try {
         const type = isYieldStatement(pdf.name) ? 'extrato_rendimento' : 'extrato_conta';
         const monthNumber = Number(pdf._mes_num || monthFromText(pdf.name) || new Date(pdf.createdTime || Date.now()).getMonth() + 1);
         const year = Number(pdf._ano || yearFromText(pdf.name) || requestedYear || new Date().getFullYear());
 
-        const download = await fetch(`https://www.googleapis.com/drive/v3/files/${pdf.id}?alt=media`, {
+        const download = await fetch(`https://www.googleapis.com/drive/v3/files/${pdf.id}?alt=media&supportsAllDrives=true`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        if (!download.ok) throw new Error(`Falha ao baixar PDF: HTTP ${download.status}`);
+        if (!download.ok) throw new Error(`Drive download HTTP ${download.status}: ${await download.text()}`);
 
-        const blob = await download.blob();
-        const upload = await base44.asServiceRole.integrations.Core.UploadFile({ file: blob });
-        if (!upload?.file_url) throw new Error('Upload temporário do PDF não retornou URL');
+        stage = 'upload';
+        const bytes = await download.arrayBuffer();
+        if (!bytes.byteLength) throw new Error('O PDF baixado está vazio');
+        const file = new File([bytes], pdf.name || `${pdf.id}.pdf`, { type: 'application/pdf' });
+        const upload = await base44.asServiceRole.integrations.Core.UploadFile({ file });
+        const uploadedUrl = upload?.file_url || upload?.url || upload?.data?.file_url;
+        if (!uploadedUrl) throw new Error(`Upload temporário não retornou URL: ${JSON.stringify(upload).slice(0, 300)}`);
 
+        stage = 'analysis';
         const extracted = await base44.asServiceRole.integrations.Core.InvokeLLM({
           prompt: `Analise o extrato bancário brasileiro "${pdf.name}". A competência obrigatória é ${MONTH_NAMES[monthNumber]}/${year}. Extraia banco, conta, saldos, totais e lançamentos. Para cada lançamento use data DD/MM/AAAA, descrição, tipo credito/debito/rendimento, valor positivo e saldo. Não mova o documento para outro mês com base em datas internas; a pasta mensal define a competência do documento.`,
-          file_urls: [upload.file_url],
+          file_urls: [uploadedUrl],
           response_json_schema: {
             type: 'object',
             properties: {
@@ -172,6 +182,7 @@ Deno.serve(async (req) => {
           },
         }) || {};
 
+        stage = 'persist';
         const record = await base44.asServiceRole.entities.MovimentacaoBancaria.create({
           mes: MONTH_NAMES[monthNumber], mes_num: monthNumber, ano: year, tipo: type,
           banco: extracted.banco || 'Não identificado', conta: extracted.conta || '',
@@ -187,7 +198,7 @@ Deno.serve(async (req) => {
         });
         created.push({ arquivo: pdf.name, id: record.id, mes_num: monthNumber, tipo: type });
       } catch (error: any) {
-        errors.push({ arquivo: pdf.name, erro: error?.message || String(error) });
+        errors.push({ arquivo: pdf.name, drive_file_id: pdf.id, etapa: stage, erro: errorMessage(error) });
       }
     }
 
@@ -207,6 +218,6 @@ Deno.serve(async (req) => {
     });
   } catch (error: any) {
     console.error('[lerExtratosBancariosDrive]', error);
-    return Response.json({ success: false, error: error?.message || String(error) }, { status: 500 });
+    return Response.json({ success: false, error: errorMessage(error) }, { status: 500 });
   }
 });
