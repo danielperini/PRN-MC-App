@@ -53,16 +53,23 @@ export default function FluxoCaixaMensal() {
       .sort((a, b) => a.key.localeCompare(b.key))
       .slice(-12)
       .map(grupo => {
-        const resumo = resumirRegistrosMensais(grupo.registros);
+        // Usa totais brutos dos documentos para evitar filtragem excessiva
+        const conta = grupo.registros.filter(r => r.tipo === 'extrato_conta');
+        const rend = grupo.registros.filter(r => r.tipo === 'extrato_rendimento');
+        const creditos = conta.reduce((s, r) => s + Number(r.total_creditos || 0), 0);
+        const debitos = conta.reduce((s, r) => s + Number(r.total_debitos || 0), 0);
+        const rendimento = rend.reduce((s, r) => s + Number(r.total_rendimento || 0), 0)
+          + conta.reduce((s, r) => s + Number(r.total_rendimento || 0), 0);
+        const saldoFinal = conta.length ? Number(conta[conta.length - 1]?.saldo_final || 0) : 0;
         return {
           key: grupo.key,
           ano: grupo.ano,
           mes_num: grupo.mes_num,
           label: `${MESES_CURTO[grupo.mes_num]}/${String(grupo.ano).slice(-2)}`,
-          creditos: resumo.creditos,
-          debitos: resumo.debitos,
-          rendimento: resumo.rendimento,
-          saldo: resumo.saldo,
+          creditos,
+          debitos,
+          rendimento,
+          saldo: saldoFinal || (creditos - debitos + rendimento),
         };
       });
   }, [movimentacoes]);

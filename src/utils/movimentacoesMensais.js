@@ -242,23 +242,34 @@ export function agruparMovimentacoesPorMes(movimentacoes = []) {
 }
 
 export function resumirGruposMensais(grupos = []) {
+  // Usa os totais brutos dos documentos (total_creditos, total_debitos, total_rendimento)
+  // para evitar filtragem excessiva por critérios de classificação que descarta dados válidos.
   return grupos.reduce((totais, grupo) => {
-    const resumo = resumirRegistrosMensais(grupo.registros);
-    totais.creditos += resumo.creditos;
-    totais.debitos += resumo.debitos;
-    totais.rendimento += resumo.rendimento;
-    totais.creditos_nao_operacionais += resumo.creditos_nao_operacionais || 0;
-    totais.debitos_nao_operacionais += resumo.debitos_nao_operacionais || 0;
-    totais.transferencias_internas_ignoradas += resumo.transferencias_internas_ignoradas || 0;
-    totais.devolucoes_estornos_ignorados += resumo.devolucoes_estornos_ignorados || 0;
+    const unicos = deduplicarRegistrosPorDocumento(grupo.registros);
+    const conta = unicos.filter(r => r.tipo === 'extrato_conta');
+    const rend = unicos.filter(r => r.tipo === 'extrato_rendimento');
+
+    // Pega saldo_final do primeiro extrato de conta (mais recente)
+    const contaOrdenada = [...conta].sort((a, b) => dataRegistro(b).localeCompare(dataRegistro(a)));
+    const saldoFinal = contaOrdenada.length ? numero(contaOrdenada[0].saldo_final) : 0;
+
+    // Rendimento: soma do total_rendimento dos registros de rendimento + conta
+    const rendimento = rend.reduce((s, r) => s + numero(r.total_rendimento), 0)
+      + conta.reduce((s, r) => s + numero(r.total_rendimento), 0);
+
+    // Créditos e débitos brutos dos documentos
+    const creditos = conta.reduce((s, r) => s + numero(r.total_creditos), 0);
+    const debitos = conta.reduce((s, r) => s + numero(r.total_debitos), 0);
+
+    totais.creditos += creditos;
+    totais.debitos += debitos;
+    totais.rendimento += rendimento;
+    totais.saldo_final = saldoFinal; // último mês
     return totais;
   }, {
     creditos: 0,
     debitos: 0,
     rendimento: 0,
-    creditos_nao_operacionais: 0,
-    debitos_nao_operacionais: 0,
-    transferencias_internas_ignoradas: 0,
-    devolucoes_estornos_ignorados: 0,
+    saldo_final: 0,
   });
 }
