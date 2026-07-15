@@ -38,6 +38,20 @@ function safeFilename(value: string): string {
     .replace(/-+/g, '-');
 }
 
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+  }
+  return btoa(binary);
+}
+
+function isValidPdf(bytes: Uint8Array): boolean {
+  if (!bytes || bytes.length < 1200) return false;
+  return String.fromCharCode(...bytes.subarray(0, 5)) === '%PDF-';
+}
+
 function wrapText(text: string, font: any, size: number, maxWidth: number): string[] {
   const paragraphs = String(text || '').split(/\n+/);
   const lines: string[] = [];
@@ -291,20 +305,23 @@ Deno.serve(async (request) => {
     }
 
     const pdfBytes = await pdf.save();
-    if (!pdfBytes || pdfBytes.length < 1200 || pdf.getPageCount() < 1) {
+    if (!isValidPdf(pdfBytes) || pdf.getPageCount() < 1) {
       throw new Error('O PDF gerado ficou vazio ou inválido.');
     }
 
     const filename = safeFilename(`Relatorio-Mensal-${report.museu || 'Museus-Centro'}-${report.mes_referencia || ''}-${report.ano || ''}.pdf`);
-    return new Response(pdfBytes, {
+    return Response.json({
+      success: true,
+      pdf_gerado: true,
+      pdf_base64: bytesToBase64(pdfBytes),
+      mime_type: 'application/pdf',
+      filename,
+      size_bytes: pdfBytes.length,
+      page_count: pdf.getPageCount(),
+      ai_narrative: true,
+    }, {
       status: 200,
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${filename}"`,
-        'Content-Length': String(pdfBytes.length),
-        'Cache-Control': 'no-store',
-        'X-Report-AI': 'enabled-with-deterministic-fallback',
-      },
+      headers: { 'Cache-Control': 'no-store' },
     });
   } catch (error) {
     console.error('Erro ao gerar relatório mensal em PDF:', error);
