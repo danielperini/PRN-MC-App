@@ -3,7 +3,8 @@ import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { FolderOpen, Eye, CheckCircle2, AlertTriangle, ChevronDown, ChevronUp, Loader2, Image, ClipboardCheck, Camera, Download } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { FolderOpen, Eye, CheckCircle2, AlertTriangle, ChevronDown, ChevronUp, Loader2, Image, Camera, Download } from 'lucide-react';
 
 const PASTAS_SUGERIDAS = [{ label: 'Relatórios Mensais (pasta padrão)', id: '1gMPRXyamu9YANVFg6Xf7VtWoOoF-3CbQ' }];
 const CACHE_KEYS = ['museus_centro_galeria_fotos_cache_v2', 'museus_centro_galeria_fotos_cache_v3_full', 'museus_centro_galeria_fotos_cache_v4_attachment'];
