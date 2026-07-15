@@ -2,7 +2,7 @@ import { base44 } from '@/api/base44Client';
 import { dedupePhotosByTechnicalIdentity, getPhotoIdentity } from '@/utils/photoSimilarity';
 
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'avif', 'heic'];
-const DEFAULT_CACHE_KEY = 'museus_centro_galeria_fotos_cache_v4_attachment';
+const DEFAULT_CACHE_KEY = 'museus_centro_galeria_fotos_cache_v6_drive_fallback';
 const DEFAULT_TTL = 2 * 60 * 1000;
 const DEFAULT_STALE_TTL = 24 * 60 * 60 * 1000;
 const ENTITY_TIMEOUT_MS = 12000;
@@ -69,18 +69,57 @@ function extractActivityFromName(fileName = '') {
   const match = fileName.match(/__([^_][^_]+(?:_[^_][^_]+)*)__\d+\.\w+$/);
   return match ? match[1].replace(/_/g, ' ').replace(/\s+/g, ' ').trim() : '';
 }
+function extractDriveFileId(item = {}, rawUrl = '') {
+  const explicit = item.drive_file_id || item.google_drive_file_id;
+  if (explicit) return String(explicit).trim();
+  const url = String(rawUrl || '');
+  const pathMatch = url.match(/\/file\/d\/([^/?#]+)/i);
+  if (pathMatch?.[1]) return pathMatch[1];
+  const queryMatch = url.match(/[?&]id=([^&#]+)/i);
+  if (queryMatch?.[1]) return decodeURIComponent(queryMatch[1]);
+  return '';
+}
+function isDrivePageUrl(url = '') {
+  return /drive\.google\.com\/(file\/d\/|open\?|uc\?)/i.test(String(url));
+}
+function resolvePhotoSource(item = {}) {
+  const rawUrl = String(item.file_url || item.url || item.link || item.src || '').trim();
+  const driveFileId = extractDriveFileId(item, rawUrl);
+  const thumbnail = String(item.thumbnail_url || item.thumbnailLink || item.drive_thumbnail_url || '').trim();
+  const candidates = [];
+
+  if (rawUrl && !isDrivePageUrl(rawUrl)) candidates.push(rawUrl);
+  if (thumbnail) candidates.push(thumbnail);
+  if (driveFileId) {
+    candidates.push(`https://drive.google.com/thumbnail?id=${encodeURIComponent(driveFileId)}&sz=w1600`);
+    candidates.push(`https://lh3.googleusercontent.com/d/${encodeURIComponent(driveFileId)}=w1600`);
+  }
+  if (rawUrl) candidates.push(rawUrl);
+
+  const uniqueCandidates = [...new Set(candidates.filter(Boolean))];
+  return {
+    fileUrl: uniqueCandidates[0] || '',
+    fallbackUrls: uniqueCandidates.slice(1),
+    originalFileUrl: rawUrl,
+    driveFileId,
+    legacyDriveUrl: Boolean(rawUrl && isDrivePageUrl(rawUrl)),
+  };
+}
 function mapPhoto(item, sourceEntity = 'Attachment') {
   const metadataLocation = extractLocation(item);
   const sectionKey = resolveSectionKey(item, metadataLocation);
   const section = MUSEUM_SECTIONS[sectionKey] || MUSEUM_SECTIONS.SEM_IDENTIFICACAO;
   const timestamp = normalizeDate(firstValue(item, ['data_foto', 'photo_date', 'taken_at', 'captured_at', 'date_taken']) || item.created_at || item.created_date || item.updated_date);
-  const fileUrl = item.file_url || item.url || item.link || item.src || '';
+  const source = resolvePhotoSource(item);
   const fileName = item.file_name || item.filename || item.name || 'imagem';
   const mapped = {
-    id: `${sourceEntity.toLowerCase()}-${item.id || item.drive_file_id || fileName || timestamp}`,
-    sourceId: item.id || item.drive_file_id || fileName || '',
+    id: `${sourceEntity.toLowerCase()}-${item.id || source.driveFileId || fileName || timestamp}`,
+    sourceId: item.id || source.driveFileId || fileName || '',
     sourceEntity,
-    fileUrl,
+    fileUrl: source.fileUrl,
+    fallbackUrls: source.fallbackUrls,
+    originalFileUrl: source.originalFileUrl,
+    legacyDriveUrl: source.legacyDriveUrl,
     fileName,
     legenda: item.legenda || item.caption || item.titulo || item.title || item.descricao || item.description || extractActivityFromName(fileName),
     description: item.descricao || item.description || item.caption || '',
@@ -95,7 +134,7 @@ function mapPhoto(item, sourceEntity = 'Attachment') {
     reportMes: item.mes_referencia ? `${item.mes_referencia}${item.ano ? `/${item.ano}` : ''}` : '',
     authorName: item.author || item.author_name || '',
     activityTitulo: item.atividade_titulo || item.activity_title || '',
-    driveFileId: item.drive_file_id || item.google_drive_file_id || '',
+    driveFileId: source.driveFileId,
   };
   return { ...mapped, duplicateIdentity: getPhotoIdentity(mapped) };
 }

@@ -7,9 +7,12 @@ import { Input } from '@/components/ui/input';
 import { FolderOpen, Eye, CheckCircle2, AlertTriangle, ChevronDown, ChevronUp, Loader2, Image, Camera, Download } from 'lucide-react';
 
 const PASTAS_SUGERIDAS = [{ label: 'Relatórios Mensais (pasta padrão)', id: '1gMPRXyamu9YANVFg6Xf7VtWoOoF-3CbQ' }];
-const CACHE_KEYS = ['museus_centro_galeria_fotos_cache_v2', 'museus_centro_galeria_fotos_cache_v3_full', 'museus_centro_galeria_fotos_cache_v4_attachment'];
 
-function limparCacheGaleria() { try { CACHE_KEYS.forEach((key) => localStorage.removeItem(key)); } catch { /* cache opcional */ } }
+function limparCacheGaleria() {
+  try {
+    Object.keys(localStorage).filter((key) => key.startsWith('museus_centro_galeria_fotos_cache_')).forEach((key) => localStorage.removeItem(key));
+  } catch { /* cache opcional */ }
+}
 function FotoPreviewCard({ foto }) {
   const concluida = foto.ja_importada && !foto.precisa_reparar;
   return <div className={`space-y-2 rounded-xl border p-3 ${concluida ? 'border-gray-200 bg-gray-50 opacity-60' : foto.precisa_reparar ? 'border-amber-300 bg-amber-50' : 'border-black bg-white'}`}>
