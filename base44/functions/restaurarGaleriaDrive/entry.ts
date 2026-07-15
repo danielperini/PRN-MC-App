@@ -1,241 +1,120 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
+import { authorizeAdminOrCoordinator } from '../_shared/authorization.ts';
 
 const MESES_NOMES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+const TAMANHO_BLOCO = 10;
 
-function normalizeMes(text) {
-  const t = String(text || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-  for (let i = 0; i < MESES_NOMES.length; i++) {
-    const m = MESES_NOMES[i].normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-    if (t.includes(m)) return { mes: MESES_NOMES[i], mesNum: i + 1 };
-  }
-  const match = t.match(/\b(0?[1-9]|1[0-2])\b/);
-  if (match) { const n = parseInt(match[1]); return { mes: MESES_NOMES[n - 1], mesNum: n }; }
-  return null;
+function normalize(value:any){return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' ')}
+function normalizeMes(text:any){
+  const t=normalize(text);
+  for(let i=0;i<MESES_NOMES.length;i++){const mes=normalize(MESES_NOMES[i]);if(t.includes(mes))return{mes:MESES_NOMES[i],mesNum:i+1};}
+  const match=t.match(/(?:^|\D)(0?[1-9]|1[0-2])(?:\D|$)/);if(!match)return null;const n=Number(match[1]);return{mes:MESES_NOMES[n-1],mesNum:n};
 }
-
-function normalizeMuseu(text) {
-  const t = String(text || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-  if (t.includes('mis') || t.includes('imagem') || t.includes('som')) return 'MIS';
-  if (t.includes('mhab') || t.includes('abilio') || t.includes('historico')) return 'MHAB';
-  if (t.includes('mumo') || t.includes('moda')) return 'MUMO';
-  return null;
+function normalizeMuseu(text:any){const t=normalize(text);if(t.includes('mis')||t.includes('imagem')||t.includes('som'))return'MIS';if(t.includes('mhab')||t.includes('abilio')||t.includes('historico'))return'MHAB';if(t.includes('mumo')||t.includes('moda'))return'MUMO';return null}
+function extrairAtividadeDoNome(fileName=''){const match=String(fileName).match(/__([^_][^_]+(?:_[^_][^_]+)*)__\d+\.\w+$/)||String(fileName).match(/^(.+?)__\d{10,}/);return match?match[1].replace(/_/g,' ').replace(/\s+/g,' ').trim():null}
+function formatarData(value:any){if(!value)return'';const d=new Date(value);return Number.isNaN(d.getTime())?String(value):`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`}
+function nomeAtividade(a:any){return a?.titulo||a?.nome||a?.descricao||''}
+function idAtividade(a:any){return a?.id||a?._id||a?.activity_id||null}
+function gerarLegenda(fileName:string,atividade:any,museu:any,mes:any,ano:any){
+  const nome=nomeAtividade(atividade)||extrairAtividadeDoNome(fileName)||'Sem vínculo';
+  const local=atividade?.local||atividade?.local_realizacao||museu||'';
+  const data=formatarData(atividade?.data_realizacao||atividade?.data_inicio)||((mes&&ano)?`${mes}/${ano}`:'');
+  return[nome,local,data].filter(Boolean).join(' — ');
 }
-
-function extrairAtividadeDoNome(fileName) {
-  // Padrão: ATI_timestamp_id__NomeAtividade__timestamp.ext
-  const match = fileName.match(/__([^_][^_]+(?:_[^_][^_]+)*)__\d+\.\w+$/);
-  if (match) {
-    return match[1].replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
-  }
-  // Padrão simples: NomeAtividade__timestamp
-  const match2 = fileName.match(/^(.+?)__\d{10,}/);
-  if (match2) return match2[1].replace(/_/g, ' ').trim();
-  return null;
+function activityScore(atividade:any,fileName:string,museu:any,mes:any,ano:any){
+  const texto=normalize(fileName);const nome=normalize(nomeAtividade(atividade));let score=0;
+  if(nome&&texto&&(texto.includes(nome)||nome.split(' ').filter((p:string)=>p.length>3).some((p:string)=>texto.includes(p))))score+=7;
+  if(museu&&normalize(atividade?.museu||atividade?.local).includes(normalize(museu)))score+=2;
+  const data=atividade?.data_realizacao||atividade?.data_inicio;const d=data?new Date(data):null;
+  if(d&&!Number.isNaN(d.getTime())&&mes&&d.getMonth()+1===mes.mesNum)score+=4;
+  if(d&&!Number.isNaN(d.getTime())&&ano&&d.getFullYear()===ano)score+=2;
+  return score;
 }
-
-function gerarLegenda(fotoNome, atividade, museu, mesNome, ano) {
-  const partes = [];
-  // Tentar extrair nome da atividade do nome do arquivo se não veio do relatório
-  const nomeAtv = atividade?.titulo || atividade?.nome || extrairAtividadeDoNome(fotoNome) || '';
-  if (nomeAtv) partes.push(nomeAtv);
-  const local = atividade?.local || atividade?.local_realizacao || museu || '';
-  if (local) partes.push(local);
-  const dataAtv = atividade?.data_realizacao || atividade?.data_inicio || '';
-  if (dataAtv) {
-    const d = new Date(dataAtv);
-    if (!isNaN(d.getTime())) {
-      partes.push(`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`);
-    } else {
-      partes.push(dataAtv);
+async function listFolderImages(accessToken:string,folderId:string,path:string[]=[]):Promise<any[]>{
+  const out:any[]=[];let pageToken='';
+  do{
+    const q=encodeURIComponent(`'${folderId}' in parents and trashed=false`);
+    const fields=encodeURIComponent('nextPageToken,files(id,name,mimeType,size,md5Checksum,webViewLink,thumbnailLink,createdTime,modifiedTime,parents)');
+    const url=`https://www.googleapis.com/drive/v3/files?q=${q}&fields=${fields}&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true${pageToken?`&pageToken=${encodeURIComponent(pageToken)}`:''}`;
+    const res=await fetch(url,{headers:{Authorization:`Bearer ${accessToken}`}});if(!res.ok)throw new Error(`Google Drive listagem HTTP ${res.status}: ${await res.text()}`);
+    const data=await res.json();
+    for(const item of data.files||[]){
+      if(item.mimeType==='application/vnd.google-apps.folder')out.push(...await listFolderImages(accessToken,item.id,[...path,item.name]));
+      else if(String(item.mimeType||'').startsWith('image/'))out.push({...item,_path:path});
     }
-  } else if (mesNome && ano) {
-    partes.push(`${mesNome}/${ano}`);
-  }
-  return partes.length > 0 ? partes.join(' — ') : (fotoNome || 'Foto');
+    pageToken=data.nextPageToken||'';
+  }while(pageToken);
+  return out;
 }
-
-async function listFolderImages(accessToken, folderId, depth = 0) {
-  if (depth > 8) return [];
-  const q = `'${folderId}' in parents and trashed=false`;
-  const fields = 'files(id,name,mimeType,webViewLink,thumbnailLink,createdTime,parents)';
-  const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=${encodeURIComponent(fields)}&pageSize=1000`;
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
-  const data = await res.json();
-  const items = data.files || [];
-  const imgs = items.filter(f => f.mimeType?.startsWith('image/'));
-  const folders = items.filter(f => f.mimeType === 'application/vnd.google-apps.folder');
-  const BATCH = 5;
-  for (let i = 0; i < folders.length; i += BATCH) {
-    const batch = folders.slice(i, i + BATCH);
-    const results = await Promise.all(batch.map(sf => listFolderImages(accessToken, sf.id, depth + 1)));
-    for (const r of results) imgs.push(...r);
-  }
-  return imgs;
+async function baixarEEnviar(base44:any,accessToken:string,img:any){
+  const download=await fetch(`https://www.googleapis.com/drive/v3/files/${img.id}?alt=media&supportsAllDrives=true`,{headers:{Authorization:`Bearer ${accessToken}`}});
+  if(!download.ok)throw new Error(`Download Drive HTTP ${download.status}: ${await download.text()}`);
+  const bytes=await download.arrayBuffer();if(!bytes.byteLength)throw new Error('Arquivo baixado do Drive está vazio.');
+  const file=new File([bytes],img.name,{type:img.mimeType||'image/jpeg'});
+  const upload=await base44.asServiceRole.integrations.Core.UploadFile({file});
+  const fileUrl=upload?.file_url||upload?.url||upload?.data?.file_url;
+  if(!fileUrl)throw new Error('Upload para o armazenamento do Base44 não retornou URL.');
+  return fileUrl;
 }
+function urlEhDrive(url:any){return /drive\.google\.com|googleusercontent\.com/i.test(String(url||''))}
 
-Deno.serve(async (req) => {
-  try {
-    const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-    if (!user) return Response.json({ error: 'Não autorizado' }, { status: 401 });
-    if (user.role !== 'admin' && !['coordenador','coordinator'].includes(String(user.base_role || '').toLowerCase())) {
-      return Response.json({ error: 'Acesso restrito' }, { status: 403 });
-    }
+Deno.serve(async(req)=>{
+  try{
+    const base44=createClientFromRequest(req);
+    const authorization=await authorizeAdminOrCoordinator(base44);if(!authorization.ok)return authorization.response;
+    const user=authorization.user;
+    const body=await req.json().catch(()=>({}));const folderId=String(body.folder_id||'').trim();const modo=String(body.modo||'preview');
+    if(!folderId)return Response.json({success:false,error:'folder_id obrigatório'},{status:400});
+    const connection=await base44.asServiceRole.connectors.getConnection('googledrive').catch(()=>null);const accessToken=connection?.accessToken;
+    if(!accessToken)return Response.json({success:false,code:'DRIVE_NOT_CONNECTED',error:'Google Drive não está conectado.'},{status:401});
 
-    const body = await req.json().catch(() => ({}));
-    const { folder_id, modo = 'preview' } = body;
+    const [imagens,reports,fotosExistentes,attachments]=await Promise.all([
+      listFolderImages(accessToken,folderId),
+      base44.asServiceRole.entities.Report.list('-created_date',3000).catch(()=>[]),
+      base44.asServiceRole.entities.ReportPhoto.list('-created_date',5000).catch(()=>[]),
+      base44.asServiceRole.entities.Attachment.list('-created_date',5000).catch(()=>[]),
+    ]);
+    const existentePorDrive=new Map<string,any>();
+    [...fotosExistentes,...attachments].forEach((foto:any)=>{const id=foto?.drive_file_id||foto?.google_drive_file_id;if(id&&!existentePorDrive.has(id))existentePorDrive.set(id,foto)});
+    const resultados:any[]=[];
 
-    if (!folder_id) return Response.json({ error: 'folder_id obrigatório' }, { status: 400 });
-
-    const { accessToken } = await base44.asServiceRole.connectors.getConnection('googledrive');
-
-    // Listar todas as imagens da pasta recursivamente
-    const imagens = await listFolderImages(accessToken, folder_id);
-
-    // Carregar relatórios existentes para vincular
-    const reports = await base44.asServiceRole.entities.Report.list('-created_date', 500).catch(() => []);
-
-    // Carregar ReportPhotos existentes para deduplicar
-    const fotosExistentes = await base44.asServiceRole.entities.ReportPhoto.list('-created_date', 2000).catch(() => []);
-    const driveIdsExistentes = new Set(fotosExistentes.map(f => f.drive_file_id).filter(Boolean));
-
-    const resultados = [];
-
-    for (const img of imagens) {
-      // Verificar se já foi importada
-      const jaExiste = driveIdsExistentes.has(img.id);
-
-      // Detectar museu e mês pelo nome do arquivo / pasta
-      const museuDetectado = normalizeMuseu(img.name);
-      const mesDetectado = normalizeMes(img.name);
-      const ano = img.createdTime ? new Date(img.createdTime).getFullYear() : new Date().getFullYear();
-
-      // Extrair nome de atividade do nome do arquivo
-      const atividadeNomeDoArquivo = extrairAtividadeDoNome(img.name);
-
-      // Tentar vincular a um relatório — primeiro pelo museu+mês, depois apenas pelo mês/ano
-      let reportVinculado = null;
-      if (museuDetectado && mesDetectado) {
-        reportVinculado = reports.find(r => {
-          const museuOk = normalizeMuseu(r.museu) === museuDetectado;
-          const mesOk = String(r.mes_referencia || '').toLowerCase() === mesDetectado.mes;
-          const anoOk = !r.ano || r.ano === ano;
-          return museuOk && mesOk && anoOk;
-        }) || null;
-      }
-      // Fallback: qualquer relatório do mesmo mês/ano que tenha a atividade
-      if (!reportVinculado && mesDetectado && atividadeNomeDoArquivo) {
-        const nomeNorm = atividadeNomeDoArquivo.toLowerCase();
-        reportVinculado = reports.find(r => {
-          const mesOk = String(r.mes_referencia || '').toLowerCase() === mesDetectado.mes;
-          const anoOk = !r.ano || r.ano === ano;
-          const atividades = Array.isArray(r.atividades) ? r.atividades : [];
-          const temAtividade = atividades.some(a => {
-            const t = String(a.titulo || a.nome || '').toLowerCase();
-            return t && nomeNorm && (t.includes(nomeNorm.split(' ')[0]) || nomeNorm.includes(t.split(' ')[0]));
-          });
-          return mesOk && anoOk && temAtividade;
-        }) || null;
-      }
-
-      // Tentar vincular atividade dentro do relatório
-      const atividades = Array.isArray(reportVinculado?.atividades) ? reportVinculado.atividades : [];
-      const atividadeVinculada = atividades.find((a) => {
-        const titulo = String(a.titulo || a.nome || '').toLowerCase();
-        const imgNomeLower = img.name.toLowerCase();
-        const nomeArquivoNorm = (atividadeNomeDoArquivo || '').toLowerCase();
-        return titulo && (
-          (nomeArquivoNorm && (nomeArquivoNorm.includes(titulo.split(' ')[0]) || titulo.includes(nomeArquivoNorm.split(' ')[0]))) ||
-          imgNomeLower.includes(titulo.split(' ')[0])
-        );
-      }) || atividades[0] || null;
-
-      // Gerar legenda automática
-      const legenda = gerarLegenda(
-        img.name,
-        atividadeVinculada,
-        museuDetectado || (reportVinculado?.museu),
-        mesDetectado?.mes || reportVinculado?.mes_referencia,
-        ano
-      );
-
-      // Nome padronizado
-      const museuStr = (museuDetectado || reportVinculado?.museu || 'GERAL').toUpperCase();
-      const mesStr = String(mesDetectado?.mesNum || '00').padStart(2, '0');
-      const ext = img.name.split('.').pop().toLowerCase();
-      const nomePad = `GALERIA_${museuStr}_${mesStr}_${ano}_${img.name.replace(/\s+/g,'_').substring(0, 40)}`.replace(/[^a-zA-Z0-9_\-.]/g, '_');
-
-      const item = {
-        drive_file_id: img.id,
-        drive_nome_original: img.name,
-        drive_url: img.webViewLink,
-        thumbnail_url: img.thumbnailLink || img.webViewLink,
-        file_name: nomePad,
-        legenda,
-        museu: museuDetectado || reportVinculado?.museu || null,
-        mes: mesDetectado?.mes || reportVinculado?.mes_referencia || null,
-        mes_num: mesDetectado?.mesNum || null,
-        ano,
-        report_id: reportVinculado?.id || null,
-        report_autor: reportVinculado?.author_name || null,
-        atividade_titulo: atividadeVinculada?.titulo || atividadeVinculada?.nome || null,
-        atividade_data: atividadeVinculada?.data_realizacao || atividadeVinculada?.data_inicio || null,
-        ja_importada: jaExiste,
-        selecionada: !jaExiste,
-      };
-      resultados.push(item);
-    }
-
-    if (modo === 'confirmar') {
-      // Importar as selecionadas
-      const selecionadas = resultados.filter(r => !r.ja_importada);
-      let criadas = 0;
-      let erros = 0;
-
-      for (const foto of selecionadas) {
-        await base44.asServiceRole.entities.ReportPhoto.create({
-          report_id: foto.report_id || '',
-          file_name: foto.file_name,
-          file_url: foto.drive_url,
-          drive_file_id: foto.drive_file_id,
-          caption: foto.legenda,
-          mes_referencia: foto.mes || '',
-          ano: foto.ano,
-          author: foto.report_autor || '',
-        }).then(() => { criadas++; }).catch(() => { erros++; });
-      }
-
-      // Audit log
-      await base44.asServiceRole.entities.AuditLog.create({
-        action: 'CREATE',
-        entity_type: 'REPORT_PHOTO',
-        entity_id: 'batch',
-        actor_email: user.email,
-        actor_name: user.full_name || user.email,
-        details: `Restauração galeria Drive: ${criadas} fotos importadas, ${erros} erros. Pasta: ${folder_id}`,
-      }).catch(() => {});
-
-      return Response.json({
-        success: true,
-        modo: 'confirmar',
-        total_analisadas: imagens.length,
-        total_criadas: criadas,
-        total_erros: erros,
-        total_ja_existiam: resultados.filter(r => r.ja_importada).length,
+    for(const img of imagens){
+      const contexto=[...(img._path||[]),img.name].join(' ');const museuDetectado=normalizeMuseu(contexto);const mesDetectado=normalizeMes(contexto);const anoMatch=contexto.match(/20\d{2}/);const ano=anoMatch?Number(anoMatch[0]):new Date(img.createdTime||Date.now()).getFullYear();
+      let reportVinculado:any=null;
+      const candidatos=(reports||[]).filter((report:any)=>{
+        const museuOk=!museuDetectado||normalizeMuseu(report.museu)===museuDetectado;
+        const mesOk=!mesDetectado||normalize(report.mes_referencia)===normalize(mesDetectado.mes)||Number(report.mes_num)===mesDetectado.mesNum;
+        const anoOk=!report.ano||Number(report.ano)===ano;return museuOk&&mesOk&&anoOk;
       });
+      reportVinculado=candidatos[0]||null;
+      const atividades=(reportVinculado?.atividades||reportVinculado?.activities||reportVinculado?.atividades_realizadas||[]).filter(Boolean);
+      const ranked=atividades.map((atividade:any)=>({atividade,score:activityScore(atividade,img.name,museuDetectado,mesDetectado,ano)})).sort((a:any,b:any)=>b.score-a.score);
+      const atividadeVinculada=ranked[0]?.score>=4?ranked[0].atividade:null;
+      if(!reportVinculado&&ranked[0]?.atividade)reportVinculado=reports.find((r:any)=>(r.atividades||[]).some((a:any)=>idAtividade(a)===idAtividade(ranked[0].atividade)))||null;
+      const existente=existentePorDrive.get(img.id);const precisaDownload=!existente||!existente.file_url||urlEhDrive(existente.file_url);
+      const legenda=gerarLegenda(img.name,atividadeVinculada,museuDetectado||reportVinculado?.museu,mesDetectado?.mes||reportVinculado?.mes_referencia,ano);
+      const museu=String(museuDetectado||reportVinculado?.museu||'').toUpperCase()||null;const mes=mesDetectado?.mes||reportVinculado?.mes_referencia||null;
+      const nomePad=`GALERIA_${museu||'GERAL'}_${String(mesDetectado?.mesNum||'00').padStart(2,'0')}_${ano}_${img.name.replace(/\s+/g,'_').slice(0,60)}`.replace(/[^a-zA-Z0-9_.-]/g,'_');
+      resultados.push({drive_file_id:img.id,drive_nome_original:img.name,drive_url:img.webViewLink,thumbnail_url:img.thumbnailLink||'',file_name:nomePad,mime_type:img.mimeType,size_bytes:Number(img.size||0),md5_checksum:img.md5Checksum||'',legenda,museu,mes,mes_num:mesDetectado?.mesNum||null,ano,report_id:reportVinculado?.id||null,report_autor:reportVinculado?.author_name||'',atividade_id:idAtividade(atividadeVinculada),atividade_titulo:nomeAtividade(atividadeVinculada)||null,atividade_data:atividadeVinculada?.data_realizacao||atividadeVinculada?.data_inicio||null,ja_importada:Boolean(existente&&!precisaDownload),precisa_reparar:Boolean(existente&&precisaDownload),selecionada:precisaDownload});
     }
 
-    // Modo preview
-    return Response.json({
-      success: true,
-      modo: 'preview',
-      total_imagens: imagens.length,
-      total_novas: resultados.filter(r => !r.ja_importada).length,
-      total_ja_importadas: resultados.filter(r => r.ja_importada).length,
-      resultados,
-    });
+    if(modo!=='confirmar')return Response.json({success:true,modo:'preview',total_imagens:imagens.length,total_novas:resultados.filter(r=>!r.ja_importada&&!r.precisa_reparar).length,total_reparar:resultados.filter(r=>r.precisa_reparar).length,total_ja_importadas:resultados.filter(r=>r.ja_importada).length,resultados});
 
-  } catch (error) {
-    return Response.json({ error: (error as Error).message }, { status: 500 });
-  }
+    const selecionadas=resultados.filter(r=>!r.ja_importada||r.precisa_reparar);let criadas=0;let reparadas=0;let erros=0;const falhas:any[]=[];const totalBlocos=Math.ceil(selecionadas.length/TAMANHO_BLOCO);
+    for(let inicio=0;inicio<selecionadas.length;inicio+=TAMANHO_BLOCO){
+      const bloco=selecionadas.slice(inicio,inicio+TAMANHO_BLOCO);const blocoAtual=Math.floor(inicio/TAMANHO_BLOCO)+1;
+      for(const foto of bloco){
+        try{
+          const img=imagens.find(i=>i.id===foto.drive_file_id);if(!img)throw new Error('Arquivo não localizado no lote do Drive.');
+          const fileUrl=await baixarEEnviar(base44,accessToken,img);const existente=existentePorDrive.get(foto.drive_file_id);
+          const payload={report_id:foto.report_id||'',file_name:foto.file_name,file_url:fileUrl,drive_file_id:foto.drive_file_id,caption:foto.legenda,mes_referencia:foto.mes||'',ano:foto.ano,author:foto.report_autor||''};
+          if(existente?.id&&fotosExistentes.some((item:any)=>item.id===existente.id)){await base44.asServiceRole.entities.ReportPhoto.update(existente.id,payload);reparadas++;}
+          else{await base44.asServiceRole.entities.ReportPhoto.create(payload);criadas++;}
+          existentePorDrive.set(foto.drive_file_id,{...payload,id:existente?.id||foto.drive_file_id});
+        }catch(error:any){erros++;falhas.push({drive_file_id:foto.drive_file_id,arquivo:foto.drive_nome_original,erro:String(error?.message||error),bloco:blocoAtual});}
+      }
+    }
+    await base44.asServiceRole.entities.AuditLog.create({action:'CREATE',entity_type:'REPORT_PHOTO',entity_id:'batch',actor_email:user.email,actor_name:user.full_name||user.email,details:`Restauração real do Drive: ${criadas} criadas, ${reparadas} reparadas, ${erros} erros em ${totalBlocos} blocos. Pasta: ${folderId}`}).catch(()=>{});
+    return Response.json({success:erros===0,modo:'confirmar',total_analisadas:imagens.length,total_processadas:selecionadas.length,total_criadas:criadas,total_reparadas:reparadas,total_erros:erros,total_ja_existiam:resultados.filter(r=>r.ja_importada).length,total_blocos:totalBlocos,falhas});
+  }catch(error:any){return Response.json({success:false,error:String(error?.message||error)},{status:500})}
 });
