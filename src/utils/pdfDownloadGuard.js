@@ -12,36 +12,37 @@ function safeFilename(value = 'relatorio.pdf') {
   return normalized.toLowerCase().endsWith('.pdf') ? normalized : `${normalized}.pdf`;
 }
 
-function filenameFromPayload(payload = {}) {
+function filenameFromPayload(payload = {}, response = {}) {
+  const returned = response?.data?.filename || response?.filename;
+  if (returned) return safeFilename(returned);
   const suffix = [payload?.mes || payload?.mes_referencia, payload?.ano, payload?.reportId]
     .filter(Boolean)
     .join('-');
   return safeFilename(suffix ? `Relatorio-Mensal-${suffix}.pdf` : 'Relatorio-Mensal.pdf');
 }
 
+function isValidPdfBytes(bytes) {
+  if (!(bytes instanceof Uint8Array) || bytes.byteLength < 1000) return false;
+  const header = String.fromCharCode(...bytes.subarray(0, 5));
+  if (header !== '%PDF-') return false;
+  const tailStart = Math.max(0, bytes.byteLength - 2048);
+  const tail = new TextDecoder('latin1').decode(bytes.subarray(tailStart));
+  return tail.includes('%%EOF');
+}
+
 function bytesToBlob(bytes) {
-  if (!bytes?.length) return null;
-  const array = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  const array = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []);
+  if (!isValidPdfBytes(array)) return null;
   return new Blob([array], { type: 'application/pdf' });
 }
 
-function decodeString(value) {
-  const raw = String(value || '');
-  if (!raw) return null;
-
-  if (raw.startsWith('%PDF-')) {
-    const bytes = new Uint8Array(raw.length);
-    for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i) & 0xff;
-    return bytesToBlob(bytes);
-  }
-
-  const base64 = raw.replace(/^data:application\/pdf;base64,/i, '').trim();
-  if (base64.length < 16) return null;
-
+function decodeBase64(value) {
+  const raw = String(value || '').replace(/^data:application\/pdf;base64,/i, '').replace(/\s/g, '');
+  if (raw.length < 100) return null;
   try {
-    const binary = window.atob(base64);
+    const binary = window.atob(raw);
     const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
     return bytesToBlob(bytes);
   } catch {
     return null;
@@ -50,49 +51,35 @@ function decodeString(value) {
 
 function candidateToBlob(candidate) {
   if (!candidate) return null;
-  if (candidate instanceof Blob) return candidate.size ? candidate : null;
-  if (candidate instanceof ArrayBuffer) return candidate.byteLength ? new Blob([candidate], { type: 'application/pdf' }) : null;
-  if (candidate instanceof Uint8Array) return candidate.byteLength ? bytesToBlob(candidate) : null;
-  if (Array.isArray(candidate)) return bytesToBlob(candidate);
-  if (typeof candidate === 'string') return decodeString(candidate);
+  if (candidate instanceof Blob) {
+    return candidate.type === 'application/pdf' && candidate.size > 1000 ? candidate : null;
+  }
+  if (candidate instanceof ArrayBuffer) return bytesToBlob(new Uint8Array(candidate));
+  if (candidate instanceof Uint8Array) return bytesToBlob(candidate);
+  if (Array.isArray(candidate)) return bytesToBlob(new Uint8Array(candidate));
+  if (typeof candidate === 'string') return decodeBase64(candidate);
 
   if (typeof candidate === 'object') {
-    if (Array.isArray(candidate.data)) return bytesToBlob(candidate.data);
-    if (candidate.type === 'Buffer' && Array.isArray(candidate.data)) return bytesToBlob(candidate.data);
-    for (const key of ['pdf_base64', 'base64', 'body', 'content', 'pdf', 'file', 'blob']) {
-      const blob = candidateToBlob(candidate[key]);
-      if (blob) return blob;
-    }
+    if (typeof candidate.pdf_base64 === 'string') return decodeBase64(candidate.pdf_base64);
+    if (typeof candidate.base64 === 'string') return decodeBase64(candidate.base64);
+    if (candidate.type === 'Buffer' && Array.isArray(candidate.data)) return bytesToBlob(new Uint8Array(candidate.data));
+    if (Array.isArray(candidate.data)) return bytesToBlob(new Uint8Array(candidate.data));
   }
-
   return null;
 }
 
 function normalizePdfResult(response) {
   const payload = response?.data ?? response;
-  const directUrl = payload?.pdf_url || payload?.download_url || payload?.file_url || payload?.url
-    || payload?.arquivo_url || payload?.data?.pdf_url || payload?.data?.download_url;
-
-  if (typeof directUrl === 'string' && /^(blob:|data:application\/pdf|https?:)/i.test(directUrl)) {
+  const directUrl = payload?.pdf_url || payload?.download_url || payload?.file_url || payload?.arquivo_url;
+  if (typeof directUrl === 'string' && /^(blob:|https?:)/i.test(directUrl)) {
     return { url: directUrl, isObjectUrl: directUrl.startsWith('blob:') };
   }
 
-  const candidates = [
-    response,
-    response?.data,
-    response?.body,
-    response?.blob,
-    payload,
-    payload?.data,
-    payload?.body,
-    payload?.result,
-  ];
-
+  const candidates = [payload, payload?.data, response, response?.body, response?.blob];
   for (const candidate of candidates) {
     const blob = candidateToBlob(candidate);
-    if (blob?.size) return { url: URL.createObjectURL(blob), isObjectUrl: true };
+    if (blob) return { url: URL.createObjectURL(blob), isObjectUrl: true };
   }
-
   return null;
 }
 
@@ -113,7 +100,6 @@ function triggerDownload(url, filename) {
 
 function showFallbackPanel(url, filename) {
   removeFallbackPanel();
-
   const panel = document.createElement('div');
   panel.id = FALLBACK_PANEL_ID;
   Object.assign(panel.style, {
@@ -124,11 +110,11 @@ function showFallbackPanel(url, filename) {
   });
 
   const title = document.createElement('strong');
-  title.textContent = 'PDF pronto para download';
+  title.textContent = 'PDF validado e pronto';
   title.style.display = 'block';
 
   const description = document.createElement('p');
-  description.textContent = 'Clique em “Baixar PDF”. O link permanece ativo por 10 minutos.';
+  description.textContent = 'O arquivo foi validado. Clique abaixo para baixar.';
   Object.assign(description.style, { margin: '6px 0 12px', fontSize: '12px' });
 
   const downloadButton = document.createElement('button');
@@ -157,18 +143,20 @@ function showFallbackPanel(url, filename) {
 
 function exposePdfResponse(response, functionName, requestPayload, protectedPdfUrls) {
   if (!PDF_FUNCTIONS.has(functionName)) return response;
-
   const prepared = normalizePdfResult(response);
+
   if (!prepared?.url) {
     const normalized = response && typeof response === 'object' ? response : {};
     if (!normalized.data || typeof normalized.data !== 'object') normalized.data = {};
-    normalized.data.error = normalized.data.error || 'A função gerou uma resposta sem arquivo PDF utilizável.';
+    normalized.data.error = normalized.data.error || 'O arquivo retornado não é um PDF válido.';
+    normalized.data.pdf_url = '';
     return normalized;
   }
 
-  const filename = filenameFromPayload(requestPayload);
+  const filename = filenameFromPayload(requestPayload, response);
   if (prepared.isObjectUrl) protectedPdfUrls.set(prepared.url, Date.now() + PDF_URL_LIFETIME_MS);
   showFallbackPanel(prepared.url, filename);
+  triggerDownload(prepared.url, filename);
 
   if (response && typeof response === 'object') {
     if (!response.data || typeof response.data !== 'object' || response.data instanceof Blob) response.data = {};
@@ -176,7 +164,6 @@ function exposePdfResponse(response, functionName, requestPayload, protectedPdfU
     response.data.download_url = prepared.url;
     response.data.pdf_filename = filename;
   }
-
   return response;
 }
 
@@ -186,22 +173,39 @@ export function installPdfDownloadGuard() {
   window.__pdfDownloadGuardInstalled = true;
 
   const nativeRevokeObjectURL = URL.revokeObjectURL.bind(URL);
+  const nativeWindowOpen = window.open.bind(window);
   const protectedPdfUrls = new Map();
+  const protectedPdfFiles = new Map();
   const originalInvoke = base44?.functions?.invoke?.bind(base44.functions);
 
   if (originalInvoke && !base44.functions.__pdfInvokeWrapped) {
     base44.functions.invoke = async (functionName, payload, ...rest) => {
       const response = await originalInvoke(functionName, payload, ...rest);
-      return exposePdfResponse(response, functionName, payload || {}, protectedPdfUrls);
+      const exposed = exposePdfResponse(response, functionName, payload || {}, protectedPdfUrls);
+      const url = exposed?.data?.pdf_url;
+      const filename = exposed?.data?.pdf_filename || 'relatorio.pdf';
+      if (url && protectedPdfUrls.has(url)) protectedPdfFiles.set(url, filename);
+      return exposed;
     };
     base44.functions.__pdfInvokeWrapped = true;
   }
+
+  window.open = (url, target, features) => {
+    const normalizedUrl = String(url || '');
+    if (protectedPdfFiles.has(normalizedUrl)) {
+      triggerDownload(normalizedUrl, protectedPdfFiles.get(normalizedUrl));
+      showFallbackPanel(normalizedUrl, protectedPdfFiles.get(normalizedUrl));
+      return window;
+    }
+    return nativeWindowOpen(url, target, features);
+  };
 
   URL.revokeObjectURL = (url) => {
     const remaining = (protectedPdfUrls.get(url) || 0) - Date.now();
     if (remaining > 0) {
       window.setTimeout(() => {
         protectedPdfUrls.delete(url);
+        protectedPdfFiles.delete(url);
         nativeRevokeObjectURL(url);
       }, remaining);
       return;
