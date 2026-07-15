@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
 
-    // Autenticação — aceita admin ou coordenador
+    // Autenticação — qualquer usuário autenticado pode pré-visualizar
     let user: any = null;
     try {
       user = await base44.auth.me();
@@ -97,18 +97,6 @@ Deno.serve(async (req) => {
       return Response.json({ success: false, error: 'Não autenticado.' }, { status: 401 });
     }
     if(!user) return Response.json({ success: false, error: 'Não autenticado.' }, { status: 401 });
-
-    const COORD_EMAILS = [
-      'danielperini@viadutodasartes.org.br',
-      'josiane@viadutodasartes.org.br',
-      'marcos@viadutodasartes.org.br',
-      'daniel.perini@viadutodasartes.org.br',
-    ];
-    const isAdmin = user.role === 'admin';
-    const isCoord = COORD_EMAILS.some(e => e.toLowerCase() === (user.email || '').toLowerCase());
-    if(!isAdmin && !isCoord){
-      return Response.json({ success: false, error: 'Acesso negado. Apenas administradores e coordenadores podem restaurar a galeria.' }, { status: 403 });
-    }
 
     const body = await req.json().catch(() => ({}));
     const folderId = String(body.folder_id || '').trim();
