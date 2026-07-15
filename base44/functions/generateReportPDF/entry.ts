@@ -1,317 +1,366 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 import { jsPDF } from 'npm:jspdf@4.0.0';
-import 'npm:jspdf-autotable@3.5.31';
 
-const BASE_FONT = 12;
-const SECTION_FONT = 13;
-const LABEL_FONT = 11;
+const FONT_REGULAR_URL = 'https://raw.githubusercontent.com/googlefonts/noto-fonts/main/hinted/ttf/NotoSans/NotoSans-Regular.ttf';
+const FONT_BOLD_URL = 'https://raw.githubusercontent.com/googlefonts/noto-fonts/main/hinted/ttf/NotoSans/NotoSans-Bold.ttf';
+const PAGE_MARGIN = 15;
+const LINE_HEIGHT = 5.2;
 
-function sectionHeader(doc, text, y, pageWidth) {
-  doc.setFillColor(30, 64, 120);
-  doc.rect(10, y - 5, pageWidth - 20, 8, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(SECTION_FONT);
-  doc.setFont(undefined, 'bold');
-  doc.text(text, 15, y + 1);
-  return y + 10;
-}
+const STATUS_LABELS: Record<string, string> = {
+  DRAFT: 'Rascunho',
+  SUBMITTED: 'Enviado para revisão',
+  IN_REVIEW: 'Em revisão',
+  RETURNED: 'Devolvido para correção',
+  APPROVED: 'Aprovado',
+  ARCHIVED: 'Arquivado',
+};
 
-function checkPage(doc, y, pageHeight) {
-  if (y > pageHeight - 40) {
-    doc.addPage();
-    return 20;
+function toBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const chunk = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunk));
   }
-  return y;
+  return btoa(binary);
 }
 
-async function fetchImageBase64(url) {
+async function installUnicodeFonts(doc: jsPDF) {
   try {
-    const res = await fetch(url);
-    const buf = await res.arrayBuffer();
-    return btoa(String.fromCharCode(...new Uint8Array(buf)));
-  } catch {
+    const [regularResponse, boldResponse] = await Promise.all([
+      fetch(FONT_REGULAR_URL),
+      fetch(FONT_BOLD_URL),
+    ]);
+    if (!regularResponse.ok || !boldResponse.ok) throw new Error('Falha ao carregar fontes Unicode.');
+
+    const regular = toBase64(new Uint8Array(await regularResponse.arrayBuffer()));
+    const bold = toBase64(new Uint8Array(await boldResponse.arrayBuffer()));
+    doc.addFileToVFS('NotoSans-Regular.ttf', regular);
+    doc.addFont('NotoSans-Regular.ttf', 'NotoSans', 'normal');
+    doc.addFileToVFS('NotoSans-Bold.ttf', bold);
+    doc.addFont('NotoSans-Bold.ttf', 'NotoSans', 'bold');
+    doc.setFont('NotoSans', 'normal');
+    return true;
+  } catch (error) {
+    console.warn('[generateReportPDF] Fonte Unicode indisponível:', error);
+    doc.setFont('helvetica', 'normal');
+    return false;
+  }
+}
+
+function cleanText(value: unknown): string {
+  return String(value ?? '')
+    .replace(/\uFFFD/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function listText(value: unknown): string {
+  if (Array.isArray(value)) return value.map(cleanText).filter(Boolean).join(', ');
+  return cleanText(value);
+}
+
+function formatDate(value: unknown): string {
+  if (!value) return '';
+  const date = new Date(String(value));
+  return Number.isNaN(date.getTime()) ? cleanText(value) : date.toLocaleDateString('pt-BR');
+}
+
+function formatNumber(value: unknown): string {
+  const number = Number(value || 0);
+  return Number.isFinite(number) ? new Intl.NumberFormat('pt-BR').format(number) : '0';
+}
+
+function firstValue(...values: unknown[]): string {
+  for (const value of values) {
+    const text = listText(value);
+    if (text) return text;
+  }
+  return '';
+}
+
+function resolvePhotoUrl(photo: any): string {
+  return firstValue(photo?.file_url, photo?.url, photo?.src, photo?.link, photo?.arquivo_url, photo?.thumbnail_url);
+}
+
+function resolvePhotoCaption(photo: any): string {
+  return firstValue(photo?.caption, photo?.legenda, photo?.descricao, photo?.description, photo?.file_name, photo?.fileName, 'Registro fotográfico');
+}
+
+async function fetchImage(url: string): Promise<{ dataUrl: string; format: string } | null> {
+  if (!url) return null;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (!bytes.length) return null;
+
+    let format = 'JPEG';
+    let mime = 'image/jpeg';
+    if (contentType.includes('png')) { format = 'PNG'; mime = 'image/png'; }
+    else if (contentType.includes('webp')) { format = 'WEBP'; mime = 'image/webp'; }
+    else if (contentType.includes('jpeg') || contentType.includes('jpg')) { format = 'JPEG'; mime = 'image/jpeg'; }
+    else if (bytes[0] === 0x89 && bytes[1] === 0x50) { format = 'PNG'; mime = 'image/png'; }
+
+    return { dataUrl: `data:${mime};base64,${toBase64(bytes)}`, format };
+  } catch (error) {
+    console.warn('[generateReportPDF] Falha ao carregar imagem:', url, error);
     return null;
   }
 }
 
-Deno.serve(async (req) => {
+Deno.serve(async (request) => {
   try {
-    const base44 = createClientFromRequest(req);
-    const { reportId, selectedFields = [], assinatura = '', coverPhotoIds = [] } = await req.json();
+    const base44 = createClientFromRequest(request);
+    const body = await request.json().catch(() => ({}));
+    const reportId = body?.reportId;
+    const selectedFields = Array.isArray(body?.selectedFields)
+      ? body.selectedFields
+      : Array.isArray(body?.secoes)
+        ? body.secoes
+        : [];
+    const assinatura = cleanText(body?.assinatura);
 
-    if (!reportId) return Response.json({ error: 'reportId é obrigatório' }, { status: 400 });
+    if (!reportId) return Response.json({ error: 'reportId é obrigatório.' }, { status: 400 });
 
     const report = await base44.entities.Report.get(reportId);
-    if (!report) return Response.json({ error: 'Relatório não encontrado' }, { status: 404 });
+    if (!report) return Response.json({ error: 'Relatório não encontrado.' }, { status: 404 });
 
-    const include = (field) => selectedFields.length === 0 || selectedFields.includes(field);
+    const include = (field: string) => selectedFields.length === 0 || selectedFields.includes(field);
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+    await installUnicodeFonts(doc);
 
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
-    let y = 15;
+    const contentWidth = pageWidth - PAGE_MARGIN * 2;
+    let y = PAGE_MARGIN;
 
-    // ===== CABEÇALHO =====
-    doc.setFillColor(245, 247, 252);
-    doc.rect(0, 0, pageWidth, 38, 'F');
-    doc.setTextColor(30, 64, 120);
-    doc.setFontSize(18);
-    doc.setFont(undefined, 'bold');
-    doc.text('MUSEUS CENTRO', 15, y + 6);
-    doc.setFontSize(BASE_FONT - 2);
-    doc.setFont(undefined, 'normal');
-    doc.setTextColor(100, 100, 100);
-    doc.text('Relatório Executivo Mensal — Belo Horizonte', 15, y + 13);
-    doc.setFontSize(BASE_FONT - 3);
-    doc.setFont(undefined, 'italic');
-    doc.text(`Protocolo: ${report.numero_protocolo || '-'}   |   Emitido em: ${new Date().toLocaleDateString('pt-BR')}`, 15, y + 19);
-    doc.setDrawColor(30, 64, 120);
-    doc.setLineWidth(0.5);
-    doc.line(10, y + 22, pageWidth - 10, y + 22);
-    y += 30;
-
-    doc.setTextColor(0, 0, 0);
-    doc.setFont(undefined, 'normal');
-
-    // ===== IDENTIFICAÇÃO =====
-    if (include('identificacao')) {
-      y = sectionHeader(doc, 'IDENTIFICAÇÃO DO RELATÓRIO', y, pageWidth);
-      const fields = [
-        ['Profissional', report.author_name || '-'],
-        ['Função', report.funcao || '-'],
-        ['Museu', report.museu || '-'],
-        ['Museu Secundário', report.museu_secundario || '-'],
-        ['Equipe', report.equipe || '-'],
-        ['Período', `${report.mes_referencia || '-'} / ${report.ano || '-'}`],
-        ['Status', report.status || 'DRAFT'],
-      ];
-      doc.setFontSize(BASE_FONT);
-      for (const [label, value] of fields) {
-        y = checkPage(doc, y, pageHeight);
-        doc.setFont(undefined, 'bold');
-        doc.text(`${label}:`, 15, y);
-        doc.setFont(undefined, 'normal');
-        doc.text(String(value), 60, y);
-        y += 6;
+    const ensureSpace = (height = 12) => {
+      if (y + height > pageHeight - 18) {
+        doc.addPage();
+        y = PAGE_MARGIN;
       }
-      y += 4;
-    }
+    };
 
-    // ===== RESUMO EXECUTIVO =====
-    if (include('resumo') && report.resumo_executivo) {
-      y = checkPage(doc, y, pageHeight);
-      y = sectionHeader(doc, 'RESUMO EXECUTIVO', y, pageWidth);
-      doc.setFontSize(BASE_FONT);
-      doc.setFont(undefined, 'normal');
-      doc.setTextColor(40, 40, 40);
-      const lines = doc.splitTextToSize(report.resumo_executivo, pageWidth - 30);
+    const setFont = (style: 'normal' | 'bold' = 'normal', size = 10, color: [number, number, number] = [30, 30, 30]) => {
+      try { doc.setFont('NotoSans', style); } catch { doc.setFont('helvetica', style); }
+      doc.setFontSize(size);
+      doc.setTextColor(...color);
+    };
+
+    const section = (title: string) => {
+      ensureSpace(14);
+      doc.setFillColor(30, 64, 120);
+      doc.roundedRect(PAGE_MARGIN, y, contentWidth, 9, 1.5, 1.5, 'F');
+      setFont('bold', 11, [255, 255, 255]);
+      doc.text(cleanText(title), PAGE_MARGIN + 4, y + 6.2);
+      y += 13;
+    };
+
+    const paragraph = (text: unknown, options: { bold?: boolean; size?: number; indent?: number; spacing?: number } = {}) => {
+      const value = cleanText(text);
+      if (!value) return;
+      const indent = options.indent || 0;
+      const width = contentWidth - indent;
+      setFont(options.bold ? 'bold' : 'normal', options.size || 10);
+      const lines = doc.splitTextToSize(value, width);
       for (const line of lines) {
-        y = checkPage(doc, y, pageHeight);
-        doc.text(line, 15, y);
-        y += 6;
+        ensureSpace(LINE_HEIGHT + 1);
+        doc.text(line, PAGE_MARGIN + indent, y);
+        y += LINE_HEIGHT;
       }
-      y += 4;
-      doc.setTextColor(0, 0, 0);
+      y += options.spacing ?? 1.5;
+    };
+
+    const field = (label: string, value: unknown) => {
+      const text = cleanText(value) || '—';
+      ensureSpace(7);
+      setFont('bold', 9.5);
+      doc.text(`${label}:`, PAGE_MARGIN, y);
+      setFont('normal', 9.5);
+      const lines = doc.splitTextToSize(text, contentWidth - 47);
+      doc.text(lines, PAGE_MARGIN + 47, y);
+      y += Math.max(6, lines.length * 4.8);
+    };
+
+    const addPhoto = async (photo: any, index: number) => {
+      const url = resolvePhotoUrl(photo);
+      const caption = resolvePhotoCaption(photo);
+      ensureSpace(70);
+      const image = await fetchImage(url);
+      if (image) {
+        try {
+          doc.addImage(image.dataUrl, image.format, PAGE_MARGIN, y, contentWidth, 58, undefined, 'FAST');
+          y += 61;
+        } catch (error) {
+          console.warn('[generateReportPDF] Imagem incompatível:', error);
+          paragraph(`Foto ${index + 1}: imagem indisponível para incorporação.`, { size: 8.5 });
+        }
+      } else {
+        paragraph(`Foto ${index + 1}: arquivo não acessível.`, { size: 8.5 });
+      }
+      paragraph(caption, { size: 8.5, spacing: 3 });
+    };
+
+    doc.setFillColor(245, 247, 252);
+    doc.rect(0, 0, pageWidth, 39, 'F');
+    setFont('bold', 18, [30, 64, 120]);
+    doc.text('MUSEUS CENTRO', PAGE_MARGIN, 20);
+    setFont('normal', 11, [80, 80, 80]);
+    doc.text('Relatório Executivo Mensal — Belo Horizonte', PAGE_MARGIN, 27);
+    setFont('normal', 8.5, [100, 100, 100]);
+    doc.text(`Protocolo: ${report.numero_protocolo || '—'} | Emitido em: ${new Date().toLocaleDateString('pt-BR')}`, PAGE_MARGIN, 34);
+    y = 47;
+
+    section('IDENTIFICAÇÃO DO RELATÓRIO');
+    field('Profissional', report.author_name);
+    field('Papel do autor', report.author_role);
+    field('Função', report.funcao);
+    field('Museu principal', report.museu);
+    field('Museu secundário', report.museu_secundario);
+    field('Equipe', report.equipe);
+    field('Período', `${report.mes_referencia || '—'} / ${report.ano || '—'}`);
+    field('Status', STATUS_LABELS[report.status] || report.status);
+    field('Público geral declarado', formatNumber(report.publico_geral_declarado));
+    field('Enviado em', formatDate(report.submitted_at));
+    field('Responsável pela revisão', firstValue(report.reviewer_name, report.reviewer_email));
+
+    if (include('resumo') && (report.resumo_periodo || report.resumo_executivo)) {
+      section('RESUMO DO PERÍODO');
+      paragraph(report.resumo_periodo);
+      paragraph(report.resumo_executivo);
     }
 
-    // ===== ATIVIDADES =====
-    if (include('atividades') && report.atividades?.length > 0) {
-      y = checkPage(doc, y, pageHeight);
-      y = sectionHeader(doc, 'ATIVIDADES REALIZADAS', y, pageWidth);
+    if (include('atividades')) {
+      section('ATIVIDADES REALIZADAS');
+      const activities = Array.isArray(report.atividades) ? report.atividades : [];
+      if (!activities.length) paragraph('Nenhuma atividade cadastrada no período.');
 
-      for (let idx = 0; idx < report.atividades.length; idx++) {
-        const act = report.atividades[idx];
-        y = checkPage(doc, y, pageHeight);
-
-        doc.setFontSize(BASE_FONT);
-        doc.setFont(undefined, 'bold');
-        doc.setTextColor(30, 64, 120);
-        doc.text(`${idx + 1}. ${act.nome || act.titulo || 'Sem título'}`, 15, y);
-        y += 6;
-        doc.setTextColor(0, 0, 0);
-        doc.setFont(undefined, 'normal');
-        doc.setFontSize(LABEL_FONT);
-
-        const details = [
-          ['Classificação', act.classificacao || '-'],
-          ['Museu/Local', Array.isArray(act.museu_lista) ? act.museu_lista.join(', ') : (act.museu || '-')],
-          ['Tipo de ação', Array.isArray(act.tipo_acao_lista) ? act.tipo_acao_lista.join(', ') : (act.tipo_acao || '-')],
-          ['Público total', String(act.publico_total || act.publico_estimado || 0)],
-          ['Ocorrências', String(act.quantidade_ocorrencias || 1)],
-        ];
-
-        for (const [label, val] of details) {
-          y = checkPage(doc, y, pageHeight);
-          doc.setFont(undefined, 'bold');
-          doc.text(`${label}:`, 20, y);
-          doc.setFont(undefined, 'normal');
-          doc.text(String(val), 65, y);
-          y += 5;
+      for (let index = 0; index < activities.length; index += 1) {
+        const activity = activities[index] || {};
+        ensureSpace(30);
+        paragraph(`${index + 1}. ${firstValue(activity.nome, activity.titulo, 'Atividade sem título')}`, { bold: true, size: 11 });
+        field('Classificação', activity.classificacao);
+        field('Museu/Local', firstValue(activity.museu_lista, activity.museu, activity.local, activity.local_realizacao));
+        field('Tipo de ação', firstValue(activity.tipo_acao_lista, activity.tipo_acao, activity.tipo, activity.categoria));
+        field('Data de início', formatDate(firstValue(activity.data_inicio, activity.data_realizacao)));
+        field('Data de término', formatDate(activity.data_fim));
+        field('Quantidade de ocorrências', firstValue(activity.quantas_vezes_ocorreu, activity.quantidade_ocorrencias, 1));
+        field('Público total', formatNumber(firstValue(activity.publico_total, activity.publico_estimado, 0)));
+        field('Público médio por sessão', formatNumber(activity.publico_medio_sessao));
+        field('Quantidade de produtos', formatNumber(activity.quantidade_produtos));
+        field('Total de produtos', formatNumber(activity.total_produtos));
+        field('Meta vinculada', firstValue(activity.meta_codigo, activity.meta_id, activity.meta_vinculada_ids));
+        field('Equipe participante', firstValue(activity.equipe_participante_ids, activity.equipe_participante));
+        field('Programação vinculada', activity.programacao_id);
+        if (activity.descricao) {
+          paragraph('Descrição', { bold: true, size: 9.5 });
+          paragraph(activity.descricao, { indent: 4 });
         }
 
-        if (act.descricao) {
-          y = checkPage(doc, y, pageHeight);
-          doc.setFont(undefined, 'bold');
-          doc.text('Descrição:', 20, y);
-          y += 5;
-          doc.setFont(undefined, 'normal');
-          const dLines = doc.splitTextToSize(act.descricao, pageWidth - 45);
-          for (const dl of dLines) {
-            y = checkPage(doc, y, pageHeight);
-            doc.text(dl, 25, y);
-            y += 5;
+        const activityPhotos = Array.isArray(activity.fotos) ? activity.fotos : [];
+        if (include('fotos') && activityPhotos.length) {
+          paragraph(`Evidências fotográficas da atividade (${activityPhotos.length})`, { bold: true, size: 9.5 });
+          for (let photoIndex = 0; photoIndex < activityPhotos.length; photoIndex += 1) {
+            await addPhoto(activityPhotos[photoIndex], photoIndex);
           }
         }
 
-        // Miniaturas de fotos da atividade
-        if (include('fotos') && act.fotos?.length > 0) {
-          y = checkPage(doc, y + 2, pageHeight);
-          doc.setFont(undefined, 'italic');
-          doc.setFontSize(10);
-          doc.text('Evidências fotográficas:', 20, y);
-          y += 4;
-          const thumbSize = 28;
-          const gap = 4;
-          let xThumb = 20;
-          for (const foto of act.fotos.slice(0, 4)) {
-            const att = foto.file_url ? foto : null;
-            const fileUrl = att?.file_url || foto?.url;
-            if (!fileUrl) continue;
-            const b64 = await fetchImageBase64(fileUrl);
-            if (b64) {
-              y = checkPage(doc, y, pageHeight);
-              doc.addImage(`data:image/jpeg;base64,${b64}`, 'JPEG', xThumb, y, thumbSize, thumbSize * 0.75);
-              xThumb += thumbSize + gap;
-              if (xThumb > pageWidth - 30) { xThumb = 20; y += thumbSize * 0.75 + gap; }
-            }
-          }
-          y += thumbSize * 0.75 + gap;
-        }
-
-        // Linha separadora leve
-        doc.setDrawColor(200, 200, 200);
-        doc.setLineWidth(0.2);
-        doc.line(15, y + 1, pageWidth - 15, y + 1);
+        doc.setDrawColor(210, 210, 210);
+        doc.line(PAGE_MARGIN, y, pageWidth - PAGE_MARGIN, y);
         y += 6;
       }
     }
 
-    // ===== AVALIAÇÃO =====
+    if (include('fotos')) {
+      const reportPhotos = Array.isArray(report.fotos) ? report.fotos : [];
+      if (reportPhotos.length) {
+        section(`GALERIA FOTOGRÁFICA DO RELATÓRIO (${reportPhotos.length})`);
+        for (let index = 0; index < reportPhotos.length; index += 1) await addPhoto(reportPhotos[index], index);
+      }
+    }
+
     if (include('avaliacao') && (report.avaliacao_pontos_positivos || report.avaliacao_desafios || report.avaliacao_sugestoes)) {
-      y = checkPage(doc, y, pageHeight);
-      y = sectionHeader(doc, 'AVALIAÇÃO', y, pageWidth);
-      doc.setFontSize(BASE_FONT);
-
-      const avaliacoes = [
-        ['Pontos Positivos', report.avaliacao_pontos_positivos],
-        ['Desafios', report.avaliacao_desafios],
-        ['Sugestões de Melhoria', report.avaliacao_sugestoes],
-      ];
-
-      for (const [label, val] of avaliacoes) {
-        if (!val) continue;
-        y = checkPage(doc, y, pageHeight);
-        doc.setFont(undefined, 'bold');
-        doc.text(`${label}:`, 15, y);
-        y += 5;
-        doc.setFont(undefined, 'normal');
-        const lns = doc.splitTextToSize(val, pageWidth - 30);
-        for (const ln of lns) {
-          y = checkPage(doc, y, pageHeight);
-          doc.text(ln, 15, y);
-          y += 5;
-        }
-        y += 2;
+      section('AVALIAÇÃO DO PERÍODO');
+      if (report.avaliacao_pontos_positivos) {
+        paragraph('Pontos positivos', { bold: true });
+        paragraph(report.avaliacao_pontos_positivos);
+      }
+      if (report.avaliacao_desafios) {
+        paragraph('Desafios enfrentados', { bold: true });
+        paragraph(report.avaliacao_desafios);
+      }
+      if (report.avaliacao_sugestoes) {
+        paragraph('Sugestões de melhoria', { bold: true });
+        paragraph(report.avaliacao_sugestoes);
       }
     }
 
-    // ===== OPORTUNIDADES =====
-    if (include('oportunidades') && report.oportunidades?.length > 0) {
-      y = checkPage(doc, y, pageHeight);
-      y = sectionHeader(doc, 'OPORTUNIDADES', y, pageWidth);
-      doc.setFontSize(BASE_FONT);
-      report.oportunidades.forEach((op, i) => {
-        y = checkPage(doc, y, pageHeight);
-        doc.setFont(undefined, 'bold');
-        doc.text(`${i + 1}. ${op.titulo || op.nome || 'Oportunidade'}`, 15, y);
-        y += 5;
-        if (op.descricao) {
-          doc.setFont(undefined, 'normal');
-          const lns = doc.splitTextToSize(op.descricao, pageWidth - 30);
-          for (const ln of lns) { y = checkPage(doc, y, pageHeight); doc.text(ln, 20, y); y += 5; }
-        }
-        y += 2;
-      });
+    if (report.comentarios_gerais || report.comentarios_coordenacao || report.historico_observacoes) {
+      section('COMENTÁRIOS E OBSERVAÇÕES');
+      if (report.comentarios_gerais) {
+        paragraph('Comentários gerais', { bold: true });
+        paragraph(report.comentarios_gerais);
+      }
+      if (report.comentarios_coordenacao) {
+        paragraph('Comentários da coordenação', { bold: true });
+        paragraph(report.comentarios_coordenacao);
+      }
+      if (report.historico_observacoes) {
+        paragraph('Histórico de observações', { bold: true });
+        paragraph(report.historico_observacoes);
+      }
     }
 
-    // ===== DEPOIMENTOS =====
-    if (include('depoimentos') && report.depoimentos?.length > 0) {
-      y = checkPage(doc, y, pageHeight);
-      y = sectionHeader(doc, 'DEPOIMENTOS', y, pageWidth);
-      doc.setFontSize(BASE_FONT);
-      report.depoimentos.forEach((dep, i) => {
-        y = checkPage(doc, y, pageHeight);
-        doc.setFont(undefined, 'italic');
-        const lns = doc.splitTextToSize(`"${dep.texto || ''}"`, pageWidth - 40);
-        for (const ln of lns) { y = checkPage(doc, y, pageHeight); doc.text(ln, 20, y); y += 5; }
-        if (dep.autor) {
-          doc.setFont(undefined, 'bold');
-          doc.text(`— ${dep.autor}`, pageWidth - 20, y, { align: 'right' });
-          y += 6;
-        }
-        y += 2;
-      });
+    if (include('oportunidades') && (report.oportunidades_resumo || report.oportunidades?.length)) {
+      section('OPORTUNIDADES IDENTIFICADAS');
+      paragraph(report.oportunidades_resumo);
+      for (const opportunity of report.oportunidades || []) {
+        paragraph(firstValue(opportunity?.titulo, opportunity?.nome, 'Oportunidade'), { bold: true });
+        paragraph(opportunity?.descricao);
+      }
     }
 
-    // ===== ASSINATURA =====
-    y = checkPage(doc, y + 10, pageHeight);
-    doc.setDrawColor(80, 80, 80);
-    doc.setLineWidth(0.3);
-    doc.line(15, y, 100, y);
-    y += 5;
-    doc.setFontSize(BASE_FONT);
-    doc.setFont(undefined, 'normal');
-    doc.setTextColor(40, 40, 40);
-    doc.text(assinatura || report.author_name || '_______________________________', 15, y);
-    y += 5;
-    doc.setFontSize(10);
-    doc.setFont(undefined, 'italic');
-    doc.setTextColor(100, 100, 100);
-    doc.text(`Profissional responsável — ${report.mes_referencia || ''}/${report.ano || ''}`, 15, y);
+    if (include('depoimentos') && Array.isArray(report.depoimentos) && report.depoimentos.length) {
+      section('DEPOIMENTOS E FATOS MARCANTES');
+      for (const testimonial of report.depoimentos) {
+        paragraph(`“${cleanText(testimonial?.texto)}”`, { indent: 4 });
+        paragraph(firstValue(testimonial?.autor, testimonial?.data_criacao), { bold: true, size: 8.5 });
+      }
+    }
+
+    ensureSpace(35);
     y += 8;
+    doc.setDrawColor(80, 80, 80);
+    doc.line(PAGE_MARGIN, y, 105, y);
+    y += 6;
+    paragraph(assinatura || report.author_name || 'Responsável pelo relatório', { bold: true, spacing: 0 });
+    paragraph(`Profissional responsável — ${report.mes_referencia || ''}/${report.ano || ''}`, { size: 8.5 });
 
-    // ===== MENSAGEM DE PRAZO =====
-    doc.setFillColor(255, 248, 225);
-    doc.setDrawColor(200, 150, 0);
-    doc.setLineWidth(0.4);
-    doc.rect(10, y, pageWidth - 20, 14, 'FD');
-    doc.setFontSize(10);
-    doc.setFont(undefined, 'bold');
-    doc.setTextColor(120, 80, 0);
-    doc.text('⚠ ATENÇÃO: PRAZO DE ENVIO', 15, y + 5);
-    doc.setFont(undefined, 'normal');
-    doc.text(`Este relatório deve ser enviado ao coordenador até o dia 15 do mês seguinte ao período de referência (${report.mes_referencia || '...'}).`, 15, y + 10, { maxWidth: pageWidth - 30 });
-
-    // ===== RODAPÉ =====
-    const totalPages = doc.internal.pages.length - 1;
-    for (let i = 1; i <= totalPages; i++) {
-      doc.setPage(i);
-      doc.setFontSize(8);
-      doc.setTextColor(160, 160, 160);
-      doc.text(`Página ${i} de ${totalPages}`, pageWidth / 2, pageHeight - 8, { align: 'center' });
+    const totalPages = doc.getNumberOfPages();
+    for (let page = 1; page <= totalPages; page += 1) {
+      doc.setPage(page);
+      setFont('normal', 8, [130, 130, 130]);
+      doc.text(`Página ${page} de ${totalPages}`, pageWidth / 2, pageHeight - 8, { align: 'center' });
       doc.text('Plataforma Museus Centro — Relatório Oficial', pageWidth / 2, pageHeight - 4, { align: 'center' });
     }
 
     const pdfBytes = doc.output('arraybuffer');
+    const filename = `Relatorio-Mensal-${report.museu || 'Museus-Centro'}-${report.mes_referencia || ''}-${report.ano || ''}.pdf`
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9._-]/g, '-');
+
     return new Response(pdfBytes, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="relatorio-${report.numero_protocolo || reportId}.pdf"`
-      }
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Cache-Control': 'no-store',
+      },
     });
-  } catch (error) {
-    console.error('Erro ao gerar PDF:', error);
-    return Response.json({ error: error.message }, { status: 500 });
+  } catch (error: any) {
+    console.error('[generateReportPDF] Erro:', error);
+    return Response.json({ error: String(error?.message || error) }, { status: 500 });
   }
 });
