@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { FileDown, Loader, Settings } from 'lucide-react';
+import { ExternalLink, FileDown, Loader, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -18,11 +18,56 @@ const CAMPOS = [
   { id: 'fotos', label: 'Miniaturas de Fotos' },
 ];
 
+function normalizePdfBlob(result) {
+  if (result instanceof Blob) return result;
+  if (result?.blob instanceof Blob) return result.blob;
+  if (result?.data instanceof Blob) return result.data;
+  if (result instanceof ArrayBuffer) return new Blob([result], { type: 'application/pdf' });
+  if (result instanceof Uint8Array) return new Blob([result], { type: 'application/pdf' });
+
+  const payload = result?.data ?? result;
+  if (payload instanceof ArrayBuffer) return new Blob([payload], { type: 'application/pdf' });
+  if (payload instanceof Uint8Array) return new Blob([payload], { type: 'application/pdf' });
+
+  if (typeof payload === 'string') {
+    const base64 = payload.includes(',') ? payload.split(',').pop() : payload;
+    try {
+      const binary = window.atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+      return new Blob([bytes], { type: 'application/pdf' });
+    } catch {
+      throw new Error('O gerador retornou um conteúdo de PDF inválido.');
+    }
+  }
+
+  throw new Error('O gerador não retornou um arquivo PDF válido.');
+}
+
+function triggerPdfDownload(url, filename) {
+  if (!url) throw new Error('Arquivo PDF indisponível para download.');
+
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.rel = 'noopener';
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
 export default function PDFExportButton({ reportId, reportProtocolo, reportData, disabled = false }) {
   const [showDialog, setShowDialog] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [selectedFields, setSelectedFields] = useState(CAMPOS.map(c => c.id));
   const [assinatura, setAssinatura] = useState('');
+  const [generatedPdfUrl, setGeneratedPdfUrl] = useState('');
+  const [generatedPdfFilename, setGeneratedPdfFilename] = useState('');
+
+  useEffect(() => () => {
+    if (generatedPdfUrl) window.URL.revokeObjectURL(generatedPdfUrl);
+  }, [generatedPdfUrl]);
 
   const toggleField = (id) => {
     setSelectedFields(prev =>
@@ -33,7 +78,6 @@ export default function PDFExportButton({ reportId, reportProtocolo, reportData,
   const handleExport = async () => {
     try {
       setIsExporting(true);
-      setShowDialog(false);
 
       const response = await base44.functions.invoke('generateReportPDF', {
         reportId,
@@ -41,24 +85,47 @@ export default function PDFExportButton({ reportId, reportProtocolo, reportData,
         assinatura,
       });
 
-      if (response.data) {
-        const blob = new Blob([response.data], { type: 'application/pdf' });
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `relatorio-${reportProtocolo || reportId}.pdf`;
-        document.body.appendChild(link);
-        link.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(link);
-        toastMessages.pdfGenerateSuccess?.() ?? alert('PDF gerado com sucesso!');
+      if (response?.data?.error) throw new Error(response.data.error);
+
+      const pdfBlob = normalizePdfBlob(response?.data ?? response);
+      if (!(pdfBlob instanceof Blob) || pdfBlob.size <= 0) {
+        throw new Error('O PDF foi gerado vazio.');
       }
+
+      const normalizedBlob = pdfBlob.type?.includes('pdf')
+        ? pdfBlob
+        : new Blob([pdfBlob], { type: 'application/pdf' });
+
+      const filename = `relatorio-${reportProtocolo || reportId}.pdf`;
+      const nextUrl = window.URL.createObjectURL(normalizedBlob);
+
+      setGeneratedPdfUrl(previousUrl => {
+        if (previousUrl) window.URL.revokeObjectURL(previousUrl);
+        return nextUrl;
+      });
+      setGeneratedPdfFilename(filename);
+
+      console.info('[PDF Mensal] Arquivo preparado', {
+        filename,
+        size: normalizedBlob.size,
+        type: normalizedBlob.type,
+        urlCreated: Boolean(nextUrl),
+      });
+
+      triggerPdfDownload(nextUrl, filename);
+      toastMessages.pdfGenerateSuccess?.();
     } catch (error) {
       console.error('Erro ao exportar PDF:', error);
-      toastMessages.pdfGenerateFailed?.(error?.message) ?? alert('Erro ao gerar PDF');
+      toastMessages.pdfGenerateFailed?.(error?.message);
     } finally {
       setIsExporting(false);
     }
+  };
+
+  const handleOpenPdf = () => {
+    if (!generatedPdfUrl) return;
+    const opened = window.open(generatedPdfUrl, '_blank', 'noopener,noreferrer');
+    if (!opened) toastMessages.warning?.('O navegador bloqueou a abertura. Use “Baixar PDF”.');
   };
 
   return (
@@ -116,12 +183,37 @@ export default function PDFExportButton({ reportId, reportProtocolo, reportData,
                 Após assinar, o PDF deve ser enviado ao coordenador até o dia 15 do mês seguinte ao mês de referência do relatório.
               </p>
             </div>
+
+            {generatedPdfUrl ? (
+              <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+                <p className="text-sm font-medium text-green-800">PDF preparado e disponível.</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => triggerPdfDownload(generatedPdfUrl, generatedPdfFilename)}
+                    className="gap-2"
+                  >
+                    <FileDown className="h-4 w-4" /> Baixar PDF
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" onClick={handleOpenPdf} className="gap-2">
+                    <ExternalLink className="h-4 w-4" /> Abrir PDF
+                  </Button>
+                </div>
+              </div>
+            ) : null}
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDialog(false)}>Cancelar</Button>
-            <Button onClick={handleExport} disabled={selectedFields.length === 0}>
-              <FileDown className="w-4 h-4 mr-2" /> Gerar PDF
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowDialog(false)} disabled={isExporting}>
+              Fechar
+            </Button>
+            <Button onClick={handleExport} disabled={isExporting || selectedFields.length === 0}>
+              {isExporting ? (
+                <><Loader className="w-4 h-4 mr-2 animate-spin" /> Gerando...</>
+              ) : (
+                <><FileDown className="w-4 h-4 mr-2" /> Gerar PDF</>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
