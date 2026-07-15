@@ -92,6 +92,65 @@ function formatarNumeroResumo(n) {
   return String(n);
 }
 
+function nomeArquivoPdf(report = {}) {
+  const partes = [
+    'Relatorio Mensal',
+    report.museu,
+    report.mes_referencia,
+    report.ano,
+  ].filter(Boolean);
+  return `${partes.join(' - ').replace(/[\\/:*?"<>|]/g, '-')}.pdf`;
+}
+
+function base64ParaBlob(value) {
+  const base64 = String(value || '').replace(/^data:application\/pdf;base64,/, '').replace(/\s/g, '');
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: 'application/pdf' });
+}
+
+async function extrairPdfBlob(response) {
+  const payload = response?.data ?? response;
+  const candidate = payload?.data ?? payload?.body ?? payload?.pdf ?? payload;
+
+  if (candidate instanceof Blob) return candidate.type === 'application/pdf' ? candidate : new Blob([candidate], { type: 'application/pdf' });
+  if (candidate instanceof ArrayBuffer) return new Blob([candidate], { type: 'application/pdf' });
+  if (ArrayBuffer.isView(candidate)) return new Blob([candidate.buffer], { type: 'application/pdf' });
+  if (Array.isArray(candidate) && candidate.every((item) => Number.isInteger(item) && item >= 0 && item <= 255)) {
+    return new Blob([new Uint8Array(candidate)], { type: 'application/pdf' });
+  }
+  if (typeof candidate === 'string') {
+    if (candidate.startsWith('data:application/pdf;base64,')) return base64ParaBlob(candidate);
+    if (candidate.startsWith('%PDF')) return new Blob([new TextEncoder().encode(candidate)], { type: 'application/pdf' });
+    if (/^[A-Za-z0-9+/=\s]+$/.test(candidate) && candidate.length > 100) return base64ParaBlob(candidate);
+  }
+
+  const pdfUrl = payload?.pdf_url || payload?.url || response?.pdf_url;
+  if (pdfUrl) {
+    const fileResponse = await fetch(pdfUrl);
+    if (!fileResponse.ok) throw new Error(`Falha ao baixar o PDF (${fileResponse.status}).`);
+    return fileResponse.blob();
+  }
+  return null;
+}
+
+async function baixarPdf(blob, filename) {
+  if (!(blob instanceof Blob) || blob.size < 5) throw new Error('A geração não retornou um arquivo PDF válido.');
+  const signature = new TextDecoder().decode((await blob.slice(0, 5).arrayBuffer()));
+  if (signature !== '%PDF-') throw new Error('O arquivo retornado não possui o formato PDF esperado.');
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+
 function createEmptyReportPayload(user, mesAtual, anoAtual) {
   return {
     author_name: user?.full_name || '',
@@ -432,15 +491,12 @@ export default function ReportEditor() {
         reportId: report.id,
         secoes: secoesPdf.length > 0 ? secoesPdf : undefined,
       });
+      const error = response?.data?.error || response?.error;
+      if (error) throw new Error(error);
 
-      if (response.data?.pdf_url) {
-        window.open(response.data.pdf_url, '_blank');
-        toast.success('📄 PDF gerado com sucesso!');
-      } else if (response.data?.error) {
-        toast.error('Erro ao gerar PDF: ' + response.data.error);
-      } else {
-        toast.success('📄 PDF gerado! Verifique sua pasta de downloads.');
-      }
+      const pdfBlob = await extrairPdfBlob(response);
+      await baixarPdf(pdfBlob, nomeArquivoPdf({ ...report, ...formData }));
+      toast.success('📄 PDF baixado com sucesso!');
     } catch (err) {
       console.error(err);
       toast.error('❌ Erro ao exportar PDF: ' + (err?.message || 'tente novamente'));
