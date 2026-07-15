@@ -3,60 +3,33 @@ import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import {
-  FolderOpen, Eye, CheckCircle2, AlertTriangle, ChevronDown, ChevronUp,
-  Loader2, Image, ClipboardCheck, Camera
-} from 'lucide-react';
+import { FolderOpen, Eye, CheckCircle2, AlertTriangle, ChevronDown, ChevronUp, Loader2, Image, ClipboardCheck, Camera, Download } from 'lucide-react';
 
-const PASTAS_SUGERIDAS = [
-  { label: 'Relatórios Mensais (pasta padrão)', id: '1gMPRXyamu9YANVFg6Xf7VtWoOoF-3CbQ' },
-];
+const PASTAS_SUGERIDAS = [{ label: 'Relatórios Mensais (pasta padrão)', id: '1gMPRXyamu9YANVFg6Xf7VtWoOoF-3CbQ' }];
+const CACHE_KEYS = ['museus_centro_galeria_fotos_cache_v2', 'museus_centro_galeria_fotos_cache_v3_full', 'museus_centro_galeria_fotos_cache_v4_attachment'];
 
+function limparCacheGaleria() { try { CACHE_KEYS.forEach((key) => localStorage.removeItem(key)); } catch { /* cache opcional */ } }
 function FotoPreviewCard({ foto }) {
-  return (
-    <div className={`rounded-xl border p-3 space-y-2 ${foto.ja_importada ? 'border-gray-200 bg-gray-50 opacity-60' : 'border-black bg-white'}`}>
-      <div className="flex gap-3 items-start">
-        <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-200">
-          {foto.thumbnail_url ? (
-            <img src={foto.thumbnail_url} alt={foto.file_name} className="w-full h-full object-cover" onError={e => { e.currentTarget.style.display = 'none'; }} />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-gray-300">
-              <Camera className="w-6 h-6" />
-            </div>
-          )}
-        </div>
-        <div className="flex-1 min-w-0 space-y-1">
-          <p className="text-xs font-semibold text-black truncate">{foto.drive_nome_original}</p>
-          {foto.legenda && (
-            <p className="text-xs text-blue-600 italic leading-snug">{foto.legenda}</p>
-          )}
-          <div className="flex flex-wrap gap-1">
-            {foto.museu && (
-              <span className="text-[10px] bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded font-medium">{foto.museu}</span>
-            )}
-            {foto.mes && (
-              <span className="text-[10px] bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded">{foto.mes}/{foto.ano}</span>
-            )}
-            {foto.atividade_titulo && (
-              <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded truncate max-w-[160px]">{foto.atividade_titulo}</span>
-            )}
-            {foto.report_autor && (
-              <span className="text-[10px] bg-green-50 text-green-700 px-1.5 py-0.5 rounded truncate max-w-[120px]">{foto.report_autor}</span>
-            )}
-            {foto.ja_importada && (
-              <Badge variant="outline" className="text-[10px] border-gray-300 text-gray-500">Já importada</Badge>
-            )}
-          </div>
+  const concluida = foto.ja_importada && !foto.precisa_reparar;
+  return <div className={`space-y-2 rounded-xl border p-3 ${concluida ? 'border-gray-200 bg-gray-50 opacity-60' : foto.precisa_reparar ? 'border-amber-300 bg-amber-50' : 'border-black bg-white'}`}>
+    <div className="flex items-start gap-3">
+      <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-gray-100">
+        {foto.thumbnail_url ? <img src={foto.thumbnail_url} alt="Pré-visualização" className="h-full w-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} /> : <div className="flex h-full w-full items-center justify-center text-gray-300"><Camera className="h-6 w-6" /></div>}
+      </div>
+      <div className="min-w-0 flex-1 space-y-1">
+        <p className="truncate text-xs font-semibold text-black">{foto.drive_nome_original}</p>
+        {foto.legenda && <p className="text-xs italic leading-snug text-blue-600">{foto.legenda}</p>}
+        <div className="flex flex-wrap gap-1">
+          {foto.museu && <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-700">{foto.museu}</span>}
+          {foto.mes && <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-700">{foto.mes}/{foto.ano}</span>}
+          {foto.atividade_titulo ? <span className="max-w-[180px] truncate rounded bg-blue-50 px-1.5 py-0.5 text-[10px] text-blue-700">{foto.atividade_titulo}</span> : <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700">Sem vínculo</span>}
+          {concluida && <Badge variant="outline" className="border-gray-300 text-[10px] text-gray-500">Baixada e persistida</Badge>}
+          {foto.precisa_reparar && <Badge variant="outline" className="border-amber-400 text-[10px] text-amber-700">URL do Drive — reparar</Badge>}
         </div>
       </div>
-      {foto.drive_url && (
-        <a href={foto.drive_url} target="_blank" rel="noopener noreferrer"
-          className="text-[10px] text-blue-500 hover:underline flex items-center gap-1">
-          <FolderOpen className="w-3 h-3" /> Ver no Drive
-        </a>
-      )}
     </div>
-  );
+    {foto.drive_url && <a href={foto.drive_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] text-blue-500 hover:underline"><FolderOpen className="h-3 w-3" /> Ver original no Drive</a>}
+  </div>;
 }
 
 export default function RestaurarFotosDrive({ onImportConcluida }) {
@@ -68,174 +41,51 @@ export default function RestaurarFotosDrive({ onImportConcluida }) {
   const [resultado, setResultado] = useState(null);
 
   async function handlePreview() {
-    if (!folderId.trim()) { toast.warning('Informe o ID da pasta do Drive.'); return; }
-    setLoadingPreview(true);
-    setPreview(null);
-    setResultado(null);
+    if (!folderId.trim()) return toast.warning('Informe o ID da pasta do Drive.');
+    setLoadingPreview(true); setPreview(null); setResultado(null);
     try {
       const res = await base44.functions.invoke('restaurarGaleriaDrive', { folder_id: folderId.trim(), modo: 'preview' });
+      if (!res.data?.success) throw new Error(res.data?.error || 'Falha ao analisar a pasta.');
       setPreview(res.data);
-      toast.success(`${res.data.total_imagens} imagem(ns) encontrada(s). ${res.data.total_novas} nova(s).`);
-    } catch (e) {
-      toast.error('Erro ao analisar pasta: ' + (e?.message || e));
-    } finally {
-      setLoadingPreview(false);
-    }
+      toast.success(`${res.data.total_imagens} imagem(ns): ${res.data.total_novas} nova(s), ${res.data.total_reparar || 0} para reparar.`);
+    } catch (e) { toast.error(`Erro ao analisar pasta: ${e?.message || e}`); }
+    finally { setLoadingPreview(false); }
   }
 
   async function handleConfirmar() {
-    if (!preview) return;
-    const novas = preview.resultados?.filter(r => !r.ja_importada) || [];
-    if (novas.length === 0) { toast.warning('Nenhuma foto nova para importar.'); return; }
-    setLoadingImport(true);
+    const processar = preview?.resultados?.filter((foto) => !foto.ja_importada || foto.precisa_reparar) || [];
+    if (!processar.length) return toast.warning('Nenhuma foto nova ou incompleta para baixar.');
+    setLoadingImport(true); setResultado(null);
     try {
       const res = await base44.functions.invoke('restaurarGaleriaDrive', { folder_id: folderId.trim(), modo: 'confirmar' });
-      setResultado(res.data);
-      toast.success(`${res.data.total_criadas} foto(s) importada(s) com legendas automáticas!`);
-      if (onImportConcluida) onImportConcluida();
-    } catch (e) {
-      toast.error('Erro na importação: ' + (e?.message || e));
-    } finally {
-      setLoadingImport(false);
-    }
+      const dados = res.data || {};
+      setResultado(dados);
+      if (dados.total_erros > 0) toast.warning(`${dados.total_criadas || 0} novas, ${dados.total_reparadas || 0} reparadas e ${dados.total_erros} erro(s).`);
+      else toast.success(`${dados.total_criadas || 0} foto(s) baixadas e ${dados.total_reparadas || 0} URL(s) reparadas em ${dados.total_blocos || 0} bloco(s).`);
+      limparCacheGaleria();
+      await onImportConcluida?.();
+      await handlePreview();
+    } catch (e) { toast.error(`Erro na importação: ${e?.message || e}`); }
+    finally { setLoadingImport(false); }
   }
 
-  const novas = preview?.resultados?.filter(r => !r.ja_importada) || [];
-  const jaImportadas = preview?.resultados?.filter(r => r.ja_importada) || [];
+  const processar = preview?.resultados?.filter((foto) => !foto.ja_importada || foto.precisa_reparar) || [];
+  const concluidas = preview?.resultados?.filter((foto) => foto.ja_importada && !foto.precisa_reparar) || [];
 
-  return (
-    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-      <button
-        onClick={() => setCollapsed(v => !v)}
-        className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors"
-      >
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
-            <Image className="w-4 h-4 text-black" />
-          </div>
-          <div className="text-left">
-            <p className="text-sm font-semibold text-black">Restaurar fotos do Drive</p>
-            <p className="text-xs text-gray-500">Importar imagens do Google Drive com nomeação, vínculo a atividades e legendas automáticas</p>
-          </div>
-        </div>
-        {collapsed ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronUp className="w-4 h-4 text-gray-400" />}
-      </button>
-
-      {!collapsed && (
-        <div className="border-t border-gray-100 px-5 pb-5 pt-4 space-y-4">
-          {/* Pasta */}
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-gray-600">ID da pasta do Google Drive</label>
-            <div className="flex gap-2">
-              <input
-                value={folderId}
-                onChange={e => setFolderId(e.target.value)}
-                placeholder="Cole o ID da pasta do Drive..."
-                className="flex-1 rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black"
-              />
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {PASTAS_SUGERIDAS.map(p => (
-                <button key={p.id} type="button"
-                  onClick={() => setFolderId(p.id)}
-                  className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${folderId === p.id ? 'border-black bg-black text-white' : 'border-gray-300 text-gray-600 hover:border-gray-400'}`}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-700 space-y-0.5">
-            <p>✅ Detecta automaticamente museu, mês e ano pelo nome do arquivo</p>
-            <p>🔗 Vincula cada foto à atividade correspondente no relatório</p>
-            <p>📝 Gera legenda no formato: Atividade — Local — Data</p>
-            <p>🔁 Não duplica fotos já importadas anteriormente</p>
-          </div>
-
-          <div className="flex gap-2 flex-wrap">
-            <Button onClick={handlePreview} disabled={loadingPreview || loadingImport} variant="outline" className="gap-2 text-sm">
-              {loadingPreview ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
-              {loadingPreview ? 'Analisando...' : 'Pré-visualizar fotos'}
-            </Button>
-
-            {preview && novas.length > 0 && (
-              <Button onClick={handleConfirmar} disabled={loadingImport || loadingPreview} className="gap-2 text-sm bg-black text-white hover:bg-gray-800">
-                {loadingImport ? <Loader2 className="w-4 h-4 animate-spin" /> : <ClipboardCheck className="w-4 h-4" />}
-                {loadingImport ? 'Importando...' : `Importar ${novas.length} foto(s)`}
-              </Button>
-            )}
-          </div>
-
-          {loadingPreview && (
-            <div className="rounded-xl border border-gray-200 bg-gray-50 p-8 text-center">
-              <Loader2 className="w-8 h-8 animate-spin text-gray-400 mx-auto mb-3" />
-              <p className="text-sm font-medium text-gray-600">Escaneando pasta e vinculando atividades...</p>
-            </div>
-          )}
-
-          {preview && !loadingPreview && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-3 text-sm">
-                <span className="font-semibold text-black">{preview.total_imagens} imagens encontradas</span>
-                {novas.length > 0 && (
-                  <Badge className="bg-green-100 text-green-700 border-green-200">{novas.length} novas</Badge>
-                )}
-                {jaImportadas.length > 0 && (
-                  <Badge variant="outline" className="text-gray-500">{jaImportadas.length} já importadas</Badge>
-                )}
-              </div>
-
-              {novas.length === 0 && (
-                <div className="rounded-xl border border-gray-200 bg-gray-50 p-6 text-center text-sm text-gray-500">
-                  Todas as fotos desta pasta já foram importadas anteriormente.
-                </div>
-              )}
-
-              {novas.length > 0 && (
-                <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
-                  <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">Fotos novas para importar</p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {novas.map((foto, i) => (
-                      <FotoPreviewCard key={foto.drive_file_id || i} foto={foto} />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {jaImportadas.length > 0 && (
-                <details className="text-xs text-gray-500">
-                  <summary className="cursor-pointer hover:text-gray-700">Ver {jaImportadas.length} já importadas</summary>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
-                    {jaImportadas.map((foto, i) => (
-                      <FotoPreviewCard key={foto.drive_file_id || i} foto={foto} />
-                    ))}
-                  </div>
-                </details>
-              )}
-            </div>
-          )}
-
-          {resultado && (
-            <div className="rounded-xl border border-green-200 bg-green-50 p-4 space-y-1">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5 text-green-600" />
-                <p className="text-sm font-semibold text-green-800">
-                  {resultado.total_criadas} foto(s) importada(s) com legendas automáticas
-                </p>
-              </div>
-              {resultado.total_erros > 0 && (
-                <p className="text-xs text-amber-600 flex items-center gap-1">
-                  <AlertTriangle className="w-3 h-3" /> {resultado.total_erros} com erro ao salvar
-                </p>
-              )}
-              <p className="text-xs text-green-600">
-                As fotos agora aparecem na galeria com museu, período e atividade vinculados.
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
+  return <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+    <button onClick={() => setCollapsed((v) => !v)} className="flex w-full items-center justify-between px-5 py-4 transition-colors hover:bg-gray-50">
+      <div className="flex items-center gap-3"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100"><Image className="h-4 w-4 text-black" /></div><div className="text-left"><p className="text-sm font-semibold text-black">Restaurar fotos do Drive</p><p className="text-xs text-gray-500">Baixa os arquivos reais, persiste no Base44 e vincula aos relatórios</p></div></div>
+      {collapsed ? <ChevronDown className="h-4 w-4 text-gray-400" /> : <ChevronUp className="h-4 w-4 text-gray-400" />}
+    </button>
+    {!collapsed && <div className="space-y-4 border-t border-gray-100 px-5 pb-5 pt-4">
+      <div className="space-y-2"><label className="text-xs font-medium text-gray-600">ID da pasta do Google Drive</label><Input value={folderId} onChange={(e) => setFolderId(e.target.value)} placeholder="Cole o ID da pasta do Drive..." />
+        <div className="flex flex-wrap gap-2">{PASTAS_SUGERIDAS.map((p) => <button key={p.id} type="button" onClick={() => setFolderId(p.id)} className={`rounded-full border px-2.5 py-1 text-[11px] ${folderId === p.id ? 'border-black bg-black text-white' : 'border-gray-300 text-gray-600'}`}>{p.label}</button>)}</div>
+      </div>
+      <div className="space-y-0.5 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-700"><p>✅ Detecta museu, mês e ano pelo nome e pelo caminho da pasta</p><p>🔗 Vincula a atividade apenas quando houver correspondência</p><p>📝 Gera legenda no formato: Atividade — Local — Data</p><p>🔁 Deduplica pelo ID real do arquivo no Google Drive</p><p>⬇️ Baixa o conteúdo e envia ao armazenamento do Base44 em blocos de 10</p></div>
+      <div className="flex flex-wrap gap-2"><Button onClick={handlePreview} disabled={loadingPreview || loadingImport} variant="outline" className="gap-2">{loadingPreview ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}{loadingPreview ? 'Analisando...' : 'Pré-visualizar fotos'}</Button>{preview && processar.length > 0 && <Button onClick={handleConfirmar} disabled={loadingImport || loadingPreview} className="gap-2 bg-black text-white">{loadingImport ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}{loadingImport ? 'Baixando em blocos de 10...' : `Baixar e importar ${processar.length} foto(s)`}</Button>}</div>
+      {loadingImport && <div className="rounded-xl border bg-slate-50 p-4"><p className="text-sm font-semibold">Download e persistência em andamento</p><p className="mt-1 text-xs text-gray-500">Cada bloco contém até 10 imagens. A janela será atualizada ao final.</p><div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full w-2/3 animate-pulse bg-slate-700" /></div></div>}
+      {preview && !loadingPreview && <div className="space-y-3"><div className="flex flex-wrap items-center gap-3 text-sm"><strong>{preview.total_imagens} imagens encontradas</strong>{preview.total_novas > 0 && <Badge className="bg-green-100 text-green-700">{preview.total_novas} novas</Badge>}{preview.total_reparar > 0 && <Badge className="bg-amber-100 text-amber-700">{preview.total_reparar} para reparar</Badge>}{concluidas.length > 0 && <Badge variant="outline">{concluidas.length} concluídas</Badge>}</div>{processar.length > 0 && <div className="grid max-h-[500px] grid-cols-1 gap-2 overflow-y-auto md:grid-cols-2">{processar.map((foto, i) => <FotoPreviewCard key={foto.drive_file_id || i} foto={foto} />)}</div>}{!processar.length && <div className="rounded-xl bg-green-50 p-5 text-sm font-semibold text-green-700">Todas as fotos foram baixadas e persistidas com URL válida.</div>}</div>}
+      {resultado && <div className={`space-y-1 rounded-xl border p-4 ${resultado.total_erros ? 'border-amber-200 bg-amber-50' : 'border-green-200 bg-green-50'}`}><p className="flex items-center gap-2 text-sm font-semibold"><CheckCircle2 className="h-5 w-5" />{resultado.total_criadas || 0} criadas · {resultado.total_reparadas || 0} reparadas · {resultado.total_erros || 0} erros</p><p className="text-xs">Processadas em {resultado.total_blocos || 0} bloco(s) de até 10.</p>{resultado.falhas?.slice(0, 5).map((falha, i) => <p key={i} className="flex items-center gap-1 text-xs text-red-700"><AlertTriangle className="h-3 w-3" />{falha.arquivo}: {falha.erro}</p>)}</div>}
+    </div>}
+  </div>;
 }
