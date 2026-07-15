@@ -30,30 +30,12 @@ Deno.serve(async (req) => {
     }
 
     const now = new Date();
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
-
-    // Calcular próximo slot (horário de Brasília)
-    let batchSlot;
-    let batchScheduledAt;
-    
-    if (currentHour < 9) {
-      // Antes das 09h00: lote da manhã de hoje
-      batchSlot = 'manha';
-      batchScheduledAt = new Date(now);
-      batchScheduledAt.setHours(9, 0, 0, 0);
-    } else if (currentHour < 16 || (currentHour === 16 && currentMinute < 15)) {
-      // Entre 09h00 e 16h15: lote da tarde de hoje
-      batchSlot = 'tarde';
-      batchScheduledAt = new Date(now);
-      batchScheduledAt.setHours(16, 15, 0, 0);
-    } else {
-      // Depois das 16h15: lote da manhã de amanhã
-      batchSlot = 'manha';
-      batchScheduledAt = new Date(now);
-      batchScheduledAt.setDate(batchScheduledAt.getDate() + 1);
-      batchScheduledAt.setHours(9, 0, 0, 0);
-    }
+    // Próximo resumo às 05:00 no horário de Brasília. O campo batch_slot é
+    // mantido como "manha" por compatibilidade com a entidade existente.
+    const batchSlot = 'manha';
+    const localDate = now.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+    const batchScheduledAt = new Date(`${localDate}T08:00:00.000Z`);
+    if (now >= batchScheduledAt) batchScheduledAt.setUTCDate(batchScheduledAt.getUTCDate() + 1);
 
     // Verificar se já existe registro pendente para este purchase_id e slot
     const existing = await base44.entities.PurchaseNotificationQueue.filter({
@@ -66,7 +48,7 @@ Deno.serve(async (req) => {
       return Response.json({
         success: true,
         already_queued: true,
-        message: 'Esta solicitação já está no próximo lote de notificações.',
+        message: 'Esta solicitação já está no resumo diário de pagamentos.',
         existingId: existing[0].id
       });
     }
@@ -117,7 +99,7 @@ Deno.serve(async (req) => {
     return Response.json({
       success: true,
       already_queued: false,
-      message: 'Solicitação adicionada ao próximo lote de notificações.',
+      message: 'Solicitação adicionada ao resumo diário de pagamentos das 05:00.',
       queueId: queueItem.id,
       batchSlot,
       batchScheduledAt: batchScheduledAt.toISOString()

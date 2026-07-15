@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
-import { Pencil, Trash2, CheckCircle2, RotateCcw, XCircle, Bell, Loader2, LinkIcon, ExternalLink, FileText, FileCode2, HardDrive, ChevronUp, ChevronDown, AlertTriangle } from 'lucide-react';
+import { Pencil, Trash2, CheckCircle2, RotateCcw, XCircle, Bell, Loader2, LinkIcon, FileText, FileCode2, HardDrive, ChevronUp, ChevronDown, AlertTriangle } from 'lucide-react';
 import { normalizeStatus } from '@/lib/normalizeStatus';
 import { isFinanciallyActiveStatus } from '@/utils/finance/financeiroUtils';
 
@@ -480,12 +480,12 @@ export default function TabelaSolicitacoes({ purchases, rubricas, attachmentByPu
     const descricao = p.descricao_item || p.objeto || '—';
     const centro = p._centro_custo_normalizado || p.centro_custo || '—';
     const nfNum = p.nf_numero ? ` · NF ${p.nf_numero}` : '';
-    const texto = [`Fornecedor: ${fornecedor}`, `Descrição: ${descricao}`, `Centro de custo: ${centro}`, `Valor: ${fmtBRL(valor)}${nfNum}`, '', 'Enviar notificação de aprovação para Daniel Perini?'].join('\n');
+    const texto = [`Fornecedor: ${fornecedor}`, `Descrição: ${descricao}`, `Centro de custo: ${centro}`, `Valor: ${fmtBRL(valor)}${nfNum}`, '', 'Incluir este pedido no resumo diário das 05:00 para Josiane, Daniel e ADM?'].join('\n');
     if (!window.confirm(texto)) return;
     setSendingNotif((s) => ({ ...s, [p.id]: true }));
     try {
-      await base44.functions.invoke('notifyPurchaseApprovedToFinanceiro', { purchaseId: p.id, action: 'send_approval', recipients: ['danielperini.mc@viadutodasartes.org.br', 'daniel@periniprojetos.com.br'] });
-      toast.success('Notificação enviada com sucesso.');
+      await base44.functions.invoke('notifyPurchaseApprovedToFinanceiro', { purchaseId: p.id, action: 'send_approval' });
+      toast.success('Pedido incluído no resumo diário de pagamentos.');
     } catch (e) {
       toast.error('Erro ao enviar notificação: ' + (e?.message || 'desconhecido'));
     } finally {

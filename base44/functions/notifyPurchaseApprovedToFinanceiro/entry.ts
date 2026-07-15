@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
-const FIXED_EMAILS = ['notasfiscais@viadutodasartes.org.br', 'danielperini.mc@viadutodasartes.org.br', 'daniel@periniprojetos.com.br'];
+const FIXED_EMAILS = ['josianeamancio@viadutodasartes.org.br', 'danielperini.mc@viadutodasartes.org.br', 'adm@viadutodasartes.org.br'];
 
 const TOMADOR_VIADUTO = {
   nome: 'VIADUTO DAS ARTES',
@@ -183,8 +183,7 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, conformidade });
     }
 
-    // SEMPRE usar apenas a fila - não enviar email imediato
-    // O email será enviado nos lotes agendados (09:30 e 16:45)
+    // Usar apenas a fila: aprovações entram no resumo único das 05:00.
     try {
       const queueResult = await base44.functions.invoke('enqueuePurchaseNotification', { purchaseId });
       
@@ -200,7 +199,7 @@ Deno.serve(async (req) => {
 
       return Response.json({ 
         success: true, 
-        message: 'Notificação adicionada à fila para envio no próximo lote (09:30 ou 16:45).',
+        message: `Pedido incluído no resumo diário das 05:00 para ${FIXED_EMAILS.join(', ')}.`,
         queueResult: queueResult?.data || queueResult,
         conformidade 
       });

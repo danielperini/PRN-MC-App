@@ -1,188 +1,198 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
+const RECIPIENTS = [
+  'josianeamancio@viadutodasartes.org.br',
+  'danielperini.mc@viadutodasartes.org.br',
+  'adm@viadutodasartes.org.br',
+];
+
+const OPEN_PAYMENT_STATUSES = new Set(['APROVADO_COORD', 'APROVADO_ADMIN']);
+const APP_URL = 'https://relatorios-perini-pro-mc-viadutodasartes.base44.app/Compras';
+
+function numberValue(value: unknown) {
+  const parsed = Number(value || 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function paymentValue(purchase: Record<string, unknown>) {
+  return numberValue(
+    purchase.valor_pago ||
+    purchase.valor_aprovado_admin ||
+    purchase.valor_aprovado ||
+    purchase.nf_valor_total ||
+    purchase.valor_solicitado ||
+    purchase.valor_total
+  );
+}
+
+function escapeHtml(value: unknown) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+function formatMoney(value: unknown) {
+  return numberValue(value).toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  });
+}
+
+function formatDate(value: unknown) {
+  if (!value) return '-';
+  const parsed = new Date(String(value));
+  if (Number.isNaN(parsed.getTime())) return escapeHtml(value);
+  return parsed.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+}
+
+function isStillOpen(purchase: Record<string, unknown>) {
+  return OPEN_PAYMENT_STATUSES.has(String(purchase.status || '').toUpperCase()) &&
+    purchase.pago !== true &&
+    purchase.quitada !== true &&
+    String(purchase.status_pagamento || '').toLowerCase() !== 'pago';
+}
+
+function purchaseLink(purchase: Record<string, unknown>) {
+  return `${APP_URL}?purchaseId=${encodeURIComponent(String(purchase.id || ''))}`;
+}
+
+function documentLinks(purchase: Record<string, unknown>) {
+  const links = [
+    ['NF', purchase.nota_fiscal_url || purchase.nf_pdf_url],
+    ['XML', purchase.nf_xml_url || purchase.nota_fiscal_xml_url],
+    ['Comprovante', purchase.comprovante_pagamento_url || purchase.comprovante_url],
+  ].filter(([, url]) => Boolean(url));
+
+  links.push(['Abrir pedido', purchaseLink(purchase)]);
+  return links
+    .map(([label, url]) => `<a href="${escapeHtml(url)}" style="color:#1d4ed8">${label}</a>`)
+    .join(' · ');
+}
+
+function buildEmail(purchases: Array<Record<string, unknown>>, mode: string) {
+  const now = new Date();
+  const total = purchases.reduce((sum, purchase) => sum + paymentValue(purchase), 0);
+  const rows = purchases.map((purchase) => `
+    <tr>
+      <td style="padding:9px;border:1px solid #dbe3ec">${escapeHtml(purchase.nf_numero || '-')}</td>
+      <td style="padding:9px;border:1px solid #dbe3ec">
+        <strong>${escapeHtml(purchase.fornecedor_nome || purchase.nf_emitente_nome || 'Fornecedor não informado')}</strong><br>
+        <span style="color:#64748b">${escapeHtml(purchase.descricao_item || purchase.objeto || '-')}</span>
+      </td>
+      <td style="padding:9px;border:1px solid #dbe3ec">${escapeHtml(purchase.centro_custo || 'Geral')}</td>
+      <td style="padding:9px;border:1px solid #dbe3ec">${escapeHtml(purchase.rubrica_nome || purchase.categoria || '-')}</td>
+      <td style="padding:9px;border:1px solid #dbe3ec">${formatDate(purchase.nf_data_emissao || purchase.created_date)}</td>
+      <td style="padding:9px;border:1px solid #dbe3ec;text-align:right;white-space:nowrap"><strong>${formatMoney(paymentValue(purchase))}</strong></td>
+      <td style="padding:9px;border:1px solid #dbe3ec">${documentLinks(purchase)}</td>
+    </tr>
+  `).join('');
+
+  const emptyState = `
+    <div style="padding:18px;border:1px solid #bbf7d0;background:#f0fdf4;border-radius:8px;color:#166534">
+      Nenhum pedido de pagamento está em aberto neste momento.
+    </div>
+  `;
+
+  const table = `
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead>
+        <tr style="background:#eff6ff;color:#1e3a8a">
+          <th style="padding:9px;border:1px solid #dbe3ec;text-align:left">NF</th>
+          <th style="padding:9px;border:1px solid #dbe3ec;text-align:left">Fornecedor / pedido</th>
+          <th style="padding:9px;border:1px solid #dbe3ec;text-align:left">Centro</th>
+          <th style="padding:9px;border:1px solid #dbe3ec;text-align:left">Rubrica</th>
+          <th style="padding:9px;border:1px solid #dbe3ec;text-align:left">Data</th>
+          <th style="padding:9px;border:1px solid #dbe3ec;text-align:right">Valor</th>
+          <th style="padding:9px;border:1px solid #dbe3ec;text-align:left">Documentos</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+
+  const testLabel = mode === 'immediate_test'
+    ? '<p style="padding:10px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:8px"><strong>TESTE IMEDIATO:</strong> este envio valida os três destinatários antes do rito diário.</p>'
+    : '';
+
+  return `
+    <html><body style="font-family:Arial,sans-serif;color:#1e293b;line-height:1.45">
+      <div style="max-width:1100px;margin:0 auto;padding:20px">
+        <h2 style="margin:0;color:#1d4ed8">Pedidos de pagamento em aberto</h2>
+        <p style="color:#64748b">Atualizado em ${now.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</p>
+        ${testLabel}
+        <div style="display:flex;gap:12px;margin:16px 0">
+          <div style="padding:12px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px"><strong>${purchases.length}</strong><br><span style="color:#64748b">pedido(s) em aberto</span></div>
+          <div style="padding:12px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px"><strong>${formatMoney(total)}</strong><br><span style="color:#64748b">valor total</span></div>
+        </div>
+        ${purchases.length ? table : emptyState}
+        <p style="margin-top:20px"><a href="${APP_URL}" style="display:inline-block;padding:10px 16px;background:#1d4ed8;color:white;text-decoration:none;border-radius:6px">Abrir solicitações</a></p>
+        <p style="font-size:12px;color:#64748b">Resumo automático do Museus Centro. O envio diário ocorre às 05:00 (horário de Brasília) e considera somente pedidos ainda não pagos.</p>
+      </div>
+    </body></html>
+  `;
+}
+
+async function listOpenPurchases(service: any) {
+  const [coordApproved, adminApproved] = await Promise.all([
+    service.entities.PurchaseRequest.filter({ status: 'APROVADO_COORD' }, '-created_date', 1000),
+    service.entities.PurchaseRequest.filter({ status: 'APROVADO_ADMIN' }, '-created_date', 1000),
+  ]);
+
+  const unique = new Map<string, Record<string, unknown>>();
+  for (const purchase of [...(coordApproved || []), ...(adminApproved || [])]) {
+    if (purchase?.id && isStillOpen(purchase)) unique.set(purchase.id, purchase);
+  }
+
+  return [...unique.values()].sort((a, b) =>
+    String(b.created_date || '').localeCompare(String(a.created_date || ''))
+  );
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-
-    // Verificar se é uma chamada agendada (service role) ou manual
+    const body = await req.json().catch(() => ({}));
+    const mode = body?.mode === 'immediate_test' ? 'immediate_test' : 'scheduled';
     const user = await base44.auth.me().catch(() => null);
-    const isScheduled = !user;
-    
-    // Se não for agendado, verificar se é admin
-    if (!isScheduled && (!user || user.role !== 'admin')) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
+    if (mode === 'immediate_test') {
+      const email = String(user?.email || '').toLowerCase();
+      const isAuthorized = user && (
+        user.role === 'admin' ||
+        String(user.base_role || '').toUpperCase() === 'COORDENADOR' ||
+        RECIPIENTS.includes(email)
+      );
+      if (!isAuthorized) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const now = new Date();
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
+    const purchases = await listOpenPurchases(base44.asServiceRole);
+    const html = buildEmail(purchases, mode);
+    const dateLabel = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+    const prefix = mode === 'immediate_test' ? '[TESTE IMEDIATO] ' : '';
 
-    // Determinar qual slot processar
-    // Manhã: 09:30-10:29, Tarde: 16:45-17:44
-    let batchSlot = null;
-    if (currentHour === 9 && currentMinute >= 30) {
-      batchSlot = 'manha';
-    } else if (currentHour === 16 && currentMinute >= 45) {
-      batchSlot = 'tarde';
-    }
-
-    if (!batchSlot) {
-      return Response.json({ 
-        success: true, 
-        message: 'Fora do horário de processamento de lotes',
-        nextSlot: currentHour < 16 ? 'tarde' : 'manha'
-      });
-    }
-
-    // Buscar pendentes do slot atual
-    const pendingItems = await base44.entities.PurchaseNotificationQueue.filter({
-      status: 'pendente_lote',
-      batch_slot: batchSlot
-    });
-
-    if (!pendingItems || pendingItems.length === 0) {
-      return Response.json({ 
-        success: true, 
-        message: `Nenhuma notificação pendente no slot ${batchSlot}` 
-      });
-    }
-
-    // Agrupar por centro de custo para melhor organização
-    const groupedByCentroCusto = pendingItems.reduce((acc, item) => {
-      const cc = item.centro_custo || 'Geral';
-      if (!acc[cc]) acc[cc] = [];
-      acc[cc].push(item);
-      return acc;
-    }, {});
-
-    // Construir corpo do email
-    let emailBody = `
-      <html>
-      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-        <h2 style="color: #2563eb;">Notificação de Compras - Lote ${batchSlot.toUpperCase()}</h2>
-        <p><strong>Data/Hora:</strong> ${now.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</p>
-        <p><strong>Total de solicitações:</strong> ${pendingItems.length}</p>
-        <hr style="border: 1px solid #e5e7eb; margin: 20px 0;">
-    `;
-
-    // Iterar por centro de custo
-    for (const [centroCusto, items] of Object.entries(groupedByCentroCusto)) {
-      const totalCentroCusto = items.reduce((sum, item) => sum + (item.valor || 0), 0);
-      
-      emailBody += `
-        <h3 style="color: #059669; margin-top: 20px;">${centroCusto}</h3>
-        <p><strong>Quantidade:</strong> ${items.length} | <strong>Valor Total:</strong> R$ ${totalCentroCusto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-        <table style="width: 100%; border-collapse: collapse; margin: 10px 0;">
-          <thead>
-            <tr style="background: #f3f4f6;">
-              <th style="padding: 8px; text-align: left; border: 1px solid #e5e7eb;">Descrição</th>
-              <th style="padding: 8px; text-align: left; border: 1px solid #e5e7eb;">Fornecedor</th>
-              <th style="padding: 8px; text-align: right; border: 1px solid #e5e7eb;">Valor</th>
-              <th style="padding: 8px; text-align: center; border: 1px solid #e5e7eb;">Rubrica</th>
-              <th style="padding: 8px; text-align: center; border: 1px solid #e5e7eb;">Links</th>
-            </tr>
-          </thead>
-          <tbody>
-      `;
-
-      for (const item of items) {
-        const links = [];
-        if (item.drive_backup_nf_pdf_link) links.push('<a href="' + item.drive_backup_nf_pdf_link + '">NF</a>');
-        if (item.drive_backup_nf_xml_link) links.push('<a href="' + item.drive_backup_nf_xml_link + '">XML</a>');
-        if (item.comprovante_url) links.push('<a href="' + item.comprovante_url + '">Comprovante</a>');
-        
-        emailBody += `
-          <tr>
-            <td style="padding: 8px; border: 1px solid #e5e7eb;">${item.purchase_descricao || 'N/A'}</td>
-            <td style="padding: 8px; border: 1px solid #e5e7eb;">${item.fornecedor_nome || 'N/A'}${item.fornecedor_cnpj ? `<br/><small>CNPJ: ${item.fornecedor_cnpj}</small>` : ''}</td>
-            <td style="padding: 8px; text-align: right; border: 1px solid #e5e7eb;">R$ ${(item.valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-            <td style="padding: 8px; text-align: center; border: 1px solid #e5e7eb;">${item.rubrica_grupo || item.rubrica_nome || 'N/A'}</td>
-            <td style="padding: 8px; text-align: center; border: 1px solid #e5e7eb;">${links.join(' | ') || 'Sem anexos'}</td>
-          </tr>
-        `;
-      }
-
-      emailBody += `
-          </tbody>
-        </table>
-      `;
-    }
-
-    emailBody += `
-        <hr style="border: 1px solid #e5e7eb; margin: 20px 0;">
-        <p style="font-size: 12px; color: #6b7280;">
-          <strong>Instruções:</strong><br/>
-          - Verifique a conformidade de cada nota fiscal antes de aprovar.<br/>
-          - Acesse o sistema para visualizar detalhes completos e aprovar as solicitações.<br/>
-          - Este email é automático e não deve ser respondido.
-        </p>
-        <p style="margin-top: 20px;">
-          <a href="${pendingItems[0].link_app_compras}" style="background: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">Acessar Sistema de Compras</a>
-        </p>
-      </body>
-      </html>
-    `;
-
-    // Destinatários fixos (corrigidos)
-    const recipients = [
-      'adm@viadutodasartes.org.br',
-      'notasfiscais@viadutodasartes.org.br',
-      'danielperini.mc@viadutodasartes.org.br',
-      'daniel@periniprojetos.com.br'
-    ];
-
-    const digestId = `DIGEST-${batchSlot.toUpperCase()}-${now.toISOString().split('T')[0]}-${Date.now()}`;
-
-    // Enviar para cada destinatário
-    const sendPromises = recipients.map(recipient => 
-      base44.integrations.Core.SendEmail({
-        to: recipient,
-        subject: `Notificação de Compras - Lote ${batchSlot.toUpperCase()} - ${pendingItems.length} solicitação(ões)`,
-        body: emailBody,
-        from_name: 'Museus Centro - Sistema de Compras'
-      })
-    );
-
-    await Promise.all(sendPromises);
-
-    // Marcar registros como enviados
-    const updatePromises = pendingItems.map(item =>
-      base44.entities.PurchaseNotificationQueue.update(item.id, {
-        status: 'enviado',
-        sent_at: now.toISOString(),
-        digest_id: digestId
-      })
-    );
-
-    await Promise.all(updatePromises);
+    await Promise.all(RECIPIENTS.map((to) => base44.integrations.Core.SendEmail({
+      to,
+      subject: `${prefix}[Museus Centro] Pedidos de pagamento em aberto — ${dateLabel}`,
+      body: html,
+      from_name: 'Museus Centro - Solicitações',
+    })));
 
     return Response.json({
       success: true,
-      message: `Lote ${batchSlot} processado com sucesso`,
-      digestId,
-      itemsSent: pendingItems.length,
-      recipients
+      mode,
+      recipients: RECIPIENTS,
+      openPurchases: purchases.length,
+      totalValue: purchases.reduce((sum, purchase) => sum + paymentValue(purchase), 0),
+      emailsSent: RECIPIENTS.length,
     });
-
   } catch (error) {
-    console.error('Erro ao enviar lote de notificações:', error);
-    
-    // Marcar registros com erro
-    const pendingItems = await base44.entities.PurchaseNotificationQueue.filter({
-      status: 'pendente_lote',
-      batch_slot: batchSlot
-    });
-    
-    if (pendingItems) {
-      const errorPromises = pendingItems.map(item =>
-        base44.entities.PurchaseNotificationQueue.update(item.id, {
-          status: 'erro',
-          error_message: error.message
-        })
-      );
-      await Promise.all(errorPromises);
-    }
-    
-    return Response.json({ error: error.message }, { status: 500 });
+    console.error('[sendPurchaseNotificationDigest] Falha no resumo de pagamentos:', error);
+    return Response.json({
+      success: false,
+      error: error?.message || String(error),
+    }, { status: 500 });
   }
 });

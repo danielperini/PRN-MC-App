@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { FileText, CheckCircle, XCircle, ExternalLink, Search, X, FileCode2, AlertCircle, Loader2, RefreshCw, Filter, ShieldCheck } from 'lucide-react';
+import { CheckCircle, XCircle, ExternalLink, Search, X, FileCode2, AlertCircle, Loader2, RefreshCw, Filter, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const STATUS_APROVADOS = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
@@ -139,7 +139,16 @@ export default function AprovacaoNFs() {
   }
   async function handleAprovar(intake) {
     setProcessando(intake.id);
-    try { await base44.entities.DocumentIntake.update(intake.id, { status_processamento: 'APROVADO' }); const prId = intake.data?.purchase_request_id || intake.entidade_destino_id; if (prId) await base44.entities.PurchaseRequest.update(prId, { status: 'APROVADO_COORD' }); toast.success('NF aprovada com sucesso!'); await atualizarTudo(); }
+    try {
+      await base44.entities.DocumentIntake.update(intake.id, { status_processamento: 'APROVADO' });
+      const prId = intake.data?.purchase_request_id || intake.entidade_destino_id;
+      if (prId) {
+        await base44.entities.PurchaseRequest.update(prId, { status: 'APROVADO_COORD' });
+        await base44.functions.invoke('enqueuePurchaseNotification', { purchaseId: prId });
+      }
+      toast.success('NF aprovada e incluída no resumo diário de pagamentos.');
+      await atualizarTudo();
+    }
     catch (e) { toast.error('Erro ao aprovar: ' + (e?.message || String(e))); }
     finally { setProcessando(null); }
   }

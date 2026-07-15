@@ -1,0 +1,18 @@
+{
+  "name": "sendPurchaseNotificationDigest",
+  "entry": "entry.ts",
+  "automations": [
+    {
+      "type": "scheduled",
+      "name": "pedidos_pagamento_diario_0500_brasilia",
+      "description": "Envia diariamente às 05:00 de Brasília o resumo atualizado dos pedidos de pagamento em aberto.",
+      "function_args": {
+        "mode": "scheduled"
+      },
+      "is_active": true,
+      "schedule_mode": "recurring",
+      "schedule_type": "cron",
+      "cron_expression": "0 8 * * *"
+    }
+  ]
+}
