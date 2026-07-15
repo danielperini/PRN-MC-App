@@ -1,0 +1,19 @@
+{
+  "name": "syncNotasFiscaisDrive",
+  "entry": "entry.ts",
+  "automations": [
+    {
+      "type": "scheduled",
+      "name": "sincronizar_notas_fiscais_drive_horaria",
+      "description": "Importa a cada hora as notas fiscais novas do Google Drive para a lista de conferência.",
+      "function_args": {
+        "mode": "scheduled",
+        "folder_id": "1sI_XEZpUo3W5gcs2Nik3rGm1v6bAbKTh"
+      },
+      "is_active": true,
+      "schedule_mode": "recurring",
+      "schedule_type": "cron",
+      "cron_expression": "0 * * * *"
+    }
+  ]
+}

@@ -57,6 +57,35 @@
       "type": "string",
       "description": "MIME type do arquivo"
     },
+    "drive_file_id": {
+      "type": "string",
+      "description": "ID canônico do arquivo no Google Drive, usado para impedir importações duplicadas"
+    },
+    "origem": {
+      "type": "string",
+      "description": "Origem da entrada, como google_drive_sync"
+    },
+    "pasta_drive_id": {
+      "type": "string"
+    },
+    "tamanho_bytes": {
+      "type": "number"
+    },
+    "checksum": {
+      "type": "string"
+    },
+    "drive_created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "drive_modified_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "importado_em": {
+      "type": "string",
+      "format": "date-time"
+    },
     "entidade_destino": {
       "type": "string",
       "enum": [
