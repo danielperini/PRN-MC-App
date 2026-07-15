@@ -9,7 +9,7 @@ import MobileHeader from '@/components/mobile/MobileHeader';
 import { HelpContextProvider } from '@/components/help/HelpContextProvider';
 import GlobalAnnouncementBanner from '@/components/common/GlobalAnnouncementBanner';
 import SystemBannerDisplay from '@/components/mensagens/SystemBannerDisplay';
-import NotificationBell from '@/components/notifications/NotificationBell';
+import AutoRubricasSync from '@/components/compras/AutoRubricasSync';
 import { RotateCw } from 'lucide-react';
 
 const PAGE_TITLES = {
@@ -21,7 +21,6 @@ const PAGE_TITLES = {
   Relatorios: 'Relatórios',
   ReportEditor: 'Relatório',
   NovaAtividade: 'Atividades',
-
   Compras: 'Compras e Pagamentos',
   GestaoPagamentos: 'Pagamentos',
   RelatorioMeta: 'Rel. por Meta',
@@ -67,7 +66,6 @@ export default function Layout({ children, currentPageName }) {
 
   useEffect(() => {
     let active = true;
-
     async function loadUser() {
       try {
         const isAuth = await base44.auth.isAuthenticated();
@@ -75,7 +73,6 @@ export default function Layout({ children, currentPageName }) {
           if (active) setCurrentUser(null);
           return;
         }
-
         const user = await base44.auth.me();
         if (active) setCurrentUser(user || null);
       } catch (error) {
@@ -83,12 +80,8 @@ export default function Layout({ children, currentPageName }) {
         if (active) setCurrentUser(null);
       }
     }
-
     loadUser();
-
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, []);
 
   const pageTitle = PAGE_TITLES[currentPageName] || 'Museus Centro';
@@ -97,6 +90,7 @@ export default function Layout({ children, currentPageName }) {
     setIsRefreshing(true);
     try {
       await queryClient.refetchQueries({ stale: true });
+      window.dispatchEvent(new CustomEvent('rubricas:sync'));
     } catch (error) {
       console.error('Error refreshing:', error);
     } finally {
@@ -108,34 +102,22 @@ export default function Layout({ children, currentPageName }) {
   useEffect(() => {
     const container = mobileMainRef.current;
     if (!container) return;
-
-    const handleTouchStart = (e) => {
-      startYRef.current = e.touches[0].clientY;
-    };
-
-    const handleTouchMove = (e) => {
-      const currentY = e.touches[0].clientY;
+    const handleTouchStart = (event) => { startYRef.current = event.touches[0].clientY; };
+    const handleTouchMove = (event) => {
+      const currentY = event.touches[0].clientY;
       const scrollTop = container.scrollTop;
-
       if (scrollTop === 0) {
         const distance = currentY - startYRef.current;
-        if (distance > 0) {
-          setPullDistance(Math.min(distance * 0.5, 120));
-        }
+        if (distance > 0) setPullDistance(Math.min(distance * 0.5, 120));
       }
     };
-
     const handleTouchEnd = () => {
-      if (pullDistance >= 80) {
-        handlePullToRefresh();
-      }
+      if (pullDistance >= 80) handlePullToRefresh();
       setPullDistance(0);
     };
-
     container.addEventListener('touchstart', handleTouchStart);
     container.addEventListener('touchmove', handleTouchMove, { passive: true });
     container.addEventListener('touchend', handleTouchEnd);
-
     return () => {
       container.removeEventListener('touchstart', handleTouchStart);
       container.removeEventListener('touchmove', handleTouchMove);
@@ -146,63 +128,33 @@ export default function Layout({ children, currentPageName }) {
   return (
     <HelpContextProvider pageName={currentPageName}>
       <div className="min-h-screen bg-slate-50 text-slate-900">
+        {currentUser && <AutoRubricasSync />}
         <GlobalAnnouncementBanner />
         <SystemBannerDisplay />
         <div className="hidden lg:flex min-h-screen items-stretch">
-          <Sidebar
-            currentPageName={currentPageName}
-            collapsed={sidebarCollapsed}
-            onToggle={() => setSidebarCollapsed((prev) => !prev)}
-            currentUser={currentUser}
-          />
-
+          <Sidebar currentPageName={currentPageName} collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((prev) => !prev)} currentUser={currentUser} />
           <div className="flex-1 min-w-0 flex flex-col">
-            <TopNav
-              title={pageTitle}
-              currentPageName={currentPageName}
-              currentUser={currentUser}
-            />
-
-            <main className="flex-1 min-w-0 overflow-x-hidden p-4 md:p-6">
-              {children}
-            </main>
+            <TopNav title={pageTitle} currentPageName={currentPageName} currentUser={currentUser} />
+            <main className="flex-1 min-w-0 overflow-x-hidden p-4 md:p-6">{children}</main>
           </div>
         </div>
-
         <div className="lg:hidden min-h-screen flex flex-col pb-20">
-          <MobileHeader
-            title={pageTitle}
-            currentPageName={currentPageName}
-            currentUser={currentUser}
-          />
-
+          <MobileHeader title={pageTitle} currentPageName={currentPageName} currentUser={currentUser} />
           <main ref={mobileMainRef} className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-4 relative">
             {pullDistance > 0 && (
-              <div 
-                className="fixed top-0 left-0 right-0 z-40 flex items-center justify-center bg-gradient-to-b from-blue-50 to-transparent transition-all"
-                style={{ height: `${pullDistance}px` }}
-              >
-                {pullDistance >= 80 && (
+              <div className="fixed top-0 left-0 right-0 z-40 flex items-center justify-center bg-gradient-to-b from-blue-50 to-transparent transition-all" style={{ height: `${pullDistance}px` }}>
+                {pullDistance >= 80 ? (
                   <div className="flex flex-col items-center gap-1">
                     <RotateCw className={`w-4 h-4 text-blue-600 ${isRefreshing ? 'animate-spin' : ''}`} />
-                    <p className="text-xs text-blue-600 font-medium">
-                      {isRefreshing ? 'Atualizando...' : 'Solte para atualizar'}
-                    </p>
+                    <p className="text-xs text-blue-600 font-medium">{isRefreshing ? 'Atualizando...' : 'Solte para atualizar'}</p>
                   </div>
-                )}
-                {pullDistance < 80 && (
-                  <p className="text-xs text-blue-500">Puxe para atualizar</p>
-                )}
+                ) : <p className="text-xs text-blue-500">Puxe para atualizar</p>}
               </div>
             )}
-            <div>
-              {children}
-            </div>
+            <div>{children}</div>
           </main>
-
           <MobileBottomTab currentPageName={currentPageName} />
         </div>
-
         <AssistantChat />
       </div>
     </HelpContextProvider>
