@@ -1977,7 +1977,7 @@ export async function exportSingleReportPdf({ html, exporter, meta = {} } = {}) 
     throw new Error('Exportador PDF indisponivel.');
   }
 
-  return exporter(html, {
+  const result = await exporter(html, {
     pageNumberOffset: 0,
     reportTitle: REPORT_PREVIEW_VARIANTS[meta?.reportVariant]?.title || 'Museus Centro - Relatorio Fisico-Financeiro',
     includeSearchableAppendix: false,
@@ -1985,4 +1985,38 @@ export async function exportSingleReportPdf({ html, exporter, meta = {} } = {}) 
     maxSizeMB: 200,
     meta,
   });
+
+  const blob = normalizePdfBlob(result);
+  if (result && typeof result === 'object' && !(result instanceof Blob) && !(result instanceof ArrayBuffer) && !ArrayBuffer.isView(result)) {
+    return { ...result, blob };
+  }
+  return { blob };
+}
+
+export function normalizePdfBlob(result) {
+  let candidate = result;
+
+  if (candidate && typeof candidate === 'object' && !(candidate instanceof Blob) && !(candidate instanceof ArrayBuffer) && !ArrayBuffer.isView(candidate)) {
+    candidate = candidate.blob ?? candidate.data ?? candidate.pdfBlob ?? null;
+  }
+
+  if (candidate instanceof ArrayBuffer) {
+    candidate = new Blob([candidate], { type: 'application/pdf' });
+  } else if (ArrayBuffer.isView(candidate)) {
+    candidate = new Blob([
+      candidate.buffer.slice(candidate.byteOffset, candidate.byteOffset + candidate.byteLength),
+    ], { type: 'application/pdf' });
+  }
+
+  if (!(candidate instanceof Blob)) {
+    throw new Error('Blob inválido: o exportador não retornou um arquivo PDF.');
+  }
+  if (candidate.size <= 0) {
+    throw new Error('PDF vazio: o arquivo gerado não possui conteúdo.');
+  }
+  if (!(candidate.type === 'application/pdf' || candidate.type.includes('pdf'))) {
+    throw new Error(`Blob inválido: tipo recebido "${candidate.type || 'não informado'}".`);
+  }
+
+  return candidate;
 }

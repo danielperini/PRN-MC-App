@@ -12,6 +12,7 @@ import {
   exportSingleReportPdf,
   getReportPreview,
   getSingleReportPreview,
+  normalizePdfBlob,
   repairReportEncoding,
   sanitizeReportHtmlBeforeSave,
 } from '@/services/reportExportPipeline';
@@ -285,7 +286,7 @@ function getPreviewHtmlFromIndexedDb(key) {
   });
 }
 
-async function getStoredHtml(variant = 'single') {
+async function getStoredHtml(variant = 'single', { allowLegacy = variant === 'single' } = {}) {
   const key = storageKeyForVariant(variant);
   try {
     const quickHtml = sessionStorage.getItem(key) || localStorage.getItem(key) || '';
@@ -297,7 +298,7 @@ async function getStoredHtml(variant = 'single') {
   const fromIndexedDb = await getPreviewHtmlFromIndexedDb(key);
   if (fromIndexedDb) return fromIndexedDb;
 
-  return getPreviewHtmlFromIndexedDb(LEGACY_PREVIEW_HTML_KEY);
+  return allowLegacy ? getPreviewHtmlFromIndexedDb(LEGACY_PREVIEW_HTML_KEY) : '';
 }
 
 async function getAnyStoredReportHtml(preferredVariant = 'single') {
@@ -374,7 +375,7 @@ function createHiddenReportIframe(html) {
 
 async function waitForIframeAssets(iframe) {
   const doc = iframe?.contentDocument;
-  if (!doc) return;
+  if (!doc) return { failedImages: [] };
 
   try {
     await doc.fonts?.ready;
@@ -383,20 +384,29 @@ async function waitForIframeAssets(iframe) {
   }
 
   const images = Array.from(doc.images || []);
-  await Promise.all(images.map((image) => {
-    if (image.complete) return Promise.resolve();
+  const failedImages = [];
+  await Promise.all(images.map((image, index) => {
+    if (image.complete) {
+      if (!image.naturalWidth) failedImages.push(index);
+      return Promise.resolve();
+    }
     return new Promise((resolve) => {
-      const timeout = setTimeout(resolve, 12000);
-      const finish = () => {
+      const timeout = setTimeout(() => {
+        failedImages.push(index);
+        resolve();
+      }, 12000);
+      const finish = (failed = false) => {
         clearTimeout(timeout);
+        if (failed) failedImages.push(index);
         resolve();
       };
-      image.onerror = finish;
-      image.onload = finish;
+      image.onerror = () => finish(true);
+      image.onload = () => finish(false);
     });
   }));
 
   await delay(180);
+  return { failedImages: [...new Set(failedImages)] };
 }
 
 function extractSearchableReportText(doc) {
@@ -613,7 +623,7 @@ async function exportHtmlToPdfBlob(html, options = {}) {
 
   try {
     applyMinimalA4ExportNormalizer(iframe.contentDocument);
-    await waitForIframeAssets(iframe);
+    const assetReport = await waitForIframeAssets(iframe);
     applyMinimalA4ExportNormalizer(iframe.contentDocument);
 
     const doc = iframe.contentDocument;
@@ -626,6 +636,7 @@ async function exportHtmlToPdfBlob(html, options = {}) {
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
 
     let renderedPages = 0;
+    const renderFailures = [];
     for (let index = 0; index < targets.length; index += 1) {
       try {
         renderedPages += await renderTargetToPdfPages({
@@ -635,7 +646,8 @@ async function exportHtmlToPdfBlob(html, options = {}) {
           progressCallback: () => options.onProgress?.(Math.min(90, 40 + Math.round(((index + 1) / targets.length) * 48))),
         });
       } catch (renderError) {
-        console.warn('Falha ao renderizar bloco do PDF. O bloco será ignorado no raster e preservado na prévia HTML.', renderError);
+        renderFailures.push({ index, error: renderError?.message || String(renderError) });
+        console.warn('[PDF Export] Falha ao renderizar bloco', { index, error: renderError?.message || String(renderError) });
       }
     }
 
@@ -661,27 +673,48 @@ async function exportHtmlToPdfBlob(html, options = {}) {
     addContinuousPageNumbers(pdf, options);
 
     const blob = pdf.output('blob');
-    if (!blob || blob.size <= 0) throw new Error('PDF gerado sem conteúdo.');
+    const warnings = [];
+    if (assetReport.failedImages.length) {
+      warnings.push(`${assetReport.failedImages.length} imagem(ns) externa(s) não puderam ser carregadas.`);
+      console.warn('[PDF Export] Imagens não carregadas', { indices: assetReport.failedImages });
+    }
+    if (renderFailures.length) {
+      warnings.push(`${renderFailures.length} bloco(s) não puderam ser renderizados integralmente.`);
+    }
 
-    if (options.returnMeta) return { blob, pageCount: pdf.getNumberOfPages() };
-    return blob;
+    return { blob, pageCount: pdf.getNumberOfPages(), warnings, renderFailures };
   } finally {
     iframe.remove();
   }
 }
 
-async function downloadPdfBlob(blob, filename) {
-  if (!blob || blob.size <= 0) throw new Error('PDF não foi gerado.');
-  const url = URL.createObjectURL(blob);
+async function downloadPdfBlob(blob, filename, { automatic = false } = {}) {
+  const pdfBlob = normalizePdfBlob(blob);
+  let url = '';
+  try {
+    url = URL.createObjectURL(pdfBlob);
+  } catch (error) {
+    throw new Error(`Erro no URL.createObjectURL: ${error?.message || error}`);
+  }
+  if (!url) throw new Error('Erro no URL.createObjectURL: URL vazia.');
+
+  if (automatic) {
+    const opened = window.open(url, '_blank', 'noopener,noreferrer');
+    return { url, blob: pdfBlob, filename, action: opened ? 'opened' : 'manual_required' };
+  }
+
   const link = document.createElement('a');
   link.href = url;
   link.download = filename;
+  link.rel = 'noopener';
   link.style.display = 'none';
   document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  await delay(500);
-  URL.revokeObjectURL(url);
+  try {
+    link.click();
+  } finally {
+    link.remove();
+  }
+  return { url, blob: pdfBlob, filename, action: 'download_requested' };
 }
 
 export default function RelatorioPreview() {
@@ -699,6 +732,7 @@ export default function RelatorioPreview() {
   const [autoExportStarted, setAutoExportStarted] = useState(false);
   const [reportMeta, setReportMeta] = useState({});
   const [exportStartedAt, setExportStartedAt] = useState(null);
+  const [pdfDownload, setPdfDownload] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -708,8 +742,8 @@ export default function RelatorioPreview() {
         ? await getSingleReportPreview()
         : await getReportPreview(reportVariant);
       let finalHtml = preview?.html || '';
-      if (!finalHtml) finalHtml = await getStoredHtml(reportVariant);
-      if (!finalHtml) finalHtml = await getAnyStoredReportHtml(reportVariant);
+      if (!finalHtml) finalHtml = await getStoredHtml(reportVariant, { allowLegacy: reportVariant === 'single' });
+      if (!finalHtml && reportVariant !== 'atividades') finalHtml = await getAnyStoredReportHtml(reportVariant);
       finalHtml = await enhanceReportHtml(finalHtml, reportVariant);
       let finalMeta = preview?.meta || {};
       try {
@@ -730,6 +764,10 @@ export default function RelatorioPreview() {
     };
   }, [reportVariant]);
 
+  useEffect(() => () => {
+    if (pdfDownload?.url) URL.revokeObjectURL(pdfDownload.url);
+  }, [pdfDownload]);
+
   const iframeSrcDoc = useMemo(
     () => repairReportEncoding(html) || '<html><body><p>Prévia não encontrada.</p></body></html>',
     [html]
@@ -739,7 +777,7 @@ export default function RelatorioPreview() {
   useEffect(() => {
     if (!autoExportPdf || !html || isExportingPdf || autoExportStarted) return;
     setAutoExportStarted(true);
-    const timer = setTimeout(() => handleExportPdf(), 600);
+    const timer = setTimeout(() => handleExportPdf({ automatic: true }), 600);
     return () => clearTimeout(timer);
   }, [autoExportPdf, html, isExportingPdf, autoExportStarted]);
 
@@ -749,8 +787,11 @@ export default function RelatorioPreview() {
     const preview = reportVariant === 'single'
       ? await getSingleReportPreview()
       : await getReportPreview(reportVariant);
-    const directHtml = repairReportEncoding(preview?.html || (await getStoredHtml(reportVariant)) || '');
+    const directHtml = repairReportEncoding(preview?.html || (await getStoredHtml(reportVariant, { allowLegacy: reportVariant === 'single' })) || '');
     if (String(directHtml || '').trim()) return sanitizeReportHtmlBeforeSave(await enhanceReportHtml(directHtml, reportVariant));
+    if (reportVariant === 'atividades') {
+      throw new Error('HTML do Relatório de Atividades não encontrado nas chaves relatorio_fisico_financeiro_atividades_html/relatorio_fisico_financeiro_atividades_meta.');
+    }
     return sanitizeReportHtmlBeforeSave(await enhanceReportHtml(await getAnyStoredReportHtml(reportVariant), reportVariant));
   }
 
@@ -759,15 +800,10 @@ export default function RelatorioPreview() {
     if (message) setExportProgressMessage(message);
   }
 
-  async function handleExportPdf() {
-    const exportHtml = await getHtmlForExport();
-    if (!exportHtml) {
-      toast.error('HTML do relatório não encontrado. Gere o relatório novamente.');
-      return;
-    }
-
+  async function handleExportPdf({ automatic = false } = {}) {
     const filename = filenameForReport(reportVariant);
     const startedAt = Date.now();
+    setPdfDownload(null);
     setExportStartedAt(startedAt);
     setIsExportingPdf(true);
     setExportProgressOpen(true);
@@ -777,11 +813,22 @@ export default function RelatorioPreview() {
     toast.info('Gerando PDF...');
 
     try {
+      const exportHtml = await getHtmlForExport();
+      if (!String(exportHtml || '').trim()) {
+        throw new Error('HTML do relatório não encontrado. Gere o relatório novamente.');
+      }
+      if (reportVariant === 'atividades') {
+        console.info('[PDF Atividades] HTML carregado', {
+          tamanho: exportHtml.length,
+          variante: reportVariant,
+        });
+      }
+
       setProgress(24, 'Carregando imagens, fontes e estilos do HTML.');
       await delay(120);
 
       setProgress(40, 'Renderizando o layout do HTML em páginas A4.');
-      const blob = await exportSingleReportPdf({
+      const exportResult = await exportSingleReportPdf({
         html: exportHtml,
         meta: { ...reportMeta, reportVariant },
         exporter: (payloadHtml, payloadOptions = {}) => exportHtmlToPdfBlob(payloadHtml, {
@@ -791,26 +838,47 @@ export default function RelatorioPreview() {
           meta: { ...reportMeta, reportVariant },
         }),
       });
+      const blob = normalizePdfBlob(exportResult);
+      const warnings = Array.isArray(exportResult?.warnings) ? exportResult.warnings : [];
+
+      if (reportVariant === 'atividades') {
+        console.info('[PDF Atividades] Blob gerado', {
+          size: blob?.size,
+          type: blob?.type,
+          isBlob: blob instanceof Blob,
+        });
+      }
 
       setProgress(92, 'Preparando download do arquivo PDF.');
-      await downloadPdfBlob(blob, filename);
+      const download = await downloadPdfBlob(blob, filename, { automatic });
+      setPdfDownload({ ...download, warnings });
 
-      setProgress(100, 'Download iniciado. Verifique a pasta de downloads do navegador.');
-      toast.success('PDF exportado com sucesso.');
+      if (warnings.length) {
+        setProgress(100, `PDF disponível com ressalvas: ${warnings.join(' ')}`);
+        toast.warning('PDF gerado parcialmente. Use o botão Baixar PDF e revise as imagens indicadas.');
+      } else if (download.action === 'manual_required') {
+        setProgress(100, 'PDF pronto. O navegador bloqueou a abertura automática; use Baixar PDF ou Abrir PDF.');
+        toast.info('PDF pronto. Use o botão Baixar PDF.');
+      } else if (download.action === 'opened') {
+        setProgress(100, 'PDF aberto em nova aba. O botão Baixar PDF permanece disponível.');
+        toast.success('PDF disponibilizado em nova aba.');
+      } else {
+        setProgress(100, 'Download solicitado ao navegador. O botão alternativo permanece disponível.');
+        toast.success('PDF disponível para download.');
+      }
     } catch (error) {
       console.error('Erro ao exportar PDF:', error);
       setExportProgressError(error?.message || 'Erro ao exportar PDF.');
       setExportProgressMessage('A exportação foi interrompida antes do download.');
-      toast.error('Erro ao exportar PDF.');
+      toast.error(error?.message || 'Erro ao exportar PDF.');
     } finally {
       setIsExportingPdf(false);
-      setCurrentExportFile(null);
     }
   }
 
   async function handleDownloadHtml() {
-    let htmlForDownload = html || (await getStoredHtml(reportVariant)) || '';
-    if (!String(htmlForDownload || '').trim()) htmlForDownload = await getAnyStoredReportHtml(reportVariant);
+    let htmlForDownload = html || (await getStoredHtml(reportVariant, { allowLegacy: reportVariant === 'single' })) || '';
+    if (!String(htmlForDownload || '').trim() && reportVariant !== 'atividades') htmlForDownload = await getAnyStoredReportHtml(reportVariant);
     htmlForDownload = await enhanceReportHtml(htmlForDownload, reportVariant);
     htmlForDownload = sanitizeReportHtmlBeforeSave(repairReportEncoding(htmlForDownload));
     if (!String(htmlForDownload || '').trim()) {
@@ -830,6 +898,19 @@ export default function RelatorioPreview() {
   const eta = exportStartedAt && isExportingPdf && exportProgress > 0 && exportProgress < 100
     ? formatDuration(estimateRemaining(exportStartedAt, exportProgress))
     : null;
+
+  function closeExportDialog() {
+    if (isExportingPdf) return;
+    setExportProgressOpen(false);
+    setPdfDownload(null);
+    setCurrentExportFile(null);
+  }
+
+  function openGeneratedPdf() {
+    if (!pdfDownload?.url) return;
+    const opened = window.open(pdfDownload.url, '_blank', 'noopener,noreferrer');
+    if (!opened) toast.error('O navegador bloqueou a nova aba. Use Baixar PDF.');
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -882,13 +963,13 @@ export default function RelatorioPreview() {
       <Dialog
         open={exportProgressOpen}
         onOpenChange={(open) => {
-          if (!isExportingPdf) setExportProgressOpen(open);
+          if (!open) closeExportDialog();
         }}
       >
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Exportando PDF</DialogTitle>
-            <DialogDescription>O arquivo está sendo preparado a partir do layout HTML atual.</DialogDescription>
+            <DialogTitle>{pdfDownload?.url ? 'PDF pronto' : 'Exportando PDF'}</DialogTitle>
+            <DialogDescription>{pdfDownload?.url ? 'O arquivo está disponível para baixar ou abrir.' : 'O arquivo está sendo preparado a partir do layout HTML atual.'}</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-5">
@@ -916,16 +997,29 @@ export default function RelatorioPreview() {
                 <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
                 <p>{exportProgressError}</p>
               </div>
-            ) : (
+            ) : pdfDownload?.url ? (
               <div className="flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-700">
                 <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0" />
-                <p>Exportação A4 preservando o HTML: sem bloqueio por elementos grandes e sem redesenhar o relatório.</p>
+                <div><p className="font-semibold">O PDF foi validado e está disponível.</p>{pdfDownload.warnings?.length ? <p className="mt-1 text-amber-700">{pdfDownload.warnings.join(' ')}</p> : <p className="mt-1">Use Baixar PDF caso o navegador não tenha iniciado o download.</p>}</div>
+              </div>
+            ) : (
+              <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+                <Loader2 className="mt-0.5 h-4 w-4 flex-shrink-0 animate-spin" />
+                <p>Renderizando o PDF. A confirmação aparecerá somente quando o arquivo estiver disponível.</p>
               </div>
             )}
           </div>
 
           <DialogFooter>
-            <Button onClick={() => setExportProgressOpen(false)} disabled={isExportingPdf}>
+            {pdfDownload?.url ? <Button variant="outline" onClick={openGeneratedPdf}>Abrir PDF</Button> : null}
+            {pdfDownload?.url ? (
+              <Button asChild className="gap-2">
+                <a href={pdfDownload.url} download={pdfDownload.filename} rel="noopener">
+                  <Download className="h-4 w-4" /> Baixar PDF
+                </a>
+              </Button>
+            ) : null}
+            <Button variant={pdfDownload?.url ? 'outline' : 'default'} onClick={closeExportDialog} disabled={isExportingPdf}>
               {isExportingPdf ? 'Exportando...' : 'Fechar'}
             </Button>
           </DialogFooter>
