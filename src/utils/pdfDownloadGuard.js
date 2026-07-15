@@ -12,8 +12,28 @@ function safeFilename(value = 'relatorio.pdf') {
   return normalized.toLowerCase().endsWith('.pdf') ? normalized : `${normalized}.pdf`;
 }
 
+function deepValue(source, keys, depth = 0) {
+  if (!source || depth > 5) return undefined;
+  if (typeof source === 'string') {
+    const text = source.trim();
+    if ((text.startsWith('{') || text.startsWith('[')) && text.length > 2) {
+      try { return deepValue(JSON.parse(text), keys, depth + 1); } catch { return undefined; }
+    }
+    return undefined;
+  }
+  if (typeof source !== 'object') return undefined;
+  for (const key of keys) {
+    if (source[key] !== undefined && source[key] !== null && source[key] !== '') return source[key];
+  }
+  for (const key of ['data', 'result', 'body', 'payload', 'response']) {
+    const found = deepValue(source[key], keys, depth + 1);
+    if (found !== undefined) return found;
+  }
+  return undefined;
+}
+
 function filenameFromPayload(payload = {}, response = {}) {
-  const returned = response?.data?.filename || response?.filename;
+  const returned = deepValue(response, ['filename', 'pdf_filename']);
   if (returned) return safeFilename(returned);
   const suffix = [payload?.mes || payload?.mes_referencia, payload?.ano, payload?.reportId]
     .filter(Boolean)
@@ -22,12 +42,8 @@ function filenameFromPayload(payload = {}, response = {}) {
 }
 
 function isValidPdfBytes(bytes) {
-  if (!(bytes instanceof Uint8Array) || bytes.byteLength < 1000) return false;
-  const header = String.fromCharCode(...bytes.subarray(0, 5));
-  if (header !== '%PDF-') return false;
-  const tailStart = Math.max(0, bytes.byteLength - 2048);
-  const tail = new TextDecoder('latin1').decode(bytes.subarray(tailStart));
-  return tail.includes('%%EOF');
+  if (!(bytes instanceof Uint8Array) || bytes.byteLength < 800) return false;
+  return String.fromCharCode(...bytes.subarray(0, 5)) === '%PDF-';
 }
 
 function bytesToBlob(bytes) {
@@ -37,49 +53,57 @@ function bytesToBlob(bytes) {
 }
 
 function decodeBase64(value) {
-  const raw = String(value || '').replace(/^data:application\/pdf;base64,/i, '').replace(/\s/g, '');
+  let raw = String(value || '').trim();
+  if (!raw) return null;
+  raw = raw.replace(/^data:application\/pdf(?:;charset=[^;,]+)?;base64,/i, '').replace(/\s/g, '');
   if (raw.length < 100) return null;
   try {
     const binary = window.atob(raw);
     const bytes = new Uint8Array(binary.length);
-    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index) & 0xff;
     return bytesToBlob(bytes);
   } catch {
     return null;
   }
 }
 
-function candidateToBlob(candidate) {
-  if (!candidate) return null;
-  if (candidate instanceof Blob) {
-    return candidate.type === 'application/pdf' && candidate.size > 1000 ? candidate : null;
-  }
+function candidateToBlob(candidate, depth = 0) {
+  if (!candidate || depth > 6) return null;
+  if (candidate instanceof Blob) return candidate.size > 800 ? candidate : null;
   if (candidate instanceof ArrayBuffer) return bytesToBlob(new Uint8Array(candidate));
   if (candidate instanceof Uint8Array) return bytesToBlob(candidate);
   if (Array.isArray(candidate)) return bytesToBlob(new Uint8Array(candidate));
-  if (typeof candidate === 'string') return decodeBase64(candidate);
+
+  if (typeof candidate === 'string') {
+    const text = candidate.trim();
+    if ((text.startsWith('{') || text.startsWith('[')) && text.length > 2) {
+      try { return candidateToBlob(JSON.parse(text), depth + 1); } catch { /* continua como base64 */ }
+    }
+    return decodeBase64(text);
+  }
 
   if (typeof candidate === 'object') {
-    if (typeof candidate.pdf_base64 === 'string') return decodeBase64(candidate.pdf_base64);
-    if (typeof candidate.base64 === 'string') return decodeBase64(candidate.base64);
     if (candidate.type === 'Buffer' && Array.isArray(candidate.data)) return bytesToBlob(new Uint8Array(candidate.data));
-    if (Array.isArray(candidate.data)) return bytesToBlob(new Uint8Array(candidate.data));
+    if (Array.isArray(candidate.data)) {
+      const blob = bytesToBlob(new Uint8Array(candidate.data));
+      if (blob) return blob;
+    }
+    for (const key of ['pdf_base64', 'base64', 'pdfBase64', 'content', 'file', 'blob', 'body', 'data', 'result', 'payload', 'response']) {
+      const blob = candidateToBlob(candidate[key], depth + 1);
+      if (blob) return blob;
+    }
   }
   return null;
 }
 
 function normalizePdfResult(response) {
-  const payload = response?.data ?? response;
-  const directUrl = payload?.pdf_url || payload?.download_url || payload?.file_url || payload?.arquivo_url;
+  const directUrl = deepValue(response, ['pdf_url', 'download_url', 'file_url', 'arquivo_url']);
   if (typeof directUrl === 'string' && /^(blob:|https?:)/i.test(directUrl)) {
     return { url: directUrl, isObjectUrl: directUrl.startsWith('blob:') };
   }
 
-  const candidates = [payload, payload?.data, response, response?.body, response?.blob];
-  for (const candidate of candidates) {
-    const blob = candidateToBlob(candidate);
-    if (blob) return { url: URL.createObjectURL(blob), isObjectUrl: true };
-  }
+  const blob = candidateToBlob(response);
+  if (blob) return { url: URL.createObjectURL(blob), isObjectUrl: true };
   return null;
 }
 
@@ -114,7 +138,7 @@ function showFallbackPanel(url, filename) {
   title.style.display = 'block';
 
   const description = document.createElement('p');
-  description.textContent = 'O arquivo foi validado. Clique abaixo para baixar.';
+  description.textContent = 'Clique abaixo para baixar o relatório.';
   Object.assign(description.style, { margin: '6px 0 12px', fontSize: '12px' });
 
   const downloadButton = document.createElement('button');
@@ -143,12 +167,13 @@ function showFallbackPanel(url, filename) {
 
 function exposePdfResponse(response, functionName, requestPayload, protectedPdfUrls) {
   if (!PDF_FUNCTIONS.has(functionName)) return response;
-  const prepared = normalizePdfResult(response);
 
+  const backendError = deepValue(response, ['error', 'message']);
+  const prepared = normalizePdfResult(response);
   if (!prepared?.url) {
-    const normalized = response && typeof response === 'object' ? response : {};
+    const normalized = response && typeof response === 'object' ? response : { data: {} };
     if (!normalized.data || typeof normalized.data !== 'object') normalized.data = {};
-    normalized.data.error = normalized.data.error || 'O arquivo retornado não é um PDF válido.';
+    normalized.data.error = backendError || 'A função não retornou bytes PDF válidos.';
     normalized.data.pdf_url = '';
     return normalized;
   }
@@ -159,7 +184,7 @@ function exposePdfResponse(response, functionName, requestPayload, protectedPdfU
   triggerDownload(prepared.url, filename);
 
   if (response && typeof response === 'object') {
-    if (!response.data || typeof response.data !== 'object' || response.data instanceof Blob) response.data = {};
+    if (!response.data || typeof response.data !== 'object') response.data = {};
     response.data.pdf_url = prepared.url;
     response.data.download_url = prepared.url;
     response.data.pdf_filename = filename;
