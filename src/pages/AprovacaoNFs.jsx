@@ -140,13 +140,19 @@ export default function AprovacaoNFs() {
   async function handleAprovar(intake) {
     setProcessando(intake.id);
     try {
-      await base44.entities.DocumentIntake.update(intake.id, { status_processamento: 'APROVADO' });
       const prId = intake.data?.purchase_request_id || intake.entidade_destino_id;
       if (prId) {
-        await base44.entities.PurchaseRequest.update(prId, { status: 'APROVADO_COORD' });
-        await base44.functions.invoke('enqueuePurchaseNotification', { purchaseId: prId });
+        const aprovacao = await base44.functions.invoke('purchaseActions', { purchaseId: prId, action: 'aprovar' });
+        const aprovacaoResultado = aprovacao?.data || aprovacao;
+        if (aprovacaoResultado?.success === false) throw new Error(aprovacaoResultado.error || 'Falha ao aprovar solicitação.');
+        const notificacao = await base44.functions.invoke('enqueuePurchaseNotification', { purchaseId: prId });
+        const notificacaoResultado = notificacao?.data || notificacao;
+        if (notificacaoResultado?.immediate_email_sent === false) {
+          throw new Error(`Solicitação aprovada, mas o e-mail imediato falhou: ${(notificacaoResultado.immediate_email_failures || []).join('; ')}`);
+        }
       }
-      toast.success('NF aprovada e incluída no resumo diário de pagamentos.');
+      await base44.entities.DocumentIntake.update(intake.id, { status_processamento: 'APROVADO' });
+      toast.success('NF aprovada, notificação imediata enviada e incluída no resumo diário de pagamentos.');
       await atualizarTudo();
     }
     catch (e) { toast.error('Erro ao aprovar: ' + (e?.message || String(e))); }

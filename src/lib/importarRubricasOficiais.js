@@ -31,6 +31,23 @@ function buildChave(r = {}) {
   return `${grupo}::${rubrica}::${meta}`;
 }
 
+function centroCustoOficial(r = {}) {
+  const museu = String(r?.museu_codigo || '').toUpperCase().replace('MAB', 'MHAB');
+  if (museu === 'MIS') return 'MIS BH';
+  if (museu === 'MUMO' || museu === 'MHAB') return museu;
+  if (r?.escopo_orcamentario === 'NOTURNO') return 'Noturno 2026';
+  return 'Geral/Transversal';
+}
+
+function validarFonteOficial(oficiais) {
+  const chaves = oficiais.map((r) => r._chave_oficial);
+  const total = oficiais.reduce((acc, r) => acc + Number(r.valor_total || 0), 0);
+  if (oficiais.length !== 72) throw new Error(`Fonte oficial incompleta: ${oficiais.length} de 72 rubricas.`);
+  if (new Set(chaves).size !== chaves.length) throw new Error('Fonte oficial contém rubricas duplicadas.');
+  if (total !== TOTAL_OFICIAL_3_ADITIVO) throw new Error(`Total oficial inválido: R$ ${total}; esperado R$ ${TOTAL_OFICIAL_3_ADITIVO}.`);
+  return total;
+}
+
 /**
  * Rubricas legadas que devem ser inativadas quando a planilha nova trouxe rubricas separadas.
  * Identificadas pela aba "Alterações" da planilha.
@@ -60,7 +77,7 @@ function is3Aditivo(r = {}) {
 
 export async function importarRubricasOficiais({ onProgress } = {}) {
   const oficiais = getRubricasOficiais3Aditivo();
-  const totalOficial = oficiais.reduce((acc, r) => acc + (r.valor_total || 0), 0);
+  const totalOficial = validarFonteOficial(oficiais);
 
   if (totalOficial !== TOTAL_OFICIAL_3_ADITIVO) {
     console.warn(`[importarRubricasOficiais] Total calculado R$${totalOficial} difere do esperado R$${TOTAL_OFICIAL_3_ADITIVO}`);
@@ -84,15 +101,16 @@ export async function importarRubricasOficiais({ onProgress } = {}) {
   let criadas = 0;
   let atualizadas = 0;
   let inativadas = 0;
+  const idsMantidos = new Set();
 
   // Mapa de chaves oficiais para controle de inativação
-  const chavesOficiais = new Set(oficiais.map((r) => r._chave_oficial));
+  const chavesOficiais = new Set(oficiais.flatMap((r) => [r._chave_oficial, buildChave(r)]));
 
   onProgress?.({ fase: 'importando', msg: `Importando ${oficiais.length} rubricas...` });
 
   for (const oficial of oficiais) {
     const chave = oficial._chave_oficial;
-    const existente = mapaExistentes.get(chave);
+    const existente = mapaExistentes.get(chave) || mapaExistentes.get(buildChave(oficial));
 
     const payload = {
       rubrica: oficial.rubrica,
@@ -115,17 +133,23 @@ export async function importarRubricasOficiais({ onProgress } = {}) {
       conferencia_valor: oficial.conferencia_valor,
       museu_codigo: oficial.museu_codigo,
       escopo_orcamentario: oficial.escopo_orcamentario,
+      centro_custo: centroCustoOficial(oficial),
       ativo: true,
       _chave_oficial: chave,
     };
 
     if (existente) {
-      // Atualiza sem tocar em valor_utilizado, saldo, etc.
+      idsMantidos.add(existente.id);
+      const utilizado = Number(existente.valor_utilizado ?? 0);
+      const saldoAtualizado = (oficial.valor_total || 0) - utilizado;
+      // Preserva a execução e recalcula os campos derivados com o novo previsto.
       await base44.entities.Rubrica.update(existente.id, {
         ...payload,
         // Preserva valor_utilizado existente
-        valor_utilizado: existente.valor_utilizado ?? 0,
-        saldo: (oficial.valor_total || 0) - (existente.valor_utilizado ?? 0),
+        valor_utilizado: utilizado,
+        saldo: saldoAtualizado,
+        saldo_real: saldoAtualizado,
+        percentual_utilizado: oficial.valor_total > 0 ? (utilizado / oficial.valor_total) * 100 : 0,
       });
       atualizadas++;
     } else {
@@ -147,10 +171,11 @@ export async function importarRubricasOficiais({ onProgress } = {}) {
   for (const existente of existentesArr) {
     if (!is3Aditivo(existente)) continue;
     const chave = buildChave(existente);
-    if (chavesOficiais.has(chave)) continue;
+    const correspondeOficial = chavesOficiais.has(chave) || chavesOficiais.has(String(existente?._chave_oficial || ''));
+    if (correspondeOficial && idsMantidos.has(existente.id)) continue;
     if (existente.ativo === false) continue;
-    // Inativa rubricas legadas do 3º Aditivo não presentes na planilha nova
-    if (isLegadaParaInativar(existente) || is3Aditivo(existente)) {
+    // Inativa somente a cópia excedente ou rubricas legadas; não exclui histórico.
+    if (correspondeOficial || isLegadaParaInativar(existente)) {
       await base44.entities.Rubrica.update(existente.id, { ativo: false });
       inativadas++;
     }

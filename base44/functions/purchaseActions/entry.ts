@@ -85,9 +85,9 @@ async function dispararBackupDrive(base44: any, purchase: any) {
     await base44.asServiceRole.entities.PurchaseRequest.update(purchase.id, { drive_backup_status: 'sem_arquivos' });
     return;
   }
-  // Dispara de forma assíncrona sem bloquear a aprovação
-  (async () => {
-    try {
+  // A aprovação aguarda o backup para que a notificação imediata já contenha
+  // os links definitivos do Google Drive.
+  try {
       await base44.asServiceRole.entities.PurchaseRequest.update(purchase.id, { drive_backup_status: 'em_processamento' });
       const conn = await base44.asServiceRole.connectors.getConnection('googledrive');
       const authHeader = { Authorization: `Bearer ${conn.accessToken}` };
@@ -108,13 +108,12 @@ async function dispararBackupDrive(base44: any, purchase: any) {
         drive_backup_at: new Date().toISOString(),
         drive_backup_error: null
       });
-    } catch (err: any) {
-      await base44.asServiceRole.entities.PurchaseRequest.update(purchase.id, {
-        drive_backup_status: 'erro',
-        drive_backup_error: err?.message || 'Erro desconhecido'
-      }).catch(() => {});
-    }
-  })();
+  } catch (err: any) {
+    await base44.asServiceRole.entities.PurchaseRequest.update(purchase.id, {
+      drive_backup_status: 'erro',
+      drive_backup_error: err?.message || 'Erro desconhecido'
+    }).catch(() => {});
+  }
 }
 // ===== Fim Drive Backup helpers =====
 

@@ -2,8 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Building2, TrendingUp, AlertCircle } from 'lucide-react';
+import { Building2 } from 'lucide-react';
 
 function toNumber(value) {
   const n = Number(value ?? 0);
@@ -77,6 +76,9 @@ function normalizarCentro(cc) {
  * Nunca retorna null — sempre cai em 'Geral' como fallback.
  */
 function classificarRubrica(rubrica) {
+  const museuCodigo = String(rubrica.museu_codigo || '').toUpperCase().replace('MAB', 'MHAB');
+  if (['MHAB', 'MIS', 'MUMO'].includes(museuCodigo)) return museuCodigo;
+
   // 1. centro_custo — se for museu físico ou noturno, usar direto
   const cc = normalizarCentro(rubrica.centro_custo);
   if (cc && ['MHAB', 'MIS', 'MUMO', 'Noturno 2026', 'Noturno Pampulha'].includes(cc)) return cc;
@@ -178,18 +180,6 @@ export default function RubricasByMuseuDashboard({ rubricas = [], purchases = []
       map[centro].totalDisponivel += disponivel;
     });
 
-    // Sobrescrever previstos com valores contratuais oficiais
-    const PREVISTOS_OFICIAIS = {
-      'Noturno 2026': 1320000,
-      'Noturno Pampulha': 81719.85,
-    };
-    Object.entries(PREVISTOS_OFICIAIS).forEach(([centro, previsto]) => {
-      if (map[centro] && map[centro].rubricas.length > 0) {
-        map[centro].totalPrevisto = previsto;
-        map[centro].totalDisponivel = previsto - map[centro].totalUtilizado;
-      }
-    });
-
     // Retorna apenas centros que têm rubricas
     return Object.values(map).filter((d) => d.rubricas.length > 0);
   }, [rubricas]);
@@ -247,7 +237,7 @@ export default function RubricasByMuseuDashboard({ rubricas = [], purchases = []
       toast.success('Valor atualizado');
       setEditingMuseu(null);
       if (onRefresh) onRefresh();
-    } catch (e) {
+    } catch {
       toast.error('Erro ao salvar');
     } finally {
       setSavingMuseu(null);
