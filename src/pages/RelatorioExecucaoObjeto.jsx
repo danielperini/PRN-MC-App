@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,11 +7,40 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { CheckCircle2, Download, FileText, Loader2, RefreshCw } from 'lucide-react';
+import {
+  CheckCircle2,
+  Download,
+  Edit3,
+  FileText,
+  ImagePlus,
+  Loader2,
+  Paperclip,
+  RefreshCw,
+  Save,
+  Sparkles,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { exportarRelatorioExecucaoPDF } from '@/components/relatorio/ExportarRelatorioExecucaoPDF';
 import RevisaoFinalDialog from '@/components/relatorio/RevisaoFinalDialog';
 import { listarMetasRelatorio, sincronizarRelatorioExecucao } from '@/utils/sincronizarRelatorioExecucao';
+
+const SECOES_EDITAVEIS = [
+  { key: 'endereco_execucao', label: '2. Endereço de Execução' },
+  { key: 'divulgacao_parceria', label: '3. Divulgação da Parceria' },
+  { key: 'descricao_acoes', label: '4. Descrição das Ações' },
+  { key: 'publico_alvo', label: '5. Público-Alvo' },
+  { key: 'pesquisa_satisfacao', label: '6. Pesquisa de Satisfação' },
+  { key: 'cronograma_metas', label: '7. Cronograma de Metas' },
+  { key: 'equipe_trabalho', label: '8. Equipe de Trabalho' },
+  { key: 'impactos_economicos_sociais', label: '9. Impactos Econômicos e Sociais' },
+  { key: 'sustentabilidade', label: '10. Sustentabilidade' },
+  { key: 'avaliacao_parceria', label: '11. Avaliação da Parceria' },
+  { key: 'assinatura', label: '12. Assinatura' },
+  { key: 'anexos', label: '13. Anexos e Evidências' },
+];
 
 function hoje() {
   return new Date().toISOString().slice(0, 10);
@@ -27,6 +56,18 @@ function idMeta(meta) {
 
 function formatarMoeda(valor) {
   return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function textoSecao(relatorio, key) {
+  const secao = relatorio?.[key];
+  if (!secao) return '';
+  if (typeof secao === 'string') return secao;
+  if (Array.isArray(secao)) return JSON.stringify(secao, null, 2);
+  return secao.texto_editado || secao.texto_ia || secao.texto_interpretativo_editado || secao.texto_interpretativo_ia || secao.justificativa_editada || secao.justificativa_ia || '';
+}
+
+function ehImagem(file) {
+  return String(file?.type || '').startsWith('image/');
 }
 
 export default function RelatorioExecucaoObjeto() {
@@ -46,6 +87,12 @@ export default function RelatorioExecucaoObjeto() {
   const [loading, setLoading] = useState(false);
   const [progresso, setProgresso] = useState({ valor: 0, texto: '' });
   const [revisaoAberta, setRevisaoAberta] = useState(false);
+  const [editor, setEditor] = useState(null);
+  const [textoEditado, setTextoEditado] = useState('');
+  const [gerandoIA, setGerandoIA] = useState(null);
+  const [enviandoArquivo, setEnviandoArquivo] = useState(null);
+  const fileInputRef = useRef(null);
+  const secaoUploadRef = useRef(null);
 
   useEffect(() => {
     carregarMetas();
@@ -67,7 +114,7 @@ export default function RelatorioExecucaoObjeto() {
 
   async function carregarRelatorios() {
     try {
-      const lista = await base44.entities.RelatorioExecucaoObjeto.list('-created_date', 20);
+      const lista = await base44.entities.RelatorioExecucaoObjeto.list('-created_date', 50);
       setRelatoriosSalvos(Array.isArray(lista) ? lista : []);
     } catch {
       setRelatoriosSalvos([]);
@@ -78,29 +125,24 @@ export default function RelatorioExecucaoObjeto() {
     const atual = await base44.entities.RelatorioExecucaoObjeto.get(id);
     setRelatorio(atual);
     setRelatorioId(id);
-    if (Array.isArray(atual?.filtro_meta_ids)) {
-      setForm(f => ({ ...f, filtro_meta_ids: atual.filtro_meta_ids }));
-    }
+    setForm(f => ({
+      ...f,
+      tipo: atual?.tipo || f.tipo,
+      data_inicio: atual?.data_inicio || f.data_inicio,
+      data_fim: atual?.data_fim || f.data_fim,
+      filtro_museu: atual?.filtro_museu || f.filtro_museu,
+      filtro_versao: atual?.filtro_versao || f.filtro_versao,
+      filtro_meta_ids: Array.isArray(atual?.filtro_meta_ids) ? atual.filtro_meta_ids : f.filtro_meta_ids,
+    }));
   }
 
   function alternarMeta(id) {
-    setForm(atual => {
-      const existe = atual.filtro_meta_ids.includes(id);
-      return {
-        ...atual,
-        filtro_meta_ids: existe
-          ? atual.filtro_meta_ids.filter(item => item !== id)
-          : [...atual.filtro_meta_ids, id],
-      };
-    });
-  }
-
-  function selecionarTodas() {
-    setForm(atual => ({ ...atual, filtro_meta_ids: metas.map(idMeta) }));
-  }
-
-  function limparSelecao() {
-    setForm(atual => ({ ...atual, filtro_meta_ids: [] }));
+    setForm(atual => ({
+      ...atual,
+      filtro_meta_ids: atual.filtro_meta_ids.includes(id)
+        ? atual.filtro_meta_ids.filter(item => item !== id)
+        : [...atual.filtro_meta_ids, id],
+    }));
   }
 
   async function iniciarGeracao() {
@@ -108,11 +150,9 @@ export default function RelatorioExecucaoObjeto() {
       toast.error('Selecione ao menos uma meta para gerar o relatório.');
       return;
     }
-
     setLoading(true);
     setRelatorio(null);
     setProgresso({ valor: 5, texto: 'Criando relatório...' });
-
     try {
       const res = await base44.functions.invoke('iniciarRelatorioExecucao', {
         ...form,
@@ -122,7 +162,6 @@ export default function RelatorioExecucaoObjeto() {
       const rid = res?.data?.relatorio_id || res?.relatorio_id;
       if (!rid) throw new Error('O backend não retornou o identificador do relatório.');
       setRelatorioId(rid);
-
       setProgresso({ valor: 25, texto: 'Buscando atividades, fotos e notas fiscais...' });
       const resultado = await sincronizarRelatorioExecucao({
         relatorioId: rid,
@@ -132,12 +171,10 @@ export default function RelatorioExecucaoObjeto() {
         filtroVersao: form.filtro_versao,
         filtroMetaIds: form.filtro_meta_ids,
       });
-
       setProgresso({ valor: 90, texto: 'Atualizando campos e finalizando...' });
-      setRelatorio(resultado.relatorio);
+      await carregarRelatorio(rid);
       await carregarRelatorios();
       setProgresso({ valor: 100, texto: 'Relatório concluído.' });
-
       const auditoria = resultado.auditoria || {};
       toast.success(`${auditoria.metas || 0} meta(s), ${auditoria.notas_fiscais || 0} NF(s), ${auditoria.atividades || 0} atividade(s) e ${auditoria.fotos || 0} foto(s) vinculadas.`, { duration: 10000 });
     } catch (error) {
@@ -147,11 +184,138 @@ export default function RelatorioExecucaoObjeto() {
     }
   }
 
+  async function excluirRelatorio(item) {
+    const confirmado = window.confirm(`Excluir definitivamente o relatório de ${item.data_inicio || '—'} a ${item.data_fim || '—'}?`);
+    if (!confirmado) return;
+    try {
+      await base44.entities.RelatorioExecucaoObjeto.delete(item.id);
+      if (relatorioId === item.id) {
+        setRelatorio(null);
+        setRelatorioId(null);
+      }
+      await carregarRelatorios();
+      toast.success('Relatório antigo excluído.');
+    } catch (error) {
+      toast.error('Erro ao excluir relatório: ' + (error?.message || String(error)));
+    }
+  }
+
+  function abrirEditor(key, label) {
+    setEditor({ key, label });
+    setTextoEditado(textoSecao(relatorio, key));
+  }
+
+  async function salvarTexto() {
+    if (!editor || !relatorioId) return;
+    try {
+      const atual = relatorio?.[editor.key];
+      const novoValor = Array.isArray(atual)
+        ? (() => { try { return JSON.parse(textoEditado); } catch { return atual; } })()
+        : { ...(typeof atual === 'object' && atual ? atual : {}), texto_editado: textoEditado, modo: 'hibrido', editado_em: new Date().toISOString() };
+      await base44.entities.RelatorioExecucaoObjeto.update(relatorioId, { [editor.key]: novoValor });
+      await carregarRelatorio(relatorioId);
+      setEditor(null);
+      toast.success('Texto da seção atualizado.');
+    } catch (error) {
+      toast.error('Erro ao salvar seção: ' + (error?.message || String(error)));
+    }
+  }
+
+  async function gerarTextoIA(key, label) {
+    if (!relatorioId) return;
+    setGerandoIA(key);
+    try {
+      await base44.functions.invoke('gerarSecaoRelatorioExecucao', {
+        relatorio_id: relatorioId,
+        secao: key,
+        data_inicio: form.data_inicio,
+        data_fim: form.data_fim,
+        filtro_museu: form.filtro_museu,
+        filtro_versao: form.filtro_versao,
+        filtro_meta_ids: form.filtro_meta_ids,
+        aditivos_permitidos: [3, 4],
+        excluir_metas_anteriores: true,
+        usar_modelo_word: true,
+        incluir_fotos: true,
+        vincular_notas_fiscais: true,
+        instrucao_usuario: `Atualize somente a seção ${label}, usando exclusivamente dados reais do período e das metas selecionadas. Não invente atividades, público, resultados ou documentos.`,
+      });
+      await carregarRelatorio(relatorioId);
+      toast.success(`Texto de “${label}” atualizado pela IA.`);
+    } catch (error) {
+      toast.error('Erro ao gerar texto por IA: ' + (error?.message || String(error)));
+    } finally {
+      setGerandoIA(null);
+    }
+  }
+
+  function selecionarArquivo(secaoKey) {
+    secaoUploadRef.current = secaoKey;
+    fileInputRef.current?.click();
+  }
+
+  async function enviarArquivo(event) {
+    const file = event.target.files?.[0];
+    const secaoKey = secaoUploadRef.current;
+    event.target.value = '';
+    if (!file || !secaoKey || !relatorioId) return;
+    setEnviandoArquivo(secaoKey);
+    try {
+      const uploader = base44?.integrations?.Core?.UploadFile;
+      if (!uploader) throw new Error('Serviço de upload não disponível no cliente Base44.');
+      const resposta = await uploader({ file });
+      const url = resposta?.file_url || resposta?.url || resposta?.data?.file_url || resposta?.data?.url;
+      if (!url) throw new Error('O upload não retornou a URL do arquivo.');
+      const anexo = {
+        id: `${Date.now()}-${file.name}`,
+        secao: secaoKey,
+        nome: file.name,
+        url,
+        tipo: file.type || 'application/octet-stream',
+        categoria: ehImagem(file) ? 'foto' : 'documento',
+        adicionado_em: new Date().toISOString(),
+      };
+      const porSecao = { ...(relatorio?.anexos_por_secao || {}) };
+      porSecao[secaoKey] = [...(porSecao[secaoKey] || []), anexo];
+      const update = { anexos_por_secao: porSecao };
+      if (anexo.categoria === 'foto') {
+        update.anexos_evidencias = [...(relatorio?.anexos_evidencias || []), {
+          foto_url: url,
+          atividade_nome: `Anexo da seção ${secaoKey}`,
+          atividade_data: form.data_fim,
+          legenda_ia: file.name,
+          secao: secaoKey,
+        }];
+      } else {
+        update.documentos_anexos = [...(relatorio?.documentos_anexos || []), anexo];
+      }
+      await base44.entities.RelatorioExecucaoObjeto.update(relatorioId, update);
+      await carregarRelatorio(relatorioId);
+      toast.success(`${anexo.categoria === 'foto' ? 'Foto' : 'Documento'} adicionado à seção.`);
+    } catch (error) {
+      toast.error('Erro no upload: ' + (error?.message || String(error)));
+    } finally {
+      setEnviandoArquivo(null);
+    }
+  }
+
+  async function removerAnexo(secaoKey, anexoId) {
+    try {
+      const porSecao = { ...(relatorio?.anexos_por_secao || {}) };
+      porSecao[secaoKey] = (porSecao[secaoKey] || []).filter(item => item.id !== anexoId);
+      await base44.entities.RelatorioExecucaoObjeto.update(relatorioId, { anexos_por_secao: porSecao });
+      await carregarRelatorio(relatorioId);
+      toast.success('Anexo removido da seção.');
+    } catch (error) {
+      toast.error('Erro ao remover anexo: ' + (error?.message || String(error)));
+    }
+  }
+
   function exportarPDF() {
     if (!relatorio) return;
     try {
       exportarRelatorioExecucaoPDF(relatorio, 'completo');
-      toast.success('PDF gerado em 3 partes.');
+      toast.success('PDF gerado em 3 partes com as últimas edições salvas.');
     } catch (error) {
       toast.error('Erro ao gerar PDF: ' + (error?.message || String(error)));
     }
@@ -164,10 +328,12 @@ export default function RelatorioExecucaoObjeto() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
+      <input ref={fileInputRef} type="file" className="hidden" onChange={enviarArquivo} accept="image/*,.pdf,.xml,.doc,.docx,.xls,.xlsx" />
+
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold">Relatório de Execução do Objeto</h1>
-          <p className="text-sm text-muted-foreground mt-1">Geração automática com IA • Modelo SUCC/PBH • Metas do 3º e 4º aditivos</p>
+          <p className="text-sm text-muted-foreground mt-1">Modelo SUCC/PBH • Metas do 3º e 4º aditivos • Edição antes da exportação</p>
         </div>
         <Badge variant="outline">{relatoriosSalvos.length} relatórios salvos</Badge>
       </div>
@@ -175,186 +341,64 @@ export default function RelatorioExecucaoObjeto() {
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Configurar relatório</CardTitle>
-          <CardDescription>Selecione o período, o museu e exatamente as metas que deverão ser relatadas.</CardDescription>
+          <CardDescription>Selecione período, museu e metas. As NFs, atividades, fotos e textos respeitarão este recorte.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <div>
-              <Label className="text-xs">Tipo</Label>
-              <Select value={form.tipo} onValueChange={tipo => setForm({ ...form, tipo })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="parcial">Parcial</SelectItem><SelectItem value="final">Final</SelectItem></SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs">Versão</Label>
-              <Select value={form.filtro_versao} onValueChange={filtro_versao => setForm({ ...form, filtro_versao })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="consolidado">Consolidado</SelectItem>
-                  <SelectItem value="por_museu">Por Museu</SelectItem>
-                  <SelectItem value="por_meta">Por Meta</SelectItem>
-                  <SelectItem value="por_periodo">Por Período</SelectItem>
-                  <SelectItem value="noturno">Noturno</SelectItem>
-                  <SelectItem value="noturno_pampulha">Noturno Pampulha</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs">Museu</Label>
-              <Select value={form.filtro_museu} onValueChange={filtro_museu => setForm({ ...form, filtro_museu })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos</SelectItem>
-                  <SelectItem value="MHAB">MHAB</SelectItem>
-                  <SelectItem value="MIS">MIS</SelectItem>
-                  <SelectItem value="MUMO">MUMO</SelectItem>
-                  <SelectItem value="Casa Kubitschek">Casa Kubitschek</SelectItem>
-                  <SelectItem value="Casa do Baile">Casa do Baile</SelectItem>
-                  <SelectItem value="MAP">MAP</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <div><Label className="text-xs">Tipo</Label><Select value={form.tipo} onValueChange={tipo => setForm({ ...form, tipo })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="parcial">Parcial</SelectItem><SelectItem value="final">Final</SelectItem></SelectContent></Select></div>
+            <div><Label className="text-xs">Versão</Label><Select value={form.filtro_versao} onValueChange={filtro_versao => setForm({ ...form, filtro_versao })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="consolidado">Consolidado</SelectItem><SelectItem value="por_museu">Por Museu</SelectItem><SelectItem value="por_meta">Por Meta</SelectItem><SelectItem value="por_periodo">Por Período</SelectItem><SelectItem value="noturno">Noturno</SelectItem><SelectItem value="noturno_pampulha">Noturno Pampulha</SelectItem></SelectContent></Select></div>
+            <div><Label className="text-xs">Museu</Label><Select value={form.filtro_museu} onValueChange={filtro_museu => setForm({ ...form, filtro_museu })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="todos">Todos</SelectItem><SelectItem value="MHAB">MHAB</SelectItem><SelectItem value="MIS">MIS</SelectItem><SelectItem value="MUMO">MUMO</SelectItem><SelectItem value="Casa Kubitschek">Casa Kubitschek</SelectItem><SelectItem value="Casa do Baile">Casa do Baile</SelectItem><SelectItem value="MAP">MAP</SelectItem></SelectContent></Select></div>
             <div><Label className="text-xs">Data início</Label><Input type="date" value={form.data_inicio} onChange={e => setForm({ ...form, data_inicio: e.target.value })} /></div>
             <div><Label className="text-xs">Data fim</Label><Input type="date" value={form.data_fim} onChange={e => setForm({ ...form, data_fim: e.target.value })} /></div>
           </div>
 
           <div className="rounded-xl border bg-slate-50 p-4 space-y-3">
             <div className="flex items-center justify-between gap-3 flex-wrap">
-              <div>
-                <Label className="font-semibold">Metas a serem relatadas</Label>
-                <p className="text-xs text-slate-500">Somente as metas marcadas entrarão no cronograma, nas atividades, nas fotos e nas notas fiscais.</p>
-              </div>
-              <div className="flex gap-2">
-                <Button type="button" size="sm" variant="outline" onClick={selecionarTodas}>Selecionar todas</Button>
-                <Button type="button" size="sm" variant="outline" onClick={limparSelecao}>Limpar</Button>
-                <Button type="button" size="sm" variant="outline" onClick={carregarMetas}><RefreshCw className="w-3.5 h-3.5 mr-1" />Atualizar</Button>
-              </div>
+              <div><Label className="font-semibold">Metas a serem relatadas</Label><p className="text-xs text-slate-500">Somente as metas marcadas entram no relatório e nas notas fiscais vinculadas.</p></div>
+              <div className="flex gap-2"><Button type="button" size="sm" variant="outline" onClick={() => setForm(a => ({ ...a, filtro_meta_ids: metas.map(idMeta) }))}>Selecionar todas</Button><Button type="button" size="sm" variant="outline" onClick={() => setForm(a => ({ ...a, filtro_meta_ids: [] }))}>Limpar</Button><Button type="button" size="sm" variant="outline" onClick={carregarMetas}><RefreshCw className="w-3.5 h-3.5 mr-1" />Atualizar</Button></div>
             </div>
-
-            {carregandoMetas ? (
-              <div className="py-6 text-center text-sm text-slate-500"><Loader2 className="w-4 h-4 animate-spin inline mr-2" />Carregando metas...</div>
-            ) : metas.length === 0 ? (
-              <div className="py-6 text-center text-sm text-amber-700">Nenhuma meta do 3º ou 4º aditivo foi localizada.</div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-1">
-                {metas.map(meta => {
-                  const id = idMeta(meta);
-                  const checked = form.filtro_meta_ids.includes(id);
-                  return (
-                    <label key={id} className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer ${checked ? 'border-blue-400 bg-blue-50' : 'bg-white'}`}>
-                      <input type="checkbox" checked={checked} onChange={() => alternarMeta(id)} className="mt-1" />
-                      <span className="min-w-0">
-                        <span className="block text-sm font-medium text-slate-800">{nomeMeta(meta)}</span>
-                        <span className="block text-xs text-slate-500 truncate">{meta.codigo || meta.meta_codigo || `ID ${id}`}</span>
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            )}
-
+            {carregandoMetas ? <div className="py-6 text-center text-sm text-slate-500"><Loader2 className="w-4 h-4 animate-spin inline mr-2" />Carregando metas...</div> : <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-1">{metas.map(meta => { const id = idMeta(meta); const checked = form.filtro_meta_ids.includes(id); return <label key={id} className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer ${checked ? 'border-blue-400 bg-blue-50' : 'bg-white'}`}><input type="checkbox" checked={checked} onChange={() => alternarMeta(id)} className="mt-1" /><span><span className="block text-sm font-medium">{nomeMeta(meta)}</span><span className="block text-xs text-slate-500">{meta.codigo || meta.meta_codigo || `ID ${id}`}</span></span></label>; })}</div>}
             <div className="text-xs text-slate-600">{form.filtro_meta_ids.length} meta(s) selecionada(s).</div>
           </div>
 
-          <Button onClick={iniciarGeracao} disabled={loading || form.filtro_meta_ids.length === 0} className="w-full md:w-auto">
-            {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />}
-            {loading ? 'Gerando relatório...' : 'Gerar relatório com metas selecionadas'}
-          </Button>
+          <Button onClick={iniciarGeracao} disabled={loading || form.filtro_meta_ids.length === 0}>{loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />}{loading ? 'Gerando relatório...' : 'Gerar relatório'}</Button>
         </CardContent>
       </Card>
 
-      {loading && (
-        <Card className="border-blue-200 bg-blue-50/50">
-          <CardContent className="py-4 space-y-2">
-            <div className="flex justify-between text-sm text-blue-700"><span>{progresso.texto}</span><span>{progresso.valor}%</span></div>
-            <Progress value={progresso.valor} className="h-2" />
-          </CardContent>
-        </Card>
-      )}
+      {loading && <Card className="border-blue-200 bg-blue-50/50"><CardContent className="py-4 space-y-2"><div className="flex justify-between text-sm text-blue-700"><span>{progresso.texto}</span><span>{progresso.valor}%</span></div><Progress value={progresso.valor} className="h-2" /></CardContent></Card>}
 
-      {relatorio && (
-        <Card>
-          <CardHeader className="flex flex-row items-start justify-between gap-4 flex-wrap">
-            <div>
-              <CardTitle className="text-lg flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-green-600" />Relatório atualizado</CardTitle>
-              <CardDescription>{relatorio.data_inicio} a {relatorio.data_fim} • {metasSelecionadas.length} meta(s) selecionada(s)</CardDescription>
-            </div>
-            <div className="flex gap-2">
-              <Button size="sm" onClick={() => setRevisaoAberta(true)}>Revisar e Exportar</Button>
-              <Button size="sm" variant="outline" onClick={exportarPDF}><Download className="w-4 h-4 mr-1" />PDF</Button>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <Resumo label="Metas" valor={(relatorio.cronograma_metas || []).length} />
-              <Resumo label="Notas fiscais" valor={(relatorio._notas_fiscais_metas || []).length} />
-              <Resumo label="Atividades" valor={(relatorio._atividades_periodo || []).length} />
-              <Resumo label="Total financeiro" valor={formatarMoeda(relatorio._total_financeiro)} />
-            </div>
+      {relatorio && <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap">
+          <div><CardTitle className="text-lg flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-green-600" />Relatório em edição</CardTitle><CardDescription>{relatorio.data_inicio} a {relatorio.data_fim} • {metasSelecionadas.length} meta(s)</CardDescription></div>
+          <div className="flex gap-2"><Button size="sm" onClick={() => setRevisaoAberta(true)}>Revisar e Exportar</Button><Button size="sm" variant="outline" onClick={exportarPDF}><Download className="w-4 h-4 mr-1" />PDF</Button></div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3"><Resumo label="Metas" valor={(relatorio.cronograma_metas || []).length} /><Resumo label="Notas fiscais" valor={(relatorio._notas_fiscais_metas || []).length} /><Resumo label="Atividades" valor={(relatorio._atividades_periodo || []).length} /><Resumo label="Total financeiro" valor={formatarMoeda(relatorio._total_financeiro)} /></div>
+          {SECOES_EDITAVEIS.filter(s => s.key !== 'sustentabilidade' || relatorio.tipo === 'final').map(secao => <SecaoEditavel key={secao.key} secao={secao} relatorio={relatorio} onEditar={() => abrirEditor(secao.key, secao.label)} onIA={() => gerarTextoIA(secao.key, secao.label)} gerandoIA={gerandoIA === secao.key} onAnexar={() => selecionarArquivo(secao.key)} enviando={enviandoArquivo === secao.key} onRemover={id => removerAnexo(secao.key, id)} />)}
+        </CardContent>
+      </Card>}
 
-            <Secao titulo="Identificação do projeto">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
-                <Campo label="Organização" valor={relatorio.identificacao_projeto?.organizacao} />
-                <Campo label="Projeto" valor={relatorio.identificacao_projeto?.projeto} />
-                <Campo label="Responsável" valor={relatorio.identificacao_projeto?.responsavel} />
-                <Campo label="Instrumento" valor={relatorio.identificacao_projeto?.instrumento_juridico} />
-                <Campo label="Processo" valor={relatorio.identificacao_projeto?.processo_administrativo} />
-                <Campo label="E-mail" valor={relatorio.identificacao_projeto?.email} />
-              </div>
-            </Secao>
+      <Card>
+        <CardHeader><CardTitle className="text-lg">Relatórios anteriores</CardTitle><CardDescription>Abra para editar ou exclua versões antigas.</CardDescription></CardHeader>
+        <CardContent className="space-y-2">
+          {relatoriosSalvos.map(item => <div key={item.id} className="flex items-center justify-between gap-3 rounded-lg border p-3"><button onClick={() => carregarRelatorio(item.id)} className="flex-1 text-left"><span className="block text-sm font-medium">{item.tipo === 'final' ? 'Relatório Final' : 'Relatório Parcial'}</span><span className="block text-xs text-slate-500">{item.data_inicio} a {item.data_fim} • {(item.filtro_meta_ids || []).length} meta(s)</span></button><Button size="sm" variant="outline" onClick={() => carregarRelatorio(item.id)}><Edit3 className="w-3.5 h-3.5 mr-1" />Editar</Button><Button size="sm" variant="outline" className="text-red-600 border-red-200" onClick={() => excluirRelatorio(item)}><Trash2 className="w-3.5 h-3.5 mr-1" />Excluir</Button></div>)}
+          {relatoriosSalvos.length === 0 && <p className="text-sm text-slate-400 italic">Nenhum relatório salvo.</p>}
+        </CardContent>
+      </Card>
 
-            <Secao titulo="Metas selecionadas e notas fiscais vinculadas">
-              <div className="space-y-3">
-                {(relatorio.cronograma_metas || []).map(meta => (
-                  <div key={meta.meta_id || meta.meta_nome} className="rounded-lg border p-3 space-y-2">
-                    <div className="flex items-center justify-between gap-2"><strong className="text-sm">{meta.meta_nome}</strong><Badge variant="outline">{meta.status_meta || 'Em análise'}</Badge></div>
-                    <p className="text-xs text-slate-600"><b>Ações:</b> {meta.acoes || '—'}</p>
-                    <p className="text-xs text-slate-600"><b>Resultado:</b> {meta.resultado_alcancado || '—'}</p>
-                    <p className="text-xs text-slate-600"><b>Período:</b> {meta.periodo || '—'}</p>
-                    <div className="space-y-1">
-                      {(meta.notas_fiscais || []).map(nota => (
-                        <div key={nota.id} className="flex items-center justify-between gap-3 rounded bg-slate-50 px-2 py-1.5 text-xs">
-                          <span>NF {nota.numero_nf} — {nota.fornecedor}</span><strong>{formatarMoeda(nota.valor)}</strong>
-                        </div>
-                      ))}
-                      {(!meta.notas_fiscais || meta.notas_fiscais.length === 0) && <p className="text-xs text-slate-400 italic">Nenhuma NF aprovada vinculada a esta meta no período.</p>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Secao>
-          </CardContent>
-        </Card>
-      )}
-
-      {!relatorio && relatoriosSalvos.length > 0 && (
-        <Card>
-          <CardHeader><CardTitle className="text-lg">Relatórios anteriores</CardTitle></CardHeader>
-          <CardContent className="space-y-2">
-            {relatoriosSalvos.map(item => (
-              <button key={item.id} onClick={() => carregarRelatorio(item.id)} className="w-full flex items-center justify-between gap-3 rounded-lg border p-3 text-left hover:bg-slate-50">
-                <span><span className="block text-sm font-medium">{item.tipo === 'final' ? 'Relatório Final' : 'Relatório Parcial'}</span><span className="block text-xs text-slate-500">{item.data_inicio} a {item.data_fim}</span></span>
-                <Badge variant="outline">{(item.filtro_meta_ids || []).length} meta(s)</Badge>
-              </button>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+      {editor && <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"><div className="bg-white rounded-xl shadow-xl w-full max-w-3xl"><div className="p-4 border-b flex items-center justify-between"><div><h3 className="font-semibold">Editar {editor.label}</h3><p className="text-xs text-slate-500">O texto salvo será usado na exportação.</p></div><button onClick={() => setEditor(null)}><X className="w-5 h-5" /></button></div><div className="p-4"><Textarea value={textoEditado} onChange={e => setTextoEditado(e.target.value)} className="min-h-[320px]" /></div><div className="p-4 border-t flex justify-end gap-2"><Button variant="outline" onClick={() => setEditor(null)}>Cancelar</Button><Button onClick={salvarTexto}><Save className="w-4 h-4 mr-1" />Salvar</Button></div></div></div>}
 
       {revisaoAberta && relatorio && <RevisaoFinalDialog relatorioId={relatorioId} relatorio={relatorio} onClose={() => setRevisaoAberta(false)} />}
     </div>
   );
 }
 
+function SecaoEditavel({ secao, relatorio, onEditar, onIA, gerandoIA, onAnexar, enviando, onRemover }) {
+  const texto = textoSecao(relatorio, secao.key);
+  const anexos = relatorio?.anexos_por_secao?.[secao.key] || [];
+  return <div className="rounded-xl border p-4 space-y-3"><div className="flex items-center justify-between gap-3 flex-wrap"><h3 className="font-semibold text-sm">{secao.label}</h3><div className="flex gap-2"><Button size="sm" variant="outline" onClick={onEditar}><Edit3 className="w-3.5 h-3.5 mr-1" />Editar texto</Button><Button size="sm" variant="outline" onClick={onIA} disabled={gerandoIA}>{gerandoIA ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 mr-1" />}Gerar com IA</Button><Button size="sm" variant="outline" onClick={onAnexar} disabled={enviando}>{enviando ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Paperclip className="w-3.5 h-3.5 mr-1" />}Foto/Documento</Button></div></div><div className="text-sm whitespace-pre-wrap text-slate-700">{texto || <span className="text-slate-400 italic">Texto ainda não preenchido.</span>}</div>{anexos.length > 0 && <div className="grid grid-cols-1 md:grid-cols-3 gap-2">{anexos.map(anexo => <div key={anexo.id} className="rounded-lg border bg-slate-50 p-2 flex items-center gap-2">{anexo.categoria === 'foto' ? <img src={anexo.url} alt={anexo.nome} className="w-12 h-12 rounded object-cover" /> : <FileText className="w-8 h-8 text-slate-400" />}<a href={anexo.url} target="_blank" rel="noreferrer" className="text-xs flex-1 truncate text-blue-700">{anexo.nome}</a><button onClick={() => onRemover(anexo.id)} className="text-red-500"><X className="w-4 h-4" /></button></div>)}</div>}</div>;
+}
+
 function Resumo({ label, valor }) {
   return <div className="rounded-xl border bg-slate-50 p-3"><p className="text-xs text-slate-500">{label}</p><p className="text-lg font-bold text-slate-800">{valor}</p></div>;
-}
-
-function Secao({ titulo, children }) {
-  return <div className="rounded-xl border p-4"><h3 className="font-semibold text-sm mb-3">{titulo}</h3>{children}</div>;
-}
-
-function Campo({ label, valor }) {
-  return <div><span className="text-slate-500">{label}:</span> <strong>{valor || '—'}</strong></div>;
 }
