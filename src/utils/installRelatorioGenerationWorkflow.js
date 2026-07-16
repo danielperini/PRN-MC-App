@@ -16,9 +16,12 @@ const SECOES = [
 ];
 
 const ESTIMATIVA_SEGUNDOS_POR_SECAO = 12;
+const TIMEOUT_GERACAO_MS = 8 * 60 * 1000;
 let ativo = false;
 let concluidas = new Set();
 let iniciadoEm = 0;
+let secaoAtualGlobal = '';
+let progressoTimer = null;
 
 function texto(value) {
   return String(value ?? '').trim();
@@ -122,8 +125,10 @@ function isRoute() {
 function progressoAtual(secaoAtual = '') {
   const total = SECOES.length;
   const concluidasCount = concluidas.size;
-  const base = ativo ? 8 : 0;
-  const valor = ativo ? Math.min(99, Math.round(base + (concluidasCount / total) * 90)) : 100;
+  const decorridoSegundos = ativo && iniciadoEm ? Math.floor((Date.now() - iniciadoEm) / 1000) : 0;
+  const progressoTemporal = ativo ? Math.min(88, 8 + Math.floor(decorridoSegundos / 3)) : 100;
+  const progressoSecoes = ativo ? Math.round(8 + (concluidasCount / total) * 90) : 100;
+  const valor = ativo ? Math.min(99, Math.max(8, progressoTemporal, progressoSecoes)) : 100;
   const restantes = Math.max(0, total - concluidasCount);
   const minutos = Math.max(1, Math.ceil((restantes * ESTIMATIVA_SEGUNDOS_POR_SECAO) / 60));
   return { valor, minutos, secaoAtual };
@@ -146,7 +151,7 @@ function garantirPainel() {
   return painel;
 }
 
-function renderPainel(secaoAtual = '', concluido = false) {
+function renderPainel(secaoAtual = '', concluido = false, erro = '') {
   const painel = garantirPainel();
   if (!painel) return;
   const { valor, minutos } = progressoAtual(secaoAtual);
@@ -154,13 +159,13 @@ function renderPainel(secaoAtual = '', concluido = false) {
   painel.innerHTML = `
     <div class="flex items-start justify-between gap-3">
       <div>
-        <h3 class="font-semibold text-blue-900">${concluido ? 'Relatório 100% preenchido' : 'Preenchimento campo a campo com IA'}</h3>
-        <p class="text-sm text-blue-700">${concluido ? 'Relatório liberado para visualização na tela e exportação.' : `Etapa atual: ${secaoAtual || 'Preparando dados reais do período'}`}</p>
+        <h3 class="font-semibold ${erro ? 'text-red-900' : 'text-blue-900'}">${erro ? 'Falha ao concluir o relatório' : concluido ? 'Relatório 100% preenchido' : 'Preenchimento campo a campo com IA'}</h3>
+        <p class="text-sm ${erro ? 'text-red-700' : 'text-blue-700'}">${erro || (concluido ? 'Relatório liberado para visualização na tela e exportação.' : `Etapa atual: ${secaoAtual || 'Preparando dados reais do período'}`)}</p>
       </div>
-      <strong class="text-blue-900">${concluido ? 100 : valor}%</strong>
+      <strong class="${erro ? 'text-red-900' : 'text-blue-900'}">${concluido ? 100 : valor}%</strong>
     </div>
-    <div class="h-2 rounded-full bg-blue-100 overflow-hidden"><div class="h-full bg-blue-600 transition-all" style="width:${concluido ? 100 : valor}%"></div></div>
-    <p class="text-xs text-blue-700">${concluido ? 'Concluído.' : `Previsão de entrega: aproximadamente ${minutos} minuto(s).`}</p>
+    <div class="h-2 rounded-full bg-blue-100 overflow-hidden"><div class="h-full ${erro ? 'bg-red-600' : 'bg-blue-600'} transition-all" style="width:${concluido ? 100 : valor}%"></div></div>
+    <p class="text-xs ${erro ? 'text-red-700' : 'text-blue-700'}">${erro ? 'Os dados já gravados foram preservados.' : concluido ? 'Concluído.' : `Previsão de entrega: aproximadamente ${minutos} minuto(s).`}</p>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-1 text-xs">
       ${SECOES.map(([key, label]) => {
         const status = concluidas.has(key) || concluido ? '✓' : key === secaoAtual ? '●' : '○';
@@ -183,19 +188,52 @@ function esconderRelatorioDuranteGeracao() {
   }
 }
 
+function pararTimer() {
+  if (progressoTimer) window.clearInterval(progressoTimer);
+  progressoTimer = null;
+}
+
+function iniciarTimer() {
+  pararTimer();
+  progressoTimer = window.setInterval(() => {
+    if (!ativo) return pararTimer();
+    if (Date.now() - iniciadoEm >= TIMEOUT_GERACAO_MS) {
+      falhar('A geração ultrapassou o tempo máximo. Tente novamente; nenhum dado anterior foi apagado.');
+      return;
+    }
+    renderPainel(secaoAtualGlobal || 'Processando dados e textos do relatório');
+  }, 1000);
+}
+
 function iniciar() {
   ativo = true;
   iniciadoEm = Date.now();
   concluidas = new Set();
+  secaoAtualGlobal = 'Criando estrutura do relatório';
   esconderRelatorioDuranteGeracao();
-  renderPainel('Criando estrutura do relatório');
+  renderPainel(secaoAtualGlobal);
+  iniciarTimer();
 }
 
 function concluir() {
   ativo = false;
+  pararTimer();
   SECOES.forEach(([key]) => concluidas.add(key));
+  secaoAtualGlobal = '';
   esconderRelatorioDuranteGeracao();
   renderPainel('', true);
+}
+
+function falhar(message) {
+  ativo = false;
+  pararTimer();
+  esconderRelatorioDuranteGeracao();
+  renderPainel('', false, texto(message) || 'Não foi possível concluir a geração.');
+}
+
+function payloadPareceRelatorioConcluido(payload = {}) {
+  const campos = ['descricao_acoes', 'cronograma_metas', 'equipe_trabalho', 'avaliacao_parceria', 'anexos_evidencias'];
+  return campos.filter((campo) => payload?.[campo] !== undefined).length >= 2;
 }
 
 export function installRelatorioGenerationWorkflow() {
@@ -211,7 +249,16 @@ export function installRelatorioGenerationWorkflow() {
   const reportEntity = base44?.entities?.RelatorioExecucaoObjeto;
   if (reportEntity?.update && !reportEntity.__workflowEquipeWrapped) {
     const originalUpdate = reportEntity.update.bind(reportEntity);
-    reportEntity.update = (id, payload = {}, ...args) => originalUpdate(id, filtrarEquipe(payload), ...args);
+    reportEntity.update = async (id, payload = {}, ...args) => {
+      try {
+        const result = await originalUpdate(id, filtrarEquipe(payload), ...args);
+        if (ativo && payloadPareceRelatorioConcluido(payload)) concluir();
+        return result;
+      } catch (error) {
+        if (ativo) falhar(error?.message || 'Falha ao salvar o relatório gerado.');
+        throw error;
+      }
+    };
     reportEntity.__workflowEquipeWrapped = true;
   }
 
@@ -219,7 +266,7 @@ export function installRelatorioGenerationWorkflow() {
     const originalGet = reportEntity.get.bind(reportEntity);
     reportEntity.get = async (...args) => {
       const result = await originalGet(...args);
-      if (ativo) concluir();
+      if (ativo && result) concluir();
       return result;
     };
     reportEntity.__workflowGetWrapped = true;
@@ -233,20 +280,31 @@ export function installRelatorioGenerationWorkflow() {
       if (functionName === 'gerarSecaoRelatorioExecucao') {
         const secao = texto(payload?.secao);
         const label = SECOES.find(([key]) => key === secao)?.[1] || secao || 'Seção do relatório';
+        secaoAtualGlobal = label;
         renderPainel(label);
-        const result = await originalInvoke(functionName, payload);
-        if (secao) concluidas.add(secao);
-        renderPainel(label);
-        return result;
+        try {
+          const result = await originalInvoke(functionName, payload);
+          if (secao) concluidas.add(secao);
+          renderPainel(label);
+          return result;
+        } catch (error) {
+          falhar(error?.message || `Falha ao gerar ${label}.`);
+          throw error;
+        }
       }
-      return originalInvoke(functionName, payload);
+      try {
+        return await originalInvoke(functionName, payload);
+      } catch (error) {
+        if (ativo && /relatorio/i.test(functionName)) falhar(error?.message || 'Falha na geração do relatório.');
+        throw error;
+      }
     };
     functions.__workflowProgressWrapped = true;
   }
 
   const run = () => window.requestAnimationFrame(() => {
     garantirPainel();
-    if (ativo && Date.now() - iniciadoEm > 15 * 60 * 1000) concluir();
+    if (ativo) renderPainel(secaoAtualGlobal || 'Processando dados e textos do relatório');
   });
   new MutationObserver(run).observe(document.documentElement, { childList: true, subtree: true });
   window.addEventListener('popstate', run);
