@@ -26,7 +26,6 @@ export function isFinanciallyActiveStatus(status) {
 
 function toNumber(v) {
   if (v === null || v === undefined) return 0;
-  // Tratar strings formatadas como "R$ 1.234,56"
   if (typeof v === 'string') {
     const cleaned = v.replace(/[R$\s.]/g, '').replace(',', '.');
     const n = parseFloat(cleaned);
@@ -59,7 +58,6 @@ export function normalizeCentroCusto(nf) {
 
   if (!low) return { centro_normalizado: 'Geral', aditivo: '3º Aditivo' };
 
-  // Pampulha tem prioridade sobre qualquer "noturno" genérico
   if (low.includes('pampulha')) {
     return { centro_normalizado: 'Noturno Pampulha', aditivo: '4º Aditivo Pampulha' };
   }
@@ -88,37 +86,105 @@ function normalizarFornecedor(nome) {
     .trim();
 }
 
-function normalizarData(data) {
-  if (!data) return '';
-  const s = String(data).split('T')[0]; // YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+function somenteDigitos(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function normalizarNumeroNF(value) {
+  return String(value || '')
+    .toUpperCase()
+    .trim()
+    .replace(/^NF(?:E|SE)?\s*/i, '')
+    .replace(/[^A-Z0-9]/g, '')
+    .replace(/^0+(?=\d)/, '');
+}
+
+function numeroNF(nf) {
+  return normalizarNumeroNF(
+    nf?.nf_numero ||
+    nf?.numero_nf ||
+    nf?.numero_nota_fiscal ||
+    nf?.numero_nota ||
+    nf?.nota_fiscal_numero ||
+    nf?.nfe_numero
+  );
+}
+
+function cnpjFornecedor(nf) {
+  return somenteDigitos(
+    nf?.fornecedor_cnpj ||
+    nf?.nf_emitente_cpf_cnpj ||
+    nf?.nf_emitente_cnpj ||
+    nf?.emitente_cnpj ||
+    nf?.cnpj_fornecedor ||
+    nf?.cnpj
+  );
+}
+
+function chaveAcesso(nf) {
+  const candidatos = [
+    nf?.nf_chave_acesso,
+    nf?.chave_acesso,
+    nf?.nfe_chave_acesso,
+    nf?.xml_chave_acesso,
+    nf?.chave_nfe,
+  ];
+
+  for (const candidato of candidatos) {
+    const chave = somenteDigitos(candidato);
+    if (chave.length === 44) return chave;
+  }
+
   return '';
+}
+
+function urlFiscal(nf) {
+  return String(
+    nf?.drive_backup_nf_pdf_link ||
+    nf?.nota_fiscal_pdf_url ||
+    nf?.nf_pdf_url ||
+    nf?.nota_fiscal_url ||
+    nf?.arquivo_original_url ||
+    nf?.pdf_url ||
+    ''
+  ).trim().split('?')[0];
 }
 
 export function getFinancialDedupKey(nf) {
   if (!nf) return null;
 
-  // 1. Chave de acesso NF-e (44 dígitos) — mais confiável
-  const chave = String(nf.nf_chave_acesso || '').replace(/\D/g, '');
-  if (chave.length === 44) return `CHAVE:${chave}`;
+  // 1. Chave fiscal de 44 dígitos: identificador inequívoco da NF-e.
+  const chave = chaveAcesso(nf);
+  if (chave) return `CHAVE:${chave}`;
 
-  // 2. Número NF + CNPJ + valor + data
-  const numero = String(nf.nf_numero || '').trim();
-  const cnpj = String(nf.fornecedor_cnpj || nf.nf_emitente_cpf_cnpj || '').replace(/\D/g, '');
-  const valor = String(Math.round(getPurchaseValue(nf) * 100)); // centavos
-  const data = normalizarData(nf.nf_data_emissao || nf.aprov_admin_data || nf.created_date);
+  const numero = numeroNF(nf);
+  const cnpj = cnpjFornecedor(nf);
+  const fornecedor = normalizarFornecedor(nf.fornecedor_nome || nf.nf_emitente_nome || nf.emitente_nome);
+  const valorCentavos = Math.round(getPurchaseValue(nf) * 100);
 
-  if (numero && cnpj && valor !== '0') {
-    return `NF:${numero}:${cnpj}:${valor}:${data}`;
+  // 2. Número + CNPJ + valor. A data foi retirada da chave porque registros
+  // duplicados podem guardar created_date/aprovação diferentes para a mesma NF.
+  if (numero && cnpj && valorCentavos > 0) {
+    return `NF:${numero}:${cnpj}:${valorCentavos}`;
   }
 
-  // 3. Fallback: fornecedor normalizado + valor + data + rubrica + centro
-  const fornecedor = normalizarFornecedor(nf.fornecedor_nome || nf.nf_emitente_nome);
-  const { centro_normalizado } = normalizeCentroCusto(nf);
-  const rubrica = String(nf.rubrica_id || nf.rubrica_nome || '').trim();
+  // 3. Quando o CNPJ não foi extraído, número + emitente + valor ainda distingue
+  // parcelas e evita contar novamente PDF/XML ou cópias da mesma nota.
+  if (numero && fornecedor && valorCentavos > 0) {
+    return `NF_FORNECEDOR:${numero}:${fornecedor}:${valorCentavos}`;
+  }
 
-  if (!fornecedor && !valor) return null;
-  return `FALLBACK:${fornecedor}:${valor}:${data}:${centro_normalizado}:${rubrica}`;
+  // 4. Mesmo arquivo fiscal vinculado mais de uma vez.
+  const arquivo = urlFiscal(nf);
+  if (arquivo) return `ARQUIVO:${arquivo}`;
+
+  // 5. Fallback conservador. Só consolida quando fornecedor, valor, rubrica e
+  // centro são iguais; registros sem dados suficientes permanecem separados.
+  const { centro_normalizado } = normalizeCentroCusto(nf);
+  const rubrica = String(nf.rubrica_id || nf.rubrica_nome || nf.item_despesa || '').trim();
+  if (!fornecedor || valorCentavos <= 0) return null;
+
+  return `FALLBACK:${fornecedor}:${valorCentavos}:${centro_normalizado}:${rubrica}`;
 }
 
 // ─── 5. PRIORIDADE ENTRE DUPLICATAS ──────────────────────────────────────────
@@ -135,62 +201,50 @@ function duplicatePriority(nf) {
 
 // ─── 6. FILTRO FINANCEIRO COMPLETO ───────────────────────────────────────────
 
-/**
- * Retorna as NFs que entram no somatório financeiro:
- * - status ativo
- * - não marcadas como duplicata financeira
- * - deduplica por chave, mantendo a de maior prioridade
- *
- * @param {Array} purchases - lista completa de PurchaseRequest
- * @returns {{ validas: Array, duplicadas: Array }}
- */
 export function getFinanciallyValidPurchases(purchases = []) {
-  // 1. Filtrar por status ativo
   const ativas = purchases.filter(p => isFinanciallyActiveStatus(p.status));
-
-  // 2. Deduplicar por chave
-  const keyMap = new Map(); // key -> nf com maior prioridade
+  const keyMap = new Map();
+  const duplicadasDiretas = [];
 
   for (const nf of ativas) {
-    // Se já marcada como duplicata no banco, pular
-    if (nf.duplicada_financeira === true || nf.incluir_no_somatorio === false) continue;
-
-    const key = getFinancialDedupKey(nf);
-    if (!key) {
-      // Sem chave identificável — incluir sempre
-      if (!keyMap.has(`NO_KEY:${nf.id}`)) keyMap.set(`NO_KEY:${nf.id}`, nf);
+    if (nf.duplicada_financeira === true || nf.incluir_no_somatorio === false) {
+      duplicadasDiretas.push(nf);
       continue;
     }
 
-    if (!keyMap.has(key)) {
-      keyMap.set(key, nf);
-    } else {
-      const current = keyMap.get(key);
-      if (duplicatePriority(nf) > duplicatePriority(current)) {
-        keyMap.set(key, nf);
-      }
+    const key = getFinancialDedupKey(nf);
+    const effectiveKey = key || `NO_KEY:${nf.id}`;
+
+    if (!keyMap.has(effectiveKey)) {
+      keyMap.set(effectiveKey, nf);
+      continue;
+    }
+
+    const current = keyMap.get(effectiveKey);
+    if (duplicatePriority(nf) > duplicatePriority(current)) {
+      keyMap.set(effectiveKey, nf);
     }
   }
 
   const validas = Array.from(keyMap.values());
-  const validasIds = new Set(validas.map(p => p.id));
-  const duplicadas = ativas.filter(p => !validasIds.has(p.id));
+  const validasRefs = new Set(validas);
+  const duplicadasDetectadas = ativas.filter((p) => {
+    if (p.duplicada_financeira === true || p.incluir_no_somatorio === false) return false;
+    return !validasRefs.has(p);
+  });
 
+  const duplicadas = [...new Set([...duplicadasDiretas, ...duplicadasDetectadas])];
   return { validas, duplicadas };
 }
 
 // ─── 7. CÁLCULO DOS TOTAIS DOS ADITIVOS ─────────────────────────────────────
 
-/**
- * Calcula totais por aditivo a partir das NFs válidas (já deduplicadas).
- * @param {Array} purchases - lista completa de PurchaseRequest
- */
 export function calculateAditivoTotals(purchases = []) {
   const { validas, duplicadas } = getFinanciallyValidPurchases(purchases);
 
-  let terceiro = { total: 0, utilizado: 0, quantidade_nfs: 0 };
-  let noturno2026 = { total: 0, utilizado: 0, quantidade_nfs: 0 };
-  let noturnoPampulha = { total: 0, utilizado: 0, quantidade_nfs: 0 };
+  const terceiro = { total: 0, utilizado: 0, quantidade_nfs: 0 };
+  const noturno2026 = { total: 0, utilizado: 0, quantidade_nfs: 0 };
+  const noturnoPampulha = { total: 0, utilizado: 0, quantidade_nfs: 0 };
 
   for (const nf of validas) {
     const { aditivo } = normalizeCentroCusto(nf);
@@ -223,30 +277,23 @@ export function calculateAditivoTotals(purchases = []) {
 
 // ─── 8. BADGES FINANCEIROS PARA A TABELA ─────────────────────────────────────
 
-/**
- * Retorna os badges de auditoria financeira para exibição na tabela.
- */
 export function getFinancialBadges(nf, allPurchases = []) {
   const badges = [];
 
-  // Status financeiro ativo
   if (isFinanciallyActiveStatus(nf.status)) {
     badges.push({ key: 'ativo', label: 'No somatório', color: 'bg-green-50 text-green-700' });
   } else {
     badges.push({ key: 'inativo', label: 'Fora do somatório', color: 'bg-gray-100 text-gray-500' });
   }
 
-  // Duplicata financeira
   if (nf.duplicada_financeira === true || nf.incluir_no_somatorio === false) {
     badges.push({ key: 'dup', label: 'Duplicata', color: 'bg-red-50 text-red-700' });
   }
 
-  // Centro corrigido
   if (nf._centro_corrigido) {
     badges.push({ key: 'cc', label: 'Centro corrigido', color: 'bg-amber-50 text-amber-700' });
   }
 
-  // Rubrica corrigida
   if (nf._rubrica_corrigida) {
     badges.push({ key: 'rub', label: 'Rubrica corrigida', color: 'bg-purple-50 text-purple-700' });
   }
