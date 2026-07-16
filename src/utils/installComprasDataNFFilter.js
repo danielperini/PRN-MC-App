@@ -9,7 +9,7 @@ const NF_DATE_FIELDS = [
 ];
 
 function isComprasRoute() {
-  return /^\/Compras(?:\/|$)/i.test(window.location.pathname);
+  return typeof window !== 'undefined' && /^\/Compras(?:\/|$)/i.test(window.location.pathname);
 }
 
 function getNFDate(purchase) {
@@ -17,13 +17,14 @@ function getNFDate(purchase) {
     const value = purchase?.[field];
     if (value) return value;
   }
-  return null;
+  return purchase?.created_date || purchase?.updated_date || null;
 }
 
 /**
  * Mantém a página Compras compatível com o filtro legado, que compara
- * `created_date`, mas faz essa comparação pela data de emissão da NF.
- * Fora da rota /Compras, os registros permanecem inalterados.
+ * `created_date`, mas prioriza a data de emissão da NF quando disponível.
+ * Registros sem NF preservam a data original para não quebrar ordenação,
+ * filtros e formatadores da página.
  */
 export function installComprasDataNFFilter() {
   const entity = base44?.entities?.PurchaseRequest;
@@ -35,11 +36,14 @@ export function installComprasDataNFFilter() {
     const records = await originalList(...args);
     if (!isComprasRoute() || !Array.isArray(records)) return records;
 
-    return records.map((purchase) => ({
-      ...purchase,
-      __created_date_original: purchase?.created_date || null,
-      created_date: getNFDate(purchase),
-    }));
+    return records.map((purchase) => {
+      const effectiveDate = getNFDate(purchase);
+      return {
+        ...purchase,
+        __created_date_original: purchase?.created_date || null,
+        created_date: effectiveDate,
+      };
+    });
   };
 
   entity.__dataNFFilterInstalled = true;
