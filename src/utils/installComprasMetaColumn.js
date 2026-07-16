@@ -15,61 +15,83 @@ function findHeaderIndex(headers, label) {
   return headers.findIndex((header) => normalizeText(header.textContent).includes(normalizedLabel));
 }
 
-function extractMetaText(row, descriptionIndex) {
-  const cells = Array.from(row.children);
-  const descriptionCell = cells[descriptionIndex];
-  if (!descriptionCell) return '—';
+function meaningfulTexts(cell) {
+  if (!cell) return [];
+  return Array.from(cell.querySelectorAll('p, span, div'))
+    .map((element) => String(element.textContent || '').replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .filter((text, index, list) => list.indexOf(text) === index)
+    .filter((text) => !/^\d{6}\s*[–-]/.test(text))
+    .filter((text) => !/^\d{2}\.\d{2}\.\d{2}/.test(text))
+    .filter((text) => !/^(geral|rateado|mis|mumo|mhab)$/i.test(text));
+}
 
-  const candidates = Array.from(descriptionCell.querySelectorAll('p, span, div'))
-    .map((element) => String(element.textContent || '').trim())
-    .filter(Boolean);
+function extractMetaFromRubricaCell(row, rubricaIndex) {
+  const rubricaCell = row.children[rubricaIndex];
+  const candidates = meaningfulTexts(rubricaCell)
+    .filter((text) => !/^(equipe e gest[aã]o|manuten[cç][aã]o e opera[cç][aã]o|despesas gerais|noturno nos museus 2026)$/i.test(text))
+    .filter((text) => !/^(outros servi[cç]os|servi[cç]os de terceiros)/i.test(text));
 
-  const explicit = candidates.find((text) =>
-    /^(MC[34]A[-\w]*|\d+\s*-\s*.+|[a-f0-9]{24})$/i.test(text)
-  );
+  if (!candidates.length) return '';
 
-  if (explicit) return explicit;
+  return [...candidates].sort((a, b) => b.length - a.length)[0];
+}
 
-  const dataMeta = descriptionCell.querySelector('[data-meta-id], [data-meta], [title*="Meta"]');
+function extractMetaFromDescription(row, descriptionIndex) {
+  const descriptionCell = row.children[descriptionIndex];
+  if (!descriptionCell) return '';
+
+  const dataMeta = descriptionCell.querySelector('[data-meta-nome], [data-meta-name], [data-meta]');
   if (dataMeta) {
-    return String(
-      dataMeta.getAttribute('data-meta-id') ||
+    const value = String(
+      dataMeta.getAttribute('data-meta-nome') ||
+      dataMeta.getAttribute('data-meta-name') ||
       dataMeta.getAttribute('data-meta') ||
       dataMeta.textContent ||
       ''
-    ).trim() || '—';
+    ).trim();
+    if (value && !/^[a-f0-9]{24}$/i.test(value) && !/^MC[34]A[-\w]*$/i.test(value)) return value;
   }
 
-  return '—';
+  return '';
+}
+
+function extractMetaText(row, descriptionIndex, rubricaIndex) {
+  return extractMetaFromDescription(row, descriptionIndex)
+    || extractMetaFromRubricaCell(row, rubricaIndex)
+    || '—';
 }
 
 function installOnTable(table) {
-  if (!table || table.dataset.comprasMetaColumn === 'true') return;
+  if (!table) return;
 
   const headerRow = table.querySelector('thead tr');
   if (!headerRow) return;
 
-  const headers = Array.from(headerRow.children);
+  let headers = Array.from(headerRow.children);
   const descriptionIndex = findHeaderIndex(headers, 'Descrição');
-  const centerIndex = findHeaderIndex(headers, 'Centro');
   const rubricaIndex = findHeaderIndex(headers, 'Rubrica');
+  if (descriptionIndex < 0 || rubricaIndex < 0) return;
 
-  if (descriptionIndex < 0 || centerIndex < 0 || rubricaIndex < 0) return;
-  if (findHeaderIndex(headers, 'Meta') >= 0) {
-    table.dataset.comprasMetaColumn = 'true';
-    return;
+  const existingMetaIndex = findHeaderIndex(headers, 'Meta');
+  if (existingMetaIndex >= 0) {
+    table.querySelectorAll('[data-compras-meta-cell="true"]').forEach((cell) => cell.remove());
+    const header = headers[existingMetaIndex];
+    if (header?.dataset?.comprasMetaHeader === 'true') header.remove();
   }
+
+  headers = Array.from(headerRow.children);
+  const currentRubricaIndex = findHeaderIndex(headers, 'Rubrica');
+  if (currentRubricaIndex < 0) return;
 
   const metaHeader = document.createElement('th');
   metaHeader.textContent = 'Meta';
-  metaHeader.className = 'px-3 py-3 font-medium text-gray-600 w-[12%]';
+  metaHeader.className = 'px-3 py-3 font-medium text-gray-600 w-[15%]';
   metaHeader.dataset.comprasMetaHeader = 'true';
-  headerRow.insertBefore(metaHeader, headerRow.children[rubricaIndex]);
+  headerRow.insertBefore(metaHeader, headerRow.children[currentRubricaIndex]);
 
   table.querySelectorAll('tbody tr').forEach((row) => {
-    if (row.querySelector('[data-compras-meta-cell="true"]')) return;
-
-    const metaText = extractMetaText(row, descriptionIndex);
+    const metaText = extractMetaText(row, descriptionIndex, currentRubricaIndex);
     const metaCell = document.createElement('td');
     metaCell.className = 'px-3 py-2.5 align-top';
     metaCell.dataset.comprasMetaCell = 'true';
@@ -77,12 +99,12 @@ function installOnTable(table) {
     const value = document.createElement('span');
     value.className = metaText === '—'
       ? 'text-xs text-gray-400'
-      : 'inline-block max-w-[180px] break-words text-xs font-medium text-gray-700';
+      : 'inline-block max-w-[220px] break-words text-xs font-medium text-gray-700';
     value.textContent = metaText;
     value.title = metaText === '—' ? 'Meta não informada' : metaText;
 
     metaCell.appendChild(value);
-    row.insertBefore(metaCell, row.children[rubricaIndex]);
+    row.insertBefore(metaCell, row.children[currentRubricaIndex]);
   });
 
   table.dataset.comprasMetaColumn = 'true';
@@ -90,10 +112,7 @@ function installOnTable(table) {
 
 function applyMetaColumn() {
   if (!isComprasRoute()) return;
-
-  document.querySelectorAll('table').forEach((table) => {
-    installOnTable(table);
-  });
+  document.querySelectorAll('table').forEach(installOnTable);
 }
 
 export function installComprasMetaColumn() {
@@ -101,7 +120,15 @@ export function installComprasMetaColumn() {
   if (window.__comprasMetaColumnInstalled) return;
   window.__comprasMetaColumnInstalled = true;
 
-  const run = () => window.requestAnimationFrame(applyMetaColumn);
+  let scheduled = false;
+  const run = () => {
+    if (scheduled) return;
+    scheduled = true;
+    window.requestAnimationFrame(() => {
+      scheduled = false;
+      applyMetaColumn();
+    });
+  };
 
   const observer = new MutationObserver(run);
   observer.observe(document.documentElement, { childList: true, subtree: true });
@@ -109,6 +136,5 @@ export function installComprasMetaColumn() {
   window.addEventListener('popstate', run);
   window.addEventListener('hashchange', run);
   document.addEventListener('visibilitychange', run);
-
   run();
 }
