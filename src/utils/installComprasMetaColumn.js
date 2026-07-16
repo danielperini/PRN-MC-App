@@ -133,8 +133,24 @@ function updateMetaCell(row, descriptionIndex, rubricaIndex) {
   cell.appendChild(wrapper);
 }
 
+function removeCentroColumn(table) {
+  const headerRow = table.querySelector('thead tr');
+  if (!headerRow) return;
+
+  const headers = Array.from(headerRow.children);
+  const centerIndex = findHeaderIndex(headers, 'Centro');
+  if (centerIndex < 0) return;
+
+  headerRow.children[centerIndex]?.remove();
+  table.querySelectorAll('tbody tr').forEach((row) => {
+    row.children[centerIndex]?.remove();
+  });
+}
+
 function installOnTable(table) {
   if (!table) return;
+
+  removeCentroColumn(table);
 
   const headerRow = table.querySelector('thead tr');
   if (!headerRow) return;
