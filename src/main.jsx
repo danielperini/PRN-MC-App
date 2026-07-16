@@ -7,11 +7,13 @@ import '@/styles/report-print-fixes.css'
 import { installActivityGalleryPdfRouting } from '@/utils/installActivityGalleryPdfRouting'
 import { installComprasDataNFFilter } from '@/utils/installComprasDataNFFilter'
 import { installComprasMetaColumn } from '@/utils/installComprasMetaColumn'
+import { installMetasPlanoTrabalhoNFs } from '@/utils/installMetasPlanoTrabalhoNFs'
 import { installPdfDownloadGuard } from '@/utils/pdfDownloadGuard'
 
 installActivityGalleryPdfRouting()
 installComprasDataNFFilter()
 installComprasMetaColumn()
+installMetasPlanoTrabalhoNFs()
 installPdfDownloadGuard()
 
 ReactDOM.createRoot(document.getElementById('root')).render(
