@@ -18,8 +18,10 @@ import { installRelatorioPdfHeader } from '@/utils/installRelatorioPdfHeader'
 import { installRelatorioExecucaoSafeEntities } from '@/utils/installRelatorioExecucaoSafeEntities'
 import { installRelatorioTabelasEstruturadas } from '@/utils/installRelatorioTabelasEstruturadas'
 import { installRelatorioFinanceAuditContext } from '@/utils/installRelatorioFinanceAuditContext'
+import { installRuntimeErrorGuards } from '@/utils/installRuntimeErrorGuards'
 import { installPdfDownloadGuard } from '@/utils/pdfDownloadGuard'
 
+installRuntimeErrorGuards()
 installActivityGalleryPdfRouting()
 installComprasDataNFFilter()
 installMetasPlanoTrabalhoNFs()
