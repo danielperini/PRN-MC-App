@@ -1,5 +1,6 @@
 import { createClient } from '@base44/sdk';
 import { appParams } from '@/lib/app-params';
+import { filtrarMetas3e4Aditivos } from '@/utils/metasAditivosPermitidos';
 
 const { appId, token, functionsVersion, appBaseUrl } = appParams;
 
@@ -53,11 +54,25 @@ function normalizeNFDateForLocalComparison(value) {
 
 function getNFDate(purchase) {
   for (const field of NF_DATE_FIELDS) {
-    if (purchase?.[field]) {
-      return normalizeNFDateForLocalComparison(purchase[field]);
-    }
+    if (purchase?.[field]) return normalizeNFDateForLocalComparison(purchase[field]);
   }
   return null;
+}
+
+// Regra canônica global: seletores e telas só recebem metas do 3º e 4º aditivos.
+for (const entityName of ['ProjectMeta', 'MetaProjeto', 'Meta']) {
+  const entity = base44.entities?.[entityName];
+  if (!entity) continue;
+
+  if (entity.list) {
+    const originalList = entity.list.bind(entity);
+    entity.list = async (...args) => filtrarMetas3e4Aditivos(await originalList(...args));
+  }
+
+  if (entity.filter) {
+    const originalFilter = entity.filter.bind(entity);
+    entity.filter = async (...args) => filtrarMetas3e4Aditivos(await originalFilter(...args));
+  }
 }
 
 // Mantém o filtro da página Compras sem envolver o SDK em Proxy.
