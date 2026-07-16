@@ -1,8 +1,8 @@
 import { base44 } from '@/api/base44Client';
 
-const STATUS_OK = new Set(['aprovado', 'aprovado_admin', 'aprovado_coord', 'pago', 'publicado', 'finalizado', 'concluido']);
+const STATUS_OK = new Set(['approved', 'aprovado', 'aprovado_admin', 'aprovado_coord', 'publicado', 'finalizado', 'concluido']);
 const META_ID_FIELDS = ['meta_id', 'project_meta_id', 'meta_projeto_id', 'meta_codigo', 'codigo_meta', 'meta_vinculada_id'];
-const PUBLIC_FIELDS = ['publico_total', 'total_publico', 'publico_realizado', 'publico_presente', 'quantidade_publico', 'participantes', 'visitantes', 'presentes', 'attendance_count', 'total_participantes'];
+const PUBLIC_FIELDS = ['publico_total', 'total_publico', 'publico_realizado', 'publico_presente', 'quantidade_publico', 'participantes', 'visitantes', 'presentes'];
 const PHOTO_FIELDS = ['foto_url', 'image_url', 'url', 'file_url', 'arquivo_url', 'photo_url', 'media_url', 'drive_url', 'gallery_url'];
 
 const text = (value) => String(value ?? '').trim();
@@ -43,12 +43,21 @@ function metaName(meta = {}) {
   return text(meta.meta_nome || meta.nome || meta.titulo || meta.resultado_esperado || meta.descricao || `Meta ${metaCode(meta)}`);
 }
 
+function canonicalMetaKey(meta = {}) {
+  const raw = normalize(`${metaCode(meta)} ${metaName(meta)}`);
+  const match = raw.match(/(?:meta\s*)?(\d{1,2})([a-z])?/);
+  if (match) return `meta-${Number(match[1])}${match[2] || ''}`;
+  return normalize(metaCode(meta)) || normalize(metaName(meta)) || metaId(meta);
+}
+
 function isOfficialMeta(meta = {}) {
   if (!metaId(meta) || meta?.ativo === false) return false;
-  const source = normalize(`${meta.tipo || ''} ${meta.entidade_origem || ''} ${meta.source_entity || ''}`);
-  if (source.includes('rubrica') || source.includes('budget')) return false;
+  const source = normalize(`${meta.tipo || ''} ${meta.entidade_origem || ''} ${meta.source_entity || ''} ${meta.grupo || ''}`);
+  if (source.includes('rubrica') || source.includes('budget') || source.includes('financeir')) return false;
   const name = normalize(metaName(meta));
-  return !/(analista|assistente administrativo|coordenador geral|coordenador de comunicacao|designer|fotografo|assessor de imprensa|rede social|material de escritorio|contador|assessoria juridica|energia eletrica|transporte|alimentacao|lanches buffet)$/.test(name);
+  const rubricaPattern = /(analista|assistente administrativo|coordenador geral|coordenador de comunicacao|designer|fotografo|assessor de imprensa|rede social|material de escritorio|contador|assessoria juridica|energia eletrica|transporte|alimentacao|lanches|buffet|seguranca|limpeza|vans|infraestrutura|producao|monitores)/;
+  const hasMetaIdentity = /\bmeta\s*\d{1,2}[a-z]?\b/.test(normalize(`${metaCode(meta)} ${metaName(meta)}`)) || Boolean(meta.resultado_esperado || meta.objetivo || meta.finalidade);
+  return hasMetaIdentity && !rubricaPattern.test(name);
 }
 
 function activityId(item = {}) {
@@ -60,7 +69,7 @@ function activityTitle(item = {}) {
 }
 
 function activityDate(item = {}) {
-  return text(item.data || item.data_atividade || item.data_inicio || item.start_date || item.created_date || item.updated_date);
+  return text(item.data || item.data_atividade || item.data_inicio || item.start_date || item.created_date);
 }
 
 function activityMetaId(item = {}) {
@@ -75,9 +84,7 @@ function activityPublic(item = {}) {
     const parsed = Number(value);
     if (Number.isFinite(parsed) && parsed > 0) return parsed;
   }
-  if (Array.isArray(item.lista_presenca)) return item.lista_presenca.length;
-  if (Array.isArray(item.participantes_lista)) return item.participantes_lista.length;
-  return 0;
+  return asArray(item.lista_presenca).length || asArray(item.participantes_lista).length || 0;
 }
 
 function photoUrl(item = {}) {
@@ -86,26 +93,30 @@ function photoUrl(item = {}) {
 }
 
 function reportApproved(report = {}) {
-  return STATUS_OK.has(normalize(report.status || report.situacao || report.workflow_status).replace(/\s+/g, '_'));
+  const status = normalize(report.status || report.situacao || report.workflow_status || report.review_status).replace(/\s+/g, '_');
+  return STATUS_OK.has(status);
 }
 
 function reportActivities(report = {}) {
-  return [report.atividades, report.activities, report.atividades_realizadas, report._atividades_periodo, report._agenda_periodo, report.descricao_acoes?.atividades, report.tabelas_estruturadas?.atividades, report.tabelas_estruturadas?.agenda]
-    .flatMap(asArray)
-    .map((item, index) => ({
-      ...item,
-      id: item?.id || `${report.id || 'report'}-atividade-${index}`,
-      report_id: report.id,
-      source_entity: 'Report',
-      museu: item?.museu || report.museu || report.filtro_museu,
-      data: activityDate(item) || report.mes_referencia || report.data_inicio || report.created_date,
-    }));
+  return [
+    report.atividades,
+    report.activities,
+    report.atividades_realizadas,
+    report.descricao_acoes?.atividades,
+    report.tabelas_estruturadas?.atividades,
+  ].flatMap(asArray).map((item, index) => ({
+    ...item,
+    id: item?.id || `${report.id}-atividade-${index}`,
+    report_id: report.id,
+    source_entity: 'Relatório mensal',
+    museu: item?.museu || report.museu,
+  }));
 }
 
 function reportPhotos(report = {}) {
   return [report.fotos, report.photos, report.anexos_evidencias, report.anexos_fotograficos, report.galeria_fotos]
     .flatMap(asArray)
-    .map((item, index) => ({ ...item, id: item?.id || `${report.id || 'report'}-foto-${index}`, report_id: report.id, source_entity: 'Report' }));
+    .map((item, index) => ({ ...item, id: item?.id || `${report.id}-foto-${index}`, report_id: report.id, source_entity: 'Relatório mensal' }));
 }
 
 function semanticScore(meta, activity) {
@@ -113,8 +124,8 @@ function semanticScore(meta, activity) {
   const a = normalize(`${activityTitle(activity)} ${activity.tipo || ''} ${activity.categoria || ''} ${activity.museu || ''} ${activity.local || ''}`);
   if (!m || !a) return 0;
   let score = 0;
-  const tokens = new Set(a.split(' ').filter((token) => token.length >= 4));
-  for (const token of m.split(' ').filter((value) => value.length >= 4)) if (tokens.has(token)) score += 2;
+  const tokens = new Set(a.split(' ').filter((token) => token.length >= 5));
+  for (const token of m.split(' ').filter((value) => value.length >= 5)) if (tokens.has(token)) score += 2;
   const rules = [
     ['noturno pampulha', ['pampulha', 'casa do baile', 'map', 'mck', 'kubitschek']],
     ['noturno', ['noturno', 'apresentacao', 'show', 'evento']],
@@ -125,15 +136,21 @@ function semanticScore(meta, activity) {
     ['comunicacao', ['divulgacao', 'imprensa', 'rede social', 'marketing']],
     ['consultoria', ['consultoria', 'formacao', 'capacitacao', 'ambiente seguro']],
   ];
-  for (const [needle, related] of rules) if (m.includes(needle) && related.some((term) => a.includes(term))) score += 5;
+  for (const [needle, related] of rules) if (m.includes(needle) && related.some((term) => a.includes(term))) score += 6;
   return score;
+}
+
+function metaIdentifiers(meta = {}) {
+  return new Set([
+    metaId(meta), metaCode(meta), text(meta.meta_id), text(meta.project_meta_id), text(meta.chave_logica), canonicalMetaKey(meta),
+  ].filter(Boolean).map((value) => normalize(value)));
 }
 
 function belongsToMeta(meta, activity) {
   const explicit = activityMetaId(activity);
-  const ids = new Set([metaId(meta), metaCode(meta), text(meta.meta_id), text(meta.project_meta_id), text(meta.chave_logica)].filter(Boolean));
-  if (explicit && ids.has(explicit)) return true;
-  return semanticScore(meta, activity) >= 5;
+  const ids = metaIdentifiers(meta);
+  if (explicit) return ids.has(normalize(explicit)) || ids.has(canonicalMetaKey({ codigo: explicit, nome: explicit }));
+  return semanticScore(meta, activity) >= 6;
 }
 
 function expectedQuantity(meta = {}) {
@@ -143,8 +160,22 @@ function expectedQuantity(meta = {}) {
   return match ? Number(match[1]) : 0;
 }
 
+function withinPeriod(item, start, end) {
+  const value = activityDate(item);
+  if (!value || (!start && !end)) return true;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return true;
+  if (start && date < new Date(start)) return false;
+  if (end) {
+    const limit = new Date(end);
+    limit.setHours(23, 59, 59, 999);
+    if (date > limit) return false;
+  }
+  return true;
+}
+
 function buildCronograma(metas, context) {
-  const activities = unique(context.activities, (item) => activityId(item) || `${activityDate(item)}|${normalize(activityTitle(item))}`);
+  const activities = unique(context.activities.filter((item) => withinPeriod(item, context.start, context.end)), (item) => activityId(item) || `${activityDate(item)}|${normalize(activityTitle(item))}|${normalize(item.museu || item.local)}`);
   const photos = unique(context.photos.filter((item) => photoUrl(item)), (item) => photoUrl(item).split('?')[0]);
   const period = `${context.start || ''} a ${context.end || ''}`.replace(/^ a | a $/g, '') || 'Período total do projeto';
 
@@ -152,9 +183,9 @@ function buildCronograma(metas, context) {
     const relatedActivities = activities.filter((item) => belongsToMeta(meta, item));
     const activityIds = new Set(relatedActivities.map(activityId).filter(Boolean));
     const reportIds = new Set(relatedActivities.map((item) => text(item.report_id)).filter(Boolean));
-    const ids = new Set([metaId(meta), metaCode(meta), text(meta.meta_id), text(meta.chave_logica)].filter(Boolean));
+    const ids = metaIdentifiers(meta);
     const relatedPhotos = photos.filter((item) => {
-      const photoMeta = text(item.meta_id || item.project_meta_id || item.meta_chave || item.codigo_meta);
+      const photoMeta = normalize(item.meta_id || item.project_meta_id || item.meta_chave || item.codigo_meta);
       const linkedActivity = text(item.activity_id || item.atividade_id || item.evento_id || item.programacao_id);
       const reportId = text(item.report_id || item.relatorio_id);
       return (photoMeta && ids.has(photoMeta)) || (linkedActivity && activityIds.has(linkedActivity)) || (reportId && reportIds.has(reportId));
@@ -184,7 +215,7 @@ function buildCronograma(metas, context) {
         atividade: activityTitle(item) || 'Atividade registrada',
         museu: text(item.museu || item.unidade || item.local || item.centro_custo) || 'Não informado',
         publico: activityPublic(item),
-        origem: item.source_entity || (item.report_id ? 'Relatório Mensal' : 'Agenda'),
+        origem: item.source_entity || (item.report_id ? 'Relatório mensal' : 'Agenda'),
         relatorio_id: item.report_id || '',
       })),
       atividades_vinculadas: relatedActivities,
@@ -197,7 +228,7 @@ function buildCronograma(metas, context) {
       resultado_alcancado: performed > 0 ? `${performed} atividade(s) vinculada(s), público de ${publicReached.toLocaleString('pt-BR')} pessoa(s) e ${documents.length} evidência(s).` : 'Não foram localizados registros suficientes no período.',
       percentual_execucao: percentage,
       status_meta: percentage >= 100 ? 'Realizada integralmente' : percentage > 0 ? `Realizada parcialmente — ${percentage}%` : 'Não realizada',
-      justificativa: percentage >= 100 ? 'Execução comprovada pela Agenda, Relatórios Mensais aprovados, público consolidado e evidências vinculadas.' : percentage > 0 ? 'A meta permanece em execução, com atividades, público e evidências já vinculados.' : 'Não foram encontradas evidências suficientes no período selecionado.',
+      justificativa: percentage >= 100 ? 'Execução comprovada pela Agenda, relatórios mensais aprovados, público consolidado e evidências vinculadas.' : percentage > 0 ? 'A meta permanece em execução, com atividades, público e evidências já vinculados.' : 'Não foram encontradas evidências suficientes no período selecionado.',
       origem_meta: 'ProjectMeta',
       editavel: true,
     };
@@ -217,55 +248,44 @@ export function installCronogramaMetasDadosReais() {
     try { current = await entity.get(id); } catch (_) {}
 
     const [projectMetas, agendas, atividades, programacoes, reportsRaw, reportPhotos, documentIntakes] = await Promise.all([
-      safeList('ProjectMeta', 'ordem'),
-      safeList('Agenda'),
-      safeList('Atividade'),
-      safeList('Programacao'),
-      safeList('Report'),
-      safeList('ReportPhoto'),
-      safeList('DocumentIntake'),
+      safeList('ProjectMeta', 'ordem'), safeList('Agenda'), safeList('Atividade'), safeList('Programacao'), safeList('Report'), safeList('ReportPhoto'), safeList('DocumentIntake'),
     ]);
 
     const reports = reportsRaw.filter(reportApproved);
-    const officialMetas = unique(projectMetas.filter(isOfficialMeta), (meta) => normalize(metaCode(meta)) || normalize(metaName(meta)) || metaId(meta));
-    const sourceMetas = officialMetas.length ? officialMetas : unique(payload.cronograma_metas.filter(isOfficialMeta), (meta) => normalize(metaCode(meta)) || normalize(metaName(meta)) || metaId(meta));
+    const officialMetas = unique(projectMetas.filter(isOfficialMeta), canonicalMetaKey);
+    const fallbackMetas = unique(payload.cronograma_metas.filter(isOfficialMeta), canonicalMetaKey);
+    const sourceMetas = officialMetas.length ? officialMetas : fallbackMetas;
     const reportActivityRows = reports.flatMap(reportActivities);
     const reportImageRows = reports.flatMap(reportPhotos);
     const intakePhotos = documentIntakes.filter((item) => /foto|imagem|image/i.test(`${item.tipo_detectado || ''} ${item.file_name_original || ''} ${item.mime_type || ''}`));
 
     const context = {
       activities: [
-        ...asArray(payload._atividades_periodo),
-        ...asArray(payload._agenda_periodo),
-        ...asArray(current?._atividades_periodo),
-        ...asArray(current?._agenda_periodo),
-        ...agendas,
-        ...atividades,
-        ...programacoes,
+        ...asArray(payload._atividades_periodo), ...asArray(payload._agenda_periodo),
+        ...asArray(current?._atividades_periodo), ...asArray(current?._agenda_periodo),
+        ...agendas.map((item) => ({ ...item, source_entity: 'Agenda' })),
+        ...atividades.map((item) => ({ ...item, source_entity: 'Atividade' })),
+        ...programacoes.map((item) => ({ ...item, source_entity: 'Programação' })),
         ...reportActivityRows,
       ],
       photos: [
-        ...asArray(payload.anexos_evidencias),
-        ...asArray(payload.anexos_fotograficos),
-        ...asArray(payload._fotos_atividades),
-        ...asArray(current?.anexos_evidencias),
-        ...asArray(current?.anexos_fotograficos),
-        ...asArray(current?._fotos_atividades),
-        ...reportPhotos,
-        ...reportImageRows,
-        ...intakePhotos,
+        ...asArray(payload.anexos_evidencias), ...asArray(payload.anexos_fotograficos), ...asArray(payload._fotos_atividades),
+        ...asArray(current?.anexos_evidencias), ...asArray(current?.anexos_fotograficos), ...asArray(current?._fotos_atividades),
+        ...reportPhotos, ...reportImageRows, ...intakePhotos,
       ],
       start: payload.data_inicio || current?.data_inicio,
       end: payload.data_fim || current?.data_fim,
     };
 
     const cronograma = buildCronograma(sourceMetas, context);
-    payload = {
+    return originalUpdate(id, {
       ...payload,
       cronograma_metas: cronograma,
       tabela_metas_atividades: cronograma.map((meta) => ({
         meta_id: meta.meta_id,
+        meta_codigo: meta.meta_codigo,
         meta_nome: meta.meta_nome,
+        resultado_esperado: meta.resultado_esperado,
         quantidade_prevista: meta.quantidade_prevista,
         quantidade_realizada: meta.quantidade_realizada,
         publico_realizado: meta.publico_realizado,
@@ -275,13 +295,8 @@ export function installCronogramaMetasDadosReais() {
         fotos: meta.documentos_verificacao,
         justificativa: meta.justificativa,
       })),
-      _atividades_periodo: unique(context.activities, (item) => activityId(item) || `${activityDate(item)}|${normalize(activityTitle(item))}`),
-      _agenda_periodo: unique(context.activities, (item) => activityId(item) || `${activityDate(item)}|${normalize(activityTitle(item))}`),
-      anexos_evidencias: unique(context.photos.filter((item) => photoUrl(item)), (item) => photoUrl(item).split('?')[0]),
       dados_atualizados_em: new Date().toISOString(),
-    };
-
-    return originalUpdate(id, payload);
+    });
   };
   entity.__cronogramaDadosReaisWrapped = true;
 }
