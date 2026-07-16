@@ -94,9 +94,42 @@ const entitiesProxy = new Proxy(rawBase44.entities, {
   },
 });
 
+function isMissingServiceTokenError(error) {
+  const message = String(error?.message || error || '');
+  return message.includes('Service token is required to use asServiceRole');
+}
+
+const functionsProxy = new Proxy(rawBase44.functions, {
+  get(target, property, receiver) {
+    if (property !== 'invoke') return Reflect.get(target, property, receiver);
+
+    return async (functionName, payload) => {
+      try {
+        return await target.invoke(functionName, payload);
+      } catch (error) {
+        // O preenchimento do relatório pode executar uma rotina antiga com
+        // asServiceRole no backend. No navegador não existe serviceToken.
+        // Nesse caso específico, o fluxo continua com as leituras autenticadas
+        // do usuário e com a sincronização complementar do front-end.
+        if (functionName === 'preencherRelatorioComDados' && isMissingServiceTokenError(error)) {
+          console.warn('preencherRelatorioComDados executado sem service role; usando sincronização autenticada do usuário.');
+          return {
+            success: true,
+            fallback_usuario_autenticado: true,
+            resumo: {},
+          };
+        }
+
+        throw error;
+      }
+    };
+  },
+});
+
 export const base44 = new Proxy(rawBase44, {
   get(target, property, receiver) {
     if (property === 'entities') return entitiesProxy;
+    if (property === 'functions') return functionsProxy;
     return Reflect.get(target, property, receiver);
   },
 });
