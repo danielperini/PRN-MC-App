@@ -13,6 +13,7 @@ import { installCronogramaMetasOficial } from '@/utils/installCronogramaMetasOfi
 import { installRelatorioCamposOficiais } from '@/utils/installRelatorioCamposOficiais'
 import { installRelatorioMetasSchemaFix } from '@/utils/installRelatorioMetasSchemaFix'
 import { installRelatorioItens2a5 } from '@/utils/installRelatorioItens2a5'
+import { installRelatorioConteudosOficiais } from '@/utils/installRelatorioConteudosOficiais'
 import { installRelatorioPdfHeader } from '@/utils/installRelatorioPdfHeader'
 import { installPdfDownloadGuard } from '@/utils/pdfDownloadGuard'
 
@@ -25,6 +26,7 @@ installCronogramaMetasOficial()
 installRelatorioCamposOficiais()
 installRelatorioMetasSchemaFix()
 installRelatorioItens2a5()
+installRelatorioConteudosOficiais()
 installRelatorioPdfHeader()
 installPdfDownloadGuard()
 
