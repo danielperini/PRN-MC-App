@@ -10,6 +10,7 @@ import { HelpContextProvider } from '@/components/help/HelpContextProvider';
 import GlobalAnnouncementBanner from '@/components/common/GlobalAnnouncementBanner';
 import SystemBannerDisplay from '@/components/mensagens/SystemBannerDisplay';
 import AutoRubricasSync from '@/components/compras/AutoRubricasSync';
+import AutoNotasDriveSync from '@/components/movimentacoes/AutoNotasDriveSync';
 import { RotateCw } from 'lucide-react';
 
 const PAGE_TITLES = {
@@ -91,6 +92,7 @@ export default function Layout({ children, currentPageName }) {
     try {
       await queryClient.refetchQueries({ stale: true });
       window.dispatchEvent(new CustomEvent('rubricas:sync'));
+      window.dispatchEvent(new CustomEvent('notas-drive:sync'));
     } catch (error) {
       console.error('Error refreshing:', error);
     } finally {
@@ -129,6 +131,7 @@ export default function Layout({ children, currentPageName }) {
     <HelpContextProvider pageName={currentPageName}>
       <div className="min-h-screen bg-slate-50 text-slate-900">
         {currentUser && <AutoRubricasSync />}
+        {currentUser && <AutoNotasDriveSync />}
         <GlobalAnnouncementBanner />
         <SystemBannerDisplay />
         <div className="hidden lg:flex min-h-screen items-stretch">
