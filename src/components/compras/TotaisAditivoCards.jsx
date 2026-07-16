@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { calculateAditivoTotals } from '@/utils/finance/financeiroUtils';
+import { auditAditivoTotals, normalizeCentroCusto } from '@/utils/finance/financeiroUtils';
 
 function toNumber(value) {
   const n = Number(value ?? 0);
@@ -73,8 +73,8 @@ function AditivoBlock({ titulo, badge, badgeColor, totalPrevisto, totalUtilizado
           </summary>
           <ul className="mt-2 space-y-1.5 pl-1">
             {rubricasList.map((r) => {
-              const prev = toNumber(r.valor_rubrica || r.valor_total);
-              const util = toNumber(r.valor_utilizado);
+              const prev = toNumber(r.valor_rubrica || r.valor_total || r.valor_previsto);
+              const util = toNumber(r.valor_utilizado || r.utilizado);
               const saldoR = prev - util;
               return (
                 <li key={r.id} className="text-[11px] text-gray-600 flex justify-between gap-2 border-b border-gray-50 pb-1">
@@ -93,34 +93,35 @@ function AditivoBlock({ titulo, badge, badgeColor, totalPrevisto, totalUtilizado
 }
 
 export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
-  const { totais3, totais4, rubricasNoturno, duplicadas, datasInvalidas, pampulha } = useMemo(() => {
+  const { totais3, totais4, rubricas4, duplicadas, datasInvalidas, divergencias } = useMemo(() => {
     const ativas = rubricas.filter((r) => r?.ativo !== false);
-    const rubricasNoturno = ativas.filter((r) => {
-      const centro = String(r?.centro_custo || '').toLowerCase();
-      return centro.includes('noturno') && !centro.includes('pampulha');
-    });
-    const aditivoTotals = calculateAditivoTotals(compras);
-    const utilizado4 = toNumber(aditivoTotals?.noturno_2026?.utilizado);
+    const rubricas4 = ativas.filter((r) => normalizeCentroCusto(r).aditivo === '4º Aditivo Noturno 2026');
+    const auditoria = auditAditivoTotals(compras, ativas);
+    const utilizado3 = toNumber(auditoria?.terceiro_aditivo?.utilizado);
+    const utilizado4 = toNumber(auditoria?.noturno_2026?.utilizado);
 
     return {
       totais3: {
         totalPrevisto: TOTAL_PREVISTO_3_ADITIVO,
-        totalUtilizado: aditivoTotals.terceiro_aditivo.utilizado,
-        saldo: TOTAL_PREVISTO_3_ADITIVO - aditivoTotals.terceiro_aditivo.utilizado,
-        qtdNFs: aditivoTotals.terceiro_aditivo.quantidade_nfs,
+        totalUtilizado: utilizado3,
+        saldo: TOTAL_PREVISTO_3_ADITIVO - utilizado3,
+        qtdNFs: auditoria.terceiro_aditivo.quantidade_nfs,
       },
       totais4: {
         totalPrevisto: TOTAL_PREVISTO_4_ADITIVO,
         totalUtilizado: utilizado4,
         saldo: TOTAL_PREVISTO_4_ADITIVO - utilizado4,
-        qtdNFs: aditivoTotals.noturno_2026.quantidade_nfs,
+        qtdNFs: auditoria.noturno_2026.quantidade_nfs,
       },
-      rubricasNoturno,
-      duplicadas: aditivoTotals.duplicadas_ignoradas,
-      datasInvalidas: aditivoTotals.datas_invalidas_ignoradas,
-      pampulha: aditivoTotals.noturno_pampulha,
+      rubricas4,
+      duplicadas: auditoria.duplicadas_ignoradas,
+      datasInvalidas: auditoria.datas_invalidas_ignoradas,
+      divergencias: auditoria.divergencias,
     };
   }, [rubricas, compras]);
+
+  const divergencia3 = Math.abs(toNumber(divergencias?.terceiro_aditivo));
+  const divergencia4 = Math.abs(toNumber(divergencias?.quarto_aditivo));
 
   return (
     <div className="mb-6 space-y-4">
@@ -138,12 +139,16 @@ export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
         </div>
       )}
 
+      {(divergencia3 > 0.01 || divergencia4 > 0.01) && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-xs text-blue-800">
+          Auditoria ativa: os cards usam solicitações aprovadas deduplicadas. Divergências entre rubricas e solicitações — 3º Aditivo: {fmtBRL(divergencias.terceiro_aditivo)}; 4º Aditivo: {fmtBRL(divergencias.quarto_aditivo)}.
+        </div>
+      )}
+
       <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-700">
         <span className="font-semibold">Previsto consolidado oficial:</span> {fmtBRL(TOTAL_PREVISTO_CONSOLIDADO)}
         <span className="ml-2 text-gray-500">(3º aditivo {fmtBRL(TOTAL_PREVISTO_3_ADITIVO)} + 4º aditivo {fmtBRL(TOTAL_PREVISTO_4_ADITIVO)})</span>
-        {toNumber(pampulha?.utilizado) > 0 && (
-          <span className="block mt-1 text-gray-500">Noturno Pampulha é controlado separadamente e não compõe o 4º Aditivo: {fmtBRL(pampulha.utilizado)}.</span>
-        )}
+        <span className="block mt-1 text-gray-500">O 4º Aditivo é apurado pelas rubricas e solicitações do Noturno Pampulha. As rubricas “Noturno 2026” permanecem no 3º Aditivo, salvo indicação explícita em contrário.</span>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -159,13 +164,13 @@ export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
           qtdDuplicatas={duplicadas.quantidade}
         />
         <AditivoBlock
-          titulo="4º Aditivo — Noturno nos Museus 2026"
+          titulo="4º Aditivo — Noturno nos Museus 2026 / Pampulha"
           badge="4º Aditivo"
           badgeColor="bg-indigo-100 text-indigo-700"
           totalPrevisto={totais4.totalPrevisto}
           totalUtilizado={totais4.totalUtilizado}
           saldo={totais4.saldo}
-          rubricasList={rubricasNoturno}
+          rubricasList={rubricas4}
           qtdNFs={totais4.qtdNFs}
           qtdDuplicatas={0}
         />
