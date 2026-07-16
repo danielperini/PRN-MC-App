@@ -45,6 +45,19 @@ function todayKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
+async function safeList(entityName) {
+  const entity = base44.entities?.[entityName];
+  if (!entity?.list) return [];
+  const result = await entity.list('-created_date', 5000);
+  return Array.isArray(result) ? result : [];
+}
+
+async function safeUpdate(entityName, id, data) {
+  const entity = base44.entities?.[entityName];
+  if (!entity?.update) throw new Error(`Entidade ${entityName} sem permissão de atualização.`);
+  return entity.update(id, data);
+}
+
 export default function RecalcularTotaisButton({ onDone }) {
   const [loading, setLoading] = useState(false);
   const [resultado, setResultado] = useState(null);
@@ -61,13 +74,11 @@ export default function RecalcularTotaisButton({ onDone }) {
       const user = await base44.auth.me();
       const executado_por = user?.email || 'sistema';
 
-      const [purchasesRaw, rubricasRaw] = await Promise.all([
-        base44.asServiceRole.entities.PurchaseRequest.list(),
-        base44.asServiceRole.entities.Rubrica.list(),
+      const [purchases, rubricas] = await Promise.all([
+        safeList('PurchaseRequest'),
+        safeList('Rubrica'),
       ]);
 
-      const purchases = Array.isArray(purchasesRaw) ? purchasesRaw : [];
-      const rubricas = Array.isArray(rubricasRaw) ? rubricasRaw : [];
       const logs = [];
       const purchaseUpdates = [];
 
@@ -145,7 +156,7 @@ export default function RecalcularTotaisButton({ onDone }) {
       let nfsAtualizadas = 0;
       for (let i = 0; i < purchaseUpdates.length; i += BATCH) {
         const lote = purchaseUpdates.slice(i, i + BATCH);
-        await Promise.all(lote.map(({ id, ...data }) => base44.asServiceRole.entities.PurchaseRequest.update(id, data)));
+        await Promise.all(lote.map(({ id, ...data }) => safeUpdate('PurchaseRequest', id, data)));
         nfsAtualizadas += lote.length;
       }
 
@@ -185,12 +196,12 @@ export default function RecalcularTotaisButton({ onDone }) {
       let rubricasAtualizadas = 0;
       for (let i = 0; i < rubricaUpdates.length; i += BATCH) {
         const lote = rubricaUpdates.slice(i, i + BATCH);
-        await Promise.all(lote.map(({ id, ...data }) => base44.asServiceRole.entities.Rubrica.update(id, data)));
+        await Promise.all(lote.map(({ id, ...data }) => safeUpdate('Rubrica', id, data)));
         rubricasAtualizadas += lote.length;
       }
 
-      if (logs.length > 0) {
-        await base44.asServiceRole.entities.FinanceiroAuditLog.bulkCreate(logs.slice(0, 200)).catch(() => {});
+      if (logs.length > 0 && base44.entities?.FinanceiroAuditLog?.bulkCreate) {
+        await base44.entities.FinanceiroAuditLog.bulkCreate(logs.slice(0, 200)).catch(() => {});
       }
 
       const totalUtilizado = principais.reduce((s, p) => s + getPurchaseValue(p), 0);
