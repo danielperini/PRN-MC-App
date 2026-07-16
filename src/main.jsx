@@ -25,6 +25,8 @@ import { installRelatorioExecucaoFinalizacao } from '@/utils/installRelatorioExe
 import { installRelatorioMetasAditivosSnapshot } from '@/utils/installRelatorioMetasAditivosSnapshot'
 import { installRuntimeErrorGuards } from '@/utils/installRuntimeErrorGuards'
 import { installPdfDownloadGuard } from '@/utils/pdfDownloadGuard'
+import { installRelatorioSingleProgress } from '@/utils/installRelatorioSingleProgress'
+import { installDashboardAuditMetrics } from '@/utils/installDashboardAuditMetrics'
 
 installRuntimeErrorGuards()
 installActivityGalleryPdfRouting()
@@ -46,6 +48,8 @@ installRelatorioExecucaoActivityEvidence()
 installRelatoriosAtividadesCompletos()
 installRelatorioExecucaoFinalizacao()
 installRelatorioMetasAditivosSnapshot()
+installRelatorioSingleProgress()
+installDashboardAuditMetrics()
 installPdfDownloadGuard()
 
 ReactDOM.createRoot(document.getElementById('root')).render(
