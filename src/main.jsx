@@ -19,6 +19,7 @@ import { installRelatorioPdfHeader } from '@/utils/installRelatorioPdfHeader'
 import { installRelatorioExecucaoSafeEntities } from '@/utils/installRelatorioExecucaoSafeEntities'
 import { installRelatorioTabelasEstruturadas } from '@/utils/installRelatorioTabelasEstruturadas'
 import { installRelatorioFinanceAuditContext } from '@/utils/installRelatorioFinanceAuditContext'
+import { installRelatorioExecucaoActivityEvidence } from '@/utils/installRelatorioExecucaoActivityEvidence'
 import { installRuntimeErrorGuards } from '@/utils/installRuntimeErrorGuards'
 import { installPdfDownloadGuard } from '@/utils/pdfDownloadGuard'
 
@@ -38,6 +39,7 @@ installRelatorioPdfHeader()
 installRelatorioExecucaoSafeEntities()
 installRelatorioTabelasEstruturadas()
 installRelatorioFinanceAuditContext()
+installRelatorioExecucaoActivityEvidence()
 installPdfDownloadGuard()
 
 ReactDOM.createRoot(document.getElementById('root')).render(
