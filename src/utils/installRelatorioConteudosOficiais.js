@@ -40,21 +40,25 @@ function publicoDashboard(relatorio = {}) {
   return `${base} No período selecionado, o dashboard registra público direto de ${total.toLocaleString('pt-BR')} pessoas${porMuseu ? `, distribuído da seguinte forma: ${porMuseu}` : ''}. Esses dados devem prevalecer sobre estimativas genéricas e ser complementados pelos relatórios de atividades e listas de presença disponíveis.`;
 }
 
-function vazioOuGenerico(value) {
+function vazioOuGenerico(value, campo = '') {
   const atual = textoNested(value).toLowerCase();
-  return !atual || atual.includes('não foi localizado') || atual.includes('nao foi localizado') || atual.includes('sem dados');
+  if (!atual) return true;
+  if (atual.includes('não foi localizado') || atual.includes('nao foi localizado') || atual.includes('sem dados')) return true;
+  if (campo === 'divulgacao_parceria' && atual === 'o relatório de comunicação encontra-se anexo a este relatório de execução do objeto.') return true;
+  if (campo === 'publico_alvo' && (atual.includes('público não consolidado') || atual.includes('publico nao consolidado'))) return true;
+  return false;
 }
 
 function aplicarPadroes(relatorio = {}) {
   const next = { ...relatorio };
 
-  if (vazioOuGenerico(next.divulgacao_parceria)) {
+  if (vazioOuGenerico(next.divulgacao_parceria, 'divulgacao_parceria')) {
     next.divulgacao_parceria = nested(TEXTO_DIVULGACAO, 'ia');
   }
-  if (vazioOuGenerico(next.publico_alvo)) {
+  if (vazioOuGenerico(next.publico_alvo, 'publico_alvo')) {
     next.publico_alvo = nested(publicoDashboard(next), 'ia');
   }
-  if (vazioOuGenerico(next.pesquisa_satisfacao)) {
+  if (vazioOuGenerico(next.pesquisa_satisfacao, 'pesquisa_satisfacao')) {
     next.pesquisa_satisfacao = nested(TEXTO_PESQUISA, 'ia');
   }
 
