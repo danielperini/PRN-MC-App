@@ -11,6 +11,7 @@ import { installMetasPlanoTrabalhoNFs } from '@/utils/installMetasPlanoTrabalhoN
 import { installCronogramaMetasOficial } from '@/utils/installCronogramaMetasOficial'
 import { installRelatorioCamposOficiais } from '@/utils/installRelatorioCamposOficiais'
 import { installRelatorioMetasSchemaFix } from '@/utils/installRelatorioMetasSchemaFix'
+import { installRelatorioItens2a5 } from '@/utils/installRelatorioItens2a5'
 import { installPdfDownloadGuard } from '@/utils/pdfDownloadGuard'
 
 installActivityGalleryPdfRouting()
@@ -20,6 +21,7 @@ installMetasPlanoTrabalhoNFs()
 installCronogramaMetasOficial()
 installRelatorioCamposOficiais()
 installRelatorioMetasSchemaFix()
+installRelatorioItens2a5()
 installPdfDownloadGuard()
 
 ReactDOM.createRoot(document.getElementById('root')).render(
