@@ -4,29 +4,24 @@ function isComprasRoute() {
   return typeof window !== 'undefined' && /^\/Compras(?:\/|$)/i.test(window.location.pathname);
 }
 
-function normalizeText(value) {
-  return String(value || '')
+function text(value) {
+  return String(value ?? '').trim();
+}
+
+function normalize(value) {
+  return text(value)
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .trim()
     .toLowerCase()
     .replace(/\s+/g, ' ');
 }
 
-function findHeaderIndex(headers, label) {
-  const normalizedLabel = normalizeText(label);
-  return headers.findIndex((header) => normalizeText(header.textContent).includes(normalizedLabel));
+function first(...values) {
+  return values.map(text).find(Boolean) || '';
 }
 
-function firstFilled(...values) {
-  for (const value of values) {
-    if (value !== undefined && value !== null && String(value).trim() !== '') return String(value).trim();
-  }
-  return '';
-}
-
-function getMetaId(item = {}) {
-  return firstFilled(
+function metaId(item = {}) {
+  return first(
     item.meta_id,
     item.project_meta_id,
     item.meta_projeto_id,
@@ -38,8 +33,8 @@ function getMetaId(item = {}) {
   );
 }
 
-function getMetaName(item = {}) {
-  return firstFilled(
+function metaName(item = {}) {
+  return first(
     item.meta_nome,
     item.nome_meta,
     item.meta_titulo,
@@ -53,213 +48,139 @@ function getMetaName(item = {}) {
   );
 }
 
-function purchaseValue(item = {}) {
-  return Number(
-    item.valor_pago ||
-      item.valor_aprovado_admin ||
-      item.valor_aprovado ||
-      item.valor_final ||
-      item.valor_solicitado ||
-      item.valor_total ||
-      item.nf_valor_total ||
-      item.valor ||
-      0,
-  );
+function headerIndex(headers, label) {
+  const expected = normalize(label);
+  return headers.findIndex((header) => normalize(header.textContent).includes(expected));
 }
 
-function formatMoneyVariants(value) {
-  const number = Number(value || 0);
-  if (!Number.isFinite(number) || number <= 0) return [];
-  return [
-    number.toFixed(2),
-    number.toFixed(2).replace('.', ','),
-    number.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-    number.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
-  ].map(normalizeText);
-}
-
-function formatDateVariants(value) {
-  if (!value) return [];
-  const raw = String(value).split('T')[0];
-  const parts = raw.split('-');
-  const variants = [raw];
-  if (parts.length === 3) variants.push(`${parts[2]}/${parts[1]}/${parts[0]}`);
-  return variants.map(normalizeText);
-}
-
-let metaNameById = new Map();
-let purchasesCache = [];
-let dataPromise = null;
+let metaById = new Map();
+let purchaseById = new Map();
+let loadPromise = null;
 
 async function loadData() {
-  if (dataPromise) return dataPromise;
+  if (loadPromise) return loadPromise;
+  loadPromise = Promise.allSettled([
+    base44.entities?.ProjectMeta?.list?.('ordem', 5000),
+    base44.entities?.PurchaseRequest?.list?.('-created_date', 10000),
+  ]).then(([metasResult, purchasesResult]) => {
+    const metas = metasResult.status === 'fulfilled' && Array.isArray(metasResult.value) ? metasResult.value : [];
+    const purchases = purchasesResult.status === 'fulfilled' && Array.isArray(purchasesResult.value) ? purchasesResult.value : [];
 
-  dataPromise = (async () => {
-    const map = new Map();
-    let purchases = [];
+    const nextMetaById = new Map();
+    const nextPurchaseById = new Map();
 
-    try {
-      const metas = await base44.entities.ProjectMeta.list('ordem', 5000);
-      for (const meta of Array.isArray(metas) ? metas : []) {
-        const id = firstFilled(meta.id, meta.meta_id, meta.codigo, meta.meta_codigo);
-        const name = firstFilled(meta.nome, meta.meta_nome, meta.titulo, meta.descricao);
-        if (id && name) map.set(id, name);
-      }
-    } catch (_) {}
-
-    try {
-      const result = await base44.entities.PurchaseRequest.list('-created_date', 10000);
-      purchases = Array.isArray(result) ? result : [];
-      for (const purchase of purchases) {
-        const id = getMetaId(purchase);
-        const name = getMetaName(purchase);
-        if (id && name) map.set(id, name);
-      }
-    } catch (_) {}
-
-    metaNameById = map;
-    purchasesCache = purchases;
-    return { map, purchases };
-  })().finally(() => {
-    dataPromise = null;
-  });
-
-  return dataPromise;
-}
-
-function extractVisibleIds(row) {
-  const text = String(row?.textContent || '');
-  return Array.from(new Set(text.match(/\b[a-f0-9]{24}\b/gi) || []));
-}
-
-function scorePurchaseForRow(purchase, rowText, visibleIds) {
-  if (!purchase) return 0;
-  let score = 0;
-
-  if (purchase.id && visibleIds.includes(String(purchase.id))) score += 100;
-
-  const nfNumber = firstFilled(purchase.nf_numero, purchase.numero_nf, purchase.numero_nota);
-  if (nfNumber && rowText.includes(normalizeText(nfNumber))) score += 12;
-
-  const supplier = firstFilled(purchase.fornecedor_nome, purchase.nf_emitente_nome);
-  if (supplier && rowText.includes(normalizeText(supplier))) score += 10;
-
-  const cnpj = firstFilled(purchase.fornecedor_cnpj, purchase.nf_emitente_cpf_cnpj, purchase.fornecedor_cpf_cnpj);
-  if (cnpj && rowText.includes(normalizeText(cnpj))) score += 8;
-
-  const description = firstFilled(purchase.descricao_item, purchase.descricao, purchase.rubrica_nome);
-  if (description && rowText.includes(normalizeText(description).slice(0, 35))) score += 5;
-
-  if (formatMoneyVariants(purchaseValue(purchase)).some((value) => value && rowText.includes(value))) score += 6;
-
-  const date = firstFilled(purchase.nf_data_emissao, purchase.data_nf, purchase.data_emissao_nf, purchase.created_date);
-  if (formatDateVariants(date).some((value) => value && rowText.includes(value))) score += 4;
-
-  return score;
-}
-
-function findPurchaseForRow(row) {
-  const rowText = normalizeText(row?.textContent || '');
-  const visibleIds = extractVisibleIds(row);
-  let best = null;
-  let bestScore = 0;
-
-  for (const purchase of purchasesCache) {
-    const score = scorePurchaseForRow(purchase, rowText, visibleIds);
-    if (score > bestScore) {
-      best = purchase;
-      bestScore = score;
+    for (const meta of metas) {
+      const id = first(meta.id, meta.meta_id, meta.codigo, meta.meta_codigo);
+      const name = first(meta.nome, meta.meta_nome, meta.titulo, meta.descricao);
+      if (id && name) nextMetaById.set(id, name);
     }
-  }
 
-  return bestScore >= 10 ? best : null;
+    for (const purchase of purchases) {
+      if (purchase?.id) nextPurchaseById.set(String(purchase.id), purchase);
+      const id = metaId(purchase);
+      const name = metaName(purchase);
+      if (id && name && !nextMetaById.has(id)) nextMetaById.set(id, name);
+    }
+
+    metaById = nextMetaById;
+    purchaseById = nextPurchaseById;
+  }).finally(() => {
+    loadPromise = null;
+  });
+  return loadPromise;
 }
 
-function updateMetaCell(row, rubricaIndex) {
-  const purchase = findPurchaseForRow(row);
-  const metaId = getMetaId(purchase || {});
-  const metaName = getMetaName(purchase || {}) || metaNameById.get(metaId) || '';
+function purchaseFromRow(row) {
+  const visibleIds = text(row?.textContent).match(/\b[a-f0-9]{24}\b/gi) || [];
+  for (const id of visibleIds) {
+    const purchase = purchaseById.get(id);
+    if (purchase) return purchase;
+  }
+  return null;
+}
+
+function ensureMetaCell(row, rubricaIndex) {
+  const purchase = purchaseFromRow(row);
+  const id = metaId(purchase || {});
+  const name = metaName(purchase || {}) || metaById.get(id) || '';
+  const signature = `${id}|${name}`;
 
   let cell = row.querySelector('[data-compras-meta-cell="true"]');
   if (!cell) {
     cell = document.createElement('td');
     cell.className = 'px-3 py-2.5 align-top';
     cell.dataset.comprasMetaCell = 'true';
-    row.insertBefore(cell, row.children[rubricaIndex]);
+    row.insertBefore(cell, row.children[rubricaIndex] || null);
   }
 
-  cell.replaceChildren();
+  if (cell.dataset.metaSignature === signature) return;
+  cell.dataset.metaSignature = signature;
+  cell.innerHTML = '';
+
   const wrapper = document.createElement('div');
   wrapper.className = 'max-w-[220px] space-y-1';
 
-  const name = document.createElement('div');
-  name.className = metaName ? 'break-words text-xs font-medium text-gray-700' : 'text-xs text-gray-400';
-  name.textContent = metaName || '—';
-  name.title = metaName || 'Meta não localizada na solicitação';
-  wrapper.appendChild(name);
+  const nameElement = document.createElement('div');
+  nameElement.className = name ? 'break-words text-xs font-medium text-gray-700' : 'text-xs text-gray-400';
+  nameElement.textContent = name || '—';
+  nameElement.title = name || 'Meta não localizada na solicitação';
+  wrapper.appendChild(nameElement);
 
-  if (metaId) {
-    const id = document.createElement('div');
-    id.className = 'break-all text-[10px] text-gray-400';
-    id.textContent = metaId;
-    wrapper.appendChild(id);
+  if (id) {
+    const idElement = document.createElement('div');
+    idElement.className = 'break-all text-[10px] text-gray-400';
+    idElement.textContent = id;
+    wrapper.appendChild(idElement);
   }
 
   cell.appendChild(wrapper);
 }
 
-function removeCentroColumn(table) {
+function applyToTable(table) {
   const headerRow = table.querySelector('thead tr');
   if (!headerRow) return;
 
-  const headers = Array.from(headerRow.children);
-  const centerIndex = findHeaderIndex(headers, 'Centro');
-  if (centerIndex < 0) return;
+  let headers = Array.from(headerRow.children);
+  const centroIndex = headerIndex(headers, 'Centro');
+  if (centroIndex >= 0 && !headerRow.children[centroIndex]?.dataset?.comprasMetaHeader) {
+    headerRow.children[centroIndex]?.remove();
+    table.querySelectorAll('tbody tr').forEach((row) => row.children[centroIndex]?.remove());
+    headers = Array.from(headerRow.children);
+  }
 
-  headerRow.children[centerIndex]?.remove();
-  table.querySelectorAll('tbody tr').forEach((row) => row.children[centerIndex]?.remove());
-}
-
-function installOnTable(table) {
-  if (!table) return;
-  removeCentroColumn(table);
-
-  const headerRow = table.querySelector('thead tr');
-  if (!headerRow) return;
-
-  const headers = Array.from(headerRow.children);
-  const rubricaIndex = findHeaderIndex(headers, 'Rubrica');
+  let rubricaIndex = headerIndex(headers, 'Rubrica');
   if (rubricaIndex < 0) return;
 
-  if (findHeaderIndex(headers, 'Meta') < 0) {
+  if (headerIndex(headers, 'Meta') < 0) {
     const metaHeader = document.createElement('th');
     metaHeader.textContent = 'Meta';
     metaHeader.className = 'px-3 py-3 font-medium text-gray-600 w-[12%]';
     metaHeader.dataset.comprasMetaHeader = 'true';
-    headerRow.insertBefore(metaHeader, headerRow.children[rubricaIndex]);
+    headerRow.insertBefore(metaHeader, headerRow.children[rubricaIndex] || null);
+    rubricaIndex += 1;
   }
 
-  table.querySelectorAll('tbody tr').forEach((row) => updateMetaCell(row, rubricaIndex));
+  table.querySelectorAll('tbody tr').forEach((row) => ensureMetaCell(row, rubricaIndex));
 }
 
-async function applyMetaColumn() {
+async function apply() {
   if (!isComprasRoute()) return;
   await loadData();
-  document.querySelectorAll('table').forEach(installOnTable);
+  document.querySelectorAll('table').forEach(applyToTable);
 }
 
 export function installComprasMetaColumn() {
-  if (typeof window === 'undefined' || typeof document === 'undefined') return;
-  if (window.__comprasMetaColumnInstalled) return;
+  if (typeof window === 'undefined' || typeof document === 'undefined' || window.__comprasMetaColumnInstalled) return;
   window.__comprasMetaColumnInstalled = true;
 
   let scheduled = false;
   const run = () => {
-    if (scheduled) return;
+    if (!isComprasRoute() || scheduled) return;
     scheduled = true;
-    window.requestAnimationFrame(async () => {
-      scheduled = false;
-      await applyMetaColumn();
+    window.requestAnimationFrame(() => {
+      apply().catch((error) => console.error('[ComprasMetaColumn]', error)).finally(() => {
+        scheduled = false;
+      });
     });
   };
 
@@ -267,12 +188,10 @@ export function installComprasMetaColumn() {
   observer.observe(document.documentElement, { childList: true, subtree: true });
   window.addEventListener('popstate', run);
   window.addEventListener('hashchange', run);
-  document.addEventListener('visibilitychange', run);
   window.addEventListener('purchase:changed', () => {
-    metaNameById = new Map();
-    purchasesCache = [];
+    metaById = new Map();
+    purchaseById = new Map();
     run();
   });
-
   run();
 }
