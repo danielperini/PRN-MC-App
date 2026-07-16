@@ -9,7 +9,7 @@ import { installComprasDataNFFilter } from '@/utils/installComprasDataNFFilter'
 import { installMetasPlanoTrabalhoNFs } from '@/utils/installMetasPlanoTrabalhoNFs'
 import { installRelatorioAtividadeMetaLink } from '@/utils/installRelatorioAtividadeMetaLink'
 import { installCronogramaMetasOficial } from '@/utils/installCronogramaMetasOficial'
-import { installCronogramaMetasAutoPreenchido } from '@/utils/installCronogramaMetasAutoPreenchido'
+import { installCronogramaMetasDadosReais } from '@/utils/installCronogramaMetasDadosReais'
 import { installRelatorioCamposOficiais } from '@/utils/installRelatorioCamposOficiais'
 import { installRelatorioMetasSchemaFix } from '@/utils/installRelatorioMetasSchemaFix'
 import { installRelatorioItens2a5 } from '@/utils/installRelatorioItens2a5'
@@ -28,7 +28,7 @@ installComprasDataNFFilter()
 installMetasPlanoTrabalhoNFs()
 installRelatorioAtividadeMetaLink()
 installCronogramaMetasOficial()
-installCronogramaMetasAutoPreenchido()
+installCronogramaMetasDadosReais()
 installRelatorioCamposOficiais()
 installRelatorioMetasSchemaFix()
 installRelatorioItens2a5()
