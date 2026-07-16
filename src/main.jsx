@@ -27,6 +27,7 @@ import { installRuntimeErrorGuards } from '@/utils/installRuntimeErrorGuards'
 import { installPdfDownloadGuard } from '@/utils/pdfDownloadGuard'
 import { installRelatorioSingleProgress } from '@/utils/installRelatorioSingleProgress'
 import { installDashboardAuditMetrics } from '@/utils/installDashboardAuditMetrics'
+import { installGaleriaExposicaoCompleta } from '@/utils/installGaleriaExposicaoCompleta'
 
 installRuntimeErrorGuards()
 installActivityGalleryPdfRouting()
@@ -50,6 +51,7 @@ installRelatorioExecucaoFinalizacao()
 installRelatorioMetasAditivosSnapshot()
 installRelatorioSingleProgress()
 installDashboardAuditMetrics()
+installGaleriaExposicaoCompleta()
 installPdfDownloadGuard()
 
 ReactDOM.createRoot(document.getElementById('root')).render(
