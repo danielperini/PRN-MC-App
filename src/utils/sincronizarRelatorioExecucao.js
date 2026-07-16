@@ -17,11 +17,11 @@ const CAMPOS_META_NOME = [
   'meta_nome', 'nome_meta', 'meta_titulo', 'titulo_meta', 'meta_descricao', 'descricao_meta',
   'meta_label', 'meta_texto', 'meta', 'meta_vinculada',
 ];
-const PUBLIC_FIELDS = [
+const CAMPOS_PUBLICO = [
   'publico_total', 'total_publico', 'publico_realizado', 'publico_presente', 'quantidade_publico',
   'participantes', 'visitantes', 'presentes', 'attendance_count', 'total_participantes',
 ];
-const METAS_ANTIGAS_BLOQUEADAS = [
+const METAS_ANTIGAS = [
   'presente de iemanja', '60 acoes educativas', '36 acoes culturais',
   '18 mostras de baixa ou media complexidade', '101 diarias de educador',
   'emenda parlamentar', 'meta de comunicacao institucional',
@@ -43,8 +43,7 @@ function primeiro(item, campos) {
 }
 
 function texto(value) {
-  if (value === null || value === undefined) return '';
-  return typeof value === 'string' || typeof value === 'number' ? String(value).trim() : '';
+  return value === null || value === undefined ? '' : String(value).trim();
 }
 
 function objetoMeta(item) {
@@ -64,8 +63,10 @@ function extrairMetaId(item) {
 function extrairMetaNome(item) {
   for (const campo of CAMPOS_META_NOME) {
     const value = item?.[campo];
-    const direto = texto(value);
-    if (direto) return direto;
+    if (typeof value === 'string' || typeof value === 'number') {
+      const direto = texto(value);
+      if (direto) return direto;
+    }
     if (value && typeof value === 'object') {
       const nome = nomeCanonicoMeta(value);
       if (nome && nome !== 'Meta') return nome;
@@ -98,7 +99,7 @@ function chaveLogicaMeta(value) {
 
 function metaBloqueada(meta) {
   const nome = normalizarTextoMeta(nomeCanonicoMeta(meta));
-  return METAS_ANTIGAS_BLOQUEADAS.some((item) => nome.includes(item));
+  return METAS_ANTIGAS.some((item) => nome.includes(item));
 }
 
 function dentroPeriodo(item, inicio, fim) {
@@ -135,8 +136,8 @@ function valor(item) {
 }
 
 function publico(item) {
-  for (const field of PUBLIC_FIELDS) {
-    const value = item?.[field];
+  for (const campo of CAMPOS_PUBLICO) {
+    const value = item?.[campo];
     if (Array.isArray(value)) return value.length;
     const parsed = Number(value);
     if (Number.isFinite(parsed) && parsed > 0) return parsed;
@@ -146,7 +147,7 @@ function publico(item) {
   return 0;
 }
 
-function documentoNF(compra, metaKey) {
+function documentoNF(compra, metaChave) {
   return {
     id: compra.id,
     tipo: 'nota_fiscal',
@@ -158,7 +159,7 @@ function documentoNF(compra, metaKey) {
     xml_url: compra?.drive_backup_nf_xml_link || compra?.nota_fiscal_xml_url || compra?.nf_xml_url || compra?.xml_url || '',
     comprovante_url: compra?.comprovante_pagamento_url || compra?.comprovante_url || '',
     meta_id: extrairMetaId(compra),
-    meta_chave: metaKey,
+    meta_chave: metaChave,
   };
 }
 
@@ -191,8 +192,8 @@ function consolidarMetas(metas) {
     if (!meta || metaBloqueada(meta)) continue;
     const chave = meta.chave_logica || chaveLogicaMeta(meta);
     if (!chave) continue;
-    const atual = map.get(chave);
     const alias = idCanonicoMeta(meta) || meta.meta_id || meta.id;
+    const atual = map.get(chave);
     if (!atual) {
       map.set(chave, {
         ...meta,
@@ -200,12 +201,11 @@ function consolidarMetas(metas) {
         aliases: alias ? [String(alias)] : [],
         rubricas: texto(meta.rubrica) ? [texto(meta.rubrica)] : [],
       });
-    } else {
-      if (alias && !atual.aliases.includes(String(alias))) atual.aliases.push(String(alias));
-      const rubrica = texto(meta.rubrica);
-      if (rubrica && !atual.rubricas.includes(rubrica)) atual.rubricas.push(rubrica);
-      if ((!atual.nome || atual.nome === 'Meta') && meta.nome) atual.nome = meta.nome;
+      continue;
     }
+    if (alias && !atual.aliases.includes(String(alias))) atual.aliases.push(String(alias));
+    const rubrica = texto(meta.rubrica);
+    if (rubrica && !atual.rubricas.includes(rubrica)) atual.rubricas.push(rubrica);
   }
   return [...map.values()].sort((a, b) => nomeCanonicoMeta(a).localeCompare(nomeCanonicoMeta(b), 'pt-BR'));
 }
@@ -247,7 +247,7 @@ export async function sincronizarRelatorioExecucao({
   const [metasTodas, atividadesBrutas, fotosBrutas, compras, publicoBruto, equipeBruta] = await Promise.all([
     listarMetasRelatorio(),
     Promise.all(['Programacao', 'Activity', 'Atividade', 'Evento', 'RelatorioAtividade', 'ActivityReport'].map((nome) => listar(nome))).then((r) => r.flat()),
-    Promise.all(['ActivityPhoto', 'AtividadeFoto', 'GalleryPhoto', 'GaleriaFoto', 'Photo', 'Foto'].map((nome) => listar(nome)).then((r) => r.flat())),
+    Promise.all(['ActivityPhoto', 'AtividadeFoto', 'GalleryPhoto', 'GaleriaFoto', 'Photo', 'Foto'].map((nome) => listar(nome))).then((r) => r.flat()),
     listar('PurchaseRequest', 10000),
     Promise.all(['RelatorioAtividade', 'ActivityReport', 'RelatorioMensalAtividade', 'Presenca', 'Attendance', 'ListaPresenca', 'Programacao'].map((nome) => listar(nome))).then((r) => r.flat()),
     Promise.all(['TeamMember', 'Equipe', 'MembroEquipe', 'Collaborator', 'Colaborador'].map((nome) => listar(nome))).then((r) => r.flat()),
@@ -261,21 +261,26 @@ export async function sincronizarRelatorioExecucao({
   const selectedKeys = new Set(metasSelecionadas.map((meta) => meta.chave_logica));
   const aliasToKey = new Map();
   for (const meta of metasSelecionadas) {
-    for (const alias of [...(meta.aliases || []), idCanonicoMeta(meta), meta.meta_id, meta.id].filter(Boolean)) aliasToKey.set(String(alias), meta.chave_logica);
+    for (const alias of [...(meta.aliases || []), idCanonicoMeta(meta), meta.meta_id, meta.id].filter(Boolean)) {
+      aliasToKey.set(String(alias), meta.chave_logica);
+    }
   }
 
   const noMuseu = (item) => {
     if (!filtroMuseu || String(filtroMuseu).toLowerCase() === 'todos') return true;
-    const source = normalizarTextoMeta(item?.museu || item?.unidade || item?.centro_custo || item?.local || '');
-    return source.includes(normalizarTextoMeta(filtroMuseu));
+    const origem = normalizarTextoMeta(item?.museu || item?.unidade || item?.centro_custo || item?.local || '');
+    return origem.includes(normalizarTextoMeta(filtroMuseu));
   };
 
   const atividades = unico(
-    atividadesBrutas.filter((item) => dentroPeriodo(item, dataInicio, dataFim) && noMuseu(item)).map((item) => {
-      const rawId = extrairMetaId(item);
-      const key = aliasToKey.get(String(rawId)) || chaveLogicaMeta(extrairMetaNome(item));
-      return { ...item, meta_chave: key || null };
-    }).filter((item) => !item.meta_chave || selectedKeys.has(item.meta_chave)),
+    atividadesBrutas
+      .filter((item) => dentroPeriodo(item, dataInicio, dataFim) && noMuseu(item))
+      .map((item) => {
+        const rawId = extrairMetaId(item);
+        const chave = aliasToKey.get(String(rawId)) || chaveLogicaMeta(extrairMetaNome(item));
+        return { ...item, meta_chave: chave || null };
+      })
+      .filter((item) => !item.meta_chave || selectedKeys.has(item.meta_chave)),
     (item) => item.id || `${dataISO(primeiro(item, CAMPOS_DATA))}|${item.titulo || item.nome || item.descricao}`,
   );
 
@@ -286,23 +291,25 @@ export async function sincronizarRelatorioExecucao({
       if (!url) return false;
       const atividadeId = String(foto?.activity_id || foto?.atividade_id || foto?.evento_id || foto?.programacao_id || '');
       const rawId = extrairMetaId(foto);
-      const key = aliasToKey.get(String(rawId)) || chaveLogicaMeta(extrairMetaNome(foto));
-      return atividadeIds.has(atividadeId) || (dentroPeriodo(foto, dataInicio, dataFim) && (!key || selectedKeys.has(key)));
+      const chave = aliasToKey.get(String(rawId)) || chaveLogicaMeta(extrairMetaNome(foto));
+      return atividadeIds.has(atividadeId) || (dentroPeriodo(foto, dataInicio, dataFim) && (!chave || selectedKeys.has(chave)));
     }),
     (foto) => primeiro(foto, CAMPOS_FOTO),
   ).slice(0, 60);
 
   const notas = unico(
-    compras.filter((compra) => {
-      const status = String(compra?.status || '').toUpperCase();
-      const data = dataISO(compra?.nf_data_emissao || compra?.data_nf || compra?.data_emissao_nf || compra?.created_date);
-      const rawId = extrairMetaId(compra);
-      const key = aliasToKey.get(String(rawId)) || chaveLogicaMeta(extrairMetaNome(compra));
-      return STATUS_APROVADOS.has(status) && !!key && selectedKeys.has(key) && !!data && data >= dataInicio && data <= dataFim;
-    }).map((compra) => {
-      const key = aliasToKey.get(String(extrairMetaId(compra))) || chaveLogicaMeta(extrairMetaNome(compra));
-      return documentoNF(compra, key);
-    }),
+    compras
+      .filter((compra) => {
+        const status = String(compra?.status || '').toUpperCase();
+        const data = dataISO(compra?.nf_data_emissao || compra?.data_nf || compra?.data_emissao_nf || compra?.created_date);
+        const rawId = extrairMetaId(compra);
+        const chave = aliasToKey.get(String(rawId)) || chaveLogicaMeta(extrairMetaNome(compra));
+        return STATUS_APROVADOS.has(status) && !!chave && selectedKeys.has(chave) && !!data && data >= dataInicio && data <= dataFim;
+      })
+      .map((compra) => {
+        const chave = aliasToKey.get(String(extrairMetaId(compra))) || chaveLogicaMeta(extrairMetaNome(compra));
+        return documentoNF(compra, chave);
+      }),
     (nota) => `${nota.numero_nf}|${normalizarTextoMeta(nota.fornecedor)}|${nota.valor}|${nota.data_emissao}`,
   );
 
@@ -314,24 +321,33 @@ export async function sincronizarRelatorioExecucao({
   const publicoPorMes = {};
   const publicoPorMuseu = {};
   for (const item of publicoRegistros) {
-    const count = publico(item);
-    if (!count) continue;
+    const quantidade = publico(item);
+    if (!quantidade) continue;
     const mes = dataISO(primeiro(item, CAMPOS_DATA)).slice(0, 7) || 'não informado';
     const museu = item?.museu || item?.unidade || item?.centro_custo || 'Não informado';
-    publicoPorMes[mes] = (publicoPorMes[mes] || 0) + count;
-    publicoPorMuseu[museu] = (publicoPorMuseu[museu] || 0) + count;
+    publicoPorMes[mes] = (publicoPorMes[mes] || 0) + quantidade;
+    publicoPorMuseu[museu] = (publicoPorMuseu[museu] || 0) + quantidade;
   }
 
-  const comprasEquipe = compras.filter((item) => STATUS_APROVADOS.has(String(item?.status || '').toUpperCase()) && dentroPeriodo({ ...item, data: item?.nf_data_emissao || item?.data_nf || item?.created_date }, dataInicio, dataFim));
-  const equipe = unico([...equipeBruta, ...comprasEquipe].map((item) => ({
-    nome: item?.nome || item?.nome_completo || item?.profissional_nome || item?.colaborador_nome || item?.fornecedor_nome || item?.nf_emitente_nome || '',
-    cargo: item?.cargo || item?.funcao || item?.papel || item?.descricao_cargo || item?.meta_nome || item?.rubrica_nome || item?.descricao_item || '',
-    tipo_contratacao: item?.tipo_contratacao || item?.regime || 'Pessoa Jurídica',
-    carga_horaria: item?.carga_horaria || item?.horas || '',
-    periodo: `${dataInicio} a ${dataFim}`,
-    valor: valor(item),
-    editavel: true,
-  })).filter((item) => item.nome && normalizarTextoMeta(item.nome) !== 'user' && !/\.pdf$/i.test(item.nome)), (item) => `${normalizarTextoMeta(item.nome)}|${normalizarTextoMeta(item.cargo)}`);
+  const comprasEquipe = compras.filter((item) => {
+    const status = String(item?.status || '').toUpperCase();
+    const data = item?.nf_data_emissao || item?.data_nf || item?.created_date;
+    return STATUS_APROVADOS.has(status) && dentroPeriodo({ ...item, data }, dataInicio, dataFim);
+  });
+  const equipe = unico(
+    [...equipeBruta, ...comprasEquipe]
+      .map((item) => ({
+        nome: item?.nome || item?.nome_completo || item?.profissional_nome || item?.colaborador_nome || item?.fornecedor_nome || item?.nf_emitente_nome || '',
+        cargo: item?.cargo || item?.funcao || item?.papel || item?.descricao_cargo || item?.meta_nome || item?.rubrica_nome || item?.descricao_item || '',
+        tipo_contratacao: item?.tipo_contratacao || item?.regime || 'Pessoa Jurídica',
+        carga_horaria: item?.carga_horaria || item?.horas || '',
+        periodo: `${dataInicio} a ${dataFim}`,
+        valor: valor(item),
+        editavel: true,
+      }))
+      .filter((item) => item.nome && normalizarTextoMeta(item.nome) !== 'user' && !/\.pdf$/i.test(item.nome)),
+    (item) => `${normalizarTextoMeta(item.nome)}|${normalizarTextoMeta(item.cargo)}`,
+  );
 
   const notasPorMeta = new Map();
   for (const nota of notas) {
@@ -342,10 +358,10 @@ export async function sincronizarRelatorioExecucao({
   const cronogramaMetas = metasSelecionadas.map((meta) => {
     const atividadesMeta = atividades.filter((item) => item.meta_chave === meta.chave_logica);
     const notasMeta = notasPorMeta.get(meta.chave_logica) || [];
-    const quantidadePrevista = Number(meta.quantidade_prevista || meta.meta_quantidade || meta.valor_meta || 0);
-    const quantidadeRealizada = atividadesMeta.length;
-    const percentual = quantidadePrevista > 0 ? Math.min(100, (quantidadeRealizada / quantidadePrevista) * 100) : null;
-    const status = quantidadeRealizada > 0
+    const prevista = Number(meta.quantidade_prevista || meta.meta_quantidade || meta.valor_meta || 0);
+    const realizada = atividadesMeta.length;
+    const percentual = prevista > 0 ? Math.min(100, (realizada / prevista) * 100) : null;
+    const status = realizada > 0
       ? (percentual === 100 ? 'Realizada Integralmente' : 'Em execução')
       : (notasMeta.length > 0 ? 'Em execução — documentação financeira vinculada' : 'Não iniciada');
     return {
@@ -356,7 +372,7 @@ export async function sincronizarRelatorioExecucao({
       rubricas: meta.rubricas || [],
       resultado_esperado: meta.resultado_esperado || meta.descricao || nomeCanonicoMeta(meta),
       acoes: atividadesMeta.map((item) => item.titulo || item.nome || item.descricao).filter(Boolean).join('; ') || 'Sem atividade vinculada na Agenda para o período selecionado.',
-      resultado_alcancado: quantidadeRealizada > 0 ? `${quantidadeRealizada} atividade(s) registrada(s) na Agenda.` : 'Execução física ainda não comprovada por atividade vinculada na Agenda.',
+      resultado_alcancado: realizada > 0 ? `${realizada} atividade(s) registrada(s) na Agenda.` : 'Execução física ainda não comprovada por atividade vinculada na Agenda.',
       periodo: `${dataInicio} a ${dataFim}`,
       documentos_verificacao: notasMeta.map((nota) => `NF ${nota.numero_nf} — ${nota.fornecedor}`),
       notas_fiscais: notasMeta,
@@ -367,13 +383,6 @@ export async function sincronizarRelatorioExecucao({
   });
 
   const totalFinanceiro = notas.reduce((sum, nota) => sum + nota.valor, 0);
-  const descricaoAcoes = atividades.length > 0
-    ? `No período de ${dataInicio} a ${dataFim}, foram registradas ${atividades.length} atividade(s) na Agenda, vinculadas às metas selecionadas e executadas nos equipamentos culturais abrangidos pelo projeto.`
-    : 'Não foram localizadas atividades vinculadas às metas selecionadas na Agenda para o período. A ausência de vínculo deve ser revisada antes da exportação; as notas fiscais não substituem a comprovação da execução física.';
-  const publicoTexto = publicoTotal > 0
-    ? `O público geral registrado no período foi de ${publicoTotal.toLocaleString('pt-BR')} pessoas, conforme dados consolidados dos relatórios de atividades, Agenda e registros de presença do app.`
-    : 'Não foi localizado público consolidado para o recorte selecionado. O campo permanece editável e deve ser revisado antes da exportação.';
-
   const atual = await base44.entities.RelatorioExecucaoObjeto.get(relatorioId);
   const identificacaoAtual = atual?.identificacao_projeto || {};
   const anexos = fotos.map((foto) => ({
@@ -383,6 +392,13 @@ export async function sincronizarRelatorioExecucao({
     meta_id: extrairMetaId(foto) || null,
     atividade_id: foto?.activity_id || foto?.atividade_id || foto?.evento_id || null,
   }));
+
+  const descricaoAcoes = atividades.length > 0
+    ? `No período de ${dataInicio} a ${dataFim}, foram registradas ${atividades.length} atividade(s) na Agenda, vinculadas às metas selecionadas e aos equipamentos culturais abrangidos pelo projeto.`
+    : 'Não foram localizadas atividades vinculadas às metas selecionadas na Agenda para o período. A ausência de vínculo deve ser revisada antes da exportação; as notas fiscais não substituem a comprovação da execução física.';
+  const publicoTexto = publicoTotal > 0
+    ? `O público geral registrado no período foi de ${publicoTotal.toLocaleString('pt-BR')} pessoas, conforme dados consolidados dos relatórios de atividades, Agenda e registros de presença do app.`
+    : 'Não foi localizado público consolidado para o recorte selecionado. O campo permanece editável e deve ser revisado antes da exportação.';
 
   const dadosBase = {
     data_inicio: dataInicio,
@@ -443,7 +459,12 @@ export async function sincronizarRelatorioExecucao({
   };
 
   const erros = [];
-  for (const secao of ['endereco_execucao', 'divulgacao', 'descricao_acoes', 'publico_alvo', 'pesquisa_satisfacao', 'cronograma_metas', 'equipe_trabalho', 'impactos', 'sustentabilidade', 'avaliacao', 'assinatura', 'anexos']) {
+  const secoes = [
+    'endereco_execucao', 'divulgacao', 'descricao_acoes', 'publico_alvo',
+    'pesquisa_satisfacao', 'cronograma_metas', 'equipe_trabalho', 'impactos',
+    'sustentabilidade', 'avaliacao', 'assinatura', 'anexos',
+  ];
+  for (const secao of secoes) {
     try {
       await base44.functions.invoke('gerarSecaoRelatorioExecucao', { ...contextoIA, secao });
     } catch (error) {
@@ -451,7 +472,6 @@ export async function sincronizarRelatorioExecucao({
     }
   }
 
-  // Reaplica a fonte da verdade depois da IA para impedir retorno de zeros, duplicidades ou 100% por NF.
   await base44.entities.RelatorioExecucaoObjeto.update(relatorioId, {
     cronograma_metas: cronogramaMetas,
     metas_selecionadas: dadosBase.metas_selecionadas,
