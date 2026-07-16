@@ -23,29 +23,33 @@ function metaName(meta = {}) {
   return text(meta.meta_nome || meta.nome || meta.titulo || meta.descricao || meta.label);
 }
 
+function emptyNestedObject(content = '') {
+  return {
+    texto_ia: text(content),
+    texto_editado: '',
+    modo: 'ia',
+    editavel: true,
+  };
+}
+
 function asNestedObject(value) {
-  if (value === null || value === undefined) return value;
-  if (typeof value === 'object' && !Array.isArray(value)) return value;
-  if (typeof value === 'string' || typeof value === 'number') {
-    const content = text(value);
-    return {
-      texto_ia: content,
-      texto_editado: '',
-      modo: 'ia',
-      editavel: true,
-    };
-  }
-  return value;
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+  if (typeof value === 'string' || typeof value === 'number') return emptyNestedObject(value);
+  return emptyNestedObject();
 }
 
 function sanitizeReportPayload(payload = {}) {
   const next = { ...payload };
   for (const field of NESTED_TEXT_FIELDS) {
-    if (Object.prototype.hasOwnProperty.call(next, field)) {
-      next[field] = asNestedObject(next[field]);
-    }
+    if (Object.prototype.hasOwnProperty.call(next, field)) next[field] = asNestedObject(next[field]);
   }
   return next;
+}
+
+function isNestedObjectValidationError(error) {
+  const message = text(error?.message || error);
+  return message.includes('Input should be a valid dictionary or instance of NestedObject')
+    && (message.includes('publico_alvo') || message.includes('descricao_acoes'));
 }
 
 let officialMetaPromise = null;
@@ -122,6 +126,26 @@ async function filterMetaSelector() {
   });
 }
 
+async function createReportFallback(payload, reportEntity) {
+  if (!reportEntity?.create) throw new Error('Entidade RelatorioExecucaoObjeto indisponível.');
+  const created = await reportEntity.create(sanitizeReportPayload({
+    tipo: payload?.tipo || 'parcial',
+    numero_relatorio: payload?.numero_relatorio || '',
+    data_inicio: payload?.data_inicio || '',
+    data_fim: payload?.data_fim || '',
+    filtro_museu: payload?.filtro_museu || 'todos',
+    filtro_versao: payload?.filtro_versao || 'consolidado',
+    filtro_meta_ids: Array.isArray(payload?.filtro_meta_ids) ? payload.filtro_meta_ids : [],
+    descricao_acoes: emptyNestedObject(),
+    publico_alvo: emptyNestedObject(),
+    status: 'rascunho',
+    criado_por_fallback_schema: true,
+  }));
+  const id = created?.id || created?._id || created?.data?.id;
+  if (!id) throw new Error('Não foi possível identificar o relatório criado.');
+  return { data: { relatorio_id: id }, relatorio_id: id, success: true };
+}
+
 export function installRelatorioMetasSchemaFix() {
   if (typeof window === 'undefined' || window.__relatorioMetasSchemaFixInstalled) return;
   window.__relatorioMetasSchemaFixInstalled = true;
@@ -153,7 +177,17 @@ export function installRelatorioMetasSchemaFix() {
           usar_apenas_cadastro_oficial_de_metas: true,
         };
       }
-      return originalInvoke(functionName, payload);
+
+      try {
+        return await originalInvoke(functionName, payload);
+      } catch (error) {
+        if (!isNestedObjectValidationError(error)) throw error;
+        if (functionName === 'iniciarRelatorioExecucao') return createReportFallback(payload, reportEntity);
+        if (['preencherRelatorioComDados', 'gerarSecaoRelatorioExecucao'].includes(functionName)) {
+          return { data: { success: false, schema_corrigido_localmente: true }, success: false };
+        }
+        throw error;
+      }
     };
     functions.__officialMetaFilterWrapped = true;
   }
