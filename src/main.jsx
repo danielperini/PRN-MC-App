@@ -6,7 +6,6 @@ import '@/styles/theme-nuit.css'
 import '@/styles/report-print-fixes.css'
 import { installActivityGalleryPdfRouting } from '@/utils/installActivityGalleryPdfRouting'
 import { installComprasDataNFFilter } from '@/utils/installComprasDataNFFilter'
-import { installComprasMetaColumn } from '@/utils/installComprasMetaColumn'
 import { installMetasPlanoTrabalhoNFs } from '@/utils/installMetasPlanoTrabalhoNFs'
 import { installRelatorioAtividadeMetaLink } from '@/utils/installRelatorioAtividadeMetaLink'
 import { installCronogramaMetasOficial } from '@/utils/installCronogramaMetasOficial'
@@ -19,7 +18,6 @@ import { installPdfDownloadGuard } from '@/utils/pdfDownloadGuard'
 
 installActivityGalleryPdfRouting()
 installComprasDataNFFilter()
-installComprasMetaColumn()
 installMetasPlanoTrabalhoNFs()
 installRelatorioAtividadeMetaLink()
 installCronogramaMetasOficial()
