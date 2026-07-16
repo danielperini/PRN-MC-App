@@ -122,18 +122,31 @@ export default function RelatorioExecucaoObjeto() {
   }
 
   async function carregarRelatorio(id) {
-    const atual = await base44.entities.RelatorioExecucaoObjeto.get(id);
-    setRelatorio(atual);
-    setRelatorioId(id);
-    setForm(f => ({
-      ...f,
-      tipo: atual?.tipo || f.tipo,
-      data_inicio: atual?.data_inicio || f.data_inicio,
-      data_fim: atual?.data_fim || f.data_fim,
-      filtro_museu: atual?.filtro_museu || f.filtro_museu,
-      filtro_versao: atual?.filtro_versao || f.filtro_versao,
-      filtro_meta_ids: Array.isArray(atual?.filtro_meta_ids) ? atual.filtro_meta_ids : f.filtro_meta_ids,
-    }));
+    try {
+      const atual = await base44.entities.RelatorioExecucaoObjeto.get(id);
+      setRelatorio(atual);
+      setRelatorioId(id);
+      setForm(f => ({
+        ...f,
+        tipo: atual?.tipo || f.tipo,
+        data_inicio: atual?.data_inicio || f.data_inicio,
+        data_fim: atual?.data_fim || f.data_fim,
+        filtro_museu: atual?.filtro_museu || f.filtro_museu,
+        filtro_versao: atual?.filtro_versao || f.filtro_versao,
+        filtro_meta_ids: Array.isArray(atual?.filtro_meta_ids) ? atual.filtro_meta_ids : f.filtro_meta_ids,
+      }));
+    } catch (error) {
+      if (error?.message?.includes('not found')) {
+        toast.error('Este relatório não existe mais. Será removido da lista.');
+        setRelatoriosSalvos(prev => prev.filter(r => r.id !== id));
+        if (relatorioId === id) {
+          setRelatorio(null);
+          setRelatorioId(null);
+        }
+      } else {
+        toast.error('Erro ao carregar relatório: ' + (error?.message || String(error)));
+      }
+    }
   }
 
   function alternarMeta(id) {
