@@ -12,6 +12,7 @@ import { installCronogramaMetasOficial } from '@/utils/installCronogramaMetasOfi
 import { installRelatorioCamposOficiais } from '@/utils/installRelatorioCamposOficiais'
 import { installRelatorioMetasSchemaFix } from '@/utils/installRelatorioMetasSchemaFix'
 import { installRelatorioItens2a5 } from '@/utils/installRelatorioItens2a5'
+import { installRelatorioPdfHeader } from '@/utils/installRelatorioPdfHeader'
 import { installPdfDownloadGuard } from '@/utils/pdfDownloadGuard'
 
 installActivityGalleryPdfRouting()
@@ -22,6 +23,7 @@ installCronogramaMetasOficial()
 installRelatorioCamposOficiais()
 installRelatorioMetasSchemaFix()
 installRelatorioItens2a5()
+installRelatorioPdfHeader()
 installPdfDownloadGuard()
 
 ReactDOM.createRoot(document.getElementById('root')).render(
