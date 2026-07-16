@@ -15,6 +15,40 @@ const CAMPOS_DATA = ['data', 'data_atividade', 'data_inicio', 'start_date', 'cre
 const CAMPOS_FOTO = ['foto_url', 'image_url', 'url', 'file_url', 'arquivo_url', 'photo_url'];
 const CAMPOS_META = ['meta_id', 'project_meta_id', 'meta', 'meta_codigo'];
 
+const MARCADORES_3_ADITIVO = [
+  '3 aditivo',
+  '3o aditivo',
+  '3º aditivo',
+  'terceiro aditivo',
+  'mes 19 ao 28',
+  'meses 19 ao 28',
+  'mês 19 ao 28',
+  'mes 19-28',
+  'mc3a',
+];
+
+const MARCADORES_4_ADITIVO = [
+  '4 aditivo',
+  '4o aditivo',
+  '4º aditivo',
+  'quarto aditivo',
+  'noturno 2026',
+  'noturno nos museus 2026',
+  'ed. 2026',
+  'edicao 2026',
+  'edição 2026',
+  'mc4a',
+];
+
+const METAS_ANTERIORES_BLOQUEADAS = [
+  'presente de iemanja',
+  'presente de iemanjá',
+  'realizar no minimo 60 acoes educativas',
+  'realizar no mínimo 60 ações educativas',
+  '60 acoes educativas',
+  '60 ações educativas',
+];
+
 function numero(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -22,6 +56,56 @@ function numero(value) {
 
 function tamanho(value) {
   return Array.isArray(value) ? value.length : 0;
+}
+
+function normalizarTexto(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+function textoMeta(meta) {
+  return normalizarTexto([
+    meta?.aditivo,
+    meta?.termo_aditivo,
+    meta?.numero_aditivo,
+    meta?.origem,
+    meta?.versao,
+    meta?.grupo,
+    meta?.codigo,
+    meta?.meta_codigo,
+    meta?.nome,
+    meta?.titulo,
+    meta?.descricao,
+    meta?.resultado_esperado,
+    meta?.acoes,
+    meta?.periodo,
+  ].filter(Boolean).join(' '));
+}
+
+function pertenceAo3ou4Aditivo(meta) {
+  if (!meta) return false;
+
+  const texto = textoMeta(meta);
+  if (!texto) return false;
+
+  if (METAS_ANTERIORES_BLOQUEADAS.some((marcador) => texto.includes(normalizarTexto(marcador)))) {
+    return false;
+  }
+
+  const numeroAditivo = Number(meta?.numero_aditivo || meta?.aditivo_numero || meta?.aditivo);
+  if (numeroAditivo === 3 || numeroAditivo === 4) return true;
+
+  return [...MARCADORES_3_ADITIVO, ...MARCADORES_4_ADITIVO]
+    .map(normalizarTexto)
+    .some((marcador) => texto.includes(marcador));
+}
+
+function filtrarMetasPermitidas(metas) {
+  return (Array.isArray(metas) ? metas : []).filter(pertenceAo3ou4Aditivo);
 }
 
 function dataISO(value) {
@@ -71,9 +155,21 @@ async function buscarDadosComplementares({ dataInicio, dataFim, filtroMuseu }) {
     Promise.all(['ProjectMeta', 'MetaProjeto', 'Meta'].map((nome) => listarEntidade(nome))),
   ]);
 
-  const atividades = unicoPor(atividadesBrutas.flat().filter((item) => dentroPeriodo(item, dataInicio, dataFim)), (item) => item.id);
+  const metasPermitidas = filtrarMetasPermitidas(unicoPor(metasBrutas.flat(), (item) => item.id));
+  const metasPorId = new Map(metasPermitidas.map((item) => [item.id, item]));
+  const metaIdsPermitidas = new Set(metasPermitidas.map((item) => item.id));
+
+  const atividades = unicoPor(
+    atividadesBrutas.flat().filter((item) => {
+      if (!dentroPeriodo(item, dataInicio, dataFim)) return false;
+      const metaId = primeiroCampo(item, CAMPOS_META);
+      if (metaId && metaIdsPermitidas.has(metaId)) return true;
+      return pertenceAo3ou4Aditivo(item);
+    }),
+    (item) => item.id,
+  );
+
   const atividadeIds = new Set(atividades.map((item) => item.id));
-  const metasPorId = new Map(unicoPor(metasBrutas.flat(), (item) => item.id).map((item) => [item.id, item]));
 
   const fotos = unicoPor(
     fotosBrutas.flat().filter((foto) => {
@@ -111,7 +207,7 @@ async function buscarDadosComplementares({ dataInicio, dataFim, filtroMuseu }) {
 
   const metasVinculadas = unicoPor(
     atividadesNormalizadas
-      .map((atividade) => atividade.meta_id && (metasPorId.get(atividade.meta_id) || { id: atividade.meta_id, nome: atividade.meta_nome }))
+      .map((atividade) => atividade.meta_id && metasPorId.get(atividade.meta_id))
       .filter(Boolean),
     (meta) => meta.id,
   );
@@ -133,6 +229,23 @@ export function validarPeriodoRelatorio(dataInicio, dataFim) {
   return { valido: true, inicio, fim };
 }
 
+async function aplicarFiltroCanonicoMetas(relatorioId) {
+  const relatorio = await base44.entities.RelatorioExecucaoObjeto.get(relatorioId);
+  const cronogramaAtual = relatorio?.cronograma_metas || [];
+  const cronogramaFiltrado = filtrarMetasPermitidas(cronogramaAtual);
+
+  if (cronogramaFiltrado.length !== cronogramaAtual.length) {
+    await base44.entities.RelatorioExecucaoObjeto.update(relatorioId, {
+      cronograma_metas: cronogramaFiltrado,
+      aditivos_considerados: [3, 4],
+      metas_anteriores_excluidas: true,
+      filtro_metas_aplicado_em: new Date().toISOString(),
+    });
+  }
+
+  return cronogramaFiltrado;
+}
+
 export async function sincronizarRelatorioExecucao({
   relatorioId,
   dataInicio,
@@ -144,27 +257,41 @@ export async function sincronizarRelatorioExecucao({
   if (!periodo.valido) throw new Error(periodo.erro);
   if (!relatorioId) throw new Error('Relatório não identificado. Gere o relatório novamente.');
 
-  const preenchimentoResponse = await base44.functions.invoke('preencherRelatorioComDados', {
-    relatorio_id: relatorioId,
-    data_inicio: dataInicio,
-    data_fim: dataFim,
-    filtro_museu: filtroMuseu,
-    filtro_versao: filtroVersao,
-  });
-
-  const preenchimento = preenchimentoResponse?.data || preenchimentoResponse;
-  if (!preenchimento?.success) throw new Error(preenchimento?.error || 'Não foi possível importar os dados do período.');
+  let preenchimento = { success: true, resumo: {} };
+  try {
+    const preenchimentoResponse = await base44.functions.invoke('preencherRelatorioComDados', {
+      relatorio_id: relatorioId,
+      data_inicio: dataInicio,
+      data_fim: dataFim,
+      filtro_museu: filtroMuseu,
+      filtro_versao: filtroVersao,
+      aditivos_permitidos: [3, 4],
+      excluir_metas_anteriores: true,
+    });
+    preenchimento = preenchimentoResponse?.data || preenchimentoResponse;
+    if (!preenchimento?.success) throw new Error(preenchimento?.error || 'Não foi possível importar os dados do período.');
+  } catch (error) {
+    const mensagem = String(error?.message || error || '');
+    if (!mensagem.includes('Service token is required to use asServiceRole')) throw error;
+  }
 
   const complementares = await buscarDadosComplementares({ dataInicio, dataFim, filtroMuseu });
   const relatorioAntes = await base44.entities.RelatorioExecucaoObjeto.get(relatorioId);
 
   const atividadesExistentes = relatorioAntes?._atividades_periodo || relatorioAntes?.atividades_periodo || [];
   const fotosExistentes = relatorioAntes?._fotos_atividades || relatorioAntes?.anexos?.fotos || relatorioAntes?.anexos_fotograficos || [];
-  const metasExistentes = relatorioAntes?.cronograma_metas || [];
+  const metasExistentes = filtrarMetasPermitidas(relatorioAntes?.cronograma_metas || []);
 
-  const atividadesFinal = unicoPor([...atividadesExistentes, ...complementares.atividades], (item) => item.id || `${item.nome || item.titulo}-${dataISO(primeiroCampo(item, CAMPOS_DATA))}`);
+  const atividadesFinal = unicoPor(
+    [...atividadesExistentes, ...complementares.atividades].filter((atividade) => {
+      const metaId = primeiroCampo(atividade, CAMPOS_META);
+      if (!metaId) return pertenceAo3ou4Aditivo(atividade);
+      return complementares.metas.some((meta) => meta.id === metaId);
+    }),
+    (item) => item.id || `${item.nome || item.titulo}-${dataISO(primeiroCampo(item, CAMPOS_DATA))}`,
+  );
   const fotosFinal = unicoPor([...fotosExistentes, ...complementares.fotos], (item) => item.url || primeiroCampo(item, CAMPOS_FOTO));
-  const metasFinal = metasExistentes.length > 0 ? metasExistentes : complementares.metas;
+  const metasFinal = filtrarMetasPermitidas(unicoPor([...metasExistentes, ...complementares.metas], (meta) => meta.id || textoMeta(meta)));
 
   await base44.entities.RelatorioExecucaoObjeto.update(relatorioId, {
     data_inicio: dataInicio,
@@ -174,6 +301,8 @@ export async function sincronizarRelatorioExecucao({
     _atividades_periodo: atividadesFinal,
     _fotos_atividades: fotosFinal,
     cronograma_metas: metasFinal,
+    aditivos_considerados: [3, 4],
+    excluir_metas_anteriores: true,
     modelo_preenchimento: 'relatorio-de-execucao-do-objeto-minuta-padrao',
     modelo_regras: {
       descricao_acoes_max_caracteres: 1500,
@@ -181,6 +310,7 @@ export async function sincronizarRelatorioExecucao({
       impactos_max_caracteres: 2000,
       fotos_com_descricao_e_data: true,
       metas_com_resultado_status_justificativa: true,
+      somente_metas_3_4_aditivos: true,
     },
     sincronizado_em: new Date().toISOString(),
   });
@@ -198,11 +328,17 @@ export async function sincronizarRelatorioExecucao({
         usar_modelo_word: true,
         vincular_metas: true,
         incluir_fotos: true,
+        aditivos_permitidos: [3, 4],
+        excluir_metas_anteriores: true,
       });
+
+      if (secao === 'cronograma_metas') await aplicarFiltroCanonicoMetas(relatorioId);
     } catch (error) {
       errosSecoes.push({ secao, erro: error?.message || String(error) });
     }
   }
+
+  await aplicarFiltroCanonicoMetas(relatorioId);
 
   for (const secao of ['auditoria', 'finalizar']) {
     try {
@@ -216,25 +352,27 @@ export async function sincronizarRelatorioExecucao({
         usar_modelo_word: true,
         vincular_metas: true,
         incluir_fotos: true,
+        aditivos_permitidos: [3, 4],
+        excluir_metas_anteriores: true,
       });
     } catch (error) {
       errosSecoes.push({ secao, erro: error?.message || String(error) });
     }
   }
 
+  const metasAposFinalizacao = await aplicarFiltroCanonicoMetas(relatorioId);
   const relatorio = await base44.entities.RelatorioExecucaoObjeto.get(relatorioId);
   const resumo = preenchimento.resumo || {};
   const atividadesRelatorio = relatorio?._atividades_periodo || relatorio?.atividades_periodo || [];
   const fotos = relatorio?._fotos_atividades || relatorio?.anexos?.fotos || relatorio?.anexos_fotograficos || [];
-  const metas = relatorio?.cronograma_metas || [];
   const totalAtividades = Math.max(numero(resumo.total_atividades), tamanho(atividadesRelatorio));
-  const totalMetas = Math.max(numero(resumo.total_metas_identificadas), tamanho(metas));
+  const totalMetas = tamanho(metasAposFinalizacao);
   const totalEquipe = numero(resumo.total_equipe);
   const publicoTotal = numero(resumo.publico_total);
   const totalDocumentos = numero(resumo.total_links_documentos);
 
   const inconsistencias = [];
-  if (totalMetas > 0 && tamanho(metas) === 0) inconsistencias.push('As metas foram localizadas, mas não foram gravadas no cronograma.');
+  if (totalAtividades > 0 && totalMetas === 0) inconsistencias.push('Há atividades no período, mas nenhuma foi vinculada às metas do 3º ou 4º aditivo.');
   if (totalEquipe > 0 && tamanho(relatorio?.equipe_trabalho) === 0) inconsistencias.push('A equipe foi localizada, mas não foi gravada na seção de equipe.');
   if (publicoTotal > 0 && numero(relatorio?.publico_alvo?.realizado_direto) === 0) inconsistencias.push('Há público no período, mas o realizado direto permaneceu zerado.');
   if (totalAtividades > 0 && tamanho(atividadesRelatorio) === 0 && !relatorio?.descricao_acoes?.texto_ia) inconsistencias.push('Há atividades no período, mas elas não foram vinculadas ao relatório.');
@@ -248,6 +386,8 @@ export async function sincronizarRelatorioExecucao({
     relatorio,
     auditoria: {
       periodo: { data_inicio: dataInicio, data_fim: dataFim },
+      aditivos_considerados: [3, 4],
+      metas_anteriores_excluidas: true,
       totais: {
         atividades: totalAtividades,
         metas: totalMetas,
