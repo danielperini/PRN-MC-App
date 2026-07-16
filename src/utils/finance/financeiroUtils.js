@@ -40,20 +40,53 @@ export function getPurchaseValue(p) {
   );
 }
 
+function normalizarTexto(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function aditivoExplicito(nf) {
+  const raw = normalizarTexto(
+    nf?.aditivo || nf?.termo_aditivo || nf?.aditivo_nome ||
+    nf?.instrumento_aditivo || nf?.fonte_orcamentaria || ''
+  );
+  if (!raw) return '';
+  if (raw.includes('4') || raw.includes('quarto')) return '4º Aditivo Noturno 2026';
+  if (raw.includes('3') || raw.includes('terceiro')) return '3º Aditivo';
+  return '';
+}
+
 export function normalizeCentroCusto(nf) {
   const raw = String(nf?.centro_custo || '').trim();
-  const low = raw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const low = normalizarTexto(raw);
+  const explicito = aditivoExplicito(nf);
 
-  if (!low) return { centro_normalizado: 'Geral', aditivo: '3º Aditivo' };
-  if (low.includes('pampulha')) return { centro_normalizado: 'Noturno Pampulha', aditivo: 'Noturno Pampulha' };
-  if (low.includes('noturno')) return { centro_normalizado: 'Noturno 2026', aditivo: '4º Aditivo Noturno 2026' };
-  if (low === 'mis' || low === 'mis bh') return { centro_normalizado: 'MIS', aditivo: '3º Aditivo' };
-  if (low === 'mhab' || low === 'mab') return { centro_normalizado: 'MHAB', aditivo: '3º Aditivo' };
-  if (low === 'mumo' || low === 'mumu') return { centro_normalizado: 'MUMO', aditivo: '3º Aditivo' };
-  if (low.includes('geral') || low.includes('transversal') || low.includes('atuacao geral')) {
-    return { centro_normalizado: 'Geral', aditivo: '3º Aditivo' };
+  if (low.includes('pampulha')) {
+    return {
+      centro_normalizado: 'Noturno Pampulha',
+      aditivo: explicito || '4º Aditivo Noturno 2026'
+    };
   }
-  return { centro_normalizado: raw || 'Geral', aditivo: '3º Aditivo' };
+
+  if (low.includes('noturno')) {
+    return {
+      centro_normalizado: 'Noturno 2026',
+      aditivo: explicito || '3º Aditivo'
+    };
+  }
+
+  if (!low) return { centro_normalizado: 'Geral', aditivo: explicito || '3º Aditivo' };
+  if (low === 'mis' || low === 'mis bh') return { centro_normalizado: 'MIS', aditivo: explicito || '3º Aditivo' };
+  if (low === 'mhab' || low === 'mab') return { centro_normalizado: 'MHAB', aditivo: explicito || '3º Aditivo' };
+  if (low === 'mumo' || low === 'mumu') return { centro_normalizado: 'MUMO', aditivo: explicito || '3º Aditivo' };
+  if (low.includes('geral') || low.includes('transversal') || low.includes('atuacao geral')) {
+    return { centro_normalizado: 'Geral', aditivo: explicito || '3º Aditivo' };
+  }
+  return { centro_normalizado: raw || 'Geral', aditivo: explicito || '3º Aditivo' };
 }
 
 function normalizarFornecedor(nome) {
@@ -62,6 +95,7 @@ function normalizarFornecedor(nome) {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^A-Z0-9\s]/g, '')
+    .replace(/\b(NF|NFSE|NFE|DOCUMENTO|MUSEUS|CENTRO|COMP|PDF|XML)\b/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -105,7 +139,7 @@ function chaveAcesso(nf) {
 function urlFiscal(nf) {
   return String(
     nf?.drive_backup_nf_pdf_link || nf?.nota_fiscal_pdf_url || nf?.nf_pdf_url ||
-    nf?.nota_fiscal_url || nf?.arquivo_original_url || nf?.pdf_url || ''
+    nf?.nota_fiscal_url || nf?.arquivo_original_url || nf?.pdf_url || nf?.file_url || ''
   ).trim().split('?')[0];
 }
 
@@ -128,6 +162,13 @@ function competenciaFiscal(nf) {
   return data ? data.slice(0, 7) : '';
 }
 
+function rubricaIdentidade(nf) {
+  return normalizarTexto(
+    nf?.rubrica_id || nf?.budgetline_id || nf?.rubrica_nome ||
+    nf?.item_despesa || nf?.descricao_rubrica || ''
+  );
+}
+
 export function hasInvalidFiscalDate(nf, minimumYear = 2026) {
   const data = dataFiscalISO(nf);
   if (!data) return false;
@@ -141,8 +182,15 @@ export function getFinancialDedupKey(nf) {
 
   const numero = numeroNF(nf);
   const cnpj = cnpjFornecedor(nf);
-  const fornecedor = normalizarFornecedor(nf.fornecedor_nome || nf.nf_emitente_nome || nf.emitente_nome);
+  const fornecedor = normalizarFornecedor(
+    nf.fornecedor_nome || nf.nf_emitente_nome || nf.emitente_nome ||
+    nf.descricao_item || nf.nome_documento
+  );
   const valorCentavos = Math.round(getPurchaseValue(nf) * 100);
+  const data = dataFiscalISO(nf);
+  const competencia = competenciaFiscal(nf);
+  const rubrica = rubricaIdentidade(nf);
+  const { centro_normalizado } = normalizeCentroCusto(nf);
 
   if (numero && cnpj && valorCentavos > 0) return `NF:${numero}:${cnpj}:${valorCentavos}`;
   if (numero && fornecedor && valorCentavos > 0) return `NF_FORNECEDOR:${numero}:${fornecedor}:${valorCentavos}`;
@@ -150,21 +198,30 @@ export function getFinancialDedupKey(nf) {
   const arquivo = urlFiscal(nf);
   if (arquivo) return `ARQUIVO:${arquivo}`;
 
-  const { centro_normalizado } = normalizeCentroCusto(nf);
-  const rubrica = String(nf.rubrica_id || nf.rubrica_nome || nf.item_despesa || '').trim();
-  const competencia = competenciaFiscal(nf);
-  if (!fornecedor || valorCentavos <= 0 || !competencia) return null;
+  const intake = String(nf?.intake_id || nf?.document_intake_id || nf?.attachment_id || '').trim();
+  if (intake) return `INTAKE:${intake}`;
 
-  // O período integra o fallback para não colapsar parcelas mensais legítimas.
+  if (cnpj && valorCentavos > 0 && data) {
+    return `CNPJ_DATA:${cnpj}:${valorCentavos}:${data}:${rubrica}:${centro_normalizado}`;
+  }
+
+  if (fornecedor && valorCentavos > 0 && data) {
+    return `FORNECEDOR_DATA:${fornecedor}:${valorCentavos}:${data}:${rubrica}:${centro_normalizado}`;
+  }
+
+  if (!fornecedor || valorCentavos <= 0 || !competencia) return null;
   return `FALLBACK:${fornecedor}:${valorCentavos}:${centro_normalizado}:${rubrica}:${competencia}`;
 }
 
 function duplicatePriority(nf) {
   let score = 0;
-  if (nf.comprovante_pagamento_url || nf.comprovante_url) score += 16;
-  if (nf.drive_backup_status === 'concluido') score += 8;
-  if (nf.nota_fiscal_pdf_url || nf.nf_pdf_url) score += 4;
-  if (nf.nota_fiscal_xml_url || nf.xml_url) score += 2;
+  if (chaveAcesso(nf)) score += 64;
+  if (numeroNF(nf)) score += 32;
+  if (cnpjFornecedor(nf)) score += 16;
+  if (nf.comprovante_pagamento_url || nf.comprovante_url) score += 8;
+  if (nf.drive_backup_status === 'concluido') score += 4;
+  if (nf.nota_fiscal_pdf_url || nf.nf_pdf_url || nf.nota_fiscal_url) score += 2;
+  if (nf.nota_fiscal_xml_url || nf.xml_url) score += 1;
   if (String(nf.status || '').toUpperCase() === 'PAGO') score += 1;
   return score;
 }
@@ -215,12 +272,15 @@ export function calculateAditivoTotals(purchases = []) {
   const noturnoPampulha = { total: 0, utilizado: 0, quantidade_nfs: 0 };
 
   for (const nf of validas) {
-    const { aditivo } = normalizeCentroCusto(nf);
+    const normalizado = normalizeCentroCusto(nf);
     const valor = getPurchaseValue(nf);
-    if (aditivo === 'Noturno Pampulha') {
+
+    if (normalizado.centro_normalizado === 'Noturno Pampulha') {
       noturnoPampulha.utilizado += valor;
       noturnoPampulha.quantidade_nfs += 1;
-    } else if (aditivo === '4º Aditivo Noturno 2026') {
+    }
+
+    if (normalizado.aditivo === '4º Aditivo Noturno 2026') {
       noturno2026.utilizado += valor;
       noturno2026.quantidade_nfs += 1;
     } else {
@@ -236,12 +296,61 @@ export function calculateAditivoTotals(purchases = []) {
     duplicadas_ignoradas: {
       total_valor: duplicadas.reduce((s, p) => s + getPurchaseValue(p), 0),
       quantidade: duplicadas.length,
+      registros: duplicadas,
     },
     datas_invalidas_ignoradas: {
       total_valor: datasInvalidas.reduce((s, p) => s + getPurchaseValue(p), 0),
       quantidade: datasInvalidas.length,
       registros: datasInvalidas,
     },
+  };
+}
+
+function getRubricaPrevisto(r) {
+  return toNumber(r?.valor_rubrica) || toNumber(r?.valor_total) || toNumber(r?.valor_previsto) || toNumber(r?.previsto);
+}
+
+function getRubricaUtilizado(r) {
+  return toNumber(r?.valor_utilizado) || toNumber(r?.utilizado);
+}
+
+export function auditAditivoTotals(purchases = [], rubricas = []) {
+  const calculado = calculateAditivoTotals(purchases);
+  const ativas = (rubricas || []).filter((r) => r?.ativo !== false);
+  const rubricas3 = [];
+  const rubricas4 = [];
+
+  for (const rubrica of ativas) {
+    const normalizado = normalizeCentroCusto(rubrica);
+    if (normalizado.aditivo === '4º Aditivo Noturno 2026') rubricas4.push(rubrica);
+    else rubricas3.push(rubrica);
+  }
+
+  const somaRubricas = (lista, campoFn) => lista.reduce((sum, item) => sum + campoFn(item), 0);
+  const utilizadoRubricas3 = somaRubricas(rubricas3, getRubricaUtilizado);
+  const utilizadoRubricas4 = somaRubricas(rubricas4, getRubricaUtilizado);
+  const previstoRubricas3 = somaRubricas(rubricas3, getRubricaPrevisto);
+  const previstoRubricas4 = somaRubricas(rubricas4, getRubricaPrevisto);
+
+  return {
+    ...calculado,
+    rubricas: {
+      terceiro_aditivo: {
+        previsto: previstoRubricas3,
+        utilizado: utilizadoRubricas3,
+        quantidade: rubricas3.length,
+      },
+      quarto_aditivo: {
+        previsto: previstoRubricas4,
+        utilizado: utilizadoRubricas4,
+        quantidade: rubricas4.length,
+      },
+    },
+    divergencias: {
+      terceiro_aditivo: utilizadoRubricas3 - calculado.terceiro_aditivo.utilizado,
+      quarto_aditivo: utilizadoRubricas4 - calculado.noturno_2026.utilizado,
+    },
+    auditado_em: new Date().toISOString(),
   };
 }
 
