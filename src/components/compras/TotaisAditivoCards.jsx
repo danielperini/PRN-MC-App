@@ -15,7 +15,6 @@ function fmtBRL(v) {
   }).format(v ?? 0);
 }
 
-// Valores contratuais oficiais. Não derivar da soma dinâmica das rubricas.
 const TOTAL_PREVISTO_3_ADITIVO = 1320000;
 const TOTAL_PREVISTO_4_ADITIVO = 81719.85;
 const TOTAL_PREVISTO_CONSOLIDADO = TOTAL_PREVISTO_3_ADITIVO + TOTAL_PREVISTO_4_ADITIVO;
@@ -56,10 +55,7 @@ function AditivoBlock({ titulo, badge, badgeColor, totalPrevisto, totalUtilizado
           <span className="font-semibold text-gray-700">{pct.toFixed(1)}%</span>
         </div>
         <div className="h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
-          <div
-            className={`h-1.5 rounded-full transition-all ${barColor}`}
-            style={{ width: `${Math.min(pct, 100)}%` }}
-          />
+          <div className={`h-1.5 rounded-full transition-all ${barColor}`} style={{ width: `${Math.min(pct, 100)}%` }} />
         </div>
       </div>
 
@@ -97,15 +93,14 @@ function AditivoBlock({ titulo, badge, badgeColor, totalPrevisto, totalUtilizado
 }
 
 export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
-  const { totais3, totais4, rubricasNoturno, duplicadas } = useMemo(() => {
+  const { totais3, totais4, rubricasNoturno, duplicadas, datasInvalidas, pampulha } = useMemo(() => {
     const ativas = rubricas.filter((r) => r?.ativo !== false);
     const rubricasNoturno = ativas.filter((r) => {
       const centro = String(r?.centro_custo || '').toLowerCase();
-      return centro.includes('noturno');
+      return centro.includes('noturno') && !centro.includes('pampulha');
     });
     const aditivoTotals = calculateAditivoTotals(compras);
-    const utilizado4 = toNumber(aditivoTotals?.noturno_2026?.utilizado) + toNumber(aditivoTotals?.noturno_pampulha?.utilizado);
-    const quantidade4 = toNumber(aditivoTotals?.noturno_2026?.quantidade_nfs) + toNumber(aditivoTotals?.noturno_pampulha?.quantidade_nfs);
+    const utilizado4 = toNumber(aditivoTotals?.noturno_2026?.utilizado);
 
     return {
       totais3: {
@@ -118,10 +113,12 @@ export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
         totalPrevisto: TOTAL_PREVISTO_4_ADITIVO,
         totalUtilizado: utilizado4,
         saldo: TOTAL_PREVISTO_4_ADITIVO - utilizado4,
-        qtdNFs: quantidade4,
+        qtdNFs: aditivoTotals.noturno_2026.quantidade_nfs,
       },
       rubricasNoturno,
       duplicadas: aditivoTotals.duplicadas_ignoradas,
+      datasInvalidas: aditivoTotals.datas_invalidas_ignoradas,
+      pampulha: aditivoTotals.noturno_pampulha,
     };
   }, [rubricas, compras]);
 
@@ -134,9 +131,19 @@ export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
         </div>
       )}
 
+      {datasInvalidas.quantidade > 0 && (
+        <div className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-2 text-xs text-orange-800 flex items-center gap-2">
+          <span className="font-semibold">⚠</span>
+          {datasInvalidas.quantidade} documento(s) com data fiscal anterior a 2026 foram retirados provisoriamente do somatório para revisão ({fmtBRL(datasInvalidas.total_valor)}).
+        </div>
+      )}
+
       <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-700">
         <span className="font-semibold">Previsto consolidado oficial:</span> {fmtBRL(TOTAL_PREVISTO_CONSOLIDADO)}
         <span className="ml-2 text-gray-500">(3º aditivo {fmtBRL(TOTAL_PREVISTO_3_ADITIVO)} + 4º aditivo {fmtBRL(TOTAL_PREVISTO_4_ADITIVO)})</span>
+        {toNumber(pampulha?.utilizado) > 0 && (
+          <span className="block mt-1 text-gray-500">Noturno Pampulha é controlado separadamente e não compõe o 4º Aditivo: {fmtBRL(pampulha.utilizado)}.</span>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
