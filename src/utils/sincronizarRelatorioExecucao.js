@@ -1,143 +1,57 @@
 import { base44 } from '@/api/base44Client';
 
-const SECOES_DEPENDENTES_DOS_DADOS = [
-  'descricao_acoes',
-  'publico_alvo',
-  'pesquisa_satisfacao',
-  'cronograma_metas',
-  'equipe_trabalho',
-  'impactos',
-  'avaliacao',
-  'anexos',
-];
-
+const STATUS_APROVADOS = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
 const CAMPOS_DATA = ['data', 'data_atividade', 'data_inicio', 'start_date', 'created_date'];
-const CAMPOS_FOTO = ['foto_url', 'image_url', 'url', 'file_url', 'arquivo_url', 'photo_url'];
 const CAMPOS_META = ['meta_id', 'project_meta_id', 'meta', 'meta_codigo'];
+const CAMPOS_FOTO = ['foto_url', 'image_url', 'url', 'file_url', 'arquivo_url', 'photo_url'];
 
-const MARCADORES_3_ADITIVO = [
-  '3 aditivo',
-  '3o aditivo',
-  '3º aditivo',
-  'terceiro aditivo',
-  'mes 19 ao 28',
-  'meses 19 ao 28',
-  'mês 19 ao 28',
-  'mes 19-28',
-  'mc3a',
-];
-
-const MARCADORES_4_ADITIVO = [
-  '4 aditivo',
-  '4o aditivo',
-  '4º aditivo',
-  'quarto aditivo',
-  'noturno 2026',
-  'noturno nos museus 2026',
-  'ed. 2026',
-  'edicao 2026',
-  'edição 2026',
-  'mc4a',
-];
-
-const METAS_ANTERIORES_BLOQUEADAS = [
-  'presente de iemanja',
-  'presente de iemanjá',
-  'realizar no minimo 60 acoes educativas',
-  'realizar no mínimo 60 ações educativas',
-  '60 acoes educativas',
-  '60 ações educativas',
-];
-
-function numero(value) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
+function normalizar(v) {
+  return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/\s+/g, ' ');
 }
 
-function tamanho(value) {
-  return Array.isArray(value) ? value.length : 0;
+function dataISO(v) {
+  if (!v) return '';
+  const m = String(v).match(/\d{4}-\d{2}-\d{2}/);
+  if (m) return m[0];
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
 }
 
-function normalizarTexto(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, ' ');
-}
-
-function textoMeta(meta) {
-  return normalizarTexto([
-    meta?.aditivo,
-    meta?.termo_aditivo,
-    meta?.numero_aditivo,
-    meta?.origem,
-    meta?.versao,
-    meta?.grupo,
-    meta?.codigo,
-    meta?.meta_codigo,
-    meta?.nome,
-    meta?.titulo,
-    meta?.descricao,
-    meta?.resultado_esperado,
-    meta?.acoes,
-    meta?.periodo,
-  ].filter(Boolean).join(' '));
-}
-
-function pertenceAo3ou4Aditivo(meta) {
-  if (!meta) return false;
-
-  const texto = textoMeta(meta);
-  if (!texto) return false;
-
-  if (METAS_ANTERIORES_BLOQUEADAS.some((marcador) => texto.includes(normalizarTexto(marcador)))) {
-    return false;
-  }
-
-  const numeroAditivo = Number(meta?.numero_aditivo || meta?.aditivo_numero || meta?.aditivo);
-  if (numeroAditivo === 3 || numeroAditivo === 4) return true;
-
-  return [...MARCADORES_3_ADITIVO, ...MARCADORES_4_ADITIVO]
-    .map(normalizarTexto)
-    .some((marcador) => texto.includes(marcador));
-}
-
-function filtrarMetasPermitidas(metas) {
-  return (Array.isArray(metas) ? metas : []).filter(pertenceAo3ou4Aditivo);
-}
-
-function dataISO(value) {
-  if (!value) return '';
-  const match = String(value).match(/\d{4}-\d{2}-\d{2}/);
-  if (match) return match[0];
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10);
-}
-
-function primeiroCampo(item, campos) {
-  for (const campo of campos) {
-    if (item?.[campo]) return item[campo];
-  }
+function primeiro(item, campos) {
+  for (const campo of campos) if (item?.[campo]) return item[campo];
   return null;
 }
 
+function pertence3ou4(meta) {
+  const texto = normalizar([
+    meta?.aditivo, meta?.termo_aditivo, meta?.numero_aditivo, meta?.aditivo_numero,
+    meta?.origem, meta?.versao, meta?.grupo, meta?.codigo, meta?.meta_codigo,
+    meta?.nome, meta?.titulo, meta?.descricao, meta?.resultado_esperado
+  ].filter(Boolean).join(' '));
+  const numero = Number(meta?.numero_aditivo || meta?.aditivo_numero || meta?.aditivo);
+  if (numero === 3 || numero === 4) return true;
+  return ['3 aditivo', '3o aditivo', 'terceiro aditivo', 'meses 19 ao 28', 'mc3a', '4 aditivo', '4o aditivo', 'quarto aditivo', 'noturno 2026', 'noturno nos museus 2026', 'mc4a'].some(m => texto.includes(normalizar(m)));
+}
+
+function idMeta(item) {
+  return String(primeiro(item, CAMPOS_META) || item?.id || '');
+}
+
 function dentroPeriodo(item, inicio, fim) {
-  const data = dataISO(primeiroCampo(item, CAMPOS_DATA));
+  const data = dataISO(primeiro(item, CAMPOS_DATA));
   return !!data && data >= inicio && data <= fim;
 }
 
-function unicoPor(items, keyFn) {
+function unico(items, keyFn) {
   const map = new Map();
   for (const item of items || []) {
     const key = keyFn(item);
     if (key && !map.has(key)) map.set(key, item);
   }
-  return Array.from(map.values());
+  return [...map.values()];
 }
 
-async function listarEntidade(nome, limite = 500) {
+async function listar(nome, limite = 5000) {
   try {
     const entidade = base44?.entities?.[nome];
     if (!entidade?.list) return [];
@@ -148,102 +62,41 @@ async function listarEntidade(nome, limite = 500) {
   }
 }
 
-async function buscarDadosComplementares({ dataInicio, dataFim, filtroMuseu }) {
-  const [atividadesBrutas, fotosBrutas, metasBrutas] = await Promise.all([
-    Promise.all(['Activity', 'Atividade', 'Programacao', 'Evento'].map((nome) => listarEntidade(nome))),
-    Promise.all(['ActivityPhoto', 'AtividadeFoto', 'GalleryPhoto', 'GaleriaFoto', 'Photo', 'Foto'].map((nome) => listarEntidade(nome))),
-    Promise.all(['ProjectMeta', 'MetaProjeto', 'Meta'].map((nome) => listarEntidade(nome))),
-  ]);
+function valor(item) {
+  const n = Number(item?.valor_total || item?.valor || item?.nf_valor_total || 0);
+  return Number.isFinite(n) ? n : 0;
+}
 
-  const metasPermitidas = filtrarMetasPermitidas(unicoPor(metasBrutas.flat(), (item) => item.id));
-  const metasPorId = new Map(metasPermitidas.map((item) => [item.id, item]));
-  const metaIdsPermitidas = new Set(metasPermitidas.map((item) => item.id));
+function nomeMeta(meta) {
+  return meta?.meta_nome || meta?.nome || meta?.titulo || meta?.descricao || meta?.codigo || 'Meta';
+}
 
-  const atividades = unicoPor(
-    atividadesBrutas.flat().filter((item) => {
-      if (!dentroPeriodo(item, dataInicio, dataFim)) return false;
-      const metaId = primeiroCampo(item, CAMPOS_META);
-      if (metaId && metaIdsPermitidas.has(metaId)) return true;
-      return pertenceAo3ou4Aditivo(item);
-    }),
-    (item) => item.id,
-  );
-
-  const atividadeIds = new Set(atividades.map((item) => item.id));
-
-  const fotos = unicoPor(
-    fotosBrutas.flat().filter((foto) => {
-      const atividadeId = foto?.activity_id || foto?.atividade_id || foto?.evento_id;
-      const temVinculo = atividadeId && atividadeIds.has(atividadeId);
-      const noPeriodo = dentroPeriodo(foto, dataInicio, dataFim);
-      const url = primeiroCampo(foto, CAMPOS_FOTO);
-      return !!url && (temVinculo || noPeriodo);
-    }),
-    (foto) => primeiroCampo(foto, CAMPOS_FOTO),
-  ).slice(0, 24);
-
-  const atividadesNormalizadas = atividades.map((atividade) => {
-    const metaId = primeiroCampo(atividade, CAMPOS_META);
-    const meta = metasPorId.get(metaId);
-    const fotosAtividade = fotos.filter((foto) => {
-      const atividadeId = foto?.activity_id || foto?.atividade_id || foto?.evento_id;
-      return atividadeId === atividade.id;
-    });
-
-    return {
-      ...atividade,
-      meta_id: metaId || atividade.meta_id || null,
-      meta_nome: meta?.nome || meta?.titulo || meta?.descricao || atividade.meta_nome || '',
-      fotos: fotosAtividade.map((foto) => ({
-        id: foto.id,
-        url: primeiroCampo(foto, CAMPOS_FOTO),
-        descricao: foto.descricao || foto.legenda || atividade.titulo || atividade.nome || 'Registro da atividade',
-        data: dataISO(primeiroCampo(foto, CAMPOS_DATA) || primeiroCampo(atividade, CAMPOS_DATA)),
-        atividade_id: atividade.id,
-        meta_id: metaId || null,
-      })),
-    };
-  });
-
-  const metasVinculadas = unicoPor(
-    atividadesNormalizadas
-      .map((atividade) => atividade.meta_id && metasPorId.get(atividade.meta_id))
-      .filter(Boolean),
-    (meta) => meta.id,
-  );
-
+function documentoNF(p) {
+  const numero = p?.nf_numero || p?.numero_nf || p?.numero_nota || 's/n';
+  const fornecedor = p?.fornecedor_nome || p?.nf_emitente_nome || 'Fornecedor não informado';
   return {
-    atividades: atividadesNormalizadas,
-    fotos: atividadesNormalizadas.flatMap((atividade) => atividade.fotos),
-    metas: metasVinculadas,
-    filtro_museu: filtroMuseu,
+    id: p.id,
+    tipo: 'nota_fiscal',
+    numero_nf: numero,
+    fornecedor,
+    valor: valor(p),
+    data_emissao: dataISO(p?.nf_data_emissao || p?.data_nf || p?.data_emissao_nf),
+    pdf_url: p?.nf_pdf_url || p?.arquivo_original_url || p?.pdf_url || '',
+    xml_url: p?.nf_xml_url || p?.xml_url || '',
+    meta_id: String(p?.meta_id || p?.project_meta_id || p?.meta_codigo || ''),
   };
 }
 
 export function validarPeriodoRelatorio(dataInicio, dataFim) {
   if (!dataInicio || !dataFim) return { valido: false, erro: 'Informe as datas inicial e final.' };
-  const inicio = new Date(`${dataInicio}T12:00:00`);
-  const fim = new Date(`${dataFim}T12:00:00`);
-  if (Number.isNaN(inicio.getTime()) || Number.isNaN(fim.getTime())) return { valido: false, erro: 'O período informado é inválido.' };
-  if (inicio > fim) return { valido: false, erro: 'A data inicial não pode ser posterior à data final.' };
-  return { valido: true, inicio, fim };
+  if (dataInicio > dataFim) return { valido: false, erro: 'A data inicial não pode ser posterior à data final.' };
+  return { valido: true };
 }
 
-async function aplicarFiltroCanonicoMetas(relatorioId) {
-  const relatorio = await base44.entities.RelatorioExecucaoObjeto.get(relatorioId);
-  const cronogramaAtual = relatorio?.cronograma_metas || [];
-  const cronogramaFiltrado = filtrarMetasPermitidas(cronogramaAtual);
-
-  if (cronogramaFiltrado.length !== cronogramaAtual.length) {
-    await base44.entities.RelatorioExecucaoObjeto.update(relatorioId, {
-      cronograma_metas: cronogramaFiltrado,
-      aditivos_considerados: [3, 4],
-      metas_anteriores_excluidas: true,
-      filtro_metas_aplicado_em: new Date().toISOString(),
-    });
-  }
-
-  return cronogramaFiltrado;
+export async function listarMetasRelatorio() {
+  const grupos = await Promise.all(['ProjectMeta', 'MetaProjeto', 'Meta'].map(nome => listar(nome, 1000)));
+  return unico(grupos.flat().filter(pertence3ou4), m => String(m.id || m.meta_codigo || nomeMeta(m)))
+    .sort((a, b) => nomeMeta(a).localeCompare(nomeMeta(b), 'pt-BR'));
 }
 
 export async function sincronizarRelatorioExecucao({
@@ -252,71 +105,127 @@ export async function sincronizarRelatorioExecucao({
   dataFim,
   filtroMuseu = 'todos',
   filtroVersao = 'consolidado',
+  filtroMetaIds = [],
 }) {
   const periodo = validarPeriodoRelatorio(dataInicio, dataFim);
   if (!periodo.valido) throw new Error(periodo.erro);
-  if (!relatorioId) throw new Error('Relatório não identificado. Gere o relatório novamente.');
+  if (!relatorioId) throw new Error('Relatório não identificado.');
+  if (!Array.isArray(filtroMetaIds) || filtroMetaIds.length === 0) throw new Error('Selecione ao menos uma meta para o relatório.');
+
+  const selecionadas = new Set(filtroMetaIds.map(String));
+  const [metasTodas, atividadesBrutas, fotosBrutas, compras] = await Promise.all([
+    listarMetasRelatorio(),
+    Promise.all(['Activity', 'Atividade', 'Programacao', 'Evento'].map(nome => listar(nome, 3000))).then(r => r.flat()),
+    Promise.all(['ActivityPhoto', 'AtividadeFoto', 'GalleryPhoto', 'GaleriaFoto', 'Photo', 'Foto'].map(nome => listar(nome, 3000))).then(r => r.flat()),
+    listar('PurchaseRequest', 5000),
+  ]);
+
+  const metas = metasTodas.filter(meta => selecionadas.has(String(meta.id || meta.meta_codigo || nomeMeta(meta))));
+  const metasPorId = new Map(metas.map(meta => [String(meta.id || meta.meta_codigo), meta]));
+
+  const atividades = unico(atividadesBrutas.filter(item => {
+    const metaId = String(primeiro(item, CAMPOS_META) || '');
+    return dentroPeriodo(item, dataInicio, dataFim) && selecionadas.has(metaId);
+  }), item => item.id || `${item.titulo || item.nome}-${dataISO(primeiro(item, CAMPOS_DATA))}`);
+
+  const atividadeIds = new Set(atividades.map(a => a.id));
+  const fotos = unico(fotosBrutas.filter(foto => {
+    const atividadeId = foto?.activity_id || foto?.atividade_id || foto?.evento_id;
+    const metaId = String(primeiro(foto, CAMPOS_META) || '');
+    const url = primeiro(foto, CAMPOS_FOTO);
+    return !!url && ((atividadeId && atividadeIds.has(atividadeId)) || (selecionadas.has(metaId) && dentroPeriodo(foto, dataInicio, dataFim)));
+  }), foto => primeiro(foto, CAMPOS_FOTO)).slice(0, 24);
+
+  const notas = compras.filter(p => {
+    const status = String(p?.status || '').toUpperCase();
+    const metaId = String(p?.meta_id || p?.project_meta_id || p?.meta_codigo || '');
+    const data = dataISO(p?.nf_data_emissao || p?.data_nf || p?.data_emissao_nf);
+    return STATUS_APROVADOS.has(status) && selecionadas.has(metaId) && !!data && data >= dataInicio && data <= dataFim;
+  }).map(documentoNF);
+
+  const notasPorMeta = new Map();
+  for (const nota of notas) {
+    const atual = notasPorMeta.get(nota.meta_id) || [];
+    atual.push(nota);
+    notasPorMeta.set(nota.meta_id, atual);
+  }
+
+  const cronogramaMetas = metas.map(meta => {
+    const chave = String(meta.id || meta.meta_codigo || '');
+    const atividadesMeta = atividades.filter(a => String(primeiro(a, CAMPOS_META) || '') === chave);
+    const notasMeta = notasPorMeta.get(chave) || [];
+    return {
+      ...meta,
+      meta_id: chave,
+      meta_nome: nomeMeta(meta),
+      resultado_esperado: meta.resultado_esperado || meta.descricao || nomeMeta(meta),
+      acoes: atividadesMeta.map(a => a.titulo || a.nome || a.descricao).filter(Boolean).join('; ') || 'Nenhuma atividade registrada no período selecionado.',
+      resultado_alcancado: atividadesMeta.length > 0 ? `${atividadesMeta.length} atividade(s) registrada(s).` : 'Sem atividade registrada no período selecionado.',
+      periodo: `${dataInicio} a ${dataFim}`,
+      documentos_verificacao: notasMeta.map(n => `NF ${n.numero_nf} — ${n.fornecedor}`),
+      notas_fiscais: notasMeta,
+      percentual_execucao: meta.percentual_execucao || (atividadesMeta.length > 0 || notasMeta.length > 0 ? 100 : 0),
+      status_meta: meta.status_meta || (atividadesMeta.length > 0 || notasMeta.length > 0 ? 'Realizada Integralmente' : 'Não Realizada'),
+    };
+  });
 
   let preenchimento = { success: true, resumo: {} };
   try {
-    const preenchimentoResponse = await base44.functions.invoke('preencherRelatorioComDados', {
+    const resposta = await base44.functions.invoke('preencherRelatorioComDados', {
       relatorio_id: relatorioId,
       data_inicio: dataInicio,
       data_fim: dataFim,
       filtro_museu: filtroMuseu,
       filtro_versao: filtroVersao,
+      filtro_meta_ids: filtroMetaIds,
       aditivos_permitidos: [3, 4],
       excluir_metas_anteriores: true,
     });
-    preenchimento = preenchimentoResponse?.data || preenchimentoResponse;
-    if (!preenchimento?.success) throw new Error(preenchimento?.error || 'Não foi possível importar os dados do período.');
+    preenchimento = resposta?.data || resposta || preenchimento;
   } catch (error) {
-    const mensagem = String(error?.message || error || '');
-    if (!mensagem.includes('Service token is required to use asServiceRole')) throw error;
+    if (!String(error?.message || error).includes('Service token is required to use asServiceRole')) throw error;
   }
 
-  const complementares = await buscarDadosComplementares({ dataInicio, dataFim, filtroMuseu });
-  const relatorioAntes = await base44.entities.RelatorioExecucaoObjeto.get(relatorioId);
-
-  const atividadesExistentes = relatorioAntes?._atividades_periodo || relatorioAntes?.atividades_periodo || [];
-  const fotosExistentes = relatorioAntes?._fotos_atividades || relatorioAntes?.anexos?.fotos || relatorioAntes?.anexos_fotograficos || [];
-  const metasExistentes = filtrarMetasPermitidas(relatorioAntes?.cronograma_metas || []);
-
-  const atividadesFinal = unicoPor(
-    [...atividadesExistentes, ...complementares.atividades].filter((atividade) => {
-      const metaId = primeiroCampo(atividade, CAMPOS_META);
-      if (!metaId) return pertenceAo3ou4Aditivo(atividade);
-      return complementares.metas.some((meta) => meta.id === metaId);
-    }),
-    (item) => item.id || `${item.nome || item.titulo}-${dataISO(primeiroCampo(item, CAMPOS_DATA))}`,
-  );
-  const fotosFinal = unicoPor([...fotosExistentes, ...complementares.fotos], (item) => item.url || primeiroCampo(item, CAMPOS_FOTO));
-  const metasFinal = filtrarMetasPermitidas(unicoPor([...metasExistentes, ...complementares.metas], (meta) => meta.id || textoMeta(meta)));
+  const atual = await base44.entities.RelatorioExecucaoObjeto.get(relatorioId);
+  const identificacaoAtual = atual?.identificacao_projeto || {};
+  const totalFinanceiro = notas.reduce((s, n) => s + n.valor, 0);
 
   await base44.entities.RelatorioExecucaoObjeto.update(relatorioId, {
     data_inicio: dataInicio,
     data_fim: dataFim,
     filtro_museu: filtroMuseu,
     filtro_versao: filtroVersao,
-    _atividades_periodo: atividadesFinal,
-    _fotos_atividades: fotosFinal,
-    cronograma_metas: metasFinal,
-    aditivos_considerados: [3, 4],
-    excluir_metas_anteriores: true,
-    modelo_preenchimento: 'relatorio-de-execucao-do-objeto-minuta-padrao',
-    modelo_regras: {
-      descricao_acoes_max_caracteres: 1500,
-      licoes_aprendidas_max_caracteres: 1500,
-      impactos_max_caracteres: 2000,
-      fotos_com_descricao_e_data: true,
-      metas_com_resultado_status_justificativa: true,
-      somente_metas_3_4_aditivos: true,
+    filtro_meta_ids: filtroMetaIds,
+    metas_selecionadas: metas.map(m => ({ id: String(m.id || m.meta_codigo), nome: nomeMeta(m) })),
+    cronograma_metas: cronogramaMetas,
+    _atividades_periodo: atividades,
+    _fotos_atividades: fotos,
+    anexos_evidencias: fotos.map(f => ({
+      foto_url: primeiro(f, CAMPOS_FOTO),
+      atividade_nome: f?.atividade_nome || f?.legenda || f?.descricao || 'Registro da atividade',
+      atividade_data: dataISO(primeiro(f, CAMPOS_DATA)),
+      meta_id: String(primeiro(f, CAMPOS_META) || ''),
+    })),
+    _notas_fiscais_metas: notas,
+    _total_financeiro: totalFinanceiro,
+    _total_financeiro_fmt: totalFinanceiro.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+    identificacao_projeto: {
+      ...identificacaoAtual,
+      organizacao: identificacaoAtual.organizacao || 'Viaduto das Artes',
+      projeto: identificacaoAtual.projeto || 'Museus Centro',
+      instrumento_juridico: identificacaoAtual.instrumento_juridico || 'Termo de Colaboração nº 01-031.069/24-80',
+      processo_administrativo: identificacaoAtual.processo_administrativo || '01-031.069/24-80',
+      responsavel: identificacaoAtual.responsavel || 'Daniel Perini',
+      email: identificacaoAtual.email || 'daniel@periniprojetos.com.br',
     },
+    aditivos_considerados: [3, 4],
+    metas_anteriores_excluidas: true,
     sincronizado_em: new Date().toISOString(),
   });
 
-  const errosSecoes = [];
-  for (const secao of SECOES_DEPENDENTES_DOS_DADOS) {
+  const secoes = ['descricao_acoes', 'publico_alvo', 'pesquisa_satisfacao', 'cronograma_metas', 'equipe_trabalho', 'impactos', 'avaliacao', 'anexos'];
+  const erros = [];
+  for (const secao of secoes) {
     try {
       await base44.functions.invoke('gerarSecaoRelatorioExecucao', {
         relatorio_id: relatorioId,
@@ -325,20 +234,24 @@ export async function sincronizarRelatorioExecucao({
         data_fim: dataFim,
         filtro_museu: filtroMuseu,
         filtro_versao: filtroVersao,
-        usar_modelo_word: true,
-        vincular_metas: true,
+        filtro_meta_ids: filtroMetaIds,
+        incluir_notas_fiscais: true,
         incluir_fotos: true,
         aditivos_permitidos: [3, 4],
         excluir_metas_anteriores: true,
       });
-
-      if (secao === 'cronograma_metas') await aplicarFiltroCanonicoMetas(relatorioId);
     } catch (error) {
-      errosSecoes.push({ secao, erro: error?.message || String(error) });
+      erros.push({ secao, erro: error?.message || String(error) });
     }
   }
 
-  await aplicarFiltroCanonicoMetas(relatorioId);
+  await base44.entities.RelatorioExecucaoObjeto.update(relatorioId, {
+    cronograma_metas: cronogramaMetas,
+    filtro_meta_ids: filtroMetaIds,
+    _notas_fiscais_metas: notas,
+    _total_financeiro: totalFinanceiro,
+    _total_financeiro_fmt: totalFinanceiro.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+  });
 
   for (const secao of ['auditoria', 'finalizar']) {
     try {
@@ -349,56 +262,25 @@ export async function sincronizarRelatorioExecucao({
         data_fim: dataFim,
         filtro_museu: filtroMuseu,
         filtro_versao: filtroVersao,
-        usar_modelo_word: true,
-        vincular_metas: true,
-        incluir_fotos: true,
-        aditivos_permitidos: [3, 4],
-        excluir_metas_anteriores: true,
+        filtro_meta_ids: filtroMetaIds,
       });
     } catch (error) {
-      errosSecoes.push({ secao, erro: error?.message || String(error) });
+      erros.push({ secao, erro: error?.message || String(error) });
     }
   }
 
-  const metasAposFinalizacao = await aplicarFiltroCanonicoMetas(relatorioId);
   const relatorio = await base44.entities.RelatorioExecucaoObjeto.get(relatorioId);
-  const resumo = preenchimento.resumo || {};
-  const atividadesRelatorio = relatorio?._atividades_periodo || relatorio?.atividades_periodo || [];
-  const fotos = relatorio?._fotos_atividades || relatorio?.anexos?.fotos || relatorio?.anexos_fotograficos || [];
-  const totalAtividades = Math.max(numero(resumo.total_atividades), tamanho(atividadesRelatorio));
-  const totalMetas = tamanho(metasAposFinalizacao);
-  const totalEquipe = numero(resumo.total_equipe);
-  const publicoTotal = numero(resumo.publico_total);
-  const totalDocumentos = numero(resumo.total_links_documentos);
-
-  const inconsistencias = [];
-  if (totalAtividades > 0 && totalMetas === 0) inconsistencias.push('Há atividades no período, mas nenhuma foi vinculada às metas do 3º ou 4º aditivo.');
-  if (totalEquipe > 0 && tamanho(relatorio?.equipe_trabalho) === 0) inconsistencias.push('A equipe foi localizada, mas não foi gravada na seção de equipe.');
-  if (publicoTotal > 0 && numero(relatorio?.publico_alvo?.realizado_direto) === 0) inconsistencias.push('Há público no período, mas o realizado direto permaneceu zerado.');
-  if (totalAtividades > 0 && tamanho(atividadesRelatorio) === 0 && !relatorio?.descricao_acoes?.texto_ia) inconsistencias.push('Há atividades no período, mas elas não foram vinculadas ao relatório.');
-  if (totalAtividades > 0 && tamanho(fotos) === 0) inconsistencias.push('Há atividades no período sem evidências fotográficas vinculadas ao relatório.');
-  if (totalDocumentos > 0 && totalAtividades === 0 && totalMetas === 0 && publicoTotal === 0) inconsistencias.push('Foram encontrados documentos financeiros, mas nenhum dado operacional. Verifique datas, campos de vínculo e centro/museu das atividades.');
-  if (errosSecoes.length > 0) inconsistencias.push(`${errosSecoes.length} seção(ões) não foram recalculadas após a sincronização.`);
-
   return {
-    success: inconsistencias.length === 0,
-    resumo,
+    success: erros.length === 0,
     relatorio,
+    resumo: preenchimento?.resumo || {},
     auditoria: {
-      periodo: { data_inicio: dataInicio, data_fim: dataFim },
-      aditivos_considerados: [3, 4],
-      metas_anteriores_excluidas: true,
-      totais: {
-        atividades: totalAtividades,
-        metas: totalMetas,
-        participantes: publicoTotal,
-        equipe: totalEquipe,
-        documentos: totalDocumentos,
-        fotos: tamanho(fotos),
-      },
-      inconsistencias,
-      erros_secoes: errosSecoes,
-      auditado_em: new Date().toISOString(),
+      metas: metas.length,
+      atividades: atividades.length,
+      fotos: fotos.length,
+      notas_fiscais: notas.length,
+      total_financeiro: totalFinanceiro,
+      erros_secoes: erros,
     },
   };
 }
