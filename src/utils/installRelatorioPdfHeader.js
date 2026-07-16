@@ -66,45 +66,39 @@ function installStyles() {
   const style = document.createElement('style');
   style.id = 'viaduto-pdf-header-style';
   style.textContent = `
+    /* Não exibir no editor nem na visualização normal. */
     .viaduto-pdf-header {
-      display: flex;
-      width: 100%;
-      justify-content: flex-start;
-      align-items: flex-start;
-      border-bottom: 1px solid #4b5563;
-      background: #fff;
-      margin: 0 0 18px;
-      padding: 0;
-      box-sizing: border-box;
-      break-inside: avoid;
-      page-break-inside: avoid;
-      overflow: hidden;
+      display: none !important;
     }
-    .viaduto-pdf-header__image {
-      display: block;
-      width: 100%;
-      max-width: 886px;
-      height: auto;
-      margin: 0;
-      object-fit: contain;
-      object-position: left top;
-    }
+
     @media print {
       .viaduto-pdf-header {
         display: flex !important;
+        width: 100%;
         justify-content: flex-start !important;
-        margin-bottom: 8mm;
+        align-items: flex-start;
+        border-bottom: 1px solid #4b5563;
+        background: #fff;
+        margin: 0 0 8mm;
+        padding: 0;
+        box-sizing: border-box;
+        break-inside: avoid;
+        page-break-inside: avoid;
+        overflow: hidden;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
       }
+
       .viaduto-pdf-header__image {
         display: block !important;
         width: 100% !important;
         max-width: 186mm !important;
         height: auto !important;
-        margin-left: 0 !important;
+        margin: 0 !important;
+        object-fit: contain !important;
         object-position: left top !important;
       }
+
       [data-report-page], [data-pdf-page], .report-page, .pdf-page, .print-page, .page-a4 {
         break-after: page;
         page-break-after: always;
