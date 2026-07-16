@@ -178,7 +178,8 @@ function formatDateBR(value) {
   return value;
 }
 
-function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentUser, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onAccess, sendingNotif, handleSendNotification, menuOpenId, setMenuOpenId }) {
+function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentUser, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onAccess, sendingNotif, handleSendNotification }) {
+  const [menuOpenId, setMenuOpenId] = useState(null);
   const [sortField, setSortField] = useState(null);
   const [sortDir, setSortDir] = useState('asc');
   const [editingDataNF, setEditingDataNF] = useState(null); // id da linha em edição
@@ -471,7 +472,6 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
 }
 
 export default function TabelaSolicitacoes({ purchases, rubricas, attachmentByPurchaseId, isCoordenador, currentUser, podeAprovarSolicitacoes, hasGestaoCompras, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onAccess, userPermission }) {
-  const [menuOpenId, setMenuOpenId] = useState(null);
   const [sendingNotif, setSendingNotif] = useState({});
 
   async function handleSendNotification(p) {
@@ -518,7 +518,7 @@ export default function TabelaSolicitacoes({ purchases, rubricas, attachmentByPu
     { key: 'noturnoPampulha', label: 'Noturno Pampulha', visible: true }
   ].filter((cat) => cat.visible && categories[cat.key].length > 0);
 
-  const sharedProps = { rubricaById, isCoordenador, podeAprovar, currentUser, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onAccess, sendingNotif, handleSendNotification, menuOpenId, setMenuOpenId };
+  const sharedProps = { rubricaById, isCoordenador, podeAprovar, currentUser, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onAccess, sendingNotif, handleSendNotification };
 
   return (
     <div className="space-y-8">
