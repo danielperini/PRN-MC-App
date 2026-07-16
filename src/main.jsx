@@ -15,6 +15,7 @@ import { installRelatorioItens2a5 } from '@/utils/installRelatorioItens2a5'
 import { installRelatorioConteudosOficiais } from '@/utils/installRelatorioConteudosOficiais'
 import { installRelatorioGenerationWorkflow } from '@/utils/installRelatorioGenerationWorkflow'
 import { installRelatorioPdfHeader } from '@/utils/installRelatorioPdfHeader'
+import { installRelatorioExecucaoSafeEntities } from '@/utils/installRelatorioExecucaoSafeEntities'
 import { installPdfDownloadGuard } from '@/utils/pdfDownloadGuard'
 
 installActivityGalleryPdfRouting()
@@ -28,6 +29,7 @@ installRelatorioItens2a5()
 installRelatorioConteudosOficiais()
 installRelatorioGenerationWorkflow()
 installRelatorioPdfHeader()
+installRelatorioExecucaoSafeEntities()
 installPdfDownloadGuard()
 
 ReactDOM.createRoot(document.getElementById('root')).render(
