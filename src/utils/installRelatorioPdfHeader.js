@@ -1,3 +1,5 @@
+import viadutoHeaderOriginal from '@/assets/viadutoHeaderOriginal';
+
 const HEADER_ATTR = 'data-viaduto-pdf-header';
 
 function isReportRoute() {
@@ -17,19 +19,12 @@ function createHeader() {
   header.className = 'viaduto-pdf-header';
   header.setAttribute('aria-label', 'Cabeçalho institucional do Viaduto das Artes');
 
-  const logo = document.createElement('div');
-  logo.className = 'viaduto-pdf-header__logo';
-  logo.innerHTML = '<span>VIA</span><span>DU</span><span>TO</span><small>DAS ARTES</small>';
+  const image = document.createElement('img');
+  image.className = 'viaduto-pdf-header__image';
+  image.src = viadutoHeaderOriginal;
+  image.alt = 'Viaduto das Artes - Fundado em 16 de junho de 2015. Av. Olinto Meireles, 45 - Barreiro - Belo Horizonte/MG. CEP 30640-010. E-mail: viadutodasartes@gmail.com';
 
-  const info = document.createElement('div');
-  info.className = 'viaduto-pdf-header__info';
-  info.innerHTML = [
-    '<strong>Viaduto das Artes - Fundado em 16 de junho de 2015</strong>',
-    '<span>Av. Olinto Meireles, 45 - Barreiro - Belo Horizonte/MG</span>',
-    '<span>CEP 30640-010 - E-mail: viadutodasartes@gmail.com</span>',
-  ].join('');
-
-  header.append(logo, info);
+  header.appendChild(image);
   return header;
 }
 
@@ -74,69 +69,41 @@ function installStyles() {
     .viaduto-pdf-header {
       display: flex;
       width: 100%;
-      min-height: 92px;
-      align-items: stretch;
+      justify-content: flex-start;
+      align-items: flex-start;
       border-bottom: 1px solid #4b5563;
       background: #fff;
-      color: #171717;
       margin: 0 0 18px;
+      padding: 0;
       box-sizing: border-box;
       break-inside: avoid;
       page-break-inside: avoid;
+      overflow: hidden;
     }
-    .viaduto-pdf-header__logo {
-      position: relative;
-      width: 145px;
-      min-width: 145px;
-      padding: 10px 38px 8px 18px;
-      background: #292522;
-      color: #fff;
-      box-sizing: border-box;
-      font-family: Arial, Helvetica, sans-serif;
-      font-weight: 900;
-      font-size: 32px;
-      line-height: .72;
-      letter-spacing: -1px;
-    }
-    .viaduto-pdf-header__logo span { display: block; }
-    .viaduto-pdf-header__logo small {
-      position: absolute;
-      right: 7px;
-      top: 13px;
-      writing-mode: vertical-rl;
-      transform: rotate(180deg);
-      font-size: 13px;
-      line-height: 1;
-      letter-spacing: .3px;
-    }
-    .viaduto-pdf-header__info {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-end;
-      align-items: flex-start;
-      padding: 12px 0 12px 255px;
-      box-sizing: border-box;
-      font-family: Arial, Helvetica, sans-serif;
-      font-size: 19px;
-      line-height: 1.15;
-      white-space: nowrap;
-    }
-    .viaduto-pdf-header__info strong,
-    .viaduto-pdf-header__info span { display: block; }
-    @media (max-width: 900px) {
-      .viaduto-pdf-header__info { padding-left: 24px; font-size: 14px; white-space: normal; }
+    .viaduto-pdf-header__image {
+      display: block;
+      width: 100%;
+      max-width: 886px;
+      height: auto;
+      margin: 0;
+      object-fit: contain;
+      object-position: left top;
     }
     @media print {
       .viaduto-pdf-header {
         display: flex !important;
-        margin-bottom: 12mm;
+        justify-content: flex-start !important;
+        margin-bottom: 8mm;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
       }
-      .viaduto-pdf-header__logo {
-        background: #292522 !important;
-        color: #fff !important;
+      .viaduto-pdf-header__image {
+        display: block !important;
+        width: 100% !important;
+        max-width: 186mm !important;
+        height: auto !important;
+        margin-left: 0 !important;
+        object-position: left top !important;
       }
       [data-report-page], [data-pdf-page], .report-page, .pdf-page, .print-page, .page-a4 {
         break-after: page;
