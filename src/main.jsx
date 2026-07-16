@@ -8,6 +8,7 @@ import { installActivityGalleryPdfRouting } from '@/utils/installActivityGallery
 import { installComprasDataNFFilter } from '@/utils/installComprasDataNFFilter'
 import { installComprasMetaColumn } from '@/utils/installComprasMetaColumn'
 import { installMetasPlanoTrabalhoNFs } from '@/utils/installMetasPlanoTrabalhoNFs'
+import { installRelatorioAtividadeMetaLink } from '@/utils/installRelatorioAtividadeMetaLink'
 import { installCronogramaMetasOficial } from '@/utils/installCronogramaMetasOficial'
 import { installRelatorioCamposOficiais } from '@/utils/installRelatorioCamposOficiais'
 import { installRelatorioMetasSchemaFix } from '@/utils/installRelatorioMetasSchemaFix'
@@ -19,6 +20,7 @@ installActivityGalleryPdfRouting()
 installComprasDataNFFilter()
 installComprasMetaColumn()
 installMetasPlanoTrabalhoNFs()
+installRelatorioAtividadeMetaLink()
 installCronogramaMetasOficial()
 installRelatorioCamposOficiais()
 installRelatorioMetasSchemaFix()
