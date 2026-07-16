@@ -175,101 +175,101 @@ export default function ResumoAtividadesPorMeta() {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
       {/* Cabeçalho */}
-      <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 hidden">
-        <h2 className="text-lg font-semibold text-slate-900">Atividades e Público por Meta</h2>
-        <p className="text-xs text-slate-500 mt-0.5">
-          Consolidação para conferência dos relatórios mensais
-        </p>
-      </div>
+      
+
+
+
+
+      
 
       {/* Totais gerais */}
-      <div className="grid grid-cols-2 divide-x divide-slate-100 border-b border-slate-100 hidden">
-        <div className="px-6 py-4 hidden">
-          <div className="flex items-center gap-2 text-slate-500 mb-1">
-            <ListChecks className="w-4 h-4" />
-            <span className="text-xs font-medium uppercase tracking-wide">Total de Atividades</span>
-          </div>
-          <p className="text-3xl font-bold text-slate-900">{totalAtividades}</p>
-        </div>
-        <div className="px-6 py-4">
-          <div className="flex items-center gap-2 text-slate-500 mb-1">
-            <Users className="w-4 h-4" />
-            <span className="text-xs font-medium uppercase tracking-wide">Público Total</span>
-          </div>
-          <p className="text-3xl font-bold text-slate-900">
-            {totalPublico.toLocaleString('pt-BR')}
-          </p>
-        </div>
-      </div>
+      
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      
 
       {/* Tabela por meta */}
       <div className="overflow-x-auto">
-        <table className="w-full text-sm hidden">
-          <thead>
-            <tr className="border-b border-slate-100 bg-slate-50/30">
-              <th className="text-left px-6 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden">Meta</th>
-              <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider w-24">Atividades</th>
-              <th className="text-right px-6 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider w-32">Público</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-50">
-            {resumo.metas.map((meta, idx) =>
-            <tr
-              key={meta.codigo}
-              className={cn(
-                'hover:bg-slate-50/50 transition-colors',
-                idx % 2 === 0 && 'bg-white',
-                idx % 2 === 1 && 'bg-slate-50/20'
-              )}>
-              
-                <td className="px-6 py-3">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-xs font-mono font-semibold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded shrink-0">
-                      {meta.codigo.replace('META ', '')}
-                    </span>
-                    <span className="text-slate-700 truncate">{meta.nome}</span>
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <span className={cn(
-                  'font-semibold tabular-nums',
-                  meta.atividades > 0 ? 'text-slate-800' : 'text-slate-300'
-                )}>
-                    {meta.atividades}
-                  </span>
-                </td>
-                <td className="px-6 py-3 text-right">
-                  <span className={cn(
-                  'font-semibold tabular-nums',
-                  meta.publico > 0 ? 'text-slate-800' : 'text-slate-300'
-                )}>
-                    {meta.publico.toLocaleString('pt-BR')}
-                  </span>
-                </td>
-              </tr>
-            )}
+        
 
-            {/* Linha para atividades sem meta (ROTINA/EXTRA) */}
-            {resumo.semMeta.atividades > 0 &&
-            <tr className="bg-amber-50/30 hover:bg-amber-50/50 transition-colors">
-                <td className="px-6 py-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded">
-                      ROTINA / EXTRA
-                    </span>
-                    <span className="text-slate-500 text-xs">Sem meta vinculada</span>
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-right font-semibold text-amber-700 tabular-nums">
-                  {resumo.semMeta.atividades}
-                </td>
-                <td className="px-6 py-3 text-right font-semibold text-amber-700 tabular-nums">
-                  {resumo.semMeta.publico.toLocaleString('pt-BR')}
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
       </div>
     </div>);
 
