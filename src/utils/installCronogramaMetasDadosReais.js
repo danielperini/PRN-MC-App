@@ -4,6 +4,7 @@ const STATUS_OK = new Set(['approved', 'aprovado', 'aprovado_admin', 'aprovado_c
 const META_ID_FIELDS = ['meta_id', 'project_meta_id', 'meta_projeto_id', 'meta_codigo', 'codigo_meta', 'meta_vinculada_id'];
 const PUBLIC_FIELDS = ['publico_total', 'total_publico', 'publico_realizado', 'publico_presente', 'quantidade_publico', 'participantes', 'visitantes', 'presentes'];
 const PHOTO_FIELDS = ['foto_url', 'image_url', 'url', 'file_url', 'arquivo_url', 'photo_url', 'media_url', 'drive_url', 'gallery_url'];
+const DOCUMENT_URL_FIELDS = ['url', 'file_url', 'arquivo_url', 'drive_url', 'document_url', 'pdf_url', 'xml_url'];
 
 const text = (value) => String(value ?? '').trim();
 const asArray = (value) => Array.isArray(value) ? value : [];
@@ -92,6 +93,11 @@ function photoUrl(item = {}) {
   return '';
 }
 
+function documentUrl(item = {}) {
+  for (const field of DOCUMENT_URL_FIELDS) if (text(item?.[field])) return text(item[field]);
+  return '';
+}
+
 function reportApproved(report = {}) {
   const status = normalize(report.status || report.situacao || report.workflow_status || report.review_status).replace(/\s+/g, '_');
   return STATUS_OK.has(status);
@@ -148,12 +154,17 @@ function metaIdentifiers(meta = {}) {
 
 function belongsToMeta(meta, activity) {
   const explicit = activityMetaId(activity);
+  if (!explicit) return false;
   const ids = metaIdentifiers(meta);
-  if (explicit) return ids.has(normalize(explicit)) || ids.has(canonicalMetaKey({ codigo: explicit, nome: explicit }));
-  return semanticScore(meta, activity) >= 6;
+  return ids.has(normalize(explicit)) || ids.has(canonicalMetaKey({ codigo: explicit, nome: explicit }));
+}
+
+function suggestedForMeta(meta, activity) {
+  return !activityMetaId(activity) && semanticScore(meta, activity) >= 6;
 }
 
 function expectedQuantity(meta = {}) {
+  if (canonicalMetaKey(meta) === 'meta-6') return 30;
   const direct = Number(meta.quantidade_prevista || meta.meta_quantidade || meta.quantidade || meta.total_previsto || 0);
   if (Number.isFinite(direct) && direct > 0) return direct;
   const match = `${metaName(meta)} ${meta.resultado_esperado || ''} ${meta.descricao || ''}`.match(/\b(\d{1,4})\s+(?:atividade|acao|ações|acoes|evento|oficina|visita|mostra|apresentacao|apresentação|diaria|diária)/i);
@@ -181,6 +192,7 @@ function buildCronograma(metas, context) {
 
   return metas.map((meta) => {
     const relatedActivities = activities.filter((item) => belongsToMeta(meta, item));
+    const semanticSuggestions = activities.filter((item) => suggestedForMeta(meta, item));
     const activityIds = new Set(relatedActivities.map(activityId).filter(Boolean));
     const reportIds = new Set(relatedActivities.map((item) => text(item.report_id)).filter(Boolean));
     const ids = metaIdentifiers(meta);
@@ -195,13 +207,26 @@ function buildCronograma(metas, context) {
     const performed = relatedActivities.length;
     const publicReached = relatedActivities.reduce((sum, item) => sum + activityPublic(item), 0);
     const percentage = expected > 0 ? Math.min(100, Math.round((performed / expected) * 1000) / 10) : performed > 0 ? 100 : 0;
-    const documents = relatedPhotos.map((item, index) => ({
+    const photoDocuments = relatedPhotos.map((item, index) => ({
       tipo: 'fotografia',
       titulo: text(item.atividade_nome || item.legenda || item.titulo || item.file_name_original) || `Registro fotográfico ${index + 1}`,
       url: photoUrl(item),
       atividade_id: text(item.activity_id || item.atividade_id),
       origem: item.source_entity || 'Galeria',
     }));
+    const linkedDocuments = unique(context.documents.filter((item) => {
+      const documentMeta = normalize(item.meta_id || item.project_meta_id || item.meta_chave || item.codigo_meta);
+      const linkedActivity = text(item.activity_id || item.atividade_id || item.evento_id || item.programacao_id);
+      const reportId = text(item.report_id || item.relatorio_id);
+      return (documentMeta && ids.has(documentMeta)) || (linkedActivity && activityIds.has(linkedActivity)) || (reportId && reportIds.has(reportId));
+    }).filter((item) => documentUrl(item)), (item) => documentUrl(item).split('?')[0]).map((item, index) => ({
+      tipo: text(item.tipo_detectado || item.tipo || item.mime_type) || 'documento',
+      titulo: text(item.titulo || item.nome || item.file_name_original || item.filename) || `Documento de verificação ${index + 1}`,
+      url: documentUrl(item),
+      atividade_id: text(item.activity_id || item.atividade_id),
+      origem: item.source_entity || 'DocumentIntake',
+    }));
+    const documents = [...photoDocuments, ...linkedDocuments];
 
     return {
       ...meta,
@@ -219,16 +244,24 @@ function buildCronograma(metas, context) {
         relatorio_id: item.report_id || '',
       })),
       atividades_vinculadas: relatedActivities,
+      sugestoes_vinculo_ia: semanticSuggestions.map((item) => ({
+        id: activityId(item),
+        atividade: activityTitle(item),
+        data: activityDate(item),
+        museu: text(item.museu || item.unidade || item.local),
+        origem: item.source_entity || 'Registro sem meta explícita',
+        score: semanticScore(meta, item),
+      })),
       quantidade_prevista: expected,
       quantidade_realizada: performed,
       publico_realizado: publicReached,
       periodo: text(meta.periodo_execucao || meta.periodo_previsto) || period,
       documentos_verificacao: documents,
       fotos_verificacao: relatedPhotos,
-      resultado_alcancado: performed > 0 ? `${performed} atividade(s) vinculada(s), público de ${publicReached.toLocaleString('pt-BR')} pessoa(s) e ${documents.length} evidência(s).` : 'Não foram localizados registros suficientes no período.',
+      resultado_alcancado: performed > 0 ? `${performed} atividade(s) explicitamente vinculada(s), público de ${publicReached.toLocaleString('pt-BR')} pessoa(s) e ${documents.length} evidência(s).` : 'Não foram localizadas atividades com vínculo explícito à meta no período.',
       percentual_execucao: percentage,
       status_meta: percentage >= 100 ? 'Realizada integralmente' : percentage > 0 ? `Realizada parcialmente — ${percentage}%` : 'Não realizada',
-      justificativa: percentage >= 100 ? 'Execução comprovada pela Agenda, relatórios mensais aprovados, público consolidado e evidências vinculadas.' : percentage > 0 ? 'A meta permanece em execução, com atividades, público e evidências já vinculados.' : 'Não foram encontradas evidências suficientes no período selecionado.',
+      justificativa: percentage >= 100 ? 'Execução comprovada exclusivamente por atividades explicitamente vinculadas à meta e suas evidências.' : percentage > 0 ? 'A meta permanece em execução, considerando apenas atividades com vínculo explícito e evidências correspondentes.' : 'Não foram encontradas atividades explicitamente vinculadas à meta no período selecionado.',
       origem_meta: 'ProjectMeta',
       editavel: true,
     };
@@ -273,6 +306,15 @@ export function installCronogramaMetasDadosReais() {
         ...asArray(current?.anexos_evidencias), ...asArray(current?.anexos_fotograficos), ...asArray(current?._fotos_atividades),
         ...reportPhotos, ...reportImageRows, ...intakePhotos,
       ],
+      documents: [
+        ...documentIntakes.map((item) => ({ ...item, source_entity: 'DocumentIntake' })),
+        ...reports.flatMap((report) => [
+          ...asArray(report.documentos),
+          ...asArray(report.anexos),
+          ...asArray(report.listas_presenca),
+          ...asArray(report.comprovantes),
+        ].map((item) => ({ ...item, report_id: report.id, source_entity: 'Relatório mensal' }))),
+      ],
       start: payload.data_inicio || current?.data_inicio,
       end: payload.data_fim || current?.data_fim,
     };
@@ -281,6 +323,19 @@ export function installCronogramaMetasDadosReais() {
     return originalUpdate(id, {
       ...payload,
       cronograma_metas: cronograma,
+      meta_execucao: cronograma.map((meta) => ({
+        meta_id: meta.meta_id,
+        meta_codigo: meta.meta_codigo,
+        meta_nome: meta.meta_nome,
+        meta_prevista: meta.quantidade_prevista,
+        atividades_realizadas: meta.quantidade_realizada,
+        publico_total: meta.publico_realizado,
+        fotos_total: asArray(meta.fotos_verificacao).length,
+        documentos_total: asArray(meta.documentos_verificacao).length,
+        percentual_execucao: meta.percentual_execucao,
+        fontes_verificacao: meta.documentos_verificacao,
+        sugestoes_vinculo_ia: meta.sugestoes_vinculo_ia,
+      })),
       tabela_metas_atividades: cronograma.map((meta) => ({
         meta_id: meta.meta_id,
         meta_codigo: meta.meta_codigo,
