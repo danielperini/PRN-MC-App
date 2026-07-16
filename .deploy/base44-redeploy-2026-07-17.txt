@@ -1,0 +1,4 @@
+Base44 redeploy trigger
+Requested: 2026-07-17
+Source branch: main
+Purpose: trigger GitHub-connected Base44 deployment without changing application logic.
