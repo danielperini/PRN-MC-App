@@ -13,6 +13,7 @@ import { installRelatorioCamposOficiais } from '@/utils/installRelatorioCamposOf
 import { installRelatorioMetasSchemaFix } from '@/utils/installRelatorioMetasSchemaFix'
 import { installRelatorioItens2a5 } from '@/utils/installRelatorioItens2a5'
 import { installRelatorioConteudosOficiais } from '@/utils/installRelatorioConteudosOficiais'
+import { installRelatorioGenerationWorkflow } from '@/utils/installRelatorioGenerationWorkflow'
 import { installRelatorioPdfHeader } from '@/utils/installRelatorioPdfHeader'
 import { installPdfDownloadGuard } from '@/utils/pdfDownloadGuard'
 
@@ -25,6 +26,7 @@ installRelatorioCamposOficiais()
 installRelatorioMetasSchemaFix()
 installRelatorioItens2a5()
 installRelatorioConteudosOficiais()
+installRelatorioGenerationWorkflow()
 installRelatorioPdfHeader()
 installPdfDownloadGuard()
 
