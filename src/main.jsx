@@ -21,6 +21,7 @@ import { installRelatorioTabelasEstruturadas } from '@/utils/installRelatorioTab
 import { installRelatorioFinanceAuditContext } from '@/utils/installRelatorioFinanceAuditContext'
 import { installRelatorioExecucaoActivityEvidence } from '@/utils/installRelatorioExecucaoActivityEvidence'
 import { installRelatoriosAtividadesCompletos } from '@/utils/installRelatoriosAtividadesCompletos'
+import { installRelatorioExecucaoFinalizacao } from '@/utils/installRelatorioExecucaoFinalizacao'
 import { installRuntimeErrorGuards } from '@/utils/installRuntimeErrorGuards'
 import { installPdfDownloadGuard } from '@/utils/pdfDownloadGuard'
 
@@ -42,6 +43,7 @@ installRelatorioTabelasEstruturadas()
 installRelatorioFinanceAuditContext()
 installRelatorioExecucaoActivityEvidence()
 installRelatoriosAtividadesCompletos()
+installRelatorioExecucaoFinalizacao()
 installPdfDownloadGuard()
 
 ReactDOM.createRoot(document.getElementById('root')).render(
