@@ -4,25 +4,15 @@
  * devem vir daqui para garantir consistência em todos os componentes.
  */
 
-// ─── 1. STATUS FINANCEIRAMENTE ATIVOS ────────────────────────────────────────
-
 const ACTIVE_STATUSES = new Set([
   'PAGO', 'APROVADO', 'APROVADO_ADMIN', 'APROVADO_COORD',
   'APROVADA', 'APPROVED', 'PAID'
 ]);
 
-const INACTIVE_STATUSES = new Set([
-  'RASCUNHO', 'PENDENTE', 'EM_REVISAO', 'REJEITADO',
-  'CANCELADO', 'ARQUIVADO', 'DELETADO', 'RECUSADO', 'DEVOLVIDO', 'SOLICITADO'
-]);
-
 export function isFinanciallyActiveStatus(status) {
   if (!status) return false;
-  const s = String(status).toUpperCase().trim();
-  return ACTIVE_STATUSES.has(s);
+  return ACTIVE_STATUSES.has(String(status).toUpperCase().trim());
 }
-
-// ─── 2. VALOR DA NF ──────────────────────────────────────────────────────────
 
 function toNumber(v) {
   if (v === null || v === undefined) return 0;
@@ -50,31 +40,21 @@ export function getPurchaseValue(p) {
   );
 }
 
-// ─── 3. NORMALIZAÇÃO DE CENTRO DE CUSTO ──────────────────────────────────────
-
 export function normalizeCentroCusto(nf) {
   const raw = String(nf?.centro_custo || '').trim();
   const low = raw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
   if (!low) return { centro_normalizado: 'Geral', aditivo: '3º Aditivo' };
-
-  if (low.includes('pampulha')) {
-    return { centro_normalizado: 'Noturno Pampulha', aditivo: '4º Aditivo Pampulha' };
-  }
-  if (low.includes('noturno') || low.includes('noturno nos museus')) {
-    return { centro_normalizado: 'Noturno 2026', aditivo: '4º Aditivo Noturno 2026' };
-  }
+  if (low.includes('pampulha')) return { centro_normalizado: 'Noturno Pampulha', aditivo: 'Noturno Pampulha' };
+  if (low.includes('noturno')) return { centro_normalizado: 'Noturno 2026', aditivo: '4º Aditivo Noturno 2026' };
   if (low === 'mis' || low === 'mis bh') return { centro_normalizado: 'MIS', aditivo: '3º Aditivo' };
   if (low === 'mhab' || low === 'mab') return { centro_normalizado: 'MHAB', aditivo: '3º Aditivo' };
   if (low === 'mumo' || low === 'mumu') return { centro_normalizado: 'MUMO', aditivo: '3º Aditivo' };
-  if (low.includes('geral') || low.includes('transversal') || low.includes('atuacao geral') || low.includes('atuação geral')) {
+  if (low.includes('geral') || low.includes('transversal') || low.includes('atuacao geral')) {
     return { centro_normalizado: 'Geral', aditivo: '3º Aditivo' };
   }
-
   return { centro_normalizado: raw || 'Geral', aditivo: '3º Aditivo' };
 }
-
-// ─── 4. DEDUPLICAÇÃO FINANCEIRA ───────────────────────────────────────────────
 
 function normalizarFornecedor(nome) {
   return String(nome || '')
@@ -101,59 +81,61 @@ function normalizarNumeroNF(value) {
 
 function numeroNF(nf) {
   return normalizarNumeroNF(
-    nf?.nf_numero ||
-    nf?.numero_nf ||
-    nf?.numero_nota_fiscal ||
-    nf?.numero_nota ||
-    nf?.nota_fiscal_numero ||
-    nf?.nfe_numero
+    nf?.nf_numero || nf?.numero_nf || nf?.numero_nota_fiscal ||
+    nf?.numero_nota || nf?.nota_fiscal_numero || nf?.nfe_numero
   );
 }
 
 function cnpjFornecedor(nf) {
   return somenteDigitos(
-    nf?.fornecedor_cnpj ||
-    nf?.nf_emitente_cpf_cnpj ||
-    nf?.nf_emitente_cnpj ||
-    nf?.emitente_cnpj ||
-    nf?.cnpj_fornecedor ||
-    nf?.cnpj
+    nf?.fornecedor_cnpj || nf?.fornecedor_cpf_cnpj || nf?.nf_emitente_cpf_cnpj ||
+    nf?.nf_emitente_cnpj || nf?.emitente_cnpj || nf?.cnpj_fornecedor || nf?.cnpj
   );
 }
 
 function chaveAcesso(nf) {
-  const candidatos = [
-    nf?.nf_chave_acesso,
-    nf?.chave_acesso,
-    nf?.nfe_chave_acesso,
-    nf?.xml_chave_acesso,
-    nf?.chave_nfe,
-  ];
-
+  const candidatos = [nf?.nf_chave_acesso, nf?.chave_acesso, nf?.nfe_chave_acesso, nf?.xml_chave_acesso, nf?.chave_nfe];
   for (const candidato of candidatos) {
     const chave = somenteDigitos(candidato);
     if (chave.length === 44) return chave;
   }
-
   return '';
 }
 
 function urlFiscal(nf) {
   return String(
-    nf?.drive_backup_nf_pdf_link ||
-    nf?.nota_fiscal_pdf_url ||
-    nf?.nf_pdf_url ||
-    nf?.nota_fiscal_url ||
-    nf?.arquivo_original_url ||
-    nf?.pdf_url ||
-    ''
+    nf?.drive_backup_nf_pdf_link || nf?.nota_fiscal_pdf_url || nf?.nf_pdf_url ||
+    nf?.nota_fiscal_url || nf?.arquivo_original_url || nf?.pdf_url || ''
   ).trim().split('?')[0];
+}
+
+function dataFiscalISO(nf) {
+  const raw = nf?.nf_data_emissao || nf?.data_emissao_nf || nf?.data_nf || nf?.data_emissao || nf?.competencia || '';
+  if (!raw) return '';
+  const texto = String(raw).trim();
+  const iso = texto.match(/\b(20\d{2})-(\d{2})-(\d{2})\b/);
+  if (iso) return iso[0];
+  const br = texto.match(/\b(\d{2})\/(\d{2})\/(20\d{2})\b/);
+  if (br) return `${br[3]}-${br[2]}-${br[1]}`;
+  const date = new Date(raw);
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10);
+}
+
+function competenciaFiscal(nf) {
+  const explicita = String(nf?.mes_referencia || nf?.competencia || nf?.referencia || '').trim();
+  if (explicita) return explicita.toUpperCase();
+  const data = dataFiscalISO(nf);
+  return data ? data.slice(0, 7) : '';
+}
+
+export function hasInvalidFiscalDate(nf, minimumYear = 2026) {
+  const data = dataFiscalISO(nf);
+  if (!data) return false;
+  return Number(data.slice(0, 4)) < minimumYear;
 }
 
 export function getFinancialDedupKey(nf) {
   if (!nf) return null;
-
-  // 1. Chave fiscal de 44 dígitos: identificador inequívoco da NF-e.
   const chave = chaveAcesso(nf);
   if (chave) return `CHAVE:${chave}`;
 
@@ -162,32 +144,20 @@ export function getFinancialDedupKey(nf) {
   const fornecedor = normalizarFornecedor(nf.fornecedor_nome || nf.nf_emitente_nome || nf.emitente_nome);
   const valorCentavos = Math.round(getPurchaseValue(nf) * 100);
 
-  // 2. Número + CNPJ + valor. A data foi retirada da chave porque registros
-  // duplicados podem guardar created_date/aprovação diferentes para a mesma NF.
-  if (numero && cnpj && valorCentavos > 0) {
-    return `NF:${numero}:${cnpj}:${valorCentavos}`;
-  }
+  if (numero && cnpj && valorCentavos > 0) return `NF:${numero}:${cnpj}:${valorCentavos}`;
+  if (numero && fornecedor && valorCentavos > 0) return `NF_FORNECEDOR:${numero}:${fornecedor}:${valorCentavos}`;
 
-  // 3. Quando o CNPJ não foi extraído, número + emitente + valor ainda distingue
-  // parcelas e evita contar novamente PDF/XML ou cópias da mesma nota.
-  if (numero && fornecedor && valorCentavos > 0) {
-    return `NF_FORNECEDOR:${numero}:${fornecedor}:${valorCentavos}`;
-  }
-
-  // 4. Mesmo arquivo fiscal vinculado mais de uma vez.
   const arquivo = urlFiscal(nf);
   if (arquivo) return `ARQUIVO:${arquivo}`;
 
-  // 5. Fallback conservador. Só consolida quando fornecedor, valor, rubrica e
-  // centro são iguais; registros sem dados suficientes permanecem separados.
   const { centro_normalizado } = normalizeCentroCusto(nf);
   const rubrica = String(nf.rubrica_id || nf.rubrica_nome || nf.item_despesa || '').trim();
-  if (!fornecedor || valorCentavos <= 0) return null;
+  const competencia = competenciaFiscal(nf);
+  if (!fornecedor || valorCentavos <= 0 || !competencia) return null;
 
-  return `FALLBACK:${fornecedor}:${valorCentavos}:${centro_normalizado}:${rubrica}`;
+  // O período integra o fallback para não colapsar parcelas mensais legítimas.
+  return `FALLBACK:${fornecedor}:${valorCentavos}:${centro_normalizado}:${rubrica}:${competencia}`;
 }
-
-// ─── 5. PRIORIDADE ENTRE DUPLICATAS ──────────────────────────────────────────
 
 function duplicatePriority(nf) {
   let score = 0;
@@ -199,14 +169,17 @@ function duplicatePriority(nf) {
   return score;
 }
 
-// ─── 6. FILTRO FINANCEIRO COMPLETO ───────────────────────────────────────────
-
 export function getFinanciallyValidPurchases(purchases = []) {
-  const ativas = purchases.filter(p => isFinanciallyActiveStatus(p.status));
+  const ativas = purchases.filter((p) => isFinanciallyActiveStatus(p.status));
   const keyMap = new Map();
   const duplicadasDiretas = [];
+  const datasInvalidas = [];
 
   for (const nf of ativas) {
+    if (hasInvalidFiscalDate(nf)) {
+      datasInvalidas.push(nf);
+      continue;
+    }
     if (nf.duplicada_financeira === true || nf.incluir_no_somatorio === false) {
       duplicadasDiretas.push(nf);
       continue;
@@ -214,34 +187,29 @@ export function getFinanciallyValidPurchases(purchases = []) {
 
     const key = getFinancialDedupKey(nf);
     const effectiveKey = key || `NO_KEY:${nf.id}`;
-
     if (!keyMap.has(effectiveKey)) {
       keyMap.set(effectiveKey, nf);
       continue;
     }
 
     const current = keyMap.get(effectiveKey);
-    if (duplicatePriority(nf) > duplicatePriority(current)) {
-      keyMap.set(effectiveKey, nf);
-    }
+    if (duplicatePriority(nf) > duplicatePriority(current)) keyMap.set(effectiveKey, nf);
   }
 
   const validas = Array.from(keyMap.values());
   const validasRefs = new Set(validas);
   const duplicadasDetectadas = ativas.filter((p) => {
+    if (hasInvalidFiscalDate(p)) return false;
     if (p.duplicada_financeira === true || p.incluir_no_somatorio === false) return false;
     return !validasRefs.has(p);
   });
 
   const duplicadas = [...new Set([...duplicadasDiretas, ...duplicadasDetectadas])];
-  return { validas, duplicadas };
+  return { validas, duplicadas, datasInvalidas };
 }
 
-// ─── 7. CÁLCULO DOS TOTAIS DOS ADITIVOS ─────────────────────────────────────
-
 export function calculateAditivoTotals(purchases = []) {
-  const { validas, duplicadas } = getFinanciallyValidPurchases(purchases);
-
+  const { validas, duplicadas, datasInvalidas } = getFinanciallyValidPurchases(purchases);
   const terceiro = { total: 0, utilizado: 0, quantidade_nfs: 0 };
   const noturno2026 = { total: 0, utilizado: 0, quantidade_nfs: 0 };
   const noturnoPampulha = { total: 0, utilizado: 0, quantidade_nfs: 0 };
@@ -249,8 +217,7 @@ export function calculateAditivoTotals(purchases = []) {
   for (const nf of validas) {
     const { aditivo } = normalizeCentroCusto(nf);
     const valor = getPurchaseValue(nf);
-
-    if (aditivo === '4º Aditivo Pampulha') {
+    if (aditivo === 'Noturno Pampulha') {
       noturnoPampulha.utilizado += valor;
       noturnoPampulha.quantidade_nfs += 1;
     } else if (aditivo === '4º Aditivo Noturno 2026') {
@@ -262,41 +229,36 @@ export function calculateAditivoTotals(purchases = []) {
     }
   }
 
-  const duplicadas_ignoradas = {
-    total_valor: duplicadas.reduce((s, p) => s + getPurchaseValue(p), 0),
-    quantidade: duplicadas.length,
-  };
-
   return {
     terceiro_aditivo: terceiro,
     noturno_2026: noturno2026,
     noturno_pampulha: noturnoPampulha,
-    duplicadas_ignoradas,
+    duplicadas_ignoradas: {
+      total_valor: duplicadas.reduce((s, p) => s + getPurchaseValue(p), 0),
+      quantidade: duplicadas.length,
+    },
+    datas_invalidas_ignoradas: {
+      total_valor: datasInvalidas.reduce((s, p) => s + getPurchaseValue(p), 0),
+      quantidade: datasInvalidas.length,
+      registros: datasInvalidas,
+    },
   };
 }
 
-// ─── 8. BADGES FINANCEIROS PARA A TABELA ─────────────────────────────────────
-
-export function getFinancialBadges(nf, allPurchases = []) {
+export function getFinancialBadges(nf) {
   const badges = [];
-
-  if (isFinanciallyActiveStatus(nf.status)) {
+  if (hasInvalidFiscalDate(nf)) {
+    badges.push({ key: 'data', label: 'Data fiscal para revisão', color: 'bg-amber-50 text-amber-700' });
+    badges.push({ key: 'inativo', label: 'Fora do somatório', color: 'bg-gray-100 text-gray-500' });
+  } else if (isFinanciallyActiveStatus(nf.status)) {
     badges.push({ key: 'ativo', label: 'No somatório', color: 'bg-green-50 text-green-700' });
   } else {
     badges.push({ key: 'inativo', label: 'Fora do somatório', color: 'bg-gray-100 text-gray-500' });
   }
-
   if (nf.duplicada_financeira === true || nf.incluir_no_somatorio === false) {
     badges.push({ key: 'dup', label: 'Duplicata', color: 'bg-red-50 text-red-700' });
   }
-
-  if (nf._centro_corrigido) {
-    badges.push({ key: 'cc', label: 'Centro corrigido', color: 'bg-amber-50 text-amber-700' });
-  }
-
-  if (nf._rubrica_corrigida) {
-    badges.push({ key: 'rub', label: 'Rubrica corrigida', color: 'bg-purple-50 text-purple-700' });
-  }
-
+  if (nf._centro_corrigido) badges.push({ key: 'cc', label: 'Centro corrigido', color: 'bg-amber-50 text-amber-700' });
+  if (nf._rubrica_corrigida) badges.push({ key: 'rub', label: 'Rubrica corrigida', color: 'bg-purple-50 text-purple-700' });
   return badges;
 }
