@@ -408,8 +408,18 @@ export async function sincronizarRelatorioExecucao({
     filtro_meta_ids: filtroMetaIds,
     metas_selecionadas: metasSelecionadas.map((meta) => ({ id: meta.meta_id || meta.id, nome: nomeCanonicoMeta(meta), aliases: meta.aliases || [] })),
     cronograma_metas: cronogramaMetas,
-    descricao_acoes: atual?.descricao_acoes?.texto_editado ? atual.descricao_acoes : descricaoAcoes,
-    publico_alvo: atual?.publico_alvo?.texto_editado ? atual.publico_alvo : publicoTexto,
+    descricao_acoes: atual?.descricao_acoes?.texto_editado
+      ? atual.descricao_acoes
+      : { texto_ia: descricaoAcoes, texto_editado: '', modo: 'ia' },
+    publico_alvo: atual?.publico_alvo?.texto_editado
+      ? atual.publico_alvo
+      : {
+          previsto_direto: 50000, previsto_indireto: 150000,
+          realizado_direto: publicoTotal, realizado_indireto: Math.round(publicoTotal * 2.5),
+          diferenca_direto: publicoTotal - 50000, diferenca_indireto: Math.round(publicoTotal * 2.5) - 150000,
+          percentual_direto: Math.round(publicoTotal / 50000 * 100), percentual_indireto: Math.round(Math.round(publicoTotal * 2.5) / 150000 * 100),
+          texto_interpretativo_ia: publicoTexto, texto_interpretativo_editado: '', modo: 'ia'
+        },
     equipe_trabalho: equipe,
     _atividades_periodo: atividades,
     _agenda_periodo: atividades,

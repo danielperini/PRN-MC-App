@@ -143,7 +143,7 @@ function enrichSchedule(schedule, context) {
       resultado_alcancado: achieved,
       percentual_execucao: percentage,
       status_meta: status,
-      justificativa,
+      justificativa: justification,
       metodologia_complementar: 'A análise considera metas vinculadas às solicitações de Compras, atividades e relatórios cadastrados, Agenda, dashboard de público e fotografias vinculadas às atividades.',
       editavel: true,
     };
