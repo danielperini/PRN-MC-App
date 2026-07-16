@@ -36,40 +36,40 @@ function dataISO(value) {
 }
 
 function primeiro(item, campos) {
-  for (const campo of campos) if (item?.[campo] !== undefined && item?.[campo] !== null && item?.[campo] !== '') return item[campo];
+  for (const campo of campos) {
+    if (item?.[campo] !== undefined && item?.[campo] !== null && item?.[campo] !== '') return item[campo];
+  }
   return null;
 }
 
 function valorPrimitivo(value) {
   if (value === null || value === undefined) return '';
-  if (typeof value === 'string' || typeof value === 'number') return String(value).trim();
-  return '';
+  return typeof value === 'string' || typeof value === 'number' ? String(value).trim() : '';
 }
 
-function objetoMetaDaCompra(compra) {
-  const candidatos = [
-    compra?.meta,
-    compra?.project_meta,
-    compra?.meta_projeto,
-    compra?.meta_vinculada,
-    compra?.goal,
-    compra?.project_goal,
-    compra?.rubrica?.meta,
-    compra?.rubrica_objeto?.meta,
-  ];
-  return candidatos.find((item) => item && typeof item === 'object') || null;
+function objetoMeta(item) {
+  return [
+    item?.meta,
+    item?.project_meta,
+    item?.meta_projeto,
+    item?.meta_vinculada,
+    item?.goal,
+    item?.project_goal,
+    item?.rubrica?.meta,
+    item?.rubrica_objeto?.meta,
+  ].find((value) => value && typeof value === 'object') || null;
 }
 
-function extrairMetaId(compra) {
-  const direto = valorPrimitivo(primeiro(compra, CAMPOS_META_ID));
+function extrairMetaId(item) {
+  const direto = valorPrimitivo(primeiro(item, CAMPOS_META_ID));
   if (direto) return direto;
-  const objeto = objetoMetaDaCompra(compra);
+  const objeto = objetoMeta(item);
   return valorPrimitivo(objeto && (objeto.id || objeto.meta_id || objeto.codigo || objeto.meta_codigo));
 }
 
-function extrairMetaNome(compra) {
+function extrairMetaNome(item) {
   for (const campo of CAMPOS_META_NOME) {
-    const value = compra?.[campo];
+    const value = item?.[campo];
     const texto = valorPrimitivo(value);
     if (texto) return texto;
     if (value && typeof value === 'object') {
@@ -77,42 +77,75 @@ function extrairMetaNome(compra) {
       if (nome && nome !== 'Meta') return nome;
     }
   }
-
-  const objeto = objetoMetaDaCompra(compra);
+  const objeto = objetoMeta(item);
   if (objeto) {
     const nome = nomeCanonicoMeta(objeto);
     if (nome && nome !== 'Meta') return nome;
   }
+  return valorPrimitivo(item?.rubrica_nome || item?.item_despesa || item?.natureza_despesa_nome || item?.descricao_meta);
+}
 
+function nomeRubrica(item) {
   return valorPrimitivo(
-    compra?.rubrica_nome ||
-    compra?.item_despesa ||
-    compra?.natureza_despesa_nome ||
-    compra?.descricao_meta
+    item?.rubrica_nome || item?.rubrica?.nome || item?.rubrica?.rubrica || item?.item_despesa || item?.natureza_despesa_nome,
   );
 }
 
-function textoCompra(compra) {
+function textoItem(item) {
   return normalizarTextoMeta([
-    extrairMetaNome(compra),
-    compra?.aditivo,
-    compra?.numero_aditivo,
-    compra?.aditivo_numero,
-    compra?.termo_aditivo,
-    compra?.projeto,
-    compra?.projeto_nome,
-    compra?.centro_custo,
-    compra?.centro_custo_nome,
-    compra?.rubrica,
-    compra?.rubrica_nome,
-    compra?.item_despesa,
-    compra?.descricao,
+    extrairMetaNome(item),
+    nomeRubrica(item),
+    item?.descricao_item,
+    item?.descricao,
+    item?.centro_custo,
+    item?.projeto,
+    item?.projeto_nome,
+    item?.aditivo,
+    item?.numero_aditivo,
+    item?.termo_aditivo,
   ].filter(Boolean).join(' '));
 }
 
 function ehMetaAntigaBloqueada(meta) {
   const texto = normalizarTextoMeta(nomeCanonicoMeta(meta));
   return METAS_ANTIGAS_BLOQUEADAS.some((item) => texto.includes(item));
+}
+
+function nomeMetaLogica(metaOuItem) {
+  const original = extrairMetaNome(metaOuItem) || nomeCanonicoMeta(metaOuItem) || nomeRubrica(metaOuItem) || 'Meta';
+  const texto = normalizarTextoMeta(original);
+  const contexto = textoItem(metaOuItem);
+
+  if (texto.includes('educador') || contexto.includes(' educador')) return 'Educador MIS / MUMO / MHAB (mês 19 ao 28)';
+  if (texto.includes('material mis') || contexto.includes('material mis')) return 'Material MIS (mês 19 ao mês 28)';
+  if (texto.includes('acoes educativo') || contexto.includes('acoes educativo')) return 'Ações educativo-culturais MIS / MUMO / MHAB';
+  if (texto.includes('producao mis') || contexto.includes('producao mis')) return 'Produção MIS/MUMO/MHAB (mês 19 ao 28)';
+  if (texto.includes('diarias') || contexto.includes('diaria educador')) return 'Diárias MIS / MUMO / MHAB';
+  if (texto.includes('rede social') || texto.includes('marketing cultural')) return 'Rede Social / Marketing Cultural (mês 19 ao mês 28)';
+  if (texto.includes('assessor de imprensa')) return 'Assessor de Imprensa (mês 19 ao 28)';
+  if (texto.includes('consultoria de programacao')) return 'Consultoria de programação';
+  if (texto.includes('lanches') || texto.includes('buffet')) return 'Lanches/buffet (mês 19 ao 28)';
+  if (texto.includes('manutencao mis')) return 'Manutenção MIS (mês 19 ao mês 28)';
+  if (texto.includes('material de escritorio')) return 'Material de escritório';
+  if (texto.includes('energia eletrica')) return 'Energia elétrica';
+  if (texto.includes('exposicao mumo')) return 'Exposição MUMO';
+  if (texto.includes('mostra de media complexidade')) return 'Mostra de média complexidade MHAB';
+  if (texto.includes('designer mhab')) return 'Designer MHAB';
+  if (texto.includes('id / designer') || texto.includes('id designer')) return 'ID / designer (Ed. 2026)';
+  if (texto.includes('designer')) return 'Designer (mês 19 ao 28)';
+  if (texto.includes('infraestrutura') && contexto.includes('pampulha')) return 'Infraestrutura – Noturno Pampulha';
+  if (texto.includes('infraestrutura')) return original;
+
+  return original.replace(/\s*\([^)]*\)\s*$/g, '').trim() || original;
+}
+
+function chaveMetaLogica(metaOuItem) {
+  return normalizarTextoMeta(nomeMetaLogica(metaOuItem));
+}
+
+function idPreferencial(ids = []) {
+  const validos = [...new Set(ids.filter(Boolean).map(String))];
+  return validos.find((id) => /^[a-f0-9]{20,}$/i.test(id)) || validos[0] || '';
 }
 
 function dentroPeriodo(item, inicio, fim) {
@@ -124,12 +157,7 @@ function unico(items, keyFn) {
   const map = new Map();
   for (const item of items || []) {
     const key = keyFn(item);
-    if (!key) continue;
-    if (!map.has(key)) map.set(key, item);
-    else {
-      const atual = map.get(key);
-      map.set(key, { ...atual, ...item, nome: nomeCanonicoMeta(item) || nomeCanonicoMeta(atual) });
-    }
+    if (key && !map.has(key)) map.set(key, item);
   }
   return [...map.values()];
 }
@@ -146,39 +174,75 @@ async function listar(nome, limite = 5000) {
 }
 
 function valor(item) {
-  const parsed = Number(item?.valor_total || item?.valor || item?.nf_valor_total || 0);
+  const parsed = Number(item?.valor_pago || item?.valor_aprovado_admin || item?.valor_aprovado || item?.valor_total || item?.valor || item?.nf_valor_total || 0);
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function metaDerivadaDaCompra(compra, metasPorId) {
-  const id = extrairMetaId(compra);
-  if (!id) return null;
-
-  const cadastrada = metasPorId.get(id);
-  const nomeCompra = extrairMetaNome(compra);
-  const nome = nomeCompra || (cadastrada ? nomeCanonicoMeta(cadastrada) : '') || `Meta ${id}`;
-
-  return {
-    ...(cadastrada || {}),
-    id,
-    meta_id: id,
-    meta_codigo: compra?.meta_codigo || cadastrada?.meta_codigo || cadastrada?.codigo || '',
-    nome,
-    meta_nome: nome,
-    titulo: nome,
-    descricao: compra?.meta_descricao || cadastrada?.descricao || nome,
-    resultado_esperado: compra?.meta_resultado_esperado || cadastrada?.resultado_esperado || nome,
-    aditivo: compra?.aditivo || cadastrada?.aditivo,
-    numero_aditivo: compra?.numero_aditivo || compra?.aditivo_numero || cadastrada?.numero_aditivo,
-    projeto: compra?.projeto || compra?.projeto_nome || compra?.project_name,
-    centro_custo: compra?.centro_custo || compra?.centro_custo_nome,
-    rubrica: compra?.rubrica || compra?.rubrica_nome,
-    origem: 'Compras',
-    total_compras: 1,
-  };
+function temDocumentoFiscal(compra) {
+  return !!(
+    compra?.nf_numero || compra?.numero_nf || compra?.nf_pdf_url || compra?.nota_fiscal_pdf_url ||
+    compra?.nota_fiscal_url || compra?.nf_xml_url || compra?.xml_url || compra?.documento_intake_id ||
+    compra?.intake_id || compra?.arquivo_nome
+  );
 }
 
-function documentoNF(compra) {
+function agruparMetas(metasCadastradas, compras) {
+  const grupos = new Map();
+  const cadastradasPorId = new Map(metasCadastradas.map((meta) => [String(idCanonicoMeta(meta)), meta]));
+
+  function incluir(item, origem) {
+    const metaIdOriginal = extrairMetaId(item) || String(idCanonicoMeta(item) || '');
+    const cadastrada = cadastradasPorId.get(metaIdOriginal);
+    const base = cadastrada || item;
+    const chave = chaveMetaLogica(base);
+    if (!chave || ehMetaAntigaBloqueada(base)) return;
+
+    const atual = grupos.get(chave) || {
+      nome: nomeMetaLogica(base),
+      ids: [],
+      rubricas: [],
+      compras: [],
+      cadastradas: [],
+    };
+
+    if (metaIdOriginal) atual.ids.push(metaIdOriginal);
+    const rubrica = nomeRubrica(item);
+    if (rubrica) atual.rubricas.push(rubrica);
+    if (origem === 'Compra') atual.compras.push(item);
+    if (origem === 'Cadastro') atual.cadastradas.push(item);
+    grupos.set(chave, atual);
+  }
+
+  metasCadastradas.forEach((meta) => incluir(meta, 'Cadastro'));
+  compras.filter(temDocumentoFiscal).forEach((compra) => incluir(compra, 'Compra'));
+
+  return [...grupos.entries()]
+    .filter(([, grupo]) => grupo.compras.length > 0)
+    .map(([chave, grupo]) => {
+      const cadastro = grupo.cadastradas[0] || {};
+      const ids = [...new Set(grupo.ids.map(String))];
+      const rubricas = [...new Set(grupo.rubricas.filter(Boolean))];
+      const id = idPreferencial(ids);
+      return {
+        ...cadastro,
+        id,
+        meta_id: id,
+        nome: grupo.nome,
+        meta_nome: grupo.nome,
+        titulo: grupo.nome,
+        descricao: cadastro?.descricao || grupo.nome,
+        resultado_esperado: cadastro?.resultado_esperado || cadastro?.descricao || grupo.nome,
+        aliases_ids: ids,
+        rubricas_vinculadas: rubricas,
+        total_compras: grupo.compras.length,
+        chave_logica: chave,
+        origem: 'Plano de Trabalho + Compras',
+      };
+    })
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+}
+
+function documentoNF(compra, metaCanonicaId) {
   return {
     id: compra.id,
     tipo: 'nota_fiscal',
@@ -186,10 +250,25 @@ function documentoNF(compra) {
     fornecedor: compra?.fornecedor_nome || compra?.nf_emitente_nome || 'Fornecedor não informado',
     valor: valor(compra),
     data_emissao: dataISO(compra?.nf_data_emissao || compra?.data_nf || compra?.data_emissao_nf),
-    pdf_url: compra?.nf_pdf_url || compra?.arquivo_original_url || compra?.pdf_url || '',
+    pdf_url: compra?.nf_pdf_url || compra?.nota_fiscal_pdf_url || compra?.arquivo_original_url || compra?.pdf_url || '',
     xml_url: compra?.nf_xml_url || compra?.xml_url || '',
-    meta_id: extrairMetaId(compra),
+    meta_id: metaCanonicaId,
+    meta_id_original: extrairMetaId(compra),
+    rubrica: nomeRubrica(compra),
   };
+}
+
+function quantidadePrevista(meta) {
+  const value = Number(meta?.quantidade_prevista || meta?.meta_quantidade || meta?.quantidade || meta?.total_previsto || 0);
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+function percentualCalculado(meta, atividadesCount) {
+  const previsto = quantidadePrevista(meta);
+  if (previsto > 0) return Math.min(100, Math.round((atividadesCount / previsto) * 1000) / 10);
+  const explicito = Number(meta?.percentual_execucao);
+  if (Number.isFinite(explicito) && explicito >= 0 && explicito <= 100) return explicito;
+  return atividadesCount > 0 ? null : 0;
 }
 
 export function validarPeriodoRelatorio(dataInicio, dataFim) {
@@ -204,21 +283,12 @@ export async function listarMetasRelatorio() {
     listar('PurchaseRequest', 10000),
   ]);
 
-  const metasCadastradas = unico(
+  const cadastradas = unico(
     grupos.flat().filter(metaPertenceAo3ou4Aditivo).filter((meta) => !ehMetaAntigaBloqueada(meta)),
-    (meta) => idCanonicoMeta(meta) || normalizarTextoMeta(nomeCanonicoMeta(meta)),
+    (meta) => idCanonicoMeta(meta) || chaveMetaLogica(meta),
   );
-  const metasPorId = new Map(metasCadastradas.map((meta) => [idCanonicoMeta(meta), meta]));
 
-  const metasCompras = compras
-    .map((compra) => metaDerivadaDaCompra(compra, metasPorId))
-    .filter(Boolean)
-    .filter((meta) => !ehMetaAntigaBloqueada(meta));
-
-  return unico(
-    [...metasCadastradas, ...metasCompras],
-    (meta) => idCanonicoMeta(meta) || normalizarTextoMeta(nomeCanonicoMeta(meta)),
-  ).sort((a, b) => nomeCanonicoMeta(a).localeCompare(nomeCanonicoMeta(b), 'pt-BR'));
+  return agruparMetas(cadastradas, compras);
 }
 
 export async function sincronizarRelatorioExecucao({
@@ -234,18 +304,28 @@ export async function sincronizarRelatorioExecucao({
   if (!relatorioId) throw new Error('Relatório não identificado.');
   if (!Array.isArray(filtroMetaIds) || filtroMetaIds.length === 0) throw new Error('Selecione ao menos uma meta para o relatório.');
 
-  const selecionadas = new Set(filtroMetaIds.map(String));
   const [metasTodas, atividadesBrutas, fotosBrutas, compras] = await Promise.all([
     listarMetasRelatorio(),
-    Promise.all(['Activity', 'Atividade', 'Programacao', 'Evento'].map((nome) => listar(nome, 3000))).then((r) => r.flat()),
-    Promise.all(['ActivityPhoto', 'AtividadeFoto', 'GalleryPhoto', 'GaleriaFoto', 'Photo', 'Foto'].map((nome) => listar(nome, 3000))).then((r) => r.flat()),
+    Promise.all(['Activity', 'Atividade', 'Programacao', 'Evento'].map((nome) => listar(nome, 5000))).then((r) => r.flat()),
+    Promise.all(['ActivityPhoto', 'AtividadeFoto', 'GalleryPhoto', 'GaleriaFoto', 'Photo', 'Foto'].map((nome) => listar(nome, 5000))).then((r) => r.flat()),
     listar('PurchaseRequest', 10000),
   ]);
 
-  const metas = metasTodas.filter((meta) => selecionadas.has(idCanonicoMeta(meta)));
+  const aliasParaCanonica = new Map();
+  for (const meta of metasTodas) {
+    const canonica = String(meta.id);
+    aliasParaCanonica.set(canonica, canonica);
+    for (const alias of meta.aliases_ids || []) aliasParaCanonica.set(String(alias), canonica);
+  }
 
+  const selecionadasCanonicas = new Set(
+    filtroMetaIds.map((id) => aliasParaCanonica.get(String(id)) || String(id)),
+  );
+  const metas = metasTodas.filter((meta) => selecionadasCanonicas.has(String(meta.id)));
+
+  const metaCanonicaDoItem = (item) => aliasParaCanonica.get(extrairMetaId(item)) || '';
   const atividades = unico(
-    atividadesBrutas.filter((item) => dentroPeriodo(item, dataInicio, dataFim) && selecionadas.has(extrairMetaId(item))),
+    atividadesBrutas.filter((item) => dentroPeriodo(item, dataInicio, dataFim) && selecionadasCanonicas.has(metaCanonicaDoItem(item))),
     (item) => item.id || `${item.titulo || item.nome}-${dataISO(primeiro(item, CAMPOS_DATA))}`,
   );
 
@@ -253,9 +333,8 @@ export async function sincronizarRelatorioExecucao({
   const fotos = unico(
     fotosBrutas.filter((foto) => {
       const atividadeId = foto?.activity_id || foto?.atividade_id || foto?.evento_id;
-      const metaId = extrairMetaId(foto);
       const url = primeiro(foto, CAMPOS_FOTO);
-      return !!url && ((atividadeId && atividadeIds.has(atividadeId)) || (selecionadas.has(metaId) && dentroPeriodo(foto, dataInicio, dataFim)));
+      return !!url && ((atividadeId && atividadeIds.has(atividadeId)) || (selecionadasCanonicas.has(metaCanonicaDoItem(foto)) && dentroPeriodo(foto, dataInicio, dataFim)));
     }),
     (foto) => primeiro(foto, CAMPOS_FOTO),
   ).slice(0, 24);
@@ -263,35 +342,44 @@ export async function sincronizarRelatorioExecucao({
   const notas = compras
     .filter((compra) => {
       const status = String(compra?.status || '').toUpperCase();
-      const metaId = extrairMetaId(compra);
       const data = dataISO(compra?.nf_data_emissao || compra?.data_nf || compra?.data_emissao_nf);
-      return STATUS_APROVADOS.has(status) && selecionadas.has(metaId) && !!data && data >= dataInicio && data <= dataFim;
+      return STATUS_APROVADOS.has(status) && temDocumentoFiscal(compra) && selecionadasCanonicas.has(metaCanonicaDoItem(compra)) && !!data && data >= dataInicio && data <= dataFim;
     })
-    .map(documentoNF);
-
-  const notasPorMeta = new Map();
-  for (const nota of notas) {
-    const atual = notasPorMeta.get(nota.meta_id) || [];
-    atual.push(nota);
-    notasPorMeta.set(nota.meta_id, atual);
-  }
+    .map((compra) => documentoNF(compra, metaCanonicaDoItem(compra)));
 
   const cronogramaMetas = metas.map((meta) => {
-    const chave = idCanonicoMeta(meta);
-    const atividadesMeta = atividades.filter((atividade) => extrairMetaId(atividade) === chave);
-    const notasMeta = notasPorMeta.get(chave) || [];
+    const chave = String(meta.id);
+    const atividadesMeta = atividades.filter((atividade) => metaCanonicaDoItem(atividade) === chave);
+    const notasMeta = notas.filter((nota) => nota.meta_id === chave);
+    const percentual = percentualCalculado(meta, atividadesMeta.length);
+    const status = atividadesMeta.length > 0
+      ? (percentual === 100 ? 'Realizada Integralmente' : 'Em execução')
+      : notasMeta.length > 0
+        ? 'Em execução — documentação financeira vinculada'
+        : 'Não Realizada';
+
     return {
       ...meta,
       meta_id: chave,
-      meta_nome: nomeCanonicoMeta(meta),
-      resultado_esperado: meta.resultado_esperado || meta.descricao || nomeCanonicoMeta(meta),
+      meta_nome: meta.nome,
+      aliases_ids: meta.aliases_ids,
+      rubricas_vinculadas: meta.rubricas_vinculadas,
+      resultado_esperado: meta.resultado_esperado || meta.descricao || meta.nome,
       acoes: atividadesMeta.map((atividade) => atividade.titulo || atividade.nome || atividade.descricao).filter(Boolean).join('; ') || 'Nenhuma atividade registrada no período selecionado.',
-      resultado_alcancado: atividadesMeta.length > 0 ? `${atividadesMeta.length} atividade(s) registrada(s).` : 'Sem atividade registrada no período selecionado.',
+      resultado_alcancado: atividadesMeta.length > 0
+        ? `${atividadesMeta.length} atividade(s) registrada(s) e analisada(s) no período.`
+        : notasMeta.length > 0
+          ? 'Há documentação financeira vinculada, mas não foi localizada atividade correspondente na Agenda no período.'
+          : 'Sem atividade ou documento fiscal vinculado no período selecionado.',
       periodo: `${dataInicio} a ${dataFim}`,
-      documentos_verificacao: notasMeta.map((nota) => `NF ${nota.numero_nf} — ${nota.fornecedor}`),
+      documentos_verificacao: notasMeta.map((nota) => `NF ${nota.numero_nf} — ${nota.fornecedor} — ${nota.rubrica || 'rubrica não informada'}`),
       notas_fiscais: notasMeta,
-      percentual_execucao: meta.percentual_execucao || (atividadesMeta.length > 0 || notasMeta.length > 0 ? 100 : 0),
-      status_meta: meta.status_meta || (atividadesMeta.length > 0 || notasMeta.length > 0 ? 'Realizada Integralmente' : 'Não Realizada'),
+      percentual_execucao: percentual,
+      status_meta: status,
+      criterio_calculo: quantidadePrevista(meta) > 0
+        ? `Atividades realizadas (${atividadesMeta.length}) ÷ quantidade prevista (${quantidadePrevista(meta)}).`
+        : 'Percentual não inferido apenas por notas fiscais; depende de quantidade prevista ou percentual explícito cadastrado.',
+      editavel: true,
     };
   });
 
@@ -303,9 +391,11 @@ export async function sincronizarRelatorioExecucao({
       data_fim: dataFim,
       filtro_museu: filtroMuseu,
       filtro_versao: filtroVersao,
-      filtro_meta_ids: filtroMetaIds,
+      filtro_meta_ids: metas.map((meta) => meta.id),
+      metas_unificadas: metas,
       aditivos_permitidos: [3, 4],
       excluir_metas_anteriores: true,
+      unificar_metas_por_rubrica: true,
     });
     preenchimento = resposta?.data || resposta || preenchimento;
   } catch (error) {
@@ -315,13 +405,20 @@ export async function sincronizarRelatorioExecucao({
   const atual = await base44.entities.RelatorioExecucaoObjeto.get(relatorioId);
   const identificacaoAtual = atual?.identificacao_projeto || {};
   const totalFinanceiro = notas.reduce((soma, nota) => soma + nota.valor, 0);
-  const dadosPersistidos = {
+  const filtroCanonico = metas.map((meta) => String(meta.id));
+
+  await base44.entities.RelatorioExecucaoObjeto.update(relatorioId, {
     data_inicio: dataInicio,
     data_fim: dataFim,
     filtro_museu: filtroMuseu,
     filtro_versao: filtroVersao,
-    filtro_meta_ids: filtroMetaIds,
-    metas_selecionadas: metas.map((meta) => ({ id: idCanonicoMeta(meta), nome: nomeCanonicoMeta(meta) })),
+    filtro_meta_ids: filtroCanonico,
+    metas_selecionadas: metas.map((meta) => ({
+      id: meta.id,
+      nome: meta.nome,
+      aliases_ids: meta.aliases_ids,
+      rubricas_vinculadas: meta.rubricas_vinculadas,
+    })),
     cronograma_metas: cronogramaMetas,
     _atividades_periodo: atividades,
     _fotos_atividades: fotos,
@@ -329,7 +426,7 @@ export async function sincronizarRelatorioExecucao({
       foto_url: primeiro(foto, CAMPOS_FOTO),
       atividade_nome: foto?.atividade_nome || foto?.legenda || foto?.descricao || 'Registro da atividade',
       atividade_data: dataISO(primeiro(foto, CAMPOS_DATA)),
-      meta_id: extrairMetaId(foto),
+      meta_id: metaCanonicaDoItem(foto),
     })),
     _notas_fiscais_metas: notas,
     _total_financeiro: totalFinanceiro,
@@ -345,12 +442,21 @@ export async function sincronizarRelatorioExecucao({
     },
     aditivos_considerados: [3, 4],
     metas_anteriores_excluidas: true,
+    metas_unificadas_por_rubrica: true,
     sincronizado_em: new Date().toISOString(),
-  };
-
-  await base44.entities.RelatorioExecucaoObjeto.update(relatorioId, dadosPersistidos);
+  });
 
   const erros = [];
+  const instrucaoAnalitica = [
+    'Analise conjuntamente Plano de Trabalho, metas unificadas, rubricas, Agenda, atividades, público, equipe e notas fiscais.',
+    'Não trate IDs diferentes como metas diferentes quando o objeto e a rubrica forem equivalentes.',
+    'Educador MIS/MUMO/MHAB é uma única meta, ainda que existam vários IDs históricos.',
+    'Não atribua 100% de execução apenas pela existência de nota fiscal.',
+    'Calcule percentuais somente quando houver quantidade prevista ou percentual explícito confiável.',
+    'Diferencie execução física, execução financeira, evidências e pendências.',
+    'Produza texto técnico, analítico, calculista e fiel aos dados reais; não invente informações.',
+  ].join(' ');
+
   for (const secao of ['descricao_acoes', 'publico_alvo', 'pesquisa_satisfacao', 'cronograma_metas', 'equipe_trabalho', 'impactos', 'avaliacao', 'anexos', 'auditoria', 'finalizar']) {
     try {
       await base44.functions.invoke('gerarSecaoRelatorioExecucao', {
@@ -360,11 +466,16 @@ export async function sincronizarRelatorioExecucao({
         data_fim: dataFim,
         filtro_museu: filtroMuseu,
         filtro_versao: filtroVersao,
-        filtro_meta_ids: filtroMetaIds,
+        filtro_meta_ids: filtroCanonico,
+        metas_unificadas: metas,
+        cronograma_metas_unificado: cronogramaMetas,
         incluir_notas_fiscais: true,
         incluir_fotos: true,
+        incluir_rubricas: true,
         aditivos_permitidos: [3, 4],
         excluir_metas_anteriores: true,
+        unificar_metas_por_rubrica: true,
+        instrucao_usuario: instrucaoAnalitica,
       });
     } catch (error) {
       erros.push({ secao, erro: error?.message || String(error) });
@@ -373,7 +484,8 @@ export async function sincronizarRelatorioExecucao({
 
   await base44.entities.RelatorioExecucaoObjeto.update(relatorioId, {
     cronograma_metas: cronogramaMetas,
-    filtro_meta_ids: filtroMetaIds,
+    filtro_meta_ids: filtroCanonico,
+    metas_selecionadas: metas.map((meta) => ({ id: meta.id, nome: meta.nome, aliases_ids: meta.aliases_ids, rubricas_vinculadas: meta.rubricas_vinculadas })),
     _notas_fiscais_metas: notas,
     _total_financeiro: totalFinanceiro,
     _total_financeiro_fmt: totalFinanceiro.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
@@ -386,6 +498,8 @@ export async function sincronizarRelatorioExecucao({
     resumo: preenchimento?.resumo || {},
     auditoria: {
       metas: metas.length,
+      metas_unificadas: true,
+      aliases_consolidados: metas.reduce((total, meta) => total + Math.max(0, (meta.aliases_ids || []).length - 1), 0),
       atividades: atividades.length,
       fotos: fotos.length,
       notas_fiscais: notas.length,
