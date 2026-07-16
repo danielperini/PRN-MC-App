@@ -9,6 +9,7 @@ import { installComprasDataNFFilter } from '@/utils/installComprasDataNFFilter'
 import { installComprasMetaColumn } from '@/utils/installComprasMetaColumn'
 import { installMetasPlanoTrabalhoNFs } from '@/utils/installMetasPlanoTrabalhoNFs'
 import { installCronogramaMetasOficial } from '@/utils/installCronogramaMetasOficial'
+import { installRelatorioCamposOficiais } from '@/utils/installRelatorioCamposOficiais'
 import { installPdfDownloadGuard } from '@/utils/pdfDownloadGuard'
 
 installActivityGalleryPdfRouting()
@@ -16,6 +17,7 @@ installComprasDataNFFilter()
 installComprasMetaColumn()
 installMetasPlanoTrabalhoNFs()
 installCronogramaMetasOficial()
+installRelatorioCamposOficiais()
 installPdfDownloadGuard()
 
 ReactDOM.createRoot(document.getElementById('root')).render(
