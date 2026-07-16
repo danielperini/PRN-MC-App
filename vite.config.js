@@ -9,7 +9,7 @@ export default defineConfig({
   resolve: {
     alias: [
       {
-        find: '@/utils/sincronizarRelatorioExecucao',
+        find: /^@\/utils\/sincronizarRelatorioExecucao(?:\.js)?$/,
         replacement: fileURLToPath(new URL('./src/utils/sincronizarRelatorioExecucaoCompat.js', import.meta.url)),
       },
     ],
