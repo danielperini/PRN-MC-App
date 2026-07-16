@@ -22,6 +22,7 @@ import { installRelatorioFinanceAuditContext } from '@/utils/installRelatorioFin
 import { installRelatorioExecucaoActivityEvidence } from '@/utils/installRelatorioExecucaoActivityEvidence'
 import { installRelatoriosAtividadesCompletos } from '@/utils/installRelatoriosAtividadesCompletos'
 import { installRelatorioExecucaoFinalizacao } from '@/utils/installRelatorioExecucaoFinalizacao'
+import { installRelatorioMetasAditivosSnapshot } from '@/utils/installRelatorioMetasAditivosSnapshot'
 import { installRuntimeErrorGuards } from '@/utils/installRuntimeErrorGuards'
 import { installPdfDownloadGuard } from '@/utils/pdfDownloadGuard'
 
@@ -44,6 +45,7 @@ installRelatorioFinanceAuditContext()
 installRelatorioExecucaoActivityEvidence()
 installRelatoriosAtividadesCompletos()
 installRelatorioExecucaoFinalizacao()
+installRelatorioMetasAditivosSnapshot()
 installPdfDownloadGuard()
 
 ReactDOM.createRoot(document.getElementById('root')).render(
