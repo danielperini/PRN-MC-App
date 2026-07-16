@@ -128,7 +128,7 @@ async function filterMetaSelector() {
 
 async function createReportFallback(payload, reportEntity) {
   if (!reportEntity?.create) throw new Error('Entidade RelatorioExecucaoObjeto indisponível.');
-  const created = await reportEntity.create(sanitizeReportPayload({
+  const created = await reportEntity.create({
     tipo: payload?.tipo || 'parcial',
     numero_relatorio: payload?.numero_relatorio || '',
     data_inicio: payload?.data_inicio || '',
@@ -140,7 +140,7 @@ async function createReportFallback(payload, reportEntity) {
     publico_alvo: emptyNestedObject(),
     status: 'rascunho',
     criado_por_fallback_schema: true,
-  }));
+  });
   const id = created?.id || created?._id || created?.data?.id;
   if (!id) throw new Error('Não foi possível identificar o relatório criado.');
   return { data: { relatorio_id: id }, relatorio_id: id, success: true };
@@ -171,18 +171,22 @@ export function installRelatorioMetasSchemaFix() {
         const { byId } = await loadOfficialMetas();
         const selected = Array.isArray(payload?.filtro_meta_ids) ? payload.filtro_meta_ids.map(String) : [];
         payload = {
-          ...payload,
+          ...sanitizeReportPayload(payload),
           filtro_meta_ids: selected.filter((id) => byId.has(id)),
           separar_metas_de_rubricas: true,
           usar_apenas_cadastro_oficial_de_metas: true,
         };
       }
 
+      // Não chama a função antiga: ela ainda grava strings em campos NestedObject.
+      if (functionName === 'iniciarRelatorioExecucao') {
+        return createReportFallback(payload, reportEntity);
+      }
+
       try {
         return await originalInvoke(functionName, payload);
       } catch (error) {
         if (!isNestedObjectValidationError(error)) throw error;
-        if (functionName === 'iniciarRelatorioExecucao') return createReportFallback(payload, reportEntity);
         if (['preencherRelatorioComDados', 'gerarSecaoRelatorioExecucao'].includes(functionName)) {
           return { data: { success: false, schema_corrigido_localmente: true }, success: false };
         }
