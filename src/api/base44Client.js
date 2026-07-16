@@ -59,6 +59,101 @@ function getNFDate(purchase) {
   return null;
 }
 
+function dateOnly(value) {
+  if (!value) return '';
+  const match = String(value).match(/\d{4}-\d{2}-\d{2}/);
+  if (match) return match[0];
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString().slice(0, 10);
+}
+
+function activityMetaId(item) {
+  return String(
+    item?.meta_id ||
+      item?.project_meta_id ||
+      item?.meta_projeto_id ||
+      item?.meta_codigo ||
+      item?.metaId ||
+      item?.meta?.id ||
+      ''
+  );
+}
+
+function normalizeMuseum(value) {
+  const text = String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+  if (text.includes('MIS') || text.includes('IMAGEM E SOM')) return 'MIS';
+  if (text.includes('MUMO') || text.includes('MODA')) return 'MUMO';
+  if (text.includes('MHAB') || text.includes('ABILIO BARRETO')) return 'MHAB';
+  return String(value || '').trim();
+}
+
+async function enrichDescriptionActionsPayload(payload = {}) {
+  if (payload?.secao !== 'descricao_acoes') return payload;
+
+  try {
+    const entity = base44.entities?.Programacao;
+    if (!entity?.list) return payload;
+
+    const allItems = await entity.list('-data_inicio', 5000);
+    const start = String(payload.data_inicio || '');
+    const end = String(payload.data_fim || '');
+    const selectedMetaIds = new Set((payload.filtro_meta_ids || []).map(String));
+    const museumFilter = normalizeMuseum(payload.filtro_museu);
+
+    const agenda = (Array.isArray(allItems) ? allItems : [])
+      .filter((item) => {
+        const date = dateOnly(item?.data_inicio || item?.data || item?.start_date || item?.created_date);
+        if (!date || (start && date < start) || (end && date > end)) return false;
+
+        const museum = normalizeMuseum(item?.museu || item?.unidade || item?.local);
+        if (museumFilter && museumFilter !== 'TODOS' && museumFilter !== 'todos' && museum !== museumFilter) return false;
+
+        const metaId = activityMetaId(item);
+        if (metaId && selectedMetaIds.size > 0 && !selectedMetaIds.has(metaId)) return false;
+
+        return ['MIS', 'MUMO', 'MHAB'].includes(museum) || museumFilter === 'todos' || museumFilter === 'TODOS';
+      })
+      .map((item) => ({
+        id: item.id,
+        data: dateOnly(item?.data_inicio || item?.data || item?.start_date),
+        titulo: item?.titulo || item?.nome_acao || item?.nome || 'Atividade sem título',
+        descricao: item?.sinopse || item?.descricao || '',
+        museu: normalizeMuseum(item?.museu || item?.unidade || item?.local),
+        local: item?.local || '',
+        publico_alvo: item?.publico_alvo || '',
+        meta_id: activityMetaId(item) || null,
+        link_imagens: item?.link_imagens || '',
+      }));
+
+    if (payload.relatorio_id && agenda.length > 0) {
+      await base44.entities.RelatorioExecucaoObjeto.update(payload.relatorio_id, {
+        _agenda_periodo: agenda,
+        agenda_sincronizada_em: new Date().toISOString(),
+      });
+    }
+
+    const instruction = [
+      payload.instrucao_usuario,
+      'Para a seção DESCRIÇÃO SUCINTA DAS AÇÕES EXECUTADAS, use obrigatoriamente os registros reais da Agenda abaixo e as metas selecionadas.',
+      'Priorize e organize as ações educativo-culturais realizadas no MIS, MUMO e MHAB, por museu e em ordem cronológica.',
+      'Informe título, data, local, síntese da atividade, público-alvo quando registrado e relação com a meta selecionada.',
+      'Não crie atividades que não estejam na Agenda ou nos dados já vinculados ao relatório.',
+    ].filter(Boolean).join(' ');
+
+    return {
+      ...payload,
+      usar_agenda: true,
+      agenda_periodo: agenda,
+      atividades_agenda: agenda,
+      foco_descricao_acoes: 'Ações educativo-culturais MIS / MUMO / MHAB',
+      instrucao_usuario: instruction,
+    };
+  } catch (error) {
+    console.warn('Não foi possível carregar a Agenda para a descrição das ações.', error);
+    return payload;
+  }
+}
+
 // Regra canônica global: seletores e telas só recebem metas do 3º e 4º aditivos.
 for (const entityName of ['ProjectMeta', 'MetaProjeto', 'Meta']) {
   const entity = base44.entities?.[entityName];
@@ -104,7 +199,10 @@ if (functionsApi?.invoke) {
 
   functionsApi.invoke = async (functionName, payload) => {
     try {
-      return await originalInvoke(functionName, payload);
+      const enrichedPayload = functionName === 'gerarSecaoRelatorioExecucao'
+        ? await enrichDescriptionActionsPayload(payload)
+        : payload;
+      return await originalInvoke(functionName, enrichedPayload);
     } catch (error) {
       if (functionName === 'preencherRelatorioComDados' && isMissingServiceTokenError(error)) {
         console.warn(
