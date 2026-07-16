@@ -29,10 +29,36 @@ function isComprasRoute() {
   return /^\/Compras(?:\/|$)/i.test(window.location.pathname);
 }
 
+function normalizeNFDateForLocalComparison(value) {
+  if (!value) return null;
+
+  const raw = String(value).trim();
+  const isoDate = raw.match(/^(\d{4})-(\d{2})-(\d{2})/)?.[0];
+
+  // O filtro legado usa new Date(). Data ISO sem horário é interpretada como UTC,
+  // fazendo 01/07 virar 30/06 no fuso de Belo Horizonte. Meio-dia local evita
+  // deslocamento de dia e mantém a comparação inclusiva do período selecionado.
+  if (isoDate) return `${isoDate}T12:00:00`;
+
+  const brDate = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (brDate) {
+    const [, day, month, year] = brDate;
+    return `${year}-${month}-${day}T12:00:00`;
+  }
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
+  const day = String(parsed.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}T12:00:00`;
+}
+
 function getNFDate(purchase) {
   for (const field of NF_DATE_FIELDS) {
     const value = purchase?.[field];
-    if (value) return String(value).split('T')[0];
+    if (value) return normalizeNFDateForLocalComparison(value);
   }
   return null;
 }
