@@ -1,6 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
+const TOTAL_PREVISTO_3_ADITIVO = 1320000;
+const TOTAL_PREVISTO_4_ADITIVO = 81719.85;
+const TOTAL_PREVISTO_OFICIAL = TOTAL_PREVISTO_3_ADITIVO + TOTAL_PREVISTO_4_ADITIVO;
+
 function fmtBRL(v) {
   if (!v && v !== 0) return 'R$ 0';
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v);
@@ -37,8 +41,11 @@ export default function RubricasConsumoDashboard({ rubricas }) {
   const [somenteAtivas, setSomenteAtivas] = useState(true);
 
   const dados = useMemo(() => {
+    const vistos = new Set();
     return (rubricas || [])
       .filter(r => {
+        if (!r?.id || vistos.has(r.id)) return false;
+        vistos.add(r.id);
         if (somenteAtivas && r.ativo === false) return false;
         if (grupoBusca && !String(r.grupo || r.rubrica || '').toLowerCase().includes(grupoBusca.toLowerCase())) return false;
         return true;
@@ -63,16 +70,24 @@ export default function RubricasConsumoDashboard({ rubricas }) {
   }, [rubricas, grupoBusca, somenteAtivas]);
 
   const totais = useMemo(() => {
-    const t = dados.reduce((acc, d) => ({ total: acc.total + d.total, utilizado: acc.utilizado + d.utilizado }), { total: 0, utilizado: 0 });
-    return { ...t, saldo: Math.max(0, t.total - t.utilizado), pct: t.total > 0 ? (t.utilizado / t.total) * 100 : 0 };
-  }, [dados]);
+    const calculado = dados.reduce((acc, d) => ({ total: acc.total + d.total, utilizado: acc.utilizado + d.utilizado }), { total: 0, utilizado: 0 });
+    const usarBaseOficial = !grupoBusca && somenteAtivas;
+    const total = usarBaseOficial ? TOTAL_PREVISTO_OFICIAL : calculado.total;
+    return {
+      total,
+      utilizado: calculado.utilizado,
+      saldo: total - calculado.utilizado,
+      pct: total > 0 ? (calculado.utilizado / total) * 100 : 0,
+      total_calculado_rubricas: calculado.total,
+      diferenca_rubricas: calculado.total - TOTAL_PREVISTO_OFICIAL,
+    };
+  }, [dados, grupoBusca, somenteAtivas]);
 
   const grupos = useMemo(() => {
     const s = new Set((rubricas || []).map(r => r.grupo).filter(Boolean));
     return Array.from(s).sort();
   }, [rubricas]);
 
-  // Divide em chunks de 15 para múltiplos gráficos (legibilidade)
   const chunks = useMemo(() => {
     const result = [];
     for (let i = 0; i < dados.length; i += 15) result.push(dados.slice(i, i + 15));
@@ -81,12 +96,19 @@ export default function RubricasConsumoDashboard({ rubricas }) {
 
   return (
     <div className="space-y-6">
-      {/* Resumo geral */}
+      <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-900">
+        <span className="font-semibold">Base contratual oficial:</span> {fmtBRL(TOTAL_PREVISTO_OFICIAL)}
+        <span className="ml-2">3º aditivo {fmtBRL(TOTAL_PREVISTO_3_ADITIVO)} + 4º aditivo {fmtBRL(TOTAL_PREVISTO_4_ADITIVO)}.</span>
+        {totais.diferenca_rubricas > 0 && (
+          <span className="ml-2 font-medium text-amber-700">A soma bruta das rubricas excede a base oficial em {fmtBRL(totais.diferenca_rubricas)} e não é usada no previsto consolidado.</span>
+        )}
+      </div>
+
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         {[
           { label: 'Total Previsto', value: fmtBRL(totais.total), color: 'text-gray-900' },
           { label: 'Total Utilizado', value: fmtBRL(totais.utilizado), color: 'text-orange-600' },
-          { label: 'Saldo Disponível', value: fmtBRL(totais.saldo), color: 'text-green-600' },
+          { label: 'Saldo Disponível', value: fmtBRL(totais.saldo), color: totais.saldo < 0 ? 'text-red-600' : 'text-green-600' },
           { label: 'Execução Geral', value: `${totais.pct.toFixed(1)}%`, color: totais.pct >= 80 ? 'text-red-600' : 'text-blue-700' },
         ].map(card => (
           <div key={card.label} className="rounded-xl border border-gray-200 bg-white p-4">
@@ -96,7 +118,6 @@ export default function RubricasConsumoDashboard({ rubricas }) {
         ))}
       </div>
 
-      {/* Legenda */}
       <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500">
         <span className="font-medium text-gray-700">Nível de execução:</span>
         {[
@@ -112,7 +133,6 @@ export default function RubricasConsumoDashboard({ rubricas }) {
         ))}
       </div>
 
-      {/* Filtros */}
       <div className="flex flex-wrap gap-3 items-center">
         <input
           type="text"
@@ -134,7 +154,6 @@ export default function RubricasConsumoDashboard({ rubricas }) {
         </div>
       )}
 
-      {/* Gráficos por chunk */}
       {chunks.map((chunk, ci) => (
         <div key={ci} className="rounded-xl border border-gray-200 bg-white p-4">
           {chunks.length > 1 && (
@@ -164,9 +183,7 @@ export default function RubricasConsumoDashboard({ rubricas }) {
                 tickLine={false}
               />
               <Tooltip content={<CustomTooltip />} />
-              {/* Barra fundo: total */}
               <Bar dataKey="total" name="Total Previsto" fill="#e5e7eb" radius={[0, 4, 4, 0]} />
-              {/* Barra sobreposta: utilizado */}
               <Bar dataKey="utilizado" name="Utilizado" radius={[0, 4, 4, 0]}>
                 {chunk.map((entry) => (
                   <Cell key={entry.id} fill={entry.cor} />
