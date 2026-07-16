@@ -116,12 +116,12 @@ function enrichSchedule(schedule, context) {
       : plannedActions(meta) || (teamMeta ? 'Contratar, mobilizar e acompanhar a equipe prevista no plano de trabalho.' : 'Executar as ações previstas para o cumprimento da meta.');
 
     const achieved = teamMeta && relatedTeam.length > 0
-      ? `A equipe prevista foi contratada e mobilizada, garantindo a gestão do projeto e a implementação das ações no período.`
+      ? 'A equipe prevista foi contratada e mobilizada, garantindo a gestão do projeto e a implementação das ações no período.'
       : performed > 0
         ? `${performed} atividade(s) foram realizadas. Os registros dos relatórios de atividades, Agenda e dashboard indicam cumprimento dos objetivos de formação, acesso e fruição cultural associados à meta.`
         : 'Não foram localizados registros físicos suficientes para confirmar resultado alcançado no período.';
 
-    const justification = percentage >= 100
+    const justificativa = percentage >= 100
       ? 'A execução ocorreu conforme os cronogramas acordados e acompanhados pela OSC, pela Diretoria de Museus e pelas coordenações dos equipamentos culturais.'
       : percentage > 0
         ? 'A meta permanece em execução, conforme cronogramas acordados entre a OSC, a Diretoria de Museus e as coordenações. As ações pendentes serão concluídas dentro da vigência pactuada.'
@@ -143,7 +143,7 @@ function enrichSchedule(schedule, context) {
       resultado_alcancado: achieved,
       percentual_execucao: percentage,
       status_meta: status,
-      justificativa: justification,
+      justificativa,
       metodologia_complementar: 'A análise considera metas vinculadas às solicitações de Compras, atividades e relatórios cadastrados, Agenda, dashboard de público e fotografias vinculadas às atividades.',
       editavel: true,
     };
