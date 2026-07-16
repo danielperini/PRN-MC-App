@@ -1,5 +1,8 @@
 import { base44 } from '@/api/base44Client';
 
+const MAX_RELATORIOS_CONTEXTO = 20;
+const MAX_CONSULTAS_CUMULATIVAS = 500;
+
 function texto(value) {
   if (value === null || value === undefined) return '';
   if (typeof value === 'string') return value;
@@ -31,7 +34,11 @@ function tabela(nome, titulo, colunas, registros, idFn) {
     nome,
     titulo,
     colunas,
-    linhas: lista.map((registro, index) => linha(idFn?.(registro, index) || registro?.id || `${nome}-${index + 1}`, registro, colunas)),
+    linhas: lista.map((registro, index) => linha(
+      idFn?.(registro, index) || registro?.id || `${nome}-${index + 1}`,
+      registro,
+      colunas,
+    )),
     total_linhas: lista.length,
   };
 }
@@ -40,10 +47,16 @@ function secaoTexto(relatorio, chave) {
   const valor = relatorio?.[chave];
   if (!valor) return '';
   if (typeof valor === 'string') return valor;
-  return valor.texto_editado || valor.texto_ia || valor.texto_interpretativo_editado || valor.texto_interpretativo_ia || valor.justificativa_editada || valor.justificativa_ia || '';
+  return valor.texto_editado
+    || valor.texto_ia
+    || valor.texto_interpretativo_editado
+    || valor.texto_interpretativo_ia
+    || valor.justificativa_editada
+    || valor.justificativa_ia
+    || '';
 }
 
-function construirTabelas(relatorio = {}) {
+export function construirTabelasRelatorio(relatorio = {}) {
   const identificacao = relatorio.identificacao_projeto || {};
   const metas = relatorio.cronograma_metas || [];
   const atividades = relatorio._atividades_periodo || relatorio._agenda_periodo || [];
@@ -65,7 +78,7 @@ function construirTabelas(relatorio = {}) {
   ].map(([campo, titulo]) => ({ campo, titulo, conteudo: secaoTexto(relatorio, campo) }));
 
   return {
-    versao: 1,
+    versao: 2,
     relatorio_id: texto(relatorio.id),
     atualizado_em: new Date().toISOString(),
     identificacao: tabela(
@@ -132,6 +145,54 @@ function construirTabelas(relatorio = {}) {
   };
 }
 
+function resumoRelatorio(registro = {}) {
+  const tabelas = registro.tabelas_estruturadas || construirTabelasRelatorio(registro);
+  return {
+    relatorio_id: registro.id || tabelas.relatorio_id,
+    data_inicio: registro.data_inicio || '',
+    data_fim: registro.data_fim || '',
+    projeto: registro?.identificacao_projeto?.projeto || '',
+    filtro_museu: registro.filtro_museu || 'todos',
+    totais: {
+      metas: tabelas?.metas?.total_linhas || 0,
+      atividades: tabelas?.atividades?.total_linhas || 0,
+      notas_fiscais: tabelas?.notas_fiscais?.total_linhas || 0,
+      equipe: tabelas?.equipe?.total_linhas || 0,
+      fotos: tabelas?.fotos?.total_linhas || 0,
+    },
+    secoes: tabelas?.secoes?.linhas || [],
+    atualizado_em: tabelas?.atualizado_em || registro.updated_date || registro.created_date || '',
+  };
+}
+
+export async function construirContextoCumulativoRelatorios(relatorioAtual = null) {
+  const entity = base44?.entities?.RelatorioExecucaoObjeto;
+  if (!entity?.list) {
+    return {
+      relatorio_atual: relatorioAtual?.tabelas_estruturadas || construirTabelasRelatorio(relatorioAtual || {}),
+      relatorios_anteriores: [],
+    };
+  }
+
+  let registros = [];
+  try {
+    registros = await entity.list('-created_date', MAX_RELATORIOS_CONTEXTO);
+  } catch {
+    registros = [];
+  }
+
+  const atualId = String(relatorioAtual?.id || '');
+  const anteriores = (Array.isArray(registros) ? registros : [])
+    .filter((item) => String(item?.id || '') !== atualId)
+    .map(resumoRelatorio);
+
+  return {
+    regra_consulta: 'Consultar primeiro as tabelas estruturadas. Usar somente dados reais. Não inventar informações ausentes.',
+    relatorio_atual: relatorioAtual?.tabelas_estruturadas || construirTabelasRelatorio(relatorioAtual || {}),
+    relatorios_anteriores: anteriores,
+  };
+}
+
 function deveReestruturar(payload = {}) {
   return [
     'cronograma_metas',
@@ -147,7 +208,34 @@ function deveReestruturar(payload = {}) {
     'identificacao_projeto',
     'data_inicio',
     'data_fim',
+    'endereco_execucao',
+    'divulgacao_parceria',
+    'descricao_acoes',
+    'publico_alvo',
+    'pesquisa_satisfacao',
+    'impactos_economicos_sociais',
+    'sustentabilidade',
+    'avaliacao_parceria',
+    'assinatura',
   ].some((campo) => Object.prototype.hasOwnProperty.call(payload, campo));
+}
+
+function consultaCumulativa(atual, payload, functionName) {
+  const anteriores = Array.isArray(atual?.tabela_cumulativa_consultas)
+    ? atual.tabela_cumulativa_consultas
+    : [];
+  const entrada = {
+    id: `${Date.now()}-${functionName}`,
+    data_hora: new Date().toISOString(),
+    funcao: functionName,
+    secao: payload?.secao || '',
+    pedido: payload?.instrucao_usuario || payload?.prompt || '',
+    data_inicio: payload?.data_inicio || atual?.data_inicio || '',
+    data_fim: payload?.data_fim || atual?.data_fim || '',
+    filtro_museu: payload?.filtro_museu || atual?.filtro_museu || 'todos',
+    status: 'consultado_com_tabelas',
+  };
+  return [...anteriores, entrada].slice(-MAX_CONSULTAS_CUMULATIVAS);
 }
 
 export function installRelatorioTabelasEstruturadas() {
@@ -157,6 +245,7 @@ export function installRelatorioTabelasEstruturadas() {
   const originalUpdate = entity.update.bind(entity);
   const originalGet = entity.get?.bind(entity);
   const originalList = entity.list?.bind(entity);
+  const originalInvoke = base44?.functions?.invoke?.bind(base44.functions);
 
   entity.update = async (id, payload = {}) => {
     if (!deveReestruturar(payload)) return originalUpdate(id, payload);
@@ -171,7 +260,7 @@ export function installRelatorioTabelasEstruturadas() {
     }
 
     const consolidado = { ...atual, ...payload, id: id || atual.id };
-    const tabelas = construirTabelas(consolidado);
+    const tabelas = construirTabelasRelatorio(consolidado);
 
     return originalUpdate(id, {
       ...payload,
@@ -183,8 +272,10 @@ export function installRelatorioTabelasEstruturadas() {
   if (originalGet) {
     entity.get = async (id) => {
       const registro = await originalGet(id);
-      if (!registro || registro.tabelas_estruturadas) return registro;
-      const tabelas = construirTabelas(registro);
+      if (!registro) return registro;
+      if (registro.tabelas_estruturadas?.versao === 2) return registro;
+
+      const tabelas = construirTabelasRelatorio(registro);
       try {
         await originalUpdate(id, {
           tabelas_estruturadas: tabelas,
@@ -203,8 +294,52 @@ export function installRelatorioTabelasEstruturadas() {
       if (!Array.isArray(registros)) return registros;
       return registros.map((registro) => ({
         ...registro,
-        tabelas_estruturadas: registro.tabelas_estruturadas || construirTabelas(registro),
+        tabelas_estruturadas: registro.tabelas_estruturadas?.versao === 2
+          ? registro.tabelas_estruturadas
+          : construirTabelasRelatorio(registro),
       }));
+    };
+  }
+
+  if (originalInvoke) {
+    base44.functions.invoke = async (functionName, payload = {}) => {
+      const usaRelatorio = functionName === 'gerarSecaoRelatorioExecucao'
+        || functionName === 'iniciarRelatorioExecucao';
+
+      if (!usaRelatorio) return originalInvoke(functionName, payload);
+
+      const relatorioId = payload?.relatorio_id || payload?.relatorioId;
+      let atual = null;
+      if (relatorioId && originalGet) {
+        try {
+          atual = await originalGet(relatorioId);
+        } catch {
+          atual = null;
+        }
+      }
+
+      const contexto = await construirContextoCumulativoRelatorios(atual);
+      const payloadComTabelas = {
+        ...payload,
+        consultar_tabelas_primeiro: true,
+        contexto_tabelas_relatorios: contexto,
+        instrucao_sistema_tabelas: 'Pesquise primeiro nas tabelas estruturadas e cumulativas dos relatórios. Gere o conteúdo solicitado com IA apenas a partir dos dados encontrados. Não invente dados. Salve o resultado no relatório atual e preserve o histórico cumulativo.',
+      };
+
+      const resposta = await originalInvoke(functionName, payloadComTabelas);
+
+      if (relatorioId && atual) {
+        try {
+          await originalUpdate(relatorioId, {
+            tabela_cumulativa_consultas: consultaCumulativa(atual, payloadComTabelas, functionName),
+            ultima_consulta_tabelas_em: new Date().toISOString(),
+          });
+        } catch (error) {
+          console.warn('[Relatório] Não foi possível registrar a consulta cumulativa.', error);
+        }
+      }
+
+      return resposta;
     };
   }
 
