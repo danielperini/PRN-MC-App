@@ -29,6 +29,7 @@ import { installRelatorioSingleProgress } from '@/utils/installRelatorioSinglePr
 import { installDashboardAuditMetrics } from '@/utils/installDashboardAuditMetrics'
 import { installGaleriaExposicaoCompleta } from '@/utils/installGaleriaExposicaoCompleta'
 import { installGaleriaPdfSemPopup } from '@/utils/installGaleriaPdfSemPopup'
+import { installGaleriaDeduplicacaoIA } from '@/utils/installGaleriaDeduplicacaoIA'
 
 installRuntimeErrorGuards()
 installActivityGalleryPdfRouting()
@@ -54,6 +55,7 @@ installRelatorioSingleProgress()
 installDashboardAuditMetrics()
 installGaleriaExposicaoCompleta()
 installGaleriaPdfSemPopup()
+installGaleriaDeduplicacaoIA()
 installPdfDownloadGuard()
 
 ReactDOM.createRoot(document.getElementById('root')).render(
