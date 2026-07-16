@@ -31,6 +31,7 @@ import { installGaleriaExposicaoCompleta } from '@/utils/installGaleriaExposicao
 import { installGaleriaPdfSemPopup } from '@/utils/installGaleriaPdfSemPopup'
 import { installGaleriaDeduplicacaoIA } from '@/utils/installGaleriaDeduplicacaoIA'
 import { installGaleriaVinculosPersistentes } from '@/utils/installGaleriaVinculosPersistentes'
+import { installRelatorioAutosaveDriveBackup } from '@/utils/installRelatorioAutosaveDriveBackup'
 
 installRuntimeErrorGuards()
 installActivityGalleryPdfRouting()
@@ -58,6 +59,7 @@ installGaleriaExposicaoCompleta()
 installGaleriaPdfSemPopup()
 installGaleriaDeduplicacaoIA()
 installGaleriaVinculosPersistentes()
+installRelatorioAutosaveDriveBackup()
 installPdfDownloadGuard()
 
 ReactDOM.createRoot(document.getElementById('root')).render(
