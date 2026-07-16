@@ -9,7 +9,8 @@ function normalizeText(value) {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .trim()
-    .toLowerCase();
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
 }
 
 function findHeaderIndex(headers, label) {
@@ -52,14 +53,50 @@ function getMetaName(item = {}) {
   );
 }
 
+function purchaseValue(item = {}) {
+  return Number(
+    item.valor_pago ||
+      item.valor_aprovado_admin ||
+      item.valor_aprovado ||
+      item.valor_final ||
+      item.valor_solicitado ||
+      item.valor_total ||
+      item.nf_valor_total ||
+      item.valor ||
+      0,
+  );
+}
+
+function formatMoneyVariants(value) {
+  const number = Number(value || 0);
+  if (!Number.isFinite(number) || number <= 0) return [];
+  return [
+    number.toFixed(2),
+    number.toFixed(2).replace('.', ','),
+    number.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+    number.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+  ].map(normalizeText);
+}
+
+function formatDateVariants(value) {
+  if (!value) return [];
+  const raw = String(value).split('T')[0];
+  const parts = raw.split('-');
+  const variants = [raw];
+  if (parts.length === 3) variants.push(`${parts[2]}/${parts[1]}/${parts[0]}`);
+  return variants.map(normalizeText);
+}
+
 let metaNameById = new Map();
-let metaMapPromise = null;
+let purchasesCache = [];
+let dataPromise = null;
 
-async function loadMetaMap() {
-  if (metaMapPromise) return metaMapPromise;
+async function loadData() {
+  if (dataPromise) return dataPromise;
 
-  metaMapPromise = (async () => {
+  dataPromise = (async () => {
     const map = new Map();
+    let purchases = [];
 
     try {
       const metas = await base44.entities.ProjectMeta.list('ordem', 5000);
@@ -71,8 +108,9 @@ async function loadMetaMap() {
     } catch (_) {}
 
     try {
-      const purchases = await base44.entities.PurchaseRequest.list('-created_date', 10000);
-      for (const purchase of Array.isArray(purchases) ? purchases : []) {
+      const result = await base44.entities.PurchaseRequest.list('-created_date', 10000);
+      purchases = Array.isArray(result) ? result : [];
+      for (const purchase of purchases) {
         const id = getMetaId(purchase);
         const name = getMetaName(purchase);
         if (id && name) map.set(id, name);
@@ -80,30 +118,67 @@ async function loadMetaMap() {
     } catch (_) {}
 
     metaNameById = map;
-    return map;
+    purchasesCache = purchases;
+    return { map, purchases };
   })().finally(() => {
-    metaMapPromise = null;
+    dataPromise = null;
   });
 
-  return metaMapPromise;
+  return dataPromise;
 }
 
-function extractMetaIdFromDescription(row, descriptionIndex) {
-  const descriptionCell = row.children[descriptionIndex];
-  if (!descriptionCell) return '';
-
-  const candidates = Array.from(descriptionCell.querySelectorAll('p, span, div'))
-    .map((element) => String(element.textContent || '').trim())
-    .filter(Boolean);
-
-  return candidates.find((text) =>
-    /^(MC[34]A[-\w]*|[a-f0-9]{24}|\d+\s*-\s*.+)$/i.test(text)
-  ) || '';
+function extractVisibleIds(row) {
+  const text = String(row?.textContent || '');
+  return Array.from(new Set(text.match(/\b[a-f0-9]{24}\b/gi) || []));
 }
 
-function updateMetaCell(row, descriptionIndex, rubricaIndex) {
-  const metaId = extractMetaIdFromDescription(row, descriptionIndex);
-  const metaName = metaNameById.get(metaId) || '';
+function scorePurchaseForRow(purchase, rowText, visibleIds) {
+  if (!purchase) return 0;
+  let score = 0;
+
+  if (purchase.id && visibleIds.includes(String(purchase.id))) score += 100;
+
+  const nfNumber = firstFilled(purchase.nf_numero, purchase.numero_nf, purchase.numero_nota);
+  if (nfNumber && rowText.includes(normalizeText(nfNumber))) score += 12;
+
+  const supplier = firstFilled(purchase.fornecedor_nome, purchase.nf_emitente_nome);
+  if (supplier && rowText.includes(normalizeText(supplier))) score += 10;
+
+  const cnpj = firstFilled(purchase.fornecedor_cnpj, purchase.nf_emitente_cpf_cnpj, purchase.fornecedor_cpf_cnpj);
+  if (cnpj && rowText.includes(normalizeText(cnpj))) score += 8;
+
+  const description = firstFilled(purchase.descricao_item, purchase.descricao, purchase.rubrica_nome);
+  if (description && rowText.includes(normalizeText(description).slice(0, 35))) score += 5;
+
+  if (formatMoneyVariants(purchaseValue(purchase)).some((value) => value && rowText.includes(value))) score += 6;
+
+  const date = firstFilled(purchase.nf_data_emissao, purchase.data_nf, purchase.data_emissao_nf, purchase.created_date);
+  if (formatDateVariants(date).some((value) => value && rowText.includes(value))) score += 4;
+
+  return score;
+}
+
+function findPurchaseForRow(row) {
+  const rowText = normalizeText(row?.textContent || '');
+  const visibleIds = extractVisibleIds(row);
+  let best = null;
+  let bestScore = 0;
+
+  for (const purchase of purchasesCache) {
+    const score = scorePurchaseForRow(purchase, rowText, visibleIds);
+    if (score > bestScore) {
+      best = purchase;
+      bestScore = score;
+    }
+  }
+
+  return bestScore >= 10 ? best : null;
+}
+
+function updateMetaCell(row, rubricaIndex) {
+  const purchase = findPurchaseForRow(row);
+  const metaId = getMetaId(purchase || {});
+  const metaName = getMetaName(purchase || {}) || metaNameById.get(metaId) || '';
 
   let cell = row.querySelector('[data-compras-meta-cell="true"]');
   if (!cell) {
@@ -120,7 +195,7 @@ function updateMetaCell(row, descriptionIndex, rubricaIndex) {
   const name = document.createElement('div');
   name.className = metaName ? 'break-words text-xs font-medium text-gray-700' : 'text-xs text-gray-400';
   name.textContent = metaName || '—';
-  name.title = metaName || 'Meta não informada na solicitação';
+  name.title = metaName || 'Meta não localizada na solicitação';
   wrapper.appendChild(name);
 
   if (metaId) {
@@ -142,23 +217,19 @@ function removeCentroColumn(table) {
   if (centerIndex < 0) return;
 
   headerRow.children[centerIndex]?.remove();
-  table.querySelectorAll('tbody tr').forEach((row) => {
-    row.children[centerIndex]?.remove();
-  });
+  table.querySelectorAll('tbody tr').forEach((row) => row.children[centerIndex]?.remove());
 }
 
 function installOnTable(table) {
   if (!table) return;
-
   removeCentroColumn(table);
 
   const headerRow = table.querySelector('thead tr');
   if (!headerRow) return;
 
   const headers = Array.from(headerRow.children);
-  const descriptionIndex = findHeaderIndex(headers, 'Descrição');
   const rubricaIndex = findHeaderIndex(headers, 'Rubrica');
-  if (descriptionIndex < 0 || rubricaIndex < 0) return;
+  if (rubricaIndex < 0) return;
 
   if (findHeaderIndex(headers, 'Meta') < 0) {
     const metaHeader = document.createElement('th');
@@ -168,14 +239,12 @@ function installOnTable(table) {
     headerRow.insertBefore(metaHeader, headerRow.children[rubricaIndex]);
   }
 
-  table.querySelectorAll('tbody tr').forEach((row) => {
-    updateMetaCell(row, descriptionIndex, rubricaIndex);
-  });
+  table.querySelectorAll('tbody tr').forEach((row) => updateMetaCell(row, rubricaIndex));
 }
 
 async function applyMetaColumn() {
   if (!isComprasRoute()) return;
-  await loadMetaMap();
+  await loadData();
   document.querySelectorAll('table').forEach(installOnTable);
 }
 
@@ -201,6 +270,7 @@ export function installComprasMetaColumn() {
   document.addEventListener('visibilitychange', run);
   window.addEventListener('purchase:changed', () => {
     metaNameById = new Map();
+    purchasesCache = [];
     run();
   });
 
