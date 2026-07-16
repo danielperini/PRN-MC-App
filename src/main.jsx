@@ -30,6 +30,7 @@ import { installDashboardAuditMetrics } from '@/utils/installDashboardAuditMetri
 import { installGaleriaExposicaoCompleta } from '@/utils/installGaleriaExposicaoCompleta'
 import { installGaleriaPdfSemPopup } from '@/utils/installGaleriaPdfSemPopup'
 import { installGaleriaDeduplicacaoIA } from '@/utils/installGaleriaDeduplicacaoIA'
+import { installGaleriaVinculosPersistentes } from '@/utils/installGaleriaVinculosPersistentes'
 
 installRuntimeErrorGuards()
 installActivityGalleryPdfRouting()
@@ -56,6 +57,7 @@ installDashboardAuditMetrics()
 installGaleriaExposicaoCompleta()
 installGaleriaPdfSemPopup()
 installGaleriaDeduplicacaoIA()
+installGaleriaVinculosPersistentes()
 installPdfDownloadGuard()
 
 ReactDOM.createRoot(document.getElementById('root')).render(
