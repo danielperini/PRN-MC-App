@@ -8,8 +8,24 @@ import {
 
 const STATUS_APROVADOS = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
 const CAMPOS_DATA = ['data', 'data_atividade', 'data_inicio', 'start_date', 'created_date'];
-const CAMPOS_META = ['meta_id', 'project_meta_id', 'meta', 'meta_codigo'];
 const CAMPOS_FOTO = ['foto_url', 'image_url', 'url', 'file_url', 'arquivo_url', 'photo_url'];
+const CAMPOS_META_ID = [
+  'meta_id', 'project_meta_id', 'meta_projeto_id', 'metaProjetoId', 'projectMetaId',
+  'goal_id', 'project_goal_id', 'meta_codigo', 'codigo_meta', 'metaId', 'meta_vinculada_id',
+];
+const CAMPOS_META_NOME = [
+  'meta_nome', 'nome_meta', 'meta_titulo', 'titulo_meta', 'meta_descricao', 'descricao_meta',
+  'meta_label', 'meta_texto', 'meta_codigo', 'codigo_meta', 'meta', 'meta_vinculada',
+];
+const METAS_ANTIGAS_BLOQUEADAS = [
+  'presente de iemanja',
+  '60 acoes educativas',
+  '36 acoes culturais',
+  '18 mostras de baixa ou media complexidade',
+  '101 diarias de educador',
+  'emenda parlamentar',
+  'meta de comunicacao institucional',
+];
 
 function dataISO(value) {
   if (!value) return '';
@@ -20,8 +36,83 @@ function dataISO(value) {
 }
 
 function primeiro(item, campos) {
-  for (const campo of campos) if (item?.[campo]) return item[campo];
+  for (const campo of campos) if (item?.[campo] !== undefined && item?.[campo] !== null && item?.[campo] !== '') return item[campo];
   return null;
+}
+
+function valorPrimitivo(value) {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string' || typeof value === 'number') return String(value).trim();
+  return '';
+}
+
+function objetoMetaDaCompra(compra) {
+  const candidatos = [
+    compra?.meta,
+    compra?.project_meta,
+    compra?.meta_projeto,
+    compra?.meta_vinculada,
+    compra?.goal,
+    compra?.project_goal,
+    compra?.rubrica?.meta,
+    compra?.rubrica_objeto?.meta,
+  ];
+  return candidatos.find((item) => item && typeof item === 'object') || null;
+}
+
+function extrairMetaId(compra) {
+  const direto = valorPrimitivo(primeiro(compra, CAMPOS_META_ID));
+  if (direto) return direto;
+  const objeto = objetoMetaDaCompra(compra);
+  return valorPrimitivo(objeto && (objeto.id || objeto.meta_id || objeto.codigo || objeto.meta_codigo));
+}
+
+function extrairMetaNome(compra) {
+  for (const campo of CAMPOS_META_NOME) {
+    const value = compra?.[campo];
+    const texto = valorPrimitivo(value);
+    if (texto) return texto;
+    if (value && typeof value === 'object') {
+      const nome = nomeCanonicoMeta(value);
+      if (nome && nome !== 'Meta') return nome;
+    }
+  }
+
+  const objeto = objetoMetaDaCompra(compra);
+  if (objeto) {
+    const nome = nomeCanonicoMeta(objeto);
+    if (nome && nome !== 'Meta') return nome;
+  }
+
+  return valorPrimitivo(
+    compra?.rubrica_nome ||
+    compra?.item_despesa ||
+    compra?.natureza_despesa_nome ||
+    compra?.descricao_meta
+  );
+}
+
+function textoCompra(compra) {
+  return normalizarTextoMeta([
+    extrairMetaNome(compra),
+    compra?.aditivo,
+    compra?.numero_aditivo,
+    compra?.aditivo_numero,
+    compra?.termo_aditivo,
+    compra?.projeto,
+    compra?.projeto_nome,
+    compra?.centro_custo,
+    compra?.centro_custo_nome,
+    compra?.rubrica,
+    compra?.rubrica_nome,
+    compra?.item_despesa,
+    compra?.descricao,
+  ].filter(Boolean).join(' '));
+}
+
+function ehMetaAntigaBloqueada(meta) {
+  const texto = normalizarTextoMeta(nomeCanonicoMeta(meta));
+  return METAS_ANTIGAS_BLOQUEADAS.some((item) => texto.includes(item));
 }
 
 function dentroPeriodo(item, inicio, fim) {
@@ -33,7 +124,12 @@ function unico(items, keyFn) {
   const map = new Map();
   for (const item of items || []) {
     const key = keyFn(item);
-    if (key && !map.has(key)) map.set(key, item);
+    if (!key) continue;
+    if (!map.has(key)) map.set(key, item);
+    else {
+      const atual = map.get(key);
+      map.set(key, { ...atual, ...item, nome: nomeCanonicoMeta(item) || nomeCanonicoMeta(atual) });
+    }
   }
   return [...map.values()];
 }
@@ -54,26 +150,31 @@ function valor(item) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function metaDerivadaDaCompra(compra) {
-  const id = String(compra?.meta_id || compra?.project_meta_id || compra?.meta_codigo || '');
-  const nome = compra?.meta_nome || compra?.meta || compra?.meta_titulo || compra?.meta_descricao || compra?.meta_codigo || '';
-  if (!id || !nome) return null;
+function metaDerivadaDaCompra(compra, metasPorId) {
+  const id = extrairMetaId(compra);
+  if (!id) return null;
+
+  const cadastrada = metasPorId.get(id);
+  const nomeCompra = extrairMetaNome(compra);
+  const nome = nomeCompra || (cadastrada ? nomeCanonicoMeta(cadastrada) : '') || `Meta ${id}`;
 
   return {
+    ...(cadastrada || {}),
     id,
     meta_id: id,
-    meta_codigo: compra?.meta_codigo || '',
+    meta_codigo: compra?.meta_codigo || cadastrada?.meta_codigo || cadastrada?.codigo || '',
     nome,
     meta_nome: nome,
     titulo: nome,
-    descricao: compra?.meta_descricao || nome,
-    resultado_esperado: compra?.meta_resultado_esperado || compra?.resultado_esperado || nome,
-    aditivo: compra?.aditivo,
-    numero_aditivo: compra?.numero_aditivo || compra?.aditivo_numero,
+    descricao: compra?.meta_descricao || cadastrada?.descricao || nome,
+    resultado_esperado: compra?.meta_resultado_esperado || cadastrada?.resultado_esperado || nome,
+    aditivo: compra?.aditivo || cadastrada?.aditivo,
+    numero_aditivo: compra?.numero_aditivo || compra?.aditivo_numero || cadastrada?.numero_aditivo,
     projeto: compra?.projeto || compra?.projeto_nome || compra?.project_name,
     centro_custo: compra?.centro_custo || compra?.centro_custo_nome,
     rubrica: compra?.rubrica || compra?.rubrica_nome,
     origem: 'Compras',
+    total_compras: 1,
   };
 }
 
@@ -87,7 +188,7 @@ function documentoNF(compra) {
     data_emissao: dataISO(compra?.nf_data_emissao || compra?.data_nf || compra?.data_emissao_nf),
     pdf_url: compra?.nf_pdf_url || compra?.arquivo_original_url || compra?.pdf_url || '',
     xml_url: compra?.nf_xml_url || compra?.xml_url || '',
-    meta_id: String(compra?.meta_id || compra?.project_meta_id || compra?.meta_codigo || ''),
+    meta_id: extrairMetaId(compra),
   };
 }
 
@@ -99,25 +200,25 @@ export function validarPeriodoRelatorio(dataInicio, dataFim) {
 
 export async function listarMetasRelatorio() {
   const [grupos, compras] = await Promise.all([
-    Promise.all(['ProjectMeta', 'MetaProjeto', 'Meta'].map((nome) => listar(nome, 2000))),
-    listar('PurchaseRequest', 5000),
+    Promise.all(['ProjectMeta', 'MetaProjeto', 'Meta'].map((nome) => listar(nome, 5000))),
+    listar('PurchaseRequest', 10000),
   ]);
 
-  const metasCadastradas = unico(grupos.flat().filter(metaPertenceAo3ou4Aditivo), (meta) => idCanonicoMeta(meta) || normalizarTextoMeta(nomeCanonicoMeta(meta)));
-  const idsPermitidos = new Set(metasCadastradas.map(idCanonicoMeta).filter(Boolean));
-  const nomesPermitidos = new Set(metasCadastradas.map((meta) => normalizarTextoMeta(nomeCanonicoMeta(meta))).filter(Boolean));
+  const metasCadastradas = unico(
+    grupos.flat().filter(metaPertenceAo3ou4Aditivo).filter((meta) => !ehMetaAntigaBloqueada(meta)),
+    (meta) => idCanonicoMeta(meta) || normalizarTextoMeta(nomeCanonicoMeta(meta)),
+  );
+  const metasPorId = new Map(metasCadastradas.map((meta) => [idCanonicoMeta(meta), meta]));
 
   const metasCompras = compras
-    .map(metaDerivadaDaCompra)
+    .map((compra) => metaDerivadaDaCompra(compra, metasPorId))
     .filter(Boolean)
-    .filter((meta) => {
-      const id = idCanonicoMeta(meta);
-      const nome = normalizarTextoMeta(nomeCanonicoMeta(meta));
-      return metaPertenceAo3ou4Aditivo(meta) || idsPermitidos.has(id) || nomesPermitidos.has(nome);
-    });
+    .filter((meta) => !ehMetaAntigaBloqueada(meta));
 
-  return unico([...metasCadastradas, ...metasCompras], (meta) => idCanonicoMeta(meta) || normalizarTextoMeta(nomeCanonicoMeta(meta)))
-    .sort((a, b) => nomeCanonicoMeta(a).localeCompare(nomeCanonicoMeta(b), 'pt-BR'));
+  return unico(
+    [...metasCadastradas, ...metasCompras],
+    (meta) => idCanonicoMeta(meta) || normalizarTextoMeta(nomeCanonicoMeta(meta)),
+  ).sort((a, b) => nomeCanonicoMeta(a).localeCompare(nomeCanonicoMeta(b), 'pt-BR'));
 }
 
 export async function sincronizarRelatorioExecucao({
@@ -138,13 +239,13 @@ export async function sincronizarRelatorioExecucao({
     listarMetasRelatorio(),
     Promise.all(['Activity', 'Atividade', 'Programacao', 'Evento'].map((nome) => listar(nome, 3000))).then((r) => r.flat()),
     Promise.all(['ActivityPhoto', 'AtividadeFoto', 'GalleryPhoto', 'GaleriaFoto', 'Photo', 'Foto'].map((nome) => listar(nome, 3000))).then((r) => r.flat()),
-    listar('PurchaseRequest', 5000),
+    listar('PurchaseRequest', 10000),
   ]);
 
   const metas = metasTodas.filter((meta) => selecionadas.has(idCanonicoMeta(meta)));
 
   const atividades = unico(
-    atividadesBrutas.filter((item) => dentroPeriodo(item, dataInicio, dataFim) && selecionadas.has(String(primeiro(item, CAMPOS_META) || ''))),
+    atividadesBrutas.filter((item) => dentroPeriodo(item, dataInicio, dataFim) && selecionadas.has(extrairMetaId(item))),
     (item) => item.id || `${item.titulo || item.nome}-${dataISO(primeiro(item, CAMPOS_DATA))}`,
   );
 
@@ -152,7 +253,7 @@ export async function sincronizarRelatorioExecucao({
   const fotos = unico(
     fotosBrutas.filter((foto) => {
       const atividadeId = foto?.activity_id || foto?.atividade_id || foto?.evento_id;
-      const metaId = String(primeiro(foto, CAMPOS_META) || '');
+      const metaId = extrairMetaId(foto);
       const url = primeiro(foto, CAMPOS_FOTO);
       return !!url && ((atividadeId && atividadeIds.has(atividadeId)) || (selecionadas.has(metaId) && dentroPeriodo(foto, dataInicio, dataFim)));
     }),
@@ -162,7 +263,7 @@ export async function sincronizarRelatorioExecucao({
   const notas = compras
     .filter((compra) => {
       const status = String(compra?.status || '').toUpperCase();
-      const metaId = String(compra?.meta_id || compra?.project_meta_id || compra?.meta_codigo || '');
+      const metaId = extrairMetaId(compra);
       const data = dataISO(compra?.nf_data_emissao || compra?.data_nf || compra?.data_emissao_nf);
       return STATUS_APROVADOS.has(status) && selecionadas.has(metaId) && !!data && data >= dataInicio && data <= dataFim;
     })
@@ -177,7 +278,7 @@ export async function sincronizarRelatorioExecucao({
 
   const cronogramaMetas = metas.map((meta) => {
     const chave = idCanonicoMeta(meta);
-    const atividadesMeta = atividades.filter((atividade) => String(primeiro(atividade, CAMPOS_META) || '') === chave);
+    const atividadesMeta = atividades.filter((atividade) => extrairMetaId(atividade) === chave);
     const notasMeta = notasPorMeta.get(chave) || [];
     return {
       ...meta,
@@ -214,7 +315,6 @@ export async function sincronizarRelatorioExecucao({
   const atual = await base44.entities.RelatorioExecucaoObjeto.get(relatorioId);
   const identificacaoAtual = atual?.identificacao_projeto || {};
   const totalFinanceiro = notas.reduce((soma, nota) => soma + nota.valor, 0);
-
   const dadosPersistidos = {
     data_inicio: dataInicio,
     data_fim: dataFim,
@@ -229,7 +329,7 @@ export async function sincronizarRelatorioExecucao({
       foto_url: primeiro(foto, CAMPOS_FOTO),
       atividade_nome: foto?.atividade_nome || foto?.legenda || foto?.descricao || 'Registro da atividade',
       atividade_data: dataISO(primeiro(foto, CAMPOS_DATA)),
-      meta_id: String(primeiro(foto, CAMPOS_META) || ''),
+      meta_id: extrairMetaId(foto),
     })),
     _notas_fiscais_metas: notas,
     _total_financeiro: totalFinanceiro,
