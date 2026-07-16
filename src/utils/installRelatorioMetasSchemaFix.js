@@ -23,26 +23,42 @@ function metaName(meta = {}) {
   return text(meta.meta_nome || meta.nome || meta.titulo || meta.descricao || meta.label);
 }
 
-function emptyNestedObject(content = '') {
+function nestedTextObject(content = '', current = {}) {
+  const base = current && typeof current === 'object' && !Array.isArray(current) ? current : {};
   return {
-    texto_ia: text(content),
-    texto_editado: '',
-    modo: 'ia',
-    editavel: true,
+    ...base,
+    texto_ia: text(base.texto_ia || content),
+    texto_editado: text(base.texto_editado),
+    modo: base.modo || (base.texto_editado ? 'manual' : 'ia'),
+    editavel: base.editavel !== false,
   };
 }
 
 function asNestedObject(value) {
-  if (value && typeof value === 'object' && !Array.isArray(value)) return value;
-  if (typeof value === 'string' || typeof value === 'number') return emptyNestedObject(value);
-  return emptyNestedObject();
+  if (value && typeof value === 'object' && !Array.isArray(value)) return nestedTextObject('', value);
+  if (typeof value === 'string' || typeof value === 'number') return nestedTextObject(value);
+  return null;
 }
 
-function sanitizeReportPayload(payload = {}) {
+function sanitizeReportPayload(payload = {}, { omitEmpty = true } = {}) {
   const next = { ...payload };
+
   for (const field of NESTED_TEXT_FIELDS) {
-    if (Object.prototype.hasOwnProperty.call(next, field)) next[field] = asNestedObject(next[field]);
+    if (!Object.prototype.hasOwnProperty.call(next, field)) continue;
+
+    const normalized = asNestedObject(next[field]);
+    const hasContent = Boolean(normalized?.texto_ia || normalized?.texto_editado);
+
+    if (!normalized || (omitEmpty && !hasContent)) delete next[field];
+    else next[field] = normalized;
   }
+
+  return next;
+}
+
+function omitNestedFields(payload = {}) {
+  const next = { ...payload };
+  for (const field of NESTED_TEXT_FIELDS) delete next[field];
   return next;
 }
 
@@ -128,6 +144,7 @@ async function filterMetaSelector() {
 
 async function createReportFallback(payload, reportEntity) {
   if (!reportEntity?.create) throw new Error('Entidade RelatorioExecucaoObjeto indisponível.');
+
   const created = await reportEntity.create({
     tipo: payload?.tipo || 'parcial',
     numero_relatorio: payload?.numero_relatorio || '',
@@ -136,11 +153,10 @@ async function createReportFallback(payload, reportEntity) {
     filtro_museu: payload?.filtro_museu || 'todos',
     filtro_versao: payload?.filtro_versao || 'consolidado',
     filtro_meta_ids: Array.isArray(payload?.filtro_meta_ids) ? payload.filtro_meta_ids : [],
-    descricao_acoes: emptyNestedObject(),
-    publico_alvo: emptyNestedObject(),
     status: 'rascunho',
     criado_por_fallback_schema: true,
   });
+
   const id = created?.id || created?._id || created?.data?.id;
   if (!id) throw new Error('Não foi possível identificar o relatório criado.');
   return { data: { relatorio_id: id }, relatorio_id: id, success: true };
@@ -151,15 +167,32 @@ export function installRelatorioMetasSchemaFix() {
   window.__relatorioMetasSchemaFixInstalled = true;
 
   const reportEntity = base44.entities?.RelatorioExecucaoObjeto;
+
   if (reportEntity?.update && !reportEntity.__nestedSchemaFixWrapped) {
     const originalUpdate = reportEntity.update.bind(reportEntity);
-    reportEntity.update = (id, payload = {}) => originalUpdate(id, sanitizeReportPayload(payload));
+    reportEntity.update = async (id, payload = {}) => {
+      const sanitized = sanitizeReportPayload(payload);
+      try {
+        return await originalUpdate(id, sanitized);
+      } catch (error) {
+        if (!isNestedObjectValidationError(error)) throw error;
+        return originalUpdate(id, omitNestedFields(sanitized));
+      }
+    };
     reportEntity.__nestedSchemaFixWrapped = true;
   }
 
   if (reportEntity?.create && !reportEntity.__nestedSchemaCreateFixWrapped) {
     const originalCreate = reportEntity.create.bind(reportEntity);
-    reportEntity.create = (payload = {}) => originalCreate(sanitizeReportPayload(payload));
+    reportEntity.create = async (payload = {}) => {
+      const sanitized = sanitizeReportPayload(payload);
+      try {
+        return await originalCreate(sanitized);
+      } catch (error) {
+        if (!isNestedObjectValidationError(error)) throw error;
+        return originalCreate(omitNestedFields(sanitized));
+      }
+    };
     reportEntity.__nestedSchemaCreateFixWrapped = true;
   }
 
@@ -178,7 +211,6 @@ export function installRelatorioMetasSchemaFix() {
         };
       }
 
-      // Não chama a função antiga: ela ainda grava strings em campos NestedObject.
       if (functionName === 'iniciarRelatorioExecucao') {
         return createReportFallback(payload, reportEntity);
       }
@@ -187,10 +219,7 @@ export function installRelatorioMetasSchemaFix() {
         return await originalInvoke(functionName, payload);
       } catch (error) {
         if (!isNestedObjectValidationError(error)) throw error;
-        if (['preencherRelatorioComDados', 'gerarSecaoRelatorioExecucao'].includes(functionName)) {
-          return { data: { success: false, schema_corrigido_localmente: true }, success: false };
-        }
-        throw error;
+        return originalInvoke(functionName, omitNestedFields(payload));
       }
     };
     functions.__officialMetaFilterWrapped = true;
