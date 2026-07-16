@@ -11,8 +11,7 @@ const normalizar = (valor) => texto(valor).normalize('NFD').replace(/[\u0300-\u0
 function frasePtBr(valor) {
   const limpo = texto(valor).replace(/\s+/g, ' ').replace(/\s+([,.;:!?])/g, '$1').trim();
   if (!limpo) return '';
-  const pareceCaixaAlta = limpo.length > 30 && limpo === limpo.toUpperCase();
-  if (!pareceCaixaAlta) return limpo;
+  if (!(limpo.length > 30 && limpo === limpo.toUpperCase())) return limpo;
   const convertido = limpo.toLocaleLowerCase('pt-BR');
   return convertido.charAt(0).toLocaleUpperCase('pt-BR') + convertido.slice(1);
 }
@@ -40,12 +39,16 @@ async function listarSeguro(nome, limite = 10000) {
 }
 
 function aprovado(relatorio = {}) {
-  const status = normalizar(relatorio.status || relatorio.situacao || relatorio.estado || relatorio.review_status);
+  const status = normalizar(relatorio.status || relatorio.situacao || relatorio.estado || relatorio.review_status).replace(/\s+/g, '_');
   return STATUS_APROVADO.has(status);
 }
 
 function idAtividade(item = {}) {
   return texto(item.id || item.activity_id || item.atividade_id || item.evento_id || item.programacao_id || item.agenda_id);
+}
+
+function idRelatorio(item = {}) {
+  return texto(item.report_id || item.relatorio_id || item.reportId || item.relatorioId);
 }
 
 function tituloAtividade(item = {}) {
@@ -71,8 +74,44 @@ function urlFoto(item = {}) {
   return '';
 }
 
-function idRelatorio(item = {}) {
-  return texto(item.report_id || item.relatorio_id || item.reportId || item.relatorioId);
+function mesNumero(valor) {
+  const meses = { janeiro: 1, fevereiro: 2, marco: 3, março: 3, abril: 4, maio: 5, junho: 6, julho: 7, agosto: 8, setembro: 9, outubro: 10, novembro: 11, dezembro: 12 };
+  const chave = normalizar(valor);
+  if (meses[chave]) return meses[chave];
+  const numero = Number(chave);
+  return numero >= 1 && numero <= 12 ? numero : 0;
+}
+
+function museuNormalizado(valor) {
+  const chave = normalizar(valor);
+  if (/\b(mhab|mab|abilio barreto)\b/.test(chave)) return 'mhab';
+  if (/\b(mumo|mumu|moda)\b/.test(chave)) return 'mumo';
+  if (/\b(mis|imagem e som)\b/.test(chave)) return 'mis';
+  if (/\b(map|pampulha)\b/.test(chave)) return 'pampulha';
+  return chave;
+}
+
+function competenciaRelatorio(relatorio = {}) {
+  return {
+    ano: Number(relatorio.ano || relatorio.ano_referencia || 0),
+    mes: mesNumero(relatorio.mes_referencia || relatorio.mes || 0),
+    museu: museuNormalizado(relatorio.museu || relatorio.filtro_museu),
+  };
+}
+
+function pertenceAoRelatorio(item, relatorio) {
+  if (idRelatorio(item) && idRelatorio(item) === texto(relatorio.id)) return true;
+
+  const competencia = competenciaRelatorio(relatorio);
+  const data = dataAtividade(item);
+  if (!data || !competencia.ano || !competencia.mes) return false;
+  const dataObj = new Date(data);
+  if (Number.isNaN(dataObj.getTime())) return false;
+  if (dataObj.getFullYear() !== competencia.ano || dataObj.getMonth() + 1 !== competencia.mes) return false;
+
+  const museuItem = museuNormalizado(item.museu || item.unidade || item.local || item.centro_custo || `${item.titulo || ''} ${item.descricao || ''}`);
+  if (!competencia.museu) return true;
+  return Boolean(museuItem && (museuItem.includes(competencia.museu) || competencia.museu.includes(museuItem)));
 }
 
 function atividadesDoRelatorio(relatorio = {}) {
@@ -80,59 +119,27 @@ function atividadesDoRelatorio(relatorio = {}) {
     relatorio.atividades,
     relatorio.activities,
     relatorio.atividades_realizadas,
-    relatorio._atividades_periodo,
-    relatorio._agenda_periodo,
     relatorio.descricao_acoes?.atividades,
     relatorio.tabelas_estruturadas?.atividades,
-    relatorio.tabelas_estruturadas?.agenda,
   ].flatMap(lista).map((atividade, indice) => ({
     ...atividade,
-    id: atividade?.id || `${relatorio.id || 'relatorio'}-atividade-${indice}`,
+    id: atividade?.id || `${relatorio.id}-atividade-${indice}`,
     report_id: relatorio.id,
-    museu: atividade?.museu || relatorio.museu || relatorio.filtro_museu,
-    source_entity: atividade?.source_entity || 'Relatório mensal',
+    museu: atividade?.museu || relatorio.museu,
+    source_entity: 'Relatório mensal',
   }));
 }
 
 function fotosDoRelatorio(relatorio = {}) {
   return [relatorio.fotos, relatorio.photos, relatorio.anexos_evidencias, relatorio.anexos_fotograficos, relatorio.galeria_fotos, relatorio._fotos_atividades]
     .flatMap(lista)
-    .map((foto, indice) => ({ ...foto, id: foto?.id || `${relatorio.id || 'relatorio'}-foto-${indice}`, report_id: relatorio.id }));
-}
-
-function mesNumero(valor) {
-  const meses = { janeiro: 1, fevereiro: 2, marco: 3, março: 3, abril: 4, maio: 5, junho: 6, julho: 7, agosto: 8, setembro: 9, outubro: 10, novembro: 11, dezembro: 12 };
-  const normal = normalizar(valor);
-  if (meses[normal]) return meses[normal];
-  const numero = Number(normal);
-  return numero >= 1 && numero <= 12 ? numero : 0;
-}
-
-function mesmaCompetencia(item, relatorio) {
-  const museuItem = normalizar(item.museu || item.unidade || item.local || item.centro_custo);
-  const museuRelatorio = normalizar(relatorio.museu || relatorio.filtro_museu);
-  if (museuItem && museuRelatorio && !museuItem.includes(museuRelatorio) && !museuRelatorio.includes(museuItem)) return false;
-
-  const data = dataAtividade(item);
-  if (!data) return true;
-  const ano = Number(relatorio.ano || relatorio.ano_referencia || 0);
-  const mes = mesNumero(relatorio.mes_referencia || relatorio.mes || 0);
-  const dataObj = new Date(data);
-  if (Number.isNaN(dataObj.getTime())) return true;
-  if (ano && dataObj.getFullYear() !== ano) return false;
-  if (mes && dataObj.getMonth() + 1 !== mes) return false;
-  return true;
+    .map((foto, indice) => ({ ...foto, id: foto?.id || `${relatorio.id}-foto-${indice}`, report_id: relatorio.id }));
 }
 
 function fotoDaAtividade(foto, atividade, relatorio) {
-  const atividadeId = idAtividade(atividade);
   const vinculo = texto(foto.activity_id || foto.atividade_id || foto.evento_id || foto.programacao_id || foto.agenda_id);
-  if (atividadeId && vinculo && atividadeId === vinculo) return true;
-  if (idRelatorio(foto) && idRelatorio(foto) === texto(relatorio.id)) {
-    const legenda = normalizar(`${foto.atividade_nome || ''} ${foto.legenda || ''} ${foto.titulo || ''} ${foto.descricao || ''}`);
-    const titulo = normalizar(tituloAtividade(atividade));
-    return !legenda || (titulo.length >= 6 && legenda.includes(titulo));
-  }
+  if (vinculo && vinculo === idAtividade(atividade)) return true;
+  if (idRelatorio(foto) && idRelatorio(foto) !== texto(relatorio.id)) return false;
   const legenda = normalizar(`${foto.atividade_nome || ''} ${foto.legenda || ''} ${foto.titulo || ''} ${foto.descricao || ''}`);
   const titulo = normalizar(tituloAtividade(atividade));
   return titulo.length >= 6 && legenda.includes(titulo);
@@ -145,21 +152,21 @@ function galeriaLink(relatorio = {}, fotos = []) {
 }
 
 function construirPacoteRelatorio(relatorio, fontes) {
-  const atividadesInternas = atividadesDoRelatorio(relatorio);
+  const internas = atividadesDoRelatorio(relatorio);
   const externas = [...fontes.agendas, ...fontes.atividades, ...fontes.programacoes]
-    .filter((item) => idRelatorio(item) === texto(relatorio.id) || mesmaCompetencia(item, relatorio))
+    .filter((item) => pertenceAoRelatorio(item, relatorio))
     .map((item) => ({ ...item, source_entity: item.source_entity || 'Agenda/Atividade' }));
 
-  const atividades = unico([...atividadesInternas, ...externas], (item) => idAtividade(item) || `${dataAtividade(item)}|${normalizar(tituloAtividade(item))}|${normalizar(item.museu || item.local)}`);
+  const atividades = unico([...internas, ...externas], (item) => idAtividade(item) || `${dataAtividade(item)}|${normalizar(tituloAtividade(item))}|${museuNormalizado(item.museu || item.local)}`);
   const fotos = unico([
     ...fotosDoRelatorio(relatorio),
     ...fontes.reportPhotos.filter((foto) => idRelatorio(foto) === texto(relatorio.id)),
-    ...fontes.documentIntakes.filter((item) => /foto|imagem|image/i.test(`${item.tipo_detectado || ''} ${item.file_name_original || ''}`) && (idRelatorio(item) === texto(relatorio.id) || mesmaCompetencia(item, relatorio))),
+    ...fontes.documentIntakes.filter((item) => /foto|imagem|image/i.test(`${item.tipo_detectado || ''} ${item.file_name_original || ''} ${item.mime_type || ''}`) && pertenceAoRelatorio(item, relatorio)),
   ].filter((item) => urlFoto(item)), (item) => urlFoto(item).split('?')[0]);
 
   const linhas = atividades.map((atividade) => {
     const todasFotos = fotos.filter((foto) => fotoDaAtividade(foto, atividade, relatorio));
-    const fotosDestaque = todasFotos.slice(0, 2);
+    const documentos = unico([...lista(atividade.documentos), ...lista(atividade.anexos), ...lista(atividade.arquivos)], (item) => texto(item?.url || item?.file_url || item?.id || item));
     return {
       atividade_id: idAtividade(atividade),
       relatorio_id: relatorio.id,
@@ -172,9 +179,9 @@ function construirPacoteRelatorio(relatorio, fontes) {
       publico_total: publicoAtividade(atividade),
       origem: atividade.source_entity || 'Relatório mensal',
       fotos_total: todasFotos.length,
-      fotos_destaque: fotosDestaque.map((foto, indice) => ({ titulo: frasePtBr(foto.legenda || foto.titulo || foto.atividade_nome || `Foto ${indice + 1}`), url: urlFoto(foto) })),
-      galeria_url: galeriaLink(relatorio, todasFotos),
-      documentos: unico([...lista(atividade.documentos), ...lista(atividade.anexos), ...lista(atividade.arquivos)], (item) => texto(item?.url || item?.file_url || item?.id || item)).map((item) => ({ titulo: frasePtBr(item?.titulo || item?.nome || item?.file_name || item), url: texto(item?.url || item?.file_url || item?.arquivo_url) })),
+      fotos_destaque: todasFotos.slice(0, 2).map((foto, indice) => ({ titulo: frasePtBr(foto.legenda || foto.titulo || foto.atividade_nome || `Foto ${indice + 1}`), url: urlFoto(foto) })),
+      galeria_url: galeriaLink(relatorio, todasFotos) || galeriaLink(relatorio, fotos),
+      documentos: documentos.map((item) => ({ titulo: frasePtBr(item?.titulo || item?.nome || item?.file_name || item), url: texto(item?.url || item?.file_url || item?.arquivo_url) })),
     };
   });
 
@@ -219,13 +226,11 @@ async function exportarPacote(pacote, jsPDF) {
   const altura = pdf.internal.pageSize.getHeight();
   const margem = 12;
   let y = margem;
-
   const garantir = (espaco = 18) => { if (y + espaco > altura - margem) { pdf.addPage(); y = margem; } };
   const escrever = (valor, tamanho = 9, recuo = 0) => {
-    const conteudo = frasePtBr(valor) || '—';
-    pdf.setFontSize(tamanho);
-    const linhas = pdf.splitTextToSize(conteudo, largura - 2 * margem - recuo);
+    const linhas = pdf.splitTextToSize(frasePtBr(valor) || '—', largura - 2 * margem - recuo);
     garantir(linhas.length * 4 + 3);
+    pdf.setFontSize(tamanho);
     pdf.text(linhas, margem + recuo, y);
     y += linhas.length * 4 + 3;
   };
@@ -235,18 +240,7 @@ async function exportarPacote(pacote, jsPDF) {
   y += 9;
   escrever(`${relatorio.museu || 'Museu não informado'} — ${relatorio.mes_referencia || ''} ${relatorio.ano || ''}`, 11);
   escrever(`Profissional: ${relatorio.author_name || relatorio.created_by || 'Não informado'}`, 9);
-  escrever(`Função: ${relatorio.funcao || relatorio.cargo || relatorio.equipe || 'Não informada'}`, 9);
-
-  garantir(12);
-  pdf.setFontSize(12);
-  pdf.text('Apresentação do período', margem, y);
-  y += 6;
   escrever(relatorio.resumo_executivo || relatorio.apresentacao_periodo || relatorio.resumo || 'Sem apresentação registrada.', 10);
-
-  garantir(14);
-  pdf.setFontSize(12);
-  pdf.text('Síntese consolidada', margem, y);
-  y += 6;
   escrever(`${pacote.resumo.total_atividades} atividade(s); público total de ${pacote.resumo.publico_total.toLocaleString('pt-BR')}; ${pacote.resumo.fotos_total} foto(s); ${pacote.resumo.documentos_total} documento(s).`, 9);
 
   for (let indice = 0; indice < pacote.atividades.length; indice += 1) {
@@ -259,16 +253,17 @@ async function exportarPacote(pacote, jsPDF) {
     if (atividade.meta_id) escrever(`Meta vinculada: ${atividade.meta_id}`, 8, 3);
     escrever(atividade.descricao || 'Sem descrição complementar.', 9, 3);
 
+    let maiorAltura = 0;
     for (let fotoIndice = 0; fotoIndice < atividade.fotos_destaque.length; fotoIndice += 1) {
       const foto = atividade.fotos_destaque[fotoIndice];
       try {
         const dataUrl = await urlParaDataUrl(foto.url);
         const props = pdf.getImageProperties(dataUrl);
         const maxLargura = (largura - 2 * margem - 4) / 2;
-        const maxAltura = 58;
-        const proporcao = Math.min(maxLargura / props.width, maxAltura / props.height);
+        const proporcao = Math.min(maxLargura / props.width, 58 / props.height);
         const w = props.width * proporcao;
         const h = props.height * proporcao;
+        maiorAltura = Math.max(maiorAltura, h);
         garantir(h + 12);
         const x = margem + fotoIndice * (maxLargura + 4);
         pdf.addImage(dataUrl, formatoImagem(dataUrl), x, y, w, h, undefined, 'FAST');
@@ -278,7 +273,7 @@ async function exportarPacote(pacote, jsPDF) {
         console.warn('Foto não incluída no PDF:', foto.url, erro);
       }
     }
-    if (atividade.fotos_destaque.length) y += 68;
+    if (maiorAltura) y += maiorAltura + 10;
     if (atividade.galeria_url) {
       garantir(8);
       pdf.setTextColor(0, 82, 204);
@@ -288,26 +283,13 @@ async function exportarPacote(pacote, jsPDF) {
     }
   }
 
-  if (pacote.galeria_url) {
-    garantir(10);
-    pdf.setFontSize(10);
-    pdf.setTextColor(0, 82, 204);
-    pdf.textWithLink('Abrir galeria completa do relatório', margem, y, { url: pacote.galeria_url });
-    pdf.setTextColor(0, 0, 0);
-  }
-
   const nome = texto(relatorio.author_name || relatorio.created_by || 'relatorio').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '_');
   pdf.save(`relatorio_atividade_${nome}_${texto(relatorio.mes_referencia)}_${texto(relatorio.ano)}.pdf`);
 }
 
 async function carregarFontes() {
   const [agendas, atividades, programacoes, reports, reportPhotos, documentIntakes] = await Promise.all([
-    listarSeguro('Agenda'),
-    listarSeguro('Atividade'),
-    listarSeguro('Programacao'),
-    listarSeguro('Report'),
-    listarSeguro('ReportPhoto'),
-    listarSeguro('DocumentIntake'),
+    listarSeguro('Agenda'), listarSeguro('Atividade'), listarSeguro('Programacao'), listarSeguro('Report'), listarSeguro('ReportPhoto'), listarSeguro('DocumentIntake'),
   ]);
   return { agendas, atividades, programacoes, reports: reports.filter(aprovado), reportPhotos, documentIntakes };
 }
@@ -324,12 +306,11 @@ function ocultarValidacaoMensal() {
 }
 
 function instalarBotaoExportacao() {
-  if (!/Relatorios/i.test(window.location.pathname)) return;
+  if (!/Relatorios/i.test(window.location.pathname) || /RelatorioExecucaoObjeto/i.test(window.location.pathname)) return;
   if (document.querySelector('[data-exportar-relatorios-completos]')) return;
   const titulo = [...document.querySelectorAll('h1')].find((item) => normalizar(item.textContent).includes('relatorios mensais'));
-  const alvo = titulo?.parentElement?.parentElement?.querySelector('.flex.flex-wrap.gap-2') || titulo?.parentElement?.parentElement;
+  const alvo = titulo?.parentElement?.parentElement?.querySelector('.flex.flex-wrap.gap-2');
   if (!alvo) return;
-
   const botao = document.createElement('button');
   botao.dataset.exportarRelatoriosCompletos = 'true';
   botao.className = 'inline-flex items-center justify-center rounded-md border border-black bg-white px-4 py-2 text-sm font-medium text-black hover:bg-gray-50 disabled:opacity-50';
@@ -344,16 +325,15 @@ function instalarBotaoExportacao() {
       const { jsPDF } = await import('jspdf');
       for (let indice = 0; indice < fontes.reports.length; indice += 1) {
         botao.textContent = `Exportando ${indice + 1} de ${fontes.reports.length}`;
-        const pacote = construirPacoteRelatorio(fontes.reports[indice], fontes);
-        await exportarPacote(pacote, jsPDF);
+        await exportarPacote(construirPacoteRelatorio(fontes.reports[indice], fontes), jsPDF);
         await new Promise((resolve) => setTimeout(resolve, 700));
       }
       botao.textContent = 'Exportação concluída';
-      setTimeout(() => { botao.textContent = original; botao.disabled = false; }, 2500);
     } catch (erro) {
       console.error('Falha na exportação completa:', erro);
       botao.textContent = erro?.message || 'Falha na exportação';
-      setTimeout(() => { botao.textContent = original; botao.disabled = false; }, 3500);
+    } finally {
+      setTimeout(() => { botao.textContent = original; botao.disabled = false; }, 3000);
     }
   });
   alvo.prepend(botao);
@@ -366,15 +346,18 @@ function instalarContextoExecucao() {
   entidade.update = async (id, payload = {}) => {
     const fontes = await carregarFontes();
     const pacotes = fontes.reports.map((relatorio) => construirPacoteRelatorio(relatorio, fontes));
-    const linhas = pacotes.flatMap((pacote) => pacote.atividades.map((atividade) => ({
+    const linhas = unico(pacotes.flatMap((pacote) => pacote.atividades.map((atividade) => ({
       ...atividade,
       relatorio_id: pacote.relatorio.id,
       relatorio_titulo: frasePtBr(pacote.relatorio.titulo || `Relatório ${pacote.relatorio.museu || ''} ${pacote.relatorio.mes_referencia || ''} ${pacote.relatorio.ano || ''}`),
       fotos_destaque: atividade.fotos_destaque.slice(0, 2),
       galeria_url: atividade.galeria_url || pacote.galeria_url,
-    })));
+    }))), (item) => `${item.relatorio_id}|${item.atividade_id || `${item.data}|${normalizar(item.atividade)}`}`);
+
     const contexto = {
+      integracao: 'relatorios_atividades_completos',
       relatorios_aprovados: fontes.reports.length,
+      relatorios_aprovados_ids: fontes.reports.map((item) => item.id).filter(Boolean),
       total_atividades: linhas.length,
       publico_total: linhas.reduce((soma, item) => soma + Number(item.publico_total || 0), 0),
       fotos_total: linhas.reduce((soma, item) => soma + Number(item.fotos_total || 0), 0),
@@ -382,6 +365,7 @@ function instalarContextoExecucao() {
       fontes: ['Agenda', 'Atividade', 'Programacao', 'Report', 'ReportPhoto', 'DocumentIntake'],
       atualizado_em: new Date().toISOString(),
     };
+
     return atualizarOriginal(id, {
       ...payload,
       tabela_atividades_evidencias: linhas,
@@ -399,10 +383,7 @@ export function installRelatoriosAtividadesCompletos() {
   if (typeof window === 'undefined' || window.__relatoriosAtividadesCompletosInstalled) return;
   window.__relatoriosAtividadesCompletosInstalled = true;
   instalarContextoExecucao();
-  const executar = () => window.requestAnimationFrame(() => {
-    ocultarValidacaoMensal();
-    instalarBotaoExportacao();
-  });
+  const executar = () => window.requestAnimationFrame(() => { ocultarValidacaoMensal(); instalarBotaoExportacao(); });
   new MutationObserver(executar).observe(document.documentElement, { childList: true, subtree: true });
   window.addEventListener('popstate', executar);
   window.addEventListener('hashchange', executar);
