@@ -17,6 +17,7 @@ import { installRelatorioGenerationWorkflow } from '@/utils/installRelatorioGene
 import { installRelatorioPdfHeader } from '@/utils/installRelatorioPdfHeader'
 import { installRelatorioExecucaoSafeEntities } from '@/utils/installRelatorioExecucaoSafeEntities'
 import { installRelatorioTabelasEstruturadas } from '@/utils/installRelatorioTabelasEstruturadas'
+import { installRelatorioFinanceAuditContext } from '@/utils/installRelatorioFinanceAuditContext'
 import { installPdfDownloadGuard } from '@/utils/pdfDownloadGuard'
 
 installActivityGalleryPdfRouting()
@@ -32,6 +33,7 @@ installRelatorioGenerationWorkflow()
 installRelatorioPdfHeader()
 installRelatorioExecucaoSafeEntities()
 installRelatorioTabelasEstruturadas()
+installRelatorioFinanceAuditContext()
 installPdfDownloadGuard()
 
 ReactDOM.createRoot(document.getElementById('root')).render(
