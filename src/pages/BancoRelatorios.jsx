@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ScrollText, Download, Search, Calendar, FileText, Eye } from 'lucide-react';
+import { ScrollText, Download, Search, Calendar, FileText, Eye, FolderOpen, ExternalLink, Lock } from 'lucide-react';
 
 function fmtDate(d) {
   if (!d) return '—';
@@ -52,6 +52,7 @@ export default function BancoRelatorios() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
+      {/* Cabeçalho */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -63,6 +64,27 @@ export default function BancoRelatorios() {
           </p>
         </div>
         <Badge variant="outline">{filtrados.length} relatório(s) disponível(is)</Badge>
+      </div>
+
+      {/* Banner de acesso restrito + pasta Drive */}
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <Lock className="w-4 h-4 text-slate-500 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-slate-800">Acesso restrito a observadores autorizados</p>
+            <p className="text-xs text-slate-500 mt-0.5">Somente relatórios marcados como prontos para publicação pelo ordenador estão disponíveis aqui.</p>
+          </div>
+        </div>
+        <a
+          href="https://drive.google.com/drive/folders/1LgC94VhIomQZBS7kfkQqgBX8MVzwQqzp"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors flex-shrink-0"
+        >
+          <FolderOpen className="w-4 h-4 text-slate-500" />
+          Pasta no Drive
+          <ExternalLink className="w-3 h-3 text-slate-400" />
+        </a>
       </div>
 
       <div className="relative">
