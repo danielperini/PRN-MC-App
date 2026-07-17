@@ -37,6 +37,67 @@ const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 
+function fmtBRLSigned(v) {
+  const abs = Math.abs(v);
+  const formatted = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(abs);
+  return v < 0 ? `-${formatted}` : `+${formatted}`;
+}
+
+const APRES_INFRA_PATTERNS = [
+  { label: 'Apresentações culturais – 3 museus PBH', match: r => /apresenta/i.test(r.rubrica || r.nome || '') && /3 museus/i.test(r.rubrica || r.nome || '') },
+  { label: 'Apresentações – MIS/MUMO/MHAB', match: r => /apresenta/i.test(r.rubrica || r.nome || '') && /mis.mumo.mhab/i.test(r.rubrica || r.nome || '') },
+  { label: 'Infraestrutura 3 museus PBH', match: r => /infraestrutura/i.test(r.rubrica || r.nome || '') && /3 museus/i.test(r.rubrica || r.nome || '') },
+  { label: 'Infraestrutura MIS/MUMO/MHAB', match: r => /infraestrutura/i.test(r.rubrica || r.nome || '') && /mis.mumo.mhab/i.test(r.rubrica || r.nome || '') },
+];
+
+function ApresentacaoInfraTable({ rubricas }) {
+  const rows = APRES_INFRA_PATTERNS.map(({ label, match }) => {
+    const r = (rubricas || []).find(match);
+    if (!r) return { label, limite: 0, utilizado: 0, saldo: 0 };
+    const limite = toNum(r.valor_rubrica || r.valor_total);
+    const utilizado = toNum(r.valor_utilizado);
+    const saldo = limite - utilizado;
+    return { label, limite, utilizado, saldo };
+  });
+
+  const anyData = rows.some(r => r.limite > 0);
+  if (!anyData) return null;
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+      <div className="px-4 py-3 border-b border-gray-100">
+        <p className="text-sm font-semibold text-gray-800">Apresentações e Infraestrutura — Noturno 2026</p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+              <th className="px-4 py-2 text-left font-medium">Rubrica</th>
+              <th className="px-4 py-2 text-right font-medium">Limite</th>
+              <th className="px-4 py-2 text-right font-medium">Utilizado</th>
+              <th className="px-4 py-2 text-right font-medium">Saldo</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {rows.map(row => (
+              <tr key={row.label} className="hover:bg-gray-50">
+                <td className="px-4 py-2.5 text-gray-800">{row.label}</td>
+                <td className="px-4 py-2.5 text-right text-gray-700 font-medium">{fmtBRL(row.limite)}</td>
+                <td className="px-4 py-2.5 text-right text-gray-700">{fmtBRL(row.utilizado)}</td>
+                <td className={`px-4 py-2.5 text-right font-semibold ${row.saldo < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                  {fmtBRLSigned(row.saldo)}
+                  {row.saldo < 0 && <span className="ml-1 text-xs">⚠️</span>}
+                  {row.saldo >= 0 && <span className="ml-1 text-xs">✅</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export default function RubricasConsumoDashboard({ rubricas }) {
   const [grupoBusca, setGrupoBusca] = useState('');
   const [somenteAtivas, setSomenteAtivas] = useState(true);
@@ -54,7 +115,7 @@ export default function RubricasConsumoDashboard({ rubricas }) {
       .map(r => {
         const total = toNum(r.valor_rubrica || r.valor_total);
         const utilizado = toNum(r.valor_utilizado);
-        const saldo = Math.max(0, total - utilizado);
+        const saldo = total - utilizado;
         const pct = total > 0 ? (utilizado / total) * 100 : 0;
         return {
           id: r.id,
@@ -114,7 +175,7 @@ export default function RubricasConsumoDashboard({ rubricas }) {
         {[
           { label: 'Total Previsto', value: fmtBRL(totais.total), color: 'text-gray-900' },
           { label: 'Total Utilizado', value: fmtBRL(totais.utilizado), color: 'text-orange-600' },
-          { label: 'Saldo Disponível', value: fmtBRL(totais.saldo), color: totais.saldo < 0 ? 'text-red-600' : 'text-green-600' },
+          { label: 'Saldo Disponível', value: (totais.saldo < 0 ? '-' : '') + fmtBRL(Math.abs(totais.saldo)), color: totais.saldo < 0 ? 'text-red-600' : 'text-green-600' },
           { label: 'Execução Geral', value: `${totais.pct.toFixed(1)}%`, color: totais.pct >= 80 ? 'text-red-600' : 'text-blue-700' },
         ].map(card => (
           <div key={card.label} className="rounded-xl border border-gray-200 bg-white p-4">
@@ -138,6 +199,8 @@ export default function RubricasConsumoDashboard({ rubricas }) {
           </span>
         ))}
       </div>
+
+      <ApresentacaoInfraTable rubricas={rubricas} />
 
       <div className="flex flex-wrap gap-3 items-center">
         <input
