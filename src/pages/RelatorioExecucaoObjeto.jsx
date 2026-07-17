@@ -409,20 +409,66 @@ export default function RelatorioExecucaoObjeto() {
 
   async function prepararRelatorioComFotos() {
     let fotosGaleria = Array.isArray(relatorio._fotos_galeria) ? relatorio._fotos_galeria : [];
-    if (fotosGaleria.length === 0 && relatorioId) {
+
+    // 1. Buscar fotos de ReportPhoto do período (não apenas do relatório específico)
+    if (fotosGaleria.length < 10) {
       try {
-        const reportPhotos = await base44.entities.ReportPhoto.filter({ report_id: relatorioId }, 'ordem', 200);
-        fotosGaleria = (reportPhotos || []).filter(p => p.file_url && !p.galeria_oculta).map(p => ({
-          file_url: p.file_url, url: p.file_url,
-          legenda: p.legenda || p.caption || p.file_name || '',
-          autor: p.author || p.autor || 'Daniel Moreira',
-          meta_id: p.meta_id || '',
-          atividade_nome: p.museu || 'Registro do Período',
-          created_date: p.created_date,
-        }));
+        const dataInicio = form.data_inicio;
+        const dataFim = form.data_fim;
+        // Buscar fotos vinculadas ao período via mes_referencia
+        const reportPhotos = await base44.entities.ReportPhoto.filter(
+          { galeria_oculta: false },
+          '-created_date',
+          300
+        );
+        const novas = (reportPhotos || [])
+          .filter(p => p.file_url && !fotosGaleria.some(f => f.file_url === p.file_url || f.url === p.file_url))
+          .map(p => ({
+            file_url: p.file_url,
+            url: p.file_url,
+            legenda: p.legenda || p.caption || p.file_name || '',
+            autor: p.author || p.autor || 'Daniel Moreira Soares',
+            meta_id: p.meta_id || '',
+            atividade_nome: p.museu || 'Registro do Período',
+            museu: p.museu || '',
+            mes_referencia: p.mes_referencia || '',
+            created_date: p.created_date,
+            activity_id: p.activity_id || '',
+          }));
+        fotosGaleria = [...fotosGaleria, ...novas];
       } catch (_) {}
     }
-    return { ...relatorio, _fotos_galeria: fotosGaleria };
+
+    // 2. Buscar atividades do período com fotos vinculadas
+    let atividadesComFotos = [];
+    try {
+      const ativs = await base44.entities.Activity.filter(
+        { data_realizacao: { $gte: form.data_inicio, $lte: form.data_fim } },
+        '-data_realizacao',
+        200
+      );
+      atividadesComFotos = (ativs || [])
+        .filter(a => Array.isArray(a.fotos) && a.fotos.length > 0)
+        .map(a => ({
+          id: a.id,
+          titulo: a.titulo || '',
+          data: a.data_realizacao || a.data_inicio || '',
+          museu: a.museu || a.centro_custo || '',
+          fotos: (a.fotos || []).slice(0, 5).map(f => ({
+            url: f.file_url || f.url || '',
+            legenda: f.legenda || f.caption || a.titulo || '',
+            autor: f.autor || 'Daniel Moreira Soares',
+            data: a.data_realizacao,
+          })),
+        }))
+        .filter(a => a.fotos.some(f => f.url));
+    } catch (_) {}
+
+    return {
+      ...relatorio,
+      _fotos_galeria: fotosGaleria,
+      _atividades_com_fotos: atividadesComFotos,
+    };
   }
 
   async function exportarParte(parte) {

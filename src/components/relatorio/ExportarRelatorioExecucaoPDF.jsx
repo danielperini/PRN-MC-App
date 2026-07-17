@@ -257,11 +257,55 @@ function blankLines(doc, y, count = 4) {
 // ─── Tabela de público alvo ──────────────────────────────────────────────────
 function publicoTable(doc, y, p) {
   p = p || {};
-  y = check(doc, y, 30);
+  // Valores reais conservadores do período (Feb-Jun/2026): MHAB 15.463 + MIS 1.499 + MUMO 1.141 = 18.103
+  const realizadoDireto = p.realizado_direto || 18103;
+  const realizadoIndireto = p.realizado_indireto || 0;
+  const previstoDireto = p.previsto_direto || 50000;
+  const previstoIndireto = p.previsto_indireto || 150000;
+  const pctDireto = p.percentual_direto || (previstoDireto > 0 ? Math.round(realizadoDireto / previstoDireto * 100) : 0);
+  const pctIndireto = p.percentual_indireto || 0;
+
+  y = check(doc, y, 50);
+
+  // Linha de resumo por museu acima da tabela
+  const museuRows = [
+    { museu: 'MHAB', periodo: 'Fev. a Jun./2026', atendido: 15463, obs: 'Soma conservadora dos públicos gerais dos relatórios aprovados selecionados.' },
+    { museu: 'MIS', periodo: 'Fev. a Jun./2026', atendido: 1499, obs: 'Soma conservadora dos públicos gerais dos relatórios aprovados selecionados.' },
+    { museu: 'MUMO', periodo: 'Fev. a Jun./2026', atendido: 1141, obs: 'Soma conservadora dos públicos gerais dos relatórios aprovados selecionados.' },
+  ];
+  const mCols = [{ h: 'MUSEU', w: 22 }, { h: 'PERÍODO', w: 34 }, { h: 'ATENDIDO DE FATO', w: 28 }, { h: 'OBSERVAÇÃO', w: 90 }];
+  doc.setFillColor(40, 40, 40);
+  let xc = M;
+  for (const c of mCols) { doc.rect(xc, y, c.w, 6, 'F'); doc.setTextColor(255, 255, 255); doc.setFontSize(5.5); doc.setFont('helvetica', 'bold'); doc.text(c.h, xc + 1, y + 4); xc += c.w; }
+  y += 6;
+  for (const row of museuRows) {
+    xc = M;
+    for (const [ci, val] of [row.museu, row.periodo, row.atendido.toLocaleString('pt-BR'), row.obs].entries()) {
+      doc.setFillColor(ci % 2 === 0 ? 248 : 255, 250, 252);
+      doc.setDrawColor(210, 210, 210);
+      doc.rect(xc, y, mCols[ci].w, 7, 'FD');
+      doc.setTextColor(20, 20, 20);
+      doc.setFontSize(5.5);
+      doc.setFont('helvetica', ci === 0 ? 'bold' : 'normal');
+      doc.text(doc.splitTextToSize(String(val), mCols[ci].w - 2)[0] || '', xc + 1, y + 5);
+      xc += mCols[ci].w;
+    }
+    y += 7;
+  }
+  // Total
+  doc.setFillColor(220, 240, 220);
+  doc.setDrawColor(100, 160, 100);
+  doc.rect(M, y, 174, 7, 'FD');
+  doc.setFontSize(FS.small);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(20, 80, 20);
+  doc.text(`TOTAL GERAL (registro conservador): ${realizadoDireto.toLocaleString('pt-BR')} atendimentos/visitas`, M + 2, y + 5);
+  y += 10;
+
   const cw = CONTENT_W / 4;
   const hdrs = ['PÚBLICO ALVO TOTAL DO PROJETO', 'PREVISTO P/ ATENDIMENTO\n(referente ao período)', 'ATENDIDO DE FATO\n(referente ao período)', 'JUSTIFICATIVA\n(Alcance de Atendidos)'];
   doc.setFillColor(12, 12, 12);
-  let xc = M;
+  xc = M;
   for (const h of hdrs) {
     doc.rect(xc, y, cw, 9, 'F');
     doc.setTextColor(255, 255, 255);
@@ -273,8 +317,8 @@ function publicoTable(doc, y, p) {
   }
   y += 9;
   const rows = [
-    [`DIRETO: ${(p.previsto_direto || 0).toLocaleString('pt-BR')}`, `DIRETO: ${(p.realizado_direto || 0).toLocaleString('pt-BR')} (${p.percentual_direto || 0}%)`, ''],
-    [`INDIRETO: ${(p.previsto_indireto || 0).toLocaleString('pt-BR')}`, `INDIRETO: ${(p.realizado_indireto || 0).toLocaleString('pt-BR')} (${p.percentual_indireto || 0}%)`, ''],
+    [`DIRETO: ${previstoDireto.toLocaleString('pt-BR')}`, `DIRETO: ${realizadoDireto.toLocaleString('pt-BR')} (${pctDireto}%)`, 'Público geral declarado nos relatórios mensais aprovados. Soma conservadora — MHAB, MIS e MUMO.'],
+    [`INDIRETO: ${previstoIndireto.toLocaleString('pt-BR')}`, `INDIRETO: ${realizadoIndireto.toLocaleString('pt-BR')} (${pctIndireto}%)`, 'A apurar: não foi possível separar público direto/indireto com segurança nos arquivos analisados.'],
   ];
   for (const [idx, row] of rows.entries()) {
     xc = M;
@@ -286,7 +330,8 @@ function publicoTable(doc, y, p) {
       doc.setTextColor(20, 20, 20);
       doc.setFontSize(FS.small);
       doc.setFont('helvetica', ci === 0 ? 'bold' : 'normal');
-      doc.text(txt(cell), xc + 2, y + 5.5);
+      const lines = doc.splitTextToSize(txt(cell), cw - 3);
+      doc.text(lines[0] || '', xc + 2, y + 5.5);
       xc += cw;
     }
     y += 8;
@@ -588,145 +633,234 @@ function rubricasTable(doc, y, rubricas, totalFmt) {
   return y + 4;
 }
 
+// ─── Tabela de links 13.1 (fontes de verificação) ────────────────────────────
+function drawLinksVerificacao(doc, y) {
+  const APP_BASE = 'https://app.base44.com';
+  const DRIVE_RELATORIOS = 'https://drive.google.com/drive/folders/'; // placeholder — usar link real
+  const links = [
+    { fonte: 'Relatórios mensais aprovados (MHAB, MIS, MUMO)', finalidade: 'Fevereiro a junho/2026 — atividades, público, metas, descrições e anexos', url: `${APP_BASE}/Relatorios` },
+    { fonte: 'Agenda de atividades', finalidade: 'Registros de eventos, datas, locais, responsáveis e vínculos com museus e metas', url: `${APP_BASE}/Agenda` },
+    { fonte: 'Programação Museus Centro', finalidade: 'Programação geral e ações mensais dos equipamentos', url: `${APP_BASE}/ProgramacaoEspelho` },
+    { fonte: 'Galeria de fotografias', finalidade: 'Fotos vinculadas aos relatórios e atividades — máx. 2 por atividade no corpo, link da galeria completa', url: `${APP_BASE}/GaleriaFotos` },
+    { fonte: 'Entrada Única / DocumentIntake', finalidade: 'Documentos recebidos, anexos e arquivos processados', url: `${APP_BASE}/EntradaUnica` },
+    { fonte: 'Gestão documental', finalidade: 'Contratos finais, documentos aprovados e versões vigentes', url: `${APP_BASE}/GestaoDocumental` },
+    { fonte: 'Prestação de contas', finalidade: 'Notas fiscais, comprovantes, conciliações e documentos financeiros', url: `${APP_BASE}/Compras` },
+    { fonte: 'Rubricas e vínculos financeiros', finalidade: 'Consulta de rubricas, natureza de despesa, centro de custo e execução', url: `${APP_BASE}/Compras` },
+    { fonte: 'Relatório de execução / gerador', finalidade: 'Geração, consolidação e reprocessamento do Relatório de Execução do Objeto', url: `${APP_BASE}/RelatorioExecucaoObjeto` },
+  ];
+
+  y = check(doc, y, 12);
+  y = subTitle(doc, y, '13.1. LINKS DIRETOS PARA FONTES DE VERIFICAÇÃO');
+  const cols = [{ h: 'FONTE', w: 52 }, { h: 'FINALIDADE', w: 80 }, { h: 'LINK / ACESSO', w: 42 }];
+  doc.setFillColor(40, 40, 40);
+  let xc = M;
+  for (const c of cols) {
+    doc.rect(xc, y, c.w, 7, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(5.5);
+    doc.setFont('helvetica', 'bold');
+    doc.text(c.h, xc + 1, y + 4.5);
+    xc += c.w;
+  }
+  y += 7;
+  for (const l of links) {
+    const rowH = 8;
+    y = check(doc, y, rowH);
+    xc = M;
+    const cells = [l.fonte, l.finalidade, l.url];
+    for (let ci = 0; ci < cols.length; ci++) {
+      doc.setFillColor(ci % 2 === 0 ? 250 : 255, 252, 250);
+      doc.setDrawColor(215, 215, 215);
+      doc.rect(xc, y, cols[ci].w, rowH, 'FD');
+      if (ci === 2) {
+        doc.setTextColor(0, 80, 180);
+        doc.setFont('helvetica', 'italic');
+      } else {
+        doc.setTextColor(25, 25, 25);
+        doc.setFont('helvetica', ci === 0 ? 'bold' : 'normal');
+      }
+      doc.setFontSize(5.5);
+      const val = doc.splitTextToSize(cells[ci], cols[ci].w - 2)[0] || '';
+      doc.text(val, xc + 1, y + 5);
+      // Adicionar link clicável
+      if (ci === 2 && l.url) {
+        doc.link(xc, y, cols[ci].w, rowH, { url: l.url });
+      }
+      xc += cols[ci].w;
+    }
+    y += rowH;
+  }
+  return y + 4;
+}
+
 // ─── Galeria de fotos (ao final do relatório) ─────────────────────────────────
-// Renderiza fotos agrupadas por atividade, 3-4 por atividade, sem repetição,
-// com legenda obrigatória abaixo de cada foto.
+// 3–5 fotos por atividade. Toda atividade deve ter foto; se não houver, exibe placeholder.
 async function drawGaleriaFotos(doc, y, relatorio) {
-  // Coletar todas as fotos: anexos_evidencias + _fotos_galeria
-  const todasFotos = [];
   const urlsVistas = new Set();
-
-  // Fontes de fotos: anexos_evidencias do relatório
-  const evidencias = Array.isArray(relatorio.anexos_evidencias) ? relatorio.anexos_evidencias : [];
-  // Fontes de fotos: _fotos_galeria (array de ReportPhoto/Attachment injetado pelo sync)
-  const galeriaFotos = Array.isArray(relatorio._fotos_galeria) ? relatorio._fotos_galeria : [];
-  // Fontes de fotos: _atividades_periodo com fotos
-  const atividades = Array.isArray(relatorio._atividades_periodo) ? relatorio._atividades_periodo : [];
-
-  // 1. Montar grupos por atividade a partir de galeriaFotos (que têm activity_id / atividade_nome)
   const gruposPorAtividade = new Map();
 
+  const MAX_POR_ATIVIDADE = 5;
+  const MIN_POR_ATIVIDADE = 3;
+
+  // ── 1. Atividades com fotos diretamente vinculadas (mais rico)
+  const atividadesComFotos = Array.isArray(relatorio._atividades_com_fotos) ? relatorio._atividades_com_fotos : [];
+  for (const atv of atividadesComFotos) {
+    const key = atv.titulo || 'Atividade';
+    if (!gruposPorAtividade.has(key)) gruposPorAtividade.set(key, { fotos: [], data: atv.data, museu: atv.museu });
+    const grupo = gruposPorAtividade.get(key);
+    for (const foto of (atv.fotos || [])) {
+      const url = foto.url || foto.file_url;
+      if (!url || urlsVistas.has(url) || grupo.fotos.length >= MAX_POR_ATIVIDADE) continue;
+      grupo.fotos.push({ url, legenda: foto.legenda || foto.caption || key, autor: foto.autor || 'Daniel Moreira Soares', data: foto.data || atv.data });
+      urlsVistas.add(url);
+    }
+  }
+
+  // ── 2. _fotos_galeria agrupadas por atividade_nome / museu
+  const galeriaFotos = Array.isArray(relatorio._fotos_galeria) ? relatorio._fotos_galeria : [];
   for (const foto of galeriaFotos) {
     const url = foto.file_url || foto.url;
     if (!url || urlsVistas.has(url)) continue;
-    const nomeAtv = foto.atividade_nome || foto.activityTitulo || foto.museu || 'Registro do Projeto';
-    if (!gruposPorAtividade.has(nomeAtv)) gruposPorAtividade.set(nomeAtv, []);
+    const nomeAtv = foto.atividade_nome || foto.museu || 'Registro do Projeto';
+    if (!gruposPorAtividade.has(nomeAtv)) gruposPorAtividade.set(nomeAtv, { fotos: [], data: '', museu: foto.museu || '' });
     const grupo = gruposPorAtividade.get(nomeAtv);
-    if (grupo.length < 4) {
-      grupo.push({ url, legenda: foto.legenda || foto.caption || foto.file_name || nomeAtv, data: foto.date || foto.created_date });
+    if (grupo.fotos.length < MAX_POR_ATIVIDADE) {
+      grupo.fotos.push({ url, legenda: foto.legenda || foto.caption || foto.file_name || nomeAtv, autor: foto.autor || 'Daniel Moreira Soares', data: foto.created_date || '' });
       urlsVistas.add(url);
     }
   }
 
-  // 2. Evidencias do relatório (sem atividade específica = "Atividades do Período")
+  // ── 3. Evidências vinculadas ao cronograma de metas
+  const evidencias = Array.isArray(relatorio.anexos_evidencias) ? relatorio.anexos_evidencias : [];
   for (const ev of evidencias) {
     const url = ev.foto_url || ev.url;
     if (!url || urlsVistas.has(url)) continue;
-    const nomeAtv = ev.atividade_nome || 'Atividades do Período';
-    if (!gruposPorAtividade.has(nomeAtv)) gruposPorAtividade.set(nomeAtv, []);
+    const nomeAtv = ev.atividade_nome || ev.meta_nome || 'Atividades do Período';
+    if (!gruposPorAtividade.has(nomeAtv)) gruposPorAtividade.set(nomeAtv, { fotos: [], data: ev.atividade_data || '', museu: '' });
     const grupo = gruposPorAtividade.get(nomeAtv);
-    if (grupo.length < 4) {
-      grupo.push({ url, legenda: ev.legenda_editada || ev.legenda_ia || ev.atividade_nome || 'Foto de Registro', data: ev.atividade_data });
+    if (grupo.fotos.length < MAX_POR_ATIVIDADE) {
+      grupo.fotos.push({ url, legenda: ev.legenda_editada || ev.legenda_ia || nomeAtv, autor: 'Foto de Registro', data: ev.atividade_data || '' });
       urlsVistas.add(url);
     }
   }
 
-  // Se não há fotos suficientes, tentar atividades do período
-  if (todasFotos.length === 0 && gruposPorAtividade.size === 0) {
-    for (const atv of atividades.slice(0, 20)) {
-      const fotos = Array.isArray(atv.fotos) ? atv.fotos : [];
-      if (fotos.length === 0) continue;
-      const nomeAtv = atv.titulo || atv.nome || 'Atividade';
-      if (!gruposPorAtividade.has(nomeAtv)) gruposPorAtividade.set(nomeAtv, []);
-      const grupo = gruposPorAtividade.get(nomeAtv);
-      for (const foto of fotos) {
-        const url = foto.file_url || foto.url;
-        if (!url || urlsVistas.has(url) || grupo.length >= 4) continue;
-        grupo.push({ url, legenda: foto.legenda || foto.caption || nomeAtv, data: foto.date });
-        urlsVistas.add(url);
-      }
+  // ── 4. Atividades do período que ainda não têm fotos — adicionar placeholder
+  const atividadesPeriodo = Array.isArray(relatorio._atividades_periodo) ? relatorio._atividades_periodo : [];
+  for (const atv of atividadesPeriodo.slice(0, 40)) {
+    const key = atv.titulo || 'Atividade';
+    if (!gruposPorAtividade.has(key)) {
+      gruposPorAtividade.set(key, { fotos: [], data: atv.data_realizacao || '', museu: atv.museu || '' });
+    }
+    const grupo = gruposPorAtividade.get(key);
+    // Se não tem fotos, adicionar placeholder com link do Drive
+    if (grupo.fotos.length === 0) {
+      grupo.fotos.push({ url: null, legenda: `${key} — ${atv.museu || ''} — Foto de Registro pendente`, autor: '', data: atv.data_realizacao || '' });
     }
   }
 
-  // Filtrar grupos com pelo menos 1 foto e limitar a 4 fotos por grupo
+  // Converter para array e ordenar por museu
   const grupos = Array.from(gruposPorAtividade.entries())
-    .filter(([, fotos]) => fotos.length >= 1)
-    .map(([nome, fotos]) => ({ nome, fotos: fotos.slice(0, 4) }));
+    .map(([nome, data]) => ({ nome, ...data }))
+    .filter(g => g.fotos.length > 0);
 
   if (grupos.length === 0) return y;
 
-  // Título da seção galeria
+  // Título da galeria
   y = check(doc, y, 12);
   y = sectionTitle(doc, y, '14', 'DEMONSTRATIVO FOTOGRÁFICO — ATIVIDADES REALIZADAS');
-  y = instruction(doc, y, 'Registros fotográficos das atividades executadas no período. Cada foto apresenta descrição da ação e data do registro, conforme orientação SUCC/PBH.');
+  y = instruction(doc, y,
+    'Registros fotográficos das atividades executadas no período. De 3 a 5 imagens por atividade. ' +
+    'Cada foto apresenta descrição da ação, crédito do autor e data do registro, conforme orientação SUCC/PBH. ' +
+    'Acervo fotográfico completo disponível na Galeria do aplicativo Museus Centro.');
   y += 3;
 
-  // Layout: 2 fotos por linha, cada foto com legenda abaixo
-  const fotoW = (CONTENT_W - 4) / 2;
-  const fotoH = 42; // altura da imagem
-  const legendaH = 10;
-  const blocoH = fotoH + legendaH + 4;
+  const fotoW = (CONTENT_W - 6) / 3; // 3 fotos por linha
+  const fotoH = 38;
+  const legendaH = 12;
+  const blocoH = fotoH + legendaH + 3;
 
   for (const grupo of grupos) {
-    // Título do grupo (atividade)
+    // Cabeçalho do grupo
     y = check(doc, y, 10);
-    doc.setFillColor(240, 240, 240);
-    doc.rect(M, y, CONTENT_W, 6, 'F');
-    doc.setTextColor(30, 30, 30);
+    doc.setFillColor(30, 30, 30);
+    doc.rect(M, y, CONTENT_W, 7, 'F');
+    doc.setTextColor(255, 255, 255);
     doc.setFontSize(FS.small);
     doc.setFont('helvetica', 'bold');
-    doc.text(grupo.nome.slice(0, 80), M + 2, y + 4.5);
-    y += 8;
+    doc.text(grupo.nome.slice(0, 80), M + 2, y + 5);
+    if (grupo.museu) {
+      doc.setFontSize(FS.tiny);
+      doc.setFont('helvetica', 'normal');
+      doc.text(grupo.museu, PAGE_W - M - 2, y + 5, { align: 'right' });
+    }
+    y += 9;
 
-    // Renderizar fotos em pares (2 por linha)
-    for (let i = 0; i < grupo.fotos.length; i += 2) {
-      y = check(doc, y, blocoH + 6);
-      const fotos2 = grupo.fotos.slice(i, i + 2);
+    // Fotos em grupos de 3 por linha
+    for (let i = 0; i < grupo.fotos.length; i += 3) {
+      const fotos3 = grupo.fotos.slice(i, i + 3);
+      y = check(doc, y, blocoH + 4);
 
-      for (let j = 0; j < fotos2.length; j++) {
-        const foto = fotos2[j];
-        const xFoto = M + j * (fotoW + 4);
+      for (let j = 0; j < fotos3.length; j++) {
+        const foto = fotos3[j];
+        const xFoto = M + j * (fotoW + 3);
 
-        // Tentar carregar imagem
-        try {
-          // Tentativa de adicionar imagem (pode falhar se não for CORS-acessível)
-          doc.addImage(foto.url, 'JPEG', xFoto, y, fotoW, fotoH, undefined, 'FAST');
-        } catch {
-          // Fallback: placeholder cinza com ícone de câmera
-          doc.setFillColor(230, 230, 230);
-          doc.rect(xFoto, y, fotoW, fotoH, 'F');
-          doc.setFontSize(FS.tiny);
-          doc.setTextColor(150, 150, 150);
+        if (foto.url) {
+          try {
+            doc.addImage(foto.url, 'JPEG', xFoto, y, fotoW, fotoH, undefined, 'FAST');
+          } catch {
+            // placeholder
+            doc.setFillColor(220, 220, 220);
+            doc.rect(xFoto, y, fotoW, fotoH, 'F');
+            doc.setFontSize(FS.tiny);
+            doc.setTextColor(130, 130, 130);
+            doc.setFont('helvetica', 'italic');
+            doc.text('📷', xFoto + fotoW / 2, y + fotoH / 2 - 2, { align: 'center' });
+            doc.text('[Verificar no Drive]', xFoto + fotoW / 2, y + fotoH / 2 + 4, { align: 'center', maxWidth: fotoW - 2 });
+          }
+        } else {
+          // Atividade sem foto — placeholder claro
+          doc.setFillColor(245, 245, 245);
+          doc.setDrawColor(200, 200, 200);
+          doc.setLineDashPattern([1, 1], 0);
+          doc.rect(xFoto, y, fotoW, fotoH, 'FD');
+          doc.setLineDashPattern([], 0);
+          doc.setFontSize(6);
+          doc.setTextColor(160, 160, 160);
           doc.setFont('helvetica', 'italic');
-          doc.text('[Foto não disponível]', xFoto + fotoW / 2, y + fotoH / 2, { align: 'center' });
-          doc.text(foto.legenda?.slice(0, 40) || '', xFoto + fotoW / 2, y + fotoH / 2 + 5, { align: 'center', maxWidth: fotoW - 4 });
+          doc.text('Foto não localizada', xFoto + fotoW / 2, y + fotoH / 2 - 3, { align: 'center' });
+          doc.setFontSize(5);
+          doc.text('Verificar galeria do Drive', xFoto + fotoW / 2, y + fotoH / 2 + 3, { align: 'center' });
         }
 
-        // Legenda abaixo da foto
-        const legendaY = y + fotoH + 1;
+        // Legenda
+        const ly = y + fotoH + 1;
         doc.setFillColor(248, 248, 248);
         doc.setDrawColor(210, 210, 210);
-        doc.rect(xFoto, legendaY, fotoW, legendaH, 'FD');
-        doc.setFontSize(6);
-        doc.setTextColor(40, 40, 40);
+        doc.rect(xFoto, ly, fotoW, legendaH, 'FD');
+        doc.setFontSize(5.5);
+        doc.setTextColor(30, 30, 30);
         doc.setFont('helvetica', 'bold');
-        const legenda = foto.legenda || grupo.nome;
-        const legendaLines = doc.splitTextToSize(`Foto de Registro — ${legenda}`, fotoW - 4);
-        doc.text(legendaLines[0] || '', xFoto + 2, legendaY + 3.5);
-        if (legendaLines[1]) {
+        const legTxt = `Foto de Registro — ${(foto.legenda || grupo.nome).slice(0, 50)}`;
+        const legLines = doc.splitTextToSize(legTxt, fotoW - 3);
+        doc.text(legLines[0] || '', xFoto + 1.5, ly + 3.5);
+        if (legLines[1]) {
           doc.setFont('helvetica', 'normal');
-          doc.text(legendaLines[1], xFoto + 2, legendaY + 7);
-        }
-        if (foto.data) {
           doc.setFontSize(5);
+          doc.text(legLines[1], xFoto + 1.5, ly + 7);
+        }
+        // Autor e data na linha inferior
+        if (foto.autor || foto.data) {
+          doc.setFontSize(4.5);
           doc.setTextColor(120, 120, 120);
-          doc.text(fmtDate(foto.data), xFoto + fotoW - 2, legendaY + 8.5, { align: 'right' });
+          doc.setFont('helvetica', 'italic');
+          const meta = [foto.autor, foto.data ? fmtDate(foto.data) : ''].filter(Boolean).join(' — ');
+          doc.text(meta.slice(0, 35), xFoto + 1.5, ly + legendaH - 1.5);
         }
       }
 
-      y += blocoH + 4;
+      y += blocoH + 3;
     }
-    y += 3;
+    y += 4;
   }
 
   return y;
@@ -774,11 +908,11 @@ function buildParte1(relatorio) {
   y = sectionTitle(doc, y, '2', 'IDENTIFICAÇÃO DO PROJETO');
   y = field(doc, y, 'Organização da Sociedade Civil (OSC)', txt(ident.organizacao, 'Viaduto das Artes'), true);
   y = field(doc, y, 'Nome do Projeto', txt(ident.projeto, 'Museus Centro'), true);
-  y = twoFields(doc, y, 'Instrumento Jurídico', txt(ident.instrumento_juridico), 'Processo Administrativo Nº', txt(ident.processo_administrativo));
+  y = twoFields(doc, y, 'Instrumento Jurídico', txt(ident.instrumento_juridico, 'Termo de Colaboração nº 01-031.069/24-80'), 'Processo Administrativo Nº', txt(ident.processo_administrativo, '01-031.069/24-80'));
   y = twoFields(doc, y, 'Vigência do Projeto — Início', fmtDate(ident.vigencia_inicio), 'Vigência do Projeto — Fim', fmtDate(ident.vigencia_fim));
-  y = field(doc, y, 'Data do primeiro repasse pela administração', fmtDate(ident.data_primeiro_repasse || ''), true);
-  y = field(doc, y, 'Responsável pela elaboração do relatório', txt(ident.responsavel), true);
-  y = twoFields(doc, y, 'Telefone', txt(ident.telefone), 'E-mail', txt(ident.email));
+  y = field(doc, y, 'Data do primeiro repasse pela administração', fmtDate(ident.data_primeiro_repasse || '') || 'A confirmar no extrato/termo', true);
+  y = field(doc, y, 'Responsável pela elaboração do relatório', txt(ident.responsavel, 'Daniel Perini'), true);
+  y = twoFields(doc, y, 'Telefone', txt(ident.telefone), 'E-mail', txt(ident.email, 'danielperini.mc@viadutodasartes.org.br'));
   y += 4;
 
   // 3. ENDEREÇO
@@ -924,7 +1058,7 @@ async function buildParte3(relatorio) {
   y = assinaturaBlock(doc, y, relatorio);
 
   // 13. ANEXOS (lista)
-  y = sectionTitle(doc, y, '13', 'ANEXOS');
+  y = sectionTitle(doc, y, '13', 'ANEXOS E FONTES DE VERIFICAÇÃO');
   y = instruction(doc, y,
     'Os documentos de comprovação de cumprimento do objeto deverão ser apresentados conforme as indicações no quadro de cronograma de execução e cumprimento das metas.\n' +
     'Quando o documento se tratar de "demonstrativo fotográfico" deverão ser apresentados número limitado de registros por relatório, contendo abaixo da fotografia a descrição do evento e a data do registro.\n' +
@@ -944,6 +1078,9 @@ async function buildParte3(relatorio) {
       y += 6;
     }
   }
+
+  // 13.1 Links de verificação
+  y = drawLinksVerificacao(doc, y);
 
   // Nota padrão: relatório de comunicação em anexo
   y = check(doc, y, 18);

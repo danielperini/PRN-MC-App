@@ -551,20 +551,60 @@ REGRAS:
     }
 
     // ── ETAPA 4: EQUIPE E FINANCEIRO ─────────────────────────────────────────
+    if (etapa === 'prefixos_identificacao') {
+      // Preenche identificação, endereço, equipe padrão e público com dados do documento modelo
+      const identificacaoBase = {
+        organizacao: 'Viaduto das Artes',
+        projeto: 'Museus Centro',
+        instrumento_juridico: 'Termo de Colaboração nº 01-031.069/24-80',
+        processo_administrativo: '01-031.069/24-80',
+        vigencia_inicio: '2024-01-01',
+        vigencia_fim: '2026-12-31',
+        responsavel: 'Daniel Perini',
+        telefone: '',
+        email: 'danielperini.mc@viadutodasartes.org.br',
+      };
+      await srv.entities.RelatorioExecucaoObjeto.update(relatorio_id, {
+        identificacao_projeto: { ...identificacaoBase, ...(relatorio.identificacao_projeto || {}) },
+      });
+      return Response.json({ success: true, etapa, status: 'identificacao_preenchida' });
+    }
+
     if (etapa === 'equipe_financeiro') {
       const ctx = relatorio._contexto_geracao;
       if (!ctx) return Response.json({ error: 'Execute etapa "contexto" primeiro.' }, { status: 400 });
 
-      // Equipe com dados reais
-      const equipe = (ctx.equipe || []).map(t => ({
-        nome: t.nome,
-        cargo: t.cargo || 'Profissional',
-        tipo_contratacao: t.tipo_pessoa === 'PF' ? 'Pessoa Física (RPA)' : t.tipo_pessoa === 'MEI' ? 'MEI' : 'Pessoa Jurídica',
-        carga_horaria: '',
-        valor: t.valor_total || 0,
-        periodo: `${t.data_inicio || dInicio} a ${t.data_fim || dFim}`,
-        modo: 'ia',
-      }));
+      // Equipe: combinar equipe real do sistema com equipe padrão do projeto (do documento modelo)
+      const equipeBase = [
+        { nome: 'Daniel Perini', cargo: 'Coordenação Geral', tipo_contratacao: 'Prestação de serviços', atribuicoes: 'Coordenação, supervisão, articulação institucional e acompanhamento de metas', periodo: '02/02/2026 a 30/06/2026', carga_horaria: '', valor: 0 },
+        { nome: 'Ana Luiza', cargo: 'Consultoria de Programação', tipo_contratacao: 'Prestação de serviços', atribuicoes: 'Programação integrada, articulação com museus e acompanhamento de cronogramas', periodo: '2026 a 30/06/2026', carga_horaria: '', valor: 0 },
+        { nome: 'Fernanda Campos de Pinho Monte-Mor', cargo: 'Coordenação de Comunicação', tipo_contratacao: 'Pessoa jurídica', atribuicoes: 'Planejamento de comunicação, divulgação e cobertura institucional', periodo: '2024 a 30/06/2026', carga_horaria: '', valor: 0 },
+        { nome: 'Wanda Mucchiut', cargo: 'Produção Cultural - MHAB', tipo_contratacao: 'Prestação de serviços', atribuicoes: 'Produção local, logística, articulação e acompanhamento de exposições e eventos', periodo: '2026 a 30/06/2026', carga_horaria: '', valor: 0 },
+        { nome: 'Isabella Caroline de Souza', cargo: 'Produção Cultural - MIS', tipo_contratacao: 'Prestação de serviços', atribuicoes: 'Produção local, gestão de infraestrutura e execução de atividades', periodo: '2026 a 30/06/2026', carga_horaria: '', valor: 0 },
+        { nome: 'Lara Carvalho Ferreira', cargo: 'Educadora', tipo_contratacao: 'Pessoa jurídica', atribuicoes: 'Mediação, oficinas, visitas e ações educativas', periodo: '15/10/2025 a 30/06/2026', carga_horaria: '', valor: 0 },
+        { nome: 'Clara Braga Assumpção', cargo: 'Educadora', tipo_contratacao: 'Pessoa jurídica', atribuicoes: 'Mediação, oficinas e apoio educativo', periodo: '12/09/2024 a 30/06/2026', carga_horaria: '', valor: 0 },
+        { nome: 'Daniel Moreira Soares', cargo: 'Fotógrafo', tipo_contratacao: 'Pessoa jurídica', atribuicoes: 'Documentação fotográfica e cobertura das ações', periodo: '02/02/2026 a 30/06/2026', carga_horaria: '', valor: 0 },
+        { nome: 'André Luiz da Silva Oliveira', cargo: 'Redes Sociais', tipo_contratacao: 'Pessoa jurídica', atribuicoes: 'Conteúdo e cobertura para redes sociais', periodo: '03/2026 a 30/06/2026', carga_horaria: '', valor: 0 },
+        { nome: 'Cristina Sanches Porto', cargo: 'Assessoria de Imprensa', tipo_contratacao: 'Pessoa jurídica', atribuicoes: 'Relacionamento com imprensa e divulgação', periodo: '2025 a 30/06/2026', carga_horaria: '', valor: 0 },
+      ];
+      // Enriquecer com valores reais do sistema se existirem
+      const equipeReal = (ctx.equipe || []);
+      const equipe = equipeBase.map(base => {
+        const real = equipeReal.find(r => (r.nome || '').toLowerCase().includes((base.nome || '').split(' ')[0].toLowerCase()));
+        return {
+          ...base,
+          valor: real?.valor_total || base.valor || 0,
+          periodo: real?.data_inicio ? `${real.data_inicio} a ${real.data_fim || dFim}` : base.periodo,
+          modo: 'ia',
+        };
+      });
+      // Adicionar profissionais do sistema não incluídos na lista base
+      for (const r of equipeReal) {
+        const jaIncluso = equipe.some(e => (e.nome || '').toLowerCase().includes((r.nome || '').split(' ')[0].toLowerCase()));
+        if (!jaIncluso && r.nome) {
+          equipe.push({ nome: r.nome, cargo: r.cargo || 'Profissional', tipo_contratacao: r.tipo_pessoa === 'PF' ? 'Prestação de serviços' : 'Pessoa jurídica', atribuicoes: '', periodo: `${r.data_inicio || dInicio} a ${r.data_fim || dFim}`, carga_horaria: '', valor: r.valor_total || 0, modo: 'ia' });
+        }
+      }
 
       // Rubricas para exportação no PDF
       const rubricasPeriodo = Object.entries(ctx.rubricasPorGrupo || {}).flatMap(([grupo, data]) =>
