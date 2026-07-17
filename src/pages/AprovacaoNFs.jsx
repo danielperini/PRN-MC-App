@@ -6,8 +6,8 @@ import { FileText, CheckCircle, XCircle, ExternalLink, Search, X, FileCode2, Ale
 import { Button } from '@/components/ui/button';
 
 const STATUS_APROVADOS = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO', 'APROVADO_FINANCEIRO']);
-const STATUS_PENDENTES = ['ENVIADO_APROVACAO', 'AGUARDANDO_REVISAO'];
-const STATUS_COMPRAS_APROVADAS = ['APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO'];
+const STATUS_PENDENTES = ['ENVIADO_APROVACAO', 'AGUARDANDO_REVISAO', 'ANALISANDO_IA', 'RASCUNHO', 'ENVIADO'];
+const STATUS_COMPRAS_JA_TRATADAS = new Set(['APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO', 'RECUSADO', 'CANCELADO']);
 
 function fmtBRL(v) {
   if (!v && v !== 0) return '—';
@@ -101,10 +101,10 @@ export default function AprovacaoNFs() {
     staleTime: 60000,
   });
   const { data: compras = [], refetch: refetchCompras } = useQuery({
-    queryKey: ['compras-aprovadas-fila-nf'],
+    queryKey: ['compras-tratadas-fila-nf'],
     queryFn: async () => {
       const resultados = await Promise.all(
-        STATUS_COMPRAS_APROVADAS.map(status =>
+        [...STATUS_COMPRAS_JA_TRATADAS].map(status =>
           base44.entities.PurchaseRequest.filter({ status }, '-created_date', 3000)
         )
       );
@@ -115,7 +115,7 @@ export default function AprovacaoNFs() {
 
   const chavesAprovadas = useMemo(() => {
     const set = new Set(aprovadosIntake.map(chaveFiscal));
-    compras.filter(p => STATUS_APROVADOS.has(String(p.status || '').toUpperCase())).forEach(p => set.add(chaveFiscal(p)));
+    compras.filter(p => STATUS_COMPRAS_JA_TRATADAS.has(String(p.status || '').toUpperCase())).forEach(p => set.add(chaveFiscal(p)));
     return set;
   }, [aprovadosIntake, compras]);
 
