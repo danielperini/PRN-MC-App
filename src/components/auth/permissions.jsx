@@ -87,6 +87,13 @@ export const OBSERVADOR_PAGES = new Set([
   'ComunicacaoVisibilidade',
   'ProgramacaoEspelho',
   'RubricasPorMuseu',
+  'Movimentacoes',
+  'LeitorNoticias',
+  'Relatorios',
+  'BancoRelatorios',
+  'RelatorioAtividadesFotos',
+  'AuditoriaInstitucional',
+  'Mensagens',
   'Aparencia',
   'MeusDados',
   'Perfil',
@@ -162,7 +169,7 @@ export function canAccessPage(pageName, user, userPermission) {
   if (!user) return false;
   if (isCoordenador(user)) return true;
   if (isPatrocinador(user)) return PATROCINADOR_PAGES.has(pageName);
-  if (isObservador(user, userPermission)) return OBSERVADOR_EXTERNAL_PAGES.has(pageName);
+  if (isObservador(user, userPermission)) return OBSERVADOR_PAGES.has(pageName);
   return PROFISSIONAL_PAGES.has(pageName);
 }
 
@@ -183,13 +190,21 @@ export const SIDEBAR_PATROCINADOR = new Set([
 
 export const SIDEBAR_OBSERVADOR = new Set([
   'Dashboard',
-  'GaleriaFotos',
-  'Agenda',
+  'Relatorios',
+  'BancoRelatorios',
+  'RelatorioAtividadesFotos',
   'ComunicacaoVisibilidade',
-  'ProgramacaoEspelho',
+  'Agenda',
+  'GaleriaFotos',
   'RubricasPorMuseu',
-  'Aparencia',
+  'Movimentacoes',
+  'LeitorNoticias',
+  'ProgramacaoEspelho',
+  'Manual',
+  'Mensagens',
+  'AuditoriaInstitucional',
   'MeusDados',
+  'Aparencia',
 ]);
 
 export const SIDEBAR_OBSERVADOR_EXTERNAL = SIDEBAR_PATROCINADOR;

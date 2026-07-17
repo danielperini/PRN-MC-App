@@ -23,6 +23,8 @@ import {
   Trash2,
   X,
   FileType,
+  Globe,
+  Lock,
 } from 'lucide-react';
 import { exportarRelatorioExecucaoPDF } from '@/components/relatorio/ExportarRelatorioExecucaoPDF';
 import { exportarRelatorioExecucaoDOCX } from '@/components/relatorio/ExportarRelatorioExecucaoDOCX';
@@ -458,6 +460,26 @@ export default function RelatorioExecucaoObjeto() {
     }
   }
 
+  async function togglePublicado() {
+    if (!relatorioId || !relatorio) return;
+    const novoEstado = !relatorio.publicado;
+    try {
+      await base44.entities.RelatorioExecucaoObjeto.update(relatorioId, {
+        publicado: novoEstado,
+        publicado_em: novoEstado ? new Date().toISOString() : null,
+        titulo_publicacao: novoEstado
+          ? relatorio.titulo_publicacao || `Relatório ${relatorio.tipo === 'final' ? 'Final' : 'Parcial'} — ${relatorio.data_inicio} a ${relatorio.data_fim}`
+          : relatorio.titulo_publicacao,
+      });
+      await carregarRelatorio(relatorioId);
+      toast.success(novoEstado
+        ? 'Relatório publicado no Banco de Relatórios — visível para observadores.'
+        : 'Relatório removido da publicação.');
+    } catch (error) {
+      toast.error('Erro ao alterar publicação: ' + (error?.message || String(error)));
+    }
+  }
+
   const [exportandoDOCX, setExportandoDOCX] = useState(false);
   async function exportarDOCX() {
     if (!relatorio) return;
@@ -525,6 +547,18 @@ export default function RelatorioExecucaoObjeto() {
             <Button size="sm" variant="outline" onClick={gerarTodasAsSecoes} disabled={loading}>
               {loading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1" />}
               Gerar todas as seções
+            </Button>
+            <Button
+              size="sm"
+              variant={relatorio.publicado ? 'default' : 'outline'}
+              onClick={togglePublicado}
+              title={relatorio.publicado ? 'Clique para remover da publicação' : 'Publicar no Banco de Relatórios para observadores'}
+              className={relatorio.publicado ? 'bg-green-600 hover:bg-green-700 text-white' : ''}
+            >
+              {relatorio.publicado
+                ? <><Globe className="w-3.5 h-3.5 mr-1" />Publicado</>
+                : <><Lock className="w-3.5 h-3.5 mr-1" />Publicar</>
+              }
             </Button>
             <Button size="sm" onClick={() => setRevisaoAberta(true)}>Revisar e Exportar</Button>
             <Button size="sm" variant="outline" onClick={exportarPDF} disabled={!!exportandoPDF}>

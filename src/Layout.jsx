@@ -56,6 +56,7 @@ const PAGE_TITLES = {
   ChecklistProducao: 'Checklist de Produção',
   GaleriaNoturno: '🌙 Galeria Noturno nos Museus',
   RelatorioAtividadesFotos: '📸 Relatório de Atividades — Álbuns por Museu',
+  BancoRelatorios: 'Banco de Relatórios',
 };
 
 export default function Layout({ children, currentPageName }) {

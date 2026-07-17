@@ -62,6 +62,24 @@
       ],
       "default": "rascunho"
     },
+    "publicado": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se true, este relat\u00f3rio est\u00e1 dispon\u00edvel no Banco de Relat\u00f3rios para observadores"
+    },
+    "publicado_em": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data/hora em que o relat\u00f3rio foi publicado"
+    },
+    "publicado_por": {
+      "type": "string",
+      "description": "Email do usu\u00e1rio que autorizou a publica\u00e7\u00e3o"
+    },
+    "titulo_publicacao": {
+      "type": "string",
+      "description": "T\u00edtulo exibido no banco de relat\u00f3rios (ex: Relat\u00f3rio Parcial \u2014 Jan-Jun 2026)"
+    },
     "identificacao_projeto": {
       "type": "object",
       "properties": {

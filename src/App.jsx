@@ -363,6 +363,15 @@ function AuthenticatedApp() {
             />
           }
         />
+        <Route
+          path="/BancoRelatorios"
+          element={
+            <SafePage
+              Page={React.lazy(() => import('./pages/BancoRelatorios'))}
+              pageName="BancoRelatorios"
+            />
+          }
+        />
         <Route path="*" element={<PageNotFound />} />
       </Routes>
     </div>

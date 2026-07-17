@@ -78,6 +78,18 @@ const NAV_GROUPS = [
         icon: FileText,
         roles: ['all'],
       },
+      {
+        path: 'BancoRelatorios',
+        label: 'Banco de Relatórios',
+        icon: ScrollText,
+        roles: ['all'],
+      },
+      {
+        path: 'RelatorioAtividadesFotos',
+        label: 'Relatórios de Atividades',
+        icon: Image,
+        roles: ['all'],
+      },
     ],
   },
   {
@@ -210,6 +222,7 @@ const NAV_GROUPS = [
         label: 'Gerador de lista de presença',
         icon: CheckSquare,
         roles: ['all'],
+        hideForObservador: true,
       },
       {
         path: 'GeradorTermoCompromisso',
@@ -222,7 +235,7 @@ const NAV_GROUPS = [
         path: 'RelatorioExecucaoObjeto',
         label: 'Relatório de Execução do Objeto',
         icon: ScrollText,
-        roles: ['all'],
+        roles: ['coord', 'admin'],
       },
     ],
   },
