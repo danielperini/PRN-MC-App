@@ -1132,7 +1132,7 @@ function ComprasInner() {
                 }`}
               >
                 <AlertTriangle className="h-3.5 w-3.5" />
-                Pendentes desde Fev/26
+                Pendentes
               </button>
               <button
                 type="button"
