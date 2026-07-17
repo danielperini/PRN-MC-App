@@ -5,8 +5,9 @@ import { toast } from 'sonner';
 import { FileText, CheckCircle, XCircle, ExternalLink, Search, X, FileCode2, AlertCircle, Loader2, RefreshCw, Filter, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-const STATUS_APROVADOS = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
+const STATUS_APROVADOS = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO', 'APROVADO_FINANCEIRO']);
 const STATUS_PENDENTES = ['ENVIADO_APROVACAO', 'AGUARDANDO_REVISAO'];
+const STATUS_COMPRAS_APROVADAS = ['APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO'];
 
 function fmtBRL(v) {
   if (!v && v !== 0) return '—';
@@ -101,7 +102,14 @@ export default function AprovacaoNFs() {
   });
   const { data: compras = [], refetch: refetchCompras } = useQuery({
     queryKey: ['compras-aprovadas-fila-nf'],
-    queryFn: () => base44.entities.PurchaseRequest.list('-created_date', 5000),
+    queryFn: async () => {
+      const resultados = await Promise.all(
+        STATUS_COMPRAS_APROVADAS.map(status =>
+          base44.entities.PurchaseRequest.filter({ status }, '-created_date', 3000)
+        )
+      );
+      return resultados.flat();
+    },
     staleTime: 60000,
   });
 
