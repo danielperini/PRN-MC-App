@@ -16,16 +16,23 @@ Deno.serve(async (req) => {
     const { accessToken } = await base44.asServiceRole.connectors.getConnection('googledrive');
     const authHeader = { Authorization: `Bearer ${accessToken}` };
 
-    async function listAll(parentId) {
-      let allFiles = [], pt = null;
+    async function listAll(parentId, depth = 0): Promise<any[]> {
+      if (depth > 8) return [];
+      let files: any[] = [], pt: string | null = null;
       do {
         const url = `https://www.googleapis.com/drive/v3/files?q='${parentId}'+in+parents+and+trashed=false&fields=nextPageToken,files(id,name,mimeType,size)&pageSize=500&orderBy=name` + (pt ? `&pageToken=${pt}` : '');
         const r = await fetch(url, { headers: authHeader });
         const d = await r.json();
-        allFiles.push(...(d.files || []));
-        pt = d.nextPageToken;
+        for (const f of (d.files || [])) {
+          if (f.mimeType === 'application/vnd.google-apps.folder') {
+            files.push(...await listAll(f.id, depth + 1));
+          } else {
+            files.push(f);
+          }
+        }
+        pt = d.nextPageToken || null;
       } while (pt);
-      return allFiles;
+      return files;
     }
 
     const allFiles = await listAll(folderId);

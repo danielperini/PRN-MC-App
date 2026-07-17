@@ -157,25 +157,28 @@ Deno.serve(async (req) => {
     }
 
     const candidatos: any[] = [];
-    const pastasMensais = (await listFolder(DRIVE_FOLDER_ID)).filter((f: any) => f.mimeType === 'application/vnd.google-apps.folder');
-    for (const pastaMensal of pastasMensais) {
-      const mesInfo = normalizarMes(pastaMensal.name);
-      const ano = extrairAno(pastaMensal.name);
-      const conteudo = await listFolder(pastaMensal.id);
+
+    async function varrerPasta(folderId: string, mesInfo: any, ano: number, pastaPath: string, depth = 0): Promise<void> {
+      if (depth > 8) return;
+      const conteudo = await listFolder(folderId);
       for (const item of conteudo) {
         if (item.mimeType === 'application/vnd.google-apps.folder') {
           const tipoPasta = detectarTipoPasta(item.name);
           if (tipoPasta === 'extrato') continue;
-          for (const arq of await listFolder(item.id)) {
-            if (arq.mimeType !== MIME_PDF && !isXML(arq)) continue;
-            candidatos.push({ ...arq, _mesInfo: mesInfo, _ano: ano, _pastaTipo: tipoPasta, _pastaPath: `${pastaMensal.name}/${item.name}` });
-          }
+          await varrerPasta(item.id, mesInfo, ano, pastaPath ? `${pastaPath}/${item.name}` : item.name, depth + 1);
         } else {
           if (item.mimeType !== MIME_PDF && !isXML(item)) continue;
           if (detectarTipoPasta(item.name) === 'extrato') continue;
-          candidatos.push({ ...item, _mesInfo: mesInfo, _ano: ano, _pastaTipo: detectarTipoPasta(item.name), _pastaPath: pastaMensal.name });
+          candidatos.push({ ...item, _mesInfo: mesInfo, _ano: ano, _pastaTipo: detectarTipoPasta(item.name), _pastaPath: pastaPath });
         }
       }
+    }
+
+    const pastasMensais = (await listFolder(DRIVE_FOLDER_ID)).filter((f: any) => f.mimeType === 'application/vnd.google-apps.folder');
+    for (const pastaMensal of pastasMensais) {
+      const mesInfo = normalizarMes(pastaMensal.name);
+      const ano = extrairAno(pastaMensal.name);
+      await varrerPasta(pastaMensal.id, mesInfo, ano, pastaMensal.name);
     }
 
     const xmlPendentes = candidatos.filter(isXML).filter(a => !porDriveId.has(a.id));
