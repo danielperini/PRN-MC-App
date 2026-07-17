@@ -28,7 +28,6 @@ import {
   FileSignature,
   ArrowRight } from
 'lucide-react';
-import RestaurarRelatoriosDrive from '@/components/entrada/RestaurarRelatoriosDrive';
 import ImportarPacoteRelatorios from '@/components/entrada/ImportarPacoteRelatorios';
 
 function normalizeText(value) {
@@ -1566,7 +1565,6 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
           </div>
         </div>
 
-        <RestaurarRelatoriosDrive />
         <ImportarPacoteRelatorios />
 
         <div className="rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden">

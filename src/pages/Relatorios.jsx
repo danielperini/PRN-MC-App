@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import LoadingPage from '@/components/common/LoadingPage';
+import RestaurarRelatoriosDrive from '@/components/entrada/RestaurarRelatoriosDrive';
 import { toastMessages } from '@/lib/toastMessages';
 import { notifyReportReturned } from '@/services/notifications/reportNotifications';
 
@@ -324,6 +325,12 @@ export default function Relatorios() {
             </SelectContent>
           </Select>
         </div>
+
+        {(isAdmin || isCoordenador) && (
+          <div className="mb-5">
+            <RestaurarRelatoriosDrive />
+          </div>
+        )}
 
         {filtered.length === 0 ? (
           <div className="text-center py-20 text-gray-400">
