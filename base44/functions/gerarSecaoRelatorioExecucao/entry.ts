@@ -686,6 +686,25 @@ REGRAS ABSOLUTAS:
             fontes: ['Report', 'Activity', 'ReportPhoto', 'TeamMember', 'PurchaseRequest', 'Programacao'],
           },
         };
+        // Persistir contexto IA e fontes no documento do relatório (#6)
+        await srv.entities.RelatorioExecucaoObjeto.update(relatorio_id, {
+          descricao_acoes: {
+            ...(relatorio.descricao_acoes || {}),
+            contexto_ia_atividades: JSON.stringify({
+              total_atividades: ctx.total_atividades,
+              publico_total: ctx.publico_total,
+              museus_ativos: ctx.museus_ativos,
+              total_metas: ctx.total_metas,
+              total_fotos: ctx.total_fotos,
+              gerado_em: new Date().toISOString(),
+            }),
+            fontes_ia_relatorio_execucao: JSON.stringify([
+              'Report', 'Activity', 'ReportPhoto', 'TeamMember',
+              'PurchaseRequest', 'Programacao', 'LancamentoRubrica',
+              'Rubrica', 'ProjectMeta', 'Release',
+            ]),
+          },
+        });
         return Response.json({ success: true, secao, data: contexto });
       }
 

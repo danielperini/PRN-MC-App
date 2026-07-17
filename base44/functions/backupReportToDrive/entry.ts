@@ -26,31 +26,21 @@ async function getOrCreateFolder(accessToken, folderName, parentId) {
   return await findFolder(accessToken, folderName, parentId) || await createFolder(accessToken, folderName, parentId);
 }
 
-async function uploadOrReplaceJson(accessToken, fileName, content, parentFolderId) {
-  // Verificar se já existe arquivo com esse nome na pasta (para substituir)
-  const q = encodeURIComponent(`name='${fileName}' and '${parentFolderId}' in parents and trashed=false`);
-  const search = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)`, {
-    headers: { Authorization: `Bearer ${accessToken}` }
-  });
-  const searchData = await search.json();
-  const existingId = searchData.files?.[0]?.id;
+// Gera nome com sufixo de data para manter histórico de versões (#8)
+function fileNameWithTimestamp(baseName, timestamp) {
+  const dt = timestamp.slice(0, 16).replace('T', '_').replace(/:/g, '-');
+  const dot = baseName.lastIndexOf('.');
+  if (dot === -1) return `${baseName}_${dt}`;
+  return `${baseName.slice(0, dot)}_${dt}${baseName.slice(dot)}`;
+}
 
+async function uploadVersionedJson(accessToken, baseFileName, content, parentFolderId, timestamp) {
+  // Sempre cria novo arquivo com sufixo de data — mantém histórico completo de versões
+  const fileName = fileNameWithTimestamp(baseFileName, timestamp);
   const jsonStr = JSON.stringify(content, null, 2);
   const boundary = 'report_backup_boundary';
   const enc = new TextEncoder();
 
-  if (existingId) {
-    // Atualizar arquivo existente
-    const body = enc.encode(jsonStr);
-    const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${existingId}?uploadType=media&fields=id,webViewLink`, {
-      method: 'PATCH',
-      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-      body
-    });
-    return await res.json();
-  }
-
-  // Criar novo arquivo
   const meta = JSON.stringify({ name: fileName, parents: [parentFolderId], mimeType: 'application/json' });
   const part1 = enc.encode(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n`);
   const part2 = enc.encode(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${jsonStr}\r\n`);
@@ -66,6 +56,11 @@ async function uploadOrReplaceJson(accessToken, fileName, content, parentFolderI
     body: bodyArr
   });
   return await res.json();
+}
+
+// Compat alias
+async function uploadOrReplaceJson(accessToken, fileName, content, parentFolderId) {
+  return uploadVersionedJson(accessToken, fileName, content, parentFolderId, new Date().toISOString());
 }
 
 Deno.serve(async (req) => {

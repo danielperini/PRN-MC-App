@@ -14,6 +14,10 @@
       "type": "string",
       "description": "ID da atividade vinculada"
     },
+    "meta_id": {
+      "type": "string",
+      "description": "ID da meta do projeto \u00e0 qual a foto est\u00e1 vinculada (ex: MC3A-20). Obrigat\u00f3rio para rastreabilidade regulat\u00f3ria (SUCC)."
+    },
     "file_url": {
       "type": "string",
       "description": "URL da foto"
@@ -51,6 +55,20 @@
       "default": 0,
       "description": "Ordem de exibi\u00e7\u00e3o"
     },
+    "foto_principal_atividade": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se true, esta foto \u00e9 a imagem principal/capa da atividade vinculada"
+    },
+    "galeria_oculta": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se true, a foto est\u00e1 oculta da galeria p\u00fablica mas mantida para auditoria"
+    },
+    "duplicada_de": {
+      "type": "string",
+      "description": "ID da ReportPhoto original quando esta \u00e9 identificada como duplicata sem\u00e2ntica ou de arquivo"
+    },
     "drive_file_id": {
       "type": "string",
       "description": "ID do arquivo no Google Drive ap\u00f3s backup"
@@ -64,6 +82,20 @@
       ],
       "default": "pendente",
       "description": "Status do backup no Google Drive"
+    },
+    "contexto_ia": {
+      "type": "string",
+      "description": "Contexto gerado pela IA para esta foto (tags, relev\u00e2ncia, descri\u00e7\u00e3o autom\u00e1tica)"
+    },
+    "fonte_ia": {
+      "type": "string",
+      "enum": [
+        "drive_sync",
+        "upload_manual",
+        "email_import",
+        "ia_curadoria"
+      ],
+      "description": "Origem da foto no fluxo de importa\u00e7\u00e3o"
     }
   },
   "required": [
