@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import RequireAuth from '@/components/auth/RequireAuth';
 import LoadingPage from '@/components/common/LoadingPage';
@@ -166,27 +166,7 @@ function GaleriaFotosInner() {
   const [sincronizando, setSincronizando] = useState(false);
   const [syncStatus, setSyncStatus] = useState(null);
   const queryClient = useQueryClient();
-  const syncRodouRef = useRef(false);
 
-  // Sync automático em background: roda 1x por hora ao abrir a galeria
-  useEffect(() => {
-    if (syncRodouRef.current) return;
-    const CACHE_KEY = 'museus_centro_sync_fotos_atividades_ts';
-    const UMA_HORA = 60 * 60 * 1000;
-    const ultimo = Number(localStorage.getItem(CACHE_KEY) || 0);
-    if (Date.now() - ultimo < UMA_HORA) return;
-    syncRodouRef.current = true;
-    localStorage.setItem(CACHE_KEY, String(Date.now()));
-    base44.functions.invoke('syncFotosAtividadesAuto', {})
-      .then((res) => {
-        const criadas = res?.data?.criadas || 0;
-        if (criadas > 0) {
-          clearGalleryCache();
-          queryClient.invalidateQueries(['galeria-fotos-stable-v1']);
-        }
-      })
-      .catch(() => { /* silencioso — background */ });
-  }, []);
 
   const {
     data,
