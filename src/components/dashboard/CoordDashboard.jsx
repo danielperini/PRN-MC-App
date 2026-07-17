@@ -26,6 +26,7 @@ import {
   Building2,
   Download,
   X,
+  Search,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -290,6 +291,19 @@ export default function CoordDashboard({ reports = [], isLoading }) {
   const [filterMuseu, setFilterMuseu] = useState('');
   const [filterClasse, setFilterClasse] = useState('');
   const [filterTipoAtiv, setFilterTipoAtiv] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const museusDisponiveis = ['MIS', 'MHAB', 'MUMO'];
+
+  const limparFiltros = () => {
+    setFilterDataInicio('');
+    setFilterDataFim('');
+    setFilterMuseu('');
+    setFilterClasse('');
+    setFilterTipoAtiv('');
+    setFilterShowMore(false);
+    setSearchQuery('');
+  };
 
   const isDarkTheme =
     typeof document !== 'undefined' &&
@@ -440,7 +454,12 @@ export default function CoordDashboard({ reports = [], isLoading }) {
     return Array.from(set).sort();
   }, [metrics.approvedActivities]);
 
-  const pendentesList = reportsFiltrados.filter(isPendingReport).slice(0, 5);
+  const pendentesFiltrados = reportsFiltrados.filter(isPendingReport).filter((r) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const check = (v) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes(q);
+    return check(r.museu) || check(r.author_name) || check(r.mes_referencia) || check(r.equipe) || check(r.funcao);
+  });
 
   const exportarRelatorioGeral = () => {
     const rows = [
@@ -484,19 +503,57 @@ export default function CoordDashboard({ reports = [], isLoading }) {
     return <div className="text-center py-20 text-gray-400">Carregando dashboard...</div>;
   }
 
-  const temFiltrosAtivos = filterDataInicio || filterDataFim || filterMuseu || filterClasse || filterTipoAtiv;
-
-  const limparFiltros = () => {
-    setFilterDataInicio('');
-    setFilterDataFim('');
-    setFilterMuseu('');
-    setFilterClasse('');
-    setFilterTipoAtiv('');
-    setFilterShowMore(false);
-  };
-
   return (
     <div className="space-y-8">
+      {/* Barra de busca rápida */}
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Buscar por museu, profissional, mês..."
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              // Sincroniza filtro de museu se o texto bater exato
+              const q = e.target.value.trim().toUpperCase();
+              if (museusDisponiveis.includes(q)) setFilterMuseu(q === 'MHAB' ? 'MHAB' : q === 'MIS' ? 'MIS' : 'MUMO');
+              else if (!e.target.value.trim()) setFilterMuseu('');
+            }}
+            className="w-full pl-9 pr-9 py-2 text-sm border border-border rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+          {searchQuery && (
+            <button onClick={() => { setSearchQuery(''); setFilterMuseu(''); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+        {/* Chips de museu rápido */}
+        <div className="flex gap-2 flex-wrap">
+          {museusDisponiveis.map((m) => (
+            <button
+              key={m}
+              onClick={() => {
+                if (filterMuseu === m) { setFilterMuseu(''); setSearchQuery(''); }
+                else { setFilterMuseu(m); setSearchQuery(m); }
+              }}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all ${
+                filterMuseu === m
+                  ? 'bg-foreground text-background border-foreground'
+                  : 'bg-background text-muted-foreground border-border hover:border-foreground hover:text-foreground'
+              }`}
+            >
+              {m}
+            </button>
+          ))}
+          {(filterMuseu || searchQuery) && (
+            <button onClick={limparFiltros} className="px-3 py-1.5 text-xs text-muted-foreground hover:text-destructive flex items-center gap-1">
+              <X className="w-3 h-3" /> Limpar
+            </button>
+          )}
+        </div>
+      </div>
+
       <PendingApprovalsPanel />
       <FrasesParticipantes reports={metrics.approvedReports} />
 
@@ -631,11 +688,12 @@ export default function CoordDashboard({ reports = [], isLoading }) {
         </div>
       )}
 
-      {pendentesList.length > 0 && (
+      {(pendentesFiltrados.length > 0 || (searchQuery && pendentes > 0)) && (
         <div className="border border-black rounded-2xl p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-black flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-black" />Aguardando Revisão ({pendentes})
+              <AlertCircle className="w-4 h-4 text-black" />
+              Aguardando Revisão ({pendentesFiltrados.length}{pendentesFiltrados.length !== pendentes ? ` de ${pendentes}` : ''})
             </h3>
             <Link to={createPageUrl('CoordReview')}>
               <Button size="sm" className="bg-black hover:bg-gray-800 text-white text-xs">
@@ -643,8 +701,11 @@ export default function CoordDashboard({ reports = [], isLoading }) {
               </Button>
             </Link>
           </div>
+          {pendentesFiltrados.length === 0 && searchQuery && (
+            <p className="text-sm text-gray-400 text-center py-4">Nenhum relatório pendente encontrado para "{searchQuery}".</p>
+          )}
           <div className="space-y-2">
-            {pendentesList.map((report) => {
+            {pendentesFiltrados.slice(0, 5).map((report) => {
               const cfg = STATUS_CONFIG[normalizeStatus(report.status)];
               return (
                 <Link key={report.id} to={createPageUrl(`ReportEditor?id=${report.id}`)} className="block">
