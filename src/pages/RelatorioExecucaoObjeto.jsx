@@ -196,28 +196,33 @@ export default function RelatorioExecucaoObjeto() {
     ],
   ];
 
+  // Yield ao browser entre operações para não travar a UI
+  function yieldBrowser() {
+    return new Promise(r => setTimeout(r, 0));
+  }
+
   async function gerarSecaoComRetry(rid, key, params) {
     const MAX_TENTATIVAS = 3;
     for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa++) {
+      await yieldBrowser(); // libera o thread antes de cada tentativa
       try {
         await Promise.race([
           base44.functions.invoke('gerarSecaoRelatorioExecucao', { relatorio_id: rid, secao: key, ...params }),
-          // Timeout individual: 45s para não engolir o timeout global do backend
-          new Promise((_, reject) => setTimeout(() => reject(new Error(`Timeout`)), 45000)),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 50000)),
         ]);
-        return; // sucesso — sai do loop
+        return true; // sucesso
       } catch (err) {
         const isUltima = tentativa === MAX_TENTATIVAS;
         if (isUltima) {
-          console.warn(`Seção ${key} falhou após ${MAX_TENTATIVAS} tentativas — continuando:`, err?.message);
-          return; // não bloqueia o restante
+          console.warn(`Seção ${key} falhou após ${MAX_TENTATIVAS} tentativas — pulando:`, err?.message);
+          return false;
         }
-        // Backoff exponencial: 4s, 8s, ...
         const espera = 4000 * tentativa;
-        console.warn(`Seção ${key} tentativa ${tentativa} falhou, aguardando ${espera}ms antes de retry...`);
+        console.warn(`Seção ${key} tentativa ${tentativa} — retry em ${espera}ms`);
         await new Promise(r => setTimeout(r, espera));
       }
     }
+    return false;
   }
 
   async function iniciarGeracao() {
@@ -260,8 +265,6 @@ export default function RelatorioExecucaoObjeto() {
       return;
     }
 
-    // Gerar todos os grupos de seções — só exibe o relatório ao final
-    const totalGrupos = GRUPOS_GERACAO.length;
     const params = {
       data_inicio: form.data_inicio,
       data_fim: form.data_fim,
@@ -271,32 +274,54 @@ export default function RelatorioExecucaoObjeto() {
       aditivos_permitidos: [3, 4],
     };
 
-    for (let gi = 0; gi < totalGrupos; gi++) {
-      const grupo = GRUPOS_GERACAO[gi];
-      const pct = Math.round(5 + ((gi / totalGrupos) * 88));
+    // Achatar todos os grupos numa lista linear de seções
+    const todasSecoes = GRUPOS_GERACAO.flat();
+    const total = todasSecoes.length;
+    let concluidas = 0;
+    let falhas = 0;
 
-      for (let si = 0; si < grupo.length; si++) {
-        const { key, label } = grupo[si];
-        setProgresso({ valor: pct + si, texto: `Seção ${gi + 1}/${totalGrupos}: ${label}...` });
-        await gerarSecaoComRetry(rid, key, params);
-        await new Promise(r => setTimeout(r, 1500));
-      }
+    for (let i = 0; i < total; i++) {
+      const { key, label } = todasSecoes[i];
+      const pct = Math.round(5 + (i / total) * 88);
 
-      // Pausa entre grupos
-      if (gi < totalGrupos - 1) {
-        setProgresso({ valor: pct + grupo.length, texto: `⏳ Aguardando entre grupos (${gi + 1}/${totalGrupos} concluído)...` });
-        await new Promise(r => setTimeout(r, 8000));
+      // Yield ao browser antes de atualizar estado e antes de chamar o backend
+      await yieldBrowser();
+      setProgresso({ valor: pct, texto: `[${i + 1}/${total}] ${label}...` });
+      await yieldBrowser();
+
+      const ok = await gerarSecaoComRetry(rid, key, params);
+      if (ok) concluidas++; else falhas++;
+
+      // Salvar progresso no banco a cada seção (resiliente a crash)
+      base44.entities.RelatorioExecucaoObjeto.update(rid, {
+        ia_tokens: concluidas, // reutilizamos campo numérico existente como contador de progresso
+      }).catch(() => {});
+
+      // Pausa progressiva: 2s nas primeiras seções, 5s nas mais pesadas (metas/financeiro)
+      const ehSecaoPesada = ['cronograma_metas', 'descricao_acoes', 'impactos_economicos_sociais'].includes(key);
+      const pausa = ehSecaoPesada ? 5000 : 2000;
+      await new Promise(r => setTimeout(r, pausa));
+
+      // Pausa extra a cada 3 seções para respirar
+      if ((i + 1) % 3 === 0 && i < total - 1) {
+        setProgresso({ valor: pct + 1, texto: `⏳ Pausa de recuperação (${i + 1}/${total} concluídas)...` });
+        await new Promise(r => setTimeout(r, 6000));
       }
     }
 
     // Finalização — carrega o relatório completo de uma vez
     setProgresso({ valor: 97, texto: 'Finalizando e carregando relatório...' });
+    await yieldBrowser();
     await base44.functions.invoke('gerarSecaoRelatorioExecucao', { relatorio_id: rid, secao: 'finalizar' }).catch(() => {});
     await carregarRelatorio(rid);
     await carregarRelatorios();
-    setProgresso({ valor: 100, texto: 'Relatório concluído ✓' });
+    setProgresso({ valor: 100, texto: `Relatório concluído ✓ (${concluidas}/${total} seções, ${falhas} puladas)` });
     setLoading(false);
-    toast.success('Relatório gerado com sucesso! Todas as seções preenchidas.', { duration: 10000 });
+    if (falhas > 0) {
+      toast.warning(`Relatório gerado com ${falhas} seção(ões) pulada(s) por timeout. Use "Regenerar seções" para reprocessar.`, { duration: 12000 });
+    } else {
+      toast.success('Relatório gerado com sucesso! Todas as seções preenchidas.', { duration: 10000 });
+    }
   }
 
   async function excluirRelatorio(item) {
