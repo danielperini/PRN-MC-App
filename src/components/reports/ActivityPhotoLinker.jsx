@@ -104,7 +104,66 @@ export default function ActivityPhotoLinker({ activityId, onPhotosChange, disabl
 
   return (
     <div className="space-y-3">
-      
+      {/* Botão para vincular fotos da galeria */}
+      {!disabled && (
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="text-xs gap-1.5 border-purple-300 text-purple-700 hover:bg-purple-50"
+              onClick={handleOpenDialog}
+            >
+              <Image className="w-3.5 h-3.5" />
+              Vincular fotos da galeria ({photos.length})
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Selecionar fotos da galeria</DialogTitle>
+            </DialogHeader>
+            {loading ? (
+              <div className="flex items-center justify-center py-10">
+                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+              </div>
+            ) : allPhotos.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-8">Nenhuma foto disponível na galeria.</p>
+            ) : (
+              <div className="grid grid-cols-3 gap-2 py-2">
+                {allPhotos.map((photo) => {
+                  const key = photo.file_url || photo.id;
+                  const selected = selectedPhotos.has(key);
+                  return (
+                    <button
+                      key={photo.id}
+                      type="button"
+                      onClick={() => togglePhotoSelection(photo.file_url, photo.id)}
+                      className={`relative rounded-lg overflow-hidden border-2 transition-all ${selected ? 'border-blue-500 ring-2 ring-blue-300' : 'border-gray-200 hover:border-gray-400'}`}
+                    >
+                      <img src={photo.file_url} alt={photo.file_name} className="w-full h-24 object-cover" />
+                      {selected && (
+                        <div className="absolute inset-0 bg-blue-500 bg-opacity-20 flex items-center justify-center">
+                          <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold">✓</div>
+                        </div>
+                      )}
+                      <p className="text-xs text-gray-600 truncate p-1 bg-white">{photo.file_name}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <div className="flex justify-between items-center pt-2 border-t">
+              <span className="text-xs text-gray-500">{selectedPhotos.size} foto(s) selecionada(s)</span>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+                <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white" onClick={handleSave}>Salvar vínculos</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
 
 
 
