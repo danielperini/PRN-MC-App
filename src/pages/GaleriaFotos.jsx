@@ -6,10 +6,12 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Images, MapPin, RefreshCw, X, Filter, FolderSync, Sparkles, CheckCircle2, GitMerge, Moon, ExternalLink, BookImage } from 'lucide-react';
+// Images já importado acima — usado também no botão "Fotos de Atividades"
 import { Link } from 'react-router-dom';
 import { loadGalleryReportData } from '@/utils/galleryReportData';
 import RestaurarFotosDrive from '@/components/gallery/RestaurarFotosDrive';
 import AlbumNoturno from '@/components/gallery/AlbumNoturno';
+import ImportarFotosPastaAtividades from '@/components/gallery/ImportarFotosPastaAtividades';
 import { base44 } from '@/api/base44Client';
 
 const INITIAL_VISIBLE_IMAGES = 60;
@@ -130,6 +132,7 @@ function GaleriaFotosInner() {
   const [selectedImage, setSelectedImage] = useState(null);
   const [showRestaurar, setShowRestaurar] = useState(false);
   const [showAlbumNoturno, setShowAlbumNoturno] = useState(false);
+  const [showImportarAtividades, setShowImportarAtividades] = useState(false);
   const [reforçandoLegendas, setReforçandoLegendas] = useState(false);
   const [legendasStatus, setLegendasStatus] = useState(null);
   const [sincronizando, setSincronizando] = useState(false);
@@ -294,6 +297,14 @@ function GaleriaFotosInner() {
             </button>
             <button
               type="button"
+              onClick={() => { setShowImportarAtividades(v => !v); setShowRestaurar(false); setShowAlbumNoturno(false); }}
+              className={`inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium shadow-sm transition-colors ${showImportarAtividades ? 'border-emerald-700 bg-emerald-600 text-white' : 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'}`}
+            >
+              <Images className="h-4 w-4" />
+              Fotos de Atividades
+            </button>
+            <button
+              type="button"
               onClick={() => setShowRestaurar(v => !v)}
               className={`inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium shadow-sm transition-colors ${showRestaurar ? 'border-black bg-black text-white' : 'border-gray-300 bg-white text-gray-800 hover:bg-gray-100'}`}
             >
@@ -387,6 +398,20 @@ function GaleriaFotosInner() {
         {showAlbumNoturno && (
           <div className="mb-6">
             <AlbumNoturno onClose={() => setShowAlbumNoturno(false)} />
+          </div>
+        )}
+
+        {/* Painel Importar Fotos de Atividades */}
+        {showImportarAtividades && (
+          <div className="mb-6">
+            <ImportarFotosPastaAtividades
+              onImportConcluida={() => {
+                clearGalleryCache();
+                queryClient.invalidateQueries(['galeria-fotos-stable-v1']);
+                refetch();
+                setShowImportarAtividades(false);
+              }}
+            />
           </div>
         )}
 
