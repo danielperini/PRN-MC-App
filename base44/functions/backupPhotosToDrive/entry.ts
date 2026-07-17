@@ -1,7 +1,8 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
-// Pasta de Fotos — organizada por usuário
-const FOTOS_FOLDER_ID = '1HlhZvINo-j29SqZ3OInEtxNktp6IlKl9';
+// Pasta raiz Museus Centro — subpastas criadas por organizarPastasDrive
+const MUSEUS_CENTRO_FOLDER_ID = '1cncFwCYZb-jiQ-cg_GAWti-wRpSZyRCd';
+const FOTOS_TIPO = 'Fotos';
 
 async function findFolder(accessToken, folderName, parentFolderId) {
   const q = encodeURIComponent(`name='${folderName}' and '${parentFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`);
@@ -43,7 +44,8 @@ Deno.serve(async (req) => {
     // Upload avulso de uma foto
     if (file_url && file_name) {
       const uploaderName = (user_name || user.full_name || user.email).replace(/[\/\\:*?"<>|]/g, '_');
-      const userFolderId = await getOrCreateFolder(accessToken, uploaderName, FOTOS_FOLDER_ID);
+      const fotosTipoId = await getOrCreateFolder(accessToken, FOTOS_TIPO, MUSEUS_CENTRO_FOLDER_ID);
+      const userFolderId = await getOrCreateFolder(accessToken, uploaderName, fotosTipoId);
 
       const fileResponse = await fetch(file_url);
       if (!fileResponse.ok) return Response.json({ error: 'Erro ao obter arquivo' }, { status: 400 });
@@ -63,7 +65,7 @@ Deno.serve(async (req) => {
 
       return Response.json({
         success: true,
-        message: `Foto salva em Fotos/${uploaderName}`,
+        message: `Foto salva em Museus Centro / Fotos / ${uploaderName}`,
         file_id: result.id,
         drive_link: `https://drive.google.com/file/d/${result.id}/view`
       });
@@ -89,7 +91,14 @@ Deno.serve(async (req) => {
       try {
         const report = reportMap[photo.report_id];
         const uploaderName = (report?.author_name || photo.created_by || 'Sem Usuario').replace(/[\/\\:*?"<>|]/g, '_');
-        const userFolderId = await getOrCreateFolder(accessToken, uploaderName, FOTOS_FOLDER_ID);
+        const mes = report?.mes_referencia || 'SemMes';
+        const museu = report?.museu || 'Geral';
+        const ano = String(report?.ano || new Date().getFullYear());
+        const fotosTipoId = await getOrCreateFolder(accessToken, FOTOS_TIPO, MUSEUS_CENTRO_FOLDER_ID);
+        const anoFolderId = await getOrCreateFolder(accessToken, ano, fotosTipoId);
+        const mesFolderId = await getOrCreateFolder(accessToken, mes, anoFolderId);
+        const museuFolderId = await getOrCreateFolder(accessToken, museu, mesFolderId);
+        const userFolderId = await getOrCreateFolder(accessToken, uploaderName, museuFolderId);
 
         const fileResponse = await fetch(photo.file_url);
         if (!fileResponse.ok) continue;

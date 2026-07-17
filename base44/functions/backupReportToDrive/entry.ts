@@ -1,6 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
-const DOCUMENTOS_FOLDER_ID = '1psLJvyj6sNuO7kscJIjrCsINgRBTQq_1';
+// Pasta raiz Museus Centro — subpastas criadas por organizarPastasDrive
+const MUSEUS_CENTRO_FOLDER_ID = '1cncFwCYZb-jiQ-cg_GAWti-wRpSZyRCd';
 
 async function findFolder(accessToken, folderName, parentId) {
   const q = encodeURIComponent(`name='${folderName}' and '${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`);
@@ -88,15 +89,17 @@ Deno.serve(async (req) => {
 
     const { accessToken } = await base44.asServiceRole.connectors.getConnection('googledrive');
 
-    // Estrutura de pastas: Documentos / Relatórios / {ano} / {mes} / {protocolo}
+    // Estrutura: Museus Centro / Relatórios Mensais / {ano} / {mes} / {museu} / {protocolo}
     const ano = String(report.ano || new Date().getFullYear());
     const mes = report.mes_referencia || 'SemMes';
+    const museu = report.museu || 'Geral';
     const protocolo = report.numero_protocolo || reportId;
 
-    const relatoriosFolderId = await getOrCreateFolder(accessToken, 'Relatórios', DOCUMENTOS_FOLDER_ID);
+    const relatoriosFolderId = await getOrCreateFolder(accessToken, 'Relatórios Mensais', MUSEUS_CENTRO_FOLDER_ID);
     const anoFolderId = await getOrCreateFolder(accessToken, ano, relatoriosFolderId);
     const mesFolderId = await getOrCreateFolder(accessToken, mes, anoFolderId);
-    const reportFolderId = await getOrCreateFolder(accessToken, protocolo, mesFolderId);
+    const museuFolderId = await getOrCreateFolder(accessToken, museu, mesFolderId);
+    const reportFolderId = await getOrCreateFolder(accessToken, protocolo, museuFolderId);
 
     const timestamp = new Date().toISOString();
 
@@ -166,7 +169,7 @@ Deno.serve(async (req) => {
     return Response.json({
       success: true,
       protocolo,
-      pasta_drive: `Relatórios/${ano}/${mes}/${protocolo}`,
+      pasta_drive: `Relatórios Mensais/${ano}/${mes}/${museu}/${protocolo}`,
       arquivos_salvos: {
         relatorio: !!reportBackup?.id,
         atividades: !!activitiesBackup?.id,
