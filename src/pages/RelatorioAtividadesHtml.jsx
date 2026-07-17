@@ -270,11 +270,10 @@ function RelatorioAtividadesHtmlInner() {
     }
   }, [refetch]);
 
-  // Dispara automaticamente ao montar
+  // Só cancela se o usuário sair enquanto rodava manualmente
   useEffect(() => {
-    executarVarredura();
     return () => { syncRef.current.running = false; };
-  }, []);// eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   // ─── Estrutura: mês → atividade → fotos ──────────────────────────────────
   const estrutura = useMemo(() => {
@@ -472,7 +471,7 @@ function RelatorioAtividadesHtmlInner() {
           </div>
         </div>
 
-        {/* Banner de progresso da varredura automática */}
+        {/* Banner de progresso da varredura */}
         {syncStatus !== 'idle' && (
           <div className={`px-4 py-2 flex items-center gap-3 text-sm border-t ${
             syncStatus === 'running' ? 'bg-blue-50 border-blue-100 text-blue-800' :
