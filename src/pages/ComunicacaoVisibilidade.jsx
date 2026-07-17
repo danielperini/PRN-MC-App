@@ -52,7 +52,7 @@ const DRIVE_FOLDERS = [
   },
   {
     id: FOLDER_IDS.REDES_SOCIAIS,
-    name: 'Redes Sociais',
+    name: 'Relatório comunicação fev - jun',
     url: 'https://drive.google.com/drive/folders/1WneHTmI8GYPMpdeumPNhIB9lzDiiArU_',
     defaultCategory: 'POSTS',
   },
@@ -747,7 +747,18 @@ export default function ComunicacaoVisibilidade() {
             <CardContent className="p-4 space-y-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-lg font-semibold text-black">Acervo de comunicação</h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-semibold text-black">Acervo de comunicação</h2>
+                    <a
+                      href="https://drive.google.com/file/d/1VuhDwbGAJ6zyDr_4nj4URWzVLS4XQp_f/view?usp=drive_link"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 border border-blue-200 rounded-lg px-2 py-0.5 hover:bg-blue-50 transition-colors"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      Abrir arquivo
+                    </a>
+                  </div>
                   <p className="text-xs text-gray-500 mt-1">Pastas e arquivos sincronizados do Google Drive.</p>
                 </div>
                 <Badge variant="outline" className="bg-white">{items.length} item(ns)</Badge>
