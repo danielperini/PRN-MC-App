@@ -25,9 +25,11 @@ import {
   FileType,
   Globe,
   Lock,
+  Code2,
 } from 'lucide-react';
 import { exportarRelatorioExecucaoPDF } from '@/components/relatorio/ExportarRelatorioExecucaoPDF';
 import { exportarRelatorioExecucaoDOCX } from '@/components/relatorio/ExportarRelatorioExecucaoDOCX';
+import { exportarRelatorioHTML } from '@/components/relatorio/ExportarRelatorioHTML';
 import RevisaoFinalDialog from '@/components/relatorio/RevisaoFinalDialog';
 import GeracaoCompletaDialog from '@/components/relatorio/GeracaoCompletaDialog';
 import { listarMetasRelatorio, sincronizarRelatorioExecucao } from '@/utils/sincronizarRelatorioExecucaoCompat';
@@ -528,6 +530,21 @@ export default function RelatorioExecucaoObjeto() {
     }
   }
 
+  const [exportandoHTML, setExportandoHTML] = useState(false);
+  async function exportarHTML() {
+    if (!relatorio) return;
+    setExportandoHTML(true);
+    try {
+      const rel = await prepararRelatorioComFotos();
+      exportarRelatorioHTML(rel);
+      toast.success('HTML editável gerado — abra no navegador, edite e imprima como PDF.');
+    } catch (error) {
+      toast.error('Erro ao gerar HTML: ' + (error?.message || String(error)));
+    } finally {
+      setExportandoHTML(false);
+    }
+  }
+
   const [exportandoDOCX, setExportandoDOCX] = useState(false);
   async function exportarDOCX() {
     if (!relatorio) return;
@@ -635,6 +652,17 @@ export default function RelatorioExecucaoObjeto() {
             <Button size="sm" variant="outline" onClick={exportarDOCX} disabled={exportandoDOCX}>
               {exportandoDOCX ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FileType className="w-4 h-4 mr-1" />}
               DOCX
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={exportarHTML}
+              disabled={exportandoHTML}
+              title="Gera um HTML diagramado, editável no navegador e imprimível como PDF — ideal para envio ao SUCC"
+              className="border-blue-300 text-blue-700 hover:bg-blue-50"
+            >
+              {exportandoHTML ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Code2 className="w-4 h-4 mr-1" />}
+              HTML Editável
             </Button>
           </div>
         </CardHeader>

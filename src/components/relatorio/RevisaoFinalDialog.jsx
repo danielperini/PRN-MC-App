@@ -4,10 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { exportarRelatorioExecucaoPDF } from '@/components/relatorio/ExportarRelatorioExecucaoPDF';
+import { exportarRelatorioHTML } from '@/components/relatorio/ExportarRelatorioHTML';
 import {
   CheckCircle2, XCircle, AlertTriangle, Download, ExternalLink,
   FileText, Users, BarChart2, Link2, ClipboardCheck, X, Loader2,
-  CheckSquare, Square
+  CheckSquare, Square, Code2
 } from 'lucide-react';
 
 function fmtBRL(v) {
@@ -561,6 +562,17 @@ export default function RevisaoFinalDialog({ relatorioId, relatorio, onClose }) 
               >
                 {exportando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
                 {exportando ? 'Gerando...' : 'PDF Completo'}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => { exportarRelatorioHTML(r); toast.success('HTML editável gerado.'); onClose(); }}
+                disabled={!allChecked || exportando}
+                className={`gap-1 border-blue-300 text-blue-700 hover:bg-blue-50 ${!allChecked ? 'opacity-40 cursor-not-allowed' : ''}`}
+                title="Gera HTML diagramado editável — ideal para envio ao SUCC"
+              >
+                <Code2 className="w-3.5 h-3.5" />
+                HTML Editável
               </Button>
             </div>
           </div>
