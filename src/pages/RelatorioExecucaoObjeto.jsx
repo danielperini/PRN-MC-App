@@ -739,14 +739,6 @@ export default function RelatorioExecucaoObjeto() {
                 : <><Lock className="w-3.5 h-3.5 mr-1" />Publicar</>
               }
             </Button>
-            <GerenciarFotosAnexos
-              relatorioId={relatorioId}
-              relatorio={relatorio}
-              filtroVersao={form.filtro_versao}
-              dataInicio={form.data_inicio}
-              dataFim={form.data_fim}
-              onAtualizar={() => carregarRelatorio(relatorioId)}
-            />
             <Button size="sm" onClick={() => setRevisaoAberta(true)}>Revisar e Exportar</Button>
             <Button size="sm" variant="outline" onClick={exportarPDF} disabled={!!exportandoPDF}>
               {exportandoPDF ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Download className="w-4 h-4 mr-1" />}
@@ -780,7 +772,22 @@ export default function RelatorioExecucaoObjeto() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3"><Resumo label="Metas" valor={(relatorio.cronograma_metas || []).length} /><Resumo label="Notas fiscais" valor={(relatorio._notas_fiscais_metas || []).length} /><Resumo label="Atividades" valor={(relatorio._atividades_periodo || []).length} /><Resumo label="Total financeiro" valor={formatarMoeda(relatorio._total_financeiro)} /></div>
-          {SECOES_EDITAVEIS.filter(s => s.key !== 'sustentabilidade' || relatorio.tipo === 'final').map(secao => <SecaoEditavel key={secao.key} secao={secao} relatorio={relatorio} onEditar={() => abrirEditor(secao.key, secao.label)} onIA={() => gerarTextoIA(secao.key, secao.label)} gerandoIA={gerandoIA === secao.key} onAnexar={() => selecionarArquivo(secao.key)} enviando={enviandoArquivo === secao.key} onRemover={id => removerAnexo(secao.key, id)} />)}
+          {SECOES_EDITAVEIS.filter(s => s.key !== 'sustentabilidade' || relatorio.tipo === 'final').map(secao => (
+            <SecaoEditavel
+              key={secao.key}
+              secao={secao}
+              relatorio={relatorio}
+              onEditar={() => abrirEditor(secao.key, secao.label)}
+              onIA={() => gerarTextoIA(secao.key, secao.label)}
+              gerandoIA={gerandoIA === secao.key}
+              onAnexar={() => selecionarArquivo(secao.key)}
+              enviando={enviandoArquivo === secao.key}
+              onRemover={id => removerAnexo(secao.key, id)}
+              relatorioId={relatorioId}
+              form={form}
+              onAtualizarRelatorio={() => carregarRelatorio(relatorioId)}
+            />
+          ))}
         </CardContent>
       </Card>}
 
@@ -816,10 +823,53 @@ export default function RelatorioExecucaoObjeto() {
   );
 }
 
-function SecaoEditavel({ secao, relatorio, onEditar, onIA, gerandoIA, onAnexar, enviando, onRemover }) {
+function SecaoEditavel({ secao, relatorio, onEditar, onIA, gerandoIA, onAnexar, enviando, onRemover, relatorioId, form, onAtualizarRelatorio }) {
   const texto = textoSecao(relatorio, secao.key);
   const anexos = relatorio?.anexos_por_secao?.[secao.key] || [];
-  return <div className="rounded-xl border p-4 space-y-3"><div className="flex items-center justify-between gap-3 flex-wrap"><h3 className="font-semibold text-sm">{secao.label}</h3><div className="flex gap-2"><Button size="sm" variant="outline" onClick={onEditar}><Edit3 className="w-3.5 h-3.5 mr-1" />Editar texto</Button><Button size="sm" variant="outline" onClick={onIA} disabled={gerandoIA}>{gerandoIA ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 mr-1" />}Gerar com IA</Button><Button size="sm" variant="outline" onClick={onAnexar} disabled={enviando}>{enviando ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Paperclip className="w-3.5 h-3.5 mr-1" />}Foto/Documento</Button></div></div><div className="text-sm whitespace-pre-wrap text-slate-700">{texto || <span className="text-slate-400 italic">Texto ainda não preenchido.</span>}</div>{anexos.length > 0 && <div className="grid grid-cols-1 md:grid-cols-3 gap-2">{anexos.map(anexo => <div key={anexo.id} className="rounded-lg border bg-slate-50 p-2 flex items-center gap-2">{anexo.categoria === 'foto' ? <img src={anexo.url} alt={anexo.nome} className="w-12 h-12 rounded object-cover" /> : <FileText className="w-8 h-8 text-slate-400" />}<a href={anexo.url} target="_blank" rel="noreferrer" className="text-xs flex-1 truncate text-blue-700">{anexo.nome}</a><button onClick={() => onRemover(anexo.id)} className="text-red-500"><X className="w-4 h-4" /></button></div>)}</div>}</div>;
+  const isAnexos = secao.key === 'anexos';
+
+  return (
+    <div className="rounded-xl border p-4 space-y-3">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h3 className="font-semibold text-sm">{secao.label}</h3>
+        <div className="flex gap-2 flex-wrap">
+          <Button size="sm" variant="outline" onClick={onEditar}><Edit3 className="w-3.5 h-3.5 mr-1" />Editar texto</Button>
+          <Button size="sm" variant="outline" onClick={onIA} disabled={gerandoIA}>{gerandoIA ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 mr-1" />}Gerar com IA</Button>
+          {!isAnexos && (
+            <Button size="sm" variant="outline" onClick={onAnexar} disabled={enviando}>{enviando ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Paperclip className="w-3.5 h-3.5 mr-1" />}Foto/Documento</Button>
+          )}
+        </div>
+      </div>
+
+      <div className="text-sm whitespace-pre-wrap text-slate-700">{texto || <span className="text-slate-400 italic">Texto ainda não preenchido.</span>}</div>
+
+      {/* Seção de Anexos: painel completo de gestão de fotos */}
+      {isAnexos && relatorioId && (
+        <GerenciarFotosAnexos
+          relatorioId={relatorioId}
+          relatorio={relatorio}
+          filtroVersao={form?.filtro_versao}
+          dataInicio={form?.data_inicio}
+          dataFim={form?.data_fim}
+          onAtualizar={onAtualizarRelatorio}
+          embutido
+        />
+      )}
+
+      {/* Anexos de outras seções */}
+      {!isAnexos && anexos.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+          {anexos.map(anexo => (
+            <div key={anexo.id} className="rounded-lg border bg-slate-50 p-2 flex items-center gap-2">
+              {anexo.categoria === 'foto' ? <img src={anexo.url} alt={anexo.nome} className="w-12 h-12 rounded object-cover" /> : <FileText className="w-8 h-8 text-slate-400" />}
+              <a href={anexo.url} target="_blank" rel="noreferrer" className="text-xs flex-1 truncate text-blue-700">{anexo.nome}</a>
+              <button onClick={() => onRemover(anexo.id)} className="text-red-500"><X className="w-4 h-4" /></button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function Resumo({ label, valor }) {
