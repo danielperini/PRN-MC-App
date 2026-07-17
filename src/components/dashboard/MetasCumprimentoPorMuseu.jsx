@@ -151,7 +151,8 @@ export default function MetasCumprimentoPorMuseu({ rubricas = [] }) {
       let totalGeral = 0;
       for (const m of MUSEUS) {
         const val = counts[`${m}_${meta.numero}`] || 0;
-        row[m] = pct(val, meta.total / MUSEUS.length); // proporcional por museu
+        // Percentual em relação ao total geral da meta (não dividido por museu)
+        row[m] = pct(val, meta.total);
         row[`${m}_abs`] = val;
         totalGeral += val;
       }
