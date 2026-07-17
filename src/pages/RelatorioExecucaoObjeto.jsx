@@ -227,13 +227,13 @@ export default function RelatorioExecucaoObjeto() {
     }
 
     const confirmou = window.confirm(
-      '⏱ Geração de relatório\n\nO processo leva aproximadamente 8 a 12 minutos, processando seção por seção com pausas para não sobrecarregar a IA.\n\nVocê poderá editar as seções assim que o rascunho estiver criado (em cerca de 30 segundos). A geração continua em segundo plano.\n\nDeseja continuar?'
+      '⏱ Geração de relatório\n\nO processo leva aproximadamente 8 a 12 minutos. Todas as seções serão preenchidas pela IA com dados reais do sistema antes de exibir o resultado.\n\nAo concluir, o relatório completo estará disponível para edição e exportação.\n\nDeseja continuar?'
     );
     if (!confirmou) return;
 
     setLoading(true);
     setRelatorio(null);
-    setProgresso({ valor: 2, texto: 'Criando rascunho do relatório...' });
+    setProgresso({ valor: 2, texto: 'Criando relatório...' });
 
     let rid = null;
     try {
@@ -243,7 +243,7 @@ export default function RelatorioExecucaoObjeto() {
           aditivos_permitidos: [3, 4],
           excluir_metas_anteriores: true,
         }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout ao criar rascunho (>30s)')), 30000)),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout ao criar relatório (>30s)')), 30000)),
       ]);
 
       rid = res?.data?.relatorio_id || res?.relatorio_id || res?.data?.id || res?.id;
@@ -253,18 +253,14 @@ export default function RelatorioExecucaoObjeto() {
       }
 
       setRelatorioId(rid);
-      // Carrega rascunho imediatamente para o usuário já poder editar
-      await carregarRelatorio(rid);
-      await carregarRelatorios();
-      setProgresso({ valor: 5, texto: 'Rascunho criado ✓ — gerando seções com IA (pode levar ~10 min)...' });
-      toast.info('Rascunho criado! As seções serão preenchidas uma a uma. Você pode editar manualmente enquanto aguarda.', { duration: 10000 });
+      setProgresso({ valor: 5, texto: 'Gerando seções com IA — aguarde...' });
     } catch (error) {
-      toast.error('Erro ao criar rascunho: ' + (error?.message || String(error)), { duration: 12000 });
+      toast.error('Erro ao criar relatório: ' + (error?.message || String(error)), { duration: 12000 });
       setLoading(false);
       return;
     }
 
-    // Gerar grupos de seções com pausas longas entre grupos
+    // Gerar todos os grupos de seções — só exibe o relatório ao final
     const totalGrupos = GRUPOS_GERACAO.length;
     const params = {
       data_inicio: form.data_inicio,
@@ -281,24 +277,20 @@ export default function RelatorioExecucaoObjeto() {
 
       for (let si = 0; si < grupo.length; si++) {
         const { key, label } = grupo[si];
-        setProgresso({ valor: pct + si, texto: `Grupo ${gi + 1}/${totalGrupos} — ${label}...` });
+        setProgresso({ valor: pct + si, texto: `Seção ${gi + 1}/${totalGrupos}: ${label}...` });
         await gerarSecaoComRetry(rid, key, params);
-        // Pausa entre seções do mesmo grupo
         await new Promise(r => setTimeout(r, 1500));
       }
 
-      // Atualiza o relatório visível após cada grupo
-      try { await carregarRelatorio(rid); } catch (_) {}
-
-      // Pausa entre grupos — 8s — respiro para o backend e a IA
+      // Pausa entre grupos
       if (gi < totalGrupos - 1) {
-        setProgresso({ valor: pct + grupo.length, texto: `⏳ Pausa entre grupos (${gi + 1}/${totalGrupos} concluído)...` });
+        setProgresso({ valor: pct + grupo.length, texto: `⏳ Aguardando entre grupos (${gi + 1}/${totalGrupos} concluído)...` });
         await new Promise(r => setTimeout(r, 8000));
       }
     }
 
-    // Finalização
-    setProgresso({ valor: 97, texto: 'Finalizando...' });
+    // Finalização — carrega o relatório completo de uma vez
+    setProgresso({ valor: 97, texto: 'Finalizando e carregando relatório...' });
     await base44.functions.invoke('gerarSecaoRelatorioExecucao', { relatorio_id: rid, secao: 'finalizar' }).catch(() => {});
     await carregarRelatorio(rid);
     await carregarRelatorios();
@@ -676,7 +668,7 @@ export default function RelatorioExecucaoObjeto() {
             </Button>
             {!loading && form.filtro_meta_ids.length > 0 && (
               <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
-                ⏱ ~8–12 min • Rascunho disponível em ~30s para edição manual imediata
+                ⏱ ~8–12 min • Relatório completo exibido ao final
               </span>
             )}
           </div>
