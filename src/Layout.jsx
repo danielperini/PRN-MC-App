@@ -56,6 +56,7 @@ const PAGE_TITLES = {
   ChecklistProducao: 'Checklist de Produção',
   GaleriaNoturno: '🌙 Galeria Noturno nos Museus',
   RelatorioAtividadesFotos: '📸 Relatório de Atividades — Álbuns por Museu',
+  RelatorioAtividadesHtml: '📋 Relatório de Atividades com Fotos (Fev–Jun/2026)',
   BancoRelatorios: 'Banco de Relatórios',
 };
 
