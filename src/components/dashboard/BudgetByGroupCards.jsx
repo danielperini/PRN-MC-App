@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 
-const TOTAL_PREVISTO_OFICIAL = 1320000;
+const TOTAL_PREVISTO_OFICIAL = 1401719.85;
 
 function n(value) {
   const parsed = Number(value || 0);
