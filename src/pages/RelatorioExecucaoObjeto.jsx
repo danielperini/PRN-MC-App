@@ -204,7 +204,6 @@ export default function RelatorioExecucaoObjeto() {
   }
 
   async function gerarSecaoComRetry(rid, key, params) {
-    const TIMEOUT_MS = 45000;
     for (let tentativa = 1; tentativa <= 2; tentativa++) {
       await yieldBrowser();
       try {
@@ -215,13 +214,13 @@ export default function RelatorioExecucaoObjeto() {
             ...params,
           }),
           new Promise((_, reject) =>
-            setTimeout(() => reject(new Error(`Timeout (${key})`)), TIMEOUT_MS)
+            setTimeout(() => reject(new Error(`Timeout (${key})`)), 50000)
           ),
         ]);
         return true;
       } catch (err) {
         console.warn(`[gerarSecao] ✗ ${key} tentativa ${tentativa}:`, err?.message);
-        if (tentativa < 2) await new Promise(r => setTimeout(r, 2000));
+        if (tentativa < 2) await new Promise(r => setTimeout(r, 1000));
       }
     }
     return false;
@@ -233,11 +232,7 @@ export default function RelatorioExecucaoObjeto() {
       return;
     }
 
-    const confirmou = window.confirm(
-      '⏱ Geração de relatório\n\nO processo leva aproximadamente 8 a 12 minutos. Todas as seções serão preenchidas pela IA com dados reais do sistema antes de exibir o resultado.\n\nAo concluir, o relatório completo estará disponível para edição e exportação.\n\nDeseja continuar?'
-    );
-    if (!confirmou) return;
-
+    toast.info('⏱ Gerando relatório — aguarde enquanto a IA processa cada seção...', { duration: 8000 });
     setLoading(true);
     setRelatorio(null);
     setProgresso({ valor: 2, texto: 'Criando relatório...' });
@@ -315,18 +310,8 @@ export default function RelatorioExecucaoObjeto() {
       setSecoesProgresso(prev => prev.map(s => s.key === key ? { ...s, status: novoStatus } : s));
       if (ok) concluidas++; else falhas++;
 
-      // Salvar progresso no banco a cada seção
-      base44.entities.RelatorioExecucaoObjeto.update(rid, { ia_tokens: concluidas }).catch(() => {});
-
-      // Pausa progressiva
-      const ehSecaoPesada = ['cronograma_metas', 'descricao_acoes', 'impactos_economicos_sociais'].includes(key);
-      await new Promise(r => setTimeout(r, ehSecaoPesada ? 5000 : 2000));
-
-      // Pausa extra a cada 3 seções
-      if ((i + 1) % 3 === 0 && i < total - 1) {
-        setProgresso({ valor: pct + 1, texto: `⏳ Pausa de recuperação (${i + 1}/${total} concluídas)...` });
-        await new Promise(r => setTimeout(r, 6000));
-      }
+      // Yield para atualizar a UI
+      await yieldBrowser();
     }
 
     // Finalização — carrega o relatório completo de uma vez
