@@ -33,6 +33,7 @@ import { exportarRelatorioHTML } from '@/components/relatorio/ExportarRelatorioH
 import RevisaoFinalDialog from '@/components/relatorio/RevisaoFinalDialog';
 import GeracaoCompletaDialog from '@/components/relatorio/GeracaoCompletaDialog';
 import GeracaoProgressoPanel from '@/components/relatorio/GeracaoProgressoPanel';
+import GerenciarFotosAnexos from '@/components/relatorio/GerenciarFotosAnexos';
 import { listarMetasRelatorio, sincronizarRelatorioExecucao } from '@/utils/sincronizarRelatorioExecucaoCompat';
 
 // Fora do componente — evita re-criação a cada render e captura em closures
@@ -738,6 +739,14 @@ export default function RelatorioExecucaoObjeto() {
                 : <><Lock className="w-3.5 h-3.5 mr-1" />Publicar</>
               }
             </Button>
+            <GerenciarFotosAnexos
+              relatorioId={relatorioId}
+              relatorio={relatorio}
+              filtroVersao={form.filtro_versao}
+              dataInicio={form.data_inicio}
+              dataFim={form.data_fim}
+              onAtualizar={() => carregarRelatorio(relatorioId)}
+            />
             <Button size="sm" onClick={() => setRevisaoAberta(true)}>Revisar e Exportar</Button>
             <Button size="sm" variant="outline" onClick={exportarPDF} disabled={!!exportandoPDF}>
               {exportandoPDF ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Download className="w-4 h-4 mr-1" />}
