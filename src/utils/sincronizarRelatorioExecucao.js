@@ -213,18 +213,10 @@ export function validarPeriodoRelatorio(dataInicio, dataFim) {
 }
 
 export async function listarMetasRelatorio() {
-  const [projectMetas, compras] = await Promise.all([
-    listar('ProjectMeta', 5000),
-    listar('PurchaseRequest', 10000),
-  ]);
+  // Busca apenas ProjectMeta — não carrega PurchaseRequest para listar metas (causa timeout com 10k registros)
+  const projectMetas = await listar('ProjectMeta', 5000);
   const cadastradas = projectMetas.filter(metaPertenceAo3ou4Aditivo).filter((meta) => !metaBloqueada(meta));
-  const metasPorId = new Map();
-  for (const meta of cadastradas) {
-    const id = idCanonicoMeta(meta);
-    if (id) metasPorId.set(String(id), meta);
-  }
-  const derivadas = compras.map((compra) => metaDerivada(compra, metasPorId)).filter(Boolean);
-  return consolidarMetas([...cadastradas, ...derivadas]);
+  return consolidarMetas(cadastradas);
 }
 
 export async function sincronizarRelatorioExecucao({ relatorioId, dataInicio, dataFim, filtroMuseu = 'todos', filtroVersao = 'consolidado', filtroMetaIds = [] }) {
