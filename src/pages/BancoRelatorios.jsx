@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ScrollText, Download, Search, Calendar, FileText, Eye, FolderOpen, ExternalLink, Lock } from 'lucide-react';
+import { ScrollText, Download, Search, Calendar, FileText, Eye, FolderOpen, ExternalLink, Lock, X } from 'lucide-react';
 
 function fmtDate(d) {
   if (!d) return '—';
@@ -21,6 +21,12 @@ export default function BancoRelatorios() {
   const [loading, setLoading] = useState(true);
   const [busca, setBusca] = useState('');
   const [detalhe, setDetalhe] = useState(null);
+  const [filtroMuseu, setFiltroMuseu] = useState('');
+  const [filtroTipo, setFiltroTipo] = useState('');
+  const [filtroAno, setFiltroAno] = useState('');
+
+  const MUSEUS = ['MHAB', 'MIS', 'MUMO', 'Casa Kubitschek', 'Casa do Baile', 'MAP'];
+  const anosDisponiveis = [...new Set(relatorios.map(r => r.data_inicio?.slice(0, 4)).filter(Boolean))].sort((a, b) => b - a);
 
   useEffect(() => {
     carregarRelatorios();
@@ -39,16 +45,30 @@ export default function BancoRelatorios() {
   }
 
   const filtrados = relatorios.filter(r => {
-    if (!busca) return true;
-    const q = busca.toLowerCase();
-    return (
-      (r.titulo_publicacao || '').toLowerCase().includes(q) ||
-      (r.data_inicio || '').includes(q) ||
-      (r.data_fim || '').includes(q) ||
-      (r.tipo || '').toLowerCase().includes(q) ||
-      (r.filtro_museu || '').toLowerCase().includes(q)
-    );
+    if (busca) {
+      const q = busca.toLowerCase();
+      const match =
+        (r.titulo_publicacao || '').toLowerCase().includes(q) ||
+        (r.data_inicio || '').includes(q) ||
+        (r.data_fim || '').includes(q) ||
+        (r.tipo || '').toLowerCase().includes(q) ||
+        (r.filtro_museu || '').toLowerCase().includes(q);
+      if (!match) return false;
+    }
+    if (filtroMuseu && (r.filtro_museu || '').toLowerCase() !== filtroMuseu.toLowerCase() && r.filtro_museu !== 'todos') return false;
+    if (filtroTipo && r.tipo !== filtroTipo) return false;
+    if (filtroAno && !(r.data_inicio || '').startsWith(filtroAno)) return false;
+    return true;
   });
+
+  const temFiltroAtivo = busca || filtroMuseu || filtroTipo || filtroAno;
+
+  function limparFiltros() {
+    setBusca('');
+    setFiltroMuseu('');
+    setFiltroTipo('');
+    setFiltroAno('');
+  }
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -87,14 +107,52 @@ export default function BancoRelatorios() {
         </a>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          placeholder="Buscar por título, período, museu..."
-          value={busca}
-          onChange={e => setBusca(e.target.value)}
-          className="pl-9"
-        />
+      {/* Filtros */}
+      <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+        <div className="flex flex-col sm:flex-row gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por título, período, museu..."
+              value={busca}
+              onChange={e => setBusca(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <select
+            value={filtroMuseu}
+            onChange={e => setFiltroMuseu(e.target.value)}
+            className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 min-w-[160px]"
+          >
+            <option value="">Todos os museus</option>
+            {MUSEUS.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+          <select
+            value={filtroTipo}
+            onChange={e => setFiltroTipo(e.target.value)}
+            className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 min-w-[140px]"
+          >
+            <option value="">Todos os tipos</option>
+            <option value="parcial">Parcial</option>
+            <option value="final">Final</option>
+          </select>
+          <select
+            value={filtroAno}
+            onChange={e => setFiltroAno(e.target.value)}
+            className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 min-w-[110px]"
+          >
+            <option value="">Todos os anos</option>
+            {anosDisponiveis.map(a => <option key={a} value={a}>{a}</option>)}
+          </select>
+        </div>
+        {temFiltroAtivo && (
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-slate-500">{filtrados.length} resultado(s) encontrado(s)</p>
+            <button onClick={limparFiltros} className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 transition-colors">
+              <X className="w-3 h-3" /> Limpar filtros
+            </button>
+          </div>
+        )}
       </div>
 
       {loading ? (
@@ -104,7 +162,7 @@ export default function BancoRelatorios() {
           <CardContent className="py-12 text-center">
             <FileText className="w-10 h-10 mx-auto text-muted-foreground mb-3" />
             <p className="text-muted-foreground text-sm">
-              {busca ? 'Nenhum relatório encontrado para esta busca.' : 'Nenhum relatório publicado ainda.'}
+              {temFiltroAtivo ? 'Nenhum relatório encontrado para os filtros selecionados.' : 'Nenhum relatório publicado ainda.'}
             </p>
           </CardContent>
         </Card>
