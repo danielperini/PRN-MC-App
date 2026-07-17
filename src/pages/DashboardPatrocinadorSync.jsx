@@ -468,8 +468,10 @@ export default function DashboardPatrocinadorSync() {
       
       const dadosFinanceiros = reconcileFinancialTotals(rubricasRaw);
       
+      // Público geral declarado = circulação total do museu (visitantes, não só participantes)
+      // Exibido separadamente dos participantes em atividades para evitar dupla contagem
       const publicoGeralPorMuseu = Object.fromEntries(
-        (officialMetrics.audience?.byMuseum || []).map((item) => [item.museu, item.total])
+        (officialMetrics.audience?.byMuseum || []).map((item) => [item.museu, item.publico_geral_declarado || 0])
       );
       const metrics = {
         reports: officialMetrics.reports.items,

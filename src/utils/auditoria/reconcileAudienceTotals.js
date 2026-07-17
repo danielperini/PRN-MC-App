@@ -2,7 +2,9 @@ import { getMonthLabel } from './temporalFilters';
 import { toAuditInteger } from './deduplicateAudience';
 
 export function getReportSpontaneousAudience(report = {}) {
-  return toAuditInteger(report.publico_espontaneo ?? report.publico_livre ?? report.publico_geral_declarado ?? 0);
+  // NÃO inclui publico_geral_declarado aqui: esse campo é a circulação total do museu
+  // e já é contado como público das atividades pelos profissionais, causando dupla contagem.
+  return toAuditInteger(report.publico_espontaneo ?? report.publico_livre ?? 0);
 }
 
 export function getReportScheduledVisitsAudience(report = {}) {
@@ -11,6 +13,8 @@ export function getReportScheduledVisitsAudience(report = {}) {
 
 export function reconcileAudienceTotals({ reports = [], activities = [], presenceAudience = null } = {}) {
   const publicoAtividades = activities.reduce((sum, activity) => sum + toAuditInteger(activity._publico_contabil ?? activity._publico), 0);
+  // publico_geral_declarado é a circulação espontânea do museu (visitantes gerais) — NÃO entra
+  // no total de "participantes em atividades" para evitar dupla contagem. É exibido separadamente.
   const publicoEspontaneo = reports.reduce((sum, report) => sum + getReportSpontaneousAudience(report), 0);
   const visitasAgendadas = reports.reduce((sum, report) => sum + getReportScheduledVisitsAudience(report), 0);
   const publicoPresencas = toAuditInteger(presenceAudience?.publicoPresencas || 0);
@@ -22,11 +26,11 @@ export function reconcileAudienceTotals({ reports = [], activities = [], presenc
     const museum = activity._museu || 'Atuação Geral';
     const publico = toAuditInteger(activity._publico_contabil ?? activity._publico);
 
-    if (!byMonthMap[monthKey]) byMonthMap[monthKey] = { key: monthKey, mes: getMonthLabel(monthKey), atividades: 0, publico_atividades: 0, espontaneo: 0, visitas_agendadas: 0, total: 0 };
+    if (!byMonthMap[monthKey]) byMonthMap[monthKey] = { key: monthKey, mes: getMonthLabel(monthKey), atividades: 0, publico_atividades: 0, espontaneo: 0, visitas_agendadas: 0, publico_geral_declarado: 0, total: 0 };
     byMonthMap[monthKey].atividades += 1;
     byMonthMap[monthKey].publico_atividades += publico;
 
-    if (!byMuseumMap[museum]) byMuseumMap[museum] = { museu: museum, atividades: 0, publico_atividades: 0, espontaneo: 0, visitas_agendadas: 0, total: 0 };
+    if (!byMuseumMap[museum]) byMuseumMap[museum] = { museu: museum, atividades: 0, publico_atividades: 0, espontaneo: 0, visitas_agendadas: 0, publico_geral_declarado: 0, total: 0 };
     byMuseumMap[museum].atividades += 1;
     byMuseumMap[museum].publico_atividades += publico;
   });
@@ -34,13 +38,15 @@ export function reconcileAudienceTotals({ reports = [], activities = [], presenc
   reports.forEach((report) => {
     const monthKey = report._monthKey || 'sem-mes';
     const museum = report._museu || 'Atuação Geral';
-    if (!byMonthMap[monthKey]) byMonthMap[monthKey] = { key: monthKey, mes: getMonthLabel(monthKey), atividades: 0, publico_atividades: 0, espontaneo: 0, visitas_agendadas: 0, total: 0 };
-    if (!byMuseumMap[museum]) byMuseumMap[museum] = { museu: museum, atividades: 0, publico_atividades: 0, espontaneo: 0, visitas_agendadas: 0, total: 0 };
+    if (!byMonthMap[monthKey]) byMonthMap[monthKey] = { key: monthKey, mes: getMonthLabel(monthKey), atividades: 0, publico_atividades: 0, espontaneo: 0, visitas_agendadas: 0, publico_geral_declarado: 0, total: 0 };
+    if (!byMuseumMap[museum]) byMuseumMap[museum] = { museu: museum, atividades: 0, publico_atividades: 0, espontaneo: 0, visitas_agendadas: 0, publico_geral_declarado: 0, total: 0 };
 
     byMonthMap[monthKey].espontaneo += getReportSpontaneousAudience(report);
     byMonthMap[monthKey].visitas_agendadas += getReportScheduledVisitsAudience(report);
+    byMonthMap[monthKey].publico_geral_declarado += toAuditInteger(report.publico_geral_declarado ?? 0);
     byMuseumMap[museum].espontaneo += getReportSpontaneousAudience(report);
     byMuseumMap[museum].visitas_agendadas += getReportScheduledVisitsAudience(report);
+    byMuseumMap[museum].publico_geral_declarado += toAuditInteger(report.publico_geral_declarado ?? 0);
   });
 
   (presenceAudience?.byMonth || []).forEach((item) => {
@@ -64,11 +70,16 @@ export function reconcileAudienceTotals({ reports = [], activities = [], presenc
     item.total = item.publico_atividades + item.espontaneo + item.visitas_agendadas + item.presencas;
   });
 
+  const publicoGeralDeclarado = Object.values(byMuseumMap).reduce((s, m) => s + (m.publico_geral_declarado || 0), 0);
+
   return {
     publicoAtividades,
     publicoEspontaneo,
     visitasAgendadas,
     publicoPresencas,
+    publicoGeralDeclarado,
+    // publicoTotal = apenas participantes em atividades + espontâneo real + visitas + presenças
+    // publico_geral_declarado NÃO entra: é circulação geral do museu, exibida separadamente
     publicoTotal: publicoAtividades + publicoEspontaneo + visitasAgendadas + publicoPresencas,
     byMonth: Object.values(byMonthMap).sort((a, b) => String(a.key).localeCompare(String(b.key))),
     byMuseum: Object.values(byMuseumMap).sort((a, b) => a.museu.localeCompare(b.museu)),
