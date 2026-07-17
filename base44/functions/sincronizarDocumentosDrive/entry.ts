@@ -158,28 +158,44 @@ Deno.serve(async (req) => {
 
     const candidatos: any[] = [];
 
-    async function varrerPasta(folderId: string, mesInfo: any, ano: number, pastaPath: string, depth = 0): Promise<void> {
-      if (depth > 8) return;
-      const conteudo = await listFolder(folderId);
+    // Varre recursivamente QUALQUER subpasta — não depende de padrão mensal na raiz.
+    // mês/ano são inferidos a partir do caminho acumulado (primeiro match vence).
+    async function varrerPasta(folderId: string, pastaPath: string, depth = 0): Promise<void> {
+      if (depth > 10) return; // limite de profundidade aumentado
+      let conteudo: any[];
+      try {
+        conteudo = await listFolder(folderId);
+      } catch (e) {
+        console.warn(`[varrer] Erro ao listar pasta ${folderId}: ${(e as any)?.message}`);
+        return;
+      }
+
+      // Inferir mês/ano do caminho completo acumulado
+      const mesInfo = normalizarMes(pastaPath) || null;
+      const ano = extrairAno(pastaPath) || new Date().getFullYear();
+
       for (const item of conteudo) {
         if (item.mimeType === 'application/vnd.google-apps.folder') {
-          const tipoPasta = detectarTipoPasta(item.name);
-          if (tipoPasta === 'extrato') continue;
-          await varrerPasta(item.id, mesInfo, ano, pastaPath ? `${pastaPath}/${item.name}` : item.name, depth + 1);
+          // Pular pastas de extratos bancários — não são NFs nem contratos
+          if (detectarTipoPasta(item.name) === 'extrato') continue;
+          const subPath = pastaPath ? `${pastaPath}/${item.name}` : item.name;
+          await varrerPasta(item.id, subPath, depth + 1);
         } else {
           if (item.mimeType !== MIME_PDF && !isXML(item)) continue;
           if (detectarTipoPasta(item.name) === 'extrato') continue;
-          candidatos.push({ ...item, _mesInfo: mesInfo, _ano: ano, _pastaTipo: detectarTipoPasta(item.name), _pastaPath: pastaPath });
+          candidatos.push({
+            ...item,
+            _mesInfo: mesInfo,
+            _ano: ano,
+            _pastaTipo: detectarTipoPasta(item.name),
+            _pastaPath: pastaPath,
+          });
         }
       }
     }
 
-    const pastasMensais = (await listFolder(DRIVE_FOLDER_ID)).filter((f: any) => f.mimeType === 'application/vnd.google-apps.folder');
-    for (const pastaMensal of pastasMensais) {
-      const mesInfo = normalizarMes(pastaMensal.name);
-      const ano = extrairAno(pastaMensal.name);
-      await varrerPasta(pastaMensal.id, mesInfo, ano, pastaMensal.name);
-    }
+    // Ponto de entrada: varre a raiz inteira, incluindo todas as subpastas em qualquer nível
+    await varrerPasta(DRIVE_FOLDER_ID, '');
 
     const xmlPendentes = candidatos.filter(isXML).filter(a => !porDriveId.has(a.id));
     const xmlMetadados = new Map<string, any>();
