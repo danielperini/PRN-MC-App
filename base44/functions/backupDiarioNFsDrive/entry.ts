@@ -100,6 +100,8 @@ function getProjeto(centroCusto) {
 
 /**
  * Monta o nome padronizado do arquivo.
+ * Formato: {PREFIXO} {NUMERO} {CATEGORIA} - {FORNECEDOR} - {PROFISSIONAL} - {CENTRO_CUSTO} - {VALOR}.ext
+ * Exemplo: NF 12 DESIGN GRAFICO - SAMIRA LOPES MOTA - MUSEUS CENTRO - 2600.xml
  * tipo: 'NF' | 'XML' | 'COMP'
  */
 function buildFileName(tipo, pr, extra = {}) {
@@ -107,24 +109,37 @@ function buildFileName(tipo, pr, extra = {}) {
     pr.nf_numero || extra.nf_numero || pr.id?.substring(0, 8) || 'SN', 10
   );
 
-  const natureza = sanitizeFilePart(
-    pr.natureza_despesa || pr.rubrica_nome || pr.categoria || pr.descricao_item || 'DESPESA', 40
+  // Categoria: prioriza rubrica_nome ou categoria sobre natureza_despesa
+  const categoria = sanitizeFilePart(
+    pr.rubrica_nome || pr.categoria || pr.natureza_despesa || pr.descricao_item || 'DESPESA', 40
   );
 
   const fornecedor = sanitizeFilePart(
     pr.fornecedor_nome || pr.nf_emitente_nome || extra.fornecedor || 'FORNECEDOR', 50
   );
 
-  const projeto = getProjeto(pr.centro_custo || '');
+  // Profissional responsável — inclui no nome apenas se preenchido
+  const profissional = sanitizeFilePart(
+    pr.usuario_pagamento_nome || pr.aprov_coord_nome || extra.profissional || '', 40
+  );
 
-  const valor = formatValor(
+  const centroCusto = sanitizeFilePart(getProjeto(pr.centro_custo || ''), 30);
+
+  // Valor sem "R$", apenas o número (ex: 2600,00)
+  const valorNum = parseValor(
     pr.valor_pago || pr.valor_aprovado_admin || pr.nf_valor_total || pr.valor_solicitado || 0
   );
+  const valor = valorNum.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const ext = tipo === 'XML' ? 'xml' : 'pdf';
   const prefixo = tipo === 'COMP' ? 'COMP NF' : tipo;
 
-  return `${prefixo} ${numero} ${natureza} - ${fornecedor} - ${projeto} - R$ ${valor}.${ext}`;
+  const partes = [fornecedor];
+  if (profissional) partes.push(profissional);
+  partes.push(centroCusto);
+  partes.push(valor);
+
+  return `${prefixo} ${numero} ${categoria} - ${partes.join(' - ')}.${ext}`;
 }
 
 // ── Google Drive helpers ─────────────────────────────────────────────────────
