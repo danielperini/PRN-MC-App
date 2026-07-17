@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollText, Download, Search, Calendar, FileText, Eye, FolderOpen, ExternalLink, Lock, X } from 'lucide-react';
+import GaleriaDocumentosDrive from '@/components/banco-relatorios/GaleriaDocumentosDrive';
 
 function fmtDate(d) {
   if (!d) return '—';
@@ -264,6 +265,11 @@ export default function BancoRelatorios() {
                       </div>
                     </div>
                   )}
+
+                  {/* Galeria de fotos vinculadas ao período */}
+                  <div className="border-t pt-4">
+                    <GaleriaDocumentosDrive relatorio={r} />
+                  </div>
                 </CardContent>
               )}
             </Card>
