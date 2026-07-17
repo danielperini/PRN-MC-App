@@ -32,17 +32,30 @@ export function textoCompletoMeta(meta) {
   );
 }
 
+// Metas explicitamente do 1º/2º aditivo a excluir (não pertencem ao relatório atual)
+const METAS_EXCLUIDAS_LEGADO = [
+  // adicionar aqui apenas se houver marcadores claros de aditivos anteriores
+];
+
 export function metaPertenceAo3ou4Aditivo(meta) {
   if (!meta) return false;
+
+  // Verificação por campo numérico explícito
   const numero = Number(meta?.numero_aditivo || meta?.aditivo_numero || meta?.aditivo);
+  if (numero === 1 || numero === 2) return false; // excluir explicitamente 1º e 2º
   if (numero === 3 || numero === 4) return true;
 
   const texto = textoCompletoMeta(meta);
-  if (!texto) return false;
 
-  return [...MARCADORES_3_ADITIVO, ...MARCADORES_4_ADITIVO]
-    .map(normalizarTextoMeta)
-    .some((marcador) => texto.includes(marcador));
+  // Excluir se texto indica 1º ou 2º aditivo explicitamente
+  const marcadores1e2 = ['1 aditivo', '1o aditivo', '1º aditivo', 'primeiro aditivo', '2 aditivo', '2o aditivo', '2º aditivo', 'segundo aditivo'];
+  if (marcadores1e2.map(normalizarTextoMeta).some(m => texto.includes(m))) return false;
+
+  // Incluir se texto indica 3º ou 4º aditivo
+  if ([...MARCADORES_3_ADITIVO, ...MARCADORES_4_ADITIVO].map(normalizarTextoMeta).some(m => texto.includes(m))) return true;
+
+  // Por padrão: todas as metas sem marcador de aditivo anterior são válidas (pertencem ao 3º/4º por convenção do projeto)
+  return true;
 }
 
 export function filtrarMetas3e4Aditivos(metas) {
