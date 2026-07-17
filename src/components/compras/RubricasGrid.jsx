@@ -205,12 +205,18 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
     });
   }, [filtradas]);
 
+  // Totais contratuais oficiais fixos — não derivados da soma das rubricas
+  const CONTRATO_3A = 1320000;
+  const CONTRATO_4A = 81719.85;
+  const CONTRATO_TOTAL = CONTRATO_3A + CONTRATO_4A; // R$ 1.401.719,85
+
   const totais = useMemo(() => {
-    let previsto = 0, utilizado = 0;
+    let utilizado = 0;
     for (const r of dadosProcessados) {
-      previsto += r.valor;
       utilizado += r.utilizado;
     }
+    // Previsto = valor contratual oficial (não soma das rubricas filtradas)
+    const previsto = CONTRATO_TOTAL;
     return { previsto, utilizado, saldo: previsto - utilizado };
   }, [dadosProcessados]);
 
