@@ -164,9 +164,9 @@ export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
           titulo="3º Termo Aditivo — Museus Centro"
           badge="3º Aditivo"
           badgeColor="bg-blue-100 text-blue-700"
-          totalPrevisto={totais3.totalPrevisto}
+          totalPrevisto={CONTRATO_3_ADITIVO}
           totalUtilizado={totais3.totalUtilizado}
-          saldo={totais3.saldo}
+          saldo={CONTRATO_3_ADITIVO - totais3.totalUtilizado}
           rubricasList={[]}
           qtdNFs={totais3.qtdNFs}
           qtdDuplicatas={duplicadas.quantidade}
