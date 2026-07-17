@@ -1,44 +1,58 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
 
-    // Verificar se é uma chamada agendada (service role) ou manual
+    // Aceitar chamada de automação agendada (sem sessão) ou de admin manual
     const user = await base44.auth.me().catch(() => null);
     const isScheduled = !user;
-    
-    // Se não for agendado, verificar se é admin
-    if (!isScheduled && (!user || user.role !== 'admin')) {
+
+    if (!isScheduled && (!user || !['admin', 'ADMIN'].includes(user.role))) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const now = new Date();
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
+    // Receber slot forçado via payload ou detectar pelo horário (UTC-3)
+    let body: any = {};
+    try { body = await req.json(); } catch { /* sem body */ }
 
-    // Determinar qual slot processar
-    // Manhã: 09:30-10:29, Tarde: 16:45-17:44
-    let batchSlot = null;
-    if (currentHour === 9 && currentMinute >= 30) {
-      batchSlot = 'manha';
-    } else if (currentHour === 16 && currentMinute >= 45) {
-      batchSlot = 'tarde';
-    }
+    const now = new Date();
+    // Horário de Brasília = UTC-3
+    const brasiliaHour = (now.getUTCHours() - 3 + 24) % 24;
+    const brasiliaMinute = now.getUTCMinutes();
+
+    let batchSlot: string | null = body.slot || null;
 
     if (!batchSlot) {
-      return Response.json({ 
-        success: true, 
-        message: 'Fora do horário de processamento de lotes',
-        nextSlot: currentHour < 16 ? 'tarde' : 'manha'
-      });
+      // Manhã: 09h00-10h59 | Tarde: 16h00-18h59
+      if (brasiliaHour >= 9 && brasiliaHour < 11) {
+        batchSlot = 'manha';
+      } else if (brasiliaHour >= 16 && brasiliaHour < 19) {
+        batchSlot = 'tarde';
+      }
     }
 
-    // Buscar pendentes do slot atual
-    const pendingItems = await base44.entities.PurchaseNotificationQueue.filter({
-      status: 'pendente_lote',
-      batch_slot: batchSlot
-    });
+    // Se forçado (force=true) e sem slot definido, processar todos os pendentes
+    const force = body.force === true;
+
+    // Buscar pendentes — service role para funcionar em automações agendadas
+    let pendingItems: any[];
+    if (batchSlot && !force) {
+      pendingItems = await base44.asServiceRole.entities.PurchaseNotificationQueue.filter({
+        status: 'pendente_lote',
+        batch_slot: batchSlot
+      });
+    } else if (force) {
+      pendingItems = await base44.asServiceRole.entities.PurchaseNotificationQueue.filter({
+        status: 'pendente_lote'
+      });
+    } else {
+      return Response.json({
+        success: true,
+        message: `Fora do horário de processamento (Brasília: ${brasiliaHour}h${brasiliaMinute}m). Passe slot="manha"|"tarde" para forçar.`,
+        brasiliaHour, brasiliaMinute,
+      });
+    }
 
     if (!pendingItems || pendingItems.length === 0) {
       return Response.json({ 
@@ -123,10 +137,13 @@ Deno.serve(async (req) => {
       </html>
     `;
 
-    // Destinatários fixos (corrigidos)
+    // Destinatários — apenas usuários registrados no app (SendEmail só funciona para eles)
+    // Josiane: josianeamancio@viadutodasartes.org.br | adm: adm@viadutodasartes.org.br
+    // Daniel Perini: danielperini.mc@ e daniel@periniprojetos.com.br
+    // notasfiscais@viadutodasartes.org.br NÃO é usuária registrada — NÃO incluir
     const recipients = [
       'adm@viadutodasartes.org.br',
-      'notasfiscais@viadutodasartes.org.br',
+      'josianeamancio@viadutodasartes.org.br',
       'danielperini.mc@viadutodasartes.org.br',
       'daniel@periniprojetos.com.br'
     ];
@@ -146,43 +163,24 @@ Deno.serve(async (req) => {
     await Promise.all(sendPromises);
 
     // Marcar registros como enviados
-    const updatePromises = pendingItems.map(item =>
-      base44.entities.PurchaseNotificationQueue.update(item.id, {
+    for (const item of pendingItems) {
+      await base44.asServiceRole.entities.PurchaseNotificationQueue.update(item.id, {
         status: 'enviado',
         sent_at: now.toISOString(),
         digest_id: digestId
-      })
-    );
-
-    await Promise.all(updatePromises);
+      });
+    }
 
     return Response.json({
       success: true,
-      message: `Lote ${batchSlot} processado com sucesso`,
+      message: `Lote ${batchSlot || 'forçado'} processado com sucesso`,
       digestId,
       itemsSent: pendingItems.length,
       recipients
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Erro ao enviar lote de notificações:', error);
-    
-    // Marcar registros com erro
-    const pendingItems = await base44.entities.PurchaseNotificationQueue.filter({
-      status: 'pendente_lote',
-      batch_slot: batchSlot
-    });
-    
-    if (pendingItems) {
-      const errorPromises = pendingItems.map(item =>
-        base44.entities.PurchaseNotificationQueue.update(item.id, {
-          status: 'erro',
-          error_message: error.message
-        })
-      );
-      await Promise.all(errorPromises);
-    }
-    
     return Response.json({ error: error.message }, { status: 500 });
   }
 });
