@@ -27,7 +27,7 @@ import {
 import { exportarRelatorioExecucaoPDF } from '@/components/relatorio/ExportarRelatorioExecucaoPDF';
 import { exportarRelatorioExecucaoDOCX } from '@/components/relatorio/ExportarRelatorioExecucaoDOCX';
 import RevisaoFinalDialog from '@/components/relatorio/RevisaoFinalDialog';
-import { listarMetasRelatorio, sincronizarRelatorioExecucao } from '@/utils/sincronizarRelatorioExecucao';
+import { listarMetasRelatorio, sincronizarRelatorioExecucao } from '@/utils/sincronizarRelatorioExecucaoCompat';
 
 const SECOES_EDITAVEIS = [
   { key: 'endereco_execucao', label: '2. Endereço de Execução' },
