@@ -195,8 +195,12 @@ export default function RelatorioExecucaoObjeto() {
         aditivos_permitidos: [3, 4],
         excluir_metas_anteriores: true,
       });
-      const rid = res?.data?.relatorio_id || res?.relatorio_id;
-      if (!rid) throw new Error('O backend não retornou o identificador do relatório.');
+      // SDK pode encapsular em .data ou retornar direto
+      const rid = res?.data?.relatorio_id || res?.relatorio_id || res?.data?.id || res?.id;
+      if (!rid) {
+        console.error('[iniciarRelatorio] Resposta recebida:', JSON.stringify(res));
+        throw new Error(res?.data?.error || res?.error || 'O backend não retornou o identificador do relatório.');
+      }
       setRelatorioId(rid);
 
       // Gerar seção por seção para evitar timeout
@@ -206,19 +210,26 @@ export default function RelatorioExecucaoObjeto() {
         const pct = Math.round(5 + ((i / total) * 90));
         setProgresso({ valor: pct, texto: `(${i + 1}/${total}) ${label}...` });
         try {
-          await base44.functions.invoke('gerarSecaoRelatorioExecucao', {
-            relatorio_id: rid,
-            secao: key,
-            data_inicio: form.data_inicio,
-            data_fim: form.data_fim,
-            filtro_museu: form.filtro_museu,
-            filtro_versao: form.filtro_versao,
-            filtro_meta_ids: form.filtro_meta_ids,
-            aditivos_permitidos: [3, 4],
-          });
+          // Timeout por seção: 55s (evita travar indefinidamente)
+          await Promise.race([
+            base44.functions.invoke('gerarSecaoRelatorioExecucao', {
+              relatorio_id: rid,
+              secao: key,
+              data_inicio: form.data_inicio,
+              data_fim: form.data_fim,
+              filtro_museu: form.filtro_museu,
+              filtro_versao: form.filtro_versao,
+              filtro_meta_ids: form.filtro_meta_ids,
+              aditivos_permitidos: [3, 4],
+            }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error(`Timeout na seção ${key}`)), 55000)),
+          ]);
         } catch (err) {
           console.warn(`Seção ${key} falhou (continuando):`, err?.message);
+          // Continua para próxima seção mesmo com timeout
         }
+        // Pequena pausa entre seções para evitar sobrecarga
+        await new Promise(r => setTimeout(r, 200));
       }
 
       setProgresso({ valor: 97, texto: 'Finalizando e carregando...' });
