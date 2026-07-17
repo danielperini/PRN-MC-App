@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowDownLeft, ArrowUpRight, Banknote, CalendarDays, ExternalLink, FolderSync, Loader2, RefreshCw, Search, TrendingUp, X } from 'lucide-react';
 import FluxoCaixaMensal from '@/components/dashboard/FluxoCaixaMensal';
 import ConferenciaNotasDrive from '@/components/movimentacoes/ConferenciaNotasDrive';
+import PagamentosSemNF from '@/components/movimentacoes/PagamentosSemNF';
 import { agruparMovimentacoesPorMes, ehTransferenciaInterna, resumirGruposMensais, resumirRegistrosMensais } from '@/utils/movimentacoesMensais';
 
 const MESES_NOME = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
@@ -127,6 +128,7 @@ export default function Movimentacoes() {
         { label: 'Rendimentos', valor: totaisGerais.rendimento, icon: <TrendingUp className="h-5 w-5 text-blue-600" />, classe: 'border-blue-200 text-blue-700' },
       ].map((item) => <div key={item.label} className={`rounded-2xl border bg-white p-5 shadow-sm ${item.classe}`}><div className="mb-2 flex items-center justify-between">{item.icon}<span className="text-[10px] font-bold uppercase tracking-wide">{item.label}</span></div><p className="text-xl font-bold">{fmtBRL(item.valor)}</p></div>)}</div>
       <FluxoCaixaMensal />
+      <PagamentosSemNF grupos={grupos} />
       <ConferenciaNotasDrive />
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="grid gap-4 lg:grid-cols-[280px_1fr] lg:items-end"><div><label htmlFor="mes-extrato" className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-gray-500"><CalendarDays className="h-3.5 w-3.5" /> Extrato mensal</label><select id="mes-extrato" value={mesSelecionado} onChange={(e) => setMesSelecionado(e.target.value)} className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm font-semibold">{grupos.map((grupo) => <option key={grupo.key} value={grupo.key}>{MESES_NOME[grupo.mes_num]} de {grupo.ano}</option>)}</select></div><div className="relative"><Search className="absolute left-3.5 top-3 h-4 w-4 text-gray-400" /><input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar lançamento, banco ou descrição…" className="w-full rounded-xl border border-gray-200 py-2.5 pl-10 pr-10 text-sm" />{busca && <button type="button" onClick={() => setBusca('')} className="absolute right-3.5 top-3"><X className="h-4 w-4" /></button>}</div></div></section>
       {grupoSelecionado && <section className="space-y-5 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-bold">{MESES_NOME[grupoSelecionado.mes_num]} de {grupoSelecionado.ano}</h2><p className="text-xs text-gray-400">{resumoMes.documentos} documento(s) canônico(s) do Google Drive</p></div><div className="text-right text-xs text-gray-500"><p>Saldo da conta: <strong>{fmtBRL(resumoMes.saldo_conta)}</strong></p><p>Saldo investimento: <strong>{fmtBRL(resumoMes.saldo_investimento)}</strong></p></div></div>
