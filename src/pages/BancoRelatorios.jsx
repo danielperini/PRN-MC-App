@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ScrollText, Download, Search, Calendar, FileText, Eye, FolderOpen, ExternalLink, Lock, X } from 'lucide-react';
+import { ScrollText, Download, Search, Calendar, FileText, Eye, FolderOpen, ExternalLink, Lock, X, Images } from 'lucide-react';
 import GaleriaDocumentosDrive from '@/components/banco-relatorios/GaleriaDocumentosDrive';
 
 function fmtDate(d) {
@@ -15,6 +15,100 @@ function fmtDate(d) {
 
 function statusLabel(tipo) {
   return tipo === 'final' ? 'Final' : 'Parcial';
+}
+
+// Busca prévia de fotos de um relatório (máx 6 miniaturas para o card)
+function usePreviewFotos(relatorio) {
+  const [fotos, setFotos] = useState(null); // null = ainda carregando
+
+  useEffect(() => {
+    if (!relatorio) return;
+    let mounted = true;
+
+    async function load() {
+      const todas = [];
+
+      // Fotos salvas diretamente no relatório
+      const evidencias = Array.isArray(relatorio.anexos_evidencias) ? relatorio.anexos_evidencias : [];
+      for (const ev of evidencias) {
+        if (ev.foto_url) todas.push(ev.foto_url);
+      }
+
+      // Se tiver menos de 6, busca ReportPhoto do período
+      if (todas.length < 6 && relatorio.data_inicio) {
+        try {
+          const ano = new Date(relatorio.data_inicio).getFullYear();
+          const rps = await base44.entities.ReportPhoto.filter(
+            { ano, galeria_oculta: false }, '-created_date', 20
+          ).catch(() => []);
+          const mesInicio = new Date(relatorio.data_inicio).getMonth() + 1;
+          const mesFim = new Date(relatorio.data_fim || relatorio.data_inicio).getMonth() + 1;
+          for (const rp of (rps || [])) {
+            if (!rp.file_url) continue;
+            const rpMes = rp.mes_referencia ? Number(rp.mes_referencia) : null;
+            if (rpMes !== null && (rpMes < mesInicio || rpMes > mesFim)) continue;
+            todas.push(rp.file_url);
+            if (todas.length >= 6) break;
+          }
+        } catch (_) {}
+      }
+
+      // Deduplicar
+      const unicas = [...new Set(todas)].slice(0, 6);
+      if (mounted) setFotos(unicas);
+    }
+
+    load();
+    return () => { mounted = false; };
+  }, [relatorio?.id]);
+
+  return fotos;
+}
+
+// Mini galeria inline no card
+function MiniGaleria({ relatorio, onExpandir }) {
+  const fotos = usePreviewFotos(relatorio);
+
+  if (fotos === null) return null; // ainda carregando, não exibe nada
+  if (fotos.length === 0) return null;
+
+  return (
+    <div className="mt-3">
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <Images className="w-3 h-3 text-slate-400" />
+        <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wide">
+          {fotos.length} foto{fotos.length > 1 ? 's' : ''} disponível{fotos.length > 1 ? 'is' : ''}
+        </span>
+      </div>
+      <div className="flex gap-1.5 flex-wrap">
+        {fotos.slice(0, 5).map((url, i) => (
+          <button
+            key={url + i}
+            type="button"
+            onClick={onExpandir}
+            className="group relative w-14 h-14 rounded-md overflow-hidden border border-slate-200 bg-slate-100 hover:border-slate-400 hover:shadow-sm transition-all flex-shrink-0"
+          >
+            <img
+              src={url}
+              alt=""
+              loading="lazy"
+              className="h-full w-full object-cover group-hover:scale-110 transition-transform"
+              onError={e => { e.currentTarget.parentElement.style.display = 'none'; }}
+            />
+          </button>
+        ))}
+        {fotos.length === 6 && (
+          <button
+            type="button"
+            onClick={onExpandir}
+            className="w-14 h-14 rounded-md border border-slate-200 bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-[10px] text-slate-500 font-medium transition-colors flex-shrink-0"
+          >
+            +mais
+          </button>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default function BancoRelatorios() {
@@ -194,6 +288,12 @@ export default function BancoRelatorios() {
                   {r.publicado_por && (
                     <p className="text-xs text-muted-foreground">Autorizado por: {r.publicado_por}</p>
                   )}
+
+                  {/* Miniaturas inline */}
+                  <MiniGaleria
+                    relatorio={r}
+                    onExpandir={() => setDetalhe(detalhe?.id === r.id ? null : r)}
+                  />
                 </div>
                 <div className="flex gap-2 flex-shrink-0">
                   <Button size="sm" variant="outline" onClick={() => setDetalhe(detalhe?.id === r.id ? null : r)}>
