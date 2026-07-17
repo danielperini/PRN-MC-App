@@ -2,7 +2,18 @@ import { base44 } from '@/api/base44Client';
 import { dedupePhotosByTechnicalIdentity, getPhotoIdentity } from '@/utils/photoSimilarity';
 
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'avif', 'heic'];
-const DEFAULT_CACHE_KEY = 'museus_centro_galeria_fotos_cache_v6_drive_fallback';
+const DEFAULT_CACHE_KEY = 'museus_centro_galeria_fotos_cache_v7_deduped';
+
+// Limpar versões antigas do cache ao importar este módulo
+try {
+  ['v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'drive_fallback'].forEach((suffix) => {
+    const oldKeys = [
+      `museus_centro_galeria_fotos_cache_${suffix}`,
+      `museus_centro_galeria_fotos_cache_v6_${suffix}`,
+    ];
+    oldKeys.forEach((k) => localStorage.removeItem(k));
+  });
+} catch { /* noop */ }
 const DEFAULT_TTL = 2 * 60 * 1000;
 const DEFAULT_STALE_TTL = 24 * 60 * 60 * 1000;
 const ENTITY_TIMEOUT_MS = 12000;
@@ -199,7 +210,16 @@ export async function loadGalleryReportData({
     console.warn('[Galeria] Falha geral ao carregar imagens.', error);
   }
   if (!images.length && staleCache) return { ...staleCache, cacheUsed: true, cacheStale: true };
-  const deduped = dedupePhotosByTechnicalIdentity(images).filter((image) => image.fileUrl).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  // Deduplicação primária por identidade técnica
+  const deduped1 = dedupePhotosByTechnicalIdentity(images).filter((image) => image.fileUrl);
+  // Deduplicação secundária por URL exata (fallback para casos onde a identidade falha)
+  const seenUrls = new Set();
+  const deduped = deduped1.filter((image) => {
+    const urlKey = (image.fileUrl || '').split('?')[0].toLowerCase();
+    if (!urlKey || seenUrls.has(urlKey)) return false;
+    seenUrls.add(urlKey);
+    return true;
+  }).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   const result = { images: deduped, groups: buildGroups(deduped), total: deduped.length, sources: { Attachment: images.filter((i) => i.sourceEntity === 'Attachment').length, ReportPhoto: images.filter((i) => i.sourceEntity === 'ReportPhoto').length } };
   if (useCache) writeCache(cacheKey, result);
   return result;

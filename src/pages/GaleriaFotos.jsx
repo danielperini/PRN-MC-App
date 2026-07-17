@@ -523,7 +523,7 @@ function GaleriaFotosInner() {
                 <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
                   {items.map(({ image, renderIndex }) => (
                     <GalleryCard
-                      key={image.id || image.fileUrl}
+                      key={image.id || image.fileUrl || `${image.sourceEntity}-${image.sourceId}`}
                       image={image}
                       eager={renderIndex < 4}
                       onClick={() => setSelectedImage(image)}
