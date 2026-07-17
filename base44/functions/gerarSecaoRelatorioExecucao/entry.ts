@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
     async function coletarContexto() {
       const [
         rubricas, metas, activities, programacoes, releases,
-        teamMembers, reports, fotos, purchases
+        teamMembers, reports, fotos, purchases, lancamentos
       ] = await Promise.all([
         srv.entities.Rubrica.filter({ ativo: true }),
         srv.entities.ProjectMeta.list(),
@@ -40,7 +40,8 @@ Deno.serve(async (req) => {
         srv.entities.TeamMember.filter({ status: 'ATIVO' }),
         srv.entities.Report.filter({ status: { $in: ['APPROVED', 'SUBMITTED', 'IN_REVIEW'] } }),
         srv.entities.ReportPhoto.list('-created_date', 200),
-        srv.entities.PurchaseRequest.filter({ status: { $in: ['APROVADO_ADMIN', 'PAGO'] } }),
+        srv.entities.PurchaseRequest.filter({ status: { $in: ['APROVADO_ADMIN', 'PAGO'] }, incluir_no_somatorio: { $ne: false } }),
+        srv.entities.LancamentoRubrica.list('-created_date', 500).catch(() => []),
       ]);
 
       // Filtrar atividades por museu se especificado
@@ -104,15 +105,45 @@ Deno.serve(async (req) => {
         };
       });
 
-      // Totais reais
+      // Totais reais — valor usando campos numéricos corretos
       const publicoTotal = atividadesEnriquecidas.reduce((s, a) => s + (a.publico_total || 0), 0);
-      const valorTotal = purchases.reduce((s, p) => s + (parseFloat(p.valor_aprovado_admin || p.valor_pago || p.valor_solicitado || 0)), 0);
+      const parseValor = (p: any) => {
+        const v = p.valor_aprovado_admin ?? p.valor_pago ?? p.valor_solicitado ?? 0;
+        return typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9,.-]/g, '').replace(',', '.')) || 0;
+      };
+      const valorTotal = purchases.reduce((s, p) => s + parseValor(p), 0);
       const relatoriosAprovados = reports.filter(r => r.status === 'APPROVED');
+
+      // Resumo de rubricas por meta/grupo (sem inventar)
+      const rubricasPorGrupo: Record<string, { previsto: number, utilizado: number, saldo: number, count: number }> = {};
+      for (const r of rubricas) {
+        const grp = r.grupo || r.nome || 'Geral';
+        if (!rubricasPorGrupo[grp]) rubricasPorGrupo[grp] = { previsto: 0, utilizado: 0, saldo: 0, count: 0 };
+        rubricasPorGrupo[grp].previsto += r.valor_rubrica || r.valor_total || 0;
+        rubricasPorGrupo[grp].utilizado += r.valor_utilizado || 0;
+        rubricasPorGrupo[grp].saldo += r.saldo || r.saldo_real || ((r.valor_rubrica || 0) - (r.valor_utilizado || 0));
+        rubricasPorGrupo[grp].count++;
+      }
+      const totalRubricasPrevisto = rubricas.reduce((s, r) => s + (r.valor_rubrica || r.valor_total || 0), 0);
+      const totalRubricasUtilizado = rubricas.reduce((s, r) => s + (r.valor_utilizado || 0), 0);
+
+      // Compras por meta (se vinculadas)
+      const comprasPorMeta: Record<string, { total: number, count: number }> = {};
+      for (const p of purchases) {
+        const mid = p.meta_id || 'sem_meta';
+        if (!comprasPorMeta[mid]) comprasPorMeta[mid] = { total: 0, count: 0 };
+        comprasPorMeta[mid].total += parseValor(p);
+        comprasPorMeta[mid].count++;
+      }
 
       return {
         atividades: atividadesEnriquecidas,
         metas: metasFiltradas,
         rubricas,
+        rubricasPorGrupo,
+        totalRubricasPrevisto,
+        totalRubricasUtilizado,
+        comprasPorMeta,
         programacoes: programacoes.map(p => ({
           titulo: p.titulo, data: p.data, local: p.local || '', tipo: p.tipo || '', museu: p.museu || '',
         })),
@@ -170,8 +201,15 @@ REGRAS ABSOLUTAS:
       return await base44.integrations.Core.InvokeLLM(opts);
     }
 
+    // Normalizar chave de seção para compatibilidade UI → switch
+    const secaoNormalizada = (secao || '')
+      .replace('divulgacao_parceria', 'divulgacao')
+      .replace('impactos_economicos_sociais', 'impactos')
+      .replace('avaliacao_parceria', 'avaliacao')
+      .replace('anexos_evidencias', 'anexos');
+
     // ─── SEÇÕES ──────────────────────────────────────────────────────────────
-    switch (secao) {
+    switch (secaoNormalizada) {
 
       // ── Identificação ────────────────────────────────────────────────────
       case 'identificacao': {
@@ -353,6 +391,16 @@ REGRAS ABSOLUTAS:
             `${a.data || ''}: ${a.titulo} — Público: ${a.publico_total} — ${a.resultado_alcancado || a.status_meta || ''}`
           ).join('\n');
 
+          // Valor financeiro real vinculado a esta meta
+          const financeiroMeta = ctx.comprasPorMeta[meta.id] || { total: 0, count: 0 };
+          // Rubricas vinculadas a esta meta por nome (busca parcial)
+          const rubricasDaMeta = ctx.rubricas.filter(r =>
+            (r.meta && meta.nome && r.meta.toLowerCase().includes(meta.nome.toLowerCase().substring(0, 15))) ||
+            (r.grupo && meta.nome && r.grupo.toLowerCase().includes(meta.nome.toLowerCase().substring(0, 15)))
+          );
+          const previstoDaMeta = rubricasDaMeta.reduce((s, r) => s + (r.valor_rubrica || r.valor_total || 0), 0);
+          const utilizadoDaMeta = rubricasDaMeta.reduce((s, r) => s + (r.valor_utilizado || 0), 0);
+
           let entrada: any;
           if (atvsDaMeta.length === 0) {
             // Sem atividades: não inventar
@@ -366,6 +414,8 @@ REGRAS ABSOLUTAS:
               status_meta: 'Não Realizada',
               percentual_execucao: 0,
               justificativa: 'Não foram localizadas atividades vinculadas a esta meta no período consultado.',
+              valor_previsto: previstoDaMeta,
+              valor_realizado: utilizadoDaMeta || financeiroMeta.total,
               modo: 'ia',
             };
           } else {
@@ -375,7 +425,10 @@ REGRAS ABSOLUTAS:
                 `Descrição da meta: ${meta.descricao || ''}\n` +
                 `Atividades realizadas (${atvsDaMeta.length}):\n${descAtividades}\n` +
                 `Público alcançado: ${publicoMeta}\n` +
-                `Resultados registrados: ${resultadosAlcancados || 'não informados'}\n\n` +
+                `Resultados registrados: ${resultadosAlcancados || 'não informados'}\n` +
+                `Valor previsto nas rubricas: R$ ${previstoDaMeta.toFixed(2)}\n` +
+                `Valor utilizado/aprovado: R$ ${(utilizadoDaMeta || financeiroMeta.total).toFixed(2)}\n` +
+                `Notas fiscais vinculadas: ${financeiroMeta.count}\n\n` +
                 `Com base EXCLUSIVAMENTE nos dados acima, retorne JSON com: ` +
                 `resultado_esperado (do plano de trabalho desta meta), ` +
                 `acoes (resumo das ações realizadas, baseado nas atividades listadas), ` +
@@ -404,6 +457,8 @@ REGRAS ABSOLUTAS:
                 status_meta: analise.status_meta || 'Realizada Parcialmente',
                 percentual_execucao: analise.percentual_execucao || 0,
                 justificativa: analise.justificativa || '',
+                valor_previsto: previstoDaMeta,
+                valor_realizado: utilizadoDaMeta || financeiroMeta.total,
                 modo: 'ia',
               };
             } catch {
@@ -416,7 +471,10 @@ REGRAS ABSOLUTAS:
                 resultado_alcancado: resultadosAlcancados || `${atvsDaMeta.length} atividades — público: ${publicoMeta}`,
                 status_meta: atvsDaMeta.length >= 3 ? 'Realizada Integralmente' : 'Realizada Parcialmente',
                 percentual_execucao: Math.min(100, atvsDaMeta.length * 15),
-                justificativa: '', modo: 'ia',
+                justificativa: '',
+                valor_previsto: previstoDaMeta,
+                valor_realizado: utilizadoDaMeta || financeiroMeta.total,
+                modo: 'ia',
               };
             }
           }
@@ -485,17 +543,24 @@ REGRAS ABSOLUTAS:
       // ── Impactos Econômicos e Sociais ─────────────────────────────────────
       case 'impactos': {
         const ctx = await coletarContexto();
+        const gruposRubricas = Object.entries(ctx.rubricasPorGrupo).slice(0, 10)
+          .map(([g, v]) => `  • ${g}: previsto R$${v.previsto.toFixed(0)}, utilizado R$${v.utilizado.toFixed(0)}`)
+          .join('\n');
         const texto = await chamarIA(
           `DADOS REAIS:\n` +
           `- Público total alcançado: ${ctx.publico_total}\n` +
           `- Total de atividades: ${ctx.total_atividades}\n` +
           `- Profissionais contratados: ${ctx.total_team}\n` +
-          `- Valor total aprovado: R$ ${ctx.valor_total_aprovado.toFixed(2)}\n` +
+          `- Valor total aprovado em NFs: R$ ${ctx.valor_total_aprovado.toFixed(2)}\n` +
+          `- Total previsto em rubricas: R$ ${ctx.totalRubricasPrevisto.toFixed(2)}\n` +
+          `- Total utilizado em rubricas: R$ ${ctx.totalRubricasUtilizado.toFixed(2)}\n` +
           `- Museus envolvidos: ${ctx.museus_ativos.join(', ')}\n` +
-          `- Programações realizadas: ${ctx.total_programacoes}\n\n` +
+          `- Programações realizadas: ${ctx.total_programacoes}\n` +
+          `- Grupos de despesa com execução:\n${gruposRubricas}\n\n` +
           `Gere a seção "IMPACTOS ECONÔMICOS E SOCIAIS" com base nos dados acima. ` +
           `Aborde: inclusão cultural, acessibilidade, formação de público, cadeia produtiva da cultura, ` +
           `geração de renda para profissionais, turismo cultural, patrimônio imaterial. ` +
+          `Use os valores financeiros reais informados. Não invente números. ` +
           `Máximo 2.000 caracteres. Retorne APENAS o texto.`
         );
         const txt = typeof texto === 'string' ? texto : '';
@@ -528,16 +593,25 @@ REGRAS ABSOLUTAS:
       // ── Avaliação da Parceria ─────────────────────────────────────────────
       case 'avaliacao': {
         const ctx = await coletarContexto();
+        const percExecucao = ctx.totalRubricasPrevisto > 0
+          ? Math.round(ctx.totalRubricasUtilizado / ctx.totalRubricasPrevisto * 100)
+          : 0;
         const texto = await chamarIA(
           `CONTEXTO REAL:\n` +
           `- Atividades realizadas: ${ctx.total_atividades}\n` +
           `- Metas acompanhadas: ${ctx.total_metas}\n` +
           `- Relatórios mensais aprovados: ${ctx.total_relatorios_aprovados}\n` +
           `- Equipe: ${ctx.total_team} profissionais\n` +
-          `- Museus: ${ctx.museus_ativos.join(', ')}\n\n` +
+          `- Museus: ${ctx.museus_ativos.join(', ')}\n` +
+          `- Total previsto (rubricas): R$ ${ctx.totalRubricasPrevisto.toFixed(2)}\n` +
+          `- Total executado (rubricas): R$ ${ctx.totalRubricasUtilizado.toFixed(2)}\n` +
+          `- Percentual de execução orçamentária: ${percExecucao}%\n` +
+          `- Total aprovado em NFs: R$ ${ctx.valor_total_aprovado.toFixed(2)}\n` +
+          `- Fotografias registradas: ${ctx.total_fotos}\n\n` +
           `Gere a seção "AVALIAÇÃO DA PARCERIA" entre Viaduto das Artes e PBH/SUCC/FMC. ` +
-          `Aborde: cumprimento do plano de trabalho, execução financeira, desafios enfrentados, ` +
-          `aprendizados institucionais, recomendações para continuidade. ` +
+          `Aborde: cumprimento do plano de trabalho, execução financeira (use os percentuais reais), ` +
+          `desafios enfrentados, aprendizados institucionais, recomendações para continuidade. ` +
+          `Não invente percentuais nem valores além dos fornecidos. ` +
           `Máximo 1.500 caracteres. Retorne APENAS o texto.`
         );
         const txt = typeof texto === 'string' ? texto : '';

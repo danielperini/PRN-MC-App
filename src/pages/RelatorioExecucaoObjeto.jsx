@@ -234,6 +234,48 @@ export default function RelatorioExecucaoObjeto() {
     }
   }
 
+  async function gerarTodasAsSecoes() {
+    if (!relatorioId) return;
+    const secoesOrdem = [
+      'endereco_execucao',
+      'divulgacao_parceria',
+      'descricao_acoes',
+      'publico_alvo',
+      'cronograma_metas',
+      'equipe_trabalho',
+      'impactos_economicos_sociais',
+      'avaliacao_parceria',
+      'anexos_evidencias',
+      'assinatura',
+    ];
+    setLoading(true);
+    for (let i = 0; i < secoesOrdem.length; i++) {
+      const key = secoesOrdem[i];
+      const label = SECOES_EDITAVEIS.find(s => s.key === key)?.label || key;
+      setProgresso({ valor: Math.round((i / secoesOrdem.length) * 100), texto: `Gerando: ${label}...` });
+      try {
+        await base44.functions.invoke('gerarSecaoRelatorioExecucao', {
+          relatorio_id: relatorioId,
+          secao: key,
+          data_inicio: form.data_inicio,
+          data_fim: form.data_fim,
+          filtro_museu: form.filtro_museu,
+          filtro_versao: form.filtro_versao,
+          filtro_meta_ids: form.filtro_meta_ids,
+          aditivos_permitidos: [3, 4],
+          excluir_metas_anteriores: true,
+          instrucao_usuario: `Extraia dados reais de rubricas, atividades e metas. Não invente informações.`,
+        });
+      } catch (err) {
+        console.warn(`Erro na seção ${key}:`, err);
+      }
+    }
+    await carregarRelatorio(relatorioId);
+    setProgresso({ valor: 100, texto: 'Todas as seções geradas.' });
+    setLoading(false);
+    toast.success('Todas as seções foram geradas com dados reais do sistema.');
+  }
+
   async function gerarTextoIA(key, label) {
     if (!relatorioId) return;
     setGerandoIA(key);
@@ -383,7 +425,14 @@ export default function RelatorioExecucaoObjeto() {
       {relatorio && <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap">
           <div><CardTitle className="text-lg flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-green-600" />Relatório em edição</CardTitle><CardDescription>{relatorio.data_inicio} a {relatorio.data_fim} • {metasSelecionadas.length} meta(s)</CardDescription></div>
-          <div className="flex gap-2"><Button size="sm" onClick={() => setRevisaoAberta(true)}>Revisar e Exportar</Button><Button size="sm" variant="outline" onClick={exportarPDF}><Download className="w-4 h-4 mr-1" />PDF</Button></div>
+          <div className="flex gap-2 flex-wrap">
+            <Button size="sm" variant="outline" onClick={gerarTodasAsSecoes} disabled={loading}>
+              {loading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1" />}
+              Gerar todas as seções
+            </Button>
+            <Button size="sm" onClick={() => setRevisaoAberta(true)}>Revisar e Exportar</Button>
+            <Button size="sm" variant="outline" onClick={exportarPDF}><Download className="w-4 h-4 mr-1" />PDF</Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3"><Resumo label="Metas" valor={(relatorio.cronograma_metas || []).length} /><Resumo label="Notas fiscais" valor={(relatorio._notas_fiscais_metas || []).length} /><Resumo label="Atividades" valor={(relatorio._atividades_periodo || []).length} /><Resumo label="Total financeiro" valor={formatarMoeda(relatorio._total_financeiro)} /></div>
