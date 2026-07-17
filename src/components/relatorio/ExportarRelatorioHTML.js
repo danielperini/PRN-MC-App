@@ -550,12 +550,12 @@ export function exportarRelatorioHTML(relatorio) {
     <table class="tbl">
       <thead><tr><th>FONTE / DOCUMENTO</th><th>FINALIDADE E CONTEÚDO</th><th>LOCALIZAÇÃO / LINK</th></tr></thead>
       <tbody>
-        <tr><td>Relatórios mensais aprovados (31 relatórios)</td><td>Atividades, público, atividades e avaliação de cada profissional — Fev a Jun/2026</td><td><a href="https://periniprojetos.com.br/Relatorios" target="_blank" class="doc-link drv">Acessar Sistema</a></td></tr>
-        <tr><td>Galeria fotográfica do sistema</td><td>Registros fotográficos vinculados às atividades por museu e mês</td><td><a href="https://periniprojetos.com.br/GaleriaFotos" target="_blank" class="doc-link drv">Acessar Galeria</a></td></tr>
+        <tr><td>Relatórios mensais aprovados (31 relatórios)</td><td>Atividades, público, atividades e avaliação de cada profissional — Fev a Jun/2026</td><td><a href="https://museus-centro-app.base44.app/Relatorios" target="_blank" class="doc-link drv">Acessar Sistema</a></td></tr>
+        <tr><td>Galeria fotográfica do sistema</td><td>Registros fotográficos vinculados às atividades por museu e mês</td><td><a href="https://museus-centro-app.base44.app/GaleriaFotos" target="_blank" class="doc-link drv">Acessar Galeria</a></td></tr>
         <tr><td>Relatório fotográfico de atividades (PDF)</td><td>Demonstrativo fotográfico organizado por museu — formato SUCC/PBH</td><td><span class="editable" contenteditable="true">Arquivo em anexo — Demonstrativo_Fotografico_SUCC.pdf</span></td></tr>
-        <tr><td>Prestação de contas — Notas fiscais e comprovantes</td><td>Documentos financeiros aprovados no período</td><td><a href="https://periniprojetos.com.br/Compras" target="_blank" class="doc-link drv">Acessar Sistema</a></td></tr>
+        <tr><td>Prestação de contas — Notas fiscais e comprovantes</td><td>Documentos financeiros aprovados no período</td><td><a href="https://museus-centro-app.base44.app/Compras" target="_blank" class="doc-link drv">Acessar Sistema</a></td></tr>
         <tr><td>Contratos de prestadores de serviço</td><td>Termos de compromisso e contratos da equipe técnica</td><td><span class="editable" contenteditable="true">Google Drive — Pasta Contratos MC 2026</span></td></tr>
-        <tr><td>Agenda / programação dos museus</td><td>Registros de eventos, datas, locais e vínculos com metas</td><td><a href="https://periniprojetos.com.br/Agenda" target="_blank" class="doc-link drv">Acessar Agenda</a></td></tr>
+        <tr><td>Agenda / programação dos museus</td><td>Registros de eventos, datas, locais e vínculos com metas</td><td><a href="https://museus-centro-app.base44.app/Agenda" target="_blank" class="doc-link drv">Acessar Agenda</a></td></tr>
         <tr><td>Relatório de comunicação e visibilidade</td><td>Clipping, posts, coberturas fotográficas e alcance digital</td><td><span class="editable" contenteditable="true">Arquivo em anexo — Relatório de Comunicação Fev–Jun/2026</span></td></tr>
       </tbody>
     </table>
