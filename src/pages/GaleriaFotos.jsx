@@ -13,6 +13,7 @@ import RestaurarFotosDrive from '@/components/gallery/RestaurarFotosDrive';
 import AlbumNoturno from '@/components/gallery/AlbumNoturno';
 import ImportarFotosPastaAtividades from '@/components/gallery/ImportarFotosPastaAtividades';
 import SincronizarInventarioDialog from '@/components/gallery/SincronizarInventarioDialog';
+import { PhotoActionBar, BulkActionBar, EditCaptionDialog, DeleteConfirmDialog, EmailPhotosDialog } from '@/components/gallery/GalleryPhotoActions';
 import { base44 } from '@/api/base44Client';
 
 const INITIAL_VISIBLE_IMAGES = 60;
@@ -65,7 +66,7 @@ function FilterChip({ label, active, onClick }) {
   );
 }
 
-function GalleryCard({ image, onClick, eager = false }) {
+function GalleryCard({ image, onClick, eager = false, selected, onToggleSelect, onDelete, onEditCaption, selectionMode }) {
   const museuLabel = image.sectionKey !== 'SEM_IDENTIFICACAO'
     ? (image.sectionTitle || image.museu || 'Museus Centro')
     : null;
@@ -83,44 +84,56 @@ function GalleryCard({ image, onClick, eager = false }) {
     'Foto da galeria';
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="group overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+    <div className={`group relative overflow-hidden rounded-2xl border bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md
+      ${selected ? 'border-blue-500 ring-2 ring-blue-300' : 'border-gray-200'}`}
     >
-      <div className="aspect-square overflow-hidden bg-gray-100">
-        <img
-          src={image.fileUrl}
-          alt={legendaDisplay}
-          loading={eager ? 'eager' : 'lazy'}
-          decoding="async"
-          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-          onError={(event) => {
-            event.currentTarget.style.opacity = '0.2';
-          }}
-        />
-      </div>
-      <div className="space-y-1.5 p-3">
-        <p className="line-clamp-2 text-sm font-semibold leading-snug text-black">
-          {legendaDisplay}
-        </p>
-        <div className="space-y-0.5 text-[11px] text-gray-500">
-          {museuLabel && (
-            <p className="font-medium text-gray-700 truncate">{museuLabel}</p>
-          )}
-          {image.reportMes && (
-            <p className="text-gray-500">{image.reportMes}</p>
-          )}
-          {image.localizacao && image.localizacao !== image.museu && image.localizacao !== 'Sem identificação' && (
-            <p className="inline-flex items-center gap-1">
-              <MapPin className="h-3 w-3" />
-              {image.localizacao}
-            </p>
-          )}
-          {image.date && <p>{formatDateBR(image.date)}</p>}
+      <PhotoActionBar
+        image={image}
+        selected={selected}
+        onToggleSelect={onToggleSelect}
+        onDelete={onDelete}
+        onEditCaption={onEditCaption}
+        selectionMode={selectionMode}
+      />
+      <button
+        type="button"
+        onClick={selectionMode ? () => onToggleSelect(image) : onClick}
+        className="w-full text-left"
+      >
+        <div className="aspect-square overflow-hidden bg-gray-100">
+          <img
+            src={image.fileUrl}
+            alt={legendaDisplay}
+            loading={eager ? 'eager' : 'lazy'}
+            decoding="async"
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+            onError={(event) => {
+              event.currentTarget.style.opacity = '0.2';
+            }}
+          />
         </div>
-      </div>
-    </button>
+        <div className="space-y-1.5 p-3">
+          <p className="line-clamp-2 text-sm font-semibold leading-snug text-black">
+            {legendaDisplay}
+          </p>
+          <div className="space-y-0.5 text-[11px] text-gray-500">
+            {museuLabel && (
+              <p className="font-medium text-gray-700 truncate">{museuLabel}</p>
+            )}
+            {image.reportMes && (
+              <p className="text-gray-500">{image.reportMes}</p>
+            )}
+            {image.localizacao && image.localizacao !== image.museu && image.localizacao !== 'Sem identificação' && (
+              <p className="inline-flex items-center gap-1">
+                <MapPin className="h-3 w-3" />
+                {image.localizacao}
+              </p>
+            )}
+            {image.date && <p>{formatDateBR(image.date)}</p>}
+          </div>
+        </div>
+      </button>
+    </div>
   );
 }
 
@@ -137,6 +150,10 @@ function GaleriaFotosInner() {
   const [reforçandoLegendas, setReforçandoLegendas] = useState(false);
   const [legendasStatus, setLegendasStatus] = useState(null);
   const [showSincInventario, setShowSincInventario] = useState(false);
+  const [selectedPhotos, setSelectedPhotos] = useState([]);
+  const [editingPhoto, setEditingPhoto] = useState(null);
+  const [deletingPhotos, setDeletingPhotos] = useState(null);
+  const [emailingPhotos, setEmailingPhotos] = useState(null);
   const [sincronizando, setSincronizando] = useState(false);
   const [syncStatus, setSyncStatus] = useState(null);
   const queryClient = useQueryClient();
@@ -223,6 +240,22 @@ function GaleriaFotosInner() {
     });
     return Array.from(groups.entries()).map(([key, items]) => ({ key, items }));
   }, [visibleImages]);
+
+  const selectionMode = selectedPhotos.length > 0;
+
+  function toggleSelectPhoto(image) {
+    const id = image.id || image.fileUrl;
+    setSelectedPhotos(prev =>
+      prev.some(p => (p.id || p.fileUrl) === id)
+        ? prev.filter(p => (p.id || p.fileUrl) !== id)
+        : [...prev, image]
+    );
+  }
+
+  function isPhotoSelected(image) {
+    const id = image.id || image.fileUrl;
+    return selectedPhotos.some(p => (p.id || p.fileUrl) === id);
+  }
 
   const hasActiveFilters = filterMuseu || filterPeriodo;
 
@@ -385,6 +418,20 @@ function GaleriaFotosInner() {
             </button>
           </div>
         </div>
+
+        {/* Barra de seleção em bloco */}
+        <BulkActionBar
+          selectedPhotos={selectedPhotos}
+          onDeselectAll={() => setSelectedPhotos([])}
+          onDeleteSelected={() => setDeletingPhotos(selectedPhotos)}
+          onEmailSelected={() => setEmailingPhotos(selectedPhotos)}
+          onCopyLinks={() => {
+            const text = selectedPhotos.map((p, i) =>
+              `${i + 1}. ${p.legenda || p.activityTitulo || p.fileName || 'Foto'}\n   ${p.fileUrl}`
+            ).join('\n\n');
+            navigator.clipboard.writeText(text);
+          }}
+        />
 
         {/* Feedback de sincronização */}
         {syncStatus && (
@@ -579,6 +626,11 @@ function GaleriaFotosInner() {
                       image={image}
                       eager={renderIndex < 4}
                       onClick={() => setSelectedImage(image)}
+                      selected={isPhotoSelected(image)}
+                      onToggleSelect={toggleSelectPhoto}
+                      onDelete={(img) => setDeletingPhotos([img])}
+                      onEditCaption={(img) => setEditingPhoto(img)}
+                      selectionMode={selectionMode}
                     />
                   ))}
                 </div>
@@ -599,6 +651,26 @@ function GaleriaFotosInner() {
           </div>
         )}
       </div>
+
+      <EditCaptionDialog
+        photo={editingPhoto}
+        open={!!editingPhoto}
+        onClose={() => setEditingPhoto(null)}
+        onSave={() => { clearGalleryCache(); refetch(); }}
+      />
+
+      <DeleteConfirmDialog
+        photos={deletingPhotos || []}
+        open={!!deletingPhotos}
+        onClose={() => setDeletingPhotos(null)}
+        onConfirm={() => { setDeletingPhotos(null); setSelectedPhotos([]); clearGalleryCache(); refetch(); }}
+      />
+
+      <EmailPhotosDialog
+        photos={emailingPhotos || []}
+        open={!!emailingPhotos}
+        onClose={() => setEmailingPhotos(null)}
+      />
 
       <SincronizarInventarioDialog
         open={showSincInventario}
