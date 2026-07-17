@@ -39,11 +39,21 @@ Deno.serve(async (req) => {
         srv.entities.Programacao.filter({ data: { $gte: dInicio, $lte: dFim } }, '-data', 100).catch(() => []),
       ]);
 
-      const [releases, teamMembers, fotos] = await Promise.all([
+      const [releases, teamMembers, fotosRaw] = await Promise.all([
         srv.entities.Release.list('-data_publicacao', 20).catch(() => []),
         srv.entities.TeamMember.filter({ status: 'ATIVO' }, 'nome', 100).catch(() => []),
-        srv.entities.ReportPhoto.list('-created_date', 100).catch(() => []),
+        srv.entities.ReportPhoto.list('-created_date', 200).catch(() => []),
       ]);
+
+      // Filtrar fotos: quando filtro_versao é noturno/noturno_pampulha, excluir fotos do MUMO
+      const NOTURNO_FILTER = (relatorio.filtro_versao === 'noturno' || relatorio.filtro_versao === 'noturno_pampulha');
+      const fotos = NOTURNO_FILTER
+        ? fotosRaw.filter(f => {
+            const fm = (f.museu || '').toLowerCase();
+            const fc = (f.caption || f.legenda || '').toLowerCase();
+            return !fm.includes('mumo') && !fm.includes('moda') && !fc.includes('mumo');
+          })
+        : fotosRaw;
 
       const [reports, purchases] = await Promise.all([
         srv.entities.Report.filter({ status: { $in: ['APPROVED', 'SUBMITTED'] } }, '-updated_date', 50).catch(() => []),
@@ -382,10 +392,15 @@ REGRAS ABSOLUTAS:
             ))
           );
 
-          // Fotos de evidência da meta
+          // Fotos de evidência da meta — priorizando fotos vinculadas às atividades da meta
+          const reportIdsDaMeta = new Set(atvsDaMeta.map(a => a.report_id).filter(Boolean));
           const fotosEvidencia = ctx.fotos
-            .filter(f => atvsDaMeta.some(a => f.report_id === a.report_id))
-            .slice(0, 2)
+            .filter(f => {
+              if (!f.url) return false;
+              if (f.report_id && reportIdsDaMeta.has(f.report_id)) return true;
+              return false;
+            })
+            .slice(0, 3)
             .map(f => f.url)
             .filter(Boolean);
 
@@ -719,18 +734,76 @@ REGRAS ABSOLUTAS:
       // ── Anexos / Evidências Fotográficas ─────────────────────────────────
       case 'anexos': {
         const ctx = await coletarContexto();
-        const fotosValidas = ctx.fotos.filter(f => f.url);
-        const anexos = fotosValidas.slice(0, 50).map(f => ({
-          foto_url: f.url,
-          atividade_nome: f.legenda || 'Evidência fotográfica',
-          atividade_data: '',
-          local: '',
-          meta_nome: '',
-          legenda_ia: f.legenda || 'Registro fotográfico de atividade do projeto Museus Centro',
-          legenda_editada: '',
-        }));
+
+        // Determinar se o relatório é de versão Noturno para filtrar fotos corretamente
+        const filtroVersao = relatorio.filtro_versao || '';
+        const isNoturno = filtroVersao === 'noturno' || filtroVersao === 'noturno_pampulha' || filtro_museu === 'todos';
+
+        // Buscar atividades do período para vincular fotos corretamente
+        const atividades = await srv.entities.Activity.filter(
+          { data_realizacao: { $gte: dInicio, $lte: dFim } },
+          '-data_realizacao',
+          200
+        ).catch(() => []);
+
+        // Buscar todas as fotos com volume maior para o Noturno
+        const todasFotos = await srv.entities.ReportPhoto.list('-created_date', 300).catch(() => []);
+
+        // Identificar atividades Noturno por centro_custo ou museu
+        const NOTURNO_KEYWORDS = ['noturno', 'pampulha', 'noturno 2026', 'noturno pampulha', 'noturno nos museus'];
+        const atividadesNoturno = atividades.filter(a => {
+          const cc = (a.centro_custo || '').toLowerCase();
+          const m = (a.museu || '').toLowerCase();
+          return NOTURNO_KEYWORDS.some(kw => cc.includes(kw) || m.includes(kw));
+        });
+        const reportIdsNoturno = new Set(atividadesNoturno.map(a => a.report_id).filter(Boolean));
+        const activityIdsNoturno = new Set(atividadesNoturno.map(a => a.id).filter(Boolean));
+
+        // Filtrar fotos vinculadas ao Noturno (via report_id ou activity_id ou museu/caption da foto)
+        let fotosNoturno = todasFotos.filter(f => {
+          // Vinculadas via report_id de atividades Noturno
+          if (f.report_id && reportIdsNoturno.has(f.report_id)) return true;
+          // Vinculadas diretamente à atividade Noturno
+          if (f.activity_id && activityIdsNoturno.has(f.activity_id)) return true;
+          // Museu da foto é Noturno
+          const fm = (f.museu || '').toLowerCase();
+          const fc = (f.caption || f.legenda || '').toLowerCase();
+          return NOTURNO_KEYWORDS.some(kw => fm.includes(kw) || fc.includes(kw));
+        });
+
+        // Se não encontrou fotos Noturno suficientes, buscar por período (fotos não-MUMO)
+        if (fotosNoturno.length < 5) {
+          fotosNoturno = todasFotos.filter(f => {
+            const fm = (f.museu || '').toLowerCase();
+            const fc = (f.caption || f.legenda || '').toLowerCase();
+            // Exclui explicitamente MUMO quando buscando Noturno
+            const ehMumo = fm.includes('mumo') || fc.includes('mumo') || fm.includes('moda');
+            if (isNoturno && ehMumo) return false;
+            return f.file_url;
+          });
+        }
+
+        const fotosValidas = fotosNoturno.filter(f => f.file_url || f.foto_url);
+
+        // Mapear atividade para cada foto para melhorar legenda
+        const atividadesMap: Record<string, any> = {};
+        for (const a of atividadesNoturno) atividadesMap[a.id] = a;
+
+        const anexos = fotosValidas.slice(0, 60).map(f => {
+          const atv = f.activity_id ? atividadesMap[f.activity_id] : null;
+          return {
+            foto_url: f.file_url || f.foto_url || '',
+            atividade_nome: atv?.titulo || f.legenda || f.caption || 'Evidência fotográfica — Noturno nos Museus',
+            atividade_data: atv?.data_realizacao || f.created_date?.split('T')[0] || '',
+            local: atv?.museu || atv?.centro_custo || f.museu || '',
+            meta_nome: atv?.meta_codigo || f.meta_id || '',
+            legenda_ia: f.legenda || f.caption || f.legenda_editada || (atv ? `${atv.titulo} — ${atv.museu || atv.centro_custo || ''}` : 'Registro fotográfico do projeto Noturno nos Museus'),
+            legenda_editada: '',
+          };
+        });
+
         await srv.entities.RelatorioExecucaoObjeto.update(relatorio_id, { anexos_evidencias: anexos });
-        return Response.json({ success: true, secao, data: { total: anexos.length } });
+        return Response.json({ success: true, secao, data: { total: anexos.length, noturno_count: fotosNoturno.length } });
       }
 
       // ── Auditoria de Pendências ───────────────────────────────────────────
