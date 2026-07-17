@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { AlertCircle, CheckCircle2, Loader2, Shield, Zap } from 'lucide-react';
 import { toast } from 'sonner';
+import DeduplicacaoPanel from './DeduplicacaoPanel';
 
 export default function HardeningPanel() {
   const [loading, setLoading] = useState(false);
@@ -124,7 +125,17 @@ export default function HardeningPanel() {
       </Card>
 
       {/* TABS */}
-      <div className="flex gap-2 border-b border-slate-200">
+      <div className="flex gap-2 border-b border-slate-200 flex-wrap">
+        <button
+          onClick={() => setActiveTab('dedup')}
+          className={`px-4 py-2 font-medium text-sm transition ${
+            activeTab === 'dedup'
+              ? 'text-red-600 border-b-2 border-red-600'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          🧹 Varredura Duplicatas
+        </button>
         <button
           onClick={() => setActiveTab('detect')}
           className={`px-4 py-2 font-medium text-sm transition ${
@@ -158,6 +169,12 @@ export default function HardeningPanel() {
       </div>
 
       {/* CONTEÚDO */}
+      {activeTab === 'dedup' && (
+        <Card className="p-6">
+          <DeduplicacaoPanel />
+        </Card>
+      )}
+
       {activeTab === 'detect' && (
         <Card className="p-6 space-y-4">
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
