@@ -32,6 +32,7 @@ import { exportarRelatorioExecucaoDOCX } from '@/components/relatorio/ExportarRe
 import { exportarRelatorioHTML } from '@/components/relatorio/ExportarRelatorioHTML';
 import RevisaoFinalDialog from '@/components/relatorio/RevisaoFinalDialog';
 import GeracaoCompletaDialog from '@/components/relatorio/GeracaoCompletaDialog';
+import GeracaoProgressoPanel from '@/components/relatorio/GeracaoProgressoPanel';
 import { listarMetasRelatorio, sincronizarRelatorioExecucao } from '@/utils/sincronizarRelatorioExecucaoCompat';
 
 const SECOES_EDITAVEIS = [
@@ -280,29 +281,34 @@ export default function RelatorioExecucaoObjeto() {
     let concluidas = 0;
     let falhas = 0;
 
+    // Inicializa painel de progresso com todas as seções como pendentes
+    setSecoesProgresso(todasSecoes.map(s => ({ ...s, status: 'pendente' })));
+
     for (let i = 0; i < total; i++) {
       const { key, label } = todasSecoes[i];
       const pct = Math.round(5 + (i / total) * 88);
 
-      // Yield ao browser antes de atualizar estado e antes de chamar o backend
+      // Marca seção como "processando"
       await yieldBrowser();
+      setSecoesProgresso(prev => prev.map(s => s.key === key ? { ...s, status: 'processando' } : s));
       setProgresso({ valor: pct, texto: `[${i + 1}/${total}] ${label}...` });
       await yieldBrowser();
 
       const ok = await gerarSecaoComRetry(rid, key, params);
+
+      // Marca seção como concluída ou falhou
+      const novoStatus = ok ? 'concluida' : 'pulada';
+      setSecoesProgresso(prev => prev.map(s => s.key === key ? { ...s, status: novoStatus } : s));
       if (ok) concluidas++; else falhas++;
 
-      // Salvar progresso no banco a cada seção (resiliente a crash)
-      base44.entities.RelatorioExecucaoObjeto.update(rid, {
-        ia_tokens: concluidas, // reutilizamos campo numérico existente como contador de progresso
-      }).catch(() => {});
+      // Salvar progresso no banco a cada seção
+      base44.entities.RelatorioExecucaoObjeto.update(rid, { ia_tokens: concluidas }).catch(() => {});
 
-      // Pausa progressiva: 2s nas primeiras seções, 5s nas mais pesadas (metas/financeiro)
+      // Pausa progressiva
       const ehSecaoPesada = ['cronograma_metas', 'descricao_acoes', 'impactos_economicos_sociais'].includes(key);
-      const pausa = ehSecaoPesada ? 5000 : 2000;
-      await new Promise(r => setTimeout(r, pausa));
+      await new Promise(r => setTimeout(r, ehSecaoPesada ? 5000 : 2000));
 
-      // Pausa extra a cada 3 seções para respirar
+      // Pausa extra a cada 3 seções
       if ((i + 1) % 3 === 0 && i < total - 1) {
         setProgresso({ valor: pct + 1, texto: `⏳ Pausa de recuperação (${i + 1}/${total} concluídas)...` });
         await new Promise(r => setTimeout(r, 6000));
@@ -316,6 +322,7 @@ export default function RelatorioExecucaoObjeto() {
     await carregarRelatorio(rid);
     await carregarRelatorios();
     setProgresso({ valor: 100, texto: `Relatório concluído ✓ (${concluidas}/${total} seções, ${falhas} puladas)` });
+    setSecoesProgresso([]);
     setLoading(false);
     if (falhas > 0) {
       toast.warning(`Relatório gerado com ${falhas} seção(ões) pulada(s) por timeout. Use "Regenerar seções" para reprocessar.`, { duration: 12000 });
@@ -494,7 +501,8 @@ export default function RelatorioExecucaoObjeto() {
   }
 
   const [geracaoCompletaAberta, setGeracaoCompletaAberta] = useState(false);
-  const [exportandoPDF, setExportandoPDF] = useState(null); // null | 'parte1' | 'parte2' | 'parte3'
+  const [exportandoPDF, setExportandoPDF] = useState(null);
+  const [secoesProgresso, setSecoesProgresso] = useState([]); // null | 'parte1' | 'parte2' | 'parte3'
 
   async function prepararRelatorioComFotos() {
     let fotosGaleria = Array.isArray(relatorio._fotos_galeria) ? relatorio._fotos_galeria : [];
@@ -778,6 +786,12 @@ export default function RelatorioExecucaoObjeto() {
       </Card>
 
       {editor && <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"><div className="bg-white rounded-xl shadow-xl w-full max-w-3xl"><div className="p-4 border-b flex items-center justify-between"><div><h3 className="font-semibold">Editar {editor.label}</h3><p className="text-xs text-slate-500">O texto salvo será usado na exportação.</p></div><button onClick={() => setEditor(null)}><X className="w-5 h-5" /></button></div><div className="p-4"><Textarea value={textoEditado} onChange={e => setTextoEditado(e.target.value)} className="min-h-[320px]" /></div><div className="p-4 border-t flex justify-end gap-2"><Button variant="outline" onClick={() => setEditor(null)}>Cancelar</Button><Button onClick={salvarTexto}><Save className="w-4 h-4 mr-1" />Salvar</Button></div></div></div>}
+
+      <GeracaoProgressoPanel
+        secoes={secoesProgresso}
+        progresso={progresso}
+        visible={loading && secoesProgresso.length > 0}
+      />
 
       {revisaoAberta && relatorio && <RevisaoFinalDialog relatorioId={relatorioId} relatorio={relatorio} onClose={() => setRevisaoAberta(false)} />}
 
