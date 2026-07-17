@@ -183,13 +183,14 @@ function RelatorioAtividadesHtmlInner() {
   const printRef = useRef(null);
 
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
-    queryKey: ['relatorio-atividades-html-fev-jun-2026'],
+    queryKey: ['relatorio-atividades-html-fev-jun-2026-v3'],
     queryFn: async () => {
-      const [activities, photos] = await Promise.all([
-        base44.entities.Activity.list('-data_realizacao', 500),
-        base44.entities.ReportPhoto.filter({ ano: 2026 }, '-created_date', 1000),
+      // Atividades estão embutidas em Report.atividades[] — buscar relatórios + fotos
+      const [reports, photos] = await Promise.all([
+        base44.entities.Report.list('-created_date', 200),
+        base44.entities.ReportPhoto.list('-created_date', 2000),
       ]);
-      return { activities, photos };
+      return { reports, photos };
     },
     staleTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
@@ -200,100 +201,101 @@ function RelatorioAtividadesHtmlInner() {
   const estrutura = useMemo(() => {
     if (!data) return [];
 
-    const activities = data.activities || [];
+    const reports = data.reports || [];
     const photos = data.photos || [];
 
-    // Indexar fotos por activity_id
-    const photosByActivity = new Map();
-    for (const p of photos) {
-      if (p.activity_id) {
-        if (!photosByActivity.has(p.activity_id)) photosByActivity.set(p.activity_id, []);
-        photosByActivity.get(p.activity_id).push({
-          id: p.id,
-          fileUrl: p.file_url,
-          legenda: p.caption || p.legenda || '',
-          activityTitulo: '',
-          date: p.created_date,
-          museu: p.museu,
-          reportMes: p.mes_referencia,
-          fileName: p.file_name,
-        });
-      }
-    }
+    // Meses permitidos: fev (2) a jun (6) de 2026
+    const MESES_PERMITIDOS = new Set(['fevereiro','março','marco','abril','maio','junho']);
+    const normMes = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-    // Fotos sem vínculo — indexar por mês/museu para associar a atividades do mesmo período
-    const photosLoose = photos.filter(p => !p.activity_id).map(p => ({
-      id: p.id,
-      fileUrl: p.file_url,
-      legenda: p.caption || p.legenda || '',
-      activityTitulo: '',
-      date: p.created_date,
-      museu: p.museu,
-      reportMes: p.mes_referencia,
-      fileName: p.file_name,
-    }));
-
-    // Filtrar atividades do período fev–jun 2026
-    const actsFiltradas = activities.filter(a => {
-      const mesRef = a.data_realizacao || a.data_inicio || a.created_date || '';
-      const d = new Date(mesRef);
-      if (!isNaN(d.getTime())) {
-        const ano = d.getFullYear();
-        const mes = d.getMonth() + 1; // 1-based
-        return ano === 2026 && mes >= 2 && mes <= 6;
-      }
-      return false;
+    // Filtrar relatórios do período
+    const reportsFiltrados = reports.filter(r => {
+      const ano = Number(r.ano) || 0;
+      const mes = normMes(r.mes_referencia);
+      // aceitar ano 2026, ou ano 0/undefined se o mês bater
+      return MESES_PERMITIDOS.has(mes) && (ano === 2026 || ano === 0 || !r.ano);
     });
 
-    // Organizar: mês → atividade → fotos vinculadas
-    // mês: derivado de data_realizacao
-    const mesMap = new Map(); // key: "Fevereiro/2026"
+    // Indexar fotos por report_id
+    const photosByReport = new Map();
+    for (const p of photos) {
+      if (!p.file_url) continue;
+      const key = p.report_id || '__sem_report__';
+      if (!photosByReport.has(key)) photosByReport.set(key, []);
+      photosByReport.get(key).push(p);
+    }
 
-    for (const act of actsFiltradas) {
-      const d = new Date(act.data_realizacao || act.data_inicio || act.created_date);
-      const mesNome = MES_ORDER[d.getMonth()];
-      const ano = d.getFullYear();
-      const mesKey = `${mesNome}/${ano}`;
-      const mesIdx = d.getMonth();
+    // Fotos soltas (sem report_id)
+    const fotasSoltas = (photosByReport.get('__sem_report__') || []).map(p => ({
+      id: p.id, fileUrl: p.file_url, legenda: p.caption || p.legenda || p.file_name || '',
+      date: p.created_date, museu: p.museu, reportMes: p.mes_referencia, activityTitulo: '',
+    }));
 
-      if (!mesMap.has(mesKey)) mesMap.set(mesKey, { mesIdx, atividades: new Map() });
+    // Mês index para ordenação
+    const mesIdx = mes => MES_ORDER.findIndex(m => normMes(m) === normMes(mes));
+
+    // mesMap: mesKey → { idx, atividades: Map<titulo, fotos[]> }
+    const mesMap = new Map();
+
+    for (const report of reportsFiltrados) {
+      const mesNome = MES_ORDER[mesIdx(report.mes_referencia)] || report.mes_referencia;
+      const mesKey = `${mesNome}/2026`;
+      const idx = mesIdx(report.mes_referencia);
+
+      if (!mesMap.has(mesKey)) mesMap.set(mesKey, { idx, atividades: new Map() });
       const { atividades } = mesMap.get(mesKey);
 
-      const titulo = act.titulo || 'Atividade sem título';
-      if (!atividades.has(titulo)) atividades.set(titulo, []);
+      const fotosDoReport = (photosByReport.get(report.id) || []).map(p => ({
+        id: p.id, fileUrl: p.file_url,
+        legenda: p.caption || p.legenda || p.file_name || '',
+        date: p.created_date, museu: p.museu || report.museu,
+        reportMes: mesNome, activityTitulo: '',
+      }));
 
-      // Fotos diretamente vinculadas
-      const fotosVinculadas = photosByActivity.get(act.id) || [];
-      for (const f of fotosVinculadas) {
-        f.activityTitulo = titulo;
-        atividades.get(titulo).push(f);
-      }
+      const atividadesDoReport = Array.isArray(report.atividades) ? report.atividades : [];
 
-      // Se ainda < 3 fotos, tentar completar com fotos soltas do mesmo mês/museu
-      if (atividades.get(titulo).length < 3) {
-        const museuAct = act.museu || '';
-        const candidatas = photosLoose.filter(p => {
-          if (!p.reportMes) return false;
-          const pmesNome = p.reportMes.split('/')[0]?.trim() || '';
-          return pmesNome.toLowerCase() === mesNome.toLowerCase() &&
-            (!museuAct || !p.museu || p.museu === museuAct);
-        });
-        // Adicionar candidatas sem duplicar
-        const jaIds = new Set(atividades.get(titulo).map(f => f.id));
-        for (const c of candidatas) {
-          if (atividades.get(titulo).length >= 6) break;
-          if (!jaIds.has(c.id)) {
-            c.activityTitulo = titulo;
-            atividades.get(titulo).push(c);
-            jaIds.add(c.id);
+      if (atividadesDoReport.length === 0) {
+        // Relatório sem atividades: agrupar fotos em bloco genérico do museu
+        if (fotosDoReport.length > 0) {
+          const titulo = report.museu || 'Atividades do período';
+          if (!atividades.has(titulo)) atividades.set(titulo, []);
+          const jaIds = new Set(atividades.get(titulo).map(f => f.id));
+          for (const f of fotosDoReport) {
+            if (!jaIds.has(f.id)) { f.activityTitulo = titulo; atividades.get(titulo).push(f); jaIds.add(f.id); }
           }
         }
+      } else {
+        // Distribuir fotos do report entre atividades proporcionalmente
+        const totalAts = atividadesDoReport.length;
+        const fotosPorAt = Math.max(1, Math.ceil(fotosDoReport.length / totalAts));
+
+        atividadesDoReport.forEach((act, i) => {
+          const titulo = act.titulo || `Atividade ${i + 1}`;
+          if (!atividades.has(titulo)) atividades.set(titulo, []);
+          const jaIds = new Set(atividades.get(titulo).map(f => f.id));
+
+          // Fatia de fotos para esta atividade
+          const slice = fotosDoReport.slice(i * fotosPorAt, (i + 1) * fotosPorAt);
+          for (const f of slice) {
+            const fc = { ...f, activityTitulo: titulo };
+            if (!jaIds.has(fc.id)) { atividades.get(titulo).push(fc); jaIds.add(fc.id); }
+          }
+
+          // Completar até 3 com fotos soltas do mesmo mês se necessário
+          if (atividades.get(titulo).length < 3) {
+            const candidatas = fotasSoltas.filter(p => normMes(p.reportMes) === normMes(mesNome));
+            for (const c of candidatas) {
+              if (atividades.get(titulo).length >= 3) break;
+              const fc = { ...c, activityTitulo: titulo };
+              if (!jaIds.has(fc.id)) { atividades.get(titulo).push(fc); jaIds.add(fc.id); }
+            }
+          }
+        });
       }
     }
 
-    // Converter para array ordenado por mês
     return Array.from(mesMap.entries())
-      .sort((a, b) => a[1].mesIdx - b[1].mesIdx)
+      .sort((a, b) => a[1].idx - b[1].idx)
       .map(([mesLabel, { atividades }]) => ({
         mesLabel,
         atividades: Object.fromEntries(
