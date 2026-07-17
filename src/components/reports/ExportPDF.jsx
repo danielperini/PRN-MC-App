@@ -484,6 +484,135 @@ export default function ExportPDF({ report, reportId }) {
         });
       });
 
+      // ── GALERIA FOTOGRÁFICA SUCC ──────────────────────────────────────────────
+      // Buscar ReportPhotos vinculadas ao relatório
+      let reportPhotos = [];
+      if (reportId) {
+        try {
+          reportPhotos = await base44.entities.ReportPhoto.filter({ report_id: reportId }, 'ordem', 200);
+          reportPhotos = (reportPhotos || []).filter(p => p.file_url && !p.galeria_oculta);
+        } catch (_) { reportPhotos = []; }
+      }
+      // Fotos inline das atividades (campo fotos[].file_url)
+      const fotosAtividades = [];
+      atividades.forEach((ativ, aidx) => {
+        (Array.isArray(ativ.fotos) ? ativ.fotos : []).forEach(f => {
+          if (f.file_url) fotosAtividades.push({
+            ...f,
+            _atividade_titulo: ativ.titulo || ativ.nome || `A${aidx + 1}`,
+            _meta_codigo: ativ.meta_codigo || f.meta_id || '',
+          });
+        });
+      });
+      // Merge sem duplicatas por URL
+      const todasFotos = [...reportPhotos];
+      const urlsUsadas = new Set(reportPhotos.map(p => p.file_url));
+      fotosAtividades.forEach(f => {
+        if (f.file_url && !urlsUsadas.has(f.file_url)) { todasFotos.push(f); urlsUsadas.add(f.file_url); }
+      });
+
+      if (todasFotos.length > 0) {
+        doc.addPage();
+        y = addPageHeader(doc, report, 'Comprovação Fotográfica — SUCC', docStatus, statusColor);
+
+        // Header SUCC
+        doc.setFillColor(20, 40, 100);
+        doc.rect(M, y - 4, CW, 12, 'F');
+        doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(255, 255, 255);
+        doc.text('COMPROVAÇÃO FOTOGRÁFICA — SUCC / FMC-PBH', M + 4, y + 3);
+        doc.setFontSize(7); doc.setFont('helvetica', 'normal'); doc.setTextColor(180, 200, 255);
+        doc.text(`${todasFotos.length} foto(s)  ·  ${report.mes_referencia || ''} ${report.ano || 2026}  ·  ${report.museu || ''}`, M + 4, y + 8);
+        doc.setTextColor(0, 0, 0);
+        y += 14;
+
+        // Carregar imagens (máx 40)
+        const fotosParaEmbed = todasFotos.slice(0, 40);
+        const imgDataMap = {};
+        await Promise.all(fotosParaEmbed.map(async (foto) => {
+          if (!foto.file_url) return;
+          const b64 = await loadImageAsBase64(foto.file_url);
+          if (b64) imgDataMap[foto.file_url] = b64;
+        }));
+
+        // Grid 2 colunas
+        const colW2 = (CW - 6) / 2;
+        const fotoH = 52;
+        const captionH = 16;
+        const blockH = fotoH + captionH + 3;
+        let col = 0; let rowStartY = y;
+
+        fotosParaEmbed.forEach((foto, fi) => {
+          const tx = M + col * (colW2 + 6);
+          const ty = rowStartY;
+
+          // Moldura
+          doc.setDrawColor(180, 195, 220); doc.setFillColor(245, 247, 252);
+          doc.rect(tx, ty, colW2, fotoH + captionH + 2, 'F');
+          doc.rect(tx, ty, colW2, fotoH + captionH + 2, 'S');
+
+          // Imagem
+          const b64 = imgDataMap[foto.file_url];
+          if (b64) {
+            try { doc.addImage(b64, 'JPEG', tx + 1, ty + 1, colW2 - 2, fotoH - 2, undefined, 'MEDIUM'); }
+            catch (_) {
+              doc.setFillColor(220, 225, 235); doc.rect(tx + 1, ty + 1, colW2 - 2, fotoH - 2, 'F');
+              doc.setFontSize(7); doc.setTextColor(120, 130, 150);
+              doc.text('[Imagem indisponível]', tx + colW2 / 2, ty + fotoH / 2, { align: 'center' });
+            }
+          } else {
+            doc.setFillColor(220, 225, 235); doc.rect(tx + 1, ty + 1, colW2 - 2, fotoH - 2, 'F');
+            doc.setFontSize(7); doc.setTextColor(120, 130, 150);
+            doc.text('[Sem imagem]', tx + colW2 / 2, ty + fotoH / 2, { align: 'center' });
+          }
+
+          // Legenda área
+          const cy = ty + fotoH + 1;
+          doc.setFontSize(6); doc.setFont('helvetica', 'bold'); doc.setTextColor(20, 40, 100);
+          const metaCod = foto.meta_id || foto._meta_codigo || '';
+          doc.text(`Foto ${fi + 1}${metaCod ? `  ·  ${metaCod}` : ''}`, tx + 2, cy + 3.5);
+
+          const legenda = foto.caption || foto.legenda || foto._atividade_titulo || '';
+          if (legenda) {
+            doc.setFont('helvetica', 'normal'); doc.setFontSize(6.5); doc.setTextColor(30, 30, 30);
+            doc.splitTextToSize(legenda, colW2 - 4).slice(0, 2).forEach((line, li) => {
+              doc.text(line, tx + 2, cy + 7.5 + li * 4);
+            });
+          }
+          doc.setFont('helvetica', 'italic'); doc.setFontSize(5.5); doc.setTextColor(100, 110, 130);
+          doc.text(`Foto: ${foto.author || foto.autor || 'Daniel Moreira'}`, tx + 2, cy + captionH - 2);
+          doc.setTextColor(0, 0, 0); doc.setFont('helvetica', 'normal');
+
+          col++;
+          if (col >= 2) {
+            col = 0; rowStartY += blockH + 4;
+            if (rowStartY + blockH > PH - FOOTER_H - 10) {
+              doc.addPage();
+              y = addPageHeader(doc, report, 'Comprovação Fotográfica — SUCC (cont.)', docStatus, statusColor);
+              rowStartY = y;
+            }
+          }
+        });
+
+        y = rowStartY + (col > 0 ? blockH + 4 : 0) + 4;
+
+        // Nota regulatória SUCC
+        y = checkBreak(doc, y, 16);
+        doc.setFillColor(235, 240, 255); doc.setDrawColor(160, 180, 230);
+        doc.rect(M, y, CW, 12, 'F'); doc.rect(M, y, CW, 12, 'S');
+        doc.setFontSize(7); doc.setFont('helvetica', 'bold'); doc.setTextColor(20, 40, 100);
+        doc.text('NOTA SUCC — Comprovação Regulatória', M + 3, y + 5);
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(6.5); doc.setTextColor(40, 50, 100);
+        doc.text('As fotografias acima constituem evidência documental das atividades executadas conforme o Plano de Trabalho do Contrato de Gestão FMC/PBH — 3º Termo Aditivo.', M + 3, y + 10, { maxWidth: CW - 6 });
+        y += 16;
+
+        if (todasFotos.length > 40) {
+          y = checkBreak(doc, y, 8);
+          doc.setFontSize(7); doc.setTextColor(120, 80, 0);
+          doc.text(`* ${todasFotos.length - 40} foto(s) adicionais no sistema — exibidas as primeiras 40.`, M, y);
+          doc.setTextColor(0, 0, 0); y += 6;
+        }
+      }
+
       // ── OPORTUNIDADES ─────────────────────────────────────────────────────
       const oportunidades = report.oportunidades || [];
       if (oportunidades.length > 0) {

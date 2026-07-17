@@ -237,10 +237,31 @@
           "attachment_id": {
             "type": "string",
             "description": "ID do attachment (FK \u2192 Attachment)"
+          },
+          "meta_id": {
+            "type": "string",
+            "description": "ID da meta do projeto \u00e0 qual esta foto est\u00e1 vinculada (ex: MC3A-20). Obrigat\u00f3rio para rastreabilidade regulat\u00f3ria SUCC."
+          },
+          "legenda": {
+            "type": "string",
+            "description": "Legenda descritiva da foto para o relat\u00f3rio"
+          },
+          "autor": {
+            "type": "string",
+            "description": "Autor/cr\u00e9dito da foto"
+          },
+          "file_url": {
+            "type": "string",
+            "description": "URL direta da imagem (cache para evitar lookup)"
+          },
+          "ordem": {
+            "type": "number",
+            "default": 0,
+            "description": "Ordem de exibi\u00e7\u00e3o no relat\u00f3rio"
           }
         }
       },
-      "description": "Lista de fotos anexadas"
+      "description": "Lista de fotos anexadas com metadados SUCC (meta_id, legenda, autor)"
     },
     "documentos": {
       "type": "array",
