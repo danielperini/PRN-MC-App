@@ -136,11 +136,32 @@ export default function AprovacaoNFs() {
   async function limparFila() {
     setLimpando(true);
     try {
+      // 1. Buscar XMLs faltantes no Drive e vincular
       const buscaXml = await base44.functions.invoke('buscarXmlsFaltantesNFs', {});
+      // 2. Limpar fila (aprovados, duplicados, não fiscais)
       const limpeza = await base44.functions.invoke('limparFilaAprovacaoNFs', {});
+
+      // 3. Após vincular XMLs, recarregar para ver quem ainda está sem XML
+      await atualizarTudo();
+
+      // 4. Retirar da fila as NFs que continuam sem XML (ocultar silenciosamente)
+      const semXmlAinda = intakesBrutos.filter(i => ehNotaFiscal(i) && !xmlUrl(i));
+      let retiradosSemXml = 0;
+      if (semXmlAinda.length > 0) {
+        await Promise.allSettled(
+          semXmlAinda.map(i =>
+            base44.entities.DocumentIntake.update(i.id, { ocultar_entrada_unica: true })
+          )
+        );
+        retiradosSemXml = semXmlAinda.length;
+      }
+
       const xr = buscaXml?.data?.resumo || buscaXml?.resumo || {};
       const lr = limpeza?.data?.resumo || limpeza?.resumo || {};
-      toast.success(`${lr.ja_aprovados_retirados || 0} já aprovada(s) retirada(s) · ${lr.duplicados_arquivados || 0} duplicidade(s) arquivada(s) · ${lr.nao_fiscais_retirados || 0} documento(s) não fiscal(is) retirado(s) · ${xr.xmls_vinculados || 0} XML(s) vinculado(s).`, { duration: 12000 });
+      toast.success(
+        `${xr.xmls_vinculados || 0} XML(s) vinculado(s) · ${lr.ja_aprovados_retirados || 0} já aprovada(s) retirada(s) · ${lr.duplicados_arquivados || 0} duplicata(s) · ${retiradosSemXml} sem XML retirada(s) da fila`,
+        { duration: 12000 }
+      );
       await atualizarTudo();
     } catch (e) { toast.error('Erro na limpeza: ' + (e?.message || String(e)), { duration: 12000 }); }
     finally { setLimpando(false); }
