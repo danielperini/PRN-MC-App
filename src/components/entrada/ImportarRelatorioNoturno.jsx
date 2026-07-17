@@ -196,7 +196,7 @@ export default function ImportarRelatorioNoturno({ onClose, onConcluido }) {
     try {
       // ETAPA 1: DocumentIntake
       setProgressoMsg('Registrando documento-fonte…'); setProgresso(5);
-      const intake = await base44.asServiceRole.entities.DocumentIntake.create({
+      const intake = await base44.entities.DocumentIntake.create({
         user_email: 'dani.isis@viadutodas artes.org.br',
         user_name: 'Dani Isis',
         tipo_detectado: 'DOCUMENTO_ADMINISTRATIVO',
@@ -228,7 +228,7 @@ export default function ImportarRelatorioNoturno({ onClose, onConcluido }) {
       setProgressoMsg('Criando relatório principal…'); setProgresso(15);
       let reportId = null;
       if (checkboxes.importarRelatorio) {
-        const report = await base44.asServiceRole.entities.Report.create({
+        const report = await base44.entities.Report.create({
           author_name: 'Dani Isis',
           author_role: 'PROFISSIONAL',
           funcao: 'Produção',
@@ -255,7 +255,7 @@ export default function ImportarRelatorioNoturno({ onClose, onConcluido }) {
       setProgressoMsg('Importando agenda de reuniões e visitas técnicas…'); setProgresso(25);
       let atividadeAgendaId = null;
       if (checkboxes.importarAgenda) {
-        const atv = await base44.asServiceRole.entities.Activity.create({
+        const atv = await base44.entities.Activity.create({
           report_id: reportId,
           titulo: 'Agenda de Atividades – Reuniões e Visitas Técnicas (Noturno 2026)',
           descricao: `Registro das ${AGENDA_REUNIOES.length} reuniões e visitas técnicas realizadas no período de 29/04/2026 a 24/06/2026 para a produção da 11ª Edição do Noturno nos Museus.\n\n` + AGENDA_REUNIOES.map(r => `${r.data} ${r.horario ? '– ' + r.horario : ''} — ${r.titulo} (${r.formato || r.local || ''})`).join('\n'),
@@ -279,7 +279,7 @@ export default function ImportarRelatorioNoturno({ onClose, onConcluido }) {
       // ETAPA 4: Atividade – Articulação Institucional
       setProgressoMsg('Importando articulação institucional…'); setProgresso(35);
       if (checkboxes.importarAtividades) {
-        await base44.asServiceRole.entities.Activity.create({
+        await base44.entities.Activity.create({
           report_id: reportId,
           titulo: 'Articulação com Instituições e Programação Noturno nos Museus 2026',
           descricao: 'Ação realizada em articulação com a Diretoria de Museus. Atividades: listagem das instituições inscritas; levantamento, consolidação e revisão da programação completa; articulação junto às instituições; comunicados às instituições participantes (informe autorização de cobertura Viaduto das Artes; informe de visitação dos Centros Culturais – DMUS). Resultado: 35 instituições participantes, 90 atividades programadas.',
@@ -301,7 +301,7 @@ export default function ImportarRelatorioNoturno({ onClose, onConcluido }) {
       // ETAPA 5: Atividade – Centros Culturais
       setProgressoMsg('Importando articulação com Centros Culturais…'); setProgresso(42);
       if (checkboxes.importarAtividades) {
-        await base44.asServiceRole.entities.Activity.create({
+        await base44.entities.Activity.create({
           report_id: reportId,
           titulo: 'Articulação e Logística de Visitação dos Centros Culturais – Noturno 2026',
           descricao: 'Atividades: levantamento dos CCs interessados; levantamento da demanda de público; logística de distribuição de veículos; reunião de orientação; definição de trajetos; e-mail de informe aos CCs; grupo de WhatsApp com referências; monitoramento via WhatsApp no evento.',
@@ -326,7 +326,7 @@ export default function ImportarRelatorioNoturno({ onClose, onConcluido }) {
       setProgressoMsg('Importando atividade de sinalização…'); setProgresso(48);
       let atividadeSinalizacaoId = null;
       if (checkboxes.importarAtividades) {
-        const sinal = await base44.asServiceRole.entities.Activity.create({
+        const sinal = await base44.entities.Activity.create({
           report_id: reportId,
           titulo: 'Produção, Distribuição e Recolhimento da Sinalização do Noturno nos Museus 2026',
           descricao: 'Atividades: articulação com comunicação sobre especificações; orçamentação (windbanners, bandeirolas, crachás); visita técnica – testagem da base windbanner; encaminhamento para produção; retirada e contagem; agendamento com DMUS; distribuição e montagem para 34 equipamentos; coleta e guarda após o evento.',
@@ -349,7 +349,7 @@ export default function ImportarRelatorioNoturno({ onClose, onConcluido }) {
       // ETAPA 7: Atividade – Transporte
       setProgressoMsg('Importando atividade de transporte…'); setProgresso(53);
       if (checkboxes.importarAtividades) {
-        await base44.asServiceRole.entities.Activity.create({
+        await base44.entities.Activity.create({
           report_id: reportId,
           titulo: 'Operação de Transporte e Circulação – Noturno nos Museus 2026',
           descricao: 'Atividades: orçamentação; alinhamento logístico; formalização da contratação; definição de quantidade de vans; definição da operação de monitoramento; solicitação de documentação para BHTrans; reuniões de alinhamento; definição dos trajetos; cronograma de circulação; abertura de grupo de monitores de vans; monitoramento no evento.',
@@ -381,7 +381,7 @@ export default function ImportarRelatorioNoturno({ onClose, onConcluido }) {
       ];
       if (checkboxes.importarAtividades) {
         for (const m of museusMunicipais) {
-          await base44.asServiceRole.entities.Activity.create({
+          await base44.entities.Activity.create({
             report_id: reportId,
             titulo: `Produção no ${m.museu} – Noturno nos Museus 2026`,
             descricao: m.desc,
@@ -408,7 +408,7 @@ export default function ImportarRelatorioNoturno({ onClose, onConcluido }) {
       log.atividades_identificadas = ATIVIDADES_CULTURAIS.length;
       if (checkboxes.importarAtividades) {
         for (const atv of ATIVIDADES_CULTURAIS) {
-          await base44.asServiceRole.entities.Activity.create({
+          await base44.entities.Activity.create({
             report_id: reportId,
             titulo: `[Nº ${atv.num}] ${atv.titulo}`,
             descricao: `Instituição: ${atv.instituicao}\nEndereço: ${atv.endereco}\nHorário: ${atv.horario}\nClassificação: ${atv.classificacao}\nVagas: ${atv.vagas}\nInscrição: ${atv.inscricao}\nGratuita: ${atv.gratuita ? 'Sim' : 'Não'}`,
@@ -432,7 +432,7 @@ export default function ImportarRelatorioNoturno({ onClose, onConcluido }) {
       log.fotos_extraidas = FOTOS_PDF.length;
       if (checkboxes.importarFotos) {
         for (const foto of FOTOS_PDF) {
-          await base44.asServiceRole.entities.ReportPhoto.create({
+          await base44.entities.ReportPhoto.create({
             report_id: reportId,
             file_url: PDF_URL,
             file_name: `${foto.titulo}.jpg`,
@@ -466,7 +466,7 @@ export default function ImportarRelatorioNoturno({ onClose, onConcluido }) {
 
       // ETAPA 11: Log de importação
       setProgressoMsg('Registrando log de importação…'); setProgresso(95);
-      await base44.asServiceRole.entities.BackupLog.create({
+      await base44.entities.BackupLog.create({
         backup_type: 'reports',
         entity_type: 'NOTURNO_2026_IMPORTACAO',
         entity_id: reportId,
