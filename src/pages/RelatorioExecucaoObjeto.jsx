@@ -35,6 +35,37 @@ import GeracaoCompletaDialog from '@/components/relatorio/GeracaoCompletaDialog'
 import GeracaoProgressoPanel from '@/components/relatorio/GeracaoProgressoPanel';
 import { listarMetasRelatorio, sincronizarRelatorioExecucao } from '@/utils/sincronizarRelatorioExecucaoCompat';
 
+// Fora do componente — evita re-criação a cada render e captura em closures
+const GRUPOS_GERACAO = [
+  [
+    { key: 'identificacao',       label: 'Identificação do projeto' },
+    { key: 'endereco_execucao',   label: 'Endereço de execução' },
+  ],
+  [
+    { key: 'divulgacao_parceria', label: 'Divulgação da parceria' },
+    { key: 'descricao_acoes',     label: 'Descrição das ações' },
+  ],
+  [
+    { key: 'publico_alvo',        label: 'Público-alvo' },
+    { key: 'pesquisa_satisfacao', label: 'Pesquisa de satisfação' },
+  ],
+  [
+    { key: 'cronograma_metas',    label: 'Cronograma de metas' },
+  ],
+  [
+    { key: 'equipe_trabalho',     label: 'Equipe de trabalho' },
+    { key: 'impactos_economicos_sociais', label: 'Impactos econômicos e sociais' },
+  ],
+  [
+    { key: 'avaliacao_parceria',  label: 'Avaliação da parceria' },
+    { key: 'anexos_evidencias',   label: 'Anexos e evidências' },
+  ],
+  [
+    { key: 'assinatura',          label: 'Assinatura' },
+    { key: 'auditoria',           label: 'Auditoria de pendências' },
+  ],
+];
+
 const SECOES_EDITAVEIS = [
   { key: 'endereco_execucao', label: '2. Endereço de Execução' },
   { key: 'divulgacao_parceria', label: '3. Divulgação da Parceria' },
@@ -167,75 +198,32 @@ export default function RelatorioExecucaoObjeto() {
     }));
   }
 
-  // Seções divididas em grupos pequenos — 2-3 seções por grupo para evitar timeout
-  const GRUPOS_GERACAO = [
-    [
-      { key: 'identificacao',       label: 'Identificação do projeto' },
-      { key: 'endereco_execucao',   label: 'Endereço de execução' },
-    ],
-    [
-      { key: 'divulgacao_parceria', label: 'Divulgação da parceria' },
-      { key: 'descricao_acoes',     label: 'Descrição das ações' },
-    ],
-    [
-      { key: 'publico_alvo',        label: 'Público-alvo' },
-      { key: 'pesquisa_satisfacao', label: 'Pesquisa de satisfação' },
-    ],
-    [
-      { key: 'cronograma_metas',    label: 'Cronograma de metas' },
-    ],
-    [
-      { key: 'equipe_trabalho',     label: 'Equipe de trabalho' },
-      { key: 'impactos_economicos_sociais', label: 'Impactos econômicos e sociais' },
-    ],
-    [
-      { key: 'avaliacao_parceria',  label: 'Avaliação da parceria' },
-      { key: 'anexos_evidencias',   label: 'Anexos e evidências' },
-    ],
-    [
-      { key: 'assinatura',          label: 'Assinatura' },
-      { key: 'auditoria',           label: 'Auditoria de pendências' },
-    ],
-  ];
-
   // Yield ao browser entre operações para não travar a UI
   function yieldBrowser() {
     return new Promise(r => setTimeout(r, 0));
   }
 
   async function gerarSecaoComRetry(rid, key, params) {
-    const MAX_TENTATIVAS = 2;
-    const TIMEOUT_MS = 40000;
-    for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa++) {
+    const TIMEOUT_MS = 45000;
+    for (let tentativa = 1; tentativa <= 2; tentativa++) {
       await yieldBrowser();
       try {
-        let timeoutId;
-        const timeoutPromise = new Promise((_, reject) => {
-          timeoutId = setTimeout(() => reject(new Error(`Timeout ${key}`)), TIMEOUT_MS);
-        });
-        const invokePromise = base44.functions.invoke('gerarSecaoRelatorioExecucao', {
-          relatorio_id: rid,
-          secao: key,
-          ...params,
-        }).then(res => {
-          // Se o backend retornou erro estruturado, trata como falha
-          if (res?.error || res?.data?.error) {
-            throw new Error(res?.error || res?.data?.error);
-          }
-          return res;
-        });
-        await Promise.race([invokePromise, timeoutPromise]);
-        clearTimeout(timeoutId);
-        console.log(`[gerarSecao] ✓ ${key} (tentativa ${tentativa})`);
+        await Promise.race([
+          base44.functions.invoke('gerarSecaoRelatorioExecucao', {
+            relatorio_id: rid,
+            secao: key,
+            ...params,
+          }),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error(`Timeout (${key})`)), TIMEOUT_MS)
+          ),
+        ]);
         return true;
       } catch (err) {
         console.warn(`[gerarSecao] ✗ ${key} tentativa ${tentativa}:`, err?.message);
-        if (tentativa < MAX_TENTATIVAS) {
-          await new Promise(r => setTimeout(r, 3000));
-        }
+        if (tentativa < 2) await new Promise(r => setTimeout(r, 2000));
       }
     }
-    console.warn(`[gerarSecao] Pulando ${key} após ${MAX_TENTATIVAS} tentativas.`);
     return false;
   }
 
