@@ -567,10 +567,10 @@ export default function RevisaoFinalDialog({ relatorioId, relatorio, onClose }) 
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => { exportarRelatorioHTML(r); toast.success('HTML editável gerado.'); onClose(); }}
-                disabled={!allChecked || exportando}
-                className={`gap-1 border-blue-300 text-blue-700 hover:bg-blue-50 ${!allChecked ? 'opacity-40 cursor-not-allowed' : ''}`}
-                title="Gera HTML diagramado editável — ideal para envio ao SUCC"
+                onClick={() => { exportarRelatorioHTML(r); toast.success('HTML editável gerado — abra no navegador para editar e imprimir.'); }}
+                disabled={exportando}
+                className="gap-1 border-blue-300 text-blue-700 hover:bg-blue-50"
+                title="Gera HTML completo editável com capa, textos reais e fotos — ideal para conferência e envio ao SUCC"
               >
                 <Code2 className="w-3.5 h-3.5" />
                 HTML Editável
@@ -581,12 +581,42 @@ export default function RevisaoFinalDialog({ relatorioId, relatorio, onClose }) 
                 onClick={async () => {
                   setExportando(true);
                   try {
-                    await exportarAtividadesFotosPDF(
-                      r,
-                      r._atividades_com_fotos || [],
-                      r._fotos_galeria || []
-                    );
-                    toast.success('PDF de Atividades + Fotos (SUCC) gerado.');
+                    // Busca fotos reais do período vinculadas ao relatório de execução
+                    const mesesPeriodo = ['Fevereiro', 'Março', 'Abril', 'Maio', 'Junho'];
+                    let atividadesComFotos = r._atividades_com_fotos || [];
+                    let fotosGaleria = r._fotos_galeria || [];
+
+                    // Se não vieram pré-carregadas, busca do banco
+                    if (fotosGaleria.length === 0) {
+                      const [reportPhotos, allReports] = await Promise.all([
+                        base44.entities.ReportPhoto.filter({}),
+                        base44.entities.Report.filter({ ano: r.data_inicio ? parseInt(r.data_inicio.slice(0,4)) : 2026, status: 'APPROVED' }),
+                      ]);
+                      fotosGaleria = reportPhotos.filter(f =>
+                        mesesPeriodo.includes(f.mes_referencia) || f.ano === 2026
+                      );
+                      // Monta atividades com fotos a partir dos relatórios aprovados
+                      if (atividadesComFotos.length === 0) {
+                        const reportsPeriodo = allReports.filter(rep => mesesPeriodo.includes(rep.mes_referencia));
+                        for (const rep of reportsPeriodo) {
+                          for (const atv of (rep.atividades || [])) {
+                            if ((atv.fotos || []).length > 0) {
+                              atividadesComFotos.push({ ...atv, museu: rep.museu, mes: rep.mes_referencia });
+                            }
+                          }
+                        }
+                      }
+                    }
+
+                    // Monta objeto de relatorio com período legível
+                    const relatorioParaPDF = {
+                      ...r,
+                      mes_referencia: 'Fevereiro a Junho',
+                      ano: 2026,
+                    };
+
+                    await exportarAtividadesFotosPDF(relatorioParaPDF, atividadesComFotos, fotosGaleria);
+                    toast.success(`PDF gerado: ${atividadesComFotos.length} atividades · ${fotosGaleria.length} fotos`);
                   } catch (e) {
                     toast.error('Erro ao gerar PDF: ' + e.message);
                   } finally {
@@ -595,10 +625,10 @@ export default function RevisaoFinalDialog({ relatorioId, relatorio, onClose }) 
                 }}
                 disabled={exportando}
                 className="gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
-                title="Gera PDF com atividades + fotos no formato exigido pelo SUCC/PBH"
+                title="Gera PDF com todas as atividades e fotos do período no formato SUCC/PBH"
               >
                 {exportando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
-                Atividades + Fotos
+                {exportando ? 'Buscando fotos…' : 'Atividades + Fotos'}
               </Button>
             </div>
           </div>
