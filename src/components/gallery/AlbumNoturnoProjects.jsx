@@ -84,70 +84,58 @@ function AlbumProjeto({ projeto, onClose }) {
     setStatus('loading');
     setErro('');
     try {
-      // 1. Buscar do banco local (ReportPhoto) com filtro por mes_referencia ou caption
-      const allPhotos = await base44.entities.ReportPhoto.list('created_date', 500);
+      // 1. Buscar TODAS as fotos locais (sem limite) em paralelo com o Drive
+      const [allPhotos, driveRes] = await Promise.all([
+        base44.entities.ReportPhoto.list('-created_date', 2000),
+        projeto.driveFolder
+          ? base44.functions.invoke('criarAlbumNoturnoDrive', {
+              dry_run: true,
+              max_por_local: 30,
+              min_por_local: 1,
+              folder_id: projeto.driveFolder,
+            }).catch(() => null)
+          : Promise.resolve(null),
+      ]);
 
+      // Fotos locais filtradas por keyword
       const filtro = projeto.filtroNome;
       const filtradas = (allPhotos || []).filter(p => {
         if (!p.file_url) return false;
-        const texto = [p.file_name, p.caption, p.legenda, p.museu, p.mes_referencia]
+        const texto = [p.file_name, p.caption, p.legenda, p.museu, p.mes_referencia, p.contexto_ia]
           .join(' ').toLowerCase();
         return filtro.some(k => texto.includes(k));
+      }).map(p => ({
+        id: p.id,
+        fileUrl: p.file_url,
+        legenda: p.legenda || p.caption || p.file_name,
+        museu: p.museu,
+        autor: p.author || p.autor,
+        mes_referencia: p.mes_referencia,
+        drive_file_id: p.drive_file_id,
+      }));
+
+      // Fotos do Drive
+      const albumFotos = (driveRes?.data?.album || []).flatMap(l => l.fotos || []);
+      setTotalDrive(driveRes?.data?.total_fotos_drive || albumFotos.length);
+      const driveFotos = albumFotos.map(f => ({
+        id: f.drive_file_id,
+        fileUrl: f.file_url || f.thumb_url,
+        legenda: f.legenda || f.name,
+        museu: f.local,
+        autor: f.autor,
+        view_url: f.view_url,
+      }));
+
+      // Combinar e deduplicar por drive_file_id e fileUrl
+      const seen = new Set();
+      const unicas = [...filtradas, ...driveFotos].filter(f => {
+        const key = f.drive_file_id || (f.fileUrl || '').split('?')[0];
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return !!f.fileUrl;
       });
 
-      // 2. Se tiver pouquíssimas fotos locais, buscar também via função do Drive
-      if (filtradas.length < 5 && projeto.driveFolder) {
-        try {
-          const res = await base44.functions.invoke('criarAlbumNoturnoDrive', {
-            dry_run: true,
-            max_por_local: 8,
-            min_por_local: 1,
-            folder_id: projeto.driveFolder,
-          });
-          const albumFotos = (res.data?.album || []).flatMap(l => l.fotos || []);
-          setTotalDrive(res.data?.total_fotos_drive || albumFotos.length);
-          const combinadas = [
-            ...filtradas.map(p => ({
-              id: p.id,
-              fileUrl: p.file_url,
-              legenda: p.legenda || p.caption || p.file_name,
-              museu: p.museu,
-              autor: p.author || p.autor,
-              mes_referencia: p.mes_referencia,
-              drive_file_id: p.drive_file_id,
-            })),
-            ...albumFotos.map(f => ({
-              id: f.drive_file_id,
-              fileUrl: f.file_url || f.thumb_url,
-              legenda: f.legenda,
-              museu: f.local,
-              autor: f.autor,
-              view_url: f.view_url,
-            })),
-          ];
-          // Dedup por fileUrl
-          const seen = new Set();
-          const unicas = combinadas.filter(f => {
-            const k = (f.fileUrl || '').split('?')[0];
-            if (!k || seen.has(k)) return false;
-            seen.add(k);
-            return true;
-          });
-          setFotos(unicas);
-        } catch {
-          setFotos(filtradas.map(p => ({
-            id: p.id, fileUrl: p.file_url, legenda: p.legenda || p.caption,
-            museu: p.museu, autor: p.author || p.autor,
-          })));
-        }
-      } else {
-        setTotalDrive(filtradas.length);
-        setFotos(filtradas.map(p => ({
-          id: p.id, fileUrl: p.file_url, legenda: p.legenda || p.caption || p.file_name,
-          museu: p.museu, autor: p.author || p.autor, mes_referencia: p.mes_referencia,
-        })));
-      }
-
+      setFotos(unicas);
       setStatus('done');
     } catch (e) {
       setErro(e.message || 'Erro ao carregar fotos.');
