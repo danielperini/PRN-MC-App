@@ -15,9 +15,10 @@ function fmtBRL(v) {
   }).format(v ?? 0);
 }
 
-const TOTAL_PREVISTO_3_ADITIVO = 1320000;
-const TOTAL_PREVISTO_4_ADITIVO = 81719.85;
-const TOTAL_PREVISTO_CONSOLIDADO = TOTAL_PREVISTO_3_ADITIVO + TOTAL_PREVISTO_4_ADITIVO;
+// Valores contratuais oficiais — referência para o banner
+const CONTRATO_3_ADITIVO = 1320000;
+const CONTRATO_4_ADITIVO = 81719.85;
+const CONTRATO_TOTAL = CONTRATO_3_ADITIVO + CONTRATO_4_ADITIVO;
 
 function AditivoBlock({ titulo, badge, badgeColor, totalPrevisto, totalUtilizado, saldo, rubricasList, qtdNFs, qtdDuplicatas }) {
   const pct = totalPrevisto > 0 ? ((totalUtilizado / totalPrevisto) * 100) : 0;
@@ -96,21 +97,27 @@ export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
   const { totais3, totais4, rubricas4, duplicadas, datasInvalidas, divergencias } = useMemo(() => {
     const ativas = rubricas.filter((r) => r?.ativo !== false);
     const rubricas4 = ativas.filter((r) => normalizeCentroCusto(r).aditivo === '4º Aditivo Noturno 2026');
+    const rubricas3 = ativas.filter((r) => normalizeCentroCusto(r).aditivo !== '4º Aditivo Noturno 2026');
+
+    // Previsto calculado diretamente das rubricas (fonte de verdade)
+    const previsto3 = rubricas3.reduce((s, r) => s + toNumber(r.valor_rubrica || r.valor_total), 0);
+    const previsto4 = rubricas4.reduce((s, r) => s + toNumber(r.valor_rubrica || r.valor_total), 0);
+
     const auditoria = auditAditivoTotals(compras, ativas);
     const utilizado3 = toNumber(auditoria?.terceiro_aditivo?.utilizado);
     const utilizado4 = toNumber(auditoria?.noturno_2026?.utilizado);
 
     return {
       totais3: {
-        totalPrevisto: TOTAL_PREVISTO_3_ADITIVO,
+        totalPrevisto: previsto3,
         totalUtilizado: utilizado3,
-        saldo: TOTAL_PREVISTO_3_ADITIVO - utilizado3,
+        saldo: previsto3 - utilizado3,
         qtdNFs: auditoria.terceiro_aditivo.quantidade_nfs,
       },
       totais4: {
-        totalPrevisto: TOTAL_PREVISTO_4_ADITIVO,
+        totalPrevisto: previsto4,
         totalUtilizado: utilizado4,
-        saldo: TOTAL_PREVISTO_4_ADITIVO - utilizado4,
+        saldo: previsto4 - utilizado4,
         qtdNFs: auditoria.noturno_2026.quantidade_nfs,
       },
       rubricas4,
@@ -146,9 +153,10 @@ export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
       )}
 
       <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-700">
-        <span className="font-semibold">Previsto consolidado oficial:</span> {fmtBRL(TOTAL_PREVISTO_CONSOLIDADO)}
-        <span className="ml-2 text-gray-500">(3º aditivo {fmtBRL(TOTAL_PREVISTO_3_ADITIVO)} + 4º aditivo {fmtBRL(TOTAL_PREVISTO_4_ADITIVO)})</span>
-        <span className="block mt-1 text-gray-500">O 4º Aditivo é apurado pelas rubricas e solicitações do Noturno Pampulha. As rubricas “Noturno 2026” permanecem no 3º Aditivo, salvo indicação explícita em contrário.</span>
+        <span className="font-semibold">Base contratual oficial:</span> {fmtBRL(CONTRATO_TOTAL)}
+        <span className="ml-2 text-gray-500">(3º aditivo {fmtBRL(CONTRATO_3_ADITIVO)} + 4º aditivo {fmtBRL(CONTRATO_4_ADITIVO)})</span>
+        <span className="ml-3 font-semibold">Base rubricas cadastradas:</span> {fmtBRL(totais3.totalPrevisto + totais4.totalPrevisto)}
+        <span className="block mt-1 text-gray-500">O previsto exibido nos cards é a soma real das rubricas cadastradas. O 4º Aditivo apura o Noturno Pampulha. Rubricas "Noturno 2026" pertencem ao 3º Aditivo.</span>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

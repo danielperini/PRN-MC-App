@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
-const TOTAL_PREVISTO_3_ADITIVO = 1320000;
-const TOTAL_PREVISTO_4_ADITIVO = 81719.85;
-const TOTAL_PREVISTO_OFICIAL = TOTAL_PREVISTO_3_ADITIVO + TOTAL_PREVISTO_4_ADITIVO;
+// Valores contratuais oficiais — usados apenas como referência no banner
+const CONTRATO_3_ADITIVO = 1320000;
+const CONTRATO_4_ADITIVO = 81719.85;
+const CONTRATO_TOTAL_OFICIAL = CONTRATO_3_ADITIVO + CONTRATO_4_ADITIVO;
 
 function fmtBRL(v) {
   if (!v && v !== 0) return 'R$ 0';
@@ -71,15 +72,15 @@ export default function RubricasConsumoDashboard({ rubricas }) {
 
   const totais = useMemo(() => {
     const calculado = dados.reduce((acc, d) => ({ total: acc.total + d.total, utilizado: acc.utilizado + d.utilizado }), { total: 0, utilizado: 0 });
-    const usarBaseOficial = !grupoBusca && somenteAtivas;
-    const total = usarBaseOficial ? TOTAL_PREVISTO_OFICIAL : calculado.total;
+    // Usar sempre a soma real das rubricas como base do previsto
+    const total = calculado.total;
     return {
       total,
       utilizado: calculado.utilizado,
       saldo: total - calculado.utilizado,
       pct: total > 0 ? (calculado.utilizado / total) * 100 : 0,
       total_calculado_rubricas: calculado.total,
-      diferenca_rubricas: calculado.total - TOTAL_PREVISTO_OFICIAL,
+      diferenca_rubricas: calculado.total - CONTRATO_TOTAL_OFICIAL,
     };
   }, [dados, grupoBusca, somenteAtivas]);
 
@@ -97,11 +98,16 @@ export default function RubricasConsumoDashboard({ rubricas }) {
   return (
     <div className="space-y-6">
       <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-900">
-        <span className="font-semibold">Base contratual oficial:</span> {fmtBRL(TOTAL_PREVISTO_OFICIAL)}
-        <span className="ml-2">3º aditivo {fmtBRL(TOTAL_PREVISTO_3_ADITIVO)} + 4º aditivo {fmtBRL(TOTAL_PREVISTO_4_ADITIVO)}.</span>
-        {totais.diferenca_rubricas > 0 && (
-          <span className="ml-2 font-medium text-amber-700">A soma bruta das rubricas excede a base oficial em {fmtBRL(totais.diferenca_rubricas)} e não é usada no previsto consolidado.</span>
+        <span className="font-semibold">Base contratual oficial:</span> {fmtBRL(CONTRATO_TOTAL_OFICIAL)}
+        <span className="ml-2">(3º aditivo {fmtBRL(CONTRATO_3_ADITIVO)} + 4º aditivo {fmtBRL(CONTRATO_4_ADITIVO)})</span>
+        {Math.abs(totais.diferenca_rubricas) > 0.01 && (
+          <span className="ml-2 font-medium text-amber-700">
+            {totais.diferenca_rubricas > 0
+              ? `A soma das rubricas excede a base contratual em ${fmtBRL(totais.diferenca_rubricas)}.`
+              : `A soma das rubricas está abaixo da base contratual em ${fmtBRL(Math.abs(totais.diferenca_rubricas))}.`}
+          </span>
         )}
+        <span className="ml-2 text-blue-700 font-semibold">· Previsto real: {fmtBRL(totais.total)}</span>
       </div>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
