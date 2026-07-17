@@ -54,6 +54,7 @@ const PAGE_TITLES = {
   Movimentacoes: 'Movimentações Bancárias',
   AprovacaoNFs: 'Aprovação de NFs',
   ChecklistProducao: 'Checklist de Produção',
+  GaleriaNoturno: '🌙 Galeria Noturno nos Museus',
 };
 
 export default function Layout({ children, currentPageName }) {
