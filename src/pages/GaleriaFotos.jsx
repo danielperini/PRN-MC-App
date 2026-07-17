@@ -129,6 +129,12 @@ function GalleryCard({ image, onClick, eager = false, selected, onToggleSelect, 
                 {image.localizacao}
               </p>
             )}
+            {!image.localizacao && image.geoCoordinates && (
+              <p className="inline-flex items-center gap-1 font-mono text-[10px] text-gray-400">
+                <MapPin className="h-3 w-3" />
+                {image.geoCoordinates}
+              </p>
+            )}
             {image.date && <p>{formatDateBR(image.date)}</p>}
           </div>
         </div>

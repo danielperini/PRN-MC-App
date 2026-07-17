@@ -15,14 +15,14 @@ export function PhotoActionBar({ image, selected, onToggleSelect, onDelete, onEd
         type="button"
         onClick={(e) => { e.stopPropagation(); onToggleSelect(image); }}
         className={`flex items-center justify-center w-7 h-7 rounded-full shadow-md border-2 transition-all
-          ${selected ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white/90 border-gray-300 text-gray-400 hover:border-blue-400'}`}
+          ${selected ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-400 text-gray-500 hover:border-blue-400 hover:text-blue-500'}`}
         title={selected ? 'Desmarcar' : 'Selecionar'}
       >
         {selected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
       </button>
 
-      {/* Ações rápidas (visíveis no hover ou quando não está em modo seleção) */}
-      <div className={`flex gap-1 ${selectionMode ? 'opacity-0 pointer-events-none' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
+      {/* Ações rápidas — sempre visíveis (exceto em modo seleção) */}
+      <div className={`flex gap-1 ${selectionMode ? 'opacity-0 pointer-events-none' : 'opacity-100'} transition-opacity`}>
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onEditCaption(image); }}

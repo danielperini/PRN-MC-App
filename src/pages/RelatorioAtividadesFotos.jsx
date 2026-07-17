@@ -216,6 +216,15 @@ function MuseuSection({ museuKey, albunsPorMes, onExportPDF, onExportMuseuPDF })
   );
 }
 
+// Detecta se o álbum contém menções de comunicação/divulgação
+const COMUNICACAO_KEYWORDS = ['divulg', 'clipping', 'post', 'comunicaç', 'redes sociais', 'imprensa', 'press', 'mídia', 'release', 'publicaç', 'assessoria'];
+function temMencaoComunicacao(fotos) {
+  return fotos.some(f => {
+    const texto = `${getLegenda(f)} ${f.activityTitulo || ''} ${f.description || ''}`.toLowerCase();
+    return COMUNICACAO_KEYWORDS.some(kw => texto.includes(kw));
+  });
+}
+
 // ─── Geração de PDF ────────────────────────────────────────────────────────────
 async function gerarAlbumPDF(museuKey, mesLabel, fotos, opts = {}) {
   const museuNome = MUSEU_LABELS[museuKey] || museuKey;
@@ -252,7 +261,21 @@ async function gerarAlbumPDF(museuKey, mesLabel, fotos, opts = {}) {
   doc.setFontSize(8.5);
   doc.setTextColor(100, 100, 100);
   doc.text(`${fotos.length} registro${fotos.length !== 1 ? 's' : ''} fotográfico${fotos.length !== 1 ? 's' : ''}  ·  Gerado em ${new Date().toLocaleDateString('pt-BR')}`, PW / 2, y, { align: 'center' });
-  y += 12;
+  y += 10;
+
+  // Nota de comunicação (se aplicável)
+  if (temMencaoComunicacao(fotos)) {
+    doc.setFillColor(255, 251, 235);
+    doc.roundedRect(M, y, CW, 10, 2, 2, 'F');
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(120, 80, 0);
+    doc.text('Nota: Ações de divulgação, clipping e materiais de comunicação estão detalhados no Relatório de Comunicação em Anexo.', PW / 2, y + 6.5, { align: 'center', maxWidth: CW - 6 });
+    doc.setFont('helvetica', 'normal');
+    y += 14;
+  } else {
+    y += 2;
+  }
 
   // Cada foto em página própria (garante foto inteira + legenda legível)
   for (let i = 0; i < fotos.length; i++) {
