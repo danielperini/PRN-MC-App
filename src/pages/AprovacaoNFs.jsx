@@ -5,9 +5,15 @@ import { toast } from 'sonner';
 import { FileText, CheckCircle, XCircle, ExternalLink, Search, X, FileCode2, AlertCircle, Loader2, RefreshCw, Filter, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-const STATUS_APROVADOS = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO', 'APROVADO_FINANCEIRO']);
-const STATUS_PENDENTES = ['ENVIADO_APROVACAO', 'AGUARDANDO_REVISAO', 'ANALISANDO_IA', 'RASCUNHO', 'ENVIADO'];
+// Status de intakes que devem ser OCULTADOS da fila (já resolvidos)
+const STATUS_OCULTAR_INTAKE = new Set([
+  'APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO', 'APROVADO_FINANCEIRO',
+  'REJEITADO', 'CANCELADO', 'DELETADO', 'ENVIADO_APROVACAO'
+]);
+// Status de compras já tratadas (para cruzamento por chave fiscal)
 const STATUS_COMPRAS_JA_TRATADAS = new Set(['APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO', 'RECUSADO', 'CANCELADO']);
+// Status que ainda precisam de atenção
+const STATUS_PENDENTES = ['AGUARDANDO_REVISAO', 'ANALISANDO_IA', 'RASCUNHO', 'ENVIADO'];
 
 function fmtBRL(v) {
   if (!v && v !== 0) return '—';
@@ -45,7 +51,7 @@ function ehNotaFiscal(item) {
   const temPdf = !!pdfUrl(item) && /\.pdf($|\?)/i.test(pdfUrl(item)) || /\.pdf$/i.test(nome);
   return (tipo.includes('nota_fiscal') || tipo.includes('nf') || temNumero || temChave || /\bnf\b/.test(nome)) && !!temPdf;
 }
-function scoreItem(item) { const status = String(item.status_processamento || '').toUpperCase(); return (STATUS_APROVADOS.has(status) ? 100 : 0) + (pdfUrl(item) ? 10 : 0) + (xmlUrl(item) ? 5 : 0) + (item.updated_date ? 1 : 0); }
+function scoreItem(item) { const status = String(item.status_processamento || '').toUpperCase(); return (STATUS_OCULTAR_INTAKE.has(status) ? 100 : 0) + (pdfUrl(item) ? 10 : 0) + (xmlUrl(item) ? 5 : 0) + (item.updated_date ? 1 : 0); }
 function deduplicar(items) {
   const map = new Map();
   for (const item of items) {
@@ -119,7 +125,15 @@ export default function AprovacaoNFs() {
     return set;
   }, [aprovadosIntake, compras]);
 
-  const intakes = useMemo(() => deduplicar(intakesBrutos).filter(i => !chavesAprovadas.has(chaveFiscal(i))), [intakesBrutos, chavesAprovadas]);
+  const intakes = useMemo(() => {
+    const dedup = deduplicar(intakesBrutos);
+    return dedup.filter(i => {
+      const status = String(dados(i).status_processamento || i.status_processamento || '').toUpperCase();
+      if (STATUS_OCULTAR_INTAKE.has(status)) return false;
+      if (chavesAprovadas.has(chaveFiscal(i))) return false;
+      return true;
+    });
+  }, [intakesBrutos, chavesAprovadas]);
   const filtrados = useMemo(() => intakes.filter(item => {
     const temXml = !!xmlUrl(item);
     if (filtroXml === 'com_xml' && !temXml) return false;
