@@ -364,6 +364,15 @@ function AuthenticatedApp() {
           }
         />
         <Route
+          path="/ImportarNoturno2026"
+          element={
+            <SafePage
+              Page={React.lazy(() => import('./pages/ImportarNoturno2026'))}
+              pageName="ImportarNoturno2026"
+            />
+          }
+        />
+        <Route
           path="/BancoRelatorios"
           element={
             <SafePage
