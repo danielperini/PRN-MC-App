@@ -602,14 +602,16 @@ function rubricasTable(doc, y, rubricas, totalFmt) {
   for (const r of rubricas) {
     const rowH = 8;
     y = check(doc, y, rowH);
-    const saldo = r.saldo || (r.valor_previsto - r.valor_utilizado);
+    const previsto = r.valor_previsto || r.valor_rubrica || r.valor_total || 0;
+    const utilizado = r.total_gasto_periodo || r.valor_utilizado || 0;
+    const saldo = r.saldo !== undefined ? r.saldo : (previsto - utilizado);
     const saldoColor = saldo >= 0 ? [20, 100, 20] : [160, 30, 30];
     const cells = [
-      txt(r.rubrica_nome),
-      txt(r.grupo),
-      txt(r.natureza_despesa),
-      fmtBRL(r.valor_previsto),
-      fmtBRL(r.total_gasto_periodo),
+      txt(r.rubrica_nome || r.rubrica || r.nome || r.item_rubrica),
+      txt(r.grupo || r.meta || ''),
+      txt(r.natureza_despesa || r.numero_natureza || ''),
+      fmtBRL(r.valor_previsto || r.valor_rubrica || r.valor_total || 0),
+      fmtBRL(r.total_gasto_periodo || r.valor_utilizado || 0),
       fmtBRL(saldo),
       String(r.num_nfs || 0),
     ];
@@ -909,10 +911,10 @@ function buildParte1(relatorio) {
   y = field(doc, y, 'Organização da Sociedade Civil (OSC)', txt(ident.organizacao, 'Viaduto das Artes'), true);
   y = field(doc, y, 'Nome do Projeto', txt(ident.projeto, 'Museus Centro'), true);
   y = twoFields(doc, y, 'Instrumento Jurídico', txt(ident.instrumento_juridico, 'Termo de Colaboração nº 01-031.069/24-80'), 'Processo Administrativo Nº', txt(ident.processo_administrativo, '01-031.069/24-80'));
-  y = twoFields(doc, y, 'Vigência do Projeto — Início', fmtDate(ident.vigencia_inicio), 'Vigência do Projeto — Fim', fmtDate(ident.vigencia_fim));
-  y = field(doc, y, 'Data do primeiro repasse pela administração', fmtDate(ident.data_primeiro_repasse || '') || 'A confirmar no extrato/termo', true);
+  y = twoFields(doc, y, 'Vigência do Projeto — Início', ident.vigencia_inicio ? fmtDate(ident.vigencia_inicio) : fmtDate(relatorio.data_inicio), 'Vigência do Projeto — Fim', ident.vigencia_fim ? fmtDate(ident.vigencia_fim) : fmtDate(relatorio.data_fim));
+  y = field(doc, y, 'Data do primeiro repasse pela administração', 'A confirmar no extrato/Portal SUCC', true);
   y = field(doc, y, 'Responsável pela elaboração do relatório', txt(ident.responsavel, 'Daniel Perini'), true);
-  y = twoFields(doc, y, 'Telefone', txt(ident.telefone), 'E-mail', txt(ident.email, 'danielperini.mc@viadutodasartes.org.br'));
+  y = twoFields(doc, y, 'Telefone', txt(ident.telefone, '(31) 98424-9484'), 'E-mail', txt(ident.email, 'danielperini.mc@viadutodasartes.org.br'));
   y += 4;
 
   // 3. ENDEREÇO
@@ -999,6 +1001,7 @@ function buildParte2(relatorio) {
     relatorio.licoes_aprendidas?.texto_editado ||
     relatorio.licoes_aprendidas?.texto_ia ||
     relatorio.avaliacao_desafios ||
+    relatorio.comentarios_gerais ||
     ''
   );
   if (licoesTxt) {
@@ -1041,14 +1044,20 @@ async function buildParte3(relatorio) {
   // 10. SUSTENTABILIDADE
   y = sectionTitle(doc, y, '10', 'POSSIBILIDADE DE SUSTENTABILIDADE DAS AÇÕES APÓS CONCLUSÃO DA PARCERIA');
   y = instruction(doc, y, 'Preenchimento somente em relatório final. Fazer uma análise sobre a possibilidade de sustentabilidade das ações após a conclusão da parceria.');
-  const susTxt = txt(relatorio.sustentabilidade?.texto_editado || relatorio.sustentabilidade?.texto_ia);
-  y = textBlock(doc, y, susTxt || (relatorio.tipo === 'parcial' ? '[Campo aplicável apenas ao Relatório Final]' : ''));
+  const susTxt = txt(relatorio.sustentabilidade?.texto_editado || relatorio.sustentabilidade?.texto_ia || '');
+  y = textBlock(doc, y, susTxt || (relatorio.tipo !== 'final' ? 'Campo aplicável apenas ao Relatório Final. Conforme determinado pelo modelo SUCC/PBH, a análise de sustentabilidade será preenchida na versão definitiva do documento.' : ''));
   y += 4;
 
   // 11. AVALIAÇÃO DA PARCERIA
   y = sectionTitle(doc, y, '11', 'AVALIAÇÃO DA PARCERIA COM A ADMINISTRAÇÃO PÚBLICA');
   y = instruction(doc, y, 'Informar problemas detectados, sugestões ou críticas construtivas relacionadas à administração pública (Conselho, SMASAC, PGM, outros), com o objetivo de apontar melhorias para futuras parcerias.');
-  const avalTxt = txt(relatorio.avaliacao_parceria?.texto_editado || relatorio.avaliacao_parceria?.texto_ia || relatorio.avaliacao_pontos_positivos || '');
+  const avalTxt = txt(
+    relatorio.avaliacao_parceria?.texto_editado ||
+    relatorio.avaliacao_parceria?.texto_ia ||
+    relatorio.avaliacao_pontos_positivos ||
+    relatorio.avaliacao_sugestoes ||
+    ''
+  );
   y = textBlock(doc, y, avalTxt);
   y += 4;
 
