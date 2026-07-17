@@ -100,10 +100,21 @@ Deno.serve(async (req) => {
       `;
 
       for (const item of items) {
+        const appBaseUrl = 'https://museus-centro.base44-apps.com';
+        const linkSolicitacao = item.purchase_id
+          ? `${appBaseUrl}/Compras?id=${item.purchase_id}`
+          : `${appBaseUrl}/Compras`;
+
         const links = [];
-        if (item.drive_backup_nf_pdf_link) links.push('<a href="' + item.drive_backup_nf_pdf_link + '">NF</a>');
-        if (item.drive_backup_nf_xml_link) links.push('<a href="' + item.drive_backup_nf_xml_link + '">XML</a>');
-        if (item.comprovante_url) links.push('<a href="' + item.comprovante_url + '">Comprovante</a>');
+        // Link direto para a solicitação no app — sempre primeiro
+        links.push(`<a href="${linkSolicitacao}" style="color:#2563eb;font-weight:bold;">Ver no app</a>`);
+        if (item.drive_backup_nf_pdf_link || item.nota_fiscal_pdf_url) {
+          links.push(`<a href="${item.drive_backup_nf_pdf_link || item.nota_fiscal_pdf_url}" style="color:#059669;">NF PDF</a>`);
+        }
+        if (item.drive_backup_nf_xml_link || item.nota_fiscal_xml_url || item.xml_url) {
+          links.push(`<a href="${item.drive_backup_nf_xml_link || item.nota_fiscal_xml_url || item.xml_url}" style="color:#6b7280;">XML</a>`);
+        }
+        if (item.comprovante_url) links.push(`<a href="${item.comprovante_url}" style="color:#7c3aed;">Comprovante</a>`);
         
         emailBody += `
           <tr>
@@ -111,7 +122,7 @@ Deno.serve(async (req) => {
             <td style="padding: 8px; border: 1px solid #e5e7eb;">${item.fornecedor_nome || 'N/A'}${item.fornecedor_cnpj ? `<br/><small>CNPJ: ${item.fornecedor_cnpj}</small>` : ''}</td>
             <td style="padding: 8px; text-align: right; border: 1px solid #e5e7eb;">R$ ${(item.valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
             <td style="padding: 8px; text-align: center; border: 1px solid #e5e7eb;">${item.rubrica_grupo || item.rubrica_nome || 'N/A'}</td>
-            <td style="padding: 8px; text-align: center; border: 1px solid #e5e7eb;">${links.join(' | ') || 'Sem anexos'}</td>
+            <td style="padding: 8px; text-align: center; border: 1px solid #e5e7eb;">${links.join(' · ')}</td>
           </tr>
         `;
       }
@@ -131,7 +142,7 @@ Deno.serve(async (req) => {
           - Este email é automático e não deve ser respondido.
         </p>
         <p style="margin-top: 20px;">
-          <a href="${pendingItems[0].link_app_compras}" style="background: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">Acessar Sistema de Compras</a>
+          <a href="https://museus-centro.base44-apps.com/Compras" style="background: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">Acessar Solicitações de Compras</a>
         </p>
       </body>
       </html>

@@ -135,15 +135,24 @@ export const PurchaseNotificationTemplate = {
       `;
 
       for (const item of centroItems) {
+        // Link direto para a solicitação no app
+        const appBaseUrl = 'https://museus-centro.base44-apps.com';
+        const linkSolicitacao = item.purchase_id
+          ? `${appBaseUrl}/Compras?id=${item.purchase_id}`
+          : `${appBaseUrl}/Compras`;
+
         const links = [];
+        // Link para a solicitação no app (sempre presente)
+        links.push(`<a href="${linkSolicitacao}" target="_blank" style="color:#2563eb;font-weight:600;">Ver no app</a>`);
+        // NF: Drive primeiro, depois URL direta
         if (item.drive_backup_nf_pdf_link || item.nota_fiscal_pdf_url) {
-          links.push(`<a href="${item.drive_backup_nf_pdf_link || item.nota_fiscal_pdf_url}" target="_blank" style="color:#2563eb;">NF</a>`);
+          links.push(`<a href="${item.drive_backup_nf_pdf_link || item.nota_fiscal_pdf_url}" target="_blank" style="color:#059669;">NF PDF</a>`);
         }
-        if (item.drive_backup_nf_xml_link || item.nota_fiscal_xml_url) {
-          links.push(`<a href="${item.drive_backup_nf_xml_link || item.nota_fiscal_xml_url}" target="_blank" style="color:#2563eb;">XML</a>`);
+        if (item.drive_backup_nf_xml_link || item.nota_fiscal_xml_url || item.xml_url) {
+          links.push(`<a href="${item.drive_backup_nf_xml_link || item.nota_fiscal_xml_url || item.xml_url}" target="_blank" style="color:#6b7280;">XML</a>`);
         }
         if (item.comprovante_url) {
-          links.push(`<a href="${item.comprovante_url}" target="_blank" style="color:#2563eb;">Comprovante</a>`);
+          links.push(`<a href="${item.comprovante_url}" target="_blank" style="color:#7c3aed;">Comprovante</a>`);
         }
 
         emailBody += `
@@ -160,7 +169,7 @@ export const PurchaseNotificationTemplate = {
               ${item.rubrica_grupo || item.rubrica_nome || 'N/A'}
             </td>
             <td style="padding:8px;text-align:center;font-size:12px;">
-              ${links.length > 0 ? links.join(' | ') : '<span style="color:#9ca3af;">Sem anexos</span>'}
+              ${links.join(' · ')}
             </td>
           </tr>
         `;
@@ -185,9 +194,9 @@ export const PurchaseNotificationTemplate = {
                       - Este email é automático e não deve ser respondido.
                     </div>
                     <p style="margin:20px 0 0 0;">
-                      <a href="${items[0]?.link_app_compras || 'https://museus-centro.base44-apps.com/Compras'}" 
+                      <a href="https://museus-centro.base44-apps.com/Compras" 
                          style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:600;">
-                        Acessar Sistema de Compras
+                        Acessar Solicitações de Compras
                       </a>
                     </p>
                   </td>
