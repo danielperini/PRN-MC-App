@@ -96,6 +96,15 @@ export default function GerenciarFotosAnexos({ relatorioId, relatorio, onAtualiz
       });
 
       setFotosGaleria(fotosClassificadas);
+
+      // Seleção automática: quando é Noturno, pré-seleciona fotos vinculadas ao período excluindo MUMO e já incluídas
+      if (isNoturno) {
+        const urlsJaNoRelatorio = new Set((relatorio?.anexos_evidencias || []).map(a => a.foto_url));
+        const autoIds = fotosClassificadas
+          .filter(f => f._temVinculo && !f._ehMumo && !urlsJaNoRelatorio.has(f.url))
+          .map(f => f.id);
+        setSelecionadas(new Set(autoIds));
+      }
     } catch (err) {
       toast.error('Erro ao buscar fotos: ' + (err?.message || String(err)));
     } finally {
@@ -111,19 +120,6 @@ export default function GerenciarFotosAnexos({ relatorioId, relatorio, onAtualiz
     setSelecionadas(prev => {
       const novo = new Set(prev);
       if (novo.has(id)) novo.delete(id); else novo.add(id);
-      return novo;
-    });
-  }
-
-  function selecionarNoturno() {
-    const ids = fotosGaleria.filter(f => f._temVinculo && !f._ehMumo).map(f => f.id);
-    setSelecionadas(new Set(ids));
-  }
-
-  function desmarcarMumo() {
-    setSelecionadas(prev => {
-      const novo = new Set(prev);
-      fotosGaleria.filter(f => f._ehMumo).forEach(f => novo.delete(f.id));
       return novo;
     });
   }
@@ -241,14 +237,9 @@ export default function GerenciarFotosAnexos({ relatorioId, relatorio, onAtualiz
                 Buscar na Galeria
               </Button>
               {isNoturno && (
-                <>
-                  <Button size="sm" variant="outline" className="border-purple-300 text-purple-700" onClick={selecionarNoturno}>
-                    🌙 Selecionar só Noturno
-                  </Button>
-                  <Button size="sm" variant="outline" className="border-red-300 text-red-600" onClick={desmarcarMumo}>
-                    Desmarcar MUMO
-                  </Button>
-                </>
+                <span className="text-xs text-purple-700 bg-purple-50 border border-purple-200 rounded px-2 py-1">
+                  🌙 Fotos do Noturno pré-selecionadas automaticamente (MUMO excluído)
+                </span>
               )}
               <Button size="sm" variant="outline" onClick={() => setSelecionadas(new Set())}>
                 Limpar seleção
