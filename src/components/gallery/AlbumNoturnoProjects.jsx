@@ -117,6 +117,51 @@ function AlbumProjeto({ projeto, onClose }) {
       // Fotos do Drive
       const albumFotos = (driveRes?.data?.album || []).flatMap(l => l.fotos || []);
       setTotalDrive(driveRes?.data?.total_fotos_drive || albumFotos.length);
+
+      // IDs já persistidos no BD para evitar duplicatas
+      const idsJaSalvos = new Set(filtradas.map(f => f.drive_file_id).filter(Boolean));
+
+      // Persistir fotos novas do Drive como ReportPhoto vinculadas ao projeto
+      const novasParaSalvar = albumFotos.filter(f =>
+        f.drive_file_id && !idsJaSalvos.has(f.drive_file_id) && (f.file_url || f.thumb_url)
+      );
+
+      if (novasParaSalvar.length > 0) {
+        const registros = novasParaSalvar.map(f => ({
+          file_url: f.file_url || f.thumb_url,
+          file_name: f.name || f.drive_file_id,
+          drive_file_id: f.drive_file_id,
+          drive_backup_status: 'concluido',
+          legenda: f.legenda || f.name || '',
+          caption: f.legenda || '',
+          museu: f.local || projeto.label,
+          mes_referencia: 'Junho',
+          ano: 2026,
+          fonte_ia: 'drive_sync',
+          contexto_ia: `Noturno nos Museus — ${projeto.label}`,
+        }));
+        // Salvar em lotes de 20 para não sobrecarregar
+        for (let i = 0; i < registros.length; i += 20) {
+          await base44.entities.ReportPhoto.bulkCreate(registros.slice(i, i + 20));
+        }
+        // Recarregar fotos locais após persistir
+        const atualizadas = await base44.entities.ReportPhoto.list('-created_date', 2000);
+        filtradas.push(...atualizadas.filter(p => {
+          if (!p.file_url) return false;
+          const texto = [p.file_name, p.caption, p.legenda, p.museu, p.mes_referencia, p.contexto_ia]
+            .join(' ').toLowerCase();
+          return projeto.filtroNome.some(k => texto.includes(k)) && !filtradas.find(f => f.id === p.id);
+        }).map(p => ({
+          id: p.id,
+          fileUrl: p.file_url,
+          legenda: p.legenda || p.caption || p.file_name,
+          museu: p.museu,
+          autor: p.author || p.autor,
+          mes_referencia: p.mes_referencia,
+          drive_file_id: p.drive_file_id,
+        })));
+      }
+
       const driveFotos = albumFotos.map(f => ({
         id: f.drive_file_id,
         fileUrl: f.file_url || f.thumb_url,
@@ -124,6 +169,7 @@ function AlbumProjeto({ projeto, onClose }) {
         museu: f.local,
         autor: f.autor,
         view_url: f.view_url,
+        drive_file_id: f.drive_file_id,
       }));
 
       // Combinar e deduplicar por drive_file_id e fileUrl
