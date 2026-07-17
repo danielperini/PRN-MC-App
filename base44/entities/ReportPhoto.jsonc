@@ -10,6 +10,10 @@
       "type": "string",
       "description": "ID do anexo/foto original (FK \u2192 Attachment)"
     },
+    "activity_id": {
+      "type": "string",
+      "description": "ID da atividade vinculada"
+    },
     "file_url": {
       "type": "string",
       "description": "URL da foto"
@@ -22,9 +26,17 @@
       "type": "string",
       "description": "Legenda da foto no relat\u00f3rio"
     },
+    "legenda": {
+      "type": "string",
+      "description": "Legenda alternativa"
+    },
     "author": {
       "type": "string",
       "description": "Autor da foto"
+    },
+    "museu": {
+      "type": "string",
+      "description": "Museu identificado pelo nome do arquivo"
     },
     "mes_referencia": {
       "type": "string",
@@ -38,10 +50,23 @@
       "type": "number",
       "default": 0,
       "description": "Ordem de exibi\u00e7\u00e3o"
+    },
+    "drive_file_id": {
+      "type": "string",
+      "description": "ID do arquivo no Google Drive ap\u00f3s backup"
+    },
+    "drive_backup_status": {
+      "type": "string",
+      "enum": [
+        "pendente",
+        "concluido",
+        "erro"
+      ],
+      "default": "pendente",
+      "description": "Status do backup no Google Drive"
     }
   },
   "required": [
-    "report_id",
     "file_url",
     "file_name"
   ]
