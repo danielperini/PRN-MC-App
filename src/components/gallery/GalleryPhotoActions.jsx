@@ -196,7 +196,7 @@ export function DeleteConfirmDialog({ photos, open, onClose, onConfirm }) {
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-red-600">
             <Trash2 className="w-4 h-4" />
@@ -208,13 +208,16 @@ export function DeleteConfirmDialog({ photos, open, onClose, onConfirm }) {
             <>
               <p className="text-sm text-gray-700">
                 {photos?.length === 1
-                  ? `Tem certeza que deseja excluir "${photos[0]?.fileName || 'esta foto'}"? Esta ação não pode ser desfeita.`
+                  ? 'Tem certeza que deseja excluir esta foto? Esta ação não pode ser desfeita.'
                   : `Tem certeza que deseja excluir ${photos?.length} fotos? Esta ação não pode ser desfeita.`}
               </p>
+              {photos?.length === 1 && photos[0]?.fileName && (
+                <p className="text-xs text-gray-400 break-all bg-gray-50 rounded px-2 py-1">{photos[0].fileName}</p>
+              )}
               {photos?.length > 1 && (
                 <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
                   {photos.slice(0, 8).map((p, i) => (
-                    <span key={i} className="text-xs bg-red-50 border border-red-200 rounded px-2 py-0.5 text-red-700 truncate max-w-[140px]">
+                    <span key={i} className="text-xs bg-red-50 border border-red-200 rounded px-2 py-0.5 text-red-700 truncate max-w-[180px]">
                       {p.fileName || p.sourceId}
                     </span>
                   ))}
