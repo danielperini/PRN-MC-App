@@ -85,9 +85,12 @@ async function uploadFileToDrive(accessToken: string, fileUrl: string, fileName:
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    if (user.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 });
+    const isAuthenticated = await base44.auth.isAuthenticated();
+    // Permite acesso autenticado ou chamadas do sistema (automações agendadas)
+    const isSystemCall = req.headers.get('x-base44-system') === 'true';
+    if (!isAuthenticated && !isSystemCall) {
+      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     const payload = await req.json().catch(() => ({}));
     const modo = payload.modo || 'galeria'; // 'galeria' | 'relatorios' | 'ambos'
