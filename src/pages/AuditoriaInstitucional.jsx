@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { useInstitutionalAudit } from '@/hooks/auditoria/useInstitutionalAudit';
 import AuditIssueList from '@/components/auditoria/AuditIssueList';
 import AuditStatusCard from '@/components/auditoria/AuditStatusCard';
+import PainelAuditoriaInstitucional from '@/components/auditoria/PainelAuditoriaInstitucional';
 import { RefreshCw, ShieldCheck } from 'lucide-react';
 
 const fmtInt = (value) => Math.round(Number(value || 0)).toLocaleString('pt-BR');
@@ -52,6 +53,8 @@ function AuditoriaInstitucionalInner() {
           <AuditStatusCard title="Execução" value={fmtBRL(metrics?.summary?.officialUsed)} helper={`${metrics?.financeiro?.percentualExecucao || 0}% do aditivo`} status="info" />
           <AuditStatusCard title="Pendências" value={fmtInt(metrics?.summary?.issueCount)} helper={`${fmtInt(metrics?.summary?.warnings)} alertas`} status={metrics?.summary?.errors ? 'red' : metrics?.summary?.warnings ? 'yellow' : 'green'} />
         </div>
+
+        <PainelAuditoriaInstitucional />
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
           <div className="xl:col-span-2 space-y-5">
