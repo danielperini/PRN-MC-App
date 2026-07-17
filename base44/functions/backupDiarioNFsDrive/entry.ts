@@ -100,8 +100,8 @@ function getProjeto(centroCusto) {
 
 /**
  * Monta o nome padronizado do arquivo.
- * Formato: {PREFIXO} {NUMERO_NF} - {FORNECEDOR} - {PROFISSIONAL} - {CENTRO_CUSTO} - {CODIGO} - R$ {VALOR}.ext
- * Exemplo: NF 001234 - SAMIRA LOPES MOTA - EDUCACAO - MIS BH - 339039 - R$ 2.600,00.pdf
+ * Formato: {PREFIXO} {NUMERO_NF} - {MES_ANO} - {FORNECEDOR} - {PROFISSIONAL} - {CENTRO_CUSTO} - {CODIGO} - R$ {VALOR}.ext
+ * Exemplo: NF 001234 - 07-2026 - SAMIRA LOPES MOTA - MIS BH - 339039 - R$ 2.600,00.pdf
  * tipo: 'NF' | 'XML' | 'COMP'
  */
 function buildFileName(tipo, pr, extra = {}) {
@@ -110,25 +110,28 @@ function buildFileName(tipo, pr, extra = {}) {
     pr.nf_numero || extra.nf_numero || pr.id?.substring(0, 8) || 'SN', 15
   );
 
-  // 2. Fornecedor
+  // 2. Mês/Ano (ex: 07-2026) — vem do dateInfo passado via extra
+  const mesAno = extra.mesAno || '';
+
+  // 3. Fornecedor
   const fornecedor = sanitizeFilePart(
     pr.fornecedor_nome || pr.nf_emitente_nome || extra.fornecedor || 'FORNECEDOR', 50
   );
 
-  // 3. Profissional responsável (quem solicitou/aprovou) — omitido se vazio
+  // 4. Profissional responsável — omitido se vazio
   const profissional = sanitizeFilePart(
     pr.usuario_pagamento_nome || pr.aprov_coord_nome || extra.profissional || '', 40
   );
 
-  // 4. Centro de custo direto (não o projeto genérico)
+  // 5. Centro de custo direto
   const centroCusto = sanitizeFilePart(pr.centro_custo || extra.centro_custo || 'GERAL', 40);
 
-  // 5. Código (natureza de despesa ou rubrica_nome abreviada)
+  // 6. Código (natureza de despesa ou rubrica_nome como fallback)
   const codigo = sanitizeFilePart(
     pr.natureza_despesa || pr.natureza_despesa_purchase || pr.rubrica_nome || pr.categoria || 'COD', 30
   );
 
-  // 6. Valor numérico (ex: R$ 2.600,00)
+  // 7. Valor numérico (ex: R$ 2.600,00)
   const valorNum = parseValor(
     pr.valor_pago || pr.valor_aprovado_admin || pr.nf_valor_total || pr.valor_solicitado || 0
   );
@@ -137,8 +140,10 @@ function buildFileName(tipo, pr, extra = {}) {
   const ext = tipo === 'XML' ? 'xml' : 'pdf';
   const prefixo = tipo === 'COMP' ? 'COMP NF' : tipo;
 
-  // Monta partes obrigatórias e opcionais
-  const partes = [fornecedor];
+  // Monta sequência: numero - mesAno - fornecedor - [profissional -] centroCusto - codigo - valor
+  const partes = [];
+  if (mesAno) partes.push(mesAno);
+  partes.push(fornecedor);
   if (profissional) partes.push(profissional);
   partes.push(centroCusto);
   partes.push(codigo);
@@ -329,6 +334,7 @@ async function processarPurchase(base44, token, pr, notasFolderCache) {
   // Pasta no formato MM-YYYY (ex: 07-2026) — criar se não existir
   const mesFormatado = String(mesIdx + 1).padStart(2, '0');
   const nomePasta = `${mesFormatado}-${ano}`;
+  const mesAno = nomePasta; // usado no nome do arquivo
   const cacheKey = nomePasta;
   let mesFolderId = notasFolderCache[cacheKey];
 
@@ -360,9 +366,11 @@ async function processarPurchase(base44, token, pr, notasFolderCache) {
     return { ...result, skipped: false };
   }
 
+  const fileExtra = { mesAno };
+
   // PDF da nota
   if (pdfUrl) {
-    const fileName = buildFileName('NF', pr);
+    const fileName = buildFileName('NF', pr, fileExtra);
     try {
       const r = await fazerUpload(pdfUrl, fileName);
       if (r) {
@@ -376,7 +384,7 @@ async function processarPurchase(base44, token, pr, notasFolderCache) {
 
   // XML
   if (xmlUrl) {
-    const fileName = buildFileName('XML', pr);
+    const fileName = buildFileName('XML', pr, fileExtra);
     try {
       const r = await fazerUpload(xmlUrl, fileName);
       if (r) {
@@ -390,7 +398,7 @@ async function processarPurchase(base44, token, pr, notasFolderCache) {
 
   // Comprovante
   if (comprovanteUrl) {
-    const fileName = buildFileName('COMP', pr);
+    const fileName = buildFileName('COMP', pr, fileExtra);
     try {
       const r = await fazerUpload(comprovanteUrl, fileName);
       if (r) {
