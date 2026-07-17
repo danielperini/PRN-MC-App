@@ -99,6 +99,7 @@ export default function RelatorioExecucaoObjeto() {
   const [textoEditado, setTextoEditado] = useState('');
   const [gerandoIA, setGerandoIA] = useState(null);
   const [enviandoArquivo, setEnviandoArquivo] = useState(null);
+  const [secoesProgresso, setSecoesProgresso] = useState([]);
   const fileInputRef = useRef(null);
   const secaoUploadRef = useRef(null);
 
@@ -252,16 +253,29 @@ export default function RelatorioExecucaoObjeto() {
         new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout ao criar relatório (>30s)')), 30000)),
       ]);
 
-      rid = res?.data?.relatorio_id || res?.relatorio_id || res?.data?.id || res?.id;
+      // Extração defensiva: percorre todos os níveis possíveis da resposta
+      rid = res?.data?.relatorio_id
+        || res?.relatorio_id
+        || res?.data?.id
+        || res?.id
+        || res?.data?.data?.relatorio_id
+        || res?.data?.data?.id;
+
+      console.log('[iniciarRelatorio] Resposta completa:', JSON.stringify(res));
+      console.log('[iniciarRelatorio] RID extraído:', rid);
+
       if (!rid) {
-        console.error('[iniciarRelatorio] Resposta:', JSON.stringify(res));
-        throw new Error(res?.data?.error || res?.error || 'Backend não retornou o ID do relatório.');
+        throw new Error(
+          (res?.data?.error || res?.error || 'Backend não retornou o ID do relatório.') +
+          ' | Resposta: ' + JSON.stringify(res)?.slice(0, 300)
+        );
       }
 
       setRelatorioId(rid);
-      setProgresso({ valor: 5, texto: 'Gerando seções com IA — aguarde...' });
+      setProgresso({ valor: 8, texto: 'Relatório criado. Iniciando geração das seções...' });
+      await yieldBrowser();
     } catch (error) {
-      toast.error('Erro ao criar relatório: ' + (error?.message || String(error)), { duration: 12000 });
+      toast.error('Erro ao criar relatório: ' + (error?.message || String(error)), { duration: 15000 });
       setLoading(false);
       return;
     }
@@ -502,7 +516,6 @@ export default function RelatorioExecucaoObjeto() {
 
   const [geracaoCompletaAberta, setGeracaoCompletaAberta] = useState(false);
   const [exportandoPDF, setExportandoPDF] = useState(null);
-  const [secoesProgresso, setSecoesProgresso] = useState([]); // null | 'parte1' | 'parte2' | 'parte3'
 
   async function prepararRelatorioComFotos() {
     let fotosGaleria = Array.isArray(relatorio._fotos_galeria) ? relatorio._fotos_galeria : [];
