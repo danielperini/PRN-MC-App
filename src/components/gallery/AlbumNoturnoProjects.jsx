@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Moon, Star, RefreshCw, X, ChevronDown, ChevronUp, ExternalLink, Camera, MapPin, Loader2 } from 'lucide-react';
+import { Moon, Star, RefreshCw, X, ChevronDown, ChevronUp, ExternalLink, Camera, MapPin, Loader2, FolderSearch } from 'lucide-react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 
 // IDs das pastas do Google Drive para cada projeto Noturno
@@ -14,6 +14,7 @@ const PROJETOS = [
     headerClass: 'bg-indigo-600',
     badgeClass: 'bg-indigo-100 text-indigo-700',
     driveFolder: '1rnpwK5eEY0bPFLbmyqfzzzyxbw9Zm3oh',
+    reportId: '6a5524d079963e8244afda9a',
     metaId: 'noturno-2026',
     filtroNome: ['noturno', 'museus centro', 'mis', 'mumo', 'mhab'],
   },
@@ -75,10 +76,68 @@ function AlbumProjeto({ projeto, onClose }) {
   const [selectedFoto, setSelectedFoto] = useState(null);
   const [expanded, setExpanded] = useState(true);
   const [erro, setErro] = useState('');
+  const [varreduraStatus, setVarreduraStatus] = useState('idle'); // idle | running | done | error
+  const [varreduraMsg, setVarreduraMsg] = useState('');
+  const [totalCriadas, setTotalCriadas] = useState(0);
+  const varreduraAbortRef = useRef(false);
 
   useEffect(() => {
     carregarFotos();
   }, []);
+
+  async function executarVarreduraCompleta() {
+    if (!projeto.driveFolder) {
+      setVarreduraMsg('Pasta do Drive não configurada para este projeto.');
+      return;
+    }
+    setVarreduraStatus('running');
+    setVarreduraMsg('Iniciando varredura...');
+    setTotalCriadas(0);
+    varreduraAbortRef.current = false;
+
+    let currentFolderIndex = 0;
+    let currentPageToken = null;
+    let totalAcumulado = 0;
+    let rodadas = 0;
+    const MAX_RODADAS = 50; // segurança contra loop infinito
+
+    try {
+      while (rodadas < MAX_RODADAS) {
+        if (varreduraAbortRef.current) break;
+        rodadas++;
+
+        const res = await base44.functions.invoke('varreduraProfundaFotosDrive', {
+          folderId: projeto.driveFolder,
+          reportId: projeto.reportId || '6a5524d079963e8244afda9a',
+          currentFolderIndex,
+          currentPageToken,
+        });
+
+        const data = res?.data || res;
+        totalAcumulado += data.criadas || 0;
+        setTotalCriadas(totalAcumulado);
+
+        const totalPastas = data.total_pastas || '?';
+        const processadas = data.pastas_processadas || currentFolderIndex;
+        setVarreduraMsg(`Processando pasta ${processadas}/${totalPastas} — ${totalAcumulado} fotos novas vinculadas`);
+
+        if (data.status === 'concluido' || !data.proxima_chamada) {
+          break;
+        }
+
+        currentFolderIndex = data.proxima_chamada.currentFolderIndex ?? currentFolderIndex + 5;
+        currentPageToken = data.proxima_chamada.currentPageToken || null;
+      }
+
+      setVarreduraStatus('done');
+      setVarreduraMsg(`✅ Varredura concluída — ${totalAcumulado} fotos novas vinculadas ao álbum.`);
+      // Recarregar fotos após varredura
+      await carregarFotos();
+    } catch (e) {
+      setVarreduraStatus('error');
+      setVarreduraMsg(`Erro na varredura: ${e.message}`);
+    }
+  }
 
   async function carregarFotos() {
     setStatus('loading');
@@ -230,6 +289,31 @@ function AlbumProjeto({ projeto, onClose }) {
 
       {expanded && (
         <div className="p-4 space-y-4">
+
+          {/* Barra de varredura */}
+          {projeto.driveFolder && (
+            <div className="flex items-center gap-3 flex-wrap">
+              <button
+                type="button"
+                disabled={varreduraStatus === 'running' || status === 'loading'}
+                onClick={executarVarreduraCompleta}
+                className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-medium text-white transition ${
+                  varreduraStatus === 'running' ? 'opacity-60 cursor-not-allowed ' + corBtn : corBtn
+                }`}
+              >
+                {varreduraStatus === 'running'
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : <FolderSearch className="h-3.5 w-3.5" />}
+                {varreduraStatus === 'running' ? 'Varrendo Drive...' : 'Buscar fotos no Drive'}
+              </button>
+              {varreduraMsg && (
+                <span className={`text-xs ${varreduraStatus === 'error' ? 'text-red-600' : varreduraStatus === 'done' ? 'text-green-600' : 'text-gray-500'}`}>
+                  {varreduraMsg}
+                </span>
+              )}
+            </div>
+          )}
+
           {/* Loading */}
           {status === 'loading' && (
             <div className={`flex items-center gap-3 ${corText} text-sm py-6 justify-center`}>
