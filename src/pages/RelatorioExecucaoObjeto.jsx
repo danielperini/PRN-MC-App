@@ -204,26 +204,38 @@ export default function RelatorioExecucaoObjeto() {
   }
 
   async function gerarSecaoComRetry(rid, key, params) {
-    const MAX_TENTATIVAS = 3;
+    const MAX_TENTATIVAS = 2;
+    const TIMEOUT_MS = 40000;
     for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa++) {
-      await yieldBrowser(); // libera o thread antes de cada tentativa
+      await yieldBrowser();
       try {
-        await Promise.race([
-          base44.functions.invoke('gerarSecaoRelatorioExecucao', { relatorio_id: rid, secao: key, ...params }),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 50000)),
-        ]);
-        return true; // sucesso
+        let timeoutId;
+        const timeoutPromise = new Promise((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error(`Timeout ${key}`)), TIMEOUT_MS);
+        });
+        const invokePromise = base44.functions.invoke('gerarSecaoRelatorioExecucao', {
+          relatorio_id: rid,
+          secao: key,
+          ...params,
+        }).then(res => {
+          // Se o backend retornou erro estruturado, trata como falha
+          if (res?.error || res?.data?.error) {
+            throw new Error(res?.error || res?.data?.error);
+          }
+          return res;
+        });
+        await Promise.race([invokePromise, timeoutPromise]);
+        clearTimeout(timeoutId);
+        console.log(`[gerarSecao] ✓ ${key} (tentativa ${tentativa})`);
+        return true;
       } catch (err) {
-        const isUltima = tentativa === MAX_TENTATIVAS;
-        if (isUltima) {
-          console.warn(`Seção ${key} falhou após ${MAX_TENTATIVAS} tentativas — pulando:`, err?.message);
-          return false;
+        console.warn(`[gerarSecao] ✗ ${key} tentativa ${tentativa}:`, err?.message);
+        if (tentativa < MAX_TENTATIVAS) {
+          await new Promise(r => setTimeout(r, 3000));
         }
-        const espera = 4000 * tentativa;
-        console.warn(`Seção ${key} tentativa ${tentativa} — retry em ${espera}ms`);
-        await new Promise(r => setTimeout(r, espera));
       }
     }
+    console.warn(`[gerarSecao] Pulando ${key} após ${MAX_TENTATIVAS} tentativas.`);
     return false;
   }
 
