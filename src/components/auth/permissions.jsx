@@ -90,7 +90,6 @@ export const OBSERVADOR_PAGES = new Set([
   'Movimentacoes',
   'LeitorNoticias',
   'Relatorios',
-  'BancoRelatorios',
   'AuditoriaInstitucional',
   'Mensagens',
   'Aparencia',
@@ -163,6 +162,7 @@ export const COORDENADOR_ONLY_PAGES = new Set([
   'RelatorioMeta',
   'GestorArquivos',
   'RelatorioAtividadesFotos',
+  'BancoRelatorios',
 ]);
 
 export function canAccessPage(pageName, user, userPermission) {
