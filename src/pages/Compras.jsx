@@ -26,7 +26,8 @@ import {
   FileSpreadsheet,
   AlertTriangle,
   Scissors,
-  Loader2 } from
+  Loader2,
+  X } from
 'lucide-react';
 
 import RequireAuth from '@/components/auth/RequireAuth';
@@ -371,7 +372,15 @@ function ComprasInner() {
     return Array.from(centros).sort((a, b) => a.localeCompare(b, 'pt-BR'));
   }, [purchasesWithFlags]);
 
+  const STATUS_PENDENTES = new Set(['RASCUNHO', 'SOLICITADO', 'DEVOLVIDO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'APROVADO']);
+
   const filtered = purchasesWithFlags.filter((p) => {
+    // Filtro rápido "pendentes desde fev": exclui pagos, cancelados e recusados
+    if (filters._pendentes_fev) {
+      const st = normalizeStatus(p.status);
+      if (!STATUS_PENDENTES.has(st)) return false;
+    }
+
     const matchStatus =
     filters.status === 'all' || normalizeStatus(p.status) === filters.status;
 
@@ -1105,6 +1114,63 @@ function ComprasInner() {
 
         {tab === 'lista' &&
         <div>
+            {/* Atalho rápido: pendentes desde fevereiro */}
+            <div className="mb-3 flex flex-wrap gap-2 items-center">
+              <button
+                type="button"
+                onClick={() => setFilters(f => ({
+                  ...f,
+                  status: 'all',
+                  data_inicio: '2026-02-01',
+                  data_fim: '',
+                  _pendentes_fev: true,
+                }))}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${
+                  filters._pendentes_fev
+                    ? 'border-amber-500 bg-amber-500 text-white shadow'
+                    : 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100'
+                }`}
+              >
+                <AlertTriangle className="h-3.5 w-3.5" />
+                Pendentes desde Fev/26
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilters(f => ({
+                  ...f,
+                  status: 'SOLICITADO',
+                  data_inicio: '2026-02-01',
+                  data_fim: '',
+                  _pendentes_fev: false,
+                }))}
+                className="inline-flex items-center gap-1.5 rounded-full border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-800 hover:bg-blue-100 transition-all"
+              >
+                🕐 Aguardando aprovação
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilters(f => ({
+                  ...f,
+                  status: 'APROVADO_COORD',
+                  data_inicio: '2026-02-01',
+                  data_fim: '',
+                  _pendentes_fev: false,
+                }))}
+                className="inline-flex items-center gap-1.5 rounded-full border border-green-300 bg-green-50 px-3 py-1.5 text-xs font-medium text-green-800 hover:bg-green-100 transition-all"
+              >
+                💳 Aprovados sem pagamento
+              </button>
+              {(filters.data_inicio || filters._pendentes_fev) && (
+                <button
+                  type="button"
+                  onClick={() => setFilters(f => ({ ...f, status: 'all', data_inicio: '', data_fim: '', _pendentes_fev: false }))}
+                  className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-red-500 transition-colors"
+                >
+                  <X className="h-3.5 w-3.5" /> Limpar filtros rápidos
+                </button>
+              )}
+            </div>
+
             <div className="mb-4 flex flex-wrap gap-2">
               <div className="relative min-w-48 flex-1">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
