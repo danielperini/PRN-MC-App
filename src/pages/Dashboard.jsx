@@ -17,6 +17,7 @@ import ExecutiveIndicators from '../components/dashboard/ExecutiveIndicators';
 import MetasAditivoSection from '../components/dashboard/MetasAditivoSection';
 import ResumoAtividadesPorMeta from '../components/dashboard/ResumoAtividadesPorMeta';
 import MetasCumprimentoPorMuseu from '../components/dashboard/MetasCumprimentoPorMuseu';
+import CumprimentoMetasFisicas from '../components/dashboard/CumprimentoMetasFisicas';
 
 import DashboardProfissional from './DashboardProfissional.jsx';
 import DashboardPatrocinador from './DashboardPatrocinador';
@@ -142,6 +143,8 @@ function DashboardCoordenadorView({
         <MetasCumprimentoPorMuseu rubricas={rubricas} />
 
         <MetasAditivoSection rubricas={rubricas} />
+
+        <CumprimentoMetasFisicas />
 
         <ResumoAtividadesPorMeta />
       </div>
@@ -540,6 +543,7 @@ function DashboardInner() {
           <NewsCarousel />
           <DiariamenteNosMuseus />
           <MetasAditivoSection rubricas={rubricas} />
+          <CumprimentoMetasFisicas />
           <ResumoAtividadesPorMeta />
           <DashboardPatrocinador />
         </div>
