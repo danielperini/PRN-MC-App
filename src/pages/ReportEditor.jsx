@@ -35,8 +35,9 @@ import ReleasePanelEditor from '@/components/reports/ReleasePanelEditor';
 import ReportSectionSelector from '@/components/reports/ReportSectionSelector';
 import PagamentosTabelaDetalhada from '@/components/reports/PagamentosTabelaDetalhada';
 
+// Apenas meses relevantes a partir de fevereiro de 2026
 const MESES = [
-  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
 ];
 

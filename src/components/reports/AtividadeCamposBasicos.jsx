@@ -11,25 +11,35 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+// Fallback com apenas metas do 3º e 4º Aditivo (ordem 1-25)
 const METAS_FALLBACK = [
   { id: '1 - Contratação da equipe principal', label: '1 - Contratação da equipe principal' },
+  { id: '2 - Comunicação nacional', label: '2 - Comunicação nacional' },
   { id: '3 - Manutenção de exposições', label: '3 - Manutenção de exposições' },
+  { id: '4 - Alteração núcleos MUMO e MIS', label: '4 - Alteração núcleos MUMO e MIS' },
+  { id: '5 - 60 ações educativas', label: '5 - 60 ações educativas' },
+  { id: '6 - 36 ações culturais', label: '6 - 36 ações culturais' },
   { id: '7 - Educador', label: '7 - Educador' },
+  { id: '8 - Exposição MHAB', label: '8 - Exposição MHAB' },
+  { id: '9 - Exposição MIS', label: '9 - Exposição MIS' },
   { id: '10 - 18 pequenas mostras', label: '10 - 18 pequenas mostras' },
   { id: '11 - Noturno nos Museus Ed. 2026', label: '11 - Noturno nos Museus Ed. 2026' },
+  { id: '11A - Noturno 2026', label: '11A - Noturno 2026' },
+  { id: '11B - Noturno Pampulha', label: '11B - Noturno Pampulha' },
+  { id: '12 - Curadoria MHAB', label: '12 - Curadoria MHAB' },
+  { id: '13 - Curadoria MUMO', label: '13 - Curadoria MUMO' },
   { id: '14 - Acessibilidade', label: '14 - Acessibilidade' },
+  { id: '15 - Leis de Incentivo', label: '15 - Leis de Incentivo' },
   { id: '16 - 101 Diárias', label: '16 - 101 Diárias' },
   { id: '17 - Publicações', label: '17 - Publicações' },
   { id: '18 - Custeios atividades educativas', label: '18 - Custeios atividades educativas' },
+  { id: '19 - Presença de Iemanjá', label: '19 - Presença de Iemanjá' },
   { id: '20 - 30 ações educativas e culturais', label: '20 - 30 ações educativas e culturais' },
   { id: '21 - Exposição MUMO', label: '21 - Exposição MUMO' },
   { id: '22 - Consultorias', label: '22 - Consultorias' },
   { id: '23 - Despesas Gerais', label: '23 - Despesas Gerais' },
   { id: '24 - Emenda Parlamentar', label: '24 - Emenda Parlamentar' },
   { id: '25 - Outras Ações', label: '25 - Outras Ações' },
-  { id: 'Meta de comunicação institucional', label: 'Meta de comunicação institucional' },
-  { id: 'Rotina', label: 'Rotina' },
-  { id: 'Extra', label: 'Extra' },
 ];
 
 function Field({ label, children }) {

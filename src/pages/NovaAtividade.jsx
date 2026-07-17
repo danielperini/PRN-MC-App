@@ -23,36 +23,47 @@ const CLASSIFICACOES = [
 
 const MUSEUS = ['MHAB', 'MIS', 'MUMO', 'Geral'];
 
+// Apenas meses relevantes a partir de fevereiro de 2026
 const MESES = [
-  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
 ];
 
+// Apenas metas do 3º e 4º Aditivo
 const METAS_FALLBACK = [
   { id: '1 - Contratação da equipe principal', nome: '1 - Contratação da equipe principal' },
+  { id: '2 - Comunicação nacional', nome: '2 - Comunicação nacional' },
   { id: '3 - Manutenção de exposições', nome: '3 - Manutenção de exposições' },
+  { id: '4 - Alteração núcleos MUMO e MIS', nome: '4 - Alteração núcleos MUMO e MIS' },
+  { id: '5 - 60 ações educativas', nome: '5 - 60 ações educativas' },
+  { id: '6 - 36 ações culturais', nome: '6 - 36 ações culturais' },
   { id: '7 - Educador', nome: '7 - Educador' },
+  { id: '8 - Exposição MHAB', nome: '8 - Exposição MHAB' },
+  { id: '9 - Exposição MIS', nome: '9 - Exposição MIS' },
   { id: '10 - 18 pequenas mostras', nome: '10 - 18 pequenas mostras' },
   { id: '11 - Noturno nos Museus Ed. 2026', nome: '11 - Noturno nos Museus Ed. 2026' },
   { id: '11A - Noturno 2026', nome: '11A - Noturno 2026' },
   { id: '11B - Noturno Pampulha', nome: '11B - Noturno Pampulha' },
+  { id: '12 - Curadoria MHAB', nome: '12 - Curadoria MHAB' },
+  { id: '13 - Curadoria MUMO', nome: '13 - Curadoria MUMO' },
   { id: '14 - Acessibilidade', nome: '14 - Acessibilidade' },
+  { id: '15 - Leis de Incentivo', nome: '15 - Leis de Incentivo' },
   { id: '16 - 101 Diárias', nome: '16 - 101 Diárias' },
   { id: '17 - Publicações', nome: '17 - Publicações' },
   { id: '18 - Custeios atividades educativas', nome: '18 - Custeios atividades educativas' },
+  { id: '19 - Presença de Iemanjá', nome: '19 - Presença de Iemanjá' },
   { id: '20 - 30 ações educativas e culturais', nome: '20 - 30 ações educativas e culturais' },
   { id: '21 - Exposição MUMO', nome: '21 - Exposição MUMO' },
   { id: '22 - Consultorias', nome: '22 - Consultorias' },
   { id: '23 - Despesas Gerais', nome: '23 - Despesas Gerais' },
   { id: '24 - Emenda Parlamentar', nome: '24 - Emenda Parlamentar' },
   { id: '25 - Outras Ações', nome: '25 - Outras Ações' },
-  { id: 'Meta de comunicação institucional', nome: 'Meta de comunicação institucional' },
-  { id: 'Rotina', nome: 'Rotina' },
-  { id: 'Extra', nome: 'Extra' },
 ];
 
 const ANO_ATUAL = new Date().getFullYear();
-const MES_ATUAL = MESES[new Date().getMonth()];
+// Default para o mês atual, mas nunca antes de Fevereiro
+const _mesIndex = new Date().getMonth(); // 0=Jan
+const MES_ATUAL = MESES[Math.max(0, _mesIndex - 1)] || MESES[0]; // -1 pois removemos Janeiro
 
 export default function NovaAtividade() {
   const { user } = useCurrentUser();
@@ -89,7 +100,12 @@ export default function NovaAtividade() {
       try {
         const list = await base44.entities.ProjectMeta.list('ordem', 500);
         const ativos = (list || [])
-          .filter((meta) => meta.ativo !== false)
+          .filter((meta) => {
+            if (meta.ativo === false) return false;
+            // Apenas metas do 3º e 4º Aditivo (ordem 1 a 25)
+            const ordem = Number(meta.ordem);
+            return Number.isFinite(ordem) && ordem >= 1 && ordem <= 25;
+          })
           .map((meta) => ({
             id: meta.id || meta.nome,
             nome: meta.nome || meta.descricao || meta.id,

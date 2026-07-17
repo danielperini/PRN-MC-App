@@ -156,11 +156,16 @@ export default function AtividadesSection({
   });
 
   const { data: metas = [] } = useQuery({
-    queryKey: ['project-metas'],
+    queryKey: ['project-metas-3-4-aditivo'],
     queryFn: async () => {
-      const res = await base44.entities.ProjectMeta.list('nome', 1000);
+      const res = await base44.entities.ProjectMeta.list('ordem', 1000);
       return (Array.isArray(res) ? res : [])
-        .filter((m) => m.ativo !== false)
+        .filter((m) => {
+          if (m.ativo === false) return false;
+          // Apenas metas do 3º e 4º Aditivo: ordem numérica de 1 a 25
+          const ordem = Number(m.ordem);
+          return Number.isFinite(ordem) && ordem >= 1 && ordem <= 25;
+        })
         .map((m) => ({
           id: m.id,
           label: m.nome,
