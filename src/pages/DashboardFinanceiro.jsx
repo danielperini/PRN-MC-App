@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import RequireAuth from '../components/auth/RequireAuth';
 import { useCurrentUser } from '../components/auth/useCurrentUser';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { DollarSign, TrendingUp, AlertCircle, Filter, Plus } from 'lucide-react';
+import { DollarSign, TrendingUp, AlertCircle, Filter, Plus, CheckCircle2, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toastMessages } from '@/lib/toastMessages';
@@ -63,6 +63,19 @@ function DashboardFinanceiroInner() {
     queryFn: async () => {
       try {
         const data = await base44.entities.InvoiceSubmission.list('-data_submissao', 500);
+        return Array.isArray(data) ? data : [];
+      } catch {
+        return [];
+      }
+    }
+  });
+
+  // Rubricas ativas para cálculo de saldo real
+  const { data: rubricas = [] } = useQuery({
+    queryKey: ['rubricas-ativas-dashboard'],
+    queryFn: async () => {
+      try {
+        const data = await base44.entities.Rubrica.filter({ ativo: true }, 'grupo', 500);
         return Array.isArray(data) ? data : [];
       } catch {
         return [];
@@ -151,6 +164,45 @@ function DashboardFinanceiroInner() {
     return { totalTermos, totalPagamentos, totalInvoices, totalGasto };
   }, [termos, pagamentos, invoices]);
 
+  // Saldo real por aditivo (3º e 4º) — rubricas ativas
+  const saldoAditivos = useMemo(() => {
+    const aditivosLabels = {
+      '3': '3º Aditivo',
+      '4': '4º Aditivo',
+    };
+
+    const grupos = { '3': { previsto: 0, utilizado: 0, count: 0 }, '4': { previsto: 0, utilizado: 0, count: 0 } };
+
+    rubricas.forEach(r => {
+      const origem = (r.origem_recurso || '').toLowerCase();
+      let chave = null;
+      if (origem.includes('3')) chave = '3';
+      else if (origem.includes('4')) chave = '4';
+      if (!chave) return;
+
+      grupos[chave].previsto += r.valor_rubrica || r.valor_total || 0;
+      grupos[chave].utilizado += r.valor_utilizado || 0;
+      grupos[chave].count += 1;
+    });
+
+    return Object.entries(grupos).map(([chave, g]) => ({
+      label: aditivosLabels[chave],
+      previsto: g.previsto,
+      utilizado: g.utilizado,
+      saldo: g.previsto - g.utilizado,
+      percentual: g.previsto > 0 ? Math.min(100, (g.utilizado / g.previsto) * 100) : 0,
+      count: g.count,
+    }));
+  }, [rubricas]);
+
+  const saldoTotalReal = useMemo(() => {
+    const previsto = saldoAditivos.reduce((s, a) => s + a.previsto, 0);
+    const utilizado = saldoAditivos.reduce((s, a) => s + a.utilizado, 0);
+    return { previsto, utilizado, saldo: previsto - utilizado };
+  }, [saldoAditivos]);
+
+  const fmt = (v) => v >= 1000 ? `R$ ${(v / 1000).toFixed(1)}k` : `R$ ${v.toFixed(2)}`;
+
   const COLORS = ['#000000', '#333333', '#666666', '#999999', '#cccccc'];
 
   return (
@@ -204,6 +256,69 @@ function DashboardFinanceiroInner() {
             <p className="text-3xl font-bold text-black mt-2">
               R$ {(stats.totalInvoices / 1000).toFixed(1)}k
             </p>
+          </div>
+        </div>
+
+        {/* Saldo Real — 3º e 4º Aditivo */}
+        <div className="mb-8 rounded-2xl border border-gray-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Wallet className="w-5 h-5 text-black" />
+              <h2 className="text-lg font-semibold text-black">Saldo Real — 3º e 4º Aditivo</h2>
+            </div>
+            <span className="text-xs text-gray-400">Apenas rubricas ativas ({rubricas.length})</span>
+          </div>
+
+          {/* Totalizador geral */}
+          <div className="grid grid-cols-3 divide-x divide-gray-100 bg-gray-50">
+            <div className="px-6 py-4 text-center">
+              <p className="text-xs text-gray-500 mb-1">Total Previsto</p>
+              <p className="text-xl font-bold text-black">{fmt(saldoTotalReal.previsto)}</p>
+            </div>
+            <div className="px-6 py-4 text-center">
+              <p className="text-xs text-gray-500 mb-1">Total Utilizado</p>
+              <p className="text-xl font-bold text-gray-700">{fmt(saldoTotalReal.utilizado)}</p>
+            </div>
+            <div className="px-6 py-4 text-center">
+              <p className="text-xs text-gray-500 mb-1">Saldo Disponível</p>
+              <p className={`text-xl font-bold ${saldoTotalReal.saldo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {fmt(saldoTotalReal.saldo)}
+              </p>
+            </div>
+          </div>
+
+          {/* Detalhes por aditivo */}
+          <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-100">
+            {saldoAditivos.map(a => (
+              <div key={a.label} className="px-6 py-5">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-black">{a.label}</h3>
+                  <span className="text-xs text-gray-400">{a.count} rubricas</span>
+                </div>
+                <div className="grid grid-cols-3 gap-3 mb-4 text-sm">
+                  <div>
+                    <p className="text-gray-500 text-xs">Previsto</p>
+                    <p className="font-semibold text-black">{fmt(a.previsto)}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500 text-xs">Utilizado</p>
+                    <p className="font-semibold text-gray-700">{fmt(a.utilizado)}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500 text-xs">Saldo</p>
+                    <p className={`font-semibold ${a.saldo >= 0 ? 'text-green-600' : 'text-red-600'}`}>{fmt(a.saldo)}</p>
+                  </div>
+                </div>
+                {/* Barra de progresso */}
+                <div className="w-full bg-gray-100 rounded-full h-2">
+                  <div
+                    className={`h-2 rounded-full transition-all ${a.percentual >= 90 ? 'bg-red-500' : a.percentual >= 70 ? 'bg-yellow-500' : 'bg-black'}`}
+                    style={{ width: `${a.percentual}%` }}
+                  />
+                </div>
+                <p className="text-xs text-gray-400 mt-1">{a.percentual.toFixed(1)}% utilizado</p>
+              </div>
+            ))}
           </div>
         </div>
 
