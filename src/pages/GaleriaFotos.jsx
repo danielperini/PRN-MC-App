@@ -5,13 +5,14 @@ import LoadingPage from '@/components/common/LoadingPage';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Images, MapPin, RefreshCw, X, Filter, FolderSync, Sparkles, CheckCircle2, GitMerge } from 'lucide-react';
+import { Images, MapPin, RefreshCw, X, Filter, FolderSync, Sparkles, CheckCircle2, GitMerge, Moon } from 'lucide-react';
 import { loadGalleryReportData } from '@/utils/galleryReportData';
 import RestaurarFotosDrive from '@/components/gallery/RestaurarFotosDrive';
+import AlbumNoturno from '@/components/gallery/AlbumNoturno';
 import { base44 } from '@/api/base44Client';
 
-const INITIAL_VISIBLE_IMAGES = 36;
-const VISIBLE_IMAGES_STEP = 36;
+const INITIAL_VISIBLE_IMAGES = 60;
+const VISIBLE_IMAGES_STEP = 60;
 const GALLERY_CACHE_KEY = 'museus_centro_galeria_fotos_cache_v2';
 const GALLERY_CACHE_TTL_MS = 10 * 60 * 1000;
 
@@ -19,6 +20,9 @@ const SECTION_LABELS = {
   MHAB: 'MHAB — Museu Histórico Abílio Barreto',
   MIS: 'MIS — Museu da Imagem e do Som de Belo Horizonte',
   MUMO: 'MUMO — Museu da Moda de Belo Horizonte',
+  'Album-Noturno-2026': '🌙 Noturno nos Museus — Álbum Curado',
+  'Noturno nos Museus': '🌙 Noturno nos Museus',
+  'Noturno 2026': '🌙 Noturno nos Museus 2026',
   SEM_IDENTIFICACAO: 'Sem identificação de museu',
 };
 
@@ -124,6 +128,7 @@ function GaleriaFotosInner() {
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_IMAGES);
   const [selectedImage, setSelectedImage] = useState(null);
   const [showRestaurar, setShowRestaurar] = useState(false);
+  const [showAlbumNoturno, setShowAlbumNoturno] = useState(false);
   const [reforçandoLegendas, setReforçandoLegendas] = useState(false);
   const [legendasStatus, setLegendasStatus] = useState(null);
   const [sincronizando, setSincronizando] = useState(false);
@@ -140,8 +145,8 @@ function GaleriaFotosInner() {
   } = useQuery({
     queryKey: ['galeria-fotos-stable-v1'],
     queryFn: async () => loadGalleryReportData({
-      limitMedia: 120,
-      limitAttachments: 180,
+      limitMedia: 300,
+      limitAttachments: 500,
       useCache: true,
       cacheKey: GALLERY_CACHE_KEY,
       cacheTtlMs: GALLERY_CACHE_TTL_MS,
@@ -259,6 +264,14 @@ function GaleriaFotosInner() {
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
+              onClick={() => { setShowAlbumNoturno(v => !v); setShowRestaurar(false); }}
+              className={`inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium shadow-sm transition-colors ${showAlbumNoturno ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-indigo-300 bg-indigo-50 text-indigo-800 hover:bg-indigo-100'}`}
+            >
+              <Moon className="h-4 w-4" />
+              Álbum Noturno
+            </button>
+            <button
+              type="button"
               onClick={() => setShowRestaurar(v => !v)}
               className={`inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium shadow-sm transition-colors ${showRestaurar ? 'border-black bg-black text-white' : 'border-gray-300 bg-white text-gray-800 hover:bg-gray-100'}`}
             >
@@ -345,6 +358,13 @@ function GaleriaFotosInner() {
             <CheckCircle2 className="h-4 w-4 shrink-0" />
             <span>{legendasStatus}</span>
             <button type="button" onClick={() => setLegendasStatus(null)} className="ml-auto text-purple-400 hover:text-purple-700"><X className="h-4 w-4" /></button>
+          </div>
+        )}
+
+        {/* Painel Álbum Noturno */}
+        {showAlbumNoturno && (
+          <div className="mb-6">
+            <AlbumNoturno onClose={() => setShowAlbumNoturno(false)} />
           </div>
         )}
 
