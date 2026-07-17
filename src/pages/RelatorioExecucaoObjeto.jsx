@@ -165,87 +165,137 @@ export default function RelatorioExecucaoObjeto() {
     }));
   }
 
-  const SECOES_GERACAO = [
-    { key: 'identificacao',              label: 'Identificação do projeto' },
-    { key: 'endereco_execucao',          label: 'Endereço de execução' },
-    { key: 'divulgacao_parceria',        label: 'Divulgação da parceria' },
-    { key: 'descricao_acoes',            label: 'Descrição das ações' },
-    { key: 'publico_alvo',               label: 'Público-alvo' },
-    { key: 'pesquisa_satisfacao',        label: 'Pesquisa de satisfação' },
-    { key: 'cronograma_metas',           label: 'Cronograma de metas' },
-    { key: 'equipe_trabalho',            label: 'Equipe de trabalho' },
-    { key: 'impactos_economicos_sociais',label: 'Impactos econômicos e sociais' },
-    { key: 'avaliacao_parceria',         label: 'Avaliação da parceria' },
-    { key: 'anexos_evidencias',          label: 'Anexos e evidências' },
-    { key: 'assinatura',                 label: 'Assinatura' },
-    { key: 'auditoria',                  label: 'Auditoria de pendências' },
+  // Seções divididas em grupos pequenos — 2-3 seções por grupo para evitar timeout
+  const GRUPOS_GERACAO = [
+    [
+      { key: 'identificacao',       label: 'Identificação do projeto' },
+      { key: 'endereco_execucao',   label: 'Endereço de execução' },
+    ],
+    [
+      { key: 'divulgacao_parceria', label: 'Divulgação da parceria' },
+      { key: 'descricao_acoes',     label: 'Descrição das ações' },
+    ],
+    [
+      { key: 'publico_alvo',        label: 'Público-alvo' },
+      { key: 'pesquisa_satisfacao', label: 'Pesquisa de satisfação' },
+    ],
+    [
+      { key: 'cronograma_metas',    label: 'Cronograma de metas' },
+    ],
+    [
+      { key: 'equipe_trabalho',     label: 'Equipe de trabalho' },
+      { key: 'impactos_economicos_sociais', label: 'Impactos econômicos e sociais' },
+    ],
+    [
+      { key: 'avaliacao_parceria',  label: 'Avaliação da parceria' },
+      { key: 'anexos_evidencias',   label: 'Anexos e evidências' },
+    ],
+    [
+      { key: 'assinatura',          label: 'Assinatura' },
+      { key: 'auditoria',           label: 'Auditoria de pendências' },
+    ],
   ];
+
+  async function gerarSecaoComRetry(rid, key, params) {
+    for (let tentativa = 1; tentativa <= 2; tentativa++) {
+      try {
+        await Promise.race([
+          base44.functions.invoke('gerarSecaoRelatorioExecucao', { relatorio_id: rid, secao: key, ...params }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error(`Timeout`)), 50000)),
+        ]);
+        return; // sucesso
+      } catch (err) {
+        if (tentativa === 2) console.warn(`Seção ${key} falhou após 2 tentativas:`, err?.message);
+        else await new Promise(r => setTimeout(r, 3000)); // pausa 3s antes de retry
+      }
+    }
+  }
 
   async function iniciarGeracao() {
     if (form.filtro_meta_ids.length === 0) {
       toast.error('Selecione ao menos uma meta para gerar o relatório.');
       return;
     }
+
+    const confirmou = window.confirm(
+      '⏱ Geração de relatório\n\nO processo leva aproximadamente 8 a 12 minutos, processando seção por seção com pausas para não sobrecarregar a IA.\n\nVocê poderá editar as seções assim que o rascunho estiver criado (em cerca de 30 segundos). A geração continua em segundo plano.\n\nDeseja continuar?'
+    );
+    if (!confirmou) return;
+
     setLoading(true);
     setRelatorio(null);
-    setProgresso({ valor: 2, texto: 'Criando relatório...' });
+    setProgresso({ valor: 2, texto: 'Criando rascunho do relatório...' });
+
+    let rid = null;
     try {
-      const res = await base44.functions.invoke('iniciarRelatorioExecucao', {
-        ...form,
-        aditivos_permitidos: [3, 4],
-        excluir_metas_anteriores: true,
-      });
-      // SDK pode encapsular em .data ou retornar direto
-      const rid = res?.data?.relatorio_id || res?.relatorio_id || res?.data?.id || res?.id;
+      const res = await Promise.race([
+        base44.functions.invoke('iniciarRelatorioExecucao', {
+          ...form,
+          aditivos_permitidos: [3, 4],
+          excluir_metas_anteriores: true,
+        }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout ao criar rascunho (>30s)')), 30000)),
+      ]);
+
+      rid = res?.data?.relatorio_id || res?.relatorio_id || res?.data?.id || res?.id;
       if (!rid) {
-        console.error('[iniciarRelatorio] Resposta recebida:', JSON.stringify(res));
-        throw new Error(res?.data?.error || res?.error || 'O backend não retornou o identificador do relatório.');
+        console.error('[iniciarRelatorio] Resposta:', JSON.stringify(res));
+        throw new Error(res?.data?.error || res?.error || 'Backend não retornou o ID do relatório.');
       }
+
       setRelatorioId(rid);
-
-      // Gerar seção por seção para evitar timeout
-      const total = SECOES_GERACAO.length;
-      for (let i = 0; i < total; i++) {
-        const { key, label } = SECOES_GERACAO[i];
-        const pct = Math.round(5 + ((i / total) * 90));
-        setProgresso({ valor: pct, texto: `(${i + 1}/${total}) ${label}...` });
-        try {
-          // Timeout por seção: 55s (evita travar indefinidamente)
-          await Promise.race([
-            base44.functions.invoke('gerarSecaoRelatorioExecucao', {
-              relatorio_id: rid,
-              secao: key,
-              data_inicio: form.data_inicio,
-              data_fim: form.data_fim,
-              filtro_museu: form.filtro_museu,
-              filtro_versao: form.filtro_versao,
-              filtro_meta_ids: form.filtro_meta_ids,
-              aditivos_permitidos: [3, 4],
-            }),
-            new Promise((_, reject) => setTimeout(() => reject(new Error(`Timeout na seção ${key}`)), 55000)),
-          ]);
-        } catch (err) {
-          console.warn(`Seção ${key} falhou (continuando):`, err?.message);
-          // Continua para próxima seção mesmo com timeout
-        }
-        // Pequena pausa entre seções para evitar sobrecarga
-        await new Promise(r => setTimeout(r, 200));
-      }
-
-      setProgresso({ valor: 97, texto: 'Finalizando e carregando...' });
-      await base44.functions.invoke('gerarSecaoRelatorioExecucao', {
-        relatorio_id: rid, secao: 'finalizar',
-      }).catch(() => {});
-
+      // Carrega rascunho imediatamente para o usuário já poder editar
       await carregarRelatorio(rid);
       await carregarRelatorios();
-      setProgresso({ valor: 100, texto: 'Relatório concluído.' });
-      toast.success('Relatório gerado com sucesso — seção por seção, sem timeout.', { duration: 8000 });
+      setProgresso({ valor: 5, texto: 'Rascunho criado ✓ — gerando seções com IA (pode levar ~10 min)...' });
+      toast.info('Rascunho criado! As seções serão preenchidas uma a uma. Você pode editar manualmente enquanto aguarda.', { duration: 10000 });
     } catch (error) {
-      toast.error('Erro ao gerar relatório: ' + (error?.message || String(error)), { duration: 12000 });
-    } finally {
+      toast.error('Erro ao criar rascunho: ' + (error?.message || String(error)), { duration: 12000 });
       setLoading(false);
+      return;
     }
+
+    // Gerar grupos de seções com pausas longas entre grupos
+    const totalGrupos = GRUPOS_GERACAO.length;
+    const params = {
+      data_inicio: form.data_inicio,
+      data_fim: form.data_fim,
+      filtro_museu: form.filtro_museu,
+      filtro_versao: form.filtro_versao,
+      filtro_meta_ids: form.filtro_meta_ids,
+      aditivos_permitidos: [3, 4],
+    };
+
+    for (let gi = 0; gi < totalGrupos; gi++) {
+      const grupo = GRUPOS_GERACAO[gi];
+      const pct = Math.round(5 + ((gi / totalGrupos) * 88));
+
+      for (let si = 0; si < grupo.length; si++) {
+        const { key, label } = grupo[si];
+        setProgresso({ valor: pct + si, texto: `Grupo ${gi + 1}/${totalGrupos} — ${label}...` });
+        await gerarSecaoComRetry(rid, key, params);
+        // Pausa entre seções do mesmo grupo
+        await new Promise(r => setTimeout(r, 1500));
+      }
+
+      // Atualiza o relatório visível após cada grupo
+      try { await carregarRelatorio(rid); } catch (_) {}
+
+      // Pausa entre grupos — 5s — para aliviar pressão nos servidores
+      if (gi < totalGrupos - 1) {
+        setProgresso({ valor: pct + grupo.length, texto: `⏳ Pausa entre grupos (${gi + 1}/${totalGrupos} concluído)...` });
+        await new Promise(r => setTimeout(r, 5000));
+      }
+    }
+
+    // Finalização
+    setProgresso({ valor: 97, texto: 'Finalizando...' });
+    await base44.functions.invoke('gerarSecaoRelatorioExecucao', { relatorio_id: rid, secao: 'finalizar' }).catch(() => {});
+    await carregarRelatorio(rid);
+    await carregarRelatorios();
+    setProgresso({ valor: 100, texto: 'Relatório concluído ✓' });
+    setLoading(false);
+    toast.success('Relatório gerado com sucesso! Todas as seções preenchidas.', { duration: 10000 });
   }
 
   async function excluirRelatorio(item) {
@@ -610,7 +660,17 @@ export default function RelatorioExecucaoObjeto() {
             <div className="text-xs text-slate-600">{form.filtro_meta_ids.length} meta(s) selecionada(s).</div>
           </div>
 
-          <Button onClick={iniciarGeracao} disabled={loading || form.filtro_meta_ids.length === 0}>{loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />}{loading ? 'Gerando relatório...' : 'Gerar relatório'}</Button>
+          <div className="flex items-center gap-3 flex-wrap">
+            <Button onClick={iniciarGeracao} disabled={loading || form.filtro_meta_ids.length === 0}>
+              {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />}
+              {loading ? 'Gerando relatório...' : 'Gerar relatório'}
+            </Button>
+            {!loading && form.filtro_meta_ids.length > 0 && (
+              <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+                ⏱ ~8–12 min • Rascunho disponível em ~30s para edição manual imediata
+              </span>
+            )}
+          </div>
         </CardContent>
       </Card>
 
