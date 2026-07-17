@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { exportarAtividadesFotosPDF } from '@/components/relatorio/ExportarAtividadesFotosPDF';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,7 +9,7 @@ import { exportarRelatorioHTML } from '@/components/relatorio/ExportarRelatorioH
 import {
   CheckCircle2, XCircle, AlertTriangle, Download, ExternalLink,
   FileText, Users, BarChart2, Link2, ClipboardCheck, X, Loader2,
-  CheckSquare, Square, Code2
+  CheckSquare, Square, Code2, Camera
 } from 'lucide-react';
 
 function fmtBRL(v) {
@@ -573,6 +574,31 @@ export default function RevisaoFinalDialog({ relatorioId, relatorio, onClose }) 
               >
                 <Code2 className="w-3.5 h-3.5" />
                 HTML Editável
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={async () => {
+                  setExportando(true);
+                  try {
+                    await exportarAtividadesFotosPDF(
+                      r,
+                      r._atividades_com_fotos || [],
+                      r._fotos_galeria || []
+                    );
+                    toast.success('PDF de Atividades + Fotos (SUCC) gerado.');
+                  } catch (e) {
+                    toast.error('Erro ao gerar PDF: ' + e.message);
+                  } finally {
+                    setExportando(false);
+                  }
+                }}
+                disabled={exportando}
+                className="gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                title="Gera PDF com atividades + fotos no formato exigido pelo SUCC/PBH"
+              >
+                {exportando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
+                Atividades + Fotos
               </Button>
             </div>
           </div>
