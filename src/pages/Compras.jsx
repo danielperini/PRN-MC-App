@@ -62,6 +62,7 @@ import RubricasConsumoDashboard from '@/components/compras/RubricasConsumoDashbo
 import RecalcularTotaisButton from '@/components/compras/RecalcularTotaisButton';
 import PainelVerificacaoFinanceira from '@/components/compras/PainelVerificacaoFinanceira';
 import PainelAuditoriaMetas from '@/components/compras/PainelAuditoriaMetas';
+import ConferenciaExtratosVsPagamentos from '@/components/compras/ConferenciaExtratosVsPagamentos';
 import { canManageRubricas } from '@/components/auth/permissions';
 import { normalizeStatus, isStatusPendente, isStatusAprovado, getStatusLabel, getStatusColor } from '@/lib/normalizeStatus';
 
@@ -1641,6 +1642,9 @@ function ComprasInner() {
         <div className="space-y-6">
             <PainelVerificacaoFinanceira onSuccess={refreshFinanceiroCompleto} />
             <PainelAuditoriaMetas onSuccess={refreshFinanceiroCompleto} />
+            <div className="rounded-2xl border border-gray-200 bg-white p-4">
+              <ConferenciaExtratosVsPagamentos />
+            </div>
           </div>
         }
 
