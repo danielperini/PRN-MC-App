@@ -5,7 +5,7 @@ import LoadingPage from '@/components/common/LoadingPage';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Images, MapPin, RefreshCw, X, Filter, FolderSync, Sparkles, CheckCircle2, GitMerge, Moon, ExternalLink, BookImage, ChevronDown, Loader2, Settings2, Eye, HardDriveDownload, TriangleAlert, FolderSearch } from 'lucide-react';
+import { Images, MapPin, RefreshCw, X, Filter, FolderSync, Sparkles, CheckCircle2, GitMerge, Moon, ExternalLink, BookImage, ChevronDown, Loader2, Settings2, Eye, HardDriveDownload, TriangleAlert, FolderSearch, Pencil, Check } from 'lucide-react';
 import VarreduraDriveNoturno from '@/components/gallery/VarreduraDriveNoturno';
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
@@ -169,6 +169,9 @@ function GaleriaFotosInner() {
   const [emailingPhotos, setEmailingPhotos] = useState(null);
   const [sincronizando, setSincronizando] = useState(false);
   const [syncStatus, setSyncStatus] = useState(null);
+  const [editingAlbumKey, setEditingAlbumKey] = useState(null);
+  const [albumLabels, setAlbumLabels] = useState({});
+  const [editingAlbumValue, setEditingAlbumValue] = useState('');
   const queryClient = useQueryClient();
 
 
@@ -771,9 +774,54 @@ function GaleriaFotosInner() {
             {groupedImages.map(({ key, items }) => (
               <section key={key} className="space-y-4">
                 <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-                  <h2 className="text-xl font-semibold text-black">
-                    {SECTION_LABELS[key] || key}
-                  </h2>
+                  {editingAlbumKey === key ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        autoFocus
+                        type="text"
+                        value={editingAlbumValue}
+                        onChange={e => setEditingAlbumValue(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            setAlbumLabels(prev => ({ ...prev, [key]: editingAlbumValue }));
+                            setEditingAlbumKey(null);
+                          }
+                          if (e.key === 'Escape') setEditingAlbumKey(null);
+                        }}
+                        className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-lg font-semibold text-black focus:outline-none focus:ring-2 focus:ring-black/20"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAlbumLabels(prev => ({ ...prev, [key]: editingAlbumValue }));
+                          setEditingAlbumKey(null);
+                        }}
+                        className="rounded-lg bg-black p-1.5 text-white hover:bg-gray-800"
+                      >
+                        <Check className="h-4 w-4" />
+                      </button>
+                      <button type="button" onClick={() => setEditingAlbumKey(null)} className="rounded-lg border border-gray-300 p-1.5 text-gray-500 hover:bg-gray-50">
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 group">
+                      <h2 className="text-xl font-semibold text-black">
+                        {albumLabels[key] || SECTION_LABELS[key] || key}
+                      </h2>
+                      <button
+                        type="button"
+                        title="Renomear álbum"
+                        onClick={() => {
+                          setEditingAlbumValue(albumLabels[key] || SECTION_LABELS[key] || key);
+                          setEditingAlbumKey(key);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity rounded-lg p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
                   <p className="mt-1 text-xs text-gray-500">
                     {items.length} {items.length === 1 ? 'foto exibida' : 'fotos exibidas'} neste bloco
                   </p>
