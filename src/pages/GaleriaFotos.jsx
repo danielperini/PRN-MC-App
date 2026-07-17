@@ -15,6 +15,7 @@ import { Link } from 'react-router-dom';
 import { loadGalleryReportData } from '@/utils/galleryReportData';
 import RestaurarFotosDrive from '@/components/gallery/RestaurarFotosDrive';
 import AlbumNoturno from '@/components/gallery/AlbumNoturno';
+import AlbumNoturnoProjects from '@/components/gallery/AlbumNoturnoProjects';
 import ImportarFotosPastaAtividades from '@/components/gallery/ImportarFotosPastaAtividades';
 import SincronizarInventarioDialog from '@/components/gallery/SincronizarInventarioDialog';
 import { PhotoActionBar, BulkActionBar, EditCaptionDialog, DeleteConfirmDialog, EmailPhotosDialog } from '@/components/gallery/GalleryPhotoActions';
@@ -161,6 +162,7 @@ function GaleriaFotosInner() {
   const [legendasStatus, setLegendasStatus] = useState(null);
   const [showSincInventario, setShowSincInventario] = useState(false);
   const [showVarreduraNoturno, setShowVarreduraNoturno] = useState(false);
+  const [showAlbumNoturnoProjects, setShowAlbumNoturnoProjects] = useState(false);
   const [selectedPhotos, setSelectedPhotos] = useState([]);
   const [editingPhoto, setEditingPhoto] = useState(null);
   const [deletingPhotos, setDeletingPhotos] = useState(null);
@@ -434,6 +436,19 @@ function GaleriaFotosInner() {
               </DropdownMenuContent>
             </DropdownMenu>
 
+            {/* BOTÃO ÁLBUNS NOTURNO */}
+            <button
+              type="button"
+              onClick={() => setShowAlbumNoturnoProjects(v => !v)}
+              className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium shadow-sm transition-colors
+                ${showAlbumNoturnoProjects
+                  ? 'border-indigo-500 bg-indigo-600 text-white'
+                  : 'border-indigo-300 bg-indigo-50 text-indigo-800 hover:bg-indigo-100'}`}
+            >
+              <Moon className="h-4 w-4" />
+              Álbuns Noturno
+            </button>
+
             {/* 3. Visualizações */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -571,6 +586,13 @@ function GaleriaFotosInner() {
             <CheckCircle2 className="h-4 w-4 shrink-0" />
             <span>{legendasStatus}</span>
             <button type="button" onClick={() => setLegendasStatus(null)} className="ml-auto text-purple-400 hover:text-purple-700"><X className="h-4 w-4" /></button>
+          </div>
+        )}
+
+        {/* Álbuns Noturno 2026 + Pampulha */}
+        {showAlbumNoturnoProjects && (
+          <div className="mb-6">
+            <AlbumNoturnoProjects onClose={() => setShowAlbumNoturnoProjects(false)} />
           </div>
         )}
 
