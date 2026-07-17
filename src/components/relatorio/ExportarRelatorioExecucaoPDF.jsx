@@ -86,25 +86,7 @@ function drawPageHeader(doc, parte, totalPartes) {
   }
 }
 
-// ─── Rodapé de cada página ───────────────────────────────────────────────────
-function drawAllFooters(doc, parte, totalPartes, firstPageIsCover = false) {
-  const total = doc.internal.getNumberOfPages();
-  for (let i = 1; i <= total; i++) {
-    doc.setPage(i);
-    if (i === 1 && firstPageIsCover) {
-      drawCoverHeader(doc);
-    } else {
-      drawPageHeader(doc, parte, totalPartes);
-    }
-    doc.setDrawColor(200, 200, 200);
-    doc.line(M, PAGE_H - FOOTER_H, PAGE_W - M, PAGE_H - FOOTER_H);
-    doc.setFontSize(FS.tiny);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(150, 150, 150);
-    doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, M, PAGE_H - 7);
-    doc.text(`Pág. ${i} / ${total}${totalPartes > 1 ? ` — Parte ${parte}/${totalPartes}` : ''}`, PAGE_W - M, PAGE_H - 7, { align: 'right' });
-  }
-}
+// drawAllFooters removida — footers agora aplicados inline com numeração global
 
 // ─── Nova página ─────────────────────────────────────────────────────────────
 function newPage(doc) {
@@ -695,8 +677,8 @@ function drawLinksVerificacao(doc, y) {
   return y + 4;
 }
 
-// ─── Galeria de fotos (ao final do relatório) ─────────────────────────────────
-// 3–5 fotos por atividade. Toda atividade deve ter foto; se não houver, exibe placeholder.
+// ─── Galeria de fotos — substituída por exportação individual (1 foto/PDF) ────
+// eslint-disable-next-line no-unused-vars
 async function drawGaleriaFotos(doc, y, relatorio) {
   const urlsVistas = new Set();
   const gruposPorAtividade = new Map();
@@ -975,8 +957,7 @@ function buildParte1(relatorio) {
   y = textBlock(doc, y, satTxt || (satRealiz ? '' : 'Não foram aplicados formulários de pesquisa de satisfação neste período de execução.'));
   y += 4;
 
-  drawAllFooters(doc, 1, 3, true); // true = primeira página com cover header
-  return doc;
+  return doc; // footers aplicados externamente com offset
 }
 
 function buildParte2(relatorio) {
@@ -1026,8 +1007,7 @@ function buildParte2(relatorio) {
     y = linksDocumentosTable(doc, y, relatorio._links_documentos, relatorio._total_financeiro_fmt);
   }
 
-  drawAllFooters(doc, 2, 3);
-  return doc;
+  return doc; // footers aplicados externamente com offset
 }
 
 async function buildParte3(relatorio) {
@@ -1108,34 +1088,186 @@ async function buildParte3(relatorio) {
   doc.text('O relatório de comunicação do período (clipping, redes sociais, cobertura fotográfica e assessoria de imprensa) encontra-se em anexo a este documento.', M + 3, y + 10, { maxWidth: CONTENT_W - 6 });
   y += 18;
 
-  // 14. GALERIA FOTOGRÁFICA (nova seção — ao final)
-  y = check(doc, y, 20);
-  y += 4;
-  y = await drawGaleriaFotos(doc, y, relatorio);
+  return doc; // footers aplicados externamente; galeria vai em PDFs separados
+}
 
-  drawAllFooters(doc, 3, 3);
+// ─── Coleta fotos para galeria ────────────────────────────────────────────────
+function coletarFotosGaleria(relatorio) {
+  const urlsVistas = new Set();
+  const fotos = [];
+
+  const atividadesComFotos = Array.isArray(relatorio._atividades_com_fotos) ? relatorio._atividades_com_fotos : [];
+  for (const atv of atividadesComFotos) {
+    for (const foto of (atv.fotos || [])) {
+      const url = foto.url || foto.file_url;
+      if (!url || urlsVistas.has(url)) continue;
+      fotos.push({ url, legenda: foto.legenda || foto.caption || atv.titulo || '', atividade: atv.titulo || '', museu: atv.museu || '', data: foto.data || atv.data || '' });
+      urlsVistas.add(url);
+    }
+  }
+
+  const galeriaFotos = Array.isArray(relatorio._fotos_galeria) ? relatorio._fotos_galeria : [];
+  for (const foto of galeriaFotos) {
+    const url = foto.file_url || foto.url;
+    if (!url || urlsVistas.has(url)) continue;
+    fotos.push({ url, legenda: foto.legenda || foto.caption || foto.file_name || '', atividade: foto.atividade_nome || '', museu: foto.museu || '', data: foto.created_date || '' });
+    urlsVistas.add(url);
+  }
+
+  const evidencias = Array.isArray(relatorio.anexos_evidencias) ? relatorio.anexos_evidencias : [];
+  for (const ev of evidencias) {
+    const url = ev.foto_url || ev.url;
+    if (!url || urlsVistas.has(url)) continue;
+    fotos.push({ url, legenda: ev.legenda_editada || ev.legenda_ia || ev.atividade_nome || '', atividade: ev.atividade_nome || ev.meta_nome || '', museu: '', data: ev.atividade_data || '' });
+    urlsVistas.add(url);
+  }
+
+  return fotos;
+}
+
+// ─── Gera um PDF com 1 foto (1 página A4) ────────────────────────────────────
+async function buildFotoPDF(foto, idx, total, pageGlobal, totalPartes) {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  let y = HEADER_H + 6;
+
+  // Cabeçalho da seção
+  doc.setFillColor(12, 12, 12);
+  doc.rect(M, y, CONTENT_W, 7, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(FS.small);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`14. DEMONSTRATIVO FOTOGRÁFICO — Foto ${idx} de ${total}`, M + 2, y + 5);
+  y += 10;
+
+  const fotoH = 140;
+  const fotoW = CONTENT_W;
+
+  if (foto.url) {
+    try {
+      doc.addImage(foto.url, 'JPEG', M, y, fotoW, fotoH, undefined, 'FAST');
+    } catch {
+      doc.setFillColor(220, 220, 220);
+      doc.rect(M, y, fotoW, fotoH, 'F');
+      doc.setFontSize(FS.small);
+      doc.setTextColor(130, 130, 130);
+      doc.text('[Imagem não disponível — verificar no Drive]', PAGE_W / 2, y + fotoH / 2, { align: 'center' });
+    }
+  } else {
+    doc.setFillColor(240, 240, 240);
+    doc.setDrawColor(200, 200, 200);
+    doc.rect(M, y, fotoW, fotoH, 'FD');
+    doc.setFontSize(FS.small);
+    doc.setTextColor(160, 160, 160);
+    doc.text('[Foto não localizada]', PAGE_W / 2, y + fotoH / 2, { align: 'center' });
+  }
+  y += fotoH + 3;
+
+  // Legenda
+  doc.setFillColor(248, 248, 248);
+  doc.setDrawColor(210, 210, 210);
+  const legendaH = 22;
+  doc.rect(M, y, CONTENT_W, legendaH, 'FD');
+  doc.setFontSize(FS.small);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(20, 20, 20);
+  const legTxt = foto.legenda || foto.atividade || 'Foto de Registro';
+  doc.text(doc.splitTextToSize(legTxt, CONTENT_W - 4)[0] || '', M + 2, y + 5);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(FS.tiny);
+  doc.setTextColor(80, 80, 80);
+  if (foto.atividade) doc.text(`Atividade: ${foto.atividade}`, M + 2, y + 10);
+  if (foto.museu) doc.text(`Museu: ${foto.museu}`, M + 2, y + 14);
+  const meta = [foto.data ? fmtDate(foto.data) : '', 'Daniel Moreira Soares'].filter(Boolean).join(' — ');
+  doc.text(meta, M + 2, y + 18);
+  y += legendaH + 2;
+
+  // Rodapé
+  drawPageHeader(doc, totalPartes, totalPartes);
+  doc.setDrawColor(200, 200, 200);
+  doc.line(M, PAGE_H - FOOTER_H, PAGE_W - M, PAGE_H - FOOTER_H);
+  doc.setFontSize(FS.tiny);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(150, 150, 150);
+  doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, M, PAGE_H - 7);
+  doc.text(`Pág. ${pageGlobal} — Foto ${idx}/${total}`, PAGE_W - M, PAGE_H - 7, { align: 'right' });
+
   return doc;
 }
 
 // ─── API pública ─────────────────────────────────────────────────────────────
+// Exporta em PDFs separados com máx. 5 páginas + 1 foto por PDF para a galeria.
 export async function exportarRelatorioExecucaoPDF(relatorio, modo = 'completo') {
   if (!relatorio) return;
   const mesRef = (relatorio.data_inicio || '').slice(0, 7).replace('-', '_') || 'relatorio';
   const base = `Relatorio_Execucao_Objeto_${mesRef}`;
 
-  if (modo === 'parte1') {
-    buildParte1(relatorio).save(`${base}_Parte1_Identificacao_Publico.pdf`);
-  } else if (modo === 'parte2') {
-    buildParte2(relatorio).save(`${base}_Parte2_Metas_Equipe.pdf`);
-  } else if (modo === 'parte3') {
-    const d3 = await buildParte3(relatorio);
-    d3.save(`${base}_Parte3_Impactos_Assinatura_Galeria.pdf`);
-  } else {
+  // Total de partes de texto + PDFs de fotos (calculado depois)
+  const TOTAL_PARTES_TEXTO = 3;
+  let pageOffset = 0;
+
+  if (modo === 'parte1' || modo === 'completo') {
     const d1 = buildParte1(relatorio);
+    const n1 = d1.internal.getNumberOfPages();
+    // Aplicar footers com numeração global
+    for (let p = 1; p <= n1; p++) {
+      d1.setPage(p);
+      pageOffset++;
+      if (p === 1) { drawCoverHeader(d1); } else { drawPageHeader(d1, 1, TOTAL_PARTES_TEXTO); }
+      d1.setDrawColor(200, 200, 200);
+      d1.line(M, PAGE_H - FOOTER_H, PAGE_W - M, PAGE_H - FOOTER_H);
+      d1.setFontSize(FS.tiny); d1.setFont('helvetica', 'normal'); d1.setTextColor(150, 150, 150);
+      d1.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, M, PAGE_H - 7);
+      d1.text(`Pág. ${pageOffset} — Parte 1/${TOTAL_PARTES_TEXTO}`, PAGE_W - M, PAGE_H - 7, { align: 'right' });
+    }
+    d1.save(`${base}_Parte1_Identificacao.pdf`);
+    if (modo === 'parte1') return;
+  }
+
+  if (modo === 'parte2' || modo === 'completo') {
     const d2 = buildParte2(relatorio);
-    const d3 = await buildParte3(relatorio);
-    d1.save(`${base}_Parte1_Identificacao_Publico.pdf`);
+    const n2 = d2.internal.getNumberOfPages();
+    for (let p = 1; p <= n2; p++) {
+      d2.setPage(p);
+      pageOffset++;
+      drawPageHeader(d2, 2, TOTAL_PARTES_TEXTO);
+      d2.setDrawColor(200, 200, 200);
+      d2.line(M, PAGE_H - FOOTER_H, PAGE_W - M, PAGE_H - FOOTER_H);
+      d2.setFontSize(FS.tiny); d2.setFont('helvetica', 'normal'); d2.setTextColor(150, 150, 150);
+      d2.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, M, PAGE_H - 7);
+      d2.text(`Pág. ${pageOffset} — Parte 2/${TOTAL_PARTES_TEXTO}`, PAGE_W - M, PAGE_H - 7, { align: 'right' });
+    }
     d2.save(`${base}_Parte2_Metas_Equipe.pdf`);
-    d3.save(`${base}_Parte3_Impactos_Assinatura_Galeria.pdf`);
+    if (modo === 'parte2') return;
+  }
+
+  if (modo === 'parte3' || modo === 'completo') {
+    const d3 = await buildParte3(relatorio);
+    const n3 = d3.internal.getNumberOfPages();
+    for (let p = 1; p <= n3; p++) {
+      d3.setPage(p);
+      pageOffset++;
+      drawPageHeader(d3, 3, TOTAL_PARTES_TEXTO);
+      d3.setDrawColor(200, 200, 200);
+      d3.line(M, PAGE_H - FOOTER_H, PAGE_W - M, PAGE_H - FOOTER_H);
+      d3.setFontSize(FS.tiny); d3.setFont('helvetica', 'normal'); d3.setTextColor(150, 150, 150);
+      d3.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, M, PAGE_H - 7);
+      d3.text(`Pág. ${pageOffset} — Parte 3/${TOTAL_PARTES_TEXTO}`, PAGE_W - M, PAGE_H - 7, { align: 'right' });
+    }
+    d3.save(`${base}_Parte3_Impactos_Assinatura.pdf`);
+    if (modo === 'parte3') return;
+  }
+
+  // 4. GALERIA: 1 foto por PDF, com delay para não travar o browser
+  if (modo === 'galeria' || modo === 'completo') {
+    const fotos = coletarFotosGaleria(relatorio);
+    if (fotos.length === 0) return;
+
+    for (let i = 0; i < fotos.length; i++) {
+      pageOffset++;
+      // pequena pausa a cada foto para liberar o event loop
+      await new Promise(r => setTimeout(r, 80));
+      const docFoto = await buildFotoPDF(fotos[i], i + 1, fotos.length, pageOffset, TOTAL_PARTES_TEXTO);
+      docFoto.save(`${base}_Foto_${String(i + 1).padStart(3, '0')}.pdf`);
+    }
   }
 }
