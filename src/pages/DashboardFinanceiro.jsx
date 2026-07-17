@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toastMessages } from '@/lib/toastMessages';
 import NovaRubricaDialog from '@/components/rubricas/NovaRubricaDialog';
 import { canManageRubricas } from '@/components/auth/permissions';
+import PainelPrevistoVsUtilizado from '@/components/financeiro/PainelPrevistoVsUtilizado';
 
 function DashboardFinanceiroInner() {
   const { user: currentUser, isCoordenador } = useCurrentUser();
@@ -321,6 +322,9 @@ function DashboardFinanceiroInner() {
             ))}
           </div>
         </div>
+
+        {/* Painel Previsto vs Utilizado por Rubrica */}
+        <PainelPrevistoVsUtilizado rubricas={rubricas} />
 
         {/* Filtros */}
         <div className="flex gap-3 mb-8 items-center">
