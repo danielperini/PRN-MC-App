@@ -720,18 +720,30 @@ export default function DashboardPatrocinadorSync() {
         </SectionCard>
 
         <SectionCard title="Classificação de atividades">
-          {data.dadosClassificacao.length === 0 ? <p className="text-sm text-gray-400">Sem dados disponíveis.</p> :
-          <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={data.dadosClassificacao} dataKey="quantidade" nameKey="display" outerRadius={86} innerRadius={48} paddingAngle={3}>
-                    {data.dadosClassificacao.map((entry, index) => <Cell key={entry.nome} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          }
+          {data.dadosClassificacao.length === 0 ? <p className="text-sm text-gray-400">Sem dados disponíveis.</p> : (() => {
+            const total = data.dadosClassificacao.reduce((s, d) => s + d.quantidade, 0);
+            const colors = { META: 'bg-black', ROTINA: 'bg-gray-500', EXTRA: 'bg-gray-300' };
+            return (
+              <div className="space-y-4 pt-2">
+                {data.dadosClassificacao.map((item, i) => {
+                  const pct = total > 0 ? Math.round((item.quantidade / total) * 100) : 0;
+                  const bg = colors[item.nome] || CHART_COLORS[i % CHART_COLORS.length];
+                  return (
+                    <div key={item.nome}>
+                      <div className="flex justify-between text-xs mb-1.5">
+                        <span className="font-semibold text-gray-800">{item.display}</span>
+                        <span className="text-gray-500">{item.quantidade} <span className="text-gray-400">({pct}%)</span></span>
+                      </div>
+                      <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full transition-all ${typeof bg === 'string' && bg.startsWith('bg-') ? bg : ''}`} style={{ width: `${pct}%`, ...(typeof bg === 'string' && !bg.startsWith('bg-') ? { background: bg } : {}) }} />
+                      </div>
+                    </div>
+                  );
+                })}
+                <p className="text-[11px] text-gray-400 pt-1">Total: {total} atividades registradas</p>
+              </div>
+            );
+          })()}
         </SectionCard>
       </div>
 
