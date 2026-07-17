@@ -1,12 +1,19 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import RequireAuth from '@/components/auth/RequireAuth';
 import LoadingPage from '@/components/common/LoadingPage';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Printer, RefreshCw, ChevronDown, ChevronRight, Images, X, FolderSearch } from 'lucide-react';
+import { Printer, RefreshCw, ChevronDown, ChevronRight, Images, X, CheckCircle2, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
+
+// Pastas raiz a varrer — fotos, backup, compartilhadas, daniel
+const PASTAS_RAIZ = [
+  '1rnpwK5eEY0bPFLbmyqfzzzyxbw9Zm3oh', // Noturno principal
+  '1hZ8qHmHm2bBwtDmvNHPH0oGePXHj7Mwz', // Backup fotos
+  '1Fkl3T8J9Xq0eW7cNpRkAoB2yZvUmLsDt', // Fotos atividades
+];
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
 const MES_ORDER = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -180,9 +187,14 @@ function MesSection({ mesLabel, atividades, onClick }) {
 // ─── Página principal ─────────────────────────────────────────────────────────
 function RelatorioAtividadesHtmlInner() {
   const [selected, setSelected] = useState(null);
-  const [buscandoDrive, setBuscandoDrive] = useState(false);
-  const [driveMsg, setDriveMsg] = useState('');
   const printRef = useRef(null);
+
+  // ── Estado da varredura automática ──────────────────────────────────────────
+  const [syncStatus, setSyncStatus] = useState('idle'); // idle | running | done | error
+  const [syncMsg, setSyncMsg] = useState('');
+  const [syncTotal, setSyncTotal] = useState(0);
+  const [syncPastas, setSyncPastas] = useState({ atual: 0, total: 0 });
+  const syncRef = useRef({ running: false });
 
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['relatorio-atividades-html-fev-jun-2026-v3'],
@@ -198,34 +210,71 @@ function RelatorioAtividadesHtmlInner() {
     retry: false,
   });
 
-  async function buscarFotosDrive() {
-    setBuscandoDrive(true);
-    setDriveMsg('Iniciando varredura profunda no Drive...');
-    let totalCriadas = 0;
-    let currentFolderIndex = 0;
-    let currentPageToken = null;
-    const MAX_RODADAS = 30;
+  // Varredura automática ao montar — percorre TODAS as pastas raiz sem parar
+  const executarVarredura = useCallback(async () => {
+    if (syncRef.current.running) return;
+    syncRef.current.running = true;
+    setSyncStatus('running');
+    setSyncTotal(0);
+    let totalGeral = 0;
+
     try {
-      for (let rodada = 0; rodada < MAX_RODADAS; rodada++) {
-        setDriveMsg(`Varrendo Drive — pasta ${currentFolderIndex}… (${totalCriadas} fotos novas)`);
-        const res = await base44.functions.invoke('varreduraProfundaFotosDrive', {
-          currentFolderIndex,
-          currentPageToken,
-        });
-        const d = res?.data || res;
-        totalCriadas += d.criadas || 0;
-        if (d.status === 'concluido' || !d.proxima_chamada) break;
-        currentFolderIndex = d.proxima_chamada.currentFolderIndex ?? currentFolderIndex + 5;
-        currentPageToken = d.proxima_chamada.currentPageToken || null;
+      for (const pastaRaiz of PASTAS_RAIZ) {
+        let currentFolderIndex = 0;
+        let currentPageToken = null;
+        let totalPastas = 0;
+
+        // Loop persistente — continua até status=concluido
+        while (syncRef.current.running) {
+          setSyncMsg(`Varrendo pasta ${currentFolderIndex}${totalPastas ? `/${totalPastas}` : ''}… (${totalGeral} fotos novas)`);
+          let d;
+          try {
+            const res = await base44.functions.invoke('varreduraProfundaFotosDrive', {
+              folderId: pastaRaiz,
+              currentFolderIndex,
+              currentPageToken,
+              batch: 8,
+            });
+            d = res?.data || res;
+          } catch (err) {
+            // Erro pontual — aguarda e tenta de novo
+            setSyncMsg(`⚠️ Erro parcial, retentando… (${err?.message?.slice(0, 60) || ''})`);
+            await new Promise(r => setTimeout(r, 3000));
+            continue;
+          }
+
+          const criadas = d.criadas || 0;
+          totalGeral += criadas;
+          totalPastas = d.total_pastas || totalPastas;
+          setSyncTotal(totalGeral);
+          setSyncPastas({ atual: d.pastas_processadas || currentFolderIndex, total: totalPastas });
+
+          if (d.status === 'concluido' || !d.proxima_chamada) break;
+
+          currentFolderIndex = d.proxima_chamada.currentFolderIndex ?? (currentFolderIndex + 8);
+          currentPageToken   = d.proxima_chamada.currentPageToken ?? null;
+
+          // Pequena pausa para não sobrecarregar a API
+          await new Promise(r => setTimeout(r, 500));
+        }
       }
-      setDriveMsg(`✅ Concluído — ${totalCriadas} fotos novas vinculadas. Recarregando...`);
+
+      setSyncStatus('done');
+      setSyncMsg(`✅ Varredura completa — ${totalGeral} fotos novas sincronizadas e vinculadas`);
       await refetch();
     } catch (e) {
-      setDriveMsg(`⚠️ ${e?.message || 'Erro na varredura. Tente novamente.'}`);
+      setSyncStatus('error');
+      setSyncMsg(`Erro: ${e?.message || 'falha inesperada'}`);
     } finally {
-      setBuscandoDrive(false);
+      syncRef.current.running = false;
     }
-  }
+  }, [refetch]);
+
+  // Dispara automaticamente ao montar
+  useEffect(() => {
+    executarVarredura();
+    return () => { syncRef.current.running = false; };
+  }, []);// eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Estrutura: mês → atividade → fotos ──────────────────────────────────
   const estrutura = useMemo(() => {
@@ -405,28 +454,54 @@ function RelatorioAtividadesHtmlInner() {
   return (
     <div className="min-h-screen bg-gray-50 print:bg-white">
       {/* Barra de controle (oculta na impressão) */}
-      <div className="print:hidden sticky top-0 z-30 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between gap-3 shadow-sm">
-        <div>
-          <h1 className="font-bold text-gray-900 text-lg leading-tight">Relatório de Atividades com Fotos</h1>
-          <p className="text-xs text-gray-500">Fevereiro a Junho/2026 · {totalMeses} meses · {totalAtividades} atividades · {totalFotos} fotos</p>
+      <div className="print:hidden sticky top-0 z-30 bg-white border-b border-gray-200 shadow-sm">
+        <div className="px-4 py-3 flex items-center justify-between gap-3">
+          <div>
+            <h1 className="font-bold text-gray-900 text-lg leading-tight">Relatório de Atividades com Fotos</h1>
+            <p className="text-xs text-gray-500">Fevereiro a Junho/2026 · {totalMeses} meses · {totalAtividades} atividades · {totalFotos} fotos</p>
+          </div>
+          <div className="flex gap-2 items-center">
+            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+              <RefreshCw className={`w-4 h-4 mr-1 ${isFetching ? 'animate-spin' : ''}`} />
+              Atualizar
+            </Button>
+            <Button size="sm" onClick={handlePrint} className="gap-2 bg-gray-900 hover:bg-gray-800 text-white">
+              <Printer className="w-4 h-4" />
+              Imprimir
+            </Button>
+          </div>
         </div>
-        <div className="flex gap-2 items-center flex-wrap">
-          {driveMsg && (
-            <span className="text-xs text-blue-600 max-w-xs truncate">{driveMsg}</span>
-          )}
-          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
-            <RefreshCw className={`w-4 h-4 mr-1 ${isFetching ? 'animate-spin' : ''}`} />
-            Atualizar
-          </Button>
-          <Button variant="outline" size="sm" onClick={buscarFotosDrive} disabled={buscandoDrive}>
-            <FolderSearch className={`w-4 h-4 mr-1 ${buscandoDrive ? 'animate-pulse' : ''}`} />
-            {buscandoDrive ? 'Varrendo Drive...' : 'Buscar fotos no Drive'}
-          </Button>
-          <Button size="sm" onClick={handlePrint} className="gap-2 bg-gray-900 hover:bg-gray-800 text-white">
-            <Printer className="w-4 h-4" />
-            Imprimir
-          </Button>
-        </div>
+
+        {/* Banner de progresso da varredura automática */}
+        {syncStatus !== 'idle' && (
+          <div className={`px-4 py-2 flex items-center gap-3 text-sm border-t ${
+            syncStatus === 'running' ? 'bg-blue-50 border-blue-100 text-blue-800' :
+            syncStatus === 'done'    ? 'bg-green-50 border-green-100 text-green-800' :
+                                       'bg-red-50 border-red-100 text-red-700'
+          }`}>
+            {syncStatus === 'running' ? (
+              <Loader2 className="w-4 h-4 shrink-0 animate-spin" />
+            ) : syncStatus === 'done' ? (
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+            ) : (
+              <span className="text-base shrink-0">⚠️</span>
+            )}
+            <span className="flex-1 truncate">{syncMsg}</span>
+            {syncStatus === 'running' && syncPastas.total > 0 && (
+              <span className="shrink-0 text-xs font-mono bg-blue-100 px-2 py-0.5 rounded-full">
+                {syncPastas.atual}/{syncPastas.total} pastas · {syncTotal} fotos
+              </span>
+            )}
+            {syncStatus === 'error' && (
+              <button
+                onClick={executarVarredura}
+                className="shrink-0 text-xs underline font-medium"
+              >
+                Tentar novamente
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Cabeçalho do relatório impresso */}
@@ -464,13 +539,18 @@ function RelatorioAtividadesHtmlInner() {
             <Images className="mx-auto h-12 w-12 text-gray-300" />
             <div>
               <p className="font-medium text-gray-700">Nenhuma atividade encontrada no período</p>
-              <p className="text-sm text-gray-400 mt-1">As fotos podem estar no Google Drive e ainda não sincronizadas.</p>
+              <p className="text-sm text-gray-400 mt-1">
+                {syncStatus === 'running'
+                  ? 'Varredura automática em andamento — as fotos aparecerão ao concluir.'
+                  : 'As fotos podem estar no Google Drive. Clique em Atualizar após a varredura concluir.'}
+              </p>
             </div>
-            <Button onClick={buscarFotosDrive} disabled={buscandoDrive} className="gap-2">
-              <FolderSearch className="w-4 h-4" />
-              {buscandoDrive ? 'Varrendo Drive...' : 'Buscar fotos no Drive agora'}
-            </Button>
-            {driveMsg && <p className="text-xs text-blue-600">{driveMsg}</p>}
+            {syncStatus === 'error' && (
+              <Button onClick={executarVarredura} className="gap-2">
+                <RefreshCw className="w-4 h-4" />
+                Tentar varredura novamente
+              </Button>
+            )}
           </div>
         ) : (
           <div className="space-y-10">
