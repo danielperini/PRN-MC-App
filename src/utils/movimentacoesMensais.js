@@ -333,9 +333,12 @@ export function resumirGruposMensais(grupos = []) {
     totais.debitos_brutos += resumo.debitos_brutos;
     totais.transferencias_internas += resumo.transferencias_internas_valor;
     totais.rendimento += resumo.rendimento;
-    totais.saldo_final = resumo.saldo;
-    totais.saldo_conta = resumo.saldo_conta;
-    totais.saldo_investimento = resumo.saldo_investimento;
+    // saldo_final e saldo_investimento: usar o valor do mês mais recente com dados
+    if (resumo.saldo !== 0 || resumo.saldo_conta !== 0 || resumo.saldo_investimento !== 0) {
+      totais.saldo_final = resumo.saldo;
+      totais.saldo_conta = resumo.saldo_conta;
+      totais.saldo_investimento = resumo.saldo_investimento;
+    }
     totais.documentos_ignorados_no_calculo += resumo.documentos_ignorados_no_calculo;
     return totais;
   }, { creditos: 0, debitos: 0, debitos_brutos: 0, transferencias_internas: 0, rendimento: 0, saldo_final: 0, saldo_conta: 0, saldo_investimento: 0, documentos_ignorados_no_calculo: 0 });

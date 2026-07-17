@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Copy, ExternalLink, Search, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, ExternalLink, Search, X } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 function fmtBRL(v) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(v || 0));
@@ -239,6 +240,14 @@ export default function PagamentosSemNF({ grupos }) {
 
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="text-sm font-bold text-red-600">{fmtBRL(item.debito.valor)}</span>
+                  {(item.nfParcial?.id) && (
+                    <Link
+                      to={`/Compras?id=${item.nfParcial.id}`}
+                      className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 hover:bg-amber-100"
+                    >
+                      <ExternalLink className="w-2.5 h-2.5" /> Ver NF
+                    </Link>
+                  )}
                   {(item.nfParcial || temDuplicatas) && (
                     <button
                       type="button"
@@ -299,7 +308,17 @@ export default function PagamentosSemNF({ grupos }) {
                     ✓ NF {item.nfAssociada?.nf_numero || '—'} · {item.nfAssociada?.fornecedor_nome || item.nfAssociada?.nf_emitente_nome || '—'}
                   </p>
                 </div>
-                <span className="text-xs font-bold text-green-700 shrink-0">{fmtBRL(item.debito.valor)}</span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs font-bold text-green-700">{fmtBRL(item.debito.valor)}</span>
+                  {item.nfAssociada?.id && (
+                    <Link
+                      to={`/Compras?id=${item.nfAssociada.id}`}
+                      className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700 hover:bg-blue-100"
+                    >
+                      <ExternalLink className="w-2.5 h-2.5" /> Ver NF
+                    </Link>
+                  )}
+                </div>
               </div>
             ))}
           </div>
