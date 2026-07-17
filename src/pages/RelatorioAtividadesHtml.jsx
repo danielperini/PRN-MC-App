@@ -201,25 +201,24 @@ function RelatorioAtividadesHtmlInner() {
   async function buscarFotosDrive() {
     setBuscandoDrive(true);
     setDriveMsg('Iniciando varredura profunda no Drive...');
+    let totalCriadas = 0;
+    let currentFolderIndex = 0;
+    let currentPageToken = null;
+    const MAX_RODADAS = 30;
     try {
-      // Varrer pastas de fotos de atividades — múltiplos lotes para cobrir fev-jun
-      const lotes = [
-        { skip: 0, limit: 50 },
-        { skip: 50, limit: 50 },
-        { skip: 100, limit: 50 },
-      ];
-      let totalImportadas = 0;
-      for (const lote of lotes) {
-        setDriveMsg(`Varrendo Drive — lote ${lote.skip / 50 + 1}/3...`);
+      for (let rodada = 0; rodada < MAX_RODADAS; rodada++) {
+        setDriveMsg(`Varrendo Drive — pasta ${currentFolderIndex}… (${totalCriadas} fotos novas)`);
         const res = await base44.functions.invoke('varreduraProfundaFotosDrive', {
-          skip: lote.skip,
-          limit: lote.limit,
-          mes_filtro: ['fevereiro', 'março', 'abril', 'maio', 'junho'],
-          ano_filtro: 2026,
+          currentFolderIndex,
+          currentPageToken,
         });
-        totalImportadas += res?.data?.importadas || res?.data?.created || 0;
+        const d = res?.data || res;
+        totalCriadas += d.criadas || 0;
+        if (d.status === 'concluido' || !d.proxima_chamada) break;
+        currentFolderIndex = d.proxima_chamada.currentFolderIndex ?? currentFolderIndex + 5;
+        currentPageToken = d.proxima_chamada.currentPageToken || null;
       }
-      setDriveMsg(`✅ Varredura concluída — ${totalImportadas} fotos importadas. Recarregando...`);
+      setDriveMsg(`✅ Concluído — ${totalCriadas} fotos novas vinculadas. Recarregando...`);
       await refetch();
     } catch (e) {
       setDriveMsg(`⚠️ ${e?.message || 'Erro na varredura. Tente novamente.'}`);
@@ -235,49 +234,77 @@ function RelatorioAtividadesHtmlInner() {
     const reports = data.reports || [];
     const photos = data.photos || [];
 
-    // Meses permitidos: fev (2) a jun (6) de 2026
-    const MESES_PERMITIDOS = new Set(['fevereiro','março','marco','abril','maio','junho']);
+    const MESES_PERMITIDOS = new Set(['fevereiro','marco','abril','maio','junho']);
     const normMes = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const mesIdx = mes => MES_ORDER.findIndex(m => normMes(m) === normMes(mes));
 
-    // Filtrar relatórios do período
+    // Filtrar relatórios fev–jun 2026
     const reportsFiltrados = reports.filter(r => {
       const ano = Number(r.ano) || 0;
       const mes = normMes(r.mes_referencia);
-      // aceitar ano 2026, ou ano 0/undefined se o mês bater
       return MESES_PERMITIDOS.has(mes) && (ano === 2026 || ano === 0 || !r.ano);
     });
 
-    // Indexar fotos por report_id
+    // Normalizar foto para objeto canônico
+    const normFoto = (p, mesNome, reportMuseu, activityTitulo = '') => ({
+      id: p.id,
+      fileUrl: p.file_url,
+      legenda: p.caption || p.legenda || p.file_name || '',
+      date: p.created_date,
+      museu: p.museu || reportMuseu || '',
+      reportMes: mesNome,
+      activityTitulo,
+      activity_id: p.activity_id || null,
+    });
+
+    // Indexar fotos por activity_id (vínculo direto — máxima prioridade)
+    const photosByActivity = new Map();
+    // Indexar fotos por report_id (vínculo secundário)
     const photosByReport = new Map();
+    // Pool por mês normalizado (fallback)
+    const fotosPorMes = new Map();
+
     for (const p of photos) {
       if (!p.file_url) continue;
-      const key = p.report_id || '__sem_report__';
-      if (!photosByReport.has(key)) photosByReport.set(key, []);
-      photosByReport.get(key).push(p);
-    }
+      if (p.activity_id) {
+        if (!photosByActivity.has(p.activity_id)) photosByActivity.set(p.activity_id, []);
+        photosByActivity.get(p.activity_id).push(p);
+      }
+      const rKey = p.report_id || '__sem_report__';
+      if (!photosByReport.has(rKey)) photosByReport.set(rKey, []);
+      photosByReport.get(rKey).push(p);
 
-    // Fotos soltas (sem report_id) — pool para completar atividades sem foto
-    const fotasSoltas = (photosByReport.get('__sem_report__') || []).map(p => ({
-      id: p.id, fileUrl: p.file_url, legenda: p.caption || p.legenda || p.file_name || '',
-      date: p.created_date, museu: p.museu, reportMes: p.mes_referencia, activityTitulo: '',
-    }));
-
-    // Pool de fotos por mês (de qualquer report) para completar atividades
-    const fotosPorMes = new Map(); // normMes → foto[]
-    for (const p of photos) {
-      if (!p.file_url) continue;
       const mn = normMes(p.mes_referencia || '');
-      if (!mn) continue;
-      if (!fotosPorMes.has(mn)) fotosPorMes.set(mn, []);
-      fotosPorMes.get(mn).push({
-        id: p.id, fileUrl: p.file_url,
-        legenda: p.caption || p.legenda || p.file_name || '',
-        date: p.created_date, museu: p.museu, reportMes: p.mes_referencia,
-      });
+      if (mn && MESES_PERMITIDOS.has(mn)) {
+        if (!fotosPorMes.has(mn)) fotosPorMes.set(mn, []);
+        fotosPorMes.get(mn).push(p);
+      }
     }
 
-    // Mês index para ordenação
-    const mesIdx = mes => MES_ORDER.findIndex(m => normMes(m) === normMes(mes));
+    // Também considerar fotos embutidas nas atividades do relatório (Report.atividades[].fotos)
+    // Essas são a fonte mais confiável de vínculo atividade↔foto
+    const photosByActivityEmbedded = new Map(); // activity titulo → foto[]
+    for (const r of reportsFiltrados) {
+      if (!Array.isArray(r.atividades)) continue;
+      for (const act of r.atividades) {
+        if (!Array.isArray(act.fotos) || act.fotos.length === 0) continue;
+        const titulo = act.titulo || '';
+        if (!photosByActivityEmbedded.has(titulo)) photosByActivityEmbedded.set(titulo, []);
+        for (const f of act.fotos) {
+          if (f.file_url) {
+            photosByActivityEmbedded.get(titulo).push({
+              id: f.attachment_id || f.file_url,
+              file_url: f.file_url,
+              caption: f.legenda || '',
+              legenda: f.legenda || '',
+              museu: r.museu || '',
+              mes_referencia: r.mes_referencia,
+              activity_id: act.id || null,
+            });
+          }
+        }
+      }
+    }
 
     // mesMap: mesKey → { idx, atividades: Map<titulo, fotos[]> }
     const mesMap = new Map();
@@ -290,54 +317,64 @@ function RelatorioAtividadesHtmlInner() {
       if (!mesMap.has(mesKey)) mesMap.set(mesKey, { idx, atividades: new Map() });
       const { atividades } = mesMap.get(mesKey);
 
-      const fotosDoReport = (photosByReport.get(report.id) || []).map(p => ({
-        id: p.id, fileUrl: p.file_url,
-        legenda: p.caption || p.legenda || p.file_name || '',
-        date: p.created_date, museu: p.museu || report.museu,
-        reportMes: mesNome, activityTitulo: '',
-      }));
+      // Fotos do report (sem vínculo direto de atividade) — usado como pool do report
+      const fotosReportSemVinculo = (photosByReport.get(report.id) || [])
+        .filter(p => !p.activity_id)
+        .map(p => normFoto(p, mesNome, report.museu));
 
-      // Pool para completar: fotos do report + fotos do mesmo mês
-      const poolMes = fotosPorMes.get(normMes(mesNome)) || [];
+      const poolMes = (fotosPorMes.get(normMes(mesNome)) || [])
+        .map(p => normFoto(p, mesNome, report.museu));
 
       const atividadesDoReport = Array.isArray(report.atividades) ? report.atividades : [];
 
       if (atividadesDoReport.length === 0) {
-        // Sem atividades: bloco genérico do museu com fotos do report
-        if (fotosDoReport.length > 0) {
+        // Nenhuma atividade cadastrada: bloco genérico com fotos do report
+        if (fotosReportSemVinculo.length > 0) {
           const titulo = report.museu || 'Atividades do período';
           if (!atividades.has(titulo)) atividades.set(titulo, []);
           const jaIds = new Set(atividades.get(titulo).map(f => f.id));
-          for (const f of fotosDoReport) {
-            if (!jaIds.has(f.id)) { f.activityTitulo = titulo; atividades.get(titulo).push(f); jaIds.add(f.id); }
+          for (const f of fotosReportSemVinculo.slice(0, 6)) {
+            if (!jaIds.has(f.id)) { atividades.get(titulo).push({ ...f, activityTitulo: titulo }); jaIds.add(f.id); }
           }
         }
       } else {
-        // Distribuir fotos do report entre atividades proporcionalmente
-        const totalAts = atividadesDoReport.length;
-        const fotosPorAt = Math.max(1, Math.ceil(fotosDoReport.length / totalAts));
-
         atividadesDoReport.forEach((act, i) => {
           const titulo = act.titulo || `Atividade ${i + 1}`;
-          // Sempre registrar a atividade mesmo sem fotos
           if (!atividades.has(titulo)) atividades.set(titulo, []);
           const jaIds = new Set(atividades.get(titulo).map(f => f.id));
 
-          // Fatia de fotos diretamente do report
-          const slice = fotosDoReport.slice(i * fotosPorAt, (i + 1) * fotosPorAt);
-          for (const f of slice) {
-            const fc = { ...f, activityTitulo: titulo };
-            if (!jaIds.has(fc.id)) { atividades.get(titulo).push(fc); jaIds.add(fc.id); }
+          // 1. Fotos embutidas na própria atividade (Report.atividades[i].fotos[])
+          const embutidas = (photosByActivityEmbedded.get(titulo) || []);
+          for (const p of embutidas) {
+            const f = normFoto(p, mesNome, report.museu, titulo);
+            if (!jaIds.has(f.id)) { atividades.get(titulo).push(f); jaIds.add(f.id); }
           }
 
-          // Completar até 3 com fotos do mesmo mês (pool amplo)
+          // 2. Fotos com activity_id vinculado ao ID da atividade
+          if (act.id) {
+            for (const p of (photosByActivity.get(act.id) || [])) {
+              const f = normFoto(p, mesNome, report.museu, titulo);
+              if (!jaIds.has(f.id)) { atividades.get(titulo).push(f); jaIds.add(f.id); }
+            }
+          }
+
+          // 3. Completar até 3 com fotos soltas do report (sem activity_id)
           if (atividades.get(titulo).length < 3) {
-            for (const c of poolMes) {
+            const fatia = fotosReportSemVinculo.slice(
+              i * 3,
+              i * 3 + Math.max(0, 3 - atividades.get(titulo).length)
+            );
+            for (const f of fatia) {
+              if (!jaIds.has(f.id)) { atividades.get(titulo).push({ ...f, activityTitulo: titulo }); jaIds.add(f.id); }
+            }
+          }
+
+          // 4. Completar até 3 com pool do mês (fallback amplo)
+          if (atividades.get(titulo).length < 3) {
+            for (const p of poolMes) {
               if (atividades.get(titulo).length >= 3) break;
-              if (!jaIds.has(c.id)) {
-                atividades.get(titulo).push({ ...c, activityTitulo: titulo });
-                jaIds.add(c.id);
-              }
+              const f = normFoto(p, mesNome, report.museu, titulo);
+              if (!jaIds.has(f.id)) { atividades.get(titulo).push(f); jaIds.add(f.id); }
             }
           }
         });
@@ -348,7 +385,6 @@ function RelatorioAtividadesHtmlInner() {
       .sort((a, b) => a[1].idx - b[1].idx)
       .map(([mesLabel, { atividades }]) => ({
         mesLabel,
-        // Incluir atividades MESMO sem fotos (mostrar que existem)
         atividades: Object.fromEntries(atividades.entries()),
       }))
       .filter(({ atividades }) => Object.keys(atividades).length > 0);
