@@ -40,7 +40,15 @@ function formatDateBR(val) {
 }
 
 function getLegenda(image) {
-  return image.activityTitulo || image.legenda || image.description || image.fileName || 'Registro fotográfico';
+  return image.activityTitulo || image.legenda || image.caption || image.description || image.fileName || 'Registro fotográfico';
+}
+
+function getLocal(image) {
+  return image.local || image.location || image.endereco || image.geoLocal || image.geo_local || null;
+}
+
+function getAutor(image) {
+  return image.authorName || image.author || image.fotografo || image.autor || null;
 }
 
 // ─── Componente: foto individual no álbum ────────────────────────────────────
@@ -65,8 +73,11 @@ function AlbumPhoto({ image, onClick }) {
       </button>
       <div className="px-1">
         <p className="text-sm font-medium text-gray-800 leading-snug line-clamp-2">{legenda}</p>
-        {image.date && <p className="text-xs text-gray-400 mt-0.5">{formatDateBR(image.date)}</p>}
-        {image.authorName && <p className="text-xs text-gray-400">Foto: {image.authorName}</p>}
+        <div className="flex flex-wrap gap-x-3 mt-0.5">
+          {getLocal(image) && <p className="text-xs text-gray-500">📍 {getLocal(image)}</p>}
+          {image.date && <p className="text-xs text-gray-400">{formatDateBR(image.date)}</p>}
+          {getAutor(image) && <p className="text-xs text-gray-400">Foto: {getAutor(image)}</p>}
+        </div>
       </div>
     </div>
   );
@@ -294,21 +305,33 @@ async function gerarAlbumPDF(museuKey, mesLabel, fotos, opts = {}) {
       y += 64;
     }
 
-    // Legenda
+    // Caixa de legenda com fundo claro
+    const legendaBlock = y + 4;
+    const autor = getAutor(foto);
+    const local = getLocal(foto);
+    const metaParts = [
+      foto.reportMes,
+      foto.date ? formatDateBR(foto.date) : '',
+      local ? `📍 ${local}` : '',
+      autor ? `Foto: ${autor}` : '',
+    ].filter(Boolean);
+
+    const legendaLines = doc.splitTextToSize(legenda, CW - 4);
+    const blockH = legendaLines.slice(0, 3).length * 5 + (metaParts.length ? 8 : 4) + 6;
+    doc.setFillColor(245, 245, 245);
+    doc.roundedRect(M, legendaBlock - 2, CW, blockH, 2, 2, 'F');
+
     doc.setFontSize(9.5);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(20, 20, 20);
-    const legendaLines = doc.splitTextToSize(legenda, CW);
-    doc.text(legendaLines.slice(0, 3), M, y + 5);
-    y += legendaLines.slice(0, 3).length * 5 + 3;
+    doc.text(legendaLines.slice(0, 3), M + 3, legendaBlock + 5);
+    y = legendaBlock + legendaLines.slice(0, 3).length * 5 + 4;
 
-    // Metadados
-    const meta = [foto.reportMes, foto.date ? formatDateBR(foto.date) : '', foto.authorName ? `Foto: ${foto.authorName}` : ''].filter(Boolean).join('  ·  ');
-    if (meta) {
+    if (metaParts.length) {
       doc.setFontSize(7.5);
       doc.setFont('helvetica', 'normal');
-      doc.setTextColor(110, 110, 110);
-      doc.text(meta, M, y + 3);
+      doc.setTextColor(90, 90, 90);
+      doc.text(metaParts.join('  ·  '), M + 3, y + 3);
     }
   }
 
@@ -400,18 +423,30 @@ async function gerarMuseuCompletoPDF(museuKey, albunsPorMes) {
         doc.rect(M, y, CW, 60, 'F');
         y += 64;
       }
+      // Caixa de legenda destacada
+      const legendaBlock = y + 4;
+      const autor = getAutor(foto);
+      const local = getLocal(foto);
+      const metaParts = [
+        foto.reportMes,
+        foto.date ? formatDateBR(foto.date) : '',
+        local ? `📍 ${local}` : '',
+        autor ? `Foto: ${autor}` : '',
+      ].filter(Boolean);
+      const ll = doc.splitTextToSize(legenda, CW - 4);
+      const blockH = ll.slice(0, 3).length * 5 + (metaParts.length ? 8 : 4) + 6;
+      doc.setFillColor(245, 245, 245);
+      doc.roundedRect(M, legendaBlock - 2, CW, blockH, 2, 2, 'F');
       doc.setFontSize(9.5);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(20, 20, 20);
-      const ll = doc.splitTextToSize(legenda, CW);
-      doc.text(ll.slice(0, 3), M, y + 5);
-      y += ll.slice(0, 3).length * 5 + 3;
-      const meta = [foto.reportMes, foto.date ? formatDateBR(foto.date) : '', foto.authorName ? `Foto: ${foto.authorName}` : ''].filter(Boolean).join('  ·  ');
-      if (meta) {
+      doc.text(ll.slice(0, 3), M + 3, legendaBlock + 5);
+      y = legendaBlock + ll.slice(0, 3).length * 5 + 4;
+      if (metaParts.length) {
         doc.setFontSize(7.5);
         doc.setFont('helvetica', 'normal');
-        doc.setTextColor(110, 110, 110);
-        doc.text(meta, M, y + 3);
+        doc.setTextColor(90, 90, 90);
+        doc.text(metaParts.join('  ·  '), M + 3, y + 3);
       }
     }
   }
