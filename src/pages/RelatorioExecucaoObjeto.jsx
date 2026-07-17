@@ -160,6 +160,22 @@ export default function RelatorioExecucaoObjeto() {
     }));
   }
 
+  const SECOES_GERACAO = [
+    { key: 'identificacao',              label: 'Identificação do projeto' },
+    { key: 'endereco_execucao',          label: 'Endereço de execução' },
+    { key: 'divulgacao_parceria',        label: 'Divulgação da parceria' },
+    { key: 'descricao_acoes',            label: 'Descrição das ações' },
+    { key: 'publico_alvo',               label: 'Público-alvo' },
+    { key: 'pesquisa_satisfacao',        label: 'Pesquisa de satisfação' },
+    { key: 'cronograma_metas',           label: 'Cronograma de metas' },
+    { key: 'equipe_trabalho',            label: 'Equipe de trabalho' },
+    { key: 'impactos_economicos_sociais',label: 'Impactos econômicos e sociais' },
+    { key: 'avaliacao_parceria',         label: 'Avaliação da parceria' },
+    { key: 'anexos_evidencias',          label: 'Anexos e evidências' },
+    { key: 'assinatura',                 label: 'Assinatura' },
+    { key: 'auditoria',                  label: 'Auditoria de pendências' },
+  ];
+
   async function iniciarGeracao() {
     if (form.filtro_meta_ids.length === 0) {
       toast.error('Selecione ao menos uma meta para gerar o relatório.');
@@ -167,7 +183,7 @@ export default function RelatorioExecucaoObjeto() {
     }
     setLoading(true);
     setRelatorio(null);
-    setProgresso({ valor: 5, texto: 'Criando relatório...' });
+    setProgresso({ valor: 2, texto: 'Criando relatório...' });
     try {
       const res = await base44.functions.invoke('iniciarRelatorioExecucao', {
         ...form,
@@ -177,21 +193,38 @@ export default function RelatorioExecucaoObjeto() {
       const rid = res?.data?.relatorio_id || res?.relatorio_id;
       if (!rid) throw new Error('O backend não retornou o identificador do relatório.');
       setRelatorioId(rid);
-      setProgresso({ valor: 25, texto: 'Buscando atividades, fotos e notas fiscais...' });
-      const resultado = await sincronizarRelatorioExecucao({
-        relatorioId: rid,
-        dataInicio: form.data_inicio,
-        dataFim: form.data_fim,
-        filtroMuseu: form.filtro_museu,
-        filtroVersao: form.filtro_versao,
-        filtroMetaIds: form.filtro_meta_ids,
-      });
-      setProgresso({ valor: 90, texto: 'Atualizando campos e finalizando...' });
+
+      // Gerar seção por seção para evitar timeout
+      const total = SECOES_GERACAO.length;
+      for (let i = 0; i < total; i++) {
+        const { key, label } = SECOES_GERACAO[i];
+        const pct = Math.round(5 + ((i / total) * 90));
+        setProgresso({ valor: pct, texto: `(${i + 1}/${total}) ${label}...` });
+        try {
+          await base44.functions.invoke('gerarSecaoRelatorioExecucao', {
+            relatorio_id: rid,
+            secao: key,
+            data_inicio: form.data_inicio,
+            data_fim: form.data_fim,
+            filtro_museu: form.filtro_museu,
+            filtro_versao: form.filtro_versao,
+            filtro_meta_ids: form.filtro_meta_ids,
+            aditivos_permitidos: [3, 4],
+          });
+        } catch (err) {
+          console.warn(`Seção ${key} falhou (continuando):`, err?.message);
+        }
+      }
+
+      setProgresso({ valor: 97, texto: 'Finalizando e carregando...' });
+      await base44.functions.invoke('gerarSecaoRelatorioExecucao', {
+        relatorio_id: rid, secao: 'finalizar',
+      }).catch(() => {});
+
       await carregarRelatorio(rid);
       await carregarRelatorios();
       setProgresso({ valor: 100, texto: 'Relatório concluído.' });
-      const auditoria = resultado.auditoria || {};
-      toast.success(`${auditoria.metas || 0} meta(s), ${auditoria.notas_fiscais || 0} NF(s), ${auditoria.atividades || 0} atividade(s) e ${auditoria.fotos || 0} foto(s) vinculadas.`, { duration: 10000 });
+      toast.success('Relatório gerado com sucesso — seção por seção, sem timeout.', { duration: 8000 });
     } catch (error) {
       toast.error('Erro ao gerar relatório: ' + (error?.message || String(error)), { duration: 12000 });
     } finally {
@@ -368,30 +401,60 @@ export default function RelatorioExecucaoObjeto() {
     }
   }
 
-  async function exportarPDF() {
+  const [exportandoPDF, setExportandoPDF] = useState(null); // null | 'parte1' | 'parte2' | 'parte3'
+
+  async function prepararRelatorioComFotos() {
+    let fotosGaleria = Array.isArray(relatorio._fotos_galeria) ? relatorio._fotos_galeria : [];
+    if (fotosGaleria.length === 0 && relatorioId) {
+      try {
+        const reportPhotos = await base44.entities.ReportPhoto.filter({ report_id: relatorioId }, 'ordem', 200);
+        fotosGaleria = (reportPhotos || []).filter(p => p.file_url && !p.galeria_oculta).map(p => ({
+          file_url: p.file_url, url: p.file_url,
+          legenda: p.legenda || p.caption || p.file_name || '',
+          autor: p.author || p.autor || 'Daniel Moreira',
+          meta_id: p.meta_id || '',
+          atividade_nome: p.museu || 'Registro do Período',
+          created_date: p.created_date,
+        }));
+      } catch (_) {}
+    }
+    return { ...relatorio, _fotos_galeria: fotosGaleria };
+  }
+
+  async function exportarParte(parte) {
     if (!relatorio) return;
+    setExportandoPDF(parte);
     try {
-      // Injetar fotos dos álbuns (ReportPhoto) no relatorio antes de exportar
-      let fotosGaleria = Array.isArray(relatorio._fotos_galeria) ? relatorio._fotos_galeria : [];
-      if (fotosGaleria.length === 0 && relatorioId) {
-        try {
-          const reportPhotos = await base44.entities.ReportPhoto.filter({ report_id: relatorioId }, 'ordem', 200);
-          fotosGaleria = (reportPhotos || []).filter(p => p.file_url && !p.galeria_oculta).map(p => ({
-            file_url: p.file_url,
-            url: p.file_url,
-            legenda: p.legenda || p.caption || p.file_name || '',
-            autor: p.author || p.autor || 'Daniel Moreira',
-            meta_id: p.meta_id || '',
-            atividade_nome: p.museu || 'Registro do Período',
-            created_date: p.created_date,
-          }));
-        } catch (_) {}
-      }
-      const relatorioComFotos = { ...relatorio, _fotos_galeria: fotosGaleria };
-      await exportarRelatorioExecucaoPDF(relatorioComFotos, 'completo');
-      toast.success('PDF gerado em 3 partes com as últimas edições salvas.');
+      const rel = await prepararRelatorioComFotos();
+      await exportarRelatorioExecucaoPDF(rel, parte);
+      toast.success(`PDF ${parte === 'parte1' ? '1/3 (Identificação e Público)' : parte === 'parte2' ? '2/3 (Metas e Equipe)' : '3/3 (Impactos, Assinatura e Galeria)'} gerado.`);
     } catch (error) {
       toast.error('Erro ao gerar PDF: ' + (error?.message || String(error)));
+    } finally {
+      setExportandoPDF(null);
+    }
+  }
+
+  async function exportarPDF() {
+    // Gera as 3 partes sequencialmente para evitar travar o browser
+    if (!relatorio) return;
+    setExportandoPDF('parte1');
+    try {
+      const rel = await prepararRelatorioComFotos();
+      await exportarRelatorioExecucaoPDF(rel, 'parte1');
+      toast.info('Parte 1/3 gerada. Gerando parte 2...');
+      setExportandoPDF('parte2');
+      await new Promise(r => setTimeout(r, 300));
+      await exportarRelatorioExecucaoPDF(rel, 'parte2');
+      toast.info('Parte 2/3 gerada. Gerando parte 3...');
+      setExportandoPDF('parte3');
+      await new Promise(r => setTimeout(r, 300));
+      await exportarRelatorioExecucaoPDF(rel, 'parte3');
+      toast.success('Todas as 3 partes do PDF foram geradas com sucesso.');
+    } catch (error) {
+      toast.error('Erro ao gerar PDF: ' + (error?.message || String(error)));
+    } finally {
+      setExportandoPDF(null);
     }
   }
 
@@ -464,7 +527,19 @@ export default function RelatorioExecucaoObjeto() {
               Gerar todas as seções
             </Button>
             <Button size="sm" onClick={() => setRevisaoAberta(true)}>Revisar e Exportar</Button>
-            <Button size="sm" variant="outline" onClick={exportarPDF}><Download className="w-4 h-4 mr-1" />PDF</Button>
+            <Button size="sm" variant="outline" onClick={exportarPDF} disabled={!!exportandoPDF}>
+              {exportandoPDF ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Download className="w-4 h-4 mr-1" />}
+              {exportandoPDF ? `Gerando ${exportandoPDF}...` : 'PDF (3 partes)'}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => exportarParte('parte1')} disabled={!!exportandoPDF} title="Baixar apenas Parte 1 — Identificação e Público">
+              <Download className="w-3.5 h-3.5 mr-1" />P1
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => exportarParte('parte2')} disabled={!!exportandoPDF} title="Baixar apenas Parte 2 — Metas e Equipe">
+              <Download className="w-3.5 h-3.5 mr-1" />P2
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => exportarParte('parte3')} disabled={!!exportandoPDF} title="Baixar apenas Parte 3 — Impactos, Assinatura e Galeria">
+              <Download className="w-3.5 h-3.5 mr-1" />P3
+            </Button>
             <Button size="sm" variant="outline" onClick={exportarDOCX} disabled={exportandoDOCX}>
               {exportandoDOCX ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FileType className="w-4 h-4 mr-1" />}
               DOCX
