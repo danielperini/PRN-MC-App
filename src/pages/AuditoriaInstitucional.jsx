@@ -70,6 +70,25 @@ function AuditoriaInstitucionalInner() {
                 <div className="flex justify-between gap-3"><span className="text-muted-foreground">Visitas agendadas</span><strong>{fmtInt(metrics?.audience?.visitasAgendadas)}</strong></div>
                 <div className="pt-3 border-t border-border flex justify-between gap-3"><span className="text-foreground font-medium">Total</span><strong>{fmtInt(metrics?.audience?.publicoTotal)}</strong></div>
               </div>
+
+              {/* Breakdown por museu */}
+              {Array.isArray(metrics?.activities?.byMuseum) && metrics.activities.byMuseum.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-border space-y-2">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Por museu</p>
+                  {metrics.activities.byMuseum
+                    .filter(m => m.publico > 0)
+                    .sort((a, b) => b.publico - a.publico)
+                    .map(m => (
+                      <div key={m.museu} className="flex justify-between gap-3 text-sm">
+                        <span className="text-muted-foreground truncate">{m.museu}</span>
+                        <div className="flex gap-3 shrink-0">
+                          <span className="text-xs text-muted-foreground">{fmtInt(m.atividades)} at.</span>
+                          <strong>{fmtInt(m.publico)}</strong>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
             </div>
 
             <div className="rounded-xl border border-border bg-card p-5">
