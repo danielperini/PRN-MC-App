@@ -1,4 +1,4 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 
 Deno.serve(async (req) => {
   try {
@@ -14,7 +14,6 @@ Deno.serve(async (req) => {
       data_fim,
       filtro_museu = 'todos',
       filtro_meta_ids = [],
-      filtro_versao = 'consolidado'
     } = body;
 
     if (!relatorio_id) return Response.json({ error: 'relatorio_id é obrigatório' }, { status: 400 });
@@ -25,68 +24,156 @@ Deno.serve(async (req) => {
 
     const dInicio = data_inicio || relatorio.data_inicio;
     const dFim = data_fim || relatorio.data_fim;
-    const museu = filtro_museu || relatorio.filtro_museu;
+    const museu = filtro_museu !== 'todos' ? filtro_museu : null;
 
-    // ── Coletar dados ──────────────────────────────────────────
+    // ─── COLETA DE CONTEXTO REAL ─────────────────────────────────────────────
     async function coletarContexto() {
-      const [rubricas, metas, activities, programacoes, releases, teamMembers] = await Promise.all([
-        srv.entities.Rubrica.list(),
+      const [
+        rubricas, metas, activities, programacoes, releases,
+        teamMembers, reports, fotos, purchases
+      ] = await Promise.all([
+        srv.entities.Rubrica.filter({ ativo: true }),
         srv.entities.ProjectMeta.list(),
         srv.entities.Activity.filter({ data_realizacao: { $gte: dInicio, $lte: dFim } }),
         srv.entities.Programacao.filter({ data: { $gte: dInicio, $lte: dFim } }),
-        srv.entities.Release.list(),
-        srv.entities.TeamMember.list()
+        srv.entities.Release.list('-data_publicacao', 30),
+        srv.entities.TeamMember.filter({ status: 'ATIVO' }),
+        srv.entities.Report.filter({ status: { $in: ['APPROVED', 'SUBMITTED', 'IN_REVIEW'] } }),
+        srv.entities.ReportPhoto.list('-created_date', 200),
+        srv.entities.PurchaseRequest.filter({ status: { $in: ['APROVADO_ADMIN', 'PAGO'] } }),
       ]);
 
-      const solicitacoes = await srv.entities.PurchaseRequest.filter({
-        status: { $in: ['APROVADO_ADMIN', 'APROVADO_COORD', 'PAGO'] }
-      });
+      // Filtrar atividades por museu se especificado
+      const atividadesFiltradas = museu
+        ? activities.filter(a =>
+            (a.museu && a.museu.includes(museu)) ||
+            (a.centro_custo && a.centro_custo.includes(museu))
+          )
+        : activities;
 
-      const atividadesFiltradas = museu === 'todos'
-        ? activities
-        : activities.filter(a => a.museu === museu || a.centro_custo?.includes(museu));
-
+      // Filtrar metas
       const metasFiltradas = filtro_meta_ids.length > 0
         ? metas.filter(m => filtro_meta_ids.includes(m.id))
-        : metas.filter(m => m.ativo !== false);
+        : metas.filter(m => m.ativo !== false).sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
+
+      // Mapear fotos por report_id
+      const fotosPorReport: Record<string, any[]> = {};
+      for (const f of fotos) {
+        if (!f.report_id) continue;
+        if (!fotosPorReport[f.report_id]) fotosPorReport[f.report_id] = [];
+        fotosPorReport[f.report_id].push(f);
+      }
+
+      // Enriquecer atividades com fotos dos relatórios
+      const atividadesEnriquecidas = atividadesFiltradas.map(a => {
+        const fotosAtividade = fotos.filter(f =>
+          f.report_id === a.report_id && f.caption && f.caption.toLowerCase().includes((a.titulo || '').toLowerCase().substring(0, 8))
+        ).slice(0, 2);
+        return {
+          id: a.id,
+          titulo: a.titulo,
+          descricao: a.descricao || '',
+          data: a.data_realizacao,
+          data_inicio: a.data_inicio,
+          data_fim: a.data_fim,
+          museu: a.museu || a.centro_custo || '',
+          meta_codigo: a.meta_codigo || '',
+          meta_id: a.meta_id || '',
+          classificacao: a.classificacao,
+          publico_estimado: a.publico_estimado || 0,
+          publico_total: a.publico_total || 0,
+          quantas_repeticoes: a.quantas_repeticoes || 1,
+          status_meta: a.status_meta || '',
+          resultado_alcancado: a.resultado_alcancado || '',
+          indicador_previsto: a.indicador_previsto || '',
+          meta_quantitativa: a.meta_quantitativa || '',
+          justificativa_tecnica: a.justificativa_tecnica || '',
+          equipe_responsavel: a.equipe_responsavel || '',
+          acessibilidade: a.acessibilidade || 'Não',
+          parceria: a.parceria || 'Não',
+          parceiro_nome: a.parceiro_nome || '',
+          observacoes: a.observacoes || '',
+          produtos_entregues: a.produtos_entregues || [],
+          houve_contratacoes: a.houve_contratacoes || false,
+          numero_trabalhadores: a.numero_trabalhadores || 0,
+          fotos_vinculadas: fotosAtividade.map(f => ({
+            url: f.file_url || f.foto_url || '',
+            legenda: f.caption || f.legenda || f.legenda_editada || '',
+            autor: f.author || 'Daniel Moreira',
+          })),
+        };
+      });
+
+      // Totais reais
+      const publicoTotal = atividadesEnriquecidas.reduce((s, a) => s + (a.publico_total || 0), 0);
+      const valorTotal = purchases.reduce((s, p) => s + (parseFloat(p.valor_aprovado_admin || p.valor_pago || p.valor_solicitado || 0)), 0);
+      const relatoriosAprovados = reports.filter(r => r.status === 'APPROVED');
 
       return {
-        atividades: atividadesFiltradas.slice(0, 80).map(a => ({
-          titulo: a.titulo, descricao: a.descricao?.substring(0, 200),
-          data: a.data_realizacao, publico: a.publico_total,
-          meta: a.meta_codigo, museu: a.museu || a.centro_custo,
-          status_meta: a.status_meta, classificacao: a.classificacao
+        atividades: atividadesEnriquecidas,
+        metas: metasFiltradas,
+        rubricas,
+        programacoes: programacoes.map(p => ({
+          titulo: p.titulo, data: p.data, local: p.local || '', tipo: p.tipo || '', museu: p.museu || '',
         })),
-        metas: metasFiltradas.map(m => ({ id: m.id, nome: m.nome, descricao: m.descricao, ordem: m.ordem })),
-        rubricas: rubricas.slice(0, 40).map(r => ({
-          nome: r.rubrica, grupo: r.grupo, meta: r.meta,
-          valor: r.valor_rubrica, natureza: r.natureza_despesa, museu: r.centro_custo
+        releases: releases.map(r => ({
+          titulo: r.titulo, data: r.data_publicacao, veiculo: r.veiculo || '', resumo: r.resumo || '',
         })),
-        programacoes: programacoes.slice(0, 30).map(p => ({
-          titulo: p.titulo, data: p.data, local: p.local, tipo: p.tipo
+        equipe: teamMembers.map(t => ({
+          nome: t.user_name || t.nome || '',
+          cargo: t.funcao || t.cargo_representante || '',
+          tipo_pessoa: t.tipo_pessoa || 'PF',
+          museu_projeto: t.museu_projeto || '',
+          valor_total: t.valor_total || 0,
+          numero_parcelas: t.numero_parcelas || 0,
+          data_inicio: t.data_inicio_contrato || '',
+          data_fim: t.data_fim_contrato || '',
+          status_contrato: t.status_contrato || 'VIGENTE',
         })),
-        releases: releases.slice(0, 15).map(r => ({ titulo: r.titulo, data: r.data_publicacao, veiculo: r.veiculo })),
-        equipe: teamMembers.slice(0, 40).map(t => ({
-          nome: t.nome, cargo: t.cargo || t.funcao, tipo_contratacao: t.tipo_contratacao,
-          carga_horaria: t.carga_horaria, valor: t.valor_mensal || t.valor_total
+        fotos: fotos.slice(0, 100).map(f => ({
+          url: f.file_url || f.foto_url || '',
+          legenda: f.caption || f.legenda || f.legenda_editada || '',
+          autor: f.author || 'Daniel Moreira',
+          report_id: f.report_id,
+          mes: f.mes_referencia || '',
         })),
+        // Estatísticas reais
         total_atividades: atividadesFiltradas.length,
-        publico_total: atividadesFiltradas.reduce((s, a) => s + (a.publico_total || 0), 0),
-        total_solicitacoes: solicitacoes.length,
-        valor_solicitacoes: solicitacoes.reduce((s, p) => s + (p.valor_aprovado_admin || p.valor_solicitado || 0), 0)
+        total_metas: metasFiltradas.length,
+        publico_total: publicoTotal,
+        valor_total_aprovado: valorTotal,
+        total_team: teamMembers.length,
+        total_releases: releases.length,
+        total_programacoes: programacoes.length,
+        total_relatorios_aprovados: relatoriosAprovados.length,
+        total_fotos: fotos.length,
+        museus_ativos: [...new Set(atividadesFiltradas.map(a => a.museu || a.centro_custo).filter(Boolean))],
       };
     }
 
-    async function chamarIA(prompt, schema = null) {
-      const opts = { prompt: `Você é um especialista em relatórios de prestação de contas culturais para a Prefeitura de Belo Horizonte. Seja conciso, objetivo e formal. Não invente dados.\n\n${prompt}` };
+    // ─── IA COM INSTRUÇÃO INSTITUCIONAL ──────────────────────────────────────
+    async function chamarIA(prompt: string, schema: any = null) {
+      const instrucao = `Você é um especialista em relatórios de prestação de contas culturais para a Prefeitura de Belo Horizonte (PBH/FMC/SUCC).
+
+REGRAS ABSOLUTAS:
+1. NUNCA invente fatos, números, nomes ou eventos.
+2. Use SOMENTE os dados fornecidos no contexto.
+3. Se não houver dado suficiente para uma afirmação, omita-a.
+4. Linguagem: técnica, cultural, institucional, em português do Brasil correto.
+5. Evite caixa alta desnecessária.
+6. Textos fluidos, coesos, sem jargões desnecessários.
+7. Citações literais apenas se o texto original foi fornecido.
+
+`;
+      const opts: any = { prompt: instrucao + prompt };
       if (schema) opts.response_json_schema = schema;
-      const res = await base44.integrations.Core.InvokeLLM(opts);
-      return res;
+      return await base44.integrations.Core.InvokeLLM(opts);
     }
 
-    // ── Gerar seção específica ──────────────────────────────────
+    // ─── SEÇÕES ──────────────────────────────────────────────────────────────
     switch (secao) {
 
+      // ── Identificação ────────────────────────────────────────────────────
       case 'identificacao': {
         const ident = {
           organizacao: 'Viaduto das Artes',
@@ -97,191 +184,485 @@ Deno.serve(async (req) => {
           vigencia_fim: dFim,
           responsavel: user.full_name || '',
           telefone: relatorio.identificacao_projeto?.telefone || '',
-          email: user.email || ''
+          email: user.email || '',
         };
         await srv.entities.RelatorioExecucaoObjeto.update(relatorio_id, { identificacao_projeto: ident });
         return Response.json({ success: true, secao, data: ident });
       }
 
+      // ── Endereço de Execução ─────────────────────────────────────────────
       case 'endereco_execucao': {
         const ctx = await coletarContexto();
-        const museusAtivos = [...new Set(ctx.atividades.map(a => a.museu).filter(Boolean))];
+        const enderecosOficiais: Record<string, string> = {
+          'MHAB': 'Museu Histórico Abílio Barreto (MHAB) — Av. Prudente de Morais, 202 – Cidade Jardim, Belo Horizonte/MG – CEP 30.380-000',
+          'MIS': 'Museu da Imagem e do Som (MIS) — Av. Afonso Pena, 1520 – Centro, Belo Horizonte/MG – CEP 30.130-921',
+          'MUMO': 'Museu do Museu (MUMO) – Rua da Bahia, 1149 – Centro, Belo Horizonte/MG – CEP 30.160-011',
+          'Casa Kubitschek': 'Casa Kubitschek — Av. João Antônio Alves, 90 – Pampulha, Belo Horizonte/MG – CEP 31.365-200',
+          'Casa do Baile': 'Casa do Baile — Av. Otacílio Negrão de Lima, 751 – Pampulha, Belo Horizonte/MG – CEP 31.365-450',
+          'MAP': 'Museu de Arte da Pampulha (MAP) — Av. Otacílio Negrão de Lima, 16.585 – Pampulha, Belo Horizonte/MG – CEP 31.365-450',
+        };
+
+        const museusAtivos = ctx.museus_ativos.length > 0 ? ctx.museus_ativos : Object.keys(enderecosOficiais);
+        const enderecosList = museusAtivos
+          .map(m => {
+            const key = Object.keys(enderecosOficiais).find(k => m.includes(k) || k.includes(m));
+            return key ? enderecosOficiais[key] : null;
+          })
+          .filter(Boolean);
+
         const texto = await chamarIA(
-          `CONTEXTO: ${JSON.stringify({ museus_ativos: museusAtivos, atividades: ctx.atividades.slice(0, 20) })}\n\n` +
-          `Gere a seção "ENDEREÇO DE EXECUÇÃO". Liste os endereços oficiais dos museus ativos:\n` +
-          `- MHAB: Av. Otacílio Negrão de Lima, 1650 – Pampulha, BH/MG\n- MIS: Av. Afonso Pena, 800 – Centro, BH/MG\n- MUMO: Praça da Liberdade, s/n – Funcionários, BH/MG\n- Casa Kubitschek: Av. Otacílio Negrão de Lima, 600 – Pampulha, BH/MG\n- Casa do Baile: Av. Otacílio Negrão de Lima, 751 – Pampulha, BH/MG\n- MAP: Av. Afonso Pena, 837 – Centro, BH/MG\nRetorne APENAS o texto formatado.`
+          `CONTEXTO: ${ctx.total_atividades} atividades realizadas nos seguintes museus: ${museusAtivos.join(', ')}.\n\n` +
+          `Endereços oficiais dos locais de execução:\n${enderecosList.join('\n')}\n\n` +
+          `Gere a seção "LOCAL DE EXECUÇÃO" listando os endereços dos museus ativos com breve contextualização institucional de cada um. ` +
+          `Máximo 1.500 caracteres. Retorne APENAS o texto.`
         );
-        const txt = typeof texto === 'string' ? texto : '';
-        await srv.entities.RelatorioExecucaoObjeto.update(relatorio_id, { endereco_execucao: { texto_ia: txt, texto_editado: '', modo: 'ia' } });
+        const txt = typeof texto === 'string' ? texto : enderecosList.join('\n');
+        await srv.entities.RelatorioExecucaoObjeto.update(relatorio_id, {
+          endereco_execucao: { texto_ia: txt, texto_editado: '', modo: 'ia' },
+        });
         return Response.json({ success: true, secao, data: { texto_ia: txt } });
       }
 
+      // ── Divulgação da Parceria ────────────────────────────────────────────
       case 'divulgacao': {
         const ctx = await coletarContexto();
+        if (ctx.releases.length === 0 && ctx.programacoes.length === 0) {
+          const txt = 'Não foram localizados registros de releases ou materiais de divulgação no período. A divulgação da parceria será documentada assim que os dados forem cadastrados no sistema.';
+          await srv.entities.RelatorioExecucaoObjeto.update(relatorio_id, {
+            divulgacao_parceria: { texto_ia: txt, texto_editado: '', modo: 'ia' },
+          });
+          return Response.json({ success: true, secao, data: { texto_ia: txt } });
+        }
         const texto = await chamarIA(
-          `CONTEXTO: releases=${ctx.releases.length}, programacoes=${ctx.programacoes.length}\nReleases: ${JSON.stringify(ctx.releases)}\n\n` +
-          `Gere a seção "DIVULGAÇÃO DA PARCERIA". Descreva divulgação institucional entre Viaduto das Artes e PBH: redes sociais, site, releases, clipping, materiais gráficos. Máximo 1200 caracteres. Retorne APENAS o texto.`
+          `CONTEXTO REAL:\n` +
+          `- Releases cadastrados: ${ctx.releases.length}\n` +
+          `- Programações com divulgação: ${ctx.programacoes.length}\n` +
+          `- Releases: ${JSON.stringify(ctx.releases.slice(0, 10))}\n\n` +
+          `Gere a seção "DIVULGAÇÃO DA PARCERIA". Descreva as ações de comunicação e visibilidade do projeto Museus Centro ` +
+          `com base exclusivamente nos dados fornecidos. Mencione veículos, releases e programações identificados. ` +
+          `Máximo 1.200 caracteres. Retorne APENAS o texto.`
         );
         const txt = typeof texto === 'string' ? texto : '';
-        await srv.entities.RelatorioExecucaoObjeto.update(relatorio_id, { divulgacao_parceria: { texto_ia: txt, texto_editado: '', modo: 'ia' } });
+        await srv.entities.RelatorioExecucaoObjeto.update(relatorio_id, {
+          divulgacao_parceria: { texto_ia: txt, texto_editado: '', modo: 'ia' },
+        });
         return Response.json({ success: true, secao, data: { texto_ia: txt } });
       }
 
+      // ── Descrição das Ações ───────────────────────────────────────────────
       case 'descricao_acoes': {
         const ctx = await coletarContexto();
+        const atvsResumidas = ctx.atividades.slice(0, 30).map(a =>
+          `${a.data || ''} | ${a.museu} | ${a.classificacao} | ${a.titulo} | Público: ${a.publico_total} | Meta: ${a.meta_codigo || 'Rotina'}`
+        ).join('\n');
+
         const texto = await chamarIA(
-          `CONTEXTO: ${ctx.total_atividades} atividades, ${ctx.programacoes.length} programações\n${JSON.stringify({ atividades: ctx.atividades.slice(0, 15), programacoes: ctx.programacoes.slice(0, 10) })}\n\n` +
-          `Gere a seção "DESCRIÇÃO SUCINTA DAS AÇÕES EXECUTADAS". Resuma ações: atividades, eventos, exposições, educativo, cultural, Noturno. Destaque números. Máximo 1500 caracteres. Retorne APENAS o texto.`
+          `DADOS REAIS DO PERÍODO ${dInicio} a ${dFim}:\n` +
+          `- Total de atividades registradas: ${ctx.total_atividades}\n` +
+          `- Público total alcançado: ${ctx.publico_total}\n` +
+          `- Museus ativos: ${ctx.museus_ativos.join(', ')}\n` +
+          `- Programações realizadas: ${ctx.total_programacoes}\n` +
+          `- Equipe contratada: ${ctx.total_team} profissionais\n\n` +
+          `ATIVIDADES (resumo):\n${atvsResumidas}\n\n` +
+          `Gere a seção "DESCRIÇÃO SUCINTA DAS AÇÕES EXECUTADAS" em linguagem técnico-cultural institucional. ` +
+          `Organize por museu/área quando possível. Mencione somente atividades listadas acima. ` +
+          `Máximo 2.000 caracteres. Retorne APENAS o texto.`
         );
         const txt = typeof texto === 'string' ? texto : '';
-        await srv.entities.RelatorioExecucaoObjeto.update(relatorio_id, { descricao_acoes: { texto_ia: txt, texto_editado: '', modo: 'ia' } });
+        await srv.entities.RelatorioExecucaoObjeto.update(relatorio_id, {
+          descricao_acoes: { texto_ia: txt, texto_editado: '', modo: 'ia' },
+        });
         return Response.json({ success: true, secao, data: { texto_ia: txt } });
       }
 
+      // ── Público-Alvo ─────────────────────────────────────────────────────
       case 'publico_alvo': {
         const ctx = await coletarContexto();
-        const pd = 50000, pi = 150000, rd = ctx.publico_total, ri = Math.round(ctx.publico_total * 2.5);
+        const rd = ctx.publico_total;
+        // Valores previstos do plano de trabalho (base contratual)
+        const pd = relatorio.publico_alvo?.previsto_direto || 50000;
+        const pi = relatorio.publico_alvo?.previsto_indireto || 150000;
+        const ri = Math.round(rd * 2.5);
+
         const texto = await chamarIA(
-          `DADOS: Previsto direto=${pd}, Realizado direto=${rd} (${Math.round(rd/pd*100)}%), Previsto indireto=${pi}, Realizado indireto=${ri}, Diferença=${rd-pd}\n\n` +
-          `Gere texto interpretativo de 2 parágrafos sobre o público. Analise se satisfatório. Retorne APENAS o texto.`
+          `DADOS REAIS:\n` +
+          `- Público direto previsto: ${pd}\n` +
+          `- Público direto realizado: ${rd} (${pd > 0 ? Math.round(rd/pd*100) : 0}%)\n` +
+          `- Público indireto previsto: ${pi}\n` +
+          `- Público indireto estimado: ${ri}\n` +
+          `- Total de atividades que geraram público: ${ctx.atividades.filter(a => a.publico_total > 0).length}\n` +
+          `- Museus ativos no período: ${ctx.museus_ativos.join(', ')}\n\n` +
+          `Gere texto interpretativo de 2 parágrafos sobre o alcance de público. ` +
+          `Base-se exclusivamente nos dados acima. Não invente justificativas sem evidência. ` +
+          `Retorne APENAS o texto.`
         );
         const txt = typeof texto === 'string' ? texto : '';
         const publ = {
           previsto_direto: pd, previsto_indireto: pi,
           realizado_direto: rd, realizado_indireto: ri,
           diferenca_direto: rd - pd, diferenca_indireto: ri - pi,
-          percentual_direto: Math.round(rd / pd * 100), percentual_indireto: Math.round(ri / pi * 100),
-          texto_interpretativo_ia: txt, texto_interpretativo_editado: '', modo: 'ia'
+          percentual_direto: pd > 0 ? Math.round(rd / pd * 100) : 0,
+          percentual_indireto: pi > 0 ? Math.round(ri / pi * 100) : 0,
+          texto_interpretativo_ia: txt, texto_interpretativo_editado: '', modo: 'ia',
         };
         await srv.entities.RelatorioExecucaoObjeto.update(relatorio_id, { publico_alvo: publ });
         return Response.json({ success: true, secao, data: publ });
       }
 
+      // ── Pesquisa de Satisfação ───────────────────────────────────────────
       case 'pesquisa_satisfacao': {
         await srv.entities.RelatorioExecucaoObjeto.update(relatorio_id, {
-          pesquisa_satisfacao: { possui_dados: false, justificativa_ia: 'Não foram aplicados formulários de pesquisa de satisfação neste período.', justificativa_editada: '', modo: 'ia' }
+          pesquisa_satisfacao: {
+            possui_dados: false,
+            justificativa_ia: 'Não foram localizados registros de pesquisa de satisfação aplicada no período. Formulários de avaliação serão implementados nas próximas edições das programações.',
+            justificativa_editada: '', modo: 'ia',
+          },
         });
         return Response.json({ success: true, secao, data: { possui_dados: false } });
       }
 
+      // ── Cronograma de Metas ──────────────────────────────────────────────
       case 'cronograma_metas': {
         const ctx = await coletarContexto();
         const cronograma = [];
 
         for (const meta of ctx.metas) {
+          // Vincular atividades à meta por meta_codigo ou meta_id
           const atvsDaMeta = ctx.atividades.filter(a =>
-            a.meta && meta.nome && (a.meta.includes(meta.nome.substring(0, 8)) || meta.nome.includes(a.meta?.substring(0, 8)))
+            (a.meta_id && a.meta_id === meta.id) ||
+            (a.meta_codigo && meta.nome && (
+              a.meta_codigo === meta.nome ||
+              meta.nome.toLowerCase().includes(a.meta_codigo.toLowerCase().substring(0, 6))
+            ))
           );
 
-          try {
-            const analise = await chamarIA(
-              `Meta: "${meta.nome}" (${meta.descricao || ''})\nAtividades: ${JSON.stringify(atvsDaMeta.slice(0, 8))}\n\n` +
-              `Retorne JSON: resultado_esperado, acoes, periodo, resultado_alcancado, status_meta ("Realizada Integralmente"|"Realizada Parcialmente"|"Não Realizada"), percentual_execucao (0-100), justificativa`,
-              { type: 'object', properties: {
-                resultado_esperado: { type: 'string' }, acoes: { type: 'string' },
-                periodo: { type: 'string' }, resultado_alcancado: { type: 'string' },
-                status_meta: { type: 'string' }, percentual_execucao: { type: 'number' },
-                justificativa: { type: 'string' }
-              }, required: ['resultado_esperado', 'acoes', 'status_meta', 'percentual_execucao'] }
-            );
-            cronograma.push({
-              meta_id: meta.id, meta_nome: meta.nome, meta_ordem: meta.ordem || 0,
-              resultado_esperado: analise.resultado_esperado || '',
-              acoes: analise.acoes || '', periodo: analise.periodo || `${dInicio} a ${dFim}`,
-              documentos_verificacao: [], resultado_alcancado: analise.resultado_alcancado || '',
-              status_meta: analise.status_meta || 'Realizada Parcialmente',
-              percentual_execucao: analise.percentual_execucao || 0,
-              justificativa: analise.justificativa || '', modo: 'ia'
-            });
-          } catch (e) {
-            cronograma.push({
+          // Fotos de evidência da meta
+          const fotosEvidencia = ctx.fotos
+            .filter(f => atvsDaMeta.some(a => f.report_id === a.report_id))
+            .slice(0, 2)
+            .map(f => f.url)
+            .filter(Boolean);
+
+          const publicoMeta = atvsDaMeta.reduce((s, a) => s + (a.publico_total || 0), 0);
+          const resultadosAlcancados = atvsDaMeta
+            .filter(a => a.resultado_alcancado)
+            .map(a => a.resultado_alcancado)
+            .join('; ');
+
+          const descAtividades = atvsDaMeta.slice(0, 8).map(a =>
+            `${a.data || ''}: ${a.titulo} — Público: ${a.publico_total} — ${a.resultado_alcancado || a.status_meta || ''}`
+          ).join('\n');
+
+          let entrada: any;
+          if (atvsDaMeta.length === 0) {
+            // Sem atividades: não inventar
+            entrada = {
               meta_id: meta.id, meta_nome: meta.nome, meta_ordem: meta.ordem || 0,
               resultado_esperado: meta.descricao || '',
-              acoes: `${atvsDaMeta.length} atividades`, periodo: `${dInicio} a ${dFim}`,
-              documentos_verificacao: [], resultado_alcancado: '',
-              status_meta: atvsDaMeta.length > 0 ? 'Realizada Parcialmente' : 'Não Realizada',
-              percentual_execucao: 0, justificativa: '', modo: 'ia'
-            });
+              acoes: 'Nenhuma atividade registrada para esta meta no período.',
+              periodo: `${dInicio} a ${dFim}`,
+              documentos_verificacao: [],
+              resultado_alcancado: 'Sem registros no período.',
+              status_meta: 'Não Realizada',
+              percentual_execucao: 0,
+              justificativa: 'Não foram localizadas atividades vinculadas a esta meta no período consultado.',
+              modo: 'ia',
+            };
+          } else {
+            try {
+              const analise = await chamarIA(
+                `META: "${meta.nome}"\n` +
+                `Descrição da meta: ${meta.descricao || ''}\n` +
+                `Atividades realizadas (${atvsDaMeta.length}):\n${descAtividades}\n` +
+                `Público alcançado: ${publicoMeta}\n` +
+                `Resultados registrados: ${resultadosAlcancados || 'não informados'}\n\n` +
+                `Com base EXCLUSIVAMENTE nos dados acima, retorne JSON com: ` +
+                `resultado_esperado (do plano de trabalho desta meta), ` +
+                `acoes (resumo das ações realizadas, baseado nas atividades listadas), ` +
+                `periodo, resultado_alcancado (baseado nos dados reais), ` +
+                `status_meta ("Realizada Integralmente" | "Realizada Parcialmente" | "Não Realizada"), ` +
+                `percentual_execucao (0-100, baseado nas atividades realizadas vs. previstas), ` +
+                `justificativa.`,
+                {
+                  type: 'object',
+                  properties: {
+                    resultado_esperado: { type: 'string' }, acoes: { type: 'string' },
+                    periodo: { type: 'string' }, resultado_alcancado: { type: 'string' },
+                    status_meta: { type: 'string' }, percentual_execucao: { type: 'number' },
+                    justificativa: { type: 'string' },
+                  },
+                  required: ['resultado_esperado', 'acoes', 'status_meta', 'percentual_execucao'],
+                }
+              );
+              entrada = {
+                meta_id: meta.id, meta_nome: meta.nome, meta_ordem: meta.ordem || 0,
+                resultado_esperado: analise.resultado_esperado || meta.descricao || '',
+                acoes: analise.acoes || `${atvsDaMeta.length} atividades realizadas`,
+                periodo: analise.periodo || `${dInicio} a ${dFim}`,
+                documentos_verificacao: fotosEvidencia,
+                resultado_alcancado: analise.resultado_alcancado || resultadosAlcancados || '',
+                status_meta: analise.status_meta || 'Realizada Parcialmente',
+                percentual_execucao: analise.percentual_execucao || 0,
+                justificativa: analise.justificativa || '',
+                modo: 'ia',
+              };
+            } catch {
+              entrada = {
+                meta_id: meta.id, meta_nome: meta.nome, meta_ordem: meta.ordem || 0,
+                resultado_esperado: meta.descricao || '',
+                acoes: `${atvsDaMeta.length} atividades realizadas no período`,
+                periodo: `${dInicio} a ${dFim}`,
+                documentos_verificacao: fotosEvidencia,
+                resultado_alcancado: resultadosAlcancados || `${atvsDaMeta.length} atividades — público: ${publicoMeta}`,
+                status_meta: atvsDaMeta.length >= 3 ? 'Realizada Integralmente' : 'Realizada Parcialmente',
+                percentual_execucao: Math.min(100, atvsDaMeta.length * 15),
+                justificativa: '', modo: 'ia',
+              };
+            }
           }
+          cronograma.push(entrada);
         }
 
         await srv.entities.RelatorioExecucaoObjeto.update(relatorio_id, { cronograma_metas: cronograma });
         return Response.json({ success: true, secao, data: { total_metas: cronograma.length } });
       }
 
+      // ── Equipe de Trabalho ───────────────────────────────────────────────
       case 'equipe_trabalho': {
         const ctx = await coletarContexto();
         const equipe = ctx.equipe.map(t => ({
-          nome: t.nome || '', cargo: t.cargo || '',
-          tipo_contratacao: t.tipo_contratacao || 'Pessoa Jurídica',
-          carga_horaria: t.carga_horaria?.toString() || '',
-          valor: t.valor || 0, periodo: `${dInicio} a ${dFim}`, modo: 'ia'
+          nome: t.nome,
+          cargo: t.cargo || 'Profissional',
+          tipo_contratacao: t.tipo_pessoa === 'PF' ? 'Pessoa Física' : t.tipo_pessoa === 'MEI' ? 'MEI' : 'Pessoa Jurídica',
+          carga_horaria: '',
+          valor: t.valor_total || 0,
+          periodo: `${t.data_inicio || dInicio} a ${t.data_fim || dFim}`,
+          modo: 'ia',
         }));
         await srv.entities.RelatorioExecucaoObjeto.update(relatorio_id, { equipe_trabalho: equipe });
         return Response.json({ success: true, secao, data: { total: equipe.length } });
       }
 
+      // ── Fichas de Atividades (seção estruturada completa) ────────────────
+      case 'fichas_atividades': {
+        const ctx = await coletarContexto();
+        const fichas = ctx.atividades.map(a => ({
+          data: a.data || a.data_inicio || '',
+          museu: a.museu || '',
+          meta: a.meta_codigo || a.meta_id || '',
+          titulo: a.titulo || '',
+          descricao: a.descricao || '',
+          tipo: a.classificacao || '',
+          publico: a.publico_total || 0,
+          responsavel: a.equipe_responsavel || '',
+          acessibilidade: a.acessibilidade || 'Não',
+          parceria: a.parceria === 'Sim' ? (a.parceiro_nome || 'Sim') : 'Não',
+          produtos_entregues: (a.produtos_entregues || []).join(', '),
+          resultado_alcancado: a.resultado_alcancado || '',
+          status_meta: a.status_meta || '',
+          observacoes: a.observacoes || '',
+          fotos: a.fotos_vinculadas.map(f => ({
+            url: f.url,
+            legenda: f.legenda || `${a.titulo} — ${a.museu}`,
+            credito: f.autor || 'Daniel Moreira',
+          })),
+        }));
+        // Armazenar como anexo estruturado no relatório
+        await srv.entities.RelatorioExecucaoObjeto.update(relatorio_id, {
+          anexos_evidencias: fichas.flatMap(f => f.fotos.map(ft => ({
+            foto_url: ft.url,
+            atividade_nome: f.titulo,
+            atividade_data: f.data,
+            local: f.museu,
+            meta_nome: f.meta,
+            legenda_ia: ft.legenda,
+            legenda_editada: '',
+          }))).filter(x => x.foto_url),
+        });
+        return Response.json({ success: true, secao, data: { total_fichas: fichas.length, fichas } });
+      }
+
+      // ── Impactos Econômicos e Sociais ─────────────────────────────────────
       case 'impactos': {
         const ctx = await coletarContexto();
         const texto = await chamarIA(
-          `DADOS: Público=${ctx.publico_total}, Atividades=${ctx.total_atividades}, Solicitações=${ctx.total_solicitacoes} (R$${ctx.valor_solicitacoes.toFixed(2)}), Museus=${museu}\n\n` +
-          `Gere "IMPACTOS ECONÔMICOS E SOCIAIS": inclusão, acessibilidade, formação de público, economia criativa, turismo cultural, patrimônio. Máximo 2000 caracteres. Retorne APENAS o texto.`
+          `DADOS REAIS:\n` +
+          `- Público total alcançado: ${ctx.publico_total}\n` +
+          `- Total de atividades: ${ctx.total_atividades}\n` +
+          `- Profissionais contratados: ${ctx.total_team}\n` +
+          `- Valor total aprovado: R$ ${ctx.valor_total_aprovado.toFixed(2)}\n` +
+          `- Museus envolvidos: ${ctx.museus_ativos.join(', ')}\n` +
+          `- Programações realizadas: ${ctx.total_programacoes}\n\n` +
+          `Gere a seção "IMPACTOS ECONÔMICOS E SOCIAIS" com base nos dados acima. ` +
+          `Aborde: inclusão cultural, acessibilidade, formação de público, cadeia produtiva da cultura, ` +
+          `geração de renda para profissionais, turismo cultural, patrimônio imaterial. ` +
+          `Máximo 2.000 caracteres. Retorne APENAS o texto.`
         );
         const txt = typeof texto === 'string' ? texto : '';
-        await srv.entities.RelatorioExecucaoObjeto.update(relatorio_id, { impactos_economicos_sociais: { texto_ia: txt, texto_editado: '', modo: 'ia' } });
+        await srv.entities.RelatorioExecucaoObjeto.update(relatorio_id, {
+          impactos_economicos_sociais: { texto_ia: txt, texto_editado: '', modo: 'ia' },
+        });
         return Response.json({ success: true, secao, data: { texto_ia: txt } });
       }
 
+      // ── Sustentabilidade ─────────────────────────────────────────────────
       case 'sustentabilidade': {
+        const ctx = await coletarContexto();
         const texto = await chamarIA(
-          `Gere "SUSTENTABILIDADE" do relatório final do projeto Museus Centro: continuidade, legado, parcerias, capacidade instalada. Máximo 1000 caracteres. Retorne APENAS o texto.`
+          `CONTEXTO REAL:\n` +
+          `- Projeto: Museus Centro / Viaduto das Artes × PBH\n` +
+          `- Profissionais contratados: ${ctx.total_team}\n` +
+          `- Atividades realizadas: ${ctx.total_atividades}\n` +
+          `- Museus: ${ctx.museus_ativos.join(', ')}\n\n` +
+          `Gere a seção "SUSTENTABILIDADE" descrevendo o legado, continuidade e capacidade instalada do projeto. ` +
+          `Aborde: formação de equipe, sistemas de gestão implantados, acervo documental produzido, ` +
+          `metodologias desenvolvidas. Máximo 1.200 caracteres. Retorne APENAS o texto.`
         );
         const txt = typeof texto === 'string' ? texto : '';
-        await srv.entities.RelatorioExecucaoObjeto.update(relatorio_id, { sustentabilidade: { texto_ia: txt, texto_editado: '', modo: 'ia' } });
+        await srv.entities.RelatorioExecucaoObjeto.update(relatorio_id, {
+          sustentabilidade: { texto_ia: txt, texto_editado: '', modo: 'ia' },
+        });
         return Response.json({ success: true, secao, data: { texto_ia: txt } });
       }
 
+      // ── Avaliação da Parceria ─────────────────────────────────────────────
       case 'avaliacao': {
         const ctx = await coletarContexto();
         const texto = await chamarIA(
-          `CONTEXTO: ${ctx.total_atividades} atividades, metas: ${ctx.metas.length}\n` +
-          `Gere "AVALIAÇÃO DA PARCERIA" Viaduto das Artes × PBH/SUCC: execução, desafios, aprendizados, gargalos, recomendações. Máximo 1500 caracteres. Retorne APENAS o texto.`
+          `CONTEXTO REAL:\n` +
+          `- Atividades realizadas: ${ctx.total_atividades}\n` +
+          `- Metas acompanhadas: ${ctx.total_metas}\n` +
+          `- Relatórios mensais aprovados: ${ctx.total_relatorios_aprovados}\n` +
+          `- Equipe: ${ctx.total_team} profissionais\n` +
+          `- Museus: ${ctx.museus_ativos.join(', ')}\n\n` +
+          `Gere a seção "AVALIAÇÃO DA PARCERIA" entre Viaduto das Artes e PBH/SUCC/FMC. ` +
+          `Aborde: cumprimento do plano de trabalho, execução financeira, desafios enfrentados, ` +
+          `aprendizados institucionais, recomendações para continuidade. ` +
+          `Máximo 1.500 caracteres. Retorne APENAS o texto.`
         );
         const txt = typeof texto === 'string' ? texto : '';
-        await srv.entities.RelatorioExecucaoObjeto.update(relatorio_id, { avaliacao_parceria: { texto_ia: txt, texto_editado: '', modo: 'ia' } });
+        await srv.entities.RelatorioExecucaoObjeto.update(relatorio_id, {
+          avaliacao_parceria: { texto_ia: txt, texto_editado: '', modo: 'ia' },
+        });
         return Response.json({ success: true, secao, data: { texto_ia: txt } });
       }
 
-      case 'assinatura': {
-        const ass = { nome_representante: user.full_name || '', cargo: 'Coordenador Geral', data: new Date().toISOString().split('T')[0], modo: 'ia' };
-        await srv.entities.RelatorioExecucaoObjeto.update(relatorio_id, { assinatura: ass });
-        return Response.json({ success: true, secao, data: ass });
+      // ── Inovação e Transformação Digital ─────────────────────────────────
+      case 'inovacao_digital': {
+        const ctx = await coletarContexto();
+        const texto = await chamarIA(
+          `CONTEXTO REAL DO SISTEMA:\n` +
+          `- Total de atividades registradas no sistema: ${ctx.total_atividades}\n` +
+          `- Total de fotografias na galeria: ${ctx.total_fotos}\n` +
+          `- Total de profissionais cadastrados: ${ctx.total_team}\n` +
+          `- Total de relatórios aprovados: ${ctx.total_relatorios_aprovados}\n` +
+          `- Total de programações registradas: ${ctx.total_programacoes}\n\n` +
+          `Gere a seção "INOVAÇÃO E TRANSFORMAÇÃO DIGITAL" descrevendo o sistema de gestão Museus Centro. ` +
+          `Aborde como inovação administrativa aplicada à gestão cultural: ` +
+          `integração financeira (rubricas, notas fiscais, solicitações de compra), ` +
+          `gestão documental (contratos, comprovantes, anexos), ` +
+          `rastreabilidade de atividades por meta e museu, ` +
+          `galeria fotográfica como evidência documental, ` +
+          `geração automática de relatórios e indicadores, ` +
+          `auditoria e prestação de contas integrada. ` +
+          `NÃO tratar como produto comercial. Tratar como inovação administrativa pública. ` +
+          `Máximo 2.000 caracteres. Retorne APENAS o texto.`
+        );
+        const txt = typeof texto === 'string' ? texto : '';
+        // Salvar em campo de texto livre reutilizando sustentabilidade como extensão
+        await srv.entities.RelatorioExecucaoObjeto.update(relatorio_id, {
+          // Armazena no campo de descrição de ações como seção adicional
+          descricao_acoes: {
+            ...(relatorio.descricao_acoes || {}),
+            inovacao_digital_ia: txt,
+          },
+        });
+        return Response.json({ success: true, secao, data: { texto_ia: txt } });
       }
 
+      // ── Contexto IA para Publicações ─────────────────────────────────────
+      case 'contexto_ia_publicacao': {
+        const ctx = await coletarContexto();
+        const contexto = {
+          resumo_executivo: `Projeto Museus Centro — ${dInicio} a ${dFim}. ${ctx.total_atividades} atividades realizadas, público total: ${ctx.publico_total}. Museus: ${ctx.museus_ativos.join(', ')}.`,
+          contexto_historico: `Parceria entre Viaduto das Artes e Prefeitura de Belo Horizonte (PBH/SUCC/FMC) para gestão cultural de museus municipais no Centro de Belo Horizonte.`,
+          atividades_relacionadas: ctx.atividades.slice(0, 30).map(a => ({
+            titulo: a.titulo, data: a.data, museu: a.museu, meta: a.meta_codigo, publico: a.publico_total,
+          })),
+          metas_relacionadas: ctx.metas.map(m => ({ id: m.id, nome: m.nome, descricao: m.descricao })),
+          publico_relacionado: {
+            total: ctx.publico_total,
+            por_museu: ctx.museus_ativos.map(m => ({
+              museu: m,
+              total: ctx.atividades.filter(a => a.museu.includes(m)).reduce((s, a) => s + a.publico_total, 0),
+            })),
+          },
+          fotografias: ctx.fotos.slice(0, 20).map(f => ({
+            url: f.url, legenda: f.legenda, autor: f.autor, mes: f.mes,
+          })),
+          documentos: [
+            `${ctx.total_relatorios_aprovados} relatórios mensais aprovados`,
+            `${ctx.total_team} contratos de profissionais`,
+            `${ctx.total_fotos} fotografias na galeria`,
+          ],
+          referencias: {
+            sistema: 'Museus Centro App',
+            periodo: `${dInicio} a ${dFim}`,
+            museus: ctx.museus_ativos,
+            fontes: ['Report', 'Activity', 'ReportPhoto', 'TeamMember', 'PurchaseRequest', 'Programacao'],
+          },
+        };
+        return Response.json({ success: true, secao, data: contexto });
+      }
+
+      // ── Anexos / Evidências Fotográficas ─────────────────────────────────
       case 'anexos': {
-        const fotos = await srv.entities.Attachment.filter({ file_type: { $regex: '^image/' } });
-        const anexos = fotos.slice(0, 30).map(f => ({
-          foto_url: f.file_url || '', atividade_nome: f.description || 'Evidência',
-          atividade_data: f.created_date?.split('T')[0] || '', local: '', meta_nome: '',
-          legenda_ia: f.description || 'Foto anexada como evidência', legenda_editada: ''
+        const ctx = await coletarContexto();
+        const fotosValidas = ctx.fotos.filter(f => f.url);
+        const anexos = fotosValidas.slice(0, 50).map(f => ({
+          foto_url: f.url,
+          atividade_nome: f.legenda || 'Evidência fotográfica',
+          atividade_data: '',
+          local: '',
+          meta_nome: '',
+          legenda_ia: f.legenda || 'Registro fotográfico de atividade do projeto Museus Centro',
+          legenda_editada: '',
         }));
         await srv.entities.RelatorioExecucaoObjeto.update(relatorio_id, { anexos_evidencias: anexos });
         return Response.json({ success: true, secao, data: { total: anexos.length } });
       }
 
+      // ── Auditoria de Pendências ───────────────────────────────────────────
       case 'auditoria': {
         const rel = await srv.entities.RelatorioExecucaoObjeto.get(relatorio_id);
-        const pendencias = [];
+        const pendencias: any[] = [];
         const crono = rel.cronograma_metas || [];
         for (const m of crono) {
-          if ((m.percentual_execucao || 0) < 50) {
-            pendencias.push({ tipo: 'meta_sem_evidencia', descricao: `Meta "${m.meta_nome}" com baixa execução (${m.percentual_execucao || 0}%)`, resolvida: false });
+          if ((m.percentual_execucao || 0) < 30) {
+            pendencias.push({ tipo: 'meta_sem_evidencia', descricao: `Meta "${m.meta_nome}" com execução baixa (${m.percentual_execucao || 0}%). Verificar registros de atividades.`, resolvida: false });
           }
+        }
+        const ctx = await coletarContexto();
+        if (ctx.total_fotos < 10) {
+          pendencias.push({ tipo: 'atividade_sem_foto', descricao: `Apenas ${ctx.total_fotos} fotografias registradas. Recomenda-se ampliar o acervo fotográfico de evidências.`, resolvida: false });
         }
         await srv.entities.RelatorioExecucaoObjeto.update(relatorio_id, { auditoria_pendencias: pendencias });
         return Response.json({ success: true, secao, data: { pendencias: pendencias.length } });
       }
 
+      // ── Assinatura ────────────────────────────────────────────────────────
+      case 'assinatura': {
+        const ass = {
+          nome_representante: user.full_name || '',
+          cargo: 'Coordenador Geral',
+          data: new Date().toISOString().split('T')[0],
+          modo: 'ia',
+        };
+        await srv.entities.RelatorioExecucaoObjeto.update(relatorio_id, { assinatura: ass });
+        return Response.json({ success: true, secao, data: ass });
+      }
+
+      // ── Finalizar ────────────────────────────────────────────────────────
       case 'finalizar': {
         await srv.entities.RelatorioExecucaoObjeto.update(relatorio_id, { status: 'revisao' });
         return Response.json({ success: true, secao, data: { status: 'revisao' } });
@@ -292,7 +673,7 @@ Deno.serve(async (req) => {
     }
 
   } catch (error) {
-    console.error('Erro:', error);
+    console.error('Erro gerarSecaoRelatorioExecucao:', error);
     return Response.json({ error: error.message }, { status: 500 });
   }
 });
