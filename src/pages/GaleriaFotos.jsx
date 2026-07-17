@@ -5,8 +5,11 @@ import LoadingPage from '@/components/common/LoadingPage';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Images, MapPin, RefreshCw, X, Filter, FolderSync, Sparkles, CheckCircle2, GitMerge, Moon, ExternalLink, BookImage } from 'lucide-react';
-// Images já importado acima — usado também no botão "Fotos de Atividades"
+import { Images, MapPin, RefreshCw, X, Filter, FolderSync, Sparkles, CheckCircle2, GitMerge, Moon, ExternalLink, BookImage, ChevronDown, Loader2, Settings2, Eye, HardDriveDownload, TriangleAlert } from 'lucide-react';
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
+  DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 import { Link } from 'react-router-dom';
 import { loadGalleryReportData } from '@/utils/galleryReportData';
 import RestaurarFotosDrive from '@/components/gallery/RestaurarFotosDrive';
@@ -297,131 +300,232 @@ function GaleriaFotosInner() {
         <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <h1 className="mb-2 text-3xl font-semibold tracking-tight text-black">Galeria de Fotos</h1>
-            <p className="text-gray-600">
-              {sortedImages.length} {sortedImages.length === 1 ? 'imagem única' : 'imagens únicas'} exibidas
-              {images.length !== sortedImages.length && ` (de ${images.length} total)`}
-              {data?.sources && (
-                <span className="ml-1 text-gray-400 text-sm">
-                  · {data.sources.Attachment || 0} anexos + {data.sources.ReportPhoto || 0} fotos de relatório
-                  {data.total && data.total > images.length ? ` → ${data.total - images.length} agrupadas como duplicatas` : ''}
-                </span>
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              <span className="text-gray-700 font-semibold">{sortedImages.length} {sortedImages.length === 1 ? 'imagem única' : 'imagens únicas'}</span>
+              {images.length !== sortedImages.length && (
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">de {images.length} total</span>
               )}
-            </p>
+              {data?.sources && (
+                <>
+                  <span className="rounded-full bg-blue-50 border border-blue-200 px-2 py-0.5 text-xs text-blue-700">{data.sources.Attachment || 0} anexos</span>
+                  <span className="rounded-full bg-purple-50 border border-purple-200 px-2 py-0.5 text-xs text-purple-700">{data.sources.ReportPhoto || 0} fotos de relatório</span>
+                  {data.total && data.total > images.length && (
+                    <span className="rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-xs text-amber-700">{data.total - images.length} agrupadas</span>
+                  )}
+                </>
+              )}
+            </div>
             {data?.cacheUsed && <p className="mt-1 text-xs text-gray-400">Dados do cache local.{data?.cacheStale ? ' (cache antigo)' : ''}</p>}
             {isFetching && <p className="mt-2 text-xs text-gray-400">Atualizando galeria...</p>}
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Link
-              to="/RelatorioAtividadesFotos"
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500 bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 transition-colors"
-            >
-              <BookImage className="h-4 w-4" />
-              Álbuns por Museu
-              <ExternalLink className="h-3.5 w-3.5 opacity-70" />
-            </Link>
-            <Link
-              to="/GaleriaNoturno"
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-400 bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 transition-colors"
-            >
-              <Moon className="h-4 w-4" />
-              Galeria Noturno
-              <ExternalLink className="h-3.5 w-3.5 opacity-70" />
-            </Link>
+            {/* 1. Atualizar */}
             <button
               type="button"
-              onClick={() => { setShowAlbumNoturno(v => !v); setShowRestaurar(false); }}
-              className={`inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium shadow-sm transition-colors ${showAlbumNoturno ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-indigo-300 bg-indigo-50 text-indigo-800 hover:bg-indigo-100'}`}
-            >
-              <Moon className="h-4 w-4" />
-              Curadoria IA
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowSincInventario(true)}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-400 bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 transition-colors"
-            >
-              <FolderSync className="h-4 w-4" />
-              Sincronizar Drive
-            </button>
-            <button
-              type="button"
-              onClick={() => { setShowImportarAtividades(v => !v); setShowRestaurar(false); setShowAlbumNoturno(false); }}
-              className={`inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium shadow-sm transition-colors ${showImportarAtividades ? 'border-emerald-700 bg-emerald-600 text-white' : 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'}`}
-            >
-              <Images className="h-4 w-4" />
-              Fotos de Atividades
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowRestaurar(v => !v)}
-              className={`inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium shadow-sm transition-colors ${showRestaurar ? 'border-black bg-black text-white' : 'border-gray-300 bg-white text-gray-800 hover:bg-gray-100'}`}
-            >
-              <FolderSync className="h-4 w-4" />
-              Restaurar do Drive
-            </button>
-            <button
-              type="button"
-              disabled={sincronizando}
-              onClick={async () => {
-                setSincronizando(true);
-                setSyncStatus(null);
-                try {
-                  const res = await base44.functions.invoke('sincronizacaoFinalDrive', { dry_run: false });
-                  const s = res.data?.stats || {};
-                  const total = (s.report_photos_legenda_atualizada || 0) + (s.attachments_legenda_atualizada || 0);
-                  const vinculadas = (s.report_photos_vinculadas_a_report || 0) + (s.attachments_report_vinculado || 0);
-                  setSyncStatus(`✓ ${total} legendas atualizadas · ${vinculadas} fotos vinculadas a relatórios · ${s.relatorios_fotos_vinculadas || 0} fotos adicionadas a relatórios`);
-                  clearGalleryCache();
-                  await refetch();
-                } catch (e) {
-                  setSyncStatus('Erro na sincronização: ' + (e.message || 'verifique os logs'));
-                } finally {
-                  setSincronizando(false);
-                }
-              }}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-violet-300 bg-violet-50 px-4 py-2 text-sm font-medium text-violet-800 shadow-sm hover:bg-violet-100 disabled:opacity-60"
-            >
-              {sincronizando
-                ? <><RefreshCw className="h-4 w-4 animate-spin" /> Gerando legendas com IA...</>
-                : <><GitMerge className="h-4 w-4" /> Vincular Fotos com IA</>
-              }
-            </button>
-            <button
-              type="button"
-              disabled={reforçandoLegendas}
-              onClick={async () => {
-                setReforçandoLegendas(true);
-                setLegendasStatus(null);
-                try {
-                  const res = await base44.functions.invoke('reforcarLegendasGaleria', { dry_run: false, limit: 300 });
-                  setLegendasStatus(res.data?.mensagem || 'Legendas atualizadas!');
-                  clearGalleryCache();
-                  await refetch();
-                } catch (e) {
-                  setLegendasStatus('Erro ao atualizar legendas.');
-                } finally {
-                  setReforçandoLegendas(false);
-                }
-              }}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-purple-300 bg-purple-50 px-4 py-2 text-sm font-medium text-purple-800 shadow-sm hover:bg-purple-100 disabled:opacity-60"
-            >
-              {reforçandoLegendas
-                ? <><RefreshCw className="h-4 w-4 animate-spin" /> Reforçando...</>
-                : <><Sparkles className="h-4 w-4" /> Reforçar Legendas</>
-              }
-            </button>
-            <button
-              type="button"
-              onClick={async () => {
-                clearGalleryCache();
-                await refetch();
-              }}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-100"
+              onClick={async () => { clearGalleryCache(); await refetch(); }}
+              aria-label="Atualizar galeria"
+              className="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-100 transition-colors"
             >
               <RefreshCw className="h-4 w-4" />
               Atualizar
             </button>
+
+            {/* 2. Organizar Fotos */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Organizar fotos"
+                  className="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-100 transition-colors"
+                >
+                  <Settings2 className="h-4 w-4" />
+                  Organizar Fotos
+                  <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-72">
+                <DropdownMenuLabel className="text-xs text-gray-500 uppercase tracking-wide">Vínculos</DropdownMenuLabel>
+                <DropdownMenuItem
+                  onClick={() => setShowSincInventario(true)}
+                  className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer"
+                >
+                  <span className="font-medium text-gray-900 flex items-center gap-1.5">
+                    <GitMerge className="h-3.5 w-3.5" /> Ajustar vínculos e repetidas
+                  </span>
+                  <span className="text-xs text-gray-500 pl-5">Corrige vínculos existentes e oculta imagens repetidas sem excluir arquivos.</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={sincronizando}
+                  onClick={async () => {
+                    setSincronizando(true);
+                    setSyncStatus(null);
+                    try {
+                      const res = await base44.functions.invoke('sincronizacaoFinalDrive', { dry_run: false });
+                      const s = res.data?.stats || {};
+                      const total = (s.report_photos_legenda_atualizada || 0) + (s.attachments_legenda_atualizada || 0);
+                      const vinculadas = (s.report_photos_vinculadas_a_report || 0) + (s.attachments_report_vinculado || 0);
+                      setSyncStatus(`✓ ${total} legendas atualizadas · ${vinculadas} fotos vinculadas a relatórios · ${s.relatorios_fotos_vinculadas || 0} fotos adicionadas a relatórios`);
+                      clearGalleryCache();
+                      await refetch();
+                    } catch (e) {
+                      setSyncStatus('Erro na sincronização: ' + (e.message || 'verifique os logs'));
+                    } finally {
+                      setSincronizando(false);
+                    }
+                  }}
+                  className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer"
+                >
+                  <span className="font-medium text-gray-900 flex items-center gap-1.5">
+                    {sincronizando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <GitMerge className="h-3.5 w-3.5" />}
+                    {sincronizando ? 'Vinculando...' : 'Vincular Fotos com IA'}
+                  </span>
+                  <span className="text-xs text-gray-500 pl-5">Relaciona fotos às atividades com base em data, museu e contexto.</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs text-gray-500 uppercase tracking-wide">Curadoria</DropdownMenuLabel>
+                <DropdownMenuItem
+                  onClick={() => { setShowAlbumNoturno(v => !v); setShowRestaurar(false); }}
+                  className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer"
+                >
+                  <span className="font-medium text-gray-900 flex items-center gap-1.5">
+                    <Moon className="h-3.5 w-3.5" /> Curadoria IA
+                    {showAlbumNoturno && <span className="ml-1 rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] text-indigo-700">Ativo</span>}
+                  </span>
+                  <span className="text-xs text-gray-500 pl-5">Analisa qualidade, relevância e organização das imagens.</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => { setShowImportarAtividades(v => !v); setShowRestaurar(false); setShowAlbumNoturno(false); }}
+                  className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer"
+                >
+                  <span className="font-medium text-gray-900 flex items-center gap-1.5">
+                    <Images className="h-3.5 w-3.5" /> IA: manter 1 foto por atividade
+                    {showImportarAtividades && <span className="ml-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] text-emerald-700">Ativo</span>}
+                  </span>
+                  <span className="text-xs text-gray-500 pl-5">Seleciona uma imagem principal por atividade e oculta as demais.</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={reforçandoLegendas}
+                  onClick={async () => {
+                    setReforçandoLegendas(true);
+                    setLegendasStatus(null);
+                    try {
+                      const res = await base44.functions.invoke('reforcarLegendasGaleria', { dry_run: false, limit: 300 });
+                      setLegendasStatus(res.data?.mensagem || 'Legendas atualizadas!');
+                      clearGalleryCache();
+                      await refetch();
+                    } catch (e) {
+                      setLegendasStatus('Erro ao atualizar legendas.');
+                    } finally {
+                      setReforçandoLegendas(false);
+                    }
+                  }}
+                  className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer"
+                >
+                  <span className="font-medium text-gray-900 flex items-center gap-1.5">
+                    {reforçandoLegendas ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                    {reforçandoLegendas ? 'Processando...' : 'Reforçar Legendas'}
+                  </span>
+                  <span className="text-xs text-gray-500 pl-5">Atualiza legendas usando dados reais da atividade.</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* 3. Visualizações */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Visualizações"
+                  className="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-100 transition-colors"
+                >
+                  <Eye className="h-4 w-4" />
+                  Visualizações
+                  <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuLabel className="text-xs text-gray-500 uppercase tracking-wide">Modos de exibição</DropdownMenuLabel>
+                <DropdownMenuItem asChild>
+                  <Link to="/RelatorioAtividadesFotos" className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
+                    <span className="font-medium text-gray-900 flex items-center gap-1.5">
+                      <BookImage className="h-3.5 w-3.5" /> Álbuns por Museu <ExternalLink className="h-3 w-3 opacity-50" />
+                    </span>
+                    <span className="text-xs text-gray-500 pl-5">Organiza fotos por equipamento cultural.</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/GaleriaNoturno" className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
+                    <span className="font-medium text-gray-900 flex items-center gap-1.5">
+                      <Moon className="h-3.5 w-3.5" /> Galeria Noturno <ExternalLink className="h-3 w-3 opacity-50" />
+                    </span>
+                    <span className="text-xs text-gray-500 pl-5">Exibe somente imagens vinculadas ao Noturno.</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => { setShowImportarAtividades(v => !v); setShowRestaurar(false); setShowAlbumNoturno(false); }}
+                  className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer"
+                >
+                  <span className="font-medium text-gray-900 flex items-center gap-1.5">
+                    <Images className="h-3.5 w-3.5" /> Fotos de Atividades
+                    {showImportarAtividades && <span className="ml-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] text-emerald-700">Ativo</span>}
+                  </span>
+                  <span className="text-xs text-gray-500 pl-5">Organiza fotos pelas atividades relacionadas.</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => { setShowAlbumNoturno(v => !v); setShowRestaurar(false); }}
+                  className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer"
+                >
+                  <span className="font-medium text-gray-900 flex items-center gap-1.5">
+                    <Moon className="h-3.5 w-3.5" /> Modo exposição
+                    {showAlbumNoturno && <span className="ml-1 rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] text-indigo-700">Ativo</span>}
+                  </span>
+                  <span className="text-xs text-gray-500 pl-5">Exibe imagens em formato visual ampliado.</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* 4. Drive e Backup */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Drive e Backup"
+                  className="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-100 transition-colors"
+                >
+                  <HardDriveDownload className="h-4 w-4" />
+                  Drive e Backup
+                  <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-72">
+                <DropdownMenuLabel className="text-xs text-gray-500 uppercase tracking-wide">Google Drive</DropdownMenuLabel>
+                <DropdownMenuItem
+                  onClick={() => setShowSincInventario(true)}
+                  className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer"
+                >
+                  <span className="font-medium text-gray-900 flex items-center gap-1.5">
+                    <FolderSync className="h-3.5 w-3.5" /> Sincronizar Drive
+                  </span>
+                  <span className="text-xs text-gray-500 pl-5">Envia e atualiza os arquivos da galeria no Google Drive.</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs text-amber-600 uppercase tracking-wide flex items-center gap-1">
+                  <TriangleAlert className="h-3 w-3" /> Ação administrativa
+                </DropdownMenuLabel>
+                <DropdownMenuItem
+                  onClick={() => { setShowRestaurar(v => !v); setShowAlbumNoturno(false); setShowImportarAtividades(false); }}
+                  className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer"
+                >
+                  <span className="font-medium text-gray-900 flex items-center gap-1.5">
+                    <HardDriveDownload className="h-3.5 w-3.5" /> Restaurar do Drive
+                    {showRestaurar && <span className="ml-1 rounded-full bg-gray-200 px-1.5 py-0.5 text-[10px] text-gray-700">Ativo</span>}
+                  </span>
+                  <span className="text-xs text-gray-500 pl-5">Recupera arquivos e vínculos já armazenados no Drive. Não substitui arquivos existentes sem confirmação.</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
