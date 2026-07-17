@@ -12,9 +12,9 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
  * Se a pasta do mês não existir, pular o arquivo e logar.
  *
  * Padrão de nome:
- *   NF {NUMERO} {NATUREZA} - {FORNECEDOR} - {PROJETO} - R$ {VALOR}.pdf
- *   XML {NUMERO} {NATUREZA} - {FORNECEDOR} - {PROJETO} - R$ {VALOR}.xml
- *   COMP NF {NUMERO} {NATUREZA} - {FORNECEDOR} - {PROJETO} - R$ {VALOR}.pdf
+ *   NF {NUMERO} - {FORNECEDOR} - {PROFISSIONAL} - {CENTRO_CUSTO} - {CODIGO} - R$ {VALOR}.pdf
+ *   XML {NUMERO} - {FORNECEDOR} - {PROFISSIONAL} - {CENTRO_CUSTO} - {CODIGO} - R$ {VALOR}.xml
+ *   COMP NF {NUMERO} - {FORNECEDOR} - {PROFISSIONAL} - {CENTRO_CUSTO} - {CODIGO} - R$ {VALOR}.pdf
  *
  * Regras de data: rejeitar/reanalisar datas anteriores a 2026.
  */
@@ -100,46 +100,51 @@ function getProjeto(centroCusto) {
 
 /**
  * Monta o nome padronizado do arquivo.
- * Formato: {PREFIXO} {NUMERO} {CATEGORIA} - {FORNECEDOR} - {PROFISSIONAL} - {CENTRO_CUSTO} - {VALOR}.ext
- * Exemplo: NF 12 DESIGN GRAFICO - SAMIRA LOPES MOTA - MUSEUS CENTRO - 2600.xml
+ * Formato: {PREFIXO} {NUMERO_NF} - {FORNECEDOR} - {PROFISSIONAL} - {CENTRO_CUSTO} - {CODIGO} - R$ {VALOR}.ext
+ * Exemplo: NF 001234 - SAMIRA LOPES MOTA - EDUCACAO - MIS BH - 339039 - R$ 2.600,00.pdf
  * tipo: 'NF' | 'XML' | 'COMP'
  */
 function buildFileName(tipo, pr, extra = {}) {
+  // 1. Número da nota
   const numero = sanitizeFilePart(
-    pr.nf_numero || extra.nf_numero || pr.id?.substring(0, 8) || 'SN', 10
+    pr.nf_numero || extra.nf_numero || pr.id?.substring(0, 8) || 'SN', 15
   );
 
-  // Categoria: prioriza rubrica_nome ou categoria sobre natureza_despesa
-  const categoria = sanitizeFilePart(
-    pr.rubrica_nome || pr.categoria || pr.natureza_despesa || pr.descricao_item || 'DESPESA', 40
-  );
-
+  // 2. Fornecedor
   const fornecedor = sanitizeFilePart(
     pr.fornecedor_nome || pr.nf_emitente_nome || extra.fornecedor || 'FORNECEDOR', 50
   );
 
-  // Profissional responsável — inclui no nome apenas se preenchido
+  // 3. Profissional responsável (quem solicitou/aprovou) — omitido se vazio
   const profissional = sanitizeFilePart(
     pr.usuario_pagamento_nome || pr.aprov_coord_nome || extra.profissional || '', 40
   );
 
-  const centroCusto = sanitizeFilePart(getProjeto(pr.centro_custo || ''), 30);
+  // 4. Centro de custo direto (não o projeto genérico)
+  const centroCusto = sanitizeFilePart(pr.centro_custo || extra.centro_custo || 'GERAL', 40);
 
-  // Valor sem "R$", apenas o número (ex: 2600,00)
+  // 5. Código (natureza de despesa ou rubrica_nome abreviada)
+  const codigo = sanitizeFilePart(
+    pr.natureza_despesa || pr.natureza_despesa_purchase || pr.rubrica_nome || pr.categoria || 'COD', 30
+  );
+
+  // 6. Valor numérico (ex: R$ 2.600,00)
   const valorNum = parseValor(
     pr.valor_pago || pr.valor_aprovado_admin || pr.nf_valor_total || pr.valor_solicitado || 0
   );
-  const valor = valorNum.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const valor = 'R$ ' + valorNum.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const ext = tipo === 'XML' ? 'xml' : 'pdf';
   const prefixo = tipo === 'COMP' ? 'COMP NF' : tipo;
 
+  // Monta partes obrigatórias e opcionais
   const partes = [fornecedor];
   if (profissional) partes.push(profissional);
   partes.push(centroCusto);
+  partes.push(codigo);
   partes.push(valor);
 
-  return `${prefixo} ${numero} ${categoria} - ${partes.join(' - ')}.${ext}`;
+  return `${prefixo} ${numero} - ${partes.join(' - ')}.${ext}`;
 }
 
 // ── Google Drive helpers ─────────────────────────────────────────────────────
