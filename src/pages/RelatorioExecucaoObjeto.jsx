@@ -29,6 +29,7 @@ import {
 import { exportarRelatorioExecucaoPDF } from '@/components/relatorio/ExportarRelatorioExecucaoPDF';
 import { exportarRelatorioExecucaoDOCX } from '@/components/relatorio/ExportarRelatorioExecucaoDOCX';
 import RevisaoFinalDialog from '@/components/relatorio/RevisaoFinalDialog';
+import GeracaoCompletaDialog from '@/components/relatorio/GeracaoCompletaDialog';
 import { listarMetasRelatorio, sincronizarRelatorioExecucao } from '@/utils/sincronizarRelatorioExecucaoCompat';
 
 const SECOES_EDITAVEIS = [
@@ -403,6 +404,7 @@ export default function RelatorioExecucaoObjeto() {
     }
   }
 
+  const [geracaoCompletaAberta, setGeracaoCompletaAberta] = useState(false);
   const [exportandoPDF, setExportandoPDF] = useState(null); // null | 'parte1' | 'parte2' | 'parte3'
 
   async function prepararRelatorioComFotos() {
@@ -544,9 +546,19 @@ export default function RelatorioExecucaoObjeto() {
         <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap">
           <div><CardTitle className="text-lg flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-green-600" />Relatório em edição</CardTitle><CardDescription>{relatorio.data_inicio} a {relatorio.data_fim} • {metasSelecionadas.length} meta(s)</CardDescription></div>
           <div className="flex gap-2 flex-wrap">
+            <Button
+              size="sm"
+              className="bg-slate-900 hover:bg-slate-700 text-white"
+              onClick={() => setGeracaoCompletaAberta(true)}
+              disabled={loading}
+              title="Gera o relatório completo em 6 etapas: dados reais, citações da equipe, metas detalhadas, fotos comprobatórias, financeiro auditado"
+            >
+              <Sparkles className="w-4 h-4 mr-1 text-yellow-400" />
+              Geração Completa (IA)
+            </Button>
             <Button size="sm" variant="outline" onClick={gerarTodasAsSecoes} disabled={loading}>
-              {loading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1" />}
-              Gerar todas as seções
+              {loading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1" />}
+              Regenerar seções
             </Button>
             <Button
               size="sm"
@@ -597,6 +609,17 @@ export default function RelatorioExecucaoObjeto() {
       {editor && <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"><div className="bg-white rounded-xl shadow-xl w-full max-w-3xl"><div className="p-4 border-b flex items-center justify-between"><div><h3 className="font-semibold">Editar {editor.label}</h3><p className="text-xs text-slate-500">O texto salvo será usado na exportação.</p></div><button onClick={() => setEditor(null)}><X className="w-5 h-5" /></button></div><div className="p-4"><Textarea value={textoEditado} onChange={e => setTextoEditado(e.target.value)} className="min-h-[320px]" /></div><div className="p-4 border-t flex justify-end gap-2"><Button variant="outline" onClick={() => setEditor(null)}>Cancelar</Button><Button onClick={salvarTexto}><Save className="w-4 h-4 mr-1" />Salvar</Button></div></div></div>}
 
       {revisaoAberta && relatorio && <RevisaoFinalDialog relatorioId={relatorioId} relatorio={relatorio} onClose={() => setRevisaoAberta(false)} />}
+
+      {geracaoCompletaAberta && (
+        <GeracaoCompletaDialog
+          relatorioId={relatorioId}
+          form={form}
+          onConcluido={async () => {
+            if (relatorioId) await carregarRelatorio(relatorioId);
+          }}
+          onClose={() => setGeracaoCompletaAberta(false)}
+        />
+      )}
     </div>
   );
 }
