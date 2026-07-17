@@ -218,20 +218,6 @@ const NAV_GROUPS = [
     label: 'Ferramentas',
     items: [
       {
-        path: 'GeradorListaPresenca',
-        label: 'Gerador de lista de presença',
-        icon: CheckSquare,
-        roles: ['all'],
-        hideForObservador: true,
-      },
-      {
-        path: 'GeradorTermoCompromisso',
-        label: 'Gerador de termo de compromisso',
-        icon: FileText,
-        roles: ['all'],
-        hideForObservador: true,
-      },
-      {
         path: 'RelatorioExecucaoObjeto',
         label: 'Relatório de Execução do Objeto',
         icon: ScrollText,
