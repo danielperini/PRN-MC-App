@@ -1,10 +1,97 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { CheckCircle2, AlertCircle, X, Search } from 'lucide-react';
+import { CheckCircle2, AlertCircle, X, Search, Users } from 'lucide-react';
 import { calculateMetaFinancialMetrics } from '@/utils/finance/metaFinancialMetrics';
 import { getRubricaBudget, getRubricaUsed } from '@/utils/auditoria/reconcileFinancialTotals';
 import { normalizeText } from '@/utils/constants';
+
+// Metas com quantitativos físicos definidos no Plano de Trabalho
+const METAS_FISICAS_QUANTITATIVAS = {
+  '5':  { meta: 60,  label: '60 ações educativas' },
+  '6':  { meta: 36,  label: '36 ações culturais' },
+  '10': { meta: 18,  label: '18 mostras' },
+  '16': { meta: 101, label: '101 diárias de educador' },
+  '19': { meta: 4,   label: '4 ações Iemanjá' },
+  '20': { meta: 30,  label: '30 ações educativas/culturais' },
+  '11': { meta: 3,   label: '3 edições Noturno' },
+  '11B':{ meta: 1,   label: '1 edição Noturno Pampulha' },
+};
+
+const SEIS_MUSEUS = ['MHAB', 'MIS', 'MUMO', 'Casa Kubitschek', 'Casa do Baile', 'MAP'];
+const MUSEU_SHORT = { 'MHAB': 'MHAB', 'MIS': 'MIS', 'MUMO': 'MUMO', 'Casa Kubitschek': 'C.Kubi', 'Casa do Baile': 'C.Baile', 'MAP': 'MAP' };
+
+function getMuseuFromActivity(a) {
+  const raw = (a.museu || a.equipe_responsavel || a._museu || '').toLowerCase();
+  if (raw.includes('mhab') || raw.includes('abílio') || raw.includes('abilio')) return 'MHAB';
+  if (raw.includes('mis') || raw.includes('imagem')) return 'MIS';
+  if (raw.includes('mumo') || raw.includes('moda')) return 'MUMO';
+  if (raw.includes('kubitschek') || raw.includes('kubit')) return 'Casa Kubitschek';
+  if (raw.includes('baile')) return 'Casa do Baile';
+  if (raw.includes('map') || raw.includes('pampulha')) return 'MAP';
+  return null;
+}
+
+function getMetaNumeroFromActivity(a) {
+  const cod = (a.meta_codigo || a.meta_id || '').toLowerCase();
+  const titulo = (a.titulo || a.nome || '').toLowerCase();
+  if (cod.includes('16') || titulo.includes('diária') || titulo.includes('diaria')) return '16';
+  if (cod.includes('19') || titulo.includes('iemanjá') || titulo.includes('iemanja')) return '19';
+  if (cod.includes('10') || titulo.includes('mostra')) return '10';
+  if (cod.includes('11b') || cod.includes('pampulha')) return '11B';
+  if (cod.includes('11')) return '11';
+  if (cod.includes('20')) return '20';
+  if (cod.includes('6') || (a.classificacao || '').toLowerCase() === 'cultural') return '6';
+  if (cod.includes('5') || (a.classificacao || '').toLowerCase() === 'meta') return '5';
+  return null;
+}
+
+function barColor(pct) {
+  if (pct >= 100) return 'bg-green-500';
+  if (pct >= 60) return 'bg-blue-500';
+  if (pct >= 30) return 'bg-yellow-400';
+  return 'bg-red-400';
+}
+
+function FisicoMiniPanel({ metaNumero, atividadesPorMuseu }) {
+  const quantDef = METAS_FISICAS_QUANTITATIVAS[metaNumero];
+  if (!quantDef) return null;
+
+  const totalRealizado = Object.values(atividadesPorMuseu).reduce((s, v) => s + v, 0);
+  const pctGeral = Math.min(100, Math.round((totalRealizado / quantDef.meta) * 100));
+
+  const museusComDados = SEIS_MUSEUS.filter(m => (atividadesPorMuseu[m] || 0) > 0);
+
+  return (
+    <div className="mt-2 pt-2 border-t border-neutral-100 space-y-2">
+      {/* Barra geral */}
+      <div className="space-y-1">
+        <div className="flex justify-between text-[11px] text-neutral-500">
+          <span className="flex items-center gap-1"><Users className="h-3 w-3" /> {totalRealizado} realizada{totalRealizado !== 1 ? 's' : ''}</span>
+          <span className="font-semibold text-neutral-700">{pctGeral}% <span className="font-normal">de {quantDef.meta}</span></span>
+        </div>
+        <div className="h-1.5 w-full rounded-full bg-neutral-100 overflow-hidden">
+          <div className={`h-1.5 rounded-full transition-all ${barColor(pctGeral)}`} style={{ width: `${pctGeral}%` }} />
+        </div>
+      </div>
+      {/* Mini grid por museu */}
+      {museusComDados.length > 0 && (
+        <div className="grid grid-cols-3 gap-1">
+          {museusComDados.map(m => (
+            <div key={m} className="flex items-center justify-between rounded bg-neutral-50 px-1.5 py-1 border border-neutral-100">
+              <span className="text-[10px] font-medium text-neutral-500 truncate">{MUSEU_SHORT[m]}</span>
+              <span className="text-[11px] font-bold text-neutral-800 ml-1">{atividadesPorMuseu[m]}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {museusComDados.length === 0 && (
+        <p className="text-[11px] text-neutral-400 italic">Sem atividades registradas por museu</p>
+      )}
+    </div>
+  );
+}
 
 function fmtBRL(value) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 }).format(Number(value || 0));
@@ -26,9 +113,10 @@ function isRubricaLinkedToMeta(rubrica, meta) {
          metaRubrica.includes(titulo);
 }
 
-function MetaCard({ meta, onOpen }) {
+function MetaCard({ meta, onOpen, atividadesPorMuseu }) {
   const isConcluida = meta.status === 'CONCLUÍDA';
   const StatusIcon = isConcluida ? CheckCircle2 : AlertCircle;
+  const metaNumero = (meta.numero || '').replace('META ', '');
 
   return (
     <button
@@ -62,6 +150,9 @@ function MetaCard({ meta, onOpen }) {
           <div className="h-1.5 rounded-full bg-black transition-all" style={{ width: `${Math.min(meta.percentual, 100)}%` }} />
         </div>
       </div>
+
+      {/* Painel físico por museu */}
+      <FisicoMiniPanel metaNumero={metaNumero} atividadesPorMuseu={atividadesPorMuseu || {}} />
     </button>
   );
 }
@@ -165,6 +256,25 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRef
   const [selectedMeta, setSelectedMeta] = useState(null);
   const [rubricas, setRubricas] = useState(rubricasProp || []);
 
+  // Busca relatórios com atividades para calcular cumprimento físico
+  const { data: relatorios = [] } = useQuery({
+    queryKey: ['reports-metas-fisicas-aditivosection'],
+    queryFn: () => base44.entities.Report.filter(
+      { status: { $in: ['SUBMITTED', 'IN_REVIEW', 'APPROVED', 'ARCHIVED'] } },
+      '-ano', 500
+    ),
+    staleTime: 120000,
+  });
+
+  // Também busca da entidade Activity diretamente
+  const { data: activities = [] } = useQuery({
+    queryKey: ['activities-metas-fisicas-aditivosection'],
+    queryFn: () => base44.entities.Activity.filter(
+      { classificacao: 'META' }, '-created_date', 1000
+    ),
+    staleTime: 120000,
+  });
+
   async function loadRubricas() {
     try {
       const data = await base44.entities.Rubrica.list('rubrica', 1000);
@@ -179,7 +289,6 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRef
       setRubricas(rubricasProp);
       return;
     }
-
     loadRubricas();
   }, [rubricasProp]);
 
@@ -188,10 +297,37 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRef
     if (onRefresh) onRefresh();
   }
 
+  // Consolida atividades de relatórios + entidade Activity
+  const todasAtividades = useMemo(() => {
+    const arr = [];
+    for (const r of relatorios) {
+      for (const a of (r.atividades || [])) {
+        arr.push({ ...a, _museu: a.museu || r.museu || '' });
+      }
+    }
+    for (const a of activities) {
+      arr.push({ ...a, _museu: a.museu || '' });
+    }
+    return arr;
+  }, [relatorios, activities]);
+
+  // Contagem por meta e por museu
+  const atividadesPorMetaEMuseu = useMemo(() => {
+    // { '5': { MHAB: 3, MIS: 2, ... }, '6': { ... }, ... }
+    const result = {};
+    for (const a of todasAtividades) {
+      const metaNum = getMetaNumeroFromActivity(a);
+      if (!metaNum) continue;
+      if (!result[metaNum]) result[metaNum] = {};
+      const museu = getMuseuFromActivity(a);
+      if (!museu) continue;
+      result[metaNum][museu] = (result[metaNum][museu] || 0) + 1;
+    }
+    return result;
+  }, [todasAtividades]);
+
   const metasCalculadas = useMemo(() => {
-    // Usar função centralizada para cálculos financeiros das metas
     const metrics = calculateMetaFinancialMetrics(rubricas);
-    
     return metrics.map(meta => ({
       numero: meta.numeroFormatado,
       titulo: meta.titulo,
@@ -203,7 +339,8 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRef
       utilizado: meta.utilizado,
       saldo: meta.saldo,
       rubricasCount: meta.rubricasCount,
-      indicador: meta.indicador
+      indicador: meta.indicador,
+      _numero: meta.numero,
     }));
   }, [rubricas]);
 
@@ -215,7 +352,12 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRef
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {metasCalculadas.map((meta) => (
-          <MetaCard key={meta.numero} meta={meta} onOpen={setSelectedMeta} />
+          <MetaCard
+            key={meta.numero}
+            meta={meta}
+            onOpen={setSelectedMeta}
+            atividadesPorMuseu={atividadesPorMetaEMuseu[meta._numero] || {}}
+          />
         ))}
       </div>
 
