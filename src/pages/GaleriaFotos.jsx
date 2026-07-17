@@ -12,6 +12,7 @@ import { loadGalleryReportData } from '@/utils/galleryReportData';
 import RestaurarFotosDrive from '@/components/gallery/RestaurarFotosDrive';
 import AlbumNoturno from '@/components/gallery/AlbumNoturno';
 import ImportarFotosPastaAtividades from '@/components/gallery/ImportarFotosPastaAtividades';
+import SincronizarInventarioDialog from '@/components/gallery/SincronizarInventarioDialog';
 import { base44 } from '@/api/base44Client';
 
 const INITIAL_VISIBLE_IMAGES = 60;
@@ -135,6 +136,7 @@ function GaleriaFotosInner() {
   const [showImportarAtividades, setShowImportarAtividades] = useState(false);
   const [reforçandoLegendas, setReforçandoLegendas] = useState(false);
   const [legendasStatus, setLegendasStatus] = useState(null);
+  const [showSincInventario, setShowSincInventario] = useState(false);
   const [sincronizando, setSincronizando] = useState(false);
   const [syncStatus, setSyncStatus] = useState(null);
   const queryClient = useQueryClient();
@@ -294,6 +296,14 @@ function GaleriaFotosInner() {
             >
               <Moon className="h-4 w-4" />
               Curadoria IA
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowSincInventario(true)}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-400 bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 transition-colors"
+            >
+              <FolderSync className="h-4 w-4" />
+              Sincronizar Drive
             </button>
             <button
               type="button"
@@ -589,6 +599,15 @@ function GaleriaFotosInner() {
           </div>
         )}
       </div>
+
+      <SincronizarInventarioDialog
+        open={showSincInventario}
+        onClose={() => {
+          setShowSincInventario(false);
+          clearGalleryCache();
+          refetch();
+        }}
+      />
 
       <Dialog open={!!selectedImage} onOpenChange={(open) => !open && setSelectedImage(null)}>
         <DialogContent className="w-full max-w-5xl overflow-hidden border-0 bg-black p-0">
