@@ -5,7 +5,7 @@ import RequireAuth from '@/components/auth/RequireAuth';
 import LoadingPage from '@/components/common/LoadingPage';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Printer, RefreshCw, ChevronDown, ChevronRight, Images, X } from 'lucide-react';
+import { Printer, RefreshCw, ChevronDown, ChevronRight, Images, X, FolderSearch } from 'lucide-react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
@@ -180,22 +180,53 @@ function MesSection({ mesLabel, atividades, onClick }) {
 // ─── Página principal ─────────────────────────────────────────────────────────
 function RelatorioAtividadesHtmlInner() {
   const [selected, setSelected] = useState(null);
+  const [buscandoDrive, setBuscandoDrive] = useState(false);
+  const [driveMsg, setDriveMsg] = useState('');
   const printRef = useRef(null);
 
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['relatorio-atividades-html-fev-jun-2026-v3'],
     queryFn: async () => {
-      // Atividades estão embutidas em Report.atividades[] — buscar relatórios + fotos
       const [reports, photos] = await Promise.all([
         base44.entities.Report.list('-created_date', 200),
         base44.entities.ReportPhoto.list('-created_date', 2000),
       ]);
       return { reports, photos };
     },
-    staleTime: 10 * 60 * 1000,
+    staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     retry: false,
   });
+
+  async function buscarFotosDrive() {
+    setBuscandoDrive(true);
+    setDriveMsg('Iniciando varredura profunda no Drive...');
+    try {
+      // Varrer pastas de fotos de atividades — múltiplos lotes para cobrir fev-jun
+      const lotes = [
+        { skip: 0, limit: 50 },
+        { skip: 50, limit: 50 },
+        { skip: 100, limit: 50 },
+      ];
+      let totalImportadas = 0;
+      for (const lote of lotes) {
+        setDriveMsg(`Varrendo Drive — lote ${lote.skip / 50 + 1}/3...`);
+        const res = await base44.functions.invoke('varreduraProfundaFotosDrive', {
+          skip: lote.skip,
+          limit: lote.limit,
+          mes_filtro: ['fevereiro', 'março', 'abril', 'maio', 'junho'],
+          ano_filtro: 2026,
+        });
+        totalImportadas += res?.data?.importadas || res?.data?.created || 0;
+      }
+      setDriveMsg(`✅ Varredura concluída — ${totalImportadas} fotos importadas. Recarregando...`);
+      await refetch();
+    } catch (e) {
+      setDriveMsg(`⚠️ ${e?.message || 'Erro na varredura. Tente novamente.'}`);
+    } finally {
+      setBuscandoDrive(false);
+    }
+  }
 
   // ─── Estrutura: mês → atividade → fotos ──────────────────────────────────
   const estrutura = useMemo(() => {
@@ -225,11 +256,25 @@ function RelatorioAtividadesHtmlInner() {
       photosByReport.get(key).push(p);
     }
 
-    // Fotos soltas (sem report_id)
+    // Fotos soltas (sem report_id) — pool para completar atividades sem foto
     const fotasSoltas = (photosByReport.get('__sem_report__') || []).map(p => ({
       id: p.id, fileUrl: p.file_url, legenda: p.caption || p.legenda || p.file_name || '',
       date: p.created_date, museu: p.museu, reportMes: p.mes_referencia, activityTitulo: '',
     }));
+
+    // Pool de fotos por mês (de qualquer report) para completar atividades
+    const fotosPorMes = new Map(); // normMes → foto[]
+    for (const p of photos) {
+      if (!p.file_url) continue;
+      const mn = normMes(p.mes_referencia || '');
+      if (!mn) continue;
+      if (!fotosPorMes.has(mn)) fotosPorMes.set(mn, []);
+      fotosPorMes.get(mn).push({
+        id: p.id, fileUrl: p.file_url,
+        legenda: p.caption || p.legenda || p.file_name || '',
+        date: p.created_date, museu: p.museu, reportMes: p.mes_referencia,
+      });
+    }
 
     // Mês index para ordenação
     const mesIdx = mes => MES_ORDER.findIndex(m => normMes(m) === normMes(mes));
@@ -252,10 +297,13 @@ function RelatorioAtividadesHtmlInner() {
         reportMes: mesNome, activityTitulo: '',
       }));
 
+      // Pool para completar: fotos do report + fotos do mesmo mês
+      const poolMes = fotosPorMes.get(normMes(mesNome)) || [];
+
       const atividadesDoReport = Array.isArray(report.atividades) ? report.atividades : [];
 
       if (atividadesDoReport.length === 0) {
-        // Relatório sem atividades: agrupar fotos em bloco genérico do museu
+        // Sem atividades: bloco genérico do museu com fotos do report
         if (fotosDoReport.length > 0) {
           const titulo = report.museu || 'Atividades do período';
           if (!atividades.has(titulo)) atividades.set(titulo, []);
@@ -271,23 +319,25 @@ function RelatorioAtividadesHtmlInner() {
 
         atividadesDoReport.forEach((act, i) => {
           const titulo = act.titulo || `Atividade ${i + 1}`;
+          // Sempre registrar a atividade mesmo sem fotos
           if (!atividades.has(titulo)) atividades.set(titulo, []);
           const jaIds = new Set(atividades.get(titulo).map(f => f.id));
 
-          // Fatia de fotos para esta atividade
+          // Fatia de fotos diretamente do report
           const slice = fotosDoReport.slice(i * fotosPorAt, (i + 1) * fotosPorAt);
           for (const f of slice) {
             const fc = { ...f, activityTitulo: titulo };
             if (!jaIds.has(fc.id)) { atividades.get(titulo).push(fc); jaIds.add(fc.id); }
           }
 
-          // Completar até 3 com fotos soltas do mesmo mês se necessário
+          // Completar até 3 com fotos do mesmo mês (pool amplo)
           if (atividades.get(titulo).length < 3) {
-            const candidatas = fotasSoltas.filter(p => normMes(p.reportMes) === normMes(mesNome));
-            for (const c of candidatas) {
+            for (const c of poolMes) {
               if (atividades.get(titulo).length >= 3) break;
-              const fc = { ...c, activityTitulo: titulo };
-              if (!jaIds.has(fc.id)) { atividades.get(titulo).push(fc); jaIds.add(fc.id); }
+              if (!jaIds.has(c.id)) {
+                atividades.get(titulo).push({ ...c, activityTitulo: titulo });
+                jaIds.add(c.id);
+              }
             }
           }
         });
@@ -298,9 +348,8 @@ function RelatorioAtividadesHtmlInner() {
       .sort((a, b) => a[1].idx - b[1].idx)
       .map(([mesLabel, { atividades }]) => ({
         mesLabel,
-        atividades: Object.fromEntries(
-          Array.from(atividades.entries()).filter(([, fotos]) => fotos.length > 0)
-        ),
+        // Incluir atividades MESMO sem fotos (mostrar que existem)
+        atividades: Object.fromEntries(atividades.entries()),
       }))
       .filter(({ atividades }) => Object.keys(atividades).length > 0);
   }, [data]);
@@ -325,14 +374,21 @@ function RelatorioAtividadesHtmlInner() {
           <h1 className="font-bold text-gray-900 text-lg leading-tight">Relatório de Atividades com Fotos</h1>
           <p className="text-xs text-gray-500">Fevereiro a Junho/2026 · {totalMeses} meses · {totalAtividades} atividades · {totalFotos} fotos</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center flex-wrap">
+          {driveMsg && (
+            <span className="text-xs text-blue-600 max-w-xs truncate">{driveMsg}</span>
+          )}
           <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw className={`w-4 h-4 mr-1 ${isFetching ? 'animate-spin' : ''}`} />
             Atualizar
           </Button>
+          <Button variant="outline" size="sm" onClick={buscarFotosDrive} disabled={buscandoDrive}>
+            <FolderSearch className={`w-4 h-4 mr-1 ${buscandoDrive ? 'animate-pulse' : ''}`} />
+            {buscandoDrive ? 'Varrendo Drive...' : 'Buscar fotos no Drive'}
+          </Button>
           <Button size="sm" onClick={handlePrint} className="gap-2 bg-gray-900 hover:bg-gray-800 text-white">
             <Printer className="w-4 h-4" />
-            Imprimir / Salvar HTML
+            Imprimir
           </Button>
         </div>
       </div>
@@ -368,10 +424,17 @@ function RelatorioAtividadesHtmlInner() {
 
         {/* Conteúdo por mês */}
         {estrutura.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-16 text-center">
-            <Images className="mx-auto mb-4 h-12 w-12 text-gray-300" />
-            <p className="font-medium text-gray-700">Nenhuma atividade com fotos encontrada no período</p>
-            <p className="text-sm text-gray-400 mt-1">Verifique se há atividades cadastradas entre fevereiro e junho/2026 com fotos vinculadas.</p>
+          <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-12 text-center space-y-4">
+            <Images className="mx-auto h-12 w-12 text-gray-300" />
+            <div>
+              <p className="font-medium text-gray-700">Nenhuma atividade encontrada no período</p>
+              <p className="text-sm text-gray-400 mt-1">As fotos podem estar no Google Drive e ainda não sincronizadas.</p>
+            </div>
+            <Button onClick={buscarFotosDrive} disabled={buscandoDrive} className="gap-2">
+              <FolderSearch className="w-4 h-4" />
+              {buscandoDrive ? 'Varrendo Drive...' : 'Buscar fotos no Drive agora'}
+            </Button>
+            {driveMsg && <p className="text-xs text-blue-600">{driveMsg}</p>}
           </div>
         ) : (
           <div className="space-y-10">
