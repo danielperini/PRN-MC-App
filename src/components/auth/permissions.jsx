@@ -165,8 +165,13 @@ export const COORDENADOR_ONLY_PAGES = new Set([
   'BancoRelatorios',
 ]);
 
+const COORD_GERAL_ONLY_PAGES = new Set([
+  'RelatorioAtividadesFotos',
+]);
+
 export function canAccessPage(pageName, user, userPermission) {
   if (!user) return false;
+  if (COORD_GERAL_ONLY_PAGES.has(pageName)) return isCoordGeral(user);
   if (isCoordenador(user)) return true;
   if (isPatrocinador(user)) return PATROCINADOR_PAGES.has(pageName);
   if (isObservador(user, userPermission)) return OBSERVADOR_PAGES.has(pageName);
