@@ -766,6 +766,26 @@ export default function ExportPDF({ report, reportId }) {
         });
       }
 
+      // ── NOTA: RELATÓRIO DE COMUNICAÇÃO ──────────────────────────────────────
+      doc.addPage();
+      y = addPageHeader(doc, report, 'Observações e Comunicação', docStatus, statusColor);
+      y = secHeader(doc, 'OBSERVAÇÕES GERAIS', y);
+      y += 2;
+
+      doc.setFillColor(255, 251, 235);
+      doc.setDrawColor(217, 180, 60);
+      doc.rect(M, y, CW, 16, 'F');
+      doc.rect(M, y, CW, 16, 'S');
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(120, 80, 0);
+      doc.text('✦  RELATÓRIO DE COMUNICAÇÃO', M + 4, y + 7);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(60, 40, 0);
+      doc.text('O relatório de comunicação do período (clipping, redes sociais, cobertura fotográfica e assessoria de imprensa) encontra-se em anexo a este documento.', M + 4, y + 13, { maxWidth: CW - 8 });
+      y += 22;
+
       // ── ASSINATURA ─────────────────────────────────────────────────────────
       doc.addPage();
       y = addPageHeader(doc, report, 'Declaração e Assinatura', docStatus, statusColor);

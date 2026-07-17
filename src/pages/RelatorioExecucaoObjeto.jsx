@@ -371,7 +371,24 @@ export default function RelatorioExecucaoObjeto() {
   async function exportarPDF() {
     if (!relatorio) return;
     try {
-      await exportarRelatorioExecucaoPDF(relatorio, 'completo');
+      // Injetar fotos dos álbuns (ReportPhoto) no relatorio antes de exportar
+      let fotosGaleria = Array.isArray(relatorio._fotos_galeria) ? relatorio._fotos_galeria : [];
+      if (fotosGaleria.length === 0 && relatorioId) {
+        try {
+          const reportPhotos = await base44.entities.ReportPhoto.filter({ report_id: relatorioId }, 'ordem', 200);
+          fotosGaleria = (reportPhotos || []).filter(p => p.file_url && !p.galeria_oculta).map(p => ({
+            file_url: p.file_url,
+            url: p.file_url,
+            legenda: p.legenda || p.caption || p.file_name || '',
+            autor: p.author || p.autor || 'Daniel Moreira',
+            meta_id: p.meta_id || '',
+            atividade_nome: p.museu || 'Registro do Período',
+            created_date: p.created_date,
+          }));
+        } catch (_) {}
+      }
+      const relatorioComFotos = { ...relatorio, _fotos_galeria: fotosGaleria };
+      await exportarRelatorioExecucaoPDF(relatorioComFotos, 'completo');
       toast.success('PDF gerado em 3 partes com as últimas edições salvas.');
     } catch (error) {
       toast.error('Erro ao gerar PDF: ' + (error?.message || String(error)));

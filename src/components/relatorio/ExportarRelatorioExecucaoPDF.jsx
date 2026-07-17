@@ -945,6 +945,23 @@ async function buildParte3(relatorio) {
     }
   }
 
+  // Nota padrão: relatório de comunicação em anexo
+  y = check(doc, y, 18);
+  y += 4;
+  doc.setFillColor(255, 251, 220);
+  doc.setDrawColor(200, 160, 40);
+  doc.rect(M, y, CONTENT_W, 14, 'F');
+  doc.rect(M, y, CONTENT_W, 14, 'S');
+  doc.setFontSize(FS.small);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(120, 80, 0);
+  doc.text('OBSERVAÇÃO: Relatório de Comunicação em Anexo', M + 3, y + 5);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(FS.tiny);
+  doc.setTextColor(80, 50, 0);
+  doc.text('O relatório de comunicação do período (clipping, redes sociais, cobertura fotográfica e assessoria de imprensa) encontra-se em anexo a este documento.', M + 3, y + 10, { maxWidth: CONTENT_W - 6 });
+  y += 18;
+
   // 14. GALERIA FOTOGRÁFICA (nova seção — ao final)
   y = check(doc, y, 20);
   y += 4;
