@@ -11,13 +11,13 @@ import { METAS_PROJETO_FALLBACK } from '@/lib/metasProjeto';
 const MUSEUS = ['MUMO', 'MIS', 'MHAB'];
 const MUSEU_COLORS = { MUMO: '#1e293b', MIS: '#475569', MHAB: '#94a3b8' };
 
-// Metas com natureza quantificável (ações, atividades)
+// Metas com natureza quantificável — 3º Aditivo (plano de trabalho oficial)
+// M5 e M6 não constam no plano; M20=30 ações; M10=18 mostras; M16=101 diárias
 const METAS_QUANTITATIVAS = [
-  { numero: '5', label: 'Meta 5', desc: '60 ações educativas', total: 60 },
-  { numero: '6', label: 'Meta 6', desc: '36 ações culturais', total: 36 },
   { numero: '10', label: 'Meta 10', desc: '18 mostras', total: 18 },
   { numero: '20', label: 'Meta 20', desc: '30 ações educ./culturais', total: 30 },
   { numero: '16', label: 'Meta 16', desc: '101 diárias educador', total: 101 },
+  { numero: '19', label: 'Meta 19', desc: 'Presente de Iemanjá', total: 1 },
 ];
 
 function fmtBRL(v) {

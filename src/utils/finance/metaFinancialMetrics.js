@@ -8,16 +8,17 @@
 import { normalizeText } from '@/utils/constants';
 import { getRubricaBudget, getRubricaUsed } from '@/utils/auditoria/reconcileFinancialTotals';
 
-// Mapeamento oficial de metas do 3º e 4º Aditivo
+// Mapeamento oficial de metas do 3º Aditivo + 4º Aditivo (Noturno Pampulha)
+// Fonte: Plano de Trabalho oficial — excluídas metas 5, 6, 24 e 25 (não constam no plano)
 export const METAS_OFICIAIS = [
-  // METAS CONCLUÍDAS
+  // METAS CONCLUÍDAS — 3º Aditivo
   { numero: '1', numeroFormatado: 'META 01', titulo: 'Equipe principal', status: 'CONCLUÍDA' },
   { numero: '2', numeroFormatado: 'META 02', titulo: 'Plano de comunicação', status: 'CONCLUÍDA' },
   { numero: '7', numeroFormatado: 'META 07', titulo: 'Contratação de educadores', status: 'CONCLUÍDA' },
   { numero: '14', numeroFormatado: 'META 14', titulo: 'Acessibilidade', status: 'CONCLUÍDA' },
   { numero: '15', numeroFormatado: 'META 15', titulo: 'Inscrição em Leis de Incentivo', status: 'CONCLUÍDA' },
-  
-  // METAS EM EXECUÇÃO - EXPOSIÇÕES
+
+  // METAS EM EXECUÇÃO — EXPOSIÇÕES
   { numero: '3', numeroFormatado: 'META 03', titulo: 'Manutenção das exposições', status: 'EM EXECUÇÃO' },
   { numero: '4', numeroFormatado: 'META 04', titulo: 'Alteração de núcleos e salas expositivas', status: 'EM EXECUÇÃO' },
   { numero: '8', numeroFormatado: 'META 08', titulo: 'Exposição e evento MHAB', status: 'EM EXECUÇÃO' },
@@ -25,27 +26,24 @@ export const METAS_OFICIAIS = [
   { numero: '12', numeroFormatado: 'META 12', titulo: 'Exposição MHAB (pesquisa e curadoria)', status: 'EM EXECUÇÃO' },
   { numero: '13', numeroFormatado: 'META 13', titulo: 'Exposição MUMO (pesquisa e curadoria)', status: 'EM EXECUÇÃO' },
   { numero: '21', numeroFormatado: 'META 21', titulo: 'Exposição e evento MUMO', status: 'EM EXECUÇÃO' },
-  
-  // METAS EM EXECUÇÃO - ATIVIDADES
-  { numero: '5', numeroFormatado: 'META 05', titulo: 'Ações educativas (mín. 60)', status: 'EM EXECUÇÃO' },
-  { numero: '6', numeroFormatado: 'META 06', titulo: 'Ações culturais (mín. 36)', status: 'EM EXECUÇÃO' },
-  { numero: '10', numeroFormatado: 'META 10', titulo: 'Mostras de baixa/média complexidade', status: 'EM EXECUÇÃO' },
-  { numero: '11', numeroFormatado: 'META 11', titulo: 'Noturno nos Museus', status: 'EM EXECUÇÃO' },
-  { numero: '11A', numeroFormatado: 'META 11A', titulo: 'Noturno 2026', status: 'EM EXECUÇÃO', metaPai: '11' },
-  { numero: '11B', numeroFormatado: 'META 11B', titulo: 'Noturno Pampulha', status: 'EM EXECUÇÃO', metaPai: '11' },
+
+  // METAS EM EXECUÇÃO — ATIVIDADES
+  { numero: '10', numeroFormatado: 'META 10', titulo: 'Mostras de baixa/média complexidade (18 mostras)', status: 'EM EXECUÇÃO' },
+  { numero: '11', numeroFormatado: 'META 11', titulo: 'Noturno nos Museus (edições 2024, 2025 e 2026)', status: 'EM EXECUÇÃO' },
   { numero: '19', numeroFormatado: 'META 19', titulo: 'Atividade Presente de Iemanjá', status: 'EM EXECUÇÃO' },
   { numero: '20', numeroFormatado: 'META 20', titulo: 'Ações educativas e/ou culturais (30 ações)', status: 'EM EXECUÇÃO' },
-  
-  // METAS EM EXECUÇÃO - CUSTEIO E PUBLICAÇÕES
-  { numero: '16', numeroFormatado: 'META 16', titulo: 'Diárias de educadores', status: 'EM EXECUÇÃO' },
+  { numero: '16', numeroFormatado: 'META 16', titulo: 'Diárias de educadores (101 diárias)', status: 'EM EXECUÇÃO' },
+
+  // METAS EM EXECUÇÃO — CUSTEIO E PUBLICAÇÕES
   { numero: '17', numeroFormatado: 'META 17', titulo: 'Publicações e catálogos', status: 'EM EXECUÇÃO' },
   { numero: '18', numeroFormatado: 'META 18', titulo: 'Custeio das atividades educativas e culturais', status: 'EM EXECUÇÃO' },
-  
-  // METAS EM EXECUÇÃO - CONSULTORIA E DESPESAS
+
+  // METAS EM EXECUÇÃO — CONSULTORIA E DESPESAS
   { numero: '22', numeroFormatado: 'META 22', titulo: 'Consultoria para execução do projeto', status: 'EM EXECUÇÃO' },
   { numero: '23', numeroFormatado: 'META 23', titulo: 'Despesas Gerais', status: 'EM EXECUÇÃO' },
-  { numero: '24', numeroFormatado: 'META 24', titulo: 'Emenda Parlamentar', status: 'EM EXECUÇÃO' },
-  { numero: '25', numeroFormatado: 'META 25', titulo: 'Outras Ações', status: 'EM EXECUÇÃO' },
+
+  // 4º ADITIVO — Noturno Pampulha
+  { numero: '11B', numeroFormatado: 'META 11B', titulo: 'Noturno Pampulha (4º Aditivo)', status: 'EM EXECUÇÃO', metaPai: '11' },
 ];
 
 /**
