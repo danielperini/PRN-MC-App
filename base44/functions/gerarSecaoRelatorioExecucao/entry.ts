@@ -26,23 +26,31 @@ Deno.serve(async (req) => {
     const dFim = data_fim || relatorio.data_fim;
     const museu = filtro_museu !== 'todos' ? filtro_museu : null;
 
-    // ─── COLETA DE CONTEXTO REAL ─────────────────────────────────────────────
+    // ─── COLETA DE CONTEXTO REAL (com limites agressivos para evitar timeout) ──
     async function coletarContexto() {
-      const [
-        rubricas, metas, activities, programacoes, releases,
-        teamMembers, reports, fotos, purchases, lancamentos
-      ] = await Promise.all([
-        srv.entities.Rubrica.filter({ ativo: true }),
-        srv.entities.ProjectMeta.list(),
-        srv.entities.Activity.filter({ data_realizacao: { $gte: dInicio, $lte: dFim } }),
-        srv.entities.Programacao.filter({ data: { $gte: dInicio, $lte: dFim } }),
-        srv.entities.Release.list('-data_publicacao', 30),
-        srv.entities.TeamMember.filter({ status: 'ATIVO' }),
-        srv.entities.Report.filter({ status: { $in: ['APPROVED', 'SUBMITTED', 'IN_REVIEW'] } }),
-        srv.entities.ReportPhoto.list('-created_date', 200),
-        srv.entities.PurchaseRequest.filter({ status: { $in: ['APROVADO_ADMIN', 'PAGO'] }, incluir_no_somatorio: { $ne: false } }),
-        srv.entities.LancamentoRubrica.list('-created_date', 500).catch(() => []),
+      // Buscar em grupos sequenciais pequenos para não sobrecarregar
+      const [rubricas, metas] = await Promise.all([
+        srv.entities.Rubrica.filter({ ativo: true }, 'grupo', 200).catch(() => []),
+        srv.entities.ProjectMeta.list('ordem', 100).catch(() => []),
       ]);
+
+      const [activities, programacoes] = await Promise.all([
+        srv.entities.Activity.filter({ data_realizacao: { $gte: dInicio, $lte: dFim } }, '-data_realizacao', 150).catch(() => []),
+        srv.entities.Programacao.filter({ data: { $gte: dInicio, $lte: dFim } }, '-data', 100).catch(() => []),
+      ]);
+
+      const [releases, teamMembers, fotos] = await Promise.all([
+        srv.entities.Release.list('-data_publicacao', 20).catch(() => []),
+        srv.entities.TeamMember.filter({ status: 'ATIVO' }, 'nome', 100).catch(() => []),
+        srv.entities.ReportPhoto.list('-created_date', 100).catch(() => []),
+      ]);
+
+      const [reports, purchases] = await Promise.all([
+        srv.entities.Report.filter({ status: { $in: ['APPROVED', 'SUBMITTED'] } }, '-updated_date', 50).catch(() => []),
+        srv.entities.PurchaseRequest.filter({ status: { $in: ['APROVADO_ADMIN', 'PAGO'] } }, '-created_date', 200).catch(() => []),
+      ]);
+
+      const lancamentos: any[] = [];
 
       // Filtrar atividades por museu se especificado
       const atividadesFiltradas = museu

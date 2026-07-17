@@ -197,16 +197,25 @@ export default function RelatorioExecucaoObjeto() {
   ];
 
   async function gerarSecaoComRetry(rid, key, params) {
-    for (let tentativa = 1; tentativa <= 2; tentativa++) {
+    const MAX_TENTATIVAS = 3;
+    for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa++) {
       try {
         await Promise.race([
           base44.functions.invoke('gerarSecaoRelatorioExecucao', { relatorio_id: rid, secao: key, ...params }),
-          new Promise((_, reject) => setTimeout(() => reject(new Error(`Timeout`)), 50000)),
+          // Timeout individual: 45s para não engolir o timeout global do backend
+          new Promise((_, reject) => setTimeout(() => reject(new Error(`Timeout`)), 45000)),
         ]);
-        return; // sucesso
+        return; // sucesso — sai do loop
       } catch (err) {
-        if (tentativa === 2) console.warn(`Seção ${key} falhou após 2 tentativas:`, err?.message);
-        else await new Promise(r => setTimeout(r, 3000)); // pausa 3s antes de retry
+        const isUltima = tentativa === MAX_TENTATIVAS;
+        if (isUltima) {
+          console.warn(`Seção ${key} falhou após ${MAX_TENTATIVAS} tentativas — continuando:`, err?.message);
+          return; // não bloqueia o restante
+        }
+        // Backoff exponencial: 4s, 8s, ...
+        const espera = 4000 * tentativa;
+        console.warn(`Seção ${key} tentativa ${tentativa} falhou, aguardando ${espera}ms antes de retry...`);
+        await new Promise(r => setTimeout(r, espera));
       }
     }
   }
@@ -281,10 +290,10 @@ export default function RelatorioExecucaoObjeto() {
       // Atualiza o relatório visível após cada grupo
       try { await carregarRelatorio(rid); } catch (_) {}
 
-      // Pausa entre grupos — 5s — para aliviar pressão nos servidores
+      // Pausa entre grupos — 8s — respiro para o backend e a IA
       if (gi < totalGrupos - 1) {
         setProgresso({ valor: pct + grupo.length, texto: `⏳ Pausa entre grupos (${gi + 1}/${totalGrupos} concluído)...` });
-        await new Promise(r => setTimeout(r, 5000));
+        await new Promise(r => setTimeout(r, 8000));
       }
     }
 
