@@ -253,11 +253,16 @@ function GaleriaFotosInner() {
           <div>
             <h1 className="mb-2 text-3xl font-semibold tracking-tight text-black">Galeria de Fotos</h1>
             <p className="text-gray-600">
-              {sortedImages.length} {sortedImages.length === 1 ? 'imagem encontrada' : 'imagens encontradas'}
-              {images.length !== sortedImages.length && ` (de ${images.length} total)`}.
-              {data?.cacheUsed ? ' Dados carregados do cache local.' : ''}
-              {data?.cacheStale ? ' Cache antigo usado para evitar tela vazia.' : ''}
+              {sortedImages.length} {sortedImages.length === 1 ? 'imagem única' : 'imagens únicas'} exibidas
+              {images.length !== sortedImages.length && ` (de ${images.length} total)`}
+              {data?.sources && (
+                <span className="ml-1 text-gray-400 text-sm">
+                  · {data.sources.Attachment || 0} anexos + {data.sources.ReportPhoto || 0} fotos de relatório
+                  {data.total && data.total > images.length ? ` → ${data.total - images.length} agrupadas como duplicatas` : ''}
+                </span>
+              )}
             </p>
+            {data?.cacheUsed && <p className="mt-1 text-xs text-gray-400">Dados do cache local.{data?.cacheStale ? ' (cache antigo)' : ''}</p>}
             {isFetching && <p className="mt-2 text-xs text-gray-400">Atualizando galeria...</p>}
           </div>
 
