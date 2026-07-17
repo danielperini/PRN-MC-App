@@ -8,8 +8,348 @@ import {
   FolderSearch, RefreshCw, CheckCircle2, AlertTriangle, ChevronDown,
   ChevronUp, Loader2, User, Calendar, Building2, Activity, Image,
   ClipboardCheck, X, FileText, FolderOpen, Play, Info, Zap, Clock,
-  RotateCcw, FileCheck2, ImageIcon, Mail, Sparkles
+  RotateCcw, FileCheck2, ImageIcon, Mail, Sparkles, Camera, Receipt, ExternalLink
 } from 'lucide-react';
+
+// ── Painel: Fotos vinculadas a atividades via Drive ──
+function PainelFotosAtividades() {
+  const [rodando, setRodando] = useState(false);
+  const [pastaId, setPastaId] = useState('');
+  const [modo, setModo] = useState('preview');
+  const [resultado, setResultado] = useState(null);
+
+  async function handleVarrer() {
+    setRodando(true);
+    setResultado(null);
+    toast.info(modo === 'preview' ? 'Analisando fotos no Drive…' : 'Importando fotos do Drive para o sistema…');
+    try {
+      const res = await base44.functions.invoke('importarFotosPastaAtividades', {
+        pasta_raiz_id: pastaId.trim() || undefined,
+        modo,
+        limite_pastas: 20,
+        limite_fotos_por_pasta: 30,
+      });
+      const d = res.data;
+      setResultado(d);
+      if (modo === 'preview') {
+        toast.success(`Preview: ${d.total_pastas || 0} álbuns · ${d.total_fotos || 0} fotos encontradas · ${d.total_vinculadas || 0} vinculadas a atividades`);
+      } else {
+        toast.success(`Importação: ${d.fotos_importadas || 0} fotos importadas · ${d.atividades_atualizadas || 0} atividades atualizadas`);
+      }
+    } catch (e) {
+      toast.error('Erro: ' + (e?.message || e));
+    } finally {
+      setRodando(false);
+    }
+  }
+
+  const d = resultado;
+
+  return (
+    <div className="rounded-2xl border border-emerald-200 bg-white overflow-hidden">
+      <div className="px-5 py-4 border-b border-emerald-100 bg-emerald-50 flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-emerald-600 flex items-center justify-center">
+            <Camera className="w-3.5 h-3.5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold text-emerald-900">Fotos de Atividades — Varredura Drive</h2>
+            <p className="text-xs text-emerald-600">Busca fotos nas pastas do Drive e vincula às atividades correspondentes no sistema</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex rounded-lg border border-emerald-200 overflow-hidden text-xs">
+            <button
+              type="button"
+              onClick={() => setModo('preview')}
+              className={`px-3 py-1.5 font-medium transition-colors ${modo === 'preview' ? 'bg-emerald-600 text-white' : 'bg-white text-emerald-700 hover:bg-emerald-50'}`}
+            >
+              Pré-visualizar
+            </button>
+            <button
+              type="button"
+              onClick={() => setModo('import')}
+              className={`px-3 py-1.5 font-medium transition-colors ${modo === 'import' ? 'bg-emerald-600 text-white' : 'bg-white text-emerald-700 hover:bg-emerald-50'}`}
+            >
+              Importar
+            </button>
+          </div>
+          <Button
+            onClick={handleVarrer}
+            disabled={rodando}
+            size="sm"
+            className="gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700 rounded-xl"
+          >
+            {rodando
+              ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Varrendo…</>
+              : <><Camera className="w-3.5 h-3.5" /> {modo === 'preview' ? 'Analisar' : 'Importar fotos'}</>
+            }
+          </Button>
+        </div>
+      </div>
+
+      {/* Campo opcional de pasta */}
+      <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
+        <div className="flex gap-2 items-center">
+          <input
+            type="text"
+            value={pastaId}
+            onChange={e => setPastaId(e.target.value)}
+            placeholder="ID da pasta raiz (deixe vazio para usar a pasta padrão das atividades)"
+            className="flex-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400"
+          />
+        </div>
+        <p className="text-[10px] text-gray-400 mt-1">Padrão: pasta raiz de fotos de atividades configurada no Drive do projeto</p>
+      </div>
+
+      {/* Resultado */}
+      {d && (
+        <div className="p-5 space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { label: 'Álbuns/pastas', value: d.total_pastas ?? d.pastas_processadas ?? 0, color: 'text-gray-700' },
+              { label: 'Fotos encontradas', value: d.total_fotos ?? d.fotos_encontradas ?? 0, color: 'text-emerald-700' },
+              { label: 'Vinculadas a atividades', value: d.total_vinculadas ?? d.vinculadas ?? 0, color: 'text-blue-700' },
+              { label: modo === 'preview' ? 'Novas a importar' : 'Importadas', value: d.total_novas ?? d.fotos_importadas ?? 0, color: 'text-indigo-700' },
+            ].map((item, i) => (
+              <div key={i} className="rounded-xl border border-gray-100 bg-gray-50 p-3 text-center">
+                <p className={`text-2xl font-bold ${item.color}`}>{item.value}</p>
+                <p className="text-[10px] text-gray-500 mt-0.5 leading-tight">{item.label}</p>
+              </div>
+            ))}
+          </div>
+
+          {modo === 'preview' && d.total_novas > 0 && (
+            <div className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <span>{d.total_novas} fotos novas encontradas. Mude para "Importar" e execute para adicioná-las ao sistema.</span>
+              <button onClick={() => setModo('import')} className="ml-2 underline font-medium whitespace-nowrap text-xs">Importar agora</button>
+            </div>
+          )}
+
+          {d.amostras?.length > 0 && (
+            <details className="rounded-xl border border-emerald-100 overflow-hidden" open>
+              <summary className="bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700 cursor-pointer">{d.amostras.length} amostra(s) de fotos encontradas</summary>
+              <div className="divide-y divide-gray-50 max-h-48 overflow-y-auto">
+                {d.amostras.slice(0, 15).map((f, i) => (
+                  <div key={i} className="px-4 py-2 flex items-center gap-3">
+                    <div className="w-1.5 h-1.5 rounded-full shrink-0 bg-emerald-400" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-gray-700 truncate font-medium">{f.drive_nome || f.nome}</p>
+                      <p className="text-[10px] text-gray-400 truncate">{f.pasta_nome || f.museu} · {f.autor || '—'}</p>
+                    </div>
+                    {f.drive_url && (
+                      <a href={f.drive_url} target="_blank" rel="noreferrer" className="text-emerald-500 hover:text-emerald-700 shrink-0">
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+
+          {d.erros?.length > 0 && (
+            <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-xs text-red-700">
+              <AlertTriangle className="w-3.5 h-3.5 inline mr-1.5" />
+              {d.erros.length} erro(s) durante o processamento.
+            </div>
+          )}
+        </div>
+      )}
+
+      {!d && !rodando && (
+        <div className="px-5 py-6 text-center">
+          <Camera className="w-8 h-8 text-emerald-200 mx-auto mb-2" />
+          <p className="text-xs text-gray-400">Varre as pastas de fotos no Drive, identifica o museu, mês e autor pelo nome da pasta,</p>
+          <p className="text-xs text-gray-400">e vincula automaticamente cada foto à atividade correspondente no sistema.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Painel: NFs sem aprovação desde fevereiro ──
+function PainelNFsSemAprovacao() {
+  const [rodando, setRodando] = useState(false);
+  const [resultado, setResultado] = useState(null);
+  const [filtroStatus, setFiltroStatus] = useState('todos'); // todos | nao_aprovadas | pendentes
+
+  async function handleBuscar() {
+    setRodando(true);
+    setResultado(null);
+    toast.info('Buscando NFs sem aprovação desde fevereiro…');
+    try {
+      // Buscar PurchaseRequests desde fev/2026 que não estão aprovadas
+      const dataCorte = '2026-02-01';
+      const statusNaoAprovados = ['RASCUNHO', 'SOLICITADO', 'DEVOLVIDO', 'RECUSADO'];
+
+      let todas = [];
+      for (const status of (filtroStatus === 'todos' ? statusNaoAprovados : filtroStatus === 'pendentes' ? ['SOLICITADO'] : statusNaoAprovados)) {
+        const lote = await base44.entities.PurchaseRequest.filter(
+          { status },
+          '-created_date',
+          200
+        ).catch(() => []);
+        todas = [...todas, ...lote];
+      }
+
+      // Filtrar por data >= fevereiro
+      const filtradas = todas.filter(nf => {
+        const data = nf.nf_data_emissao || nf.created_date;
+        if (!data) return true; // sem data, incluir
+        return new Date(data) >= new Date(dataCorte);
+      });
+
+      // Deduplicar por id
+      const seen = new Set();
+      const unicas = filtradas.filter(nf => {
+        if (seen.has(nf.id)) return false;
+        seen.add(nf.id);
+        return true;
+      });
+
+      // Agrupar por status
+      const porStatus = {};
+      unicas.forEach(nf => {
+        const s = nf.status || 'RASCUNHO';
+        if (!porStatus[s]) porStatus[s] = [];
+        porStatus[s].push(nf);
+      });
+
+      setResultado({ total: unicas.length, porStatus, lista: unicas });
+      toast.success(`${unicas.length} NF(s) encontradas sem aprovação desde fevereiro`);
+    } catch (e) {
+      toast.error('Erro: ' + (e?.message || e));
+    } finally {
+      setRodando(false);
+    }
+  }
+
+  const STATUS_LABEL = {
+    RASCUNHO: { label: 'Rascunho', color: 'bg-gray-100 text-gray-700' },
+    SOLICITADO: { label: 'Aguardando aprovação', color: 'bg-yellow-100 text-yellow-800' },
+    DEVOLVIDO: { label: 'Devolvido', color: 'bg-orange-100 text-orange-800' },
+    RECUSADO: { label: 'Recusado', color: 'bg-red-100 text-red-700' },
+    APROVADO_COORD: { label: 'Aprovado coord.', color: 'bg-blue-100 text-blue-800' },
+    APROVADO_ADMIN: { label: 'Aprovado admin', color: 'bg-green-100 text-green-700' },
+    CANCELADO: { label: 'Cancelado', color: 'bg-gray-100 text-gray-500' },
+    PAGO: { label: 'Pago', color: 'bg-emerald-100 text-emerald-700' },
+  };
+
+  function formatBRL(v) {
+    if (!v && v !== 0) return '—';
+    return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  return (
+    <div className="rounded-2xl border border-rose-200 bg-white overflow-hidden">
+      <div className="px-5 py-4 border-b border-rose-100 bg-rose-50 flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-rose-600 flex items-center justify-center">
+            <Receipt className="w-3.5 h-3.5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold text-rose-900">NFs sem Aprovação — Desde Fevereiro/2026</h2>
+            <p className="text-xs text-rose-600">Lista notas fiscais que ainda não foram aprovadas no sistema</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <select
+            value={filtroStatus}
+            onChange={e => setFiltroStatus(e.target.value)}
+            className="rounded-lg border border-rose-200 bg-white text-xs px-3 py-1.5 text-rose-700 focus:outline-none focus:ring-1 focus:ring-rose-400"
+          >
+            <option value="todos">Todos os status não aprovados</option>
+            <option value="pendentes">Apenas aguardando aprovação</option>
+          </select>
+          <Button
+            onClick={handleBuscar}
+            disabled={rodando}
+            size="sm"
+            className="gap-1.5 bg-rose-600 text-white hover:bg-rose-700 rounded-xl"
+          >
+            {rodando
+              ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Buscando…</>
+              : <><FolderSearch className="w-3.5 h-3.5" /> Buscar NFs</>
+            }
+          </Button>
+        </div>
+      </div>
+
+      {resultado && (
+        <div className="p-5 space-y-4">
+          {/* Cards de resumo por status */}
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(resultado.porStatus).map(([status, nfs]) => {
+              const cfg = STATUS_LABEL[status] || { label: status, color: 'bg-gray-100 text-gray-700' };
+              return (
+                <div key={status} className={`rounded-xl px-3 py-2 text-center min-w-[100px] ${cfg.color} border border-black/5`}>
+                  <p className="text-lg font-bold">{nfs.length}</p>
+                  <p className="text-[10px] font-medium">{cfg.label}</p>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Valor total pendente */}
+          {resultado.lista.length > 0 && (
+            <div className="rounded-xl border border-rose-100 bg-rose-50 px-4 py-3">
+              <p className="text-xs text-rose-600 font-medium">Valor total das NFs não aprovadas:</p>
+              <p className="text-xl font-bold text-rose-800">
+                {formatBRL(resultado.lista.reduce((s, nf) => s + (nf.valor_solicitado || nf.nf_valor_total || 0), 0))}
+              </p>
+            </div>
+          )}
+
+          {/* Lista de NFs */}
+          <div className="rounded-xl border border-gray-100 overflow-hidden">
+            <div className="bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-500 border-b border-gray-100 flex items-center justify-between">
+              <span>{resultado.total} NF(s) sem aprovação</span>
+              <span className="text-gray-400">Ordenadas por data de criação</span>
+            </div>
+            <div className="divide-y divide-gray-50 max-h-96 overflow-y-auto">
+              {resultado.lista.map((nf, i) => {
+                const cfg = STATUS_LABEL[nf.status] || { label: nf.status, color: 'bg-gray-100 text-gray-700' };
+                return (
+                  <div key={nf.id || i} className="px-4 py-3 flex items-start gap-3">
+                    <Receipt className="w-3.5 h-3.5 text-rose-400 mt-0.5 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-xs text-gray-800 font-semibold truncate">{nf.descricao_item || nf.fornecedor_nome || 'Sem descrição'}</p>
+                          <p className="text-[10px] text-gray-500 truncate mt-0.5">
+                            {nf.fornecedor_nome && <span>{nf.fornecedor_nome} · </span>}
+                            {nf.centro_custo && <span>{nf.centro_custo} · </span>}
+                            {nf.nf_data_emissao ? new Date(nf.nf_data_emissao).toLocaleDateString('pt-BR') : new Date(nf.created_date).toLocaleDateString('pt-BR')}
+                          </p>
+                          {nf.numero_processamento && (
+                            <p className="text-[10px] text-gray-400 font-mono">{nf.numero_processamento}</p>
+                          )}
+                        </div>
+                        <div className="shrink-0 flex flex-col items-end gap-1">
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${cfg.color}`}>{cfg.label}</span>
+                          <span className="text-xs font-bold text-gray-700">{formatBRL(nf.valor_solicitado || nf.nf_valor_total)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!resultado && !rodando && (
+        <div className="px-5 py-6 text-center">
+          <Receipt className="w-8 h-8 text-rose-200 mx-auto mb-2" />
+          <p className="text-xs text-gray-400">Clique em "Buscar NFs" para listar todas as notas fiscais</p>
+          <p className="text-xs text-gray-400">com status de rascunho, aguardando aprovação ou devolvidas desde fevereiro/2026.</p>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const PASTA_RAIZ_PADRAO = '1gMPRXyamu9YANVFg6Xf7VtWoOoF-3CbQ';
 
@@ -986,6 +1326,12 @@ export default function VarreduraDrive() {
           </p>
         </div>
       </div>
+
+      {/* Fotos de Atividades — Varredura Drive */}
+      <PainelFotosAtividades />
+
+      {/* NFs sem aprovação desde fevereiro */}
+      <PainelNFsSemAprovacao />
 
       {/* NFs Drive — Diagnóstico + Importação */}
       <PainelNFsDrive />
