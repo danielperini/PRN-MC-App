@@ -5,7 +5,8 @@ import LoadingPage from '@/components/common/LoadingPage';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Images, MapPin, RefreshCw, X, Filter, FolderSync, Sparkles, CheckCircle2, GitMerge, Moon, ExternalLink, BookImage, ChevronDown, Loader2, Settings2, Eye, HardDriveDownload, TriangleAlert } from 'lucide-react';
+import { Images, MapPin, RefreshCw, X, Filter, FolderSync, Sparkles, CheckCircle2, GitMerge, Moon, ExternalLink, BookImage, ChevronDown, Loader2, Settings2, Eye, HardDriveDownload, TriangleAlert, FolderSearch } from 'lucide-react';
+import VarreduraDriveNoturno from '@/components/gallery/VarreduraDriveNoturno';
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
   DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
@@ -159,6 +160,7 @@ function GaleriaFotosInner() {
   const [reforçandoLegendas, setReforçandoLegendas] = useState(false);
   const [legendasStatus, setLegendasStatus] = useState(null);
   const [showSincInventario, setShowSincInventario] = useState(false);
+  const [showVarreduraNoturno, setShowVarreduraNoturno] = useState(false);
   const [selectedPhotos, setSelectedPhotos] = useState([]);
   const [editingPhoto, setEditingPhoto] = useState(null);
   const [deletingPhotos, setDeletingPhotos] = useState(null);
@@ -511,6 +513,16 @@ function GaleriaFotosInner() {
                   </span>
                   <span className="text-xs text-gray-500 pl-5">Envia e atualiza os arquivos da galeria no Google Drive.</span>
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => { setShowVarreduraNoturno(v => !v); setShowRestaurar(false); setShowAlbumNoturno(false); setShowImportarAtividades(false); }}
+                  className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer"
+                >
+                  <span className="font-medium text-gray-900 flex items-center gap-1.5">
+                    <FolderSearch className="h-3.5 w-3.5 text-indigo-600" /> Varredura Noturno 2026
+                    {showVarreduraNoturno && <span className="ml-1 rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] text-indigo-700">Ativo</span>}
+                  </span>
+                  <span className="text-xs text-gray-500 pl-5">Importa todas as fotos da pasta do Noturno com geolocalização por museu.</span>
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel className="text-xs text-amber-600 uppercase tracking-wide flex items-center gap-1">
                   <TriangleAlert className="h-3 w-3" /> Ação administrativa
@@ -578,6 +590,21 @@ function GaleriaFotosInner() {
                 queryClient.invalidateQueries(['galeria-fotos-stable-v1']);
                 refetch();
                 setShowImportarAtividades(false);
+              }}
+            />
+          </div>
+        )}
+
+        {/* Painel Varredura Noturno */}
+        {showVarreduraNoturno && (
+          <div className="mb-6 rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
+            <VarreduraDriveNoturno
+              onConcluido={({ totalCriadas }) => {
+                clearGalleryCache();
+                queryClient.invalidateQueries(['galeria-fotos-stable-v1']);
+                refetch();
+                setSyncStatus(`✓ ${totalCriadas} fotos do Noturno 2026 importadas com geolocalização`);
+                setShowVarreduraNoturno(false);
               }}
             />
           </div>
