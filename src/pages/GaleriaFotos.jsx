@@ -5,7 +5,7 @@ import LoadingPage from '@/components/common/LoadingPage';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Images, MapPin, RefreshCw, X, Filter, FolderSync, Sparkles, CheckCircle2, GitMerge, Moon, ExternalLink } from 'lucide-react';
+import { Images, MapPin, RefreshCw, X, Filter, FolderSync, Sparkles, CheckCircle2, GitMerge, Moon, ExternalLink, BookImage } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { loadGalleryReportData } from '@/utils/galleryReportData';
 import RestaurarFotosDrive from '@/components/gallery/RestaurarFotosDrive';
@@ -268,6 +268,14 @@ function GaleriaFotosInner() {
           </div>
 
           <div className="flex flex-wrap gap-2">
+            <Link
+              to="/RelatorioAtividadesFotos"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500 bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 transition-colors"
+            >
+              <BookImage className="h-4 w-4" />
+              Álbuns por Museu
+              <ExternalLink className="h-3.5 w-3.5 opacity-70" />
+            </Link>
             <Link
               to="/GaleriaNoturno"
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-400 bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 transition-colors"

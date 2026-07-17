@@ -55,6 +55,7 @@ const PAGE_TITLES = {
   AprovacaoNFs: 'Aprovação de NFs',
   ChecklistProducao: 'Checklist de Produção',
   GaleriaNoturno: '🌙 Galeria Noturno nos Museus',
+  RelatorioAtividadesFotos: '📸 Relatório de Atividades — Álbuns por Museu',
 };
 
 export default function Layout({ children, currentPageName }) {
