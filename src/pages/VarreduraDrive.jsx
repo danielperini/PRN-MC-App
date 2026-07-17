@@ -179,45 +179,61 @@ function PainelNFsSemAprovacao() {
     setResultado(null);
     toast.info('Buscando NFs sem aprovação desde fevereiro…');
     try {
-      // Buscar PurchaseRequests desde fev/2026 que não estão aprovadas
-      const dataCorte = '2026-02-01';
-      const statusNaoAprovados = ['RASCUNHO', 'SOLICITADO', 'DEVOLVIDO', 'RECUSADO'];
+      const dataCorte = new Date('2026-02-01');
+      const statusBuscar = filtroStatus === 'pendentes'
+        ? ['SOLICITADO']
+        : ['RASCUNHO', 'SOLICITADO', 'DEVOLVIDO', 'RECUSADO'];
 
-      let todas = [];
-      for (const status of (filtroStatus === 'todos' ? statusNaoAprovados : filtroStatus === 'pendentes' ? ['SOLICITADO'] : statusNaoAprovados)) {
-        const lote = await base44.entities.PurchaseRequest.filter(
-          { status },
-          '-created_date',
-          200
-        ).catch(() => []);
-        todas = [...todas, ...lote];
-      }
+      // Buscar cada status em paralelo
+      const lotes = await Promise.all(
+        statusBuscar.map(status =>
+          base44.entities.PurchaseRequest.filter({ status }, '-created_date', 300).catch(() => [])
+        )
+      );
 
-      // Filtrar por data >= fevereiro
-      const filtradas = todas.filter(nf => {
-        const data = nf.nf_data_emissao || nf.created_date;
-        if (!data) return true; // sem data, incluir
-        return new Date(data) >= new Date(dataCorte);
-      });
+      const todasRaw = lotes.flat();
 
-      // Deduplicar por id
-      const seen = new Set();
-      const unicas = filtradas.filter(nf => {
-        if (seen.has(nf.id)) return false;
-        seen.add(nf.id);
+      // 1. Deduplicar por id (evita registros duplicados vindos de múltiplas queries)
+      const seenIds = new Set();
+      const semDuplicataId = todasRaw.filter(nf => {
+        if (seenIds.has(nf.id)) return false;
+        seenIds.add(nf.id);
         return true;
       });
 
-      // Agrupar por status
+      // 2. Excluir duplicatas financeiras e registros explicitamente excluídos do somatório
+      const semDuplicataFinanceira = semDuplicataId.filter(nf =>
+        nf.duplicada_financeira !== true &&
+        nf.incluir_no_somatorio !== false &&
+        nf.duplicidade_status !== 'confirmada'
+      );
+
+      // 3. Excluir NFs com chave de acesso idêntica (mesmo XML, registrado duas vezes)
+      const seenChave = new Set();
+      const semDuplicataChave = semDuplicataFinanceira.filter(nf => {
+        if (!nf.nf_chave_acesso) return true; // sem chave = não dá pra deduplicar, manter
+        if (seenChave.has(nf.nf_chave_acesso)) return false;
+        seenChave.add(nf.nf_chave_acesso);
+        return true;
+      });
+
+      // 4. Filtrar por data >= fev/2026 (usa data de emissão NF se disponível, senão created_date)
+      const filtradas = semDuplicataChave.filter(nf => {
+        const dataStr = nf.nf_data_emissao || nf.created_date;
+        if (!dataStr) return true; // sem data: incluir por precaução
+        return new Date(dataStr) >= dataCorte;
+      });
+
+      // 5. Agrupar por status
       const porStatus = {};
-      unicas.forEach(nf => {
+      filtradas.forEach(nf => {
         const s = nf.status || 'RASCUNHO';
         if (!porStatus[s]) porStatus[s] = [];
         porStatus[s].push(nf);
       });
 
-      setResultado({ total: unicas.length, porStatus, lista: unicas });
-      toast.success(`${unicas.length} NF(s) encontradas sem aprovação desde fevereiro`);
+      setResultado({ total: filtradas.length, porStatus, lista: filtradas });
+      toast.success(`${filtradas.length} NF(s) únicas sem aprovação desde fevereiro`);
     } catch (e) {
       toast.error('Erro: ' + (e?.message || e));
     } finally {
