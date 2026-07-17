@@ -366,10 +366,10 @@ export default function RelatorioExecucaoObjeto() {
     }
   }
 
-  function exportarPDF() {
+  async function exportarPDF() {
     if (!relatorio) return;
     try {
-      exportarRelatorioExecucaoPDF(relatorio, 'completo');
+      await exportarRelatorioExecucaoPDF(relatorio, 'completo');
       toast.success('PDF gerado em 3 partes com as últimas edições salvas.');
     } catch (error) {
       toast.error('Erro ao gerar PDF: ' + (error?.message || String(error)));
