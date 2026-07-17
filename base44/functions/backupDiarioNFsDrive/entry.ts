@@ -306,20 +306,16 @@ async function processarPurchase(base44, token, pr, notasFolderCache) {
 
   const { ano, mesIdx } = dateInfo;
 
-  // Pasta no formato MM-YYYY (ex: 07-2026) — NÃO criar, apenas localizar
+  // Pasta no formato MM-YYYY (ex: 07-2026) — criar se não existir
   const mesFormatado = String(mesIdx + 1).padStart(2, '0');
   const nomePasta = `${mesFormatado}-${ano}`;
   const cacheKey = nomePasta;
   let mesFolderId = notasFolderCache[cacheKey];
 
   if (!mesFolderId) {
-    mesFolderId = await findFolderOnly(token, nomePasta, ROOT_FOLDER_ID);
-    if (!mesFolderId) {
-      log.status = 'pasta_nao_encontrada';
-      log.detalhes.push(`Pasta "${nomePasta}" não existe no Drive — arquivo não enviado`);
-      return log;
-    }
+    mesFolderId = await getOrCreate(token, nomePasta, ROOT_FOLDER_ID);
     notasFolderCache[cacheKey] = mesFolderId;
+    log.detalhes.push(`Pasta "${nomePasta}" localizada/criada no Drive`);
   }
 
   const updates = {};
@@ -385,6 +381,19 @@ async function processarPurchase(base44, token, pr, notasFolderCache) {
       log.detalhes.push(`ERRO COMP: ${e.message}`);
     }
   }
+
+  // Verificar se existe extrato bancário correspondente ao mês da NF
+  try {
+    const extratos = await base44.asServiceRole.entities.MovimentacaoBancaria.filter(
+      { mes_num: mesIdx + 1, ano },
+      '-created_date', 1
+    ).catch(() => []);
+    if (extratos && extratos.length > 0) {
+      log.detalhes.push(`✓ Extrato bancário ${MESES_PT[mesIdx]}/${ano} encontrado`);
+    } else {
+      log.detalhes.push(`⚠ Sem extrato bancário para ${MESES_PT[mesIdx]}/${ano}`);
+    }
+  } catch (_) { /* não bloquear por falha na verificação */ }
 
   // Atualizar PurchaseRequest
   if (Object.keys(updates).length > 0) {
