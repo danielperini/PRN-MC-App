@@ -141,52 +141,71 @@ function buildEquipeTable(equipe) {
   </table>`;
 }
 
-// ─── Galeria de fotos ─────────────────────────────────────────────────────────
+// ─── Galeria de fotos (2 colunas, agrupada por museu — norma SUCC) ────────────
 function buildGaleriaFotos(relatorio) {
-  const fotos = [];
+  // Coleta fotos de todas as fontes e agrupa por museu
+  const porMuseu = {};
   const vistas = new Set();
+
+  function addFoto(url, legenda, autor, museu, data, atividade) {
+    if (!url || vistas.has(url)) return;
+    vistas.add(url);
+    const m = museu || 'Geral';
+    if (!porMuseu[m]) porMuseu[m] = [];
+    porMuseu[m].push({ url, legenda: legenda || '', autor: autor || 'Acervo Museus Centro', museu: m, data: data || '', atividade: atividade || '' });
+  }
+
   for (const atv of (relatorio._atividades_com_fotos || [])) {
-    for (const f of (atv.fotos || []).slice(0, 4)) {
-      const url = f.url || f.file_url;
-      if (!url || vistas.has(url)) continue;
-      vistas.add(url);
-      fotos.push({ url, legenda: f.legenda || atv.titulo || '', autor: f.autor || 'Acervo Museus Centro', museu: atv.museu || '', data: f.data || atv.data_realizacao || '' });
+    for (const f of (atv.fotos || []).slice(0, 6)) {
+      addFoto(f.url || f.file_url, f.legenda || atv.titulo, f.autor, atv.museu, f.data || atv.data_realizacao, atv.titulo);
     }
   }
   for (const f of (relatorio._fotos_galeria || [])) {
-    const url = f.file_url || f.url;
-    if (!url || vistas.has(url)) continue;
-    vistas.add(url);
-    fotos.push({ url, legenda: f.legenda || f.caption || f.file_name || '', autor: f.author || 'Acervo Museus Centro', museu: f.museu || '', data: '' });
+    addFoto(f.file_url || f.url, f.legenda || f.caption || f.file_name, f.author, f.museu, f.mes_referencia, '');
   }
   for (const ev of (relatorio.anexos_evidencias || [])) {
-    const url = ev.foto_url || ev.url;
-    if (!url || vistas.has(url)) continue;
-    vistas.add(url);
-    fotos.push({ url, legenda: ev.legenda_editada || ev.legenda_ia || ev.atividade_nome || '', autor: 'Registro fotográfico', museu: '', data: ev.atividade_data || '' });
+    addFoto(ev.foto_url, ev.legenda_editada || ev.legenda_ia || ev.atividade_nome, 'Registro fotográfico', '', ev.atividade_data, ev.atividade_nome);
   }
-  if (fotos.length === 0) return '';
-  const linhas = [];
-  for (let i = 0; i < fotos.length; i += 3) linhas.push(fotos.slice(i, i + 3));
-  const rows = linhas.map(linha => {
-    const cols = linha.map(f => `
-      <td class="foto-cell">
-        <img src="${esc(f.url)}" alt="${esc(f.legenda)}" class="foto-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-        <div class="foto-ph">📷 Imagem não disponível</div>
-        <div class="foto-leg editable" contenteditable="true">${esc((f.legenda||'').slice(0,80))}</div>
-        <div class="foto-meta">${esc(f.museu||'')}${f.data?' — '+fmtDate(f.data):''}${f.autor?' · '+f.autor:''}</div>
-      </td>`).join('');
-    let extra = '';
-    for (let i = linha.length; i < 3; i++) extra += '<td class="foto-cell foto-empty"></td>';
-    return `<tr>${cols}${extra}</tr>`;
-  }).join('');
-  return `
+
+  const museus = Object.keys(porMuseu);
+  if (museus.length === 0) return '';
+
+  // Ordem de exibição por museu
+  const ordemMuseus = ['MHAB', 'MIS BH', 'MIS', 'MUMO', 'Geral'];
+  museus.sort((a, b) => {
+    const ia = ordemMuseus.findIndex(m => a.includes(m));
+    const ib = ordemMuseus.findIndex(m => b.includes(m));
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+  });
+
+  let html = `
   <div class="pg-break">
     ${pageHeader('Seção 14 — Demonstrativo Fotográfico')}
     ${secTitle('14', 'DEMONSTRATIVO FOTOGRÁFICO — ATIVIDADES REALIZADAS (FEV–JUN/2026)')}
-    ${note('Registros fotográficos das atividades executadas no período. Cada foto apresenta legenda descritiva, museu de referência, data do registro e crédito autoral, conforme orientação SUCC/PBH.')}
-    <table class="foto-tbl"><tbody>${rows}</tbody></table>
-  </div>`;
+    ${note('Registros fotográficos organizados por unidade museológica. Cada imagem apresenta legenda descritiva, identificação da atividade, museu, data e crédito autoral conforme orientação SUCC/PBH. As fotos devem ser mantidas em arquivo para fins de auditoria durante 10 anos.')}`;
+
+  for (const museu of museus) {
+    const fotos = porMuseu[museu];
+    html += `<div class="foto-museu-title">📷 ${esc(museu)} — ${fotos.length} registro${fotos.length > 1 ? 's' : ''} fotográfico${fotos.length > 1 ? 's' : ''}</div>`;
+    // 2 fotos por linha
+    const linhas = [];
+    for (let i = 0; i < fotos.length; i += 2) linhas.push(fotos.slice(i, i + 2));
+    const rows = linhas.map(linha => {
+      const cols = linha.map(f => `
+        <td class="foto-cell">
+          <img src="${esc(f.url)}" alt="${esc(f.legenda)}" class="foto-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+          <div class="foto-ph">📷 Imagem não disponível</div>
+          <div class="foto-leg editable" contenteditable="true">${esc((f.atividade ? f.atividade + ' — ' : '') + (f.legenda||'').slice(0,100))}</div>
+          <div class="foto-meta">${esc(f.museu)}${f.data ? ' · ' + esc(f.data) : ''}${f.autor ? ' · ' + esc(f.autor) : ''}</div>
+        </td>`).join('');
+      const extra = linha.length < 2 ? '<td class="foto-cell foto-empty"></td>' : '';
+      return `<tr class="foto-grupo">${cols}${extra}</tr>`;
+    }).join('');
+    html += `<table class="foto-tbl"><tbody>${rows}</tbody></table>`;
+  }
+
+  html += `</div>`;
+  return html;
 }
 
 // ─── CSS ──────────────────────────────────────────────────────────────────────
@@ -220,11 +239,12 @@ function buildCSS() {
   /* ── Documento ── */
   .document { max-width: 210mm; margin: 64px auto 40px; background: #fff; box-shadow: 0 6px 32px rgba(0,0,0,0.22); }
 
-  /* ── Capa ── */
+  /* ── Capa (página inteira isolada) ── */
   .cover {
     background: linear-gradient(160deg, #0a0a32 0%, #1a2a6c 55%, #2c3e8c 100%);
-    color: #fff; padding: 0; min-height: 80mm;
+    color: #fff; padding: 0; min-height: 227mm;
     display: flex; flex-direction: column;
+    break-after: page; page-break-after: always;
   }
   .cover-accent { height: 5px; background: linear-gradient(90deg, #daa520 0%, #f0c040 50%, #daa520 100%); }
   .cover-body { padding: 28px 28px 24px; flex: 1; }
@@ -313,14 +333,16 @@ function buildCSS() {
   .doc-link.comp { background: #e8f5e9; color: #155724; }
   .doc-link.drv { background: #e8eaf6; color: #283593; }
 
-  /* ── Galeria de fotos ── */
-  .foto-tbl { width: 100%; border-collapse: collapse; }
-  .foto-cell { width: 33.3%; vertical-align: top; padding: 5px; }
-  .foto-empty { background: transparent; }
-  .foto-img { width: 100%; height: 95px; object-fit: cover; border: 1px solid #ccc; border-radius: 3px; display: block; }
-  .foto-ph { width: 100%; height: 95px; background: #eee; display: none; align-items: center; justify-content: center; font-size: 8pt; color: #999; border: 1px dashed #ccc; border-radius: 3px; }
-  .foto-leg { font-size: 7.5pt; font-weight: 700; color: #0a0a32; padding: 4px 2px 2px; min-height: 14px; border-bottom: 1px solid #e0e0f0; }
-  .foto-meta { font-size: 7pt; color: #888; padding: 2px 2px; font-style: italic; }
+  /* ── Galeria de fotos — 2 colunas, tamanho SUCC ── */
+  .foto-tbl { width: 100%; border-collapse: separate; border-spacing: 6px; }
+  .foto-cell { width: 50%; vertical-align: top; padding: 0; border: 1px solid #ddd; border-radius: 3px; overflow: hidden; }
+  .foto-empty { background: transparent; border: none !important; }
+  .foto-img { width: 100%; height: 140px; object-fit: cover; display: block; border-bottom: 1px solid #ddd; }
+  .foto-ph { width: 100%; height: 140px; background: #f5f5f5; display: none; align-items: center; justify-content: center; font-size: 8pt; color: #999; border-bottom: 1px dashed #ccc; }
+  .foto-leg { font-size: 8pt; font-weight: 700; color: #0a0a32; padding: 5px 7px 3px; min-height: 16px; line-height: 1.3; }
+  .foto-meta { font-size: 7.5pt; color: #666; padding: 0 7px 6px; font-style: italic; line-height: 1.3; }
+  .foto-grupo { break-inside: avoid; page-break-inside: avoid; margin-bottom: 10px; }
+  .foto-museu-title { background: #0a0a32; color: #fff; font-size: 8.5pt; font-weight: 700; padding: 5px 10px; margin: 12px 0 6px; letter-spacing: 0.3px; }
 
   /* ── Assinatura ── */
   .assin-block { margin-top: 22px; }
@@ -337,11 +359,29 @@ function buildCSS() {
   /* ── Print ── */
   @media print {
     .toolbar { display: none !important; }
-    body { background: #fff; }
+    body { background: #fff; font-size: 9pt; }
     .document { box-shadow: none; max-width: 100%; margin: 0; }
-    .pg-break { break-after: page; page-break-after: always; }
-    .editable { outline: none !important; background: transparent !important; }
-    @page { size: A4 portrait; margin: 14mm 15mm 18mm; }
+    .cover { min-height: 100vh; }
+    .pg-break { break-after: page; page-break-after: always; padding: 14px 18px 12px; }
+    .pg-break:last-child { break-after: auto; page-break-after: auto; }
+    /* Campos editáveis — limpos na impressão */
+    .editable { outline: none !important; background: transparent !important; border: none !important; }
+    .field-val { border-bottom: 1px solid #999 !important; background: transparent !important; }
+    .field-block { background: transparent !important; border: 1px solid #ccc !important; }
+    /* Fotos — evitar quebra dentro da célula */
+    .foto-cell { break-inside: avoid; page-break-inside: avoid; }
+    .foto-tbl tr { break-inside: avoid; page-break-inside: avoid; }
+    .foto-grupo { break-inside: avoid; page-break-inside: avoid; }
+    /* Tabelas — evitar quebra em linhas */
+    .tbl tr { break-inside: avoid; page-break-inside: avoid; }
+    /* Cabeçalho de seção — não quebrar com conteúdo seguinte */
+    .sec-title { break-after: avoid; page-break-after: avoid; }
+    .page-top { break-after: avoid; page-break-after: avoid; }
+    /* Capa — fundo colorido na impressão */
+    .cover, .cover * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+    .sec-title, .page-top, .tbl th, .foto-museu-title { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+    @page { size: A4 portrait; margin: 12mm 14mm 16mm; }
+    @page :first { margin: 0; }
   }`;
 }
 
@@ -510,12 +550,12 @@ export function exportarRelatorioHTML(relatorio) {
     <table class="tbl">
       <thead><tr><th>FONTE / DOCUMENTO</th><th>FINALIDADE E CONTEÚDO</th><th>LOCALIZAÇÃO / LINK</th></tr></thead>
       <tbody>
-        <tr><td>Relatórios mensais aprovados (31 relatórios)</td><td>Atividades, público, atividades e avaliação de cada profissional — Fev a Jun/2026</td><td><a href="https://app.base44.com/Relatorios" target="_blank" class="doc-link drv">Acessar Sistema</a></td></tr>
-        <tr><td>Galeria fotográfica do sistema</td><td>Registros fotográficos vinculados às atividades por museu e mês</td><td><a href="https://app.base44.com/GaleriaFotos" target="_blank" class="doc-link drv">Acessar Galeria</a></td></tr>
+        <tr><td>Relatórios mensais aprovados (31 relatórios)</td><td>Atividades, público, atividades e avaliação de cada profissional — Fev a Jun/2026</td><td><a href="https://periniprojetos.com.br/Relatorios" target="_blank" class="doc-link drv">Acessar Sistema</a></td></tr>
+        <tr><td>Galeria fotográfica do sistema</td><td>Registros fotográficos vinculados às atividades por museu e mês</td><td><a href="https://periniprojetos.com.br/GaleriaFotos" target="_blank" class="doc-link drv">Acessar Galeria</a></td></tr>
         <tr><td>Relatório fotográfico de atividades (PDF)</td><td>Demonstrativo fotográfico organizado por museu — formato SUCC/PBH</td><td><span class="editable" contenteditable="true">Arquivo em anexo — Demonstrativo_Fotografico_SUCC.pdf</span></td></tr>
-        <tr><td>Prestação de contas — Notas fiscais e comprovantes</td><td>Documentos financeiros aprovados no período</td><td><a href="https://app.base44.com/Compras" target="_blank" class="doc-link drv">Acessar Sistema</a></td></tr>
+        <tr><td>Prestação de contas — Notas fiscais e comprovantes</td><td>Documentos financeiros aprovados no período</td><td><a href="https://periniprojetos.com.br/Compras" target="_blank" class="doc-link drv">Acessar Sistema</a></td></tr>
         <tr><td>Contratos de prestadores de serviço</td><td>Termos de compromisso e contratos da equipe técnica</td><td><span class="editable" contenteditable="true">Google Drive — Pasta Contratos MC 2026</span></td></tr>
-        <tr><td>Agenda / programação dos museus</td><td>Registros de eventos, datas, locais e vínculos com metas</td><td><a href="https://app.base44.com/Agenda" target="_blank" class="doc-link drv">Acessar Agenda</a></td></tr>
+        <tr><td>Agenda / programação dos museus</td><td>Registros de eventos, datas, locais e vínculos com metas</td><td><a href="https://periniprojetos.com.br/Agenda" target="_blank" class="doc-link drv">Acessar Agenda</a></td></tr>
         <tr><td>Relatório de comunicação e visibilidade</td><td>Clipping, posts, coberturas fotográficas e alcance digital</td><td><span class="editable" contenteditable="true">Arquivo em anexo — Relatório de Comunicação Fev–Jun/2026</span></td></tr>
       </tbody>
     </table>
