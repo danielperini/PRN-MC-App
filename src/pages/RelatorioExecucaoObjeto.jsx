@@ -22,8 +22,10 @@ import {
   Sparkles,
   Trash2,
   X,
+  FileType,
 } from 'lucide-react';
 import { exportarRelatorioExecucaoPDF } from '@/components/relatorio/ExportarRelatorioExecucaoPDF';
+import { exportarRelatorioExecucaoDOCX } from '@/components/relatorio/ExportarRelatorioExecucaoDOCX';
 import RevisaoFinalDialog from '@/components/relatorio/RevisaoFinalDialog';
 import { listarMetasRelatorio, sincronizarRelatorioExecucao } from '@/utils/sincronizarRelatorioExecucao';
 
@@ -376,6 +378,20 @@ export default function RelatorioExecucaoObjeto() {
     }
   }
 
+  const [exportandoDOCX, setExportandoDOCX] = useState(false);
+  async function exportarDOCX() {
+    if (!relatorio) return;
+    setExportandoDOCX(true);
+    try {
+      await exportarRelatorioExecucaoDOCX(relatorio);
+      toast.success('DOCX gerado com formatação completa e fotos vinculadas.');
+    } catch (error) {
+      toast.error('Erro ao gerar DOCX: ' + (error?.message || String(error)));
+    } finally {
+      setExportandoDOCX(false);
+    }
+  }
+
   const metasSelecionadas = useMemo(
     () => metas.filter(meta => form.filtro_meta_ids.includes(idMeta(meta))),
     [metas, form.filtro_meta_ids],
@@ -432,6 +448,10 @@ export default function RelatorioExecucaoObjeto() {
             </Button>
             <Button size="sm" onClick={() => setRevisaoAberta(true)}>Revisar e Exportar</Button>
             <Button size="sm" variant="outline" onClick={exportarPDF}><Download className="w-4 h-4 mr-1" />PDF</Button>
+            <Button size="sm" variant="outline" onClick={exportarDOCX} disabled={exportandoDOCX}>
+              {exportandoDOCX ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FileType className="w-4 h-4 mr-1" />}
+              DOCX
+            </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
