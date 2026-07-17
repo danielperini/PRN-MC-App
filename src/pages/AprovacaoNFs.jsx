@@ -12,8 +12,10 @@ const STATUS_OCULTAR_INTAKE = new Set([
 ]);
 // Status de compras já tratadas (para cruzamento por chave fiscal)
 const STATUS_COMPRAS_JA_TRATADAS = new Set(['APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO', 'RECUSADO', 'CANCELADO']);
-// Status que ainda precisam de atenção
+// Status que ainda precisam de atenção — excluímos da query diretamente os já resolvidos
 const STATUS_PENDENTES = ['AGUARDANDO_REVISAO', 'ANALISANDO_IA', 'RASCUNHO', 'ENVIADO'];
+// Status de PurchaseRequest que indicam item já pago/aprovado definitivamente
+const STATUS_PR_RESOLVIDOS = new Set(['APROVADO_ADMIN', 'PAGO', 'RECUSADO', 'CANCELADO']);
 
 function fmtBRL(v) {
   if (!v && v !== 0) return '—';
@@ -119,21 +121,49 @@ export default function AprovacaoNFs() {
     staleTime: 60000,
   });
 
+  // PurchaseRequests diretamente marcadas como pagas ou aprovadas definitivamente
+  const { data: prResolvidas = [] } = useQuery({
+    queryKey: ['pr-resolvidas-fila-nf'],
+    queryFn: async () => {
+      const resultados = await Promise.all(
+        [...STATUS_PR_RESOLVIDOS].map(status =>
+          base44.entities.PurchaseRequest.filter({ status }, '-created_date', 3000)
+        )
+      );
+      return resultados.flat();
+    },
+    staleTime: 60000,
+  });
+
   const chavesAprovadas = useMemo(() => {
     const set = new Set(aprovadosIntake.map(chaveFiscal));
     compras.filter(p => STATUS_COMPRAS_JA_TRATADAS.has(String(p.status || '').toUpperCase())).forEach(p => set.add(chaveFiscal(p)));
+    // Também excluir por ID direto de PurchaseRequests já resolvidas
+    prResolvidas.forEach(p => {
+      set.add(chaveFiscal(p));
+      if (p.nf_chave_acesso) set.add(`chave:${digitos(p.nf_chave_acesso)}`);
+    });
     return set;
-  }, [aprovadosIntake, compras]);
+  }, [aprovadosIntake, compras, prResolvidas]);
+
+  // Mapa de IDs de PurchaseRequests já resolvidas para lookup O(1)
+  const prResolvidasIds = useMemo(() => new Set(prResolvidas.map(p => p.id)), [prResolvidas]);
 
   const intakes = useMemo(() => {
     const dedup = deduplicar(intakesBrutos);
     return dedup.filter(i => {
-      const status = String(dados(i).status_processamento || i.status_processamento || '').toUpperCase();
+      const d = dados(i);
+      const status = String(d.status_processamento || i.status_processamento || '').toUpperCase();
+      // 1. Status do próprio intake já resolvido
       if (STATUS_OCULTAR_INTAKE.has(status)) return false;
+      // 2. Chave fiscal já consta em intake aprovado ou compra tratada
       if (chavesAprovadas.has(chaveFiscal(i))) return false;
+      // 3. PR vinculado diretamente já está pago/aprovado definitivamente
+      const prId = d.entidade_destino_id || i.entidade_destino_id;
+      if (prId && prResolvidasIds.has(prId)) return false;
       return true;
     });
-  }, [intakesBrutos, chavesAprovadas]);
+  }, [intakesBrutos, chavesAprovadas, prResolvidasIds]);
   const filtrados = useMemo(() => intakes.filter(item => {
     const temXml = !!xmlUrl(item);
     if (filtroXml === 'com_xml' && !temXml) return false;
@@ -145,8 +175,17 @@ export default function AprovacaoNFs() {
   const comXml = intakes.filter(i => !!xmlUrl(i)).length;
   const semXml = intakes.length - comXml;
   const ocultadas = Math.max(0, intakesBrutos.length - intakes.length);
+  // Contagem de intakes ocultos por já estarem aprovados/pagos via PR vinculado
+  const ocultadasPorPR = useMemo(() =>
+    deduplicar(intakesBrutos).filter(i => {
+      const d = dados(i);
+      const prId = d.entidade_destino_id || i.entidade_destino_id;
+      return prId && prResolvidasIds.has(prId);
+    }).length,
+  [intakesBrutos, prResolvidasIds]);
 
-  async function atualizarTudo() { await Promise.all([refetch(), refetchAprovados(), refetchCompras()]); }
+  const { refetch: refetchPrResolvidas } = useQuery({ queryKey: ['pr-resolvidas-fila-nf'], enabled: false });
+  async function atualizarTudo() { await Promise.all([refetch(), refetchAprovados(), refetchCompras(), refetchPrResolvidas()]); }
   async function limparFila() {
     setLimpando(true);
     try {
@@ -195,7 +234,15 @@ export default function AprovacaoNFs() {
 
   return <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
     <div className="flex items-start justify-between gap-4 flex-wrap"><div className="flex items-center gap-3"><div className="w-11 h-11 rounded-2xl bg-slate-900 flex items-center justify-center"><CheckCircle className="w-5 h-5 text-white" /></div><div><h1 className="text-xl font-bold">Aprovação de NFs</h1><p className="text-sm text-gray-400">Somente notas fiscais únicas, ainda não aprovadas, com PDF e controle de XML por mês</p></div></div><div className="flex gap-2"><Button onClick={limparFila} disabled={limpando} className="gap-2 rounded-xl bg-slate-900">{limpando ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}Revisar fila e buscar XMLs</Button><Button onClick={atualizarTudo} variant="outline" className="gap-2 rounded-xl"><RefreshCw className="w-4 h-4" />Atualizar</Button></div></div>
-    {ocultadas > 0 && <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">{ocultadas} registro(s) aprovado(s), duplicado(s) ou não fiscal(is) foram retirados desta fila sem apagar o histórico.</div>}
+    {(ocultadas > 0 || ocultadasPorPR > 0) && (
+      <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800 flex items-start gap-2">
+        <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-blue-600" />
+        <span>
+          {ocultadas > 0 && <><b>{ocultadas}</b> registro(s) aprovado(s), duplicado(s) ou não fiscal(is) ocultados automaticamente. </>}
+          {ocultadasPorPR > 0 && <><b>{ocultadasPorPR}</b> NF(s) ocultadas por já estarem pagas/aprovadas no módulo de compras.</>}
+        </span>
+      </div>
+    )}
     <div className="grid grid-cols-3 gap-3"><div className="rounded-2xl border bg-white p-4 text-center"><p className="text-2xl font-bold">{intakes.length}</p><p className="text-xs text-gray-400">Aguardando</p></div><div className="rounded-2xl border border-green-200 bg-green-50 p-4 text-center"><p className="text-2xl font-bold text-green-700">{comXml}</p><p className="text-xs text-green-600">Com XML</p></div><div className="rounded-2xl border border-orange-200 bg-orange-50 p-4 text-center"><p className="text-2xl font-bold text-orange-600">{semXml}</p><p className="text-xs text-orange-500">XML faltante</p></div></div>
     <div className="flex gap-3 flex-wrap"><div className="relative flex-1 min-w-48"><Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" /><input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar por nome, fornecedor, número…" className="w-full pl-9 pr-8 py-2 text-sm rounded-xl border" />{busca && <button onClick={() => setBusca('')} className="absolute right-2.5 top-2.5"><X className="w-4 h-4" /></button>}</div><div className="flex gap-2">{[['todos','Todos'],['com_xml','Com XML'],['sem_xml','XML faltante']].map(([key,label]) => <button key={key} onClick={() => setFiltroXml(key)} className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border ${filtroXml===key?'bg-slate-900 text-white':'bg-white text-gray-500'}`}><Filter className="w-3 h-3" />{label}</button>)}</div></div>
     {isLoading ? <div className="text-center py-20"><Loader2 className="w-8 h-8 animate-spin mx-auto text-gray-300" /></div> : filtrados.length === 0 ? <div className="rounded-2xl border-2 border-dashed py-16 text-center"><CheckCircle className="w-10 h-10 text-gray-300 mx-auto mb-3" /><p className="font-semibold text-gray-500">Nenhuma NF pendente única</p></div> : <><p className="text-xs text-gray-400">{filtrados.length} nota(s) fiscal(is) encontrada(s)</p><div className="grid gap-4 sm:grid-cols-2">{filtrados.map(intake => <NFCard key={intake.id} intake={intake} onAprovar={handleAprovar} onRejeitar={handleRejeitar} processando={processando} />)}</div></>}
