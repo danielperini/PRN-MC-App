@@ -6,10 +6,11 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { prepararEExportarRelatorioExecucao } from '@/utils/exportarRelatorioExecucao';
 import { exportarRelatorioHTML } from '@/components/relatorio/ExportarRelatorioHTML';
+import ExportarEmailConfirmDialog from '@/components/relatorio/ExportarEmailConfirmDialog';
 import {
   CheckCircle2, XCircle, AlertTriangle, Download, ExternalLink,
   FileText, Users, BarChart2, Link2, ClipboardCheck, X, Loader2,
-  CheckSquare, Square, Code2, Camera
+  CheckSquare, Square, Code2, Camera, Mail
 } from 'lucide-react';
 
 function fmtBRL(v) {
@@ -38,6 +39,8 @@ export default function RevisaoFinalDialog({ relatorioId, relatorio, onClose }) 
   const [exportando, setExportando] = useState(false);
   const [checklist, setChecklist] = useState({});
   const [progressoTexto, setProgressoTexto] = useState('');
+  const [showEmailConfirm, setShowEmailConfirm] = useState(false);
+  const [exportacaoEnviada, setExportacaoEnviada] = useState(false);
 
   useEffect(() => {
     if (!relatorioId) return;
@@ -124,6 +127,17 @@ export default function RevisaoFinalDialog({ relatorioId, relatorio, onClose }) 
 
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-3">
+      {showEmailConfirm && (
+        <ExportarEmailConfirmDialog
+          relatorioId={relatorioId}
+          relatorio={r}
+          userEmail={r?.gerado_por_email}
+          onClose={() => {
+            setShowEmailConfirm(false);
+            setExportacaoEnviada(true);
+          }}
+        />
+      )}
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b">
@@ -557,16 +571,22 @@ export default function RevisaoFinalDialog({ relatorioId, relatorio, onClose }) 
                 {exportando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
                 Parte 2
               </Button>
-              <Button
-                size="sm"
-                onClick={() => handleExportar('completo')}
-                className={`gap-1 ${allChecked && !exportando ? 'bg-slate-900 text-white hover:bg-slate-700' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}
-                disabled={!allChecked || exportando}
-                title={!allChecked ? 'Conclua o checklist de revisão primeiro' : 'Exportar PDF Completo'}
-              >
-                {exportando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-                {exportando ? (progressoTexto || 'Gerando...') : 'PDF Completo'}
-              </Button>
+              {exportacaoEnviada ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-100 text-green-700 text-xs font-semibold border border-green-200">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Exportação enviada para processamento ✓
+                </span>
+              ) : (
+                <Button
+                  size="sm"
+                  onClick={() => setShowEmailConfirm(true)}
+                  className={`gap-1.5 ${allChecked && !exportando ? 'bg-slate-900 text-white hover:bg-slate-700' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}
+                  disabled={!allChecked || exportando}
+                  title={!allChecked ? 'Conclua o checklist de revisão primeiro' : 'Gerar todos os PDFs e enviar por e-mail'}
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  PDF Completo (e-mail)
+                </Button>
+              )}
               <Button
                 size="sm"
                 variant="outline"
