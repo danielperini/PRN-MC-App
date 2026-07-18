@@ -23,7 +23,7 @@ import { base44 } from '@/api/base44Client';
 
 const INITIAL_VISIBLE_IMAGES = 60;
 const VISIBLE_IMAGES_STEP = 60;
-const GALLERY_CACHE_KEY = 'museus_centro_galeria_fotos_cache_v2';
+const GALLERY_CACHE_KEY = 'museus_centro_galeria_fotos_cache_v7_deduped';
 const GALLERY_CACHE_TTL_MS = 10 * 60 * 1000;
 
 const SECTION_LABELS = {
@@ -48,6 +48,10 @@ function formatDateBR(value) {
 
 function clearGalleryCache() {
   try {
+    // Limpa versões antigas e a atual
+    ['v1', 'v2', 'v3', 'v4', 'v5', 'v6'].forEach(v => {
+      localStorage.removeItem(`museus_centro_galeria_fotos_cache_${v}`);
+    });
     window.localStorage.removeItem(GALLERY_CACHE_KEY);
   } catch {
     // noop
