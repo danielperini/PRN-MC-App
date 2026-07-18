@@ -94,9 +94,9 @@ function AditivoBlock({ titulo, badge, badgeColor, totalPrevisto, totalUtilizado
 }
 
 export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
-  const { totais3, totais4, rubricas4, duplicadas, datasInvalidas, divergencias } = useMemo(() => {
+  const { totais3, totais4, rubricas4, duplicadas, datasInvalidas } = useMemo(() => {
     const ativas = rubricas.filter((r) => r?.ativo !== false);
-    // Filtrar por origem_recurso explícita; ignorar rubricas de outros aditivos no somatório
+
     const rubricas4 = ativas.filter((r) => {
       const origem = (r.origem_recurso || '').trim();
       return origem === '4º ADITIVO' || origem === '4º Aditivo';
@@ -106,13 +106,13 @@ export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
       return origem === '3º ADITIVO' || origem === '3º Aditivo';
     });
 
-    // Previsto calculado diretamente das rubricas (fonte de verdade)
+    // Previsto e utilizado direto das rubricas (mesma fonte do Dashboard)
     const previsto3 = rubricas3.reduce((s, r) => s + toNumber(r.valor_rubrica || r.valor_total), 0);
+    const utilizado3 = rubricas3.reduce((s, r) => s + toNumber(r.valor_utilizado || r.utilizado), 0);
     const previsto4 = rubricas4.reduce((s, r) => s + toNumber(r.valor_rubrica || r.valor_total), 0);
+    const utilizado4 = rubricas4.reduce((s, r) => s + toNumber(r.valor_utilizado || r.utilizado), 0);
 
     const auditoria = auditAditivoTotals(compras, ativas);
-    const utilizado3 = toNumber(auditoria?.terceiro_aditivo?.utilizado);
-    const utilizado4 = toNumber(auditoria?.noturno_2026?.utilizado);
 
     return {
       totais3: {
@@ -130,12 +130,8 @@ export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
       rubricas4,
       duplicadas: auditoria.duplicadas_ignoradas,
       datasInvalidas: auditoria.datas_invalidas_ignoradas,
-      divergencias: auditoria.divergencias,
     };
   }, [rubricas, compras]);
-
-  const divergencia3 = Math.abs(toNumber(divergencias?.terceiro_aditivo));
-  const divergencia4 = Math.abs(toNumber(divergencias?.quarto_aditivo));
 
   return (
     <div className="mb-6 space-y-4">
@@ -150,12 +146,6 @@ export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
         <div className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-2 text-xs text-orange-800 flex items-center gap-2">
           <span className="font-semibold">⚠</span>
           {datasInvalidas.quantidade} documento(s) com data fiscal anterior a 2026 foram retirados provisoriamente do somatório para revisão ({fmtBRL(datasInvalidas.total_valor)}).
-        </div>
-      )}
-
-      {(divergencia3 > 0.01 || divergencia4 > 0.01) && (
-        <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-xs text-blue-800">
-          Auditoria ativa: os cards usam solicitações aprovadas deduplicadas. Divergências entre rubricas e solicitações — 3º Aditivo: {fmtBRL(divergencias.terceiro_aditivo)}; 4º Aditivo: {fmtBRL(divergencias.quarto_aditivo)}.
         </div>
       )}
 
