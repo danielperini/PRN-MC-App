@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,7 +12,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Loader2, PlusCircle, CheckCircle2 } from 'lucide-react';
+import { Loader2, PlusCircle, CheckCircle2, Upload, X, Image, FileText, ExternalLink } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useCurrentUser } from '@/components/auth/useCurrentUser';
 
 const CLASSIFICACOES = [
@@ -83,6 +84,10 @@ export default function NovaAtividade() {
   const [metas, setMetas] = useState(METAS_FALLBACK);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const [createdActivityId, setCreatedActivityId] = useState(null);
+  const [fotos, setFotos] = useState([]);
+  const [uploadingFotos, setUploadingFotos] = useState(false);
+  const fileInputRef = useRef(null);
 
   const set = (field) => (value) => setForm((prev) => ({ ...prev, [field]: value }));
   const setEv = (field) => (e) => set(field)(e.target.value);
@@ -131,7 +136,35 @@ export default function NovaAtividade() {
     }));
   }
 
+  async function handleFotoUpload(e) {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    setUploadingFotos(true);
+    const novas = [];
+    for (const file of files) {
+      try {
+        const { file_url } = await base44.integrations.Core.UploadFile({ file });
+        novas.push({ file_url, file_name: file.name, legenda: '' });
+      } catch {
+        toast.error(`Erro ao enviar ${file.name}`);
+      }
+    }
+    setFotos((prev) => [...prev, ...novas]);
+    setUploadingFotos(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }
+
+  function removeFoto(idx) {
+    setFotos((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  function setLegenda(idx, value) {
+    setFotos((prev) => prev.map((f, i) => i === idx ? { ...f, legenda: value } : f));
+  }
+
   function resetForm() {
+    setCreatedActivityId(null);
+    setFotos([]);
     setForm({
       titulo: '',
       descricao: '',
@@ -172,7 +205,7 @@ export default function NovaAtividade() {
     setSubmitting(true);
     try {
       // Usa createActivityWithAutoReport para garantir vínculo com relatório mensal
-      await base44.functions.invoke('createActivityWithAutoReport', {
+      const result = await base44.functions.invoke('createActivityWithAutoReport', {
         titulo: form.titulo.trim(),
         descricao: form.descricao.trim(),
         classificacao: form.classificacao,
@@ -192,18 +225,22 @@ export default function NovaAtividade() {
         user_name: user?.full_name || user?.email || '',
       });
 
+      const actId = result?.activity_id || result?.id || null;
+      setCreatedActivityId(actId);
+
+      // Salva fotos se houver
+      if (fotos.length > 0 && actId) {
+        await base44.entities.Activity.update(actId, {
+          fotos: fotos.map((f) => ({ file_url: f.file_url, legenda: f.legenda, autor: user?.full_name || '' })),
+        });
+      }
+
       setDone(true);
       toast.success('Atividade criada e vinculada ao relatório mensal.');
-
-      // Reset após 2s
-      setTimeout(() => {
-        setDone(false);
-        resetForm();
-      }, 2000);
     } catch (err) {
       // Fallback: cria direto no banco se a função falhar
       try {
-        await base44.entities.Activity.create({
+        const created = await base44.entities.Activity.create({
           titulo: form.titulo.trim(),
           descricao: form.descricao.trim(),
           classificacao: form.classificacao,
@@ -214,10 +251,11 @@ export default function NovaAtividade() {
           data_fim: dataFim,
           publico_estimado: form.publico_estimado ? Number(form.publico_estimado) : 0,
           observacoes: form.observacoes.trim(),
+          fotos: fotos.map((f) => ({ file_url: f.file_url, legenda: f.legenda, autor: user?.full_name || '' })),
         });
+        setCreatedActivityId(created?.id || null);
         toast.success('Atividade criada (sem vínculo automático com relatório).');
         setDone(true);
-        setTimeout(() => setDone(false), 2000);
       } catch (fallbackErr) {
         toast.error('Erro ao criar atividade: ' + (fallbackErr?.message || 'tente novamente.'));
       }
@@ -388,6 +426,54 @@ export default function NovaAtividade() {
           />
         </div>
 
+        {/* Fotos de evidência */}
+        <div className="space-y-2">
+          <Label className="flex items-center gap-1.5">
+            <Image className="w-4 h-4" />
+            Fotos de evidência
+          </Label>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={handleFotoUpload}
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadingFotos}
+            className="flex items-center gap-2 px-4 py-2 border border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-gray-400 hover:bg-gray-50 transition-colors w-full justify-center"
+          >
+            {uploadingFotos ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+            {uploadingFotos ? 'Enviando...' : 'Adicionar fotos'}
+          </button>
+          {fotos.length > 0 && (
+            <div className="grid grid-cols-2 gap-3 mt-2">
+              {fotos.map((foto, idx) => (
+                <div key={idx} className="relative group rounded-lg border border-gray-200 overflow-hidden bg-gray-50">
+                  <img src={foto.file_url} alt={foto.file_name} className="w-full h-28 object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removeFoto(idx)}
+                    className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                  <input
+                    type="text"
+                    placeholder="Legenda..."
+                    value={foto.legenda}
+                    onChange={(e) => setLegenda(idx, e.target.value)}
+                    className="w-full px-2 py-1 text-xs border-t border-gray-200 bg-white focus:outline-none"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div className="pt-2">
           <Button
             onClick={handleSubmit}
@@ -403,6 +489,70 @@ export default function NovaAtividade() {
           </Button>
         </div>
       </div>
+
+      {/* Atalhos pós-criação */}
+      {done && (
+        <div className="mt-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm space-y-3">
+          <p className="text-sm font-semibold text-gray-700">Próximos passos</p>
+          <Link
+            to="/EntradaUnica"
+            className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
+                <FileText className="w-4 h-4 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900">Solicitar pagamento / Nota Fiscal</p>
+                <p className="text-xs text-gray-500">Envie notas fiscais e solicite aprovação de compras</p>
+              </div>
+            </div>
+            <ExternalLink className="w-4 h-4 text-gray-400 group-hover:text-gray-600" />
+          </Link>
+          <Link
+            to="/GaleriaFotos"
+            className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-green-50 flex items-center justify-center flex-shrink-0">
+                <Image className="w-4 h-4 text-green-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900">Galeria de fotos</p>
+                <p className="text-xs text-gray-500">Visualize e gerencie todas as fotos registradas</p>
+              </div>
+            </div>
+            <ExternalLink className="w-4 h-4 text-gray-400 group-hover:text-gray-600" />
+          </Link>
+          <button
+            type="button"
+            onClick={() => { setDone(false); resetForm(); }}
+            className="w-full text-center text-sm text-gray-500 hover:text-gray-700 py-1"
+          >
+            Registrar nova atividade
+          </button>
+        </div>
+      )}
+
+      {/* Atalhos sempre visíveis */}
+      {!done && (
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <Link
+            to="/EntradaUnica"
+            className="flex items-center gap-2 px-4 py-3 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 transition-colors text-sm text-gray-700 font-medium shadow-sm"
+          >
+            <FileText className="w-4 h-4 text-blue-500 flex-shrink-0" />
+            Solicitar pagamento
+          </Link>
+          <Link
+            to="/GaleriaFotos"
+            className="flex items-center gap-2 px-4 py-3 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 transition-colors text-sm text-gray-700 font-medium shadow-sm"
+          >
+            <Image className="w-4 h-4 text-green-500 flex-shrink-0" />
+            Ver galeria
+          </Link>
+        </div>
+      )}
     </div>
   );
 }
