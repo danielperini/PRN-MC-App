@@ -34,6 +34,7 @@ import EditorialEnhancer from '@/components/reports/EditorialEnhancer';
 import ReleasePanelEditor from '@/components/reports/ReleasePanelEditor';
 import ReportSectionSelector from '@/components/reports/ReportSectionSelector';
 import PagamentosTabelaDetalhada from '@/components/reports/PagamentosTabelaDetalhada';
+import ExportRelatorioMensalDialog from '@/components/reports/ExportRelatorioMensalDialog';
 
 // Apenas meses relevantes a partir de fevereiro de 2026
 const MESES = [
@@ -586,15 +587,10 @@ export default function ReportEditor() {
             </Button>
           )}
 
-          <Button
-            variant="outline"
-            onClick={handleExportPdf}
-            disabled={exportingPdf}
-            className="gap-2"
-          >
-            {exportingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
-            {exportingPdf ? 'Gerando PDF...' : 'Exportar PDF'}
-          </Button>
+          <ExportRelatorioMensalDialog
+            report={{ ...formData, atividades, fotos, depoimentos, oportunidades: report?.oportunidades, numero_protocolo: report?.numero_protocolo, reviewer_name: report?.reviewer_name, updated_date: report?.updated_date, created_by: report?.created_by_id }}
+            reportId={report?.id}
+          />
         </div>
       </div>
 
