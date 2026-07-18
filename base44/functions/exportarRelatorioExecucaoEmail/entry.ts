@@ -475,109 +475,21 @@ async function getFolderLink(base44Client, folderId) {
   return data.webViewLink || `https://drive.google.com/drive/folders/${folderId}`;
 }
 
-// ─── Handler principal ──────────────────────────────────────────────────────
+// ─── Email builder ──────────────────────────────────────────────────────────
 
-Deno.serve(async (req) => {
-  try {
-    const base44Client = createClientFromRequest(req);
-    const user = await base44Client.auth.me();
-    if (!user) return Response.json({ error: 'Não autorizado' }, { status: 401 });
-
-    const { relatorio_id } = await req.json();
-    if (!relatorio_id) return Response.json({ error: 'relatorio_id obrigatório' }, { status: 400 });
-
-    // Busca o relatório
-    const rel = await base44Client.asServiceRole.entities.RelatorioExecucaoObjeto.get(relatorio_id);
-    if (!rel) return Response.json({ error: 'Relatório não encontrado' }, { status: 404 });
-
-    const destinatario = rel.gerado_por_email || user.email;
-    // Sempre envia cópia para o coordenador geral — ajuste o email abaixo se necessário
-    const emailsAdicionais = ['daniel@viadutodasartes.org.br'].filter(e => e !== destinatario);
-    const nomeRelatorio = `Rel_Exec_${(rel.data_inicio || '').slice(0, 7)}_${(rel.data_fim || '').slice(0, 7)}`.replace(/-/g, '');
-
-    // Cria pasta no Drive
-    let folderId = rel.drive_backup_id || null;
-    if (!folderId) {
-      folderId = await getOrCreateFolder(base44Client, `Relatório Execução — ${rel.data_inicio || ''} a ${rel.data_fim || ''}`, null);
-    }
-
-    const resultados = [];
-    const erros = [];
-
-    // Parte 1
-    try {
-      const pdf1 = gerarParte1(rel);
-      const file1 = await uploadPDFToDrive(base44Client, pdf1, `${nomeRelatorio}_Parte1_Identificacao.pdf`, folderId);
-      resultados.push({ nome: 'Parte 1 — Identificação e Público', link: file1.webViewLink, arquivo: file1.name });
-    } catch (e) {
-      erros.push(`Parte 1: ${e.message}`);
-    }
-
-    // Parte 2
-    try {
-      const pdf2 = gerarParte2(rel);
-      const file2 = await uploadPDFToDrive(base44Client, pdf2, `${nomeRelatorio}_Parte2_Metas_Equipe.pdf`, folderId);
-      resultados.push({ nome: 'Parte 2 — Cronograma de Metas e Equipe', link: file2.webViewLink, arquivo: file2.name });
-    } catch (e) {
-      erros.push(`Parte 2: ${e.message}`);
-    }
-
-    // Parte 3
-    try {
-      const pdf3 = gerarParte3(rel);
-      const file3 = await uploadPDFToDrive(base44Client, pdf3, `${nomeRelatorio}_Parte3_Impactos_Assinatura.pdf`, folderId);
-      resultados.push({ nome: 'Parte 3 — Impactos, Avaliação e Assinatura', link: file3.webViewLink, arquivo: file3.name });
-    } catch (e) {
-      erros.push(`Parte 3: ${e.message}`);
-    }
-
-    // Galeria de fotos — lotes de 20
-    const fotos = rel.anexos_evidencias || [];
-    if (fotos.length > 0) {
-      const loteSize = 20;
-      const totalLotes = Math.ceil(fotos.length / loteSize);
-      for (let i = 0; i < totalLotes; i++) {
-        const lote = fotos.slice(i * loteSize, (i + 1) * loteSize);
-        try {
-          const pdfFotos = await gerarGaleriaFotos(lote, i, totalLotes, base44Client);
-          const ini = (i * loteSize + 1).toString().padStart(3, '0');
-          const fim = Math.min((i + 1) * loteSize, fotos.length).toString().padStart(3, '0');
-          const fileFotos = await uploadPDFToDrive(base44Client, pdfFotos, `${nomeRelatorio}_Fotos_${ini}-${fim}.pdf`, folderId);
-          resultados.push({ nome: `Fotos ${ini}–${fim} (${lote.length} imagens)`, link: fileFotos.webViewLink, arquivo: fileFotos.name });
-        } catch (e) {
-          erros.push(`Fotos lote ${i + 1}: ${e.message}`);
-        }
-      }
-    }
-
-    // Link da pasta
-    const folderLink = await getFolderLink(base44Client, folderId).catch(() => `https://drive.google.com/drive/folders/${folderId}`);
-
-    // Atualiza o relatório com o drive_backup_id
-    if (!rel.drive_backup_id) {
-      await base44Client.asServiceRole.entities.RelatorioExecucaoObjeto.update(relatorio_id, {
-        drive_backup_id: folderId,
-        drive_backup_url: folderLink,
-        drive_backup_status: 'concluido',
-        drive_backup_at: new Date().toISOString(),
-      });
-    }
-
-    // Envia email com os links
-    const dataHora = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-    const linksHTML = resultados.map(r =>
-      `<li style="margin-bottom:8px;"><a href="${r.link}" style="color:#1d4ed8;text-decoration:none;font-weight:600;">${r.nome}</a><br><span style="font-size:12px;color:#6b7280;">${r.arquivo}</span></li>`
-    ).join('');
-    const errosHTML = erros.length > 0 ? `<p style="color:#dc2626;font-size:13px;margin-top:12px;">⚠ Partes com erro: ${erros.join(' | ')}</p>` : '';
-
-    const emailBody = `
-<div style="font-family:Inter,sans-serif;max-width:600px;margin:0 auto;padding:24px;background:#f8fafc;border-radius:12px;">
+function buildEmailBody(resultados, folderLink, erros) {
+  const dataHora = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  const linksHTML = resultados.map(r =>
+    `<li style="margin-bottom:8px;"><a href="${r.link}" style="color:#1d4ed8;text-decoration:none;font-weight:600;">${r.nome}</a><br><span style="font-size:12px;color:#6b7280;">${r.arquivo}</span></li>`
+  ).join('');
+  const errosHTML = erros.length > 0 ? `<p style="color:#dc2626;font-size:13px;margin-top:12px;">⚠ Partes com erro: ${erros.join(' | ')}</p>` : '';
+  return `<div style="font-family:Inter,sans-serif;max-width:600px;margin:0 auto;padding:24px;background:#f8fafc;border-radius:12px;">
   <div style="background:#0f172a;padding:20px 24px;border-radius:8px 8px 0 0;">
     <h1 style="color:#fff;font-size:18px;margin:0;">📄 Relatório de Execução Gerado</h1>
     <p style="color:#94a3b8;font-size:13px;margin:6px 0 0;">Museus Centro — Viaduto das Artes</p>
   </div>
   <div style="background:#fff;padding:24px;border-radius:0 0 8px 8px;border:1px solid #e2e8f0;border-top:none;">
-    <p style="color:#374151;font-size:14px;">Olá! Seus PDFs estão prontos e foram salvos no Google Drive.</p>
+    <p style="color:#374151;font-size:14px;">Seus PDFs estão prontos e foram salvos no Google Drive.</p>
     <p style="color:#6b7280;font-size:12px;">Gerado em: ${dataHora} · ${resultados.length} arquivo(s)</p>
     <h3 style="font-size:14px;color:#1e293b;margin:16px 0 8px;">Arquivos gerados:</h3>
     <ul style="padding-left:16px;color:#374151;font-size:13px;">${linksHTML}</ul>
@@ -590,31 +502,162 @@ Deno.serve(async (req) => {
     <p style="font-size:11px;color:#9ca3af;margin-top:20px;text-align:center;">Relatório gerado automaticamente pelo sistema Museus Centro.</p>
   </div>
 </div>`;
+}
 
-    // Envia para o destinatário principal
-    await base44Client.asServiceRole.integrations.Core.SendEmail({
-      to: destinatario,
-      subject: `📄 Relatório de Execução — ${resultados.length} PDF(s) prontos no Drive`,
-      body: emailBody,
-    });
+// ─── Handler principal ──────────────────────────────────────────────────────
+// Modo 1: { relatorio_id } → cria job na fila e retorna job_id imediatamente
+// Modo 2: { job_id, parte } → processa uma parte e atualiza o job (chamado internamente)
 
-    // Envia cópia para emails adicionais (coordenação)
-    for (const emailExtra of emailsAdicionais) {
+Deno.serve(async (req) => {
+  try {
+    const base44Client = createClientFromRequest(req);
+    const user = await base44Client.auth.me();
+    if (!user) return Response.json({ error: 'Não autorizado' }, { status: 401 });
+
+    const body = await req.json();
+
+    // ── MODO 2: processar uma parte do job ──────────────────────────────────
+    if (body.job_id && body.parte !== undefined) {
+      const { job_id, parte } = body;
+      const job = await base44Client.asServiceRole.entities.ExportQueue.get(job_id);
+      if (!job) return Response.json({ error: 'Job não encontrado' }, { status: 404 });
+
+      const rel = await base44Client.asServiceRole.entities.RelatorioExecucaoObjeto.get(job.relatorio_id);
+      if (!rel) return Response.json({ error: 'Relatório não encontrado' }, { status: 404 });
+
+      const fotos = rel.anexos_evidencias || [];
+      const totalLotesFotos = Math.ceil(fotos.length / 20);
+      // partes: 0=Parte1, 1=Parte2, 2=Parte3, 3..=lotes de fotos
+      const loteIdx = parte - 3;
+
+      let resultado = null;
+      let erro = null;
+
       try {
-        await base44Client.asServiceRole.integrations.Core.SendEmail({
-          to: emailExtra,
-          subject: `📄 Relatório de Execução — ${resultados.length} PDF(s) prontos no Drive`,
-          body: emailBody,
-        });
-      } catch (_) {
-        // não bloqueia se o email extra falhar
+        if (parte === 0) {
+          await base44Client.asServiceRole.entities.ExportQueue.update(job_id, { parte_atual: 'Parte 1 — Identificação e Público' });
+          const pdf = gerarParte1(rel);
+          const file = await uploadPDFToDrive(base44Client, pdf, `${job.nome_relatorio}_Parte1_Identificacao.pdf`, job.folder_id);
+          resultado = { nome: 'Parte 1 — Identificação e Público', link: file.webViewLink, arquivo: file.name };
+        } else if (parte === 1) {
+          await base44Client.asServiceRole.entities.ExportQueue.update(job_id, { parte_atual: 'Parte 2 — Metas e Equipe' });
+          const pdf = gerarParte2(rel);
+          const file = await uploadPDFToDrive(base44Client, pdf, `${job.nome_relatorio}_Parte2_Metas_Equipe.pdf`, job.folder_id);
+          resultado = { nome: 'Parte 2 — Cronograma de Metas e Equipe', link: file.webViewLink, arquivo: file.name };
+        } else if (parte === 2) {
+          await base44Client.asServiceRole.entities.ExportQueue.update(job_id, { parte_atual: 'Parte 3 — Impactos e Assinatura' });
+          const pdf = gerarParte3(rel);
+          const file = await uploadPDFToDrive(base44Client, pdf, `${job.nome_relatorio}_Parte3_Impactos_Assinatura.pdf`, job.folder_id);
+          resultado = { nome: 'Parte 3 — Impactos, Avaliação e Assinatura', link: file.webViewLink, arquivo: file.name };
+        } else if (loteIdx >= 0 && loteIdx < totalLotesFotos) {
+          const lote = fotos.slice(loteIdx * 20, (loteIdx + 1) * 20);
+          const ini = (loteIdx * 20 + 1).toString().padStart(3, '0');
+          const fim = Math.min((loteIdx + 1) * 20, fotos.length).toString().padStart(3, '0');
+          await base44Client.asServiceRole.entities.ExportQueue.update(job_id, { parte_atual: `Fotos ${ini}–${fim}` });
+          const pdfFotos = await gerarGaleriaFotos(lote, loteIdx, totalLotesFotos, base44Client);
+          const file = await uploadPDFToDrive(base44Client, pdfFotos, `${job.nome_relatorio}_Fotos_${ini}-${fim}.pdf`, job.folder_id);
+          resultado = { nome: `Fotos ${ini}–${fim} (${lote.length} imagens)`, link: file.webViewLink, arquivo: file.name };
+        }
+      } catch (e) {
+        erro = `Parte ${parte}: ${e.message}`;
       }
+
+      // Atualiza job com resultado desta parte
+      const novosResultados = resultado ? [...(job.resultados || []), resultado] : (job.resultados || []);
+      const novosErros = erro ? [...(job.erros || []), erro] : (job.erros || []);
+      const novasConcluidas = (job.partes_concluidas || 0) + 1;
+      const totalPartes = job.partes_total || 1;
+      const isUltimaParte = novasConcluidas >= totalPartes;
+
+      const updatePayload: any = {
+        resultados: novosResultados,
+        erros: novosErros,
+        partes_concluidas: novasConcluidas,
+      };
+
+      if (isUltimaParte) {
+        // Envia email final com todos os links
+        const emailBody = buildEmailBody(novosResultados, job.folder_link, novosErros);
+        const emails = [job.destinatario].filter(Boolean);
+
+        for (const em of emails) {
+          try {
+            await base44Client.asServiceRole.integrations.Core.SendEmail({
+              to: em,
+              subject: `📄 Relatório de Execução — ${novosResultados.length} PDF(s) prontos no Drive`,
+              body: emailBody,
+            });
+          } catch (_) {}
+        }
+
+        // Atualiza relatório original
+        await base44Client.asServiceRole.entities.RelatorioExecucaoObjeto.update(job.relatorio_id, {
+          drive_backup_status: 'concluido',
+          drive_backup_at: new Date().toISOString(),
+        }).catch(() => {});
+
+        updatePayload.status = novosErros.length === totalPartes ? 'erro' : 'concluido';
+        updatePayload.email_enviado = true;
+        updatePayload.concluido_em = new Date().toISOString();
+        updatePayload.parte_atual = null;
+      }
+
+      await base44Client.asServiceRole.entities.ExportQueue.update(job_id, updatePayload);
+
+      return Response.json({ ok: true, concluida: parte, concluidas: novasConcluidas, total: totalPartes, finalizado: isUltimaParte });
     }
+
+    // ── MODO 1: criar job e retornar imediatamente ──────────────────────────
+    const { relatorio_id } = body;
+    if (!relatorio_id) return Response.json({ error: 'relatorio_id obrigatório' }, { status: 400 });
+
+    const rel = await base44Client.asServiceRole.entities.RelatorioExecucaoObjeto.get(relatorio_id);
+    if (!rel) return Response.json({ error: 'Relatório não encontrado' }, { status: 404 });
+
+    const destinatario = rel.gerado_por_email || user.email;
+    const nomeRelatorio = `Rel_Exec_${(rel.data_inicio || '').slice(0, 7)}_${(rel.data_fim || '').slice(0, 7)}`.replace(/-/g, '');
+    const fotos = rel.anexos_evidencias || [];
+    const totalLotesFotos = fotos.length > 0 ? Math.ceil(fotos.length / 20) : 0;
+    const totalPartes = 3 + totalLotesFotos;
+
+    // Cria ou reutiliza pasta no Drive
+    let folderId = rel.drive_backup_id || null;
+    if (!folderId) {
+      folderId = await getOrCreateFolder(base44Client, `Relatório Execução — ${rel.data_inicio || ''} a ${rel.data_fim || ''}`, null);
+    }
+    const folderLink = await getFolderLink(base44Client, folderId).catch(() => `https://drive.google.com/drive/folders/${folderId}`);
+
+    // Salva link no relatório
+    if (!rel.drive_backup_id) {
+      await base44Client.asServiceRole.entities.RelatorioExecucaoObjeto.update(relatorio_id, {
+        drive_backup_id: folderId,
+        drive_backup_url: folderLink,
+        drive_backup_status: 'em_processamento',
+      }).catch(() => {});
+    }
+
+    // Cria job na fila
+    const job = await base44Client.asServiceRole.entities.ExportQueue.create({
+      relatorio_id,
+      destinatario,
+      folder_id: folderId,
+      folder_link: folderLink,
+      nome_relatorio: nomeRelatorio,
+      status: 'pendente',
+      partes_total: totalPartes,
+      partes_concluidas: 0,
+      total_fotos: fotos.length,
+      total_lotes_fotos: totalLotesFotos,
+      resultados: [],
+      erros: [],
+      email_enviado: false,
+      iniciado_em: new Date().toISOString(),
+    });
 
     return Response.json({
       ok: true,
-      arquivos: resultados.length,
-      erros: erros.length > 0 ? erros : undefined,
+      job_id: job.id,
+      partes_total: totalPartes,
       folder_link: folderLink,
       destinatario,
     });
