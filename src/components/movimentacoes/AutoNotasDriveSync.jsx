@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
+import SyncOrchestrator from '@/services/SyncOrchestrator';
 
 const INTERVALO_MS = 15 * 60 * 1000;
 const CHAVE_ULTIMA_EXECUCAO = 'auditoria:notas-drive-auto-sync-at';
@@ -58,7 +59,7 @@ export default function AutoNotasDriveSync() {
           queryClient.invalidateQueries({ queryKey: ['aprovacao-nfs'] }),
         ]);
 
-        window.dispatchEvent(new CustomEvent('notas-drive:sincronizadas', { detail: result }));
+        SyncOrchestrator.emit('notas-drive:sincronizadas', result);
       } catch (error) {
         console.error('Sincronização automática das notas fiscais do Drive:', error);
       } finally {
@@ -75,7 +76,7 @@ export default function AutoNotasDriveSync() {
 
     document.addEventListener('visibilitychange', handleVisibility);
     window.addEventListener('online', handleOnline);
-    window.addEventListener('notas-drive:sync', handleManual);
+    window.addEventListener('notas-drive:sync', handleManual); // retrocompat — SyncOrchestrator.emit também despacha window event
 
     sincronizar(false);
 

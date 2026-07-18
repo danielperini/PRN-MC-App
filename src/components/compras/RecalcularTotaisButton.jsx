@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
+import SyncOrchestrator from '@/services/SyncOrchestrator';
 import { RefreshCw, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -218,6 +219,9 @@ export default function RecalcularTotaisButton({ onDone }) {
 
       setResultado(res);
       localStorage.setItem(AUTO_RECALC_KEY, todayKey());
+      // Notifica todos os ouvintes (inclui window.dispatchEvent retrocompat)
+      SyncOrchestrator.emit(SyncOrchestrator.EVENTS.RUBRICAS_RECALCULADAS, res);
+      SyncOrchestrator.emit(SyncOrchestrator.EVENTS.DASHBOARD_UPDATE);
       if (!automatico) {
         toast.success(`Recálculo concluído — ${duplicataIds.size} duplicata(s), ${rubricasAtualizadas} rubrica(s) corrigida(s).`);
       }

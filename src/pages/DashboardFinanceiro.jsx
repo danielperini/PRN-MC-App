@@ -181,8 +181,9 @@ function DashboardFinanceiroInner() {
       else if (origem === '4º ADITIVO' || origem === '4º Aditivo') chave = '4';
       if (!chave) return;
 
-      grupos[chave].previsto += r.valor_rubrica || r.valor_total || 0;
-      grupos[chave].utilizado += r.valor_utilizado || 0;
+      // aliases canônicos — mesma ordem de useDashboardMetrics
+      grupos[chave].previsto += Number(r?.valor_rubrica ?? r?.valor_total ?? r?.valor_previsto ?? r?.valor ?? 0);
+      grupos[chave].utilizado += Number(r?.valor_utilizado ?? r?.valor_executado ?? r?.utilizado ?? r?.realizado ?? 0);
       grupos[chave].count += 1;
     });
 

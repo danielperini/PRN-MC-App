@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
+import SyncOrchestrator from '@/services/SyncOrchestrator';
 
 const MIN_INTERVAL_MS = 2500;
 const FALLBACK_INTERVAL_MS = 60_000;
@@ -33,8 +34,8 @@ export default function AutoRubricasSync() {
       queryClient.invalidateQueries({ queryKey: ['compras-aprovadas-resumo'] }),
       queryClient.invalidateQueries({ queryKey: ['purchases-for-rubricas-sync'] }),
     ]);
-    window.dispatchEvent(new CustomEvent('rubricas:recalculadas', { detail: result }));
-    window.dispatchEvent(new CustomEvent('dashboard:update'));
+    SyncOrchestrator.emit(SyncOrchestrator.EVENTS.RUBRICAS_RECALCULADAS, result);
+    SyncOrchestrator.emit(SyncOrchestrator.EVENTS.DASHBOARD_UPDATE);
   }, [queryClient]);
 
   const runSync = useCallback(async (force = false) => {

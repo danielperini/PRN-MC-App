@@ -1,6 +1,7 @@
 import React from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import SyncOrchestrator from '@/services/SyncOrchestrator';
 import RequireAuth from '../components/auth/RequireAuth';
 import { useCurrentUser } from '../components/auth/useCurrentUser';
 import LoadingPage from '@/components/common/LoadingPage';
@@ -361,7 +362,7 @@ function DashboardInner() {
     const hardRefreshHandler = async () => {
       clearReportPreviewCaches();
       clearDashboardCaches();
-      window.dispatchEvent(new CustomEvent('dashboard:update'));
+      SyncOrchestrator.emit(SyncOrchestrator.EVENTS.DASHBOARD_UPDATE);
       await refetchDashboardData();
       try {
         localStorage.setItem(CACHE_KEYS.DASHBOARD_UPDATE, Date.now().toString());
@@ -441,7 +442,7 @@ function DashboardInner() {
         localStorage.setItem(CACHE_KEYS.DASHBOARD_UPDATE, Date.now().toString());
       } catch {}
 
-      window.dispatchEvent(new CustomEvent('dashboardRefreshed'));
+      SyncOrchestrator.emit('dashboard:refreshed');
     } finally {
       setIsRefreshing(false);
     }
