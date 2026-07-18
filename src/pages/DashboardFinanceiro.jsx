@@ -4,13 +4,15 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import RequireAuth from '../components/auth/RequireAuth';
 import { useCurrentUser } from '../components/auth/useCurrentUser';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { DollarSign, TrendingUp, AlertCircle, Filter, Plus, CheckCircle2, Wallet } from 'lucide-react';
+import { DollarSign, TrendingUp, AlertCircle, Filter, Plus, CheckCircle2, Wallet, FileSearch } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toastMessages } from '@/lib/toastMessages';
 import NovaRubricaDialog from '@/components/rubricas/NovaRubricaDialog';
 import { canManageRubricas } from '@/components/auth/permissions';
 import PainelPrevistoVsUtilizado from '@/components/financeiro/PainelPrevistoVsUtilizado';
+import MemoriaCalculoDrawer from '@/components/financeiro/MemoriaCalculoDrawer';
+import { calcularExecucaoOrcamentariaOficial, isOrigemAditivo } from '@/services/canonicalMetrics';
 
 function DashboardFinanceiroInner() {
   const { user: currentUser, isCoordenador } = useCurrentUser();
@@ -18,6 +20,7 @@ function DashboardFinanceiroInner() {
   const [filterMuseu, setFilterMuseu] = useState('');
   const [filterEquipe, setFilterEquipe] = useState('');
   const [showNovaRubrica, setShowNovaRubrica] = useState(false);
+  const [showMemoria, setShowMemoria] = useState(false);
   const canManage = canManageRubricas(currentUser);
 
   // Carregar dados financeiros
@@ -165,53 +168,34 @@ function DashboardFinanceiroInner() {
     return { totalTermos, totalPagamentos, totalInvoices, totalGasto };
   }, [termos, pagamentos, invoices]);
 
-  // Saldo real por aditivo (3º e 4º) — rubricas ativas
+  // ── Execução orçamentária oficial — ÚNICA FONTE DE VERDADE ──
+  const execucaoOficial = useMemo(() => calcularExecucaoOrcamentariaOficial(rubricas), [rubricas]);
+
+  // Rubricas oficiais para passar ao PainelPrevistoVsUtilizado
+  const rubricasOficiais = useMemo(() => rubricas.filter(r => r?.ativo !== false && isOrigemAditivo(r)), [rubricas]);
+
+  // Saldo por aditivo (3º e 4º) para os cards de detalhamento
   const saldoAditivos = useMemo(() => {
-    const aditivosLabels = {
-      '3': '3º Aditivo',
-      '4': '4º Aditivo',
+    const grupos = {
+      '3': { label: '3º Aditivo', previsto: 0, utilizado: 0, count: 0 },
+      '4': { label: '4º Aditivo', previsto: 0, utilizado: 0, count: 0 },
     };
-
-    const grupos = { '3': { previsto: 0, utilizado: 0, count: 0 }, '4': { previsto: 0, utilizado: 0, count: 0 } };
-
-    rubricas.forEach(r => {
-      if (r?.ativo === false) return;
+    execucaoOficial.itens.forEach(r => {
       const origem = (r.origem_recurso || '').trim();
-      let chave = null;
-      // FONTE DE VERDADE: apenas 3º e 4º Aditivo (R$ 1.401.719,85 oficial)
-      if (origem === '3º ADITIVO' || origem === '3º Aditivo') chave = '3';
-      else if (origem === '4º ADITIVO' || origem === '4º Aditivo') chave = '4';
-      if (!chave) return; // ignora "Repasse / Aditivos Anteriores" e outros
-
-      // aliases canônicos — mesma ordem de useDashboardMetrics
+      const chave = (origem === '3º ADITIVO' || origem === '3º Aditivo') ? '3' : '4';
       grupos[chave].previsto += Number(r?.valor_rubrica ?? r?.valor_total ?? r?.valor_previsto ?? r?.valor ?? 0);
       grupos[chave].utilizado += Number(r?.valor_utilizado ?? r?.valor_executado ?? r?.utilizado ?? r?.realizado ?? 0);
       grupos[chave].count += 1;
     });
-
-    return Object.entries(grupos).map(([chave, g]) => ({
-      label: aditivosLabels[chave],
-      previsto: g.previsto,
-      utilizado: g.utilizado,
+    return Object.values(grupos).map(g => ({
+      ...g,
       saldo: g.previsto - g.utilizado,
       percentual: g.previsto > 0 ? Math.min(100, (g.utilizado / g.previsto) * 100) : 0,
-      count: g.count,
     }));
-  }, [rubricas]);
+  }, [execucaoOficial]);
 
-  const saldoTotalReal = useMemo(() => {
-    // FONTE DE VERDADE CANÔNICA: apenas 3º e 4º Aditivo = R$ 1.401.719,85
-    const previsto = saldoAditivos.reduce((s, a) => s + a.previsto, 0);
-    const utilizado = saldoAditivos.reduce((s, a) => s + a.utilizado, 0);
-    const ORCAMENTO_OFICIAL = 1_401_719.85;
-    const divergencia = Math.abs(previsto - ORCAMENTO_OFICIAL);
-    if (divergencia > 1) {
-      console.warn(`[OrcamentoOficial] Divergência detectada: encontrado R$ ${previsto.toFixed(2)}, esperado R$ ${ORCAMENTO_OFICIAL.toFixed(2)}, diff R$ ${divergencia.toFixed(2)}`);
-    }
-    return { previsto, utilizado, saldo: previsto - utilizado };
-  }, [saldoAditivos]);
-
-  const fmt = (v) => v >= 1000 ? `R$ ${(v / 1000).toFixed(1)}k` : `R$ ${v.toFixed(2)}`;
+  const fmt = (v) => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const fmtPct = (v) => `${Number(v).toFixed(1)}%`;
 
   const COLORS = ['#000000', '#333333', '#666666', '#999999', '#cccccc'];
 
@@ -269,31 +253,53 @@ function DashboardFinanceiroInner() {
           </div>
         </div>
 
-        {/* Saldo Real — 3º e 4º Aditivo */}
+        {/* Execução Orçamentária Oficial — 3º e 4º Aditivo */}
         <div className="mb-8 rounded-2xl border border-gray-200 overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Wallet className="w-5 h-5 text-black" />
-              <h2 className="text-lg font-semibold text-black">Saldo Real — 3º e 4º Aditivo</h2>
+              <h2 className="text-lg font-semibold text-black">Execução Orçamentária Oficial</h2>
+              <span className="text-xs text-gray-400 ml-1">3º e 4º Aditivo</span>
             </div>
-            <span className="text-xs text-gray-400">Apenas rubricas ativas ({rubricas.length})</span>
+            <button
+              onClick={() => setShowMemoria(true)}
+              className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-black border border-gray-200 hover:border-gray-400 rounded-lg px-3 py-1.5 transition-colors"
+            >
+              <FileSearch className="w-3.5 h-3.5" />
+              Ver memória de cálculo
+            </button>
           </div>
 
-          {/* Totalizador geral */}
-          <div className="grid grid-cols-3 divide-x divide-gray-100 bg-gray-50">
-            <div className="px-6 py-4 text-center">
-              <p className="text-xs text-gray-500 mb-1">Total Previsto</p>
-              <p className="text-xl font-bold text-black">{fmt(saldoTotalReal.previsto)}</p>
-            </div>
-            <div className="px-6 py-4 text-center">
-              <p className="text-xs text-gray-500 mb-1">Total Utilizado</p>
-              <p className="text-xl font-bold text-gray-700">{fmt(saldoTotalReal.utilizado)}</p>
-            </div>
-            <div className="px-6 py-4 text-center">
-              <p className="text-xs text-gray-500 mb-1">Saldo Disponível</p>
-              <p className={`text-xl font-bold ${saldoTotalReal.saldo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {fmt(saldoTotalReal.saldo)}
+          {/* Alerta de divergência */}
+          {execucaoOficial.divergencia > 1 && (
+            <div className="px-6 py-3 bg-amber-50 border-b border-amber-200">
+              <p className="text-xs text-amber-700 font-medium">
+                ⚠️ Divergência de {fmt(execucaoOficial.divergencia)} detectada em relação ao orçamento oficial de R$ 1.401.719,85 — verifique rubricas
               </p>
+            </div>
+          )}
+
+          {/* Cards principais com formato completo */}
+          <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-gray-100 bg-gray-50">
+            <div className="px-6 py-5 text-center">
+              <p className="text-xs text-gray-500 mb-1">Total Previsto</p>
+              <p className="text-2xl font-bold text-black tracking-tight">{fmt(execucaoOficial.previsto)}</p>
+              <p className="text-xs text-gray-400 mt-1">base oficial das rubricas</p>
+            </div>
+            <div className="px-6 py-5 text-center">
+              <p className="text-xs text-gray-500 mb-1">Total Utilizado</p>
+              <p className="text-2xl font-bold text-gray-800 tracking-tight">
+                {fmt(execucaoOficial.utilizado)}
+                <span className="text-sm font-normal text-gray-500 ml-2">{fmtPct(execucaoOficial.percentual)}</span>
+              </p>
+              <p className="text-xs text-gray-400 mt-1">{execucaoOficial.rubricas_ativas} rubricas — {execucaoOficial.grupos} grupos</p>
+            </div>
+            <div className="px-6 py-5 text-center">
+              <p className="text-xs text-gray-500 mb-1">Saldo Disponível</p>
+              <p className={`text-2xl font-bold tracking-tight ${execucaoOficial.saldo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {fmt(execucaoOficial.saldo)}
+              </p>
+              <p className="text-xs text-gray-400 mt-1">previsto menos utilizado</p>
             </div>
           </div>
 
@@ -308,32 +314,43 @@ function DashboardFinanceiroInner() {
                 <div className="grid grid-cols-3 gap-3 mb-4 text-sm">
                   <div>
                     <p className="text-gray-500 text-xs">Previsto</p>
-                    <p className="font-semibold text-black">{fmt(a.previsto)}</p>
+                    <p className="font-semibold text-black text-sm">{fmt(a.previsto)}</p>
                   </div>
                   <div>
                     <p className="text-gray-500 text-xs">Utilizado</p>
-                    <p className="font-semibold text-gray-700">{fmt(a.utilizado)}</p>
+                    <p className="font-semibold text-gray-700 text-sm">{fmt(a.utilizado)}</p>
                   </div>
                   <div>
                     <p className="text-gray-500 text-xs">Saldo</p>
-                    <p className={`font-semibold ${a.saldo >= 0 ? 'text-green-600' : 'text-red-600'}`}>{fmt(a.saldo)}</p>
+                    <p className={`font-semibold text-sm ${a.saldo >= 0 ? 'text-green-600' : 'text-red-600'}`}>{fmt(a.saldo)}</p>
                   </div>
                 </div>
-                {/* Barra de progresso */}
                 <div className="w-full bg-gray-100 rounded-full h-2">
                   <div
                     className={`h-2 rounded-full transition-all ${a.percentual >= 90 ? 'bg-red-500' : a.percentual >= 70 ? 'bg-yellow-500' : 'bg-black'}`}
                     style={{ width: `${a.percentual}%` }}
                   />
                 </div>
-                <p className="text-xs text-gray-400 mt-1">{a.percentual.toFixed(1)}% utilizado</p>
+                <p className="text-xs text-gray-400 mt-1">{fmtPct(a.percentual)} utilizado</p>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Painel Previsto vs Utilizado por Rubrica */}
-        <PainelPrevistoVsUtilizado rubricas={rubricas} />
+        {/* Painel Previsto vs Utilizado por Rubrica — passa apenas rubricas oficiais */}
+        <PainelPrevistoVsUtilizado rubricas={rubricasOficiais} />
+
+        {/* Drawer de memória de cálculo */}
+        <MemoriaCalculoDrawer
+          open={showMemoria}
+          onClose={() => setShowMemoria(false)}
+          itens={execucaoOficial.itens}
+          previsto={execucaoOficial.previsto}
+          utilizado={execucaoOficial.utilizado}
+          saldo={execucaoOficial.saldo}
+          percentual={execucaoOficial.percentual}
+          divergencia={execucaoOficial.divergencia}
+        />
 
         {/* Filtros */}
         <div className="flex gap-3 mb-8 items-center">

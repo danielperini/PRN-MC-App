@@ -16,7 +16,7 @@
 
 import { useMemo } from 'react';
 import { resolvePublico } from '@/utils/fieldResolvers';
-import { rubricaPrevisto, rubricaUtilizado } from '@/services/canonicalMetrics';
+import { rubricaPrevisto, rubricaUtilizado, calcularExecucaoOrcamentariaOficial } from '@/services/canonicalMetrics';
 
 // ─── PÚBLICO ──────────────────────────────────────────────────────────────────
 /**
@@ -114,40 +114,21 @@ export function useDashboardMetrics(reports = [], rubricas = []) {
         .filter((k) => k !== 'undefined-undefined')
     );
 
-    // ── Rubricas (canônico) ──
-    // FONTE DE VERDADE: apenas 3º e 4º Aditivo (R$ 1.401.719,85)
-    // Rubricas com origem "Repasse / Aditivos Anteriores" NÃO entram no previsto oficial
-    const rubricasAtivas = safeRubricas.filter((r) => {
-      if (r?.ativo === false) return false;
-      const origem = (r?.origem_recurso || '').trim();
-      return (
-        origem === '3º ADITIVO' || origem === '3º Aditivo' ||
-        origem === '4º ADITIVO' || origem === '4º Aditivo'
-      );
-    });
-    let totalPrevisto = 0;
-    let totalUtilizado = 0;
+    // ── Rubricas (canônico via calcularExecucaoOrcamentariaOficial) ──
+    const execucao = calcularExecucaoOrcamentariaOficial(safeRubricas);
+    const { previsto: totalPrevisto, utilizado: totalUtilizado, saldo: totalSaldo, percentual } = execucao;
+    const percentualExecucao = Number(percentual.toFixed(1));
+
     let rubricasExcedidas = 0;
     let rubricasAtencao = 0;
-
-    for (const r of rubricasAtivas) {
+    for (const r of execucao.itens) {
       const previsto = rubricaPrevisto(r);
       const utilizado = rubricaUtilizado(r);
       const saldo = previsto - utilizado;
       const pct = previsto > 0 ? (utilizado / previsto) * 100 : 0;
-
-      totalPrevisto += previsto;
-      totalUtilizado += utilizado;
-
       if (saldo < 0) rubricasExcedidas++;
       else if (pct >= 80) rubricasAtencao++;
     }
-
-    const totalSaldo = totalPrevisto - totalUtilizado;
-    const percentualExecucao =
-      totalPrevisto > 0
-        ? Number(((totalUtilizado / totalPrevisto) * 100).toFixed(1))
-        : 0;
 
     return {
       totalPublico,

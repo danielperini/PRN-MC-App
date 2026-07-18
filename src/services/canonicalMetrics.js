@@ -108,6 +108,56 @@ export function calcularAtividadesPeriodo(atividades = [], inicio, fim, museu) {
 }
 
 /**
+ * Verifica se uma rubrica é do 3º ou 4º Aditivo (fonte de verdade orçamentária oficial).
+ * @param {Object} r — rubrica
+ * @returns {boolean}
+ */
+export function isOrigemAditivo(r) {
+  const origem = (r?.origem_recurso || '').trim();
+  return (
+    origem === '3º ADITIVO' ||
+    origem === '3º Aditivo' ||
+    origem === '4º ADITIVO' ||
+    origem === '4º Aditivo'
+  );
+}
+
+/**
+ * Calcula a execução orçamentária oficial — ÚNICA FONTE DE VERDADE do orçamento do projeto.
+ * Usa apenas rubricas de origem 3º ADITIVO e 4º ADITIVO.
+ * Retorna objeto com previsto, utilizado, saldo, percentual, divergencia e a lista de rubricas usadas.
+ *
+ * @param {Array} rubricas — array completo de rubricas (ativas ou não)
+ * @returns {{ previsto: number, utilizado: number, saldo: number, percentual: number,
+ *             rubricas_ativas: number, grupos: number, divergencia: number, itens: Array }}
+ */
+export function calcularExecucaoOrcamentariaOficial(rubricas = []) {
+  const ORCAMENTO_OFICIAL = 1_401_719.85;
+
+  const itens = (Array.isArray(rubricas) ? rubricas : []).filter(
+    (r) => r?.ativo !== false && isOrigemAditivo(r)
+  );
+
+  const previsto = itens.reduce((s, r) => s + rubricaPrevisto(r), 0);
+  const utilizado = itens.reduce((s, r) => s + rubricaUtilizado(r), 0);
+  const saldo = previsto - utilizado;
+  const percentual = previsto > 0 ? (utilizado / previsto) * 100 : 0;
+  const grupos = new Set(itens.map((r) => r.grupo).filter(Boolean)).size;
+  const divergencia = Math.abs(previsto - ORCAMENTO_OFICIAL);
+
+  return {
+    previsto,
+    utilizado,
+    saldo,
+    percentual,
+    rubricas_ativas: itens.length,
+    grupos,
+    divergencia,
+    itens,
+  };
+}
+
+/**
  * Filtra e soma notas fiscais aprovadas/pagas em um período.
  *
  * @param {Array}  compras
