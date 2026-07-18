@@ -109,7 +109,7 @@ function GalleryCard({ image, onClick, eager = false, selected, onToggleSelect, 
         onClick={selectionMode ? () => onToggleSelect(image) : onClick}
         className="w-full text-left"
       >
-        <div className="aspect-square overflow-hidden bg-gray-100">
+        <div className="aspect-video overflow-hidden bg-gray-100">
           <img
             src={image.fileUrl}
             alt={legendaDisplay}
