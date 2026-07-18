@@ -35,6 +35,7 @@ import GeracaoProgressoPanel from '@/components/relatorio/GeracaoProgressoPanel'
 import GerenciarFotosAnexos from '@/components/relatorio/GerenciarFotosAnexos';
 import { listarMetasRelatorio } from '@/utils/sincronizarRelatorioExecucao';
 import { prepararEExportarRelatorioExecucao } from '@/utils/exportarRelatorioExecucao';
+import EquipeTrabalhoTable from '@/components/relatorio/EquipeTrabalhoTable';
 
 // Fora do componente — evita re-criação a cada render e captura em closures
 const GRUPOS_GERACAO = [
@@ -139,6 +140,51 @@ export default function RelatorioExecucaoObjeto() {
     carregarMetas();
     carregarRelatorios();
   }, []);
+
+  // Auto-geração de seções vazias ao carregar um relatório
+  useEffect(() => {
+    if (!relatorioId || !relatorio || loading || autoGerandoRef.current) return;
+
+    const secoesAutoGerar = [
+      { key: 'impactos_economicos_sociais', label: 'Impactos econômicos e sociais' },
+      { key: 'avaliacao_parceria', label: 'Avaliação da parceria' },
+      { key: 'assinatura', label: 'Assinatura' },
+    ];
+
+    function secaoVazia(sec) {
+      if (!sec) return true;
+      if (typeof sec === 'string') return !sec.trim();
+      return !sec.texto_ia && !sec.texto_editado;
+    }
+
+    const vazias = secoesAutoGerar.filter(({ key }) => secaoVazia(relatorio[key]));
+    if (vazias.length === 0) return;
+
+    autoGerandoRef.current = true;
+    setAutoGerando(true);
+    setAutoGerandoProgresso({ atual: 0, total: vazias.length, label: vazias[0]?.label || '' });
+
+    const params = {
+      data_inicio: relatorio.data_inicio,
+      data_fim: relatorio.data_fim,
+      filtro_museu: relatorio.filtro_museu || 'todos',
+      filtro_versao: relatorio.filtro_versao || 'consolidado',
+      filtro_meta_ids: relatorio.filtro_meta_ids || [],
+      aditivos_permitidos: [3, 4],
+    };
+
+    (async () => {
+      for (let i = 0; i < vazias.length; i++) {
+        const { key, label } = vazias[i];
+        setAutoGerandoProgresso({ atual: i + 1, total: vazias.length, label });
+        await gerarSecaoComRetry(relatorioId, key, params);
+      }
+      await carregarRelatorio(relatorioId);
+      setAutoGerando(false);
+      autoGerandoRef.current = false;
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [relatorioId]);
 
   async function carregarMetas() {
     setCarregandoMetas(true);
@@ -549,6 +595,9 @@ export default function RelatorioExecucaoObjeto() {
 
   const [geracaoCompletaAberta, setGeracaoCompletaAberta] = useState(false);
   const [exportandoPDF, setExportandoPDF] = useState(null);
+  const [autoGerando, setAutoGerando] = useState(false);
+  const [autoGerandoProgresso, setAutoGerandoProgresso] = useState({ atual: 0, total: 0, label: '' });
+  const autoGerandoRef = useRef(false);
 
   async function exportarParte(parte) {
     if (!relatorio) return;
@@ -689,6 +738,15 @@ export default function RelatorioExecucaoObjeto() {
 
       {loading && <Card className="border-blue-200 bg-blue-50/50"><CardContent className="py-4 space-y-2"><div className="flex justify-between text-sm text-blue-700"><span>{progresso.texto}</span><span>{progresso.valor}%</span></div><Progress value={progresso.valor} className="h-2" /></CardContent></Card>}
 
+      {autoGerando && (
+        <div className="rounded-xl bg-blue-50 border border-blue-200 px-4 py-3 flex items-center gap-3">
+          <Loader2 className="w-4 h-4 text-blue-600 animate-spin shrink-0" />
+          <span className="text-sm text-blue-800">
+            Preenchendo seções automaticamente… ({autoGerandoProgresso.atual}/{autoGerandoProgresso.total}): <strong>{autoGerandoProgresso.label}</strong>
+          </span>
+        </div>
+      )}
+
       {relatorio && <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap">
           <div><CardTitle className="text-lg flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-green-600" />Relatório em edição</CardTitle><CardDescription>{relatorio.data_inicio} a {relatorio.data_fim} • {metasSelecionadas.length} meta(s)</CardDescription></div>
@@ -807,21 +865,37 @@ function SecaoEditavel({ secao, relatorio, onEditar, onIA, gerandoIA, onAnexar, 
   const texto = textoSecao(relatorio, secao.key);
   const anexos = relatorio?.anexos_por_secao?.[secao.key] || [];
   const isAnexos = secao.key === 'anexos';
+  const isEquipe = secao.key === 'equipe_trabalho';
 
   return (
     <div className="rounded-xl border p-4 space-y-3">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <h3 className="font-semibold text-sm">{secao.label}</h3>
-        <div className="flex gap-2 flex-wrap">
-          <Button size="sm" variant="outline" onClick={onEditar}><Edit3 className="w-3.5 h-3.5 mr-1" />Editar texto</Button>
-          <Button size="sm" variant="outline" onClick={onIA} disabled={gerandoIA}>{gerandoIA ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 mr-1" />}Gerar com IA</Button>
-          {!isAnexos && (
-            <Button size="sm" variant="outline" onClick={onAnexar} disabled={enviando}>{enviando ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Paperclip className="w-3.5 h-3.5 mr-1" />}Foto/Documento</Button>
-          )}
-        </div>
+        {!isEquipe && (
+          <div className="flex gap-2 flex-wrap">
+            <Button size="sm" variant="outline" onClick={onEditar}><Edit3 className="w-3.5 h-3.5 mr-1" />Editar texto</Button>
+            <Button size="sm" variant="outline" onClick={onIA} disabled={gerandoIA}>{gerandoIA ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 mr-1" />}Gerar com IA</Button>
+            {!isAnexos && (
+              <Button size="sm" variant="outline" onClick={onAnexar} disabled={enviando}>{enviando ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Paperclip className="w-3.5 h-3.5 mr-1" />}Foto/Documento</Button>
+            )}
+          </div>
+        )}
       </div>
 
-      <div className="text-sm whitespace-pre-wrap text-slate-700">{texto || <span className="text-slate-400 italic">Texto ainda não preenchido.</span>}</div>
+      {/* Seção 8 — Equipe de Trabalho: tabela editável */}
+      {isEquipe && (
+        <EquipeTrabalhoTable
+          relatorioId={relatorioId}
+          equipe={Array.isArray(relatorio?.equipe_trabalho) ? relatorio.equipe_trabalho : []}
+          form={form}
+          onAtualizar={onAtualizarRelatorio}
+        />
+      )}
+
+      {/* Todas as outras seções: texto livre */}
+      {!isEquipe && (
+        <div className="text-sm whitespace-pre-wrap text-slate-700">{texto || <span className="text-slate-400 italic">Texto ainda não preenchido.</span>}</div>
+      )}
 
       {/* Seção de Anexos: painel completo de gestão de fotos */}
       {isAnexos && relatorioId && (
@@ -837,7 +911,7 @@ function SecaoEditavel({ secao, relatorio, onEditar, onIA, gerandoIA, onAnexar, 
       )}
 
       {/* Anexos de outras seções */}
-      {!isAnexos && anexos.length > 0 && (
+      {!isAnexos && !isEquipe && anexos.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
           {anexos.map(anexo => (
             <div key={anexo.id} className="rounded-lg border bg-slate-50 p-2 flex items-center gap-2">
