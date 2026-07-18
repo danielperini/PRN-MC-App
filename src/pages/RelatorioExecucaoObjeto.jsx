@@ -145,7 +145,10 @@ export default function RelatorioExecucaoObjeto() {
 
   // Auto-geração de seções 9, 11, 12 ao carregar um relatório com essas seções vazias
   useEffect(() => {
+    // Não disparar se: sem relatório, já gerando, geração inicial em curso,
+    // ou já rodou para este mesmo relatorioId
     if (!relatorioId || !relatorio || loading || autoGerandoRef.current) return;
+    if (autoGerandoParaIdRef.current === relatorioId) return;
 
     const secoesAutoGerar = [
       { key: 'impactos_economicos_sociais', label: '9. Impactos Econômicos e Sociais' },
@@ -161,9 +164,14 @@ export default function RelatorioExecucaoObjeto() {
     }
 
     const vazias = secoesAutoGerar.filter(({ key }) => secaoVazia(relatorio[key]));
-    if (vazias.length === 0) return;
+    if (vazias.length === 0) {
+      // Marcar como verificado mesmo sem geração
+      autoGerandoParaIdRef.current = relatorioId;
+      return;
+    }
 
     autoGerandoRef.current = true;
+    autoGerandoParaIdRef.current = relatorioId;
     setAutoGerando(true);
     setAutoGerandoProgresso({ atual: 0, total: vazias.length, label: vazias[0]?.label || '' });
 
@@ -185,7 +193,7 @@ export default function RelatorioExecucaoObjeto() {
       await carregarRelatorio(relatorioId);
       setAutoGerando(false);
       autoGerandoRef.current = false;
-      toast.success('Seções 9, 11 e 12 preenchidas automaticamente.');
+      toast.success(`${vazias.length} seção(ões) preenchida(s) automaticamente: ${vazias.map(s => s.label).join(', ')}.`);
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [relatorioId, relatorio?.id]);
@@ -605,6 +613,8 @@ export default function RelatorioExecucaoObjeto() {
   const [autoGerando, setAutoGerando] = useState(false);
   const [autoGerandoProgresso, setAutoGerandoProgresso] = useState({ atual: 0, total: 0, label: '' });
   const autoGerandoRef = useRef(false);
+  // Rastreia qual relatorioId já passou pelo ciclo de auto-geração para não re-disparar
+  const autoGerandoParaIdRef = useRef(null);
 
   async function exportarParte(parte) {
     if (!relatorio) return;
