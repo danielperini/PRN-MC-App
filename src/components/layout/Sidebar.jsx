@@ -28,6 +28,8 @@ import {
   ChevronUp,
   UserCog,
   LogOut,
+  CheckSquare,
+  Bot,
 } from 'lucide-react';
 
 import { base44 } from '@/api/base44Client';
