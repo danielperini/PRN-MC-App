@@ -189,8 +189,7 @@ function GaleriaFotosInner() {
   } = useQuery({
     queryKey: ['galeria-fotos-stable-v1'],
     queryFn: async () => loadGalleryReportData({
-      limitMedia: 300,
-      limitAttachments: 500,
+      limitAttachments: 2000,
       useCache: true,
       cacheKey: GALLERY_CACHE_KEY,
       cacheTtlMs: GALLERY_CACHE_TTL_MS,
