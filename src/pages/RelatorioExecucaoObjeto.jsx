@@ -16,6 +16,7 @@ import {
   FileText,
   ImagePlus,
   Loader2,
+  Mail,
   Paperclip,
   RefreshCw,
   Save,
@@ -36,6 +37,7 @@ import GerenciarFotosAnexos from '@/components/relatorio/GerenciarFotosAnexos';
 import { listarMetasRelatorio } from '@/utils/sincronizarRelatorioExecucao';
 import { prepararEExportarRelatorioExecucao } from '@/utils/exportarRelatorioExecucao';
 import EquipeTrabalhoTable from '@/components/relatorio/EquipeTrabalhoTable';
+import ExportarEmailConfirmDialog from '@/components/relatorio/ExportarEmailConfirmDialog';
 
 // Fora do componente — evita re-criação a cada render e captura em closures
 const GRUPOS_GERACAO = [
@@ -420,8 +422,10 @@ export default function RelatorioExecucaoObjeto() {
     if (falhas > 0) {
       toast.warning(`Relatório gerado com ${falhas} item(ns) pulado(s) por timeout.`, { duration: 12000 });
     } else {
-      toast.success('Relatório gerado com sucesso! Todas as seções preenchidas.', { duration: 10000 });
+      toast.success('Relatório gerado com sucesso! Todas as seções preenchidas.', { duration: 6000 });
     }
+    // Oferecer envio por email ao concluir
+    setEmailExportAberto(true);
   }
 
   async function excluirRelatorio(item) {
@@ -594,6 +598,7 @@ export default function RelatorioExecucaoObjeto() {
   }
 
   const [geracaoCompletaAberta, setGeracaoCompletaAberta] = useState(false);
+  const [emailExportAberto, setEmailExportAberto] = useState(false);
   const [exportandoPDF, setExportandoPDF] = useState(null);
   const [autoGerando, setAutoGerando] = useState(false);
   const [autoGerandoProgresso, setAutoGerandoProgresso] = useState({ atual: 0, total: 0, label: '' });
@@ -778,6 +783,10 @@ export default function RelatorioExecucaoObjeto() {
               }
             </Button>
             <Button size="sm" onClick={() => setRevisaoAberta(true)}>Revisar e Exportar</Button>
+            <Button size="sm" variant="outline" onClick={() => setEmailExportAberto(true)} className="border-indigo-300 text-indigo-700 hover:bg-indigo-50">
+              <Mail className="w-3.5 h-3.5 mr-1" />
+              Enviar por E-mail
+            </Button>
             <Button size="sm" variant="outline" onClick={exportarPDF} disabled={!!exportandoPDF}>
               {exportandoPDF ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Download className="w-4 h-4 mr-1" />}
               {exportandoPDF ? `Gerando ${exportandoPDF}...` : 'PDF (3 partes)'}
@@ -846,6 +855,14 @@ export default function RelatorioExecucaoObjeto() {
       />
 
       {revisaoAberta && relatorio && <RevisaoFinalDialog relatorioId={relatorioId} relatorio={relatorio} onClose={() => setRevisaoAberta(false)} />}
+
+      {emailExportAberto && relatorio && (
+        <ExportarEmailConfirmDialog
+          relatorioId={relatorioId}
+          relatorio={relatorio}
+          onClose={() => setEmailExportAberto(false)}
+        />
+      )}
 
       {geracaoCompletaAberta && (
         <GeracaoCompletaDialog
