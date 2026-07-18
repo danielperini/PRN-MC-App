@@ -4,7 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { exportarRelatorioExecucaoPDF } from '@/components/relatorio/ExportarRelatorioExecucaoPDF';
+import { prepararEExportarRelatorioExecucao } from '@/utils/exportarRelatorioExecucao';
 import { exportarRelatorioHTML } from '@/components/relatorio/ExportarRelatorioHTML';
 import {
   CheckCircle2, XCircle, AlertTriangle, Download, ExternalLink,
@@ -37,6 +37,7 @@ export default function RevisaoFinalDialog({ relatorioId, relatorio, onClose }) 
   const [loading, setLoading] = useState(true);
   const [exportando, setExportando] = useState(false);
   const [checklist, setChecklist] = useState({});
+  const [progressoTexto, setProgressoTexto] = useState('');
 
   useEffect(() => {
     if (!relatorioId) return;
@@ -94,8 +95,9 @@ export default function RevisaoFinalDialog({ relatorioId, relatorio, onClose }) 
     const dadosExportar = dados || relatorio;
     if (!dadosExportar) return;
     setExportando(true);
+    setProgressoTexto('Preparando...');
     try {
-      exportarRelatorioExecucaoPDF(dadosExportar, modo);
+      await prepararEExportarRelatorioExecucao(dadosExportar, modo, {}, txt => setProgressoTexto(txt));
       const labels = {
         completo: '3 PDFs gerados (Partes 1, 2 e 3)',
         parte1: 'Parte 1 — Identificação e Público',
@@ -108,6 +110,7 @@ export default function RevisaoFinalDialog({ relatorioId, relatorio, onClose }) 
       toast.error('Erro ao gerar PDF: ' + e.message);
     } finally {
       setExportando(false);
+      setProgressoTexto('');
     }
   }
 
@@ -562,7 +565,7 @@ export default function RevisaoFinalDialog({ relatorioId, relatorio, onClose }) 
                 title={!allChecked ? 'Conclua o checklist de revisão primeiro' : 'Exportar PDF Completo'}
               >
                 {exportando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-                {exportando ? 'Gerando...' : 'PDF Completo'}
+                {exportando ? (progressoTexto || 'Gerando...') : 'PDF Completo'}
               </Button>
               <Button
                 size="sm"

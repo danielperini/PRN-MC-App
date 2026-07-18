@@ -27,14 +27,14 @@ import {
   Lock,
   Code2,
 } from 'lucide-react';
-import { exportarRelatorioExecucaoPDF } from '@/components/relatorio/ExportarRelatorioExecucaoPDF';
 import { exportarRelatorioExecucaoDOCX } from '@/components/relatorio/ExportarRelatorioExecucaoDOCX';
 import { exportarRelatorioHTML } from '@/components/relatorio/ExportarRelatorioHTML';
 import RevisaoFinalDialog from '@/components/relatorio/RevisaoFinalDialog';
 import GeracaoCompletaDialog from '@/components/relatorio/GeracaoCompletaDialog';
 import GeracaoProgressoPanel from '@/components/relatorio/GeracaoProgressoPanel';
 import GerenciarFotosAnexos from '@/components/relatorio/GerenciarFotosAnexos';
-import { listarMetasRelatorio, sincronizarRelatorioExecucao } from '@/utils/sincronizarRelatorioExecucaoCompat';
+import { listarMetasRelatorio } from '@/utils/sincronizarRelatorioExecucao';
+import { prepararEExportarRelatorioExecucao } from '@/utils/exportarRelatorioExecucao';
 
 // Fora do componente — evita re-criação a cada render e captura em closures
 const GRUPOS_GERACAO = [
@@ -550,104 +550,36 @@ export default function RelatorioExecucaoObjeto() {
   const [geracaoCompletaAberta, setGeracaoCompletaAberta] = useState(false);
   const [exportandoPDF, setExportandoPDF] = useState(null);
 
-  async function prepararRelatorioComFotos() {
-    let fotosGaleria = Array.isArray(relatorio._fotos_galeria) ? relatorio._fotos_galeria : [];
-
-    // 1. Buscar fotos de ReportPhoto do período (não apenas do relatório específico)
-    if (fotosGaleria.length < 10) {
-      try {
-        const dataInicio = form.data_inicio;
-        const dataFim = form.data_fim;
-        // Buscar fotos vinculadas ao período via mes_referencia
-        const reportPhotos = await base44.entities.ReportPhoto.filter(
-          { galeria_oculta: false },
-          '-created_date',
-          300
-        );
-        const novas = (reportPhotos || [])
-          .filter(p => p.file_url && !fotosGaleria.some(f => f.file_url === p.file_url || f.url === p.file_url))
-          .map(p => ({
-            file_url: p.file_url,
-            url: p.file_url,
-            legenda: p.legenda || p.caption || p.file_name || '',
-            autor: p.author || p.autor || 'Daniel Moreira Soares',
-            meta_id: p.meta_id || '',
-            atividade_nome: p.museu || 'Registro do Período',
-            museu: p.museu || '',
-            mes_referencia: p.mes_referencia || '',
-            created_date: p.created_date,
-            activity_id: p.activity_id || '',
-          }));
-        fotosGaleria = [...fotosGaleria, ...novas];
-      } catch (_) {}
-    }
-
-    // 2. Buscar atividades do período com fotos vinculadas
-    let atividadesComFotos = [];
-    try {
-      const ativs = await base44.entities.Activity.filter(
-        { data_realizacao: { $gte: form.data_inicio, $lte: form.data_fim } },
-        '-data_realizacao',
-        200
-      );
-      atividadesComFotos = (ativs || [])
-        .filter(a => Array.isArray(a.fotos) && a.fotos.length > 0)
-        .map(a => ({
-          id: a.id,
-          titulo: a.titulo || '',
-          data: a.data_realizacao || a.data_inicio || '',
-          museu: a.museu || a.centro_custo || '',
-          fotos: (a.fotos || []).slice(0, 5).map(f => ({
-            url: f.file_url || f.url || '',
-            legenda: f.legenda || f.caption || a.titulo || '',
-            autor: f.autor || 'Daniel Moreira Soares',
-            data: a.data_realizacao,
-          })),
-        }))
-        .filter(a => a.fotos.some(f => f.url));
-    } catch (_) {}
-
-    return {
-      ...relatorio,
-      _fotos_galeria: fotosGaleria,
-      _atividades_com_fotos: atividadesComFotos,
-    };
-  }
-
   async function exportarParte(parte) {
     if (!relatorio) return;
+    const labels = { parte1: '1/3 (Identificação e Público)', parte2: '2/3 (Metas e Equipe)', parte3: '3/3 (Impactos, Assinatura e Galeria)' };
     setExportandoPDF(parte);
     try {
-      const rel = await prepararRelatorioComFotos();
-      await exportarRelatorioExecucaoPDF(rel, parte);
-      toast.success(`PDF ${parte === 'parte1' ? '1/3 (Identificação e Público)' : parte === 'parte2' ? '2/3 (Metas e Equipe)' : '3/3 (Impactos, Assinatura e Galeria)'} gerado.`);
+      await prepararEExportarRelatorioExecucao(relatorio, parte, form, txt => setProgresso({ valor: 0, texto: txt }));
+      toast.success(`PDF Parte ${labels[parte] || parte} gerado.`);
     } catch (error) {
       toast.error('Erro ao gerar PDF: ' + (error?.message || String(error)));
     } finally {
       setExportandoPDF(null);
+      setProgresso({ valor: 0, texto: '' });
     }
   }
 
   async function exportarPDF() {
-    // Gera as 3 partes sequencialmente para evitar travar o browser
     if (!relatorio) return;
     setExportandoPDF('parte1');
     try {
-      const rel = await prepararRelatorioComFotos();
-      await exportarRelatorioExecucaoPDF(rel, 'parte1');
-      toast.info('Parte 1/3 gerada. Gerando parte 2...');
-      setExportandoPDF('parte2');
-      await new Promise(r => setTimeout(r, 300));
-      await exportarRelatorioExecucaoPDF(rel, 'parte2');
-      toast.info('Parte 2/3 gerada. Gerando parte 3...');
-      setExportandoPDF('parte3');
-      await new Promise(r => setTimeout(r, 300));
-      await exportarRelatorioExecucaoPDF(rel, 'parte3');
+      await prepararEExportarRelatorioExecucao(relatorio, 'completo', form, txt => {
+        const parteNum = txt.includes('1/3') ? 'parte1' : txt.includes('2/3') ? 'parte2' : txt.includes('3/3') ? 'parte3' : exportandoPDF;
+        setExportandoPDF(parteNum);
+        setProgresso({ valor: 0, texto: txt });
+      });
       toast.success('Todas as 3 partes do PDF foram geradas com sucesso.');
     } catch (error) {
       toast.error('Erro ao gerar PDF: ' + (error?.message || String(error)));
     } finally {
       setExportandoPDF(null);
+      setProgresso({ valor: 0, texto: '' });
     }
   }
 
@@ -676,7 +608,8 @@ export default function RelatorioExecucaoObjeto() {
     if (!relatorio) return;
     setExportandoHTML(true);
     try {
-      const rel = await prepararRelatorioComFotos();
+      const { prepararRelatorioParaExportacao } = await import('@/utils/exportarRelatorioExecucao');
+      const rel = await prepararRelatorioParaExportacao(relatorio, form);
       exportarRelatorioHTML(rel);
       toast.success('HTML editável gerado — abra no navegador, edite e imprima como PDF.');
     } catch (error) {

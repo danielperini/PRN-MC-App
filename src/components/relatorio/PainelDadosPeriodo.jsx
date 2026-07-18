@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Zap, Users, FileText, BarChart2, Activity, Link2, CheckCircle2, ChevronDown, ChevronUp, AlertTriangle, Camera } from 'lucide-react';
 import { toast } from 'sonner';
-import { sincronizarRelatorioExecucao } from '@/utils/sincronizarRelatorioExecucaoCompat';
+import { sincronizarRelatorioExecucao } from '@/utils/sincronizarRelatorioExecucao';
 
 function fmtBRL(v) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);

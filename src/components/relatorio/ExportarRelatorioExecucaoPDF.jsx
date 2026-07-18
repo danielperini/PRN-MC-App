@@ -237,24 +237,30 @@ function blankLines(doc, y, count = 4) {
 }
 
 // ─── Tabela de público alvo ──────────────────────────────────────────────────
-function publicoTable(doc, y, p) {
+function publicoTable(doc, y, p, publicoPorMuseu) {
   p = p || {};
-  // Valores reais conservadores do período (Feb-Jun/2026): MHAB 15.463 + MIS 1.499 + MUMO 1.141 = 18.103
-  const realizadoDireto = p.realizado_direto || 18103;
+  // Usar exclusivamente dados reais do relatório — sem fallback numérico fixo
+  const realizadoDireto = p.realizado_direto || 0;
   const realizadoIndireto = p.realizado_indireto || 0;
-  const previstoDireto = p.previsto_direto || 50000;
-  const previstoIndireto = p.previsto_indireto || 150000;
+  const previstoDireto = p.previsto_direto || 0;
+  const previstoIndireto = p.previsto_indireto || 0;
   const pctDireto = p.percentual_direto || (previstoDireto > 0 ? Math.round(realizadoDireto / previstoDireto * 100) : 0);
   const pctIndireto = p.percentual_indireto || 0;
 
   y = check(doc, y, 50);
 
-  // Linha de resumo por museu acima da tabela
-  const museuRows = [
-    { museu: 'MHAB', periodo: 'Fev. a Jun./2026', atendido: 15463, obs: 'Soma conservadora dos públicos gerais dos relatórios aprovados selecionados.' },
-    { museu: 'MIS', periodo: 'Fev. a Jun./2026', atendido: 1499, obs: 'Soma conservadora dos públicos gerais dos relatórios aprovados selecionados.' },
-    { museu: 'MUMO', periodo: 'Fev. a Jun./2026', atendido: 1141, obs: 'Soma conservadora dos públicos gerais dos relatórios aprovados selecionados.' },
-  ];
+  // Linha de resumo por museu — usar dados reais se disponíveis
+  const museuRowsBase = publicoPorMuseu && typeof publicoPorMuseu === 'object' && Object.keys(publicoPorMuseu).length > 0
+    ? Object.entries(publicoPorMuseu).map(([museu, atendido]) => ({ museu, atendido: atendido || 0, obs: 'Dados extraídos dos relatórios mensais do período.' }))
+    : [
+        { museu: 'MHAB', atendido: null, obs: 'Não informado — preencher com dados do relatório mensal.' },
+        { museu: 'MIS', atendido: null, obs: 'Não informado — preencher com dados do relatório mensal.' },
+        { museu: 'MUMO', atendido: null, obs: 'Não informado — preencher com dados do relatório mensal.' },
+      ];
+  const museuRows = museuRowsBase.map(r => ({
+    ...r,
+    periodo: p._periodo_label || 'Período do relatório',
+  }));
   const mCols = [{ h: 'MUSEU', w: 22 }, { h: 'PERÍODO', w: 34 }, { h: 'ATENDIDO DE FATO', w: 28 }, { h: 'OBSERVAÇÃO', w: 90 }];
   doc.setFillColor(40, 40, 40);
   let xc = M;
@@ -281,7 +287,10 @@ function publicoTable(doc, y, p) {
   doc.setFontSize(FS.small);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(20, 80, 20);
-  doc.text(`TOTAL GERAL (registro conservador): ${realizadoDireto.toLocaleString('pt-BR')} atendimentos/visitas`, M + 2, y + 5);
+  const totalLabel = realizadoDireto > 0
+    ? `TOTAL GERAL DO PERÍODO: ${realizadoDireto.toLocaleString('pt-BR')} atendimentos/visitas`
+    : 'TOTAL GERAL DO PERÍODO: Não informado — preencher com dados dos relatórios mensais aprovados';
+  doc.text(totalLabel, M + 2, y + 5);
   y += 10;
 
   const cw = CONTENT_W / 4;
@@ -299,8 +308,16 @@ function publicoTable(doc, y, p) {
   }
   y += 9;
   const rows = [
-    [`DIRETO: ${previstoDireto.toLocaleString('pt-BR')}`, `DIRETO: ${realizadoDireto.toLocaleString('pt-BR')} (${pctDireto}%)`, 'Público geral declarado nos relatórios mensais aprovados. Soma conservadora — MHAB, MIS e MUMO.'],
-    [`INDIRETO: ${previstoIndireto.toLocaleString('pt-BR')}`, `INDIRETO: ${realizadoIndireto.toLocaleString('pt-BR')} (${pctIndireto}%)`, 'A apurar: não foi possível separar público direto/indireto com segurança nos arquivos analisados.'],
+    [
+      previstoDireto > 0 ? `DIRETO: ${previstoDireto.toLocaleString('pt-BR')}` : 'DIRETO: Não informado',
+      realizadoDireto > 0 ? `DIRETO: ${realizadoDireto.toLocaleString('pt-BR')} (${pctDireto}%)` : 'DIRETO: Não informado',
+      p.texto_interpretativo_editado || p.texto_interpretativo_ia || 'Público geral declarado nos relatórios mensais aprovados.',
+    ],
+    [
+      previstoIndireto > 0 ? `INDIRETO: ${previstoIndireto.toLocaleString('pt-BR')}` : 'INDIRETO: Não informado',
+      realizadoIndireto > 0 ? `INDIRETO: ${realizadoIndireto.toLocaleString('pt-BR')} (${pctIndireto}%)` : 'INDIRETO: Não informado',
+      'Público indireto a apurar pelos responsáveis do período.',
+    ],
   ];
   for (const [idx, row] of rows.entries()) {
     xc = M;
@@ -937,7 +954,7 @@ function buildParte1(relatorio) {
   doc.setTextColor(30, 30, 30);
   doc.text('Métrica considerada (pessoa ou instituição): ________________________', M + 2, y + 4);
   y += 8;
-  y = publicoTable(doc, y, relatorio.publico_alvo);
+  y = publicoTable(doc, y, relatorio.publico_alvo, relatorio._publico_por_museu || relatorio._publico_dashboard?.por_museu);
   const interpTxt = txt(relatorio.publico_alvo?.texto_interpretativo_editado || relatorio.publico_alvo?.texto_interpretativo_ia);
   if (interpTxt) y = textBlock(doc, y, interpTxt);
   y += 2;
