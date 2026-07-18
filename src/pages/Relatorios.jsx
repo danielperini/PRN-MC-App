@@ -212,7 +212,7 @@ export default function Relatorios() {
     const q = searchTerm.trim().toLowerCase();
     return myReports.filter((report) => {
       if (filterMuseu !== 'todos' && report.museu !== filterMuseu) return false;
-      if (filterMes !== 'todos' && report.mes_referencia !== filterMes) return false;
+      if (filterMes !== 'todos' && (report.mes_referencia || '').toLowerCase() !== filterMes.toLowerCase()) return false;
       if (filterStatus !== 'todos' && report.status !== filterStatus) return false;
       if (q) {
         const haystack = [
@@ -238,6 +238,27 @@ export default function Relatorios() {
       if (r.museu) counts[r.museu] = (counts[r.museu] || 0) + 1;
     });
     return counts;
+  }, [myReports]);
+
+  // Meses disponíveis dinamicamente — deduplicados case-insensitive, inclui "Maio–Junho"
+  const mesesDisponiveis = useMemo(() => {
+    const order = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Maio–Junho', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+    // Deduplica preservando a versão com inicial maiúscula quando houver conflito
+    const seen = new Map();
+    myReports.forEach(r => {
+      const val = r.mes_referencia;
+      if (!val) return;
+      const key = val.toLowerCase();
+      if (!seen.has(key) || val[0] === val[0].toUpperCase()) seen.set(key, val);
+    });
+    return [...seen.values()].sort((a, b) => {
+      const ia = order.findIndex(m => m.toLowerCase() === a.toLowerCase());
+      const ib = order.findIndex(m => m.toLowerCase() === b.toLowerCase());
+      if (ia >= 0 && ib >= 0) return ia - ib;
+      if (ia >= 0) return -1;
+      if (ib >= 0) return 1;
+      return a.localeCompare(b, 'pt-BR');
+    });
   }, [myReports]);
 
   const hasActiveFilters = filterMuseu !== 'todos' || filterMes !== 'todos' || filterStatus !== 'todos' || searchTerm.trim();
@@ -366,12 +387,12 @@ export default function Relatorios() {
         {/* Filtros de Mês e Status */}
         <div className="flex flex-wrap gap-3 mb-5">
           <Select value={filterMes} onValueChange={setFilterMes}>
-            <SelectTrigger className="w-36">
+            <SelectTrigger className="w-40">
               <SelectValue placeholder="Mês" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todos os meses</SelectItem>
-              {MESES.map((mes) => (
+              {mesesDisponiveis.map((mes) => (
                 <SelectItem key={mes} value={mes}>{mes}</SelectItem>
               ))}
             </SelectContent>
