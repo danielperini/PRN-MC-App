@@ -12,7 +12,7 @@ import NovaRubricaDialog from '@/components/rubricas/NovaRubricaDialog';
 import { canManageRubricas } from '@/components/auth/permissions';
 import PainelPrevistoVsUtilizado from '@/components/financeiro/PainelPrevistoVsUtilizado';
 import MemoriaCalculoDrawer from '@/components/financeiro/MemoriaCalculoDrawer';
-import { calcularExecucaoOrcamentariaOficial, isOrigemAditivo } from '@/services/canonicalMetrics';
+import { calcularExecucaoOrcamentariaOficial, isOrigemAditivo, rubricaPrevisto, rubricaUtilizado } from '@/services/canonicalMetrics';
 
 function DashboardFinanceiroInner() {
   const { user: currentUser, isCoordenador } = useCurrentUser();
@@ -184,17 +184,17 @@ function DashboardFinanceiroInner() {
   // Rubricas oficiais para passar ao PainelPrevistoVsUtilizado
   const rubricasOficiais = useMemo(() => rubricas.filter(r => r?.ativo !== false && isOrigemAditivo(r)), [rubricas]);
 
-  // Saldo por aditivo (3º e 4º) para os cards de detalhamento
+  // Breakdown por aditivo usando funções canônicas
   const saldoAditivos = useMemo(() => {
     const grupos = {
       '3': { label: '3º Aditivo', previsto: 0, utilizado: 0, count: 0 },
       '4': { label: '4º Aditivo', previsto: 0, utilizado: 0, count: 0 },
     };
     execucaoOficial.itens.forEach(r => {
-      const origem = (r.origem_recurso || '').trim();
-      const chave = (origem === '3º ADITIVO' || origem === '3º Aditivo') ? '3' : '4';
-      grupos[chave].previsto += Number(r?.valor_rubrica ?? r?.valor_total ?? r?.valor_previsto ?? r?.valor ?? 0);
-      grupos[chave].utilizado += Number(r?.valor_utilizado ?? r?.valor_executado ?? r?.utilizado ?? r?.realizado ?? 0);
+      const origem = (r.origem_recurso || '').trim().toUpperCase();
+      const chave = origem.startsWith('3') ? '3' : '4';
+      grupos[chave].previsto += rubricaPrevisto(r);
+      grupos[chave].utilizado += rubricaUtilizado(r);
       grupos[chave].count += 1;
     });
     return Object.values(grupos).map(g => ({
@@ -310,37 +310,40 @@ function DashboardFinanceiroInner() {
             </div>
           </div>
 
-          {/* Detalhes por aditivo */}
-          <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-100">
-            {saldoAditivos.map(a => (
-              <div key={a.label} className="px-6 py-5">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold text-black">{a.label}</h3>
-                  <span className="text-xs text-gray-400">{a.count} rubricas</span>
-                </div>
-                <div className="grid grid-cols-3 gap-3 mb-4 text-sm">
-                  <div>
-                    <p className="text-gray-500 text-xs">Previsto</p>
-                    <p className="font-semibold text-black text-sm">{fmt(a.previsto)}</p>
+          {/* Breakdown por aditivo — leitura complementar do consolidado acima */}
+          <div className="border-t border-gray-100 px-6 py-4 bg-white">
+            <p className="text-xs text-gray-400 mb-3 font-medium uppercase tracking-wide">Breakdown por aditivo</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {saldoAditivos.map(a => (
+                <div key={a.label} className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-semibold text-black">{a.label}</span>
+                    <span className="text-xs text-gray-400">{a.count} rubricas</span>
                   </div>
-                  <div>
-                    <p className="text-gray-500 text-xs">Utilizado</p>
-                    <p className="font-semibold text-gray-700 text-sm">{fmt(a.utilizado)}</p>
+                  <div className="grid grid-cols-3 gap-2 mb-2">
+                    <div>
+                      <p className="text-xs text-gray-400">Previsto</p>
+                      <p className="text-sm font-semibold text-black">{fmt(a.previsto)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400">Utilizado</p>
+                      <p className="text-sm font-semibold text-gray-700">{fmt(a.utilizado)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400">Saldo</p>
+                      <p className={`text-sm font-semibold ${a.saldo >= 0 ? 'text-green-600' : 'text-red-600'}`}>{fmt(a.saldo)}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-gray-500 text-xs">Saldo</p>
-                    <p className={`font-semibold text-sm ${a.saldo >= 0 ? 'text-green-600' : 'text-red-600'}`}>{fmt(a.saldo)}</p>
+                  <div className="w-full bg-gray-200 rounded-full h-1.5">
+                    <div
+                      className={`h-1.5 rounded-full transition-all ${a.percentual >= 90 ? 'bg-red-500' : a.percentual >= 70 ? 'bg-yellow-500' : 'bg-black'}`}
+                      style={{ width: `${Math.min(100, a.percentual)}%` }}
+                    />
                   </div>
+                  <p className="text-xs text-gray-400 mt-1">{fmtPct(a.percentual)} utilizado</p>
                 </div>
-                <div className="w-full bg-gray-100 rounded-full h-2">
-                  <div
-                    className={`h-2 rounded-full transition-all ${a.percentual >= 90 ? 'bg-red-500' : a.percentual >= 70 ? 'bg-yellow-500' : 'bg-black'}`}
-                    style={{ width: `${a.percentual}%` }}
-                  />
-                </div>
-                <p className="text-xs text-gray-400 mt-1">{fmtPct(a.percentual)} utilizado</p>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
 
