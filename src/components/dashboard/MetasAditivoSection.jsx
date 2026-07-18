@@ -334,7 +334,7 @@ function FiltroControles({ aditivo, setAditivo, dataInicio, setDataInicio, dataF
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRefresh, filtro }) {
+export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRefresh, filtro, museuFiltro }) {
   const [selectedMeta, setSelectedMeta] = useState(null);
   const [rubricas, setRubricas] = useState(rubricasProp || []);
 
@@ -473,14 +473,22 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRef
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {metasCalculadas.map((meta) => (
-          <MetaCard
-            key={meta.numero}
-            meta={meta}
-            onOpen={setSelectedMeta}
-            atividadesPorMuseu={atividadesPorMetaEMuseu[meta._numero] || {}}
-          />
-        ))}
+        {metasCalculadas
+          .filter((meta) => {
+            if (!museuFiltro) return true;
+            const atividadesMuseu = atividadesPorMetaEMuseu[meta._numero] || {};
+            const totalGeral = Object.values(atividadesPorMetaEMuseu[meta._numero] || {}).reduce((s, v) => s + v, 0);
+            // Mostrar se tem atividades no museu do usuário, ou se não tem nenhum museu associado (meta geral)
+            return (atividadesMuseu[museuFiltro] || 0) > 0 || totalGeral === 0;
+          })
+          .map((meta) => (
+            <MetaCard
+              key={meta.numero}
+              meta={meta}
+              onOpen={setSelectedMeta}
+              atividadesPorMuseu={atividadesPorMetaEMuseu[meta._numero] || {}}
+            />
+          ))}
       </div>
 
       <MetaRubricasModal

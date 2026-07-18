@@ -8,10 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { isCoordGeral } from '@/components/auth/permissions';
 import DeleteAccountDialog from '@/components/auth/DeleteAccountDialog';
 import { buildTeamMemberFormPreset } from '@/lib/teamRegistryBase';
+import AtividadesMetasTab from '@/components/meus-dados/AtividadesMetasTab';
+import DocumentosTab from '@/components/meus-dados/DocumentosTab';
 
 const FORM_FIELDS = [
   { name: 'email_pessoal', label: 'Email Pessoal', type: 'email' },
@@ -140,6 +143,248 @@ function resolveFuncao(currentMember, targetUser) {
   ).trim();
 }
 
+function Section({ title, children }) {
+  return (
+    <div className="space-y-4">
+      <h2 className="text-lg font-semibold text-black border-b pb-2">{title}</h2>
+      {children}
+    </div>
+  );
+}
+
+function DadosPessoaisTab({
+  user, isSponsor, coordGeral, selectedUserEmail, setSelectedUserEmail,
+  allUsers, teamData, targetEmail, targetUser, formData, set,
+  autoFillLoading, isComplete, saveMutation, aiApplied, handleAiApply,
+  showDeleteDialog, setShowDeleteDialog, resetAiTracking,
+}) {
+  return (
+    <div className="max-w-2xl mx-auto space-y-6">
+      {coordGeral && (
+        <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
+          <Label className="text-sm font-semibold text-slate-700">Editar dados de outro usuário</Label>
+          <Select
+            value={selectedUserEmail || '__own__'}
+            onValueChange={(v) => {
+              setSelectedUserEmail(v === '__own__' ? null : v);
+              resetAiTracking();
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__own__">— Meus próprios dados —</SelectItem>
+              {allUsers.filter((u) => u.email !== user?.email).map((u) => (
+                <SelectItem key={u.email} value={u.email}>
+                  {u.full_name} ({u.email})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {!isSponsor && (
+        <ContractAutoFill
+          userEmail={targetEmail}
+          onApply={handleAiApply}
+          appliedFields={aiApplied}
+        />
+      )}
+
+      {autoFillLoading && !isSponsor && (
+        <div className="p-3 rounded-lg border border-blue-200 bg-blue-50 text-blue-800 text-sm flex items-center gap-2">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Buscando dados de contratação na base e preenchendo apenas campos vazios.
+        </div>
+      )}
+
+      <div className={`p-4 border rounded-lg flex items-start gap-3 ${isComplete ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
+        {isComplete ? (
+          <>
+            <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-green-900">Informações Completas</p>
+              <p className="text-xs text-green-700 mt-0.5">Todas as informações foram preenchidas</p>
+            </div>
+          </>
+        ) : (
+          <>
+            <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-amber-900">Informações Incompletas</p>
+              <p className="text-xs text-amber-700 mt-0.5">Você pode preencher manualmente qualquer campo abaixo.</p>
+            </div>
+          </>
+        )}
+      </div>
+
+      <form onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(); }} className="space-y-8">
+        <Section title="Dados Pessoais">
+          {FORM_FIELDS.map((field) => (
+            <div key={field.name} className="space-y-1.5">
+              <Label>{field.label}</Label>
+              <Input
+                type={field.type}
+                value={formData[field.name] || ''}
+                onChange={(e) => set(field.name, e.target.value)}
+                placeholder={field.label}
+              />
+            </div>
+          ))}
+
+          <div className="space-y-1.5">
+            <Label>Tipo de Pessoa</Label>
+            <Select value={formData.tipo_pessoa} onValueChange={(v) => set('tipo_pessoa', v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="PF">Pessoa Física (PF)</SelectItem>
+                <SelectItem value="MEI">MEI</SelectItem>
+                <SelectItem value="ME">ME (Microempresa)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {formData.tipo_pessoa !== 'PF' && (
+            <div className="space-y-1.5">
+              <Label>CNPJ</Label>
+              <Input
+                value={formData.cnpj}
+                onChange={(e) => set('cnpj', e.target.value)}
+                placeholder="00.000.000/0001-00"
+              />
+            </div>
+          )}
+        </Section>
+
+        {formData.tipo_pessoa !== 'PF' && (
+          <Section title="Dados da Empresa">
+            {EMPRESA_FIELDS.map((field) => (
+              <div key={field.name} className="space-y-1.5">
+                <Label>{field.label}</Label>
+                <Input
+                  type={field.type}
+                  value={formData[field.name] || ''}
+                  onChange={(e) => set(field.name, e.target.value)}
+                  placeholder={field.label}
+                />
+              </div>
+            ))}
+
+            <div className="space-y-1.5">
+              <Label>Cargo do Representante</Label>
+              <Select value={formData.cargo_representante} onValueChange={(v) => set('cargo_representante', v)}>
+                <SelectTrigger><SelectValue placeholder="Selecione o cargo" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Sócio-Gerente">Sócio-Gerente</SelectItem>
+                  <SelectItem value="Diretor">Diretor</SelectItem>
+                  <SelectItem value="Gerente">Gerente</SelectItem>
+                  <SelectItem value="Procurador">Procurador</SelectItem>
+                  <SelectItem value="Outro">Outro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </Section>
+        )}
+
+        {!isSponsor && (
+          <Section title="Vínculo com a Equipe">
+            <div className="space-y-1.5">
+              <Label>Função cadastrada no sistema</Label>
+              <Input
+                value={resolveFuncao(teamData.find((m) => m.user_email === targetEmail), targetUser) || ''}
+                readOnly
+                placeholder="Função vinculada ao usuário"
+                className="bg-slate-50"
+              />
+            </div>
+
+            {TEAM_LINK_FIELDS.map((field) => (
+              <div key={field.name} className="space-y-1.5">
+                <Label>{field.label}</Label>
+                <Input
+                  type={field.type}
+                  value={formData[field.name] || ''}
+                  onChange={(e) => set(field.name, e.target.value)}
+                  placeholder={field.label}
+                />
+              </div>
+            ))}
+          </Section>
+        )}
+
+        {!isSponsor && (
+          <Section title="Dados Bancários">
+            <div className="space-y-4">
+              {BANKING_FIELDS.map((field) => (
+                <div key={field.name} className="space-y-1.5">
+                  <Label>{field.label}</Label>
+                  <Input
+                    type={field.type}
+                    value={formData[field.name] || ''}
+                    onChange={(e) => set(field.name, e.target.value)}
+                    placeholder={field.label}
+                  />
+                </div>
+              ))}
+
+              <div className="space-y-1.5">
+                <Label>Tipo de Conta</Label>
+                <Select value={formData.tipo_conta} onValueChange={(v) => set('tipo_conta', v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Corrente">Corrente</SelectItem>
+                    <SelectItem value="Poupança">Poupança</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </Section>
+        )}
+
+        <div className="flex gap-2 justify-end pt-6 border-t">
+          <Button
+            type="submit"
+            className="bg-black hover:bg-gray-800 text-white"
+            disabled={saveMutation.isPending}
+          >
+            {saveMutation.isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Salvando...
+              </>
+            ) : (
+              'Salvar Dados'
+            )}
+          </Button>
+        </div>
+      </form>
+
+      {!selectedUserEmail && (
+        <div className="mt-12 pt-8 border-t space-y-4">
+          <h3 className="text-lg font-semibold text-red-600">Zona de Perigo</h3>
+          <p className="text-sm text-gray-600">
+            Deletar sua conta removerá permanentemente todos os seus dados do sistema.
+          </p>
+          <Button
+            variant="destructive"
+            onClick={() => setShowDeleteDialog(true)}
+            className="w-full bg-red-600 hover:bg-red-700"
+          >
+            Deletar Minha Conta
+          </Button>
+        </div>
+      )}
+
+      <DeleteAccountDialog
+        userEmail={user?.email}
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+      />
+    </div>
+  );
+}
+
 function MeusDadosInner() {
   const [user, setUser] = useState(null);
   const [coordGeral, setCoordGeral] = useState(false);
@@ -179,9 +424,11 @@ function MeusDadosInner() {
   const targetEmail = selectedUserEmail || user?.email;
   const targetUser = selectedUserEmail ? allUsers.find((u) => u.email === selectedUserEmail) : user;
 
+  const teamMember = teamData.find((m) => m.user_email === targetEmail) || null;
+  const userMuseum = teamMember?.museu || teamMember?.centro_custo || null;
+
   useEffect(() => {
     if (!user?.email) return;
-
     if (!selectedUserEmail) {
       setFormData((prev) => mergeWithoutOverwrite(prev, mapUserToForm(user)));
     }
@@ -189,7 +436,6 @@ function MeusDadosInner() {
 
   useEffect(() => {
     if (!teamData?.length || !user?.email) return;
-
     if (!selectedUserEmail) {
       const currentMember = teamData.find((m) => m.user_email === user.email);
       if (currentMember) {
@@ -296,8 +542,6 @@ function MeusDadosInner() {
       } else {
         await base44.entities.TeamMember.create(teamPayload).catch(() => null);
       }
-
-      // Atualização de dados pessoais não deve gerar aviso para terceiros.
     },
     onSuccess: () => toast.success('Dados salvos com sucesso!'),
     onError: () => toast.error('Erro ao salvar dados.'),
@@ -328,247 +572,66 @@ function MeusDadosInner() {
 
   return (
     <div className="min-h-screen bg-white pb-20">
-      <div className="max-w-2xl mx-auto px-6 py-12">
-        <div className="mb-10">
-          <h1 className="text-3xl font-semibold text-black mb-2">
+      <div className="max-w-5xl mx-auto px-4 md:px-6 py-10">
+        <div className="mb-8">
+          <h1 className="text-3xl font-semibold text-black mb-1">
             {selectedUserEmail ? `Informações de ${targetUser?.full_name || selectedUserEmail}` : 'Informações'}
           </h1>
           <p className="text-gray-600">
-            {isSponsor ? 'Atualize seus dados pessoais' : 'Preencha suas informações pessoais e bancárias para a equipe'}
+            {isSponsor ? 'Atualize seus dados pessoais' : 'Preencha suas informações pessoais e acompanhe seu desempenho'}
           </p>
         </div>
 
-        {coordGeral && (
-          <div className="mb-8 p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
-            <Label className="text-sm font-semibold text-slate-700">Editar dados de outro usuário</Label>
-            <Select
-              value={selectedUserEmail || '__own__'}
-              onValueChange={(v) => {
-                setSelectedUserEmail(v === '__own__' ? null : v);
-                resetAiTracking();
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__own__">— Meus próprios dados —</SelectItem>
-                {allUsers.filter((u) => u.email !== user?.email).map((u) => (
-                  <SelectItem key={u.email} value={u.email}>
-                    {u.full_name} ({u.email})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
+        <Tabs defaultValue="dados">
+          <TabsList className="mb-6 w-full sm:w-auto">
+            <TabsTrigger value="dados">Dados Pessoais</TabsTrigger>
+            {!isSponsor && <TabsTrigger value="atividades">Atividades e Metas</TabsTrigger>}
+            {!isSponsor && <TabsTrigger value="documentos">Documentos</TabsTrigger>}
+          </TabsList>
 
-        {!isSponsor && (
-          <ContractAutoFill
-            userEmail={targetEmail}
-            onApply={handleAiApply}
-            appliedFields={aiApplied}
-          />
-        )}
+          <TabsContent value="dados">
+            <DadosPessoaisTab
+              user={user}
+              isSponsor={isSponsor}
+              coordGeral={coordGeral}
+              selectedUserEmail={selectedUserEmail}
+              setSelectedUserEmail={setSelectedUserEmail}
+              allUsers={allUsers}
+              teamData={teamData}
+              targetEmail={targetEmail}
+              targetUser={targetUser}
+              formData={formData}
+              set={set}
+              autoFillLoading={autoFillLoading}
+              isComplete={isComplete}
+              saveMutation={saveMutation}
+              aiApplied={aiApplied}
+              handleAiApply={handleAiApply}
+              showDeleteDialog={showDeleteDialog}
+              setShowDeleteDialog={setShowDeleteDialog}
+              resetAiTracking={resetAiTracking}
+            />
+          </TabsContent>
 
-        {autoFillLoading && !isSponsor && (
-          <div className="mb-6 p-3 rounded-lg border border-blue-200 bg-blue-50 text-blue-800 text-sm flex items-center gap-2">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            Buscando dados de contratação na base e preenchendo apenas campos vazios.
-          </div>
-        )}
-
-        <div className={`mb-8 p-4 border rounded-lg flex items-start gap-3 ${isComplete ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
-          {isComplete ? (
-            <>
-              <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-semibold text-green-900">Informações Completas</p>
-                <p className="text-xs text-green-700 mt-0.5">Todas as informações foram preenchidas</p>
-              </div>
-            </>
-          ) : (
-            <>
-              <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-semibold text-amber-900">Informações Incompletas</p>
-                <p className="text-xs text-amber-700 mt-0.5">Você pode preencher manualmente qualquer campo abaixo.</p>
-              </div>
-            </>
-          )}
-        </div>
-
-        <form onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(); }} className="space-y-8">
-          <Section title="Dados Pessoais">
-            {FORM_FIELDS.map((field) => (
-              <div key={field.name} className="space-y-1.5">
-                <Label>{field.label}</Label>
-                <Input
-                  type={field.type}
-                  value={formData[field.name] || ''}
-                  onChange={(e) => set(field.name, e.target.value)}
-                  placeholder={field.label}
-                />
-              </div>
-            ))}
-
-            <div className="space-y-1.5">
-              <Label>Tipo de Pessoa</Label>
-              <Select value={formData.tipo_pessoa} onValueChange={(v) => set('tipo_pessoa', v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="PF">Pessoa Física (PF)</SelectItem>
-                  <SelectItem value="MEI">MEI</SelectItem>
-                  <SelectItem value="ME">ME (Microempresa)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {formData.tipo_pessoa !== 'PF' && (
-              <div className="space-y-1.5">
-                <Label>CNPJ</Label>
-                <Input
-                  value={formData.cnpj}
-                  onChange={(e) => set('cnpj', e.target.value)}
-                  placeholder="00.000.000/0001-00"
-                />
-              </div>
-            )}
-          </Section>
-
-          {formData.tipo_pessoa !== 'PF' && (
-            <Section title="Dados da Empresa">
-              {EMPRESA_FIELDS.map((field) => (
-                <div key={field.name} className="space-y-1.5">
-                  <Label>{field.label}</Label>
-                  <Input
-                    type={field.type}
-                    value={formData[field.name] || ''}
-                    onChange={(e) => set(field.name, e.target.value)}
-                    placeholder={field.label}
-                  />
-                </div>
-              ))}
-
-              <div className="space-y-1.5">
-                <Label>Cargo do Representante</Label>
-                <Select value={formData.cargo_representante} onValueChange={(v) => set('cargo_representante', v)}>
-                  <SelectTrigger><SelectValue placeholder="Selecione o cargo" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Sócio-Gerente">Sócio-Gerente</SelectItem>
-                    <SelectItem value="Diretor">Diretor</SelectItem>
-                    <SelectItem value="Gerente">Gerente</SelectItem>
-                    <SelectItem value="Procurador">Procurador</SelectItem>
-                    <SelectItem value="Outro">Outro</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </Section>
+          {!isSponsor && (
+            <TabsContent value="atividades">
+              <AtividadesMetasTab
+                targetEmail={targetEmail}
+                userMuseum={userMuseum}
+              />
+            </TabsContent>
           )}
 
           {!isSponsor && (
-            <Section title="Vínculo com a Equipe">
-              <div className="space-y-1.5">
-                <Label>Função cadastrada no sistema</Label>
-                <Input
-                  value={resolveFuncao(teamData.find((m) => m.user_email === targetEmail), targetUser) || ''}
-                  readOnly
-                  placeholder="Função vinculada ao usuário"
-                  className="bg-slate-50"
-                />
-              </div>
-
-              {TEAM_LINK_FIELDS.map((field) => (
-                <div key={field.name} className="space-y-1.5">
-                  <Label>{field.label}</Label>
-                  <Input
-                    type={field.type}
-                    value={formData[field.name] || ''}
-                    onChange={(e) => set(field.name, e.target.value)}
-                    placeholder={field.label}
-                  />
-                </div>
-              ))}
-            </Section>
+            <TabsContent value="documentos">
+              <DocumentosTab
+                targetEmail={targetEmail}
+                teamMember={teamMember}
+              />
+            </TabsContent>
           )}
-
-          {!isSponsor && (
-            <Section title="Dados Bancários">
-              <div className="space-y-4">
-                {BANKING_FIELDS.map((field) => (
-                  <div key={field.name} className="space-y-1.5">
-                    <Label>{field.label}</Label>
-                    <Input
-                      type={field.type}
-                      value={formData[field.name] || ''}
-                      onChange={(e) => set(field.name, e.target.value)}
-                      placeholder={field.label}
-                    />
-                  </div>
-                ))}
-
-                <div className="space-y-1.5">
-                  <Label>Tipo de Conta</Label>
-                  <Select value={formData.tipo_conta} onValueChange={(v) => set('tipo_conta', v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Corrente">Corrente</SelectItem>
-                      <SelectItem value="Poupança">Poupança</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </Section>
-          )}
-
-          <div className="flex gap-2 justify-end pt-6 border-t">
-            <Button
-              type="submit"
-              className="bg-black hover:bg-gray-800 text-white"
-              disabled={saveMutation.isPending}
-            >
-              {saveMutation.isPending ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Salvando...
-                </>
-              ) : (
-                'Salvar Dados'
-              )}
-            </Button>
-          </div>
-        </form>
-
-        {!selectedUserEmail && (
-          <div className="mt-12 pt-8 border-t space-y-4">
-            <h3 className="text-lg font-semibold text-red-600">Zona de Perigo</h3>
-            <p className="text-sm text-gray-600">
-              Deletar sua conta removerá permanentemente todos os seus dados do sistema.
-            </p>
-            <Button
-              variant="destructive"
-              onClick={() => setShowDeleteDialog(true)}
-              className="w-full bg-red-600 hover:bg-red-700"
-            >
-              Deletar Minha Conta
-            </Button>
-          </div>
-        )}
-
-        <DeleteAccountDialog
-          userEmail={user?.email}
-          open={showDeleteDialog}
-          onOpenChange={setShowDeleteDialog}
-        />
+        </Tabs>
       </div>
-    </div>
-  );
-}
-
-function Section({ title, children }) {
-  return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-black border-b pb-2">{title}</h2>
-      {children}
     </div>
   );
 }
