@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { exportarAtividadesFotosPDF } from '@/components/relatorio/ExportarAtividadesFotosPDF';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
@@ -127,7 +128,7 @@ export default function RevisaoFinalDialog({ relatorioId, relatorio, onClose }) 
 
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-3">
-      {showEmailConfirm && (
+      {showEmailConfirm && createPortal(
         <ExportarEmailConfirmDialog
           relatorioId={relatorioId}
           relatorio={r}
@@ -136,7 +137,8 @@ export default function RevisaoFinalDialog({ relatorioId, relatorio, onClose }) 
             setShowEmailConfirm(false);
             setExportacaoEnviada(true);
           }}
-        />
+        />,
+        document.body
       )}
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col">
         {/* Header */}
