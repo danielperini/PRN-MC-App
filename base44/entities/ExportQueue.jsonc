@@ -12,11 +12,19 @@
     },
     "folder_id": {
       "type": "string",
-      "description": "ID da pasta no Google Drive"
+      "description": "ID da pasta raiz do relat\u00f3rio no Google Drive"
     },
     "folder_link": {
       "type": "string",
-      "description": "Link da pasta no Drive"
+      "description": "Link da pasta raiz no Drive"
+    },
+    "folder_capitulos_id": {
+      "type": "string",
+      "description": "ID da subpasta 'Cap\u00edtulos' dentro da pasta do relat\u00f3rio"
+    },
+    "folder_fotos_id": {
+      "type": "string",
+      "description": "ID da subpasta 'Fotos' dentro da pasta do relat\u00f3rio"
     },
     "nome_relatorio": {
       "type": "string",

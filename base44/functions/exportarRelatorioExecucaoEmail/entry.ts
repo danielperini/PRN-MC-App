@@ -533,21 +533,25 @@ Deno.serve(async (req) => {
       let resultado = null;
       let erro = null;
 
+      // Subpastas: usa as do job, ou cai de volta na pasta raiz
+      const capPastaId  = job.folder_capitulos_id || job.folder_id;
+      const fotosPastaId = job.folder_fotos_id   || job.folder_id;
+
       try {
         if (parte === 0) {
           await base44Client.asServiceRole.entities.ExportQueue.update(job_id, { parte_atual: 'Parte 1 — Identificação e Público' });
           const pdf = gerarParte1(rel);
-          const file = await uploadPDFToDrive(base44Client, pdf, `${job.nome_relatorio}_Parte1_Identificacao.pdf`, job.folder_id);
+          const file = await uploadPDFToDrive(base44Client, pdf, `${job.nome_relatorio}_Parte1_Identificacao.pdf`, capPastaId);
           resultado = { nome: 'Parte 1 — Identificação e Público', link: file.webViewLink, arquivo: file.name };
         } else if (parte === 1) {
           await base44Client.asServiceRole.entities.ExportQueue.update(job_id, { parte_atual: 'Parte 2 — Metas e Equipe' });
           const pdf = gerarParte2(rel);
-          const file = await uploadPDFToDrive(base44Client, pdf, `${job.nome_relatorio}_Parte2_Metas_Equipe.pdf`, job.folder_id);
+          const file = await uploadPDFToDrive(base44Client, pdf, `${job.nome_relatorio}_Parte2_Metas_Equipe.pdf`, capPastaId);
           resultado = { nome: 'Parte 2 — Cronograma de Metas e Equipe', link: file.webViewLink, arquivo: file.name };
         } else if (parte === 2) {
           await base44Client.asServiceRole.entities.ExportQueue.update(job_id, { parte_atual: 'Parte 3 — Impactos e Assinatura' });
           const pdf = gerarParte3(rel);
-          const file = await uploadPDFToDrive(base44Client, pdf, `${job.nome_relatorio}_Parte3_Impactos_Assinatura.pdf`, job.folder_id);
+          const file = await uploadPDFToDrive(base44Client, pdf, `${job.nome_relatorio}_Parte3_Impactos_Assinatura.pdf`, capPastaId);
           resultado = { nome: 'Parte 3 — Impactos, Avaliação e Assinatura', link: file.webViewLink, arquivo: file.name };
         } else if (loteIdx >= 0 && loteIdx < totalLotesFotos) {
           const lote = fotos.slice(loteIdx * 20, (loteIdx + 1) * 20);
@@ -555,7 +559,7 @@ Deno.serve(async (req) => {
           const fim = Math.min((loteIdx + 1) * 20, fotos.length).toString().padStart(3, '0');
           await base44Client.asServiceRole.entities.ExportQueue.update(job_id, { parte_atual: `Fotos ${ini}–${fim}` });
           const pdfFotos = await gerarGaleriaFotos(lote, loteIdx, totalLotesFotos, base44Client);
-          const file = await uploadPDFToDrive(base44Client, pdfFotos, `${job.nome_relatorio}_Fotos_${ini}-${fim}.pdf`, job.folder_id);
+          const file = await uploadPDFToDrive(base44Client, pdfFotos, `${job.nome_relatorio}_Fotos_${ini}-${fim}.pdf`, fotosPastaId);
           resultado = { nome: `Fotos ${ini}–${fim} (${lote.length} imagens)`, link: file.webViewLink, arquivo: file.name };
         }
       } catch (e) {
@@ -621,12 +625,26 @@ Deno.serve(async (req) => {
     const totalLotesFotos = fotos.length > 0 ? Math.ceil(fotos.length / 20) : 0;
     const totalPartes = 3 + totalLotesFotos;
 
-    // Cria ou reutiliza pasta no Drive
+    // Cria hierarquia de pastas organizada por ano/mês
+    // Estrutura: Museus Centro / Relatórios de Execução / 2026 / Jun-2026 / <nome_relatorio> / Capítulos | Fotos
     let folderId = rel.drive_backup_id || null;
     if (!folderId) {
-      folderId = await getOrCreateFolder(base44Client, `Relatório Execução — ${rel.data_inicio || ''} a ${rel.data_fim || ''}`, null);
+      const ano = (rel.data_fim || rel.data_inicio || '').slice(0, 4) || new Date().getFullYear().toString();
+      const mesNum = parseInt((rel.data_fim || rel.data_inicio || '').slice(5, 7) || '0');
+      const MESES_PT = ['', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+      const mesLabel = mesNum > 0 ? `${MESES_PT[mesNum]}-${ano}` : ano;
+
+      const rootId   = await getOrCreateFolder(base44Client, 'Museus Centro', null);
+      const execId   = await getOrCreateFolder(base44Client, 'Relatórios de Execução', rootId);
+      const anoId    = await getOrCreateFolder(base44Client, ano, execId);
+      const mesId    = await getOrCreateFolder(base44Client, mesLabel, anoId);
+      folderId       = await getOrCreateFolder(base44Client, nomeRelatorio, mesId);
     }
     const folderLink = await getFolderLink(base44Client, folderId).catch(() => `https://drive.google.com/drive/folders/${folderId}`);
+
+    // Subpastas dentro do relatório: Capítulos e Fotos
+    const capitulosId = await getOrCreateFolder(base44Client, 'Capítulos', folderId);
+    const fotosId     = await getOrCreateFolder(base44Client, 'Fotos', folderId);
 
     // Salva link no relatório
     if (!rel.drive_backup_id) {
@@ -637,7 +655,7 @@ Deno.serve(async (req) => {
       }).catch(() => {});
     }
 
-    // Cria job na fila
+    // Cria job na fila (inclui IDs das subpastas)
     const job = await base44Client.asServiceRole.entities.ExportQueue.create({
       relatorio_id,
       destinatario,
@@ -653,6 +671,9 @@ Deno.serve(async (req) => {
       erros: [],
       email_enviado: false,
       iniciado_em: new Date().toISOString(),
+      // subpastas para organização por tipo
+      folder_capitulos_id: capitulosId,
+      folder_fotos_id: fotosId,
     });
 
     return Response.json({
