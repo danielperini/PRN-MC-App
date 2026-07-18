@@ -382,6 +382,15 @@ function AuthenticatedApp() {
           }
         />
         <Route
+          path="/AuditoriaRubricas3Aditivo"
+          element={
+            <SafePage
+              Page={React.lazy(() => import('./pages/AuditoriaRubricas3Aditivo'))}
+              pageName="AuditoriaRubricas3Aditivo"
+            />
+          }
+        />
+        <Route
           path="/RelatorioAtividadesHtml"
           element={
             <SafePage
