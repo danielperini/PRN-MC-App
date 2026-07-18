@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { CheckCircle2, AlertCircle, TrendingUp, Users, BookOpen } from 'lucide-react';
+import { isRelatorioNoPeriodo } from '@/hooks/useMetasPeriodoFiltro';
 
 // Metas com quantitativos físicos definidos no Plano de Trabalho (3º + 4º Aditivo)
 const METAS_FISICAS = [
@@ -40,17 +41,11 @@ function classifyActivity(a) {
   const class_ = (a.classificacao || '').toLowerCase();
   const metaCod = (a.meta_codigo || a.meta_id || '').toLowerCase();
 
-  // Diária de educador
   if (nome.includes('diária') || nome.includes('diaria') || metaCod.includes('16')) return '16';
-  // Iemanjá
   if (nome.includes('iemanjá') || nome.includes('iemanja') || metaCod.includes('19')) return '19';
-  // Mostra
   if (nome.includes('mostra') || tipo.includes('mostra') || metaCod.includes('10')) return '10';
-  // Meta 20 — ações educativas/culturais mês 19–28
   if (metaCod.includes('20')) return '20';
-  // Cultural
   if (class_ === 'cultural' || tipo.includes('cultural') || tipo.includes('show') || tipo.includes('teatro') || tipo.includes('apresent') || tipo.includes('música')) return '6';
-  // Educativa
   if (class_ === 'educativa' || class_ === 'meta' || tipo.includes('educa') || tipo.includes('oficina') || tipo.includes('palestra') || tipo.includes('formação') || tipo.includes('roda')) return '5';
 
   return null;
@@ -62,7 +57,12 @@ function getMuseu(a) {
   return a.museu || 'Geral';
 }
 
-export default function CumprimentoMetasFisicas() {
+/**
+ * Props:
+ *  - dataInicio: { mes: string, ano: number } — opcional; se omitido, conta tudo
+ *  - dataFim:    { mes: string, ano: number } — opcional
+ */
+export default function CumprimentoMetasFisicas({ dataInicio, dataFim }) {
   const { data: relatorios = [], isLoading } = useQuery({
     queryKey: ['reports-para-metas-fisicas'],
     queryFn: () => base44.entities.Report.filter(
@@ -73,20 +73,24 @@ export default function CumprimentoMetasFisicas() {
     staleTime: 60000,
   });
 
-  // Achatamos todas as atividades de todos os relatórios
+  // Filtrar relatórios por período se filtro passado
+  const relatoriosFiltrados = useMemo(() => {
+    if (!dataInicio || !dataFim) return relatorios;
+    return relatorios.filter(r => isRelatorioNoPeriodo(r.mes_referencia, r.ano, dataInicio, dataFim));
+  }, [relatorios, dataInicio, dataFim]);
+
   const todasAtividades = useMemo(() => {
     const arr = [];
-    for (const r of relatorios) {
+    for (const r of relatoriosFiltrados) {
       for (const a of (r.atividades || [])) {
         arr.push({ ...a, _museu: getMuseu(a) });
       }
     }
     return arr;
-  }, [relatorios]);
+  }, [relatoriosFiltrados]);
 
-  // Contagem por meta e por museu
   const stats = useMemo(() => {
-    const counts = {}; // { '5': { total: N, porMuseu: { MHAB: N, ... } }, ... }
+    const counts = {};
     for (const meta of METAS_FISICAS) {
       counts[meta.numero] = { total: 0, porMuseu: {} };
       for (const m of MUSEUS_ORDEM) counts[meta.numero].porMuseu[m] = 0;
@@ -103,7 +107,6 @@ export default function CumprimentoMetasFisicas() {
     return counts;
   }, [todasAtividades]);
 
-  // Totalizador geral de ações culturais + educativas por museu (metas 5+6+20)
   const acoesPorMuseu = useMemo(() => {
     const tot = {};
     for (const m of MUSEUS_ORDEM) tot[m] = 0;
@@ -122,17 +125,19 @@ export default function CumprimentoMetasFisicas() {
     </div>
   );
 
+  const periodoLabel = dataInicio && dataFim
+    ? ` · ${dataInicio.mes}/${dataInicio.ano} – ${dataFim.mes}/${dataFim.ano}`
+    : '';
+
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h2 className="text-xl font-bold text-slate-900 tracking-tight">Cumprimento Físico das Metas</h2>
         <p className="text-sm text-slate-500 mt-0.5">
-          Atividades realizadas nos relatórios submetidos — 3º e 4º Aditivo
+          Atividades realizadas nos relatórios submetidos — 3º e 4º Aditivo{periodoLabel}
         </p>
       </div>
 
-      {/* Cards de metas físicas */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
         {METAS_FISICAS.map((meta) => {
           const realizado = stats[meta.numero]?.total || 0;
@@ -141,7 +146,6 @@ export default function CumprimentoMetasFisicas() {
 
           return (
             <div key={meta.numero} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
-              {/* Título + badge */}
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2">
                   {pct >= 100
@@ -157,7 +161,6 @@ export default function CumprimentoMetasFisicas() {
 
               <p className="text-sm font-semibold text-slate-800 leading-snug">{meta.titulo}</p>
 
-              {/* Progresso */}
               <div>
                 <div className="flex justify-between text-xs text-slate-500 mb-1">
                   <span>{realizado} realizada{realizado !== 1 ? 's' : ''}</span>
@@ -171,7 +174,6 @@ export default function CumprimentoMetasFisicas() {
                 </div>
               </div>
 
-              {/* Por museu */}
               {Object.values(porMuseu).some(v => v > 0) && (
                 <div className="grid grid-cols-2 gap-1">
                   {MUSEUS_ORDEM.filter(m => (porMuseu[m] || 0) > 0).map(m => (
@@ -207,12 +209,11 @@ export default function CumprimentoMetasFisicas() {
           ))}
         </div>
 
-        {/* Totalizadores Meta 5+6 vs 10+20 */}
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
           {[
-            { label: 'Educativas (Meta 5)',   valor: stats['5']?.total || 0,  meta: 60,  icon: BookOpen },
-            { label: 'Culturais (Meta 6)',    valor: stats['6']?.total || 0,  meta: 36,  icon: TrendingUp },
-            { label: 'Ações adicionais (Meta 20)', valor: stats['20']?.total || 0, meta: 30, icon: TrendingUp },
+            { label: 'Educativas (Meta 5)',        valor: stats['5']?.total || 0,  meta: 60,  icon: BookOpen },
+            { label: 'Culturais (Meta 6)',          valor: stats['6']?.total || 0,  meta: 36,  icon: TrendingUp },
+            { label: 'Ações adicionais (Meta 20)',  valor: stats['20']?.total || 0, meta: 30,  icon: TrendingUp },
           ].map(({ label, valor, meta, icon: Icon }) => (
             <div key={label} className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3">
               <Icon className="h-5 w-5 text-slate-500 flex-shrink-0" />

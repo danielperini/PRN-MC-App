@@ -28,6 +28,7 @@ import { consumeDashboardPriorityRefresh } from '@/utils/dashboardRefresh';
 import WelcomeSplash from '@/components/dashboard/WelcomeSplash';
 
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
+import useMetasPeriodoFiltro from '@/hooks/useMetasPeriodoFiltro';
 
 import { CACHE_KEYS } from '@/utils/constants';
 import { cacheService } from '@/lib/cacheService';
@@ -83,6 +84,7 @@ function DashboardCoordenadorView({
   dashboardViewMode,
   setDashboardViewMode,
   handleHardRefresh,
+  filtroMetas,
 }) {
   return (
     <div ref={containerRef} className="min-h-screen bg-background">
@@ -143,9 +145,9 @@ function DashboardCoordenadorView({
 
         <MetasCumprimentoPorMuseu rubricas={rubricas} />
 
-        <MetasAditivoSection rubricas={rubricas} />
+        <MetasAditivoSection rubricas={rubricas} filtro={filtroMetas} />
 
-        <CumprimentoMetasFisicas />
+        <CumprimentoMetasFisicas dataInicio={filtroMetas?.dataInicio} dataFim={filtroMetas?.dataFim} />
 
         <ResumoAtividadesPorMeta />
       </div>
@@ -463,6 +465,8 @@ function DashboardInner() {
 
   const { containerRef } = usePullToRefresh(handleRefresh);
 
+  const filtroMetas = useMetasPeriodoFiltro();
+
   const isInitialPageLoading =
     userLoading ||
     (!!currentUser?.email &&
@@ -543,8 +547,8 @@ function DashboardInner() {
           <GaleriaTickerCarousel />
           <NewsCarousel />
           <DiariamenteNosMuseus />
-          <MetasAditivoSection rubricas={rubricas} />
-          <CumprimentoMetasFisicas />
+          <MetasAditivoSection rubricas={rubricas} filtro={filtroMetas} />
+          <CumprimentoMetasFisicas dataInicio={filtroMetas.dataInicio} dataFim={filtroMetas.dataFim} />
           <ResumoAtividadesPorMeta />
           <DashboardPatrocinador />
         </div>
@@ -567,6 +571,7 @@ function DashboardInner() {
       dashboardViewMode={dashboardViewMode}
       setDashboardViewMode={setDashboardViewMode}
       handleHardRefresh={handleHardRefresh}
+      filtroMetas={filtroMetas}
     />
   );
 }
