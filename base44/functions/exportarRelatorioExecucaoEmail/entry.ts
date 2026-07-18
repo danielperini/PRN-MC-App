@@ -649,6 +649,20 @@ Deno.serve(async (req) => {
           drive_backup_at: new Date().toISOString(),
         }).catch(() => {});
 
+        // Registra no histórico de backups
+        await base44Client.asServiceRole.entities.BackupLog.create({
+          backup_type: 'reports',
+          entity_type: 'RELATORIO_EXECUCAO_EXPORT',
+          entity_id: job.relatorio_id,
+          drive_file_id: job.folder_id,
+          file_name: job.nome_relatorio,
+          status: novosErros.length > 0 ? 'concluido' : 'success',
+          processed_at: new Date().toISOString(),
+          files_copied: novosResultados.length,
+          details: `Exportação concluída: ${novosResultados.length} arquivo(s), ${novosErros.length} erro(s). Pasta: ${job.folder_link}`,
+          backup_folder_id: job.folder_id,
+        }).catch(() => {});
+
         updatePayload.status = novosErros.length === totalPartes ? 'erro' : 'concluido';
         updatePayload.email_enviado = true;
         updatePayload.concluido_em = new Date().toISOString();
@@ -673,35 +687,38 @@ Deno.serve(async (req) => {
     const totalLotesFotos = fotos.length > 0 ? Math.ceil(fotos.length / 20) : 0;
     const totalPartes = 3 + totalLotesFotos;
 
-    // Cria hierarquia de pastas organizada por ano/mês
-    // Estrutura: Museus Centro / Relatórios de Execução / 2026 / Jun-2026 / <nome_relatorio> / Capítulos | Fotos
-    let folderId = rel.drive_backup_id || null;
-    if (!folderId) {
-      const ano = (rel.data_fim || rel.data_inicio || '').slice(0, 4) || new Date().getFullYear().toString();
-      const mesNum = parseInt((rel.data_fim || rel.data_inicio || '').slice(5, 7) || '0');
-      const MESES_PT = ['', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-      const mesLabel = mesNum > 0 ? `${MESES_PT[mesNum]}-${ano}` : ano;
+    // Hierarquia de pastas organizada por ano/mês com histórico de versões
+    // Estrutura: Museus Centro / Relatórios de Execução / 2026 / Jun-2026 / <nome_relatorio> / <timestamp> / Capítulos | Fotos
+    const ano = (rel.data_fim || rel.data_inicio || '').slice(0, 4) || new Date().getFullYear().toString();
+    const mesNum = parseInt((rel.data_fim || rel.data_inicio || '').slice(5, 7) || '0');
+    const MESES_PT = ['', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const mesLabel = mesNum > 0 ? `${MESES_PT[mesNum]}-${ano}` : ano;
 
-      const rootId   = await getOrCreateFolder(base44Client, 'Museus Centro', null);
-      const execId   = await getOrCreateFolder(base44Client, 'Relatórios de Execução', rootId);
-      const anoId    = await getOrCreateFolder(base44Client, ano, execId);
-      const mesId    = await getOrCreateFolder(base44Client, mesLabel, anoId);
-      folderId       = await getOrCreateFolder(base44Client, nomeRelatorio, mesId);
-    }
+    // Pasta raiz do relatório (reutilizada entre exportações)
+    const rootId      = await getOrCreateFolder(base44Client, 'Museus Centro', null);
+    const execId      = await getOrCreateFolder(base44Client, 'Relatórios de Execução', rootId);
+    const anoId       = await getOrCreateFolder(base44Client, ano, execId);
+    const mesId       = await getOrCreateFolder(base44Client, mesLabel, anoId);
+    const relRootId   = await getOrCreateFolder(base44Client, nomeRelatorio, mesId);
+
+    // Subpasta com timestamp para manter histórico de cada exportação
+    const now = new Date();
+    const tsLabel = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}h${String(now.getMinutes()).padStart(2,'0')}`;
+    const versaoId    = await getOrCreateFolder(base44Client, tsLabel, relRootId);
+
+    // Subpastas Capítulos e Fotos dentro da versão
+    const capitulosId = await getOrCreateFolder(base44Client, 'Capítulos', versaoId);
+    const fotosId     = await getOrCreateFolder(base44Client, 'Fotos', versaoId);
+    const folderId    = versaoId;
+
     const folderLink = await getFolderLink(base44Client, folderId).catch(() => `https://drive.google.com/drive/folders/${folderId}`);
 
-    // Subpastas dentro do relatório: Capítulos e Fotos
-    const capitulosId = await getOrCreateFolder(base44Client, 'Capítulos', folderId);
-    const fotosId     = await getOrCreateFolder(base44Client, 'Fotos', folderId);
-
-    // Salva link no relatório
-    if (!rel.drive_backup_id) {
-      await base44Client.asServiceRole.entities.RelatorioExecucaoObjeto.update(relatorio_id, {
-        drive_backup_id: folderId,
-        drive_backup_url: folderLink,
-        drive_backup_status: 'em_processamento',
-      }).catch(() => {});
-    }
+    // Salva referência da exportação mais recente no relatório
+    await base44Client.asServiceRole.entities.RelatorioExecucaoObjeto.update(relatorio_id, {
+      drive_backup_id: relRootId,
+      drive_backup_url: `https://drive.google.com/drive/folders/${relRootId}`,
+      drive_backup_status: 'em_processamento',
+    }).catch(() => {});
 
     // Cria job na fila (inclui IDs das subpastas)
     const job = await base44Client.asServiceRole.entities.ExportQueue.create({

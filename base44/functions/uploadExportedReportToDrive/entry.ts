@@ -1,6 +1,6 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 
-// Pasta de Documentos (relatórios PDF, JSON, XLSX)
+// Pasta raiz de Documentos no Drive
 const DOCUMENTOS_FOLDER_ID = '1psLJvyj6sNuO7kscJIjrCsINgRBTQq_1';
 
 async function findFolder(accessToken, folderName, parentFolderId) {
@@ -62,8 +62,8 @@ Deno.serve(async (req) => {
 
     const { accessToken } = await base44.asServiceRole.connectors.getConnection('googledrive');
 
-    // Estrutura: Documentos / Relatórios PDF / Ano / Mês / Usuário
-    const relPdfFolderId = await getOrCreateFolder(accessToken, 'Relatórios PDF', DOCUMENTOS_FOLDER_ID);
+    // Estrutura: Documentos / Relatórios Mensais / Ano / Mês / Usuário / <timestamp>
+    const relPdfFolderId = await getOrCreateFolder(accessToken, 'Relatórios Mensais', DOCUMENTOS_FOLDER_ID);
     const ano = (report.ano || new Date().getFullYear()).toString();
     const anoFolderId = await getOrCreateFolder(accessToken, ano, relPdfFolderId);
     const mesNum = MES_MAP[report.mes_referencia] || '00';
@@ -72,7 +72,12 @@ Deno.serve(async (req) => {
     const userName = (report.author_name || user.full_name || 'usuario').replace(/[\/\\:*?"<>|]/g, '_');
     const userFolderId = await getOrCreateFolder(accessToken, userName, mesFolderId);
 
-    // Upload do PDF (conteúdo enviado como base64 ou texto)
+    // Subpasta com timestamp para histórico de exportações repetidas
+    const now = new Date();
+    const tsLabel = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}h${String(now.getMinutes()).padStart(2,'0')}`;
+    const versaoFolderId = await getOrCreateFolder(accessToken, tsLabel, userFolderId);
+
+    // Upload do PDF na subpasta versionada
     const pdfFileName = file_name || `${report.numero_protocolo || report.id}.pdf`;
     let pdfBuffer;
     if (typeof pdf_content === 'string' && pdf_content.startsWith('data:')) {
@@ -82,15 +87,15 @@ Deno.serve(async (req) => {
       pdfBuffer = new TextEncoder().encode(pdf_content);
     }
 
-    const uploadResult = await uploadFileBinary(accessToken, pdfFileName, pdfBuffer, 'application/pdf', userFolderId);
+    const uploadResult = await uploadFileBinary(accessToken, pdfFileName, pdfBuffer, 'application/pdf', versaoFolderId);
 
     // Processar anexos do relatório
     const allAttachments = await base44.entities.Attachment.filter({ report_id }, '-created_date', 200);
     let attachmentsCount = 0;
     let fotosCount = 0;
 
-    const fotosFolderId = await getOrCreateFolder(accessToken, 'Fotos', userFolderId);
-    const anexosFolderId = await getOrCreateFolder(accessToken, 'Anexos', userFolderId);
+    const fotosFolderId = await getOrCreateFolder(accessToken, 'Fotos', versaoFolderId);
+    const anexosFolderId = await getOrCreateFolder(accessToken, 'Anexos', versaoFolderId);
 
     for (const attachment of allAttachments) {
       if (!attachment.file_url) continue;
@@ -113,15 +118,29 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Registrar no histórico de backups
+    await base44.asServiceRole.entities.BackupLog.create({
+      backup_type: 'reports',
+      entity_type: 'REPORT_PDF_EXPORT',
+      entity_id: report_id,
+      drive_file_id: uploadResult.id,
+      file_name: pdfFileName,
+      status: 'success',
+      processed_at: new Date().toISOString(),
+      details: `PDF exportado — ${report.author_name || user.full_name} — ${mesLabel}/${ano} — versão ${tsLabel}`,
+      backup_folder_id: versaoFolderId,
+    }).catch(() => {});
+
     return Response.json({
       success: true,
-      message: 'Relatório exportado salvo em Documentos/Relatórios PDF',
+      message: 'Relatório exportado salvo com histórico de versões no Drive',
       report_id,
       file_uploaded: pdfFileName,
       attachments_count: attachmentsCount,
       fotos_count: fotosCount,
-      drive_path: `Documentos/Relatórios PDF/${ano}/${mesLabel}/${userName}`,
-      drive_folder_id: userFolderId
+      drive_path: `Documentos/Relatórios Mensais/${ano}/${mesLabel}/${userName}/${tsLabel}`,
+      drive_folder_id: versaoFolderId,
+      drive_root_folder_id: userFolderId,
     });
 
   } catch (error) {
