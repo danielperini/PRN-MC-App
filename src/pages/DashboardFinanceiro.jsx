@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import RequireAuth from '../components/auth/RequireAuth';
 import { useCurrentUser } from '../components/auth/useCurrentUser';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { DollarSign, TrendingUp, AlertCircle, Filter, Plus, CheckCircle2, Wallet, FileSearch } from 'lucide-react';
+import { DollarSign, TrendingUp, AlertCircle, Filter, Plus, Wallet, FileSearch } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toastMessages } from '@/lib/toastMessages';
@@ -12,7 +12,6 @@ import NovaRubricaDialog from '@/components/rubricas/NovaRubricaDialog';
 import { canManageRubricas } from '@/components/auth/permissions';
 import PainelPrevistoVsUtilizado from '@/components/financeiro/PainelPrevistoVsUtilizado';
 import MemoriaCalculoDrawer from '@/components/financeiro/MemoriaCalculoDrawer';
-import AuditarRubricasModal from '@/components/financeiro/AuditarRubricasModal';
 import { calcularExecucaoOrcamentariaOficial, isOrigemAditivo } from '@/services/canonicalMetrics';
 
 function DashboardFinanceiroInner() {
@@ -22,7 +21,6 @@ function DashboardFinanceiroInner() {
   const [filterEquipe, setFilterEquipe] = useState('');
   const [showNovaRubrica, setShowNovaRubrica] = useState(false);
   const [showMemoria, setShowMemoria] = useState(false);
-  const [showAuditoria, setShowAuditoria] = useState(false);
   const canManage = canManageRubricas(currentUser);
 
   // Carregar dados financeiros
@@ -170,6 +168,16 @@ function DashboardFinanceiroInner() {
     return { totalTermos, totalPagamentos, totalInvoices, totalGasto };
   }, [termos, pagamentos, invoices]);
 
+  // ── Auditoria automática silenciosa ao carregar (coordenadores) ──
+  const [auditoriaConcluida, setAuditoriaConcluida] = useState(false);
+  React.useEffect(() => {
+    if (!isCoordenador || auditoriaConcluida || rubricas.length === 0) return;
+    setAuditoriaConcluida(true);
+    base44.functions.invoke('corrigirRubricasOrcamento3Aditivo', { dry_run: false })
+      .then(() => queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey?.[0] || '').toLowerCase().includes('rubrica') }))
+      .catch(() => {/* silencioso */});
+  }, [isCoordenador, auditoriaConcluida, rubricas.length]);
+
   // ── Execução orçamentária oficial — ÚNICA FONTE DE VERDADE ──
   const execucaoOficial = useMemo(() => calcularExecucaoOrcamentariaOficial(rubricas), [rubricas]);
 
@@ -213,16 +221,10 @@ function DashboardFinanceiroInner() {
             <p className="text-gray-500">Consolidação de gastos, fornecedores e orçamentos</p>
           </div>
           {canManage && (
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setShowAuditoria(true)} className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4" />
-                Auditar Rubricas
-              </Button>
-              <Button onClick={() => setShowNovaRubrica(true)} className="bg-black hover:bg-gray-800 text-white">
-                <Plus className="w-4 h-4 mr-2" />
-                Nova Rubrica
-              </Button>
-            </div>
+            <Button onClick={() => setShowNovaRubrica(true)} className="bg-black hover:bg-gray-800 text-white">
+              <Plus className="w-4 h-4 mr-2" />
+              Nova Rubrica
+            </Button>
           )}
         </div>
 
@@ -483,11 +485,7 @@ function DashboardFinanceiroInner() {
           )}
         </div>
       </div>
-      <AuditarRubricasModal
-        open={showAuditoria}
-        onClose={() => setShowAuditoria(false)}
-        onConcluido={() => queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey?.[0] || '').toLowerCase().includes('rubrica') })}
-      />
+
       <NovaRubricaDialog
         open={showNovaRubrica}
         currentUser={currentUser}
