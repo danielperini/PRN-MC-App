@@ -16,7 +16,7 @@ try {
 } catch { /* noop */ }
 const DEFAULT_TTL = 2 * 60 * 1000;
 const DEFAULT_STALE_TTL = 24 * 60 * 60 * 1000;
-const ENTITY_TIMEOUT_MS = 12000;
+const ENTITY_TIMEOUT_MS = 25000;
 
 export const MUSEUM_SECTIONS = {
   MHAB: { key: 'MHAB', title: 'MHAB — Museu Histórico Abílio Barreto', shortTitle: 'MHAB', coordinates: '-19.936787, -43.947651' },
@@ -190,15 +190,50 @@ async function safeEntityList(entityName, order, limit, { quietMissing = false }
   }
 }
 
+// Busca TODOS os registros paginando de PAGE_SIZE em PAGE_SIZE até não restar mais
+const PAGE_SIZE = 500;
+async function fetchAllPages(entityName, order, { quietMissing = false } = {}) {
+  const entity = base44?.entities?.[entityName];
+  if (!entity?.filter) {
+    // fallback para list com limite alto
+    return safeEntityList(entityName, order, 9999, { quietMissing });
+  }
+  const all = [];
+  let skip = 0;
+  let hasMore = true;
+  while (hasMore) {
+    try {
+      const page = await withTimeout(
+        entity.filter({}, order, PAGE_SIZE, skip),
+        `${entityName} p${skip / PAGE_SIZE + 1}`,
+        20000
+      );
+      const items = Array.isArray(page) ? page : [];
+      all.push(...items);
+      if (items.length < PAGE_SIZE) {
+        hasMore = false;
+      } else {
+        skip += PAGE_SIZE;
+      }
+    } catch (error) {
+      const status = Number(error?.response?.status || error?.status || 0);
+      if (!quietMissing || status !== 404) console.warn(`[Galeria] ${entityName} falha na paginação skip=${skip}.`, error);
+      hasMore = false;
+    }
+  }
+  return all;
+}
+
 export async function loadGalleryReportData({
   limitMedia = 0,
-  limitAttachments = 1200,
+  limitAttachments = 0, // 0 = sem limite (paginação automática)
   useCache = true,
   cacheKey = DEFAULT_CACHE_KEY,
   cacheTtlMs = DEFAULT_TTL,
   staleCacheTtlMs = DEFAULT_STALE_TTL,
 } = {}) {
   void limitMedia;
+  void limitAttachments; // ignorado — sempre busca tudo via paginação
   if (useCache) {
     const cached = readCache(cacheKey, cacheTtlMs);
     if (cached) return { ...cached, cacheUsed: true };
@@ -207,8 +242,8 @@ export async function loadGalleryReportData({
   const images = [];
   try {
     const [attachments, reportPhotos] = await Promise.all([
-      safeEntityList('Attachment', '-created_date', limitAttachments),
-      safeEntityList('ReportPhoto', '-created_date', 5000, { quietMissing: true }),
+      fetchAllPages('Attachment', '-created_date'),
+      fetchAllPages('ReportPhoto', '-created_date', { quietMissing: true }),
     ]);
     images.push(...attachments.filter((item) => item?.file_url && (isImageByMime(item.file_type) || isImageByFileName(item.file_name))).map((item) => mapPhoto(item, 'Attachment')));
     images.push(...reportPhotos.filter((item) => item?.file_url && (isImageByMime(item.file_type) || isImageByFileName(item.file_name) || /^https?:/i.test(item.file_url))).map((item) => mapPhoto(item, 'ReportPhoto')));
