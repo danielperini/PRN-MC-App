@@ -5,7 +5,7 @@ import LoadingPage from '@/components/common/LoadingPage';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Images, MapPin, RefreshCw, X, Filter, CheckCircle2, Moon, ExternalLink, BookImage, ChevronDown, Eye, HardDriveDownload, TriangleAlert, FileDown, Pencil, Check } from 'lucide-react';
+import { Images, MapPin, RefreshCw, X, Filter, CheckCircle2, Moon, ExternalLink, BookImage, ChevronDown, Eye, HardDriveDownload, TriangleAlert, FileDown, Pencil, Check, MoreVertical } from 'lucide-react';
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
   DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
@@ -326,18 +326,7 @@ function GaleriaFotosInner() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {/* 1. Atualizar */}
-            <button
-              type="button"
-              onClick={async () => { clearGalleryCache(); await refetch(); }}
-              aria-label="Atualizar galeria"
-              className="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-100 transition-colors"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Atualizar
-            </button>
-
-            {/* 2. Visualizações */}
+            {/* 1. Visualizações */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -371,27 +360,44 @@ function GaleriaFotosInner() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* 3. Drive e Backup */}
+            {/* 2. Exportar PDF */}
+            <button
+              type="button"
+              onClick={() => setShowExportarPDF(true)}
+              className="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-100 transition-colors"
+            >
+              <FileDown className="h-4 w-4" />
+              Exportar PDF
+            </button>
+
+            {/* 3. Menu ⋮ */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  aria-label="Drive e Backup"
-                  className="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-100 transition-colors"
+                  aria-label="Mais ações"
+                  className="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white p-2 text-gray-700 shadow-sm hover:bg-gray-100 transition-colors"
                 >
                   <HardDriveDownload className="h-4 w-4" />
-                  Drive e Backup
-                  <ChevronDown className="h-3.5 w-3.5 opacity-60" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-72">
-                <DropdownMenuLabel className="text-xs text-gray-500 uppercase tracking-wide">Google Drive</DropdownMenuLabel>
+                <DropdownMenuLabel className="text-xs text-gray-500 uppercase tracking-wide">Ações</DropdownMenuLabel>
+                <DropdownMenuItem
+                  onClick={async () => { clearGalleryCache(); await refetch(); }}
+                  className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer"
+                >
+                  <span className="font-medium text-gray-900 flex items-center gap-1.5">
+                    <RefreshCw className="h-3.5 w-3.5" /> Atualizar galeria
+                  </span>
+                  <span className="text-xs text-gray-500 pl-5">Limpa o cache e recarrega todas as fotos.</span>
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => setShowSincInventario(true)}
                   className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer"
                 >
                   <span className="font-medium text-gray-900 flex items-center gap-1.5">
-                    <HardDriveDownload className="h-3.5 w-3.5" /> Sincronizar Drive
+                    <HardDriveDownload className="h-3.5 w-3.5" /> Sincronizar Drive agora
                   </span>
                   <span className="text-xs text-gray-500 pl-5">Envia e atualiza os arquivos da galeria no Google Drive.</span>
                 </DropdownMenuItem>
@@ -411,16 +417,6 @@ function GaleriaFotosInner() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-
-            {/* 4. Exportar PDF */}
-            <button
-              type="button"
-              onClick={() => setShowExportarPDF(true)}
-              className="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-100 transition-colors"
-            >
-              <FileDown className="h-4 w-4" />
-              Exportar PDF
-            </button>
           </div>
         </div>
 

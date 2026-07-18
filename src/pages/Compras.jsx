@@ -23,9 +23,7 @@ import {
   ShieldCheck,
   User,
   FileText,
-  FileSpreadsheet,
   AlertTriangle,
-  Scissors,
   Loader2,
   X } from
 'lucide-react';
@@ -796,14 +794,7 @@ function ComprasInner() {
   }
 
   async function recalcularTodasRubricas() {
-    if (
-    !window.confirm(
-      'Executar agora a restauração/recalculo das rubricas oficiais do 3º Aditivo?'
-    ))
-    {
-      return;
-    }
-
+    toast.info('Executando recálculo das rubricas oficiais do 3º Aditivo...');
     setRecalculando(true);
 
     try {
@@ -943,115 +934,6 @@ function ComprasInner() {
           </div>
 
           <div className="flex gap-2">
-            {isCoordenador &&
-            <>
-                <Button
-                variant="outline"
-                className="gap-2 border-indigo-300 text-indigo-700 hover:bg-indigo-50 hidden"
-                onClick={async () => {
-                  if (!window.confirm('Processar backup no Drive para todas as solicitações aprovadas sem backup? Isso pode levar alguns minutos.')) return;
-                  try {
-                    toast.info('Iniciando backup em lote...');
-                    let cursor = 0;
-                    let totalProcessados = 0;
-                    let loops = 0;
-                    const maxLoops = 50;
-
-                    while (loops < maxLoops) {
-                      loops++;
-                      const res = await base44.functions.invoke('driveBackupPurchase', { cursor: String(cursor) });
-                      const r = res?.data || res;
-
-                      if (!r?.success) throw new Error(r?.error || 'Erro no processamento');
-
-                      totalProcessados += r.processados || 0;
-                      toast.info(`Processando lote ${loops}: ${r.processados || 0} solicitações...`);
-
-                      if (!r.temMais) {
-                        toast.success(`✅ Backup concluído! ${totalProcessados} solicitações processadas.`);
-                        break;
-                      }
-                      cursor = r.cursor;
-                    }
-
-                    await refreshFinanceiroCompleto();
-                  } catch (e) {
-                    toast.error('❌ Erro: ' + (e?.message || 'desconhecido'));
-                  }
-                }}>
-                
-                  <FileText className="h-4 w-4" />
-                  Backup Compras
-                </Button>
-
-                <Button
-                variant="outline"
-                className="gap-2 border-green-300 text-green-700 hover:bg-green-50 hidden"
-                onClick={async () => {
-                  if (!window.confirm('Processar backup no Drive para todos os relatórios aprovados? Isso organiza os relatórios por tipo, ano e mês.')) return;
-                  try {
-                    toast.info('Iniciando backup de relatórios...');
-                    let cursor = 0;
-                    let totalProcessados = 0;
-                    let loops = 0;
-                    const maxLoops = 50;
-
-                    while (loops < maxLoops) {
-                      loops++;
-                      const res = await base44.functions.invoke('backupRelatoriosDrive', { cursor: String(cursor) });
-                      const r = res?.data || res;
-
-                      if (!r?.success) throw new Error(r?.error || 'Erro no processamento');
-
-                      totalProcessados += r.processados || 0;
-                      if (r.erros > 0) {
-                        toast.warning(`Lote ${loops}: ${r.processados} relatórios processados, ${r.erros} erros`);
-                      } else {
-                        toast.info(`Processando lote ${loops}: ${r.processados} relatórios...`);
-                      }
-
-                      if (!r.temMais) {
-                        toast.success(`✅ Backup de relatórios concluído! ${totalProcessados} relatórios processados.`);
-                        break;
-                      }
-                      cursor = r.cursor;
-                    }
-
-                    await refreshFinanceiroCompleto();
-                  } catch (e) {
-                    toast.error('❌ Erro: ' + (e?.message || 'desconhecido'));
-                  }
-                }}>
-                
-                  <FileText className="h-4 w-4" />
-                  Backup Relatórios
-                </Button>
-              </>
-            }
-
-            {isCoordenador &&
-            <Button
-              variant="outline"
-              className="gap-2 border-amber-300 text-amber-700 hover:bg-amber-50 hidden"
-              onClick={limparSolicitacoesDuplicadas}
-              disabled={limpandoDuplicatas}>
-              
-                <Scissors className="h-4 w-4" />
-                {limpandoDuplicatas ? 'Limpando...' : 'Remover Duplicatas'}
-              </Button>
-            }
-
-            {isCoordenador &&
-            <Button
-              variant="outline"
-              className="gap-2 border-black hidden"
-              onClick={() => setShowRelatorioMensal(true)}>
-              
-                <FileSpreadsheet className="h-4 w-4" />
-                Relatório Mensal NF
-              </Button>
-            }
-
             <Button
               className="bg-black text-white hover:bg-gray-800"
               onClick={() => {
@@ -1338,10 +1220,6 @@ function ComprasInner() {
               <p className="text-sm text-gray-500">
                 {filtered.length} solicitaç{filtered.length !== 1 ? 'ões' : 'ão'}
               </p>
-
-              {isCoordenador &&
-                <RecalcularTotaisButton onDone={refreshFinanceiroCompleto} />
-              }
             </div>
 
             {filtered.length === 0 ?
@@ -1640,6 +1518,9 @@ function ComprasInner() {
 
         {tab === 'verificacao' && isCoordenador &&
         <div className="space-y-6">
+            <div className="flex justify-end">
+              <RecalcularTotaisButton onDone={refreshFinanceiroCompleto} />
+            </div>
             <PainelVerificacaoFinanceira onSuccess={refreshFinanceiroCompleto} />
             <PainelAuditoriaMetas onSuccess={refreshFinanceiroCompleto} />
             <div className="rounded-2xl border border-gray-200 bg-white p-4">

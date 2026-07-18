@@ -26,8 +26,13 @@ import {
   Mail,
   Link2,
   FileSignature,
-  ArrowRight } from
+  ArrowRight,
+  Settings } from
 'lucide-react';
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
+  DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 import ImportarPacoteRelatorios from '@/components/entrada/ImportarPacoteRelatorios';
 
 function normalizeText(value) {
@@ -1468,47 +1473,61 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
                 </div>
 
                 {user?.role === 'admin' &&
-                <div className="flex flex-wrap gap-2 mt-1">
-                    <button
-                      onClick={handleSyncDrive}
-                      disabled={syncLoading}
-                      className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      {syncLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <HardDrive className="w-3.5 h-3.5" />}
-                      Sync Drive
-                    </button>
-                    <button
-                      onClick={handleSyncGmail}
-                      disabled={syncGmailLoading}
-                      className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      {syncGmailLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
-                      Sync Gmail
-                    </button>
-                    <button
-                      onClick={handleAutoVinculo}
-                      disabled={autoVinculoLoading}
-                      className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      {autoVinculoLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
-                      Auto-vincular
-                    </button>
-                    <button
-                      onClick={handleReanalisarPendentes}
-                      disabled={filaProcessando}
-                      className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      {filaProcessando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                      Reanalisar
-                    </button>
-                    <button
-                      onClick={handlePadronizarNomes}
-                      disabled={padronizarLoading}
-                      className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      {padronizarLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileSignature className="w-3.5 h-3.5" />}
-                      Padronizar nomes
-                    </button>
+                <div className="mt-1">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+                        >
+                          <Settings className="w-3.5 h-3.5" />
+                          Ações admin
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-60">
+                        <DropdownMenuLabel className="text-xs text-gray-500 uppercase tracking-wide">Administração</DropdownMenuLabel>
+                        <DropdownMenuItem
+                          onClick={handleSyncDrive}
+                          disabled={syncLoading}
+                          className="flex items-center gap-2 cursor-pointer"
+                        >
+                          {syncLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <HardDrive className="w-3.5 h-3.5" />}
+                          Sync Drive
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={handleSyncGmail}
+                          disabled={syncGmailLoading}
+                          className="flex items-center gap-2 cursor-pointer"
+                        >
+                          {syncGmailLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
+                          Sync Gmail
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={handleAutoVinculo}
+                          disabled={autoVinculoLoading}
+                          className="flex items-center gap-2 cursor-pointer"
+                        >
+                          {autoVinculoLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
+                          Auto-vincular documentos
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={handleReanalisarPendentes}
+                          disabled={filaProcessando}
+                          className="flex items-center gap-2 cursor-pointer"
+                        >
+                          {filaProcessando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                          Reanalisar pendentes
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={handlePadronizarNomes}
+                          disabled={padronizarLoading}
+                          className="flex items-center gap-2 cursor-pointer"
+                        >
+                          {padronizarLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileSignature className="w-3.5 h-3.5" />}
+                          Padronizar nomes
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 }
               </div>

@@ -1003,40 +1003,6 @@ export default function ReportEditor() {
         </div>
       )}
 
-      <div className="flex flex-col md:flex-row gap-3 pt-4 border-t border-gray-200">
-        {canEdit && (
-          <>
-            <Button
-              variant="outline"
-              onClick={handleSave}
-              disabled={saving}
-              className="gap-2"
-            >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              {saving ? 'Salvando...' : 'Salvar rascunho'}
-            </Button>
-
-            <Button
-              onClick={handleSubmit}
-              disabled={submitting}
-              className="gap-2 bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              {submitting ? 'Enviando...' : 'Enviar para revisão'}
-            </Button>
-          </>
-        )}
-
-        <Button
-          variant="outline"
-          onClick={handleExportPdf}
-          disabled={exportingPdf}
-          className="gap-2 md:ml-auto"
-        >
-          {exportingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
-          {exportingPdf ? 'Gerando PDF...' : 'Exportar PDF para assinatura'}
-        </Button>
-      </div>
     </div>
   );
 }
