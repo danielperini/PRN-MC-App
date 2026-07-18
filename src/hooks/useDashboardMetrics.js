@@ -115,7 +115,16 @@ export function useDashboardMetrics(reports = [], rubricas = []) {
     );
 
     // ── Rubricas (canônico) ──
-    const rubricasAtivas = safeRubricas.filter((r) => r?.ativo !== false);
+    // FONTE DE VERDADE: apenas 3º e 4º Aditivo (R$ 1.401.719,85)
+    // Rubricas com origem "Repasse / Aditivos Anteriores" NÃO entram no previsto oficial
+    const rubricasAtivas = safeRubricas.filter((r) => {
+      if (r?.ativo === false) return false;
+      const origem = (r?.origem_recurso || '').trim();
+      return (
+        origem === '3º ADITIVO' || origem === '3º Aditivo' ||
+        origem === '4º ADITIVO' || origem === '4º Aditivo'
+      );
+    });
     let totalPrevisto = 0;
     let totalUtilizado = 0;
     let rubricasExcedidas = 0;

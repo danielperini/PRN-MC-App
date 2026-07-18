@@ -175,11 +175,13 @@ function DashboardFinanceiroInner() {
     const grupos = { '3': { previsto: 0, utilizado: 0, count: 0 }, '4': { previsto: 0, utilizado: 0, count: 0 } };
 
     rubricas.forEach(r => {
+      if (r?.ativo === false) return;
       const origem = (r.origem_recurso || '').trim();
       let chave = null;
+      // FONTE DE VERDADE: apenas 3º e 4º Aditivo (R$ 1.401.719,85 oficial)
       if (origem === '3º ADITIVO' || origem === '3º Aditivo') chave = '3';
       else if (origem === '4º ADITIVO' || origem === '4º Aditivo') chave = '4';
-      if (!chave) return;
+      if (!chave) return; // ignora "Repasse / Aditivos Anteriores" e outros
 
       // aliases canônicos — mesma ordem de useDashboardMetrics
       grupos[chave].previsto += Number(r?.valor_rubrica ?? r?.valor_total ?? r?.valor_previsto ?? r?.valor ?? 0);
@@ -198,8 +200,14 @@ function DashboardFinanceiroInner() {
   }, [rubricas]);
 
   const saldoTotalReal = useMemo(() => {
+    // FONTE DE VERDADE CANÔNICA: apenas 3º e 4º Aditivo = R$ 1.401.719,85
     const previsto = saldoAditivos.reduce((s, a) => s + a.previsto, 0);
     const utilizado = saldoAditivos.reduce((s, a) => s + a.utilizado, 0);
+    const ORCAMENTO_OFICIAL = 1_401_719.85;
+    const divergencia = Math.abs(previsto - ORCAMENTO_OFICIAL);
+    if (divergencia > 1) {
+      console.warn(`[OrcamentoOficial] Divergência detectada: encontrado R$ ${previsto.toFixed(2)}, esperado R$ ${ORCAMENTO_OFICIAL.toFixed(2)}, diff R$ ${divergencia.toFixed(2)}`);
+    }
     return { previsto, utilizado, saldo: previsto - utilizado };
   }, [saldoAditivos]);
 
