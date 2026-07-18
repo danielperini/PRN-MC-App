@@ -307,11 +307,26 @@ export function calculateAditivoTotals(purchases = []) {
 }
 
 function getRubricaPrevisto(r) {
-  return toNumber(r?.valor_rubrica) || toNumber(r?.valor_total) || toNumber(r?.valor_previsto) || toNumber(r?.previsto);
+  // Alinhado com rubricaPrevisto() de canonicalMetrics.js
+  return (
+    toNumber(r?.valor_rubrica) ||
+    toNumber(r?.valor_total) ||
+    toNumber(r?.valor_previsto) ||
+    toNumber(r?.previsto) ||
+    toNumber(r?.valor) ||
+    0
+  );
 }
 
 function getRubricaUtilizado(r) {
-  return toNumber(r?.valor_utilizado) || toNumber(r?.utilizado);
+  // Alinhado com rubricaUtilizado() de canonicalMetrics.js
+  return (
+    toNumber(r?.valor_utilizado) ||
+    toNumber(r?.valor_executado) ||
+    toNumber(r?.utilizado) ||
+    toNumber(r?.realizado) ||
+    0
+  );
 }
 
 export function auditAditivoTotals(purchases = [], rubricas = []) {
