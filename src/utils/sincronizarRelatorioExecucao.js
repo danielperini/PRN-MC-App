@@ -5,29 +5,30 @@ import {
   nomeCanonicoMeta,
   normalizarTextoMeta,
 } from '@/utils/metasAditivosPermitidos';
+import {
+  CAMPOS_DATA,
+  CAMPOS_META_ID,
+  CAMPOS_META_NOME,
+  CAMPOS_PUBLICO,
+  CAMPOS_FOTO,
+  primeiroCampo,
+  resolvePublico,
+  resolveValor,
+  resolveData,
+  resolveFotoUrl,
+  resolveMetaId as _resolveMetaIdCanon,
+} from '@/utils/fieldResolvers';
 
 const STATUS_APROVADOS = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
-const CAMPOS_DATA = ['data', 'data_atividade', 'data_inicio', 'start_date', 'created_date'];
-const CAMPOS_META_ID = ['meta_id', 'project_meta_id', 'meta_projeto_id', 'metaProjetoId', 'projectMetaId', 'goal_id', 'project_goal_id', 'meta_codigo', 'codigo_meta', 'metaId', 'meta_vinculada_id'];
-const CAMPOS_META_NOME = ['meta_nome', 'nome_meta', 'meta_titulo', 'titulo_meta', 'meta_descricao', 'descricao_meta', 'meta_label', 'meta_texto', 'meta', 'meta_vinculada'];
-const CAMPOS_PUBLICO = ['publico_total', 'total_publico', 'publico_realizado', 'publico_presente', 'quantidade_publico', 'participantes', 'visitantes', 'presentes', 'attendance_count', 'total_participantes'];
-const CAMPOS_FOTO = ['file_url', 'foto_url', 'image_url', 'url', 'arquivo_url', 'photo_url', 'media_url'];
 const METAS_ANTIGAS = ['presente de iemanja', '60 acoes educativas', '36 acoes culturais', '18 mostras de baixa ou media complexidade', '101 diarias de educador', 'emenda parlamentar', 'meta de comunicacao institucional'];
 
+// dataISO e primeiro agora são importados de fieldResolvers como resolveData e primeiroCampo
 function dataISO(value) {
-  if (!value) return '';
-  const match = String(value).match(/\d{4}-\d{2}-\d{2}/);
-  if (match) return match[0];
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10);
+  return resolveData({ data: value });
 }
 
 function primeiro(item, campos) {
-  for (const campo of campos) {
-    const value = item?.[campo];
-    if (value !== undefined && value !== null && value !== '') return value;
-  }
-  return null;
+  return primeiroCampo(item, campos);
 }
 
 function texto(value) {
@@ -115,26 +116,13 @@ async function listar(nome, limite = 10000) {
   }
 }
 
+// valor e publico agora delegam para fieldResolvers
 function valor(item) {
-  const raw = item?.valor_pago ?? item?.valor_aprovado_admin ?? item?.valor_aprovado ?? item?.valor_final ?? item?.valor_solicitado ?? item?.valor_total ?? item?.valor ?? item?.nf_valor_total ?? 0;
-  if (typeof raw === 'string') {
-    const parsed = Number(raw.replace(/[R$\s.]/g, '').replace(',', '.'));
-    return Number.isFinite(parsed) ? parsed : 0;
-  }
-  const parsed = Number(raw);
-  return Number.isFinite(parsed) ? parsed : 0;
+  return resolveValor(item);
 }
 
 function publico(item) {
-  for (const campo of CAMPOS_PUBLICO) {
-    const value = item?.[campo];
-    if (Array.isArray(value)) return value.length;
-    const parsed = Number(value);
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  }
-  if (Array.isArray(item?.lista_presenca)) return item.lista_presenca.length;
-  if (Array.isArray(item?.participantes_lista)) return item.participantes_lista.length;
-  return 0;
+  return resolvePublico(item);
 }
 
 function metaDerivada(compra, metasPorId) {
@@ -199,8 +187,8 @@ function normalizarFoto(item, sourceEntity) {
   return {
     ...item,
     source_entity: sourceEntity,
-    file_url: primeiro(item, CAMPOS_FOTO),
-    data: primeiro(item, CAMPOS_DATA) || item?.updated_date,
+    file_url: resolveFotoUrl(item),
+    data: primeiroCampo(item, CAMPOS_DATA) || item?.updated_date,
     atividade_id: item?.activity_id || item?.atividade_id || item?.evento_id || item?.programacao_id || item?.report_id || '',
     atividade_nome: item?.atividade_titulo || item?.activity_title || item?.titulo || item?.title || item?.legenda || item?.caption || item?.descricao || item?.description || item?.file_name || 'Registro da atividade',
   };
