@@ -143,20 +143,21 @@ export default function RelatorioExecucaoObjeto() {
     carregarRelatorios();
   }, []);
 
-  // Auto-geração de seções vazias ao carregar um relatório
+  // Auto-geração de seções 9, 11, 12 ao carregar um relatório com essas seções vazias
   useEffect(() => {
     if (!relatorioId || !relatorio || loading || autoGerandoRef.current) return;
 
     const secoesAutoGerar = [
-      { key: 'impactos_economicos_sociais', label: 'Impactos econômicos e sociais' },
-      { key: 'avaliacao_parceria', label: 'Avaliação da parceria' },
-      { key: 'assinatura', label: 'Assinatura' },
+      { key: 'impactos_economicos_sociais', label: '9. Impactos Econômicos e Sociais' },
+      { key: 'avaliacao_parceria', label: '11. Avaliação da Parceria' },
+      { key: 'assinatura', label: '12. Assinatura' },
     ];
 
     function secaoVazia(sec) {
       if (!sec) return true;
       if (typeof sec === 'string') return !sec.trim();
-      return !sec.texto_ia && !sec.texto_editado;
+      if (typeof sec === 'object') return !sec.texto_ia && !sec.texto_editado && !sec.nome_representante;
+      return true;
     }
 
     const vazias = secoesAutoGerar.filter(({ key }) => secaoVazia(relatorio[key]));
@@ -184,9 +185,10 @@ export default function RelatorioExecucaoObjeto() {
       await carregarRelatorio(relatorioId);
       setAutoGerando(false);
       autoGerandoRef.current = false;
+      toast.success('Seções 9, 11 e 12 preenchidas automaticamente.');
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [relatorioId]);
+  }, [relatorioId, relatorio?.id]);
 
   async function carregarMetas() {
     setCarregandoMetas(true);

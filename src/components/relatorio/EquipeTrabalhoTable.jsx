@@ -24,11 +24,13 @@ export default function EquipeTrabalhoTable({ relatorioId, equipe: equipeInicial
   const [gerandoIA, setGerandoIA] = useState(false);
 
   useEffect(() => {
-    const lista = Array.isArray(equipeInicial) && equipeInicial.length > 0
-      ? equipeInicial.map(p => ({ ...linhaVazia(), ...p }))
-      : [linhaVazia()];
-    setProfissionais(lista);
-  }, [equipeInicial]);
+    // Atualiza o estado local quando a prop muda (ex: após geração por IA ou carregamento)
+    if (Array.isArray(equipeInicial) && equipeInicial.length > 0) {
+      setProfissionais(equipeInicial.map(p => ({ ...linhaVazia(), ...p })));
+    } else {
+      setProfissionais([linhaVazia()]);
+    }
+  }, [JSON.stringify(equipeInicial)]);
 
   function atualizar(idx, campo, valor) {
     setProfissionais(prev => prev.map((p, i) => i === idx ? { ...p, [campo]: valor } : p));
@@ -75,8 +77,11 @@ export default function EquipeTrabalhoTable({ relatorioId, equipe: equipeInicial
         }),
         new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 45000)),
       ]);
-      await onAtualizar?.();
-      toast.success('Equipe atualizada pela IA.');
+      // Recarregar o relatório e atualizar o estado local com os dados da IA
+      if (onAtualizar) {
+        await onAtualizar();
+      }
+      toast.success('Equipe preenchida pela IA — revise e salve se necessário.');
     } catch (error) {
       toast.error('Erro ao gerar com IA: ' + (error?.message || String(error)));
     } finally {
