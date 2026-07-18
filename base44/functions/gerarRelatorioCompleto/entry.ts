@@ -288,10 +288,99 @@ REGRAS:
       });
     }
 
+    // ── Recupera contexto de geração (com fallback: re-coleta se não estiver no cache) ───
+    async function obterContexto() {
+      // Tenta usar o campo cacheado
+      const rel = await srv.entities.RelatorioExecucaoObjeto.get(relatorio_id);
+      if (rel?._contexto_geracao && rel._contexto_geracao.gerado_em) return rel._contexto_geracao;
+
+      // Fallback: re-coleta dados essenciais sem salvar (evita timeout duplicado)
+      const [reports, activities, purchases, rubricas, metas, teamMembers, reportPhotos, programacoes, releases] = await Promise.all([
+        srv.entities.Report.filter({ status: { $in: ['APPROVED', 'SUBMITTED', 'IN_REVIEW'] } }, '-updated_date', 100).catch(() => []),
+        srv.entities.Activity.filter({ data_realizacao: { $gte: dInicio, $lte: dFim } }, '-data_realizacao', 300).catch(() => []),
+        srv.entities.PurchaseRequest.filter({ status: { $in: ['APROVADO_ADMIN', 'PAGO'] } }, '-created_date', 300).catch(() => []),
+        srv.entities.Rubrica.filter({ ativo: true }).catch(() => []),
+        srv.entities.ProjectMeta.list().catch(() => []),
+        srv.entities.TeamMember.filter({ status: 'ATIVO' }).catch(() => []),
+        srv.entities.ReportPhoto.filter({ galeria_oculta: false }, '-created_date', 200).catch(() => []),
+        srv.entities.Programacao.filter({ data: { $gte: dInicio, $lte: dFim } }).catch(() => []),
+        srv.entities.Release.list('-data_publicacao', 30).catch(() => []),
+      ]);
+
+      const atvsMuseu = museu ? activities.filter(a => (a.museu || '').includes(museu) || (a.centro_custo || '').includes(museu)) : activities;
+      const metasFiltradas = filtro_meta_ids.length > 0
+        ? metas.filter(m => filtro_meta_ids.includes(m.id))
+        : metas.filter(m => m.ativo !== false).sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
+
+      const citacoesEquipe = reports.slice(0, 20).map(r => ({
+        autor: r.author_name || 'Profissional', funcao: r.funcao || '', museu: r.museu || '',
+        mes: r.mes_referencia || '', ano: r.ano || '',
+        resumo: r.resumo_periodo || r.resumo_executivo || '',
+        destaques: r.avaliacao_pontos_positivos || '', total_atividades: (r.atividades || []).length,
+      }));
+
+      const totalAprovado = purchases.reduce((s, p) => s + parseValor(p), 0);
+      const totalRubricasPrevisto = rubricas.reduce((s, r) => s + (r.valor_rubrica || r.valor_total || 0), 0);
+      const totalRubricasUtilizado = rubricas.reduce((s, r) => s + (r.valor_utilizado || 0), 0);
+
+      const nfsPorMeta = {};
+      for (const p of purchases) {
+        const mid = p.meta_id || 'sem_meta';
+        if (!nfsPorMeta[mid]) nfsPorMeta[mid] = { total: 0, count: 0, itens: [] };
+        nfsPorMeta[mid].total += parseValor(p);
+        nfsPorMeta[mid].count++;
+        if (nfsPorMeta[mid].itens.length < 5) nfsPorMeta[mid].itens.push({ numero: p.nf_numero, fornecedor: p.nf_emitente_nome || p.fornecedor_nome, valor: parseValor(p), descricao: p.descricao_item });
+      }
+
+      const rubricasPorGrupo = {};
+      for (const r of rubricas) {
+        const grp = r.grupo || 'Geral';
+        if (!rubricasPorGrupo[grp]) rubricasPorGrupo[grp] = { previsto: 0, utilizado: 0, saldo: 0, rubricas: [] };
+        rubricasPorGrupo[grp].previsto += r.valor_rubrica || r.valor_total || 0;
+        rubricasPorGrupo[grp].utilizado += r.valor_utilizado || 0;
+        rubricasPorGrupo[grp].saldo += (r.saldo || (r.valor_rubrica || 0) - (r.valor_utilizado || 0));
+        if (rubricasPorGrupo[grp].rubricas.length < 8) rubricasPorGrupo[grp].rubricas.push({ nome: r.rubrica || r.nome, natureza: r.natureza_despesa, previsto: r.valor_rubrica || r.valor_total || 0, utilizado: r.valor_utilizado || 0, saldo: r.saldo || (r.valor_rubrica || 0) - (r.valor_utilizado || 0) });
+      }
+
+      const fotosPorMeta = {};
+      for (const f of reportPhotos) {
+        if (!f.file_url || !f.meta_id) continue;
+        if (!fotosPorMeta[f.meta_id]) fotosPorMeta[f.meta_id] = [];
+        if (fotosPorMeta[f.meta_id].length < 8) fotosPorMeta[f.meta_id].push({ url: f.file_url, legenda: f.caption || f.legenda || '', museu: f.museu || '', mes: f.mes_referencia || '' });
+      }
+
+      const atvsEnriquecidas = atvsMuseu.map(a => ({
+        id: a.id, titulo: a.titulo, descricao: a.descricao || '', data: a.data_realizacao || a.data_inicio,
+        museu: a.museu || a.centro_custo || '', meta_id: a.meta_id || '', meta_codigo: a.meta_codigo || '',
+        classificacao: a.classificacao, publico_total: a.publico_total || 0, quantas_repeticoes: a.quantas_repeticoes || 1,
+        resultado_alcancado: a.resultado_alcancado || '', status_meta: a.status_meta || '',
+        indicador_previsto: a.indicador_previsto || '', meta_quantitativa: a.meta_quantitativa || '',
+        equipe_responsavel: a.equipe_responsavel || '', acessibilidade: a.acessibilidade || 'Não',
+        parceria: a.parceria || 'Não', parceiro_nome: a.parceiro_nome || '',
+        produtos_entregues: a.produtos_entregues || [], houve_contratacoes: a.houve_contratacoes || false,
+        numero_trabalhadores: a.numero_trabalhadores || 0, fotos: [], report_id: a.report_id,
+      }));
+
+      return {
+        citacoesEquipe, atvsEnriquecidas: atvsEnriquecidas.slice(0, 200), metasFiltradas,
+        rubricasPorGrupo, nfsPorMeta, totalAprovado, totalRubricasPrevisto, totalRubricasUtilizado,
+        publicoTotal: atvsEnriquecidas.reduce((s, a) => s + (a.publico_total || 0), 0),
+        museus_ativos: [...new Set(atvsEnriquecidas.map(a => a.museu).filter(Boolean))],
+        total_atividades: atvsEnriquecidas.length, total_reports: reports.length,
+        total_team: teamMembers.length, total_fotos: reportPhotos.length,
+        total_programacoes: programacoes.length, fotosPorMeta,
+        equipe: teamMembers.map(t => ({ nome: t.user_name || t.nome || '', cargo: t.funcao || t.cargo_representante || '', tipo_pessoa: t.tipo_pessoa || 'PF', museu_projeto: t.museu_projeto || '', valor_total: t.valor_total || 0, numero_parcelas: t.numero_parcelas || 0, data_inicio: t.data_inicio_contrato || dInicio, data_fim: t.data_fim_contrato || dFim, status_contrato: t.status_contrato || 'VIGENTE' })),
+        fotos_amostra: reportPhotos.slice(0, 80).map(f => ({ url: f.file_url, legenda: f.caption || f.legenda || '', museu: f.museu || '', mes: f.mes_referencia || '', meta_id: f.meta_id || '', report_id: f.report_id || '' })),
+        programacoes: programacoes.map(p => ({ titulo: p.titulo, data: p.data, local: p.local || '', tipo: p.tipo || '' })),
+        releases: releases.slice(0, 20).map(r => ({ titulo: r.titulo, data: r.data_publicacao, veiculo: r.veiculo || '' })),
+        gerado_em: new Date().toISOString(),
+      };
+    }
+
     // ── ETAPA 2: TEXTOS PRINCIPAIS (Endereço, Divulgação, Descrição, Público) ─
     if (etapa === 'textos_principais') {
-      const ctx = relatorio._contexto_geracao;
-      if (!ctx) return Response.json({ error: 'Execute etapa "contexto" primeiro.' }, { status: 400 });
+      const ctx = await obterContexto();
+      if (!ctx) return Response.json({ error: 'Não foi possível coletar contexto.' }, { status: 500 });
 
       const citacoesTexto = ctx.citacoesEquipe?.slice(0, 10).map(c =>
         `• ${c.autor} (${c.funcao || 'profissional'}, ${c.museu}/${c.mes}): "${(c.resumo || c.destaques || '').slice(0, 200)}"`
@@ -408,8 +497,7 @@ REGRAS:
 
     // ── ETAPA 3: METAS DETALHADAS — cada meta com atividades + fotos + NFs ───
     if (etapa === 'metas_detalhadas') {
-      const ctx = relatorio._contexto_geracao;
-      if (!ctx) return Response.json({ error: 'Execute etapa "contexto" primeiro.' }, { status: 400 });
+      const ctx = await obterContexto();
 
       const cronograma = [];
       const metasFiltradas = ctx.metasFiltradas || [];
@@ -571,8 +659,7 @@ REGRAS:
     }
 
     if (etapa === 'equipe_financeiro') {
-      const ctx = relatorio._contexto_geracao;
-      if (!ctx) return Response.json({ error: 'Execute etapa "contexto" primeiro.' }, { status: 400 });
+      const ctx = await obterContexto();
 
       // Equipe: combinar equipe real do sistema com equipe padrão do projeto (do documento modelo)
       const equipeBase = [
@@ -661,15 +748,16 @@ REGRAS:
 
     // ── ETAPA 5: FOTOS E EVIDÊNCIAS — vincula fotos por meta e atividade ─────
     if (etapa === 'fotos_evidencias') {
-      const ctx = relatorio._contexto_geracao;
-      if (!ctx) return Response.json({ error: 'Execute etapa "contexto" primeiro.' }, { status: 400 });
+      const ctx = await obterContexto();
+      // Re-busca o relatório para ter cronograma_metas atualizado pela etapa 3
+      const relAtualizado = await srv.entities.RelatorioExecucaoObjeto.get(relatorio_id);
 
       // Montar anexos_evidencias com fotos organizadas por meta
       const anexos = [];
       const urlsVistas = new Set();
 
       // 1. Fotos por meta (do cronograma gerado)
-      const cronograma = relatorio.cronograma_metas || [];
+      const cronograma = relAtualizado?.cronograma_metas || relatorio.cronograma_metas || [];
       for (const m of cronograma) {
         for (const fotoUrl of (m.documentos_verificacao || [])) {
           if (!fotoUrl || urlsVistas.has(fotoUrl)) continue;
