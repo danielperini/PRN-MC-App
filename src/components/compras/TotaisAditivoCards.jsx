@@ -96,8 +96,15 @@ function AditivoBlock({ titulo, badge, badgeColor, totalPrevisto, totalUtilizado
 export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
   const { totais3, totais4, rubricas4, duplicadas, datasInvalidas, divergencias } = useMemo(() => {
     const ativas = rubricas.filter((r) => r?.ativo !== false);
-    const rubricas4 = ativas.filter((r) => normalizeCentroCusto(r).aditivo === '4º Aditivo Noturno 2026');
-    const rubricas3 = ativas.filter((r) => normalizeCentroCusto(r).aditivo !== '4º Aditivo Noturno 2026');
+    // Filtrar por origem_recurso explícita; ignorar rubricas de outros aditivos no somatório
+    const rubricas4 = ativas.filter((r) => {
+      const origem = (r.origem_recurso || '').trim();
+      return origem === '4º ADITIVO' || origem === '4º Aditivo';
+    });
+    const rubricas3 = ativas.filter((r) => {
+      const origem = (r.origem_recurso || '').trim();
+      return origem === '3º ADITIVO' || origem === '3º Aditivo';
+    });
 
     // Previsto calculado diretamente das rubricas (fonte de verdade)
     const previsto3 = rubricas3.reduce((s, r) => s + toNumber(r.valor_rubrica || r.valor_total), 0);

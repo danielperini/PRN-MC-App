@@ -175,10 +175,10 @@ function DashboardFinanceiroInner() {
     const grupos = { '3': { previsto: 0, utilizado: 0, count: 0 }, '4': { previsto: 0, utilizado: 0, count: 0 } };
 
     rubricas.forEach(r => {
-      const origem = (r.origem_recurso || '').toLowerCase();
+      const origem = (r.origem_recurso || '').trim();
       let chave = null;
-      if (origem.includes('3')) chave = '3';
-      else if (origem.includes('4')) chave = '4';
+      if (origem === '3º ADITIVO' || origem === '3º Aditivo') chave = '3';
+      else if (origem === '4º ADITIVO' || origem === '4º Aditivo') chave = '4';
       if (!chave) return;
 
       grupos[chave].previsto += r.valor_rubrica || r.valor_total || 0;

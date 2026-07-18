@@ -321,9 +321,19 @@ export function auditAditivoTotals(purchases = [], rubricas = []) {
   const rubricas4 = [];
 
   for (const rubrica of ativas) {
-    const normalizado = normalizeCentroCusto(rubrica);
-    if (normalizado.aditivo === '4º Aditivo Noturno 2026') rubricas4.push(rubrica);
-    else rubricas3.push(rubrica);
+    const origem = (rubrica.origem_recurso || '').trim();
+    // Classificar por origem_recurso explícita primeiro
+    if (origem === '4º ADITIVO' || origem === '4º Aditivo') {
+      rubricas4.push(rubrica);
+    } else if (origem === '3º ADITIVO' || origem === '3º Aditivo') {
+      rubricas3.push(rubrica);
+    } else {
+      // Fallback: usar normalizeCentroCusto para rubricas sem origem_recurso explícita
+      const normalizado = normalizeCentroCusto(rubrica);
+      if (normalizado.aditivo === '4º Aditivo Noturno 2026') rubricas4.push(rubrica);
+      else if (normalizado.aditivo === '3º Aditivo') rubricas3.push(rubrica);
+      // Rubricas de outros aditivos ("Repasse / Aditivos Anteriores") são ignoradas nos totais
+    }
   }
 
   const somaRubricas = (lista, campoFn) => lista.reduce((sum, item) => sum + campoFn(item), 0);

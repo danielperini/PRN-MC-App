@@ -65,10 +65,11 @@ export default function PainelPrevistoVsUtilizado({ rubricas = [] }) {
 
   const rubricasFiltradas = useMemo(() => {
     let lista = rubricas.filter(r => {
-      const origem = (r.origem_recurso || '').toLowerCase();
-      if (aditivo === '3') return origem.includes('3');
-      if (aditivo === '4') return origem.includes('4');
-      return true;
+      const origem = (r.origem_recurso || '').trim();
+      if (aditivo === '3') return origem === '3º ADITIVO' || origem === '3º Aditivo';
+      if (aditivo === '4') return origem === '4º ADITIVO' || origem === '4º Aditivo';
+      // "todos" = apenas 3º e 4º aditivo (excluir repasses anteriores)
+      return origem === '3º ADITIVO' || origem === '3º Aditivo' || origem === '4º ADITIVO' || origem === '4º Aditivo';
     });
 
     if (busca.trim()) {
