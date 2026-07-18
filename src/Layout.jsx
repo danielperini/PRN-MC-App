@@ -58,7 +58,6 @@ const PAGE_TITLES = {
   RelatorioAtividadesFotos: '📸 Relatório de Atividades — Álbuns por Museu',
   RelatorioAtividadesHtml: '📋 Relatório de Atividades com Fotos (Fev–Jun/2026)',
   BancoRelatorios: 'Banco de Relatórios',
-  AuditoriaRubricas3Aditivo: '🔍 Normalização de Rubricas — 3º Aditivo',
 };
 
 export default function Layout({ children, currentPageName }) {
