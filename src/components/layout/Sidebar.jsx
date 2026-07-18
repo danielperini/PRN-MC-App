@@ -48,181 +48,67 @@ const NAV_GROUPS = [
   {
     label: '',
     items: [
-      {
-        path: 'Dashboard',
-        label: 'Dashboard',
-        icon: LayoutDashboard,
-        roles: ['all'],
-      },
+      { path: 'Dashboard', label: 'Painel', icon: LayoutDashboard, roles: ['all'] },
     ],
   },
   {
-    label: 'Operação',
+    label: 'Meu Trabalho',
     items: [
-      {
-        path: 'EntradaUnica',
-        label: 'Entrada de Documentos',
-        icon: Inbox,
-        roles: ['all'],
-      },
-      {
-        path: 'CoordReview',
-        label: 'Revisão de relatórios',
-        icon: Eye,
-        roles: ['coord', 'admin'],
-        hideForObservador: true,
-      },
-      {
-        path: 'Relatorios',
-        label: 'Relatórios',
-        icon: FileText,
-        roles: ['all'],
-      },
-      {
-        path: 'BancoRelatorios',
-        label: 'Banco de Relatórios',
-        icon: ScrollText,
-        roles: ['all'],
-      },
-      {
-        path: 'RelatorioAtividadesFotos',
-        label: 'Relatórios de Atividades',
-        icon: Image,
-        roles: ['all'],
-      },
+      { path: 'NovaAtividade', label: 'Atividades', icon: CheckSquare, roles: ['all'] },
+      { path: 'MeusDados', label: 'Meus Dados', icon: User, roles: ['all'] },
+      { path: 'Perfil', label: 'Perfil', icon: User, roles: ['all'] },
+      { path: 'Manual', label: 'Ajuda', icon: HelpCircle, roles: ['all'] },
+      { path: 'Aparencia', label: 'Aparência', icon: Palette, roles: ['all'] },
     ],
   },
   {
-    label: 'Visão geral',
+    label: 'Documentos',
     items: [
-      {
-        path: 'ComunicacaoVisibilidade',
-        label: 'Comunicação',
-        icon: Newspaper,
-        roles: ['all'],
-      },
-      {
-        path: 'Agenda',
-        label: 'Agenda Museu Centro',
-        icon: CalendarDays,
-        roles: ['all'],
-      },
-      {
-        path: 'GaleriaFotos',
-        label: 'Galeria',
-        icon: Image,
-        roles: ['all'],
-      },
+      { path: 'EntradaUnica', label: 'Entrada de Docs', icon: Inbox, roles: ['all'] },
+      { path: 'GestorArquivos', label: 'Arquivos', icon: Folder, roles: ['all'] },
+    ],
+  },
+  {
+    label: 'Atividades e Programação',
+    items: [
+      { path: 'ProgramacaoEspelho', label: 'Programação', icon: Star, roles: ['all'] },
+      { path: 'Agenda', label: 'Agenda', icon: CalendarDays, roles: ['all'] },
+      { path: 'AssistentePlanejamento', label: 'Assistente IA', icon: Bot, roles: ['all'] },
+    ],
+  },
+  {
+    label: 'Relatórios',
+    items: [
+      { path: 'Relatorios', label: 'Relatórios', icon: FileText, roles: ['all'] },
+      { path: 'BancoRelatorios', label: 'Banco de Relatórios', icon: ScrollText, roles: ['all'] },
+      { path: 'RelatorioAtividadesFotos', label: 'Rel. Atividades', icon: Image, roles: ['all'] },
+      { path: 'CoordReview', label: 'Revisão', icon: Eye, roles: ['coord', 'admin'], hideForObservador: true },
+      { path: 'RelatorioExecucaoObjeto', label: 'Rel. Execução', icon: ScrollText, roles: ['coord', 'admin'] },
     ],
   },
   {
     label: 'Financeiro',
     items: [
-      {
-        path: 'Compras',
-        label: 'Compras e Aprovações',
-        icon: ShoppingCart,
-        roles: ['all'],
-        hideForObservador: true,
-      },
-      {
-        path: 'RubricasPorMuseu',
-        label: 'Orçamento por Museu e Noturno',
-        icon: DollarSign,
-        roles: ['all'],
-      },
-      {
-        path: 'Movimentacoes',
-        label: 'Movimentações',
-        icon: Banknote,
-        roles: ['coord', 'admin'],
-      },
+      { path: 'Compras', label: 'Compras', icon: ShoppingCart, roles: ['all'], hideForObservador: true },
+      { path: 'RubricasPorMuseu', label: 'Orçamento', icon: DollarSign, roles: ['all'] },
+      { path: 'Movimentacoes', label: 'Movimentações', icon: Banknote, roles: ['coord', 'admin'] },
     ],
   },
   {
-    label: 'Conteúdo',
+    label: 'Galeria e Comunicação',
     items: [
-      {
-        path: 'LeitorNoticias',
-        label: 'Notícias',
-        icon: Newspaper,
-        roles: ['all'],
-      },
-      {
-        path: 'ProgramacaoEspelho',
-        label: 'Programação Completa',
-        subtitle:
-          'Link de imagens • Minibios • Material de divulgação aprovado',
-        icon: Star,
-        roles: ['all'],
-      },
-      {
-        path: 'AssistentePlanejamento',
-        label: 'Assistente IA',
-        icon: Bot,
-        roles: ['all'],
-      },
-      {
-        path: 'Manual',
-        label: 'Central de Ajuda',
-        icon: HelpCircle,
-        roles: ['all'],
-      },
+      { path: 'GaleriaFotos', label: 'Galeria', icon: Image, roles: ['all'] },
+      { path: 'ComunicacaoVisibilidade', label: 'Comunicação', icon: Newspaper, roles: ['all'] },
+      { path: 'LeitorNoticias', label: 'Notícias', icon: Newspaper, roles: ['all'] },
     ],
   },
   {
     label: 'Administração',
     items: [
-      {
-        path: 'Mensagens',
-        label: 'Mensagens',
-        icon: MessageSquare,
-        roles: ['all'],
-        hideForObservador: true,
-      },
-      {
-        path: 'UserManagement',
-        label: 'Gestão de Usuários',
-        icon: Users,
-        roles: ['coord', 'admin'],
-        permission: 'canManageUsers',
-      },
-      {
-        path: 'AuditoriaInstitucional',
-        label: 'Auditoria Institucional',
-        icon: ShieldCheck,
-        roles: ['coord', 'admin'],
-      },
-      {
-        path: 'PlataformaAdmin',
-        label: 'Administração do Sistema',
-        icon: Settings,
-        roles: ['admin'],
-        permission: 'canManagePlatform',
-      },
-      {
-        path: 'Aparencia',
-        label: 'Aparência',
-        icon: Palette,
-        roles: ['all'],
-      },
-      {
-        path: 'MeusDados',
-        label: 'Meus dados',
-        icon: User,
-        roles: ['all'],
-      },
-    ],
-  },
-  {
-    label: 'Ferramentas',
-    items: [
-      {
-        path: 'RelatorioExecucaoObjeto',
-        label: 'Relatório de Execução do Objeto',
-        icon: ScrollText,
-        roles: ['coord', 'admin'],
-      },
+      { path: 'Mensagens', label: 'Mensagens', icon: MessageSquare, roles: ['all'], hideForObservador: true },
+      { path: 'UserManagement', label: 'Usuários', icon: Users, roles: ['coord', 'admin'], permission: 'canManageUsers' },
+      { path: 'AuditoriaInstitucional', label: 'Auditoria', icon: ShieldCheck, roles: ['coord', 'admin'] },
+      { path: 'PlataformaAdmin', label: 'Administração', icon: Settings, roles: ['admin'], permission: 'canManagePlatform' },
     ],
   },
 ];
