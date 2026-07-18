@@ -212,11 +212,18 @@ export async function loadGalleryReportData({
   if (!images.length && staleCache) return { ...staleCache, cacheUsed: true, cacheStale: true };
   // Deduplicação primária por identidade técnica
   const deduped1 = dedupePhotosByTechnicalIdentity(images).filter((image) => image.fileUrl);
-  // Deduplicação secundária por URL exata (fallback para casos onde a identidade falha)
+  // Deduplicação secundária por URL exata
+  // ATENÇÃO: NÃO cortar por '?' para URLs do Drive (drive.google.com/thumbnail?id=XXX)
+  // pois todas têm a mesma base URL — usar a URL completa como chave
   const seenUrls = new Set();
   const deduped = deduped1.filter((image) => {
-    const urlKey = (image.fileUrl || '').split('?')[0].toLowerCase();
-    if (!urlKey || seenUrls.has(urlKey)) return false;
+    const url = image.fileUrl || '';
+    if (!url) return false;
+    // Para URLs do Drive com parâmetro id, usar a URL completa como chave
+    const urlKey = url.includes('drive.google.com/thumbnail') || url.includes('lh3.googleusercontent.com')
+      ? url.toLowerCase()
+      : url.split('?')[0].toLowerCase();
+    if (seenUrls.has(urlKey)) return false;
     seenUrls.add(urlKey);
     return true;
   }).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
