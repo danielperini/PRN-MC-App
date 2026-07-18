@@ -491,6 +491,8 @@ Deno.serve(async (req) => {
     if (!rel) return Response.json({ error: 'Relatório não encontrado' }, { status: 404 });
 
     const destinatario = rel.gerado_por_email || user.email;
+    // Sempre envia cópia para o coordenador geral — ajuste o email abaixo se necessário
+    const emailsAdicionais = ['daniel@viadutodasartes.org.br'].filter(e => e !== destinatario);
     const nomeRelatorio = `Rel_Exec_${(rel.data_inicio || '').slice(0, 7)}_${(rel.data_fim || '').slice(0, 7)}`.replace(/-/g, '');
 
     // Cria pasta no Drive
@@ -589,11 +591,25 @@ Deno.serve(async (req) => {
   </div>
 </div>`;
 
+    // Envia para o destinatário principal
     await base44Client.asServiceRole.integrations.Core.SendEmail({
       to: destinatario,
       subject: `📄 Relatório de Execução — ${resultados.length} PDF(s) prontos no Drive`,
       body: emailBody,
     });
+
+    // Envia cópia para emails adicionais (coordenação)
+    for (const emailExtra of emailsAdicionais) {
+      try {
+        await base44Client.asServiceRole.integrations.Core.SendEmail({
+          to: emailExtra,
+          subject: `📄 Relatório de Execução — ${resultados.length} PDF(s) prontos no Drive`,
+          body: emailBody,
+        });
+      } catch (_) {
+        // não bloqueia se o email extra falhar
+      }
+    }
 
     return Response.json({
       ok: true,
