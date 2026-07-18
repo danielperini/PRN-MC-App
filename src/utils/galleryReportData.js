@@ -22,9 +22,12 @@ export const MUSEUM_SECTIONS = {
   MHAB: { key: 'MHAB', title: 'MHAB — Museu Histórico Abílio Barreto', shortTitle: 'MHAB', coordinates: '-19.936787, -43.947651' },
   MIS: { key: 'MIS', title: 'MIS — Museu da Imagem e do Som de Belo Horizonte', shortTitle: 'MIS', coordinates: '-19.927057, -43.940157' },
   MUMO: { key: 'MUMO', title: 'MUMO — Museu da Moda de Belo Horizonte', shortTitle: 'MUMO', coordinates: '-19.924875, -43.937250' },
+  MAP: { key: 'MAP', title: 'MAP — Museu de Arte da Pampulha', shortTitle: 'MAP', coordinates: '-19.856, -43.966' },
+  CasaKubitschek: { key: 'CasaKubitschek', title: 'Casa Kubitschek', shortTitle: 'Casa Kubitschek', coordinates: '-19.857, -43.968' },
+  CasaDoBalile: { key: 'CasaDoBalile', title: 'Casa do Baíle', shortTitle: 'Casa do Baíle', coordinates: '-19.860, -43.967' },
   SEM_IDENTIFICACAO: { key: 'SEM_IDENTIFICACAO', title: 'Sem identificação de museu', shortTitle: 'Sem identificação', coordinates: '' },
 };
-export const SECTION_ORDER = ['MHAB', 'MIS', 'MUMO', 'SEM_IDENTIFICACAO'];
+export const SECTION_ORDER = ['MHAB', 'MIS', 'MUMO', 'MAP', 'CasaKubitschek', 'CasaDoBalile', 'SEM_IDENTIFICACAO'];
 
 function normalizeText(value) {
   return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -65,6 +68,9 @@ function normalizeMuseum(value = '') {
   if (text.includes('mhab') || text.includes('abilio') || text.includes('historico')) return 'MHAB';
   if (text.includes('mis') || text.includes('imagem') || text.includes('som')) return 'MIS';
   if (text.includes('mumo') || text.includes('moda')) return 'MUMO';
+  if (text.includes('map') || text.includes('pampulha') || text.includes('arte da pampulha')) return 'MAP';
+  if (text.includes('kubitschek') || text.includes('jk')) return 'CasaKubitschek';
+  if (text.includes('baile') || text.includes('baíle') || text.includes('bale') || text.includes('casa do b')) return 'CasaDoBalile';
   return '';
 }
 function resolveSectionKey(item = {}, metadataLocation = '') {

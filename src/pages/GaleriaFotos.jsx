@@ -5,8 +5,7 @@ import LoadingPage from '@/components/common/LoadingPage';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Images, MapPin, RefreshCw, X, Filter, FolderSync, Sparkles, CheckCircle2, GitMerge, Moon, ExternalLink, BookImage, ChevronDown, Loader2, Settings2, Eye, HardDriveDownload, TriangleAlert, FolderSearch, Pencil, Check } from 'lucide-react';
-import VarreduraDriveNoturno from '@/components/gallery/VarreduraDriveNoturno';
+import { Images, MapPin, RefreshCw, X, Filter, CheckCircle2, Moon, ExternalLink, BookImage, ChevronDown, Eye, HardDriveDownload, TriangleAlert, FileDown, Pencil, Check } from 'lucide-react';
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
   DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
@@ -14,10 +13,8 @@ import {
 import { Link } from 'react-router-dom';
 import { loadGalleryReportData } from '@/utils/galleryReportData';
 import RestaurarFotosDrive from '@/components/gallery/RestaurarFotosDrive';
-import AlbumNoturno from '@/components/gallery/AlbumNoturno';
-import AlbumNoturnoProjects from '@/components/gallery/AlbumNoturnoProjects';
-import ImportarFotosPastaAtividades from '@/components/gallery/ImportarFotosPastaAtividades';
 import SincronizarInventarioDialog from '@/components/gallery/SincronizarInventarioDialog';
+import ExportarGaleriaPDFDialog from '@/components/gallery/ExportarGaleriaPDFDialog';
 import { PhotoActionBar, BulkActionBar, EditCaptionDialog, DeleteConfirmDialog, EmailPhotosDialog } from '@/components/gallery/GalleryPhotoActions';
 import { base44 } from '@/api/base44Client';
 
@@ -30,9 +27,9 @@ const SECTION_LABELS = {
   MHAB: 'MHAB — Museu Histórico Abílio Barreto',
   MIS: 'MIS — Museu da Imagem e do Som de Belo Horizonte',
   MUMO: 'MUMO — Museu da Moda de Belo Horizonte',
-  'Album-Noturno-2026': '🌙 Noturno nos Museus — Álbum Curado',
-  'Noturno nos Museus': '🌙 Noturno nos Museus',
-  'Noturno 2026': '🌙 Noturno nos Museus 2026',
+  MAP: 'MAP — Museu de Arte da Pampulha',
+  CasaKubitschek: 'Casa Kubitschek',
+  CasaDoBalile: 'Casa do Baíle',
   SEM_IDENTIFICACAO: 'Sem identificação de museu',
 };
 
@@ -160,24 +157,22 @@ function GaleriaFotosInner() {
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_IMAGES);
   const [selectedImage, setSelectedImage] = useState(null);
   const [showRestaurar, setShowRestaurar] = useState(false);
-  const [showAlbumNoturno, setShowAlbumNoturno] = useState(false);
-  const [showImportarAtividades, setShowImportarAtividades] = useState(false);
-  const [reforçandoLegendas, setReforçandoLegendas] = useState(false);
-  const [legendasStatus, setLegendasStatus] = useState(null);
   const [showSincInventario, setShowSincInventario] = useState(false);
-  const [showVarreduraNoturno, setShowVarreduraNoturno] = useState(false);
-  const [showAlbumNoturnoProjects, setShowAlbumNoturnoProjects] = useState(false);
+  const [showExportarPDF, setShowExportarPDF] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
   const [selectedPhotos, setSelectedPhotos] = useState([]);
   const [editingPhoto, setEditingPhoto] = useState(null);
   const [deletingPhotos, setDeletingPhotos] = useState(null);
   const [emailingPhotos, setEmailingPhotos] = useState(null);
-  const [sincronizando, setSincronizando] = useState(false);
   const [syncStatus, setSyncStatus] = useState(null);
   const [editingAlbumKey, setEditingAlbumKey] = useState(null);
   const [albumLabels, setAlbumLabels] = useState({});
   const [editingAlbumValue, setEditingAlbumValue] = useState('');
   const queryClient = useQueryClient();
 
+  React.useEffect(() => {
+    base44.auth.me().then(u => setCurrentUser(u)).catch(() => {});
+  }, []);
 
   const {
     data,
@@ -342,120 +337,7 @@ function GaleriaFotosInner() {
               Atualizar
             </button>
 
-            {/* 2. Organizar Fotos */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  aria-label="Organizar fotos"
-                  className="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-100 transition-colors"
-                >
-                  <Settings2 className="h-4 w-4" />
-                  Organizar Fotos
-                  <ChevronDown className="h-3.5 w-3.5 opacity-60" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-72">
-                <DropdownMenuLabel className="text-xs text-gray-500 uppercase tracking-wide">Vínculos</DropdownMenuLabel>
-                <DropdownMenuItem
-                  onClick={() => setShowSincInventario(true)}
-                  className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer"
-                >
-                  <span className="font-medium text-gray-900 flex items-center gap-1.5">
-                    <GitMerge className="h-3.5 w-3.5" /> Ajustar vínculos e repetidas
-                  </span>
-                  <span className="text-xs text-gray-500 pl-5">Corrige vínculos existentes e oculta imagens repetidas sem excluir arquivos.</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  disabled={sincronizando}
-                  onClick={async () => {
-                    setSincronizando(true);
-                    setSyncStatus(null);
-                    try {
-                      const res = await base44.functions.invoke('sincronizacaoFinalDrive', { dry_run: false });
-                      const s = res.data?.stats || {};
-                      const total = (s.report_photos_legenda_atualizada || 0) + (s.attachments_legenda_atualizada || 0);
-                      const vinculadas = (s.report_photos_vinculadas_a_report || 0) + (s.attachments_report_vinculado || 0);
-                      setSyncStatus(`✓ ${total} legendas atualizadas · ${vinculadas} fotos vinculadas a relatórios · ${s.relatorios_fotos_vinculadas || 0} fotos adicionadas a relatórios`);
-                      clearGalleryCache();
-                      await refetch();
-                    } catch (e) {
-                      setSyncStatus('Erro na sincronização: ' + (e.message || 'verifique os logs'));
-                    } finally {
-                      setSincronizando(false);
-                    }
-                  }}
-                  className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer"
-                >
-                  <span className="font-medium text-gray-900 flex items-center gap-1.5">
-                    {sincronizando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <GitMerge className="h-3.5 w-3.5" />}
-                    {sincronizando ? 'Vinculando...' : 'Vincular Fotos com IA'}
-                  </span>
-                  <span className="text-xs text-gray-500 pl-5">Relaciona fotos às atividades com base em data, museu e contexto.</span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel className="text-xs text-gray-500 uppercase tracking-wide">Curadoria</DropdownMenuLabel>
-                <DropdownMenuItem
-                  onClick={() => { setShowAlbumNoturno(v => !v); setShowRestaurar(false); }}
-                  className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer"
-                >
-                  <span className="font-medium text-gray-900 flex items-center gap-1.5">
-                    <Moon className="h-3.5 w-3.5" /> Curadoria IA
-                    {showAlbumNoturno && <span className="ml-1 rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] text-indigo-700">Ativo</span>}
-                  </span>
-                  <span className="text-xs text-gray-500 pl-5">Analisa qualidade, relevância e organização das imagens.</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => { setShowImportarAtividades(v => !v); setShowRestaurar(false); setShowAlbumNoturno(false); }}
-                  className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer"
-                >
-                  <span className="font-medium text-gray-900 flex items-center gap-1.5">
-                    <Images className="h-3.5 w-3.5" /> IA: manter 1 foto por atividade
-                    {showImportarAtividades && <span className="ml-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] text-emerald-700">Ativo</span>}
-                  </span>
-                  <span className="text-xs text-gray-500 pl-5">Seleciona uma imagem principal por atividade e oculta as demais.</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  disabled={reforçandoLegendas}
-                  onClick={async () => {
-                    setReforçandoLegendas(true);
-                    setLegendasStatus(null);
-                    try {
-                      const res = await base44.functions.invoke('reforcarLegendasGaleria', { dry_run: false, limit: 300 });
-                      setLegendasStatus(res.data?.mensagem || 'Legendas atualizadas!');
-                      clearGalleryCache();
-                      await refetch();
-                    } catch (e) {
-                      setLegendasStatus('Erro ao atualizar legendas.');
-                    } finally {
-                      setReforçandoLegendas(false);
-                    }
-                  }}
-                  className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer"
-                >
-                  <span className="font-medium text-gray-900 flex items-center gap-1.5">
-                    {reforçandoLegendas ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                    {reforçandoLegendas ? 'Processando...' : 'Reforçar Legendas'}
-                  </span>
-                  <span className="text-xs text-gray-500 pl-5">Atualiza legendas usando dados reais da atividade.</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {/* BOTÃO ÁLBUNS NOTURNO */}
-            <button
-              type="button"
-              onClick={() => setShowAlbumNoturnoProjects(v => !v)}
-              className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium shadow-sm transition-colors
-                ${showAlbumNoturnoProjects
-                  ? 'border-indigo-500 bg-indigo-600 text-white'
-                  : 'border-indigo-300 bg-indigo-50 text-indigo-800 hover:bg-indigo-100'}`}
-            >
-              <Moon className="h-4 w-4" />
-              Álbuns Noturno
-            </button>
-
-            {/* 3. Visualizações */}
+            {/* 2. Visualizações */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -486,31 +368,10 @@ function GaleriaFotosInner() {
                     <span className="text-xs text-gray-500 pl-5">Exibe somente imagens vinculadas ao Noturno.</span>
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => { setShowImportarAtividades(v => !v); setShowRestaurar(false); setShowAlbumNoturno(false); }}
-                  className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer"
-                >
-                  <span className="font-medium text-gray-900 flex items-center gap-1.5">
-                    <Images className="h-3.5 w-3.5" /> Fotos de Atividades
-                    {showImportarAtividades && <span className="ml-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] text-emerald-700">Ativo</span>}
-                  </span>
-                  <span className="text-xs text-gray-500 pl-5">Organiza fotos pelas atividades relacionadas.</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => { setShowAlbumNoturno(v => !v); setShowRestaurar(false); }}
-                  className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer"
-                >
-                  <span className="font-medium text-gray-900 flex items-center gap-1.5">
-                    <Moon className="h-3.5 w-3.5" /> Modo exposição
-                    {showAlbumNoturno && <span className="ml-1 rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] text-indigo-700">Ativo</span>}
-                  </span>
-                  <span className="text-xs text-gray-500 pl-5">Exibe imagens em formato visual ampliado.</span>
-                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* 4. Drive e Backup */}
+            {/* 3. Drive e Backup */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -530,36 +391,36 @@ function GaleriaFotosInner() {
                   className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer"
                 >
                   <span className="font-medium text-gray-900 flex items-center gap-1.5">
-                    <FolderSync className="h-3.5 w-3.5" /> Sincronizar Drive
+                    <HardDriveDownload className="h-3.5 w-3.5" /> Sincronizar Drive
                   </span>
                   <span className="text-xs text-gray-500 pl-5">Envia e atualiza os arquivos da galeria no Google Drive.</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => { setShowVarreduraNoturno(v => !v); setShowRestaurar(false); setShowAlbumNoturno(false); setShowImportarAtividades(false); }}
-                  className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer"
-                >
-                  <span className="font-medium text-gray-900 flex items-center gap-1.5">
-                    <FolderSearch className="h-3.5 w-3.5 text-indigo-600" /> Varredura Noturno 2026
-                    {showVarreduraNoturno && <span className="ml-1 rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] text-indigo-700">Ativo</span>}
-                  </span>
-                  <span className="text-xs text-gray-500 pl-5">Importa todas as fotos da pasta do Noturno com geolocalização por museu.</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel className="text-xs text-amber-600 uppercase tracking-wide flex items-center gap-1">
                   <TriangleAlert className="h-3 w-3" /> Ação administrativa
                 </DropdownMenuLabel>
                 <DropdownMenuItem
-                  onClick={() => { setShowRestaurar(v => !v); setShowAlbumNoturno(false); setShowImportarAtividades(false); }}
+                  onClick={() => setShowRestaurar(v => !v)}
                   className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer"
                 >
                   <span className="font-medium text-gray-900 flex items-center gap-1.5">
                     <HardDriveDownload className="h-3.5 w-3.5" /> Restaurar do Drive
                     {showRestaurar && <span className="ml-1 rounded-full bg-gray-200 px-1.5 py-0.5 text-[10px] text-gray-700">Ativo</span>}
                   </span>
-                  <span className="text-xs text-gray-500 pl-5">Recupera arquivos e vínculos já armazenados no Drive. Não substitui arquivos existentes sem confirmação.</span>
+                  <span className="text-xs text-gray-500 pl-5">Recupera arquivos e vínculos já armazenados no Drive.</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+
+            {/* 4. Exportar PDF */}
+            <button
+              type="button"
+              onClick={() => setShowExportarPDF(true)}
+              className="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-100 transition-colors"
+            >
+              <FileDown className="h-4 w-4" />
+              Exportar PDF
+            </button>
           </div>
         </div>
 
@@ -583,58 +444,6 @@ function GaleriaFotosInner() {
             <CheckCircle2 className="h-4 w-4 shrink-0" />
             <span>{syncStatus}</span>
             <button type="button" onClick={() => setSyncStatus(null)} className="ml-auto text-blue-400 hover:text-blue-700"><X className="h-4 w-4" /></button>
-          </div>
-        )}
-
-        {/* Feedback de reforço de legendas */}
-        {legendasStatus && (
-          <div className="mb-4 flex items-center gap-2 rounded-xl border border-purple-200 bg-purple-50 px-4 py-3 text-sm text-purple-800">
-            <CheckCircle2 className="h-4 w-4 shrink-0" />
-            <span>{legendasStatus}</span>
-            <button type="button" onClick={() => setLegendasStatus(null)} className="ml-auto text-purple-400 hover:text-purple-700"><X className="h-4 w-4" /></button>
-          </div>
-        )}
-
-        {/* Álbuns Noturno 2026 + Pampulha */}
-        {showAlbumNoturnoProjects && (
-          <div className="mb-6">
-            <AlbumNoturnoProjects onClose={() => setShowAlbumNoturnoProjects(false)} />
-          </div>
-        )}
-
-        {/* Painel Álbum Noturno */}
-        {showAlbumNoturno && (
-          <div className="mb-6">
-            <AlbumNoturno onClose={() => setShowAlbumNoturno(false)} />
-          </div>
-        )}
-
-        {/* Painel Importar Fotos de Atividades */}
-        {showImportarAtividades && (
-          <div className="mb-6">
-            <ImportarFotosPastaAtividades
-              onImportConcluida={() => {
-                clearGalleryCache();
-                queryClient.invalidateQueries(['galeria-fotos-stable-v1']);
-                refetch();
-                setShowImportarAtividades(false);
-              }}
-            />
-          </div>
-        )}
-
-        {/* Painel Varredura Noturno */}
-        {showVarreduraNoturno && (
-          <div className="mb-6 rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
-            <VarreduraDriveNoturno
-              onConcluido={({ totalCriadas }) => {
-                clearGalleryCache();
-                queryClient.invalidateQueries(['galeria-fotos-stable-v1']);
-                refetch();
-                setSyncStatus(`✓ ${totalCriadas} fotos do Noturno 2026 importadas com geolocalização`);
-                setShowVarreduraNoturno(false);
-              }}
-            />
           </div>
         )}
 
@@ -890,6 +699,13 @@ function GaleriaFotosInner() {
           clearGalleryCache();
           refetch();
         }}
+      />
+
+      <ExportarGaleriaPDFDialog
+        open={showExportarPDF}
+        onClose={() => setShowExportarPDF(false)}
+        fotos={sortedImages}
+        userEmail={currentUser?.email || ''}
       />
 
       <Dialog open={!!selectedImage} onOpenChange={(open) => !open && setSelectedImage(null)}>
