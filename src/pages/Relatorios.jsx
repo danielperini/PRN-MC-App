@@ -14,6 +14,8 @@ import {
   BarChart2,
   RotateCcw,
   Trash2,
+  Search,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -25,6 +27,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import {
   Dialog,
   DialogContent,
@@ -77,6 +80,7 @@ export default function Relatorios() {
   const [filterMuseu, setFilterMuseu] = useState('todos');
   const [filterMes, setFilterMes] = useState('todos');
   const [filterStatus, setFilterStatus] = useState('todos');
+  const [searchTerm, setSearchTerm] = useState('');
   const [returnDialog, setReturnDialog] = useState({ open: false, report: null });
   const [deleteDialog, setDeleteDialog] = useState({ open: false, report: null });
   const [returnComment, setReturnComment] = useState('');
@@ -205,13 +209,38 @@ export default function Relatorios() {
   }, [effectiveReports, user, isAdmin, isCoordenador]);
 
   const filtered = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
     return myReports.filter((report) => {
       if (filterMuseu !== 'todos' && report.museu !== filterMuseu) return false;
       if (filterMes !== 'todos' && report.mes_referencia !== filterMes) return false;
       if (filterStatus !== 'todos' && report.status !== filterStatus) return false;
+      if (q) {
+        const haystack = [
+          report.author_name,
+          report.funcao,
+          report.museu,
+          report.mes_referencia,
+          String(report.ano || ''),
+          report.equipe,
+          report.resumo_periodo,
+          report.comentarios_gerais,
+        ].join(' ').toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
       return true;
     });
-  }, [myReports, filterMuseu, filterMes, filterStatus]);
+  }, [myReports, filterMuseu, filterMes, filterStatus, searchTerm]);
+
+  // Chips de museu com contagem
+  const museuCounts = useMemo(() => {
+    const counts = {};
+    myReports.forEach(r => {
+      if (r.museu) counts[r.museu] = (counts[r.museu] || 0) + 1;
+    });
+    return counts;
+  }, [myReports]);
+
+  const hasActiveFilters = filterMuseu !== 'todos' || filterMes !== 'todos' || filterStatus !== 'todos' || searchTerm.trim();
 
   const isInitialPageLoading = userLoading || (!!user?.email && isLoading);
   const hasCachedFallback = isError && cachedReports.length > 0;
@@ -279,33 +308,71 @@ export default function Relatorios() {
           </div>
         )}
 
+        {/* Barra de busca */}
+        <div className="relative mb-4">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+          <Input
+            placeholder="Buscar por profissional, função, museu, mês..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            className="pl-9 pr-9 h-10 text-sm"
+          />
+          {searchTerm && (
+            <button
+              type="button"
+              onClick={() => setSearchTerm('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
+        {/* Chips rápidos de museu */}
+        {Object.keys(museuCounts).length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            <button
+              type="button"
+              onClick={() => setFilterMuseu('todos')}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all
+                ${filterMuseu === 'todos'
+                  ? 'border-black bg-black text-white'
+                  : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'}`}
+            >
+              Todos
+              <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${filterMuseu === 'todos' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                {myReports.length}
+              </span>
+            </button>
+            {Object.entries(museuCounts).sort((a, b) => b[1] - a[1]).map(([museu, count]) => (
+              <button
+                key={museu}
+                type="button"
+                onClick={() => setFilterMuseu(filterMuseu === museu ? 'todos' : museu)}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all
+                  ${filterMuseu === museu
+                    ? 'border-blue-600 bg-blue-600 text-white'
+                    : 'border-gray-300 bg-white text-gray-700 hover:border-blue-400 hover:bg-blue-50'}`}
+              >
+                {museu}
+                <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${filterMuseu === museu ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                  {count}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Filtros de Mês e Status */}
         <div className="flex flex-wrap gap-3 mb-5">
-          <Select value={filterMuseu} onValueChange={setFilterMuseu}>
-            <SelectTrigger className="w-36">
-              <SelectValue placeholder="Museu" />
-            </SelectTrigger>
-
-            <SelectContent>
-              <SelectItem value="todos">Todos os museus</SelectItem>
-              {MUSEUS.map((museu) => (
-                <SelectItem key={museu} value={museu}>
-                  {museu}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
           <Select value={filterMes} onValueChange={setFilterMes}>
             <SelectTrigger className="w-36">
               <SelectValue placeholder="Mês" />
             </SelectTrigger>
-
             <SelectContent>
               <SelectItem value="todos">Todos os meses</SelectItem>
               {MESES.map((mes) => (
-                <SelectItem key={mes} value={mes}>
-                  {mes}
-                </SelectItem>
+                <SelectItem key={mes} value={mes}>{mes}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -314,16 +381,24 @@ export default function Relatorios() {
             <SelectTrigger className="w-40">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
-
             <SelectContent>
               <SelectItem value="todos">Todos os status</SelectItem>
               {Object.entries(STATUS_CONFIG).map(([key, config]) => (
-                <SelectItem key={key} value={key}>
-                  {config.label}
-                </SelectItem>
+                <SelectItem key={key} value={key}>{config.label}</SelectItem>
               ))}
             </SelectContent>
           </Select>
+
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={() => { setFilterMuseu('todos'); setFilterMes('todos'); setFilterStatus('todos'); setSearchTerm(''); }}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100 transition-colors"
+            >
+              <X className="h-3.5 w-3.5" />
+              Limpar filtros
+            </button>
+          )}
         </div>
 
         {(isAdmin || isCoordenador) && (
