@@ -215,7 +215,7 @@ export default function RelatorioExecucaoObjeto() {
             ...params,
           }),
           new Promise((_, reject) =>
-            setTimeout(() => reject(new Error(`Timeout (${key})`)), 50000)
+            setTimeout(() => reject(new Error(`Timeout (${key})`)), 45000)
           ),
         ]);
         return true;
@@ -249,16 +249,12 @@ export default function RelatorioExecucaoObjeto() {
         new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout ao criar relatório (>30s)')), 30000)),
       ]);
 
-      // Extração defensiva: percorre todos os níveis possíveis da resposta
       rid = res?.data?.relatorio_id
         || res?.relatorio_id
         || res?.data?.id
         || res?.id
         || res?.data?.data?.relatorio_id
         || res?.data?.data?.id;
-
-      console.log('[iniciarRelatorio] Resposta completa:', JSON.stringify(res));
-      console.log('[iniciarRelatorio] RID extraído:', rid);
 
       if (!rid) {
         throw new Error(
@@ -285,47 +281,98 @@ export default function RelatorioExecucaoObjeto() {
       aditivos_permitidos: [3, 4],
     };
 
-    // Achatar todos os grupos numa lista linear de seções
-    const todasSecoes = GRUPOS_GERACAO.flat();
-    const total = todasSecoes.length;
+    // Seções normais (sem cronograma_metas — processado individualmente)
+    const secoesNormais = GRUPOS_GERACAO.flat().filter(s => s.key !== 'cronograma_metas');
+    const numMetas = form.filtro_meta_ids.length;
+    // Total de "passos" = seções normais + 1 (inicialização do cronograma) + cada meta + 1 (finalizar cronograma)
+    const totalPassos = secoesNormais.length + 1 + numMetas + 1;
+    let passoAtual = 0;
     let concluidas = 0;
     let falhas = 0;
 
-    // Inicializa painel de progresso com todas as seções como pendentes
-    setSecoesProgresso(todasSecoes.map(s => ({ ...s, status: 'pendente' })));
+    // Monta painel: todas as seções normais + item especial para cronograma
+    const secoesParaPainel = [
+      ...GRUPOS_GERACAO.flat().map(s => ({ ...s, status: 'pendente' })),
+    ];
+    setSecoesProgresso(secoesParaPainel);
 
-    for (let i = 0; i < total; i++) {
-      const { key, label } = todasSecoes[i];
-      const pct = Math.round(5 + (i / total) * 88);
+    // ── Processar seções normais antes de cronograma_metas ───────────────────
+    const secoesPre = GRUPOS_GERACAO.flat().filter(s => {
+      const idx = GRUPOS_GERACAO.flat().findIndex(x => x.key === 'cronograma_metas');
+      return GRUPOS_GERACAO.flat().indexOf(s) < idx;
+    });
+    const secoesPos = GRUPOS_GERACAO.flat().filter(s => {
+      const idx = GRUPOS_GERACAO.flat().findIndex(x => x.key === 'cronograma_metas');
+      return GRUPOS_GERACAO.flat().indexOf(s) > idx;
+    });
 
-      // Marca seção como "processando"
+    async function processarSecaoNormal(key, label) {
+      passoAtual++;
+      const pct = Math.round(5 + (passoAtual / totalPassos) * 88);
       await yieldBrowser();
       setSecoesProgresso(prev => prev.map(s => s.key === key ? { ...s, status: 'processando' } : s));
-      setProgresso({ valor: pct, texto: `[${i + 1}/${total}] ${label}...` });
+      setProgresso({ valor: pct, texto: `${label}...` });
       await yieldBrowser();
-
       const ok = await gerarSecaoComRetry(rid, key, params);
-
-      // Marca seção como concluída ou falhou
-      const novoStatus = ok ? 'concluida' : 'pulada';
-      setSecoesProgresso(prev => prev.map(s => s.key === key ? { ...s, status: novoStatus } : s));
+      setSecoesProgresso(prev => prev.map(s => s.key === key ? { ...s, status: ok ? 'concluida' : 'pulada' } : s));
       if (ok) concluidas++; else falhas++;
-
-      // Yield para atualizar a UI
       await yieldBrowser();
     }
 
-    // Finalização — carrega o relatório completo de uma vez
+    for (const { key, label } of secoesPre) {
+      await processarSecaoNormal(key, label);
+    }
+
+    // ── Sub-loop de metas individuais ────────────────────────────────────────
+    // 1. Inicializa o cronograma (esvazia o array no backend)
+    passoAtual++;
+    setSecoesProgresso(prev => prev.map(s => s.key === 'cronograma_metas' ? { ...s, status: 'processando' } : s));
+    setProgresso({ valor: Math.round(5 + (passoAtual / totalPassos) * 88), texto: 'Cronograma — iniciando...' });
+    await gerarSecaoComRetry(rid, 'cronograma_metas', params);
+    await yieldBrowser();
+
+    // 2. Processa cada meta individualmente
+    for (let mi = 0; mi < form.filtro_meta_ids.length; mi++) {
+      const metaId = form.filtro_meta_ids[mi];
+      const metaObj = metas.find(m => idMeta(m) === metaId);
+      const metaNome = metaObj ? nomeMeta(metaObj) : metaId;
+      passoAtual++;
+      const pct = Math.round(5 + (passoAtual / totalPassos) * 88);
+      await yieldBrowser();
+      setProgresso({ valor: pct, texto: `Cronograma — meta ${mi + 1}/${numMetas}: ${metaNome}` });
+      await yieldBrowser();
+      const ok = await gerarSecaoComRetry(rid, 'cronograma_meta_individual', {
+        ...params,
+        meta_id: metaId,
+        meta_nome: metaNome,
+      });
+      if (!ok) falhas++;
+      await yieldBrowser();
+    }
+
+    // 3. Finaliza cronograma (ordena)
+    passoAtual++;
+    setProgresso({ valor: Math.round(5 + (passoAtual / totalPassos) * 88), texto: 'Cronograma — ordenando metas...' });
+    await gerarSecaoComRetry(rid, 'cronograma_metas_finalizar', params);
+    setSecoesProgresso(prev => prev.map(s => s.key === 'cronograma_metas' ? { ...s, status: 'concluida' } : s));
+    await yieldBrowser();
+
+    // ── Processar seções normais depois de cronograma_metas ──────────────────
+    for (const { key, label } of secoesPos) {
+      await processarSecaoNormal(key, label);
+    }
+
+    // Finalização
     setProgresso({ valor: 97, texto: 'Finalizando e carregando relatório...' });
     await yieldBrowser();
     await base44.functions.invoke('gerarSecaoRelatorioExecucao', { relatorio_id: rid, secao: 'finalizar' }).catch(() => {});
     await carregarRelatorio(rid);
     await carregarRelatorios();
-    setProgresso({ valor: 100, texto: `Relatório concluído ✓ (${concluidas}/${total} seções, ${falhas} puladas)` });
+    setProgresso({ valor: 100, texto: `Relatório concluído ✓ (${concluidas + numMetas} seções, ${falhas} puladas)` });
     setSecoesProgresso([]);
     setLoading(false);
     if (falhas > 0) {
-      toast.warning(`Relatório gerado com ${falhas} seção(ões) pulada(s) por timeout. Use "Regenerar seções" para reprocessar.`, { duration: 12000 });
+      toast.warning(`Relatório gerado com ${falhas} item(ns) pulado(s) por timeout.`, { duration: 12000 });
     } else {
       toast.success('Relatório gerado com sucesso! Todas as seções preenchidas.', { duration: 10000 });
     }
