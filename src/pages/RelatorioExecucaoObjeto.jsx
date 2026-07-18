@@ -905,7 +905,11 @@ function SecaoEditavel({ secao, relatorio, onEditar, onIA, gerandoIA, onAnexar, 
       {isEquipe && (
         <EquipeTrabalhoTable
           relatorioId={relatorioId}
-          equipe={Array.isArray(relatorio?.equipe_trabalho) ? relatorio.equipe_trabalho : []}
+          equipe={
+            Array.isArray(relatorio?.equipe_trabalho)
+              ? relatorio.equipe_trabalho
+              : relatorio?.equipe_trabalho?.membros || []
+          }
           form={form}
           onAtualizar={onAtualizarRelatorio}
         />
