@@ -75,7 +75,7 @@ export default function EquipeTrabalhoTable({ relatorioId, equipe: equipeInicial
     if (!relatorioId) return;
     setGerandoIA(true);
     try {
-      await Promise.race([
+      const resultado = await Promise.race([
         base44.functions.invoke('gerarSecaoRelatorioExecucao', {
           relatorio_id: relatorioId,
           secao: 'equipe_trabalho',
@@ -86,10 +86,20 @@ export default function EquipeTrabalhoTable({ relatorioId, equipe: equipeInicial
           filtro_meta_ids: form?.filtro_meta_ids,
           aditivos_permitidos: [3, 4],
         }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout (45s)')), 45000)),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout (60s)')), 60000)),
       ]);
-      await onAtualizar?.();
-      toast.success('Equipe preenchida pela IA — revise os dados e salve.');
+
+      // Atualizar estado local imediatamente com dados retornados pela IA
+      const equipeIA = resultado?.data?.equipe;
+      if (Array.isArray(equipeIA) && equipeIA.length > 0) {
+        setProfissionais(equipeIA.map(p => ({ ...linhaVazia(), ...p })));
+        setAlterado(false);
+        toast.success(`${equipeIA.length} profissional(is) preenchido(s) com IA — revise e salve se necessário.`);
+      } else {
+        // Fallback: recarregar do banco
+        await onAtualizar?.();
+        toast.success('Equipe preenchida pela IA — revise os dados.');
+      }
     } catch (error) {
       toast.error('Erro ao gerar com IA: ' + (error?.message || String(error)));
     } finally {

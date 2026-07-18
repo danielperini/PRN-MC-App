@@ -525,17 +525,56 @@ REGRAS ABSOLUTAS:
       // ── Equipe de Trabalho ───────────────────────────────────────────────
       case 'equipe_trabalho': {
         const ctx = await coletarContexto('leve');
+
+        if (ctx.equipe.length === 0) {
+          await srv.entities.RelatorioExecucaoObjeto.update(relatorio_id, { equipe_trabalho: [] });
+          return Response.json({ success: true, secao, data: { total: 0 } });
+        }
+
+        // Gerar atribuições via IA em lote para todos os profissionais
+        const listaEquipe = ctx.equipe.map(t =>
+          `- ${t.nome} | ${t.cargo || 'Profissional'} | ${t.tipo_pessoa === 'PF' ? 'Pessoa Física' : t.tipo_pessoa === 'MEI' ? 'MEI' : 'Pessoa Jurídica'} | Museu/área: ${t.museu_projeto || 'Geral'}`
+        ).join('\n');
+
+        const atividadesResumidas = ctx.atividades.slice(0, 30).map(a =>
+          `${a.titulo} (${a.museu}) — resp: ${a.equipe_responsavel || ''}`
+        ).join('\n');
+
+        let atribuicoesPorProfissional: Record<string, string> = {};
+        try {
+          const resultado = await chamarIA(
+            `Você está preenchendo a tabela "Equipe de Trabalho" de um relatório de prestação de contas cultural (PBH/SUCC).\n\n` +
+            `EQUIPE DO PROJETO:\n${listaEquipe}\n\n` +
+            `ATIVIDADES REALIZADAS NO PERÍODO (${dInicio} a ${dFim}):\n${atividadesResumidas || 'Não informadas'}\n\n` +
+            `Para cada profissional listado, escreva um texto curto (1-2 frases, máx. 120 caracteres) descrevendo suas ATRIBUIÇÕES no projeto, ` +
+            `com base no cargo, área de atuação e atividades registradas. ` +
+            `Use linguagem técnica e objetiva. Não invente responsabilidades que não se relacionem ao cargo.\n\n` +
+            `Retorne um JSON onde as chaves são os NOMES EXATOS dos profissionais e os valores são as atribuições.`,
+            {
+              type: 'object',
+              additionalProperties: { type: 'string' },
+            }
+          );
+          if (resultado && typeof resultado === 'object') {
+            atribuicoesPorProfissional = resultado as Record<string, string>;
+          }
+        } catch {
+          // Fallback: atribuições baseadas no cargo sem IA
+        }
+
         const equipe = ctx.equipe.map(t => ({
           nome: t.nome,
           cargo: t.cargo || 'Profissional',
           tipo_contratacao: t.tipo_pessoa === 'PF' ? 'Pessoa Física' : t.tipo_pessoa === 'MEI' ? 'MEI' : 'Pessoa Jurídica',
+          atribuicoes: atribuicoesPorProfissional[t.nome] || `Execução de atividades na área de ${t.cargo || 'atuação no projeto'}.`,
           carga_horaria: '',
           valor: t.valor_total || 0,
           periodo: `${t.data_inicio || dInicio} a ${t.data_fim || dFim}`,
           modo: 'ia',
         }));
+
         await srv.entities.RelatorioExecucaoObjeto.update(relatorio_id, { equipe_trabalho: equipe });
-        return Response.json({ success: true, secao, data: { total: equipe.length } });
+        return Response.json({ success: true, secao, data: { total: equipe.length, equipe } });
       }
 
       // ── Fichas de Atividades (seção estruturada completa) ────────────────
