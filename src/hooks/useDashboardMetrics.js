@@ -16,7 +16,7 @@
 
 import { useMemo } from 'react';
 import { resolvePublico } from '@/utils/fieldResolvers';
-import { calcularSaldoRubrica } from '@/services/canonicalMetrics';
+import { rubricaPrevisto, rubricaUtilizado } from '@/services/canonicalMetrics';
 
 // ─── PÚBLICO ──────────────────────────────────────────────────────────────────
 /**
@@ -35,21 +35,6 @@ function publicoAtividade(a) {
     return pe * reps;
   }
   return resolvePublico(a);
-}
-
-// ─── RUBRICAS ─────────────────────────────────────────────────────────────────
-/**
- * Extrai valor previsto de uma rubrica com aliases canônicos.
- */
-function rubricaPrevisto(r) {
-  return Number(r?.valor_rubrica ?? r?.valor_total ?? r?.valor_previsto ?? r?.valor ?? 0);
-}
-
-/**
- * Extrai valor utilizado de uma rubrica com aliases canônicos.
- */
-function rubricaUtilizado(r) {
-  return Number(r?.valor_utilizado ?? r?.valor_executado ?? r?.utilizado ?? r?.realizado ?? 0);
 }
 
 // ─── HOOK ─────────────────────────────────────────────────────────────────────

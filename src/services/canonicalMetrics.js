@@ -41,18 +41,44 @@ export function calcularRealizadoRubrica(compras = [], rubricaId) {
 }
 
 /**
+ * Extrai o valor PREVISTO canônico de uma rubrica.
+ * Fonte única de verdade — usar em todos os componentes.
+ * @param {Object} rubrica
+ * @returns {number}
+ */
+export function rubricaPrevisto(rubrica = {}) {
+  return Number(
+    rubrica?.valor_rubrica ??
+    rubrica?.valor_total ??
+    rubrica?.valor_previsto ??
+    rubrica?.valor ??
+    0
+  );
+}
+
+/**
+ * Extrai o valor UTILIZADO canônico de uma rubrica.
+ * Fonte única de verdade — usar em todos os componentes.
+ * @param {Object} rubrica
+ * @returns {number}
+ */
+export function rubricaUtilizado(rubrica = {}) {
+  return Number(
+    rubrica?.valor_utilizado ??
+    rubrica?.valor_executado ??
+    rubrica?.utilizado ??
+    rubrica?.realizado ??
+    0
+  );
+}
+
+/**
  * Calcula o saldo disponível de uma rubrica.
- * Usa valor_rubrica (previsto) - valor_utilizado (realizado).
- *
  * @param {Object} rubrica
  * @returns {number}
  */
 export function calcularSaldoRubrica(rubrica = {}) {
-  const previsto =
-    Number(rubrica?.valor_rubrica ?? rubrica?.valor_total ?? rubrica?.valor_previsto ?? rubrica?.valor ?? 0);
-  const utilizado =
-    Number(rubrica?.valor_utilizado ?? rubrica?.valor_executado ?? rubrica?.utilizado ?? rubrica?.realizado ?? 0);
-  return previsto - utilizado;
+  return rubricaPrevisto(rubrica) - rubricaUtilizado(rubrica);
 }
 
 /**

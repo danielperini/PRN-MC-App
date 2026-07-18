@@ -25,13 +25,13 @@ const PAGE_TITLES = {
   Compras: 'Compras',
   GestaoPagamentos: 'Pagamentos',
   RelatorioMeta: 'Rel. por Meta',
-  CoordReview: 'Revisão',
+  CoordReview: 'Revisão de Relatórios',
   UserManagement: 'Usuários',
   GestorArquivos: 'Arquivos',
-  GaleriaFotos: 'Galeria de Fotos',
-  ComunicacaoVisibilidade: 'Comunicação visibilidade',
+  GaleriaFotos: 'Galeria',
+  ComunicacaoVisibilidade: 'Comunicação',
   ActivityLog: 'Auditoria',
-  PlataformaAdmin: 'Administração',
+  PlataformaAdmin: 'Administração do Sistema',
   AssistentePlanejamento: 'Assistente de IA do MC',
   Perfil: 'Perfil',
   BaseConhecimento: 'Base de Conhecimento',
@@ -42,10 +42,10 @@ const PAGE_TITLES = {
   MeusDados: 'Meus Dados',
   ProgramacaoEspelho: 'Programação',
   Agenda: 'Agenda',
-  EntradaUnica: 'Entrada Única de Documentos',
+  EntradaUnica: 'Entrada de Documentos',
   Mensagens: 'Mensagens',
-  Aparencia: 'Aparência e Manutenção',
-  RelatorioExecucaoObjeto: 'Rel. Execução',
+  Aparencia: 'Aparência',
+  RelatorioExecucaoObjeto: 'Execução do Objeto',
   VarreduraDrive: 'Varredura do Google Drive',
   AuditoriaMensalRubricas: 'Auditoria de Gastos vs. Metas',
   NFsDoGmail: 'NFs do Gmail',
@@ -55,7 +55,7 @@ const PAGE_TITLES = {
   AprovacaoNFs: 'Aprovação de NFs',
   ChecklistProducao: 'Checklist de Produção',
   GaleriaNoturno: '🌙 Galeria Noturno nos Museus',
-  RelatorioAtividadesFotos: 'Rel. Atividades',
+  RelatorioAtividadesFotos: 'Relatórios de Atividades',
   RelatorioAtividadesHtml: '📋 Relatório de Atividades com Fotos (Fev–Jun/2026)',
   BancoRelatorios: 'Banco de Relatórios',
   AuditoriaInstitucional: 'Auditoria',
@@ -96,8 +96,6 @@ export default function Layout({ children, currentPageName }) {
     setIsRefreshing(true);
     try {
       await queryClient.refetchQueries({ stale: true });
-      window.dispatchEvent(new CustomEvent('rubricas:sync'));
-      window.dispatchEvent(new CustomEvent('notas-drive:sync'));
     } catch (error) {
       console.error('Error refreshing:', error);
     } finally {

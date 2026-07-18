@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   FileText,
@@ -7,7 +7,6 @@ import {
   Folder,
   Image,
   Settings,
-  Bot,
   User,
   Newspaper,
   HelpCircle,
@@ -15,7 +14,6 @@ import {
   ChevronLeft,
   ChevronRight,
   CalendarDays,
-  CheckSquare,
   DollarSign,
   Star,
   Eye,
@@ -27,6 +25,9 @@ import {
   Banknote,
   HardDrive,
   ExternalLink,
+  ChevronUp,
+  UserCog,
+  LogOut,
 } from 'lucide-react';
 
 import { base44 } from '@/api/base44Client';
@@ -146,6 +147,83 @@ const SPONSOR_NAV_GROUPS = [
     ],
   },
 ];
+
+function UserFooterMenu({ currentUser, collapsed }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    function handleClick(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const menuItems = [
+    { label: 'Meus Dados', path: '/MeusDados', icon: UserCog },
+    { label: 'Perfil', path: '/Perfil', icon: User },
+    { label: 'Aparência', path: '/Aparencia', icon: Palette },
+    { label: 'Ajuda', path: '/Manual', icon: HelpCircle },
+  ];
+
+  return (
+    <div ref={ref} className={`border-t border-primary-foreground/10 py-3 px-2 flex-shrink-0 relative ${collapsed ? 'flex justify-center' : ''}`}>
+      {open && !collapsed && (
+        <div className="absolute bottom-full left-2 right-2 mb-1 bg-white rounded-lg shadow-lg border border-border overflow-hidden z-50">
+          {menuItems.map(({ label, path, icon: Icon }) => (
+            <button
+              key={path}
+              onClick={() => { navigate(path); setOpen(false); }}
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-foreground hover:bg-slate-50 transition-colors"
+            >
+              <Icon className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+      {open && collapsed && (
+        <div className="absolute bottom-full left-full ml-2 mb-0 bg-white rounded-lg shadow-lg border border-border overflow-hidden z-50 w-44">
+          {menuItems.map(({ label, path, icon: Icon }) => (
+            <button
+              key={path}
+              onClick={() => { navigate(path); setOpen(false); }}
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-foreground hover:bg-slate-50 transition-colors"
+            >
+              <Icon className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className={`flex items-center gap-2 rounded-lg p-2 hover:bg-primary-foreground/10 transition-colors w-full ${collapsed ? 'justify-center' : ''}`}
+      >
+        <div className="w-7 h-7 rounded-full bg-primary-foreground/20 flex items-center justify-center flex-shrink-0">
+          <span className="text-xs font-bold text-primary-foreground">
+            {(currentUser.full_name || currentUser.email || '?')[0].toUpperCase()}
+          </span>
+        </div>
+        {!collapsed && (
+          <>
+            <div className="min-w-0 flex-1 text-left">
+              <p className="text-xs font-medium text-primary-foreground truncate leading-tight">
+                {currentUser.full_name || currentUser.email}
+              </p>
+              <p className="text-[10px] text-primary-foreground/50 truncate">
+                {currentUser.role || 'user'}
+              </p>
+            </div>
+            <ChevronUp className={`w-3 h-3 text-primary-foreground/50 flex-shrink-0 transition-transform ${open ? '' : 'rotate-180'}`} />
+          </>
+        )}
+      </button>
+    </div>
+  );
+}
 
 function NavItem({ item, isActive, collapsed, userPermission, user }) {
   const Icon = item.icon;
@@ -335,32 +413,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
 
       {/* Footer user */}
       {currentUser && (
-        <div className={`border-t border-primary-foreground/10 py-3 px-2 flex-shrink-0
-          ${collapsed ? 'flex justify-center' : ''}
-        `}>
-          <Link
-            to="/Perfil"
-            className={`flex items-center gap-2 rounded-lg p-2 hover:bg-primary-foreground/10 transition-colors w-full
-              ${collapsed ? 'justify-center' : ''}
-            `}
-          >
-            <div className="w-7 h-7 rounded-full bg-primary-foreground/20 flex items-center justify-center flex-shrink-0">
-              <span className="text-xs font-bold text-primary-foreground">
-                {(currentUser.full_name || currentUser.email || '?')[0].toUpperCase()}
-              </span>
-            </div>
-            {!collapsed && (
-              <div className="min-w-0">
-                <p className="text-xs font-medium text-primary-foreground truncate leading-tight">
-                  {currentUser.full_name || currentUser.email}
-                </p>
-                <p className="text-[10px] text-primary-foreground/50 truncate">
-                  {currentUser.role || 'user'}
-                </p>
-              </div>
-            )}
-          </Link>
-        </div>
+        <UserFooterMenu currentUser={currentUser} collapsed={collapsed} />
       )}
     </aside>
   );

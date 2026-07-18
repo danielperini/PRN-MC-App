@@ -4,6 +4,7 @@ import { ChevronDown, ChevronUp, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { rubricaPrevisto, rubricaUtilizado } from '@/services/canonicalMetrics';
 
 const fmtBRL = (v) => {
   if (!v && v !== 0) return 'R$ 0';
@@ -22,9 +23,8 @@ function BarraProgresso({ pct, saldo }) {
 }
 
 function LinhaRubrica({ r }) {
-  // usa aliases canônicos (mesma lógica do useDashboardMetrics)
-  const previsto = Number(r?.valor_rubrica ?? r?.valor_total ?? r?.valor_previsto ?? r?.valor ?? 0);
-  const utilizado = Number(r?.valor_utilizado ?? r?.valor_executado ?? r?.utilizado ?? r?.realizado ?? 0);
+  const previsto = rubricaPrevisto(r);
+  const utilizado = rubricaUtilizado(r);
   const saldo = previsto - utilizado;
   const pct = previsto > 0 ? (utilizado / previsto) * 100 : 0;
   const alertaExtrapolou = saldo < 0;
@@ -83,8 +83,8 @@ export default function PainelPrevistoVsUtilizado({ rubricas = [] }) {
     }
 
     lista = lista.map(r => {
-      const previsto = Number(r?.valor_rubrica ?? r?.valor_total ?? r?.valor_previsto ?? r?.valor ?? 0);
-      const utilizado = Number(r?.valor_utilizado ?? r?.valor_executado ?? r?.utilizado ?? r?.realizado ?? 0);
+      const previsto = rubricaPrevisto(r);
+      const utilizado = rubricaUtilizado(r);
       return { ...r, _previsto: previsto, _utilizado: utilizado, _saldo: previsto - utilizado, _pct: previsto > 0 ? (utilizado / previsto) * 100 : 0 };
     });
 
