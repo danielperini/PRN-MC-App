@@ -134,9 +134,17 @@ export function isOrigemAditivo(r) {
 export function calcularExecucaoOrcamentariaOficial(rubricas = []) {
   const ORCAMENTO_OFICIAL = 1_401_719.85;
 
-  const itens = (Array.isArray(rubricas) ? rubricas : []).filter(
-    (r) => r?.ativo !== false && isOrigemAditivo(r)
-  );
+  // Filtrar por origem e deduplicar por _chave_oficial (grupo::rubrica::meta)
+  const vistos = new Map();
+  const itens = [];
+  for (const r of (Array.isArray(rubricas) ? rubricas : [])) {
+    if (r?.ativo === false || !isOrigemAditivo(r)) continue;
+    const chave = r._chave_oficial ||
+      `${String(r.grupo || '').trim().toLowerCase()}::${String(r.rubrica || r.nome || '').trim().toLowerCase()}::${String(r.meta || '').trim().toLowerCase()}`;
+    if (vistos.has(chave)) continue;
+    vistos.set(chave, true);
+    itens.push(r);
+  }
 
   const previsto = itens.reduce((s, r) => s + rubricaPrevisto(r), 0);
   const utilizado = itens.reduce((s, r) => s + rubricaUtilizado(r), 0);

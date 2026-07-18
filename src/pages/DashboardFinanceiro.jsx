@@ -12,6 +12,7 @@ import NovaRubricaDialog from '@/components/rubricas/NovaRubricaDialog';
 import { canManageRubricas } from '@/components/auth/permissions';
 import PainelPrevistoVsUtilizado from '@/components/financeiro/PainelPrevistoVsUtilizado';
 import MemoriaCalculoDrawer from '@/components/financeiro/MemoriaCalculoDrawer';
+import AuditarRubricasModal from '@/components/financeiro/AuditarRubricasModal';
 import { calcularExecucaoOrcamentariaOficial, isOrigemAditivo } from '@/services/canonicalMetrics';
 
 function DashboardFinanceiroInner() {
@@ -21,6 +22,7 @@ function DashboardFinanceiroInner() {
   const [filterEquipe, setFilterEquipe] = useState('');
   const [showNovaRubrica, setShowNovaRubrica] = useState(false);
   const [showMemoria, setShowMemoria] = useState(false);
+  const [showAuditoria, setShowAuditoria] = useState(false);
   const canManage = canManageRubricas(currentUser);
 
   // Carregar dados financeiros
@@ -211,13 +213,16 @@ function DashboardFinanceiroInner() {
             <p className="text-gray-500">Consolidação de gastos, fornecedores e orçamentos</p>
           </div>
           {canManage && (
-            <Button
-              onClick={() => setShowNovaRubrica(true)}
-              className="bg-black hover:bg-gray-800 text-white"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Nova Rubrica
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setShowAuditoria(true)} className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4" />
+                Auditar Rubricas
+              </Button>
+              <Button onClick={() => setShowNovaRubrica(true)} className="bg-black hover:bg-gray-800 text-white">
+                <Plus className="w-4 h-4 mr-2" />
+                Nova Rubrica
+              </Button>
+            </div>
           )}
         </div>
 
@@ -478,6 +483,11 @@ function DashboardFinanceiroInner() {
           )}
         </div>
       </div>
+      <AuditarRubricasModal
+        open={showAuditoria}
+        onClose={() => setShowAuditoria(false)}
+        onConcluido={() => queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey?.[0] || '').toLowerCase().includes('rubrica') })}
+      />
       <NovaRubricaDialog
         open={showNovaRubrica}
         currentUser={currentUser}
