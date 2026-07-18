@@ -705,7 +705,6 @@ function GaleriaFotosInner() {
         open={showExportarPDF}
         onClose={() => setShowExportarPDF(false)}
         fotos={sortedImages}
-        userEmail={currentUser?.email || ''}
       />
 
       <Dialog open={!!selectedImage} onOpenChange={(open) => !open && setSelectedImage(null)}>
