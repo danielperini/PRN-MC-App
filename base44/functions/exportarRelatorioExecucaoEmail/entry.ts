@@ -578,7 +578,8 @@ Deno.serve(async (req) => {
       if (isUltimaParte) {
         // Envia email final com todos os links
         const emailBody = buildEmailBody(novosResultados, job.folder_link, novosErros);
-        const emails = [job.destinatario].filter(Boolean);
+        const COORDENACAO_EMAIL = 'danielperini.mc@viadutodasartes.org.br';
+        const emails = [...new Set([job.destinatario, COORDENACAO_EMAIL].filter(Boolean))];
 
         for (const em of emails) {
           try {
