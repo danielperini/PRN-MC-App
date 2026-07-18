@@ -477,30 +477,72 @@ async function getFolderLink(base44Client, folderId) {
 
 // ─── Email builder ──────────────────────────────────────────────────────────
 
-function buildEmailBody(resultados, folderLink, erros) {
+function buildEmailBody(resultados, folderLink, erros, nomeRelatorio?: string) {
   const dataHora = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-  const linksHTML = resultados.map(r =>
-    `<li style="margin-bottom:8px;"><a href="${r.link}" style="color:#1d4ed8;text-decoration:none;font-weight:600;">${r.nome}</a><br><span style="font-size:12px;color:#6b7280;">${r.arquivo}</span></li>`
-  ).join('');
-  const errosHTML = erros.length > 0 ? `<p style="color:#dc2626;font-size:13px;margin-top:12px;">⚠ Partes com erro: ${erros.join(' | ')}</p>` : '';
-  return `<div style="font-family:Inter,sans-serif;max-width:600px;margin:0 auto;padding:24px;background:#f8fafc;border-radius:12px;">
-  <div style="background:#0f172a;padding:20px 24px;border-radius:8px 8px 0 0;">
-    <h1 style="color:#fff;font-size:18px;margin:0;">📄 Relatório de Execução Gerado</h1>
+
+  // Separa capítulos de fotos para exibição organizada
+  const capitulos = resultados.filter(r => !r.nome.startsWith('Fotos'));
+  const fotos     = resultados.filter(r =>  r.nome.startsWith('Fotos'));
+
+  const renderItem = (r) =>
+    `<tr>
+      <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#1e293b;font-weight:600;">
+        <a href="${r.link}" style="color:#1d4ed8;text-decoration:none;">${r.nome}</a>
+      </td>
+      <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;font-size:11px;color:#94a3b8;">${r.arquivo}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;text-align:right;">
+        <a href="${r.link}" style="display:inline-block;background:#1d4ed8;color:#fff;padding:4px 12px;border-radius:6px;font-size:11px;text-decoration:none;font-weight:600;">Abrir PDF</a>
+      </td>
+    </tr>`;
+
+  const capSection = capitulos.length > 0 ? `
+    <h3 style="font-size:13px;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin:20px 0 8px;">📄 Capítulos</h3>
+    <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+      ${capitulos.map(renderItem).join('')}
+    </table>` : '';
+
+  const fotSection = fotos.length > 0 ? `
+    <h3 style="font-size:13px;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin:20px 0 8px;">🖼️ Galeria de Fotos</h3>
+    <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+      ${fotos.map(renderItem).join('')}
+    </table>` : '';
+
+  const errosHTML = erros.length > 0
+    ? `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px 16px;margin-top:16px;">
+        <p style="color:#dc2626;font-size:13px;margin:0;font-weight:600;">⚠️ ${erros.length} parte(s) com erro:</p>
+        <ul style="margin:6px 0 0;padding-left:16px;color:#b91c1c;font-size:12px;">${erros.map(e => `<li>${e}</li>`).join('')}</ul>
+       </div>`
+    : '';
+
+  const tituloRelatorio = nomeRelatorio
+    ? nomeRelatorio.replace(/_/g, ' ')
+    : 'Relatório de Execução';
+
+  return `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:640px;margin:0 auto;padding:24px;background:#f8fafc;">
+  <div style="background:#0f172a;padding:22px 28px;border-radius:12px 12px 0 0;">
+    <h1 style="color:#fff;font-size:18px;margin:0;font-weight:700;">✅ PDFs prontos no Google Drive</h1>
     <p style="color:#94a3b8;font-size:13px;margin:6px 0 0;">Museus Centro — Viaduto das Artes</p>
   </div>
-  <div style="background:#fff;padding:24px;border-radius:0 0 8px 8px;border:1px solid #e2e8f0;border-top:none;">
-    <p style="color:#374151;font-size:14px;">Seus PDFs estão prontos e foram salvos no Google Drive.</p>
-    <p style="color:#6b7280;font-size:12px;">Gerado em: ${dataHora} · ${resultados.length} arquivo(s)</p>
-    <h3 style="font-size:14px;color:#1e293b;margin:16px 0 8px;">Arquivos gerados:</h3>
-    <ul style="padding-left:16px;color:#374151;font-size:13px;">${linksHTML}</ul>
-    ${errosHTML}
-    <div style="margin-top:20px;text-align:center;">
-      <a href="${folderLink}" style="display:inline-block;background:#0f172a;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">
-        📁 Abrir Pasta Completa no Drive
-      </a>
+  <div style="background:#fff;padding:28px;border-radius:0 0 12px 12px;border:1px solid #e2e8f0;border-top:none;">
+
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px 18px;margin-bottom:20px;">
+      <p style="color:#166534;font-size:14px;margin:0;font-weight:600;">📂 ${tituloRelatorio}</p>
+      <p style="color:#15803d;font-size:12px;margin:4px 0 0;">Gerado em ${dataHora} · ${resultados.length} arquivo(s) salvos no Drive</p>
     </div>
-    <p style="font-size:11px;color:#9ca3af;margin-top:20px;text-align:center;">Relatório gerado automaticamente pelo sistema Museus Centro.</p>
+
+    ${capSection}
+    ${fotSection}
+    ${errosHTML}
+
+    <div style="margin-top:28px;text-align:center;">
+      <a href="${folderLink}" style="display:inline-block;background:#0f172a;color:#fff;padding:14px 32px;border-radius:10px;text-decoration:none;font-size:14px;font-weight:700;letter-spacing:.3px;">
+        📁 Abrir Pasta Completa no Drive →
+      </a>
+      <p style="font-size:11px;color:#94a3b8;margin-top:12px;">Clique no link acima para acessar todos os arquivos organizados por capítulo e fotos.</p>
+    </div>
+
   </div>
+  <p style="font-size:10px;color:#cbd5e1;text-align:center;margin-top:12px;">Notificação automática · Sistema Museus Centro · Viaduto das Artes</p>
 </div>`;
 }
 
@@ -581,15 +623,21 @@ Deno.serve(async (req) => {
 
       if (isUltimaParte) {
         // Envia email final com todos os links
-        const emailBody = buildEmailBody(novosResultados, job.folder_link, novosErros);
+        const emailBody = buildEmailBody(novosResultados, job.folder_link, novosErros, job.nome_relatorio);
         const COORDENACAO_EMAIL = 'danielperini.mc@viadutodasartes.org.br';
         const emails = [...new Set([job.destinatario, COORDENACAO_EMAIL].filter(Boolean))];
+        const totalCapitulos = novosResultados.filter(r => !r.nome.startsWith('Fotos')).length;
+        const totalFotos     = novosResultados.filter(r =>  r.nome.startsWith('Fotos')).length;
+        const subjectSuffix  = [
+          totalCapitulos > 0 ? `${totalCapitulos} capítulo(s)` : '',
+          totalFotos > 0     ? `${totalFotos} lote(s) de fotos` : '',
+        ].filter(Boolean).join(' + ') || `${novosResultados.length} arquivo(s)`;
 
         for (const em of emails) {
           try {
             await base44Client.asServiceRole.integrations.Core.SendEmail({
               to: em,
-              subject: `📄 Relatório de Execução — ${novosResultados.length} PDF(s) prontos no Drive`,
+              subject: `✅ Relatório de Execução gerado — ${subjectSuffix} prontos no Drive`,
               body: emailBody,
             });
           } catch (_) {}
