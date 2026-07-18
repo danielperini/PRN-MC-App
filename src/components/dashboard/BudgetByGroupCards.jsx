@@ -31,10 +31,10 @@ function fmtPct(value) {
 
 function getRubricaTotal(rubrica) {
   return n(
+    rubrica?.valor_rubrica ??
+    rubrica?.valor_total ??
     rubrica?.valor_total_original ??
     rubrica?.valor_original ??
-    rubrica?.valor_total ??
-    rubrica?.valor_rubrica ??
     rubrica?.total ??
     rubrica?.valor_previsto ??
     0
