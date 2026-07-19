@@ -244,7 +244,7 @@ async function gerarAlbumPDF(museuKey, mesLabel, fotos, opts = {}) {
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
-    doc.text('MUSEUS CENTRO — RELATÓRIO DE ATIVIDADES', M, 8);
+    doc.text('VIADUTO DAS ARTES · MUSEUS CENTRO', PW / 2, 8, { align: 'center' });
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     doc.text(titulo, M, 13);
@@ -393,7 +393,7 @@ async function gerarMuseuCompletoPDF(museuKey, albunsPorMes) {
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
-    doc.text('MUSEUS CENTRO — RELATÓRIO DE ATIVIDADES', M, 8);
+    doc.text('VIADUTO DAS ARTES · MUSEUS CENTRO', PW / 2, 8, { align: 'center' });
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'normal');
     doc.text(`${museu}  ·  ${mes}`, M, 13);
