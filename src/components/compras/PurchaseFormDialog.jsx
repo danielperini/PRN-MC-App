@@ -18,6 +18,7 @@ import useDocumentAnalysis from '@/hooks/useDocumentAnalysis'
 import { notifyPurchaseApproved, notifyPurchaseCreated, notifyPurchaseReturned } from '@/services/notifications/purchaseNotifications'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 import { METAS_PROJETO_FALLBACK } from '@/lib/metasProjeto'
+import { metaOcultaNoTerceiroAditivo } from '@/utils/metasAditivosPermitidos'
 
 const CENTROS = ['MUMO','MIS','MHAB','Noturno nos Museus 2026','Noturno Pampulha','Publicações','Geral']
 const MUSEUS_RATEIO = ['MHAB', 'MIS', 'MUMO']
@@ -248,7 +249,7 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
 
     base44.entities.ProjectMeta.list('ordem', 500)
       .then((d) => {
-        const ativos = (d || []).filter((m) => m?.ativo !== false)
+        const ativos = (d || []).filter((m) => m?.ativo !== false && !metaOcultaNoTerceiroAditivo(m))
         // Garante que 11B - Noturno Pampulha está na lista mesmo que não venha do banco
         const ids = new Set(ativos.map(m => m.id))
         const fallbackExtras = METAS_PROJETO_FALLBACK.filter(m => !ids.has(m.id)).map(m => ({ id: m.id, nome: m.label }))

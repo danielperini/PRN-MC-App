@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import { Loader2, PlusCircle, CheckCircle2, Upload, X, Image, FileText, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useCurrentUser } from '@/components/auth/useCurrentUser';
+import { metaOcultaNoTerceiroAditivo } from '@/utils/metasAditivosPermitidos';
 
 const CLASSIFICACOES = [
   { value: 'META', label: 'Meta do projeto' },
@@ -33,11 +34,7 @@ const MESES = [
 // Metas do 3º e 4º Aditivo (alinhado com METAS_OFICIAIS em metaFinancialMetrics.js)
 const METAS_FALLBACK = [
   { id: '1 - Equipe principal', nome: '1 - Equipe principal' },
-  { id: '2 - Plano de comunicação', nome: '2 - Plano de comunicação' },
   { id: '3 - Manutenção das exposições', nome: '3 - Manutenção das exposições' },
-  { id: '4 - Alteração de núcleos e salas expositivas', nome: '4 - Alteração de núcleos e salas expositivas' },
-  { id: '7 - Contratação de educadores', nome: '7 - Contratação de educadores' },
-  { id: '8 - Exposição e evento MHAB', nome: '8 - Exposição e evento MHAB' },
   { id: '9 - Exposição e evento MIS', nome: '9 - Exposição e evento MIS' },
   { id: '10 - Mostras de baixa/média complexidade (18 mostras)', nome: '10 - Mostras de baixa/média complexidade (18 mostras)' },
   { id: '11 - Noturno nos Museus (edições 2024, 2025 e 2026)', nome: '11 - Noturno nos Museus (edições 2024, 2025 e 2026)' },
@@ -45,7 +42,6 @@ const METAS_FALLBACK = [
   { id: '12 - Exposição MHAB (pesquisa e curadoria)', nome: '12 - Exposição MHAB (pesquisa e curadoria)' },
   { id: '13 - Exposição MUMO (pesquisa e curadoria)', nome: '13 - Exposição MUMO (pesquisa e curadoria)' },
   { id: '14 - Acessibilidade', nome: '14 - Acessibilidade' },
-  { id: '15 - Inscrição em Leis de Incentivo', nome: '15 - Inscrição em Leis de Incentivo' },
   { id: '16 - Diárias de educadores (101 diárias)', nome: '16 - Diárias de educadores (101 diárias)' },
   { id: '17 - Publicações e catálogos', nome: '17 - Publicações e catálogos' },
   { id: '18 - Custeio das atividades educativas e culturais', nome: '18 - Custeio das atividades educativas e culturais' },
@@ -110,7 +106,7 @@ export default function NovaAtividade() {
             nome: meta.nome || meta.descricao || meta.id,
             descricao: meta.descricao || '',
           }))
-          .filter((meta) => meta.nome);
+          .filter((meta) => meta.nome && !metaOcultaNoTerceiroAditivo(meta));
 
         if (mounted && ativos.length > 0) {
           setMetas(ativos);

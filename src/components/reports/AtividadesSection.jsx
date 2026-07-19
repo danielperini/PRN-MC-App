@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import AtividadeCamposBasicos from './AtividadeCamposBasicos';
 import ActivityPhotoLinker from './ActivityPhotoLinker';
 import ActivityAttachments from './ActivityAttachments';
+import { metaOcultaNoTerceiroAditivo } from '@/utils/metasAditivosPermitidos';
 
 function createActivityId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -164,7 +165,7 @@ export default function AtividadesSection({
           if (m.ativo === false) return false;
           // Apenas metas do 3º e 4º Aditivo: ordem numérica de 1 a 25
           const ordem = Number(m.ordem);
-          return Number.isFinite(ordem) && ordem >= 1 && ordem <= 25;
+          return Number.isFinite(ordem) && ordem >= 1 && ordem <= 25 && !metaOcultaNoTerceiroAditivo(m);
         })
         .map((m) => ({
           id: m.id,

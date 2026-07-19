@@ -69,7 +69,9 @@ export function metaPertenceAo3ou4Aditivo(meta) {
 }
 
 export function filtrarMetas3e4Aditivos(metas) {
-  return (Array.isArray(metas) ? metas : []).filter(metaPertenceAo3ou4Aditivo);
+  return (Array.isArray(metas) ? metas : [])
+    .filter(metaPertenceAo3ou4Aditivo)
+    .filter((meta) => !metaOcultaNoTerceiroAditivo(meta));
 }
 
 export function idCanonicoMeta(meta) {
