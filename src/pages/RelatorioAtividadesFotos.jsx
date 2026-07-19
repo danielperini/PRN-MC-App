@@ -10,6 +10,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import jsPDF from 'jspdf';
 import viadutoHeaderOriginal from '@/assets/viadutoHeaderOriginal';
 import { preloadPdfPhotos } from '@/utils/pdfPhotoLoader';
+import { exportarAmostraFotosMaioJunho } from '@/utils/exportarAmostraFotosMaioJunho';
 
 const MUSEU_LABELS = {
   MHAB: 'Museu Histórico Abílio Barreto',
@@ -513,6 +514,18 @@ function RelatorioAtividadesFotosInner() {
     }
   }
 
+  async function handleExportAmostra() {
+    setErroExportacao('');
+    setExportando('amostra-maio-junho');
+    try {
+      await exportarAmostraFotosMaioJunho(images);
+    } catch (error) {
+      setErroExportacao(`A amostra não foi gerada: ${error.message}. Atualize as fotos e tente novamente.`);
+    } finally {
+      setExportando(null);
+    }
+  }
+
   if (isLoading) return <LoadingPage message="Carregando relatório..." description="Buscando fotos e atividades." />;
   if (isError && images.length === 0) return <LoadingPage error errorTitle="Não foi possível carregar" errorDescription={error?.message} />;
 
@@ -536,6 +549,10 @@ function RelatorioAtividadesFotosInner() {
             <Button variant="outline" size="sm" onClick={() => refetch()}>
               <RefreshCw className="w-4 h-4 mr-1" />
               Atualizar
+            </Button>
+            <Button size="sm" onClick={handleExportAmostra} disabled={!!exportando}>
+              <Download className="w-4 h-4 mr-1" />
+              Amostra maio–junho
             </Button>
           </div>
         </div>

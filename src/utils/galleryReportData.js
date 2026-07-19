@@ -52,6 +52,14 @@ function parseMetadata(item = {}) {
   }
   return raw && typeof raw === 'object' ? raw : {};
 }
+
+function parseDriveContext(item = {}) {
+  const raw = item.contexto_ia || {};
+  if (typeof raw === 'string') {
+    try { return JSON.parse(raw); } catch { return {}; }
+  }
+  return raw && typeof raw === 'object' ? raw : {};
+}
 function extractGeoCoordinates(item = {}) {
   const meta = parseMetadata(item);
   const latRaw = firstValue(item, ['latitude', 'lat', 'gps_latitude']) || firstValue(meta, ['latitude', 'lat', 'gps_latitude']);
@@ -126,7 +134,8 @@ function mapPhoto(item, sourceEntity = 'Attachment') {
   const metadataLocation = extractLocation(item);
   const sectionKey = resolveSectionKey(item, metadataLocation);
   const section = MUSEUM_SECTIONS[sectionKey] || MUSEUM_SECTIONS.SEM_IDENTIFICACAO;
-  const timestamp = normalizeDate(firstValue(item, ['data_foto', 'photo_date', 'taken_at', 'captured_at', 'date_taken']) || item.created_at || item.created_date || item.updated_date);
+  const driveContext = parseDriveContext(item);
+  const timestamp = normalizeDate(firstValue(item, ['data_foto', 'photo_date', 'taken_at', 'captured_at', 'date_taken']) || driveContext.data_foto || item.created_at || item.created_date || item.updated_date);
   const source = resolvePhotoSource(item);
   const fileName = item.file_name || item.filename || item.name || 'imagem';
   const mapped = {
@@ -150,7 +159,7 @@ function mapPhoto(item, sourceEntity = 'Attachment') {
     reportLabel: sourceEntity,
     reportMes: item.mes_referencia ? `${item.mes_referencia}${item.ano ? `/${item.ano}` : ''}` : '',
     authorName: item.author || item.author_name || '',
-    activityTitulo: item.atividade_titulo || item.activity_title || '',
+    activityTitulo: item.atividade_titulo || item.activity_title || driveContext.atividade_nome || '',
     driveFileId: source.driveFileId,
   };
   return { ...mapped, duplicateIdentity: getPhotoIdentity(mapped) };
