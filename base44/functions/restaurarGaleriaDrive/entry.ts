@@ -17,6 +17,7 @@ function normalizeMes(text: any){
 }
 function normalizeMuseu(text: any){
   const t = normalize(text);
+  if(t.includes('casa do baile') || t.includes('casa baile')) return 'Casa do Baile';
   if(t.includes('mis') || t.includes('imagem') || t.includes('som')) return 'MIS';
   if(t.includes('mhab') || t.includes('abilio') || t.includes('historico')) return 'MHAB';
   if(t.includes('mumo') || t.includes('moda')) return 'MUMO';
@@ -151,7 +152,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const folderId = String(body.folder_id || '').trim();
     const modo = String(body.modo || 'preview');
-    if(!folderId) return Response.json({ success: false, error: 'folder_id obrigatório' }, { status: 400 });
+    if(!folderId && modo !== 'reparar_casa_baile') return Response.json({ success: false, error: 'folder_id obrigatório' }, { status: 400 });
 
     // Paginação para preview
     const offset = Number(body.offset ?? 0);
@@ -163,13 +164,50 @@ Deno.serve(async (req) => {
       return Response.json({ success: false, code: 'DRIVE_NOT_CONNECTED', error: 'Google Drive não está conectado.' }, { status: 401 });
     }
 
+    if(modo === 'reparar_casa_baile'){
+      const todasFotos = await base44.asServiceRole.entities.ReportPhoto.list('-created_date', 5000).catch(() => []);
+      const fotosCasaDoBaile = todasFotos.filter((foto: any) => normalizeMuseu(`${foto.museu || ''} ${foto.caption || ''} ${foto.legenda || ''}`) === 'Casa do Baile' && foto.drive_file_id);
+      const bloco = fotosCasaDoBaile.slice(offset, offset + BLOCO_DOWNLOAD);
+      let reparadas = 0;
+      const falhas: any[] = [];
+
+      for(const foto of bloco){
+        try {
+          const extensao = String(foto.file_name || '').split('.').pop()?.toLowerCase() || 'jpg';
+          const mimeType = extensao === 'png' ? 'image/png' : extensao === 'webp' ? 'image/webp' : 'image/jpeg';
+          const fileUrl = await baixarEEnviar(base44, accessToken, { id: foto.drive_file_id, name: foto.file_name || `casa-do-baile.${extensao}`, mimeType });
+          await base44.asServiceRole.entities.ReportPhoto.update(foto.id, { file_url: fileUrl });
+          reparadas++;
+        } catch(error: any){
+          falhas.push({ id: foto.id, arquivo: foto.file_name, erro: String(error?.message || error) });
+        }
+      }
+
+      const nextOffset = offset + BLOCO_DOWNLOAD;
+      return Response.json({
+        success: falhas.length === 0,
+        modo,
+        total_imagens: fotosCasaDoBaile.length,
+        bloco_processado: bloco.length,
+        reparadas,
+        total_erros: falhas.length,
+        falhas,
+        next_offset: nextOffset,
+        has_more: nextOffset < fotosCasaDoBaile.length,
+      });
+    }
+
     // Buscar dados em paralelo
-    const [imagens, reports, fotosExistentes, attachments] = await Promise.all([
+    const [imagensEncontradas, reports, fotosExistentes, attachments] = await Promise.all([
       listFolderImages(accessToken, folderId),
       base44.asServiceRole.entities.Report.list('-created_date', 3000).catch(() => []),
       base44.asServiceRole.entities.ReportPhoto.list('-created_date', 5000).catch(() => []),
       base44.asServiceRole.entities.Attachment.list('-created_date', 5000).catch(() => []),
     ]);
+    const filtroMuseu = normalizeMuseu(body.museu_filter || '');
+    const imagens = filtroMuseu
+      ? imagensEncontradas.filter((img: any) => normalizeMuseu([...(img._path || []), img.name].join(' ')) === filtroMuseu)
+      : imagensEncontradas;
 
     const existentePorDrive = new Map<string, any>();
     [...fotosExistentes, ...attachments].forEach((foto: any) => {
