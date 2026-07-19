@@ -2,7 +2,7 @@ import { base44 } from '@/api/base44Client';
 import { dedupePhotosByTechnicalIdentity, getPhotoIdentity } from '@/utils/photoSimilarity';
 
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'avif', 'heic'];
-const DEFAULT_CACHE_KEY = 'museus_centro_galeria_fotos_cache_v7_deduped';
+const DEFAULT_CACHE_KEY = 'museus_centro_galeria_fotos_cache_v8_deduped';
 
 // Limpar versões antigas do cache ao importar este módulo
 try {
@@ -37,6 +37,9 @@ function isImageByFileName(fileName = '') {
 }
 function isImageByMime(fileType = '') {
   return String(fileType).toLowerCase().startsWith('image/');
+}
+function isMacResourceFork(item = {}) {
+  return String(item.file_name || item.filename || item.name || '').trim().startsWith('._');
 }
 function firstValue(obj, paths = []) {
   for (const path of paths) {
@@ -254,8 +257,8 @@ export async function loadGalleryReportData({
       fetchAllPages('Attachment', '-created_date'),
       fetchAllPages('ReportPhoto', '-created_date', { quietMissing: true }),
     ]);
-    images.push(...attachments.filter((item) => item?.file_url && (isImageByMime(item.file_type) || isImageByFileName(item.file_name))).map((item) => mapPhoto(item, 'Attachment')));
-    images.push(...reportPhotos.filter((item) => item?.file_url && (isImageByMime(item.file_type) || isImageByFileName(item.file_name) || /^https?:/i.test(item.file_url))).map((item) => mapPhoto(item, 'ReportPhoto')));
+    images.push(...attachments.filter((item) => item?.file_url && !isMacResourceFork(item) && (isImageByMime(item.file_type) || isImageByFileName(item.file_name))).map((item) => mapPhoto(item, 'Attachment')));
+    images.push(...reportPhotos.filter((item) => item?.file_url && !isMacResourceFork(item) && (isImageByMime(item.file_type) || isImageByFileName(item.file_name) || /^https?:/i.test(item.file_url))).map((item) => mapPhoto(item, 'ReportPhoto')));
   } catch (error) {
     console.warn('[Galeria] Falha geral ao carregar imagens.', error);
   }
