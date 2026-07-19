@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { FileDown, Images, Building2, Loader2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { jsPDF } from 'jspdf';
+import viadutoHeaderOriginal from '@/assets/viadutoHeaderOriginal';
 
 const SECTION_ORDER = ['MHAB', 'MIS', 'MUMO', 'MAP', 'CasaKubitschek', 'CasaDoBalile'];
 const SECTION_LABELS = {
@@ -75,6 +76,14 @@ function normalizarLegenda(texto = '') {
     .trim();
 }
 
+function drawInstitutionalHeader(doc, pageW) {
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, 0, pageW, 30, 'F');
+  doc.addImage(viadutoHeaderOriginal, 'PNG', 12, 4, pageW - 24, 23);
+  doc.setDrawColor(205, 205, 205);
+  doc.line(12, 30, pageW - 12, 30);
+}
+
 export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
   const [loading, setLoading] = useState(false);
   const [progresso, setProgresso] = useState('');
@@ -101,7 +110,8 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
       // Grade de 4 fotos por página: imagens maiores e legendas mais legíveis
       const cols = 2, rows = 2, perPage = cols * rows;
       const cellW = (pageW - margin * 2 - (cols - 1) * 6) / cols;
-      const slotH = 96;
+      const headerH = 34;
+      const slotH = 92;
       const cellH = slotH + 22;
 
       // ──────────────────────────────────────────
@@ -204,7 +214,7 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
             const col = i % cols;
             const row = Math.floor(i / cols);
             const slotX = margin + col * (cellW + 4);
-            const slotY = 14 + row * (cellH + 4);
+            const slotY = headerH + row * (cellH + 4);
             const imgResult = imagens[i];
 
             if (imgResult) {
@@ -267,7 +277,7 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
       doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(30, 30, 30);
-      doc.text('Relatório de Auditoria', margin, 24);
+      doc.text('Relatório de Auditoria', margin, 44);
       doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(60, 60, 60);
@@ -278,19 +288,20 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
         `Data de geração: ${new Date().toLocaleString('pt-BR')}`,
       ];
       linhas.forEach((linha, idx) => {
-        doc.text(linha, margin, 38 + idx * 9);
+        doc.text(linha, margin, 58 + idx * 9);
       });
       doc.setFontSize(8);
       doc.setTextColor(100, 150, 220);
-      doc.textWithLink('Fotos da galeria no app', pageW / 2, 38 + linhas.length * 9 + 10, {
+      doc.textWithLink('Fotos da galeria no app', pageW / 2, 58 + linhas.length * 9 + 10, {
         url: `${window.location.origin}/GaleriaFotos`,
         align: 'center',
       });
 
-      // Paginação definitiva, incluindo a página de auditoria
+      // Cabeçalho e paginação definitivos, incluindo a página de auditoria
       const totalPaginas = doc.internal.getNumberOfPages();
       for (let pagina = 1; pagina <= totalPaginas; pagina++) {
         doc.setPage(pagina);
+        drawInstitutionalHeader(doc, pageW);
         doc.setDrawColor(220, 220, 220);
         doc.line(margin, pageH - 10, pageW - margin, pageH - 10);
         doc.setFontSize(7);
