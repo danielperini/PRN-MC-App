@@ -217,22 +217,27 @@ export default function BudgetByGroupCards({ rubricas = [] }) {
   }, [rubricaRows]);
 
   const groups = React.useMemo(() => {
+    // Usa chave normalizada (lowercase+trim) para unir grupos com variação de capitalização
+    // ex: "Despesas gerais" e "Despesas Gerais" são o mesmo grupo
     const map = new Map();
 
     rubricaRows.forEach((rubrica) => {
-      const current = map.get(rubrica.grupo) || {
-        grupo: rubrica.grupo,
-        total: 0,
-        utilizado: 0,
-        rubricas: 0,
-        rows: [],
-      };
-
-      current.total += rubrica.previsto;
-      current.utilizado += rubrica.utilizado;
-      current.rubricas += 1;
-      current.rows.push(rubrica);
-      map.set(rubrica.grupo, current);
+      const key = rubrica.grupo.trim().toLowerCase();
+      const existing = map.get(key);
+      if (existing) {
+        existing.total += rubrica.previsto;
+        existing.utilizado += rubrica.utilizado;
+        existing.rubricas += 1;
+        existing.rows.push(rubrica);
+      } else {
+        map.set(key, {
+          grupo: rubrica.grupo, // preserva o nome do primeiro encontrado
+          total: rubrica.previsto,
+          utilizado: rubrica.utilizado,
+          rubricas: 1,
+          rows: [rubrica],
+        });
+      }
     });
 
     return Array.from(map.values())
@@ -294,7 +299,7 @@ export default function BudgetByGroupCards({ rubricas = [] }) {
         {groups.map((group) => {
           const width = Math.min(Math.max(group.percentual, 0), 100);
           return (
-            <button key={group.grupo} type="button" onClick={() => openGroup(group)} className="rounded-2xl border border-border bg-background p-4 text-left transition-all hover:border-primary/40 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary/20">
+            <button key={group.grupo.trim().toLowerCase()} type="button" onClick={() => openGroup(group)} className="rounded-2xl border border-border bg-background p-4 text-left transition-all hover:border-primary/40 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary/20">
               <div className="mb-2 flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <h3 className="truncate text-sm font-semibold text-foreground">{group.grupo}</h3>
