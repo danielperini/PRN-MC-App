@@ -25,6 +25,15 @@ const SEIS_MUSEUS = ['MHAB', 'MIS', 'MUMO', 'Casa Kubitschek', 'Casa do Baile', 
 const MUSEU_SHORT = { 'MHAB': 'MHAB', 'MIS': 'MIS', 'MUMO': 'MUMO', 'Casa Kubitschek': 'C.Kubi', 'Casa do Baile': 'C.Baile', 'MAP': 'MAP' };
 
 const ANOS = [2026, 2027, 2028];
+const METAS_OCULTAS_3_ADITIVO = new Set(['2', '4', '7', '8', '15']);
+
+function deveOcultarMetaTerceiroAditivo(meta) {
+  const numero = String(meta?._numero || meta?.numero || '').replace(/\D/g, '');
+  const titulo = normalizeText(meta?.titulo || '');
+  return METAS_OCULTAS_3_ADITIVO.has(numero) ||
+    titulo.includes('inscricao') ||
+    titulo.includes('leis de incentivo');
+}
 
 function getMuseuFromActivity(a) {
   const raw = (a.museu || a.equipe_responsavel || a._museu || '').toLowerCase();
@@ -474,6 +483,7 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRef
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {metasCalculadas
+          .filter((meta) => !deveOcultarMetaTerceiroAditivo(meta))
           .filter((meta) => {
             if (!museuFiltro) return true;
             const atividadesMuseu = atividadesPorMetaEMuseu[meta._numero] || {};
