@@ -77,6 +77,9 @@ export function isPhotoImage(photo = {}) {
 
 export function getPhotoIdentity(photo = {}) {
   const safePhoto = photo || {};
+  const driveFileId = String(safePhoto.driveFileId || safePhoto.drive_file_id || safePhoto.google_drive_file_id || '').trim();
+  if (driveFileId) return `drive:${driveFileId}`;
+
   const url = normalizePhotoUrl(getPhotoUrl(safePhoto));
   if (url) return `url:${url}`;
 
