@@ -76,6 +76,11 @@ function normalizarLegenda(texto = '') {
     .trim();
 }
 
+function dataRealizacao(foto) {
+  const data = new Date(foto.date || foto.timestamp || '');
+  return Number.isNaN(data.getTime()) ? 'Data não informada' : data.toLocaleDateString('pt-BR');
+}
+
 function drawInstitutionalHeader(doc, pageW) {
   doc.setFillColor(255, 255, 255);
   doc.rect(0, 0, pageW, 30, 'F');
@@ -104,15 +109,24 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
     const auditLog = { carregadas: 0, falhas: 0, total: fotosValidas.length };
 
     try {
-      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
       const pageW = 210, pageH = 297, margin = 12;
-
-      // Grade de 4 fotos por página: imagens maiores e legendas mais legíveis
       const cols = 2, rows = 2, perPage = cols * rows;
       const cellW = (pageW - margin * 2 - (cols - 1) * 6) / cols;
       const headerH = 34;
-      const slotH = 92;
-      const cellH = slotH + 22;
+      const slotH = 81;
+      const cellH = slotH + 26;
+
+      setProgresso(`Carregando ${fotosValidas.length} fotos do Drive antes de montar o PDF...`);
+      const imagensPreCarregadas = await Promise.all(
+        fotosValidas.map((foto) => fetchPhotoData(foto, cellW * 4, slotH * 4))
+      );
+      const fotosFalhas = fotosValidas.filter((_, index) => !imagensPreCarregadas[index]);
+      if (fotosFalhas.length) {
+        throw new Error(`${fotosFalhas.length} foto(s) não puderam ser carregadas do Drive. Nenhuma página em branco foi gerada.`);
+      }
+      imagensPreCarregadas.forEach(() => { auditLog.carregadas += 1; });
+      const imagemPorChave = new Map(fotosValidas.map((foto, index) => [foto.id || foto.fileUrl, imagensPreCarregadas[index]]));
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
 
       // ──────────────────────────────────────────
       // CAPA
@@ -181,17 +195,9 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
         for (let p = 0; p < Math.ceil(secFotos.length / perPage); p++) {
           const pageFotos = secFotos.slice(p * perPage, (p + 1) * perPage);
 
-          // Carrega imagens do lote (concorrência 3)
           setProgresso(`${SECTION_LABELS[sectionKey]} · fotos ${fotosProcessadas + 1}–${Math.min(fotosProcessadas + pageFotos.length, total)} de ${total}`);
-
-          const imagens = await Promise.all(
-            pageFotos.map(foto => fetchPhotoData(foto, cellW * 4, slotH * 4)) // resolução 4× para qualidade
-          );
+          const imagens = pageFotos.map((foto) => imagemPorChave.get(foto.id || foto.fileUrl));
           fotosProcessadas += pageFotos.length;
-          imagens.forEach((r, i) => {
-            if (r) auditLog.carregadas++;
-            else { auditLog.falhas++; console.warn('[PDF] Foto não carregada:', pageFotos[i]?.fileUrl); }
-          });
 
           doc.addPage();
           doc.setFillColor(255, 255, 255);
@@ -217,52 +223,31 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
             const slotY = headerH + row * (cellH + 4);
             const imgResult = imagens[i];
 
-            if (imgResult) {
-              // Posiciona a imagem centralizada dentro do slot (object-fit: contain)
-              const scaleX = cellW / imgResult.w;
-              const scaleY = slotH / imgResult.h;
-              const scale = Math.min(scaleX, scaleY);
-              const renderW = imgResult.w * scale;
-              const renderH = imgResult.h * scale;
-              const offsetX = slotX + (cellW - renderW) / 2;
-              const offsetY = slotY + (slotH - renderH) / 2;
+            const scaleX = cellW / imgResult.w;
+            const scaleY = slotH / imgResult.h;
+            const scale = Math.min(scaleX, scaleY);
+            const renderW = imgResult.w * scale;
+            const renderH = imgResult.h * scale;
+            const offsetX = slotX + (cellW - renderW) / 2;
+            const offsetY = slotY + (slotH - renderH) / 2;
 
-              // Link clicável na foto
-              doc.addImage(imgResult.dataUrl, 'JPEG', offsetX, offsetY, renderW, renderH, undefined, 'FAST');
-              if (foto.fileUrl) {
-                doc.link(offsetX, offsetY, renderW, renderH, { url: foto.fileUrl });
-              }
-            } else {
-              // Quadro de falha — mostra o contexto em vez de "Indisponível" genérico
-              doc.setFillColor(240, 240, 240);
-              doc.rect(slotX, slotY, cellW, slotH, 'F');
-              doc.setDrawColor(200, 200, 200);
-              doc.rect(slotX, slotY, cellW, slotH, 'S');
-              doc.setFontSize(5.5);
-              doc.setTextColor(160, 160, 160);
-              const nomeBreve = (foto.legenda || foto.activityTitulo || foto.fileName || '').substring(0, 40);
-              doc.text(nomeBreve || 'Arquivo não acessível', slotX + cellW / 2, slotY + slotH / 2, { align: 'center', maxWidth: cellW - 4 });
-              if (foto.fileUrl) {
-                doc.setFontSize(4.5);
-                doc.setTextColor(120, 120, 200);
-                doc.textWithLink('→ abrir original', slotX + cellW / 2, slotY + slotH / 2 + 5, { url: foto.fileUrl, align: 'center' });
-              }
-            }
+            doc.setFillColor(246, 246, 246);
+            doc.rect(slotX, slotY, cellW, slotH, 'F');
+            doc.addImage(imgResult.dataUrl, 'JPEG', offsetX, offsetY, renderW, renderH, undefined, 'FAST');
+            doc.setDrawColor(205, 205, 205);
+            doc.rect(slotX, slotY, cellW, slotH, 'S');
+            if (foto.fileUrl) doc.link(offsetX, offsetY, renderW, renderH, { url: foto.fileUrl });
 
-            // Legenda
-            const legenda = normalizarLegenda(foto.legenda || foto.activityTitulo || '');
-            if (legenda) {
-              doc.setFontSize(8);
-              doc.setTextColor(40, 40, 40);
-              doc.setFont('helvetica', 'normal');
-              const lines = doc.splitTextToSize(legenda, cellW);
-              doc.text(lines.slice(0, 2), slotX, slotY + slotH + 5);
-            }
-            if (foto.reportMes) {
-              doc.setFontSize(5.5);
-              doc.setTextColor(130, 130, 130);
-              doc.text(foto.reportMes, slotX, slotY + slotH + 11);
-            }
+            const atividade = normalizarLegenda(foto.activityTitulo || foto.legenda || foto.fileName || 'Registro fotográfico');
+            doc.setFontSize(7);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(40, 40, 40);
+            doc.text(doc.splitTextToSize(atividade, cellW).slice(0, 2), slotX, slotY + slotH + 5);
+            doc.setFontSize(5.5);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(115, 115, 115);
+            doc.text(`Museu: ${SECTION_LABELS[foto.sectionKey] || foto.museu || 'Não informado'}`, slotX, slotY + slotH + 15, { maxWidth: cellW });
+            doc.text(`Data da realização: ${dataRealizacao(foto)}`, slotX, slotY + slotH + 20);
           }
 
         }
