@@ -487,16 +487,14 @@ REGRAS ABSOLUTAS:
               'Legendas fotográficas e registros de mediação',
             ],
             resultado_alcancado:
-              '47 ações educativas e culturais únicas no período de abril a junho de 2026, superando a referência quantitativa de 30 ações. ' +
-              'A execução física está comprovada por relatórios mensais, programação, registros fotográficos, listas de presença quando aplicável e materiais de divulgação. ' +
-              'As atividades abrangem oficinas, mediações, ações acessíveis, cursos, laboratórios, ações transversais, Semana de Museus e programação do Noturno nos Museus.',
+              'Foram comprovadas 47 ações educativas e culturais no período de abril a junho de 2026, superando a referência quantitativa de 30 ações. ' +
+              'O resultado considera exclusivamente a execução física evidenciada em relatórios mensais, programação registrada, fotografias com legenda e listas de presença quando aplicáveis.',
             status_meta: 'Realizada Integralmente',
             percentual_execucao: 157,
             justificativa:
-              'A execução supera a referência quantitativa de 30 ações quando consideradas programação, relatórios mensais, legendas fotográficas, registros de mediação, ' +
-              'oficinas, ações acessíveis e atividades culturais — incluindo Educativo Aberto, visitas mediadas, Museu Criativo, Mediação TRE, Prosas MIS, Memórias em Libras, ' +
-              'Oficina de Estamparia Natural e programação especial do Noturno nos Museus. ' +
-              'A vinculação fiscal deve permanecer separada, restrita às ações com solicitação, nota fiscal, rubrica e comprovante individualizados no aplicativo/Drive/GRP.',
+              'O percentual de execução é apurado somente a partir das 47 ações com evidência de realização física no período. ' +
+              'Foram considerados registros de mediação, visitas, atividades educativas, cursos, laboratórios, ações acessíveis, ações transversais, Semana de Museus e programação do Noturno nos Museus. ' +
+              'A comprovação fiscal permanece em trilha própria, individualizada por solicitação, nota fiscal, rubrica e comprovante correspondente.',
             valor_previsto: previstoDaMeta,
             valor_realizado: utilizadoDaMeta || financeiroMeta.total,
             modo: 'ia',
