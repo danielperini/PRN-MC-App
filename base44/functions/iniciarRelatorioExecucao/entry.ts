@@ -13,12 +13,19 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'data_inicio e data_fim são obrigatórios' }, { status: 400 });
     }
 
+    const metasOcultasTerceiroAditivo = new Set(['2', '4', '7', '8', '15']);
+    const metasCadastradas = await base44.asServiceRole.entities.ProjectMeta.list('ordem', 100);
+    const idsMetasOcultas = new Set(metasCadastradas
+      .filter((meta) => metasOcultasTerceiroAditivo.has(String(meta.ordem ?? '').replace(/\D/g, '')))
+      .map((meta) => String(meta.id)));
+    const filtroMetaIdsPermitidos = filtro_meta_ids.filter((id) => !idsMetasOcultas.has(String(id)));
+
     const relatorio = await base44.asServiceRole.entities.RelatorioExecucaoObjeto.create({
       tipo,
       data_inicio,
       data_fim,
       filtro_museu,
-      filtro_meta_ids,
+      filtro_meta_ids: filtroMetaIdsPermitidos,
       filtro_versao,
       status: 'rascunho',
       gerado_por_email: user.email,

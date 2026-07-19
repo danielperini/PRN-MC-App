@@ -17,6 +17,16 @@ const CAMPOS_TEXTO_META = [
   'rubrica', 'rubrica_nome', 'natureza_despesa',
 ];
 
+const METAS_OCULTAS_TERCEIRO_ADITIVO = new Set(['2', '4', '7', '8', '15']);
+
+export function metaOcultaNoTerceiroAditivo(meta) {
+  const ordem = String(meta?.ordem ?? meta?.numero ?? '').replace(/\D/g, '');
+  if (METAS_OCULTAS_TERCEIRO_ADITIVO.has(ordem)) return true;
+  const titulo = normalizarTextoMeta(meta?.nome || meta?.meta_nome || meta?.titulo || meta?.descricao || '');
+  const numeroNoTitulo = titulo.match(/^(?:meta\s*)?0*(\d{1,2})\b/)?.[1] || '';
+  return METAS_OCULTAS_TERCEIRO_ADITIVO.has(numeroNoTitulo);
+}
+
 export function normalizarTextoMeta(value) {
   return String(value || '')
     .normalize('NFD')

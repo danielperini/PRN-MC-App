@@ -2,6 +2,7 @@ import { base44 } from '@/api/base44Client';
 import {
   idCanonicoMeta,
   metaPertenceAo3ou4Aditivo,
+  metaOcultaNoTerceiroAditivo,
   nomeCanonicoMeta,
   normalizarTextoMeta,
 } from '@/utils/metasAditivosPermitidos';
@@ -203,7 +204,9 @@ export function validarPeriodoRelatorio(dataInicio, dataFim) {
 export async function listarMetasRelatorio() {
   // Busca apenas ProjectMeta — não carrega PurchaseRequest para listar metas (causa timeout com 10k registros)
   const projectMetas = await listar('ProjectMeta', 5000);
-  const cadastradas = projectMetas.filter(metaPertenceAo3ou4Aditivo).filter((meta) => !metaBloqueada(meta));
+  const cadastradas = projectMetas
+    .filter(metaPertenceAo3ou4Aditivo)
+    .filter((meta) => !metaBloqueada(meta) && !metaOcultaNoTerceiroAditivo(meta));
   return consolidarMetas(cadastradas);
 }
 

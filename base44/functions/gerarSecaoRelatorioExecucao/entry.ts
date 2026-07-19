@@ -25,6 +25,15 @@ Deno.serve(async (req) => {
     const dInicio = data_inicio || relatorio.data_inicio;
     const dFim = data_fim || relatorio.data_fim;
     const museu = filtro_museu !== 'todos' ? filtro_museu : null;
+    const metasOcultasTerceiroAditivo = new Set(['2', '4', '7', '8', '15']);
+    const metaOcultaNoTerceiroAditivo = (meta: any) => {
+      const ordem = String(meta?.ordem ?? meta?.numero ?? '').replace(/\D/g, '');
+      if (metasOcultasTerceiroAditivo.has(ordem)) return true;
+      const titulo = String(meta?.nome || meta?.meta_nome || meta?.titulo || meta?.descricao || '')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+      const numero = titulo.match(/^(?:meta\s*)?0*(\d{1,2})\b/)?.[1] || '';
+      return metasOcultasTerceiroAditivo.has(numero);
+    };
 
     // ─── COLETA DE CONTEXTO REAL ─────────────────────────────────────────────
     // escopo 'leve': só atividades, rubricas, metas, compras — sem fotos/releases/programacoes
@@ -84,9 +93,10 @@ Deno.serve(async (req) => {
         : activities;
 
       // Filtrar metas
+      const metasDisponiveis = metas.filter((m: any) => m.ativo !== false && !metaOcultaNoTerceiroAditivo(m));
       const metasFiltradas = filtro_meta_ids.length > 0
-        ? metas.filter(m => filtro_meta_ids.includes(m.id))
-        : metas.filter(m => m.ativo !== false).sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
+        ? metasDisponiveis.filter((m: any) => filtro_meta_ids.includes(m.id))
+        : metasDisponiveis.sort((a: any, b: any) => (a.ordem || 0) - (b.ordem || 0));
 
       // Mapear fotos por report_id
       const fotosPorReport: Record<string, any[]> = {};
