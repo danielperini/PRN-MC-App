@@ -13,6 +13,9 @@ const MUSEU_LABELS = {
   MHAB: 'Museu Histórico Abílio Barreto',
   MIS: 'Museu da Imagem e do Som de Belo Horizonte',
   MUMO: 'Museu da Moda de Belo Horizonte',
+  MAP: 'MAP — Museu de Arte da Pampulha',
+  CasaKubitschek: 'Casa Kubitschek',
+  CasaDoBalile: 'Casa do Baíle',
   SEM_IDENTIFICACAO: 'Sem identificação de museu',
 };
 
@@ -20,6 +23,9 @@ const MUSEU_COLORS = {
   MHAB: { bg: 'bg-amber-50', border: 'border-amber-300', header: 'bg-amber-700', text: 'text-amber-900', badge: 'bg-amber-100 text-amber-800' },
   MIS: { bg: 'bg-sky-50', border: 'border-sky-300', header: 'bg-sky-700', text: 'text-sky-900', badge: 'bg-sky-100 text-sky-800' },
   MUMO: { bg: 'bg-violet-50', border: 'border-violet-300', header: 'bg-violet-700', text: 'text-violet-900', badge: 'bg-violet-100 text-violet-800' },
+  MAP: { bg: 'bg-teal-50', border: 'border-teal-300', header: 'bg-teal-700', text: 'text-teal-900', badge: 'bg-teal-100 text-teal-800' },
+  CasaKubitschek: { bg: 'bg-orange-50', border: 'border-orange-300', header: 'bg-orange-700', text: 'text-orange-900', badge: 'bg-orange-100 text-orange-800' },
+  CasaDoBalile: { bg: 'bg-rose-50', border: 'border-rose-300', header: 'bg-rose-700', text: 'text-rose-900', badge: 'bg-rose-100 text-rose-800' },
   SEM_IDENTIFICACAO: { bg: 'bg-gray-50', border: 'border-gray-300', header: 'bg-gray-600', text: 'text-gray-900', badge: 'bg-gray-100 text-gray-800' },
 };
 
@@ -516,7 +522,7 @@ function RelatorioAtividadesFotosInner() {
     }
 
     // Ordenar museus e meses
-    const museuOrder = ['MHAB', 'MIS', 'MUMO', 'SEM_IDENTIFICACAO'];
+    const museuOrder = ['MHAB', 'MIS', 'MUMO', 'MAP', 'CasaKubitschek', 'CasaDoBalile', 'SEM_IDENTIFICACAO'];
     return museuOrder
       .filter(mk => map.has(mk))
       .map(museuKey => {
