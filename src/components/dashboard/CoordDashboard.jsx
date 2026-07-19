@@ -51,6 +51,15 @@ const MESES_ORDER = [
   'Dezembro',
 ];
 
+// Meses compostos: mapeados para número de mês de início (para ordenação)
+const MESES_COMPOSTOS = {
+  'maio–junho': { number: 5, label: 'Mai–Jun' },
+  'maio-junho': { number: 5, label: 'Mai–Jun' },
+  'maio/junho': { number: 5, label: 'Mai–Jun' },
+  'junho–julho': { number: 6, label: 'Jun–Jul' },
+  'julho–agosto': { number: 7, label: 'Jul–Ago' },
+};
+
 const STATUS_CONFIG = {
   DRAFT: { label: 'Rascunho', color: '#e5e7eb', text: '#374151' },
   RASCUNHO: { label: 'Rascunho', color: '#e5e7eb', text: '#374151' },
@@ -146,12 +155,25 @@ function getReportMonthNumber(report) {
   const numeric = Number(raw);
   if (numeric >= 1 && numeric <= 12) return numeric;
 
-  const text = String(raw || '').toLowerCase();
+  const text = String(raw || '').toLowerCase().trim();
+
+  // Meses compostos (ex: "Maio–Junho")
+  const composto = MESES_COMPOSTOS[text];
+  if (composto) return composto.number;
+
   const idx = MESES_ORDER.findIndex((mes) => text.includes(mes.toLowerCase()));
   if (idx >= 0) return idx + 1;
 
   if (text.includes('marco')) return 3;
   return null;
+}
+
+function getReportMonthLabel(report) {
+  const raw = String(report?.mes_referencia ?? report?.mes ?? '').toLowerCase().trim();
+  const composto = MESES_COMPOSTOS[raw];
+  if (composto) return composto.label;
+  const num = getReportMonthNumber(report);
+  return num ? MESES_ORDER[num - 1].substring(0, 3) : null;
 }
 
 function getReportYear(report) {
@@ -211,7 +233,14 @@ function getReportActivities(report) {
   const atividades = Array.isArray(report?.atividades) ? report.atividades : [];
   const reportMonthNumber = getReportMonthNumber(report);
   const reportYear = getReportYear(report);
-  const reportMonthName = reportMonthNumber ? MESES_ORDER[reportMonthNumber - 1] : report?.mes_referencia;
+  // Para meses compostos, usa o label curto composto; caso contrário usa o nome do mês
+  const rawMes = String(report?.mes_referencia ?? '').toLowerCase().trim();
+  const composto = MESES_COMPOSTOS[rawMes];
+  const reportMonthName = composto
+    ? composto.label
+    : reportMonthNumber
+    ? MESES_ORDER[reportMonthNumber - 1]
+    : report?.mes_referencia;
 
   return atividades.map((activity, index) => ({
     ...activity,
@@ -407,12 +436,13 @@ export default function CoordDashboard({ reports = [], isLoading }) {
       const mes = activity._reportMonthName;
       const mesNumber = activity._reportMonthNumber;
       if (!mes || !mesNumber) return;
-      if (!map[mes]) map[mes] = { mes: mes.substring(0, 3), mesNumber, atividades: 0, publico: 0 };
+      if (!map[mes]) map[mes] = { mes, mesNumber, atividades: 0, publico: 0 };
       map[mes].atividades += 1;
       map[mes].publico += activity._publico;
     });
 
-    return MESES_ORDER.filter((m) => map[m]).map((m) => map[m]);
+    // Ordena por número de mês (inclui compostos)
+    return Object.values(map).sort((a, b) => a.mesNumber - b.mesNumber);
   }, [allAtiv]);
 
   const statusData = useMemo(() => {
