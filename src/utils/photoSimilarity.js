@@ -77,6 +77,19 @@ export function isPhotoImage(photo = {}) {
 
 export function getPhotoIdentity(photo = {}) {
   const safePhoto = photo || {};
+  const galleryFileName = normalizePhotoFileName(
+    safePhoto.fileName ||
+    safePhoto.file_name ||
+    safePhoto.name ||
+    safePhoto.nome_arquivo ||
+    ''
+  );
+
+  // Arquivos de galeria já recebem um identificador único no nome. Quando o mesmo
+  // arquivo é importado por mais de uma cópia no Drive, os IDs são diferentes, mas
+  // o nome permanece igual — por isso ele é a identidade correta para exibição.
+  if (galleryFileName.startsWith('galeria ') && galleryFileName.includes(' ati ')) return `gallery:${galleryFileName}`;
+
   const driveFileId = String(safePhoto.driveFileId || safePhoto.drive_file_id || safePhoto.google_drive_file_id || '').trim();
   if (driveFileId) return `drive:${driveFileId}`;
 

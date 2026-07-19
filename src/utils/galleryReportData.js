@@ -2,7 +2,7 @@ import { base44 } from '@/api/base44Client';
 import { dedupePhotosByTechnicalIdentity, getPhotoIdentity } from '@/utils/photoSimilarity';
 
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'avif', 'heic'];
-const DEFAULT_CACHE_KEY = 'museus_centro_galeria_fotos_cache_v10_deduped';
+const DEFAULT_CACHE_KEY = 'museus_centro_galeria_fotos_cache_v11_deduped';
 
 // Limpar versões antigas do cache ao importar este módulo
 try {
