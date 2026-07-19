@@ -18,11 +18,17 @@ const CAMPOS_TEXTO_META = [
 ];
 
 const METAS_OCULTAS_TERCEIRO_ADITIVO = new Set(['2', '4', '7', '8', '15']);
+const IDS_METAS_OCULTAS = new Set([
+  '6a3b21389ab6f3e9188adf38', '6a3b21382970537f3937612e', '6a32aead6201158ef021b36a',
+  '6a3b2139874c41bb0af83e42', '6a3b213aa726b33a60de42fd',
+]);
 
 export function metaOcultaNoTerceiroAditivo(meta) {
+  const identificador = String(meta?.id || meta?.meta_id || meta?.project_meta_id || '').trim();
+  if (IDS_METAS_OCULTAS.has(identificador)) return true;
   const ordem = String(meta?.ordem ?? meta?.numero ?? '').replace(/\D/g, '');
   if (METAS_OCULTAS_TERCEIRO_ADITIVO.has(ordem)) return true;
-  const titulo = normalizarTextoMeta(meta?.nome || meta?.meta_nome || meta?.titulo || meta?.descricao || '');
+  const titulo = normalizarTextoMeta(meta?.nome || meta?.label || meta?.meta_nome || meta?.meta_codigo || meta?.titulo || meta?.descricao || '');
   const numeroNoTitulo = titulo.match(/^(?:meta\s*)?0*(\d{1,2})\b/)?.[1] || '';
   return METAS_OCULTAS_TERCEIRO_ADITIVO.has(numeroNoTitulo);
 }

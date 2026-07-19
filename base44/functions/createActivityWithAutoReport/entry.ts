@@ -38,6 +38,10 @@ function normalizeOptionalInt(value: unknown) {
   return toInt(value, 0);
 }
 
+function metaRemovida(value: unknown) {
+  return /^(?:meta\s*)?0*(2|4|7|8|15)\b/i.test(String(value || '').trim());
+}
+
 function normalizeAtividadeForReport(activityData: any, user: any) {
   const quantasRepeticoes = normalizeOptionalInt(activityData.quantas_repeticoes);
   const quantidadeProduto = normalizeOptionalInt(activityData.quantidade_produto);
@@ -108,6 +112,18 @@ Deno.serve(async (req) => {
         { error: 'Parâmetros obrigatórios: titulo, classificacao' },
         { status: 400 }
       );
+    }
+
+    const metasOcultas = new Set(['2', '4', '7', '8', '15']);
+    const metaInformada = activityData.meta_id || activityData.meta_codigo || '';
+    let metaOculta = metaRemovida(metaInformada) || metaRemovida(activityData.meta_codigo);
+    if (!metaOculta && activityData.meta_id) {
+      const metaEncontrada = await base44.asServiceRole.entities.ProjectMeta.filter({ id: activityData.meta_id });
+      const ordem = String(metaEncontrada?.[0]?.ordem || '').replace(/\D/g, '');
+      metaOculta = metasOcultas.has(ordem);
+    }
+    if (metaOculta) {
+      return Response.json({ error: 'A meta selecionada não está disponível no sistema.' }, { status: 400 });
     }
 
     // Determinar mês/ano a partir de data_inicio ou hoje

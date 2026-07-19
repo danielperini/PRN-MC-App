@@ -657,6 +657,10 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
       smartToast.error('Selecione uma meta orçamentária antes de salvar.')
       return
     }
+    if (metaOcultaNoTerceiroAditivo({ id: form.meta_id, nome: form.meta_id })) {
+      smartToast.error('A meta selecionada não está disponível no sistema.')
+      return
+    }
 
     if (!dividirEntreMuseus && !form.centro_custo?.trim()) {
       smartToast.error('Selecione um centro de custo antes de salvar.')
@@ -770,6 +774,10 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
     const metaId = form.meta_id || prefill?.meta_id
     if (!metaId?.trim()) {
       smartToast.error('Selecione uma meta orçamentária antes de aprovar.')
+      return
+    }
+    if (metaOcultaNoTerceiroAditivo({ id: metaId, nome: metaId })) {
+      smartToast.error('A meta selecionada não está disponível no sistema.')
       return
     }
 
