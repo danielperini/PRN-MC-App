@@ -20,8 +20,10 @@ import { base44 } from '@/api/base44Client';
 
 const INITIAL_VISIBLE_IMAGES = 60;
 const VISIBLE_IMAGES_STEP = 60;
-const GALLERY_CACHE_KEY = 'museus_centro_galeria_fotos_cache_v7_deduped';
-const GALLERY_CACHE_TTL_MS = 10 * 60 * 1000;
+// Inclui data do dia na chave para invalidar o cache automaticamente a cada novo dia
+const TODAY = new Date().toISOString().slice(0, 10);
+const GALLERY_CACHE_KEY = `museus_centro_galeria_fotos_cache_v7_deduped_${TODAY}`;
+const GALLERY_CACHE_TTL_MS = 5 * 60 * 1000; // 5 min para pegar fotos novas mais rápido
 
 const SECTION_LABELS = {
   MHAB: 'MHAB — Museu Histórico Abílio Barreto',
@@ -39,17 +41,21 @@ function safeText(value = '') {
 
 function thumbUrl(url) {
   if (!url) return url;
-  // Google Drive / lh3.googleusercontent.com: substitui parâmetro de tamanho
-  if (url.includes('lh3.googleusercontent.com')) {
-    return url.replace(/=s\d+(-[a-z]+)*$/, '') + '=s100';
+  // lh3.googleusercontent.com/drive-storage/... — sem parâmetro de tamanho, usar sz
+  if (url.includes('lh3.googleusercontent.com/drive-storage/')) {
+    return url.includes('?') ? url + '&sz=s200' : url + '=s200';
   }
-  // Google Drive file view com sz param
+  // lh3.googleusercontent.com/d/... ou com parâmetro =sNNN
+  if (url.includes('lh3.googleusercontent.com')) {
+    return url.replace(/=s\d+(-[a-z]+)*$/, '') + '=s200';
+  }
+  // Google Drive thumbnail com sz param
   if (url.includes('drive.google.com') && url.includes('sz=')) {
-    return url.replace(/sz=\d+/, 'sz=100');
+    return url.replace(/sz=\d+/, 'sz=200');
   }
   // Base44 / storage com width param
   if (url.includes('width=') || url.includes('w=')) {
-    return url.replace(/width=\d+/, 'width=100').replace(/[?&]w=\d+/, (m) => m.replace(/\d+/, '100'));
+    return url.replace(/width=\d+/, 'width=200').replace(/[?&]w=\d+/, (m) => m.replace(/\d+/, '200'));
   }
   return url;
 }
