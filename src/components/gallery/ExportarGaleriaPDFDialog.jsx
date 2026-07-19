@@ -55,6 +55,7 @@ async function fetchPhotoData(foto, maxW, maxH) {
   const urls = [
     foto.fileUrl,
     ...(foto.fallbackUrls || []),
+    foto.originalFileUrl,
   ].filter(Boolean);
 
   for (const url of urls) {
@@ -65,6 +66,13 @@ async function fetchPhotoData(foto, maxW, maxH) {
     }
   }
   return null;
+}
+
+function normalizarLegenda(texto = '') {
+  return String(texto)
+    .replace(/\boficina\b/gi, 'atividade educativa')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
@@ -90,11 +98,11 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
       const pageW = 210, pageH = 297, margin = 12;
 
-      // Dimensões do slot de imagem (3 colunas, 2 linhas)
-      const cols = 3, rows = 2, perPage = cols * rows;
-      const cellW = (pageW - margin * 2 - (cols - 1) * 4) / cols;
-      const slotH = 44; // altura máxima do slot
-      const cellH = slotH + 16;
+      // Grade de 4 fotos por página: imagens maiores e legendas mais legíveis
+      const cols = 2, rows = 2, perPage = cols * rows;
+      const cellW = (pageW - margin * 2 - (cols - 1) * 6) / cols;
+      const slotH = 96;
+      const cellH = slotH + 22;
 
       // ──────────────────────────────────────────
       // CAPA
@@ -102,6 +110,9 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
       doc.setFillColor(20, 20, 20);
       doc.rect(0, 0, pageW, pageH, 'F');
       doc.setTextColor(255, 255, 255);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text('VIADUTO DAS ARTES · MUSEUS CENTRO', pageW / 2, 28, { align: 'center' });
       doc.setFontSize(26);
       doc.setFont('helvetica', 'bold');
       doc.text('Galeria de Fotos', pageW / 2, 95, { align: 'center' });
@@ -113,10 +124,10 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
       doc.text(`Gerado em ${new Date().toLocaleDateString('pt-BR')}`, pageW / 2, 130, { align: 'center' });
       doc.text(`${fotosValidas.length} fotografias`, pageW / 2, 141, { align: 'center' });
 
-      // Link para a Galeria no app
-      doc.setFontSize(9);
-      doc.setTextColor(120, 180, 255);
-      doc.textWithLink('🔗 Ver Galeria de Fotos no App', pageW / 2, 165, {
+      // Link centralizado da capa
+      doc.setFontSize(10);
+      doc.setTextColor(150, 205, 255);
+      doc.textWithLink('Fotos da galeria no app', pageW / 2, 165, {
         url: `${window.location.origin}/GaleriaFotos`,
         align: 'center',
       });
@@ -149,10 +160,12 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
         doc.setTextColor(100, 100, 100);
         doc.text(`${secFotos.length} foto${secFotos.length !== 1 ? 's' : ''}`, pageW / 2, pageH / 2 + 6, { align: 'center' });
 
-        // Link galeria app no rodapé da página-título da seção
+        doc.setFillColor(20, 20, 20);
+        doc.rect(0, 0, pageW, 14, 'F');
         doc.setFontSize(8);
-        doc.setTextColor(100, 150, 220);
-        doc.textWithLink('🔗 Galeria no App', margin, pageH - 6, { url: `${window.location.origin}/GaleriaFotos` });
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(255, 255, 255);
+        doc.text('VIADUTO DAS ARTES · MUSEUS CENTRO', margin, 8.5);
 
         // ── Páginas de fotos ──
         for (let p = 0; p < Math.ceil(secFotos.length / perPage); p++) {
@@ -174,11 +187,17 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
           doc.setFillColor(255, 255, 255);
           doc.rect(0, 0, pageW, pageH, 'F');
 
-          // Cabeçalho da página
+          // Cabeçalho institucional em todas as páginas do álbum
+          doc.setFillColor(20, 20, 20);
+          doc.rect(0, 0, pageW, 14, 'F');
           doc.setFontSize(8);
-          doc.setTextColor(120, 120, 120);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(255, 255, 255);
+          doc.text('VIADUTO DAS ARTES · MUSEUS CENTRO', margin, 6.5);
           doc.setFont('helvetica', 'normal');
-          doc.text(SECTION_LABELS[sectionKey], margin, 8);
+          doc.setFontSize(6.5);
+          doc.text(SECTION_LABELS[sectionKey], margin, 11);
+          doc.setTextColor(90, 90, 90);
 
           for (let i = 0; i < pageFotos.length; i++) {
             const foto = pageFotos[i];
@@ -221,13 +240,13 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
             }
 
             // Legenda
-            const legenda = foto.legenda || foto.activityTitulo || '';
+            const legenda = normalizarLegenda(foto.legenda || foto.activityTitulo || '');
             if (legenda) {
-              doc.setFontSize(6.5);
+              doc.setFontSize(8);
               doc.setTextColor(40, 40, 40);
               doc.setFont('helvetica', 'normal');
               const lines = doc.splitTextToSize(legenda, cellW);
-              doc.text(lines.slice(0, 2), slotX, slotY + slotH + 4.5);
+              doc.text(lines.slice(0, 2), slotX, slotY + slotH + 5);
             }
             if (foto.reportMes) {
               doc.setFontSize(5.5);
@@ -236,15 +255,10 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
             }
           }
 
-          // Rodapé da página
-          doc.setFontSize(7);
-          doc.setTextColor(180, 180, 180);
-          doc.text('Museus Centro — Galeria de Fotos', margin, pageH - 6);
-          doc.text(`${doc.internal.getNumberOfPages()}`, pageW - margin, pageH - 6, { align: 'right' });
         }
       }
 
-      setProgresso('Salvando arquivo...');
+      setProgresso('Preparando a auditoria...');
 
       // Página de auditoria ao final
       doc.addPage();
@@ -268,9 +282,23 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
       });
       doc.setFontSize(8);
       doc.setTextColor(100, 150, 220);
-      doc.textWithLink('🔗 Ver Galeria de Fotos no App', margin, 38 + linhas.length * 9 + 10, {
+      doc.textWithLink('Fotos da galeria no app', pageW / 2, 38 + linhas.length * 9 + 10, {
         url: `${window.location.origin}/GaleriaFotos`,
+        align: 'center',
       });
+
+      // Paginação definitiva, incluindo a página de auditoria
+      const totalPaginas = doc.internal.getNumberOfPages();
+      for (let pagina = 1; pagina <= totalPaginas; pagina++) {
+        doc.setPage(pagina);
+        doc.setDrawColor(220, 220, 220);
+        doc.line(margin, pageH - 10, pageW - margin, pageH - 10);
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(140, 140, 140);
+        doc.text('Museus Centro · Viaduto das Artes', margin, pageH - 6);
+        doc.text(`Página ${pagina} de ${totalPaginas}`, pageW - margin, pageH - 6, { align: 'right' });
+      }
 
       const ts = new Date().toISOString().slice(0, 10);
       doc.save(`Galeria_MuseusCentro_${ts}.pdf`);
