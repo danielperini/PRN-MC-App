@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Download, Images, ChevronDown, ChevronRight, Printer, RefreshCw, X } from 'lucide-react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import jsPDF from 'jspdf';
+import viadutoHeaderOriginal from '@/assets/viadutoHeaderOriginal';
+import { preloadPdfPhotos } from '@/utils/pdfPhotoLoader';
 
 const MUSEU_LABELS = {
   MHAB: 'Museu Histórico Abílio Barreto',
@@ -235,25 +237,22 @@ function temMencaoComunicacao(fotos) {
 async function gerarAlbumPDF(museuKey, mesLabel, fotos, opts = {}) {
   const museuNome = MUSEU_LABELS[museuKey] || museuKey;
   const titulo = opts.titulo || `${museuNome} — ${mesLabel}`;
+  const imagensPdf = await preloadPdfPhotos(fotos);
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const PW = 210, PH = 297, M = 14, CW = PW - M * 2;
 
   function drawHeader(page) {
-    doc.setFillColor(30, 30, 30);
-    doc.rect(0, 0, PW, 18, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.text('VIADUTO DAS ARTES · MUSEUS CENTRO', PW / 2, 8, { align: 'center' });
-    doc.setFont('helvetica', 'normal');
+    doc.addImage(viadutoHeaderOriginal, 'PNG', 0, 0, PW, 34.4);
+    doc.setTextColor(40, 40, 40);
     doc.setFontSize(7.5);
-    doc.text(titulo, M, 13);
-    doc.text(`Pág. ${page}`, PW - M, 13, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+    doc.text(titulo, M, 39);
+    doc.text(`Pág. ${page}`, PW - M, 39, { align: 'right' });
   }
 
   // Capa
   drawHeader(1);
-  let y = 28;
+  let y = 44;
   doc.setFillColor(245, 245, 245);
   doc.rect(M, y, CW, 20, 'F');
   doc.setTextColor(20, 20, 20);
@@ -291,48 +290,18 @@ async function gerarAlbumPDF(museuKey, mesLabel, fotos, opts = {}) {
 
     if (!isFirst) {
       doc.addPage();
-      y = 22;
+      y = 44;
     }
 
     drawHeader(i + (isFirst ? 1 : 2));
 
-    // Carregar imagem
-    try {
-      const imgUrl = foto.fileUrl;
-      // Tentar carregar via fetch → base64
-      const resp = await fetch(imgUrl, { mode: 'cors' }).catch(() => null);
-      if (resp && resp.ok) {
-        const blob = await resp.blob();
-        const base64 = await new Promise(resolve => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.readAsDataURL(blob);
-        });
-        const ext = blob.type.includes('png') ? 'PNG' : 'JPEG';
-
-        // Calcular dimensões mantendo proporção, ocupando largura total
-        const imgEl = new Image();
-        await new Promise(resolve => { imgEl.onload = resolve; imgEl.onerror = resolve; imgEl.src = base64; });
-        const ratio = imgEl.naturalWidth > 0 ? imgEl.naturalHeight / imgEl.naturalWidth : 0.75;
-        const imgW = CW;
-        const imgH = Math.min(imgW * ratio, PH - y - 40);
-
-        doc.addImage(base64, ext, M, y, imgW, imgH);
-        y += imgH + 4;
-      } else {
-        // Fallback: retângulo cinza com texto
-        doc.setFillColor(220, 220, 220);
-        doc.rect(M, y, CW, 80, 'F');
-        doc.setFontSize(8);
-        doc.setTextColor(120, 120, 120);
-        doc.text('Imagem não disponível para exportação offline', PW / 2, y + 40, { align: 'center' });
-        y += 84;
-      }
-    } catch {
-      doc.setFillColor(220, 220, 220);
-      doc.rect(M, y, CW, 60, 'F');
-      y += 64;
-    }
+    // Todas as fotos já foram carregadas antes da geração do PDF.
+    const asset = imagensPdf.get(foto.id || foto.fileUrl);
+    const ratio = asset.height / asset.width;
+    const imgW = CW;
+    const imgH = Math.min(imgW * ratio, PH - y - 40);
+    doc.addImage(asset.dataUrl, asset.format, M, y, imgW, imgH);
+    y += imgH + 4;
 
     // Caixa de legenda com fundo claro
     const legendaBlock = y + 4;
@@ -383,21 +352,19 @@ async function gerarAlbumPDF(museuKey, mesLabel, fotos, opts = {}) {
 async function gerarMuseuCompletoPDF(museuKey, albunsPorMes) {
   // Gera um PDF com todos os meses do museu, com capa por mês
   const museuNome = MUSEU_LABELS[museuKey] || museuKey;
+  const fotosDoMuseu = albunsPorMes.flatMap(({ fotos }) => fotos);
+  const imagensPdf = await preloadPdfPhotos(fotosDoMuseu);
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const PW = 210, PH = 297, M = 14, CW = PW - M * 2;
   let pageCount = 0;
 
   function drawHeader(museu, mes) {
-    doc.setFillColor(30, 30, 30);
-    doc.rect(0, 0, PW, 18, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.text('VIADUTO DAS ARTES · MUSEUS CENTRO', PW / 2, 8, { align: 'center' });
+    doc.addImage(viadutoHeaderOriginal, 'PNG', 0, 0, PW, 34.4);
+    doc.setTextColor(40, 40, 40);
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'normal');
-    doc.text(`${museu}  ·  ${mes}`, M, 13);
-    doc.text(`Pág. ${pageCount}`, PW - M, 13, { align: 'right' });
+    doc.text(`${museu}  ·  ${mes}`, M, 39);
+    doc.text(`Pág. ${pageCount}`, PW - M, 39, { align: 'right' });
   }
 
   for (const { mesLabel, fotos } of albunsPorMes) {
@@ -405,7 +372,7 @@ async function gerarMuseuCompletoPDF(museuKey, albunsPorMes) {
     pageCount++;
     if (pageCount > 1) doc.addPage();
     drawHeader(museuNome, mesLabel);
-    let y = 30;
+    let y = 44;
     doc.setFillColor(245, 245, 245);
     doc.rect(M, y, CW, 18, 'F');
     doc.setTextColor(20, 20, 20);
@@ -423,35 +390,14 @@ async function gerarMuseuCompletoPDF(museuKey, albunsPorMes) {
       pageCount++;
       doc.addPage();
       drawHeader(museuNome, mesLabel);
-      y = 22;
+      y = 44;
       const legenda = getLegenda(foto);
-      try {
-        const resp = await fetch(foto.fileUrl, { mode: 'cors' }).catch(() => null);
-        if (resp && resp.ok) {
-          const blob = await resp.blob();
-          const base64 = await new Promise(resolve => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result);
-            reader.readAsDataURL(blob);
-          });
-          const ext = blob.type.includes('png') ? 'PNG' : 'JPEG';
-          const imgEl = new Image();
-          await new Promise(resolve => { imgEl.onload = resolve; imgEl.onerror = resolve; imgEl.src = base64; });
-          const ratio = imgEl.naturalWidth > 0 ? imgEl.naturalHeight / imgEl.naturalWidth : 0.75;
-          const imgW = CW;
-          const imgH = Math.min(imgW * ratio, PH - y - 40);
-          doc.addImage(base64, ext, M, y, imgW, imgH);
-          y += imgH + 5;
-        } else {
-          doc.setFillColor(220, 220, 220);
-          doc.rect(M, y, CW, 70, 'F');
-          y += 74;
-        }
-      } catch {
-        doc.setFillColor(220, 220, 220);
-        doc.rect(M, y, CW, 60, 'F');
-        y += 64;
-      }
+      const asset = imagensPdf.get(foto.id || foto.fileUrl);
+      const ratio = asset.height / asset.width;
+      const imgW = CW;
+      const imgH = Math.min(imgW * ratio, PH - y - 40);
+      doc.addImage(asset.dataUrl, asset.format, M, y, imgW, imgH);
+      y += imgH + 5;
       // Caixa de legenda destacada
       const legendaBlock = y + 4;
       const autor = getAutor(foto);
@@ -498,6 +444,7 @@ async function gerarMuseuCompletoPDF(museuKey, albunsPorMes) {
 // ─── Página principal ─────────────────────────────────────────────────────────
 function RelatorioAtividadesFotosInner() {
   const [exportando, setExportando] = useState(null);
+  const [erroExportacao, setErroExportacao] = useState('');
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['galeria-fotos-stable-v1'],
@@ -543,18 +490,24 @@ function RelatorioAtividadesFotosInner() {
 
   async function handleExportPDF(museuKey, mesLabel, fotos) {
     const key = `${museuKey}-${mesLabel}`;
+    setErroExportacao('');
     setExportando(key);
     try {
       await gerarAlbumPDF(museuKey, mesLabel, fotos);
+    } catch (error) {
+      setErroExportacao(`A exportação foi interrompida: ${error.message}. Atualize as fotos e tente novamente.`);
     } finally {
       setExportando(null);
     }
   }
 
   async function handleExportMuseuPDF(museuKey, albunsPorMes) {
+    setErroExportacao('');
     setExportando(museuKey);
     try {
       await gerarMuseuCompletoPDF(museuKey, albunsPorMes);
+    } catch (error) {
+      setErroExportacao(`A exportação foi interrompida: ${error.message}. Atualize as fotos e tente novamente.`);
     } finally {
       setExportando(null);
     }
@@ -577,7 +530,7 @@ function RelatorioAtividadesFotosInner() {
             {exportando && (
               <span className="flex items-center gap-2 text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
                 <RefreshCw className="w-4 h-4 animate-spin" />
-                Gerando PDF...
+                Carregando todas as fotos...
               </span>
             )}
             <Button variant="outline" size="sm" onClick={() => refetch()}>
@@ -586,6 +539,12 @@ function RelatorioAtividadesFotosInner() {
             </Button>
           </div>
         </div>
+
+        {erroExportacao && (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {erroExportacao}
+          </div>
+        )}
 
         {/* Resumo por museu */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
