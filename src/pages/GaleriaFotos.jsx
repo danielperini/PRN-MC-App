@@ -37,6 +37,23 @@ function safeText(value = '') {
   return String(value || '').toLowerCase();
 }
 
+function thumbUrl(url) {
+  if (!url) return url;
+  // Google Drive / lh3.googleusercontent.com: substitui parâmetro de tamanho
+  if (url.includes('lh3.googleusercontent.com')) {
+    return url.replace(/=s\d+(-[a-z]+)*$/, '') + '=s100';
+  }
+  // Google Drive file view com sz param
+  if (url.includes('drive.google.com') && url.includes('sz=')) {
+    return url.replace(/sz=\d+/, 'sz=100');
+  }
+  // Base44 / storage com width param
+  if (url.includes('width=') || url.includes('w=')) {
+    return url.replace(/width=\d+/, 'width=100').replace(/[?&]w=\d+/, (m) => m.replace(/\d+/, '100'));
+  }
+  return url;
+}
+
 function formatDateBR(value) {
   if (!value) return '';
   const d = new Date(value);
@@ -108,13 +125,18 @@ function GalleryCard({ image, onClick, eager = false, selected, onToggleSelect, 
       >
         <div className="aspect-video overflow-hidden bg-gray-100">
           <img
-            src={image.fileUrl}
+            src={thumbUrl(image.fileUrl)}
             alt={legendaDisplay}
             loading={eager ? 'eager' : 'lazy'}
             decoding="async"
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
             onError={(event) => {
-              event.currentTarget.style.opacity = '0.2';
+              // fallback para URL original se miniatura falhar
+              if (event.currentTarget.src !== image.fileUrl) {
+                event.currentTarget.src = image.fileUrl;
+              } else {
+                event.currentTarget.style.opacity = '0.2';
+              }
             }}
           />
         </div>
