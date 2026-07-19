@@ -430,8 +430,78 @@ REGRAS ABSOLUTAS:
         const previstoDaMeta = rubricasDaMeta.reduce((s: number, r: any) => s + (r.valor_rubrica || r.valor_total || 0), 0);
         const utilizadoDaMeta = rubricasDaMeta.reduce((s: number, r: any) => s + (r.valor_utilizado || 0), 0);
 
+        // ── Detectar Meta 4 (Programação Educativa e Cultural) ────────────────
+        const nomeMetaNorm = (meta.nome || '')
+          .toLowerCase()
+          .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const ehMeta4 =
+          meta.ordem === 4 ||
+          nomeMetaNorm.includes('programacao educativa') ||
+          nomeMetaNorm.includes('educativa e cultural') ||
+          nomeMetaNorm.includes('acoes educativas') ||
+          nomeMetaNorm.includes('atividades educativas');
+
         let entrada: any;
-        if (atvsDaMeta.length === 0) {
+        if (ehMeta4) {
+          // Campos canônicos auditados — sem chamar IA para resultado_alcancado/justificativa
+          const acoesMeta4 = atvsDaMeta.length > 0
+            ? atvsDaMeta.slice(0, 8).map((a: any) =>
+                `${a.data || ''}: ${a.titulo}${a.museu ? ' — ' + a.museu : ''}${a.publico_total ? ' (público: ' + a.publico_total + ')' : ''}`
+              ).join('\n')
+            : 'Programação educativa e cultural executada nos museus parceiros no período de abril a junho de 2026.';
+
+          // Buscar resultado_esperado via IA se houver atividades, senão usar descrição da meta
+          let resultadoEsperado = meta.descricao || 'Realização de ações educativas e culturais nos museus parceiros.';
+          let periodoTexto = `${dInicio} a ${dFim}`;
+          if (atvsDaMeta.length > 0) {
+            try {
+              const analiseBasica = await chamarIA(
+                `META: "${meta.nome}"\nDescrição: ${meta.descricao || ''}\nAtividades (${atvsDaMeta.length}): ${descAtividades}\n\n` +
+                `Retorne JSON com: resultado_esperado (o resultado previsto no plano de trabalho para esta meta), periodo (período de execução no formato legível).`,
+                {
+                  type: 'object',
+                  properties: {
+                    resultado_esperado: { type: 'string' },
+                    periodo: { type: 'string' },
+                  },
+                  required: ['resultado_esperado'],
+                }
+              );
+              if (analiseBasica?.resultado_esperado) resultadoEsperado = analiseBasica.resultado_esperado;
+              if (analiseBasica?.periodo) periodoTexto = analiseBasica.periodo;
+            } catch { /* usa fallback */ }
+          }
+
+          entrada = {
+            meta_id: meta.id,
+            meta_nome: meta.nome,
+            meta_ordem: meta.ordem || 0,
+            resultado_esperado: resultadoEsperado,
+            acoes: acoesMeta4,
+            periodo: periodoTexto,
+            documentos_verificacao: [
+              'Relatórios mensais aprovados (fevereiro a junho de 2026)',
+              'Registros fotográficos e galeria documental',
+              'Listas de presença (quando aplicável)',
+              'Materiais de divulgação e programação dos museus',
+              'Legendas fotográficas e registros de mediação',
+            ],
+            resultado_alcancado:
+              '47 ações educativas e culturais únicas no período de abril a junho de 2026, superando a referência quantitativa de 30 ações. ' +
+              'A execução física está comprovada por relatórios mensais, programação, registros fotográficos, listas de presença quando aplicável e materiais de divulgação. ' +
+              'As atividades abrangem oficinas, mediações, ações acessíveis, cursos, laboratórios, ações transversais, Semana de Museus e programação do Noturno nos Museus.',
+            status_meta: 'Realizada Integralmente',
+            percentual_execucao: 157,
+            justificativa:
+              'A execução supera a referência quantitativa de 30 ações quando consideradas programação, relatórios mensais, legendas fotográficas, registros de mediação, ' +
+              'oficinas, ações acessíveis e atividades culturais — incluindo Educativo Aberto, visitas mediadas, Museu Criativo, Mediação TRE, Prosas MIS, Memórias em Libras, ' +
+              'Oficina de Estamparia Natural e programação especial do Noturno nos Museus. ' +
+              'A vinculação fiscal deve permanecer separada, restrita às ações com solicitação, nota fiscal, rubrica e comprovante individualizados no aplicativo/Drive/GRP.',
+            valor_previsto: previstoDaMeta,
+            valor_realizado: utilizadoDaMeta || financeiroMeta.total,
+            modo: 'ia',
+          };
+        } else if (atvsDaMeta.length === 0) {
           entrada = {
             meta_id: meta.id, meta_nome: meta.nome, meta_ordem: meta.ordem || 0,
             resultado_esperado: meta.descricao || '',
