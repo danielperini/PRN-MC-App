@@ -1,5 +1,6 @@
 import React from 'react';
 import { Wallet, TrendingUp, Layers, PiggyBank, Search, X } from 'lucide-react';
+import { isOrigemAditivo } from '@/services/canonicalMetrics';
 import {
   Dialog,
   DialogContent,
@@ -184,7 +185,7 @@ export default function BudgetByGroupCards({ rubricas = [] }) {
   const [drilldown, setDrilldown] = React.useState(null);
 
   const activeRubricas = React.useMemo(
-    () => (Array.isArray(rubricas) ? rubricas : []).filter((r) => r?.ativo !== false),
+    () => (Array.isArray(rubricas) ? rubricas : []).filter((r) => r?.ativo !== false && isOrigemAditivo(r)),
     [rubricas]
   );
 
