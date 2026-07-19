@@ -75,9 +75,9 @@ function clearGalleryCache() {
     window.localStorage.removeItem(GALLERY_CACHE_KEY);
   } catch {
 
+
     // noop
   }}
-
 function FilterChip({ label, active, onClick }) {
   return (
     <button
@@ -334,21 +334,21 @@ function GaleriaFotosInner() {
         <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <h1 className="mb-2 text-3xl font-semibold tracking-tight text-black">Galeria de Fotos</h1>
-            <div className="flex flex-wrap items-center gap-2 mt-1 hidden">
-              <span className="text-gray-700 font-semibold">{sortedImages.length} {sortedImages.length === 1 ? 'imagem única' : 'imagens únicas'}</span>
-              {images.length !== sortedImages.length &&
-              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">de {images.length} total</span>
-              }
-              {data?.sources &&
-              <>
-                  <span className="rounded-full bg-blue-50 border border-blue-200 px-2 py-0.5 text-xs text-blue-700">{data.sources.Attachment || 0} anexos</span>
-                  <span className="rounded-full bg-purple-50 border border-purple-200 px-2 py-0.5 text-xs text-purple-700">{data.sources.ReportPhoto || 0} fotos de relatório</span>
-                  {data.total && data.total > images.length &&
-                <span className="rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-xs text-amber-700">{data.total - images.length} agrupadas</span>
-                }
-                </>
-              }
-            </div>
+            
+
+
+
+
+
+
+
+
+
+
+
+
+
+            
             {data?.cacheUsed && <p className="mt-1 text-xs text-gray-400">Dados do cache local.{data?.cacheStale ? ' (cache antigo)' : ''}</p>}
             {isFetching && <p className="mt-2 text-xs text-gray-400">Atualizando galeria...</p>}
           </div>
