@@ -79,6 +79,18 @@ export function getMonthNumberFromText(value) {
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase();
 
+  // Meses compostos (ex: "Maio–Junho", "Maio-Junho"): usa o ÚLTIMO mês para posicionamento
+  // no período do dashboard (as atividades "cabem" até o fim do período)
+  const COMPOSTOS = [
+    { pattern: /maio.{0,3}junho/,   last: 6 },
+    { pattern: /junho.{0,3}julho/,  last: 7 },
+    { pattern: /julho.{0,3}agosto/, last: 8 },
+    { pattern: /agosto.{0,3}setembro/, last: 9 },
+  ];
+  for (const { pattern, last } of COMPOSTOS) {
+    if (pattern.test(text)) return last;
+  }
+
   const index = MONTHS_PT.findIndex((month) => {
     const normalized = month.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     return text.includes(normalized);

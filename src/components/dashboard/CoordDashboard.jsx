@@ -51,13 +51,13 @@ const MESES_ORDER = [
   'Dezembro',
 ];
 
-// Meses compostos: mapeados para número de mês de início (para ordenação)
+// Meses compostos: mapeados para o ÚLTIMO mês (alinhado com temporalFilters.js)
 const MESES_COMPOSTOS = {
-  'maio–junho': { number: 5, label: 'Mai–Jun' },
-  'maio-junho': { number: 5, label: 'Mai–Jun' },
-  'maio/junho': { number: 5, label: 'Mai–Jun' },
-  'junho–julho': { number: 6, label: 'Jun–Jul' },
-  'julho–agosto': { number: 7, label: 'Jul–Ago' },
+  'maio–junho': { number: 6, label: 'Mai–Jun' },
+  'maio-junho': { number: 6, label: 'Mai–Jun' },
+  'maio/junho': { number: 6, label: 'Mai–Jun' },
+  'junho–julho': { number: 7, label: 'Jun–Jul' },
+  'julho–agosto': { number: 8, label: 'Jul–Ago' },
 };
 
 const STATUS_CONFIG = {
