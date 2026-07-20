@@ -253,8 +253,11 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
       );
 
       const falhas = fotosParaPDF.filter((_, i) => !imagensPreCarregadas[i]);
+      if (fotosParaPDF.length - falhas.length === 0) {
+        throw new Error('Nenhuma imagem pôde ser carregada. Verifique a conexão ou execute a varredura do Drive novamente.');
+      }
       if (falhas.length > 0) {
-        throw new Error(`${falhas.length} de ${fotosParaPDF.length} imagem(ns) falharam ao carregar. Verifique a conexão ou execute a varredura do Drive novamente.`);
+        toast.warning(`${falhas.length} de ${fotosParaPDF.length} foto(s) não puderam ser carregadas e serão ignoradas no PDF.`);
       }
 
       const imagemPorChave = new Map(
