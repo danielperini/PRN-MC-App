@@ -28,6 +28,7 @@ import { gerarAmostraRelatorioExecutivo } from '@/utils/exportarAmostraRelatorio
 import ActivityChipsBar, { getAtividadeKey } from '@/components/gallery/ActivityChipsBar';
 import { PhotoActionBar, BulkActionBar, EditCaptionDialog, DeleteConfirmDialog, EmailPhotosDialog } from '@/components/gallery/GalleryPhotoActions';
 import { base44 } from '@/api/base44Client';
+import { normalizeMuseuKey, normalizePeriodoKeys, MUSEU_OFFICIAL_ORDER, resolvePhotoCaption, normalizePeriodoForComparison } from '@/utils/galleryNormalization';
 
 const INITIAL_VISIBLE_IMAGES = 100;
 const VISIBLE_IMAGES_STEP = 100;
@@ -44,6 +45,7 @@ const SECTION_LABELS = {
   MAP: 'MAP — Museu de Arte da Pampulha',
   CasaKubitschek: 'Casa Kubitschek',
   CasaDoBaile: 'Casa do Baíle',
+  Noturno: 'Noturno nos Museus',
   MuseuEscolaArquitetura: 'Museu da Escola de Arquitetura',
   GaleriaArteUnimed: 'Galeria de Arte Centro Cultural Unimed',
   CasaRosadaGasmig: 'Casa Rosada Gasmig Minas',
@@ -118,11 +120,7 @@ function GalleryCard({ image, onClick, eager = false, selected, onToggleSelect, 
   null;
   // Prioridade: legenda própria da foto > título de atividade > "Foto da galeria"
   // NUNCA exibir nome de arquivo como legenda — nomes de arquivo são técnicos
-  const legendaDisplay =
-    image.legenda ||
-    image.caption ||
-    image.activityTitulo ||
-    'Foto da galeria';
+  const legendaDisplay = resolvePhotoCaption(image);
 
   return (
     <div className={`group relative overflow-hidden rounded-2xl border bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md
@@ -279,20 +277,41 @@ function GaleriaFotosInner() {
   }, []);
 
   // Sincronização automática e geração de legendas desativadas para evitar travamento
-  const images = Array.isArray(data?.images) ? data.images : [];
+  const rawImages = Array.isArray(data?.images) ? data.images : [];
 
-  // Chips de museu: chaves únicas presentes nos dados
+  // Normaliza sectionKey de cada foto para a chave canônica do museu
+  // e normaliza reportMes para incluir ano quando possível (consolida 'Abril' e 'Abril/2026')
+  const images = useMemo(() => {
+    return rawImages.map((img) => {
+      const canonicalKey = normalizeMuseuKey(img.sectionKey);
+      // Normaliza período: se tem 'Mês' sem ano mas existe 'Mês/Ano' nos dados, usa a versão com ano
+      let normalizedMes = img.reportMes;
+      if (normalizedMes && !/\/\d{4}$/.test(normalizedMes) && img.ano) {
+        normalizedMes = `${normalizedMes}/${img.ano}`;
+      }
+      if (canonicalKey === img.sectionKey && normalizedMes === img.reportMes) return img;
+      return {
+        ...img,
+        sectionKey: canonicalKey,
+        sectionTitle: SECTION_LABELS[canonicalKey] || img.sectionTitle || canonicalKey,
+        museu: SECTION_LABELS[canonicalKey] ? SECTION_LABELS[canonicalKey].split(' — ')[0] : img.museu,
+        reportMes: normalizedMes,
+      };
+    });
+  }, [rawImages]);
+
+  // Chips de museu: chaves canônicas únicas presentes nos dados, na ordem oficial
   const museuOptions = useMemo(() => {
-    const set = new Set();
-    images.forEach((img) => {set.add(img.sectionKey || 'SEM_IDENTIFICACAO');});
-    return Array.from(set).sort();
+    const present = new Set();
+    images.forEach((img) => { present.add(img.sectionKey || 'SEM_IDENTIFICACAO'); });
+    return MUSEU_OFFICIAL_ORDER.filter((key) => present.has(key));
   }, [images]);
 
-  // Chips de período: reportMes únicos
+  // Chips de período: normalizados (sem duplicatas Mês vs Mês/Ano), ordenados cronologicamente
   const periodoOptions = useMemo(() => {
-    const set = new Set();
-    images.forEach((img) => {if (img.reportMes) set.add(img.reportMes);});
-    return Array.from(set).sort((a, b) => String(a).localeCompare(String(b), 'pt-BR'));
+    const raw = [];
+    images.forEach((img) => { if (img.reportMes) raw.push(img.reportMes); });
+    return normalizePeriodoKeys(raw);
   }, [images]);
 
   const filteredImages = useMemo(() => {
@@ -300,7 +319,7 @@ function GaleriaFotosInner() {
     return images.filter((image) => {
       if (!image?.fileUrl) return false;
       if (filterMuseu && (image.sectionKey || 'SEM_IDENTIFICACAO') !== filterMuseu) return false;
-      if (filterPeriodo && image.reportMes !== filterPeriodo) return false;
+      if (filterPeriodo && normalizePeriodoForComparison(image.reportMes) !== normalizePeriodoForComparison(filterPeriodo)) return false;
       if (!q) return true;
       return [
       image.fileName,

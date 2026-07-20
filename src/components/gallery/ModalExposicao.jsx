@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { resolvePhotoCaption } from '@/utils/galleryNormalization';
 
 /**
  * Modal de visualização tipo slideshow (Modo Exposição):
@@ -69,12 +70,7 @@ export default function ModalExposicao({ open, images = [], startIndex = 0, onCl
   const current = images[index];
   if (!current) return null;
 
-  const legendaDisplay =
-    current.legenda ||
-    current.caption ||
-    current.fileName ||
-    current.activityTitulo ||
-    'Foto da galeria';
+  const legendaDisplay = resolvePhotoCaption(current);
 
   return (
     <div
