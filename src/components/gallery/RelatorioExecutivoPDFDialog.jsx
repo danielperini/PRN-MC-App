@@ -192,7 +192,7 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
         const actFotos = Array.isArray(act.fotos) ? act.fotos : [];
         for (const f of actFotos) {
           const url = f.file_url || f.fileUrl;
-          if (url && !vistos.has(url)) { fotosAtividade.push({ fileUrl: url, legenda: f.legenda || act.titulo }); vistos.add(url); }
+          if (url && !vistos.has(url)) { fotosAtividade.push({ fileUrl: url, legenda: f.legenda || act.titulo, activityId: act.id, reportId: act.report_id }); vistos.add(url); }
           if (fotosAtividade.length >= MAX_FOTOS) break;
         }
 
@@ -201,7 +201,7 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
           for (const rp of poolFotos) {
             if (rp.activity_id === act.id) {
               const url = rp.file_url;
-              if (url && !vistos.has(url)) { fotosAtividade.push({ fileUrl: url, legenda: rp.legenda || rp.caption || act.titulo }); vistos.add(url); }
+              if (url && !vistos.has(url)) { fotosAtividade.push({ fileUrl: url, legenda: rp.legenda || rp.caption || act.titulo, activityId: act.id, reportId: act.report_id || rp.report_id }); vistos.add(url); }
             }
             if (fotosAtividade.length >= MAX_FOTOS) break;
           }
@@ -218,7 +218,7 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
             const match = palavras.length > 0 && palavras.some((p) => nomeNorm.includes(p));
             if (match) {
               const url = rp.file_url;
-              if (url && !vistos.has(url)) { fotosAtividade.push({ fileUrl: url, legenda: rp.legenda || rp.caption || act.titulo }); vistos.add(url); }
+              if (url && !vistos.has(url)) { fotosAtividade.push({ fileUrl: url, legenda: rp.legenda || rp.caption || act.titulo, activityId: act.id, reportId: act.report_id || rp.report_id }); vistos.add(url); }
             }
             if (fotosAtividade.length >= MAX_FOTOS) break;
           }
@@ -284,7 +284,11 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
           const totalLotes = Math.ceil(precisamLegenda.length / 5);
           await atualizarProgresso(setProgresso, `Legendas IA · lote ${loteNum}/${totalLotes}...`, setPct, 3 + Math.round((loteNum / totalLotes) * 12));
           const resultados = await Promise.allSettled(
-            lote.map((f) => base44.functions.invoke('suggestPhotoCaption', { photoUrl: f.fileUrl }))
+            lote.map((f) => base44.functions.invoke('suggestPhotoCaption', {
+              photoUrl: f.fileUrl,
+              activityId: f.activityId,
+              reportId: f.reportId,
+            }))
           );
           resultados.forEach((r, idx) => {
             const f = lote[idx];

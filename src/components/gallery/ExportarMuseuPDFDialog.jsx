@@ -133,6 +133,8 @@ function normalizarFotoParaGaleria(foto) {
     id: foto.id,
     fileUrl: foto.file_url,
     legenda: foto.legenda || foto.caption,
+    activityId: foto.activity_id,
+    reportId: foto.report_id,
     activityTitulo: foto.activity_id,
     museu: foto.museu,
     sectionKey: foto.museu,
@@ -157,7 +159,11 @@ async function gerarLegendasIA(fotos, setProgresso, legendasAtuais, setProgresso
     await atualizarProgresso(setProgresso, `Gerando legendas com IA · lote ${loteNum} de ${totalLotes}...`, setProgressoPct, 20 + Math.round((loteNum / totalLotes) * 25));
     const resultados = await Promise.allSettled(
       lote.map((f) =>
-        base44.functions.invoke('suggestPhotoCaption', { photoUrl: f.fileUrl })
+        base44.functions.invoke('suggestPhotoCaption', {
+          photoUrl: f.fileUrl,
+          activityId: f.activityId,
+          reportId: f.reportId,
+        })
       )
     );
     resultados.forEach((r, idx) => {
