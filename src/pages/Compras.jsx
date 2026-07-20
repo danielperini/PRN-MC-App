@@ -299,6 +299,26 @@ function ComprasInner() {
     refetchOnWindowFocus: false
   });
 
+  // Auto-abrir solicitação quando vier via ?id= (link de email de notificação)
+  useEffect(() => {
+    if (!purchases || purchases.length === 0) return;
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetId = urlParams.get('id');
+    if (!targetId) return;
+    const found = purchases.find((p) => p._id === targetId || p.id === targetId);
+    if (found) {
+      setEditingPurchase({ ...found });
+      setShowForm(true);
+      setTab('lista');
+      // Limpar o parâmetro para não reabrir a cada render
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('id');
+        window.history.replaceState({}, '', url.toString());
+      } catch { /* noop */ }
+    }
+  }, [purchases]);
+
   const { data: anexosCompras = [], isLoading: loadingAnexos, isFetching: fetchingAnexos } = useQuery({
     queryKey: ['attachments-compras'],
     queryFn: async () => {const list = await base44.entities.Attachment.list('-created_date', 500);const docs = dedupById((list || []).filter(isEntradaUnicaAttachment));return docs.sort((a, b) => new Date(b?.created_date || 0) - new Date(a?.created_date || 0));},
