@@ -264,6 +264,7 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
     setEtapa('pdf');
     try {
       setProgresso(`Carregando ${fotosParaPDF.length} imagens para o PDF...`);
+      await new Promise((r) => setTimeout(r, 0));
 
       // Layout A4: 210×297, margem 10mm, header timbre ~32mm, footer 10mm, gap 5mm
       const pageW = 210, pageH = 297, margin = 10;
@@ -289,6 +290,9 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
       const imagemPorChave = new Map(
         fotosParaPDF.map((foto, i) => [foto.id || foto.fileUrl, imagensPreCarregadas[i]])
       );
+
+      setProgresso(`Montando PDF · ${fotosParaPDF.length - falhas.length} foto(s)...`);
+      await new Promise((r) => setTimeout(r, 0));
 
       const auditLog = {
         carregadas: fotosParaPDF.length - falhas.length,
@@ -331,6 +335,7 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
       for (let p = 0; p < Math.ceil(fotosComImg.length / perPage); p++) {
         const pageFotos = fotosComImg.slice(p * perPage, (p + 1) * perPage);
         setProgresso(`Montando PDF · fotos ${fotosProcessadas + 1}–${Math.min(fotosProcessadas + pageFotos.length, fotosComImg.length)} de ${fotosComImg.length}`);
+        await new Promise((r) => setTimeout(r, 0));
         const imagens = pageFotos.map((foto) => imagemPorChave.get(foto.id || foto.fileUrl));
         fotosProcessadas += pageFotos.length;
 
