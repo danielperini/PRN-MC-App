@@ -287,24 +287,26 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
       // ── Capa ──
       doc.setFillColor(20, 20, 20);
       doc.rect(0, 0, pageW, pageH, 'F');
+      const timbreCapaH = drawTimbreViaduto(doc, pageW, margin, true);
+      const capaY0 = timbreCapaH + 10;
       doc.setTextColor(255, 255, 255);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10);
-      doc.text('VIADUTO DAS ARTES · MUSEUS CENTRO', pageW / 2, 30, { align: 'center' });
+      doc.text('VIADUTO DAS ARTES · MUSEUS CENTRO', pageW / 2, capaY0, { align: 'center' });
       doc.setFontSize(22);
-      doc.text(SECTION_ABREV[museu], pageW / 2, 80, { align: 'center' });
+      doc.text(SECTION_ABREV[museu], pageW / 2, capaY0 + 50, { align: 'center' });
       doc.setFontSize(13);
       doc.setFont('helvetica', 'normal');
-      doc.text(SECTION_LABELS[museu], pageW / 2, 95, { align: 'center', maxWidth: 170 });
+      doc.text(SECTION_LABELS[museu], pageW / 2, capaY0 + 65, { align: 'center', maxWidth: 170 });
       doc.setFontSize(11);
       doc.setTextColor(180, 180, 180);
-      doc.text('Relatório de Atividades', pageW / 2, 115, { align: 'center' });
+      doc.text('Relatório de Atividades', pageW / 2, capaY0 + 85, { align: 'center' });
       doc.setFontSize(10);
-      doc.text(`${mes} de ${ano}`, pageW / 2, 128, { align: 'center' });
+      doc.text(`${mes} de ${ano}`, pageW / 2, capaY0 + 98, { align: 'center' });
       doc.setFontSize(9);
       doc.setTextColor(150, 205, 255);
-      doc.text(`Gerado em ${new Date().toLocaleDateString('pt-BR')}`, pageW / 2, 145, { align: 'center' });
-      doc.text(`${fotosParaPDF.length} fotografias em ${atividades.filter(a => a.fotos.length > 0).length} atividades`, pageW / 2, 155, { align: 'center' });
+      doc.text(`Gerado em ${new Date().toLocaleDateString('pt-BR')}`, pageW / 2, capaY0 + 115, { align: 'center' });
+      doc.text(`${fotosParaPDF.length} fotografias em ${atividades.filter(a => a.fotos.length > 0).length} atividades`, pageW / 2, capaY0 + 125, { align: 'center' });
 
       // Primeira página de fotos — desenha timbre e obtém altura real
       doc.addPage();
@@ -443,25 +445,26 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
           doc.setDrawColor(205, 205, 205);
           doc.rect(slotX, slotY, cellW, slotH, 'S');
 
-          // Legenda estruturada (3 linhas, alinhada à esquerda)
+          // Legenda estruturada (3 linhas, centralizada)
+          const legCx = slotX + cellW / 2;
           let legY = slotY + slotH + 3;
           // Linha 1: título da atividade (bold, 8.5pt, #141414)
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(8.5);
           doc.setTextColor(20, 20, 20);
           const tituloLeg = doc.splitTextToSize(foto.tituloAtividade || atv.titulo || 'Registro fotográfico', cellW - 2)[0] || '';
-          doc.text(tituloLeg, slotX, legY);
+          doc.text(tituloLeg, legCx, legY, { align: 'center', maxWidth: cellW - 2 });
           legY += 4;
           // Linha 2: museu (normal, 7.5pt, #666666)
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(7.5);
           doc.setTextColor(102, 102, 102);
-          doc.text(SECTION_ABREV[museu], slotX, legY);
+          doc.text(SECTION_ABREV[museu], legCx, legY, { align: 'center' });
           legY += 3.5;
           // Linha 3: data (normal, 7pt, #999999)
           doc.setFontSize(7);
           doc.setTextColor(153, 153, 153);
-          doc.text(foto.dataAtividade || atv.data || '', slotX, legY);
+          doc.text(foto.dataAtividade || atv.data || '', legCx, legY, { align: 'center' });
 
           slotsNaLinha++;
           fotoIdx++;

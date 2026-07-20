@@ -15,18 +15,25 @@ const TIMBRE_DADOS = [
  * @param {number} margin - margem lateral em mm
  * @returns {number} altura ocupada pelo timbre (mm) — conteúdo deve começar após este valor
  */
-export function drawTimbreViaduto(doc, pageW, margin) {
+export function drawTimbreViaduto(doc, pageW, margin, dark = false) {
   const retW = 20;   // largura do retângulo preto
   const retH = 30;   // altura do retângulo preto
   const rectX = margin;
   const rectY = 8;    // topo com pequena margem
 
-  // Retângulo preto
-  doc.setFillColor(10, 10, 10);
+  // Cores conforme tema
+  const rectFill = dark ? [240, 240, 240] : [10, 10, 10];
+  const rectText = dark ? [20, 20, 20] : [255, 255, 255];
+  const instTitle = dark ? [255, 255, 255] : [40, 40, 40];
+  const instBody = dark ? [200, 200, 200] : [90, 90, 90];
+  const sepColor = dark ? [120, 120, 120] : [180, 180, 180];
+
+  // Retângulo (preto no tema claro, branco no tema escuro)
+  doc.setFillColor(...rectFill);
   doc.rect(rectX, rectY, retW, retH, 'F');
 
-  // Texto branco no retângulo — "VIA / DU / TO / DAS ARTES" centralizado
-  doc.setTextColor(255, 255, 255);
+  // Texto no retângulo — "VIA / DU / TO / DAS ARTES" centralizado
+  doc.setTextColor(...rectText);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7);
   const linhas = ['VIA', 'DU', 'TO', 'DAS ARTES'];
@@ -39,26 +46,26 @@ export function drawTimbreViaduto(doc, pageW, margin) {
 
   // Dados institucionais à direita do retângulo
   const textX = rectX + retW + 4;
-  doc.setTextColor(40, 40, 40);
+  doc.setTextColor(...instTitle);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   doc.text(TIMBRE_DADOS[0], textX, rectY + 6);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
-  doc.setTextColor(90, 90, 90);
+  doc.setTextColor(...instBody);
   TIMBRE_DADOS.slice(1).forEach((linha, i) => {
     doc.text(linha, textX, rectY + 11 + i * 4);
   });
 
   // Linha horizontal separadora
   const sepY = rectY + retH + 2;
-  doc.setDrawColor(180, 180, 180);
+  doc.setDrawColor(...sepColor);
   doc.setLineWidth(0.3);
   doc.line(margin, sepY, pageW - margin, sepY);
 
   // Retorna altura total ocupada (topo + retângulo + linha)
-  return sepY + 2 - 0; // conteúdo começa após a linha separadora
+  return sepY + 2; // conteúdo começa após a linha separadora
 }
 
 export { TIMBRE_DADOS };
