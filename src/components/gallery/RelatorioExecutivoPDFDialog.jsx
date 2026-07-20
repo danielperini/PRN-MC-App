@@ -308,8 +308,9 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
       doc.text(`Gerado em ${new Date().toLocaleDateString('pt-BR')}`, pageW / 2, capaY0 + 115, { align: 'center' });
       doc.text(`${fotosParaPDF.length} fotografias em ${atividades.filter(a => a.fotos.length > 0).length} atividades`, pageW / 2, capaY0 + 125, { align: 'center' });
 
-      // Primeira página de fotos — desenha timbre e obtém altura real
+      // ── Página de índice ──
       doc.addPage();
+      let indexPageCount = 1;
       doc.setFillColor(255, 255, 255);
       doc.rect(0, 0, pageW, pageH, 'F');
       const timbreH = drawTimbreViaduto(doc, pageW, margin);
@@ -318,6 +319,53 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
       const contentTop = timbreH + 4;
       const contentBottom = pageH - footerH - margin;
       const contentW = pageW - margin * 2;
+
+      // Cabeçalho do índice
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.setTextColor(20, 20, 20);
+      doc.text('Índice de Atividades', pageW / 2, contentTop, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(120, 120, 120);
+      doc.text(`${atividades.length} atividade(s) · ${fotosParaPDF.length} foto(s)`, pageW / 2, contentTop + 6, { align: 'center' });
+
+      let idxY = contentTop + 16;
+      for (let i = 0; i < atividades.length; i++) {
+        const atvItem = atividades[i].atividade;
+        const tituloAtv = atvItem.titulo || `Atividade ${i + 1}`;
+        const dataAtv = formatDateBR(atvItem.data_realizacao || atvItem.data_inicio);
+        const numFotos = atividades[i].fotos.length;
+
+        if (idxY > contentBottom - 8) {
+          doc.addPage();
+          indexPageCount++;
+          doc.setFillColor(255, 255, 255);
+          doc.rect(0, 0, pageW, pageH, 'F');
+          drawTimbreViaduto(doc, pageW, margin);
+          idxY = contentTop;
+        }
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.setTextColor(30, 30, 30);
+        doc.text(`${i + 1}.`, margin, idxY);
+        const tituloTrunc = doc.splitTextToSize(tituloAtv, contentW - 55)[0] || '';
+        doc.text(tituloTrunc, margin + 8, idxY);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(120, 120, 120);
+        const meta = `${dataAtv ? dataAtv + ' · ' : ''}${numFotos} foto(s)`;
+        doc.text(meta, pageW - margin, idxY, { align: 'right' });
+        idxY += 7;
+      }
+
+      // Primeira página de fotos
+      doc.addPage();
+      doc.setFillColor(255, 255, 255);
+      doc.rect(0, 0, pageW, pageH, 'F');
+      drawTimbreViaduto(doc, pageW, margin);
+
       const usableH = contentBottom - contentTop;
       const cellW = (contentW - (cols - 1) * gapH) / cols;
       const gridH = usableH - titleBarH - gapV;
@@ -343,7 +391,7 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
 
       await atualizarProgresso(setProgresso, `Montando PDF · ${carregadas} foto(s)...`, setPct, 60);
 
-      let paginaAtual = 2;
+      let paginaAtual = 2 + indexPageCount;
       let cursorY = contentTop;
       let slotsNaLinha = 0;
       let paginaIniciada = true;

@@ -211,9 +211,62 @@ export async function gerarAmostraRelatorioExecutivo(museuKey, mes, ano, opts = 
   const fotosComImg = fotosParaPDF.filter((_, i) => imagens[i]);
   const imagemPorUrl = new Map(fotosParaPDF.map((f, i) => [f.fileUrl, imagens[i]]));
 
+  // ── Página de índice ──
+  doc.addPage();
+  let indexPageCount = 1;
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, 0, pageW, pageH, 'F');
+  drawTimbreViaduto(doc, pageW, margin);
+
+  // Cabeçalho do índice
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(20, 20, 20);
+  doc.text('Índice de Atividades', pageW / 2, contentTop, { align: 'center' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(120, 120, 120);
+  doc.text(`${atividadesVirtuais.length} atividade(s) · ${carregadas} foto(s)`, pageW / 2, contentTop + 6, { align: 'center' });
+
+  let idxY = contentTop + 16;
+  for (let i = 0; i < atividadesVirtuais.length; i++) {
+    const atvItem = atividadesVirtuais[i];
+    const tituloAtv = atvItem.titulo || `Atividade ${i + 1}`;
+    const dataAtv = atvItem.data;
+    const numFotos = atvItem.fotos.filter((f) => imagemPorUrl.get(f.fileUrl)).length;
+
+    if (idxY > contentBottom - 8) {
+      doc.addPage();
+      indexPageCount++;
+      doc.setFillColor(255, 255, 255);
+      doc.rect(0, 0, pageW, pageH, 'F');
+      drawTimbreViaduto(doc, pageW, margin);
+      idxY = contentTop;
+    }
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(30, 30, 30);
+    doc.text(`${i + 1}.`, margin, idxY);
+    const tituloTrunc = doc.splitTextToSize(tituloAtv, contentW - 55)[0] || '';
+    doc.text(tituloTrunc, margin + 8, idxY);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(120, 120, 120);
+    const meta = `${dataAtv ? dataAtv + ' · ' : ''}${numFotos} foto(s)`;
+    doc.text(meta, pageW - margin, idxY, { align: 'right' });
+    idxY += 7;
+  }
+
+  // Primeira página de fotos
+  doc.addPage();
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, 0, pageW, pageH, 'F');
+  drawTimbreViaduto(doc, pageW, margin);
+
   onProgresso(60, `Montando PDF · ${carregadas} foto(s)...`);
 
-  let paginaAtual = 2;
+  let paginaAtual = 2 + indexPageCount;
   let cursorY = contentTop;
   let slotsNaLinha = 0;
   let paginaIniciada = true;
