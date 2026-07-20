@@ -3,7 +3,7 @@ import { dedupePhotosByTechnicalIdentity, getPhotoIdentity } from '@/utils/photo
 import { deduplicateGalleryPhotos } from '@/utils/galleryDeduplication';
 
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'avif', 'heic'];
-const DEFAULT_CACHE_KEY = 'museus_centro_galeria_fotos_cache_v16_deduped_3layers';
+const DEFAULT_CACHE_KEY = 'museus_centro_galeria_fotos_cache_v17_deduped_3layers';
 
 // Limpar versões antigas do cache ao importar este módulo
 try {

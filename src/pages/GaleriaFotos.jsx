@@ -33,7 +33,7 @@ const VISIBLE_IMAGES_STEP = 48;
 const MAX_FOTOS_POR_ATIVIDADE = 5;
 // Inclui data do dia na chave para invalidar o cache automaticamente a cada novo dia
 const TODAY = new Date().toISOString().slice(0, 10);
-const GALLERY_CACHE_KEY = `museus_centro_galeria_fotos_cache_v16_resilient_${TODAY}`;
+const GALLERY_CACHE_KEY = `museus_centro_galeria_fotos_cache_v17_resilient_${TODAY}`;
 const GALLERY_CACHE_TTL_MS = 5 * 60 * 1000; // 5 min para pegar fotos novas mais rápido
 
 const SECTION_LABELS = {
@@ -83,7 +83,7 @@ function formatDateBR(value) {
 function clearGalleryCache() {
   try {
     // Limpa versões antigas e a atual
-    ['v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v10', 'v11', 'v12', 'v13', 'v14', 'v15'].forEach((v) => {
+    ['v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v10', 'v11', 'v12', 'v13', 'v14', 'v15', 'v16'].forEach((v) => {
       localStorage.removeItem(`museus_centro_galeria_fotos_cache_${v}`);
       localStorage.removeItem(`museus_centro_galeria_fotos_cache_${v}_deduped_3layers`);
       localStorage.removeItem(`museus_centro_galeria_fotos_cache_${v}_drive_thumbs_${TODAY}`);
@@ -115,26 +115,12 @@ function GalleryCard({ image, onClick, eager = false, selected, onToggleSelect, 
   const museuLabel = image.sectionKey !== 'SEM_IDENTIFICACAO' ?
   image.sectionTitle || image.museu || 'Museus Centro' :
   null;
-  // Prioridade: legenda própria da foto > título de atividade > extração do nome do arquivo
-  // NUNCA exibir nome técnico cru (CamelCase sem espaços) como legenda
-  function extrairNomeAtv(fileName = '') {
-    const m = fileName.match(/__([^_][^_]+(?:_[^_][^_]+)*)__\d+\.\w+$/);
-    if (m) return m[1].replace(/_/g, ' ').trim();
-    return null;
-  }
-  function isTechnicalFileName(name = '') {
-    if (!name) return false;
-    const clean = name.replace(/\.\w+$/, '');
-    if (clean.length < 15) return false;
-    if (/\s/.test(clean)) return false; // tem espaços = não é técnico
-    return /[a-z][A-Z]/.test(clean); // CamelCase = técnico
-  }
+  // Prioridade: legenda própria da foto > título de atividade > "Foto da galeria"
+  // NUNCA exibir nome de arquivo como legenda — nomes de arquivo são técnicos
   const legendaDisplay =
     image.legenda ||
     image.caption ||
-    (image.fileName ? extrairNomeAtv(image.fileName) : null) ||
     image.activityTitulo ||
-    (!isTechnicalFileName(image.fileName) ? image.fileName : '') ||
     'Foto da galeria';
 
   return (
@@ -267,7 +253,7 @@ function GaleriaFotosInner() {
     error,
     refetch
   } = useQuery({
-    queryKey: ['galeria-fotos-stable-v6'],
+    queryKey: ['galeria-fotos-stable-v7'],
     queryFn: async () => loadGalleryReportData({
       limitAttachments: 0,
       useCache: true,
@@ -735,7 +721,7 @@ function GaleriaFotosInner() {
             <RestaurarFotosDrive
             onImportConcluida={() => {
               clearGalleryCache();
-              queryClient.invalidateQueries(['galeria-fotos-stable-v6']);
+              queryClient.invalidateQueries(['galeria-fotos-stable-v7']);
               refetch();
               setShowRestaurar(false);
             }} />
@@ -1077,7 +1063,7 @@ function GaleriaFotosInner() {
         duplicates={duplicates}
         onConcluido={() => {
           clearGalleryCache();
-          queryClient.invalidateQueries(['galeria-fotos-stable-v6']);
+          queryClient.invalidateQueries(['galeria-fotos-stable-v7']);
           refetch();
         }} />
 
@@ -1100,7 +1086,7 @@ function GaleriaFotosInner() {
         onClose={() => {
           setShowReconstruir(false);
           clearGalleryCache();
-          queryClient.invalidateQueries(['galeria-fotos-stable-v6']);
+          queryClient.invalidateQueries(['galeria-fotos-stable-v7']);
           refetch();
         }} />
 
@@ -1109,7 +1095,7 @@ function GaleriaFotosInner() {
         onClose={() => {
           setShowImportar6Pastas(false);
           clearGalleryCache();
-          queryClient.invalidateQueries(['galeria-fotos-stable-v6']);
+          queryClient.invalidateQueries(['galeria-fotos-stable-v7']);
           refetch();
         }} />
 
@@ -1118,7 +1104,7 @@ function GaleriaFotosInner() {
         onClose={() => setShowConsolidarDrive(false)}
         onConcluido={async () => {
           clearGalleryCache();
-          queryClient.invalidateQueries(['galeria-fotos-stable-v6']);
+          queryClient.invalidateQueries(['galeria-fotos-stable-v7']);
           await refetch();
           // Backup automático pós-importação
           try {
