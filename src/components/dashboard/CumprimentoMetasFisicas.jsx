@@ -1,16 +1,12 @@
 import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
-import { CheckCircle2, AlertCircle, TrendingUp, Users, BookOpen } from 'lucide-react';
+import { CheckCircle2, AlertCircle, TrendingUp, Users } from 'lucide-react';
 import { isRelatorioNoPeriodo } from '@/hooks/useMetasPeriodoFiltro';
 
 // Metas com quantitativos físicos definidos no Plano de Trabalho (3º + 4º Aditivo)
 const METAS_FISICAS = [
-  { numero: '5',  titulo: '60 ações educativas',                   meta: 60,  tipo: 'educativa',  periodo: 'mês 2–18'  },
-  { numero: '6',  titulo: '36 ações culturais',                    meta: 36,  tipo: 'cultural',   periodo: 'mês 2–18'  },
-  { numero: '10', titulo: '18 mostras de baixa/média complexidade', meta: 18,  tipo: 'mostra',     periodo: 'mês 3–28'  },
   { numero: '16', titulo: '101 diárias de educador',               meta: 101, tipo: 'diaria',     periodo: 'mês 2–28'  },
-  { numero: '19', titulo: '"Presente de Iemanjá" (4 ações)',       meta: 4,   tipo: 'iemanja',    periodo: 'mês 6–15'  },
   { numero: '20', titulo: '30 ações educativas e/ou culturais',    meta: 30,  tipo: 'educativa',  periodo: 'mês 19–28' },
 ];
 
@@ -43,10 +39,9 @@ function classifyActivity(a) {
 
   if (nome.includes('diária') || nome.includes('diaria') || metaCod.includes('16')) return '16';
   if (nome.includes('iemanjá') || nome.includes('iemanja') || metaCod.includes('19')) return '19';
-  if (nome.includes('mostra') || tipo.includes('mostra') || metaCod.includes('10')) return '10';
-  if (metaCod.includes('20')) return '20';
-  if (class_ === 'cultural' || tipo.includes('cultural') || tipo.includes('show') || tipo.includes('teatro') || tipo.includes('apresent') || tipo.includes('música')) return '6';
-  if (class_ === 'educativa' || class_ === 'meta' || tipo.includes('educa') || tipo.includes('oficina') || tipo.includes('palestra') || tipo.includes('formação') || tipo.includes('roda')) return '5';
+  if (metaCod.includes('20') || metaCod.includes('10') || nome.includes('mostra') || tipo.includes('mostra')) return '20';
+  if (class_ === 'cultural' || tipo.includes('cultural') || tipo.includes('show') || tipo.includes('teatro') || tipo.includes('apresent') || tipo.includes('música')) return '20';
+  if (class_ === 'educativa' || class_ === 'meta' || tipo.includes('educa') || tipo.includes('oficina') || tipo.includes('palestra') || tipo.includes('formação') || tipo.includes('roda')) return '20';
 
   return null;
 }
@@ -110,10 +105,9 @@ export default function CumprimentoMetasFisicas({ dataInicio, dataFim }) {
   const acoesPorMuseu = useMemo(() => {
     const tot = {};
     for (const m of MUSEUS_ORDEM) tot[m] = 0;
-    for (const key of ['5', '6', '20']) {
-      if (!stats[key]) continue;
+    if (stats['20']) {
       for (const m of MUSEUS_ORDEM) {
-        tot[m] += (stats[key].porMuseu[m] || 0);
+        tot[m] += (stats['20'].porMuseu[m] || 0);
       }
     }
     return tot;
@@ -196,7 +190,7 @@ export default function CumprimentoMetasFisicas({ dataInicio, dataFim }) {
         <div className="flex items-center gap-2 mb-4">
           <Users className="h-4 w-4 text-slate-600" />
           <h3 className="text-base font-bold text-slate-800">Total de ações culturais e educativas por museu</h3>
-          <span className="ml-auto text-xs text-slate-400">(Metas 5, 6 e 20 combinadas)</span>
+          <span className="ml-auto text-xs text-slate-400">(Meta 20 — educativas e culturais)</span>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -209,20 +203,14 @@ export default function CumprimentoMetasFisicas({ dataInicio, dataFim }) {
           ))}
         </div>
 
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {[
-            { label: 'Educativas (Meta 5)',        valor: stats['5']?.total || 0,  meta: 60,  icon: BookOpen },
-            { label: 'Culturais (Meta 6)',          valor: stats['6']?.total || 0,  meta: 36,  icon: TrendingUp },
-            { label: 'Ações adicionais (Meta 20)',  valor: stats['20']?.total || 0, meta: 30,  icon: TrendingUp },
-          ].map(({ label, valor, meta, icon: Icon }) => (
-            <div key={label} className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3">
-              <Icon className="h-5 w-5 text-slate-500 flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xs text-slate-500 truncate">{label}</p>
-                <p className="text-lg font-bold text-slate-900">{valor} <span className="text-sm font-normal text-slate-400">/ {meta}</span></p>
-              </div>
+        <div className="mt-4">
+          <div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3">
+            <TrendingUp className="h-5 w-5 text-slate-500 flex-shrink-0" />
+            <div className="min-w-0">
+              <p className="text-xs text-slate-500 truncate">Ações educativas e culturais (Meta 20)</p>
+              <p className="text-lg font-bold text-slate-900">{stats['20']?.total || 0} <span className="text-sm font-normal text-slate-400">/ 30</span></p>
             </div>
-          ))}
+          </div>
         </div>
       </div>
     </div>

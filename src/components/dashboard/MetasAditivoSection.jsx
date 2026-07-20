@@ -25,7 +25,7 @@ const SEIS_MUSEUS = ['MHAB', 'MIS', 'MUMO', 'Casa Kubitschek', 'Casa do Baile', 
 const MUSEU_SHORT = { 'MHAB': 'MHAB', 'MIS': 'MIS', 'MUMO': 'MUMO', 'Casa Kubitschek': 'C.Kubi', 'Casa do Baile': 'C.Baile', 'MAP': 'MAP' };
 
 const ANOS = [2026, 2027, 2028];
-const METAS_OCULTAS_3_ADITIVO = new Set(['2', '4', '7', '8', '15']);
+const METAS_OCULTAS_3_ADITIVO = new Set(['2', '4', '7', '8', '9', '14', '15']);
 
 function deveOcultarMetaTerceiroAditivo(meta) {
   const numero = String(meta?._numero || meta?.numero || '').replace(/\D/g, '');
@@ -55,8 +55,7 @@ function getMetaNumeroFromActivity(a) {
   if (cod.includes('11b') || cod.includes('pampulha')) return '11B';
   if (cod.includes('11')) return '11';
   if (cod.includes('20')) return '20';
-  if (cod.includes('6') || (a.classificacao || '').toLowerCase() === 'cultural') return '6';
-  if (cod.includes('5') || (a.classificacao || '').toLowerCase() === 'meta') return '5';
+  if (cod.includes('6') || cod.includes('5') || (a.classificacao || '').toLowerCase() === 'cultural' || (a.classificacao || '').toLowerCase() === 'meta') return '20';
   return null;
 }
 
