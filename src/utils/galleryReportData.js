@@ -3,11 +3,11 @@ import { dedupePhotosByTechnicalIdentity, getPhotoIdentity } from '@/utils/photo
 import { deduplicateGalleryPhotos } from '@/utils/galleryDeduplication';
 
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'avif', 'heic'];
-const DEFAULT_CACHE_KEY = 'museus_centro_galeria_fotos_cache_v17_deduped_3layers';
+const DEFAULT_CACHE_KEY = 'museus_centro_galeria_fotos_cache_v18_reports_only';
 
 // Limpar versões antigas do cache ao importar este módulo
 try {
-  ['v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'drive_fallback'].forEach((suffix) => {
+  ['v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'drive_fallback', 'v17_deduped_3layers'].forEach((suffix) => {
     const oldKeys = [
       `museus_centro_galeria_fotos_cache_${suffix}`,
       `museus_centro_galeria_fotos_cache_v6_${suffix}`,
@@ -322,17 +322,9 @@ export async function loadGalleryReportData({
   const staleCache = useCache ? readCache(cacheKey, cacheTtlMs, { allowStale: true, staleTtlMs: staleCacheTtlMs }) : null;
   const images = [];
 
-  // ── Fase 1: Fontes primárias (ReportPhoto + Attachment) em paralelo ──
-  // Cada entidade tem try/catch individual para não bloquear as demais
-  const [reportPhotos, attachments] = await Promise.all([
-    fetchAllPages('ReportPhoto', '-created_date', { quietMissing: true }).catch((e) => { console.warn('[Galeria] ReportPhoto falhou:', e?.message); return []; }),
-    fetchAllPages('Attachment', '-created_date').catch((e) => { console.warn('[Galeria] Attachment falhou:', e?.message); return []; }),
-  ]);
-  images.push(...attachments.filter((item) => item?.file_url && !isMacResourceFork(item) && (isImageByMime(item.file_type) || isImageByFileName(item.file_name))).map((item) => mapPhoto(item, 'Attachment')));
-  images.push(...reportPhotos.filter((item) => item?.file_url && !isMacResourceFork(item) && (isImageByMime(item.file_type) || isImageByFileName(item.file_name) || /^https?:/i.test(item.file_url))).map((item) => mapPhoto(item, 'ReportPhoto')));
-
-  // ── Fase 2: Fontes secundárias (Report + Activity) em paraleto ──
-  // Carrega após a Fase 1 para complementar as fotos já obtidas
+  // ── Fase 1: Fontes primárias (apenas Report + Activity) ──
+  // ReportPhoto e Attachment foram removidos — a galeria agora exibe apenas
+  // fotos embutidas nos relatórios da equipe.
   const [reports, activities] = await Promise.all([
     fetchAllPages('Report', '-updated_date', { quietMissing: true }).catch((e) => { console.warn('[Galeria] Report falhou:', e?.message); return []; }),
     fetchAllPages('Activity', '-updated_date', { quietMissing: true }).catch((e) => { console.warn('[Galeria] Activity falhou:', e?.message); return []; }),
