@@ -3,7 +3,7 @@ import { dedupePhotosByTechnicalIdentity, getPhotoIdentity } from '@/utils/photo
 import { deduplicateGalleryPhotos } from '@/utils/galleryDeduplication';
 
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'avif', 'heic'];
-const DEFAULT_CACHE_KEY = 'museus_centro_galeria_fotos_cache_v14_deduped_3layers';
+const DEFAULT_CACHE_KEY = 'museus_centro_galeria_fotos_cache_v16_deduped_3layers';
 
 // Limpar versões antigas do cache ao importar este módulo
 try {
@@ -47,7 +47,13 @@ function isImageByMime(fileType = '') {
   return String(fileType).toLowerCase().startsWith('image/');
 }
 function isMacResourceFork(item = {}) {
-  return String(item.file_name || item.filename || item.name || '').trim().startsWith('._');
+  const name = String(item.file_name || item.filename || item.name || '').trim();
+  if (!name) return false;
+  // Arquivos que começam com ._ (resource fork do Mac)
+  if (name.startsWith('._')) return true;
+  // Componentes de caminho com ._ (ex: "Museu ._Felipe_Vilaça.jpg")
+  if (/\s\._|\._[^.]/.test(name)) return true;
+  return false;
 }
 function firstValue(obj, paths = []) {
   for (const path of paths) {
@@ -102,14 +108,15 @@ function normalizeMuseum(value = '') {
   if (text.includes('pampulha')) return 'MAP';
   // Fallback: se há um nome de museu não vazio mas não reconhecido, usa-o como chave normalizada
   // para que fotos da mesma pasta apareçam agrupadas corretamente na galeria
-  if (text.length >= 3) {
+  // Mas só para nomes curtos e legíveis — nomes técnicos longos (CamelCase sem espaços) são ignorados
+  if (text.length >= 3 && text.length <= 40 && !/[a-z][A-Z]/.test(text)) {
     const slug = text
       .replace(/[^a-z0-9\s]/g, '')
       .split(/\s+/)
       .filter(Boolean)
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
       .join('');
-    if (slug.length >= 3) return slug;
+    if (slug.length >= 3 && slug.length <= 40) return slug;
   }
   return '';
 }
@@ -121,7 +128,8 @@ function resolveSectionKey(item = {}, metadataLocation = '') {
     if (found) return found;
   }
   // Fallback para outros campos que podem conter o nome do museu
-  const values = [item.local, item.localizacao, item.descricao, item.description, item.legenda, item.caption, item.file_name, metadataLocation];
+  // NÃO usa file_name — nomes técnicos de arquivo geram seções falsas
+  const values = [item.local, item.localizacao, item.descricao, item.description, item.legenda, item.caption, metadataLocation];
   for (const value of values) { const found = normalizeMuseum(value); if (found) return found; }
   return 'SEM_IDENTIFICACAO';
 }
@@ -194,7 +202,7 @@ function mapPhoto(item, sourceEntity = 'Attachment') {
     originalFileUrl: source.originalFileUrl,
     legacyDriveUrl: source.legacyDriveUrl,
     fileName,
-    legenda: item.legenda || item.caption || item.titulo || item.title || item.descricao || item.description || extractActivityFromName(fileName),
+    legenda: item.legenda || item.caption || item.titulo || item.title || item.descricao || item.description || '',
     description: item.descricao || item.description || item.caption || '',
     museu: section.shortTitle,
     sectionKey,
