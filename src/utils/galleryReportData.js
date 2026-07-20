@@ -84,10 +84,9 @@ function extractLocation(item = {}) {
 }
 function normalizeMuseum(value = '') {
   const text = normalizeText(value);
+  if (!text) return '';
   if (text.includes('mhab') || text.includes('abilio') || text.includes('historico')) return 'MHAB';
-  if (text.includes('mis') || text.includes('imagem') || text.includes('som')) return 'MIS';
   if (text.includes('mumo') || text.includes('moda')) return 'MUMO';
-  if (text.includes('map') || text.includes('pampulha') || text.includes('arte da pampulha')) return 'MAP';
   if (text.includes('kubitschek') || text.includes('jk')) return 'CasaKubitschek';
   if (text.includes('baile') || text.includes('bale') || text.includes('casa do b')) return 'CasaDoBaile';
   if (text.includes('escola de arquitetura') || text.includes('museu da escola')) return 'MuseuEscolaArquitetura';
@@ -97,12 +96,32 @@ function normalizeMuseum(value = '') {
   if (text.includes('legislativo mineiro') || text.includes('memorial do legislativo')) return 'MemorialLegislativoMineiro';
   if (text.includes('centro de memoria') || text.includes('centro memoria')) return 'CentroMemoria';
   if (text.includes('museu cabral') || text.includes('cabral')) return 'MuseuCabral';
-  if (text.includes('mis ') || text === 'mis' || text.includes('imagem e do som') || text.includes('imagem e som')) return 'MIS';
-  if (text.includes('map') || text.includes('pampulha') || text.includes('arte da pampulha')) return 'MAP';
+  // MIS deve vir antes do MAP para evitar correspondência com "map" em palavras como "mapa"
+  if (text === 'mis' || text.includes('imagem e do som') || text.includes('imagem e som') || text.includes('museu da imagem')) return 'MIS';
+  if (text.includes('arte da pampulha') || (text.includes('pampulha') && (text.includes('arte') || text.includes('map')))) return 'MAP';
+  if (text.includes('pampulha')) return 'MAP';
+  // Fallback: se há um nome de museu não vazio mas não reconhecido, usa-o como chave normalizada
+  // para que fotos da mesma pasta apareçam agrupadas corretamente na galeria
+  if (text.length >= 3) {
+    const slug = text
+      .replace(/[^a-z0-9\s]/g, '')
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join('');
+    if (slug.length >= 3) return slug;
+  }
   return '';
 }
 function resolveSectionKey(item = {}, metadataLocation = '') {
-  const values = [item.museu, item.centro_custo, item.local, item.localizacao, item.descricao, item.description, item.legenda, item.caption, item.file_name, metadataLocation];
+  // Prioriza item.museu e item.centro_custo — campos canônicos de museu/centro de custo
+  const primaryValues = [item.museu, item.centro_custo];
+  for (const value of primaryValues) {
+    const found = normalizeMuseum(value);
+    if (found) return found;
+  }
+  // Fallback para outros campos que podem conter o nome do museu
+  const values = [item.local, item.localizacao, item.descricao, item.description, item.legenda, item.caption, item.file_name, metadataLocation];
   for (const value of values) { const found = normalizeMuseum(value); if (found) return found; }
   return 'SEM_IDENTIFICACAO';
 }
@@ -154,7 +173,14 @@ function resolvePhotoSource(item = {}) {
 function mapPhoto(item, sourceEntity = 'Attachment') {
   const metadataLocation = extractLocation(item);
   const sectionKey = resolveSectionKey(item, metadataLocation);
-  const section = MUSEUM_SECTIONS[sectionKey] || MUSEUM_SECTIONS.SEM_IDENTIFICACAO;
+  const knownSection = MUSEUM_SECTIONS[sectionKey];
+  // Se a seção não for conhecida mas tiver um nome válido, cria uma entrada dinâmica
+  const section = knownSection || {
+    key: sectionKey,
+    title: item.museu || sectionKey,
+    shortTitle: item.museu || sectionKey,
+    coordinates: '',
+  };
   const driveContext = parseDriveContext(item);
   const timestamp = normalizeDate(firstValue(item, ['data_foto', 'photo_date', 'taken_at', 'captured_at', 'date_taken']) || driveContext.data_foto || item.created_at || item.created_date || item.updated_date);
   const source = resolvePhotoSource(item);
@@ -198,9 +224,21 @@ function writeCache(cacheKey, data) {
   try { localStorage.setItem(cacheKey, JSON.stringify({ savedAt: Date.now(), ...data })); } catch { /* cache opcional */ }
 }
 function buildGroups(images = []) {
-  const buckets = new Map(SECTION_ORDER.map((key) => [key, []]));
-  images.forEach((image) => buckets.get(MUSEUM_SECTIONS[image.sectionKey] ? image.sectionKey : 'SEM_IDENTIFICACAO').push(image));
-  return SECTION_ORDER.map((key) => ({ key, sectionTitle: MUSEUM_SECTIONS[key].title, shortTitle: MUSEUM_SECTIONS[key].shortTitle, coordinates: MUSEUM_SECTIONS[key].coordinates || '', images: buckets.get(key) || [] })).filter((group) => group.images.length);
+  const buckets = new Map();
+  images.forEach((image) => {
+    const key = image.sectionKey || 'SEM_IDENTIFICACAO';
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(image);
+  });
+  // Ordena: seções conhecidas primeiro (na ordem de SECTION_ORDER), depois as desconhecidas alfabeticamente
+  const known = SECTION_ORDER.filter((key) => buckets.has(key)).map((key) => ({ key, sectionTitle: MUSEUM_SECTIONS[key].title, shortTitle: MUSEUM_SECTIONS[key].shortTitle, coordinates: MUSEUM_SECTIONS[key].coordinates || '', images: buckets.get(key) || [] }));
+  const unknown = Object.keys(MUSEUM_SECTIONS).includes
+    ? Array.from(buckets.keys())
+        .filter((key) => !MUSEUM_SECTIONS[key])
+        .sort((a, b) => String(a).localeCompare(String(b), 'pt-BR'))
+        .map((key) => ({ key, sectionTitle: key, shortTitle: key, coordinates: '', images: buckets.get(key) || [] }))
+    : [];
+  return [...known, ...unknown].filter((group) => group.images.length);
 }
 function withTimeout(promise, label, timeoutMs = ENTITY_TIMEOUT_MS) {
   let timer;
