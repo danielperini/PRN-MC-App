@@ -160,8 +160,31 @@ async function gerarLegendasIA(fotos, setProgresso, legendasAtuais) {
   return { revisadasIA };
 }
 
+function filtrarFotosPorAtividade(fotos, limite) {
+  if (!limite || limite === Infinity) return fotos;
+  const grupos = {};
+  for (const foto of fotos) {
+    const chave = foto.activity_id || foto.activityTitulo || 'sem_atividade';
+    if (!grupos[chave]) grupos[chave] = [];
+    grupos[chave].push(foto);
+  }
+  const resultado = [];
+  for (const chave of Object.keys(grupos)) {
+    const grupo = grupos[chave].sort((a, b) => {
+      const aGen = isLegendaGenerica(a.legenda || a.caption);
+      const bGen = isLegendaGenerica(b.legenda || b.caption);
+      if (aGen && !bGen) return 1;
+      if (!aGen && bGen) return -1;
+      return 0;
+    });
+    resultado.push(...grupo.slice(0, limite));
+  }
+  return resultado;
+}
+
 export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosIniciais }) {
   const [museuSelecionado, setMuseuSelecionado] = useState('');
+  const [fotosPorAtividade, setFotosPorAtividade] = useState(3);
   const [loading, setLoading] = useState(false);
   const [progresso, setProgresso] = useState('');
   const [etapa, setEtapa] = useState(''); // 'drive' | 'legendas' | 'revisao' | 'pdf'
@@ -202,8 +225,11 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
         return;
       }
 
+      // ── Etapa 2.4: filtra fotos por atividade (limite por grupo) ──
+      const fotosFiltradas = filtrarFotosPorAtividade(fotosDoMuseu, fotosPorAtividade);
+
       // ── Etapa 2.5: valida integridade das URLs ──
-      const semUrl = fotosDoMuseu.filter(f => !f.fileUrl || typeof f.fileUrl !== 'string' || f.fileUrl.trim() === '');
+      const semUrl = fotosFiltradas.filter(f => !f.fileUrl || typeof f.fileUrl !== 'string' || f.fileUrl.trim() === '');
       if (semUrl.length > 0) {
         toast.error(`${semUrl.length} foto(s) sem URL válida. Execute a varredura do Drive novamente.`);
         setLoading(false);
@@ -215,13 +241,13 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
       // ── Etapa 3: gera legendas via IA para fotos sem legenda ──
       setEtapa('legendas');
       const legendasAtuais = {};
-      fotosDoMuseu.forEach((f) => { legendasAtuais[f.id || f.fileUrl] = f.legenda || f.caption || ''; });
-      const { revisadasIA } = await gerarLegendasIA(fotosDoMuseu, setProgresso, legendasAtuais);
+      fotosFiltradas.forEach((f) => { legendasAtuais[f.id || f.fileUrl] = f.legenda || f.caption || ''; });
+      const { revisadasIA } = await gerarLegendasIA(fotosFiltradas, setProgresso, legendasAtuais);
       setLegendasAtualizadas(legendasAtuais);
 
       // ── Etapa 4: tela de revisão antes de gerar o PDF ──
       setEtapa('revisao');
-      setFotosRevisao(fotosDoMuseu);
+      setFotosRevisao(fotosFiltradas);
       setLoading(false);
       setProgresso('');
     } catch (e) {
@@ -391,6 +417,13 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
     ? fotosIniciais.filter((f) => f.sectionKey === museuSelecionado)
     : [];
 
+  const previewFiltradas = museuSelecionado
+    ? filtrarFotosPorAtividade(fotosDoMuseu, fotosPorAtividade)
+    : [];
+  const numAtividades = museuSelecionado
+    ? new Set(fotosDoMuseu.map((f) => f.activity_id || f.activityTitulo || 'sem_atividade')).size
+    : 0;
+
   const emRevisao = etapa === 'revisao' && fotosRevisao.length > 0 && !loading;
 
   return (
@@ -432,6 +465,40 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
                   );
                 })}
               </div>
+            </div>
+          )}
+
+          {/* Seletor de fotos por atividade */}
+          {museuSelecionado && !emRevisao && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-gray-700">Fotos por atividade</p>
+              <div className="flex flex-wrap gap-1.5">
+                {[2, 3, 4, 5, 'Todas'].map((opt) => {
+                  const val = opt === 'Todas' ? Infinity : opt;
+                  const ativo = fotosPorAtividade === val;
+                  return (
+                    <button
+                      key={opt}
+                      type="button"
+                      disabled={loading}
+                      onClick={() => setFotosPorAtividade(val)}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all
+                        ${ativo
+                          ? 'bg-black text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                    >
+                      {opt}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] text-gray-500">
+                {fotosPorAtividade === Infinity
+                  ? `Todas as fotos · ${numAtividades} ${numAtividades === 1 ? 'atividade' : 'atividades'} · ~${previewFiltradas.length} fotos`
+                  : `Máximo ${fotosPorAtividade} fotos/atividade · ${numAtividades} ${numAtividades === 1 ? 'atividade' : 'atividades'} · ~${previewFiltradas.length} fotos estimadas`
+                }
+              </p>
             </div>
           )}
 
