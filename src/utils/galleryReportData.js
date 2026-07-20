@@ -25,10 +25,17 @@ export const MUSEUM_SECTIONS = {
   MUMO: { key: 'MUMO', title: 'MUMO — Museu da Moda de Belo Horizonte', shortTitle: 'MUMO', coordinates: '-19.924875, -43.937250' },
   MAP: { key: 'MAP', title: 'MAP — Museu de Arte da Pampulha', shortTitle: 'MAP', coordinates: '-19.856, -43.966' },
   CasaKubitschek: { key: 'CasaKubitschek', title: 'Casa Kubitschek', shortTitle: 'Casa Kubitschek', coordinates: '-19.857, -43.968' },
-  CasaDoBalile: { key: 'CasaDoBalile', title: 'Casa do Baíle', shortTitle: 'Casa do Baíle', coordinates: '-19.860, -43.967' },
+  CasaDoBaile: { key: 'CasaDoBaile', title: 'Casa do Baíle', shortTitle: 'Casa do Baíle', coordinates: '-19.860, -43.967' },
+  MuseuEscolaArquitetura: { key: 'MuseuEscolaArquitetura', title: 'Museu da Escola de Arquitetura', shortTitle: 'Museu da Escola de Arquitetura', coordinates: '-19.928, -43.938' },
+  GaleriaArteUnimed: { key: 'GaleriaArteUnimed', title: 'Galeria de Arte Centro Cultural Unimed', shortTitle: 'Galeria de Arte Unimed', coordinates: '-19.920, -43.934' },
+  CasaRosadaGasmig: { key: 'CasaRosadaGasmig', title: 'Casa Rosada Gasmig Minas', shortTitle: 'Casa Rosada Gasmig', coordinates: '-19.915, -43.930' },
+  MemorialDireitosHumanos: { key: 'MemorialDireitosHumanos', title: 'Memorial dos Direitos Humanos', shortTitle: 'Memorial dos Direitos Humanos', coordinates: '-19.920, -43.940' },
+  MemorialLegislativoMineiro: { key: 'MemorialLegislativoMineiro', title: 'Memorial do Legislativo Mineiro', shortTitle: 'Memorial do Legislativo Mineiro', coordinates: '-19.903, -43.956' },
+  CentroMemoria: { key: 'CentroMemoria', title: 'Centro de Memória', shortTitle: 'Centro de Memória', coordinates: '-19.925, -43.935' },
+  MuseuCabral: { key: 'MuseuCabral', title: 'Museu Cabral', shortTitle: 'Museu Cabral', coordinates: '-19.920, -43.935' },
   SEM_IDENTIFICACAO: { key: 'SEM_IDENTIFICACAO', title: 'Sem identificação de museu', shortTitle: 'Sem identificação', coordinates: '' },
 };
-export const SECTION_ORDER = ['MHAB', 'MIS', 'MUMO', 'MAP', 'CasaKubitschek', 'CasaDoBalile', 'SEM_IDENTIFICACAO'];
+export const SECTION_ORDER = ['MHAB', 'MIS', 'MUMO', 'MAP', 'CasaKubitschek', 'CasaDoBaile', 'MuseuEscolaArquitetura', 'GaleriaArteUnimed', 'CasaRosadaGasmig', 'MemorialDireitosHumanos', 'MemorialLegislativoMineiro', 'CentroMemoria', 'MuseuCabral', 'SEM_IDENTIFICACAO'];
 
 function normalizeText(value) {
   return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -82,7 +89,16 @@ function normalizeMuseum(value = '') {
   if (text.includes('mumo') || text.includes('moda')) return 'MUMO';
   if (text.includes('map') || text.includes('pampulha') || text.includes('arte da pampulha')) return 'MAP';
   if (text.includes('kubitschek') || text.includes('jk')) return 'CasaKubitschek';
-  if (text.includes('baile') || text.includes('baíle') || text.includes('bale') || text.includes('casa do b')) return 'CasaDoBalile';
+  if (text.includes('baile') || text.includes('bale') || text.includes('casa do b')) return 'CasaDoBaile';
+  if (text.includes('escola de arquitetura') || text.includes('museu da escola')) return 'MuseuEscolaArquitetura';
+  if (text.includes('centro cultural unimed') || text.includes('galeria de arte centro')) return 'GaleriaArteUnimed';
+  if (text.includes('casa rosada') || text.includes('gasmig')) return 'CasaRosadaGasmig';
+  if (text.includes('direitos humanos')) return 'MemorialDireitosHumanos';
+  if (text.includes('legislativo mineiro') || text.includes('memorial do legislativo')) return 'MemorialLegislativoMineiro';
+  if (text.includes('centro de memoria') || text.includes('centro memoria')) return 'CentroMemoria';
+  if (text.includes('museu cabral') || text.includes('cabral')) return 'MuseuCabral';
+  if (text.includes('mis ') || text === 'mis' || text.includes('imagem e do som') || text.includes('imagem e som')) return 'MIS';
+  if (text.includes('map') || text.includes('pampulha') || text.includes('arte da pampulha')) return 'MAP';
   return '';
 }
 function resolveSectionKey(item = {}, metadataLocation = '') {
