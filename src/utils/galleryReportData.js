@@ -1,8 +1,9 @@
 import { base44 } from '@/api/base44Client';
 import { dedupePhotosByTechnicalIdentity, getPhotoIdentity } from '@/utils/photoSimilarity';
+import { deduplicateGalleryPhotos } from '@/utils/galleryDeduplication';
 
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'avif', 'heic'];
-const DEFAULT_CACHE_KEY = 'museus_centro_galeria_fotos_cache_v13_deduped';
+const DEFAULT_CACHE_KEY = 'museus_centro_galeria_fotos_cache_v14_deduped_3layers';
 
 // Limpar versões antigas do cache ao importar este módulo
 try {
@@ -301,24 +302,24 @@ export async function loadGalleryReportData({
     console.warn('[Galeria] Falha geral ao carregar imagens.', error);
   }
   if (!images.length && staleCache) return { ...staleCache, cacheUsed: true, cacheStale: true };
-  // Deduplicação primária por identidade técnica
+  // Deduplicação primária por identidade técnica (URL/driveFileId/galleryFileName)
   const deduped1 = dedupePhotosByTechnicalIdentity(images).filter((image) => image.fileUrl);
-  // Deduplicação secundária por URL exata
-  // ATENÇÃO: NÃO cortar por '?' para URLs do Drive (drive.google.com/thumbnail?id=XXX)
-  // pois todas têm a mesma base URL — usar a URL completa como chave
-  const seenUrls = new Set();
-  const deduped = deduped1.filter((image) => {
-    const url = image.fileUrl || '';
-    if (!url) return false;
-    // Para URLs do Drive com parâmetro id, usar a URL completa como chave
-    const urlKey = url.includes('drive.google.com/thumbnail') || url.includes('lh3.googleusercontent.com')
-      ? url.toLowerCase()
-      : url.split('?')[0].toLowerCase();
-    if (seenUrls.has(urlKey)) return false;
-    seenUrls.add(urlKey);
-    return true;
-  }).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-  const result = { images: deduped, groups: buildGroups(deduped), total: deduped.length, sources: { Attachment: images.filter((i) => i.sourceEntity === 'Attachment').length, ReportPhoto: images.filter((i) => i.sourceEntity === 'ReportPhoto').length } };
+  // Deduplicação em 3 camadas: URL idêntica > nome de arquivo idêntico por museu > nome similar (cópia/versão)
+  const { deduped: deduped3, duplicates, totalBruto, totalDeduped, totalOcultadas } = deduplicateGalleryPhotos(deduped1);
+  const deduped = deduped3.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  const result = {
+    images: deduped,
+    groups: buildGroups(deduped),
+    total: deduped.length,
+    totalBruto,
+    totalDeduped,
+    totalOcultadas,
+    duplicates,
+    sources: {
+      Attachment: images.filter((i) => i.sourceEntity === 'Attachment').length,
+      ReportPhoto: images.filter((i) => i.sourceEntity === 'ReportPhoto').length,
+    },
+  };
   if (useCache) writeCache(cacheKey, result);
   return result;
 }

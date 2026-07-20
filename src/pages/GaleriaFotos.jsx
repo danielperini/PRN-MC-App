@@ -2,7 +2,6 @@ import React, { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import RequireAuth from '@/components/auth/RequireAuth';
 import LoadingPage from '@/components/common/LoadingPage';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Images, MapPin, RefreshCw, X, Filter, CheckCircle2, Moon, ExternalLink, BookImage, ChevronDown, Eye, HardDriveDownload, TriangleAlert, FileDown, Pencil, Check, MoreVertical } from 'lucide-react';
@@ -16,6 +15,8 @@ import RestaurarFotosDrive from '@/components/gallery/RestaurarFotosDrive';
 import SincronizarInventarioDialog from '@/components/gallery/SincronizarInventarioDialog';
 import ExportarGaleriaPDFDialog from '@/components/gallery/ExportarGaleriaPDFDialog';
 import ExportarMuseuPDFDialog from '@/components/gallery/ExportarMuseuPDFDialog';
+import PainelAjustarVinculos from '@/components/gallery/PainelAjustarVinculos';
+import ModalExposicao from '@/components/gallery/ModalExposicao';
 import { PhotoActionBar, BulkActionBar, EditCaptionDialog, DeleteConfirmDialog, EmailPhotosDialog } from '@/components/gallery/GalleryPhotoActions';
 import { base44 } from '@/api/base44Client';
 
@@ -23,7 +24,7 @@ const INITIAL_VISIBLE_IMAGES = 60;
 const VISIBLE_IMAGES_STEP = 60;
 // Inclui data do dia na chave para invalidar o cache automaticamente a cada novo dia
 const TODAY = new Date().toISOString().slice(0, 10);
-const GALLERY_CACHE_KEY = `museus_centro_galeria_fotos_cache_v9_deduped_${TODAY}`;
+const GALLERY_CACHE_KEY = `museus_centro_galeria_fotos_cache_v10_deduped_3layers_${TODAY}`;
 const GALLERY_CACHE_TTL_MS = 5 * 60 * 1000; // 5 min para pegar fotos novas mais rápido
 
 const SECTION_LABELS = {
@@ -184,7 +185,6 @@ function GaleriaFotosInner() {
   const [filterMuseu, setFilterMuseu] = useState('');
   const [filterPeriodo, setFilterPeriodo] = useState('');
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_IMAGES);
-  const [selectedImage, setSelectedImage] = useState(null);
   const [showRestaurar, setShowRestaurar] = useState(false);
   const [showSincInventario, setShowSincInventario] = useState(false);
   const [showExportarPDF, setShowExportarPDF] = useState(false);
@@ -198,7 +198,13 @@ function GaleriaFotosInner() {
   const [editingAlbumKey, setEditingAlbumKey] = useState(null);
   const [albumLabels, setAlbumLabels] = useState({});
   const [editingAlbumValue, setEditingAlbumValue] = useState('');
+  const [showAjustarVinculos, setShowAjustarVinculos] = useState(false);
+  const [modoExposicao, setModoExposicao] = useState(null); // { images, startIndex }
   const queryClient = useQueryClient();
+
+  const totalBruto = data?.totalBruto || 0;
+  const totalOcultadas = data?.totalOcultadas || 0;
+  const duplicates = data?.duplicates || [];
 
   React.useEffect(() => {
     base44.auth.me().then((u) => setCurrentUser(u)).catch(() => {});
@@ -277,18 +283,23 @@ function GaleriaFotosInner() {
   const visibleImages = sortedImages.slice(0, visibleCount);
 
   const groupedImages = useMemo(() => {
-    const MAX_POR_ATIVIDADE = 8;
+    const MAX_POR_ATIVIDADE = 10;
     const groups = new Map();
     visibleImages.forEach((image, renderIndex) => {
       const key = image.sectionKey || 'SEM_IDENTIFICACAO';
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push({ image, renderIndex });
     });
-    // Limita a 8 fotos por atividade dentro de cada grupo de museu
+    // Limita a 10 fotos por atividade dentro de cada grupo de museu
+    // Campo de agrupamento por prioridade: activityTitulo > activity_id > extração do nome do arquivo
     return Array.from(groups.entries()).map(([key, items]) => {
       const porAtividade = new Map();
       items.forEach((entry) => {
-        const atividade = entry.image.activityTitulo || entry.image.activity_id || 'sem_atividade';
+        const atividade =
+          entry.image.activityTitulo ||
+          entry.image.activity_id ||
+          (entry.image.fileName ? (entry.image.fileName.match(/__([^_][^_]+(?:_[^_][^_]+)*)__\d+\.\w+$/)?.[1] || '').replace(/_/g, ' ').trim() : '') ||
+          'sem_atividade';
         if (!porAtividade.has(atividade)) porAtividade.set(atividade, []);
         const grupo = porAtividade.get(atividade);
         if (grupo.length < MAX_POR_ATIVIDADE) grupo.push(entry);
@@ -363,6 +374,14 @@ function GaleriaFotosInner() {
 
 
             
+            {totalBruto > 0 && totalOcultadas > 0 && (
+              <p className="mt-1 text-xs text-gray-400">
+                {totalBruto} fotos encontradas · {totalBruto - totalOcultadas} exibidas após deduplicação
+              </p>
+            )}
+            {totalBruto > 0 && totalOcultadas === 0 && (
+              <p className="mt-1 text-xs text-gray-400">{totalBruto} fotos na galeria</p>
+            )}
             {data?.cacheUsed && <p className="mt-1 text-xs text-gray-400">Dados do cache local.{data?.cacheStale ? ' (cache antigo)' : ''}</p>}
             {isFetching && <p className="mt-2 text-xs text-gray-400">Atualizando galeria...</p>}
           </div>
@@ -450,6 +469,20 @@ function GaleriaFotosInner() {
                     <HardDriveDownload className="h-3.5 w-3.5" /> Sincronizar Drive agora
                   </span>
                   <span className="text-xs text-gray-500 pl-5">Envia e atualiza os arquivos da galeria no Google Drive.</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setShowAjustarVinculos(true)}
+                  className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
+                  
+                  <span className="font-medium text-gray-900 flex items-center gap-1.5">
+                    <TriangleAlert className="h-3.5 w-3.5" /> Ajustar vínculos e repetidas
+                    {duplicates.length > 0 && (
+                      <span className="ml-1 inline-flex items-center justify-center rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">
+                        {duplicates.length}
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-xs text-gray-500 pl-5">Revise duplicatas detectadas e remova do banco.</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel className="text-xs text-amber-600 uppercase tracking-wide flex items-center gap-1">
@@ -691,7 +724,13 @@ function GaleriaFotosInner() {
                 key={image.id || image.fileUrl || `${image.sourceEntity}-${image.sourceId}`}
                 image={image}
                 eager={renderIndex < 4}
-                onClick={() => setSelectedImage(image)}
+                onClick={() => {
+                  // Modo Exposição: navega pelas fotos do museu ativo em sequência
+                  const sectionImages = (groupedImages.find((g) => g.key === key)?.items || [])
+                    .map((entry) => entry.image);
+                  const idx = sectionImages.findIndex((img) => (img.id || img.fileUrl) === (image.id || image.fileUrl));
+                  setModoExposicao({ images: sectionImages.length ? sectionImages : [image], startIndex: Math.max(0, idx) });
+                }}
                 selected={isPhotoSelected(image)}
                 onToggleSelect={toggleSelectPhoto}
                 onDelete={(img) => setDeletingPhotos([img])}
@@ -756,81 +795,23 @@ function GaleriaFotosInner() {
         open={showExportarMuseu}
         onClose={() => setShowExportarMuseu(false)}
         fotos={sortedImages} />
-      
 
-      <Dialog open={!!selectedImage} onOpenChange={(open) => !open && setSelectedImage(null)}>
-        <DialogContent className="w-full max-w-5xl overflow-hidden border-0 bg-black p-0">
-          {selectedImage &&
-          <div className="relative">
-              <button
-              type="button"
-              onClick={() => setSelectedImage(null)}
-              className="absolute right-3 top-3 z-20 rounded-full bg-black/70 p-2 text-white hover:bg-black"
-              aria-label="Fechar">
-              
-                <X className="h-5 w-5" />
-              </button>
+      <PainelAjustarVinculos
+        open={showAjustarVinculos}
+        onClose={() => setShowAjustarVinculos(false)}
+        duplicates={duplicates}
+        onConcluido={() => {
+          clearGalleryCache();
+          queryClient.invalidateQueries(['galeria-fotos-stable-v1']);
+          refetch();
+        }} />
 
-              <img
-              src={selectedImage.fileUrl}
-              alt={selectedImage.legenda || selectedImage.fileName || 'Foto da galeria'}
-              className="max-h-[78vh] w-full object-contain" />
-            
-
-              <div className="space-y-2 bg-black/85 p-5 text-white">
-                <p className="text-lg font-semibold leading-snug">
-                  {selectedImage.legenda || selectedImage.caption || selectedImage.fileName || selectedImage.activityTitulo || 'Foto da galeria'}
-                </p>
-                {selectedImage.activityTitulo && (selectedImage.legenda || selectedImage.caption) && selectedImage.activityTitulo !== (selectedImage.legenda || selectedImage.caption) &&
-              <p className="text-sm text-white/75">{selectedImage.activityTitulo}</p>
-              }
-                {selectedImage.description && selectedImage.description !== selectedImage.legenda &&
-              <p className="text-sm text-white/60">{selectedImage.description}</p>
-              }
-                <div className="flex flex-wrap gap-3 text-xs text-white/70">
-                  {selectedImage.sectionKey !== 'SEM_IDENTIFICACAO' &&
-                <span className="font-medium text-white/90">{selectedImage.sectionTitle || selectedImage.museu}</span>
-                }
-                  {selectedImage.reportMes && <span>{selectedImage.reportMes}</span>}
-                  {selectedImage.localizacao && selectedImage.localizacao !== selectedImage.museu && <span>{selectedImage.localizacao}</span>}
-                  {selectedImage.geoCoordinates && <span className="font-mono">📍 {selectedImage.geoCoordinates}</span>}
-                  {selectedImage.date && <span>{formatDateBR(selectedImage.date)}</span>}
-                </div>
-                {/* Chips clicáveis no modal para filtrar diretamente */}
-                <div className="flex flex-wrap gap-2 pt-2 border-t border-white/10">
-                  {selectedImage.sectionKey && selectedImage.sectionKey !== 'SEM_IDENTIFICACAO' &&
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFilterMuseu(selectedImage.sectionKey);
-                    setSelectedImage(null);
-                    setVisibleCount(INITIAL_VISIBLE_IMAGES);
-                  }}
-                  className="rounded-full bg-white/10 border border-white/20 px-3 py-1 text-xs text-white/80 hover:bg-white/20">
-                  
-                      🏛 Filtrar por museu
-                    </button>
-                }
-                  {selectedImage.reportMes &&
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFilterPeriodo(selectedImage.reportMes);
-                    setSelectedImage(null);
-                    setVisibleCount(INITIAL_VISIBLE_IMAGES);
-                  }}
-                  className="rounded-full bg-white/10 border border-white/20 px-3 py-1 text-xs text-white/80 hover:bg-white/20">
-                  
-                      📅 Filtrar por período
-                    </button>
-                }
-                </div>
-              </div>
-            </div>
-          }
-        </DialogContent>
-      </Dialog>
-    </div>);
+      <ModalExposicao
+        open={!!modoExposicao}
+        images={modoExposicao?.images || []}
+        startIndex={modoExposicao?.startIndex || 0}
+        onClose={() => setModoExposicao(null)} />
+      </div>);
 
 }
 
