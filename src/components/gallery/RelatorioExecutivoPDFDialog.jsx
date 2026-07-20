@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Loader2, FileDown, BookImage, Calendar, Building2, Layers, AlertTriangle, CheckCircle2, XCircle, Images } from 'lucide-react';
+import { Loader2, FileDown, BookImage, Calendar, Building2, Layers, AlertTriangle, CheckCircle2, XCircle, Images, Download, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   SECTION_LABELS,
@@ -57,6 +57,8 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
   const [totalFotos, setTotalFotos] = useState(0);
   const [fetched, setFetched] = useState(false);
   const [gerando, setGerando] = useState(false);
+  const [selectedFotos, setSelectedFotos] = useState(new Set());
+  const [baixandoFotos, setBaixandoFotos] = useState(false);
 
   // Lote
   const [loteExecutando, setLoteExecutando] = useState(false);
@@ -111,6 +113,50 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
 
   const temFotos = grupos.some((g) => g.fotos.length > 0);
 
+  const todasFotos = useMemo(() => grupos.flatMap((g) => g.fotos), [grupos]);
+  const selectedList = useMemo(() => todasFotos.filter((f) => selectedFotos.has(f.fileUrl)), [todasFotos, selectedFotos]);
+
+  function toggleFoto(url) {
+    setSelectedFotos((prev) => {
+      const next = new Set(prev);
+      if (next.has(url)) next.delete(url);
+      else if (next.size < 4) next.add(url);
+      else { toast.warning('Máximo de 4 fotos por download.'); return prev; }
+      return next;
+    });
+  }
+
+  async function baixarFotoIndividual(foto, nomeArq) {
+    try {
+      const res = await fetch(foto.fileUrl);
+      const blob = await res.blob();
+      downloadBlob(blob, `${nomeArq || 'foto'}.jpg`);
+    } catch {
+      // Fallback: abrir em nova aba
+      window.open(foto.fileUrl, '_blank');
+    }
+  }
+
+  async function baixarSelecionadas() {
+    if (selectedList.length === 0) { toast.warning('Selecione até 4 fotos para baixar.'); return; }
+    setBaixandoFotos(true);
+    try {
+      for (let i = 0; i < selectedList.length; i++) {
+        const foto = selectedList[i];
+        const nome = (foto.legenda || foto.file_name || `foto_${i + 1}`)
+          .replace(/[^a-zA-Z0-9À-ÿ\s-]/g, '').replace(/\s+/g, '_').slice(0, 50);
+        await baixarFotoIndividual(foto, nome);
+        await new Promise((r) => setTimeout(r, 500));
+      }
+      toast.success(`${selectedList.length} foto(s) baixada(s).`);
+      setSelectedFotos(new Set());
+    } catch (e) {
+      toast.error('Erro ao baixar fotos: ' + (e.message || ''));
+    } finally {
+      setBaixandoFotos(false);
+    }
+  }
+
   async function gerarPDF() {
     if (!temFotos) return;
     setGerando(true);
@@ -164,11 +210,19 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
         });
 
         try {
-          const resultado = await buscarFotosPorContexto(museuKey, mesKey, ano, {
-            onProgresso: (p, t) => setLoteProgresso(prev => ({
-              ...prev, statusTexto: `${SECTION_ABREV[museuKey]} · ${mesKey}: ${t}`,
-            })),
-          });
+          // Timeout de 60s para evitar travamento em um único museu/mês
+          const timeoutMs = 60000;
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Timeout ao buscar fotos')), timeoutMs)
+          );
+          const resultado = await Promise.race([
+            buscarFotosPorContexto(museuKey, mesKey, ano, {
+              onProgresso: (p, t) => setLoteProgresso(prev => ({
+                ...prev, statusTexto: `${SECTION_ABREV[museuKey]} · ${mesKey}: ${t}`,
+              })),
+            }),
+            timeoutPromise,
+          ]);
 
           if (!resultado.grupos || resultado.grupos.length === 0 || resultado.totalFotos === 0) {
             pulados++;
@@ -221,6 +275,7 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
   function reset() {
     setMuseu(''); setMeses([]); setGrupos([]); setTotalFotos(0); setFetched(false);
     setLoteExecutando(false); setLoteProgresso(null); setLoteConcluido(null);
+    setSelectedFotos(new Set());
   }
 
   function handleClose() {
@@ -432,26 +487,71 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
                   );
                 })}
               </div>
-              {/* Thumbnails preview */}
-              <div className="flex gap-1.5 overflow-x-auto pb-1">
-                {grupos.flatMap((g) => g.fotos).slice(0, 12).map((foto, i) => (
-                  <div key={i} className="shrink-0">
-                    <img
-                      src={thumbUrl(foto.fileUrl)}
-                      alt={foto.legenda || ''}
-                      loading="lazy"
-                      className="rounded-md object-cover border border-gray-200"
-                      style={{ width: 60, height: 60 }}
-                      onError={(e) => { e.currentTarget.style.opacity = '0.2'; }}
-                    />
+              {/* Barra de download de fotos selecionadas */}
+              {selectedList.length > 0 && (
+                <div className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+                  <span className="text-xs font-medium text-blue-800">
+                    {selectedList.length} foto(s) selecionada(s)
+                  </span>
+                  <div className="flex gap-1.5">
+                    <button type="button" onClick={() => setSelectedFotos(new Set())} className="text-xs text-gray-500 hover:underline">
+                      Limpar
+                    </button>
+                    <Button size="sm" onClick={baixarSelecionadas} disabled={baixandoFotos} className="h-7 text-xs">
+                      {baixandoFotos ? <><Loader2 className="h-3 w-3 animate-spin mr-1" />Baixando...</> : <><Download className="h-3 w-3 mr-1" />Baixar {selectedList.length}</>}
+                    </Button>
                   </div>
-                ))}
-                {grupos.flatMap((g) => g.fotos).length > 12 && (
-                  <div className="shrink-0 flex items-center justify-center text-xs text-gray-400 font-medium" style={{ width: 60, height: 60 }}>
-                    +{grupos.flatMap((g) => g.fotos).length - 12}
-                  </div>
-                )}
+                </div>
+              )}
+
+              {/* Grid de fotos com seleção e download individual */}
+              <div className="grid grid-cols-4 gap-2 max-h-[35vh] overflow-y-auto p-1">
+                {todasFotos.map((foto, i) => {
+                  const isSelected = selectedFotos.has(foto.fileUrl);
+                  return (
+                    <div key={i} className="relative group">
+                      <img
+                        src={thumbUrl(foto.fileUrl)}
+                        alt={foto.legenda || ''}
+                        loading="lazy"
+                        onClick={() => toggleFoto(foto.fileUrl)}
+                        className={`rounded-md object-cover border-2 cursor-pointer transition-all
+                          ${isSelected ? 'border-blue-500 ring-2 ring-blue-300' : 'border-gray-200 hover:border-gray-400'}`}
+                        style={{ width: '100%', height: 70 }}
+                        onError={(e) => { e.currentTarget.style.opacity = '0.2'; }}
+                      />
+                      {/* Checkbox de seleção */}
+                      <button
+                        type="button"
+                        onClick={() => toggleFoto(foto.fileUrl)}
+                        className={`absolute top-1 left-1 w-5 h-5 rounded-full flex items-center justify-center transition-all
+                          ${isSelected ? 'bg-blue-500 text-white' : 'bg-white/80 text-gray-400 hover:bg-white'}`}
+                      >
+                        {isSelected && <Check className="h-3 w-3" />}
+                      </button>
+                      {/* Botão de download individual */}
+                      <button
+                        type="button"
+                        title="Baixar esta foto"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const nome = (foto.legenda || foto.file_name || `foto_${i + 1}`)
+                            .replace(/[^a-zA-Z0-9À-ÿ\s-]/g, '').replace(/\s+/g, '_').slice(0, 50);
+                          baixarFotoIndividual(foto, nome);
+                        }}
+                        className="absolute bottom-1 right-1 w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black"
+                      >
+                        <Download className="h-3 w-3" />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
+              {todasFotos.length > 12 && (
+                <p className="text-xs text-gray-400 text-center">
+                  Mostrando {todasFotos.length} fotos · Selecione até 4 para baixar
+                </p>
+              )}
             </div>
           )}
 
