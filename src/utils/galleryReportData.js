@@ -3,7 +3,7 @@ import { dedupePhotosByTechnicalIdentity, getPhotoIdentity } from '@/utils/photo
 import { deduplicateGalleryPhotos } from '@/utils/galleryDeduplication';
 
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'avif', 'heic'];
-const DEFAULT_CACHE_KEY = 'museus_centro_galeria_fotos_cache_v18_reports_only';
+const DEFAULT_CACHE_KEY = 'museus_centro_galeria_fotos_cache_v19_three_sources';
 
 // Limpar versões antigas do cache ao importar este módulo
 try {
@@ -322,12 +322,11 @@ export async function loadGalleryReportData({
   const staleCache = useCache ? readCache(cacheKey, cacheTtlMs, { allowStale: true, staleTtlMs: staleCacheTtlMs }) : null;
   const images = [];
 
-  // ── Fase 1: Fontes primárias (apenas Report + Activity) ──
-  // ReportPhoto e Attachment foram removidos — a galeria agora exibe apenas
-  // fotos embutidas nos relatórios da equipe.
-  const [reports, activities] = await Promise.all([
+  // ── Fase 1: Fontes primárias (Report + Activity + ReportPhoto) ──
+  const [reports, activities, reportPhotos] = await Promise.all([
     fetchAllPages('Report', '-updated_date', { quietMissing: true }).catch((e) => { console.warn('[Galeria] Report falhou:', e?.message); return []; }),
     fetchAllPages('Activity', '-updated_date', { quietMissing: true }).catch((e) => { console.warn('[Galeria] Activity falhou:', e?.message); return []; }),
+    fetchAllPages('ReportPhoto', '-created_date', { quietMissing: true }).catch((e) => { console.warn('[Galeria] ReportPhoto falhou:', e?.message); return []; }),
   ]);
 
   // Mapa de contexto (museu/período/autor) por report_id para enriquecer fotos de atividades
@@ -336,12 +335,17 @@ export async function loadGalleryReportData({
     if (r.id) reportCtxMap.set(r.id, { museu: r.museu || '', mes_referencia: r.mes_referencia || '', ano: r.ano || r.ano_referencia || '', author_name: r.author_name || '' });
   });
 
+  // Controle de deduplicação por file_url entre todas as fontes
+  const seenUrlsInit = new Set();
+
   // Fotos embutidas em Report.fotos[] e Report.atividades[].fotos[]
   reports.forEach((report) => {
     const ctx = reportCtxMap.get(report.id) || {};
     if (Array.isArray(report.fotos)) {
       report.fotos.forEach((foto, idx) => {
         if (!foto?.file_url || !/^https?:/i.test(foto.file_url) || isMacResourceFork(foto)) return;
+        if (seenUrlsInit.has(foto.file_url)) return;
+        seenUrlsInit.add(foto.file_url);
         images.push(mapPhoto({ ...foto, ...ctx, author: foto.autor || ctx.author_name || '', id: `${report.id || 'r'}_f${idx}` }, 'Report'));
       });
     }
@@ -350,10 +354,33 @@ export async function loadGalleryReportData({
         if (!Array.isArray(atividade?.fotos)) return;
         atividade.fotos.forEach((foto, idx) => {
           if (!foto?.file_url || !/^https?:/i.test(foto.file_url) || isMacResourceFork(foto)) return;
+          if (seenUrlsInit.has(foto.file_url)) return;
+          seenUrlsInit.add(foto.file_url);
           images.push(mapPhoto({ ...foto, ...ctx, author: foto.autor || ctx.author_name || '', atividade_titulo: atividade.titulo || '', id: `${report.id || 'r'}_a${aIdx}_${idx}` }, 'Report'));
         });
       });
     }
+  });
+
+  // Ampliar o set de deduplicação com URLs já mapeadas
+  const seenUrls = seenUrlsInit;
+
+  // Fotos da entidade ReportPhoto (vinculadas a relatórios)
+  reportPhotos.forEach((rp) => {
+    if (!rp?.file_url || !/^https?:/i.test(rp.file_url) || isMacResourceFork(rp)) return;
+    if (rp.galeria_oculta) return;
+    if (seenUrls.has(rp.file_url)) return;
+    seenUrls.add(rp.file_url);
+    const ctx = reportCtxMap.get(rp.report_id) || {};
+    images.push(mapPhoto({
+      ...rp,
+      museu: rp.museu || ctx.museu || '',
+      mes_referencia: rp.mes_referencia || ctx.mes_referencia || '',
+      ano: rp.ano || ctx.ano || '',
+      author: rp.author || ctx.author_name || '',
+      atividade_titulo: '',
+      id: rp.id,
+    }, 'ReportPhoto'));
   });
 
   // Fotos embutidas em Activity.fotos[]
@@ -362,6 +389,8 @@ export async function loadGalleryReportData({
     if (!Array.isArray(activity.fotos)) return;
     activity.fotos.forEach((foto, idx) => {
       if (!foto?.file_url || !/^https?:/i.test(foto.file_url) || isMacResourceFork(foto)) return;
+      if (seenUrls.has(foto.file_url)) return;
+      seenUrls.add(foto.file_url);
       images.push(mapPhoto({ ...foto, ...ctx, author: foto.autor || ctx.author_name || '', atividade_titulo: activity.titulo || '', id: `${activity.id || 'a'}_f${idx}` }, 'Activity'));
     });
   });
