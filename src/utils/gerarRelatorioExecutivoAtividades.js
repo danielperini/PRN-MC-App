@@ -157,6 +157,367 @@ export async function buscarAtividadesComFotos(museuKey, mes, ano, opts = {}) {
 }
 
 /**
+ * Extrai a chave de contexto de uma ReportPhoto a partir do campo contexto_ia.
+ * Tenta parsear como JSON e extrair pasta_origem ou atividade_nome.
+ * Se for string, usa diretamente. Se vazio, retorna null.
+ */
+function extrairContexto(rp) {
+  const raw = rp?.contexto_ia;
+  if (!raw) return null;
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (parsed && typeof parsed === 'object') {
+        return parsed.pasta_origem || parsed.atividade_nome || parsed.titulo || null;
+      }
+    } catch {
+      return trimmed;
+    }
+    return trimmed;
+  }
+  if (typeof raw === 'object') {
+    return raw.pasta_origem || raw.atividade_nome || raw.titulo || null;
+  }
+  return null;
+}
+
+/**
+ * Busca ReportPhotos diretamente (sem depender de Activity) para um museu+mês+ano.
+ * Fonte primária: ReportPhoto.filter({ museu, mes_referencia }).
+ * Fonte secundária (fallback): Activity.fotos[] de atividades vinculadas a Report.filter({ museu, mes_referencia, ano }).
+ * Deduplica por file_url, ordena por created_date ASC, agrupa por contexto_ia.
+ * Retorna { grupos, totalFotos } onde grupos = [{ chave, fotos: [{ fileUrl, legenda, ... }] }] (máx 8 fotos por grupo).
+ */
+export async function buscarFotosPorContexto(museuKey, mes, ano, opts = {}) {
+  const { onProgresso = () => {} } = opts;
+
+  onProgresso(5, 'Buscando fotos do museu/período...');
+
+  // Fonte primária: ReportPhoto direto
+  let reportPhotos = [];
+  try {
+    reportPhotos = await base44.entities.ReportPhoto.filter({ museu: museuKey, mes_referencia: mes }) || [];
+  } catch { reportPhotos = []; }
+
+  onProgresso(30, `${reportPhotos.length} fotos encontradas em ReportPhoto...`);
+
+  // Fonte secundária (fallback): Activity.fotos[] de relatórios do museu/período
+  let activityPhotos = [];
+  try {
+    onProgresso(35, 'Buscando atividades vinculadas a relatórios...');
+    const reports = await base44.entities.Report.filter({ museu: museuKey, mes_referencia: mes, ano }) || [];
+    const reportIds = (reports || []).map((r) => r.id).filter(Boolean);
+    if (reportIds.length > 0) {
+      const batchSize = 5;
+      let todasAtividades = [];
+      for (let i = 0; i < reportIds.length; i += batchSize) {
+        const lote = reportIds.slice(i, i + batchSize);
+        const resultados = await Promise.all(
+          lote.map((rid) => base44.entities.Activity.filter({ report_id: rid }).catch(() => []))
+        );
+        resultados.forEach((acts) => { todasAtividades = todasAtividades.concat(acts || []); });
+      }
+      todasAtividades.forEach((act) => {
+        const actFotos = Array.isArray(act.fotos) ? act.fotos : [];
+        actFotos.forEach((foto) => {
+          if (!foto?.file_url) return;
+          activityPhotos.push({
+            file_url: foto.file_url,
+            legenda: foto.legenda || foto.caption || act.titulo || '',
+            caption: foto.caption || '',
+            contexto_ia: foto.contexto_ia || act.titulo || '',
+            mes_referencia: mes,
+            ano,
+            museu: museuKey,
+            created_date: act.created_date || act.updated_date || null,
+          });
+        });
+      });
+    }
+  } catch { activityPhotos = []; }
+
+  onProgresso(55, `${activityPhotos.length} fotos em atividades...`);
+
+  // Unir fontes e deduplicar por file_url
+  const vistos = new Set();
+  const todas = [];
+  for (const rp of [...reportPhotos, ...activityPhotos]) {
+    const url = rp.file_url || rp.fileUrl;
+    if (!url || vistos.has(url)) continue;
+    vistos.add(url);
+    todas.push({
+      fileUrl: url,
+      legenda: rp.legenda || rp.caption || '',
+      contexto: extrairContexto(rp) || null,
+      created_date: rp.created_date || rp.updated_date || null,
+    });
+  }
+
+  if (todas.length === 0) return { grupos: [], totalFotos: 0 };
+
+  // Ordenar por created_date ASC
+  todas.sort((a, b) => {
+    const da = new Date(a.created_date || 0).getTime();
+    const db = new Date(b.created_date || 0).getTime();
+    return da - db;
+  });
+
+  // Agrupar por contexto_ia (null → "Registro do Período")
+  const gruposMap = new Map();
+  for (const foto of todas) {
+    const chave = foto.contexto || 'Registro do Período';
+    if (!gruposMap.has(chave)) gruposMap.set(chave, []);
+    gruposMap.get(chave).push(foto);
+  }
+
+  // Limitar 8 fotos por grupo
+  const grupos = Array.from(gruposMap.entries()).map(([chave, fotos]) => ({
+    chave,
+    fotos: fotos.slice(0, 8),
+  }));
+
+  onProgresso(70, `${grupos.length} grupo(s) formado(s)...`);
+
+  return { grupos, totalFotos: todas.length };
+}
+
+/**
+ * Gera PDF simplificado a partir de grupos de fotos por contexto.
+ * Capa escura institucional; páginas internas brancas em grade 2×2 (4 fotos/página);
+ * separador visual entre grupos; legenda centralizada em 3 linhas; rodapé institucional.
+ * Retorna { blob, filename, totalFotos, totalGrupos } se returnBlob=true.
+ */
+export async function gerarPDFFotosSimplificado(grupos, museuKey, mes, ano, opts = {}) {
+  const { onProgresso = () => {}, returnBlob = false } = opts;
+
+  const abrev = SECTION_ABREV[museuKey] || museuKey;
+  const label = SECTION_LABELS[museuKey] || museuKey;
+
+  const gruposComFotos = (grupos || []).filter((g) => g.fotos.length > 0);
+  if (gruposComFotos.length === 0) return null;
+
+  const fotosParaPDF = [];
+  for (const g of gruposComFotos) {
+    for (const f of g.fotos) {
+      fotosParaPDF.push({
+        ...f,
+        grupoChave: g.chave,
+        museuAtividade: museuKey,
+      });
+    }
+  }
+
+  // Legendas IA — apenas onde isLegendaGenerica(legenda) === true
+  const precisamLegenda = fotosParaPDF.filter((f) => isLegendaGenerica(f.legenda));
+  if (precisamLegenda.length > 0) {
+    onProgresso(3, `Gerando legendas via IA · ${precisamLegenda.length} foto(s)...`);
+    for (let i = 0; i < precisamLegenda.length; i += 5) {
+      const lote = precisamLegenda.slice(i, i + 5);
+      const loteNum = Math.floor(i / 5) + 1;
+      const totalLotes = Math.ceil(precisamLegenda.length / 5);
+      onProgresso(3 + Math.round((loteNum / totalLotes) * 12), `Legendas IA · lote ${loteNum}/${totalLotes}...`);
+      const resultados = await Promise.allSettled(
+        lote.map((f) => base44.functions.invoke('suggestPhotoCaption', {
+          photoUrl: f.fileUrl,
+        }))
+      );
+      resultados.forEach((r, idx) => {
+        const f = lote[idx];
+        if (r.status === 'fulfilled' && r.value?.data?.caption) f.legenda = r.value.data.caption;
+      });
+    }
+  }
+
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+
+  const periodoLabel = `${mes} de ${ano}`;
+
+  const pageW = 210, pageH = 297, margin = 15;
+  const cols = 2;
+  const gapH = 6, gapV = 6;
+  const footerH = 12;
+  const separadorH = 8;
+
+  // ── CAPA ──
+  doc.setFillColor(20, 20, 20);
+  doc.rect(0, 0, pageW, pageH, 'F');
+  const timbreCapaH = drawTimbreViaduto(doc, pageW, margin, true);
+  const capaY0 = timbreCapaH + 18;
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setCharSpace(1.5);
+  doc.text('VIADUTO DAS ARTES  ·  PROJETO MUSEUS CENTRO', pageW / 2, capaY0, { align: 'center' });
+  doc.setCharSpace(0);
+
+  doc.setFontSize(42);
+  doc.text(abrev, pageW / 2, capaY0 + 55, { align: 'center' });
+
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(200, 200, 200);
+  doc.text(label, pageW / 2, capaY0 + 70, { align: 'center', maxWidth: 170 });
+
+  doc.setFontSize(11);
+  doc.setTextColor(160, 160, 160);
+  doc.text('Relatório de Atividades', pageW / 2, capaY0 + 90, { align: 'center' });
+
+  doc.setFontSize(12);
+  doc.setTextColor(220, 220, 220);
+  doc.text(periodoLabel, pageW / 2, capaY0 + 104, { align: 'center' });
+
+  doc.setFontSize(8);
+  doc.setTextColor(100, 160, 220);
+  doc.text(`Gerado em ${new Date().toLocaleDateString('pt-BR')}`, pageW / 2, capaY0 + 118, { align: 'center' });
+
+  // ── PRIMEIRA PÁGINA DE FOTOS ──
+  doc.addPage();
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, 0, pageW, pageH, 'F');
+
+  const contentTop = margin + 2;
+  const contentBottom = pageH - footerH - 5;
+  const contentW = pageW - margin * 2;
+  const usableH = contentBottom - contentTop;
+  const cellW = (contentW - (cols - 1) * gapH) / cols;
+  const legendaH = 14;
+  const gridH = usableH - separadorH - gapV;
+  const cellH = (gridH - gapV) / 2;
+  const slotH = cellH - legendaH;
+
+  // Pré-carrega imagens
+  onProgresso(18, `Carregando ${fotosParaPDF.length} imagens...`);
+  const imagens = [];
+  for (let i = 0; i < fotosParaPDF.length; i++) {
+    if (i > 0 && i % 3 === 0) {
+      onProgresso(18 + Math.round((i / fotosParaPDF.length) * 40), `Carregando imagens · ${i}/${fotosParaPDF.length}...`);
+      await tick();
+    }
+    imagens.push(await fetchPhotoData(fotosParaPDF[i].fileUrl, cellW * 3, slotH * 3));
+  }
+  const carregadas = imagens.filter(Boolean).length;
+  if (carregadas === 0) return null;
+
+  const imagemPorUrl = new Map(fotosParaPDF.map((f, i) => [f.fileUrl, imagens[i]]));
+
+  // Atualiza capa com contagem
+  doc.setTextColor(150, 205, 255);
+  doc.text(`${carregadas} fotografias em ${gruposComFotos.length} grupo(s)`, pageW / 2, capaY0 + 125, { align: 'center' });
+
+  onProgresso(60, `Montando PDF · ${carregadas} foto(s)...`);
+
+  let paginaAtual = 2;
+  let cursorY = contentTop;
+  let slotsNaLinha = 0;
+  let paginaIniciada = true;
+
+  function desenharRodape() {
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(170, 170, 170);
+    doc.setDrawColor(220, 220, 220);
+    doc.line(margin, pageH - 10, pageW - margin, pageH - 10);
+    doc.text(`Viaduto das Artes · Projeto Museus Centro`, margin, pageH - 5);
+    doc.text(`${abrev} · ${periodoLabel} · p. ${paginaAtual}`, pageW - margin, pageH - 5, { align: 'right' });
+  }
+  function novaPagina() {
+    if (paginaIniciada) desenharRodape();
+    doc.addPage();
+    paginaAtual++;
+    doc.setFillColor(255, 255, 255);
+    doc.rect(0, 0, pageW, pageH, 'F');
+    cursorY = contentTop;
+    slotsNaLinha = 0;
+    paginaIniciada = true;
+  }
+
+  let fotoIdx = 0;
+  for (let gIdx = 0; gIdx < gruposComFotos.length; gIdx++) {
+    const grupo = gruposComFotos[gIdx];
+    const fotosValidas = grupo.fotos.filter((f) => imagemPorUrl.get(f.fileUrl));
+    if (fotosValidas.length === 0) continue;
+
+    // Separador visual entre grupos
+    if (fotoIdx > 0) {
+      if (cursorY + separadorH + gapV > contentBottom) novaPagina();
+      else cursorY += gapV;
+    }
+
+    // Linha fina + rótulo do grupo
+    doc.setDrawColor(220, 220, 220);
+    doc.line(margin, cursorY, pageW - margin, cursorY);
+    cursorY += 2;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(140, 140, 140);
+    const grupoTrunc = doc.splitTextToSize(grupo.chave, contentW - 10)[0] || grupo.chave;
+    doc.text(grupoTrunc, margin, cursorY + 4);
+    cursorY += separadorH;
+
+    for (const foto of fotosValidas) {
+      const imgResult = imagemPorUrl.get(foto.fileUrl);
+      if (!imgResult) continue;
+      if (cursorY + cellH > contentBottom) novaPagina();
+      const col = slotsNaLinha;
+      const slotX = margin + col * (cellW + gapH);
+      const slotY = cursorY;
+      if (fotoIdx > 0 && fotoIdx % 2 === 0) { await tick(); }
+
+      doc.setFillColor(245, 245, 245);
+      doc.rect(slotX, slotY, cellW, slotH, 'F');
+      const scale = Math.min(cellW / imgResult.w, slotH / imgResult.h);
+      const renderW = imgResult.w * scale;
+      const renderH = imgResult.h * scale;
+      const offsetX = slotX + (cellW - renderW) / 2;
+      const offsetY = slotY + (slotH - renderH) / 2;
+      doc.addImage(imgResult.dataUrl, 'JPEG', offsetX, offsetY, renderW, renderH, undefined, 'FAST');
+      doc.setDrawColor(205, 205, 205);
+      doc.rect(slotX, slotY, cellW, slotH, 'S');
+
+      // Legenda em 3 linhas: texto salvo/IA (bold 8pt), museu (cinza 7pt), data (cinza claro 7pt)
+      const legCx = slotX + cellW / 2;
+      let legY = slotY + slotH + 3.5;
+
+      doc.setCharSpace(0);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(30, 30, 30);
+      const legendaTexto = foto.legenda || grupo.chave || 'Registro fotográfico';
+      const legendaTrunc = doc.splitTextToSize(legendaTexto, cellW - 4)[0] || '';
+      doc.text(legendaTrunc, legCx, legY, { align: 'center' });
+      legY += 3.8;
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(110, 110, 110);
+      doc.text(abrev, legCx, legY, { align: 'center' });
+      legY += 3.2;
+
+      doc.setTextColor(150, 150, 150);
+      doc.text(periodoLabel, legCx, legY, { align: 'center' });
+
+      slotsNaLinha++;
+      fotoIdx++;
+      onProgresso(60 + Math.round((fotoIdx / carregadas) * 35), `Montando PDF · foto ${fotoIdx}/${carregadas}...`);
+      if (slotsNaLinha >= cols) { cursorY += cellH + gapV; slotsNaLinha = 0; }
+    }
+  }
+  desenharRodape();
+
+  const filename = `RelatorioExecutivo_${abrev}_${mes}_${ano}.pdf`;
+  onProgresso(100, 'Concluído!');
+
+  if (returnBlob) {
+    return { blob: doc.output('blob'), filename, totalFotos: carregadas, totalGrupos: gruposComFotos.length };
+  }
+  doc.save(filename);
+  return { filename, totalFotos: carregadas, totalGrupos: gruposComFotos.length };
+}
+
+/**
  * Gera o PDF do Relatório Executivo a partir de atividades pré-buscadas.
  * Retorna { blob, filename, totalFotos, totalAtividades } se returnBlob=true.
  * Caso contrário, salva o PDF (doc.save) e retorna o resultado.

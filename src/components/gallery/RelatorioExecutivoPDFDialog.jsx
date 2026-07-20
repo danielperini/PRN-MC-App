@@ -1,17 +1,14 @@
-import React, { useState, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Loader2, FileDown, BookImage, Calendar, Building2, Layers, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
+import { Loader2, FileDown, BookImage, Calendar, Building2, Layers, AlertTriangle, CheckCircle2, XCircle, Images } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   SECTION_LABELS,
   SECTION_ABREV,
-  isAtividadeFisica,
-  buscarAtividadesComFotos,
-  gerarPDFAtividades,
-  formatDateBR,
+  buscarFotosPorContexto,
+  gerarPDFFotosSimplificado,
 } from '@/utils/gerarRelatorioExecutivoAtividades';
-import { gerarAmostraRelatorioExecutivo } from '@/utils/exportarAmostraRelatorioExecutivo';
 
 const SECTION_ORDER = ['MHAB', 'MIS', 'MUMO', 'MAP', 'CasaKubitschek', 'CasaDoBalile', 'NOTURNO'];
 const MESES = [
@@ -19,11 +16,10 @@ const MESES = [
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
 ];
 
-const MAX_FOTOS = 5;
+const MAX_FOTOS = 8;
 
 const MUSEUS_LOTE = ['MHAB', 'MIS', 'MUMO', 'MAP', 'CasaKubitschek', 'CasaDoBalile'];
 const MESES_LOTE = ['Março', 'Abril', 'Maio', 'Junho'];
-const NOTURNO_MUSEUS = new Set(['MAP', 'CasaKubitschek', 'CasaDoBalile']);
 
 function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
@@ -36,6 +32,20 @@ function downloadBlob(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
+function thumbUrl(url) {
+  if (!url) return url;
+  if (url.includes('lh3.googleusercontent.com/drive-storage/')) {
+    return url.includes('?') ? url + '&sz=s200' : url + '=s200';
+  }
+  if (url.includes('lh3.googleusercontent.com')) {
+    return url.replace(/=s\d+(-[a-z]+)*$/, '') + '=s200';
+  }
+  if (url.includes('drive.google.com') && url.includes('sz=')) {
+    return url.replace(/sz=\d+/, 'sz=200');
+  }
+  return url;
+}
+
 export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
   const [museu, setMuseu] = useState('');
   const [meses, setMeses] = useState([]);
@@ -43,10 +53,10 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
   const [loading, setLoading] = useState(false);
   const [progresso, setProgresso] = useState('');
   const [pct, setPct] = useState(0);
-  const [atividades, setAtividades] = useState([]);
+  const [grupos, setGrupos] = useState([]);
+  const [totalFotos, setTotalFotos] = useState(0);
   const [fetched, setFetched] = useState(false);
   const [gerando, setGerando] = useState(false);
-  const [usarFallbackAmostra, setUsarFallbackAmostra] = useState(false);
 
   // Lote
   const [loteExecutando, setLoteExecutando] = useState(false);
@@ -66,62 +76,55 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
     setMeses((prev) => prev.length === MESES.length ? [] : [...MESES]);
   };
 
-  const buscarAtividades = useCallback(async () => {
+  const buscarFotos = async () => {
     if (!museu || meses.length === 0) { toast.warning('Selecione museu e pelo menos um mês.'); return; }
     setLoading(true);
     setFetched(false);
-    setAtividades([]);
-    setUsarFallbackAmostra(false);
+    setGrupos([]);
+    setTotalFotos(0);
     setPct(2);
     try {
-      // Para o path normal, usa o primeiro mês (multi-mês consolidado apenas no fallback)
+      // Para path normal, usa o primeiro mês (multi-mês consolidado apenas no lote)
       const mesBusca = meses[0];
-      const resultado = await buscarAtividadesComFotos(museu, mesBusca, ano, {
-        maxFotos: MAX_FOTOS,
+      const resultado = await buscarFotosPorContexto(museu, mesBusca, ano, {
         onProgresso: (p, t) => { setPct(p); setProgresso(t); },
       });
-      setAtividades(resultado);
-      const tem = resultado.some((a) => a.fotos.length > 0);
-      setUsarFallbackAmostra(!tem);
+      setGrupos(resultado.grupos || []);
+      setTotalFotos(resultado.totalFotos || 0);
       setFetched(true);
       setProgresso('');
       setPct(0);
+      if (resultado.totalFotos === 0) {
+        toast.info('Nenhuma foto encontrada para este museu/período.');
+      } else {
+        toast.success(`${resultado.totalFotos} fotos em ${resultado.grupos.length} grupo(s).`);
+      }
     } catch (e) {
       console.error(e);
-      toast.error('Erro ao buscar atividades: ' + (e.message || 'tente novamente.'));
+      toast.error('Erro ao buscar fotos: ' + (e.message || 'tente novamente.'));
     } finally {
       setLoading(false);
       setProgresso('');
       setPct(0);
     }
-  }, [museu, meses, ano]);
+  };
 
-  const temFotos = atividades.some((a) => a.fotos.length > 0);
+  const temFotos = grupos.some((g) => g.fotos.length > 0);
 
   async function gerarPDF() {
-    if (!temFotos && !usarFallbackAmostra) return;
+    if (!temFotos) return;
     setGerando(true);
     setPct(2);
     try {
-      let resultado;
-      if (usarFallbackAmostra) {
-        setProgresso('Gerando PDF com fotos brutas do período...');
-        resultado = await gerarAmostraRelatorioExecutivo(museu, meses, ano, {
-          maxFotosPorAtividade: MAX_FOTOS,
-          returnBlob: true,
-          onProgresso: (p, t) => { setPct(p); setProgresso(t); },
-        });
-      } else {
-        const mesBusca = meses[0];
-        resultado = await gerarPDFAtividades(atividades, museu, mesBusca, ano, {
-          returnBlob: true,
-          onProgresso: (p, t) => { setPct(p); setProgresso(t); },
-        });
-      }
+      const mesBusca = meses[0];
+      const resultado = await gerarPDFFotosSimplificado(grupos, museu, mesBusca, ano, {
+        returnBlob: true,
+        onProgresso: (p, t) => { setPct(p); setProgresso(t); },
+      });
 
       if (resultado?.blob) {
         downloadBlob(resultado.blob, resultado.filename);
-        toast.success(`PDF gerado! ${resultado.totalFotos} fotos em ${resultado.totalAtividades} atividades.`);
+        toast.success(`PDF gerado! ${resultado.totalFotos} fotos em ${resultado.totalGrupos} grupo(s).`);
       } else {
         toast.warning('Não foi possível gerar o PDF (nenhuma imagem carregável).');
       }
@@ -145,14 +148,14 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
 
     let gerados = 0;
     let pulados = 0;
+    let erros = 0;
     const log = [];
 
     outer:
     for (const museuKey of MUSEUS_LOTE) {
       for (const mesKey of MESES_LOTE) {
         if (cancelRef.current) break outer;
-        const maxFotos = NOTURNO_MUSEUS.has(museuKey) ? 5 : 4;
-        const idx = gerados + pulados + 1;
+        const idx = gerados + pulados + erros + 1;
         setLoteProgresso({
           atual: idx, total,
           museu: museuKey, mes: mesKey,
@@ -161,59 +164,52 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
         });
 
         try {
-          const atvs = await buscarAtividadesComFotos(museuKey, mesKey, ano, {
-            maxFotos,
+          const resultado = await buscarFotosPorContexto(museuKey, mesKey, ano, {
             onProgresso: (p, t) => setLoteProgresso(prev => ({
               ...prev, statusTexto: `${SECTION_ABREV[museuKey]} · ${mesKey}: ${t}`,
             })),
           });
-          const tem = atvs.some((a) => a.fotos.length > 0);
 
-          let resultado = null;
-          if (tem) {
-            resultado = await gerarPDFAtividades(atvs, museuKey, mesKey, ano, {
-              returnBlob: true,
-              onProgresso: (p, t) => setLoteProgresso(prev => ({
-                ...prev, statusTexto: `${SECTION_ABREV[museuKey]} · ${mesKey}: ${t}`,
-              })),
-            });
-          } else {
-            resultado = await gerarAmostraRelatorioExecutivo(museuKey, [mesKey], ano, {
-              maxFotosPorAtividade: maxFotos,
-              returnBlob: true,
-              onProgresso: (p, t) => setLoteProgresso(prev => ({
-                ...prev, statusTexto: `${SECTION_ABREV[museuKey]} · ${mesKey}: ${t}`,
-              })),
-            });
-          }
-
-          if (resultado?.blob) {
-            downloadBlob(resultado.blob, resultado.filename);
-            gerados++;
-            log.push({ museu: museuKey, mes: mesKey, status: 'gerado', fotos: resultado.totalFotos });
-          } else {
+          if (!resultado.grupos || resultado.grupos.length === 0 || resultado.totalFotos === 0) {
             pulados++;
             log.push({ museu: museuKey, mes: mesKey, status: 'pulado' });
+          } else {
+            const pdf = await gerarPDFFotosSimplificado(resultado.grupos, museuKey, mesKey, ano, {
+              returnBlob: true,
+              onProgresso: (p, t) => setLoteProgresso(prev => ({
+                ...prev, statusTexto: `${SECTION_ABREV[museuKey]} · ${mesKey}: ${t}`,
+              })),
+            });
+
+            if (pdf?.blob) {
+              downloadBlob(pdf.blob, pdf.filename);
+              gerados++;
+              log.push({ museu: museuKey, mes: mesKey, status: 'gerado', fotos: pdf.totalFotos, grupos: pdf.totalGrupos });
+            } else {
+              pulados++;
+              log.push({ museu: museuKey, mes: mesKey, status: 'pulado' });
+            }
           }
         } catch (e) {
-          if (String(e.message || '').includes('Nenhuma foto encontrada')) {
+          const msg = String(e.message || e || '').slice(0, 80);
+          if (msg.includes('Nenhuma foto')) {
             pulados++;
             log.push({ museu: museuKey, mes: mesKey, status: 'pulado' });
           } else {
-            log.push({ museu: museuKey, mes: mesKey, status: 'erro', erro: e.message });
+            erros++;
+            log.push({ museu: museuKey, mes: mesKey, status: 'erro', erro: msg });
           }
         }
 
         setLoteProgresso(prev => ({ ...prev, pct: Math.round((idx / total) * 100) }));
-        // Pequena pausa para não sobrecarregar
         await new Promise((r) => setTimeout(r, 300));
       }
     }
 
-    setLoteConcluido({ gerados, pulados, log, cancelado: cancelRef.current });
+    setLoteConcluido({ gerados, pulados, erros, log, cancelado: cancelRef.current });
     setLoteExecutando(false);
     setLoteProgresso(null);
-    if (gerados > 0) toast.success(`Lote concluído: ${gerados} PDF(s) gerado(s), ${pulados} pulado(s).`);
+    if (gerados > 0) toast.success(`Lote concluído: ${gerados} PDF(s) gerado(s), ${pulados} pulado(s), ${erros} erro(s).`);
     else toast.warning('Nenhum PDF pôde ser gerado no lote.');
   }
 
@@ -223,8 +219,7 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
   }
 
   function reset() {
-    setMuseu(''); setMeses([]); setAtividades([]); setFetched(false);
-    setUsarFallbackAmostra(false);
+    setMuseu(''); setMeses([]); setGrupos([]); setTotalFotos(0); setFetched(false);
     setLoteExecutando(false); setLoteProgresso(null); setLoteConcluido(null);
   }
 
@@ -283,14 +278,18 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
                   Fechar resumo
                 </button>
               </div>
-              <div className="grid grid-cols-2 gap-2 text-center">
+              <div className="grid grid-cols-3 gap-2 text-center">
                 <div className="rounded-lg bg-green-50 border border-green-200 p-2">
                   <p className="text-lg font-bold text-green-700">{loteConcluido.gerados}</p>
-                  <p className="text-xs text-green-600">PDFs gerados</p>
+                  <p className="text-xs text-green-600">Gerados</p>
                 </div>
                 <div className="rounded-lg bg-amber-50 border border-amber-200 p-2">
                   <p className="text-lg font-bold text-amber-700">{loteConcluido.pulados}</p>
-                  <p className="text-xs text-amber-600">Pulados (sem fotos)</p>
+                  <p className="text-xs text-amber-600">Pulados</p>
+                </div>
+                <div className="rounded-lg bg-red-50 border border-red-200 p-2">
+                  <p className="text-lg font-bold text-red-700">{loteConcluido.erros}</p>
+                  <p className="text-xs text-red-600">Erros</p>
                 </div>
               </div>
               <div className="space-y-1 max-h-[30vh] overflow-y-auto">
@@ -302,8 +301,8 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
                     <span className="font-medium text-gray-700">{SECTION_ABREV[item.museu]}</span>
                     <span className="text-gray-400">·</span>
                     <span className="text-gray-600">{item.mes}</span>
-                    <span className="ml-auto text-gray-400">
-                      {item.status === 'gerado' ? `${item.fotos} fotos` : item.status === 'pulado' ? 'Sem fotos — pulado' : 'Erro'}
+                    <span className="ml-auto text-gray-400 truncate max-w-[50%]">
+                      {item.status === 'gerado' ? `${item.fotos} fotos · ${item.grupos} grupos` : item.status === 'pulado' ? 'Sem fotos — pulado' : `Erro: ${item.erro}`}
                     </span>
                   </div>
                 ))}
@@ -352,7 +351,7 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
                     {meses.length === MESES.length ? 'Limpar' : 'Todos'}
                   </button>
                 </div>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="!-mx-1 grid grid-cols-3 gap-2 px-1">
                   {MESES.map((m) => (
                     <button
                       key={m}
@@ -405,62 +404,62 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
             </div>
           )}
 
-          {/* Preview de atividades */}
-          {fetched && atividades.length > 0 && (
+          {/* Preview de fotos encontradas */}
+          {fetched && totalFotos > 0 && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-medium text-gray-700">
-                  {atividades.length} {atividades.length === 1 ? 'atividade encontrada' : 'atividades encontradas'}
+                  {totalFotos} {totalFotos === 1 ? 'foto encontrada' : 'fotos encontradas'} em {grupos.length} {grupos.length === 1 ? 'grupo' : 'grupos'}
                 </p>
-                <button type="button" onClick={() => { setFetched(false); setAtividades([]); setUsarFallbackAmostra(false); }} className="text-xs text-blue-600 hover:underline">
+                <button type="button" onClick={() => { setFetched(false); setGrupos([]); setTotalFotos(0); }} className="text-xs text-blue-600 hover:underline">
                   Voltar aos filtros
                 </button>
               </div>
               <div className="space-y-2 max-h-[40vh] overflow-y-auto">
-                {atividades.map((item, idx) => {
-                  const count = item.fotos.length;
-                  const badge = count >= 3 ? 'bg-green-100 text-green-700' : count >= 1 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700';
+                {grupos.map((grupo, idx) => {
+                  const count = grupo.fotos.length;
+                  const badge = count >= 5 ? 'bg-green-100 text-green-700' : count >= 1 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700';
                   return (
                     <div key={idx} className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-3">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-900 truncate">{item.atividade.titulo}</p>
-                        <p className="text-xs text-gray-500">
-                          {formatDateBR(item.atividade.data_realizacao || item.atividade.data_inicio) || 'Sem data'} · {item.atividade.classificacao}
-                        </p>
+                        <p className="text-sm font-semibold text-gray-900 truncate">{grupo.chave}</p>
+                        <p className="text-xs text-gray-500">{count} {count === 1 ? 'foto' : 'fotos'}</p>
                       </div>
                       <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${badge}`}>
-                        {count} {count === 1 ? 'foto' : 'fotos'}
+                        {count}
                       </span>
                     </div>
                   );
                 })}
               </div>
-              {!temFotos && (
-                <p className="text-xs text-red-600 font-medium">Nenhuma atividade possui fotos. O PDF não pode ser gerado.</p>
-              )}
-            </div>
-          )}
-
-          {/* Fallback: sem atividades com fotos, mas com ReportPhotos brutas */}
-          {fetched && usarFallbackAmostra && atividades.length === 0 && (
-            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 space-y-2">
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-blue-900">Sem atividades com fotos — usando fotos brutas do período</p>
-                  <p className="mt-1 text-xs text-blue-700">
-                    Não foram encontradas atividades físicas com fotos para {SECTION_ABREV[museu]} em {meses.join(', ')}/{ano}.
-                    O PDF será gerado com as fotos brutas (ReportPhoto) do período, agrupadas em páginas de 4 fotos.
-                  </p>
-                </div>
+              {/* Thumbnails preview */}
+              <div className="flex gap-1.5 overflow-x-auto pb-1">
+                {grupos.flatMap((g) => g.fotos).slice(0, 12).map((foto, i) => (
+                  <div key={i} className="shrink-0">
+                    <img
+                      src={thumbUrl(foto.fileUrl)}
+                      alt={foto.legenda || ''}
+                      loading="lazy"
+                      className="rounded-md object-cover border border-gray-200"
+                      style={{ width: 60, height: 60 }}
+                      onError={(e) => { e.currentTarget.style.opacity = '0.2'; }}
+                    />
+                  </div>
+                ))}
+                {grupos.flatMap((g) => g.fotos).length > 12 && (
+                  <div className="shrink-0 flex items-center justify-center text-xs text-gray-400 font-medium" style={{ width: 60, height: 60 }}>
+                    +{grupos.flatMap((g) => g.fotos).length - 12}
+                  </div>
+                )}
               </div>
             </div>
           )}
 
-          {fetched && atividades.length === 0 && !usarFallbackAmostra && (
+          {/* Estado vazio */}
+          {fetched && totalFotos === 0 && (
             <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-6 text-center">
-              <BookImage className="mx-auto mb-3 h-8 w-8 text-gray-300" />
-              <p className="font-medium text-gray-700">Nenhuma atividade física encontrada</p>
+              <Images className="mx-auto mb-3 h-8 w-8 text-gray-300" />
+              <p className="font-medium text-gray-700">Nenhuma foto encontrada para este museu/período</p>
               <p className="mt-1 text-sm text-gray-500">Tente outro museu, mês ou ano.</p>
               <button type="button" onClick={() => setFetched(false)} className="mt-3 text-xs text-blue-600 hover:underline">
                 Voltar aos filtros
@@ -498,11 +497,11 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
             </Button>
           )}
           {!fetched ? (
-            <Button onClick={buscarAtividades} disabled={controlesBloqueados || !museu || meses.length === 0}>
-              {loading ? <><Loader2 className="h-4 w-4 animate-spin mr-1" />Buscando...</> : 'Buscar atividades'}
+            <Button onClick={buscarFotos} disabled={controlesBloqueados || !museu || meses.length === 0}>
+              {loading ? <><Loader2 className="h-4 w-4 animate-spin mr-1" />Buscando...</> : 'Buscar fotos'}
             </Button>
           ) : (
-            <Button onClick={gerarPDF} disabled={controlesBloqueados || (!temFotos && !usarFallbackAmostra)}>
+            <Button onClick={gerarPDF} disabled={controlesBloqueados || !temFotos}>
               {gerando ? <><Loader2 className="h-4 w-4 animate-spin mr-1" />Gerando...</> : <><FileDown className="h-4 w-4 mr-1" />Gerar PDF</>}
             </Button>
           )}
