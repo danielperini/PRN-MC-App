@@ -343,11 +343,21 @@ function GaleriaFotosInner() {
   }, [images, searchTerm, filterMuseu, filterPeriodo]);
 
   const sortedImages = useMemo(() => {
-    return [...filteredImages].sort((a, b) => {
+    const sorted = [...filteredImages].sort((a, b) => {
       if (sortBy === 'oldest') return new Date(a.timestamp || a.date || 0) - new Date(b.timestamp || b.date || 0);
       if (sortBy === 'name-asc') return String(a.fileName || '').localeCompare(String(b.fileName || ''), 'pt-BR');
       if (sortBy === 'name-desc') return String(b.fileName || '').localeCompare(String(a.fileName || ''), 'pt-BR');
       return new Date(b.timestamp || b.date || 0) - new Date(a.timestamp || a.date || 0);
+    });
+    // Limitar a 1 foto por atividade: mantém a primeira (melhor/mais recente) por chave de atividade
+    const seenActivity = new Set();
+    return sorted.filter((img) => {
+      const atKey = getAtividadeKey(img);
+      // Se não tem atividade definida, não deduplica (exibe normalmente)
+      if (!atKey) return true;
+      if (seenActivity.has(atKey)) return false;
+      seenActivity.add(atKey);
+      return true;
     });
   }, [filteredImages, sortBy]);
 
@@ -893,7 +903,7 @@ function GaleriaFotosInner() {
           </div> :
 
         <div className="space-y-10">
-            {groupedImages.map(({ key, items, allItems, ocultadas }) => {
+            {groupedImages.map(({ key, items, allItems }) => {
               const sectionLabel = groupMode === 'periodo'
                 ? (PERIODO_LABELS.get(key) || key)
                 : (SECTION_LABELS[key] || key);
