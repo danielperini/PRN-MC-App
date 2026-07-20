@@ -19,6 +19,7 @@ import ExportarMuseuPDFDialog from '@/components/gallery/ExportarMuseuPDFDialog'
 import PainelAjustarVinculos from '@/components/gallery/PainelAjustarVinculos';
 import ModalExposicao from '@/components/gallery/ModalExposicao';
 import ConsolidarFotosDriveDialog from '@/components/gallery/ConsolidarFotosDriveDialog';
+import ActivityChipsBar, { getAtividadeKey } from '@/components/gallery/ActivityChipsBar';
 import { PhotoActionBar, BulkActionBar, EditCaptionDialog, DeleteConfirmDialog, EmailPhotosDialog } from '@/components/gallery/GalleryPhotoActions';
 import { base44 } from '@/api/base44Client';
 
@@ -204,6 +205,17 @@ function GaleriaFotosInner() {
   const [showConsolidarDrive, setShowConsolidarDrive] = useState(false);
   const [modoExposicao, setModoExposicao] = useState(null); // { images, startIndex }
   const [isAutoSyncing, setIsAutoSyncing] = useState(false);
+  // Chips de atividade por seção (museu): { [sectionKey]: atividadeKey }
+  const [selectedAtividade, setSelectedAtividade] = useState({});
+  // Rótulos editados inline para chips de atividade, persistidos em sessionStorage
+  const [atividadeLabels, setAtividadeLabels] = useState(() => {
+    try {
+      const raw = sessionStorage.getItem('galeria_atividade_labels');
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  });
   const autoSyncRanRef = useRef(false);
   const queryClient = useQueryClient();
 
@@ -318,19 +330,20 @@ function GaleriaFotosInner() {
     return Array.from(groups.entries()).map(([key, items]) => {
       const porAtividade = new Map();
       items.forEach((entry) => {
-        const atividade =
-          entry.image.activityTitulo ||
-          entry.image.activity_id ||
-          (entry.image.fileName ? (entry.image.fileName.match(/__([^_][^_]+(?:_[^_][^_]+)*)__\d+\.\w+$/)?.[1] || '').replace(/_/g, ' ').trim() : '') ||
-          'sem_atividade';
+        const atividade = getAtividadeKey(entry.image);
         if (!porAtividade.has(atividade)) porAtividade.set(atividade, []);
         const grupo = porAtividade.get(atividade);
         if (grupo.length < MAX_POR_ATIVIDADE) grupo.push(entry);
       });
       const filtrados = Array.from(porAtividade.values()).flat();
-      return { key, items: filtrados };
+      // Aplica filtro de atividade selecionado para a seção, se houver
+      const selAtividade = selectedAtividade[key];
+      const itemsFiltrados = selAtividade
+        ? filtrados.filter((entry) => getAtividadeKey(entry.image) === selAtividade)
+        : filtrados;
+      return { key, items: itemsFiltrados, allItems: filtrados };
     });
-  }, [visibleImages]);
+  }, [visibleImages, selectedAtividade]);
 
   const selectionMode = selectedPhotos.length > 0;
 
@@ -354,6 +367,7 @@ function GaleriaFotosInner() {
     setFilterMuseu('');
     setFilterPeriodo('');
     setVisibleCount(INITIAL_VISIBLE_IMAGES);
+    setSelectedAtividade({});
   }
 
   if (isLoading) {
@@ -699,7 +713,7 @@ function GaleriaFotosInner() {
           </div> :
 
         <div className="space-y-10">
-            {groupedImages.map(({ key, items }) =>
+            {groupedImages.map(({ key, items, allItems }) =>
           <section key={key} className="space-y-4">
                 <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
                   {editingAlbumKey === key ?
@@ -755,6 +769,31 @@ function GaleriaFotosInner() {
                   </p>
                 </div>
 
+                {/* Chips de atividade */}
+                <ActivityChipsBar
+                  sectionKey={key}
+                  items={allItems}
+                  selectedKey={selectedAtividade[key] || ''}
+                  onSelect={(atividadeKey) =>
+                    setSelectedAtividade((prev) => ({
+                      ...prev,
+                      [key]: prev[key] === atividadeKey ? '' : atividadeKey,
+                    }))
+                  }
+                  labels={atividadeLabels}
+                  onRename={(atkKey, newLabel) => {
+                    setAtividadeLabels((prev) => {
+                      const next = { ...prev, [atkKey]: newLabel || atkKey };
+                      try {
+                        sessionStorage.setItem('galeria_atividade_labels', JSON.stringify(next));
+                      } catch {
+                        // noop
+                      }
+                      return next;
+                    });
+                  }}
+                />
+
                 <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
                   {items.map(({ image, renderIndex }) =>
               <GalleryCard
@@ -763,7 +802,7 @@ function GaleriaFotosInner() {
                 eager={renderIndex < 4}
                 onClick={() => {
                   // Modo Exposição: navega pelas fotos do museu ativo em sequência
-                  const sectionImages = (groupedImages.find((g) => g.key === key)?.items || [])
+                  const sectionImages = (groupedImages.find((g) => g.key === key)?.allItems || [])
                     .map((entry) => entry.image);
                   const idx = sectionImages.findIndex((img) => (img.id || img.fileUrl) === (image.id || image.fileUrl));
                   setModoExposicao({ images: sectionImages.length ? sectionImages : [image], startIndex: Math.max(0, idx) });
