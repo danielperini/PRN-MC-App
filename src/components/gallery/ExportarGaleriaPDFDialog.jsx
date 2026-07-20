@@ -136,10 +136,46 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
   const [progressoPct, setProgressoPct] = useState(0);
   const [etapa, setEtapa] = useState('');
   const [auditoria, setAuditoria] = useState(null);
+  const [limiteFotosAtividade, setLimiteFotosAtividade] = useState(5);
+  const [deduplicarBanco, setDeduplicarBanco] = useState(true);
 
   // Filtra apenas fotos com museu identificado
   const fotosValidas = fotos.filter(f => f.sectionKey && SECTION_ORDER.includes(f.sectionKey));
   const museusPresentes = SECTION_ORDER.filter(k => fotosValidas.some(f => f.sectionKey === k));
+
+  // Deduplicação determinística client-side: mesma URL normalizada ou mesmo nome de arquivo = mesma foto
+  function dedupDeterministicaLocal(photos) {
+    const seen = new Map();
+    const deduped = [];
+    for (const p of photos) {
+      const urlNorm = String(p.fileUrl || '').toLowerCase().split('?')[0];
+      const nameNorm = String(p.fileName || '')
+        .split('?')[0].split('/').pop()?.replace(/\.(jpg|jpeg|png|webp|gif|bmp|avif|heic)$/i, '')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase() || '';
+      const key = urlNorm || nameNorm;
+      if (!key) { deduped.push(p); continue; }
+      if (seen.has(key)) continue;
+      seen.set(key, true);
+      deduped.push(p);
+    }
+    return deduped;
+  }
+
+  // Agrupa por atividade dentro de cada seção e aplica limite de fotos por atividade
+  function aplicarLimitePorAtividade(photos, limite) {
+    if (!limite || limite <= 0) return photos;
+    const grupos = new Map();
+    for (const p of photos) {
+      const atvKey = String(p.activityTitulo || p.legenda || p.fileName || 'sem_atividade').trim().toLowerCase();
+      if (!grupos.has(atvKey)) grupos.set(atvKey, []);
+      grupos.get(atvKey).push(p);
+    }
+    const resultado = [];
+    for (const [, items] of grupos) {
+      resultado.push(...items.slice(0, limite));
+    }
+    return resultado;
+  }
 
   async function handleExportar() {
     if (fotosValidas.length === 0) {
@@ -150,15 +186,61 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
     setAuditoria(null);
     setProgressoPct(2);
 
-    const auditLog = { carregadas: 0, falhas: 0, total: fotosValidas.length, novas_importadas: 0 };
+    const auditLog = { carregadas: 0, falhas: 0, total: fotosValidas.length, novas_importadas: 0, duplicatas_removidas_db: 0, duplicatas_removidas_local: 0 };
 
     try {
-      // ── Etapa 0: varre pastas do Drive de todos os museus antes de gerar o PDF ──
+      // ── Etapa 0: deduplicação determinística no banco (mesma URL ou mesmo nome de arquivo) ──
+      if (deduplicarBanco) {
+        setEtapa('drive');
+        setProgresso('Removendo duplicatas do banco de dados...');
+        setProgressoPct(3);
+        try {
+          const res = await base44.functions.invoke('deduplicarReportPhotos', { dry_run: false });
+          const removed = res?.data?.deletados || res?.deletados || 0;
+          auditLog.duplicatas_removidas_db = removed;
+          if (removed > 0) {
+            setProgresso(`✓ ${removed} duplicatas removidas do banco. Recarregando fotos...`);
+            setProgressoPct(8);
+            // Limpa cache da galeria para que a próxima carga traga dados limpos
+            try {
+              const TODAY = new Date().toISOString().slice(0, 10);
+              localStorage.removeItem(`museus_centro_galeria_fotos_cache_v10_deduped_3layers_${TODAY}`);
+            } catch { /* noop */ }
+            await new Promise(r => setTimeout(r, 800));
+          }
+        } catch (e) {
+          console.warn('Deduplicação no banco falhou:', e?.message);
+        }
+      }
+
+      // ── Etapa 0.5: deduplicação determinística local (URL idêntica ou nome de arquivo idêntico) ──
+      const antesDedup = fotosValidas.length;
+      let fotosDedup = dedupDeterministicaLocal(fotosValidas);
+      auditLog.duplicatas_removidas_local = antesDedup - fotosDedup.length;
+
+      // ── Etapa 0.6: aplica limite de fotos por atividade dentro de cada seção ──
+      if (limiteFotosAtividade > 0) {
+        const porSecao = new Map();
+        for (const f of fotosDedup) {
+          if (!porSecao.has(f.sectionKey)) porSecao.set(f.sectionKey, []);
+          porSecao.get(f.sectionKey).push(f);
+        }
+        const limitadas = [];
+        for (const [, items] of porSecao) {
+          limitadas.push(...aplicarLimitePorAtividade(items, limiteFotosAtividade));
+        }
+        fotosDedup = limitadas;
+      }
+
+      const fotosFinais = fotosDedup;
+      auditLog.total = fotosFinais.length;
+
+      // ── Etapa 1: varre pastas do Drive de todos os museus antes de gerar o PDF ──
       setEtapa('drive');
       await varrerTodosMuseusDrive(setProgresso, setProgressoPct);
 
-      // ── Etapa 0.5: valida integridade das URLs ──
-      const semUrl = fotosValidas.filter(f => !f.fileUrl || typeof f.fileUrl !== 'string' || f.fileUrl.trim() === '');
+      // ── Etapa 1.5: valida integridade das URLs ──
+      const semUrl = fotosFinais.filter(f => !f.fileUrl || typeof f.fileUrl !== 'string' || f.fileUrl.trim() === '');
       if (semUrl.length > 0) {
         throw new Error(`${semUrl.length} foto(s) sem URL válida após varredura. Execute a sincronização novamente.`);
       }
@@ -171,24 +253,24 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
       const cellH = slotH + 26;
 
       setEtapa('pdf');
-      setProgresso(`Carregando ${fotosValidas.length} fotos do Drive antes de montar o PDF...`);
+      setProgresso(`Carregando ${fotosFinais.length} fotos do Drive antes de montar o PDF...`);
       setProgressoPct(30);
       const imagensPreCarregadas = [];
-      for (let i = 0; i < fotosValidas.length; i++) {
+      for (let i = 0; i < fotosFinais.length; i++) {
         if (i > 0 && i % 3 === 0) {
-          setProgresso(`Carregando imagens · ${i}/${fotosValidas.length}...`);
-          setProgressoPct(30 + Math.round((i / fotosValidas.length) * 35));
+          setProgresso(`Carregando imagens · ${i}/${fotosFinais.length}...`);
+          setProgressoPct(30 + Math.round((i / fotosFinais.length) * 35));
           await new Promise((r) => requestAnimationFrame(() => r()));
         }
-        imagensPreCarregadas.push(await fetchPhotoData(fotosValidas[i], cellW * 4, slotH * 4));
+        imagensPreCarregadas.push(await fetchPhotoData(fotosFinais[i], cellW * 4, slotH * 4));
       }
       setProgressoPct(65);
-      const fotosFalhas = fotosValidas.filter((_, index) => !imagensPreCarregadas[index]);
+      const fotosFalhas = fotosFinais.filter((_, index) => !imagensPreCarregadas[index]);
       if (fotosFalhas.length) {
         throw new Error(`${fotosFalhas.length} foto(s) não puderam ser carregadas do Drive. Nenhuma página em branco foi gerada.`);
       }
       imagensPreCarregadas.forEach(() => { auditLog.carregadas += 1; });
-      const imagemPorChave = new Map(fotosValidas.map((foto, index) => [foto.id || foto.fileUrl, imagensPreCarregadas[index]]));
+      const imagemPorChave = new Map(fotosFinais.map((foto, index) => [foto.id || foto.fileUrl, imagensPreCarregadas[index]]));
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
 
       // ──────────────────────────────────────────
@@ -209,7 +291,7 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
       doc.setFontSize(10);
       doc.setTextColor(170, 170, 170);
       doc.text(`Gerado em ${new Date().toLocaleDateString('pt-BR')}`, pageW / 2, 130, { align: 'center' });
-      doc.text(`${fotosValidas.length} fotografias`, pageW / 2, 141, { align: 'center' });
+      doc.text(`${fotosFinais.length} fotografias`, pageW / 2, 141, { align: 'center' });
 
       // Link centralizado da capa
       doc.setFontSize(10);
@@ -223,12 +305,12 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
       // AGRUPA POR MUSEU
       // ──────────────────────────────────────────
       const grupos = new Map(SECTION_ORDER.map(k => [k, []]));
-      for (const foto of fotosValidas) {
+      for (const foto of fotosFinais) {
         if (grupos.has(foto.sectionKey)) grupos.get(foto.sectionKey).push(foto);
       }
 
       let fotosProcessadas = 0;
-      const total = fotosValidas.length;
+      const total = fotosFinais.length;
       let museuCounter = 0;
       const totalMuseus = museusPresentes.length;
 
@@ -373,7 +455,10 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
       doc.save(`Galeria_MuseusCentro_${ts}.pdf`);
 
       setAuditoria(auditLog);
-      toast.success(`PDF gerado! ${auditLog.carregadas}/${total} fotos incluídas.`);
+      const msgParts = [`${auditLog.carregadas}/${total} fotos incluídas`];
+      if (auditLog.duplicatas_removidas_db > 0) msgParts.push(`${auditLog.duplicatas_removidas_db} duplicatas removidas do banco`);
+      if (auditLog.duplicatas_removidas_local > 0) msgParts.push(`${auditLog.duplicatas_removidas_local} duplicatas locais ocultadas`);
+      toast.success(msgParts.join(' · '));
       setEtapa('');
       setProgressoPct(0);
       if (auditLog.falhas === 0) onClose();
@@ -402,7 +487,10 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
           <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-3">
             <div className="flex items-center gap-2 text-sm text-gray-700">
               <Images className="h-4 w-4 text-gray-400" />
-              <span><strong>{fotosValidas.length}</strong> fotos identificadas serão incluídas</span>
+              <span><strong>{fotosValidas.length}</strong> fotos identificadas</span>
+              {deduplicarBanco && (
+                <span className="text-xs text-blue-600">(após deduplicação: ~{fotosValidas.length} a recalcular)</span>
+              )}
             </div>
             {fotos.length - fotosValidas.length > 0 && (
               <p className="text-xs text-amber-600 flex items-center gap-1">
@@ -424,6 +512,56 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
               </div>
             </div>
           </div>
+
+          {/* Limite de fotos por atividade */}
+          {!loading && !auditoria && (
+            <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
+              <div>
+                <p className="text-sm font-medium text-gray-700 mb-2">Limite de fotos por atividade</p>
+                <div className="flex flex-wrap gap-2">
+                  {[3, 5, 8, 10].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setLimiteFotosAtividade(n)}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all
+                        ${limiteFotosAtividade === n ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                    >
+                      {n} fotos
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setLimiteFotosAtividade(0)}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all
+                      ${limiteFotosAtividade === 0 ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                  >
+                    Todas
+                  </button>
+                </div>
+                <p className="mt-1 text-xs text-gray-400">
+                  {limiteFotosAtividade > 0
+                    ? `Máximo de ${limiteFotosAtividade} fotos por atividade dentro de cada museu.`
+                    : 'Inclui todas as fotos sem limite por atividade.'}
+                </p>
+              </div>
+
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={deduplicarBanco}
+                  onChange={(e) => setDeduplicarBanco(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-black focus:ring-black"
+                />
+                <div>
+                  <span className="text-sm font-medium text-gray-700">Remover duplicatas do banco</span>
+                  <p className="text-xs text-gray-400">
+                    Deleta permanentemente fotos com a mesma URL ou mesmo nome de arquivo, mantendo apenas a versão mais antiga.
+                  </p>
+                </div>
+              </label>
+            </div>
+          )}
 
           {loading && (
             <div className="space-y-2">
@@ -451,6 +589,12 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
             <div className="rounded-lg border border-green-200 bg-green-50 p-3 space-y-1 text-xs">
               <p className="font-semibold text-green-800">Auditoria do PDF gerado</p>
               <p className="text-green-700">✓ Carregadas: <strong>{auditoria.carregadas}</strong> / {auditoria.total}</p>
+              {auditoria.duplicatas_removidas_db > 0 && (
+                <p className="text-blue-700">🗄 Duplicatas removidas do banco: <strong>{auditoria.duplicatas_removidas_db}</strong></p>
+              )}
+              {auditoria.duplicatas_removidas_local > 0 && (
+                <p className="text-blue-700">🔗 Duplicatas locais ocultadas: <strong>{auditoria.duplicatas_removidas_local}</strong></p>
+              )}
               {auditoria.falhas > 0 && (
                 <p className="text-amber-700">⚠ Não acessíveis (CORS/expiradas): <strong>{auditoria.falhas}</strong> — link para o original incluído no PDF.</p>
               )}
