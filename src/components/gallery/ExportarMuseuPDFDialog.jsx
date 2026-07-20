@@ -71,11 +71,8 @@ function normalizarLegenda(texto = '') {
 }
 
 function drawInstitutionalHeader(doc, pageW) {
-  doc.setFillColor(255, 255, 255);
-  doc.rect(0, 0, pageW, 30, 'F');
-  doc.addImage(viadutoHeaderOriginal, 'PNG', 12, 4, pageW - 24, 23);
-  doc.setDrawColor(205, 205, 205);
-  doc.line(12, 30, pageW - 12, 30);
+  // Apenas rodapé — não sobrescreve imagens com rect branco no topo
+  // O cabeçalho preto já é desenhado inline em cada página de fotos
 }
 
 async function sincronizarFotosMuseoDoDrive(museuKey, setProgresso) {
@@ -154,6 +151,9 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
 
       if (fotosDoMuseu.length === 0) {
         toast.error('Nenhuma foto encontrada para este museu.');
+        setLoading(false);
+        setProgresso('');
+        setEtapa('');
         return;
       }
 
@@ -267,11 +267,10 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
         }
       }
 
-      // Cabeçalho + paginação em todas as páginas
+      // Apenas rodapé + numeração em todas as páginas (sem sobrescrever imagens)
       const totalPaginas = doc.internal.getNumberOfPages();
       for (let pg = 1; pg <= totalPaginas; pg++) {
         doc.setPage(pg);
-        drawInstitutionalHeader(doc, pageW);
         doc.setDrawColor(220, 220, 220);
         doc.line(margin, pageH - 10, pageW - margin, pageH - 10);
         doc.setFontSize(7);
