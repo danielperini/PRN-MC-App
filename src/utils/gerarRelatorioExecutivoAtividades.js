@@ -251,6 +251,7 @@ export async function buscarFotosPorContexto(museuKey, mes, ano, opts = {}) {
       fileUrl: url,
       legenda: rp.legenda || rp.caption || '',
       contexto: extrairContexto(rp) || null,
+      file_name: rp.file_name || rp.fileName || '',
       created_date: rp.created_date || rp.updated_date || null,
     });
   }
@@ -309,10 +310,68 @@ export async function gerarPDFFotosSimplificado(grupos, museuKey, mes, ano, opts
     }
   }
 
-  // Legendas IA — apenas onde isLegendaGenerica(legenda) === true
-  const precisamLegenda = fotosParaPDF.filter((f) => isLegendaGenerica(f.legenda));
+  // Legendas determinísticas a partir de nome do arquivo e pasta de origem.
+  // Só recorre à IA quando essas fontes não produzem legenda válida.
+  function legendaDeterministica(foto) {
+    // 1. Legenda já salva e não-genérica
+    if (foto.legenda && !isLegendaGenerica(foto.legenda)) return foto.legenda;
+
+    // 2. Extrair do nome do arquivo (remover extensão, prefixos de data/museu, underscores)
+    if (foto.file_name) {
+      let nome = String(foto.file_name)
+        .replace(/\.[a-z0-9]+$/i, '') // extensão
+        .replace(/^_?Material\s*Bruto\/?/i, '')
+        .replace(/^\d{4}-\d{2}-[A-Z]{2,5}[-_]?/i, '') // 2026-03-MISBH-
+        .replace(/^\d{4}-[A-Z]{3,5}[-_]?/i, '') // 2026-MIS-
+        .replace(/[-_]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      // Remover duplicação (mesma string repetida)
+      const mid = Math.floor(nome.length / 2);
+      if (nome.length > 20 && nome.slice(0, mid).trim() === nome.slice(mid).trim()) {
+        nome = nome.slice(0, mid).trim();
+      }
+      // Remover sufixos de autoria
+      nome = nome.replace(/\s+[-–·]\s*(Daniel Moreira|Ana Montalvão|Perini Projetos).*$/i, '').trim();
+      if (nome && nome.length > 3 && !isLegendaGenerica(nome)) return nome;
+    }
+
+    // 3. Usar contexto (pasta_origem) se disponível
+    if (foto.contexto) {
+      let ctx = String(foto.contexto)
+        .replace(/^_?Material\s*Bruto\/?/i, '')
+        .replace(/^\d{4}-\d{2}-[A-Z]{2,5}[-_]?/i, '')
+        .replace(/^\d{4}-[A-Z]{3,5}[-_]?/i, '')
+        .replace(/[-_]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      const mid = Math.floor(ctx.length / 2);
+      if (ctx.length > 20 && ctx.slice(0, mid).trim() === ctx.slice(mid).trim()) {
+        ctx = ctx.slice(0, mid).trim();
+      }
+      ctx = ctx.replace(/\s+[-–·]\s*(Daniel Moreira|Ana Montalvão|Perini Projetos).*$/i, '').trim();
+      if (ctx && ctx.length > 3 && !isLegendaGenerica(ctx)) return ctx;
+    }
+
+    // 4. Usar chave do grupo
+    if (foto.grupoChave && !isLegendaGenerica(foto.grupoChave)) return foto.grupoChave;
+
+    return null;
+  }
+
+  // Aplicar legendas determinísticas primeiro
+  let precisamLegenda = [];
+  for (const f of fotosParaPDF) {
+    if (isLegendaGenerica(f.legenda) || !f.legenda) {
+      const det = legendaDeterministica(f);
+      if (det) f.legenda = det;
+      else precisamLegenda.push(f);
+    }
+  }
+
+  // IA apenas para fotos sem legenda determinística
   if (precisamLegenda.length > 0) {
-    onProgresso(3, `Gerando legendas via IA · ${precisamLegenda.length} foto(s)...`);
+    onProgresso(3, `Gerando legendas via IA · ${precisamLegenda.length} foto(s) (de ${fotosParaPDF.length})...`);
     for (let i = 0; i < precisamLegenda.length; i += 5) {
       const lote = precisamLegenda.slice(i, i + 5);
       const loteNum = Math.floor(i / 5) + 1;
@@ -326,6 +385,7 @@ export async function gerarPDFFotosSimplificado(grupos, museuKey, mes, ano, opts
       resultados.forEach((r, idx) => {
         const f = lote[idx];
         if (r.status === 'fulfilled' && r.value?.data?.caption) f.legenda = r.value.data.caption;
+        else if (!f.legenda) f.legenda = f.grupoChave || 'Registro fotográfico';
       });
     }
   }
