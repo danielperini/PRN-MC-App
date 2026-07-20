@@ -118,9 +118,14 @@ function GalleryCard({ image, onClick, eager = false, selected, onToggleSelect, 
   const museuLabel = image.sectionKey !== 'SEM_IDENTIFICACAO' ?
   image.sectionTitle || image.museu || 'Museus Centro' :
   null;
-  // Prioridade: legenda própria da foto > título de atividade > "Foto da galeria"
+  // Prioridade: legenda própria da foto > título de atividade > museu/período > "Foto da galeria"
   // NUNCA exibir nome de arquivo como legenda — nomes de arquivo são técnicos
-  const legendaDisplay = resolvePhotoCaption(image);
+  const resolvedCaption = resolvePhotoCaption(image);
+  const legendaDisplay = resolvedCaption && resolvedCaption !== 'Foto da galeria'
+    ? resolvedCaption
+    : (image.activityTitulo
+      || (image.museu && image.reportMes ? `${image.museu} — ${image.reportMes}` : '')
+      || 'Foto da galeria');
 
   return (
     <div className={`group relative overflow-hidden rounded-2xl border bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md
@@ -168,8 +173,8 @@ function GalleryCard({ image, onClick, eager = false, selected, onToggleSelect, 
             }} />
           
         </div>
-        <div className="space-y-1.5 p-3">
-          <p className="line-clamp-2 text-sm font-semibold leading-snug text-black">
+        <div className="space-y-1 p-2">
+          <p className="line-clamp-1 text-xs font-semibold leading-snug text-black">
             {legendaDisplay}
           </p>
           <div className="space-y-0.5 text-[11px] text-gray-500">
@@ -912,115 +917,43 @@ function GaleriaFotosInner() {
           </div> :
 
         <div className="space-y-10">
-            {groupedImages.map(({ key, items, allItems, ocultadas }) => null
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          )}
+            {groupedImages.map(({ key, items, allItems, ocultadas }) => {
+              const sectionLabel = groupMode === 'periodo'
+                ? (PERIODO_LABELS.get(key) || key)
+                : (SECTION_LABELS[key] || key);
+              const selAtividade = selectedAtividade[key];
+              const filteredItems = selAtividade
+                ? items.filter((entry) => getAtividadeKey(entry.image) === selAtividade)
+                : items;
+              return (
+                <section key={key} className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-lg font-semibold text-gray-900">{sectionLabel}</h2>
+                    <span className="text-xs text-gray-500">{allItems.length} {allItems.length === 1 ? 'foto' : 'fotos'}</span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                    {filteredItems.map(({ image, renderIndex }) => (
+                      <GalleryCard
+                        key={image.id || renderIndex}
+                        image={image}
+                        eager={renderIndex < 10}
+                        selected={isPhotoSelected(image)}
+                        onToggleSelect={toggleSelectPhoto}
+                        onDelete={setDeletingPhotos}
+                        onEditCaption={setEditingPhoto}
+                        selectionMode={selectionMode}
+                        onClick={() => setModoExposicao({
+                          images: filteredItems.map((e) => e.image),
+                          startIndex: filteredItems.findIndex((e) => e.image.id === image.id)
+                        })} />
+                    ))}
+                  </div>
+                  {ocultadas > 0 &&
+                  <p className="text-xs text-gray-400">{ocultadas} fotos ocultadas (limite de 5 por atividade)</p>
+                  }
+                </section>
+              );
+            })}
 
             {limitedByActivity.length > visibleCount &&
           <div className="flex justify-center pt-2 pb-4">
