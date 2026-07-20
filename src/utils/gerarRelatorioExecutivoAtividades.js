@@ -60,6 +60,17 @@ const MUSEU_DB_VALUES = {
   NOTURNO: ['NOTURNO'],
 };
 
+/**
+ * Verifica se uma ReportPhoto pertence ao museu buscado, considerando
+ * também fotos marcadas como 'GERAL' (sem museu específico identificado).
+ */
+function fotoPertenceAoMuseu(rp, museuKey) {
+  const museuFoto = normalizarTexto(rp.museu || '');
+  if (!museuFoto || museuFoto === 'geral') return true; // GERAL = sem museu específico, incluir
+  const variacoes = museuKeysParaFiltro(museuKey);
+  return variacoes.some((v) => normalizarTexto(v) === museuFoto);
+}
+
 export function museuKeysParaFiltro(museuKey) {
   return MUSEU_DB_VALUES[museuKey] || [museuKey];
 }
@@ -140,8 +151,22 @@ export async function buscarAtividadesComFotos(museuKey, mes, ano, opts = {}) {
   onProgresso(55, 'Buscando fotos do museu/período...');
   let poolFotos = [];
   try {
-    poolFotos = await base44.entities.ReportPhoto.filter({ museu: museuKey }) || [];
-    poolFotos = poolFotos.filter((f) => f.mes_referencia === mes);
+    const mesNorm = normalizarTexto(mes);
+    const variacoes = [...museuKeysParaFiltro(museuKey), 'GERAL'];
+    for (const v of variacoes) {
+      const page = await base44.entities.ReportPhoto.filter({ museu: v }, '-created_date', 500) || [];
+      poolFotos = poolFotos.concat(page);
+    }
+    const vistosIds = new Set();
+    poolFotos = poolFotos.filter((rp) => {
+      if (vistosIds.has(rp.id)) return false;
+      vistosIds.add(rp.id);
+      return true;
+    });
+    poolFotos = poolFotos.filter((f) => {
+      const mesFoto = normalizarTexto(f.mes_referencia || '');
+      return mesFoto === mesNorm || mesFoto === '';
+    });
   } catch { poolFotos = []; }
 
   onProgresso(70, 'Montando conjuntos de fotos...');
@@ -219,12 +244,12 @@ export async function buscarFotosPorContexto(museuKey, mes, ano, opts = {}) {
 
   onProgresso(5, 'Buscando fotos do museu/período...');
 
-  // Fonte primária: ReportPhoto — filtrar por museu (campo único funciona no SDK)
-  // e filtrar mês cliente-side com comparação case-insensitive
+  // Fonte primária: ReportPhoto — buscar por museu específico + GERAL (sem museu identificado)
+  // e filtrar mês/ano cliente-side com comparação case-insensitive
   let reportPhotos = [];
   try {
     const mesNorm = normalizarTexto(mes);
-    const museuVariacoes = museuKeysParaFiltro(museuKey);
+    const museuVariacoes = [...museuKeysParaFiltro(museuKey), 'GERAL'];
     for (const variacao of museuVariacoes) {
       const page = await base44.entities.ReportPhoto.filter({ museu: variacao }, '-created_date', 500) || [];
       reportPhotos = reportPhotos.concat(page);
@@ -236,7 +261,11 @@ export async function buscarFotosPorContexto(museuKey, mes, ano, opts = {}) {
       vistosIds.add(rp.id);
       return true;
     });
-    reportPhotos = reportPhotos.filter((rp) => normalizarTexto(rp.mes_referencia) === mesNorm);
+    // Incluir fotos cujo mês corresponde OU cujo mês está vazio (importadas sem mês detectado)
+    reportPhotos = reportPhotos.filter((rp) => {
+      const mesFoto = normalizarTexto(rp.mes_referencia || '');
+      return mesFoto === mesNorm || mesFoto === '';
+    });
   } catch { reportPhotos = []; }
 
   onProgresso(30, `${reportPhotos.length} fotos encontradas em ReportPhoto...`);
