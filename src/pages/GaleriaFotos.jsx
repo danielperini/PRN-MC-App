@@ -4,7 +4,7 @@ import RequireAuth from '@/components/auth/RequireAuth';
 import LoadingPage from '@/components/common/LoadingPage';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Images, MapPin, RefreshCw, X, Filter, CheckCircle2, Moon, ExternalLink, BookImage, ChevronDown, HardDriveDownload, TriangleAlert, FileDown, Pencil, Check, MoreVertical, Download, Calendar, Layers, Sparkles } from 'lucide-react';
+import { Images, MapPin, RefreshCw, X, CheckCircle2, Moon, ExternalLink, BookImage, ChevronDown, HardDriveDownload, TriangleAlert, FileDown, MoreVertical, Download, Layers, Sparkles, Search } from 'lucide-react';
 import SyncNovasFotosDriveButton from '@/components/gallery/SyncNovasFotosDriveButton';
 import { toast } from 'sonner';
 import {
@@ -26,10 +26,10 @@ import ReconstruirGaleriaDialog from '@/components/gallery/ReconstruirGaleriaDia
 import Importar6PastasDialog from '@/components/gallery/Importar6PastasDialog';
 import DeduplicarIAFotosDialog from '@/components/gallery/DeduplicarIAFotosDialog';
 import { gerarAmostraRelatorioExecutivo } from '@/utils/exportarAmostraRelatorioExecutivo';
-import ActivityChipsBar, { getAtividadeKey } from '@/components/gallery/ActivityChipsBar';
+import { getAtividadeKey } from '@/components/gallery/ActivityChipsBar';
 import { PhotoActionBar, BulkActionBar, EditCaptionDialog, DeleteConfirmDialog, EmailPhotosDialog } from '@/components/gallery/GalleryPhotoActions';
 import { base44 } from '@/api/base44Client';
-import { normalizeMuseuKey, normalizePeriodoKeys, MUSEU_OFFICIAL_ORDER, resolvePhotoCaption, normalizePeriodoForComparison } from '@/utils/galleryNormalization';
+import { normalizeMuseuKey, resolvePhotoCaption } from '@/utils/galleryNormalization';
 
 const INITIAL_VISIBLE_IMAGES = 20;
 const VISIBLE_IMAGES_STEP = 20;
@@ -206,9 +206,7 @@ function GalleryCard({ image, onClick, eager = false, selected, onToggleSelect, 
 function GaleriaFotosInner() {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('recent');
-  const [filterMuseu, setFilterMuseu] = useState('');
-  const [filterPeriodo, setFilterPeriodo] = useState('');
-  const [groupMode, setGroupMode] = useState('museu'); // 'museu' | 'periodo'
+  const [groupMode] = useState('museu'); // fixo em museu
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_IMAGES);
   const [showRestaurar, setShowRestaurar] = useState(false);
   const [showSincInventario, setShowSincInventario] = useState(false);
@@ -305,42 +303,28 @@ function GaleriaFotosInner() {
     });
   }, [rawImages]);
 
-  // Chips de museu: chaves canônicas únicas presentes nos dados, na ordem oficial
-  const museuOptions = useMemo(() => {
-    const present = new Set();
-    images.forEach((img) => {present.add(img.sectionKey || 'SEM_IDENTIFICACAO');});
-    return MUSEU_OFFICIAL_ORDER.filter((key) => present.has(key));
-  }, [images]);
 
-  // Chips de período: normalizados (sem duplicatas Mês vs Mês/Ano), ordenados cronologicamente
-  const periodoOptions = useMemo(() => {
-    const raw = [];
-    images.forEach((img) => {if (img.reportMes) raw.push(img.reportMes);});
-    return normalizePeriodoKeys(raw);
-  }, [images]);
 
   const filteredImages = useMemo(() => {
     const q = safeText(searchTerm).trim();
     return images.filter((image) => {
       if (!image?.fileUrl) return false;
-      if (filterMuseu && (image.sectionKey || 'SEM_IDENTIFICACAO') !== filterMuseu) return false;
-      if (filterPeriodo && normalizePeriodoForComparison(image.reportMes) !== normalizePeriodoForComparison(filterPeriodo)) return false;
       if (!q) return true;
       return [
-      image.fileName,
-      image.legenda,
-      image.description,
-      image.museu,
-      image.sectionTitle,
-      image.localizacao,
-      image.geoCoordinates,
-      image.reportLabel,
-      image.activityTitulo,
-      image.reportMes,
-      image.authorName].
-      some((value) => safeText(value).includes(q));
+        image.sectionKey,
+        image.sectionTitle,
+        image.museu,
+        image.activityTitulo,
+        image.reportMes,
+        image.fileName,
+        image.legenda,
+        image.description,
+        image.localizacao,
+        image.reportLabel,
+        image.authorName,
+      ].some((value) => safeText(value).includes(q));
     });
-  }, [images, searchTerm, filterMuseu, filterPeriodo]);
+  }, [images, searchTerm]);
 
   const sortedImages = useMemo(() => {
     const sorted = [...filteredImages].sort((a, b) => {
@@ -363,17 +347,7 @@ function GaleriaFotosInner() {
 
   const visibleImages = sortedImages.slice(0, visibleCount);
 
-  const PERIODO_LABELS = useMemo(() => {
-    const map = new Map();
-    images.forEach((img) => {
-      if (img.reportMes) {
-        const ano = img.ano || img.reportAno || (img.timestamp ? new Date(img.timestamp).getFullYear() : '');
-        const label = ano ? `${img.reportMes} — ${ano}` : img.reportMes;
-        map.set(img.reportMes, label);
-      }
-    });
-    return map;
-  }, [images]);
+
 
   const groupedImages = useMemo(() => {
     const groups = new Map();
@@ -437,11 +411,10 @@ function GaleriaFotosInner() {
     toast.success(`${pacotes.length} ${pacotes.length === 1 ? 'pacote baixado' : 'pacotes baixados'}!`);
   }
 
-  const hasActiveFilters = filterMuseu || filterPeriodo;
+  const hasActiveFilters = searchTerm.trim().length > 0;
 
   function resetFilters() {
-    setFilterMuseu('');
-    setFilterPeriodo('');
+    setSearchTerm('');
     setVisibleCount(INITIAL_VISIBLE_IMAGES);
     setSelectedAtividade({});
   }
@@ -749,8 +722,31 @@ function GaleriaFotosInner() {
           </div>
         }
 
-        {/* Painel de filtros */}
-        
+        {/* Barra de busca unificada */}
+        <div className="mb-6">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => { setSearchTerm(e.target.value); setVisibleCount(INITIAL_VISIBLE_IMAGES); }}
+              placeholder="Buscar por museu, atividade ou data (ex: MHAB, Oficina, Abril/2026)"
+              className="w-full rounded-2xl border border-gray-200 bg-white py-2.5 pl-9 pr-9 text-sm text-gray-800 shadow-sm placeholder:text-gray-400 focus:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-300 transition"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => { setSearchTerm(''); setVisibleCount(INITIAL_VISIBLE_IMAGES); }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          <p className="mt-1.5 text-xs text-gray-400">
+            {sortedImages.length} {sortedImages.length === 1 ? 'foto encontrada' : 'fotos encontradas'}
+            {hasActiveFilters && <span className="ml-1 text-gray-500">· filtrado por "{searchTerm}"</span>}
+          </p>
+        </div>
 
 
 
@@ -904,9 +900,7 @@ function GaleriaFotosInner() {
 
         <div className="space-y-10">
             {groupedImages.map(({ key, items, allItems }) => {
-              const sectionLabel = groupMode === 'periodo'
-                ? (PERIODO_LABELS.get(key) || key)
-                : (SECTION_LABELS[key] || key);
+              const sectionLabel = SECTION_LABELS[key] || key;
               const selAtividade = selectedAtividade[key];
               const filteredItems = selAtividade
                 ? items.filter((entry) => getAtividadeKey(entry.image) === selAtividade)
