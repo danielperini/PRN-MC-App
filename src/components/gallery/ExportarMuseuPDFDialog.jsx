@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { FileDown, Loader2, AlertTriangle, Building2, RefreshCw, CheckCircle2, CloudDownload } from 'lucide-react';
@@ -6,6 +6,9 @@ import { toast } from 'sonner';
 import { jsPDF } from 'jspdf';
 import { base44 } from '@/api/base44Client';
 import viadutoHeaderOriginal from '@/assets/viadutoHeaderOriginal';
+import { drawTimbreViaduto } from './timbreViadutoPDF';
+import { isLegendaGenerica } from './deduplicarFotosGaleria';
+import RevisaoAntesExportar from './RevisaoAntesExportar';
 
 const SECTION_ORDER = ['MHAB', 'MIS', 'MUMO', 'MAP', 'CasaKubitschek', 'CasaDoBalile'];
 const SECTION_LABELS = {
@@ -70,11 +73,6 @@ function normalizarLegenda(texto = '') {
   return String(texto).replace(/\boficina\b/gi, 'atividade educativa').replace(/\s{2,}/g, ' ').trim();
 }
 
-function drawInstitutionalHeader(doc, pageW) {
-  // Apenas rodapé — não sobrescreve imagens com rect branco no topo
-  // O cabeçalho preto já é desenhado inline em cada página de fotos
-}
-
 async function sincronizarFotosMuseoDoDrive(museuKey, setProgresso) {
   setProgresso(`Varrendo pastas do ${SECTION_KEYS_ABREV[museuKey]} no Drive...`);
   try {
@@ -129,19 +127,55 @@ function normalizarFotoParaGaleria(foto) {
     reportMes: foto.mes_referencia,
     fileName: foto.file_name,
     date: foto.created_date,
+    drive_file_id: foto.drive_file_id,
+    created_date: foto.created_date,
   };
+}
+
+// Gera legendas via IA para fotos sem legenda ou com legenda genérica (lotes de 5)
+async function gerarLegendasIA(fotos, setProgresso, legendasAtuais) {
+  const precisam = fotos.filter((f) => isLegendaGenerica(f.legenda || f.caption));
+  if (precisam.length === 0) return { revisadasIA: 0 };
+
+  let revisadasIA = 0;
+  for (let i = 0; i < precisam.length; i += 5) {
+    const lote = precisam.slice(i, i + 5);
+    setProgresso(`Gerando legendas com IA · lote ${Math.floor(i / 5) + 1} de ${Math.ceil(precisam.length / 5)}...`);
+    const resultados = await Promise.allSettled(
+      lote.map((f) =>
+        base44.functions.invoke('suggestPhotoCaption', { photoUrl: f.fileUrl })
+      )
+    );
+    resultados.forEach((r, idx) => {
+      const foto = lote[idx];
+      const fid = foto.id || foto.fileUrl;
+      if (r.status === 'fulfilled' && r.value?.data?.caption) {
+        const novaLegenda = r.value.data.caption;
+        legendasAtuais[fid] = novaLegenda;
+        foto.legenda = novaLegenda;
+        revisadasIA++;
+      }
+    });
+  }
+  return { revisadasIA };
 }
 
 export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosIniciais }) {
   const [museuSelecionado, setMuseuSelecionado] = useState('');
   const [loading, setLoading] = useState(false);
   const [progresso, setProgresso] = useState('');
-  const [etapa, setEtapa] = useState(''); // 'drive' | 'pdf'
+  const [etapa, setEtapa] = useState(''); // 'drive' | 'legendas' | 'revisao' | 'pdf'
   const [auditoria, setAuditoria] = useState(null);
+  const [fotosRevisao, setFotosRevisao] = useState([]);
+  const [legendasAtualizadas, setLegendasAtualizadas] = useState({});
 
   const museusComFotos = SECTION_ORDER.filter(k =>
     fotosIniciais.some(f => f.sectionKey === k)
   );
+
+  const handleLegendasAtualizadas = useCallback(({ id, legenda }) => {
+    setLegendasAtualizadas((prev) => ({ ...prev, [id]: legenda }));
+  }, []);
 
   async function handleExportar() {
     if (!museuSelecionado) return toast.warning('Selecione um museu para exportar.');
@@ -178,30 +212,64 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
         return;
       }
 
-      // ── Etapa 3: pré-carrega imagens ──
-      setEtapa('pdf');
-      setProgresso(`Carregando ${fotosDoMuseu.length} imagens para o PDF...`);
-      const pageW = 210, pageH = 297, margin = 12;
+      // ── Etapa 3: gera legendas via IA para fotos sem legenda ──
+      setEtapa('legendas');
+      const legendasAtuais = {};
+      fotosDoMuseu.forEach((f) => { legendasAtuais[f.id || f.fileUrl] = f.legenda || f.caption || ''; });
+      const { revisadasIA } = await gerarLegendasIA(fotosDoMuseu, setProgresso, legendasAtuais);
+      setLegendasAtualizadas(legendasAtuais);
+
+      // ── Etapa 4: tela de revisão antes de gerar o PDF ──
+      setEtapa('revisao');
+      setFotosRevisao(fotosDoMuseu);
+      setLoading(false);
+      setProgresso('');
+    } catch (e) {
+      console.error(e);
+      toast.error('Erro ao preparar revisão: ' + (e.message || 'tente novamente.'));
+      setLoading(false);
+      setProgresso('');
+      setEtapa('');
+    }
+  }
+
+  async function gerarPDFFinal(fotosParaPDF, legendasMap) {
+    setLoading(true);
+    setEtapa('pdf');
+    try {
+      setProgresso(`Carregando ${fotosParaPDF.length} imagens para o PDF...`);
+
+      // Layout A4: 210×297, margem 10mm, header timbre ~32mm, footer 10mm, gap 5mm
+      const pageW = 210, pageH = 297, margin = 10;
       const cols = 2, rows = 2, perPage = cols * rows;
-      const cellW = (pageW - margin * 2 - (cols - 1) * 6) / cols;
-      const headerH = 34, slotH = 81, cellH = slotH + 26;
+      const gapH = 5, gapV = 5;
+      const headerH = 32, footerH = 10;
+      const cellW = (pageW - margin * 2 - (cols - 1) * gapH) / cols;
+      const cellH = (pageH - headerH - footerH - margin * 2 - (rows - 1) * gapV) / rows;
+      const slotH = cellH - 12; // espaço para legenda abaixo da foto
 
       const imagensPreCarregadas = await Promise.all(
-        fotosDoMuseu.map(foto => fetchPhotoData(foto, cellW * 4, slotH * 4))
+        fotosParaPDF.map((foto) => fetchPhotoData(foto, cellW * 4, slotH * 4))
       );
 
-      const falhas = fotosDoMuseu.filter((_, i) => !imagensPreCarregadas[i]);
+      const falhas = fotosParaPDF.filter((_, i) => !imagensPreCarregadas[i]);
       if (falhas.length > 0) {
-        throw new Error(`${falhas.length} de ${fotosDoMuseu.length} imagem(ns) falharam ao carregar. Verifique a conexão ou execute a varredura do Drive novamente.`);
+        throw new Error(`${falhas.length} de ${fotosParaPDF.length} imagem(ns) falharam ao carregar. Verifique a conexão ou execute a varredura do Drive novamente.`);
       }
 
       const imagemPorChave = new Map(
-        fotosDoMuseu.map((foto, i) => [foto.id || foto.fileUrl, imagensPreCarregadas[i]])
+        fotosParaPDF.map((foto, i) => [foto.id || foto.fileUrl, imagensPreCarregadas[i]])
       );
 
-      const auditLog = { carregadas: fotosDoMuseu.length - falhas.length, falhas: falhas.length, total: fotosDoMuseu.length };
+      const auditLog = {
+        carregadas: fotosParaPDF.length - falhas.length,
+        falhas: falhas.length,
+        total: fotosParaPDF.length,
+        duplicatasRemovidas: (fotosRevisao?.length || 0) - fotosParaPDF.length,
+        legendasIA: Object.values(legendasMap || {}).filter((v) => v && !isLegendaGenerica(v)).length,
+      };
 
-      // ── Etapa 4: gera o PDF ──
+      // ── Gera o PDF ──
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
 
       // Capa
@@ -218,7 +286,7 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
       doc.text(SECTION_LABELS[museuSelecionado], pageW / 2, 107, { align: 'center', maxWidth: 170 });
       doc.setFontSize(10);
       doc.setTextColor(170, 170, 170);
-      doc.text(`Galeria de Fotos`, pageW / 2, 126, { align: 'center' });
+      doc.text('Galeria de Fotos', pageW / 2, 126, { align: 'center' });
       doc.text(`Gerado em ${new Date().toLocaleDateString('pt-BR')}`, pageW / 2, 138, { align: 'center' });
       doc.text(`${auditLog.carregadas} fotografias`, pageW / 2, 150, { align: 'center' });
       doc.setTextColor(150, 205, 255);
@@ -228,42 +296,33 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
       });
 
       // Páginas de fotos
+      const fotosComImg = fotosParaPDF.filter((_, i) => !!imagensPreCarregadas[i]);
       let fotosProcessadas = 0;
-      const fotosComImg = fotosDoMuseu.filter((_, i) => !!imagensPreCarregadas[i]);
 
       for (let p = 0; p < Math.ceil(fotosComImg.length / perPage); p++) {
         const pageFotos = fotosComImg.slice(p * perPage, (p + 1) * perPage);
         setProgresso(`Montando PDF · fotos ${fotosProcessadas + 1}–${Math.min(fotosProcessadas + pageFotos.length, fotosComImg.length)} de ${fotosComImg.length}`);
-        const imagens = pageFotos.map(foto => imagemPorChave.get(foto.id || foto.fileUrl));
+        const imagens = pageFotos.map((foto) => imagemPorChave.get(foto.id || foto.fileUrl));
         fotosProcessadas += pageFotos.length;
 
         doc.addPage();
         doc.setFillColor(255, 255, 255);
         doc.rect(0, 0, pageW, pageH, 'F');
 
-        doc.setFillColor(20, 20, 20);
-        doc.rect(0, 0, pageW, 14, 'F');
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(255, 255, 255);
-        doc.text('VIADUTO DAS ARTES · MUSEUS CENTRO', margin, 6.5);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(6.5);
-        doc.text(SECTION_LABELS[museuSelecionado], margin, 11);
-        doc.setTextColor(90, 90, 90);
+        // Timbre do Viaduto das Artes no cabeçalho
+        drawTimbreViaduto(doc, pageW, margin);
 
         for (let i = 0; i < pageFotos.length; i++) {
           const foto = pageFotos[i];
           const col = i % cols;
           const row = Math.floor(i / cols);
-          const slotX = margin + col * (cellW + 4);
-          const slotY = headerH + row * (cellH + 4);
+          const slotX = margin + col * (cellW + gapH);
+          const slotY = headerH + margin + row * (cellH + gapV);
           const imgResult = imagens[i];
           if (!imgResult) continue;
 
-          const scaleX = cellW / imgResult.w;
-          const scaleY = slotH / imgResult.h;
-          const scale = Math.min(scaleX, scaleY);
+          // Modo "cover": preenche o slot cortando o excedente
+          const scale = Math.max(cellW / imgResult.w, slotH / imgResult.h);
           const renderW = imgResult.w * scale;
           const renderH = imgResult.h * scale;
           const offsetX = slotX + (cellW - renderW) / 2;
@@ -276,29 +335,27 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
           doc.rect(slotX, slotY, cellW, slotH, 'S');
           if (foto.fileUrl) doc.link(offsetX, offsetY, renderW, renderH, { url: foto.fileUrl });
 
-          const legenda = normalizarLegenda(foto.legenda || foto.caption || foto.activityTitulo || foto.fileName || 'Registro fotográfico');
+          const fid = foto.id || foto.fileUrl;
+          const legendaRaw = legendasMap?.[fid] || foto.legenda || foto.caption || foto.activityTitulo || foto.fileName || 'Registro fotográfico';
+          const legenda = normalizarLegenda(legendaRaw);
           doc.setFontSize(7);
           doc.setFont('helvetica', 'bold');
           doc.setTextColor(40, 40, 40);
-          doc.text(doc.splitTextToSize(legenda, cellW).slice(0, 2), slotX, slotY + slotH + 5);
-          doc.setFontSize(5.5);
-          doc.setFont('helvetica', 'normal');
-          doc.setTextColor(115, 115, 115);
-          if (foto.reportMes) doc.text(`Período: ${foto.reportMes}`, slotX, slotY + slotH + 15, { maxWidth: cellW });
+          doc.text(doc.splitTextToSize(legenda, cellW).slice(0, 2), slotX, slotY + slotH + 4);
         }
       }
 
-      // Apenas rodapé + numeração em todas as páginas (sem sobrescrever imagens)
+      // Rodapé + numeração em todas as páginas
       const totalPaginas = doc.internal.getNumberOfPages();
       for (let pg = 1; pg <= totalPaginas; pg++) {
         doc.setPage(pg);
         doc.setDrawColor(220, 220, 220);
-        doc.line(margin, pageH - 10, pageW - margin, pageH - 10);
+        doc.line(margin, pageH - footerH, pageW - margin, pageH - footerH);
         doc.setFontSize(7);
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(140, 140, 140);
-        doc.text(`${SECTION_LABELS[museuSelecionado]} · Museus Centro`, margin, pageH - 6);
-        doc.text(`Página ${pg} de ${totalPaginas}`, pageW - margin, pageH - 6, { align: 'right' });
+        doc.text(`${SECTION_LABELS[museuSelecionado]} · Museus Centro`, margin, pageH - 5);
+        doc.text(`Página ${pg} de ${totalPaginas}`, pageW - margin, pageH - 5, { align: 'right' });
       }
 
       const ts = new Date().toISOString().slice(0, 10);
@@ -306,24 +363,36 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
 
       setAuditoria(auditLog);
       toast.success(`PDF do ${SECTION_KEYS_ABREV[museuSelecionado]} gerado! ${auditLog.carregadas}/${auditLog.total} fotos incluídas.`);
-      if (auditLog.falhas === 0) onClose();
+      setEtapa('');
+      setFotosRevisao([]);
+      onClose();
     } catch (e) {
       console.error(e);
       toast.error('Erro ao gerar PDF: ' + (e.message || 'tente novamente.'));
     } finally {
       setLoading(false);
       setProgresso('');
-      setEtapa('');
     }
   }
 
+  function handleGerarPDFFromRevisao(fotosFinais) {
+    // Aplica legendas atualizadas nas fotos filtradas (já sem duplicatas removidas)
+    const fotosComLegendas = fotosFinais.map((f) => {
+      const fid = f.id || f.fileUrl;
+      return { ...f, legenda: legendasAtualizadas[fid] || f.legenda || f.caption };
+    });
+    gerarPDFFinal(fotosComLegendas, legendasAtualizadas);
+  }
+
   const fotosDoMuseu = museuSelecionado
-    ? fotosIniciais.filter(f => f.sectionKey === museuSelecionado)
+    ? fotosIniciais.filter((f) => f.sectionKey === museuSelecionado)
     : [];
+
+  const emRevisao = etapa === 'revisao' && fotosRevisao.length > 0 && !loading;
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && !loading && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className={emRevisao ? 'max-w-2xl' : 'max-w-md'}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Building2 className="h-5 w-5" />
@@ -333,75 +402,102 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
 
         <div className="space-y-4 py-2">
           {/* Seleção de museu */}
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-gray-700">Selecione o museu</p>
-            <div className="grid grid-cols-2 gap-2">
-              {SECTION_ORDER.map(k => {
-                const count = fotosIniciais.filter(f => f.sectionKey === k).length;
-                return (
-                  <button
-                    key={k}
-                    type="button"
-                    onClick={() => !loading && setMuseuSelecionado(museuSelecionado === k ? '' : k)}
-                    className={`rounded-xl border px-3 py-2.5 text-left text-xs transition-all
-                      ${museuSelecionado === k
-                        ? 'border-black bg-black text-white'
-                        : count > 0
-                          ? 'border-gray-200 bg-white text-gray-800 hover:border-gray-400'
-                          : 'border-dashed border-gray-200 bg-gray-50 text-gray-400'
-                      }`}
-                  >
-                    <p className="font-semibold">{SECTION_KEYS_ABREV[k]}</p>
-                    <p className={`text-[10px] mt-0.5 ${museuSelecionado === k ? 'text-white/70' : 'text-gray-400'}`}>
-                      {count > 0 ? `${count} foto${count !== 1 ? 's' : ''} em cache` : 'sem fotos carregadas'}
-                    </p>
-                  </button>
-                );
-              })}
+          {!emRevisao && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-gray-700">Selecione o museu</p>
+              <div className="grid grid-cols-2 gap-2">
+                {SECTION_ORDER.map((k) => {
+                  const count = fotosIniciais.filter((f) => f.sectionKey === k).length;
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => !loading && setMuseuSelecionado(museuSelecionado === k ? '' : k)}
+                      className={`rounded-xl border px-3 py-2.5 text-left text-xs transition-all
+                        ${museuSelecionado === k
+                          ? 'border-black bg-black text-white'
+                          : count > 0
+                            ? 'border-gray-200 bg-white text-gray-800 hover:border-gray-400'
+                            : 'border-dashed border-gray-200 bg-gray-50 text-gray-400'
+                        }`}
+                    >
+                      <p className="font-semibold">{SECTION_KEYS_ABREV[k]}</p>
+                      <p className={`text-[10px] mt-0.5 ${museuSelecionado === k ? 'text-white/70' : 'text-gray-400'}`}>
+                        {count > 0 ? `${count} foto${count !== 1 ? 's' : ''} em cache` : 'sem fotos carregadas'}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Info sobre o fluxo */}
-          {museuSelecionado && !loading && !auditoria && (
+          {museuSelecionado && !loading && !auditoria && !emRevisao && (
             <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 space-y-1.5 text-xs text-blue-700">
               <p className="font-semibold flex items-center gap-1.5">
                 <CloudDownload className="h-3.5 w-3.5" /> Fluxo automático antes do PDF:
               </p>
               <p>1. Busca fotos novas do {SECTION_KEYS_ABREV[museuSelecionado]} no Google Drive</p>
-              <p>2. Carrega fotos atualizadas do banco</p>
-              <p>3. Gera o PDF com todas as fotos disponíveis</p>
+              <p>2. Gera legendas com IA para fotos sem legenda</p>
+              <p>3. Revisão de duplicatas e legendas</p>
+              <p>4. Gera o PDF com timbre do Viaduto das Artes (4 fotos/página)</p>
             </div>
+          )}
+
+          {/* Tela de revisão */}
+          {emRevisao && (
+            <RevisaoAntesExportar
+              fotos={fotosRevisao}
+              onLegendasAtualizadas={handleLegendasAtualizadas}
+              onGerarPDF={handleGerarPDFFromRevisao}
+              loading={loading}
+            />
           )}
 
           {/* Progresso */}
           {loading && (
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-2">
               <div className="flex items-center gap-2 text-sm text-gray-700">
-                {etapa === 'drive'
+                {etapa === 'drive' || etapa === 'legendas'
                   ? <RefreshCw className="h-4 w-4 animate-spin text-blue-500 shrink-0" />
                   : <Loader2 className="h-4 w-4 animate-spin shrink-0" />
                 }
                 <span className="text-xs leading-snug">{progresso || 'Processando...'}</span>
               </div>
-              <div className="flex items-center gap-2 text-xs text-gray-400">
+              <div className="flex items-center gap-2 text-xs text-gray-400 flex-wrap">
                 <span className={`rounded-full px-2 py-0.5 ${etapa === 'drive' ? 'bg-blue-100 text-blue-600 font-medium' : 'bg-gray-100 text-gray-400'}`}>
                   1. Drive
                 </span>
                 <span className="text-gray-300">→</span>
+                <span className={`rounded-full px-2 py-0.5 ${etapa === 'legendas' ? 'bg-blue-100 text-blue-600 font-medium' : 'bg-gray-100 text-gray-400'}`}>
+                  2. Legendas IA
+                </span>
+                <span className="text-gray-300">→</span>
+                <span className={`rounded-full px-2 py-0.5 ${etapa === 'revisao' ? 'bg-blue-100 text-blue-600 font-medium' : 'bg-gray-100 text-gray-400'}`}>
+                  3. Revisão
+                </span>
+                <span className="text-gray-300">→</span>
                 <span className={`rounded-full px-2 py-0.5 ${etapa === 'pdf' ? 'bg-blue-100 text-blue-600 font-medium' : 'bg-gray-100 text-gray-400'}`}>
-                  2. PDF
+                  4. PDF
                 </span>
               </div>
             </div>
           )}
 
           {/* Auditoria */}
-          {auditoria && !loading && (
+          {auditoria && !loading && !emRevisao && (
             <div className="rounded-xl border border-green-200 bg-green-50 p-3 space-y-1 text-xs">
               <p className="font-semibold text-green-800 flex items-center gap-1.5">
                 <CheckCircle2 className="h-4 w-4" /> PDF gerado com sucesso
               </p>
               <p className="text-green-700">✓ Fotos incluídas: <strong>{auditoria.carregadas}</strong> / {auditoria.total}</p>
+              {auditoria.duplicatasRemovidas > 0 && (
+                <p className="text-amber-700">⊘ Duplicatas removidas: <strong>{auditoria.duplicatasRemovidas}</strong></p>
+              )}
+              {auditoria.legendasIA > 0 && (
+                <p className="text-blue-700">✎ Legendas revisadas por IA: <strong>{auditoria.legendasIA}</strong></p>
+              )}
               {auditoria.falhas > 0 && (
                 <p className="text-amber-700">⚠ Não acessíveis: <strong>{auditoria.falhas}</strong></p>
               )}
@@ -409,22 +505,24 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
           )}
         </div>
 
-        <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={onClose} disabled={loading}>
-            {auditoria && !loading ? 'Fechar' : 'Cancelar'}
-          </Button>
-          <Button
-            onClick={handleExportar}
-            disabled={loading || !museuSelecionado}
-          >
-            {loading
-              ? <><Loader2 className="h-4 w-4 animate-spin mr-1" />Processando...</>
-              : museuSelecionado
-                ? `Exportar ${SECTION_KEYS_ABREV[museuSelecionado]}`
-                : 'Selecione um museu'
-            }
-          </Button>
-        </DialogFooter>
+        {!emRevisao && (
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={onClose} disabled={loading}>
+              {auditoria && !loading ? 'Fechar' : 'Cancelar'}
+            </Button>
+            <Button
+              onClick={handleExportar}
+              disabled={loading || !museuSelecionado}
+            >
+              {loading
+                ? <><Loader2 className="h-4 w-4 animate-spin mr-1" />Processando...</>
+                : museuSelecionado
+                  ? `Exportar ${SECTION_KEYS_ABREV[museuSelecionado]}`
+                  : 'Selecione um museu'
+              }
+            </Button>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   );
