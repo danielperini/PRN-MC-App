@@ -5,6 +5,7 @@ import LoadingPage from '@/components/common/LoadingPage';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Images, MapPin, RefreshCw, X, Filter, CheckCircle2, Moon, ExternalLink, BookImage, ChevronDown, HardDriveDownload, TriangleAlert, FileDown, Pencil, Check, MoreVertical, Download, Calendar, Layers, Sparkles } from 'lucide-react';
+import SyncNovasFotosDriveButton from '@/components/gallery/SyncNovasFotosDriveButton';
 import { toast } from 'sonner';
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
@@ -526,6 +527,9 @@ function GaleriaFotosInner() {
               </p>
             }
             {isFetching && !isAutoSyncing && <p className="mt-2 text-xs text-gray-400">Atualizando galeria...</p>}
+            <div className="mt-3">
+              <SyncNovasFotosDriveButton onSync={() => { clearGalleryCache(); refetch(); }} />
+            </div>
             {isGeneratingCaptions &&
             <p className="mt-1 inline-flex items-center gap-1 text-xs text-emerald-600">
                 <RefreshCw className="h-3 w-3 animate-spin" />
