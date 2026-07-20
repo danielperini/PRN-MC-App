@@ -92,12 +92,14 @@ function drawInstitutionalHeader(doc, pageW) {
 
 const FOLDER_DRIVE_ID = '1gMPRXyamu9YANVFg6Xf7VtWoOoF-3CbQ';
 
-async function varrerTodosMuseusDrive(setProgresso) {
+async function varrerTodosMuseusDrive(setProgresso, setProgressoPct) {
   const museus = ['MHAB', 'MIS', 'MUMO', 'Casa do Baile'];
   let totalCriadas = 0;
   let totalReparadas = 0;
-  for (const museu of museus) {
+  for (let mi = 0; mi < museus.length; mi++) {
+    const museu = museus[mi];
     setProgresso(`Varrendo pastas do ${museu} no Drive...`);
+    if (setProgressoPct) setProgressoPct(2 + Math.round((mi / museus.length) * 25));
     try {
       let offset = 0;
       let hasMore = true;
@@ -123,6 +125,7 @@ async function varrerTodosMuseusDrive(setProgresso) {
   }
   if (totalCriadas + totalReparadas > 0) {
     setProgresso(`✓ ${totalCriadas} novas + ${totalReparadas} reparadas de todos os museus. Recarregando banco...`);
+    if (setProgressoPct) setProgressoPct(28);
     await new Promise(r => setTimeout(r, 600));
   }
 }
@@ -130,6 +133,8 @@ async function varrerTodosMuseusDrive(setProgresso) {
 export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
   const [loading, setLoading] = useState(false);
   const [progresso, setProgresso] = useState('');
+  const [progressoPct, setProgressoPct] = useState(0);
+  const [etapa, setEtapa] = useState('');
   const [auditoria, setAuditoria] = useState(null);
 
   // Filtra apenas fotos com museu identificado
@@ -143,12 +148,14 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
     }
     setLoading(true);
     setAuditoria(null);
+    setProgressoPct(2);
 
     const auditLog = { carregadas: 0, falhas: 0, total: fotosValidas.length, novas_importadas: 0 };
 
     try {
       // ── Etapa 0: varre pastas do Drive de todos os museus antes de gerar o PDF ──
-      await varrerTodosMuseusDrive(setProgresso);
+      setEtapa('drive');
+      await varrerTodosMuseusDrive(setProgresso, setProgressoPct);
 
       // ── Etapa 0.5: valida integridade das URLs ──
       const semUrl = fotosValidas.filter(f => !f.fileUrl || typeof f.fileUrl !== 'string' || f.fileUrl.trim() === '');
@@ -163,10 +170,19 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
       const slotH = 81;
       const cellH = slotH + 26;
 
+      setEtapa('pdf');
       setProgresso(`Carregando ${fotosValidas.length} fotos do Drive antes de montar o PDF...`);
-      const imagensPreCarregadas = await Promise.all(
-        fotosValidas.map((foto) => fetchPhotoData(foto, cellW * 4, slotH * 4))
-      );
+      setProgressoPct(30);
+      const imagensPreCarregadas = [];
+      for (let i = 0; i < fotosValidas.length; i++) {
+        if (i > 0 && i % 3 === 0) {
+          setProgresso(`Carregando imagens · ${i}/${fotosValidas.length}...`);
+          setProgressoPct(30 + Math.round((i / fotosValidas.length) * 35));
+          await new Promise((r) => requestAnimationFrame(() => r()));
+        }
+        imagensPreCarregadas.push(await fetchPhotoData(fotosValidas[i], cellW * 4, slotH * 4));
+      }
+      setProgressoPct(65);
       const fotosFalhas = fotosValidas.filter((_, index) => !imagensPreCarregadas[index]);
       if (fotosFalhas.length) {
         throw new Error(`${fotosFalhas.length} foto(s) não puderam ser carregadas do Drive. Nenhuma página em branco foi gerada.`);
@@ -213,6 +229,8 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
 
       let fotosProcessadas = 0;
       const total = fotosValidas.length;
+      let museuCounter = 0;
+      const totalMuseus = museusPresentes.length;
 
       for (const sectionKey of SECTION_ORDER) {
         const secFotos = grupos.get(sectionKey) || [];
@@ -239,10 +257,13 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
         doc.text('VIADUTO DAS ARTES · MUSEUS CENTRO', margin, 8.5);
 
         // ── Páginas de fotos ──
-        for (let p = 0; p < Math.ceil(secFotos.length / perPage); p++) {
+        const totalPagSec = Math.ceil(secFotos.length / perPage);
+        for (let p = 0; p < totalPagSec; p++) {
           const pageFotos = secFotos.slice(p * perPage, (p + 1) * perPage);
-
-          setProgresso(`${SECTION_LABELS[sectionKey]} · fotos ${fotosProcessadas + 1}–${Math.min(fotosProcessadas + pageFotos.length, total)} de ${total}`);
+          const pctBase = 65 + Math.round((fotosProcessadas / total) * 30);
+          setProgresso(`${SECTION_LABELS[sectionKey]} · página ${p + 1}/${totalPagSec} (fotos ${fotosProcessadas + 1}–${Math.min(fotosProcessadas + pageFotos.length, total)} de ${total})`);
+          setProgressoPct(pctBase);
+          await new Promise((r) => requestAnimationFrame(() => r()));
           const imagens = pageFotos.map((foto) => imagemPorChave.get(foto.id || foto.fileUrl));
           fotosProcessadas += pageFotos.length;
 
@@ -269,6 +290,9 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
             const slotX = margin + col * (cellW + 4);
             const slotY = headerH + row * (cellH + 4);
             const imgResult = imagens[i];
+            if (!imgResult) continue;
+
+            if (i > 0) await new Promise((r) => requestAnimationFrame(() => r()));
 
             const scaleX = cellW / imgResult.w;
             const scaleY = slotH / imgResult.h;
@@ -301,6 +325,8 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
       }
 
       setProgresso('Preparando a auditoria...');
+      setProgressoPct(96);
+      await new Promise((r) => requestAnimationFrame(() => r()));
 
       // Página de auditoria ao final
       doc.addPage();
@@ -348,6 +374,8 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
 
       setAuditoria(auditLog);
       toast.success(`PDF gerado! ${auditLog.carregadas}/${total} fotos incluídas.`);
+      setEtapa('');
+      setProgressoPct(0);
       if (auditLog.falhas === 0) onClose();
     } catch (e) {
       console.error(e);
@@ -355,6 +383,8 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
     } finally {
       setLoading(false);
       setProgresso('');
+      setProgressoPct(0);
+      setEtapa('');
     }
   }
 
@@ -396,10 +426,20 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
           </div>
 
           {loading && (
-            <div className="space-y-1">
+            <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 rounded-lg px-4 py-3">
                 <Loader2 className="h-4 w-4 animate-spin shrink-0" />
                 <span className="text-xs leading-snug">{progresso || 'Gerando PDF...'}</span>
+              </div>
+              <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-blue-500 rounded-full transition-all duration-300 ease-out"
+                  style={{ width: `${Math.max(3, Math.min(100, progressoPct))}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between text-xs text-gray-400 px-1">
+                <span>{Math.round(progressoPct)}%</span>
+                <span>{etapa === 'drive' ? 'Etapa: Drive' : etapa === 'pdf' ? 'Etapa: PDF' : 'Processando'}</span>
               </div>
               <p className="text-[11px] text-gray-400 px-1">
                 As fotos são carregadas via browser. URLs bloqueadas por CORS serão marcadas com link para o original.

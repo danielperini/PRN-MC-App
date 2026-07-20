@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { FileDown, Loader2, AlertTriangle, Building2, RefreshCw, CheckCircle2, CloudDownload } from 'lucide-react';
+import { FileDown, Loader2, AlertTriangle, Building2, RefreshCw, CheckCircle2, CloudDownload, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { jsPDF } from 'jspdf';
 import { base44 } from '@/api/base44Client';
@@ -74,14 +74,15 @@ function normalizarLegenda(texto = '') {
 }
 
 // Helper: atualiza o progresso E aguarda o browser pintar, evitando texto travado/corrompido
-async function atualizarProgresso(setProgresso, texto) {
+async function atualizarProgresso(setProgresso, texto, setProgressoPct, pct) {
   setProgresso(texto);
+  if (setProgressoPct && typeof pct === 'number') setProgressoPct(pct);
   await new Promise((r) => requestAnimationFrame(() => r()));
   await new Promise((r) => setTimeout(r, 0));
 }
 
-async function sincronizarFotosMuseoDoDrive(museuKey, setProgresso) {
-  await atualizarProgresso(setProgresso, `Varrendo pastas do ${SECTION_KEYS_ABREV[museuKey]} no Drive...`);
+async function sincronizarFotosMuseoDoDrive(museuKey, setProgresso, setProgressoPct) {
+  await atualizarProgresso(setProgresso, `Varrendo pastas do ${SECTION_KEYS_ABREV[museuKey]} no Drive...`, setProgressoPct, 5);
   try {
     let offset = 0;
     let totalCriadas = 0;
@@ -92,7 +93,7 @@ async function sincronizarFotosMuseoDoDrive(museuKey, setProgresso) {
     let lastOffset = -1;
     while (hasMore && page < MAX_PAGES) {
       page++;
-      await atualizarProgresso(setProgresso, `Varredura ${SECTION_KEYS_ABREV[museuKey]} · lote ${page} (${totalCriadas} novas até agora)...`);
+      await atualizarProgresso(setProgresso, `Varredura ${SECTION_KEYS_ABREV[museuKey]} · lote ${page} (${totalCriadas} novas até agora)...`, setProgressoPct, Math.min(5 + page * 3, 15));
       const res = await base44.functions.invoke('varrerFotosMuseusDrive', {
         folder_id: FOLDER_DRIVE_ID,
         museu: museuKey,
@@ -108,10 +109,10 @@ async function sincronizarFotosMuseoDoDrive(museuKey, setProgresso) {
       if (!d.success) break;
     }
     if (totalCriadas + totalReparadas > 0) {
-      await atualizarProgresso(setProgresso, `✓ ${totalCriadas} novas + ${totalReparadas} reparadas do ${SECTION_KEYS_ABREV[museuKey]}. Recarregando banco...`);
+      await atualizarProgresso(setProgresso, `✓ ${totalCriadas} novas + ${totalReparadas} reparadas do ${SECTION_KEYS_ABREV[museuKey]}. Recarregando banco...`, setProgressoPct, 18);
       await new Promise(r => setTimeout(r, 600));
     } else {
-      await atualizarProgresso(setProgresso, `Nenhuma foto nova encontrada no Drive do ${SECTION_KEYS_ABREV[museuKey]}.`);
+      await atualizarProgresso(setProgresso, `Nenhuma foto nova encontrada no Drive do ${SECTION_KEYS_ABREV[museuKey]}.`, setProgressoPct, 18);
     }
   } catch (e) {
     console.warn('Varredura Drive silenciada:', e?.message);
@@ -144,14 +145,16 @@ function normalizarFotoParaGaleria(foto) {
 }
 
 // Gera legendas via IA para fotos sem legenda ou com legenda genérica (lotes de 5)
-async function gerarLegendasIA(fotos, setProgresso, legendasAtuais) {
+async function gerarLegendasIA(fotos, setProgresso, legendasAtuais, setProgressoPct) {
   const precisam = fotos.filter((f) => isLegendaGenerica(f.legenda || f.caption));
   if (precisam.length === 0) return { revisadasIA: 0 };
 
   let revisadasIA = 0;
+  const totalLotes = Math.ceil(precisam.length / 5);
   for (let i = 0; i < precisam.length; i += 5) {
     const lote = precisam.slice(i, i + 5);
-    await atualizarProgresso(setProgresso, `Gerando legendas com IA · lote ${Math.floor(i / 5) + 1} de ${Math.ceil(precisam.length / 5)}...`);
+    const loteNum = Math.floor(i / 5) + 1;
+    await atualizarProgresso(setProgresso, `Gerando legendas com IA · lote ${loteNum} de ${totalLotes}...`, setProgressoPct, 20 + Math.round((loteNum / totalLotes) * 25));
     const resultados = await Promise.allSettled(
       lote.map((f) =>
         base44.functions.invoke('suggestPhotoCaption', { photoUrl: f.fileUrl })
@@ -198,6 +201,7 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
   const [fotosPorAtividade, setFotosPorAtividade] = useState(8);
   const [loading, setLoading] = useState(false);
   const [progresso, setProgresso] = useState('');
+  const [progressoPct, setProgressoPct] = useState(0);
   const [etapa, setEtapa] = useState(''); // 'drive' | 'legendas' | 'revisao' | 'pdf'
   const [auditoria, setAuditoria] = useState(null);
   const [fotosRevisao, setFotosRevisao] = useState([]);
@@ -219,7 +223,8 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
     try {
       // ── Etapa 1: busca fotos no banco primeiro ──
       setEtapa('drive');
-      await atualizarProgresso(setProgresso, 'Buscando fotos no banco de dados...');
+      setProgressoPct(2);
+      await atualizarProgresso(setProgresso, 'Buscando fotos no banco de dados...', setProgressoPct, 3);
       let fotosAtualizadas = await buscarFotosAtualizadasDoMuseu(museuSelecionado);
       let fotosDoMuseu = fotosAtualizadas.length > 0
         ? fotosAtualizadas.map(normalizarFotoParaGaleria).filter(f => f.fileUrl)
@@ -229,6 +234,7 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
         toast.error('Nenhuma foto encontrada para este museu.');
         setLoading(false);
         setProgresso('');
+        setProgressoPct(0);
         setEtapa('');
         return;
       }
@@ -236,14 +242,14 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
       // ── Etapa 1.5: só varre o Drive se houver fotos em branco (sem URL válida) ──
       const semUrlBanco = fotosDoMuseu.filter(f => !f.fileUrl || typeof f.fileUrl !== 'string' || f.fileUrl.trim() === '');
       if (semUrlBanco.length > 0) {
-        await sincronizarFotosMuseoDoDrive(museuSelecionado, setProgresso);
-        await atualizarProgresso(setProgresso, 'Recarregando fotos do banco após varredura...');
+        await sincronizarFotosMuseoDoDrive(museuSelecionado, setProgresso, setProgressoPct);
+        await atualizarProgresso(setProgresso, 'Recarregando fotos do banco após varredura...', setProgressoPct, 18);
         fotosAtualizadas = await buscarFotosAtualizadasDoMuseu(museuSelecionado);
         if (fotosAtualizadas.length > 0) {
           fotosDoMuseu = fotosAtualizadas.map(normalizarFotoParaGaleria).filter(f => f.fileUrl);
         }
       } else {
-        await atualizarProgresso(setProgresso, `${fotosDoMuseu.length} fotos encontradas no banco. Indo para o catálogo...`);
+        await atualizarProgresso(setProgresso, `${fotosDoMuseu.length} fotos encontradas no banco. Indo para legendas...`, setProgressoPct, 18);
       }
 
       // ── Etapa 2: filtra fotos por atividade (limite por grupo) ──
@@ -263,7 +269,7 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
       setEtapa('legendas');
       const legendasAtuais = {};
       fotosFiltradas.forEach((f) => { legendasAtuais[f.id || f.fileUrl] = f.legenda || f.caption || ''; });
-      const { revisadasIA } = await gerarLegendasIA(fotosFiltradas, setProgresso, legendasAtuais);
+      const { revisadasIA } = await gerarLegendasIA(fotosFiltradas, setProgresso, legendasAtuais, setProgressoPct);
       setLegendasAtualizadas(legendasAtuais);
 
       // ── Etapa 4: tela de revisão antes de gerar o PDF ──
@@ -271,11 +277,13 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
       setFotosRevisao(fotosFiltradas);
       setLoading(false);
       setProgresso('');
+      setProgressoPct(0);
     } catch (e) {
       console.error(e);
       toast.error('Erro ao preparar revisão: ' + (e.message || 'tente novamente.'));
       setLoading(false);
       setProgresso('');
+      setProgressoPct(0);
       setEtapa('');
     }
   }
@@ -283,8 +291,9 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
   async function gerarPDFFinal(fotosParaPDF, legendasMap) {
     setLoading(true);
     setEtapa('pdf');
+    setProgressoPct(45);
     try {
-      await atualizarProgresso(setProgresso, `Carregando ${fotosParaPDF.length} imagens para o PDF...`);
+      await atualizarProgresso(setProgresso, `Carregando ${fotosParaPDF.length} imagens para o PDF...`, setProgressoPct, 46);
 
       // Layout A4: 210×297, margem 10mm, header timbre ~32mm, footer 10mm, gap 5mm
       const pageW = 210, pageH = 297, margin = 10;
@@ -295,9 +304,13 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
       const cellH = (pageH - headerH - footerH - margin * 2 - (rows - 1) * gapV) / rows;
       const slotH = cellH - 12; // espaço para legenda abaixo da foto
 
-      const imagensPreCarregadas = await Promise.all(
-        fotosParaPDF.map((foto) => fetchPhotoData(foto, cellW * 4, slotH * 4))
-      );
+      const imagensPreCarregadas = [];
+      for (let i = 0; i < fotosParaPDF.length; i++) {
+        if (i > 0 && i % 3 === 0) {
+          await atualizarProgresso(setProgresso, `Carregando imagens · ${i}/${fotosParaPDF.length}...`, setProgressoPct, 46 + Math.round((i / fotosParaPDF.length) * 24));
+        }
+        imagensPreCarregadas.push(await fetchPhotoData(fotosParaPDF[i], cellW * 4, slotH * 4));
+      }
 
       const falhas = fotosParaPDF.filter((_, i) => !imagensPreCarregadas[i]);
       if (fotosParaPDF.length - falhas.length === 0) {
@@ -311,7 +324,7 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
         fotosParaPDF.map((foto, i) => [foto.id || foto.fileUrl, imagensPreCarregadas[i]])
       );
 
-      await atualizarProgresso(setProgresso, `Montando PDF · ${fotosParaPDF.length - falhas.length} foto(s)...`);
+      await atualizarProgresso(setProgresso, `Montando PDF · ${fotosParaPDF.length - falhas.length} foto(s)...`, setProgressoPct, 72);
 
       const auditLog = {
         carregadas: fotosParaPDF.length - falhas.length,
@@ -351,9 +364,11 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
       const fotosComImg = fotosParaPDF.filter((_, i) => !!imagensPreCarregadas[i]);
       let fotosProcessadas = 0;
 
-      for (let p = 0; p < Math.ceil(fotosComImg.length / perPage); p++) {
+      const totalPaginasFoto = Math.ceil(fotosComImg.length / perPage);
+      for (let p = 0; p < totalPaginasFoto; p++) {
         const pageFotos = fotosComImg.slice(p * perPage, (p + 1) * perPage);
-        await atualizarProgresso(setProgresso, `Montando PDF · fotos ${fotosProcessadas + 1}–${Math.min(fotosProcessadas + pageFotos.length, fotosComImg.length)} de ${fotosComImg.length}`);
+        const pctPagina = 72 + Math.round(((p + 1) / totalPaginasFoto) * 25);
+        await atualizarProgresso(setProgresso, `Montando PDF · página ${p + 1}/${totalPaginasFoto} (fotos ${fotosProcessadas + 1}–${Math.min(fotosProcessadas + pageFotos.length, fotosComImg.length)} de ${fotosComImg.length})`, setProgressoPct, pctPagina);
         const imagens = pageFotos.map((foto) => imagemPorChave.get(foto.id || foto.fileUrl));
         fotosProcessadas += pageFotos.length;
 
@@ -373,8 +388,8 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
           const imgResult = imagens[i];
           if (!imgResult) continue;
 
-          // Yield entre fotos pesadas para manter a UI responsiva
-          if (i > 0) await new Promise((r) => setTimeout(r, 0));
+          // Yield entre fotos pesadas para manter a UI responsiva (requestAnimationFrame garante repintura)
+          if (i > 0) await new Promise((r) => requestAnimationFrame(() => r()));
 
           // Modo "cover": preenche o slot cortando o excedente
           const scale = Math.max(cellW / imgResult.w, slotH / imgResult.h);
@@ -420,6 +435,7 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
       toast.success(`PDF do ${SECTION_KEYS_ABREV[museuSelecionado]} gerado! ${auditLog.carregadas}/${auditLog.total} fotos incluídas.`);
       setEtapa('');
       setFotosRevisao([]);
+      setProgressoPct(0);
       onClose();
     } catch (e) {
       console.error(e);
@@ -427,6 +443,7 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
     } finally {
       setLoading(false);
       setProgresso('');
+      setProgressoPct(0);
     }
   }
 
@@ -553,7 +570,7 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
 
           {/* Progresso */}
           {loading && (
-            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-2">
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-3">
               <div className="flex items-center gap-2 text-sm text-gray-700">
                 {etapa === 'drive' || etapa === 'legendas'
                   ? <RefreshCw className="h-4 w-4 animate-spin text-blue-500 shrink-0" />
@@ -561,22 +578,45 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
                 }
                 <span className="text-xs leading-snug">{progresso || 'Processando...'}</span>
               </div>
-              <div className="flex items-center gap-2 text-xs text-gray-400 flex-wrap">
-                <span className={`rounded-full px-2 py-0.5 ${etapa === 'drive' ? 'bg-blue-100 text-blue-600 font-medium' : 'bg-gray-100 text-gray-400'}`}>
-                  1. Drive
-                </span>
-                <span className="text-gray-300">→</span>
-                <span className={`rounded-full px-2 py-0.5 ${etapa === 'legendas' ? 'bg-blue-100 text-blue-600 font-medium' : 'bg-gray-100 text-gray-400'}`}>
-                  2. Legendas IA
-                </span>
-                <span className="text-gray-300">→</span>
-                <span className={`rounded-full px-2 py-0.5 ${etapa === 'revisao' ? 'bg-blue-100 text-blue-600 font-medium' : 'bg-gray-100 text-gray-400'}`}>
-                  3. Revisão
-                </span>
-                <span className="text-gray-300">→</span>
-                <span className={`rounded-full px-2 py-0.5 ${etapa === 'pdf' ? 'bg-blue-100 text-blue-600 font-medium' : 'bg-gray-100 text-gray-400'}`}>
-                  4. PDF
-                </span>
+              {/* Barra de progresso percentual */}
+              <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-blue-500 rounded-full transition-all duration-300 ease-out"
+                  style={{ width: `${Math.max(3, Math.min(100, progressoPct))}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between text-xs text-gray-400">
+                <span>{Math.round(progressoPct)}%</span>
+                <span>{etapa === 'drive' ? 'Etapa: Drive' : etapa === 'legendas' ? 'Etapa: Legendas IA' : etapa === 'pdf' ? 'Etapa: PDF' : 'Processando'}</span>
+              </div>
+              {/* Stepper visual com checkmarks */}
+              <div className="flex items-center gap-1 text-xs flex-wrap">
+                {[
+                  { key: 'drive', label: 'Drive' },
+                  { key: 'legendas', label: 'Legendas IA' },
+                  { key: 'revisao', label: 'Revisão' },
+                  { key: 'pdf', label: 'PDF' },
+                ].map((step, idx, arr) => {
+                  const stepOrder = ['drive', 'legendas', 'revisao', 'pdf'];
+                  const currentIdx = etapa ? stepOrder.indexOf(etapa) : -1;
+                  const stepIdx = stepOrder.indexOf(step.key);
+                  const isDone = currentIdx > stepIdx;
+                  const isActive = currentIdx === stepIdx;
+                  return (
+                    <React.Fragment key={step.key}>
+                      <span className={`rounded-full px-2 py-0.5 flex items-center gap-1 transition-all
+                        ${isActive
+                          ? 'bg-blue-100 text-blue-600 font-medium'
+                          : isDone
+                            ? 'bg-green-100 text-green-600 font-medium'
+                            : 'bg-gray-100 text-gray-400'}`}>
+                        {isDone && <Check className="h-3 w-3" />}
+                        {idx + 1}. {step.label}
+                      </span>
+                      {idx < arr.length - 1 && <span className="text-gray-300">→</span>}
+                    </React.Fragment>
+                  );
+                })}
               </div>
             </div>
           )}
