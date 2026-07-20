@@ -21,6 +21,9 @@ Deno.serve(async (req) => {
     const brasiliaHour = (now.getUTCHours() - 3 + 24) % 24;
     const brasiliaMinute = now.getUTCMinutes();
 
+    // Se forçado (force=true) e sem slot definido, processar todos os pendentes
+    const force = body.force === true;
+
     let batchSlot: string | null = body.slot || null;
 
     if (!batchSlot) {
@@ -29,11 +32,10 @@ Deno.serve(async (req) => {
         batchSlot = 'manha';
       } else if (brasiliaHour >= 16 && brasiliaHour < 19) {
         batchSlot = 'tarde';
+      } else if (force) {
+        batchSlot = 'forçado';
       }
     }
-
-    // Se forçado (force=true) e sem slot definido, processar todos os pendentes
-    const force = body.force === true;
 
     // Buscar pendentes — service role para funcionar em automações agendadas
     let pendingItems: any[];
@@ -149,14 +151,11 @@ Deno.serve(async (req) => {
     `;
 
     // Destinatários — apenas usuários registrados no app (SendEmail só funciona para eles)
-    // Josiane: josianeamancio@viadutodasartes.org.br | adm: adm@viadutodasartes.org.br
-    // Daniel Perini: danielperini.mc@ e daniel@periniprojetos.com.br
-    // notasfiscais@viadutodasartes.org.br NÃO é usuária registrada — NÃO incluir
+    // adm@, josianeamancio@ e danielperini.mc@ são os administradores registrados
     const recipients = [
       'adm@viadutodasartes.org.br',
       'josianeamancio@viadutodasartes.org.br',
-      'danielperini.mc@viadutodasartes.org.br',
-      'daniel@periniprojetos.com.br'
+      'danielperini.mc@viadutodasartes.org.br'
     ];
 
     const digestId = `DIGEST-${batchSlot.toUpperCase()}-${now.toISOString().split('T')[0]}-${Date.now()}`;

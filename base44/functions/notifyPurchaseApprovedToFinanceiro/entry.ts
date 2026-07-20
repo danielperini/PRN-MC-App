@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
-const FIXED_EMAILS = ['notasfiscais@viadutodasartes.org.br', 'danielperini.mc@viadutodasartes.org.br', 'daniel@periniprojetos.com.br'];
+const FIXED_EMAILS = ['adm@viadutodasartes.org.br', 'josianeamancio@viadutodasartes.org.br', 'danielperini.mc@viadutodasartes.org.br'];
 
 const TOMADOR_VIADUTO = {
   nome: 'VIADUTO DAS ARTES',
