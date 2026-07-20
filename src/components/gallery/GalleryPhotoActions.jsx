@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Trash2, Pencil, Mail, Link2, CheckSquare, Square, X, Send, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Trash2, Pencil, Mail, Link2, CheckSquare, Square, X, Send, CheckCircle2, AlertTriangle, Download } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,17 +45,29 @@ export function PhotoActionBar({ image, selected, onToggleSelect, onDelete, onEd
 }
 
 // Barra de ações em bloco (aparece quando há fotos selecionadas)
-export function BulkActionBar({ selectedPhotos, onDeselectAll, onDeleteSelected, onEmailSelected, onCopyLinks }) {
+export function BulkActionBar({ selectedPhotos, onDeselectAll, onDeleteSelected, onEmailSelected, onCopyLinks, onDownloadBatch }) {
   const count = selectedPhotos.length;
   if (count === 0) return null;
+
+  const pacotes = Math.ceil(count / 4);
 
   return (
     <div className="sticky top-0 z-30 mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-blue-300 bg-blue-600 px-4 py-3 shadow-lg">
       <span className="text-sm font-semibold text-white">
         {count} {count === 1 ? 'foto selecionada' : 'fotos selecionadas'}
+        {count > 0 && <span className="ml-2 text-blue-200">· {pacotes} {pacotes === 1 ? 'pacote' : 'pacotes'} de 4</span>}
       </span>
 
       <div className="flex flex-wrap gap-2 ml-auto">
+        <button
+          type="button"
+          onClick={onDownloadBatch}
+          disabled={count === 0}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-white/30 bg-white/15 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <Download className="w-3.5 h-3.5" />
+          Baixar pacote{pacotes > 1 ? 's' : ''} ({pacotes}×4)
+        </button>
         <button
           type="button"
           onClick={onCopyLinks}

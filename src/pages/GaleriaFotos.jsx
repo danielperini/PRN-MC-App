@@ -359,6 +359,34 @@ function GaleriaFotosInner() {
     return selectedPhotos.some((p) => (p.id || p.fileUrl) === id);
   }
 
+  async function baixarPacotesDe4() {
+    if (selectedPhotos.length === 0) return;
+    const pacotes = [];
+    for (let i = 0; i < selectedPhotos.length; i += 4) {
+      pacotes.push(selectedPhotos.slice(i, i + 4));
+    }
+    toast.info(`Baixando ${pacotes.length} ${pacotes.length === 1 ? 'pacote' : 'pacotes'} de 4 fotos...`);
+    for (let p = 0; p < pacotes.length; p++) {
+      const lote = pacotes[p];
+      const zipName = `pacote_fotos_${p + 1}_de_${pacotes.length}`;
+      const links = lote.map((photo, i) =>
+        `${i + 1}. ${photo.legenda || photo.activityTitulo || photo.fileName || 'Foto'}\n   ${photo.fileUrl}`
+      ).join('\n\n');
+      const blob = new Blob([links], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${zipName}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      // Pequeno intervalo entre downloads para não bloquear o browser
+      if (p < pacotes.length - 1) await new Promise((r) => setTimeout(r, 500));
+    }
+    toast.success(`${pacotes.length} ${pacotes.length === 1 ? 'pacote baixado' : 'pacotes baixados'}!`);
+  }
+
   const hasActiveFilters = filterMuseu || filterPeriodo;
 
   function resetFilters() {
@@ -603,7 +631,8 @@ function GaleriaFotosInner() {
             `${i + 1}. ${p.legenda || p.activityTitulo || p.fileName || 'Foto'}\n   ${p.fileUrl}`
             ).join('\n\n');
             navigator.clipboard.writeText(text);
-          }} />
+          }}
+          onDownloadBatch={baixarPacotesDe4} />
 
         {/* Banner de duplicatas detectadas */}
         {duplicates.length > 0 && !showAjustarVinculos && (
