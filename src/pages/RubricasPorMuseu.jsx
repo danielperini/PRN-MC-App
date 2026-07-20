@@ -391,10 +391,15 @@ export default function RubricasPorMuseu() {
   const fmt = (v) => toNumber(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtPct = (v) => `${Number(v || 0).toFixed(1)}%`;
 
+  // KPIs gerais = soma EXATA dos cards visíveis na grade (museus físicos + noturno),
+  // excluindo centros transversais que são exibidos separadamente em CentrosCustoCards
+  const CENTROS_CARDS_GRADE = new Set(['MHAB', 'MIS', 'MUMO', 'Noturno 2026', 'Noturno Pampulha']);
+
   const totaisGerais = useMemo(() => {
-    const totalOrcado = resumoPorMuseu.reduce((acc, item) => acc + toNumber(item.totalOrcado), 0);
-    const totalUtilizado = resumoPorMuseu.reduce((acc, item) => acc + toNumber(item.totalUtilizado), 0);
-    const totalPago = resumoPorMuseu.reduce((acc, item) => acc + toNumber(item.totalPago), 0);
+    const cardsGrade = resumoPorMuseu.filter(item => CENTROS_CARDS_GRADE.has(item.museu));
+    const totalOrcado = Number(cardsGrade.reduce((acc, item) => acc + toNumber(item.totalOrcado), 0).toFixed(2));
+    const totalUtilizado = Number(cardsGrade.reduce((acc, item) => acc + toNumber(item.totalUtilizado), 0).toFixed(2));
+    const totalPago = Number(cardsGrade.reduce((acc, item) => acc + toNumber(item.totalPago), 0).toFixed(2));
     const totalSaldo = Number((totalOrcado - totalUtilizado).toFixed(2));
     return { totalOrcado, totalUtilizado, totalPago, totalLancamentos: 0, totalSaldo };
   }, [resumoPorMuseu]);
