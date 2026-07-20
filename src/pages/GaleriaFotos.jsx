@@ -333,16 +333,7 @@ function GaleriaFotosInner() {
       if (sortBy === 'name-desc') return String(b.fileName || '').localeCompare(String(a.fileName || ''), 'pt-BR');
       return new Date(b.timestamp || b.date || 0) - new Date(a.timestamp || a.date || 0);
     });
-    // Limitar a 1 foto por atividade: mantém a primeira (melhor/mais recente) por chave de atividade
-    const seenActivity = new Set();
-    return sorted.filter((img) => {
-      const atKey = getAtividadeKey(img);
-      // Se não tem atividade definida, não deduplica (exibe normalmente)
-      if (!atKey) return true;
-      if (seenActivity.has(atKey)) return false;
-      seenActivity.add(atKey);
-      return true;
-    });
+    return sorted;
   }, [filteredImages, sortBy]);
 
   const visibleImages = sortedImages.slice(0, visibleCount);
