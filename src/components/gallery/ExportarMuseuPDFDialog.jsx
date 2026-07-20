@@ -76,25 +76,36 @@ function drawInstitutionalHeader(doc, pageW) {
 }
 
 async function sincronizarFotosMuseoDoDrive(museuKey, setProgresso) {
-  setProgresso(`Buscando fotos do ${SECTION_KEYS_ABREV[museuKey]} no Drive...`);
+  setProgresso(`Varrendo pastas do ${SECTION_KEYS_ABREV[museuKey]} no Drive...`);
   try {
-    const res = await base44.functions.invoke('restaurarGaleriaDrive', {
-      folder_id: FOLDER_DRIVE_ID,
-      modo: 'confirmar',
-      offset: 0,
-      limite: 50,
-      filtro_museu: museuKey,
-    });
-    const d = res?.data || {};
-    const criadas = d.total_criadas || 0;
-    const reparadas = d.total_reparadas || 0;
-    if (criadas + reparadas > 0) {
-      setProgresso(`✓ ${criadas} novas + ${reparadas} reparadas no Drive. Recarregando fotos...`);
-      await new Promise(r => setTimeout(r, 800));
+    let offset = 0;
+    let totalCriadas = 0;
+    let totalReparadas = 0;
+    let hasMore = true;
+    let page = 0;
+    while (hasMore) {
+      page++;
+      setProgresso(`Varredura ${SECTION_KEYS_ABREV[museuKey]} · lote ${page} (${totalCriadas} novas até agora)...`);
+      const res = await base44.functions.invoke('varrerFotosMuseusDrive', {
+        folder_id: FOLDER_DRIVE_ID,
+        museu: museuKey,
+        offset,
+      });
+      const d = res?.data || {};
+      totalCriadas += d.criadas || 0;
+      totalReparadas += d.reparadas || 0;
+      offset = d.next_offset;
+      hasMore = d.has_more;
+      if (!d.success) break;
+    }
+    if (totalCriadas + totalReparadas > 0) {
+      setProgresso(`✓ ${totalCriadas} novas + ${totalReparadas} reparadas do ${SECTION_KEYS_ABREV[museuKey]}. Recarregando banco...`);
+      await new Promise(r => setTimeout(r, 600));
+    } else {
+      setProgresso(`Nenhuma foto nova encontrada no Drive do ${SECTION_KEYS_ABREV[museuKey]}.`);
     }
   } catch (e) {
-    // Silencia erros de sync — continua com as fotos já carregadas
-    console.warn('Sync Drive silenciado:', e?.message);
+    console.warn('Varredura Drive silenciada:', e?.message);
   }
 }
 

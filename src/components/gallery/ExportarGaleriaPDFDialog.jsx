@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { FileDown, Images, Building2, Loader2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { jsPDF } from 'jspdf';
+import { base44 } from '@/api/base44Client';
 import viadutoHeaderOriginal from '@/assets/viadutoHeaderOriginal';
 
 const SECTION_ORDER = ['MHAB', 'MIS', 'MUMO', 'MAP', 'CasaKubitschek', 'CasaDoBalile'];
@@ -89,6 +90,43 @@ function drawInstitutionalHeader(doc, pageW) {
   doc.line(12, 30, pageW - 12, 30);
 }
 
+const FOLDER_DRIVE_ID = '1gMPRXyamu9YANVFg6Xf7VtWoOoF-3CbQ';
+
+async function varrerTodosMuseusDrive(setProgresso) {
+  const museus = ['MHAB', 'MIS', 'MUMO', 'Casa do Baile'];
+  let totalCriadas = 0;
+  let totalReparadas = 0;
+  for (const museu of museus) {
+    setProgresso(`Varrendo pastas do ${museu} no Drive...`);
+    try {
+      let offset = 0;
+      let hasMore = true;
+      let page = 0;
+      while (hasMore) {
+        page++;
+        setProgresso(`Varredura ${museu} · lote ${page} (${totalCriadas} novas até agora)...`);
+        const res = await base44.functions.invoke('varrerFotosMuseusDrive', {
+          folder_id: FOLDER_DRIVE_ID,
+          museu,
+          offset,
+        });
+        const d = res?.data || {};
+        totalCriadas += d.criadas || 0;
+        totalReparadas += d.reparadas || 0;
+        offset = d.next_offset;
+        hasMore = d.has_more;
+        if (!d.success) break;
+      }
+    } catch (e) {
+      console.warn(`Varredura ${museu} silenciada:`, e?.message);
+    }
+  }
+  if (totalCriadas + totalReparadas > 0) {
+    setProgresso(`✓ ${totalCriadas} novas + ${totalReparadas} reparadas de todos os museus. Recarregando banco...`);
+    await new Promise(r => setTimeout(r, 600));
+  }
+}
+
 export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
   const [loading, setLoading] = useState(false);
   const [progresso, setProgresso] = useState('');
@@ -106,9 +144,11 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
     setLoading(true);
     setAuditoria(null);
 
-    const auditLog = { carregadas: 0, falhas: 0, total: fotosValidas.length };
+    const auditLog = { carregadas: 0, falhas: 0, total: fotosValidas.length, novas_importadas: 0 };
 
     try {
+      // ── Etapa 0: varre pastas do Drive de todos os museus antes de gerar o PDF ──
+      await varrerTodosMuseusDrive(setProgresso);
       const pageW = 210, pageH = 297, margin = 12;
       const cols = 2, rows = 2, perPage = cols * rows;
       const cellW = (pageW - margin * 2 - (cols - 1) * 6) / cols;
