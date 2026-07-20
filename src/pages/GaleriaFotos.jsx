@@ -15,6 +15,7 @@ import { loadGalleryReportData } from '@/utils/galleryReportData';
 import RestaurarFotosDrive from '@/components/gallery/RestaurarFotosDrive';
 import SincronizarInventarioDialog from '@/components/gallery/SincronizarInventarioDialog';
 import ExportarGaleriaPDFDialog from '@/components/gallery/ExportarGaleriaPDFDialog';
+import ExportarMuseuPDFDialog from '@/components/gallery/ExportarMuseuPDFDialog';
 import { PhotoActionBar, BulkActionBar, EditCaptionDialog, DeleteConfirmDialog, EmailPhotosDialog } from '@/components/gallery/GalleryPhotoActions';
 import { base44 } from '@/api/base44Client';
 
@@ -187,6 +188,7 @@ function GaleriaFotosInner() {
   const [showRestaurar, setShowRestaurar] = useState(false);
   const [showSincInventario, setShowSincInventario] = useState(false);
   const [showExportarPDF, setShowExportarPDF] = useState(false);
+  const [showExportarMuseu, setShowExportarMuseu] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [selectedPhotos, setSelectedPhotos] = useState([]);
   const [editingPhoto, setEditingPhoto] = useState(null);
@@ -393,9 +395,17 @@ function GaleriaFotosInner() {
               type="button"
               onClick={() => setShowExportarPDF(true)}
               className="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-100 transition-colors">
-              
               <FileDown className="h-4 w-4" />
               Exportar PDF
+            </button>
+
+            {/* 2b. Exportar por Museu */}
+            <button
+              type="button"
+              onClick={() => setShowExportarMuseu(true)}
+              className="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-100 transition-colors">
+              <FileDown className="h-4 w-4" />
+              PDF por Museu
             </button>
 
             {/* 3. Menu ⋮ */}
@@ -728,6 +738,11 @@ function GaleriaFotosInner() {
       <ExportarGaleriaPDFDialog
         open={showExportarPDF}
         onClose={() => setShowExportarPDF(false)}
+        fotos={sortedImages} />
+
+      <ExportarMuseuPDFDialog
+        open={showExportarMuseu}
+        onClose={() => setShowExportarMuseu(false)}
         fotos={sortedImages} />
       
 
