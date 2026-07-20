@@ -19,6 +19,7 @@ import ExportarMuseuPDFDialog from '@/components/gallery/ExportarMuseuPDFDialog'
 import PainelAjustarVinculos from '@/components/gallery/PainelAjustarVinculos';
 import ModalExposicao from '@/components/gallery/ModalExposicao';
 import ConsolidarFotosDriveDialog from '@/components/gallery/ConsolidarFotosDriveDialog';
+import RelatorioExecutivoPDFDialog from '@/components/gallery/RelatorioExecutivoPDFDialog';
 import ActivityChipsBar, { getAtividadeKey } from '@/components/gallery/ActivityChipsBar';
 import { PhotoActionBar, BulkActionBar, EditCaptionDialog, DeleteConfirmDialog, EmailPhotosDialog } from '@/components/gallery/GalleryPhotoActions';
 import { base44 } from '@/api/base44Client';
@@ -204,6 +205,7 @@ function GaleriaFotosInner() {
   const [editingAlbumValue, setEditingAlbumValue] = useState('');
   const [showAjustarVinculos, setShowAjustarVinculos] = useState(false);
   const [showConsolidarDrive, setShowConsolidarDrive] = useState(false);
+  const [showRelatorioExecutivo, setShowRelatorioExecutivo] = useState(false);
   const [modoExposicao, setModoExposicao] = useState(null); // { images, startIndex }
   const [isAutoSyncing, setIsAutoSyncing] = useState(false);
   const [isGeneratingCaptions, setIsGeneratingCaptions] = useState(false);
@@ -492,6 +494,14 @@ function GaleriaFotosInner() {
                     <BookImage className="h-3.5 w-3.5" /> PDF por Museu
                   </span>
                   <span className="text-xs text-gray-500 pl-5">Gera um PDF individual para um museu específico.</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setShowRelatorioExecutivo(true)}
+                  className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
+                  <span className="font-medium text-gray-900 flex items-center gap-1.5">
+                    <BookImage className="h-3.5 w-3.5" /> Relatório Executivo de Fotos
+                  </span>
+                  <span className="text-xs text-gray-500 pl-5">PDF com até 5 fotos por atividade física do mês, em grade de 4 fotos/página.</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -927,6 +937,10 @@ function GaleriaFotosInner() {
         images={modoExposicao?.images || []}
         startIndex={modoExposicao?.startIndex || 0}
         onClose={() => setModoExposicao(null)} />
+
+      <RelatorioExecutivoPDFDialog
+        open={showRelatorioExecutivo}
+        onClose={() => setShowRelatorioExecutivo(false)} />
 
       <ConsolidarFotosDriveDialog
         open={showConsolidarDrive}
