@@ -4,7 +4,7 @@ import RequireAuth from '@/components/auth/RequireAuth';
 import LoadingPage from '@/components/common/LoadingPage';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Images, MapPin, RefreshCw, X, Filter, CheckCircle2, Moon, ExternalLink, BookImage, ChevronDown, HardDriveDownload, TriangleAlert, FileDown, Pencil, Check, MoreVertical, Download, Calendar, Layers } from 'lucide-react';
+import { Images, MapPin, RefreshCw, X, Filter, CheckCircle2, Moon, ExternalLink, BookImage, ChevronDown, HardDriveDownload, TriangleAlert, FileDown, Pencil, Check, MoreVertical, Download, Calendar, Layers, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
@@ -23,6 +23,7 @@ import RelatorioExecutivoPDFDialog from '@/components/gallery/RelatorioExecutivo
 import RelatorioCompletoDialog from '@/components/gallery/RelatorioCompletoDialog';
 import ReconstruirGaleriaDialog from '@/components/gallery/ReconstruirGaleriaDialog';
 import Importar6PastasDialog from '@/components/gallery/Importar6PastasDialog';
+import DeduplicarIAFotosDialog from '@/components/gallery/DeduplicarIAFotosDialog';
 import { gerarAmostraRelatorioExecutivo } from '@/utils/exportarAmostraRelatorioExecutivo';
 import ActivityChipsBar, { getAtividadeKey } from '@/components/gallery/ActivityChipsBar';
 import { PhotoActionBar, BulkActionBar, EditCaptionDialog, DeleteConfirmDialog, EmailPhotosDialog } from '@/components/gallery/GalleryPhotoActions';
@@ -225,6 +226,7 @@ function GaleriaFotosInner() {
   const [showRelatorioCompleto, setShowRelatorioCompleto] = useState(false);
   const [showReconstruir, setShowReconstruir] = useState(false);
   const [showImportar6Pastas, setShowImportar6Pastas] = useState(false);
+  const [showDedupIA, setShowDedupIA] = useState(false);
   const [gerandoAmostra, setGerandoAmostra] = useState(false);
   const [progressoAmostra, setProgressoAmostra] = useState({ pct: 0, texto: '' });
   const [modoExposicao, setModoExposicao] = useState(null); // { images, startIndex }
@@ -663,6 +665,14 @@ function GaleriaFotosInner() {
                   <span className="text-xs text-gray-500 pl-5">Escaneia 6 pastas recursivamente (máx 5 fotos por subpasta) e importa para a galeria.</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
+                  onClick={() => setShowDedupIA(true)}
+                  className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
+                  <span className="font-medium text-violet-600 flex items-center gap-1.5">
+                    <Sparkles className="h-3.5 w-3.5" /> Deduplicação por IA
+                  </span>
+                  <span className="text-xs text-gray-500 pl-5">Analisa fotos por atividade com IA visual e oculta duplicatas, mantendo apenas a melhor.</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
                   onClick={() => setShowReconstruir(true)}
                   className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
                   <span className="font-medium text-red-600 flex items-center gap-1.5">
@@ -1094,6 +1104,15 @@ function GaleriaFotosInner() {
         open={showImportar6Pastas}
         onClose={() => {
           setShowImportar6Pastas(false);
+          clearGalleryCache();
+          queryClient.invalidateQueries(['galeria-fotos-stable-v7']);
+          refetch();
+        }} />
+
+      <DeduplicarIAFotosDialog
+        open={showDedupIA}
+        onClose={() => setShowDedupIA(false)}
+        onConcluido={() => {
           clearGalleryCache();
           queryClient.invalidateQueries(['galeria-fotos-stable-v7']);
           refetch();
