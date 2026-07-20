@@ -20,6 +20,7 @@ import PainelAjustarVinculos from '@/components/gallery/PainelAjustarVinculos';
 import ModalExposicao from '@/components/gallery/ModalExposicao';
 import ConsolidarFotosDriveDialog from '@/components/gallery/ConsolidarFotosDriveDialog';
 import RelatorioExecutivoPDFDialog from '@/components/gallery/RelatorioExecutivoPDFDialog';
+import RelatorioCompletoDialog from '@/components/gallery/RelatorioCompletoDialog';
 import ReconstruirGaleriaDialog from '@/components/gallery/ReconstruirGaleriaDialog';
 import Importar6PastasDialog from '@/components/gallery/Importar6PastasDialog';
 import { gerarAmostraRelatorioExecutivo } from '@/utils/exportarAmostraRelatorioExecutivo';
@@ -219,6 +220,7 @@ function GaleriaFotosInner() {
   const [showAjustarVinculos, setShowAjustarVinculos] = useState(false);
   const [showConsolidarDrive, setShowConsolidarDrive] = useState(false);
   const [showRelatorioExecutivo, setShowRelatorioExecutivo] = useState(false);
+  const [showRelatorioCompleto, setShowRelatorioCompleto] = useState(false);
   const [showReconstruir, setShowReconstruir] = useState(false);
   const [showImportar6Pastas, setShowImportar6Pastas] = useState(false);
   const [gerandoAmostra, setGerandoAmostra] = useState(false);
@@ -534,6 +536,14 @@ function GaleriaFotosInner() {
                     <BookImage className="h-3.5 w-3.5" /> Relatório Executivo de Fotos
                   </span>
                   <span className="text-xs text-gray-500 pl-5">PDF com até 5 fotos por atividade física do mês, em grade de 4 fotos/página.</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setShowRelatorioCompleto(true)}
+                  className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
+                  <span className="font-medium text-gray-900 flex items-center gap-1.5">
+                    <Layers className="h-3.5 w-3.5" /> Relatório Consolidado por Museu/Equipe
+                  </span>
+                  <span className="text-xs text-gray-500 pl-5">Consolida todas as atividades e fotos, agrupadas por museu e equipe, em um único PDF.</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   disabled={gerandoAmostra}
@@ -1058,6 +1068,10 @@ function GaleriaFotosInner() {
       <RelatorioExecutivoPDFDialog
         open={showRelatorioExecutivo}
         onClose={() => setShowRelatorioExecutivo(false)} />
+
+      <RelatorioCompletoDialog
+        open={showRelatorioCompleto}
+        onClose={() => setShowRelatorioCompleto(false)} />
 
       <ReconstruirGaleriaDialog
         open={showReconstruir}
