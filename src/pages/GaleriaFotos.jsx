@@ -280,11 +280,12 @@ function GaleriaFotosInner() {
     if (photosNeedingCaption.length === 0) return;
     captionGenerationRanRef.current = true;
     setIsGeneratingCaptions(true);
-    base44.functions.invoke('reforcarLegendasGaleria', { dry_run: false, skip: 0, limit: 500 })
+    base44.functions.invoke('melhorarLegendasEDeduplicarFotos', { dry_run: false, max_activities: 10, mode: 'all' })
       .then((res) => {
-        const atualizadas = res?.atualizadas || 0;
-        if (atualizadas > 0) {
-          toast.success(`${atualizadas} legendas geradas automaticamente.`);
+        const captions = res?.captions_improved || 0;
+        const dups = res?.duplicates_marked || 0;
+        if (captions > 0 || dups > 0) {
+          toast.success(`${captions} legendas melhoradas por IA${dups > 0 ? ` · ${dups} duplicatas removidas` : ''}.`);
           clearGalleryCache();
           queryClient.invalidateQueries(['galeria-fotos-stable-v1']);
           refetch();
