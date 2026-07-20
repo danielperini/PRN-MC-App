@@ -29,8 +29,8 @@ import ActivityChipsBar, { getAtividadeKey } from '@/components/gallery/Activity
 import { PhotoActionBar, BulkActionBar, EditCaptionDialog, DeleteConfirmDialog, EmailPhotosDialog } from '@/components/gallery/GalleryPhotoActions';
 import { base44 } from '@/api/base44Client';
 
-const INITIAL_VISIBLE_IMAGES = 48;
-const VISIBLE_IMAGES_STEP = 48;
+const INITIAL_VISIBLE_IMAGES = 100;
+const VISIBLE_IMAGES_STEP = 100;
 const MAX_FOTOS_POR_ATIVIDADE = 5;
 // Inclui data do dia na chave para invalidar o cache automaticamente a cada novo dia
 const TODAY = new Date().toISOString().slice(0, 10);
