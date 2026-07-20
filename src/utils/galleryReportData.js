@@ -244,6 +244,7 @@ export async function loadGalleryReportData({
   cacheKey = DEFAULT_CACHE_KEY,
   cacheTtlMs = DEFAULT_TTL,
   staleCacheTtlMs = DEFAULT_STALE_TTL,
+  skipDedup = false,
 } = {}) {
   void limitMedia;
   void limitAttachments; // ignorado — sempre busca tudo via paginação
@@ -302,11 +303,25 @@ export async function loadGalleryReportData({
     console.warn('[Galeria] Falha geral ao carregar imagens.', error);
   }
   if (!images.length && staleCache) return { ...staleCache, cacheUsed: true, cacheStale: true };
-  // Deduplicação primária por identidade técnica (URL/driveFileId/galleryFileName)
-  const deduped1 = dedupePhotosByTechnicalIdentity(images).filter((image) => image.fileUrl);
-  // Deduplicação em 3 camadas: URL idêntica > nome de arquivo idêntico por museu > nome similar (cópia/versão)
-  const { deduped: deduped3, duplicates, totalBruto, totalDeduped, totalOcultadas } = deduplicateGalleryPhotos(deduped1);
-  const deduped = deduped3.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  let deduped, duplicates, totalBruto, totalDeduped, totalOcultadas;
+  if (skipDedup) {
+    // Sem deduplicação — exibe 100% das fotos
+    deduped = images.filter((image) => image.fileUrl).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    duplicates = [];
+    totalBruto = deduped.length;
+    totalDeduped = deduped.length;
+    totalOcultadas = 0;
+  } else {
+    // Deduplicação primária por identidade técnica (URL/driveFileId/galleryFileName)
+    const deduped1 = dedupePhotosByTechnicalIdentity(images).filter((image) => image.fileUrl);
+    // Deduplicação em 3 camadas: URL idêntica > nome de arquivo idêntico por museu > nome similar (cópia/versão)
+    const result = deduplicateGalleryPhotos(deduped1);
+    deduped = result.deduped.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    duplicates = result.duplicates;
+    totalBruto = result.totalBruto;
+    totalDeduped = result.totalDeduped;
+    totalOcultadas = result.totalOcultadas;
+  }
   const result = {
     images: deduped,
     groups: buildGroups(deduped),

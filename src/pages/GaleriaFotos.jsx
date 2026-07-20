@@ -23,8 +23,8 @@ import ActivityChipsBar, { getAtividadeKey } from '@/components/gallery/Activity
 import { PhotoActionBar, BulkActionBar, EditCaptionDialog, DeleteConfirmDialog, EmailPhotosDialog } from '@/components/gallery/GalleryPhotoActions';
 import { base44 } from '@/api/base44Client';
 
-const INITIAL_VISIBLE_IMAGES = 60;
-const VISIBLE_IMAGES_STEP = 60;
+const INITIAL_VISIBLE_IMAGES = 200;
+const VISIBLE_IMAGES_STEP = 200;
 // Inclui data do dia na chave para invalidar o cache automaticamente a cada novo dia
 const TODAY = new Date().toISOString().slice(0, 10);
 const GALLERY_CACHE_KEY = `museus_centro_galeria_fotos_cache_v10_deduped_3layers_${TODAY}`;
@@ -205,6 +205,8 @@ function GaleriaFotosInner() {
   const [showConsolidarDrive, setShowConsolidarDrive] = useState(false);
   const [modoExposicao, setModoExposicao] = useState(null); // { images, startIndex }
   const [isAutoSyncing, setIsAutoSyncing] = useState(false);
+  const [isGeneratingCaptions, setIsGeneratingCaptions] = useState(false);
+  const captionGenerationRanRef = useRef(false);
   // Chips de atividade por seção (museu): { [sectionKey]: atividadeKey }
   const [selectedAtividade, setSelectedAtividade] = useState({});
   // Rótulos editados inline para chips de atividade, persistidos em sessionStorage
@@ -229,10 +231,11 @@ function GaleriaFotosInner() {
   } = useQuery({
     queryKey: ['galeria-fotos-stable-v1'],
     queryFn: async () => loadGalleryReportData({
-      limitAttachments: 2000,
+      limitAttachments: 0,
       useCache: true,
       cacheKey: GALLERY_CACHE_KEY,
-      cacheTtlMs: GALLERY_CACHE_TTL_MS
+      cacheTtlMs: GALLERY_CACHE_TTL_MS,
+      skipDedup: true
     }),
     staleTime: GALLERY_CACHE_TTL_MS,
     cacheTime: 30 * 60 * 1000,
@@ -268,6 +271,28 @@ function GaleriaFotosInner() {
   }, [data, queryClient, refetch]);
 
   const images = Array.isArray(data?.images) ? data.images : [];
+
+  // ── Geração automática de legendas para fotos sem legenda ──
+  useEffect(() => {
+    if (captionGenerationRanRef.current) return;
+    if (!data || isGeneratingCaptions) return;
+    const photosNeedingCaption = images.filter((img) => !img.legenda || img.legenda === img.fileName);
+    if (photosNeedingCaption.length === 0) return;
+    captionGenerationRanRef.current = true;
+    setIsGeneratingCaptions(true);
+    base44.functions.invoke('reforcarLegendasGaleria', { dry_run: false, skip: 0, limit: 500 })
+      .then((res) => {
+        const atualizadas = res?.atualizadas || 0;
+        if (atualizadas > 0) {
+          toast.success(`${atualizadas} legendas geradas automaticamente.`);
+          clearGalleryCache();
+          queryClient.invalidateQueries(['galeria-fotos-stable-v1']);
+          refetch();
+        }
+      })
+      .catch((e) => console.warn('Geração automática de legendas falhou:', e?.message))
+      .finally(() => setIsGeneratingCaptions(false));
+  }, [data, images, isGeneratingCaptions, queryClient, refetch]);
 
   // Chips de museu: chaves únicas presentes nos dados
   const museuOptions = useMemo(() => {
@@ -318,25 +343,21 @@ function GaleriaFotosInner() {
   const visibleImages = sortedImages.slice(0, visibleCount);
 
   const groupedImages = useMemo(() => {
-    const MAX_POR_ATIVIDADE = 10;
     const groups = new Map();
     visibleImages.forEach((image, renderIndex) => {
       const key = image.sectionKey || 'SEM_IDENTIFICACAO';
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push({ image, renderIndex });
     });
-    // Limita a 10 fotos por atividade dentro de cada grupo de museu
-    // Campo de agrupamento por prioridade: activityTitulo > activity_id > extração do nome do arquivo
+    // Sem limite por atividade — exibe 100% das fotos
     return Array.from(groups.entries()).map(([key, items]) => {
       const porAtividade = new Map();
       items.forEach((entry) => {
         const atividade = getAtividadeKey(entry.image);
         if (!porAtividade.has(atividade)) porAtividade.set(atividade, []);
-        const grupo = porAtividade.get(atividade);
-        if (grupo.length < MAX_POR_ATIVIDADE) grupo.push(entry);
+        porAtividade.get(atividade).push(entry);
       });
       const filtrados = Array.from(porAtividade.values()).flat();
-      // Aplica filtro de atividade selecionado para a seção, se houver
       const selAtividade = selectedAtividade[key];
       const itemsFiltrados = selAtividade
         ? filtrados.filter((entry) => getAtividadeKey(entry.image) === selAtividade)
@@ -427,6 +448,12 @@ function GaleriaFotosInner() {
               </p>
             )}
             {isFetching && !isAutoSyncing && <p className="mt-2 text-xs text-gray-400">Atualizando galeria...</p>}
+            {isGeneratingCaptions && (
+              <p className="mt-1 inline-flex items-center gap-1 text-xs text-emerald-600">
+                <RefreshCw className="h-3 w-3 animate-spin" />
+                Gerando legendas automáticas...
+              </p>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -794,7 +821,7 @@ function GaleriaFotosInner() {
                   }}
                 />
 
-                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                   {items.map(({ image, renderIndex }) =>
               <GalleryCard
                 key={image.id || image.fileUrl || `${image.sourceEntity}-${image.sourceId}`}
