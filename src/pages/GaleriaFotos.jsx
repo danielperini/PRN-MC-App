@@ -96,21 +96,21 @@ function clearGalleryCache() {
 
 
 
+
+
     // noop
-  }}function FilterChip({ label, active, onClick }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all
+  }}function FilterChip({ label, active, onClick }) {return <button
+    type="button"
+    onClick={onClick}
+    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all
         ${active ?
-      'border-black bg-black text-white shadow' :
-      'border-gray-300 bg-white text-gray-700 hover:border-gray-400 hover:bg-gray-50'}`
-      }>
+    'border-black bg-black text-white shadow' :
+    'border-gray-300 bg-white text-gray-700 hover:border-gray-400 hover:bg-gray-50'}`
+    }>
       
       {label}
       {active && <X className="h-3 w-3 opacity-70" />}
-    </button>);
+    </button>;
 
 }
 
@@ -759,137 +759,137 @@ function GaleriaFotosInner() {
         }
 
         {/* Painel de filtros */}
-        <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm space-y-4 hidden">
-          {/* Seletor de agrupamento visual */}
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2">
-              <Layers className="h-4 w-4 text-gray-400" />
-              <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Agrupar por</span>
-            </div>
-            <div className="inline-flex rounded-xl border border-gray-200 bg-gray-50 p-1">
-              <button
-                type="button"
-                onClick={() => {setGroupMode('museu');setVisibleCount(INITIAL_VISIBLE_IMAGES);}}
-                className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-medium transition-all ${
-                groupMode === 'museu' ?
-                'bg-black text-white shadow-sm' :
-                'text-gray-600 hover:text-gray-900'}`
-                }>
-                <MapPin className="h-3.5 w-3.5" />
-                Museu
-              </button>
-              <button
-                type="button"
-                onClick={() => {setGroupMode('periodo');setVisibleCount(INITIAL_VISIBLE_IMAGES);}}
-                className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-medium transition-all ${
-                groupMode === 'periodo' ?
-                'bg-black text-white shadow-sm' :
-                'text-gray-600 hover:text-gray-900'}`
-                }>
-                <Calendar className="h-3.5 w-3.5" />
-                Período
-              </button>
-            </div>
-          </div>
+        
 
-          {/* Busca + Ordenação */}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
-              <Label className="mb-2 block text-sm font-medium text-gray-600">Buscar</Label>
-              <Input
-                placeholder="Nome, legenda, museu, local ou coordenadas..."
-                value={searchTerm}
-                onChange={(event) => {
-                  setSearchTerm(event.target.value);
-                  setVisibleCount(INITIAL_VISIBLE_IMAGES);
-                }}
-                className="text-sm" />
-              
-            </div>
 
-            <div>
-              <Label className="mb-2 block text-sm font-medium text-gray-600">Ordenar</Label>
-              <select
-                value={sortBy}
-                onChange={(event) => {
-                  setSortBy(event.target.value);
-                  setVisibleCount(INITIAL_VISIBLE_IMAGES);
-                }}
-                className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm">
-                
-                <option value="recent">Mais recentes</option>
-                <option value="oldest">Mais antigas</option>
-                <option value="name-asc">Nome (A-Z)</option>
-                <option value="name-desc">Nome (Z-A)</option>
-              </select>
-            </div>
-          </div>
 
-          {/* Chips — Museu */}
-          {museuOptions.length > 0 &&
-          <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Filter className="h-3.5 w-3.5 text-gray-400" />
-                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Museu</span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {museuOptions.map((key) =>
-              <FilterChip
-                key={key}
-                label={SECTION_LABELS[key] || key}
-                active={filterMuseu === key}
-                onClick={() => {
-                  setFilterMuseu(filterMuseu === key ? '' : key);
-                  setVisibleCount(INITIAL_VISIBLE_IMAGES);
-                }} />
 
-              )}
-              </div>
-            </div>
-          }
 
-          {/* Chips — Período */}
-          {periodoOptions.length > 0 &&
-          <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Filter className="h-3.5 w-3.5 text-gray-400" />
-                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Período</span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {periodoOptions.map((periodo) =>
-              <FilterChip
-                key={periodo}
-                label={periodo}
-                active={filterPeriodo === periodo}
-                onClick={() => {
-                  setFilterPeriodo(filterPeriodo === periodo ? '' : periodo);
-                  setVisibleCount(INITIAL_VISIBLE_IMAGES);
-                }} />
 
-              )}
-              </div>
-            </div>
-          }
 
-          {/* Limpar filtros */}
-          {hasActiveFilters &&
-          <div className="flex items-center gap-3 pt-1 border-t border-gray-100">
-              <span className="text-xs text-gray-500">
-                Filtros ativos:{' '}
-                {filterMuseu && <span className="font-medium">{SECTION_LABELS[filterMuseu] || filterMuseu}</span>}
-                {filterMuseu && filterPeriodo && ' · '}
-                {filterPeriodo && <span className="font-medium">{filterPeriodo}</span>}
-              </span>
-              <button
-              type="button"
-              onClick={resetFilters}
-              className="text-xs text-red-500 hover:underline font-medium">
-              
-                Limpar filtros
-              </button>
-            </div>
-          }
-        </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
 
         {sortedImages.length === 0 ?
         <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-12 text-center shadow-sm">
@@ -912,114 +912,114 @@ function GaleriaFotosInner() {
           </div> :
 
         <div className="space-y-10">
-            {groupedImages.map(({ key, items, allItems, ocultadas }) =>
-          <section key={key} className="space-y-4 hidden">
-                <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-                  {editingAlbumKey === key ?
-              <div className="flex items-center gap-2">
-                      <input
-                  autoFocus
-                  type="text"
-                  value={editingAlbumValue}
-                  onChange={(e) => setEditingAlbumValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      setAlbumLabels((prev) => ({ ...prev, [key]: editingAlbumValue }));
-                      setEditingAlbumKey(null);
-                    }
-                    if (e.key === 'Escape') setEditingAlbumKey(null);
-                  }}
-                  className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-lg font-semibold text-black focus:outline-none focus:ring-2 focus:ring-black/20" />
-                
-                      <button
-                  type="button"
-                  onClick={() => {
-                    setAlbumLabels((prev) => ({ ...prev, [key]: editingAlbumValue }));
-                    setEditingAlbumKey(null);
-                  }}
-                  className="rounded-lg bg-black p-1.5 text-white hover:bg-gray-800">
-                  
-                        <Check className="h-4 w-4" />
-                      </button>
-                      <button type="button" onClick={() => setEditingAlbumKey(null)} className="rounded-lg border border-gray-300 p-1.5 text-gray-500 hover:bg-gray-50">
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div> :
+            {groupedImages.map(({ key, items, allItems, ocultadas }) => null
 
-              <div className="flex items-center gap-2 group">
-                      <h2 className="text-xl font-semibold text-black">
-                        {albumLabels[key] || (groupMode === 'periodo' ? PERIODO_LABELS.get(key) || (key === 'SEM_PERIODO' ? 'Sem período identificado' : key) : SECTION_LABELS[key] || key)}
-                      </h2>
-                      <button
-                  type="button"
-                  title="Renomear álbum"
-                  onClick={() => {
-                    setEditingAlbumValue(albumLabels[key] || SECTION_LABELS[key] || key);
-                    setEditingAlbumKey(key);
-                  }}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity rounded-lg p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100">
-                  
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                    </div>
-              }
-                  <p className="mt-1 text-xs text-gray-500">
-                    {items.length} {items.length === 1 ? 'foto exibida' : 'fotos exibidas'} neste bloco
-                  </p>
-                  {ocultadas > 0 &&
-              <p className="mt-0.5 text-[11px] text-gray-400">
-                      ({ocultadas} {ocultadas === 1 ? 'foto ocultada' : 'fotos ocultadas'} pelo limite de {MAX_FOTOS_POR_ATIVIDADE} por atividade)
-                    </p>
-              }
-                </div>
 
-                {/* Chips de atividade */}
-                <ActivityChipsBar
-              sectionKey={key}
-              items={allItems}
-              selectedKey={selectedAtividade[key] || ''}
-              onSelect={(atividadeKey) =>
-              setSelectedAtividade((prev) => ({
-                ...prev,
-                [key]: prev[key] === atividadeKey ? '' : atividadeKey
-              }))
-              }
-              labels={atividadeLabels}
-              onRename={(atkKey, newLabel) => {
-                setAtividadeLabels((prev) => {
-                  const next = { ...prev, [atkKey]: newLabel || atkKey };
-                  try {
-                    sessionStorage.setItem('galeria_atividade_labels', JSON.stringify(next));
-                  } catch {
 
-                    // noop
-                  }return next;
-                });
-              }} />
-            
 
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                  {items.map(({ image, renderIndex }) =>
-              <GalleryCard
-                key={image.id || image.fileUrl || `${image.sourceEntity}-${image.sourceId}`}
-                image={image}
-                eager={renderIndex < 4}
-                onClick={() => {
-                  // Modo Exposição: navega pelas fotos do museu ativo em sequência
-                  const sectionImages = (groupedImages.find((g) => g.key === key)?.allItems || []).
-                  map((entry) => entry.image);
-                  const idx = sectionImages.findIndex((img) => (img.id || img.fileUrl) === (image.id || image.fileUrl));
-                  setModoExposicao({ images: sectionImages.length ? sectionImages : [image], startIndex: Math.max(0, idx) });
-                }}
-                selected={isPhotoSelected(image)}
-                onToggleSelect={toggleSelectPhoto}
-                onDelete={(img) => setDeletingPhotos([img])}
-                onEditCaption={(img) => setEditingPhoto(img)}
-                selectionMode={selectionMode} />
 
-              )}
-                </div>
-              </section>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           )}
 
             {limitedByActivity.length > visibleCount &&
