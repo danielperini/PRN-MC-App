@@ -4,7 +4,7 @@ import RequireAuth from '@/components/auth/RequireAuth';
 import LoadingPage from '@/components/common/LoadingPage';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Images, MapPin, RefreshCw, X, Filter, CheckCircle2, Moon, ExternalLink, BookImage, ChevronDown, HardDriveDownload, TriangleAlert, FileDown, Pencil, Check, MoreVertical } from 'lucide-react';
+import { Images, MapPin, RefreshCw, X, Filter, CheckCircle2, Moon, ExternalLink, BookImage, ChevronDown, HardDriveDownload, TriangleAlert, FileDown, Pencil, Check, MoreVertical, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
@@ -21,6 +21,7 @@ import ModalExposicao from '@/components/gallery/ModalExposicao';
 import ConsolidarFotosDriveDialog from '@/components/gallery/ConsolidarFotosDriveDialog';
 import RelatorioExecutivoPDFDialog from '@/components/gallery/RelatorioExecutivoPDFDialog';
 import ReconstruirGaleriaDialog from '@/components/gallery/ReconstruirGaleriaDialog';
+import Importar6PastasDialog from '@/components/gallery/Importar6PastasDialog';
 import { gerarAmostraRelatorioExecutivo } from '@/utils/exportarAmostraRelatorioExecutivo';
 import ActivityChipsBar, { getAtividadeKey } from '@/components/gallery/ActivityChipsBar';
 import { PhotoActionBar, BulkActionBar, EditCaptionDialog, DeleteConfirmDialog, EmailPhotosDialog } from '@/components/gallery/GalleryPhotoActions';
@@ -209,6 +210,7 @@ function GaleriaFotosInner() {
   const [showConsolidarDrive, setShowConsolidarDrive] = useState(false);
   const [showRelatorioExecutivo, setShowRelatorioExecutivo] = useState(false);
   const [showReconstruir, setShowReconstruir] = useState(false);
+  const [showImportar6Pastas, setShowImportar6Pastas] = useState(false);
   const [gerandoAmostra, setGerandoAmostra] = useState(false);
   const [progressoAmostra, setProgressoAmostra] = useState({ pct: 0, texto: '' });
   const [modoExposicao, setModoExposicao] = useState(null); // { images, startIndex }
@@ -568,6 +570,14 @@ function GaleriaFotosInner() {
                     {showRestaurar && <span className="ml-1 rounded-full bg-gray-200 px-1.5 py-0.5 text-[10px] text-gray-700">Ativo</span>}
                   </span>
                   <span className="text-xs text-gray-500 pl-5">Recupera arquivos e vínculos já armazenados no Drive.</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setShowImportar6Pastas(true)}
+                  className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
+                  <span className="font-medium text-blue-600 flex items-center gap-1.5">
+                    <Download className="h-3.5 w-3.5" /> Importar 6 Pastas do Drive
+                  </span>
+                  <span className="text-xs text-gray-500 pl-5">Escaneia 6 pastas recursivamente (máx 5 fotos por subpasta) e importa para a galeria.</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => setShowReconstruir(true)}
@@ -955,6 +965,10 @@ function GaleriaFotosInner() {
       <ReconstruirGaleriaDialog
         open={showReconstruir}
         onClose={() => setShowReconstruir(false)} />
+
+      <Importar6PastasDialog
+        open={showImportar6Pastas}
+        onClose={() => setShowImportar6Pastas(false)} />
 
       <ConsolidarFotosDriveDialog
         open={showConsolidarDrive}
