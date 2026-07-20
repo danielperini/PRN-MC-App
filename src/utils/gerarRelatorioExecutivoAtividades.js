@@ -14,10 +14,12 @@ export const SECTION_LABELS = {
   MAP: 'MAP — Museu de Arte da Pampulha',
   CasaKubitschek: 'Casa Kubitschek',
   CasaDoBalile: 'Casa do Baíle',
+  NOTURNO: '🌙 Noturno nos Museus',
 };
 export const SECTION_ABREV = {
   MHAB: 'MHAB', MIS: 'MIS', MUMO: 'MUMO', MAP: 'MAP',
   CasaKubitschek: 'Casa Kubitschek', CasaDoBalile: 'Casa do Baíle',
+  NOTURNO: 'Noturno nos Museus',
 };
 
 /**

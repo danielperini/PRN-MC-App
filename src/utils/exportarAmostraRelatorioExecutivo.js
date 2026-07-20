@@ -5,6 +5,7 @@
  *
  * Uso: import { gerarAmostraRelatorioExecutivo } from '@/utils/exportarAmostraRelatorioExecutivo';
  *      gerarAmostraRelatorioExecutivo('MHAB', 'Abril', 2026);
+ *      gerarAmostraRelatorioExecutivo('MHAB', ['Março', 'Abril'], 2026);
  */
 import { jsPDF } from 'jspdf';
 import { base44 } from '@/api/base44Client';
@@ -18,11 +19,33 @@ const SECTION_LABELS = {
   MAP: 'MAP — Museu de Arte da Pampulha',
   CasaKubitschek: 'Casa Kubitschek',
   CasaDoBalile: 'Casa do Baíle',
+  NOTURNO: '🌙 Noturno nos Museus',
 };
 const SECTION_ABREV = {
   MHAB: 'MHAB', MIS: 'MIS', MUMO: 'MUMO', MAP: 'MAP',
   CasaKubitschek: 'Casa Kubitschek', CasaDoBalile: 'Casa do Baíle',
+  NOTURNO: 'Noturno nos Museus',
 };
+
+const NOTURNO_MUSEUS = ['MAP', 'CasaKubitschek', 'CasaDoBalile', 'NOTURNO'];
+
+/**
+ * Normaliza o nome da pasta de origem, removendo prefixo data/museu (YYYY-MM-MUSEU-)
+ * e ocorrências no meio da string. Exportada para reutilização.
+ * @param {string} pastaOrigem
+ * @returns {string}
+ */
+export function normalizarNomePasta(pastaOrigem) {
+  if (!pastaOrigem) return '';
+  let nome = String(pastaOrigem).trim();
+  // Remove prefixo YYYY-MM-MUSEU- do início
+  nome = nome.replace(/^\d{4}-\d{2}-[A-Z]+-\s*/i, '');
+  // Remove ocorrências de YYYY-MM-MUSEU- no meio da string
+  nome = nome.replace(/\s*\d{4}-\d{2}-[A-Z]+-\s*/g, ' ');
+  nome = nome.replace(/\s{2,}/g, ' ').trim();
+  if (nome) nome = nome.charAt(0).toUpperCase() + nome.slice(1);
+  return nome;
+}
 
 function loadImageElement(url, timeoutMs = 12000) {
   return new Promise((resolve) => {
@@ -61,12 +84,41 @@ function formatDateBR(value) {
 }
 
 /**
- * @param {string} museuKey - chave do museu (MHAB, MIS, MUMO, etc.)
- * @param {string} mes - mês por extenso (Abril, Março, etc.)
- * @param {number} ano
- * @param {object} opts - { maxFotosPorAtividade, gerarLegendasIA, onProgresso }
+ * Extrai metadados do contexto_ia (pasta_origem, data_foto, evento)
  */
-export async function gerarAmostraRelatorioExecutivo(museuKey, mes, ano, opts = {}) {
+function parseContextoIA(rp) {
+  if (!rp.contexto_ia) return { pasta: '', dataFoto: '', evento: '' };
+  try {
+    const obj = typeof rp.contexto_ia === 'string' ? JSON.parse(rp.contexto_ia) : rp.contexto_ia;
+    return {
+      pasta: String(obj?.pasta_origem || obj?.pasta || ''),
+      dataFoto: String(obj?.data_foto || ''),
+      evento: String(obj?.evento || ''),
+    };
+  } catch {
+    return { pasta: '', dataFoto: '', evento: '' };
+  }
+}
+
+function nomeFromFile(rp) {
+  const fn = String(rp.file_name || rp.caption || '');
+  return fn.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
+}
+
+function dataFotoToBR(dataFoto) {
+  if (!dataFoto) return '';
+  const m = String(dataFoto).match(/^(\d{4}):(\d{2}):(\d{2})/);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  return '';
+}
+
+/**
+ * @param {string} museuKey - chave do museu (MHAB, MIS, MUMO, NOTURNO, etc.)
+ * @param {string|string[]} mesOuMeses - mês por extenso ou array de meses
+ * @param {number} ano
+ * @param {object} opts - { maxFotosPorAtividade, gerarLegendasIA, returnBlob, onProgresso }
+ */
+export async function gerarAmostraRelatorioExecutivo(museuKey, mesOuMeses, ano, opts = {}) {
   const {
     maxFotosPorAtividade = 4,
     gerarLegendasIA = true,
@@ -74,20 +126,50 @@ export async function gerarAmostraRelatorioExecutivo(museuKey, mes, ano, opts = 
     onProgresso = () => {},
   } = opts;
 
+  const meses = Array.isArray(mesOuMeses)
+    ? mesOuMeses
+    : (mesOuMeses ? [mesOuMeses] : []);
+
+  if (meses.length === 0) {
+    throw new Error('Nenhum mês selecionado.');
+  }
+
   const abrev = SECTION_ABREV[museuKey] || museuKey;
   const label = SECTION_LABELS[museuKey] || museuKey;
+  const isNoturno = museuKey === 'NOTURNO';
 
+  // Label do intervalo de meses para capa
+  const mesesLabel = meses.length === 1
+    ? `${meses[0]} de ${ano}`
+    : `${meses[0]}–${meses[meses.length - 1]} de ${ano}`;
+
+  // ── Busca fotos ──
   onProgresso(2, 'Buscando fotos do período...');
   let fotos = [];
   try {
-    fotos = await base44.entities.ReportPhoto.filter({ museu: museuKey }) || [];
-    fotos = fotos.filter((f) => f.mes_referencia === mes && f.ano === ano);
+    if (isNoturno) {
+      // Busca em todos os museus noturnos
+      for (const m of NOTURNO_MUSEUS) {
+        const fotosM = await base44.entities.ReportPhoto.filter({ museu: m }) || [];
+        fotos.push(...fotosM);
+      }
+      // Filtra por contexto_ia.evento contendo 'Noturno' quando disponível
+      fotos = fotos.filter((f) => {
+        const ctx = parseContextoIA(f);
+        if (ctx.evento) return ctx.evento.toLowerCase().includes('noturno');
+        return true; // Inclui se não houver campo evento
+      });
+    } else {
+      fotos = await base44.entities.ReportPhoto.filter({ museu: museuKey }) || [];
+    }
+    // Filtra por meses selecionados e ano
+    fotos = fotos.filter((f) => meses.includes(f.mes_referencia) && f.ano === ano);
   } catch (e) {
     console.error('Erro ao buscar ReportPhoto:', e);
   }
 
   if (fotos.length === 0) {
-    throw new Error(`Nenhuma foto encontrada para ${abrev} em ${mes}/${ano}.`);
+    throw new Error(`Nenhuma foto encontrada para ${abrev} em ${mesesLabel}.`);
   }
 
   // Busca dados reais das atividades vinculadas
@@ -103,54 +185,16 @@ export async function gerarAmostraRelatorioExecutivo(museuKey, mes, ano, opts = 
     }
   }
 
-  // Extrai metadados do contexto_ia de cada foto (pasta_origem, data_foto)
-  function parseContextoIA(rp) {
-    if (!rp.contexto_ia) return { pasta: '', dataFoto: '' };
-    try {
-      const obj = typeof rp.contexto_ia === 'string' ? JSON.parse(rp.contexto_ia) : rp.contexto_ia;
-      return {
-        pasta: String(obj?.pasta_origem || obj?.pasta || ''),
-        dataFoto: String(obj?.data_foto || ''),
-      };
-    } catch {
-      return { pasta: '', dataFoto: '' };
-    }
-  }
-
-  // Normaliza nome da pasta: remove prefixo YYYY-MM-MUSEU- e capitaliza
-  function normalizarNomePasta(pasta) {
-    if (!pasta) return '';
-    let nome = String(pasta).replace(/^\d{4}-\d{2}-[A-Z]+-/i, '').trim();
-    if (!nome) nome = String(pasta);
-    // Capitaliza primeira letra
-    nome = nome.charAt(0).toUpperCase() + nome.slice(1);
-    return nome;
-  }
-
-  // Fallback: file_name sem extensão
-  function nomeFromFile(rp) {
-    const fn = String(rp.file_name || rp.caption || '');
-    return fn.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
-  }
-
-  // Converte data_foto (YYYY:MM:DD HH:MM:SS) para data BR
-  function dataFotoToBR(dataFoto) {
-    if (!dataFoto) return '';
-    const m = String(dataFoto).match(/^(\d{4}):(\d{2}):(\d{2})/);
-    if (m) return `${m[3]}/${m[2]}/${m[1]}`;
-    return '';
-  }
-
-  // Agrupa fotos por pasta_origem (ou fallback file_name) em vez de lotes fixos
+  // Agrupa fotos por pasta_origem (ou fallback file_name)
   const gruposMap = new Map();
   for (const rp of fotos) {
     const ctx = parseContextoIA(rp);
     const chave = ctx.pasta || nomeFromFile(rp) || `SemNome_${rp.id || Math.random()}`;
-    if (!gruposMap.has(chave)) gruposMap.set(chave, { chave, fotos: [] });
+    if (!gruposMap.has(chave)) gruposMap.set(chave, { chave, fotos: [], mes: rp.mes_referencia || '' });
     gruposMap.get(chave).fotos.push({ rp, ctx });
   }
 
-  // Constrói atividades virtuais a partir dos grupos, ordenados por data_foto
+  // Constrói atividades virtuais a partir dos grupos
   let atividadesVirtuais = [];
   for (const grupo of gruposMap.values()) {
     const primeira = grupo.fotos[0];
@@ -161,14 +205,15 @@ export async function gerarAmostraRelatorioExecutivo(museuKey, mes, ano, opts = 
     const dataReal = atvData
       ? formatDateBR(atvData.data_realizacao || atvData.data_inicio)
       : dataFotoToBR(primeira.ctx.dataFoto) || formatDateBR(primeira.rp.created_date);
-    const museuReal = atvData?.museu || museuKey;
+    const museuReal = atvData?.museu || (isNoturno ? 'Noturno nos Museus' : museuKey);
+    const mesGrupo = grupo.mes || primeira.rp.mes_referencia || (meses.length === 1 ? meses[0] : '');
 
-    // Limita fotos por atividade
     const fotosLimitadas = grupo.fotos.slice(0, maxFotosPorAtividade);
     atividadesVirtuais.push({
       titulo: tituloReal,
       data: dataReal,
       museu: museuReal,
+      mes: mesGrupo,
       fotos: fotosLimitadas.map((f) => ({
         fileUrl: f.rp.file_url,
         legenda: f.rp.legenda || f.rp.caption || tituloReal,
@@ -181,7 +226,7 @@ export async function gerarAmostraRelatorioExecutivo(museuKey, mes, ano, opts = 
     });
   }
 
-  // Ordena grupos por data_foto da primeira foto
+  // Ordena por data
   atividadesVirtuais.sort((a, b) => {
     const da = new Date(a.data || 0).getTime() || 0;
     const db = new Date(b.data || 0).getTime() || 0;
@@ -199,7 +244,7 @@ export async function gerarAmostraRelatorioExecutivo(museuKey, mes, ano, opts = 
   const fotosParaPDF = [];
   for (const item of atividadesVirtuais) {
     for (const f of item.fotos) {
-      fotosParaPDF.push({ ...f, tituloAtividade: item.titulo, dataAtividade: item.data, museuAtividade: item.museu });
+      fotosParaPDF.push({ ...f, tituloAtividade: item.titulo, dataAtividade: item.data, museuAtividade: item.museu, mes: item.mes });
     }
   }
 
@@ -235,7 +280,8 @@ export async function gerarAmostraRelatorioExecutivo(museuKey, mes, ano, opts = 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
 
   // ── Capa ──
-  doc.setFillColor(20, 20, 20);
+  const isCapaEscura = isNoturno;
+  doc.setFillColor(isCapaEscura ? 10 : 20, isCapaEscura ? 10 : 20, isCapaEscura ? 10 : 20);
   doc.rect(0, 0, pageW, pageH, 'F');
   const timbreCapaH = drawTimbreViaduto(doc, pageW, margin, true);
   const capaY0 = timbreCapaH + 10;
@@ -250,9 +296,13 @@ export async function gerarAmostraRelatorioExecutivo(museuKey, mes, ano, opts = 
   doc.text(label, pageW / 2, capaY0 + 65, { align: 'center', maxWidth: 170 });
   doc.setFontSize(11);
   doc.setTextColor(180, 180, 180);
-  doc.text('Relatório de Atividades (Amostra)', pageW / 2, capaY0 + 85, { align: 'center' });
+  if (isNoturno) {
+    doc.text('🌙 Noturno nos Museus', pageW / 2, capaY0 + 85, { align: 'center' });
+  } else {
+    doc.text('Relatório de Atividades (Amostra)', pageW / 2, capaY0 + 85, { align: 'center' });
+  }
   doc.setFontSize(10);
-  doc.text(`${mes} de ${ano}`, pageW / 2, capaY0 + 98, { align: 'center' });
+  doc.text(mesesLabel, pageW / 2, capaY0 + 98, { align: 'center' });
   doc.setFontSize(9);
   doc.setTextColor(150, 205, 255);
   doc.text(`Gerado em ${new Date().toLocaleDateString('pt-BR')}`, pageW / 2, capaY0 + 115, { align: 'center' });
@@ -271,7 +321,7 @@ export async function gerarAmostraRelatorioExecutivo(museuKey, mes, ano, opts = 
   const cellW = (contentW - (cols - 1) * gapH) / cols;
   const gridH = usableH - titleBarH - gapV;
   const cellH = (gridH - gapV) / 2;
-  const slotH = cellH - 16;
+  const slotH = cellH - 14; // 14mm reservados para 3 linhas de legenda + margem
 
   // Pré-carrega imagens (resolução reduzida ×3)
   onProgresso(20, `Carregando ${fotosParaPDF.length} imagens...`);
@@ -301,7 +351,6 @@ export async function gerarAmostraRelatorioExecutivo(museuKey, mes, ano, opts = 
   doc.rect(0, 0, pageW, pageH, 'F');
   drawTimbreViaduto(doc, pageW, margin);
 
-  // Cabeçalho do índice
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
   doc.setTextColor(20, 20, 20);
@@ -309,13 +358,14 @@ export async function gerarAmostraRelatorioExecutivo(museuKey, mes, ano, opts = 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(120, 120, 120);
-  doc.text(`${atividadesVirtuais.length} atividade(s) · ${carregadas} foto(s)`, pageW / 2, contentTop + 6, { align: 'center' });
+  doc.text(`${atividadesVirtuais.length} atividade(s) · ${carregadas} foto(s) · ${mesesLabel}`, pageW / 2, contentTop + 6, { align: 'center' });
 
   let idxY = contentTop + 16;
   for (let i = 0; i < atividadesVirtuais.length; i++) {
     const atvItem = atividadesVirtuais[i];
     const tituloAtv = atvItem.titulo || `Atividade ${i + 1}`;
     const dataAtv = atvItem.data;
+    const mesAtv = atvItem.mes || '';
     const numFotos = atvItem.fotos.filter((f) => imagemPorUrl.get(f.fileUrl)).length;
 
     if (idxY > contentBottom - 8) {
@@ -336,7 +386,7 @@ export async function gerarAmostraRelatorioExecutivo(museuKey, mes, ano, opts = 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(120, 120, 120);
-    const meta = `${dataAtv ? dataAtv + ' · ' : ''}${numFotos} foto(s)`;
+    const meta = `${mesAtv ? mesAtv + ' · ' : ''}${dataAtv ? dataAtv + ' · ' : ''}${numFotos} foto(s)`;
     doc.text(meta, pageW - margin, idxY, { align: 'right' });
     idxY += 7;
   }
@@ -365,7 +415,7 @@ export async function gerarAmostraRelatorioExecutivo(museuKey, mes, ano, opts = 
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(140, 140, 140);
     doc.text(`Página ${paginaAtual}`, pageW - margin, pageH - 5, { align: 'right' });
-    doc.text(`${abrev} · ${mes}/${ano}`, margin, pageH - 5);
+    doc.text(`${abrev} · ${mesesLabel}`, margin, pageH - 5);
   }
 
   function novaPagina() {
@@ -383,7 +433,7 @@ export async function gerarAmostraRelatorioExecutivo(museuKey, mes, ano, opts = 
   for (const item of atividadesVirtuais) {
     const validas = item.fotos.filter((f) => imagemPorUrl.get(f.fileUrl));
     if (validas.length > 0) {
-      atvComFotos.push({ titulo: item.titulo, data: item.data, museu: item.museu, fotos: validas });
+      atvComFotos.push({ titulo: item.titulo, data: item.data, museu: item.museu, mes: item.mes, fotos: validas });
     }
   }
 
@@ -403,12 +453,15 @@ export async function gerarAmostraRelatorioExecutivo(museuKey, mes, ano, opts = 
     // Barra de título da atividade
     doc.setFillColor(240, 240, 240);
     doc.rect(margin, cursorY, contentW, titleBarH, 'F');
-    doc.setDrawColor(200, 200, 200);
+    doc.setDrawColor(224, 224, 224);
     doc.rect(margin, cursorY, contentW, titleBarH, 'S');
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
+    doc.setFontSize(10);
     doc.setTextColor(20, 20, 20);
-    doc.text(doc.splitTextToSize(atv.titulo, contentW - 20).slice(0, 1), margin + 3, cursorY + 7);
+    // Trunca título a 1 linha com ellipsis
+    const tituloBarra = doc.splitTextToSize(atv.titulo, contentW - 25)[0] || '';
+    const tituloTruncado = tituloBarra.length < atv.titulo.length ? tituloBarra.replace(/.{3}$/, '...') : tituloBarra;
+    doc.text(tituloTruncado, margin + 3, cursorY + 7);
     if (atv.data) {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
@@ -435,7 +488,7 @@ export async function gerarAmostraRelatorioExecutivo(museuKey, mes, ano, opts = 
         await new Promise((r) => requestAnimationFrame(() => r()));
       }
 
-      // Fundo letterbox #F5F5F5
+      // Fundo letterbox #F5F5F5 — apenas o slot de foto (não a área de legenda)
       doc.setFillColor(245, 245, 245);
       doc.rect(slotX, slotY, cellW, slotH, 'F');
 
@@ -451,23 +504,24 @@ export async function gerarAmostraRelatorioExecutivo(museuKey, mes, ano, opts = 
       doc.setDrawColor(205, 205, 205);
       doc.rect(slotX, slotY, cellW, slotH, 'S');
 
-      // Legenda estruturada (3 linhas, centralizada)
+      // Legenda estruturada (3 linhas, centralizada, 3mm entre linhas)
       const legCx = slotX + cellW / 2;
       let legY = slotY + slotH + 3;
-      // Linha 1: título da atividade (bold, 8.5pt, #141414)
+      // Linha 1: título da atividade (bold, 8pt, #141414)
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.5);
+      doc.setFontSize(8);
       doc.setTextColor(20, 20, 20);
       const tituloLeg = doc.splitTextToSize(foto.tituloAtividade || atv.titulo || 'Registro fotográfico', cellW - 2)[0] || '';
       doc.text(tituloLeg, legCx, legY, { align: 'center', maxWidth: cellW - 2 });
-      legY += 4;
+      legY += 3;
       // Linha 2: museu (normal, 7.5pt, #666666)
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7.5);
       doc.setTextColor(102, 102, 102);
       doc.text(foto.museuAtividade || atv.museu || abrev, legCx, legY, { align: 'center' });
-      legY += 3.5;
+      legY += 3;
       // Linha 3: data (normal, 7pt, #999999)
+      doc.setFont('helvetica', 'normal');
       doc.setFontSize(7);
       doc.setTextColor(153, 153, 153);
       doc.text(foto.dataAtividade || atv.data || '', legCx, legY, { align: 'center' });
@@ -523,9 +577,10 @@ export async function gerarAmostraRelatorioExecutivo(museuKey, mes, ano, opts = 
 
   desenharRodape();
 
+  const mesesSlug = meses.length === 1 ? meses[0] : `${meses[0]}-${meses[meses.length - 1]}`;
   const filename = returnBlob
-    ? `RelatorioExecutivo_${abrev}_${mes}_${ano}.pdf`
-    : `Amostra_RelatorioExecutivo_${abrev}_${mes}_${ano}_${new Date().toISOString().slice(0, 10)}.pdf`;
+    ? `RelatorioExecutivo_${abrev}_${mesesSlug}_${ano}.pdf`
+    : `Amostra_RelatorioExecutivo_${abrev}_${mesesSlug}_${ano}_${new Date().toISOString().slice(0, 10)}.pdf`;
 
   onProgresso(100, 'Concluído!');
   if (returnBlob) {

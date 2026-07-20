@@ -13,7 +13,7 @@ import {
 } from '@/utils/gerarRelatorioExecutivoAtividades';
 import { gerarAmostraRelatorioExecutivo } from '@/utils/exportarAmostraRelatorioExecutivo';
 
-const SECTION_ORDER = ['MHAB', 'MIS', 'MUMO', 'MAP', 'CasaKubitschek', 'CasaDoBalile'];
+const SECTION_ORDER = ['MHAB', 'MIS', 'MUMO', 'MAP', 'CasaKubitschek', 'CasaDoBalile', 'NOTURNO'];
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
@@ -38,7 +38,7 @@ function downloadBlob(blob, filename) {
 
 export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
   const [museu, setMuseu] = useState('');
-  const [mes, setMes] = useState('');
+  const [meses, setMeses] = useState([]);
   const [ano, setAno] = useState(new Date().getFullYear());
   const [loading, setLoading] = useState(false);
   const [progresso, setProgresso] = useState('');
@@ -59,15 +59,24 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
     return [atual, atual - 1, atual - 2];
   }, []);
 
+  const toggleMes = (m) => {
+    setMeses((prev) => prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]);
+  };
+  const toggleTodosMeses = () => {
+    setMeses((prev) => prev.length === MESES.length ? [] : [...MESES]);
+  };
+
   const buscarAtividades = useCallback(async () => {
-    if (!museu || !mes) { toast.warning('Selecione museu e mês.'); return; }
+    if (!museu || meses.length === 0) { toast.warning('Selecione museu e pelo menos um mês.'); return; }
     setLoading(true);
     setFetched(false);
     setAtividades([]);
     setUsarFallbackAmostra(false);
     setPct(2);
     try {
-      const resultado = await buscarAtividadesComFotos(museu, mes, ano, {
+      // Para o path normal, usa o primeiro mês (multi-mês consolidado apenas no fallback)
+      const mesBusca = meses[0];
+      const resultado = await buscarAtividadesComFotos(museu, mesBusca, ano, {
         maxFotos: MAX_FOTOS,
         onProgresso: (p, t) => { setPct(p); setProgresso(t); },
       });
@@ -85,7 +94,7 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
       setProgresso('');
       setPct(0);
     }
-  }, [museu, mes, ano]);
+  }, [museu, meses, ano]);
 
   const temFotos = atividades.some((a) => a.fotos.length > 0);
 
@@ -97,13 +106,14 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
       let resultado;
       if (usarFallbackAmostra) {
         setProgresso('Gerando PDF com fotos brutas do período...');
-        resultado = await gerarAmostraRelatorioExecutivo(museu, mes, ano, {
+        resultado = await gerarAmostraRelatorioExecutivo(museu, meses, ano, {
           maxFotosPorAtividade: MAX_FOTOS,
           returnBlob: true,
           onProgresso: (p, t) => { setPct(p); setProgresso(t); },
         });
       } else {
-        resultado = await gerarPDFAtividades(atividades, museu, mes, ano, {
+        const mesBusca = meses[0];
+        resultado = await gerarPDFAtividades(atividades, museu, mesBusca, ano, {
           returnBlob: true,
           onProgresso: (p, t) => { setPct(p); setProgresso(t); },
         });
@@ -168,7 +178,7 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
               })),
             });
           } else {
-            resultado = await gerarAmostraRelatorioExecutivo(museuKey, mesKey, ano, {
+            resultado = await gerarAmostraRelatorioExecutivo(museuKey, [mesKey], ano, {
               maxFotosPorAtividade: maxFotos,
               returnBlob: true,
               onProgresso: (p, t) => setLoteProgresso(prev => ({
@@ -213,7 +223,7 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
   }
 
   function reset() {
-    setMuseu(''); setMes(''); setAtividades([]); setFetched(false);
+    setMuseu(''); setMeses([]); setAtividades([]); setFetched(false);
     setUsarFallbackAmostra(false);
     setLoteExecutando(false); setLoteProgresso(null); setLoteConcluido(null);
   }
@@ -325,20 +335,32 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
                 </div>
               </div>
 
-              {/* Mês */}
+              {/* Mês (multi-select) */}
               <div className="space-y-2">
-                <p className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
-                  <Calendar className="h-3.5 w-3.5" /> Mês de referência
-                </p>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5" /> Mês de referência
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => !controlesBloqueados && toggleTodosMeses()}
+                    disabled={controlesBloqueados}
+                    className={`text-xs font-medium px-2 py-1 rounded-lg border transition-all
+                      ${meses.length === MESES.length ? 'bg-black text-white border-black' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'}
+                      ${controlesBloqueados ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    {meses.length === MESES.length ? 'Limpar' : 'Todos'}
+                  </button>
+                </div>
                 <div className="grid grid-cols-3 gap-2">
                   {MESES.map((m) => (
                     <button
                       key={m}
                       type="button"
-                      onClick={() => !controlesBloqueados && setMes(mes === m ? '' : m)}
+                      onClick={() => !controlesBloqueados && toggleMes(m)}
                       disabled={controlesBloqueados}
                       className={`rounded-lg border px-2 py-2 text-xs font-medium transition-all
-                        ${mes === m ? 'border-black bg-black text-white' : 'border-gray-200 bg-white text-gray-700 hover:border-gray-400'}
+                        ${meses.includes(m) ? 'border-black bg-black text-white' : 'border-gray-200 bg-white text-gray-700 hover:border-gray-400'}
                         ${controlesBloqueados ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       {m}
@@ -427,7 +449,7 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
                 <div>
                   <p className="text-sm font-medium text-blue-900">Sem atividades com fotos — usando fotos brutas do período</p>
                   <p className="mt-1 text-xs text-blue-700">
-                    Não foram encontradas atividades físicas com fotos para {SECTION_ABREV[museu]} em {mes}/{ano}.
+                    Não foram encontradas atividades físicas com fotos para {SECTION_ABREV[museu]} em {meses.join(', ')}/{ano}.
                     O PDF será gerado com as fotos brutas (ReportPhoto) do período, agrupadas em páginas de 4 fotos.
                   </p>
                 </div>
@@ -476,7 +498,7 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
             </Button>
           )}
           {!fetched ? (
-            <Button onClick={buscarAtividades} disabled={controlesBloqueados || !museu || !mes}>
+            <Button onClick={buscarAtividades} disabled={controlesBloqueados || !museu || meses.length === 0}>
               {loading ? <><Loader2 className="h-4 w-4 animate-spin mr-1" />Buscando...</> : 'Buscar atividades'}
             </Button>
           ) : (
