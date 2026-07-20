@@ -95,9 +95,9 @@ function clearGalleryCache() {
   } catch {
 
 
+
     // noop
-  }}
-function FilterChip({ label, active, onClick }) {
+  }}function FilterChip({ label, active, onClick }) {
   return (
     <button
       type="button"
@@ -153,7 +153,7 @@ function GalleryCard({ image, onClick, eager = false, selected, onToggleSelect, 
               // Tenta fallbacks em sequência antes de desistir
               if (!tried) {
                 img.dataset.tried = '1';
-                if (fallbacks[0]) { img.src = fallbacks[0]; return; }
+                if (fallbacks[0]) {img.src = fallbacks[0];return;}
                 img.dataset.tried = '2';
               } else if (tried === '1' && fallbacks[1]) {
                 img.dataset.tried = '2';
@@ -295,7 +295,7 @@ function GaleriaFotosInner() {
         sectionKey: canonicalKey,
         sectionTitle: SECTION_LABELS[canonicalKey] || img.sectionTitle || canonicalKey,
         museu: SECTION_LABELS[canonicalKey] ? SECTION_LABELS[canonicalKey].split(' — ')[0] : img.museu,
-        reportMes: normalizedMes,
+        reportMes: normalizedMes
       };
     });
   }, [rawImages]);
@@ -303,14 +303,14 @@ function GaleriaFotosInner() {
   // Chips de museu: chaves canônicas únicas presentes nos dados, na ordem oficial
   const museuOptions = useMemo(() => {
     const present = new Set();
-    images.forEach((img) => { present.add(img.sectionKey || 'SEM_IDENTIFICACAO'); });
+    images.forEach((img) => {present.add(img.sectionKey || 'SEM_IDENTIFICACAO');});
     return MUSEU_OFFICIAL_ORDER.filter((key) => present.has(key));
   }, [images]);
 
   // Chips de período: normalizados (sem duplicatas Mês vs Mês/Ano), ordenados cronologicamente
   const periodoOptions = useMemo(() => {
     const raw = [];
-    images.forEach((img) => { if (img.reportMes) raw.push(img.reportMes); });
+    images.forEach((img) => {if (img.reportMes) raw.push(img.reportMes);});
     return normalizePeriodoKeys(raw);
   }, [images]);
 
@@ -393,13 +393,13 @@ function GaleriaFotosInner() {
         porAtividade.get(atividade).push(entry);
       });
       const allItems = Array.from(porAtividade.values()).flat();
-      const filtrados = Array.from(porAtividade.values())
-        .map((group) => group.slice(0, MAX_FOTOS_POR_ATIVIDADE))
-        .flat();
+      const filtrados = Array.from(porAtividade.values()).
+      map((group) => group.slice(0, MAX_FOTOS_POR_ATIVIDADE)).
+      flat();
       const selAtividade = selectedAtividade[key];
-      const itemsFiltrados = selAtividade
-        ? filtrados.filter((entry) => getAtividadeKey(entry.image) === selAtividade)
-        : filtrados;
+      const itemsFiltrados = selAtividade ?
+      filtrados.filter((entry) => getAtividadeKey(entry.image) === selAtividade) :
+      filtrados;
       const ocultadas = allItems.length - filtrados.length;
       return { key, items: itemsFiltrados, allItems, ocultadas };
     });
@@ -432,7 +432,7 @@ function GaleriaFotosInner() {
       const lote = pacotes[p];
       const zipName = `pacote_fotos_${p + 1}_de_${pacotes.length}`;
       const links = lote.map((photo, i) =>
-        `${i + 1}. ${photo.legenda || photo.activityTitulo || photo.fileName || 'Foto'}\n   ${photo.fileUrl}`
+      `${i + 1}. ${photo.legenda || photo.activityTitulo || photo.fileName || 'Foto'}\n   ${photo.fileUrl}`
       ).join('\n\n');
       const blob = new Blob([links], { type: 'text/plain;charset=utf-8' });
       const url = URL.createObjectURL(blob);
@@ -499,34 +499,34 @@ function GaleriaFotosInner() {
 
 
             
-            {totalBruto > 0 && totalOcultadas > 0 && (
-              <p className="mt-1 text-xs text-gray-400">
+            {totalBruto > 0 && totalOcultadas > 0 &&
+            <p className="mt-1 text-xs text-gray-400">
                 {totalBruto} fotos encontradas · {totalBruto - totalOcultadas} exibidas após deduplicação
               </p>
-            )}
-            {totalBruto > 0 && totalOcultadas === 0 && (
-              <p className="mt-1 text-xs text-gray-400">{totalBruto} fotos na galeria</p>
-            )}
+            }
+            {totalBruto > 0 && totalOcultadas === 0 &&
+            <p className="mt-1 text-xs text-gray-400">{totalBruto} fotos na galeria</p>
+            }
             {data?.cacheUsed && !data?.cacheStale && <p className="mt-1 text-xs text-gray-400">Dados do cache local.</p>}
-            {data?.cacheStale && (
-              <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-amber-50 border border-amber-200 px-3 py-1.5 text-xs text-amber-800">
+            {data?.cacheStale &&
+            <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-amber-50 border border-amber-200 px-3 py-1.5 text-xs text-amber-800">
                 <TriangleAlert className="h-3.5 w-3.5" />
                 <span>Exibindo fotos do cache anterior — clique em atualizar para recarregar</span>
               </div>
-            )}
-            {isAutoSyncing && (
-              <p className="mt-1 inline-flex items-center gap-1 text-xs text-blue-500">
+            }
+            {isAutoSyncing &&
+            <p className="mt-1 inline-flex items-center gap-1 text-xs text-blue-500">
                 <RefreshCw className="h-3 w-3 animate-spin" />
                 Sincronizando com o Drive...
               </p>
-            )}
+            }
             {isFetching && !isAutoSyncing && <p className="mt-2 text-xs text-gray-400">Atualizando galeria...</p>}
-            {isGeneratingCaptions && (
-              <p className="mt-1 inline-flex items-center gap-1 text-xs text-emerald-600">
+            {isGeneratingCaptions &&
+            <p className="mt-1 inline-flex items-center gap-1 text-xs text-emerald-600">
                 <RefreshCw className="h-3 w-3 animate-spin" />
                 Gerando legendas automáticas...
               </p>
-            )}
+            }
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -581,7 +581,7 @@ function GaleriaFotosInner() {
                     setProgressoAmostra({ pct: 0, texto: 'Iniciando...' });
                     try {
                       const res = await gerarAmostraRelatorioExecutivo('MHAB', 'Abril', 2026, {
-                        onProgresso: (pct, texto) => setProgressoAmostra({ pct, texto }),
+                        onProgresso: (pct, texto) => setProgressoAmostra({ pct, texto })
                       });
                       toast.success(`Amostra gerada! ${res.totalFotos} fotos em ${res.totalAtividades} atividades.`);
                     } catch (e) {
@@ -654,11 +654,11 @@ function GaleriaFotosInner() {
                   className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
                   <span className="font-medium text-gray-900 flex items-center gap-1.5">
                     <HardDriveDownload className="h-3.5 w-3.5" /> Consolidar Fotos do Drive
-                    {duplicates.length > 0 && (
-                      <span className="ml-1 inline-flex items-center justify-center rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">
+                    {duplicates.length > 0 &&
+                    <span className="ml-1 inline-flex items-center justify-center rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">
                         {duplicates.length}
                       </span>
-                    )}
+                    }
                   </span>
                   <span className="text-xs text-gray-500 pl-5">Importa fotos de pastas avulsas, gera legendas por IA e organiza na galeria.</span>
                 </DropdownMenuItem>
@@ -719,20 +719,20 @@ function GaleriaFotosInner() {
           onDownloadBatch={baixarPacotesDe4} />
 
         {/* Banner de duplicatas detectadas */}
-        {duplicates.length > 0 && !showAjustarVinculos && (
-          <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+        {duplicates.length > 0 && !showAjustarVinculos &&
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
             <TriangleAlert className="h-4 w-4 shrink-0 text-amber-500" />
             <span>
               <strong>{duplicates.length}</strong> {duplicates.length === 1 ? 'foto duplicada detectada' : 'fotos duplicadas detectadas'}
             </span>
             <button
-              type="button"
-              onClick={() => setShowAjustarVinculos(true)}
-              className="ml-auto inline-flex items-center gap-1 rounded-lg bg-amber-200 px-3 py-1 text-xs font-medium text-amber-900 hover:bg-amber-300 transition-colors">
+            type="button"
+            onClick={() => setShowAjustarVinculos(true)}
+            className="ml-auto inline-flex items-center gap-1 rounded-lg bg-amber-200 px-3 py-1 text-xs font-medium text-amber-900 hover:bg-amber-300 transition-colors">
               Revisar
             </button>
           </div>
-        )}
+        }
         
 
         {/* Feedback de sincronização */}
@@ -759,7 +759,7 @@ function GaleriaFotosInner() {
         }
 
         {/* Painel de filtros */}
-        <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm space-y-4">
+        <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm space-y-4 hidden">
           {/* Seletor de agrupamento visual */}
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
@@ -769,23 +769,23 @@ function GaleriaFotosInner() {
             <div className="inline-flex rounded-xl border border-gray-200 bg-gray-50 p-1">
               <button
                 type="button"
-                onClick={() => { setGroupMode('museu'); setVisibleCount(INITIAL_VISIBLE_IMAGES); }}
+                onClick={() => {setGroupMode('museu');setVisibleCount(INITIAL_VISIBLE_IMAGES);}}
                 className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-medium transition-all ${
-                  groupMode === 'museu'
-                    ? 'bg-black text-white shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}>
+                groupMode === 'museu' ?
+                'bg-black text-white shadow-sm' :
+                'text-gray-600 hover:text-gray-900'}`
+                }>
                 <MapPin className="h-3.5 w-3.5" />
                 Museu
               </button>
               <button
                 type="button"
-                onClick={() => { setGroupMode('periodo'); setVisibleCount(INITIAL_VISIBLE_IMAGES); }}
+                onClick={() => {setGroupMode('periodo');setVisibleCount(INITIAL_VISIBLE_IMAGES);}}
                 className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-medium transition-all ${
-                  groupMode === 'periodo'
-                    ? 'bg-black text-white shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}>
+                groupMode === 'periodo' ?
+                'bg-black text-white shadow-sm' :
+                'text-gray-600 hover:text-gray-900'}`
+                }>
                 <Calendar className="h-3.5 w-3.5" />
                 Período
               </button>
@@ -913,7 +913,7 @@ function GaleriaFotosInner() {
 
         <div className="space-y-10">
             {groupedImages.map(({ key, items, allItems, ocultadas }) =>
-          <section key={key} className="space-y-4">
+          <section key={key} className="space-y-4 hidden">
                 <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
                   {editingAlbumKey === key ?
               <div className="flex items-center gap-2">
@@ -948,7 +948,7 @@ function GaleriaFotosInner() {
 
               <div className="flex items-center gap-2 group">
                       <h2 className="text-xl font-semibold text-black">
-                        {albumLabels[key] || (groupMode === 'periodo' ? (PERIODO_LABELS.get(key) || (key === 'SEM_PERIODO' ? 'Sem período identificado' : key)) : (SECTION_LABELS[key] || key))}
+                        {albumLabels[key] || (groupMode === 'periodo' ? PERIODO_LABELS.get(key) || (key === 'SEM_PERIODO' ? 'Sem período identificado' : key) : SECTION_LABELS[key] || key)}
                       </h2>
                       <button
                   type="button"
@@ -966,37 +966,37 @@ function GaleriaFotosInner() {
                   <p className="mt-1 text-xs text-gray-500">
                     {items.length} {items.length === 1 ? 'foto exibida' : 'fotos exibidas'} neste bloco
                   </p>
-                  {ocultadas > 0 && (
-                    <p className="mt-0.5 text-[11px] text-gray-400">
+                  {ocultadas > 0 &&
+              <p className="mt-0.5 text-[11px] text-gray-400">
                       ({ocultadas} {ocultadas === 1 ? 'foto ocultada' : 'fotos ocultadas'} pelo limite de {MAX_FOTOS_POR_ATIVIDADE} por atividade)
                     </p>
-                  )}
+              }
                 </div>
 
                 {/* Chips de atividade */}
                 <ActivityChipsBar
-                  sectionKey={key}
-                  items={allItems}
-                  selectedKey={selectedAtividade[key] || ''}
-                  onSelect={(atividadeKey) =>
-                    setSelectedAtividade((prev) => ({
-                      ...prev,
-                      [key]: prev[key] === atividadeKey ? '' : atividadeKey,
-                    }))
-                  }
-                  labels={atividadeLabels}
-                  onRename={(atkKey, newLabel) => {
-                    setAtividadeLabels((prev) => {
-                      const next = { ...prev, [atkKey]: newLabel || atkKey };
-                      try {
-                        sessionStorage.setItem('galeria_atividade_labels', JSON.stringify(next));
-                      } catch {
-                        // noop
-                      }
-                      return next;
-                    });
-                  }}
-                />
+              sectionKey={key}
+              items={allItems}
+              selectedKey={selectedAtividade[key] || ''}
+              onSelect={(atividadeKey) =>
+              setSelectedAtividade((prev) => ({
+                ...prev,
+                [key]: prev[key] === atividadeKey ? '' : atividadeKey
+              }))
+              }
+              labels={atividadeLabels}
+              onRename={(atkKey, newLabel) => {
+                setAtividadeLabels((prev) => {
+                  const next = { ...prev, [atkKey]: newLabel || atkKey };
+                  try {
+                    sessionStorage.setItem('galeria_atividade_labels', JSON.stringify(next));
+                  } catch {
+
+                    // noop
+                  }return next;
+                });
+              }} />
+            
 
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                   {items.map(({ image, renderIndex }) =>
@@ -1006,8 +1006,8 @@ function GaleriaFotosInner() {
                 eager={renderIndex < 4}
                 onClick={() => {
                   // Modo Exposição: navega pelas fotos do museu ativo em sequência
-                  const sectionImages = (groupedImages.find((g) => g.key === key)?.allItems || [])
-                    .map((entry) => entry.image);
+                  const sectionImages = (groupedImages.find((g) => g.key === key)?.allItems || []).
+                  map((entry) => entry.image);
                   const idx = sectionImages.findIndex((img) => (img.id || img.fileUrl) === (image.id || image.fileUrl));
                   setModoExposicao({ images: sectionImages.length ? sectionImages : [image], startIndex: Math.max(0, idx) });
                 }}
@@ -1023,26 +1023,26 @@ function GaleriaFotosInner() {
           )}
 
             {limitedByActivity.length > visibleCount &&
-            <div className="flex justify-center pt-2 pb-4">
+          <div className="flex justify-center pt-2 pb-4">
                  <button
-               type="button"
-               onClick={() => {
-                 setVisibleCount((count) => Math.min(count + VISIBLE_IMAGES_STEP, limitedByActivity.length));
-                 // Rola até as novas fotos após renderizar
-                 setTimeout(() => {
-                   const sections = document.querySelectorAll('section');
-                   if (sections.length > 0) {
-                     const lastSection = sections[sections.length - 1];
-                     lastSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                   }
-                 }, 100);
-               }}
-               className="rounded-full border border-gray-300 bg-white px-5 py-2 text-sm font-medium text-gray-700 shadow-sm hover:border-gray-400 hover:bg-gray-50">
+              type="button"
+              onClick={() => {
+                setVisibleCount((count) => Math.min(count + VISIBLE_IMAGES_STEP, limitedByActivity.length));
+                // Rola até as novas fotos após renderizar
+                setTimeout(() => {
+                  const sections = document.querySelectorAll('section');
+                  if (sections.length > 0) {
+                    const lastSection = sections[sections.length - 1];
+                    lastSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }
+                }, 100);
+              }}
+              className="rounded-full border border-gray-300 bg-white px-5 py-2 text-sm font-medium text-gray-700 shadow-sm hover:border-gray-400 hover:bg-gray-50">
 
                    Carregar mais ({limitedByActivity.length - visibleCount} restantes)
                  </button>
                </div>
-            }
+          }
           </div>
         }
       </div>
