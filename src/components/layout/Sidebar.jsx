@@ -383,11 +383,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
                 url: 'https://drive.google.com/drive/folders/1HlhZvINo-j29SqZ3OInEtxNktp6IlKl9',
                 title: 'Fotos por Período/Museu/Atividade',
               },
-              {
-                label: 'PDFs Exportados',
-                url: 'https://drive.google.com/drive/search?q=Relat%C3%B3rio%20Museus%20Centro',
-                title: 'Buscar relatórios e PDFs exportados no Drive',
-              },
+
             ].map(({ label, url, title }) => (
               <SidebarTooltip key={label} label={title} collapsed={collapsed}>
                 <a
