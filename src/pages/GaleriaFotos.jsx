@@ -33,7 +33,7 @@ const VISIBLE_IMAGES_STEP = 48;
 const MAX_FOTOS_POR_ATIVIDADE = 5;
 // Inclui data do dia na chave para invalidar o cache automaticamente a cada novo dia
 const TODAY = new Date().toISOString().slice(0, 10);
-const GALLERY_CACHE_KEY = `museus_centro_galeria_fotos_cache_v14_dynamic_museums_${TODAY}`;
+const GALLERY_CACHE_KEY = `museus_centro_galeria_fotos_cache_v15_resilient_${TODAY}`;
 const GALLERY_CACHE_TTL_MS = 5 * 60 * 1000; // 5 min para pegar fotos novas mais rápido
 
 const SECTION_LABELS = {
@@ -83,7 +83,7 @@ function formatDateBR(value) {
 function clearGalleryCache() {
   try {
     // Limpa versões antigas e a atual
-    ['v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v10', 'v11', 'v12', 'v13'].forEach((v) => {
+    ['v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v10', 'v11', 'v12', 'v13', 'v14'].forEach((v) => {
       localStorage.removeItem(`museus_centro_galeria_fotos_cache_${v}`);
       localStorage.removeItem(`museus_centro_galeria_fotos_cache_${v}_deduped_3layers`);
       localStorage.removeItem(`museus_centro_galeria_fotos_cache_${v}_drive_thumbs_${TODAY}`);
@@ -259,7 +259,7 @@ function GaleriaFotosInner() {
     error,
     refetch
   } = useQuery({
-    queryKey: ['galeria-fotos-stable-v4'],
+    queryKey: ['galeria-fotos-stable-v5'],
     queryFn: async () => loadGalleryReportData({
       limitAttachments: 0,
       useCache: true,
@@ -492,7 +492,13 @@ function GaleriaFotosInner() {
             {totalBruto > 0 && totalOcultadas === 0 && (
               <p className="mt-1 text-xs text-gray-400">{totalBruto} fotos na galeria</p>
             )}
-            {data?.cacheUsed && <p className="mt-1 text-xs text-gray-400">Dados do cache local.{data?.cacheStale ? ' (cache antigo)' : ''}</p>}
+            {data?.cacheUsed && !data?.cacheStale && <p className="mt-1 text-xs text-gray-400">Dados do cache local.</p>}
+            {data?.cacheStale && (
+              <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-amber-50 border border-amber-200 px-3 py-1.5 text-xs text-amber-800">
+                <TriangleAlert className="h-3.5 w-3.5" />
+                <span>Exibindo fotos do cache anterior — clique em atualizar para recarregar</span>
+              </div>
+            )}
             {isAutoSyncing && (
               <p className="mt-1 inline-flex items-center gap-1 text-xs text-blue-500">
                 <RefreshCw className="h-3 w-3 animate-spin" />
@@ -721,7 +727,7 @@ function GaleriaFotosInner() {
             <RestaurarFotosDrive
             onImportConcluida={() => {
               clearGalleryCache();
-              queryClient.invalidateQueries(['galeria-fotos-stable-v4']);
+              queryClient.invalidateQueries(['galeria-fotos-stable-v5']);
               refetch();
               setShowRestaurar(false);
             }} />
@@ -1063,7 +1069,7 @@ function GaleriaFotosInner() {
         duplicates={duplicates}
         onConcluido={() => {
           clearGalleryCache();
-          queryClient.invalidateQueries(['galeria-fotos-stable-v4']);
+          queryClient.invalidateQueries(['galeria-fotos-stable-v5']);
           refetch();
         }} />
 
@@ -1086,7 +1092,7 @@ function GaleriaFotosInner() {
         onClose={() => {
           setShowReconstruir(false);
           clearGalleryCache();
-          queryClient.invalidateQueries(['galeria-fotos-stable-v4']);
+          queryClient.invalidateQueries(['galeria-fotos-stable-v5']);
           refetch();
         }} />
 
@@ -1095,7 +1101,7 @@ function GaleriaFotosInner() {
         onClose={() => {
           setShowImportar6Pastas(false);
           clearGalleryCache();
-          queryClient.invalidateQueries(['galeria-fotos-stable-v4']);
+          queryClient.invalidateQueries(['galeria-fotos-stable-v5']);
           refetch();
         }} />
 
@@ -1104,7 +1110,7 @@ function GaleriaFotosInner() {
         onClose={() => setShowConsolidarDrive(false)}
         onConcluido={async () => {
           clearGalleryCache();
-          queryClient.invalidateQueries(['galeria-fotos-stable-v4']);
+          queryClient.invalidateQueries(['galeria-fotos-stable-v5']);
           await refetch();
           // Backup automático pós-importação
           try {
