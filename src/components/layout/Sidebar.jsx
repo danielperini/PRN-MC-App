@@ -83,7 +83,6 @@ const NAV_GROUPS = [
     label: 'Relatórios',
     items: [
       { path: 'Relatorios', label: 'Relatórios', icon: FileText, roles: ['all'] },
-      { path: 'CoordReview', label: 'Revisão', icon: Eye, roles: ['coord', 'admin'], hideForObservador: true },
       { path: 'RelatorioExecucaoObjeto', label: 'Rel. Execução', icon: ScrollText, roles: ['coord', 'admin'] },
     ],
   },

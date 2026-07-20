@@ -300,12 +300,20 @@ export default function Relatorios() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {isCoordenador ? <Link to="/RelatorioFisicoFinanceiro">
-              <Button variant="outline" className="gap-2">
-                <BarChart2 className="h-4 w-4" />
-                Gerador de Relatório
-              </Button>
-            </Link> : null}
+            {isCoordenador ? <>
+              <Link to="/CoordReview">
+                <Button variant="outline" className="gap-2">
+                  <Eye className="h-4 w-4" />
+                  Revisão de Relatórios
+                </Button>
+              </Link>
+              <Link to="/RelatorioFisicoFinanceiro">
+                <Button variant="outline" className="gap-2">
+                  <BarChart2 className="h-4 w-4" />
+                  Gerador de Relatório
+                </Button>
+              </Link>
+            </> : null}
 
             <Link to="/ReportEditor?novo=1">
               <Button className="gap-2 bg-black text-white hover:bg-gray-900">
