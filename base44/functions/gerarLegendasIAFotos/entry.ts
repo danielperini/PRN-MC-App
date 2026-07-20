@@ -161,7 +161,7 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ success: false, error: 'Não autenticado.' }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
-    const { batch_size = 20, max_batches = 5, apenas_sem_legenda = false, offset = 0 } = body;
+    const { batch_size = 20, max_batches = 5, apenas_sem_legenda = true, offset = 0 } = body;
 
     const evidenceMap = await buildEvidenceMap(base44);
 
