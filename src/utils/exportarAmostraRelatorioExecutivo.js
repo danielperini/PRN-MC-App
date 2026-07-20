@@ -103,30 +103,90 @@ export async function gerarAmostraRelatorioExecutivo(museuKey, mes, ano, opts = 
     }
   }
 
-  // Agrupa fotos em "atividades" virtuais (4 fotos cada)
-  const atividadesVirtuais = [];
-  for (let i = 0; i < fotos.length; i += maxFotosPorAtividade) {
-    const lote = fotos.slice(i, i + maxFotosPorAtividade);
-    const atvReal = lote.map((rp) => rp.activity_id).find(Boolean) || null;
+  // Extrai metadados do contexto_ia de cada foto (pasta_origem, data_foto)
+  function parseContextoIA(rp) {
+    if (!rp.contexto_ia) return { pasta: '', dataFoto: '' };
+    try {
+      const obj = typeof rp.contexto_ia === 'string' ? JSON.parse(rp.contexto_ia) : rp.contexto_ia;
+      return {
+        pasta: String(obj?.pasta_origem || obj?.pasta || ''),
+        dataFoto: String(obj?.data_foto || ''),
+      };
+    } catch {
+      return { pasta: '', dataFoto: '' };
+    }
+  }
+
+  // Normaliza nome da pasta: remove prefixo YYYY-MM-MUSEU- e capitaliza
+  function normalizarNomePasta(pasta) {
+    if (!pasta) return '';
+    let nome = String(pasta).replace(/^\d{4}-\d{2}-[A-Z]+-/i, '').trim();
+    if (!nome) nome = String(pasta);
+    // Capitaliza primeira letra
+    nome = nome.charAt(0).toUpperCase() + nome.slice(1);
+    return nome;
+  }
+
+  // Fallback: file_name sem extensão
+  function nomeFromFile(rp) {
+    const fn = String(rp.file_name || rp.caption || '');
+    return fn.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
+  }
+
+  // Converte data_foto (YYYY:MM:DD HH:MM:SS) para data BR
+  function dataFotoToBR(dataFoto) {
+    if (!dataFoto) return '';
+    const m = String(dataFoto).match(/^(\d{4}):(\d{2}):(\d{2})/);
+    if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+    return '';
+  }
+
+  // Agrupa fotos por pasta_origem (ou fallback file_name) em vez de lotes fixos
+  const gruposMap = new Map();
+  for (const rp of fotos) {
+    const ctx = parseContextoIA(rp);
+    const chave = ctx.pasta || nomeFromFile(rp) || `SemNome_${rp.id || Math.random()}`;
+    if (!gruposMap.has(chave)) gruposMap.set(chave, { chave, fotos: [] });
+    gruposMap.get(chave).fotos.push({ rp, ctx });
+  }
+
+  // Constrói atividades virtuais a partir dos grupos, ordenados por data_foto
+  let atividadesVirtuais = [];
+  for (const grupo of gruposMap.values()) {
+    const primeira = grupo.fotos[0];
+    const atvReal = grupo.fotos.map((f) => f.rp.activity_id).find(Boolean);
     const atvData = atvReal ? activityMap.get(atvReal) : null;
-    const tituloReal = atvData?.titulo || '';
-    const dataReal = atvData ? formatDateBR(atvData.data_realizacao || atvData.data_inicio) : '';
+
+    const tituloReal = atvData?.titulo || normalizarNomePasta(primeira.ctx.pasta) || nomeFromFile(primeira.rp);
+    const dataReal = atvData
+      ? formatDateBR(atvData.data_realizacao || atvData.data_inicio)
+      : dataFotoToBR(primeira.ctx.dataFoto) || formatDateBR(primeira.rp.created_date);
     const museuReal = atvData?.museu || museuKey;
+
+    // Limita fotos por atividade
+    const fotosLimitadas = grupo.fotos.slice(0, maxFotosPorAtividade);
     atividadesVirtuais.push({
-      titulo: tituloReal || `Atividade ${atividadesVirtuais.length + 1}`,
-      data: dataReal || formatDateBR(lote[0]?.created_date),
+      titulo: tituloReal,
+      data: dataReal,
       museu: museuReal,
-      fotos: lote.map((rp) => ({
-        fileUrl: rp.file_url,
-        legenda: rp.legenda || rp.caption || rp.file_name || `Atividade ${atividadesVirtuais.length + 1}`,
-        activityId: rp.activity_id,
-        reportId: rp.report_id,
-        tituloAtividade: tituloReal || rp.legenda || rp.caption || rp.file_name || '',
-        dataAtividade: dataReal || formatDateBR(rp.created_date),
+      fotos: fotosLimitadas.map((f) => ({
+        fileUrl: f.rp.file_url,
+        legenda: f.rp.legenda || f.rp.caption || tituloReal,
+        activityId: f.rp.activity_id,
+        reportId: f.rp.report_id,
+        tituloAtividade: tituloReal,
+        dataAtividade: dataReal,
         museuAtividade: museuReal,
       })),
     });
   }
+
+  // Ordena grupos por data_foto da primeira foto
+  atividadesVirtuais.sort((a, b) => {
+    const da = new Date(a.data || 0).getTime() || 0;
+    const db = new Date(b.data || 0).getTime() || 0;
+    return da - db;
+  });
 
   // Layout A4 retrato
   const pageW = 210, pageH = 297, margin = 15;
