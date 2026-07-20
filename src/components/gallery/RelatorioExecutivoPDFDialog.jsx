@@ -418,6 +418,54 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
         doc.text(`${SECTION_ABREV[museu]} · ${mes}/${ano}`, margin, pageH - 5);
       }
 
+      // ── Página final: QR code da galeria ──
+      await atualizarProgresso(setProgresso, 'Adicionando QR code da galeria...', setPct, 97);
+      const galleryUrl = 'https://periniprojetos.com.br/GaleriaFotos';
+      const qrImgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&margin=0&data=${encodeURIComponent(galleryUrl)}`;
+      const qrLoaded = await fetchPhotoData(qrImgUrl, 80, 80);
+
+      doc.addPage();
+      paginaAtual++;
+      doc.setFillColor(255, 255, 255);
+      doc.rect(0, 0, pageW, pageH, 'F');
+      drawTimbreViaduto(doc, pageW, margin);
+
+      // Cabeçalho
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(16);
+      doc.setTextColor(40, 40, 40);
+      doc.text('Seu QR code está pronto', pageW / 2, 120, { align: 'center' });
+
+      // QR code centralizado
+      if (qrLoaded) {
+        const qrSize = 70;
+        const qrX = (pageW - qrSize) / 2;
+        const qrY = 135;
+        doc.setFillColor(245, 245, 245);
+        doc.rect(qrX - 5, qrY - 5, qrSize + 10, qrSize + 10, 'F');
+        doc.addImage(qrLoaded.dataUrl, 'JPEG', qrX, qrY, qrSize, qrSize, undefined, 'FAST');
+        doc.setDrawColor(205, 205, 205);
+        doc.rect(qrX - 5, qrY - 5, qrSize + 10, qrSize + 10, 'S');
+      }
+
+      // Legenda
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.setTextColor(50, 50, 50);
+      doc.text('Galeria de Fotos Museus Centro', pageW / 2, 225, { align: 'center' });
+
+      // Link clicável
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(30, 90, 180);
+      doc.textWithLink(galleryUrl, pageW / 2, 238, { url: galleryUrl, align: 'center' });
+
+      // Rodapé
+      doc.setFontSize(7);
+      doc.setTextColor(140, 140, 140);
+      doc.text(`Página ${paginaAtual}`, pageW - margin, pageH - 5, { align: 'right' });
+      doc.text(`${SECTION_ABREV[museu]} · ${mes}/${ano}`, margin, pageH - 5);
+
       const ts = new Date().toISOString().slice(0, 10);
       doc.save(`RelatorioExecutivo_${SECTION_ABREV[museu]}_${mes}_${ano}_${ts}.pdf`);
       toast.success(`PDF gerado! ${carregadas} fotos em ${atividades.filter(a => a.fotos.length > 0).length} atividades.`);
