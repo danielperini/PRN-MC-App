@@ -333,7 +333,16 @@ function GaleriaFotosInner() {
       if (sortBy === 'name-desc') return String(b.fileName || '').localeCompare(String(a.fileName || ''), 'pt-BR');
       return new Date(b.timestamp || b.date || 0) - new Date(a.timestamp || a.date || 0);
     });
-    return sorted;
+    // Limitar a 2 fotos por atividade
+    const seenActivity = new Map();
+    return sorted.filter((img) => {
+      const atKey = getAtividadeKey(img);
+      if (!atKey) return true;
+      const count = seenActivity.get(atKey) || 0;
+      if (count >= 2) return false;
+      seenActivity.set(atKey, count + 1);
+      return true;
+    });
   }, [filteredImages, sortBy]);
 
   const visibleImages = sortedImages.slice(0, visibleCount);
@@ -638,14 +647,7 @@ function GaleriaFotosInner() {
                   </span>
                   <span className="text-xs text-gray-500 pl-5">Escaneia 6 pastas recursivamente (máx 5 fotos por subpasta) e importa para a galeria.</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => setShowDedupIA(true)}
-                  className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
-                  <span className="font-medium text-violet-600 flex items-center gap-1.5">
-                    <Sparkles className="h-3.5 w-3.5" /> Deduplicação por IA
-                  </span>
-                  <span className="text-xs text-gray-500 pl-5">Analisa fotos por atividade com IA visual e oculta duplicatas, mantendo apenas a melhor.</span>
-                </DropdownMenuItem>
+
                 <DropdownMenuItem
                   onClick={() => setShowReconstruir(true)}
                   className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
@@ -673,21 +675,7 @@ function GaleriaFotosInner() {
           }}
           onDownloadBatch={baixarPacotesDe4} />
 
-        {/* Banner de duplicatas detectadas */}
-        {duplicates.length > 0 && !showAjustarVinculos &&
-        <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
-            <TriangleAlert className="h-4 w-4 shrink-0 text-amber-500" />
-            <span>
-              <strong>{duplicates.length}</strong> {duplicates.length === 1 ? 'foto duplicada detectada' : 'fotos duplicadas detectadas'}
-            </span>
-            <button
-            type="button"
-            onClick={() => setShowAjustarVinculos(true)}
-            className="ml-auto inline-flex items-center gap-1 rounded-lg bg-amber-200 px-3 py-1 text-xs font-medium text-amber-900 hover:bg-amber-300 transition-colors">
-              Revisar
-            </button>
-          </div>
-        }
+
         
 
         {/* Feedback de sincronização */}
@@ -977,15 +965,7 @@ function GaleriaFotosInner() {
         onClose={() => setShowExportarMuseu(false)}
         fotos={sortedImages} />
 
-      <PainelAjustarVinculos
-        open={showAjustarVinculos}
-        onClose={() => setShowAjustarVinculos(false)}
-        duplicates={duplicates}
-        onConcluido={() => {
-          clearGalleryCache();
-          queryClient.invalidateQueries(['galeria-fotos-stable-v7']);
-          refetch();
-        }} />
+
 
       <ModalExposicao
         open={!!modoExposicao}
