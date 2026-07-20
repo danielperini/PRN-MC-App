@@ -73,17 +73,26 @@ function normalizarLegenda(texto = '') {
   return String(texto).replace(/\boficina\b/gi, 'atividade educativa').replace(/\s{2,}/g, ' ').trim();
 }
 
+// Helper: atualiza o progresso E aguarda o browser pintar, evitando texto travado/corrompido
+async function atualizarProgresso(setProgresso, texto) {
+  setProgresso(texto);
+  await new Promise((r) => requestAnimationFrame(() => r()));
+  await new Promise((r) => setTimeout(r, 0));
+}
+
 async function sincronizarFotosMuseoDoDrive(museuKey, setProgresso) {
-  setProgresso(`Varrendo pastas do ${SECTION_KEYS_ABREV[museuKey]} no Drive...`);
+  await atualizarProgresso(setProgresso, `Varrendo pastas do ${SECTION_KEYS_ABREV[museuKey]} no Drive...`);
   try {
     let offset = 0;
     let totalCriadas = 0;
     let totalReparadas = 0;
     let hasMore = true;
     let page = 0;
-    while (hasMore) {
+    const MAX_PAGES = 60;
+    let lastOffset = -1;
+    while (hasMore && page < MAX_PAGES) {
       page++;
-      setProgresso(`Varredura ${SECTION_KEYS_ABREV[museuKey]} · lote ${page} (${totalCriadas} novas até agora)...`);
+      await atualizarProgresso(setProgresso, `Varredura ${SECTION_KEYS_ABREV[museuKey]} · lote ${page} (${totalCriadas} novas até agora)...`);
       const res = await base44.functions.invoke('varrerFotosMuseusDrive', {
         folder_id: FOLDER_DRIVE_ID,
         museu: museuKey,
@@ -92,15 +101,17 @@ async function sincronizarFotosMuseoDoDrive(museuKey, setProgresso) {
       const d = res?.data || {};
       totalCriadas += d.criadas || 0;
       totalReparadas += d.reparadas || 0;
-      offset = d.next_offset;
       hasMore = d.has_more;
+      if (d.next_offset === lastOffset) break; // safety: offset não avançou
+      lastOffset = offset;
+      offset = d.next_offset;
       if (!d.success) break;
     }
     if (totalCriadas + totalReparadas > 0) {
-      setProgresso(`✓ ${totalCriadas} novas + ${totalReparadas} reparadas do ${SECTION_KEYS_ABREV[museuKey]}. Recarregando banco...`);
+      await atualizarProgresso(setProgresso, `✓ ${totalCriadas} novas + ${totalReparadas} reparadas do ${SECTION_KEYS_ABREV[museuKey]}. Recarregando banco...`);
       await new Promise(r => setTimeout(r, 600));
     } else {
-      setProgresso(`Nenhuma foto nova encontrada no Drive do ${SECTION_KEYS_ABREV[museuKey]}.`);
+      await atualizarProgresso(setProgresso, `Nenhuma foto nova encontrada no Drive do ${SECTION_KEYS_ABREV[museuKey]}.`);
     }
   } catch (e) {
     console.warn('Varredura Drive silenciada:', e?.message);
@@ -140,7 +151,7 @@ async function gerarLegendasIA(fotos, setProgresso, legendasAtuais) {
   let revisadasIA = 0;
   for (let i = 0; i < precisam.length; i += 5) {
     const lote = precisam.slice(i, i + 5);
-    setProgresso(`Gerando legendas com IA · lote ${Math.floor(i / 5) + 1} de ${Math.ceil(precisam.length / 5)}...`);
+    await atualizarProgresso(setProgresso, `Gerando legendas com IA · lote ${Math.floor(i / 5) + 1} de ${Math.ceil(precisam.length / 5)}...`);
     const resultados = await Promise.allSettled(
       lote.map((f) =>
         base44.functions.invoke('suggestPhotoCaption', { photoUrl: f.fileUrl })
@@ -211,7 +222,7 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
       await sincronizarFotosMuseoDoDrive(museuSelecionado, setProgresso);
 
       // ── Etapa 2: carrega fotos atualizadas do banco ──
-      setProgresso('Carregando fotos atualizadas do banco...');
+      await atualizarProgresso(setProgresso, 'Carregando fotos atualizadas do banco...');
       const fotosAtualizadas = await buscarFotosAtualizadasDoMuseu(museuSelecionado);
       const fotosDoMuseu = fotosAtualizadas.length > 0
         ? fotosAtualizadas.map(normalizarFotoParaGaleria).filter(f => f.fileUrl)
@@ -263,8 +274,7 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
     setLoading(true);
     setEtapa('pdf');
     try {
-      setProgresso(`Carregando ${fotosParaPDF.length} imagens para o PDF...`);
-      await new Promise((r) => setTimeout(r, 0));
+      await atualizarProgresso(setProgresso, `Carregando ${fotosParaPDF.length} imagens para o PDF...`);
 
       // Layout A4: 210×297, margem 10mm, header timbre ~32mm, footer 10mm, gap 5mm
       const pageW = 210, pageH = 297, margin = 10;
@@ -291,8 +301,7 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
         fotosParaPDF.map((foto, i) => [foto.id || foto.fileUrl, imagensPreCarregadas[i]])
       );
 
-      setProgresso(`Montando PDF · ${fotosParaPDF.length - falhas.length} foto(s)...`);
-      await new Promise((r) => setTimeout(r, 0));
+      await atualizarProgresso(setProgresso, `Montando PDF · ${fotosParaPDF.length - falhas.length} foto(s)...`);
 
       const auditLog = {
         carregadas: fotosParaPDF.length - falhas.length,
@@ -334,8 +343,7 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
 
       for (let p = 0; p < Math.ceil(fotosComImg.length / perPage); p++) {
         const pageFotos = fotosComImg.slice(p * perPage, (p + 1) * perPage);
-        setProgresso(`Montando PDF · fotos ${fotosProcessadas + 1}–${Math.min(fotosProcessadas + pageFotos.length, fotosComImg.length)} de ${fotosComImg.length}`);
-        await new Promise((r) => setTimeout(r, 0));
+        await atualizarProgresso(setProgresso, `Montando PDF · fotos ${fotosProcessadas + 1}–${Math.min(fotosProcessadas + pageFotos.length, fotosComImg.length)} de ${fotosComImg.length}`);
         const imagens = pageFotos.map((foto) => imagemPorChave.get(foto.id || foto.fileUrl));
         fotosProcessadas += pageFotos.length;
 
@@ -354,6 +362,9 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
           const slotY = headerH + margin + row * (cellH + gapV);
           const imgResult = imagens[i];
           if (!imgResult) continue;
+
+          // Yield entre fotos pesadas para manter a UI responsiva
+          if (i > 0) await new Promise((r) => setTimeout(r, 0));
 
           // Modo "cover": preenche o slot cortando o excedente
           const scale = Math.max(cellW / imgResult.w, slotH / imgResult.h);
