@@ -25,8 +25,8 @@ import ActivityChipsBar, { getAtividadeKey } from '@/components/gallery/Activity
 import { PhotoActionBar, BulkActionBar, EditCaptionDialog, DeleteConfirmDialog, EmailPhotosDialog } from '@/components/gallery/GalleryPhotoActions';
 import { base44 } from '@/api/base44Client';
 
-const INITIAL_VISIBLE_IMAGES = 200;
-const VISIBLE_IMAGES_STEP = 200;
+const INITIAL_VISIBLE_IMAGES = 48;
+const VISIBLE_IMAGES_STEP = 48;
 const MAX_FOTOS_POR_ATIVIDADE = 5;
 // Inclui data do dia na chave para invalidar o cache automaticamente a cada novo dia
 const TODAY = new Date().toISOString().slice(0, 10);
@@ -258,48 +258,8 @@ function GaleriaFotosInner() {
     base44.auth.me().then((u) => setCurrentUser(u)).catch(() => {});
   }, []);
 
-  // ── Sincronização automática com Drive (cache vazio ou > 12h) ──
-  useEffect(() => {
-    if (autoSyncRanRef.current) return;
-    if (!data) return;
-    const cacheStale = data?.cacheStale === true || !data?.cacheUsed;
-    if (!cacheStale) return;
-    autoSyncRanRef.current = true;
-    setIsAutoSyncing(true);
-    base44.functions.invoke('sincronizarInventarioCompleto', { force: false })
-      .then(() => {
-        clearGalleryCache();
-        queryClient.invalidateQueries(['galeria-fotos-stable-v1']);
-        refetch();
-      })
-      .catch((e) => console.warn('Sincronização automática falhou:', e?.message))
-      .finally(() => setIsAutoSyncing(false));
-  }, [data, queryClient, refetch]);
-
+  // Sincronização automática e geração de legendas desativadas para evitar travamento
   const images = Array.isArray(data?.images) ? data.images : [];
-
-  // ── Geração automática de legendas para fotos sem legenda ──
-  useEffect(() => {
-    if (captionGenerationRanRef.current) return;
-    if (!data || isGeneratingCaptions) return;
-    const photosNeedingCaption = images.filter((img) => !img.legenda || img.legenda === img.fileName);
-    if (photosNeedingCaption.length === 0) return;
-    captionGenerationRanRef.current = true;
-    setIsGeneratingCaptions(true);
-    base44.functions.invoke('melhorarLegendasEDeduplicarFotos', { dry_run: false, max_activities: 10, mode: 'all' })
-      .then((res) => {
-        const captions = res?.captions_improved || 0;
-        const dups = res?.duplicates_marked || 0;
-        if (captions > 0 || dups > 0) {
-          toast.success(`${captions} legendas melhoradas por IA${dups > 0 ? ` · ${dups} duplicatas removidas` : ''}.`);
-          clearGalleryCache();
-          queryClient.invalidateQueries(['galeria-fotos-stable-v1']);
-          refetch();
-        }
-      })
-      .catch((e) => console.warn('Geração automática de legendas falhou:', e?.message))
-      .finally(() => setIsGeneratingCaptions(false));
-  }, [data, images, isGeneratingCaptions, queryClient, refetch]);
 
   // Chips de museu: chaves únicas presentes nos dados
   const museuOptions = useMemo(() => {
@@ -898,13 +858,24 @@ function GaleriaFotosInner() {
           )}
 
             {sortedImages.length > visibleCount &&
-          <div className="flex justify-center pt-2">
+          <div className="flex justify-center pt-2 pb-4">
                 <button
               type="button"
-              onClick={() => setVisibleCount((count) => Math.min(count + VISIBLE_IMAGES_STEP, sortedImages.length))}
+              onClick={() => {
+                const prevCount = visibleCount;
+                setVisibleCount((count) => Math.min(count + VISIBLE_IMAGES_STEP, sortedImages.length));
+                // Rola até as novas fotos após renderizar
+                setTimeout(() => {
+                  const sections = document.querySelectorAll('section');
+                  if (sections.length > 0) {
+                    const lastSection = sections[sections.length - 1];
+                    lastSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }
+                }, 100);
+              }}
               className="rounded-full border border-gray-300 bg-white px-5 py-2 text-sm font-medium text-gray-700 shadow-sm hover:border-gray-400 hover:bg-gray-50">
               
-                  Carregar mais
+                  Carregar mais ({sortedImages.length - visibleCount} restantes)
                 </button>
               </div>
           }

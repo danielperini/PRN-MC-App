@@ -203,22 +203,23 @@ async function safeEntityList(entityName, order, limit, { quietMissing = false }
   }
 }
 
-// Busca TODOS os registros paginando de PAGE_SIZE em PAGE_SIZE até não restar mais
-const PAGE_SIZE = 500;
+// Busca registros paginando de PAGE_SIZE em PAGE_SIZE, com limite máximo para evitar travamento
+const PAGE_SIZE = 200;
+const MAX_PAGES = 10; // máx 2000 registros por entidade
 async function fetchAllPages(entityName, order, { quietMissing = false } = {}) {
   const entity = base44?.entities?.[entityName];
   if (!entity?.filter) {
-    // fallback para list com limite alto
-    return safeEntityList(entityName, order, 9999, { quietMissing });
+    return safeEntityList(entityName, order, 2000, { quietMissing });
   }
   const all = [];
   let skip = 0;
   let hasMore = true;
-  while (hasMore) {
+  let pageCount = 0;
+  while (hasMore && pageCount < MAX_PAGES) {
     try {
       const page = await withTimeout(
         entity.filter({}, order, PAGE_SIZE, skip),
-        `${entityName} p${skip / PAGE_SIZE + 1}`,
+        `${entityName} p${pageCount + 1}`,
         20000
       );
       const items = Array.isArray(page) ? page : [];
@@ -227,6 +228,7 @@ async function fetchAllPages(entityName, order, { quietMissing = false } = {}) {
         hasMore = false;
       } else {
         skip += PAGE_SIZE;
+        pageCount++;
       }
     } catch (error) {
       const status = Number(error?.response?.status || error?.status || 0);
