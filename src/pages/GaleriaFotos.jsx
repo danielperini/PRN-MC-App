@@ -311,7 +311,20 @@ function GaleriaFotosInner() {
     });
   }, [filteredImages, sortBy]);
 
-  const visibleImages = sortedImages.slice(0, visibleCount);
+  // Aplica limite de 5 fotos por atividade ANTES da paginação,
+  // para que "Carregar mais" traga novas atividades em vez de repetir fotos da mesma.
+  const limitedByActivity = useMemo(() => {
+    const porAtividade = new Map();
+    sortedImages.forEach((image) => {
+      const atividade = getAtividadeKey(image);
+      if (!porAtividade.has(atividade)) porAtividade.set(atividade, []);
+      const arr = porAtividade.get(atividade);
+      if (arr.length < MAX_FOTOS_POR_ATIVIDADE) arr.push(image);
+    });
+    return Array.from(porAtividade.values()).flat();
+  }, [sortedImages]);
+
+  const visibleImages = limitedByActivity.slice(0, visibleCount);
 
   const groupedImages = useMemo(() => {
     const groups = new Map();
@@ -320,7 +333,6 @@ function GaleriaFotosInner() {
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push({ image, renderIndex });
     });
-    // Limite de MAX_FOTOS_POR_ATIVIDADE por atividade — allItems mantém tudo para os chips
     return Array.from(groups.entries()).map(([key, items]) => {
       const porAtividade = new Map();
       items.forEach((entry) => {
@@ -328,9 +340,7 @@ function GaleriaFotosInner() {
         if (!porAtividade.has(atividade)) porAtividade.set(atividade, []);
         porAtividade.get(atividade).push(entry);
       });
-      // allItems: todas as fotos (para chips de atividade)
       const allItems = Array.from(porAtividade.values()).flat();
-      // filtrados: slice de MAX_FOTOS_POR_ATIVIDADE por atividade
       const filtrados = Array.from(porAtividade.values())
         .map((group) => group.slice(0, MAX_FOTOS_POR_ATIVIDADE))
         .flat();
@@ -906,28 +916,27 @@ function GaleriaFotosInner() {
               </section>
           )}
 
-            {sortedImages.length > visibleCount &&
-          <div className="flex justify-center pt-2 pb-4">
-                <button
-              type="button"
-              onClick={() => {
-                const prevCount = visibleCount;
-                setVisibleCount((count) => Math.min(count + VISIBLE_IMAGES_STEP, sortedImages.length));
-                // Rola até as novas fotos após renderizar
-                setTimeout(() => {
-                  const sections = document.querySelectorAll('section');
-                  if (sections.length > 0) {
-                    const lastSection = sections[sections.length - 1];
-                    lastSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                  }
-                }, 100);
-              }}
-              className="rounded-full border border-gray-300 bg-white px-5 py-2 text-sm font-medium text-gray-700 shadow-sm hover:border-gray-400 hover:bg-gray-50">
-              
-                  Carregar mais ({sortedImages.length - visibleCount} restantes)
-                </button>
-              </div>
-          }
+            {limitedByActivity.length > visibleCount &&
+            <div className="flex justify-center pt-2 pb-4">
+                 <button
+               type="button"
+               onClick={() => {
+                 setVisibleCount((count) => Math.min(count + VISIBLE_IMAGES_STEP, limitedByActivity.length));
+                 // Rola até as novas fotos após renderizar
+                 setTimeout(() => {
+                   const sections = document.querySelectorAll('section');
+                   if (sections.length > 0) {
+                     const lastSection = sections[sections.length - 1];
+                     lastSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                   }
+                 }, 100);
+               }}
+               className="rounded-full border border-gray-300 bg-white px-5 py-2 text-sm font-medium text-gray-700 shadow-sm hover:border-gray-400 hover:bg-gray-50">
+
+                   Carregar mais ({limitedByActivity.length - visibleCount} restantes)
+                 </button>
+               </div>
+            }
           </div>
         }
       </div>
