@@ -20,6 +20,7 @@ import PainelAjustarVinculos from '@/components/gallery/PainelAjustarVinculos';
 import ModalExposicao from '@/components/gallery/ModalExposicao';
 import ConsolidarFotosDriveDialog from '@/components/gallery/ConsolidarFotosDriveDialog';
 import RelatorioExecutivoPDFDialog from '@/components/gallery/RelatorioExecutivoPDFDialog';
+import { gerarAmostraRelatorioExecutivo } from '@/utils/exportarAmostraRelatorioExecutivo';
 import ActivityChipsBar, { getAtividadeKey } from '@/components/gallery/ActivityChipsBar';
 import { PhotoActionBar, BulkActionBar, EditCaptionDialog, DeleteConfirmDialog, EmailPhotosDialog } from '@/components/gallery/GalleryPhotoActions';
 import { base44 } from '@/api/base44Client';
@@ -206,6 +207,8 @@ function GaleriaFotosInner() {
   const [showAjustarVinculos, setShowAjustarVinculos] = useState(false);
   const [showConsolidarDrive, setShowConsolidarDrive] = useState(false);
   const [showRelatorioExecutivo, setShowRelatorioExecutivo] = useState(false);
+  const [gerandoAmostra, setGerandoAmostra] = useState(false);
+  const [progressoAmostra, setProgressoAmostra] = useState({ pct: 0, texto: '' });
   const [modoExposicao, setModoExposicao] = useState(null); // { images, startIndex }
   const [isAutoSyncing, setIsAutoSyncing] = useState(false);
   const [isGeneratingCaptions, setIsGeneratingCaptions] = useState(false);
@@ -502,6 +505,32 @@ function GaleriaFotosInner() {
                     <BookImage className="h-3.5 w-3.5" /> Relatório Executivo de Fotos
                   </span>
                   <span className="text-xs text-gray-500 pl-5">PDF com até 5 fotos por atividade física do mês, em grade de 4 fotos/página.</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={gerandoAmostra}
+                  onClick={async () => {
+                    setGerandoAmostra(true);
+                    setProgressoAmostra({ pct: 0, texto: 'Iniciando...' });
+                    try {
+                      const res = await gerarAmostraRelatorioExecutivo('MHAB', 'Fevereiro', 2026, {
+                        onProgresso: (pct, texto) => setProgressoAmostra({ pct, texto }),
+                      });
+                      toast.success(`Amostra gerada! ${res.totalFotos} fotos em ${res.totalAtividades} atividades.`);
+                    } catch (e) {
+                      toast.error('Erro ao gerar amostra: ' + (e.message || 'tente novamente.'));
+                    } finally {
+                      setGerandoAmostra(false);
+                      setProgressoAmostra({ pct: 0, texto: '' });
+                    }
+                  }}
+                  className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
+                  <span className="font-medium text-gray-900 flex items-center gap-1.5">
+                    {gerandoAmostra ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
+                    Gerar Amostra (MHAB · Fev/2026)
+                  </span>
+                  <span className="text-xs text-gray-500 pl-5">
+                    {gerandoAmostra ? `${progressoAmostra.texto} (${progressoAmostra.pct}%)` : 'Gera um PDF de exemplo para validar layout, timbre e legendas.'}
+                  </span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
