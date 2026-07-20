@@ -31,9 +31,8 @@ import { PhotoActionBar, BulkActionBar, EditCaptionDialog, DeleteConfirmDialog, 
 import { base44 } from '@/api/base44Client';
 import { normalizeMuseuKey, normalizePeriodoKeys, MUSEU_OFFICIAL_ORDER, resolvePhotoCaption, normalizePeriodoForComparison } from '@/utils/galleryNormalization';
 
-const INITIAL_VISIBLE_IMAGES = 100;
-const VISIBLE_IMAGES_STEP = 100;
-const MAX_FOTOS_POR_ATIVIDADE = 5;
+const INITIAL_VISIBLE_IMAGES = 20;
+const VISIBLE_IMAGES_STEP = 20;
 // Inclui data do dia na chave para invalidar o cache automaticamente a cada novo dia
 const TODAY = new Date().toISOString().slice(0, 10);
 const GALLERY_CACHE_KEY = `museus_centro_galeria_fotos_cache_v17_resilient_${TODAY}`;
@@ -352,20 +351,7 @@ function GaleriaFotosInner() {
     });
   }, [filteredImages, sortBy]);
 
-  // Aplica limite de 5 fotos por atividade ANTES da paginação,
-  // para que "Carregar mais" traga novas atividades em vez de repetir fotos da mesma.
-  const limitedByActivity = useMemo(() => {
-    const porAtividade = new Map();
-    sortedImages.forEach((image) => {
-      const atividade = getAtividadeKey(image);
-      if (!porAtividade.has(atividade)) porAtividade.set(atividade, []);
-      const arr = porAtividade.get(atividade);
-      if (arr.length < MAX_FOTOS_POR_ATIVIDADE) arr.push(image);
-    });
-    return Array.from(porAtividade.values()).flat();
-  }, [sortedImages]);
-
-  const visibleImages = limitedByActivity.slice(0, visibleCount);
+  const visibleImages = sortedImages.slice(0, visibleCount);
 
   const PERIODO_LABELS = useMemo(() => {
     const map = new Map();
@@ -382,32 +368,18 @@ function GaleriaFotosInner() {
   const groupedImages = useMemo(() => {
     const groups = new Map();
     visibleImages.forEach((image, renderIndex) => {
-      let key;
-      if (groupMode === 'periodo') {
-        key = image.reportMes || 'SEM_PERIODO';
-      } else {
-        key = image.sectionKey || 'SEM_IDENTIFICACAO';
-      }
+      const key = groupMode === 'periodo'
+        ? (image.reportMes || 'SEM_PERIODO')
+        : (image.sectionKey || 'SEM_IDENTIFICACAO');
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push({ image, renderIndex });
     });
     return Array.from(groups.entries()).map(([key, items]) => {
-      const porAtividade = new Map();
-      items.forEach((entry) => {
-        const atividade = getAtividadeKey(entry.image);
-        if (!porAtividade.has(atividade)) porAtividade.set(atividade, []);
-        porAtividade.get(atividade).push(entry);
-      });
-      const allItems = Array.from(porAtividade.values()).flat();
-      const filtrados = Array.from(porAtividade.values()).
-      map((group) => group.slice(0, MAX_FOTOS_POR_ATIVIDADE)).
-      flat();
       const selAtividade = selectedAtividade[key];
-      const itemsFiltrados = selAtividade ?
-      filtrados.filter((entry) => getAtividadeKey(entry.image) === selAtividade) :
-      filtrados;
-      const ocultadas = allItems.length - filtrados.length;
-      return { key, items: itemsFiltrados, allItems, ocultadas };
+      const itemsFiltrados = selAtividade
+        ? items.filter((entry) => getAtividadeKey(entry.image) === selAtividade)
+        : items;
+      return { key, items: itemsFiltrados, allItems: items };
     });
   }, [visibleImages, selectedAtividade, groupMode]);
 
@@ -952,34 +924,21 @@ function GaleriaFotosInner() {
                         })} />
                     ))}
                   </div>
-                  {ocultadas > 0 &&
-                  <p className="text-xs text-gray-400">{ocultadas} fotos ocultadas (limite de 5 por atividade)</p>
-                  }
+
                 </section>
               );
             })}
 
-            {limitedByActivity.length > visibleCount &&
-          <div className="flex justify-center pt-2 pb-4">
-                 <button
-              type="button"
-              onClick={() => {
-                setVisibleCount((count) => Math.min(count + VISIBLE_IMAGES_STEP, limitedByActivity.length));
-                // Rola até as novas fotos após renderizar
-                setTimeout(() => {
-                  const sections = document.querySelectorAll('section');
-                  if (sections.length > 0) {
-                    const lastSection = sections[sections.length - 1];
-                    lastSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                  }
-                }, 100);
-              }}
-              className="rounded-full border border-gray-300 bg-white px-5 py-2 text-sm font-medium text-gray-700 shadow-sm hover:border-gray-400 hover:bg-gray-50">
-
-                   Carregar mais ({limitedByActivity.length - visibleCount} restantes)
-                 </button>
-               </div>
-          }
+            {sortedImages.length > visibleCount &&
+            <div className="flex justify-center pt-2 pb-4">
+              <button
+                type="button"
+                onClick={() => setVisibleCount((count) => Math.min(count + VISIBLE_IMAGES_STEP, sortedImages.length))}
+                className="rounded-full border border-gray-300 bg-white px-5 py-2 text-sm font-medium text-gray-700 shadow-sm hover:border-gray-400 hover:bg-gray-50">
+                Carregar mais ({sortedImages.length - visibleCount} restantes)
+              </button>
+            </div>
+            }
           </div>
         }
       </div>
