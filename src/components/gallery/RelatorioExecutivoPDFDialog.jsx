@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { jsPDF } from 'jspdf';
 import { base44 } from '@/api/base44Client';
 import { drawTimbreViaduto } from './timbreViadutoPDF';
+import { isLegendaGenerica } from './deduplicarFotosGaleria';
 
 const SECTION_ORDER = ['MHAB', 'MIS', 'MUMO', 'MAP', 'CasaKubitschek', 'CasaDoBalile'];
 const SECTION_LABELS = {
@@ -247,17 +248,25 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
     setGerando(true);
     setPct(2);
     try {
-      // Layout A4 retrato, margem 15mm, timbre ~30mm topo
+      // Layout A4 retrato: margem 15mm, timbre ~42mm topo, rodapé 12mm
       const pageW = 210, pageH = 297, margin = 15;
-      const cols = 2, rows = 2, perPage = cols * rows;
+      const cols = 2, perPage = 4;
       const gapH = 6, gapV = 6;
-      const headerH = 30, footerH = 12;
-      const cellW = (pageW - margin * 2 - (cols - 1) * gapH) / cols;
-      const cellH = (pageH - headerH - footerH - margin * 2 - (rows - 1) * gapV) / rows;
-      const slotH = cellH - 14;
+      const headerH = 42, footerH = 12;
+      const titleBarH = 10; // barra de título da atividade
+      const contentTop = headerH + margin;
+      const contentBottom = pageH - footerH - margin;
+      const contentW = pageW - margin * 2;
+      const usableH = contentBottom - contentTop;
+      // Altura de cada célula de foto (2 linhas por página, descontando barra de título)
+      const cellW = (contentW - (cols - 1) * gapH) / cols;
+      const gridH = usableH - titleBarH - gapV;
+      const cellH = (gridH - gapV) / 2; // 2 linhas
+      const slotH = cellH - 12; // espaço para legenda
 
-      // Coletar todas as fotos a gerar (preservando ordem por atividade)
+      // ── Coleta fotos e gera legendas via IA para fotos sem legenda contextual ──
       const fotosParaPDF = [];
+      const legendasIA = {};
       for (const item of atividades) {
         if (item.fotos.length === 0) continue;
         for (const f of item.fotos) {
@@ -265,12 +274,35 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
         }
       }
 
-      await atualizarProgresso(setProgresso, `Carregando ${fotosParaPDF.length} imagens...`, setPct, 5);
+      // Gera legendas via IA para fotos com legenda genérica
+      const precisamLegenda = fotosParaPDF.filter((f) => isLegendaGenerica(f.legenda));
+      if (precisamLegenda.length > 0) {
+        await atualizarProgresso(setProgresso, `Gerando legendas via IA · ${precisamLegenda.length} foto(s)...`, setPct, 3);
+        for (let i = 0; i < precisamLegenda.length; i += 5) {
+          const lote = precisamLegenda.slice(i, i + 5);
+          const loteNum = Math.floor(i / 5) + 1;
+          const totalLotes = Math.ceil(precisamLegenda.length / 5);
+          await atualizarProgresso(setProgresso, `Legendas IA · lote ${loteNum}/${totalLotes}...`, setPct, 3 + Math.round((loteNum / totalLotes) * 12));
+          const resultados = await Promise.allSettled(
+            lote.map((f) => base44.functions.invoke('suggestPhotoCaption', { photoUrl: f.fileUrl }))
+          );
+          resultados.forEach((r, idx) => {
+            const f = lote[idx];
+            const fid = f.fileUrl;
+            if (r.status === 'fulfilled' && r.value?.data?.caption) {
+              legendasIA[fid] = r.value.data.caption;
+              f.legenda = r.value.data.caption;
+            }
+          });
+        }
+      }
 
+      // ── Pré-carrega imagens ──
+      await atualizarProgresso(setProgresso, `Carregando ${fotosParaPDF.length} imagens...`, setPct, 18);
       const imagens = [];
       for (let i = 0; i < fotosParaPDF.length; i++) {
         if (i > 0 && i % 3 === 0) {
-          await atualizarProgresso(setProgresso, `Carregando imagens · ${i}/${fotosParaPDF.length}...`, setPct, 5 + Math.round((i / fotosParaPDF.length) * 50));
+          await atualizarProgresso(setProgresso, `Carregando imagens · ${i}/${fotosParaPDF.length}...`, setPct, 18 + Math.round((i / fotosParaPDF.length) * 40));
         }
         imagens.push(await fetchPhotoData(fotosParaPDF[i].fileUrl, cellW * 4, slotH * 4));
       }
@@ -282,7 +314,7 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
 
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
 
-      // Capa
+      // ── Capa ──
       doc.setFillColor(20, 20, 20);
       doc.rect(0, 0, pageW, pageH, 'F');
       doc.setTextColor(255, 255, 255);
@@ -304,74 +336,108 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
       doc.text(`Gerado em ${new Date().toLocaleDateString('pt-BR')}`, pageW / 2, 145, { align: 'center' });
       doc.text(`${carregadas} fotografias em ${atividades.filter(a => a.fotos.length > 0).length} atividades`, pageW / 2, 155, { align: 'center' });
 
-      // Páginas de fotos — fluxo contínuo (5ª foto vai na próxima página com a próxima atividade)
+      // ── Páginas de fotos: uma atividade por bloco (título full-width + grade 2×2) ──
       const fotosComImg = fotosParaPDF.filter((_, i) => imagens[i]);
       const imagemPorUrl = new Map(fotosParaPDF.map((f, i) => [f.fileUrl, imagens[i]]));
 
       let paginaAtual = 1;
+      let cursorY = contentTop; // posição vertical atual
+      let slotsNaLinha = 0; // 0 ou 1 (2 colunas)
+      let paginaIniciada = false;
+
+      function desenharTimbrePagina() {
+        doc.setFillColor(255, 255, 255);
+        doc.rect(0, 0, pageW, pageH, 'F');
+        drawTimbreViaduto(doc, pageW, margin);
+      }
+
+      function desenharRodape() {
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(140, 140, 140);
+        doc.text(`Página ${paginaAtual}`, pageW - margin, pageH - 5, { align: 'right' });
+        doc.text(`${SECTION_ABREV[museu]} · ${mes}/${ano}`, margin, pageH - 5);
+      }
+
+      function novaPagina() {
+        if (paginaIniciada) desenharRodape();
+        doc.addPage();
+        paginaAtual++;
+        desenharTimbrePagina();
+        cursorY = contentTop;
+        slotsNaLinha = 0;
+        paginaIniciada = true;
+      }
+
+      // Primeira página de fotos
       doc.addPage();
-      let slotsPreenchidos = 0;
+      paginaAtual++;
+      desenharTimbrePagina();
+      paginaIniciada = true;
+      cursorY = contentTop;
 
-      // Rastreia título da atividade para imprimir cabeçalho de seção na primeira foto
-      let tituloImpressoSet = new Set();
+      // Agrupa fotos por atividade (preservando ordem)
+      const atividadesComFotos = [];
+      for (const item of atividades) {
+        const fotosValidas = item.fotos.filter((f) => imagemPorUrl.get(f.fileUrl));
+        if (fotosValidas.length > 0) {
+          atividadesComFotos.push({ titulo: item.atividade.titulo, data: formatDateBR(item.atividade.data_realizacao || item.atividade.data_inicio), fotos: fotosValidas });
+        }
+      }
 
-      for (let idx = 0; idx < fotosComImg.length; idx++) {
-        const foto = fotosComImg[idx];
+      let fotoIdx = 0;
+      for (let aIdx = 0; aIdx < atividadesComFotos.length; aIdx++) {
+        const atv = atividadesComFotos[aIdx];
 
-        // Se slot 0 de uma nova página, imprime timbre
-        if (slotsPreenchidos === 0) {
-          doc.setFillColor(255, 255, 255);
-          doc.rect(0, 0, pageW, pageH, 'F');
-          drawTimbreViaduto(doc, pageW, margin);
+        // Se não há espaço para o título + pelo menos 1 linha de fotos, nova página
+        const espacoNecessario = titleBarH + gapV + cellH + gapV;
+        if (cursorY + espacoNecessario > contentBottom) {
+          novaPagina();
+        }
+        // Se estamos no meio de uma linha (slot 1 preenchido), avança para próxima linha
+        if (slotsNaLinha === 1) {
+          cursorY += cellH + gapV;
+          slotsNaLinha = 0;
         }
 
-        // Imprime título da atividade como cabeçalho de seção na primeira foto daquela atividade
-        if (!tituloImpressoSet.has(foto.tituloAtividade)) {
-          tituloImpressoSet.add(foto.tituloAtividade);
-          // Se não couber no slot atual (resta pouco espaço), nova página
-          if (slotsPreenchidos >= perPage) {
-            // rodapé da página atual
-            doc.setFontSize(7);
-            doc.setTextColor(140, 140, 140);
-            doc.text(`Página ${paginaAtual}`, pageW - margin, pageH - 5, { align: 'right' });
-            doc.addPage();
-            paginaAtual++;
-            slotsPreenchidos = 0;
-            doc.setFillColor(255, 255, 255);
-            doc.rect(0, 0, pageW, pageH, 'F');
-            drawTimbreViaduto(doc, pageW, margin);
+        // ── Barra de título da atividade (full-width) ──
+        doc.setFillColor(240, 240, 240);
+        doc.rect(margin, cursorY, contentW, titleBarH, 'F');
+        doc.setDrawColor(200, 200, 200);
+        doc.rect(margin, cursorY, contentW, titleBarH, 'S');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.setTextColor(20, 20, 20);
+        doc.text(doc.splitTextToSize(atv.titulo, contentW - 20).slice(0, 1), margin + 3, cursorY + 7);
+        if (atv.data) {
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8);
+          doc.setTextColor(100, 100, 100);
+          doc.text(atv.data, pageW - margin - 3, cursorY + 7, { align: 'right' });
+        }
+        cursorY += titleBarH + gapV;
+
+        // ── Fotos da atividade em grade 2×2 ──
+        for (let fIdx = 0; fIdx < atv.fotos.length; fIdx++) {
+          const foto = atv.fotos[fIdx];
+          const imgResult = imagemPorUrl.get(foto.fileUrl);
+          if (!imgResult) continue;
+
+          // Se a linha atual não cabe, nova página
+          if (cursorY + cellH > contentBottom) {
+            novaPagina();
           }
 
-          // Cabeçalho da atividade (ocupando linha acima dos slots se for slot 0/1)
-          const col = slotsPreenchidos % cols;
-          const row = Math.floor(slotsPreenchidos / cols);
+          const col = slotsNaLinha;
           const slotX = margin + col * (cellW + gapH);
-          const slotY = headerH + margin + row * (cellH + gapV);
+          const slotY = cursorY;
 
-          // Imprime título acima do slot
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(12);
-          doc.setTextColor(10, 10, 10);
-          doc.text(doc.splitTextToSize(foto.tituloAtividade, cellW * 2).slice(0, 1), slotX, slotY - 2);
-          if (foto.dataAtividade) {
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(8);
-            doc.setTextColor(100, 100, 100);
-            doc.text(foto.dataAtividade, slotX, slotY - 6);
-          }
-        }
-
-        // Desenha a foto no slot
-        const col = slotsPreenchidos % cols;
-        const row = Math.floor(slotsPreenchidos / cols);
-        const slotX = margin + col * (cellW + gapH);
-        const slotY = headerH + margin + row * (cellH + gapV);
-        const imgResult = imagemPorUrl.get(foto.fileUrl);
-
-        if (imgResult) {
-          if (slotsPreenchidos > 0 && slotsPreenchidos % 2 === 0) {
+          // Yield para manter UI responsiva
+          if (fotoIdx > 0 && fotoIdx % 2 === 0) {
             await new Promise((r) => requestAnimationFrame(() => r()));
           }
+
+          // Foto em modo "cover"
           const scale = Math.max(cellW / imgResult.w, slotH / imgResult.h);
           const renderW = imgResult.w * scale;
           const renderH = imgResult.h * scale;
@@ -384,39 +450,35 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
           doc.setDrawColor(205, 205, 205);
           doc.rect(slotX, slotY, cellW, slotH, 'S');
 
-          // Legenda
+          // Legenda contextual sob a foto
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(8);
           doc.setTextColor(40, 40, 40);
-          const legenda = foto.legenda || foto.tituloAtividade || 'Registro fotográfico';
-          doc.text(doc.splitTextToSize(legenda, cellW).slice(0, 2), slotX, slotY + slotH + 4, { align: 'center' });
-        }
+          const legenda = legendasIA[foto.fileUrl] || foto.legenda || atv.titulo || 'Registro fotográfico';
+          const linhasLeg = doc.splitTextToSize(legenda, cellW - 2).slice(0, 2);
+          let legY = slotY + slotH + 3.5;
+          linhasLeg.forEach((linha) => {
+            doc.text(linha, slotX + cellW / 2, legY, { align: 'center' });
+            legY += 3.5;
+          });
 
-        slotsPreenchidos++;
+          slotsNaLinha++;
+          fotoIdx++;
 
-        if (idx < fotosComImg.length - 1) {
-          await atualizarProgresso(setProgresso, `Montando PDF · foto ${idx + 1}/${fotosComImg.length}...`, setPct, 60 + Math.round(((idx + 1) / fotosComImg.length) * 35));
-        }
+          if (fotoIdx < fotosComImg.length) {
+            await atualizarProgresso(setProgresso, `Montando PDF · foto ${fotoIdx}/${fotosComImg.length}...`, setPct, 60 + Math.round((fotoIdx / fotosComImg.length) * 35));
+          }
 
-        if (slotsPreenchidos >= perPage) {
-          // rodapé
-          doc.setFontSize(7);
-          doc.setTextColor(140, 140, 140);
-          doc.text(`Página ${paginaAtual}`, pageW - margin, pageH - 5, { align: 'right' });
-          doc.text(`${SECTION_ABREV[museu]} · ${mes}/${ano}`, margin, pageH - 5);
-          doc.addPage();
-          paginaAtual++;
-          slotsPreenchidos = 0;
+          // Se completou a linha (2 fotos), avança para próxima linha
+          if (slotsNaLinha >= cols) {
+            cursorY += cellH + gapV;
+            slotsNaLinha = 0;
+          }
         }
       }
 
-      // Rodapé da última página
-      if (slotsPreenchidos > 0) {
-        doc.setFontSize(7);
-        doc.setTextColor(140, 140, 140);
-        doc.text(`Página ${paginaAtual}`, pageW - margin, pageH - 5, { align: 'right' });
-        doc.text(`${SECTION_ABREV[museu]} · ${mes}/${ano}`, margin, pageH - 5);
-      }
+      // Rodapé da última página de fotos
+      desenharRodape();
 
       // ── Página final: QR code da galeria ──
       await atualizarProgresso(setProgresso, 'Adicionando QR code da galeria...', setPct, 97);
@@ -430,13 +492,11 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
       doc.rect(0, 0, pageW, pageH, 'F');
       drawTimbreViaduto(doc, pageW, margin);
 
-      // Cabeçalho
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(16);
       doc.setTextColor(40, 40, 40);
       doc.text('Seu QR code está pronto', pageW / 2, 120, { align: 'center' });
 
-      // QR code centralizado
       if (qrLoaded) {
         const qrSize = 70;
         const qrX = (pageW - qrSize) / 2;
@@ -448,23 +508,17 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
         doc.rect(qrX - 5, qrY - 5, qrSize + 10, qrSize + 10, 'S');
       }
 
-      // Legenda
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(12);
       doc.setTextColor(50, 50, 50);
       doc.text('Galeria de Fotos Museus Centro', pageW / 2, 225, { align: 'center' });
 
-      // Link clicável
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
       doc.setTextColor(30, 90, 180);
       doc.textWithLink(galleryUrl, pageW / 2, 238, { url: galleryUrl, align: 'center' });
 
-      // Rodapé
-      doc.setFontSize(7);
-      doc.setTextColor(140, 140, 140);
-      doc.text(`Página ${paginaAtual}`, pageW - margin, pageH - 5, { align: 'right' });
-      doc.text(`${SECTION_ABREV[museu]} · ${mes}/${ano}`, margin, pageH - 5);
+      desenharRodape();
 
       const ts = new Date().toISOString().slice(0, 10);
       doc.save(`RelatorioExecutivo_${SECTION_ABREV[museu]}_${mes}_${ano}_${ts}.pdf`);
