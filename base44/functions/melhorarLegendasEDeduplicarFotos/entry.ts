@@ -120,7 +120,23 @@ Deno.serve(async (req) => {
       byActivity.get(key).push(p);
     }
 
-    const stats = { captionsImproved: 0, duplicatesMarked: 0, processed: 0, errors: [] };
+    const stats = { captionsImproved: 0, captionsFallback: 0, duplicatesMarked: 0, processed: 0, errors: [] };
+
+    function parseIAPhotos(result) {
+      if (Array.isArray(result?.photos)) return result.photos;
+      const resp = result?.response ?? result?.data?.response ?? result?.output;
+      if (Array.isArray(resp?.photos)) return resp.photos;
+      if (typeof resp === 'string') {
+        try {
+          const parsed = JSON.parse(resp);
+          if (Array.isArray(parsed?.photos)) return parsed.photos;
+        } catch { /* ignore */ }
+      }
+      if (Array.isArray(result?.data?.photos)) return result.data.photos;
+      if (Array.isArray(result?.output?.photos)) return result.output.photos;
+      console.log(`[Galeria IA] Parse falhou. Raw result:`, JSON.stringify(result).slice(0, 500));
+      return [];
+    }
 
     // 4. Para cada atividade com múltiplas fotos: analisar com IA (visão)
     // Ordenar por atividades com mais fotos primeiro
@@ -203,7 +219,7 @@ Regras:
           model: 'claude_sonnet_4_6',
         });
 
-        const photoResults = Array.isArray(result?.photos) ? result.photos : [];
+        const photoResults = parseIAPhotos(result);
         console.log(`[Galeria IA] Atividade "${activityKey}": ${subset.length} fotos, IA retornou ${photoResults.length} resultados. Raw keys: ${Object.keys(result || {}).join(',')}`);
         for (const pr of photoResults) {
           const idx = pr.index;
@@ -229,24 +245,46 @@ Regras:
             }
           }
 
-          // Marcar duplicata visual
+          // Marcar duplicata visual (apenas ReportPhoto tem os campos galeria_oculta/duplicada_de)
           if (pr.is_duplicate && typeof pr.duplicate_of_index === 'number') {
             if (!dry_run) {
               try {
-                if (photo.entity === 'Attachment') {
-                  await base44.asServiceRole.entities.Attachment.update(photo.id, { duplicada_de: subset[pr.duplicate_of_index]?.id || '' });
-                } else {
+                if (photo.entity === 'ReportPhoto') {
                   await base44.asServiceRole.entities.ReportPhoto.update(photo.id, {
                     galeria_oculta: true,
                     duplicada_de: subset[pr.duplicate_of_index]?.id || '',
                   });
+                  stats.duplicatesMarked++;
                 }
-                stats.duplicatesMarked++;
+                // Attachment: ignora silenciosamente (campo duplicada_de não existe no schema)
               } catch (e) {
                 stats.errors.push({ id: photo.id, error: e.message });
               }
-            } else {
+            } else if (photo.entity === 'ReportPhoto') {
               stats.duplicatesMarked++;
+            }
+          }
+        }
+
+        // Fallback contextual garantido: para fotos sem legenda ou com legenda = nome do arquivo
+        for (const p of subset) {
+          if (!p.currentCaption || p.currentCaption === p.fileName) {
+            const caption = buildContextualCaption(p.raw, p.report, p.activity);
+            if (caption && caption !== p.currentCaption) {
+              if (!dry_run) {
+                try {
+                  if (p.entity === 'Attachment') {
+                    await base44.asServiceRole.entities.Attachment.update(p.id, { description: caption });
+                  } else {
+                    await base44.asServiceRole.entities.ReportPhoto.update(p.id, { caption });
+                  }
+                  stats.captionsFallback++;
+                } catch (err) {
+                  stats.errors.push({ id: p.id, error: err.message });
+                }
+              } else {
+                stats.captionsFallback++;
+              }
             }
           }
         }
@@ -285,12 +323,13 @@ Regras:
       activities_processed: activitiesProcessed,
       processed: stats.processed,
       captions_improved: stats.captionsImproved,
+      captions_fallback: stats.captionsFallback,
       duplicates_marked: stats.duplicatesMarked,
       errors: stats.errors.length,
       error_details: stats.errors.slice(0, 10),
       message: dry_run
-        ? `Simulação: ${stats.captionsImproved} legendas seriam melhoradas, ${stats.duplicatesMarked} duplicatas seriam marcadas.`
-        : `${stats.captionsImproved} legendas melhoradas, ${stats.duplicatesMarked} duplicatas visuais marcadas.`,
+        ? `Simulação: ${stats.captionsImproved} legendas IA + ${stats.captionsFallback} fallback, ${stats.duplicatesMarked} duplicatas seriam marcadas.`
+        : `${stats.captionsImproved} legendas IA + ${stats.captionsFallback} fallback, ${stats.duplicatesMarked} duplicatas visuais marcadas.`,
     });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
