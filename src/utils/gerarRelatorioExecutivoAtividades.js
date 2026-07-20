@@ -45,6 +45,25 @@ export function matchMuseu(reportMuseu, sectionKey) {
   return palavras.some((p) => m.includes(p));
 }
 
+/**
+ * Mapeia a chave do museu (usada no dialog) para os valores reais
+ * armazenados no campo `museu` de ReportPhoto no banco de dados.
+ * Necessário porque alguns museus têm variações de capitalização.
+ */
+const MUSEU_DB_VALUES = {
+  MHAB: ['MHAB'],
+  MIS: ['MIS'],
+  MUMO: ['MUMO'],
+  MAP: ['MAP'],
+  CasaKubitschek: ['Casa Kubitschek', 'CASA KUBITSCHEK', 'CasaKubitschek'],
+  CasaDoBalile: ['Casa do Baíle', 'CASA DO BAILE', 'CasaDoBalile'],
+  NOTURNO: ['NOTURNO'],
+};
+
+export function museuKeysParaFiltro(museuKey) {
+  return MUSEU_DB_VALUES[museuKey] || [museuKey];
+}
+
 function loadImageElement(url, timeoutMs = 12000) {
   return new Promise((resolve) => {
     const img = new Image();
@@ -200,24 +219,24 @@ export async function buscarFotosPorContexto(museuKey, mes, ano, opts = {}) {
 
   onProgresso(5, 'Buscando fotos do museu/período...');
 
-  // Fonte primária: ReportPhoto — buscar todos e filtrar cliente-side
-  // (o filter com múltiplos campos não funciona no frontend SDK)
+  // Fonte primária: ReportPhoto — filtrar por museu (campo único funciona no SDK)
+  // e filtrar mês cliente-side com comparação case-insensitive
   let reportPhotos = [];
   try {
-    const PAGE_SIZE = 200;
-    const MAX_PAGES = 10;
-    let skip = 0;
-    let hasMore = true;
-    let pageCount = 0;
-    while (hasMore && pageCount < MAX_PAGES) {
-      const page = await base44.entities.ReportPhoto.filter({}, '-created_date', PAGE_SIZE, skip) || [];
+    const mesNorm = normalizarTexto(mes);
+    const museuVariacoes = museuKeysParaFiltro(museuKey);
+    for (const variacao of museuVariacoes) {
+      const page = await base44.entities.ReportPhoto.filter({ museu: variacao }, '-created_date', 500) || [];
       reportPhotos = reportPhotos.concat(page);
-      if (page.length < PAGE_SIZE) hasMore = false;
-      else { skip += PAGE_SIZE; pageCount++; }
-      onProgresso(5 + Math.round((reportPhotos.length / Math.max(1, page.length)) * 5), `${reportPhotos.length} fotos lidas...`);
     }
-    // Filtrar cliente-side por museu e mês
-    reportPhotos = reportPhotos.filter((rp) => rp.museu === museuKey && rp.mes_referencia === mes);
+    // Deduplicar por id (variações podem retornar os mesmos registros)
+    const vistosIds = new Set();
+    reportPhotos = reportPhotos.filter((rp) => {
+      if (vistosIds.has(rp.id)) return false;
+      vistosIds.add(rp.id);
+      return true;
+    });
+    reportPhotos = reportPhotos.filter((rp) => normalizarTexto(rp.mes_referencia) === mesNorm);
   } catch { reportPhotos = []; }
 
   onProgresso(30, `${reportPhotos.length} fotos encontradas em ReportPhoto...`);
@@ -228,7 +247,8 @@ export async function buscarFotosPorContexto(museuKey, mes, ano, opts = {}) {
     onProgresso(35, 'Buscando atividades vinculadas a relatórios...');
     // Buscar todos os relatórios e filtrar cliente-side
     const allReports = await base44.entities.Report.list('-created_date', 500) || [];
-    const reports = allReports.filter((r) => r.museu === museuKey && r.mes_referencia === mes && r.ano === ano);
+    const mesNorm = normalizarTexto(mes);
+    const reports = allReports.filter((r) => matchMuseu(r.museu, museuKey) && normalizarTexto(r.mes_referencia) === mesNorm && r.ano === ano);
     const reportIds = reports.map((r) => r.id).filter(Boolean);
     if (reportIds.length > 0) {
       const batchSize = 5;
