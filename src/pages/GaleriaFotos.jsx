@@ -219,6 +219,28 @@ function GaleriaFotosInner() {
   const autoSyncRanRef = useRef(false);
   const queryClient = useQueryClient();
 
+  const {
+    data,
+    isLoading,
+    isFetching,
+    isError,
+    error,
+    refetch
+  } = useQuery({
+    queryKey: ['galeria-fotos-stable-v1'],
+    queryFn: async () => loadGalleryReportData({
+      limitAttachments: 2000,
+      useCache: true,
+      cacheKey: GALLERY_CACHE_KEY,
+      cacheTtlMs: GALLERY_CACHE_TTL_MS
+    }),
+    staleTime: GALLERY_CACHE_TTL_MS,
+    cacheTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    retry: false
+  });
+
   const totalBruto = data?.totalBruto || 0;
   const totalOcultadas = data?.totalOcultadas || 0;
   const duplicates = data?.duplicates || [];
@@ -244,28 +266,6 @@ function GaleriaFotosInner() {
       .catch((e) => console.warn('Sincronização automática falhou:', e?.message))
       .finally(() => setIsAutoSyncing(false));
   }, [data, queryClient, refetch]);
-
-  const {
-    data,
-    isLoading,
-    isFetching,
-    isError,
-    error,
-    refetch
-  } = useQuery({
-    queryKey: ['galeria-fotos-stable-v1'],
-    queryFn: async () => loadGalleryReportData({
-      limitAttachments: 2000,
-      useCache: true,
-      cacheKey: GALLERY_CACHE_KEY,
-      cacheTtlMs: GALLERY_CACHE_TTL_MS
-    }),
-    staleTime: GALLERY_CACHE_TTL_MS,
-    cacheTime: 30 * 60 * 1000,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-    retry: false
-  });
 
   const images = Array.isArray(data?.images) ? data.images : [];
 
