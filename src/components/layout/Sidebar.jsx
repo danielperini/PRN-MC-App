@@ -74,7 +74,6 @@ const NAV_GROUPS = [
   {
     label: 'Atividades e Programação',
     items: [
-      { path: 'ProgramacaoEspelho', label: 'Programação', icon: Star, roles: ['all'] },
       { path: 'Agenda', label: 'Agenda', icon: CalendarDays, roles: ['all'] },
       { path: 'AssistentePlanejamento', label: 'Assistente IA', icon: Bot, roles: ['all'] },
     ],

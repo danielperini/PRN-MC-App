@@ -12,11 +12,14 @@ import {
   ExternalLink,
   Calendar,
   Search,
-  Clock
+  Clock,
+  Star
 } from 'lucide-react';
 
 import { MESES, MUSEUS } from '@/utils/constants';
 import { cacheService } from '@/lib/cacheService';
+import { Link } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
 
 const MUSEUS_FILTER = ['Todos', 'MIS', 'MHAB', 'MUMO', 'Externo'];
 
@@ -296,6 +299,12 @@ export default function Agenda() {
           <p className="text-sm text-muted-foreground mt-0.5">
             Programação dos Museus Centro · Viaduto das Artes
           </p>
+          <Link to="/ProgramacaoEspelho" className="inline-flex">
+            <Button variant="outline" className="gap-2 mt-3">
+              <Star className="h-4 w-4" />
+              Programação Completa
+            </Button>
+          </Link>
         </div>
 
         <div className="flex items-center gap-2 bg-card border border-border rounded-2xl px-3 py-2 shadow-sm w-fit">
