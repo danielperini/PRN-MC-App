@@ -335,18 +335,23 @@ function GaleriaFotosInner() {
     });
   }, [filteredImages, sortBy]);
 
-  // Aplica o limite de 2 fotos por atividade APÓS o slice de paginação
+  // Aplica o limite de 2 fotos por atividade garantindo que visibleCount fotos passem pelo filtro.
+  // Expande o slice progressivamente para atingir exatamente visibleCount fotos deduplificadas.
   const visibleImages = useMemo(() => {
-    const sliced = sortedImages.slice(0, visibleCount);
     const seenActivity = new Map();
-    return sliced.filter((img) => {
+    const result = [];
+    for (let i = 0; i < sortedImages.length; i++) {
+      const img = sortedImages[i];
       const atKey = getAtividadeKey(img);
-      if (!atKey) return true;
-      const count = seenActivity.get(atKey) || 0;
-      if (count >= 2) return false;
-      seenActivity.set(atKey, count + 1);
-      return true;
-    });
+      if (atKey) {
+        const count = seenActivity.get(atKey) || 0;
+        if (count >= 2) continue;
+        seenActivity.set(atKey, count + 1);
+      }
+      result.push(img);
+      if (result.length >= visibleCount) break;
+    }
+    return result;
   }, [sortedImages, visibleCount]);
 
 
