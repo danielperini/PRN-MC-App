@@ -1,12 +1,13 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 
 const PASTAS_DRIVE = [
-  { id: '1yhoCRRVDjd0AoEIMn52RBl-pGSMvLkYw', nome: 'Pasta 1' },
-  { id: '1fA9LY30HFUCpA7NVJRDaGFKZ9mdp5oZU', nome: 'Pasta 2' },
-  { id: '1DH1cJ_GHs8GuAtE5z4clq4n_EDwL5xZj', nome: 'Pasta 3' },
-  { id: '14SjzDpaYc518q0ixpz0Rc3RKC5QsDEEu', nome: 'Pasta 4' },
-  { id: '19DcW7gQW01sghGhm6g_B6LZyHyRFW0xJ', nome: 'Pasta 5' },
-  { id: '1kCcL0H7K2tLETDGo1sAs9LZ6UN_pLk4J', nome: 'Pasta 6' },
+  { id: '1zwGkjC3YK62U0xf72SlBLC0YcoEykVU5', nome: 'Pasta 1' },
+  { id: '1UyE7LOwcveYLTuQ4d-a0ZlAXiPJ67J7m', nome: 'Pasta 2' },
+  { id: '1qToudYUOf1MUJgZCT4v9p2w5KJfMP8dp', nome: 'Pasta 3' },
+  { id: '1AKvhVab7MlLgrvwf6QPSmkEQ5P_J8Pj1', nome: 'Pasta 4' },
+  { id: '11tlhwDZ8YnjDmh6uUU72wvwQrkEXMuxO', nome: 'Pasta 5' },
+  { id: '1OhHErYW9oQobBwKjj8g3sJXH1cBhheQ5', nome: 'Pasta 6' },
+  { id: '1j44N8BufKJd64MhdwD0L1pWqIyammD0j', nome: 'Pasta 7' },
 ];
 const MAX_POR_SUBPASTA = 5;
 const BATCH_SIZE = 5;

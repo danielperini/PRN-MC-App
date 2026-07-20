@@ -6,7 +6,7 @@ import { base44 } from '@/api/base44Client';
 import { Download, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 
-const TOTAL_ESPERADO = 205;
+const TOTAL_ESPERADO = 0; // dinâmico — não predefinir total
 const BATCH_SIZE = 5;
 
 export default function Importar6PastasDialog({ open, onClose }) {
@@ -90,14 +90,14 @@ export default function Importar6PastasDialog({ open, onClose }) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Download className="w-5 h-5" />
-            Importar Fotos — 6 Pastas do Drive
+            Importar Fotos — 7 Pastas do Drive
           </DialogTitle>
         </DialogHeader>
 
         {etapa === 'idle' && (
           <div className="space-y-3 py-2">
             <p className="text-sm text-slate-600">
-              Serão escaneadas 6 pastas do Google Drive recursivamente (incluindo subpastas),
+              Serão escaneadas 7 pastas do Google Drive recursivamente (incluindo subpastas),
               com limite de <strong>5 fotos por subpasta</strong>, e importadas para a galeria.
             </p>
             <p className="text-xs text-slate-500">
