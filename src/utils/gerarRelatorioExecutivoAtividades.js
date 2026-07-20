@@ -157,30 +157,35 @@ export async function buscarAtividadesComFotos(museuKey, mes, ano, opts = {}) {
 }
 
 /**
- * Extrai a chave de contexto de uma ReportPhoto a partir do campo contexto_ia.
- * Tenta parsear como JSON e extrair pasta_origem ou atividade_nome.
- * Se for string, usa diretamente. Se vazio, retorna null.
+ * Extrai metadados estruturados do campo contexto_ia de uma ReportPhoto.
+ * Retorna { pasta_origem, evento, nome_local, data_foto, atividade_nome }.
+ * Cada campo é extraído de forma determinística, sem recorrer à IA.
  */
-function extrairContexto(rp) {
+function extrairMetadadosContexto(rp) {
   const raw = rp?.contexto_ia;
-  if (!raw) return null;
+  if (!raw) return {};
+  let obj = raw;
   if (typeof raw === 'string') {
     const trimmed = raw.trim();
-    if (!trimmed) return null;
-    try {
-      const parsed = JSON.parse(trimmed);
-      if (parsed && typeof parsed === 'object') {
-        return parsed.pasta_origem || parsed.atividade_nome || parsed.titulo || null;
-      }
-    } catch {
-      return trimmed;
-    }
-    return trimmed;
+    if (!trimmed) return {};
+    try { obj = JSON.parse(trimmed); } catch { return { pasta_origem: trimmed }; }
   }
-  if (typeof raw === 'object') {
-    return raw.pasta_origem || raw.atividade_nome || raw.titulo || null;
-  }
-  return null;
+  if (typeof obj !== 'object' || !obj) return {};
+  return {
+    pasta_origem: obj.pasta_origem || null,
+    evento: obj.evento || null,
+    nome_local: obj.nome_local || (obj.geolocalizacao?.nome_local) || null,
+    data_foto: obj.data_foto || null,
+    atividade_nome: obj.atividade_nome || obj.titulo || null,
+  };
+}
+
+/**
+ * Extrai apenas a chave de contexto (pasta_origem) para agrupamento.
+ * Mantém compatibilidade com chamadas existentes.
+ */
+function extrairContexto(rp) {
+  return extrairMetadadosContexto(rp).pasta_origem || null;
 }
 
 /**
@@ -244,6 +249,7 @@ export async function buscarFotosPorContexto(museuKey, mes, ano, opts = {}) {
             legenda: foto.legenda || foto.caption || act.titulo || '',
             caption: foto.caption || '',
             contexto_ia: foto.contexto_ia || act.titulo || '',
+            file_name: foto.file_name || '',
             mes_referencia: mes,
             ano,
             museu: museuKey,
@@ -269,6 +275,7 @@ export async function buscarFotosPorContexto(museuKey, mes, ano, opts = {}) {
       contexto: extrairContexto(rp) || null,
       file_name: rp.file_name || rp.fileName || '',
       created_date: rp.created_date || rp.updated_date || null,
+      _raw_contexto_ia: rp.contexto_ia || null,
     });
   }
 
@@ -326,58 +333,92 @@ export async function gerarPDFFotosSimplificado(grupos, museuKey, mes, ano, opts
     }
   }
 
-  // Legendas determinísticas a partir de nome do arquivo e pasta de origem.
-  // Só recorre à IA quando essas fontes não produzem legenda válida.
+  // Limpar nome de arquivo: remove extensão, prefixos de data/museu, duplicações.
+  // Retorna null se o nome for apenas código de câmera (ex: DZ3A1338, IMG_1234).
+  function limparNomeArquivo(name) {
+    if (!name) return null;
+    let nome = String(name)
+      .replace(/\.[a-z0-9]+$/i, '') // extensão
+      .replace(/^_?Material\s*Bruto\/?/i, '')
+      .replace(/^\d{4}-\d{2}-[A-Z]{2,5}[-_]?/i, '') // 2026-03-MISBH-
+      .replace(/^\d{4}-[A-Z]{3,5}[-_]?/i, '') // 2026-MIS-
+      .replace(/[-_]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    // Remover duplicação (mesma string repetida)
+    const mid = Math.floor(nome.length / 2);
+    if (nome.length > 20 && nome.slice(0, mid).trim() === nome.slice(mid).trim()) {
+      nome = nome.slice(0, mid).trim();
+    }
+    // Remover sufixos de autoria
+    nome = nome.replace(/\s+[-–·]\s*(Daniel Moreira|Ana Montalvão|Perini Projetos).*$/i, '').trim();
+    // Rejeitar códigos de câmera (apenas letras+números sem espaços, < 12 chars)
+    if (nome && /^[A-Z]{2,4}\d{3,6}$/i.test(nome)) return null;
+    if (nome && nome.length > 3 && !isLegendaGenerica(nome)) return nome;
+    return null;
+  }
+
+  // Limpar pasta_origem: remove prefixos de data/museu, duplicações e sufixos de autoria.
+  function limparPastaOrigem(pasta) {
+    if (!pasta) return null;
+    let ctx = String(pasta)
+      .replace(/^_?Material\s*Bruto\/?/i, '')
+      .replace(/^\d{4}-\d{2}-[A-Z]{2,5}[-_]?/i, '')
+      .replace(/^\d{4}-[A-Z]{3,5}[-_]?/i, '')
+      .replace(/[-_]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const mid = Math.floor(ctx.length / 2);
+    if (ctx.length > 20 && ctx.slice(0, mid).trim() === ctx.slice(mid).trim()) {
+      ctx = ctx.slice(0, mid).trim();
+    }
+    ctx = ctx.replace(/\s+[-–·]\s*(Daniel Moreira|Ana Montalvão|Perini Projetos).*$/i, '').trim();
+    if (ctx && ctx.length > 3 && !isLegendaGenerica(ctx)) return ctx;
+    return null;
+  }
+
+  // Legendas determinísticas a partir de nome do arquivo e metadados da pasta.
+  // Prioridade: legenda salva (metadados oficiais) > nome do arquivo > pasta_origem >
+  //   evento > nome_local > chave do grupo.
+  // A IA só é usada quando TODAS as fontes determinísticas falham.
   function legendaDeterministica(foto) {
-    // 1. Legenda já salva e não-genérica
+    // 1. Legenda já salva e não-genérica — preservar como legenda oficial
     if (foto.legenda && !isLegendaGenerica(foto.legenda)) return foto.legenda;
 
-    // 2. Extrair do nome do arquivo (remover extensão, prefixos de data/museu, underscores)
-    if (foto.file_name) {
-      let nome = String(foto.file_name)
-        .replace(/\.[a-z0-9]+$/i, '') // extensão
-        .replace(/^_?Material\s*Bruto\/?/i, '')
-        .replace(/^\d{4}-\d{2}-[A-Z]{2,5}[-_]?/i, '') // 2026-03-MISBH-
-        .replace(/^\d{4}-[A-Z]{3,5}[-_]?/i, '') // 2026-MIS-
-        .replace(/[-_]+/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-      // Remover duplicação (mesma string repetida)
-      const mid = Math.floor(nome.length / 2);
-      if (nome.length > 20 && nome.slice(0, mid).trim() === nome.slice(mid).trim()) {
-        nome = nome.slice(0, mid).trim();
-      }
-      // Remover sufixos de autoria
-      nome = nome.replace(/\s+[-–·]\s*(Daniel Moreira|Ana Montalvão|Perini Projetos).*$/i, '').trim();
-      if (nome && nome.length > 3 && !isLegendaGenerica(nome)) return nome;
+    // 2. Nome original do arquivo (após limpeza)
+    const nomeArq = limparNomeArquivo(foto.file_name);
+    if (nomeArq) return nomeArq;
+
+    // 3. Pasta de origem (metadados estruturados do contexto_ia)
+    const meta = foto._metadados || {};
+    const pasta = limparPastaOrigem(meta.pasta_origem || foto.contexto);
+    if (pasta) return pasta;
+
+    // 4. Evento (ex: "11ª Edição Noturno nos Museus 2026")
+    if (meta.evento) {
+      const ev = String(meta.evento).trim();
+      if (ev && !isLegendaGenerica(ev)) return ev;
     }
 
-    // 3. Usar contexto (pasta_origem) se disponível
-    if (foto.contexto) {
-      let ctx = String(foto.contexto)
-        .replace(/^_?Material\s*Bruto\/?/i, '')
-        .replace(/^\d{4}-\d{2}-[A-Z]{2,5}[-_]?/i, '')
-        .replace(/^\d{4}-[A-Z]{3,5}[-_]?/i, '')
-        .replace(/[-_]+/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-      const mid = Math.floor(ctx.length / 2);
-      if (ctx.length > 20 && ctx.slice(0, mid).trim() === ctx.slice(mid).trim()) {
-        ctx = ctx.slice(0, mid).trim();
-      }
-      ctx = ctx.replace(/\s+[-–·]\s*(Daniel Moreira|Ana Montalvão|Perini Projetos).*$/i, '').trim();
-      if (ctx && ctx.length > 3 && !isLegendaGenerica(ctx)) return ctx;
+    // 5. Nome do local (ex: "Museu Histórico Abílio Barreto")
+    if (meta.nome_local) {
+      const local = String(meta.nome_local).trim();
+      if (local && !isLegendaGenerica(local)) return local;
     }
 
-    // 4. Usar chave do grupo
+    // 6. Chave do grupo (contexto derivado)
     if (foto.grupoChave && !isLegendaGenerica(foto.grupoChave)) return foto.grupoChave;
 
     return null;
   }
 
-  // Aplicar legendas determinísticas primeiro
+  // Extrair metadados estruturados para cada foto e aplicar legendas determinísticas
   let precisamLegenda = [];
   for (const f of fotosParaPDF) {
+    // Garantir que metadados do contexto_ia estejam disponíveis para legendaDeterministica
+    if (!f._metadados && f._raw_contexto_ia) {
+      f._metadados = extrairMetadadosContexto({ contexto_ia: f._raw_contexto_ia });
+    }
     if (isLegendaGenerica(f.legenda) || !f.legenda) {
       const det = legendaDeterministica(f);
       if (det) f.legenda = det;
@@ -385,7 +426,7 @@ export async function gerarPDFFotosSimplificado(grupos, museuKey, mes, ano, opts
     }
   }
 
-  // IA apenas para fotos sem legenda determinística
+  // IA apenas para fotos sem nenhuma fonte determinística válida
   if (precisamLegenda.length > 0) {
     onProgresso(3, `Gerando legendas via IA · ${precisamLegenda.length} foto(s) (de ${fotosParaPDF.length})...`);
     for (let i = 0; i < precisamLegenda.length; i += 5) {
@@ -400,8 +441,11 @@ export async function gerarPDFFotosSimplificado(grupos, museuKey, mes, ano, opts
       );
       resultados.forEach((r, idx) => {
         const f = lote[idx];
-        if (r.status === 'fulfilled' && r.value?.data?.caption) f.legenda = r.value.data.caption;
-        else if (!f.legenda) f.legenda = f.grupoChave || 'Registro fotográfico';
+        // IA só preenche se não houver legenda determinística; nunca sobrescreve metadados existentes
+        if (!f.legenda || isLegendaGenerica(f.legenda)) {
+          if (r.status === 'fulfilled' && r.value?.data?.caption) f.legenda = r.value.data.caption;
+          else if (!f.legenda) f.legenda = f.grupoChave || 'Registro fotográfico';
+        }
       });
     }
   }
