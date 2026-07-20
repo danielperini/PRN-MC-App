@@ -168,6 +168,16 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
         return;
       }
 
+      // ── Etapa 2.5: valida integridade das URLs ──
+      const semUrl = fotosDoMuseu.filter(f => !f.fileUrl || typeof f.fileUrl !== 'string' || f.fileUrl.trim() === '');
+      if (semUrl.length > 0) {
+        toast.error(`${semUrl.length} foto(s) sem URL válida. Execute a varredura do Drive novamente.`);
+        setLoading(false);
+        setProgresso('');
+        setEtapa('');
+        return;
+      }
+
       // ── Etapa 3: pré-carrega imagens ──
       setEtapa('pdf');
       setProgresso(`Carregando ${fotosDoMuseu.length} imagens para o PDF...`);
@@ -181,8 +191,8 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
       );
 
       const falhas = fotosDoMuseu.filter((_, i) => !imagensPreCarregadas[i]);
-      if (falhas.length === fotosDoMuseu.length) {
-        throw new Error('Nenhuma imagem pôde ser carregada. Verifique a conexão e tente novamente.');
+      if (falhas.length > 0) {
+        throw new Error(`${falhas.length} de ${fotosDoMuseu.length} imagem(ns) falharam ao carregar. Verifique a conexão ou execute a varredura do Drive novamente.`);
       }
 
       const imagemPorChave = new Map(

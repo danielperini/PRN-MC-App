@@ -149,6 +149,13 @@ export default function ExportarGaleriaPDFDialog({ open, onClose, fotos }) {
     try {
       // ── Etapa 0: varre pastas do Drive de todos os museus antes de gerar o PDF ──
       await varrerTodosMuseusDrive(setProgresso);
+
+      // ── Etapa 0.5: valida integridade das URLs ──
+      const semUrl = fotosValidas.filter(f => !f.fileUrl || typeof f.fileUrl !== 'string' || f.fileUrl.trim() === '');
+      if (semUrl.length > 0) {
+        throw new Error(`${semUrl.length} foto(s) sem URL válida após varredura. Execute a sincronização novamente.`);
+      }
+
       const pageW = 210, pageH = 297, margin = 12;
       const cols = 2, rows = 2, perPage = cols * rows;
       const cellW = (pageW - margin * 2 - (cols - 1) * 6) / cols;
