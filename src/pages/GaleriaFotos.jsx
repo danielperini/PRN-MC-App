@@ -42,7 +42,14 @@ const SECTION_LABELS = {
   MUMO: 'MUMO — Museu da Moda de Belo Horizonte',
   MAP: 'MAP — Museu de Arte da Pampulha',
   CasaKubitschek: 'Casa Kubitschek',
-  CasaDoBalile: 'Casa do Baíle',
+  CasaDoBaile: 'Casa do Baíle',
+  MuseuEscolaArquitetura: 'Museu da Escola de Arquitetura',
+  GaleriaArteUnimed: 'Galeria de Arte Centro Cultural Unimed',
+  CasaRosadaGasmig: 'Casa Rosada Gasmig Minas',
+  MemorialDireitosHumanos: 'Memorial dos Direitos Humanos',
+  MemorialLegislativoMineiro: 'Memorial do Legislativo Mineiro',
+  CentroMemoria: 'Centro de Memória',
+  MuseuCabral: 'Museu Cabral',
   SEM_IDENTIFICACAO: 'Sem identificação de museu'
 };
 
@@ -76,9 +83,10 @@ function formatDateBR(value) {
 function clearGalleryCache() {
   try {
     // Limpa versões antigas e a atual
-    ['v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v10', 'v11'].forEach((v) => {
+    ['v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v10', 'v11', 'v12'].forEach((v) => {
       localStorage.removeItem(`museus_centro_galeria_fotos_cache_${v}`);
       localStorage.removeItem(`museus_centro_galeria_fotos_cache_${v}_deduped_3layers`);
+      localStorage.removeItem(`museus_centro_galeria_fotos_cache_${v}_drive_thumbs_${TODAY}`);
     });
     window.localStorage.removeItem(GALLERY_CACHE_KEY);
   } catch {
@@ -713,7 +721,7 @@ function GaleriaFotosInner() {
             <RestaurarFotosDrive
             onImportConcluida={() => {
               clearGalleryCache();
-              queryClient.invalidateQueries(['galeria-fotos-stable-v1']);
+              queryClient.invalidateQueries(['galeria-fotos-stable-v4']);
               refetch();
               setShowRestaurar(false);
             }} />
@@ -1055,7 +1063,7 @@ function GaleriaFotosInner() {
         duplicates={duplicates}
         onConcluido={() => {
           clearGalleryCache();
-          queryClient.invalidateQueries(['galeria-fotos-stable-v1']);
+          queryClient.invalidateQueries(['galeria-fotos-stable-v4']);
           refetch();
         }} />
 
@@ -1075,18 +1083,28 @@ function GaleriaFotosInner() {
 
       <ReconstruirGaleriaDialog
         open={showReconstruir}
-        onClose={() => setShowReconstruir(false)} />
+        onClose={() => {
+          setShowReconstruir(false);
+          clearGalleryCache();
+          queryClient.invalidateQueries(['galeria-fotos-stable-v4']);
+          refetch();
+        }} />
 
       <Importar6PastasDialog
         open={showImportar6Pastas}
-        onClose={() => setShowImportar6Pastas(false)} />
+        onClose={() => {
+          setShowImportar6Pastas(false);
+          clearGalleryCache();
+          queryClient.invalidateQueries(['galeria-fotos-stable-v4']);
+          refetch();
+        }} />
 
       <ConsolidarFotosDriveDialog
         open={showConsolidarDrive}
         onClose={() => setShowConsolidarDrive(false)}
         onConcluido={async () => {
           clearGalleryCache();
-          queryClient.invalidateQueries(['galeria-fotos-stable-v1']);
+          queryClient.invalidateQueries(['galeria-fotos-stable-v4']);
           await refetch();
           // Backup automático pós-importação
           try {
