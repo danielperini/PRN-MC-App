@@ -277,13 +277,25 @@ function GaleriaFotosInner() {
   const visibleImages = sortedImages.slice(0, visibleCount);
 
   const groupedImages = useMemo(() => {
+    const MAX_POR_ATIVIDADE = 8;
     const groups = new Map();
     visibleImages.forEach((image, renderIndex) => {
       const key = image.sectionKey || 'SEM_IDENTIFICACAO';
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push({ image, renderIndex });
     });
-    return Array.from(groups.entries()).map(([key, items]) => ({ key, items }));
+    // Limita a 8 fotos por atividade dentro de cada grupo de museu
+    return Array.from(groups.entries()).map(([key, items]) => {
+      const porAtividade = new Map();
+      items.forEach((entry) => {
+        const atividade = entry.image.activityTitulo || entry.image.activity_id || 'sem_atividade';
+        if (!porAtividade.has(atividade)) porAtividade.set(atividade, []);
+        const grupo = porAtividade.get(atividade);
+        if (grupo.length < MAX_POR_ATIVIDADE) grupo.push(entry);
+      });
+      const filtrados = Array.from(porAtividade.values()).flat();
+      return { key, items: filtrados };
+    });
   }, [visibleImages]);
 
   const selectionMode = selectedPhotos.length > 0;

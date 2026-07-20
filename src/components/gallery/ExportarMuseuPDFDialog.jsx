@@ -195,7 +195,7 @@ function filtrarFotosPorAtividade(fotos, limite) {
 
 export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosIniciais }) {
   const [museuSelecionado, setMuseuSelecionado] = useState('');
-  const [fotosPorAtividade, setFotosPorAtividade] = useState(3);
+  const [fotosPorAtividade, setFotosPorAtividade] = useState(8);
   const [loading, setLoading] = useState(false);
   const [progresso, setProgresso] = useState('');
   const [etapa, setEtapa] = useState(''); // 'drive' | 'legendas' | 'revisao' | 'pdf'
@@ -217,14 +217,11 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
     setAuditoria(null);
 
     try {
-      // ── Etapa 1: busca fotos do Drive antes de gerar o PDF ──
+      // ── Etapa 1: busca fotos no banco primeiro ──
       setEtapa('drive');
-      await sincronizarFotosMuseoDoDrive(museuSelecionado, setProgresso);
-
-      // ── Etapa 2: carrega fotos atualizadas do banco ──
-      await atualizarProgresso(setProgresso, 'Carregando fotos atualizadas do banco...');
-      const fotosAtualizadas = await buscarFotosAtualizadasDoMuseu(museuSelecionado);
-      const fotosDoMuseu = fotosAtualizadas.length > 0
+      await atualizarProgresso(setProgresso, 'Buscando fotos no banco de dados...');
+      let fotosAtualizadas = await buscarFotosAtualizadasDoMuseu(museuSelecionado);
+      let fotosDoMuseu = fotosAtualizadas.length > 0
         ? fotosAtualizadas.map(normalizarFotoParaGaleria).filter(f => f.fileUrl)
         : fotosIniciais.filter(f => f.sectionKey === museuSelecionado && f.fileUrl);
 
@@ -236,7 +233,20 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
         return;
       }
 
-      // ── Etapa 2.4: filtra fotos por atividade (limite por grupo) ──
+      // ── Etapa 1.5: só varre o Drive se houver fotos em branco (sem URL válida) ──
+      const semUrlBanco = fotosDoMuseu.filter(f => !f.fileUrl || typeof f.fileUrl !== 'string' || f.fileUrl.trim() === '');
+      if (semUrlBanco.length > 0) {
+        await sincronizarFotosMuseoDoDrive(museuSelecionado, setProgresso);
+        await atualizarProgresso(setProgresso, 'Recarregando fotos do banco após varredura...');
+        fotosAtualizadas = await buscarFotosAtualizadasDoMuseu(museuSelecionado);
+        if (fotosAtualizadas.length > 0) {
+          fotosDoMuseu = fotosAtualizadas.map(normalizarFotoParaGaleria).filter(f => f.fileUrl);
+        }
+      } else {
+        await atualizarProgresso(setProgresso, `${fotosDoMuseu.length} fotos encontradas no banco. Indo para o catálogo...`);
+      }
+
+      // ── Etapa 2: filtra fotos por atividade (limite por grupo) ──
       const fotosFiltradas = filtrarFotosPorAtividade(fotosDoMuseu, fotosPorAtividade);
 
       // ── Etapa 2.5: valida integridade das URLs ──
@@ -489,7 +499,7 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
             <div className="space-y-2">
               <p className="text-sm font-medium text-gray-700">Fotos por atividade</p>
               <div className="flex flex-wrap gap-1.5">
-                {[2, 3, 4, 5, 'Todas'].map((opt) => {
+                {[2, 3, 4, 5, 8, 'Todas'].map((opt) => {
                   const val = opt === 'Todas' ? Infinity : opt;
                   const ativo = fotosPorAtividade === val;
                   return (
@@ -524,7 +534,7 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
               <p className="font-semibold flex items-center gap-1.5">
                 <CloudDownload className="h-3.5 w-3.5" /> Fluxo automático antes do PDF:
               </p>
-              <p>1. Busca fotos novas do {SECTION_KEYS_ABREV[museuSelecionado]} no Google Drive</p>
+              <p>1. Busca fotos no banco de dados (só varre o Drive se houver em branco)</p>
               <p>2. Gera legendas com IA para fotos sem legenda</p>
               <p>3. Revisão de duplicatas e legendas</p>
               <p>4. Gera o PDF com timbre do Viaduto das Artes (4 fotos/página)</p>
