@@ -342,7 +342,7 @@ function GaleriaFotosInner() {
     const result = [];
     for (const img of sortedImages) {
       const atKey = getAtividadeKey(img);
-      if (atKey && atKey.trim()) {
+      if (atKey && String(atKey).trim()) {
         const count = seenActivity.get(atKey) || 0;
         if (count >= 2) continue;
         seenActivity.set(atKey, count + 1);
