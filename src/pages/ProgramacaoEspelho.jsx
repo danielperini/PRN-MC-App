@@ -3,8 +3,9 @@ import { base44 } from '@/api/base44Client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { RefreshCw, Calendar } from 'lucide-react';
+import { RefreshCw, Calendar, FileDown } from 'lucide-react';
 import { isObservador, isPatrocinador } from '@/components/auth/permissions';
+import jsPDF from 'jspdf';
 
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -380,6 +381,118 @@ export default function ProgramacaoEspelho() {
 
   const totalGeral = programacoes.length;
 
+  async function exportarPDF() {
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pageW = 210;
+    const marginX = 14;
+    const contentW = pageW - marginX * 2;
+    let y = 0;
+
+    const periodoLabel = [
+      mesSelecionado !== ALL_VALUE ? mesSelecionado : 'Todos os meses',
+      anoSelecionado !== ALL_VALUE ? anoSelecionado : '',
+    ].filter(Boolean).join(' · ');
+
+    // Capa
+    doc.setFillColor(15, 23, 42);
+    doc.rect(0, 0, pageW, 60, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(22);
+    doc.setFont('helvetica', 'bold');
+    doc.text('MUSEUS CENTRO', marginX, 28);
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Programação · ' + periodoLabel, marginX, 38);
+    doc.setFontSize(9);
+    doc.setTextColor(180, 190, 210);
+    doc.text(`${totalGeral} atividade${totalGeral !== 1 ? 's' : ''}`, marginX, 48);
+    doc.text('Exportado em ' + new Date().toLocaleDateString('pt-BR'), pageW - marginX, 48, { align: 'right' });
+
+    y = 70;
+
+    const museusComItens = museusDisponiveis.filter(m => agrupadoPorMuseu[m]?.length > 0);
+
+    for (const museu of museusComItens) {
+      const itens = agrupadoPorMuseu[museu];
+
+      // Cabeçalho museu
+      if (y > 260) { doc.addPage(); y = 20; }
+      doc.setFillColor(241, 245, 249);
+      doc.roundedRect(marginX, y, contentW, 10, 2, 2, 'F');
+      doc.setTextColor(30, 41, 59);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text(museu, marginX + 4, y + 7);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 116, 139);
+      doc.text(`${itens.length} atividade${itens.length !== 1 ? 's' : ''}`, pageW - marginX, y + 7, { align: 'right' });
+      y += 14;
+
+      // Cabeçalho tabela
+      doc.setFillColor(30, 41, 59);
+      doc.rect(marginX, y, contentW, 7, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Data', marginX + 2, y + 5);
+      doc.text('Nome da Ação', marginX + 30, y + 5);
+      doc.text('Sinopse', marginX + 100, y + 5);
+      y += 9;
+
+      itens.forEach((item, idx) => {
+        const dataStr = item.data_inicio
+          ? new Date(item.data_inicio).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+          : item.data || '—';
+        const titulo = getProgramacaoTitle(item) || '—';
+        const sinopse = getProgramacaoSinopse(item) || '—';
+
+        const tituloLines = doc.splitTextToSize(titulo, 65);
+        const sinopseLines = doc.splitTextToSize(sinopse, 85);
+        const rowH = Math.max(tituloLines.length, sinopseLines.length) * 4.5 + 4;
+
+        if (y + rowH > 280) { doc.addPage(); y = 20; }
+
+        const bg = idx % 2 === 0 ? [255, 255, 255] : [248, 250, 252];
+        doc.setFillColor(...bg);
+        doc.rect(marginX, y, contentW, rowH, 'F');
+
+        doc.setTextColor(71, 85, 105);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.text(dataStr, marginX + 2, y + 5);
+
+        doc.setTextColor(15, 23, 42);
+        doc.setFont('helvetica', 'bold');
+        doc.text(tituloLines, marginX + 30, y + 5);
+
+        doc.setTextColor(71, 85, 105);
+        doc.setFont('helvetica', 'normal');
+        doc.text(sinopseLines, marginX + 100, y + 5);
+
+        // borda linha
+        doc.setDrawColor(226, 232, 240);
+        doc.line(marginX, y + rowH, marginX + contentW, y + rowH);
+
+        y += rowH;
+      });
+
+      y += 8;
+    }
+
+    // Rodapé
+    const totalPages = doc.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184);
+      doc.text(`Página ${i} de ${totalPages}`, pageW / 2, 292, { align: 'center' });
+    }
+
+    const fileName = `programacao-${periodoLabel.toLowerCase().replace(/\s·\s/g, '-').replace(/\s/g, '-')}.pdf`;
+    doc.save(fileName);
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -387,12 +500,18 @@ export default function ProgramacaoEspelho() {
           <h1 className="text-2xl font-bold text-slate-900">Programação</h1>
           <p className="text-slate-500 text-sm mt-1">Visualização da programação registrada no sistema</p>
         </div>
-        {!isSponsor && (
-          <Button variant="outline" size="sm" onClick={() => carregarProgramacoes({ syncFonte: true })} disabled={loading || syncing}>
-            <RefreshCw className={`w-4 h-4 mr-2 ${(loading || syncing) ? 'animate-spin' : ''}`} />
-            {syncing ? 'Sincronizando' : 'Atualizar'}
+        <div className="flex gap-2">
+          {!isSponsor && (
+            <Button variant="outline" size="sm" onClick={() => carregarProgramacoes({ syncFonte: true })} disabled={loading || syncing}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${(loading || syncing) ? 'animate-spin' : ''}`} />
+              {syncing ? 'Sincronizando' : 'Atualizar'}
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={exportarPDF} disabled={loading || totalGeral === 0}>
+            <FileDown className="w-4 h-4 mr-2" />
+            Exportar PDF
           </Button>
-        )}
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-3">
