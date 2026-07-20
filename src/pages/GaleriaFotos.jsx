@@ -20,6 +20,7 @@ import PainelAjustarVinculos from '@/components/gallery/PainelAjustarVinculos';
 import ModalExposicao from '@/components/gallery/ModalExposicao';
 import ConsolidarFotosDriveDialog from '@/components/gallery/ConsolidarFotosDriveDialog';
 import RelatorioExecutivoPDFDialog from '@/components/gallery/RelatorioExecutivoPDFDialog';
+import ReconstruirGaleriaDialog from '@/components/gallery/ReconstruirGaleriaDialog';
 import { gerarAmostraRelatorioExecutivo } from '@/utils/exportarAmostraRelatorioExecutivo';
 import ActivityChipsBar, { getAtividadeKey } from '@/components/gallery/ActivityChipsBar';
 import { PhotoActionBar, BulkActionBar, EditCaptionDialog, DeleteConfirmDialog, EmailPhotosDialog } from '@/components/gallery/GalleryPhotoActions';
@@ -207,6 +208,7 @@ function GaleriaFotosInner() {
   const [showAjustarVinculos, setShowAjustarVinculos] = useState(false);
   const [showConsolidarDrive, setShowConsolidarDrive] = useState(false);
   const [showRelatorioExecutivo, setShowRelatorioExecutivo] = useState(false);
+  const [showReconstruir, setShowReconstruir] = useState(false);
   const [gerandoAmostra, setGerandoAmostra] = useState(false);
   const [progressoAmostra, setProgressoAmostra] = useState({ pct: 0, texto: '' });
   const [modoExposicao, setModoExposicao] = useState(null); // { images, startIndex }
@@ -566,6 +568,14 @@ function GaleriaFotosInner() {
                     {showRestaurar && <span className="ml-1 rounded-full bg-gray-200 px-1.5 py-0.5 text-[10px] text-gray-700">Ativo</span>}
                   </span>
                   <span className="text-xs text-gray-500 pl-5">Recupera arquivos e vínculos já armazenados no Drive.</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setShowReconstruir(true)}
+                  className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
+                  <span className="font-medium text-red-600 flex items-center gap-1.5">
+                    <RefreshCw className="h-3.5 w-3.5" /> Reconstruir Galeria do Zero
+                  </span>
+                  <span className="text-xs text-gray-500 pl-5">Apaga tudo e reimporta das pastas do Drive, com IA para fotos do MIS.</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -941,6 +951,10 @@ function GaleriaFotosInner() {
       <RelatorioExecutivoPDFDialog
         open={showRelatorioExecutivo}
         onClose={() => setShowRelatorioExecutivo(false)} />
+
+      <ReconstruirGaleriaDialog
+        open={showReconstruir}
+        onClose={() => setShowReconstruir(false)} />
 
       <ConsolidarFotosDriveDialog
         open={showConsolidarDrive}
