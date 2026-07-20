@@ -70,6 +70,8 @@ export default function RevisaoAntesExportar({
     { id: 'gerar', label: 'Gerar PDF', icon: FileDown },
   ];
 
+  function irParaGerar() { setAba('gerar'); }
+
   return (
     <div className="space-y-3">
       {/* Tabs */}
@@ -148,6 +150,9 @@ export default function RevisaoAntesExportar({
               );
             })
           )}
+          <Button onClick={irParaGerar} variant="outline" className="w-full gap-1.5 mt-2" size="sm">
+            Continuar para geração do PDF →
+          </Button>
         </div>
       )}
 
@@ -192,6 +197,9 @@ export default function RevisaoAntesExportar({
               );
             })
           )}
+          <Button onClick={irParaGerar} variant="outline" className="w-full gap-1.5 mt-2" size="sm">
+            Continuar para geração do PDF →
+          </Button>
         </div>
       )}
 
