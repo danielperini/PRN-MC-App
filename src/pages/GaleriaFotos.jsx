@@ -25,6 +25,7 @@ import { base44 } from '@/api/base44Client';
 
 const INITIAL_VISIBLE_IMAGES = 200;
 const VISIBLE_IMAGES_STEP = 200;
+const MAX_FOTOS_POR_ATIVIDADE = 5;
 // Inclui data do dia na chave para invalidar o cache automaticamente a cada novo dia
 const TODAY = new Date().toISOString().slice(0, 10);
 const GALLERY_CACHE_KEY = `museus_centro_galeria_fotos_cache_v10_deduped_3layers_${TODAY}`;
@@ -350,7 +351,7 @@ function GaleriaFotosInner() {
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push({ image, renderIndex });
     });
-    // Sem limite por atividade — exibe 100% das fotos
+    // Limite de MAX_FOTOS_POR_ATIVIDADE por atividade — allItems mantém tudo para os chips
     return Array.from(groups.entries()).map(([key, items]) => {
       const porAtividade = new Map();
       items.forEach((entry) => {
@@ -358,12 +359,18 @@ function GaleriaFotosInner() {
         if (!porAtividade.has(atividade)) porAtividade.set(atividade, []);
         porAtividade.get(atividade).push(entry);
       });
-      const filtrados = Array.from(porAtividade.values()).flat();
+      // allItems: todas as fotos (para chips de atividade)
+      const allItems = Array.from(porAtividade.values()).flat();
+      // filtrados: slice de MAX_FOTOS_POR_ATIVIDADE por atividade
+      const filtrados = Array.from(porAtividade.values())
+        .map((group) => group.slice(0, MAX_FOTOS_POR_ATIVIDADE))
+        .flat();
       const selAtividade = selectedAtividade[key];
       const itemsFiltrados = selAtividade
         ? filtrados.filter((entry) => getAtividadeKey(entry.image) === selAtividade)
         : filtrados;
-      return { key, items: itemsFiltrados, allItems: filtrados };
+      const ocultadas = allItems.length - filtrados.length;
+      return { key, items: itemsFiltrados, allItems, ocultadas };
     });
   }, [visibleImages, selectedAtividade]);
 
@@ -741,7 +748,7 @@ function GaleriaFotosInner() {
           </div> :
 
         <div className="space-y-10">
-            {groupedImages.map(({ key, items, allItems }) =>
+            {groupedImages.map(({ key, items, allItems, ocultadas }) =>
           <section key={key} className="space-y-4">
                 <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
                   {editingAlbumKey === key ?
@@ -795,6 +802,11 @@ function GaleriaFotosInner() {
                   <p className="mt-1 text-xs text-gray-500">
                     {items.length} {items.length === 1 ? 'foto exibida' : 'fotos exibidas'} neste bloco
                   </p>
+                  {ocultadas > 0 && (
+                    <p className="mt-0.5 text-[11px] text-gray-400">
+                      ({ocultadas} {ocultadas === 1 ? 'foto ocultada' : 'fotos ocultadas'} pelo limite de {MAX_FOTOS_POR_ATIVIDADE} por atividade)
+                    </p>
+                  )}
                 </div>
 
                 {/* Chips de atividade */}

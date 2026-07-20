@@ -198,7 +198,7 @@ function filtrarFotosPorAtividade(fotos, limite) {
 
 export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosIniciais }) {
   const [museuSelecionado, setMuseuSelecionado] = useState('');
-  const [fotosPorAtividade, setFotosPorAtividade] = useState(8);
+  const [fotosPorAtividade, setFotosPorAtividade] = useState(5);
   const [loading, setLoading] = useState(false);
   const [progresso, setProgresso] = useState('');
   const [progressoPct, setProgressoPct] = useState(0);
@@ -516,8 +516,8 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
             <div className="space-y-2">
               <p className="text-sm font-medium text-gray-700">Fotos por atividade</p>
               <div className="flex flex-wrap gap-1.5">
-                {[2, 3, 4, 5, 8, 'Todas'].map((opt) => {
-                  const val = opt === 'Todas' ? Infinity : opt;
+                {[2, 3, 4, 5].map((opt) => {
+                  const val = opt;
                   const ativo = fotosPorAtividade === val;
                   return (
                     <button
@@ -537,10 +537,7 @@ export default function ExportarMuseuPDFDialog({ open, onClose, fotos: fotosInic
                 })}
               </div>
               <p className="text-[11px] text-gray-500">
-                {fotosPorAtividade === Infinity
-                  ? `Todas as fotos · ${numAtividades} ${numAtividades === 1 ? 'atividade' : 'atividades'} · ~${previewFiltradas.length} fotos`
-                  : `Máximo ${fotosPorAtividade} fotos/atividade · ${numAtividades} ${numAtividades === 1 ? 'atividade' : 'atividades'} · ~${previewFiltradas.length} fotos estimadas`
-                }
+                {`Máximo ${fotosPorAtividade} fotos/atividade · ${numAtividades} ${numAtividades === 1 ? 'atividade' : 'atividades'} · ~${previewFiltradas.length} fotos estimadas`}
               </p>
             </div>
           )}
