@@ -32,7 +32,7 @@ const VISIBLE_IMAGES_STEP = 48;
 const MAX_FOTOS_POR_ATIVIDADE = 5;
 // Inclui data do dia na chave para invalidar o cache automaticamente a cada novo dia
 const TODAY = new Date().toISOString().slice(0, 10);
-const GALLERY_CACHE_KEY = `museus_centro_galeria_fotos_cache_v10_deduped_3layers_${TODAY}`;
+const GALLERY_CACHE_KEY = `museus_centro_galeria_fotos_cache_v11_drive_thumbs_${TODAY}`;
 const GALLERY_CACHE_TTL_MS = 5 * 60 * 1000; // 5 min para pegar fotos novas mais rápido
 
 const SECTION_LABELS = {
@@ -51,17 +51,13 @@ function safeText(value = '') {
 
 function thumbUrl(url) {
   if (!url) return url;
-  // lh3.googleusercontent.com/drive-storage/... — sem parâmetro de tamanho, usar sz
-  if (url.includes('lh3.googleusercontent.com/drive-storage/')) {
-    return url.includes('?') ? url + '&sz=s200' : url + '=s200';
-  }
-  // lh3.googleusercontent.com/d/... ou com parâmetro =sNNN
+  // lh3.googleusercontent.com/d/... — redimensionar para 200px
   if (url.includes('lh3.googleusercontent.com')) {
-    return url.replace(/=s\d+(-[a-z]+)*$/, '') + '=s200';
+    return url.replace(/=s?\d+(-[a-z]+)*$/, '') + '=w200';
   }
-  // Google Drive thumbnail com sz param
+  // Google Drive thumbnail com sz param (sz=w1600, sz=200, etc)
   if (url.includes('drive.google.com') && url.includes('sz=')) {
-    return url.replace(/sz=\d+/, 'sz=200');
+    return url.replace(/sz=w?\d+/i, 'sz=w200');
   }
   // Base44 / storage com width param
   if (url.includes('width=') || url.includes('w=')) {
@@ -79,8 +75,9 @@ function formatDateBR(value) {
 function clearGalleryCache() {
   try {
     // Limpa versões antigas e a atual
-    ['v1', 'v2', 'v3', 'v4', 'v5', 'v6'].forEach((v) => {
+    ['v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v10'].forEach((v) => {
       localStorage.removeItem(`museus_centro_galeria_fotos_cache_${v}`);
+      localStorage.removeItem(`museus_centro_galeria_fotos_cache_${v}_deduped_3layers`);
     });
     window.localStorage.removeItem(GALLERY_CACHE_KEY);
   } catch {
@@ -148,12 +145,24 @@ function GalleryCard({ image, onClick, eager = false, selected, onToggleSelect, 
             decoding="async"
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
             onError={(event) => {
-              // fallback para URL original se miniatura falhar
-              if (event.currentTarget.src !== image.fileUrl) {
-                event.currentTarget.src = image.fileUrl;
-              } else {
-                event.currentTarget.style.opacity = '0.2';
+              const img = event.currentTarget;
+              const tried = img.dataset.tried || '';
+              const fallbacks = image.fallbackUrls || [];
+              // Tenta fallbacks em sequência antes de desistir
+              if (!tried) {
+                img.dataset.tried = '1';
+                if (fallbacks[0]) { img.src = fallbacks[0]; return; }
+                img.dataset.tried = '2';
+              } else if (tried === '1' && fallbacks[1]) {
+                img.dataset.tried = '2';
+                img.src = fallbacks[1];
+                return;
+              } else if (tried === '2' && image.originalFileUrl) {
+                img.dataset.tried = '3';
+                img.src = image.originalFileUrl;
+                return;
               }
+              img.style.opacity = '0.15';
             }} />
           
         </div>
@@ -239,7 +248,7 @@ function GaleriaFotosInner() {
     error,
     refetch
   } = useQuery({
-    queryKey: ['galeria-fotos-stable-v1'],
+    queryKey: ['galeria-fotos-stable-v2'],
     queryFn: async () => loadGalleryReportData({
       limitAttachments: 0,
       useCache: true,

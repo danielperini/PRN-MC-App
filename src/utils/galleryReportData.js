@@ -117,12 +117,13 @@ function resolvePhotoSource(item = {}) {
   const thumbnail = String(item.thumbnail_url || item.thumbnailLink || item.drive_thumbnail_url || '').trim();
   const candidates = [];
 
-  if (rawUrl && !isDrivePageUrl(rawUrl)) candidates.push(rawUrl);
-  if (thumbnail) candidates.push(thumbnail);
+  // Priorizar thumbnails do Drive (menores e mais rápidos) quando driveFileId está disponível
   if (driveFileId) {
-    candidates.push(`https://drive.google.com/thumbnail?id=${encodeURIComponent(driveFileId)}&sz=w1600`);
-    candidates.push(`https://lh3.googleusercontent.com/d/${encodeURIComponent(driveFileId)}=w1600`);
+    candidates.push(`https://drive.google.com/thumbnail?id=${encodeURIComponent(driveFileId)}&sz=w400`);
+    candidates.push(`https://lh3.googleusercontent.com/d/${encodeURIComponent(driveFileId)}=w400`);
   }
+  if (thumbnail) candidates.push(thumbnail);
+  if (rawUrl && !isDrivePageUrl(rawUrl)) candidates.push(rawUrl);
   if (rawUrl) candidates.push(rawUrl);
 
   const uniqueCandidates = [...new Set(candidates.filter(Boolean))];
