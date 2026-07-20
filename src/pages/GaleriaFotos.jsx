@@ -17,6 +17,7 @@ import ExportarGaleriaPDFDialog from '@/components/gallery/ExportarGaleriaPDFDia
 import ExportarMuseuPDFDialog from '@/components/gallery/ExportarMuseuPDFDialog';
 import PainelAjustarVinculos from '@/components/gallery/PainelAjustarVinculos';
 import ModalExposicao from '@/components/gallery/ModalExposicao';
+import ConsolidarFotosDriveDialog from '@/components/gallery/ConsolidarFotosDriveDialog';
 import { PhotoActionBar, BulkActionBar, EditCaptionDialog, DeleteConfirmDialog, EmailPhotosDialog } from '@/components/gallery/GalleryPhotoActions';
 import { base44 } from '@/api/base44Client';
 
@@ -199,6 +200,7 @@ function GaleriaFotosInner() {
   const [albumLabels, setAlbumLabels] = useState({});
   const [editingAlbumValue, setEditingAlbumValue] = useState('');
   const [showAjustarVinculos, setShowAjustarVinculos] = useState(false);
+  const [showConsolidarDrive, setShowConsolidarDrive] = useState(false);
   const [modoExposicao, setModoExposicao] = useState(null); // { images, startIndex }
   const queryClient = useQueryClient();
 
@@ -483,6 +485,15 @@ function GaleriaFotosInner() {
                     )}
                   </span>
                   <span className="text-xs text-gray-500 pl-5">Revise duplicatas detectadas e remova do banco.</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setShowConsolidarDrive(true)}
+                  className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
+                  
+                  <span className="font-medium text-gray-900 flex items-center gap-1.5">
+                    <HardDriveDownload className="h-3.5 w-3.5" /> Consolidar Fotos do Drive
+                  </span>
+                  <span className="text-xs text-gray-500 pl-5">Importa fotos de pastas avulsas, gera legendas por IA e organiza na galeria.</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel className="text-xs text-amber-600 uppercase tracking-wide flex items-center gap-1">
@@ -811,6 +822,15 @@ function GaleriaFotosInner() {
         images={modoExposicao?.images || []}
         startIndex={modoExposicao?.startIndex || 0}
         onClose={() => setModoExposicao(null)} />
+
+      <ConsolidarFotosDriveDialog
+        open={showConsolidarDrive}
+        onClose={() => setShowConsolidarDrive(false)}
+        onConcluido={() => {
+          clearGalleryCache();
+          queryClient.invalidateQueries(['galeria-fotos-stable-v1']);
+          refetch();
+        }} />
       </div>);
 
 }
