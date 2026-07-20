@@ -23,13 +23,10 @@ export const SECTION_ABREV = {
 };
 
 /**
- * Filtro corrigido: atividade é "física" se tem fotos vinculadas
- * e classificacao é META, EXTRA ou ROTINA.
+ * Todas as atividades são válidas — sem critério de meta física.
  */
 export function isAtividadeFisica(act) {
-  const temFotos = Array.isArray(act.fotos) && act.fotos.length > 0;
-  if (!temFotos) return false;
-  return ['META', 'EXTRA', 'ROTINA'].includes(act.classificacao);
+  return true;
 }
 
 function normalizarTexto(s = '') {
