@@ -335,13 +335,12 @@ function GaleriaFotosInner() {
     });
   }, [filteredImages, sortBy]);
 
-  // Aplica o limite de 2 fotos por atividade garantindo que visibleCount fotos passem pelo filtro.
-  // Expande o slice progressivamente para atingir exatamente visibleCount fotos deduplificadas.
-  const visibleImages = useMemo(() => {
+  // Aplica o limite de 2 fotos por atividade sobre o total de fotos ordenadas (sem paginação),
+  // depois fatia pelos visibleCount — assim o botão "Carregar mais" funciona corretamente.
+  const dedupedImages = useMemo(() => {
     const seenActivity = new Map();
     const result = [];
-    for (let i = 0; i < sortedImages.length; i++) {
-      const img = sortedImages[i];
+    for (const img of sortedImages) {
       const atKey = getAtividadeKey(img);
       if (atKey) {
         const count = seenActivity.get(atKey) || 0;
@@ -349,10 +348,11 @@ function GaleriaFotosInner() {
         seenActivity.set(atKey, count + 1);
       }
       result.push(img);
-      if (result.length >= visibleCount) break;
     }
     return result;
-  }, [sortedImages, visibleCount]);
+  }, [sortedImages]);
+
+  const visibleImages = dedupedImages.slice(0, visibleCount);
 
 
 
@@ -919,13 +919,13 @@ function GaleriaFotosInner() {
               );
             })}
 
-            {sortedImages.length > visibleCount &&
+            {dedupedImages.length > visibleCount &&
             <div className="flex justify-center pt-2 pb-4">
               <button
                 type="button"
-                onClick={() => setVisibleCount((count) => Math.min(count + VISIBLE_IMAGES_STEP, sortedImages.length))}
+                onClick={() => setVisibleCount((count) => Math.min(count + VISIBLE_IMAGES_STEP, dedupedImages.length))}
                 className="rounded-full border border-gray-300 bg-white px-5 py-2 text-sm font-medium text-gray-700 shadow-sm hover:border-gray-400 hover:bg-gray-50">
-                Carregar mais ({sortedImages.length - visibleCount} restantes)
+                Carregar mais ({dedupedImages.length - visibleCount} restantes)
               </button>
             </div>
             }
