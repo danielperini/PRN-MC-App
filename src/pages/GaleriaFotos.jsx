@@ -1,10 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import RequireAuth from '@/components/auth/RequireAuth';
 import LoadingPage from '@/components/common/LoadingPage';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Images, MapPin, RefreshCw, X, Filter, CheckCircle2, Moon, ExternalLink, BookImage, ChevronDown, Eye, HardDriveDownload, TriangleAlert, FileDown, Pencil, Check, MoreVertical } from 'lucide-react';
+import { Images, MapPin, RefreshCw, X, Filter, CheckCircle2, Moon, ExternalLink, BookImage, ChevronDown, HardDriveDownload, TriangleAlert, FileDown, Pencil, Check, MoreVertical } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
   DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from
@@ -202,6 +203,8 @@ function GaleriaFotosInner() {
   const [showAjustarVinculos, setShowAjustarVinculos] = useState(false);
   const [showConsolidarDrive, setShowConsolidarDrive] = useState(false);
   const [modoExposicao, setModoExposicao] = useState(null); // { images, startIndex }
+  const [isAutoSyncing, setIsAutoSyncing] = useState(false);
+  const autoSyncRanRef = useRef(false);
   const queryClient = useQueryClient();
 
   const totalBruto = data?.totalBruto || 0;
@@ -211,6 +214,24 @@ function GaleriaFotosInner() {
   React.useEffect(() => {
     base44.auth.me().then((u) => setCurrentUser(u)).catch(() => {});
   }, []);
+
+  // ── Sincronização automática com Drive (cache vazio ou > 12h) ──
+  useEffect(() => {
+    if (autoSyncRanRef.current) return;
+    if (!data) return;
+    const cacheStale = data?.cacheStale === true || !data?.cacheUsed;
+    if (!cacheStale) return;
+    autoSyncRanRef.current = true;
+    setIsAutoSyncing(true);
+    base44.functions.invoke('sincronizarInventarioCompleto', { force: false })
+      .then(() => {
+        clearGalleryCache();
+        queryClient.invalidateQueries(['galeria-fotos-stable-v1']);
+        refetch();
+      })
+      .catch((e) => console.warn('Sincronização automática falhou:', e?.message))
+      .finally(() => setIsAutoSyncing(false));
+  }, [data, queryClient, refetch]);
 
   const {
     data,
@@ -385,25 +406,59 @@ function GaleriaFotosInner() {
               <p className="mt-1 text-xs text-gray-400">{totalBruto} fotos na galeria</p>
             )}
             {data?.cacheUsed && <p className="mt-1 text-xs text-gray-400">Dados do cache local.{data?.cacheStale ? ' (cache antigo)' : ''}</p>}
-            {isFetching && <p className="mt-2 text-xs text-gray-400">Atualizando galeria...</p>}
+            {isAutoSyncing && (
+              <p className="mt-1 inline-flex items-center gap-1 text-xs text-blue-500">
+                <RefreshCw className="h-3 w-3 animate-spin" />
+                Sincronizando com o Drive...
+              </p>
+            )}
+            {isFetching && !isAutoSyncing && <p className="mt-2 text-xs text-gray-400">Atualizando galeria...</p>}
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {/* 1. Visualizações */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* 1. Exportar PDF (dropdown) */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  aria-label="Visualizações"
                   className="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-100 transition-colors">
-                  
-                  <Eye className="h-4 w-4" />
-                  Visualizações
+                  <FileDown className="h-4 w-4" />
+                  Exportar PDF
                   <ChevronDown className="h-3.5 w-3.5 opacity-60" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-64">
-                <DropdownMenuLabel className="text-xs text-gray-500 uppercase tracking-wide">Modos de exibição</DropdownMenuLabel>
+                <DropdownMenuItem
+                  onClick={() => setShowExportarPDF(true)}
+                  className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
+                  <span className="font-medium text-gray-900 flex items-center gap-1.5">
+                    <FileDown className="h-3.5 w-3.5" /> Galeria completa
+                  </span>
+                  <span className="text-xs text-gray-500 pl-5">Gera um PDF com todas as fotos de todos os museus.</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setShowExportarMuseu(true)}
+                  className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
+                  <span className="font-medium text-gray-900 flex items-center gap-1.5">
+                    <BookImage className="h-3.5 w-3.5" /> PDF por Museu
+                  </span>
+                  <span className="text-xs text-gray-500 pl-5">Gera um PDF individual para um museu específico.</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* 2. Menu ⋮ de ações */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Mais ações"
+                  className="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white p-2 text-gray-700 shadow-sm hover:bg-gray-100 transition-colors">
+                  <MoreVertical className="h-4 w-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-72">
+                <DropdownMenuLabel className="text-xs text-gray-500 uppercase tracking-wide">Visualizações</DropdownMenuLabel>
                 <DropdownMenuItem asChild>
                   <Link to="/RelatorioAtividadesFotos" className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
                     <span className="font-medium text-gray-900 flex items-center gap-1.5">
@@ -420,44 +475,11 @@ function GaleriaFotosInner() {
                     <span className="text-xs text-gray-500 pl-5">Exibe somente imagens vinculadas ao Noturno.</span>
                   </Link>
                 </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {/* 2. Exportar PDF */}
-            <button
-              type="button"
-              onClick={() => setShowExportarPDF(true)}
-              className="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-100 transition-colors">
-              <FileDown className="h-4 w-4" />
-              Exportar PDF
-            </button>
-
-            {/* 2b. Exportar por Museu */}
-            <button
-              type="button"
-              onClick={() => setShowExportarMuseu(true)}
-              className="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-100 transition-colors">
-              <FileDown className="h-4 w-4" />
-              PDF por Museu
-            </button>
-
-            {/* 3. Menu ⋮ */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  aria-label="Mais ações"
-                  className="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white p-2 text-gray-700 shadow-sm hover:bg-gray-100 transition-colors">
-                  
-                  <HardDriveDownload className="h-4 w-4" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-72">
+                <DropdownMenuSeparator />
                 <DropdownMenuLabel className="text-xs text-gray-500 uppercase tracking-wide">Ações</DropdownMenuLabel>
                 <DropdownMenuItem
                   onClick={async () => {clearGalleryCache();await refetch();}}
                   className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
-                  
                   <span className="font-medium text-gray-900 flex items-center gap-1.5">
                     <RefreshCw className="h-3.5 w-3.5" /> Atualizar galeria
                   </span>
@@ -466,32 +488,21 @@ function GaleriaFotosInner() {
                 <DropdownMenuItem
                   onClick={() => setShowSincInventario(true)}
                   className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
-                  
                   <span className="font-medium text-gray-900 flex items-center gap-1.5">
-                    <HardDriveDownload className="h-3.5 w-3.5" /> Sincronizar Drive agora
+                    <HardDriveDownload className="h-3.5 w-3.5" /> Forçar sincronização com Drive
                   </span>
                   <span className="text-xs text-gray-500 pl-5">Envia e atualiza os arquivos da galeria no Google Drive.</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() => setShowAjustarVinculos(true)}
+                  onClick={() => setShowConsolidarDrive(true)}
                   className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
-                  
                   <span className="font-medium text-gray-900 flex items-center gap-1.5">
-                    <TriangleAlert className="h-3.5 w-3.5" /> Ajustar vínculos e repetidas
+                    <HardDriveDownload className="h-3.5 w-3.5" /> Consolidar Fotos do Drive
                     {duplicates.length > 0 && (
                       <span className="ml-1 inline-flex items-center justify-center rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">
                         {duplicates.length}
                       </span>
                     )}
-                  </span>
-                  <span className="text-xs text-gray-500 pl-5">Revise duplicatas detectadas e remova do banco.</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => setShowConsolidarDrive(true)}
-                  className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
-                  
-                  <span className="font-medium text-gray-900 flex items-center gap-1.5">
-                    <HardDriveDownload className="h-3.5 w-3.5" /> Consolidar Fotos do Drive
                   </span>
                   <span className="text-xs text-gray-500 pl-5">Importa fotos de pastas avulsas, gera legendas por IA e organiza na galeria.</span>
                 </DropdownMenuItem>
@@ -502,7 +513,6 @@ function GaleriaFotosInner() {
                 <DropdownMenuItem
                   onClick={() => setShowRestaurar((v) => !v)}
                   className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
-                  
                   <span className="font-medium text-gray-900 flex items-center gap-1.5">
                     <HardDriveDownload className="h-3.5 w-3.5" /> Restaurar do Drive
                     {showRestaurar && <span className="ml-1 rounded-full bg-gray-200 px-1.5 py-0.5 text-[10px] text-gray-700">Ativo</span>}
@@ -526,6 +536,22 @@ function GaleriaFotosInner() {
             ).join('\n\n');
             navigator.clipboard.writeText(text);
           }} />
+
+        {/* Banner de duplicatas detectadas */}
+        {duplicates.length > 0 && !showAjustarVinculos && (
+          <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+            <TriangleAlert className="h-4 w-4 shrink-0 text-amber-500" />
+            <span>
+              <strong>{duplicates.length}</strong> {duplicates.length === 1 ? 'foto duplicada detectada' : 'fotos duplicadas detectadas'}
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowAjustarVinculos(true)}
+              className="ml-auto inline-flex items-center gap-1 rounded-lg bg-amber-200 px-3 py-1 text-xs font-medium text-amber-900 hover:bg-amber-300 transition-colors">
+              Revisar
+            </button>
+          </div>
+        )}
         
 
         {/* Feedback de sincronização */}
@@ -826,10 +852,18 @@ function GaleriaFotosInner() {
       <ConsolidarFotosDriveDialog
         open={showConsolidarDrive}
         onClose={() => setShowConsolidarDrive(false)}
-        onConcluido={() => {
+        onConcluido={async () => {
           clearGalleryCache();
           queryClient.invalidateQueries(['galeria-fotos-stable-v1']);
-          refetch();
+          await refetch();
+          // Backup automático pós-importação
+          try {
+            const res = await base44.functions.invoke('backupPhotosToDrive', {});
+            const saved = res?.data?.total_backed_up ?? res?.data?.saved ?? 0;
+            toast.success(`Backup concluído — ${saved} ${saved === 1 ? 'foto salva' : 'fotos salvas'} no Drive.`);
+          } catch (e) {
+            console.warn('Backup automático falhou:', e?.message);
+          }
         }} />
       </div>);
 
