@@ -327,15 +327,19 @@ function GaleriaFotosInner() {
   }, [images, searchTerm]);
 
   const sortedImages = useMemo(() => {
-    const sorted = [...filteredImages].sort((a, b) => {
+    return [...filteredImages].sort((a, b) => {
       if (sortBy === 'oldest') return new Date(a.timestamp || a.date || 0) - new Date(b.timestamp || b.date || 0);
       if (sortBy === 'name-asc') return String(a.fileName || '').localeCompare(String(b.fileName || ''), 'pt-BR');
       if (sortBy === 'name-desc') return String(b.fileName || '').localeCompare(String(a.fileName || ''), 'pt-BR');
       return new Date(b.timestamp || b.date || 0) - new Date(a.timestamp || a.date || 0);
     });
-    // Limitar a 2 fotos por atividade
+  }, [filteredImages, sortBy]);
+
+  // Aplica o limite de 2 fotos por atividade APÓS o slice de paginação
+  const visibleImages = useMemo(() => {
+    const sliced = sortedImages.slice(0, visibleCount);
     const seenActivity = new Map();
-    return sorted.filter((img) => {
+    return sliced.filter((img) => {
       const atKey = getAtividadeKey(img);
       if (!atKey) return true;
       const count = seenActivity.get(atKey) || 0;
@@ -343,9 +347,7 @@ function GaleriaFotosInner() {
       seenActivity.set(atKey, count + 1);
       return true;
     });
-  }, [filteredImages, sortBy]);
-
-  const visibleImages = sortedImages.slice(0, visibleCount);
+  }, [sortedImages, visibleCount]);
 
 
 
@@ -722,7 +724,7 @@ function GaleriaFotosInner() {
             )}
           </div>
           <p className="mt-1.5 text-xs text-gray-400">
-            {sortedImages.length} {sortedImages.length === 1 ? 'foto encontrada' : 'fotos encontradas'}
+            {filteredImages.length} {filteredImages.length === 1 ? 'foto encontrada' : 'fotos encontradas'}
             {hasActiveFilters && <span className="ml-1 text-gray-500">· filtrado por "{searchTerm}"</span>}
           </p>
         </div>
