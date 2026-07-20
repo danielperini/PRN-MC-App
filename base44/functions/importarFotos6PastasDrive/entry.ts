@@ -1,13 +1,13 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 
 const PASTAS_DRIVE = [
-  { id: '1zwGkjC3YK62U0xf72SlBLC0YcoEykVU5', nome: 'Pasta 1' },
-  { id: '1UyE7LOwcveYLTuQ4d-a0ZlAXiPJ67J7m', nome: 'Pasta 2' },
-  { id: '1qToudYUOf1MUJgZCT4v9p2w5KJfMP8dp', nome: 'Pasta 3' },
-  { id: '1AKvhVab7MlLgrvwf6QPSmkEQ5P_J8Pj1', nome: 'Pasta 4' },
-  { id: '11tlhwDZ8YnjDmh6uUU72wvwQrkEXMuxO', nome: 'Pasta 5' },
-  { id: '1OhHErYW9oQobBwKjj8g3sJXH1cBhheQ5', nome: 'Pasta 6' },
-  { id: '1j44N8BufKJd64MhdwD0L1pWqIyammD0j', nome: 'Pasta 7' },
+  { id: '1zwGkjC3YK62U0xf72SlBLC0YcoEykVU5', nome: 'Casa do Baile' },
+  { id: '1UyE7LOwcveYLTuQ4d-a0ZlAXiPJ67J7m', nome: 'Museu de Arte da Pampulha' },
+  { id: '1qToudYUOf1MUJgZCT4v9p2w5KJfMP8dp', nome: 'Museu Histórico Abílio Barreto' },
+  { id: '1AKvhVab7MlLgrvwf6QPSmkEQ5P_J8Pj1', nome: 'Passeio de Barco' },
+  { id: '11tlhwDZ8YnjDmh6uUU72wvwQrkEXMuxO', nome: 'Museu da Imagem e do Som de Belo Horizonte' },
+  { id: '1OhHErYW9oQobBwKjj8g3sJXH1cBhheQ5', nome: 'Museu Casa Kubitschek' },
+  { id: '1j44N8BufKJd64MhdwD0L1pWqIyammD0j', nome: 'Museu da Moda de Belo Horizonte (MUMO)' },
 ];
 const MAX_POR_SUBPASTA = 5;
 const BATCH_SIZE = 5;
@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
     if(modo === 'listar'){
       const resultados = await Promise.all(
         PASTAS_DRIVE.map(async (p) => {
-          const imgs = await listFolderImagesLimited(accessToken, p.id).catch(() => []);
+          const imgs = await listFolderImagesLimited(accessToken, p.id, [p.nome]).catch(() => []);
           return { pasta: p.nome, id: p.id, total: imgs.length };
         })
       );
@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
       // Lista todas as imagens de todas as pastas
       const todasImagens: any[] = [];
       for(const p of PASTAS_DRIVE){
-        const imgs = await listFolderImagesLimited(accessToken, p.id).catch(() => []);
+        const imgs = await listFolderImagesLimited(accessToken, p.id, [p.nome]).catch(() => []);
         for(const img of imgs){
           todasImagens.push({ ...img, _pasta_nome: p.nome });
         }
