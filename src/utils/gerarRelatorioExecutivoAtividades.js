@@ -234,7 +234,7 @@ export async function gerarPDFAtividades(atividades, museuKey, mes, ano, opts = 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.setCharSpace(1.5);
-  doc.text('VIADUTO DAS ARTES  ·  PROJETO MUSEU CENTRO', pageW / 2, capaY0, { align: 'center' });
+  doc.text('VIADUTO DAS ARTES  ·  PROJETO MUSEUS CENTRO', pageW / 2, capaY0, { align: 'center' });
   doc.setCharSpace(0);
 
   doc.setFontSize(42);
@@ -310,7 +310,7 @@ export async function gerarPDFAtividades(atividades, museuKey, mes, ano, opts = 
     // Linha separadora discreta
     doc.setDrawColor(220, 220, 220);
     doc.line(margin, pageH - 10, pageW - margin, pageH - 10);
-    doc.text(`Viaduto das Artes · Projeto Museu Centro`, margin, pageH - 5);
+    doc.text(`Viaduto das Artes · Projeto Museus Centro`, margin, pageH - 5);
     doc.text(`${abrev} · ${periodoLabel} · p. ${paginaAtual}`, pageW - margin, pageH - 5, { align: 'right' });
   }
   function novaPagina() {
