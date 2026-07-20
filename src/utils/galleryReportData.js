@@ -425,7 +425,8 @@ export async function loadGalleryReportData({
     totalOcultadas,
     duplicates,
     sources: {
-      Attachment: images.filter((i) => i.sourceEntity === 'Attachment').length,
+      Report: images.filter((i) => i.sourceEntity === 'Report').length,
+      Activity: images.filter((i) => i.sourceEntity === 'Activity').length,
       ReportPhoto: images.filter((i) => i.sourceEntity === 'ReportPhoto').length,
     },
   };
