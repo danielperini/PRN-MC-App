@@ -99,18 +99,19 @@ function GalleryCard({ image, onClick, eager = false, selected, onToggleSelect, 
   const museuLabel = image.sectionKey !== 'SEM_IDENTIFICACAO' ?
   image.sectionTitle || image.museu || 'Museus Centro' :
   null;
-  // Prioridade: título de atividade > legenda/caption do banco > extração do nome do arquivo > nome do arquivo
+  // Prioridade: legenda própria da foto > título de atividade (somente se não for genérico) > extração do nome > nome do arquivo
   function extrairNomeAtv(fileName = '') {
     const m = fileName.match(/__([^_][^_]+(?:_[^_][^_]+)*)__\d+\.\w+$/);
     if (m) return m[1].replace(/_/g, ' ').trim();
     return null;
   }
   const legendaDisplay =
-  image.activityTitulo ||
-  image.legenda || (
-  image.fileName ? extrairNomeAtv(image.fileName) : null) ||
-  image.fileName ||
-  'Foto da galeria';
+    image.legenda ||
+    image.caption ||
+    (image.fileName ? extrairNomeAtv(image.fileName) : null) ||
+    image.activityTitulo ||
+    image.fileName ||
+    'Foto da galeria';
 
   return (
     <div className={`group relative overflow-hidden rounded-2xl border bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md
@@ -169,7 +170,6 @@ function GalleryCard({ image, onClick, eager = false, selected, onToggleSelect, 
                 {image.geoCoordinates}
               </p>
             }
-            {image.date && <p>{formatDateBR(image.date)}</p>}
           </div>
         </div>
       </button>
@@ -752,10 +752,10 @@ function GaleriaFotosInner() {
 
               <div className="space-y-2 bg-black/85 p-5 text-white">
                 <p className="text-lg font-semibold leading-snug">
-                  {selectedImage.activityTitulo || selectedImage.legenda || selectedImage.fileName || 'Foto da galeria'}
+                  {selectedImage.legenda || selectedImage.caption || selectedImage.fileName || selectedImage.activityTitulo || 'Foto da galeria'}
                 </p>
-                {selectedImage.activityTitulo && selectedImage.legenda && selectedImage.legenda !== selectedImage.activityTitulo &&
-              <p className="text-sm text-white/75">{selectedImage.legenda}</p>
+                {selectedImage.activityTitulo && (selectedImage.legenda || selectedImage.caption) && selectedImage.activityTitulo !== (selectedImage.legenda || selectedImage.caption) &&
+              <p className="text-sm text-white/75">{selectedImage.activityTitulo}</p>
               }
                 {selectedImage.description && selectedImage.description !== selectedImage.legenda &&
               <p className="text-sm text-white/60">{selectedImage.description}</p>
