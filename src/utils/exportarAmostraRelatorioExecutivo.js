@@ -89,18 +89,40 @@ export async function gerarAmostraRelatorioExecutivo(museuKey, mes, ano, opts = 
     throw new Error(`Nenhuma foto encontrada para ${abrev} em ${mes}/${ano}.`);
   }
 
+  // Busca dados reais das atividades vinculadas
+  const activityIds = [...new Set(fotos.map((f) => f.activity_id).filter(Boolean))];
+  const activityMap = new Map();
+  if (activityIds.length > 0) {
+    for (let i = 0; i < activityIds.length; i += 50) {
+      const loteIds = activityIds.slice(i, i + 50);
+      const acts = await Promise.all(
+        loteIds.map((aid) => base44.entities.Activity.get(aid).catch(() => null))
+      );
+      acts.forEach((a) => { if (a) activityMap.set(a.id, a); });
+    }
+  }
+
   // Agrupa fotos em "atividades" virtuais (4 fotos cada)
   const atividadesVirtuais = [];
   for (let i = 0; i < fotos.length; i += maxFotosPorAtividade) {
     const lote = fotos.slice(i, i + maxFotosPorAtividade);
+    const atvReal = lote.map((rp) => rp.activity_id).find(Boolean) || null;
+    const atvData = atvReal ? activityMap.get(atvReal) : null;
+    const tituloReal = atvData?.titulo || '';
+    const dataReal = atvData ? formatDateBR(atvData.data_realizacao || atvData.data_inicio) : '';
+    const museuReal = atvData?.museu || museuKey;
     atividadesVirtuais.push({
-      titulo: `Atividade ${atividadesVirtuais.length + 1}`,
-      data: formatDateBR(lote[0]?.created_date),
+      titulo: tituloReal || `Atividade ${atividadesVirtuais.length + 1}`,
+      data: dataReal || formatDateBR(lote[0]?.created_date),
+      museu: museuReal,
       fotos: lote.map((rp) => ({
         fileUrl: rp.file_url,
         legenda: rp.legenda || rp.caption || rp.file_name || `Atividade ${atividadesVirtuais.length + 1}`,
         activityId: rp.activity_id,
         reportId: rp.report_id,
+        tituloAtividade: tituloReal || rp.legenda || rp.caption || rp.file_name || '',
+        dataAtividade: dataReal || formatDateBR(rp.created_date),
+        museuAtividade: museuReal,
       })),
     });
   }
@@ -116,7 +138,7 @@ export async function gerarAmostraRelatorioExecutivo(museuKey, mes, ano, opts = 
   const fotosParaPDF = [];
   for (const item of atividadesVirtuais) {
     for (const f of item.fotos) {
-      fotosParaPDF.push({ ...f, tituloAtividade: item.titulo, dataAtividade: item.data });
+      fotosParaPDF.push({ ...f, tituloAtividade: item.titulo, dataAtividade: item.data, museuAtividade: item.museu });
     }
   }
 
@@ -300,7 +322,7 @@ export async function gerarAmostraRelatorioExecutivo(museuKey, mes, ano, opts = 
   for (const item of atividadesVirtuais) {
     const validas = item.fotos.filter((f) => imagemPorUrl.get(f.fileUrl));
     if (validas.length > 0) {
-      atvComFotos.push({ titulo: item.titulo, data: item.data, fotos: validas });
+      atvComFotos.push({ titulo: item.titulo, data: item.data, museu: item.museu, fotos: validas });
     }
   }
 
@@ -382,7 +404,7 @@ export async function gerarAmostraRelatorioExecutivo(museuKey, mes, ano, opts = 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7.5);
       doc.setTextColor(102, 102, 102);
-      doc.text(abrev, legCx, legY, { align: 'center' });
+      doc.text(foto.museuAtividade || atv.museu || abrev, legCx, legY, { align: 'center' });
       legY += 3.5;
       // Linha 3: data (normal, 7pt, #999999)
       doc.setFontSize(7);

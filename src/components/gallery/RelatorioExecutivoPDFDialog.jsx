@@ -252,7 +252,7 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
       for (const item of atividades) {
         if (item.fotos.length === 0) continue;
         for (const f of item.fotos) {
-          fotosParaPDF.push({ ...f, tituloAtividade: item.atividade.titulo, dataAtividade: formatDateBR(item.atividade.data_realizacao || item.atividade.data_inicio) });
+          fotosParaPDF.push({ ...f, tituloAtividade: item.atividade.titulo, dataAtividade: formatDateBR(item.atividade.data_realizacao || item.atividade.data_inicio), museuAtividade: item.atividade.museu || museu });
         }
       }
 
@@ -425,7 +425,7 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
       for (const item of atividades) {
         const fotosValidas = item.fotos.filter((f) => imagemPorUrl.get(f.fileUrl));
         if (fotosValidas.length > 0) {
-          atividadesComFotos.push({ titulo: item.atividade.titulo, data: formatDateBR(item.atividade.data_realizacao || item.atividade.data_inicio), fotos: fotosValidas });
+          atividadesComFotos.push({ titulo: item.atividade.titulo, data: formatDateBR(item.atividade.data_realizacao || item.atividade.data_inicio), museu: item.atividade.museu || museu, fotos: fotosValidas });
         }
       }
 
@@ -507,7 +507,7 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(7.5);
           doc.setTextColor(102, 102, 102);
-          doc.text(SECTION_ABREV[museu], legCx, legY, { align: 'center' });
+          doc.text(foto.museuAtividade || atv.museu || SECTION_ABREV[museu], legCx, legY, { align: 'center' });
           legY += 3.5;
           // Linha 3: data (normal, 7pt, #999999)
           doc.setFontSize(7);
