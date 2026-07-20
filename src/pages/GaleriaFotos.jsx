@@ -4,7 +4,7 @@ import RequireAuth from '@/components/auth/RequireAuth';
 import LoadingPage from '@/components/common/LoadingPage';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Images, MapPin, RefreshCw, X, Filter, CheckCircle2, Moon, ExternalLink, BookImage, ChevronDown, HardDriveDownload, TriangleAlert, FileDown, Pencil, Check, MoreVertical, Download } from 'lucide-react';
+import { Images, MapPin, RefreshCw, X, Filter, CheckCircle2, Moon, ExternalLink, BookImage, ChevronDown, HardDriveDownload, TriangleAlert, FileDown, Pencil, Check, MoreVertical, Download, Calendar, Layers } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
@@ -201,6 +201,7 @@ function GaleriaFotosInner() {
   const [sortBy, setSortBy] = useState('recent');
   const [filterMuseu, setFilterMuseu] = useState('');
   const [filterPeriodo, setFilterPeriodo] = useState('');
+  const [groupMode, setGroupMode] = useState('museu'); // 'museu' | 'periodo'
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_IMAGES);
   const [showRestaurar, setShowRestaurar] = useState(false);
   const [showSincInventario, setShowSincInventario] = useState(false);
@@ -335,10 +336,27 @@ function GaleriaFotosInner() {
 
   const visibleImages = limitedByActivity.slice(0, visibleCount);
 
+  const PERIODO_LABELS = useMemo(() => {
+    const map = new Map();
+    images.forEach((img) => {
+      if (img.reportMes) {
+        const ano = img.ano || img.reportAno || (img.timestamp ? new Date(img.timestamp).getFullYear() : '');
+        const label = ano ? `${img.reportMes} — ${ano}` : img.reportMes;
+        map.set(img.reportMes, label);
+      }
+    });
+    return map;
+  }, [images]);
+
   const groupedImages = useMemo(() => {
     const groups = new Map();
     visibleImages.forEach((image, renderIndex) => {
-      const key = image.sectionKey || 'SEM_IDENTIFICACAO';
+      let key;
+      if (groupMode === 'periodo') {
+        key = image.reportMes || 'SEM_PERIODO';
+      } else {
+        key = image.sectionKey || 'SEM_IDENTIFICACAO';
+      }
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push({ image, renderIndex });
     });
@@ -360,7 +378,7 @@ function GaleriaFotosInner() {
       const ocultadas = allItems.length - filtrados.length;
       return { key, items: itemsFiltrados, allItems, ocultadas };
     });
-  }, [visibleImages, selectedAtividade]);
+  }, [visibleImages, selectedAtividade, groupMode]);
 
   const selectionMode = selectedPhotos.length > 0;
 
@@ -695,6 +713,38 @@ function GaleriaFotosInner() {
 
         {/* Painel de filtros */}
         <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm space-y-4">
+          {/* Seletor de agrupamento visual */}
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2">
+              <Layers className="h-4 w-4 text-gray-400" />
+              <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Agrupar por</span>
+            </div>
+            <div className="inline-flex rounded-xl border border-gray-200 bg-gray-50 p-1">
+              <button
+                type="button"
+                onClick={() => { setGroupMode('museu'); setVisibleCount(INITIAL_VISIBLE_IMAGES); }}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-medium transition-all ${
+                  groupMode === 'museu'
+                    ? 'bg-black text-white shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}>
+                <MapPin className="h-3.5 w-3.5" />
+                Museu
+              </button>
+              <button
+                type="button"
+                onClick={() => { setGroupMode('periodo'); setVisibleCount(INITIAL_VISIBLE_IMAGES); }}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-medium transition-all ${
+                  groupMode === 'periodo'
+                    ? 'bg-black text-white shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}>
+                <Calendar className="h-3.5 w-3.5" />
+                Período
+              </button>
+            </div>
+          </div>
+
           {/* Busca + Ordenação */}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
@@ -851,7 +901,7 @@ function GaleriaFotosInner() {
 
               <div className="flex items-center gap-2 group">
                       <h2 className="text-xl font-semibold text-black">
-                        {albumLabels[key] || SECTION_LABELS[key] || key}
+                        {albumLabels[key] || (groupMode === 'periodo' ? (PERIODO_LABELS.get(key) || (key === 'SEM_PERIODO' ? 'Sem período identificado' : key)) : (SECTION_LABELS[key] || key))}
                       </h2>
                       <button
                   type="button"
