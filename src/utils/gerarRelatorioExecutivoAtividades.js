@@ -212,87 +212,65 @@ export async function gerarPDFAtividades(atividades, museuKey, mes, ano, opts = 
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
 
-  // Capa
-  doc.setFillColor(20, 20, 20);
-  doc.rect(0, 0, pageW, pageH, 'F');
-  const timbreCapaH = drawTimbreViaduto(doc, pageW, margin, true);
-  const capaY0 = timbreCapaH + 10;
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.text('VIADUTO DAS ARTES · MUSEUS CENTRO', pageW / 2, capaY0, { align: 'center' });
-  doc.setFontSize(22);
-  doc.text(abrev, pageW / 2, capaY0 + 50, { align: 'center' });
-  doc.setFontSize(13);
-  doc.setFont('helvetica', 'normal');
-  doc.text(label, pageW / 2, capaY0 + 65, { align: 'center', maxWidth: 170 });
-  doc.setFontSize(11);
-  doc.setTextColor(180, 180, 180);
-  doc.text('Relatório de Atividades', pageW / 2, capaY0 + 85, { align: 'center' });
-  doc.setFontSize(10);
-  doc.text(`${mes} de ${ano}`, pageW / 2, capaY0 + 98, { align: 'center' });
-  doc.setFontSize(9);
-  doc.setTextColor(150, 205, 255);
-  doc.text(`Gerado em ${new Date().toLocaleDateString('pt-BR')}`, pageW / 2, capaY0 + 115, { align: 'center' });
+  // Período para uso no rodapé e capa
+  const periodoLabel = Array.isArray(mes) && mes.length > 1
+    ? `${mes[0]}–${mes[mes.length - 1]} de ${ano}`
+    : `${Array.isArray(mes) ? mes[0] : mes} de ${ano}`;
 
-  // Índice
-  doc.addPage();
-  let indexPageCount = 1;
-  doc.setFillColor(255, 255, 255);
-  doc.rect(0, 0, pageW, pageH, 'F');
-  const timbreH = drawTimbreViaduto(doc, pageW, margin);
-  const contentTop = timbreH + 4;
-  const contentBottom = pageH - footerH - margin;
+  // Sem timbre nas páginas internas — definir margens fixas
+  const contentTop = margin + 2;
+  const contentBottom = pageH - footerH - 5;
   const contentW = pageW - margin * 2;
 
+  // ── CAPA ──────────────────────────────────────────────────────────────
+  doc.setFillColor(20, 20, 20);
+  doc.rect(0, 0, pageW, pageH, 'F');
+
+  // Timbre na capa apenas
+  const timbreCapaH = drawTimbreViaduto(doc, pageW, margin, true);
+  const capaY0 = timbreCapaH + 18;
+
+  doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setCharSpace(1.5);
+  doc.text('VIADUTO DAS ARTES  ·  PROJETO MUSEU CENTRO', pageW / 2, capaY0, { align: 'center' });
+  doc.setCharSpace(0);
+
+  doc.setFontSize(42);
+  doc.setFont('helvetica', 'bold');
+  doc.text(abrev, pageW / 2, capaY0 + 55, { align: 'center' });
+
   doc.setFontSize(14);
-  doc.setTextColor(20, 20, 20);
-  doc.text('Índice de Atividades', pageW / 2, contentTop, { align: 'center' });
   doc.setFont('helvetica', 'normal');
+  doc.setTextColor(200, 200, 200);
+  doc.text(label, pageW / 2, capaY0 + 70, { align: 'center', maxWidth: 170 });
+
+  doc.setFontSize(11);
+  doc.setTextColor(160, 160, 160);
+  doc.text('Relatório de Atividades', pageW / 2, capaY0 + 90, { align: 'center' });
+
+  // Linha de destaque do período
+  doc.setFontSize(12);
+  doc.setTextColor(220, 220, 220);
+  doc.text(periodoLabel, pageW / 2, capaY0 + 104, { align: 'center' });
+
   doc.setFontSize(8);
-  doc.setTextColor(120, 120, 120);
-  doc.text(`${atividadesComFotos.length} atividade(s) · ${fotosParaPDF.length} foto(s)`, pageW / 2, contentTop + 6, { align: 'center' });
+  doc.setTextColor(100, 160, 220);
+  doc.text(`Gerado em ${new Date().toLocaleDateString('pt-BR')}`, pageW / 2, capaY0 + 118, { align: 'center' });
 
-  let idxY = contentTop + 16;
-  for (let i = 0; i < atividadesComFotos.length; i++) {
-    const atvItem = atividadesComFotos[i].atividade;
-    const tituloAtv = atvItem.titulo || `Atividade ${i + 1}`;
-    const dataAtv = formatDateBR(atvItem.data_realizacao || atvItem.data_inicio);
-    const numFotos = atividadesComFotos[i].fotos.length;
-    if (idxY > contentBottom - 8) {
-      doc.addPage();
-      indexPageCount++;
-      doc.setFillColor(255, 255, 255);
-      doc.rect(0, 0, pageW, pageH, 'F');
-      drawTimbreViaduto(doc, pageW, margin);
-      idxY = contentTop;
-    }
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.setTextColor(30, 30, 30);
-    doc.text(`${i + 1}.`, margin, idxY);
-    const tituloTrunc = doc.splitTextToSize(tituloAtv, contentW - 55)[0] || '';
-    doc.text(tituloTrunc, margin + 8, idxY);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(120, 120, 120);
-    const meta = `${dataAtv ? dataAtv + ' · ' : ''}${numFotos} foto(s)`;
-    doc.text(meta, pageW - margin, idxY, { align: 'right' });
-    idxY += 7;
-  }
-
-  // Primeira página de fotos
+  // ── SEM ÍNDICE — Primeira página de fotos diretamente ─────────────────
   doc.addPage();
   doc.setFillColor(255, 255, 255);
   doc.rect(0, 0, pageW, pageH, 'F');
-  drawTimbreViaduto(doc, pageW, margin);
 
   const usableH = contentBottom - contentTop;
   const cellW = (contentW - (cols - 1) * gapH) / cols;
+  // Sem timbre: mais espaço vertical disponível — acomodar 2 linhas de foto + legenda
+  const legendaH = 14; // altura reservada para legenda: 3 linhas × ~4mm + margem
   const gridH = usableH - titleBarH - gapV;
   const cellH = (gridH - gapV) / 2;
-  const slotH = cellH - 16;
+  const slotH = cellH - legendaH;
 
   // Pré-carrega imagens
   onProgresso(18, `Carregando ${fotosParaPDF.length} imagens...`);
@@ -316,28 +294,30 @@ export async function gerarPDFAtividades(atividades, museuKey, mes, ano, opts = 
 
   onProgresso(60, `Montando PDF · ${carregadas} foto(s)...`);
 
-  let paginaAtual = 2 + indexPageCount;
+  let paginaAtual = 2;
   let cursorY = contentTop;
   let slotsNaLinha = 0;
   let paginaIniciada = true;
 
-  function desenharTimbrePagina() {
+  function desenharPaginaBranca() {
     doc.setFillColor(255, 255, 255);
     doc.rect(0, 0, pageW, pageH, 'F');
-    drawTimbreViaduto(doc, pageW, margin);
   }
   function desenharRodape() {
     doc.setFontSize(7);
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(140, 140, 140);
-    doc.text(`Página ${paginaAtual}`, pageW - margin, pageH - 5, { align: 'right' });
-    doc.text(`${abrev} · ${mes}/${ano}`, margin, pageH - 5);
+    doc.setTextColor(170, 170, 170);
+    // Linha separadora discreta
+    doc.setDrawColor(220, 220, 220);
+    doc.line(margin, pageH - 10, pageW - margin, pageH - 10);
+    doc.text(`Viaduto das Artes · Projeto Museu Centro`, margin, pageH - 5);
+    doc.text(`${abrev} · ${periodoLabel} · p. ${paginaAtual}`, pageW - margin, pageH - 5, { align: 'right' });
   }
   function novaPagina() {
     if (paginaIniciada) desenharRodape();
     doc.addPage();
     paginaAtual++;
-    desenharTimbrePagina();
+    desenharPaginaBranca();
     cursorY = contentTop;
     slotsNaLinha = 0;
     paginaIniciada = true;
@@ -363,19 +343,42 @@ export async function gerarPDFAtividades(atividades, museuKey, mes, ano, opts = 
     if (cursorY + espacoNecessario > contentBottom) novaPagina();
     if (slotsNaLinha === 1) { cursorY += cellH + gapV; slotsNaLinha = 0; }
 
-    doc.setFillColor(240, 240, 240);
+    // Normalizar título: remover duplicações e caminhos de pasta
+    const tituloNorm = (() => {
+      let t = atv.titulo || 'Atividade';
+      // Remover prefixo de caminho tipo "_Material Bruto/2026-MHAB/..."
+      t = t.replace(/^_?Material\s*Bruto\/[^\s]+\/?\s*/i, '');
+      // Remover padrão YYYY-MES-MUSEU do início
+      t = t.replace(/^\d{4}-[A-Z]{3,5}\//, '');
+      // Se o título contém duplicação (a primeira metade repete), pegar só a primeira ocorrência
+      const mid = Math.floor(t.length / 2);
+      if (t.length > 20 && t.slice(0, mid).trim() === t.slice(mid).trim()) {
+        t = t.slice(0, mid).trim();
+      }
+      // Também checar duplicação com ' - Daniel Moreira' repetido
+      const dupMatch = t.match(/^(.+?)\s+\1/);
+      if (dupMatch) t = dupMatch[1];
+      // Remover sufixo " - Daniel Moreira OFICINA/ENCONTRO/etc" duplicado
+      t = t.replace(/\s+[-–]\s*Daniel Moreira\s+(MUSEU CRIATIVO|OFICINA|ENCONTRO|LANCAMENTO|TRATAMENTO|FOTOS?)[^\n]*/gi, '');
+      t = t.replace(/\s+[-–]\s*Daniel Moreira\s*$/i, '');
+      return t.trim();
+    })();
+
+    // Barra de título da atividade
+    doc.setFillColor(245, 245, 245);
     doc.rect(margin, cursorY, contentW, titleBarH, 'F');
-    doc.setDrawColor(200, 200, 200);
-    doc.rect(margin, cursorY, contentW, titleBarH, 'S');
+    doc.setDrawColor(210, 210, 210);
+    doc.line(margin, cursorY + titleBarH, margin + contentW, cursorY + titleBarH);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.setTextColor(20, 20, 20);
-    doc.text(doc.splitTextToSize(atv.titulo, contentW - 20).slice(0, 1), margin + 3, cursorY + 7);
+    doc.setFontSize(10);
+    doc.setTextColor(30, 30, 30);
+    const tituloTrunc = doc.splitTextToSize(tituloNorm, contentW - 30)[0] || tituloNorm;
+    doc.text(tituloTrunc, margin + 3, cursorY + 6.5);
     if (atv.data) {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
-      doc.setTextColor(100, 100, 100);
-      doc.text(atv.data, pageW - margin - 3, cursorY + 7, { align: 'right' });
+      doc.setTextColor(130, 130, 130);
+      doc.text(atv.data, pageW - margin - 3, cursorY + 6.5, { align: 'right' });
     }
     cursorY += titleBarH + gapV;
 
@@ -400,22 +403,40 @@ export async function gerarPDFAtividades(atividades, museuKey, mes, ano, opts = 
       doc.setDrawColor(205, 205, 205);
       doc.rect(slotX, slotY, cellW, slotH, 'S');
 
+      // Legenda: usar título normalizado da atividade
+      const tituloLegenda = (() => {
+        let t = foto.tituloAtividade || atv.titulo || 'Registro fotográfico';
+        t = t.replace(/^_?Material\s*Bruto\/[^\s]+\/?\s*/i, '');
+        const dupMatch = t.match(/^(.+?)\s+\1/);
+        if (dupMatch) t = dupMatch[1];
+        t = t.replace(/\s+[-–]\s*Daniel Moreira\s*$/i, '');
+        return t.trim();
+      })();
+      const museuLeg = (foto.museuAtividade || atv.museu || abrev || '').replace(/^MHAB.*$/i, 'MHAB');
+      const dataLeg = foto.dataAtividade || atv.data || '';
+
       const legCx = slotX + cellW / 2;
-      let legY = slotY + slotH + 3;
+      let legY = slotY + slotH + 3.5;
+
+      doc.setCharSpace(0);
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.5);
-      doc.setTextColor(20, 20, 20);
-      const tituloLeg = doc.splitTextToSize(foto.tituloAtividade || atv.titulo || 'Registro fotográfico', cellW - 2)[0] || '';
-      doc.text(tituloLeg, legCx, legY, { align: 'center', maxWidth: cellW - 2 });
-      legY += 4;
+      doc.setFontSize(8);
+      doc.setTextColor(30, 30, 30);
+      const tituloLegTrunc = doc.splitTextToSize(tituloLegenda, cellW - 4)[0] || '';
+      doc.text(tituloLegTrunc, legCx, legY, { align: 'center' });
+      legY += 3.8;
+
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.5);
-      doc.setTextColor(102, 102, 102);
-      doc.text(foto.museuAtividade || atv.museu || abrev, legCx, legY, { align: 'center' });
-      legY += 3.5;
       doc.setFontSize(7);
-      doc.setTextColor(153, 153, 153);
-      doc.text(foto.dataAtividade || atv.data || '', legCx, legY, { align: 'center' });
+      doc.setTextColor(110, 110, 110);
+      if (museuLeg) {
+        doc.text(museuLeg, legCx, legY, { align: 'center' });
+        legY += 3.2;
+      }
+      if (dataLeg) {
+        doc.setTextColor(150, 150, 150);
+        doc.text(dataLeg, legCx, legY, { align: 'center' });
+      }
 
       slotsNaLinha++;
       fotoIdx++;
@@ -437,7 +458,6 @@ export async function gerarPDFAtividades(atividades, museuKey, mes, ano, opts = 
   paginaAtual++;
   doc.setFillColor(255, 255, 255);
   doc.rect(0, 0, pageW, pageH, 'F');
-  drawTimbreViaduto(doc, pageW, margin);
   if (qrLoaded) {
     const qrSize = 70;
     const qrX = (pageW - qrSize) / 2;
