@@ -91,25 +91,27 @@ function extractLocation(item = {}) {
 function normalizeMuseum(value = '') {
   const text = normalizeText(value);
   if (!text) return '';
-  if (text.includes('mhab') || text.includes('abilio') || text.includes('historico')) return 'MHAB';
+  // Ordem importa: Noturno antes de MIS/MAP pois pode conter ambos (ex: NoturnoNosMuseusMis)
+  if (text.includes('noturno')) return 'Noturno';
+  if (text.includes('mhab') || text.includes('abilio') || text.includes('barreto')) return 'MHAB';
   if (text.includes('mumo') || text.includes('moda')) return 'MUMO';
-  if (text.includes('kubitschek') || text.includes('jk')) return 'CasaKubitschek';
-  if (text.includes('baile') || text.includes('bale') || text.includes('casa do b')) return 'CasaDoBaile';
-  if (text.includes('escola de arquitetura') || text.includes('museu da escola')) return 'MuseuEscolaArquitetura';
-  if (text.includes('centro cultural unimed') || text.includes('galeria de arte centro')) return 'GaleriaArteUnimed';
-  if (text.includes('casa rosada') || text.includes('gasmig')) return 'CasaRosadaGasmig';
-  if (text.includes('direitos humanos')) return 'MemorialDireitosHumanos';
-  if (text.includes('legislativo mineiro') || text.includes('memorial do legislativo')) return 'MemorialLegislativoMineiro';
-  if (text.includes('centro de memoria') || text.includes('centro memoria')) return 'CentroMemoria';
-  if (text.includes('museu cabral') || text.includes('cabral')) return 'MuseuCabral';
-  // MIS deve vir antes do MAP para evitar correspondência com "map" em palavras como "mapa"
-  if (text === 'mis' || text.includes('imagem e do som') || text.includes('imagem e som') || text.includes('museu da imagem')) return 'MIS';
+  if (text.includes('kubitschek')) return 'CasaKubitschek';
+  if (text.includes('baile') || text.includes('baíle')) return 'CasaDoBaile';
+  if (text.includes('memorial') && text.includes('legislativo')) return 'MemorialLegislativoMineiro';
+  if (text.includes('memorial') && text.includes('direitos')) return 'MemorialDireitosHumanos';
+  if (text.includes('escola') && text.includes('arquitetura')) return 'MuseuEscolaArquitetura';
+  if (text.includes('unimed')) return 'GaleriaArteUnimed';
+  if (text.includes('rosada') || text.includes('gasmig')) return 'CasaRosadaGasmig';
+  if (text.includes('centro') && text.includes('memoria')) return 'CentroMemoria';
+  if (text.includes('cabral')) return 'MuseuCabral';
+  // MIS: 'mis' como palavra isolada, no início (ex: Mis14072026) ou por nome completo
+  if (text === 'mis' || text.startsWith('mis') || text.includes('imagem e do som') || text.includes('imagem e som') || text.includes('museu da imagem')) return 'MIS';
   if (text.includes('arte da pampulha') || (text.includes('pampulha') && (text.includes('arte') || text.includes('map')))) return 'MAP';
   if (text.includes('pampulha')) return 'MAP';
   // Fallback: se há um nome de museu não vazio mas não reconhecido, usa-o como chave normalizada
   // para que fotos da mesma pasta apareçam agrupadas corretamente na galeria
   // Mas só para nomes curtos e legíveis — nomes técnicos longos (CamelCase sem espaços) são ignorados
-  if (text.length >= 3 && text.length <= 40 && !/[a-z][A-Z]/.test(text)) {
+  if (text.length >= 3 && text.length <= 40 && !/[a-z][A-Z]/.test(text) && /\s/.test(text)) {
     const slug = text
       .replace(/[^a-z0-9\s]/g, '')
       .split(/\s+/)
