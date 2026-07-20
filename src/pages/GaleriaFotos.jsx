@@ -512,7 +512,7 @@ function GaleriaFotosInner() {
                     setGerandoAmostra(true);
                     setProgressoAmostra({ pct: 0, texto: 'Iniciando...' });
                     try {
-                      const res = await gerarAmostraRelatorioExecutivo('MHAB', 'Fevereiro', 2026, {
+                      const res = await gerarAmostraRelatorioExecutivo('MHAB', 'Abril', 2026, {
                         onProgresso: (pct, texto) => setProgressoAmostra({ pct, texto }),
                       });
                       toast.success(`Amostra gerada! ${res.totalFotos} fotos em ${res.totalAtividades} atividades.`);
@@ -526,7 +526,7 @@ function GaleriaFotosInner() {
                   className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
                   <span className="font-medium text-gray-900 flex items-center gap-1.5">
                     {gerandoAmostra ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
-                    Gerar Amostra (MHAB · Fev/2026)
+                    Gerar Amostra (MHAB · Abr/2026)
                   </span>
                   <span className="text-xs text-gray-500 pl-5">
                     {gerandoAmostra ? `${progressoAmostra.texto} (${progressoAmostra.pct}%)` : 'Gera um PDF de exemplo para validar layout, timbre e legendas.'}
