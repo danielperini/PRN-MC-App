@@ -69,7 +69,6 @@ function matchMuseu(reportMuseu, sectionKey) {
   if (m.includes(k)) return true;
   const label = normalizarTexto(SECTION_LABELS[sectionKey] || '');
   if (label && m.includes(normalizarTexto(SECTION_ABREV[sectionKey]))) return true;
-  // matching por palavras significativas
   const palavras = k.split(/[\s-]+/).filter((p) => p.length > 2);
   return palavras.some((p) => m.includes(p));
 }
@@ -94,7 +93,7 @@ function imageToDataUrl(img, maxW, maxH) {
     canvas.width = w; canvas.height = h;
     const ctx = canvas.getContext('2d');
     ctx.drawImage(img, 0, 0, w, h);
-    return { dataUrl: canvas.toDataURL('image/jpeg', 0.78), w, h };
+    return { dataUrl: canvas.toDataURL('image/jpeg', 0.70), w, h };
   } catch { return null; }
 }
 
@@ -153,7 +152,6 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
       }
 
       await atualizarProgresso(setProgresso, `Buscando atividades de ${reportIds.length} relatório(s)...`, setPct, 20);
-      // Busca atividades por report_id (um por vez pois filter aceita valor único)
       let todasAtividades = [];
       const batchSize = 5;
       for (let i = 0; i < reportIds.length; i += batchSize) {
@@ -165,9 +163,7 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
         await atualizarProgresso(setProgresso, `Atividades · ${Math.min(i + batchSize, reportIds.length)}/${reportIds.length} relatórios...`, setPct, 20 + Math.round((i / reportIds.length) * 30));
       }
 
-      // Filtra atividades físicas
       const fisicas = todasAtividades.filter(isAtividadeFisica);
-      // Ordena por data_realizacao ascendente
       fisicas.sort((a, b) => {
         const da = new Date(a.data_realizacao || a.data_inicio || 0).getTime();
         const db = new Date(b.data_realizacao || b.data_inicio || 0).getTime();
@@ -175,7 +171,6 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
       });
 
       await atualizarProgresso(setProgresso, `Buscando fotos do museu/período...`, setPct, 55);
-      // Pool de fotos do museu/mês para fallback por nome de arquivo
       let poolFotos = [];
       try {
         poolFotos = await base44.entities.ReportPhoto.filter({ museu: museu }) || [];
@@ -183,12 +178,10 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
       } catch { poolFotos = []; }
 
       await atualizarProgresso(setProgresso, `Montando conjuntos de fotos...`, setPct, 70);
-      // Para cada atividade, monta conjunto de até 5 fotos
       const atividadesComFotos = fisicas.map((act) => {
         const fotosAtividade = [];
         const vistos = new Set();
 
-        // 1. Campo fotos da Activity
         const actFotos = Array.isArray(act.fotos) ? act.fotos : [];
         for (const f of actFotos) {
           const url = f.file_url || f.fileUrl;
@@ -196,7 +189,6 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
           if (fotosAtividade.length >= MAX_FOTOS) break;
         }
 
-        // 2. ReportPhoto com activity_id
         if (fotosAtividade.length < MAX_FOTOS && act.id) {
           for (const rp of poolFotos) {
             if (rp.activity_id === act.id) {
@@ -207,12 +199,11 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
           }
         }
 
-        // 3. Fallback: ReportPhoto do mesmo museu/mês com nome de arquivo matchando título
         if (fotosAtividade.length < MAX_FOTOS) {
           const tituloNorm = normalizarTexto(act.titulo);
           const palavras = tituloNorm.split(/\s+/).filter((p) => p.length > 3);
           for (const rp of poolFotos) {
-            if (rp.activity_id === act.id) continue; // já processado
+            if (rp.activity_id === act.id) continue;
             const nomeNorm = normalizarTexto(rp.file_name || '');
             if (!nomeNorm) continue;
             const match = palavras.length > 0 && palavras.some((p) => nomeNorm.includes(p));
@@ -248,23 +239,14 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
     setGerando(true);
     setPct(2);
     try {
-      // Layout A4 retrato: margem 15mm, timbre ~42mm topo, rodapé 12mm
+      // Layout A4 retrato
       const pageW = 210, pageH = 297, margin = 15;
       const cols = 2, perPage = 4;
       const gapH = 6, gapV = 6;
-      const headerH = 42, footerH = 12;
-      const titleBarH = 10; // barra de título da atividade
-      const contentTop = headerH + margin;
-      const contentBottom = pageH - footerH - margin;
-      const contentW = pageW - margin * 2;
-      const usableH = contentBottom - contentTop;
-      // Altura de cada célula de foto (2 linhas por página, descontando barra de título)
-      const cellW = (contentW - (cols - 1) * gapH) / cols;
-      const gridH = usableH - titleBarH - gapV;
-      const cellH = (gridH - gapV) / 2; // 2 linhas
-      const slotH = cellH - 12; // espaço para legenda
+      const footerH = 12;
+      const titleBarH = 10;
 
-      // ── Coleta fotos e gera legendas via IA para fotos sem legenda contextual ──
+      // ── Coleta fotos e gera legendas via IA ──
       const fotosParaPDF = [];
       const legendasIA = {};
       for (const item of atividades) {
@@ -274,7 +256,6 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
         }
       }
 
-      // Gera legendas via IA para fotos com legenda genérica
       const precisamLegenda = fotosParaPDF.filter((f) => isLegendaGenerica(f.legenda));
       if (precisamLegenda.length > 0) {
         await atualizarProgresso(setProgresso, `Gerando legendas via IA · ${precisamLegenda.length} foto(s)...`, setPct, 3);
@@ -301,21 +282,6 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
         }
       }
 
-      // ── Pré-carrega imagens ──
-      await atualizarProgresso(setProgresso, `Carregando ${fotosParaPDF.length} imagens...`, setPct, 18);
-      const imagens = [];
-      for (let i = 0; i < fotosParaPDF.length; i++) {
-        if (i > 0 && i % 3 === 0) {
-          await atualizarProgresso(setProgresso, `Carregando imagens · ${i}/${fotosParaPDF.length}...`, setPct, 18 + Math.round((i / fotosParaPDF.length) * 40));
-        }
-        imagens.push(await fetchPhotoData(fotosParaPDF[i].fileUrl, cellW * 4, slotH * 4));
-      }
-
-      const carregadas = imagens.filter(Boolean).length;
-      if (carregadas === 0) throw new Error('Nenhuma imagem pôde ser carregada.');
-
-      await atualizarProgresso(setProgresso, `Montando PDF · ${carregadas} foto(s)...`, setPct, 60);
-
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
 
       // ── Capa ──
@@ -338,16 +304,47 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
       doc.setFontSize(9);
       doc.setTextColor(150, 205, 255);
       doc.text(`Gerado em ${new Date().toLocaleDateString('pt-BR')}`, pageW / 2, 145, { align: 'center' });
-      doc.text(`${carregadas} fotografias em ${atividades.filter(a => a.fotos.length > 0).length} atividades`, pageW / 2, 155, { align: 'center' });
+      doc.text(`${fotosParaPDF.length} fotografias em ${atividades.filter(a => a.fotos.length > 0).length} atividades`, pageW / 2, 155, { align: 'center' });
 
-      // ── Páginas de fotos: uma atividade por bloco (título full-width + grade 2×2) ──
+      // Primeira página de fotos — desenha timbre e obtém altura real
+      doc.addPage();
+      doc.setFillColor(255, 255, 255);
+      doc.rect(0, 0, pageW, pageH, 'F');
+      const timbreH = drawTimbreViaduto(doc, pageW, margin);
+
+      // Calcula layout dinâmico usando altura real do timbre
+      const contentTop = timbreH + 4;
+      const contentBottom = pageH - footerH - margin;
+      const contentW = pageW - margin * 2;
+      const usableH = contentBottom - contentTop;
+      const cellW = (contentW - (cols - 1) * gapH) / cols;
+      const gridH = usableH - titleBarH - gapV;
+      const cellH = (gridH - gapV) / 2;
+      const slotH = cellH - 16;
+
+      // ── Pré-carrega imagens (resolução reduzida ×3) ──
+      await atualizarProgresso(setProgresso, `Carregando ${fotosParaPDF.length} imagens...`, setPct, 18);
+      const imagens = [];
+      for (let i = 0; i < fotosParaPDF.length; i++) {
+        if (i > 0 && i % 3 === 0) {
+          await atualizarProgresso(setProgresso, `Carregando imagens · ${i}/${fotosParaPDF.length}...`, setPct, 18 + Math.round((i / fotosParaPDF.length) * 40));
+        }
+        imagens.push(await fetchPhotoData(fotosParaPDF[i].fileUrl, cellW * 3, slotH * 3));
+      }
+
+      const carregadas = imagens.filter(Boolean).length;
+      if (carregadas === 0) throw new Error('Nenhuma imagem pôde ser carregada.');
+
+      // ── Páginas de fotos ──
       const fotosComImg = fotosParaPDF.filter((_, i) => imagens[i]);
       const imagemPorUrl = new Map(fotosParaPDF.map((f, i) => [f.fileUrl, imagens[i]]));
 
-      let paginaAtual = 1;
-      let cursorY = contentTop; // posição vertical atual
-      let slotsNaLinha = 0; // 0 ou 1 (2 colunas)
-      let paginaIniciada = false;
+      await atualizarProgresso(setProgresso, `Montando PDF · ${carregadas} foto(s)...`, setPct, 60);
+
+      let paginaAtual = 2;
+      let cursorY = contentTop;
+      let slotsNaLinha = 0;
+      let paginaIniciada = true;
 
       function desenharTimbrePagina() {
         doc.setFillColor(255, 255, 255);
@@ -373,13 +370,6 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
         paginaIniciada = true;
       }
 
-      // Primeira página de fotos
-      doc.addPage();
-      paginaAtual++;
-      desenharTimbrePagina();
-      paginaIniciada = true;
-      cursorY = contentTop;
-
       // Agrupa fotos por atividade (preservando ordem)
       const atividadesComFotos = [];
       for (const item of atividades) {
@@ -393,12 +383,10 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
       for (let aIdx = 0; aIdx < atividadesComFotos.length; aIdx++) {
         const atv = atividadesComFotos[aIdx];
 
-        // Se não há espaço para o título + pelo menos 1 linha de fotos, nova página
         const espacoNecessario = titleBarH + gapV + cellH + gapV;
         if (cursorY + espacoNecessario > contentBottom) {
           novaPagina();
         }
-        // Se estamos no meio de uma linha (slot 1 preenchido), avança para próxima linha
         if (slotsNaLinha === 1) {
           cursorY += cellH + gapV;
           slotsNaLinha = 0;
@@ -427,7 +415,6 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
           const imgResult = imagemPorUrl.get(foto.fileUrl);
           if (!imgResult) continue;
 
-          // Se a linha atual não cabe, nova página
           if (cursorY + cellH > contentBottom) {
             novaPagina();
           }
@@ -436,35 +423,45 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
           const slotX = margin + col * (cellW + gapH);
           const slotY = cursorY;
 
-          // Yield para manter UI responsiva
           if (fotoIdx > 0 && fotoIdx % 2 === 0) {
             await new Promise((r) => requestAnimationFrame(() => r()));
           }
 
-          // Foto em modo "cover"
-          const scale = Math.max(cellW / imgResult.w, slotH / imgResult.h);
+          // Fundo letterbox #F5F5F5
+          doc.setFillColor(245, 245, 245);
+          doc.rect(slotX, slotY, cellW, slotH, 'F');
+
+          // Imagem em modo "contain" (fit completo, sem crop)
+          const scale = Math.min(cellW / imgResult.w, slotH / imgResult.h);
           const renderW = imgResult.w * scale;
           const renderH = imgResult.h * scale;
           const offsetX = slotX + (cellW - renderW) / 2;
           const offsetY = slotY + (slotH - renderH) / 2;
-
-          doc.setFillColor(246, 246, 246);
-          doc.rect(slotX, slotY, cellW, slotH, 'F');
           doc.addImage(imgResult.dataUrl, 'JPEG', offsetX, offsetY, renderW, renderH, undefined, 'FAST');
+
+          // Borda do slot
           doc.setDrawColor(205, 205, 205);
           doc.rect(slotX, slotY, cellW, slotH, 'S');
 
-          // Legenda contextual sob a foto
+          // Legenda estruturada (3 linhas, alinhada à esquerda)
+          let legY = slotY + slotH + 3;
+          // Linha 1: título da atividade (bold, 8.5pt, #141414)
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(8.5);
+          doc.setTextColor(20, 20, 20);
+          const tituloLeg = doc.splitTextToSize(foto.tituloAtividade || atv.titulo || 'Registro fotográfico', cellW - 2)[0] || '';
+          doc.text(tituloLeg, slotX, legY);
+          legY += 4;
+          // Linha 2: museu (normal, 7.5pt, #666666)
           doc.setFont('helvetica', 'normal');
-          doc.setFontSize(8);
-          doc.setTextColor(40, 40, 40);
-          const legenda = legendasIA[foto.fileUrl] || foto.legenda || atv.titulo || 'Registro fotográfico';
-          const linhasLeg = doc.splitTextToSize(legenda, cellW - 2).slice(0, 2);
-          let legY = slotY + slotH + 3.5;
-          linhasLeg.forEach((linha) => {
-            doc.text(linha, slotX + cellW / 2, legY, { align: 'center' });
-            legY += 3.5;
-          });
+          doc.setFontSize(7.5);
+          doc.setTextColor(102, 102, 102);
+          doc.text(SECTION_ABREV[museu], slotX, legY);
+          legY += 3.5;
+          // Linha 3: data (normal, 7pt, #999999)
+          doc.setFontSize(7);
+          doc.setTextColor(153, 153, 153);
+          doc.text(foto.dataAtividade || atv.data || '', slotX, legY);
 
           slotsNaLinha++;
           fotoIdx++;
@@ -473,7 +470,6 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
             await atualizarProgresso(setProgresso, `Montando PDF · foto ${fotoIdx}/${fotosComImg.length}...`, setPct, 60 + Math.round((fotoIdx / fotosComImg.length) * 35));
           }
 
-          // Se completou a linha (2 fotos), avança para próxima linha
           if (slotsNaLinha >= cols) {
             cursorY += cellH + gapV;
             slotsNaLinha = 0;
@@ -481,7 +477,6 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
         }
       }
 
-      // Rodapé da última página de fotos
       desenharRodape();
 
       // ── Página final: QR code da galeria ──
@@ -496,15 +491,10 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
       doc.rect(0, 0, pageW, pageH, 'F');
       drawTimbreViaduto(doc, pageW, margin);
 
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(16);
-      doc.setTextColor(40, 40, 40);
-      doc.text('Seu QR code está pronto', pageW / 2, 120, { align: 'center' });
-
       if (qrLoaded) {
         const qrSize = 70;
         const qrX = (pageW - qrSize) / 2;
-        const qrY = 135;
+        const qrY = 120;
         doc.setFillColor(245, 245, 245);
         doc.rect(qrX - 5, qrY - 5, qrSize + 10, qrSize + 10, 'F');
         doc.addImage(qrLoaded.dataUrl, 'JPEG', qrX, qrY, qrSize, qrSize, undefined, 'FAST');
@@ -515,12 +505,12 @@ export default function RelatorioExecutivoPDFDialog({ open, onClose }) {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(12);
       doc.setTextColor(50, 50, 50);
-      doc.text('Galeria de Fotos Museus Centro', pageW / 2, 225, { align: 'center' });
+      doc.text('Galeria de Fotos Museus Centro', pageW / 2, 210, { align: 'center' });
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
       doc.setTextColor(30, 90, 180);
-      doc.textWithLink(galleryUrl, pageW / 2, 238, { url: galleryUrl, align: 'center' });
+      doc.textWithLink(galleryUrl, pageW / 2, 223, { url: galleryUrl, align: 'center' });
 
       desenharRodape();
 

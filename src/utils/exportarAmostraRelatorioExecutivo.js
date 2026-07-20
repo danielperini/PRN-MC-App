@@ -4,7 +4,7 @@
  * quando a entidade Activity está vazia ou sem vínculos.
  *
  * Uso: import { gerarAmostraRelatorioExecutivo } from '@/utils/exportarAmostraRelatorioExecutivo';
- *      gerarAmostraRelatorioExecutivo('MHAB', 'Fevereiro', 2026);
+ *      gerarAmostraRelatorioExecutivo('MHAB', 'Abril', 2026);
  */
 import { jsPDF } from 'jspdf';
 import { base44 } from '@/api/base44Client';
@@ -44,7 +44,7 @@ function imageToDataUrl(img, maxW, maxH) {
     canvas.width = w; canvas.height = h;
     const ctx = canvas.getContext('2d');
     ctx.drawImage(img, 0, 0, w, h);
-    return { dataUrl: canvas.toDataURL('image/jpeg', 0.78), w, h };
+    return { dataUrl: canvas.toDataURL('image/jpeg', 0.70), w, h };
   } catch { return null; }
 }
 
@@ -62,7 +62,7 @@ function formatDateBR(value) {
 
 /**
  * @param {string} museuKey - chave do museu (MHAB, MIS, MUMO, etc.)
- * @param {string} mes - mês por extenso (Fevereiro, Março, etc.)
+ * @param {string} mes - mês por extenso (Abril, Março, etc.)
  * @param {number} ano
  * @param {object} opts - { maxFotosPorAtividade, gerarLegendasIA, onProgresso }
  */
@@ -109,16 +109,8 @@ export async function gerarAmostraRelatorioExecutivo(museuKey, mes, ano, opts = 
   const pageW = 210, pageH = 297, margin = 15;
   const cols = 2, perPage = 4;
   const gapH = 6, gapV = 6;
-  const headerH = 42, footerH = 12;
+  const footerH = 12;
   const titleBarH = 10;
-  const contentTop = headerH + margin;
-  const contentBottom = pageH - footerH - margin;
-  const contentW = pageW - margin * 2;
-  const usableH = contentBottom - contentTop;
-  const cellW = (contentW - (cols - 1) * gapH) / cols;
-  const gridH = usableH - titleBarH - gapV;
-  const cellH = (gridH - gapV) / 2;
-  const slotH = cellH - 12;
 
   // Coleta fotos para o PDF
   const fotosParaPDF = [];
@@ -157,21 +149,6 @@ export async function gerarAmostraRelatorioExecutivo(museuKey, mes, ano, opts = 
     }
   }
 
-  // Pré-carrega imagens
-  onProgresso(20, `Carregando ${fotosParaPDF.length} imagens...`);
-  const imagens = [];
-  for (let i = 0; i < fotosParaPDF.length; i++) {
-    if (i > 0 && i % 3 === 0) {
-      onProgresso(20 + Math.round((i / fotosParaPDF.length) * 40), `Carregando imagens · ${i}/${fotosParaPDF.length}...`);
-    }
-    imagens.push(await fetchPhotoData(fotosParaPDF[i].fileUrl, cellW * 4, slotH * 4));
-  }
-
-  const carregadas = imagens.filter(Boolean).length;
-  if (carregadas === 0) throw new Error('Nenhuma imagem pôde ser carregada.');
-
-  onProgresso(60, `Montando PDF · ${carregadas} foto(s)...`);
-
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
 
   // ── Capa ──
@@ -194,16 +171,50 @@ export async function gerarAmostraRelatorioExecutivo(museuKey, mes, ano, opts = 
   doc.setFontSize(9);
   doc.setTextColor(150, 205, 255);
   doc.text(`Gerado em ${new Date().toLocaleDateString('pt-BR')}`, pageW / 2, 145, { align: 'center' });
+
+  // Primeira página de fotos — desenha timbre e obtém altura real
+  doc.addPage();
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, 0, pageW, pageH, 'F');
+  const timbreH = drawTimbreViaduto(doc, pageW, margin);
+
+  // Calcula layout dinâmico usando altura real do timbre
+  const contentTop = timbreH + 4;
+  const contentBottom = pageH - footerH - margin;
+  const contentW = pageW - margin * 2;
+  const usableH = contentBottom - contentTop;
+  const cellW = (contentW - (cols - 1) * gapH) / cols;
+  const gridH = usableH - titleBarH - gapV;
+  const cellH = (gridH - gapV) / 2;
+  const slotH = cellH - 16;
+
+  // Pré-carrega imagens (resolução reduzida ×3)
+  onProgresso(20, `Carregando ${fotosParaPDF.length} imagens...`);
+  const imagens = [];
+  for (let i = 0; i < fotosParaPDF.length; i++) {
+    if (i > 0 && i % 3 === 0) {
+      onProgresso(20 + Math.round((i / fotosParaPDF.length) * 40), `Carregando imagens · ${i}/${fotosParaPDF.length}...`);
+    }
+    imagens.push(await fetchPhotoData(fotosParaPDF[i].fileUrl, cellW * 3, slotH * 3));
+  }
+
+  const carregadas = imagens.filter(Boolean).length;
+  if (carregadas === 0) throw new Error('Nenhuma imagem pôde ser carregada.');
+
+  // Atualiza capa com contagem final
+  doc.setTextColor(150, 205, 255);
   doc.text(`${carregadas} fotografias em ${atividadesVirtuais.length} atividades`, pageW / 2, 155, { align: 'center' });
 
   // ── Páginas de fotos ──
   const fotosComImg = fotosParaPDF.filter((_, i) => imagens[i]);
   const imagemPorUrl = new Map(fotosParaPDF.map((f, i) => [f.fileUrl, imagens[i]]));
 
-  let paginaAtual = 1;
+  onProgresso(60, `Montando PDF · ${carregadas} foto(s)...`);
+
+  let paginaAtual = 2;
   let cursorY = contentTop;
   let slotsNaLinha = 0;
-  let paginaIniciada = false;
+  let paginaIniciada = true;
 
   function desenharTimbrePagina() {
     doc.setFillColor(255, 255, 255);
@@ -228,12 +239,6 @@ export async function gerarAmostraRelatorioExecutivo(museuKey, mes, ano, opts = 
     slotsNaLinha = 0;
     paginaIniciada = true;
   }
-
-  doc.addPage();
-  paginaAtual++;
-  desenharTimbrePagina();
-  paginaIniciada = true;
-  cursorY = contentTop;
 
   // Agrupa por atividade virtual
   const atvComFotos = [];
@@ -292,29 +297,41 @@ export async function gerarAmostraRelatorioExecutivo(museuKey, mes, ano, opts = 
         await new Promise((r) => requestAnimationFrame(() => r()));
       }
 
-      const scale = Math.max(cellW / imgResult.w, slotH / imgResult.h);
+      // Fundo letterbox #F5F5F5
+      doc.setFillColor(245, 245, 245);
+      doc.rect(slotX, slotY, cellW, slotH, 'F');
+
+      // Imagem em modo "contain" (fit completo, sem crop)
+      const scale = Math.min(cellW / imgResult.w, slotH / imgResult.h);
       const renderW = imgResult.w * scale;
       const renderH = imgResult.h * scale;
       const offsetX = slotX + (cellW - renderW) / 2;
       const offsetY = slotY + (slotH - renderH) / 2;
-
-      doc.setFillColor(246, 246, 246);
-      doc.rect(slotX, slotY, cellW, slotH, 'F');
       doc.addImage(imgResult.dataUrl, 'JPEG', offsetX, offsetY, renderW, renderH, undefined, 'FAST');
+
+      // Borda do slot
       doc.setDrawColor(205, 205, 205);
       doc.rect(slotX, slotY, cellW, slotH, 'S');
 
-      // Legenda
+      // Legenda estruturada (3 linhas, alinhada à esquerda)
+      let legY = slotY + slotH + 3;
+      // Linha 1: título da atividade (bold, 8.5pt, #141414)
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(20, 20, 20);
+      const tituloLeg = doc.splitTextToSize(foto.tituloAtividade || atv.titulo || 'Registro fotográfico', cellW - 2)[0] || '';
+      doc.text(tituloLeg, slotX, legY);
+      legY += 4;
+      // Linha 2: museu (normal, 7.5pt, #666666)
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      doc.setTextColor(40, 40, 40);
-      const legenda = legendasIA[foto.fileUrl] || foto.legenda || atv.titulo || 'Registro fotográfico';
-      const linhasLeg = doc.splitTextToSize(legenda, cellW - 2).slice(0, 2);
-      let legY = slotY + slotH + 3.5;
-      linhasLeg.forEach((linha) => {
-        doc.text(linha, slotX + cellW / 2, legY, { align: 'center' });
-        legY += 3.5;
-      });
+      doc.setFontSize(7.5);
+      doc.setTextColor(102, 102, 102);
+      doc.text(abrev, slotX, legY);
+      legY += 3.5;
+      // Linha 3: data (normal, 7pt, #999999)
+      doc.setFontSize(7);
+      doc.setTextColor(153, 153, 153);
+      doc.text(foto.dataAtividade || atv.data || '', slotX, legY);
 
       slotsNaLinha++;
       fotoIdx++;
@@ -332,7 +349,7 @@ export async function gerarAmostraRelatorioExecutivo(museuKey, mes, ano, opts = 
 
   desenharRodape();
 
-  // ── Página final: QR code ──
+  // ── Página final: QR code da galeria ──
   onProgresso(97, 'Adicionando QR code da galeria...');
   const galleryUrl = 'https://periniprojetos.com.br/GaleriaFotos';
   const qrImgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&margin=0&data=${encodeURIComponent(galleryUrl)}`;
@@ -344,15 +361,10 @@ export async function gerarAmostraRelatorioExecutivo(museuKey, mes, ano, opts = 
   doc.rect(0, 0, pageW, pageH, 'F');
   drawTimbreViaduto(doc, pageW, margin);
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
-  doc.setTextColor(40, 40, 40);
-  doc.text('Seu QR code está pronto', pageW / 2, 120, { align: 'center' });
-
   if (qrLoaded) {
     const qrSize = 70;
     const qrX = (pageW - qrSize) / 2;
-    const qrY = 135;
+    const qrY = 120;
     doc.setFillColor(245, 245, 245);
     doc.rect(qrX - 5, qrY - 5, qrSize + 10, qrSize + 10, 'F');
     doc.addImage(qrLoaded.dataUrl, 'JPEG', qrX, qrY, qrSize, qrSize, undefined, 'FAST');
@@ -363,12 +375,12 @@ export async function gerarAmostraRelatorioExecutivo(museuKey, mes, ano, opts = 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
   doc.setTextColor(50, 50, 50);
-  doc.text('Galeria de Fotos Museus Centro', pageW / 2, 225, { align: 'center' });
+  doc.text('Galeria de Fotos Museus Centro', pageW / 2, 210, { align: 'center' });
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
   doc.setTextColor(30, 90, 180);
-  doc.textWithLink(galleryUrl, pageW / 2, 238, { url: galleryUrl, align: 'center' });
+  doc.textWithLink(galleryUrl, pageW / 2, 223, { url: galleryUrl, align: 'center' });
 
   desenharRodape();
 
