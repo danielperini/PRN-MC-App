@@ -2,7 +2,7 @@ import { base44 } from '@/api/base44Client';
 import { dedupePhotosByTechnicalIdentity, getPhotoIdentity } from '@/utils/photoSimilarity';
 
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'avif', 'heic'];
-const DEFAULT_CACHE_KEY = 'museus_centro_galeria_fotos_cache_v12_deduped';
+const DEFAULT_CACHE_KEY = 'museus_centro_galeria_fotos_cache_v13_deduped';
 
 // Limpar versões antigas do cache ao importar este módulo
 try {
@@ -253,12 +253,50 @@ export async function loadGalleryReportData({
   const staleCache = useCache ? readCache(cacheKey, cacheTtlMs, { allowStale: true, staleTtlMs: staleCacheTtlMs }) : null;
   const images = [];
   try {
-    const [attachments, reportPhotos] = await Promise.all([
+    const [attachments, reportPhotos, reports, activities] = await Promise.all([
       fetchAllPages('Attachment', '-created_date'),
       fetchAllPages('ReportPhoto', '-created_date', { quietMissing: true }),
+      fetchAllPages('Report', '-updated_date', { quietMissing: true }),
+      fetchAllPages('Activity', '-updated_date', { quietMissing: true }),
     ]);
     images.push(...attachments.filter((item) => item?.file_url && !isMacResourceFork(item) && (isImageByMime(item.file_type) || isImageByFileName(item.file_name))).map((item) => mapPhoto(item, 'Attachment')));
     images.push(...reportPhotos.filter((item) => item?.file_url && !isMacResourceFork(item) && (isImageByMime(item.file_type) || isImageByFileName(item.file_name) || /^https?:/i.test(item.file_url))).map((item) => mapPhoto(item, 'ReportPhoto')));
+
+    // Mapa de contexto (museu/período/autor) por report_id para enriquecer fotos de atividades
+    const reportCtxMap = new Map();
+    reports.forEach((r) => {
+      if (r.id) reportCtxMap.set(r.id, { museu: r.museu || '', mes_referencia: r.mes_referencia || '', ano: r.ano || r.ano_referencia || '', author_name: r.author_name || '' });
+    });
+
+    // Fotos embutidas em Report.fotos[] e Report.atividades[].fotos[]
+    reports.forEach((report) => {
+      const ctx = reportCtxMap.get(report.id) || {};
+      if (Array.isArray(report.fotos)) {
+        report.fotos.forEach((foto, idx) => {
+          if (!foto?.file_url || !/^https?:/i.test(foto.file_url) || isMacResourceFork(foto)) return;
+          images.push(mapPhoto({ ...foto, ...ctx, author: foto.autor || ctx.author_name || '', id: `${report.id || 'r'}_f${idx}` }, 'Report'));
+        });
+      }
+      if (Array.isArray(report.atividades)) {
+        report.atividades.forEach((atividade, aIdx) => {
+          if (!Array.isArray(atividade?.fotos)) return;
+          atividade.fotos.forEach((foto, idx) => {
+            if (!foto?.file_url || !/^https?:/i.test(foto.file_url) || isMacResourceFork(foto)) return;
+            images.push(mapPhoto({ ...foto, ...ctx, author: foto.autor || ctx.author_name || '', atividade_titulo: atividade.titulo || '', id: `${report.id || 'r'}_a${aIdx}_${idx}` }, 'Report'));
+          });
+        });
+      }
+    });
+
+    // Fotos embutidas em Activity.fotos[]
+    activities.forEach((activity) => {
+      const ctx = reportCtxMap.get(activity.report_id) || {};
+      if (!Array.isArray(activity.fotos)) return;
+      activity.fotos.forEach((foto, idx) => {
+        if (!foto?.file_url || !/^https?:/i.test(foto.file_url) || isMacResourceFork(foto)) return;
+        images.push(mapPhoto({ ...foto, ...ctx, author: foto.autor || ctx.author_name || '', atividade_titulo: activity.titulo || '', id: `${activity.id || 'a'}_f${idx}` }, 'Activity'));
+      });
+    });
   } catch (error) {
     console.warn('[Galeria] Falha geral ao carregar imagens.', error);
   }
