@@ -1,0 +1,50 @@
+{
+  "name": "AIUsageLog",
+  "type": "object",
+  "properties": {
+    "task_type": {
+      "type": "string",
+      "description": "Tipo da tarefa executada"
+    },
+    "model_used": {
+      "type": "string"
+    },
+    "tokens_input": {
+      "type": "number",
+      "default": 0
+    },
+    "tokens_output": {
+      "type": "number",
+      "default": 0
+    },
+    "cost_estimated_usd": {
+      "type": "number",
+      "default": 0
+    },
+    "cache_hit": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se foi servido do cache"
+    },
+    "user_email": {
+      "type": "string"
+    },
+    "feature": {
+      "type": "string",
+      "description": "Funcionalidade que originou a chamada"
+    },
+    "duration_ms": {
+      "type": "number",
+      "default": 0
+    },
+    "error": {
+      "type": "string"
+    },
+    "cache_key": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "task_type"
+  ]
+}

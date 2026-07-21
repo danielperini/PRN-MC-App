@@ -1,0 +1,70 @@
+{
+  "name": "AICache",
+  "type": "object",
+  "properties": {
+    "cache_key": {
+      "type": "string",
+      "description": "Hash SHA-256 do conte\u00fado + tarefa + vers\u00e3o do prompt"
+    },
+    "task_type": {
+      "type": "string",
+      "description": "Tipo de tarefa: rubrica_suggestion, nf_analysis, photo_caption, report_section, relatorio_fisico, etc."
+    },
+    "model_used": {
+      "type": "string",
+      "description": "Modelo OpenAI utilizado"
+    },
+    "result_json": {
+      "type": "object",
+      "description": "Resultado completo em JSON"
+    },
+    "result_text": {
+      "type": "string",
+      "description": "Resultado em texto puro (quando n\u00e3o JSON)"
+    },
+    "prompt_version": {
+      "type": "string",
+      "description": "Vers\u00e3o do prompt para invalida\u00e7\u00e3o de cache"
+    },
+    "tokens_input": {
+      "type": "number",
+      "default": 0
+    },
+    "tokens_output": {
+      "type": "number",
+      "default": 0
+    },
+    "cost_estimated_usd": {
+      "type": "number",
+      "default": 0,
+      "description": "Custo estimado em USD"
+    },
+    "hit_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Quantas vezes este cache foi reutilizado"
+    },
+    "last_hit_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "user_email": {
+      "type": "string",
+      "description": "Usu\u00e1rio que gerou"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Quando o cache expira (null = nunca)"
+    },
+    "force_refresh": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se true, foi reanalisado manualmente"
+    }
+  },
+  "required": [
+    "cache_key",
+    "task_type"
+  ]
+}
