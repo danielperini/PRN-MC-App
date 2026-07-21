@@ -127,7 +127,10 @@ function buildRenamedFileName(params: {
     ? ` ${safeString(params.natureza).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, ' ').trim().substring(0, 30)}`
     : '';
 
-  return `NF ${params.sequencial} ${funcao}${dataPart}${naturezaPart} - ${nome} - MUSEUS CENTRO - R$ ${valor}.${ext}`;
+  const museu = safeString(params.museu || '').toUpperCase();
+  const museuPart = museu ? ` [${museu}]` : '';
+
+  return `NF ${params.sequencial} ${funcao}${dataPart}${naturezaPart}${museuPart} - ${nome} - MUSEUS CENTRO - R$ ${valor}.${ext}`;
 }
 
 function detectIsLikelyNF(fileName: string, content: string): boolean {
@@ -459,6 +462,7 @@ Deno.serve(async (req) => {
       extension,
       data: parsed.nf_data_emissao || '',
       natureza: safeString(body?.natureza_despesa || attachment?.natureza_despesa || ''),
+      museu: safeString(body?.centro_custo || attachment?.centro_custo || ''),
     });
 
     const extractedPayload: NFExtraida = {

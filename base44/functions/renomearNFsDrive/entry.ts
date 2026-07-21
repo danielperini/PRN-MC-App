@@ -61,17 +61,29 @@ function fmtData(dataStr: any): string {
   return ` ${MESES_ABREV[d.getMonth()]}${d.getFullYear()}`;
 }
 
+function getMuseu(cc: string): string {
+  const raw = String(cc || '').toUpperCase();
+  if (raw.includes('MHAB') || raw.includes('ABILIO')) return 'MHAB';
+  if (raw.includes('MIS') || raw.includes('IMAGEM E SOM')) return 'MIS';
+  if (raw.includes('MUMO') || raw.includes('MODA')) return 'MUMO';
+  if (raw.includes('NOTURNO PAMPULHA')) return 'NOTURNO PAMPULHA';
+  if (raw.includes('NOTURNO')) return 'NOTURNO';
+  if (raw.includes('PUBLICAC')) return 'PUBLICACOES';
+  return 'GERAL';
+}
+
 /** Monta o nome legível oficial a partir de dados de uma PurchaseRequest */
 function buildNameFromPR(pr: any, prefixo = 'NF'): string {
   const num = sanitize(pr.nf_numero || pr.id?.substring(0, 8) || 'SN', 10);
   const natureza = sanitize(pr.rubrica_nome || pr.natureza_despesa || pr.categoria || pr.descricao_item || 'Despesa', 35);
   const fornecedor = sanitize(pr.fornecedor_nome || pr.nf_emitente_nome || 'FORNECEDOR', 50);
   const projeto = getProjeto(pr.centro_custo || '');
+  const museu = getMuseu(pr.centro_custo || '');
   const valor = fmtValor(pr.valor_pago || pr.valor_aprovado_admin || pr.nf_valor_total || pr.valor_solicitado || 0);
   const data = fmtData(pr.nf_data_emissao || pr.data_pagamento_efetivo || pr.created_date);
   const ext = prefixo === 'XML' ? 'xml' : 'pdf';
   const pref = prefixo === 'COMP' ? 'COMP NF' : prefixo;
-  return `${pref} ${num}${data} ${natureza} - ${fornecedor} - ${projeto} - R$ ${valor}.${ext}`;
+  return `${pref} ${num}${data} [${museu}] ${natureza} - ${fornecedor} - ${projeto} - R$ ${valor}.${ext}`;
 }
 
 /**

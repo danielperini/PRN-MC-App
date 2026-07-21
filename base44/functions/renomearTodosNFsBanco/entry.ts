@@ -50,9 +50,21 @@ function getProjeto(cc) {
   return safeStr(cc).toUpperCase().includes('NOTURNO') ? 'NOTURNO NOS MUSEUS 2026' : 'MUSEUS CENTRO';
 }
 
+function getMuseu(cc) {
+  const raw = safeStr(cc).toUpperCase();
+  if (raw.includes('MHAB') || raw.includes('ABILIO')) return 'MHAB';
+  if (raw.includes('MIS') || raw.includes('IMAGEM E SOM')) return 'MIS';
+  if (raw.includes('MUMO') || raw.includes('MODA')) return 'MUMO';
+  if (raw.includes('NOTURNO PAMPULHA')) return 'NOTURNO PAMPULHA';
+  if (raw.includes('NOTURNO')) return 'NOTURNO';
+  if (raw.includes('PUBLICAC')) return 'PUBLICACOES';
+  return 'GERAL';
+}
+
 function buildNomePadronizado(pr, ext = 'pdf', prefixo = 'NF') {
   const num = sanitize(pr.nf_numero || '', 10) || 'SN';
   const data = fmtData(pr.nf_data_emissao || pr.data_pagamento_efetivo || pr.created_date);
+  const museu = getMuseu(pr.centro_custo || '');
   const natureza = sanitize(
     pr.rubrica_nome || pr.natureza_despesa || pr.natureza_despesa_purchase || pr.categoria || pr.descricao_item || '',
     35
@@ -61,7 +73,7 @@ function buildNomePadronizado(pr, ext = 'pdf', prefixo = 'NF') {
   const projeto = getProjeto(pr.centro_custo || '');
   const valor = fmtValor(pr.valor_pago || pr.valor_aprovado_admin || pr.nf_valor_total || pr.valor_solicitado || 0);
   const pref = prefixo === 'COMP' ? 'COMP NF' : prefixo;
-  return `${pref} ${num}${data} ${natureza} - ${fornecedor} - ${projeto} - R$ ${valor}.${ext}`;
+  return `${pref} ${num}${data} [${museu}] ${natureza} - ${fornecedor} - ${projeto} - R$ ${valor}.${ext}`;
 }
 
 // ── Drive helpers ─────────────────────────────────────────────────────────────
