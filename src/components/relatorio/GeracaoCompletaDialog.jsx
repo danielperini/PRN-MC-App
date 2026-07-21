@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import {
-  X, Sparkles, CheckCircle2, AlertCircle, Loader2,
+  X, Sparkles, CheckCircle2, AlertCircle, Loader2, RotateCw,
   FileText, Users, ImagePlus, BarChart2, BookOpen, FolderCheck,
   GitMerge, ShieldCheck,
 } from 'lucide-react';
@@ -101,7 +101,7 @@ export default function GeracaoCompletaDialog({ relatorioId, form, onConcluido, 
   const pct = etapaAtual < 0 ? 0 : Math.round(((etapaAtual + 1) / ETAPAS.length) * 100);
   const concluido = !executando && etapaAtual === ETAPAS.length - 1 && Object.keys(statusEtapas).length > 0;
 
-  async function iniciar() {
+  async function iniciar(forceRefresh = false) {
     if (!relatorioId) {
       toast.error('Nenhum relatório ativo. Gere primeiro um relatório na aba acima.');
       return;
@@ -128,6 +128,7 @@ export default function GeracaoCompletaDialog({ relatorioId, form, onConcluido, 
           data_fim: form.data_fim,
           filtro_museu: form.filtro_museu,
           filtro_meta_ids: form.filtro_meta_ids,
+          force_refresh: forceRefresh,
         });
 
         const data = res?.data || res;
@@ -348,14 +349,26 @@ export default function GeracaoCompletaDialog({ relatorioId, form, onConcluido, 
               </>
             )}
             {concluido && (
-              <Button
-                onClick={onClose}
-                className={exportarLiberado ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-slate-400 text-white cursor-default'}
-                disabled={!exportarLiberado}
-              >
-                <CheckCircle2 className="w-4 h-4 mr-2" />
-                {exportarLiberado ? 'Fechar e Exportar' : 'Resolva as divergências'}
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => iniciar(true)}
+                  disabled={executando}
+                  className="border-amber-300 text-amber-700 hover:bg-amber-50"
+                  title="Ignora o cache e gera um texto novo (consome créditos de IA)"
+                >
+                  <RotateCw className="w-4 h-4 mr-2" />
+                  Reanalisar tudo ↺
+                </Button>
+                <Button
+                  onClick={onClose}
+                  className={exportarLiberado ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-slate-400 text-white cursor-default'}
+                  disabled={!exportarLiberado}
+                >
+                  <CheckCircle2 className="w-4 h-4 mr-2" />
+                  {exportarLiberado ? 'Fechar e Exportar' : 'Resolva as divergências'}
+                </Button>
+              </>
             )}
             {executando && (
               <Button disabled className="opacity-60">

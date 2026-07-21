@@ -19,6 +19,7 @@ import {
   Mail,
   Paperclip,
   RefreshCw,
+  RotateCw,
   Save,
   Sparkles,
   Trash2,
@@ -517,7 +518,7 @@ export default function RelatorioExecucaoObjeto() {
     toast.success('Todas as seções foram geradas com dados reais do sistema.');
   }
 
-  async function gerarTextoIA(key, label) {
+  async function gerarTextoIA(key, label, opcoes = {}) {
     if (!relatorioId) return;
     setGerandoIA(key);
     try {
@@ -534,6 +535,7 @@ export default function RelatorioExecucaoObjeto() {
         usar_modelo_word: true,
         incluir_fotos: true,
         vincular_notas_fiscais: true,
+        force_refresh: opcoes.force_refresh || false,
         instrucao_usuario: `Atualize somente a seção ${label}, usando exclusivamente dados reais do período e das metas selecionadas. Não invente atividades, público, resultados ou documentos.`,
       });
       await carregarRelatorio(relatorioId);
@@ -838,6 +840,7 @@ export default function RelatorioExecucaoObjeto() {
               relatorio={relatorio}
               onEditar={() => abrirEditor(secao.key, secao.label)}
               onIA={() => gerarTextoIA(secao.key, secao.label)}
+              onReanalisar={() => gerarTextoIA(secao.key, secao.label, { force_refresh: true })}
               gerandoIA={gerandoIA === secao.key}
               onAnexar={() => selecionarArquivo(secao.key)}
               enviando={enviandoArquivo === secao.key}
@@ -890,7 +893,7 @@ export default function RelatorioExecucaoObjeto() {
   );
 }
 
-function SecaoEditavel({ secao, relatorio, onEditar, onIA, gerandoIA, onAnexar, enviando, onRemover, relatorioId, form, onAtualizarRelatorio }) {
+function SecaoEditavel({ secao, relatorio, onEditar, onIA, onReanalisar, gerandoIA, onAnexar, enviando, onRemover, relatorioId, form, onAtualizarRelatorio }) {
   const texto = textoSecao(relatorio, secao.key);
   const anexos = relatorio?.anexos_por_secao?.[secao.key] || [];
   const isAnexos = secao.key === 'anexos';
@@ -904,6 +907,16 @@ function SecaoEditavel({ secao, relatorio, onEditar, onIA, gerandoIA, onAnexar, 
           <div className="flex gap-2 flex-wrap">
             <Button size="sm" variant="outline" onClick={onEditar}><Edit3 className="w-3.5 h-3.5 mr-1" />Editar texto</Button>
             <Button size="sm" variant="outline" onClick={onIA} disabled={gerandoIA}>{gerandoIA ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 mr-1" />}Gerar com IA</Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onReanalisar}
+              disabled={gerandoIA}
+              title="Reanalisar ignorando cache (consome IA)"
+              className="border-amber-300 text-amber-700 hover:bg-amber-50"
+            >
+              <RotateCw className="w-3.5 h-3.5 mr-1" />Reanalisar ↺
+            </Button>
             {!isAnexos && (
               <Button size="sm" variant="outline" onClick={onAnexar} disabled={enviando}>{enviando ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Paperclip className="w-3.5 h-3.5 mr-1" />}Foto/Documento</Button>
             )}
