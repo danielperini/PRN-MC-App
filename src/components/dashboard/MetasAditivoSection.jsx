@@ -48,14 +48,13 @@ function getMuseuFromActivity(a) {
 
 function getMetaNumeroFromActivity(a) {
   const cod = (a.meta_codigo || a.meta_id || '').toLowerCase();
-  const titulo = (a.titulo || a.nome || '').toLowerCase();
-  if (cod.includes('16') || titulo.includes('diária') || titulo.includes('diaria')) return '16';
-  if (cod.includes('19') || titulo.includes('iemanjá') || titulo.includes('iemanja')) return '19';
-  if (cod.includes('10') || titulo.includes('mostra')) return '10';
-  if (cod.includes('11b') || cod.includes('pampulha')) return '11B';
-  if (cod.includes('11')) return '11';
-  if (cod.includes('20')) return '20';
-  if (cod.includes('6') || cod.includes('5') || (a.classificacao || '').toLowerCase() === 'cultural' || (a.classificacao || '').toLowerCase() === 'meta') return '20';
+  const num = (cod.match(/\d+/) || [])[0] || '';
+  if (num === '16') return '16';
+  if (num === '19') return '19';
+  if (num === '10') return '10';
+  if (cod.includes('11b')) return '11B';
+  if (num === '11') return '11';
+  if (num === '20' || num === '5' || num === '6') return '20';
   return null;
 }
 
