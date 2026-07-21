@@ -245,8 +245,8 @@ Deno.serve(async (req) => {
       ? `\nBase oficial do 3º Aditivo:\n${baseConhecimento}\n`
       : '';
 
-    const llmRaw = await invokeOpenAI({
-      prompt: `Escolha a melhor rubrica para esta compra.
+    // Cache via AIService antes de chamar OpenAI diretamente
+    const cachePrompt = `Escolha a melhor rubrica para esta compra.
 ${baseSection}
 Compra: ${descricao}
 Fornecedor: ${fornecedor}
@@ -258,14 +258,25 @@ Rubricas disponíveis:
 ${context}
 
 Responda somente JSON válido:
-{"rubrica_id":"","score":0,"justificativa":"","meta_nome":"","centro_custo":""}`,
-      jsonSchema: { type: 'object' },
-      model: 'gpt-4o-mini',
-    });
+{"rubrica_id":"","score":0,"justificativa":"","meta_nome":"","centro_custo":""}`;
 
-    const llmResult = llmRaw;
+    let llmRaw = null;
+    try {
+      const aiResp = await base44.functions.invoke('AIService', {
+        task_type: 'rubrica_suggestion',
+        prompt: cachePrompt,
+        json_schema: { type: 'object' },
+        model: 'gpt-4o-mini',
+        feature: 'suggestRubrica',
+        prompt_version: '1',
+      });
+      llmRaw = aiResp?.data?.result ?? null;
+    } catch {
+      // fallback: chama OpenAI diretamente se AIService falhar
+      llmRaw = await invokeOpenAI({ prompt: cachePrompt, jsonSchema: { type: 'object' }, model: 'gpt-4o-mini' });
+    }
 
-    const found = valid.find((r: any) => r.id === llmResult?.rubrica_id);
+    const found = valid.find((r: any) => r.id === llmRaw?.rubrica_id);
 
     if (!found) {
       return Response.json({ success: true, suggestion: null });
@@ -276,10 +287,10 @@ Responda somente JSON válido:
       suggestion: {
         rubrica_id: found.id,
         rubrica_nome: getRubricaLabel(found),
-        score: toNumber(llmResult?.score) || 60,
-        justificativa: llmResult?.justificativa || 'IA conhecimento',
-        meta_nome: llmResult?.meta_nome || '',
-        centro_custo: llmResult?.centro_custo || '',
+        score: toNumber(llmRaw?.score) || 60,
+        justificativa: llmRaw?.justificativa || 'IA conhecimento',
+        meta_nome: llmRaw?.meta_nome || '',
+        centro_custo: llmRaw?.centro_custo || '',
         source: 'llm_knowledge',
       },
     });

@@ -366,60 +366,30 @@ function normalizeResult(result = {}, contexto = {}) {
   };
 }
 
-export async function gerarTextosRelatorioFisicoFinanceiro(contexto = {}, usarIA = true) {
+export async function gerarTextosRelatorioFisicoFinanceiro(contexto = {}, usarIA = true, forceRefresh = false) {
   const fallback = normalizeResult({}, contexto);
 
   if (!usarIA) return fallback;
 
   try {
-    if (!base44?.integrations?.Core?.InvokeLLM) {
-      return fallback;
-    }
-
-    const result = await base44.integrations.Core.InvokeLLM({
+    // Chama o backend AIService (nunca InvokeLLM diretamente do frontend)
+    const response = await base44.functions.invoke('AIService', {
+      task_type: 'relatorio_fisico_financeiro',
       prompt: buildPrompt(contexto),
-      response_json_schema: {
-        type: 'object',
-        properties: {
-          introducao: { type: 'string' },
-          contexto_territorial: { type: 'string' },
-          territorio: { type: 'string' },
-          resumo_geral: { type: 'string' },
-          publico_alcancado: { type: 'string' },
-          metas: { type: 'string' },
-          programacao: { type: 'string' },
-          producao_executiva: { type: 'string' },
-          comunicacao: { type: 'string' },
-          financeiro: { type: 'string' },
-          prestacao: { type: 'string' },
-          app_museu_centro: { type: 'string' },
-          conclusao: { type: 'string' },
-          capitulos: {
-            type: 'object',
-            properties: {
-              gestao_governanca: { type: 'string' },
-              producao_operacao: { type: 'string' },
-              comunicacao_produtos: { type: 'string' },
-              atividade_publico: { type: 'string' },
-            },
-          },
-          atividades_descricoes: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                indice: { type: 'number' },
-                descricao: { type: 'string' },
-              },
-            },
-          },
-        },
-      },
+      json_schema: { type: 'object' },
+      model: 'gpt-4o-mini',
+      max_tokens: 4096,
+      feature: 'relatorio_fisico_financeiro',
+      force_refresh: forceRefresh,
+      prompt_version: '2',
     });
 
-    return normalizeResult(result || {}, contexto);
+    const result = response?.data?.result;
+    if (!result) return fallback;
+
+    return normalizeResult(result, contexto);
   } catch (error) {
-    console.warn('IA indisponível. Usando textos técnicos locais.', error);
+    console.warn('AIService indisponível. Usando textos técnicos locais.', error);
     return fallback;
   }
 }
