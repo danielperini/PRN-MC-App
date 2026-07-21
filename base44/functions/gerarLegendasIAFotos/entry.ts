@@ -1,5 +1,24 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 
+async function invokeOpenAI({ prompt, jsonSchema = null, model = 'gpt-4o-mini' }: any): Promise<any> {
+  const apiKey = Deno.env.get('OPENAI_API_KEY');
+  if (!apiKey) throw new Error('OPENAI_API_KEY não configurada');
+  const body: any = { model, messages: [{ role: 'user', content: prompt }], max_tokens: 2048, temperature: 0.3 };
+  if (jsonSchema) body.response_format = { type: 'json_object' };
+  let lastErr: any;
+  for (let i = 0; i < 2; i++) {
+    try {
+      const resp = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(60_000) });
+      if (!resp.ok) { const t = await resp.text().catch(() => resp.statusText); throw new Error(`OpenAI ${resp.status}: ${t}`); }
+      const data = await resp.json();
+      const content = data?.choices?.[0]?.message?.content ?? '';
+      if (jsonSchema) { try { return JSON.parse(content); } catch { const m = content.match(/\{[\s\S]*\}/); return m ? JSON.parse(m[0]) : {}; } }
+      return content;
+    } catch (e: any) { lastErr = e; if (i === 0) await new Promise(r => setTimeout(r, 1000)); }
+  }
+  throw lastErr;
+}
+
 const MESES_CAP = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
 function normalizeUrl(url) {
@@ -212,19 +231,10 @@ ${fotosContext}
 Gere as ${lote.length} legendas em ordem, correspondendo a FOTO_1, FOTO_2, etc.:`;
 
       try {
-        const result = await base44.integrations.Core.InvokeLLM({
+        const result = await invokeOpenAI({
           prompt,
-          response_json_schema: {
-            type: 'object',
-            properties: {
-              legendas: {
-                type: 'array',
-                items: { type: 'string' },
-                description: `Array com ${lote.length} legendas, uma para cada foto, na ordem`,
-              },
-            },
-            required: ['legendas'],
-          },
+          jsonSchema: { type: 'object' },
+          model: 'gpt-4o-mini',
         });
 
         const legendas = Array.isArray(result?.legendas) ? result.legendas : [];

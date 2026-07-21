@@ -1,5 +1,26 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
+async function invokeOpenAI({ prompt, fileUrls = [], jsonSchema = null, model = 'gpt-4o' }: any): Promise<any> {
+  const apiKey = Deno.env.get('OPENAI_API_KEY');
+  if (!apiKey) throw new Error('OPENAI_API_KEY não configurada');
+  const userContent: any[] = [{ type: 'text', text: prompt }];
+  for (const url of fileUrls) { if (url) userContent.push({ type: 'image_url', image_url: { url, detail: 'high' } }); }
+  const body: any = { model, messages: [{ role: 'user', content: userContent.length === 1 ? userContent[0].text : userContent }], max_tokens: 1024, temperature: 0.3 };
+  if (jsonSchema) body.response_format = { type: 'json_object' };
+  let lastErr: any;
+  for (let i = 0; i < 2; i++) {
+    try {
+      const resp = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(60_000) });
+      if (!resp.ok) { const t = await resp.text().catch(() => resp.statusText); throw new Error(`OpenAI ${resp.status}: ${t}`); }
+      const data = await resp.json();
+      const content = data?.choices?.[0]?.message?.content ?? '';
+      if (jsonSchema) { try { return JSON.parse(content); } catch { const m = content.match(/\{[\s\S]*\}/); return m ? JSON.parse(m[0]) : {}; } }
+      return content;
+    } catch (e: any) { lastErr = e; if (i === 0) await new Promise(r => setTimeout(r, 1000)); }
+  }
+  throw lastErr;
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -110,33 +131,11 @@ Formato obrigatório:
   "location": "texto"
 }`;
 
-    const result = await base44.integrations.Core.InvokeLLM({
+    const result = await invokeOpenAI({
       prompt,
-      file_urls: [photoUrl],
-      response_json_schema: {
-        type: 'object',
-        properties: {
-          caption: {
-            type: 'string',
-            description: 'Legenda breve e profissional para a foto',
-          },
-          description: {
-            type: 'string',
-            description: 'Descrição objetiva do conteúdo visual da imagem',
-          },
-          museum: {
-            type: 'string',
-            description: 'Museu provável: MIS, MHAB, MUMO ou Atuação Geral',
-            enum: ['MIS', 'MHAB', 'MUMO', 'Atuação Geral'],
-          },
-          location: {
-            type: 'string',
-            description: 'Localização provável da cena na imagem',
-          },
-        },
-        required: ['caption', 'description', 'museum', 'location'],
-      },
-      model: 'claude_sonnet_4_6',
+      fileUrls: [photoUrl],
+      jsonSchema: { type: 'object' },
+      model: 'gpt-4o',
     });
 
     return Response.json({

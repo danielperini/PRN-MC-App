@@ -1,76 +1,71 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
+async function invokeOpenAI({ prompt, fileUrls = [], jsonSchema = null, model = 'gpt-4o' }: any): Promise<any> {
+  const apiKey = Deno.env.get('OPENAI_API_KEY');
+  if (!apiKey) throw new Error('OPENAI_API_KEY não configurada');
+  const userContent: any[] = [{ type: 'text', text: prompt }];
+  for (const url of fileUrls) { if (url) userContent.push({ type: 'image_url', image_url: { url, detail: 'high' } }); }
+  const body: any = { model, messages: [{ role: 'user', content: userContent.length === 1 ? userContent[0].text : userContent }], max_tokens: 4096, temperature: 0.2 };
+  if (jsonSchema) body.response_format = { type: 'json_object' };
+  let lastErr: any;
+  for (let i = 0; i < 2; i++) {
+    try {
+      const resp = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(90_000) });
+      if (!resp.ok) { const t = await resp.text().catch(() => resp.statusText); throw new Error(`OpenAI ${resp.status}: ${t}`); }
+      const data = await resp.json();
+      const content = data?.choices?.[0]?.message?.content ?? '';
+      const usage = data?.usage; if (usage) console.log(`[OpenAI] model=${model} in=${usage.prompt_tokens} out=${usage.completion_tokens}`);
+      if (jsonSchema) { try { return JSON.parse(content); } catch { const m = content.match(/\{[\s\S]*\}/); return m ? JSON.parse(m[0]) : {}; } }
+      return content;
+    } catch (e: any) { lastErr = e; if (i === 0) { console.warn('[OpenAI] retry:', e.message); await new Promise(r => setTimeout(r, 2000)); } }
+  }
+  throw lastErr;
+}
+
 // ======================================================================
 // CONSTANTES DO TOMADOR ESPERADO
 // ======================================================================
 const TOMADOR_ESPERADO = {
   nome: 'VIADUTO DAS ARTES',
-  cnpj: '23843648000125', // apenas dígitos
+  cnpj: '23843648000125',
   endereco: 'AV. OLINTO MEIRELES, 45 - BARREIRO, BELO HORIZONTE - MG, 30640-010',
   email: 'VIADUTODASARTES@VIADUTODASARTES.ORG.BR',
 };
 
 const MUSEUS_VALIDOS = ['MIS', 'MUMO', 'MHAB'];
 
-// Funções que exigem identificação do museu
 const FUNCOES_QUE_EXIGEM_MUSEU = [
   'educador', 'educadora', 'produtor', 'produtora', 'produtor cultural',
   'produtora cultural', 'educação', 'educativo', 'producao', 'produção'
 ];
 
-function safeStr(v) {
-  return String(v || '').trim();
-}
-
-function onlyDigits(v) {
-  return safeStr(v).replace(/\D/g, '');
-}
+function safeStr(v) { return String(v || '').trim(); }
+function onlyDigits(v) { return safeStr(v).replace(/\D/g, ''); }
 
 function parseValor(v) {
   if (!v && v !== 0) return 0;
   const s = String(v).trim().replace(/\s/g, '');
-  if (/^\d{1,3}(\.\d{3})*(,\d+)?$/.test(s)) {
-    return parseFloat(s.replace(/\./g, '').replace(',', '.')) || 0;
-  }
+  if (/^\d{1,3}(\.\d{3})*(,\d+)?$/.test(s)) return parseFloat(s.replace(/\./g, '').replace(',', '.')) || 0;
   return parseFloat(String(s).replace(',', '.')) || 0;
 }
 
 function formatValorBR(v) {
   const num = parseValor(v);
-  return num > 0
-    ? num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    : '0,00';
+  return num > 0 ? num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00';
 }
 
 function normalizeText(v) {
-  return safeStr(v)
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toUpperCase()
-    .trim();
+  return safeStr(v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim();
 }
 
-/**
- * Normaliza qualquer formato de data para YYYY-MM-DD.
- * Aceita: DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD, YYYY/MM/DD,
- *         "15 de março de 2026", "março 2026" (usa dia 01), etc.
- */
 function normalizeDate(v) {
   if (!v) return '';
   const s = String(v).trim();
-
-  // Já está em YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-
-  // DD/MM/YYYY ou DD-MM-YYYY
   const br = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
   if (br) return `${br[3]}-${br[2].padStart(2,'0')}-${br[1].padStart(2,'0')}`;
-
-  // YYYY/MM/DD
   const iso2 = s.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})$/);
   if (iso2) return `${iso2[1]}-${iso2[2]}-${iso2[3]}`;
-
-  // "15 de março de 2026" ou "15/março/2026"
   const MESES = {
     janeiro:'01',fevereiro:'02',marco:'03','março':'03',abril:'04',maio:'05',junho:'06',
     julho:'07',agosto:'08',setembro:'09',outubro:'10',novembro:'11',dezembro:'12',
@@ -78,31 +73,14 @@ function normalizeDate(v) {
   };
   const textual = s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
     .match(/(\d{1,2})\s*(?:de\s*)?([a-zA-Z]+)\s*(?:de\s*)?(\d{4})/);
-  if (textual) {
-    const mes = MESES[textual[2]];
-    if (mes) return `${textual[3]}-${mes}-${textual[1].padStart(2,'0')}`;
-  }
-
-  // "março/2026" ou "março 2026" → usa dia 01
-  const mesAno = s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-    .match(/^([a-zA-Z]+)[\/\s]+(\d{4})$/);
-  if (mesAno) {
-    const mes = MESES[mesAno[1]];
-    if (mes) return `${mesAno[2]}-${mes}-01`;
-  }
-
-  // Último recurso: tenta Date.parse
+  if (textual) { const mes = MESES[textual[2]]; if (mes) return `${textual[3]}-${mes}-${textual[1].padStart(2,'0')}`; }
+  const mesAno = s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').match(/^([a-zA-Z]+)[\/\s]+(\d{4})$/);
+  if (mesAno) { const mes = MESES[mesAno[1]]; if (mes) return `${mesAno[2]}-${mes}-01`; }
   const d = new Date(s);
   if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
-
   return '';
 }
 
-/**
- * Constrói o nome padronizado do arquivo conforme o padrão:
- * NF [número] - [razão social/emitente] - [nome profissional] - MUSEUS CENTRO - [museu, se houver] - R$ [valor]
- * Exemplo: NF 123 - ENGENHARIA E DESIGN LTDA - CAROLINE ABASSE - MUSEUS CENTRO - MIS - R$ 2.600,00
- */
 function buildRenamedNF(params) {
   const numero = safeStr(params.nf_numero) || 'SEM-NUM';
   const emitente = normalizeText(params.nf_emitente_nome || params.fornecedor || 'FORNECEDOR').substring(0, 50);
@@ -110,10 +88,8 @@ function buildRenamedNF(params) {
   const museu = safeStr(params.museu_atuacao).toUpperCase();
   const valor = formatValorBR(params.nf_valor_total);
   const ext = safeStr(params.extension) || 'pdf';
-
   const museuPart = MUSEUS_VALIDOS.includes(museu) ? ` - ${museu}` : '';
   const profissionalPart = profissional && profissional !== emitente ? ` - ${profissional}` : '';
-
   return `NF ${numero} - ${emitente}${profissionalPart} - MUSEUS CENTRO${museuPart} - R$ ${valor}.${ext}`;
 }
 
@@ -123,15 +99,12 @@ function funcaoExigeMuseu(funcao) {
 }
 
 // ======================================================================
-// PROCESSAMENTO COM CLAUDE (principal)
+// PROCESSAMENTO COM OPENAI GPT-4o (visão de documentos)
 // ======================================================================
-async function processarComClaude(base44, fileUrl, orientacoes) {
-  try {
-    const hoje = new Date().toISOString().slice(0, 10);
+async function processarComOpenAI(fileUrl, orientacoes) {
+  const hoje = new Date().toISOString().slice(0, 10);
 
-    const resp = await base44.asServiceRole.integrations.Core.InvokeLLM({
-      model: 'claude_sonnet_4_6',
-      prompt: `VOCÊ É UM ESPECIALISTA EM DOCUMENTOS FISCAIS BRASILEIROS para o projeto MUSEUS CENTRO.
+  const prompt = `VOCÊ É UM ESPECIALISTA EM DOCUMENTOS FISCAIS BRASILEIROS para o projeto MUSEUS CENTRO.
 
 ## DATA ATUAL: ${hoje}
 Datas até ${hoje} são VÁLIDAS e NÃO devem ser sinalizadas como futuras.
@@ -159,325 +132,32 @@ Datas até ${hoje} são VÁLIDAS e NÃO devem ser sinalizadas como futuras.
 11. Marque PENDÊNCIAS não bloqueantes (nunca bloqueie o envio, apenas registre)
 
 ## REGRAS CRÍTICAS DE EXTRAÇÃO:
-- **nf_data_emissao**: OBRIGATÓRIO. Leia a data exata do documento e retorne SEMPRE no formato YYYY-MM-DD (ex: 2026-03-15). NUNCA deixe em branco se houver qualquer data no documento. Se houver "competência" ou "período de referência" mas não uma data clara, use o primeiro dia do mês/ano indicado.
+- **nf_data_emissao**: OBRIGATÓRIO. Leia a data exata do documento e retorne SEMPRE no formato YYYY-MM-DD. NUNCA deixe em branco se houver qualquer data no documento.
 - **nf_emitente_cpf_cnpj**: OBRIGATÓRIO. Retorne APENAS dígitos, sem pontos, barras ou hífens (ex: "12345678000195").
-- **nf_valor_total**: OBRIGATÓRIO. Retorne o valor decimal com ponto (ex: "2600.00"). Leia o valor líquido ou total da nota.
+- **nf_valor_total**: OBRIGATÓRIO. Retorne o valor decimal com ponto (ex: "2600.00").
 - **nf_emitente_nome**: OBRIGATÓRIO. Razão social completa do emitente/prestador.
-- **nf_numero**: Número da nota fiscal. Se não houver número explícito, procure no cabeçalho ou rodapé.
-- **municipio**: Município de emissão da nota. Leia do endereço do emitente.
-- Campos de dados_pagamento: extraia TODOS os dados bancários visíveis (banco, agência, conta, PIX, CPF/CNPJ do prestador).
-
-## TIPOS DE DOCUMENTO COMPLEMENTAR (não são NFs mas se vinculam a uma):
-- RECIBO: documento emitido pelo prestador confirmando recebimento de pagamento
-- COMPROVANTE_PAGAMENTO: comprovante bancário de PIX, TED, transferência ou boleto
-- DOCUMENTO_COMPLEMENTAR: qualquer outro documento que faz referência a uma NF existente
+- **nf_numero**: Número da nota fiscal.
+- **municipio**: Município de emissão da nota.
+- Campos de dados_pagamento: extraia TODOS os dados bancários visíveis.
 
 ## ORIENTAÇÕES DO USUÁRIO:
 ${orientacoes || 'Nenhuma orientação adicional.'}
 
-## RESPONDA EM JSON VÁLIDO:
-{
-  "eh_nota_fiscal": boolean,
-  "eh_documento_complementar": boolean,
-  "tipo_documento_complementar": "RECIBO|COMPROVANTE_PAGAMENTO|DOCUMENTO_COMPLEMENTAR|null",
-  "nf_numero_referenciado": "número da NF a que este documento se refere (se for complementar)",
-  "nf_numero": "número da NF (se for NF)",
-  "nf_valor_total": "valor decimal ex: 2600.00",
-  "nf_data_emissao": "YYYY-MM-DD",
-  "nf_emitente_nome": "razão social do emitente",
-  "nf_emitente_cpf_cnpj": "apenas dígitos",
-  "nome_profissional": "nome da pessoa física prestadora, se identificável",
-  "funcao_exercida": "função descrita no serviço ex: Educadora",
-  "museu_atuacao": "MIS | MUMO | MHAB | (vazio se não mencionado)",
-  "descricao_servico": "descrição completa do serviço",
-  "competencia": "ex: Fevereiro/2026",
-  "tipo_servico": "Serviço|Produto|Consultoria|Comunicação|Logística|Alimentação|Outro",
-  "municipio": "município de emissão",
-  "tomador_correto": boolean (true se CNPJ do tomador = 23843648000125),
-  "tomador_cnpj_encontrado": "CNPJ do tomador na NF (só dígitos)",
-  "descricao_conforme_padrao": boolean,
-  "dados_pagamento": {
-    "banco": "nome do banco",
-    "agencia": "número da agência",
-    "conta": "número da conta",
-    "cpf_cnpj": "CPF ou CNPJ do prestador (só dígitos)",
-    "pix": "chave PIX se houver"
-  },
-  "inconsistencias": ["problemas críticos — ex: tomador errado, CNPJ divergente"],
-  "pendencias": ["campos ausentes ou divergentes, sem bloquear envio"],
-  "avisos": ["avisos não críticos"],
-  "risco_duplicacao": "baixo|médio|alto",
-  "score_confiabilidade": 0-100,
-  "categoria_sugerida": "categoria orçamentária sugerida",
-  "justificativa_rubrica": "explicação da sugestão de rubrica"
-}`,
-      file_urls: [fileUrl],
-      response_json_schema: {
-        type: 'object',
-        properties: {
-          eh_nota_fiscal: { type: 'boolean' },
-          eh_documento_complementar: { type: 'boolean' },
-          tipo_documento_complementar: { type: 'string' },
-          nf_numero_referenciado: { type: 'string' },
-          nf_numero: { type: 'string' },
-          nf_valor_total: { type: 'string' },
-          nf_data_emissao: { type: 'string' },
-          nf_emitente_nome: { type: 'string' },
-          nf_emitente_cpf_cnpj: { type: 'string' },
-          nome_profissional: { type: 'string' },
-          funcao_exercida: { type: 'string' },
-          museu_atuacao: { type: 'string' },
-          descricao_servico: { type: 'string' },
-          competencia: { type: 'string' },
-          tipo_servico: { type: 'string' },
-          municipio: { type: 'string' },
-          tomador_correto: { type: 'boolean' },
-          tomador_cnpj_encontrado: { type: 'string' },
-          descricao_conforme_padrao: { type: 'boolean' },
-          dados_pagamento: {
-            type: 'object',
-            properties: {
-              banco: { type: 'string' },
-              agencia: { type: 'string' },
-              conta: { type: 'string' },
-              cpf_cnpj: { type: 'string' },
-              pix: { type: 'string' },
-            },
-          },
-          inconsistencias: { type: 'array', items: { type: 'string' } },
-          pendencias: { type: 'array', items: { type: 'string' } },
-          avisos: { type: 'array', items: { type: 'string' } },
-          risco_duplicacao: { type: 'string' },
-          score_confiabilidade: { type: 'number' },
-          categoria_sugerida: { type: 'string' },
-          justificativa_rubrica: { type: 'string' },
-        },
-      },
-    });
+## RESPONDA EM JSON VÁLIDO com os campos: eh_nota_fiscal, eh_documento_complementar, tipo_documento_complementar, nf_numero_referenciado, nf_numero, nf_valor_total, nf_data_emissao, nf_emitente_nome, nf_emitente_cpf_cnpj, nome_profissional, funcao_exercida, museu_atuacao, descricao_servico, competencia, tipo_servico, municipio, tomador_correto, tomador_cnpj_encontrado, descricao_conforme_padrao, dados_pagamento (objeto com banco/agencia/conta/cpf_cnpj/pix), inconsistencias (array), pendencias (array), avisos (array), risco_duplicacao, score_confiabilidade, categoria_sugerida, justificativa_rubrica`;
 
-    return { success: true, data: resp, model: 'claude_sonnet_4_6' };
-  } catch (e) {
-    console.error('Erro ao processar com Claude:', e.message);
-    return { success: false, error: e.message, model: 'claude_sonnet_4_6' };
-  }
+  const result = await invokeOpenAI({
+    prompt,
+    fileUrls: [fileUrl],
+    jsonSchema: { type: 'object' },
+    model: 'gpt-4o',
+  });
+
+  return { success: true, data: result, model: 'gpt-4o' };
 }
 
 // ======================================================================
-// FALLBACK: GEMINI
+// VINCULAÇÃO DE DOCUMENTO COMPLEMENTAR
 // ======================================================================
-async function processarComGemini(base44, fileUrl, orientacoes) {
-  try {
-    const hoje = new Date().toISOString().slice(0, 10);
-
-    const resp = await base44.asServiceRole.integrations.Core.InvokeLLM({
-      model: 'gemini_3_1_pro',
-      prompt: `Analise este documento do projeto Museus Centro. Data atual: ${hoje}.
-Tomador esperado: Viaduto das Artes, CNPJ 23.843.648/0001-25.
-Descrição esperada: "Prestação de serviço de [função] ao Projeto Museus Centro - Termo de Colaboração 01-031.069/24-80..."
-${orientacoes ? `Orientações: ${orientacoes}` : ''}
-
-IDENTIFIQUE se é: Nota Fiscal, Recibo, Comprovante de Pagamento, ou outro documento complementar de uma NF.
-Se for Recibo ou Comprovante, identifique o número da NF a que se refere.
-
-REGRAS CRÍTICAS:
-- nf_data_emissao: retorne SEMPRE no formato YYYY-MM-DD. Leia a data real do documento. NUNCA invente.
-- nf_emitente_cpf_cnpj: retorne APENAS dígitos (sem pontos/barras/hífens).
-- nf_valor_total: valor decimal com ponto (ex: 2600.00).
-- Extraia TODOS os campos bancários visíveis (banco, agência, conta, PIX).
-
-JSON:
-{
-  "eh_nota_fiscal": boolean,
-  "eh_documento_complementar": boolean,
-  "tipo_documento_complementar": "RECIBO|COMPROVANTE_PAGAMENTO|DOCUMENTO_COMPLEMENTAR|null",
-  "nf_numero_referenciado": "número da NF referenciada (se complementar)",
-  "nf_numero": "string",
-  "nf_valor_total": "string",
-  "nf_data_emissao": "YYYY-MM-DD",
-  "nf_emitente_nome": "string",
-  "nf_emitente_cpf_cnpj": "string",
-  "nome_profissional": "string",
-  "funcao_exercida": "string",
-  "museu_atuacao": "MIS|MUMO|MHAB ou vazio",
-  "descricao_servico": "string",
-  "competencia": "string",
-  "tipo_servico": "string",
-  "municipio": "string",
-  "tomador_correto": boolean,
-  "tomador_cnpj_encontrado": "string",
-  "descricao_conforme_padrao": boolean,
-  "dados_pagamento": { "banco": "", "agencia": "", "conta": "", "cpf_cnpj": "", "pix": "" },
-  "inconsistencias": [],
-  "pendencias": [],
-  "avisos": [],
-  "risco_duplicacao": "baixo|médio|alto",
-  "score_confiabilidade": 0-100,
-  "categoria_sugerida": "string",
-  "justificativa_rubrica": "string"
-}`,
-      file_urls: [fileUrl],
-      response_json_schema: {
-        type: 'object',
-        properties: {
-          eh_nota_fiscal: { type: 'boolean' },
-          eh_documento_complementar: { type: 'boolean' },
-          tipo_documento_complementar: { type: 'string' },
-          nf_numero_referenciado: { type: 'string' },
-          nf_numero: { type: 'string' },
-          nf_valor_total: { type: 'string' },
-          nf_data_emissao: { type: 'string' },
-          nf_emitente_nome: { type: 'string' },
-          nf_emitente_cpf_cnpj: { type: 'string' },
-          nome_profissional: { type: 'string' },
-          funcao_exercida: { type: 'string' },
-          museu_atuacao: { type: 'string' },
-          descricao_servico: { type: 'string' },
-          competencia: { type: 'string' },
-          tipo_servico: { type: 'string' },
-          municipio: { type: 'string' },
-          tomador_correto: { type: 'boolean' },
-          tomador_cnpj_encontrado: { type: 'string' },
-          descricao_conforme_padrao: { type: 'boolean' },
-          dados_pagamento: {
-            type: 'object',
-            properties: {
-              banco: { type: 'string' },
-              agencia: { type: 'string' },
-              conta: { type: 'string' },
-              cpf_cnpj: { type: 'string' },
-              pix: { type: 'string' },
-            },
-          },
-          inconsistencias: { type: 'array', items: { type: 'string' } },
-          pendencias: { type: 'array', items: { type: 'string' } },
-          avisos: { type: 'array', items: { type: 'string' } },
-          risco_duplicacao: { type: 'string' },
-          score_confiabilidade: { type: 'number' },
-          categoria_sugerida: { type: 'string' },
-          justificativa_rubrica: { type: 'string' },
-        },
-      },
-    });
-
-    return { success: true, data: resp, model: 'gemini_3_1_pro' };
-  } catch (e) {
-    console.error('Erro ao processar com Gemini:', e.message);
-    return { success: false, error: e.message, model: 'gemini_3_1_pro' };
-  }
-}
-
-// ======================================================================
-// FALLBACK: GPT
-// ======================================================================
-async function processarComGPT(base44, fileUrl, orientacoes) {
-  try {
-    const hoje = new Date().toISOString().slice(0, 10);
-
-    const resp = await base44.asServiceRole.integrations.Core.InvokeLLM({
-      model: 'gpt_5_4',
-      prompt: `Analise este documento do projeto Museus Centro. Data: ${hoje}.
-Tomador esperado: Viaduto das Artes, CNPJ 23.843.648/0001-25.
-${orientacoes ? `Orientações: ${orientacoes}` : ''}
-
-IDENTIFIQUE se é NF, Recibo, Comprovante ou outro documento complementar de uma NF.
-Se for complementar, identifique o número da NF referenciada.
-
-REGRAS CRÍTICAS:
-- nf_data_emissao: formato YYYY-MM-DD obrigatório. Leia a data real do documento.
-- nf_emitente_cpf_cnpj: apenas dígitos.
-- nf_valor_total: decimal com ponto (ex: 2600.00).
-- Extraia todos os dados bancários visíveis.
-
-JSON:
-{
-  "eh_nota_fiscal": boolean,
-  "eh_documento_complementar": boolean,
-  "tipo_documento_complementar": "RECIBO|COMPROVANTE_PAGAMENTO|DOCUMENTO_COMPLEMENTAR|null",
-  "nf_numero_referenciado": "número da NF referenciada (se complementar)",
-  "nf_numero": "string",
-  "nf_valor_total": "string",
-  "nf_data_emissao": "YYYY-MM-DD",
-  "nf_emitente_nome": "string",
-  "nf_emitente_cpf_cnpj": "string",
-  "nome_profissional": "string",
-  "funcao_exercida": "string",
-  "museu_atuacao": "MIS|MUMO|MHAB ou vazio",
-  "descricao_servico": "string",
-  "competencia": "string",
-  "tipo_servico": "string",
-  "municipio": "string",
-  "tomador_correto": boolean,
-  "tomador_cnpj_encontrado": "string",
-  "descricao_conforme_padrao": boolean,
-  "dados_pagamento": { "banco": "", "agencia": "", "conta": "", "cpf_cnpj": "", "pix": "" },
-  "inconsistencias": [],
-  "pendencias": [],
-  "avisos": [],
-  "risco_duplicacao": "baixo|médio|alto",
-  "score_confiabilidade": 0-100,
-  "categoria_sugerida": "string",
-  "justificativa_rubrica": "string"
-}`,
-      file_urls: [fileUrl],
-      response_json_schema: {
-        type: 'object',
-        properties: {
-          eh_nota_fiscal: { type: 'boolean' },
-          eh_documento_complementar: { type: 'boolean' },
-          tipo_documento_complementar: { type: 'string' },
-          nf_numero_referenciado: { type: 'string' },
-          nf_numero: { type: 'string' },
-          nf_valor_total: { type: 'string' },
-          nf_data_emissao: { type: 'string' },
-          nf_emitente_nome: { type: 'string' },
-          nf_emitente_cpf_cnpj: { type: 'string' },
-          nome_profissional: { type: 'string' },
-          funcao_exercida: { type: 'string' },
-          museu_atuacao: { type: 'string' },
-          descricao_servico: { type: 'string' },
-          competencia: { type: 'string' },
-          tipo_servico: { type: 'string' },
-          municipio: { type: 'string' },
-          tomador_correto: { type: 'boolean' },
-          tomador_cnpj_encontrado: { type: 'string' },
-          descricao_conforme_padrao: { type: 'boolean' },
-          dados_pagamento: {
-            type: 'object',
-            properties: {
-              banco: { type: 'string' },
-              agencia: { type: 'string' },
-              conta: { type: 'string' },
-              cpf_cnpj: { type: 'string' },
-              pix: { type: 'string' },
-            },
-          },
-          inconsistencias: { type: 'array', items: { type: 'string' } },
-          pendencias: { type: 'array', items: { type: 'string' } },
-          avisos: { type: 'array', items: { type: 'string' } },
-          risco_duplicacao: { type: 'string' },
-          score_confiabilidade: { type: 'number' },
-          categoria_sugerida: { type: 'string' },
-          justificativa_rubrica: { type: 'string' },
-        },
-      },
-    });
-
-    return { success: true, data: resp, model: 'gpt_5_4' };
-  } catch (e) {
-    console.error('Erro ao processar com GPT:', e.message);
-    return { success: false, error: e.message, model: 'gpt_5_4' };
-  }
-}
-
-// ======================================================================
-// VINCULAÇÃO DE DOCUMENTO COMPLEMENTAR (Recibo / Comprovante)
-// ======================================================================
-
-/**
- * Detecta se o documento analisado é complementar de uma NF existente e
- * retorna o intake/purchase_request de referência caso coincida.
- * Critérios: valor + CPF/CNPJ coincidem OU número da NF referenciado coincide.
- */
 async function vincularDocumentoComplementar(base44, ia, intakeId) {
   const ehComplementar = ia.eh_documento_complementar === true && !ia.eh_nota_fiscal;
   if (!ehComplementar) return null;
@@ -487,20 +167,11 @@ async function vincularDocumentoComplementar(base44, ia, intakeId) {
   const nfRefNum = safeStr(ia.nf_numero_referenciado || ia.nf_numero);
   const nomeEmitente = normalizeText(ia.nf_emitente_nome || '');
 
-  // Buscar candidatos por número de NF referenciado e por CNPJ
   const [intakesPorNum, purchasesPorNum, intakesPorCnpj, purchasesPorCnpj] = await Promise.all([
-    nfRefNum
-      ? base44.asServiceRole.entities.DocumentIntake.filter({ nf_numero: nfRefNum }, '-created_date', 20).catch(() => [])
-      : Promise.resolve([]),
-    nfRefNum
-      ? base44.asServiceRole.entities.PurchaseRequest.filter({ nf_numero: nfRefNum }, '-created_date', 20).catch(() => [])
-      : Promise.resolve([]),
-    cnpj
-      ? base44.asServiceRole.entities.DocumentIntake.filter({ nf_emitente_cpf_cnpj: cnpj }, '-created_date', 100).catch(() => [])
-      : Promise.resolve([]),
-    cnpj
-      ? base44.asServiceRole.entities.PurchaseRequest.filter({ fornecedor_cnpj: cnpj }, '-created_date', 100).catch(() => [])
-      : Promise.resolve([]),
+    nfRefNum ? base44.asServiceRole.entities.DocumentIntake.filter({ nf_numero: nfRefNum }, '-created_date', 20).catch(() => []) : Promise.resolve([]),
+    nfRefNum ? base44.asServiceRole.entities.PurchaseRequest.filter({ nf_numero: nfRefNum }, '-created_date', 20).catch(() => []) : Promise.resolve([]),
+    cnpj ? base44.asServiceRole.entities.DocumentIntake.filter({ nf_emitente_cpf_cnpj: cnpj }, '-created_date', 100).catch(() => []) : Promise.resolve([]),
+    cnpj ? base44.asServiceRole.entities.PurchaseRequest.filter({ fornecedor_cnpj: cnpj }, '-created_date', 100).catch(() => []) : Promise.resolve([]),
   ]);
 
   const candidatos = new Map();
@@ -519,17 +190,12 @@ async function vincularDocumentoComplementar(base44, ia, intakeId) {
     const cCnpj = onlyDigits(candidato.nf_emitente_cpf_cnpj || candidato.fornecedor_cnpj || '');
     const cValor = parseValor(candidato.nf_valor_total || candidato.valor_solicitado || 0);
     const cNome = normalizeText(candidato.nf_emitente_nome || candidato.fornecedor_nome || '');
-
     let score = 0;
     if (nfRefNum && cNum && nfRefNum === cNum) score += 40;
     if (cnpj && cCnpj && cnpj === cCnpj) score += 30;
     if (valor > 0 && cValor > 0 && Math.abs(valor - cValor) < 0.02) score += 20;
     if (nomeEmitente.length >= 5 && cNome.length >= 5 && (cNome.startsWith(nomeEmitente.slice(0, 8)) || nomeEmitente.startsWith(cNome.slice(0, 8)))) score += 10;
-
-    if (score >= 50 && score > melhorScore) {
-      melhorScore = score;
-      melhorCandidato = candidato;
-    }
+    if (score >= 50 && score > melhorScore) { melhorScore = score; melhorCandidato = candidato; }
   }
 
   return melhorCandidato
@@ -537,11 +203,6 @@ async function vincularDocumentoComplementar(base44, ia, intakeId) {
     : null;
 }
 
-/**
- * Constrói o nome padronizado para documentos complementares (Recibo / Comprovante).
- * NF [número] - [razão social] - [profissional] - MUSEUS CENTRO - [museu] - R$ [valor] - RECIBO
- * DOC COMPLEMENTAR - [razão social] - ... - [tipo]
- */
 function buildComplementarFileName(ia, tipoDoc) {
   const numero = safeStr(ia.nf_numero_referenciado || ia.nf_numero);
   const emitente = normalizeText(ia.nf_emitente_nome || 'FORNECEDOR').substring(0, 50);
@@ -550,11 +211,9 @@ function buildComplementarFileName(ia, tipoDoc) {
   const museu = MUSEUS_VALIDOS.includes(museuRaw) ? museuRaw : '';
   const valor = formatValorBR(ia.nf_valor_total);
   const sufixo = tipoDoc === 'RECIBO' ? 'RECIBO' : tipoDoc === 'COMPROVANTE_PAGAMENTO' ? 'COMPROVANTE' : 'DOCUMENTO COMPLEMENTAR';
-
   const profissionalPart = profissional && profissional !== emitente ? ` - ${profissional}` : '';
   const museuPart = museu ? ` - ${museu}` : '';
   const prefixo = numero ? `NF ${numero}` : 'DOC COMPLEMENTAR';
-
   return `${prefixo} - ${emitente}${profissionalPart} - MUSEUS CENTRO${museuPart} - R$ ${valor} - ${sufixo}.pdf`;
 }
 
@@ -573,23 +232,13 @@ async function verificarDuplicidadeNF(base44, ia, intakeId) {
   const alertas = [];
 
   try {
-    // Buscar candidatos por CNPJ e por número de NF em paralelo
     const [intakesCnpj, purchasesCnpj, intakesNum, purchasesNum] = await Promise.all([
-      cnpjEmitente
-        ? base44.asServiceRole.entities.DocumentIntake.filter({ nf_emitente_cpf_cnpj: cnpjEmitente }, '-created_date', 200).catch(() => [])
-        : Promise.resolve([]),
-      cnpjEmitente
-        ? base44.asServiceRole.entities.PurchaseRequest.filter({ fornecedor_cnpj: cnpjEmitente }, '-created_date', 200).catch(() => [])
-        : Promise.resolve([]),
-      nfNumero
-        ? base44.asServiceRole.entities.DocumentIntake.filter({ nf_numero: nfNumero }, '-created_date', 50).catch(() => [])
-        : Promise.resolve([]),
-      nfNumero
-        ? base44.asServiceRole.entities.PurchaseRequest.filter({ nf_numero: nfNumero }, '-created_date', 50).catch(() => [])
-        : Promise.resolve([]),
+      cnpjEmitente ? base44.asServiceRole.entities.DocumentIntake.filter({ nf_emitente_cpf_cnpj: cnpjEmitente }, '-created_date', 200).catch(() => []) : Promise.resolve([]),
+      cnpjEmitente ? base44.asServiceRole.entities.PurchaseRequest.filter({ fornecedor_cnpj: cnpjEmitente }, '-created_date', 200).catch(() => []) : Promise.resolve([]),
+      nfNumero ? base44.asServiceRole.entities.DocumentIntake.filter({ nf_numero: nfNumero }, '-created_date', 50).catch(() => []) : Promise.resolve([]),
+      nfNumero ? base44.asServiceRole.entities.PurchaseRequest.filter({ nf_numero: nfNumero }, '-created_date', 50).catch(() => []) : Promise.resolve([]),
     ]);
 
-    // Deduplica candidatos
     const candidatosMap = new Map();
     for (const r of [...(intakesCnpj || []), ...(intakesNum || [])]) {
       if (r?.id && r.id !== intakeId) candidatosMap.set(`intake:${r.id}`, { ...r, _tipo: 'intake' });
@@ -604,54 +253,24 @@ async function verificarDuplicidadeNF(base44, ia, intakeId) {
       const cNome = normalizeText(candidato.nf_emitente_nome || candidato.fornecedor_nome || '');
       const cData = safeStr(candidato.nf_data_emissao || '');
       const cValor = parseValor(candidato.nf_valor_total || candidato.valor_solicitado || 0);
-
-      const refLabel = candidato._tipo === 'intake'
-        ? `DocumentIntake #${candidato.id.slice(-6)}`
-        : `Solicitação ${candidato.numero_processamento || ('#' + candidato.id.slice(-6))}`;
+      const refLabel = candidato._tipo === 'intake' ? `DocumentIntake #${candidato.id.slice(-6)}` : `Solicitação ${candidato.numero_processamento || ('#' + candidato.id.slice(-6))}`;
       const emissorLabel = candidato.nf_emitente_nome || candidato.fornecedor_nome || '';
 
-      // Regra 1: número NF + CNPJ emitente iguais → duplicidade provável
       if (nfNumero && cNum && nfNumero === cNum && cnpjEmitente && cCnpj && cnpjEmitente === cCnpj) {
-        alertas.push({
-          tipo: 'duplicidade_provavel',
-          nivel: 'critico',
-          mensagem: `⛔ DUPLICIDADE PROVÁVEL: NF ${nfNumero} do emissor CNPJ ${cnpjEmitente} já existe no sistema (${refLabel}${emissorLabel ? ' — ' + emissorLabel : ''}). Verifique antes de aprovar.`,
-          referencia_id: candidato.id,
-          referencia_tipo: candidato._tipo,
-          referencia_label: refLabel,
-        });
-        continue; // já encontrou o mais grave, não continua para este candidato
-      }
-
-      // Regra 2: número NF igual, CNPJ diferente → inconsistência para revisão
-      if (nfNumero && cNum && nfNumero === cNum && cnpjEmitente && cCnpj && cnpjEmitente !== cCnpj) {
-        alertas.push({
-          tipo: 'inconsistencia_numero',
-          nivel: 'atencao',
-          mensagem: `⚠️ INCONSISTÊNCIA: NF ${nfNumero} já existe no sistema com CNPJ diferente (${refLabel}${emissorLabel ? ' — ' + emissorLabel : ''}). Confira se não é erro de digitação.`,
-          referencia_id: candidato.id,
-          referencia_tipo: candidato._tipo,
-          referencia_label: refLabel,
-        });
+        alertas.push({ tipo: 'duplicidade_provavel', nivel: 'critico', mensagem: `⛔ DUPLICIDADE PROVÁVEL: NF ${nfNumero} do emissor CNPJ ${cnpjEmitente} já existe no sistema (${refLabel}${emissorLabel ? ' — ' + emissorLabel : ''}). Verifique antes de aprovar.`, referencia_id: candidato.id, referencia_tipo: candidato._tipo, referencia_label: refLabel });
         continue;
       }
-
-      // Regra 3: CNPJ + nome emitente + data + valor iguais (mesmo sem número igual)
+      if (nfNumero && cNum && nfNumero === cNum && cnpjEmitente && cCnpj && cnpjEmitente !== cCnpj) {
+        alertas.push({ tipo: 'inconsistencia_numero', nivel: 'atencao', mensagem: `⚠️ INCONSISTÊNCIA: NF ${nfNumero} já existe no sistema com CNPJ diferente (${refLabel}${emissorLabel ? ' — ' + emissorLabel : ''}). Confira se não é erro de digitação.`, referencia_id: candidato.id, referencia_tipo: candidato._tipo, referencia_label: refLabel });
+        continue;
+      }
       const cnpjIgual = cnpjEmitente && cCnpj && cnpjEmitente === cCnpj;
       const nomeIgual = nomeEmitente.length >= 5 && cNome.length >= 5 && (cNome.startsWith(nomeEmitente.slice(0, 8)) || nomeEmitente.startsWith(cNome.slice(0, 8)));
       const dataIgual = dataEmissao && cData && dataEmissao === cData;
       const valorIgual = valor > 0 && cValor > 0 && Math.abs(valor - cValor) < 0.02;
-
       if (cnpjIgual && nomeIgual && dataIgual && valorIgual) {
         const valorFmt = valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        alertas.push({
-          tipo: 'possivel_duplicidade',
-          nivel: 'atencao',
-          mensagem: `⚠️ POSSÍVEL DUPLICIDADE: Emissor ${ia.nf_emitente_nome}, data ${dataEmissao} e valor R$ ${valorFmt} já encontrados no sistema (${refLabel}). Verifique antes de aprovar.`,
-          referencia_id: candidato.id,
-          referencia_tipo: candidato._tipo,
-          referencia_label: refLabel,
-        });
+        alertas.push({ tipo: 'possivel_duplicidade', nivel: 'atencao', mensagem: `⚠️ POSSÍVEL DUPLICIDADE: Emissor ${ia.nf_emitente_nome}, data ${dataEmissao} e valor R$ ${valorFmt} já encontrados no sistema (${refLabel}). Verifique antes de aprovar.`, referencia_id: candidato.id, referencia_tipo: candidato._tipo, referencia_label: refLabel });
       }
     }
   } catch (err) {
@@ -662,14 +281,13 @@ async function verificarDuplicidadeNF(base44, ia, intakeId) {
 }
 
 // ======================================================================
-// VALIDAÇÕES PÓS-EXTRAÇÃO (não bloqueantes)
+// VALIDAÇÕES PÓS-EXTRAÇÃO
 // ======================================================================
 function gerarPendenciasEValidacoes(ia, body) {
   const inconsistencias = Array.isArray(ia.inconsistencias) ? [...ia.inconsistencias] : [];
   const pendencias = Array.isArray(ia.pendencias) ? [...ia.pendencias] : [];
   const avisos = Array.isArray(ia.avisos) ? [...ia.avisos] : [];
 
-  // 1. Verificar tomador
   if (ia.tomador_correto === false) {
     const cnpjEncontrado = safeStr(ia.tomador_cnpj_encontrado);
     if (cnpjEncontrado && onlyDigits(cnpjEncontrado) !== TOMADOR_ESPERADO.cnpj) {
@@ -678,34 +296,18 @@ function gerarPendenciasEValidacoes(ia, body) {
       pendencias.push('Campo Tomador não localizado na NF. Verifique se o documento está completo.');
     }
   }
+  if (ia.descricao_conforme_padrao === false) pendencias.push('Descrição do serviço não segue o padrão esperado: "Prestação de serviço de [função] ao Projeto Museus Centro - Termo de Colaboração 01-031.069/24-80..."');
 
-  // 2. Verificar descrição do serviço
-  if (ia.descricao_conforme_padrao === false) {
-    pendencias.push('Descrição do serviço não segue o padrão esperado: "Prestação de serviço de [função] ao Projeto Museus Centro - Termo de Colaboração 01-031.069/24-80..."');
-  }
-
-  // 3. Museu obrigatório para educadores e produtores
   const funcao = safeStr(ia.funcao_exercida);
   const museu = safeStr(ia.museu_atuacao).toUpperCase();
-  if (funcaoExigeMuseu(funcao) && !MUSEUS_VALIDOS.includes(museu)) {
-    pendencias.push(`⚠️ Função "${funcao}" exige identificação do museu de atuação (MIS, MUMO ou MHAB). Não identificado na NF.`);
-  }
+  if (funcaoExigeMuseu(funcao) && !MUSEUS_VALIDOS.includes(museu)) pendencias.push(`⚠️ Função "${funcao}" exige identificação do museu de atuação (MIS, MUMO ou MHAB). Não identificado na NF.`);
 
-  // 4. Campos de pagamento ausentes
   const pag = ia.dados_pagamento || {};
   if (!pag.banco) pendencias.push('Dados de pagamento: Banco não identificado.');
   if (!pag.conta) pendencias.push('Dados de pagamento: Conta não identificada.');
   if (!pag.cpf_cnpj && !pag.pix) pendencias.push('Dados de pagamento: CPF/CNPJ e PIX não identificados.');
-
-  // 5. Risco de duplicação
-  if (ia.risco_duplicacao === 'alto') {
-    pendencias.push('⚠️ RISCO ALTO DE DUPLICAÇÃO: Verifique se já existe NF similar no sistema.');
-  }
-
-  // 6. Nome do profissional ausente
-  if (!safeStr(ia.nome_profissional)) {
-    pendencias.push('Nome do profissional/prestador não identificado na NF.');
-  }
+  if (ia.risco_duplicacao === 'alto') pendencias.push('⚠️ RISCO ALTO DE DUPLICAÇÃO: Verifique se já existe NF similar no sistema.');
+  if (!safeStr(ia.nome_profissional)) pendencias.push('Nome do profissional/prestador não identificado na NF.');
 
   return { inconsistencias, pendencias, avisos };
 }
@@ -717,94 +319,45 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
-
-    if (!user) {
-      return Response.json({ ok: false, error: 'Não autenticado' }, { status: 401 });
-    }
+    if (!user) return Response.json({ ok: false, error: 'Não autenticado' }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
     const intakeId = safeStr(body.intake_id);
     const fileUrl = safeStr(body.file_url);
     const orientacoes = safeStr(body.orientacoes_usuario);
-    const modeloPreferido = safeStr(body.modelo || 'claude').toLowerCase();
 
-    if (!intakeId || !fileUrl) {
-      return Response.json({ ok: false, error: 'intake_id e file_url obrigatórios' }, { status: 400 });
-    }
+    if (!intakeId || !fileUrl) return Response.json({ ok: false, error: 'intake_id e file_url obrigatórios' }, { status: 400 });
 
-    // Marcar como processando
-    await base44.asServiceRole.entities.DocumentIntake.update(intakeId, {
-      status_processamento: 'ANALISANDO_IA',
-    });
+    await base44.asServiceRole.entities.DocumentIntake.update(intakeId, { status_processamento: 'ANALISANDO_IA' });
 
-    // Ordem de tentativas
-    let tentativas = [];
-    if (modeloPreferido === 'gemini') {
-      tentativas = [
-        () => processarComGemini(base44, fileUrl, orientacoes),
-        () => processarComClaude(base44, fileUrl, orientacoes),
-        () => processarComGPT(base44, fileUrl, orientacoes),
-      ];
-    } else if (modeloPreferido === 'gpt') {
-      tentativas = [
-        () => processarComGPT(base44, fileUrl, orientacoes),
-        () => processarComClaude(base44, fileUrl, orientacoes),
-        () => processarComGemini(base44, fileUrl, orientacoes),
-      ];
-    } else {
-      // padrão: Claude → Gemini → GPT
-      tentativas = [
-        () => processarComClaude(base44, fileUrl, orientacoes),
-        () => processarComGemini(base44, fileUrl, orientacoes),
-        () => processarComGPT(base44, fileUrl, orientacoes),
-      ];
-    }
-
-    let resultado = null;
-    let modeloUsado = 'nenhum';
-
-    for (const tentativa of tentativas) {
-      resultado = await tentativa();
-      if (resultado.success) {
-        modeloUsado = resultado.model;
-        console.log(`✅ Processamento com sucesso usando ${modeloUsado}`);
-        break;
-      } else {
-        console.warn(`⚠️ Falha com ${resultado.model}: ${resultado.error}`);
-      }
-    }
-
-    if (!resultado || !resultado.success) {
+    let resultado;
+    try {
+      resultado = await processarComOpenAI(fileUrl, orientacoes);
+    } catch (e) {
+      console.error('Erro OpenAI:', e.message);
       await base44.asServiceRole.entities.DocumentIntake.update(intakeId, {
         status_processamento: 'ERRO_PROCESSAMENTO',
-        erros_validacao: ['Falha ao analisar com nenhum modelo de IA disponível.'],
+        erros_validacao: ['Falha ao analisar com IA: ' + e.message],
       });
-      return Response.json({ ok: false, error: 'Nenhum modelo de IA conseguiu processar o documento' }, { status: 500 });
+      return Response.json({ ok: false, error: e.message }, { status: 500 });
     }
 
     const ia = resultado.data || {};
+    const modeloUsado = resultado.model;
 
-    // Normalização imediata dos campos críticos (independente do modelo usado)
     if (ia.nf_data_emissao) ia.nf_data_emissao = normalizeDate(ia.nf_data_emissao);
     if (ia.nf_emitente_cpf_cnpj) ia.nf_emitente_cpf_cnpj = onlyDigits(ia.nf_emitente_cpf_cnpj);
     if (ia.dados_pagamento?.cpf_cnpj) ia.dados_pagamento.cpf_cnpj = onlyDigits(ia.dados_pagamento.cpf_cnpj);
     if (ia.tomador_cnpj_encontrado) ia.tomador_cnpj_encontrado = onlyDigits(ia.tomador_cnpj_encontrado);
     console.log(`📋 Campos extraídos — data: "${ia.nf_data_emissao}", CNPJ: "${ia.nf_emitente_cpf_cnpj}", valor: "${ia.nf_valor_total}", num: "${ia.nf_numero}"`);
 
-    // Gerar pendências e validações pós-extração
     const { inconsistencias, pendencias, avisos } = gerarPendenciasEValidacoes(ia, body);
-
-    // Verificar duplicidade no banco de dados
     const alertasDuplicidade = await verificarDuplicidadeNF(base44, ia, intakeId);
     for (const alerta of alertasDuplicidade) {
-      if (alerta.nivel === 'critico') {
-        inconsistencias.unshift(alerta.mensagem);
-      } else {
-        pendencias.unshift(alerta.mensagem);
-      }
+      if (alerta.nivel === 'critico') inconsistencias.unshift(alerta.mensagem);
+      else pendencias.unshift(alerta.mensagem);
     }
 
-    // Verificar se é documento complementar (recibo/comprovante) e vincular à NF
     const vinculoComplementar = await vincularDocumentoComplementar(base44, ia, intakeId);
     let nfVinculadaId = null;
     let nfVinculadaTipo = null;
@@ -813,75 +366,44 @@ Deno.serve(async (req) => {
       const { candidato, score, divergencia_valor } = vinculoComplementar;
       nfVinculadaId = candidato.id;
       nfVinculadaTipo = candidato._tipo;
-
       if (divergencia_valor) {
-        // Divergência de valor → pendência para revisão humana
-        const valorDoc = formatValorBR(ia.nf_valor_total);
-        const valorNF = formatValorBR(candidato.nf_valor_total || candidato.valor_solicitado || 0);
-        pendencias.unshift(`⚠️ DOCUMENTO COMPLEMENTAR vinculado à NF ${candidato.nf_numero || nfVinculadaId} com DIVERGÊNCIA DE VALOR: documento R$ ${valorDoc} ≠ NF R$ ${valorNF}. Revisão manual necessária.`);
+        pendencias.unshift(`⚠️ DOCUMENTO COMPLEMENTAR vinculado à NF ${candidato.nf_numero || nfVinculadaId} com DIVERGÊNCIA DE VALOR. Revisão manual necessária.`);
       } else {
-        avisos.unshift(`ℹ️ Documento complementar (${ia.tipo_documento_complementar || 'complementar'}) vinculado à NF ${candidato.nf_numero || nfVinculadaId} com score de correspondência ${score}%. Nenhuma ação financeira criada.`);
+        avisos.unshift(`ℹ️ Documento complementar vinculado à NF ${candidato.nf_numero || nfVinculadaId} com score ${score}%.`);
       }
-
-      // Se for PurchaseRequest, atualizar o campo comprovante_url com a URL deste documento
       if (candidato._tipo === 'purchase' && !candidato.comprovante_url && fileUrl) {
-        try {
-          await base44.asServiceRole.entities.PurchaseRequest.update(candidato.id, {
-            comprovante_url: fileUrl,
-          });
-          console.log(`✅ Comprovante vinculado ao PurchaseRequest ${candidato.id}`);
-        } catch (e) {
-          console.warn('Não foi possível vincular comprovante ao PurchaseRequest:', e.message);
-        }
+        base44.asServiceRole.entities.PurchaseRequest.update(candidato.id, { comprovante_url: fileUrl }).catch(() => {});
       }
     }
 
-    // Tipo detectado
     const ehDocComplementar = ia.eh_documento_complementar === true && !ia.eh_nota_fiscal;
-    let tipoDetectado;
-    if (ia.eh_nota_fiscal) {
-      tipoDetectado = fileUrl.includes('.xml') ? 'NOTA_FISCAL_XML' : 'NOTA_FISCAL_PDF';
-    } else if (ehDocComplementar) {
-      tipoDetectado = 'DOCUMENTO_ADMINISTRATIVO'; // não cria nova solicitação
-    } else {
-      tipoDetectado = 'DOCUMENTO_ADMINISTRATIVO';
-    }
+    let tipoDetectado = 'DOCUMENTO_ADMINISTRATIVO';
+    if (ia.eh_nota_fiscal) tipoDetectado = fileUrl.includes('.xml') ? 'NOTA_FISCAL_XML' : 'NOTA_FISCAL_PDF';
 
-    // Nome do arquivo com novo padrão
     let nomeFinal = '';
     if (ia.eh_nota_fiscal) {
-      nomeFinal = buildRenamedNF({
-        nf_numero: ia.nf_numero,
-        nf_emitente_nome: ia.nf_emitente_nome,
-        nome_profissional: ia.nome_profissional,
-        museu_atuacao: ia.museu_atuacao,
-        nf_valor_total: ia.nf_valor_total,
-        extension: fileUrl.includes('.xml') ? 'xml' : 'pdf',
-      });
+      nomeFinal = buildRenamedNF({ nf_numero: ia.nf_numero, nf_emitente_nome: ia.nf_emitente_nome, nome_profissional: ia.nome_profissional, museu_atuacao: ia.museu_atuacao, nf_valor_total: ia.nf_valor_total, extension: fileUrl.includes('.xml') ? 'xml' : 'pdf' });
     } else if (ehDocComplementar) {
-      const tipoDoc = safeStr(ia.tipo_documento_complementar) || 'DOCUMENTO_COMPLEMENTAR';
-      nomeFinal = buildComplementarFileName(ia, tipoDoc);
+      nomeFinal = buildComplementarFileName(ia, safeStr(ia.tipo_documento_complementar) || 'DOCUMENTO_COMPLEMENTAR');
     }
 
-    // Montar resultado_ia enriquecido
+    const dataNormalizada = normalizeDate(ia.nf_data_emissao);
+    const cnpjNormalizado = onlyDigits(ia.nf_emitente_cpf_cnpj || '');
+    const todasPendencias = [...inconsistencias, ...pendencias, ...avisos];
+
     const resultadoIaCompleto = {
       ...ia,
       modelo_ia_utilizado: modeloUsado,
       score_confiabilidade: ia.score_confiabilidade || 0,
-      // Dados de pagamento extraídos
       dados_pagamento: ia.dados_pagamento || {},
-      // Validações do tomador
       tomador_correto: ia.tomador_correto ?? null,
       tomador_cnpj_encontrado: ia.tomador_cnpj_encontrado || '',
       descricao_conforme_padrao: ia.descricao_conforme_padrao ?? null,
-      // Vínculo
       nome_profissional: ia.nome_profissional || '',
       funcao_exercida: ia.funcao_exercida || '',
       museu_atuacao: ia.museu_atuacao || '',
-      // Alertas de duplicidade
       alertas_duplicidade: alertasDuplicidade,
       tem_duplicidade: alertasDuplicidade.length > 0,
-      // Documento complementar
       eh_documento_complementar: ia.eh_documento_complementar || false,
       tipo_documento_complementar: ia.tipo_documento_complementar || null,
       nf_numero_referenciado: ia.nf_numero_referenciado || '',
@@ -889,35 +411,10 @@ Deno.serve(async (req) => {
       nf_vinculada_tipo: nfVinculadaTipo,
     };
 
-    // Todas as pendências juntas (não bloqueam o envio)
-    const todasPendencias = [
-      ...inconsistencias,
-      ...pendencias,
-      ...avisos,
-    ];
-
-    // Salvar resultado — NÃO alterar aprovações existentes
     const intakeAtual = await base44.asServiceRole.entities.DocumentIntake.get(intakeId).catch(() => null);
-
-    // Campos que NÃO devem ser sobrescritos se já houver aprovação
     const jaAprovado = ['APROVADO', 'PAGO'].includes(safeStr(intakeAtual?.status_processamento));
 
-    // Normaliza data de emissão para YYYY-MM-DD antes de salvar
-    const dataNormalizada = normalizeDate(ia.nf_data_emissao);
-    if (dataNormalizada && ia.nf_data_emissao !== dataNormalizada) {
-      console.log(`📅 Data normalizada: "${ia.nf_data_emissao}" → "${dataNormalizada}"`);
-      ia.nf_data_emissao = dataNormalizada;
-      resultadoIaCompleto.nf_data_emissao = dataNormalizada;
-    }
-
-    // Normaliza CNPJ/CPF do emitente (só dígitos)
-    const cnpjNormalizado = onlyDigits(ia.nf_emitente_cpf_cnpj || '');
-    if (cnpjNormalizado) {
-      ia.nf_emitente_cpf_cnpj = cnpjNormalizado;
-      resultadoIaCompleto.nf_emitente_cpf_cnpj = cnpjNormalizado;
-    }
-
-    const updatePayload = {
+    await base44.asServiceRole.entities.DocumentIntake.update(intakeId, {
       tipo_detectado: tipoDetectado,
       status_processamento: jaAprovado ? intakeAtual.status_processamento : 'AGUARDANDO_REVISAO',
       resultado_ia: resultadoIaCompleto,
@@ -925,7 +422,6 @@ Deno.serve(async (req) => {
       rubrica_justificativa: ia.justificativa_rubrica || '',
       erros_validacao: todasPendencias,
       revisado_pelo_usuario: false,
-      // Dados de pagamento no nível raiz para acesso fácil nos modais
       fornecedor_nome: ia.nf_emitente_nome || intakeAtual?.fornecedor_nome || '',
       nf_emitente_nome: ia.nf_emitente_nome || '',
       nf_numero: ia.nf_numero || '',
@@ -934,41 +430,16 @@ Deno.serve(async (req) => {
       municipio: ia.municipio || '',
       nf_emitente_cpf_cnpj: cnpjNormalizado || '',
       fornecedor_cpf_cnpj: cnpjNormalizado || '',
-    };
+    });
 
-    await base44.asServiceRole.entities.DocumentIntake.update(intakeId, updatePayload);
-
-    // Log de auditoria
     try {
       await base44.asServiceRole.entities.AuditLog.create({
-        action: 'UPDATE',
-        entity_type: 'DOCUMENT_INTAKE',
-        entity_id: intakeId,
-        actor_email: user.email,
-        actor_name: user.full_name || user.name || '',
-        details: `NF processada com ${modeloUsado}. Tipo: ${tipoDetectado}. Score: ${ia.score_confiabilidade || 0}%. Tomador correto: ${ia.tomador_correto}. Museu: ${ia.museu_atuacao || 'N/A'}. Pendências: ${todasPendencias.length}.`,
+        action: 'UPDATE', entity_type: 'DOCUMENT_INTAKE', entity_id: intakeId, actor_email: user.email, actor_name: user.full_name || '',
+        details: `NF processada com ${modeloUsado}. Tipo: ${tipoDetectado}. Score: ${ia.score_confiabilidade || 0}%. Pendências: ${todasPendencias.length}.`,
       });
-    } catch (logErr) {
-      console.warn('Erro ao registrar auditoria:', logErr);
-    }
+    } catch {}
 
-    return Response.json({
-      ok: true,
-      intake_id: intakeId,
-      tipo_detectado: tipoDetectado,
-      modelo_utilizado: modeloUsado,
-      score_confiabilidade: ia.score_confiabilidade || 0,
-      resultado_ia: resultadoIaCompleto,
-      file_name_final: nomeFinal,
-      pendencias: todasPendencias,
-      requer_revisao: todasPendencias.length > 0,
-      alertas_duplicidade: alertasDuplicidade,
-      tem_duplicidade: alertasDuplicidade.length > 0,
-      eh_documento_complementar: ehDocComplementar,
-      tipo_documento_complementar: ia.tipo_documento_complementar || null,
-      nf_vinculada_id: nfVinculadaId,
-      nf_vinculada_tipo: nfVinculadaTipo,
-    });
+    return Response.json({ ok: true, intake_id: intakeId, tipo_detectado: tipoDetectado, modelo_utilizado: modeloUsado, score_confiabilidade: ia.score_confiabilidade || 0, resultado_ia: resultadoIaCompleto, file_name_final: nomeFinal, pendencias: todasPendencias, requer_revisao: todasPendencias.length > 0, alertas_duplicidade: alertasDuplicidade, tem_duplicidade: alertasDuplicidade.length > 0, eh_documento_complementar: ehDocComplementar, tipo_documento_complementar: ia.tipo_documento_complementar || null, nf_vinculada_id: nfVinculadaId, nf_vinculada_tipo: nfVinculadaTipo });
   } catch (error) {
     return Response.json({ ok: false, error: error.message }, { status: 500 });
   }

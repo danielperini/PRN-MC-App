@@ -1,5 +1,24 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.21';
 
+async function invokeOpenAI({ prompt, jsonSchema = null, model = 'gpt-4o-mini' }: any): Promise<any> {
+  const apiKey = Deno.env.get('OPENAI_API_KEY');
+  if (!apiKey) throw new Error('OPENAI_API_KEY não configurada');
+  const body: any = { model, messages: [{ role: 'user', content: prompt }], max_tokens: 1024, temperature: 0.1 };
+  if (jsonSchema) body.response_format = { type: 'json_object' };
+  let lastErr: any;
+  for (let i = 0; i < 2; i++) {
+    try {
+      const resp = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(30_000) });
+      if (!resp.ok) { const t = await resp.text().catch(() => resp.statusText); throw new Error(`OpenAI ${resp.status}: ${t}`); }
+      const data = await resp.json();
+      const content = data?.choices?.[0]?.message?.content ?? '';
+      if (jsonSchema) { try { return JSON.parse(content); } catch { const m = content.match(/\{[\s\S]*\}/); return m ? JSON.parse(m[0]) : null; } }
+      return content;
+    } catch (e: any) { lastErr = e; if (i === 0) await new Promise(r => setTimeout(r, 1000)); }
+  }
+  throw lastErr;
+}
+
 function toNumber(value: unknown): number {
   if (value === null || value === undefined || value === '') return 0;
   const n = Number(value);
@@ -226,9 +245,8 @@ Deno.serve(async (req) => {
       ? `\nBase oficial do 3º Aditivo:\n${baseConhecimento}\n`
       : '';
 
-    const llmRaw = await base44.asServiceRole.integrations.Core.InvokeLLM({
-      prompt: `
-Escolha a melhor rubrica para esta compra.
+    const llmRaw = await invokeOpenAI({
+      prompt: `Escolha a melhor rubrica para esta compra.
 ${baseSection}
 Compra: ${descricao}
 Fornecedor: ${fornecedor}
@@ -240,15 +258,12 @@ Rubricas disponíveis:
 ${context}
 
 Responda somente JSON válido:
-{"rubrica_id":"","score":0,"justificativa":"","meta_nome":"","centro_custo":""}
-`,
+{"rubrica_id":"","score":0,"justificativa":"","meta_nome":"","centro_custo":""}`,
+      jsonSchema: { type: 'object' },
+      model: 'gpt-4o-mini',
     });
 
-    const llmResult =
-      tryParseJson(llmRaw?.output) ||
-      tryParseJson(llmRaw?.result) ||
-      tryParseJson(llmRaw?.text) ||
-      tryParseJson(llmRaw);
+    const llmResult = llmRaw;
 
     const found = valid.find((r: any) => r.id === llmResult?.rubrica_id);
 

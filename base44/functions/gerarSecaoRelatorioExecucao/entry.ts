@@ -1,5 +1,27 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 
+async function invokeOpenAI({ prompt, fileUrls = [], jsonSchema = null, model = 'gpt-4o-mini' }: any): Promise<any> {
+  const apiKey = Deno.env.get('OPENAI_API_KEY');
+  if (!apiKey) throw new Error('OPENAI_API_KEY não configurada');
+  const userContent: any[] = [{ type: 'text', text: prompt }];
+  for (const url of fileUrls) { if (url) userContent.push({ type: 'image_url', image_url: { url, detail: 'high' } }); }
+  const body: any = { model, messages: [{ role: 'user', content: userContent.length === 1 ? userContent[0].text : userContent }], max_tokens: 4096, temperature: 0.2 };
+  if (jsonSchema) body.response_format = { type: 'json_object' };
+  let lastErr: any;
+  for (let i = 0; i < 2; i++) {
+    try {
+      const resp = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(90_000) });
+      if (!resp.ok) { const t = await resp.text().catch(() => resp.statusText); throw new Error(`OpenAI ${resp.status}: ${t}`); }
+      const data = await resp.json();
+      const content = data?.choices?.[0]?.message?.content ?? '';
+      const usage = data?.usage; if (usage) console.log(`[OpenAI] model=${model} in=${usage.prompt_tokens} out=${usage.completion_tokens}`);
+      if (jsonSchema) { try { return JSON.parse(content); } catch { const m = content.match(/\{[\s\S]*\}/); return m ? JSON.parse(m[0]) : {}; } }
+      return content;
+    } catch (e: any) { lastErr = e; if (i === 0) { console.warn('[OpenAI] retry:', e.message); await new Promise(r => setTimeout(r, 2000)); } }
+  }
+  throw lastErr;
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -237,9 +259,11 @@ REGRAS ABSOLUTAS:
 7. Citações literais apenas se o texto original foi fornecido.
 
 `;
-      const opts: any = { prompt: instrucao + prompt };
-      if (schema) opts.response_json_schema = schema;
-      return await base44.integrations.Core.InvokeLLM(opts);
+      return await invokeOpenAI({
+        prompt: instrucao + prompt,
+        jsonSchema: schema || null,
+        model: 'gpt-4o-mini',
+      });
     }
 
     // Normalizar chave de seção para compatibilidade UI → switch
