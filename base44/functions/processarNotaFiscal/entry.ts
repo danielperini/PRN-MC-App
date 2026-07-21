@@ -96,6 +96,23 @@ function mapFuncao(funcao: string): string {
   return mapa[raw] || raw || 'OUTRO';
 }
 
+const MESES_ABREV = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+function getMuseuFromCC(cc: string): string {
+  const raw = normalizeText(cc);
+  if (raw.includes('MHAB') || raw.includes('ABILIO')) return 'MHAB';
+  if (raw.includes('MIS') || raw.includes('IMAGEM E SOM')) return 'MIS';
+  if (raw.includes('MUMO') || raw.includes('MODA')) return 'MUMO';
+  if (raw.includes('NOTURNO PAMPULHA')) return 'NOTURNO PAMPULHA';
+  if (raw.includes('NOTURNO')) return 'NOTURNO';
+  if (raw.includes('PUBLICAC')) return 'PUBLICACOES';
+  return 'GERAL';
+}
+
+function getProjeto(cc: string): string {
+  return normalizeText(cc).includes('NOTURNO') ? 'NOTURNO NOS MUSEUS 2026' : 'MUSEUS CENTRO';
+}
+
 function buildRenamedFileName(params: {
   sequencial: number;
   funcao: string;
@@ -104,33 +121,39 @@ function buildRenamedFileName(params: {
   extension: string;
   data?: string;
   natureza?: string;
+  museu?: string;
+  fornecedor?: string;
+  centro_custo?: string;
 }) {
-  const funcao = mapFuncao(params.funcao);
-  const nome = normalizeText(params.nome || 'SEM NOME');
-  const valor = formatCurrencyBR(params.valor || '0');
   const ext = params.extension || 'bin';
+  const num = String(params.sequencial).padStart(2, '0');
 
-  // Data: dd/MM/YYYY → YYYY-MM-DD ou mantém
+  // Data
   let dataPart = '';
   if (params.data) {
     const d = new Date(params.data);
     if (!isNaN(d.getTime())) {
-      const mes = String(d.getMonth() + 1).padStart(2, '0');
-      const ano = d.getFullYear();
-      const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-      dataPart = ` ${MESES[d.getMonth()]}${ano}`;
+      dataPart = ` ${MESES_ABREV[d.getMonth()]}${d.getFullYear()}`;
     }
   }
 
-  // Natureza de despesa curta
-  const naturezaPart = params.natureza
-    ? ` ${safeString(params.natureza).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, ' ').trim().substring(0, 30)}`
-    : '';
+  // Museu
+  const cc = params.centro_custo || params.museu || '';
+  const museu = getMuseuFromCC(cc);
+  const projeto = getProjeto(cc);
 
-  const museu = safeString(params.museu || '').toUpperCase();
-  const museuPart = museu ? ` [${museu}]` : '';
+  // Natureza
+  const natureza = safeString(params.natureza)
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 35);
 
-  return `NF ${params.sequencial} ${funcao}${dataPart}${naturezaPart}${museuPart} - ${nome} - MUSEUS CENTRO - R$ ${valor}.${ext}`;
+  // Fornecedor (prefere emitente da NF, fallback para nome do usuário)
+  const fornecedor = normalizeText(params.fornecedor || params.nome || 'FORNECEDOR').substring(0, 50);
+
+  const valor = formatCurrencyBR(params.valor || '0');
+  const naturezaPart = natureza ? ` ${natureza}` : '';
+
+  return `NF ${num}${dataPart} [${museu}]${naturezaPart} - ${fornecedor} - ${projeto} - R$ ${valor}.${ext}`;
 }
 
 function detectIsLikelyNF(fileName: string, content: string): boolean {
@@ -458,11 +481,12 @@ Deno.serve(async (req) => {
       sequencial,
       funcao: ownerFuncao,
       nome: ownerName,
+      fornecedor: parsed.nf_emitente_nome || safeString(body?.fornecedor_nome || attachment?.fornecedor_nome || ownerName),
       valor: parsed.nf_valor_total || '0',
       extension,
       data: parsed.nf_data_emissao || '',
-      natureza: safeString(body?.natureza_despesa || attachment?.natureza_despesa || ''),
-      museu: safeString(body?.centro_custo || attachment?.centro_custo || ''),
+      natureza: safeString(body?.natureza_despesa || body?.rubrica_nome || attachment?.natureza_despesa || ''),
+      centro_custo: safeString(body?.centro_custo || attachment?.centro_custo || ''),
     });
 
     const extractedPayload: NFExtraida = {
