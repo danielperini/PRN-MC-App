@@ -102,13 +102,32 @@ function buildRenamedFileName(params: {
   nome: string;
   valor: string;
   extension: string;
+  data?: string;
+  natureza?: string;
 }) {
   const funcao = mapFuncao(params.funcao);
   const nome = normalizeText(params.nome || 'SEM NOME');
   const valor = formatCurrencyBR(params.valor || '0');
   const ext = params.extension || 'bin';
 
-  return `NF ${params.sequencial} ${funcao} - ${nome} - MUSEUS CENTRO - R$ ${valor}.${ext}`;
+  // Data: dd/MM/YYYY → YYYY-MM-DD ou mantém
+  let dataPart = '';
+  if (params.data) {
+    const d = new Date(params.data);
+    if (!isNaN(d.getTime())) {
+      const mes = String(d.getMonth() + 1).padStart(2, '0');
+      const ano = d.getFullYear();
+      const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+      dataPart = ` ${MESES[d.getMonth()]}${ano}`;
+    }
+  }
+
+  // Natureza de despesa curta
+  const naturezaPart = params.natureza
+    ? ` ${safeString(params.natureza).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, ' ').trim().substring(0, 30)}`
+    : '';
+
+  return `NF ${params.sequencial} ${funcao}${dataPart}${naturezaPart} - ${nome} - MUSEUS CENTRO - R$ ${valor}.${ext}`;
 }
 
 function detectIsLikelyNF(fileName: string, content: string): boolean {
@@ -438,6 +457,8 @@ Deno.serve(async (req) => {
       nome: ownerName,
       valor: parsed.nf_valor_total || '0',
       extension,
+      data: parsed.nf_data_emissao || '',
+      natureza: safeString(body?.natureza_despesa || attachment?.natureza_despesa || ''),
     });
 
     const extractedPayload: NFExtraida = {
