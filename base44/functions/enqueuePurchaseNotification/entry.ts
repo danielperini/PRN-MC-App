@@ -111,6 +111,7 @@ Deno.serve(async (req) => {
       requested_at: now.toISOString(),
       batch_slot: batchSlot,
       batch_scheduled_at: batchScheduledAt.toISOString(),
+      link_app_compras: snapshot.link_app_compras,
       purchase_snapshot_json: snapshot
     });
 
