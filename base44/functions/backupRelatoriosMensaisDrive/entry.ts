@@ -173,7 +173,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const batchSize = Number(body.batchSize) || 10;
+    const batchSize = Number(body.batchSize) || 50;
     const skip = Number(body.skip) || 0;
     // Se forceAll=true, refaz mesmo os que já têm backup
     const forceAll = body.forceAll === true;
