@@ -71,7 +71,7 @@ Deno.serve(async (req) => {
       return acc;
     }, {});
 
-    const appBaseUrl = 'https://museus-centro.base44-apps.com';
+    const appBaseUrl = 'https://relatorios-perini-pro-mc-viadutodasartes.base44.app';
     const totalGeral = pendingItems.reduce((sum, item) => sum + (item.valor || 0), 0);
     const dataFormatada = now.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
@@ -145,9 +145,9 @@ Deno.serve(async (req) => {
       `;
 
       for (const item of items) {
-        const linkSolicitacao = item.purchase_id
-          ? `${appBaseUrl}/Compras?id=${item.purchase_id}`
-          : `${appBaseUrl}/Compras`;
+        const linkSolicitacao = item.link_app_compras || item.purchase_snapshot_json?.link_app_compras || (item.purchase_id
+          ? `${appBaseUrl}/Compras?purchaseId=${item.purchase_id}`
+          : `${appBaseUrl}/Compras`);
 
         const docsLinks = [];
         if (item.drive_backup_nf_pdf_link || item.nota_fiscal_pdf_url) {
