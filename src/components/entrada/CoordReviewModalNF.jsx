@@ -665,7 +665,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
         valor_total: valorTotal,
         valor: valorTotal,
 
-        meta_id: form.meta_id || 'MC3A-01',
+        meta_id: (form.meta_id && form.meta_id !== '__none__') ? form.meta_id : undefined,
         categoria: 'Nota Fiscal',
         tipo_gasto: form.tipo_gasto || 'Serviço',
 
@@ -993,11 +993,15 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
 
           <div className="space-y-1 w-full min-w-0">
             <Label>Meta do Projeto</Label>
-            <Select value={form.meta_id} onValueChange={(v) => setForm((f) => ({ ...f, meta_id: v }))}>
+            <Select
+              value={form.meta_id || undefined}
+              onValueChange={(v) => setForm((f) => ({ ...f, meta_id: v }))}
+            >
               <SelectTrigger className="w-full min-w-0">
                 <SelectValue placeholder="Selecionar meta" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-72 overflow-y-auto">
+                <SelectItem value="__none__">— Nenhuma —</SelectItem>
                 {METAS_PROJETO.map((meta) => (
                   <SelectItem key={meta.id} value={meta.id}>
                     {meta.label}
