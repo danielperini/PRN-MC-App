@@ -122,13 +122,9 @@ function MetaCard({ meta, onOpen, atividadesPorMuseu }) {
   const metaNumero = (meta._numero || meta.numero || '').replace('META ', '').replace(/^0+/, '');
   const totalAtividades = Object.values(atividadesPorMuseu || {}).reduce((s, v) => s + v, 0);
 
-  const { principal, secundario, tipoPrincipal } = resolveMetaPercentual(
-    meta,
-    totalAtividades,
-    METAS_FISICAS_QUANTITATIVAS
-  );
-
-  const pctDisplay = Math.min(principal, 100);
+  const resolved = resolveMetaPercentual(meta, totalAtividades, METAS_FISICAS_QUANTITATIVAS);
+  const { principal, secundario, tipoPrincipal, principalReal } = resolved;
+  const pctDisplay = principal; // já limitado a 100 em resolveMetaPercentual
   const isConcluida = meta.status === 'CONCLUÍDA';
   const StatusIcon = (isConcluida || principal >= 100) ? CheckCircle2 : AlertCircle;
 
@@ -178,7 +174,7 @@ function MetaCard({ meta, onOpen, atividadesPorMuseu }) {
         {/* Linha secundária */}
         {tipoPrincipal === 'fisico' && secundario !== null && (
           <p className="mt-1.5 text-[11px] text-slate-400">
-            % financeiro: {secundario}%{resolveMetaPercentual(meta, totalAtividades, METAS_FISICAS_QUANTITATIVAS).principalReal > 100 ? ` · físico real: ${resolveMetaPercentual(meta, totalAtividades, METAS_FISICAS_QUANTITATIVAS).principalReal}%` : ''}
+            % financeiro: {secundario}%{principalReal > 100 ? ` · físico real: ${principalReal}%` : ''}
           </p>
         )}
         {tipoPrincipal === 'financeiro' && (
