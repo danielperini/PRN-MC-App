@@ -15,11 +15,12 @@ const METAS_FISICAS_QUANTITATIVAS = {
   '5':   { meta: 60,  label: '60 ações educativas' },
   '6':   { meta: 36,  label: '36 ações culturais' },
   '10':  { meta: 18,  label: '18 mostras' },
-  '16':  { meta: 101, label: '101 diárias', valorUnitario: 300 },
   '19':  { meta: 4,   label: '4 ações Iemanjá' },
   '20':  { meta: 30,  label: '30 ações educativas/culturais' },
-  '11B': { meta: 1,   label: '1 edição Noturno Pampulha' },
 };
+
+// Metas puramente financeiras que ainda exibem contagem de atividades como texto
+const METAS_APENAS_FINANCEIRAS_COM_CONTAGEM = new Set(['11', '11B', '16']);
 
 const SEIS_MUSEUS = ['MHAB', 'MIS', 'MUMO', 'Casa Kubitschek', 'Casa do Baile', 'MAP'];
 const MUSEU_SHORT = { 'MHAB': 'MHAB', 'MIS': 'MIS', 'MUMO': 'MUMO', 'Casa Kubitschek': 'C.Kubi', 'Casa do Baile': 'C.Baile', 'MAP': 'MAP' };
@@ -195,8 +196,8 @@ function MetaCard({ meta, onOpen, atividadesPorMuseu, nfsAprovadas }) {
               <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-200">
                 <div className={`h-2 rounded-full transition-all ${barColorFromPct(principal)}`} style={{ width: `${pctDisplay}%` }} />
               </div>
-              {/* META 11: exibe contagem de atividades abaixo da barra, sem barra física */}
-              {metaNumero === '11' && totalAtividades > 0 && (
+              {/* Metas puramente financeiras: exibe contagem de atividades como texto */}
+              {METAS_APENAS_FINANCEIRAS_COM_CONTAGEM.has(metaNumero) && totalAtividades > 0 && (
                 <p className="mt-0.5 text-[10px] text-neutral-400">{totalAtividades} atividade{totalAtividades !== 1 ? 's' : ''} registradas</p>
               )}
             </div>
