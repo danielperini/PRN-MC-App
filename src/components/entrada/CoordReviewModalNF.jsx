@@ -163,6 +163,8 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   const [rubricas, setRubricas] = useState([]);
   const [rubricaBusca, setRubricaBusca] = useState('');
   const [rubricaDropdownOpen, setRubricaDropdownOpen] = useState(false);
+  const [metasProjeto, setMetasProjeto] = useState([]);
+  const [loadingMetas, setLoadingMetas] = useState(true);
   const [duplicateWarning, setDuplicateWarning] = useState(null);
   const [ignoreDuplicate, setIgnoreDuplicate] = useState(false);
   const rubricaRef = useRef(null);
@@ -222,8 +224,7 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     centro_custo: ia.centro_custo_sugerido || intake.centro_custo || '',
     rubrica_id: intake.rubrica_id_sugerida || '',
     file_name_final: intake.file_name_final || intake.file_name_original,
-    // Só pré-preenche meta se pertencer às metas oficiais do projeto
-    meta_id: SET_METAS_OFICIAIS.has(ia.meta_id || '') ? (ia.meta_id || '') : '',
+    meta_id: '',
     tipo_gasto: ia.tipo_gasto || 'Serviço',
   });
 
@@ -234,6 +235,23 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataEmissaoIA]);
+
+  useEffect(() => {
+    async function loadMetas() {
+      setLoadingMetas(true);
+      try {
+        const list = await base44.entities.ProjectMeta.list('ordem', 200);
+        const ativas = (list || []).filter((m) => m?.ativo !== false);
+        setMetasProjeto(ativas.length > 0 ? ativas : METAS_PROJETO.map((m) => ({ id: m.id, nome: m.label })));
+      } catch {
+        setMetasProjeto(METAS_PROJETO.map((m) => ({ id: m.id, nome: m.label })));
+      } finally {
+        setLoadingMetas(false);
+      }
+    }
+    loadMetas();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     async function loadRubricas() {
@@ -996,15 +1014,16 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
             <Select
               value={form.meta_id || undefined}
               onValueChange={(v) => setForm((f) => ({ ...f, meta_id: v }))}
+              disabled={loadingMetas}
             >
               <SelectTrigger className="w-full min-w-0">
-                <SelectValue placeholder="Selecionar meta" />
+                <SelectValue placeholder={loadingMetas ? 'Carregando metas...' : 'Selecionar meta'} />
               </SelectTrigger>
               <SelectContent className="max-h-72 overflow-y-auto">
                 <SelectItem value="__none__">— Nenhuma —</SelectItem>
-                {METAS_PROJETO.map((meta) => (
+                {metasProjeto.map((meta) => (
                   <SelectItem key={meta.id} value={meta.id}>
-                    {meta.label}
+                    {meta.nome}
                   </SelectItem>
                 ))}
               </SelectContent>
