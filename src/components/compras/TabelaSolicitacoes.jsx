@@ -247,7 +247,8 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
         <tr className="border-b border-gray-200 bg-gray-50 text-left">
           <ThSortable field="descricao" className="w-[18%]">Descrição</ThSortable>
           <ThSortable field="natureza" className="w-[12%]">Natureza</ThSortable>
-          <ThSortable field="fornecedor" className="w-[13%]">Fornecedor</ThSortable>
+          <th className="px-3 py-3 font-medium text-gray-600 w-[5%] text-center">Cód.</th>
+          <ThSortable field="fornecedor" className="w-[12%]">Fornecedor</ThSortable>
           <ThSortable field="centro" className="w-[7%]">Centro</ThSortable>
           <ThSortable field="rubrica" className="w-[14%]">Rubrica</ThSortable>
           <ThSortable field="status" className="w-[9%]">Status</ThSortable>
@@ -329,6 +330,13 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
                 <Tooltip content={naturezaDisplay}>
                   <span className="text-xs text-gray-700">{naturezaDisplay}</span>
                 </Tooltip>
+              </td>
+
+              {/* Código Nº 4 do orçamento */}
+              <td className="px-3 py-2.5 text-center" style={tdStyle}>
+                {rubrica?.codigo
+                  ? <span className="inline-block rounded px-1.5 py-0.5 font-mono text-xs bg-amber-100 text-amber-800">{rubrica.codigo}</span>
+                  : <span className="text-gray-300 text-xs">—</span>}
               </td>
 
               {/* Fornecedor */}

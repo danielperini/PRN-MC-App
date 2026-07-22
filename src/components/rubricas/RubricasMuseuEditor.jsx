@@ -149,7 +149,23 @@ function detectarInconsistencias(rubrica) {
 }
 
 /* ─── RubricaCard ─── */
-function RubricaCard({ rubrica }) {
+function RubricaCard({ rubrica, canEdit = false }) {
+  const [editingCodigo, setEditingCodigo] = React.useState(false);
+  const [codigoValue, setCodigoValue] = React.useState(rubrica?.codigo || '');
+
+  async function saveCodigo() {
+    const val = codigoValue.trim();
+    try {
+      await import('@/api/base44Client').then(({ base44 }) =>
+        base44.entities.Rubrica.update(rubrica.id, { codigo: val || null })
+      );
+      setEditingCodigo(false);
+      import('sonner').then(({ toast }) => toast.success('Código atualizado.'));
+    } catch {
+      import('sonner').then(({ toast }) => toast.error('Erro ao salvar código.'));
+    }
+  }
+
   const valorOrcado = getValorOrcado(rubrica);
   const valorPago = getValorPago(rubrica);
   const valorLancamentos = getValorLancamentos(rubrica);
@@ -173,6 +189,38 @@ function RubricaCard({ rubrica }) {
                   Natureza: {rubrica.natureza_despesa || rubrica.natureza}
                 </Badge>
               )}
+              {/* Badge código (Nº 4 do orçamento) */}
+              {editingCodigo ? (
+                <span className="inline-flex items-center gap-1">
+                  <input
+                    autoFocus
+                    value={codigoValue}
+                    onChange={(e) => setCodigoValue(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') saveCodigo(); if (e.key === 'Escape') setEditingCodigo(false); }}
+                    className="w-[60px] rounded border border-amber-400 bg-white px-1.5 py-0.5 font-mono text-[11px] focus:outline-none focus:ring-1 focus:ring-amber-400"
+                    placeholder="42"
+                    maxLength={8}
+                  />
+                  <button type="button" onClick={saveCodigo} className="rounded bg-amber-500 px-1.5 py-0.5 text-[10px] font-semibold text-white hover:bg-amber-600">✓</button>
+                  <button type="button" onClick={() => setEditingCodigo(false)} className="rounded bg-gray-200 px-1.5 py-0.5 text-[10px] text-gray-600 hover:bg-gray-300">✕</button>
+                </span>
+              ) : rubrica?.codigo ? (
+                <span
+                  onClick={canEdit ? () => { setCodigoValue(rubrica.codigo); setEditingCodigo(true); } : undefined}
+                  className={`inline-flex items-center rounded px-1.5 py-0.5 font-mono text-[11px] bg-amber-100 text-amber-800 ${canEdit ? 'cursor-pointer hover:bg-amber-200' : ''}`}
+                  title="Código Nº 4 do orçamento"
+                >
+                  {rubrica.codigo}
+                </span>
+              ) : canEdit ? (
+                <button
+                  type="button"
+                  onClick={() => { setCodigoValue(''); setEditingCodigo(true); }}
+                  className="text-[10px] text-gray-400 hover:text-amber-600"
+                >
+                  + código
+                </button>
+              ) : null}
               {/* Badge mostra o centro_custo REAL da rubrica, nunca inferido */}
               {rubrica?.centro_custo && (
                 <Badge variant="outline" className="text-[10px]">
@@ -404,7 +452,7 @@ export default function RubricasMuseuEditor({ museu = 'MIS', rubricas = [], comp
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
               {items.map((r, i) => (
-                <RubricaCard key={r?.id || `${grupo}-${i}`} rubrica={r} />
+                <RubricaCard key={r?.id || `${grupo}-${i}`} rubrica={r} canEdit={true} />
               ))}
             </div>
           </section>

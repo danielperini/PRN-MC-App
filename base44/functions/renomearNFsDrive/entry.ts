@@ -73,7 +73,7 @@ function getMuseu(cc: string): string {
 }
 
 /** Monta o nome legível oficial a partir de dados de uma PurchaseRequest */
-function buildNameFromPR(pr: any, prefixo = 'NF'): string {
+function buildNameFromPR(pr: any, prefixo = 'NF', rubrica?: any): string {
   const num = sanitize(pr.nf_numero || pr.id?.substring(0, 8) || 'SN', 10);
   const natureza = sanitize(pr.rubrica_nome || pr.natureza_despesa || pr.categoria || pr.descricao_item || 'Despesa', 35);
   const fornecedor = sanitize(pr.fornecedor_nome || pr.nf_emitente_nome || 'FORNECEDOR', 50);
@@ -83,7 +83,8 @@ function buildNameFromPR(pr: any, prefixo = 'NF'): string {
   const data = fmtData(pr.nf_data_emissao || pr.data_pagamento_efetivo || pr.created_date);
   const ext = prefixo === 'XML' ? 'xml' : 'pdf';
   const pref = prefixo === 'COMP' ? 'COMP NF' : prefixo;
-  return `${pref} ${num}${data} [${museu}] ${natureza} - ${fornecedor} - ${projeto} - R$ ${valor}.${ext}`;
+  const codigoSeg = rubrica?.codigo ? `-${sanitize(rubrica.codigo, 8)}` : '';
+  return `${pref} ${num}${data} [${museu}]${codigoSeg} ${natureza} - ${fornecedor} - ${projeto} - R$ ${valor}.${ext}`;
 }
 
 /**
@@ -210,7 +211,12 @@ async function processarPasta(base44: any, token: string, folderId: string, dryR
 
     if (pr) {
       const prefixo = parsed.tipo === 'XML' ? 'XML' : parsed.tipo === 'COMP' ? 'COMP' : 'NF';
-      novoNome = buildNameFromPR(pr, prefixo);
+      // Busca rubrica para incluir o código no nome
+      let rubrica: any = null;
+      if (pr.rubrica_id) {
+        try { rubrica = await base44.asServiceRole.entities.Rubrica.get(pr.rubrica_id); } catch { /* ignora */ }
+      }
+      novoNome = buildNameFromPR(pr, prefixo, rubrica);
     } else {
       // Fallback: monta nome legível apenas com dados do arquivo
       novoNome = buildNameFromFile(parsed);
