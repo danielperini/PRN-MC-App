@@ -470,7 +470,7 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRef
       { status: { $in: ['SUBMITTED', 'IN_REVIEW', 'APPROVED', 'ARCHIVED'] } },
       '-ano', 500
     ),
-    staleTime: 120000,
+    staleTime: 0,
   });
 
   const { data: activities = [] } = useQuery({
@@ -478,7 +478,7 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRef
     queryFn: () => base44.entities.Activity.filter(
       { classificacao: 'META' }, '-created_date', 1000
     ),
-    staleTime: 120000,
+    staleTime: 0,
   });
 
   const { data: purchases = [] } = useQuery({
@@ -487,7 +487,7 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRef
       { status: { $in: ['APROVADO_ADMIN', 'APROVADO_COORD', 'PAGO'] } },
       '-created_date', 2000
     ),
-    staleTime: 120000,
+    staleTime: 0,
   });
 
   async function loadRubricas() {
@@ -512,7 +512,11 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRef
 
   async function handleUpdated() {
     await loadRubricas();
-    queryClient.invalidateQueries({ queryKey: ['rubricas'] });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['rubricas'] }),
+      queryClient.refetchQueries({ queryKey: ['purchases-nfs-metas-aditivosection'] }),
+      queryClient.refetchQueries({ queryKey: ['activities-metas-fisicas-aditivosection'] }),
+    ]);
     if (onRefresh) onRefresh();
   }
 
