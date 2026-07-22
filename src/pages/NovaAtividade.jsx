@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Loader2, PlusCircle, CheckCircle2, Upload, X, Image, FileText, ExternalLink } from 'lucide-react';
+import { Loader2, PlusCircle, CheckCircle2, Upload, X, Image, FileText, ExternalLink, ClipboardList } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useCurrentUser } from '@/components/auth/useCurrentUser';
 import { metaOcultaNoTerceiroAditivo } from '@/utils/metasAditivosPermitidos';
@@ -75,6 +75,11 @@ export default function NovaAtividade() {
     meta_quantitativa: '',
     periodo: '',
     observacoes: '',
+    teve_formacao: false,
+    lista_presenca_url: '',
+    lista_inscritos_url: '',
+    numero_inscritos: '',
+    numero_presentes: '',
   });
 
   const [metas, setMetas] = useState(METAS_FALLBACK);
@@ -83,7 +88,9 @@ export default function NovaAtividade() {
   const [createdActivityId, setCreatedActivityId] = useState(null);
   const [fotos, setFotos] = useState([]);
   const [uploadingFotos, setUploadingFotos] = useState(false);
+  const [uploadingPresenca, setUploadingPresenca] = useState(false);
   const fileInputRef = useRef(null);
+  const presencaInputRef = useRef(null);
 
   const set = (field) => (value) => setForm((prev) => ({ ...prev, [field]: value }));
   const setEv = (field) => (e) => set(field)(e.target.value);
@@ -158,6 +165,21 @@ export default function NovaAtividade() {
     setFotos((prev) => prev.map((f, i) => i === idx ? { ...f, legenda: value } : f));
   }
 
+  async function handlePresencaUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingPresenca(true);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      set('lista_presenca_url')(file_url);
+    } catch {
+      toast.error(`Erro ao enviar arquivo de lista de presença`);
+    } finally {
+      setUploadingPresenca(false);
+      if (presencaInputRef.current) presencaInputRef.current.value = '';
+    }
+  }
+
   function resetForm() {
     setCreatedActivityId(null);
     setFotos([]);
@@ -177,6 +199,11 @@ export default function NovaAtividade() {
       meta_quantitativa: '',
       periodo: '',
       observacoes: '',
+      teve_formacao: false,
+      lista_presenca_url: '',
+      lista_inscritos_url: '',
+      numero_inscritos: '',
+      numero_presentes: '',
     });
   }
 
@@ -219,6 +246,11 @@ export default function NovaAtividade() {
         observacoes: form.observacoes.trim(),
         user_email: user?.email || '',
         user_name: user?.full_name || user?.email || '',
+        teve_formacao: form.teve_formacao,
+        lista_presenca_url: form.teve_formacao ? form.lista_presenca_url || null : null,
+        lista_inscritos_url: form.teve_formacao ? form.lista_inscritos_url.trim() || null : null,
+        numero_inscritos: form.teve_formacao && form.numero_inscritos ? Number(form.numero_inscritos) : null,
+        numero_presentes: form.teve_formacao && form.numero_presentes ? Number(form.numero_presentes) : null,
       });
 
       const actId = result?.activity_id || result?.id || null;
@@ -248,6 +280,11 @@ export default function NovaAtividade() {
           publico_estimado: form.publico_estimado ? Number(form.publico_estimado) : 0,
           observacoes: form.observacoes.trim(),
           fotos: fotos.map((f) => ({ file_url: f.file_url, legenda: f.legenda, autor: user?.full_name || '' })),
+          teve_formacao: form.teve_formacao,
+          lista_presenca_url: form.teve_formacao ? form.lista_presenca_url || null : null,
+          lista_inscritos_url: form.teve_formacao ? form.lista_inscritos_url.trim() || null : null,
+          numero_inscritos: form.teve_formacao && form.numero_inscritos ? Number(form.numero_inscritos) : null,
+          numero_presentes: form.teve_formacao && form.numero_presentes ? Number(form.numero_presentes) : null,
         });
         setCreatedActivityId(created?.id || null);
         toast.success('Atividade criada (sem vínculo automático com relatório).');
@@ -422,6 +459,116 @@ export default function NovaAtividade() {
           />
         </div>
 
+        {/* Seção: Formação com lista de presença */}
+        <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <ClipboardList className="w-4 h-4 text-indigo-600 flex-shrink-0" />
+              <span className="text-sm font-medium text-indigo-900">
+                Houve atividade de formação com lista de presença e inscrição?
+              </span>
+            </div>
+            <div className="flex gap-1 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => set('teve_formacao')(true)}
+                className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
+                  form.teve_formacao
+                    ? 'bg-indigo-600 text-white border-indigo-600'
+                    : 'bg-white text-indigo-600 border-indigo-300 hover:bg-indigo-100'
+                }`}
+              >
+                Sim
+              </button>
+              <button
+                type="button"
+                onClick={() => set('teve_formacao')(false)}
+                className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
+                  !form.teve_formacao
+                    ? 'bg-indigo-600 text-white border-indigo-600'
+                    : 'bg-white text-indigo-600 border-indigo-300 hover:bg-indigo-100'
+                }`}
+              >
+                Não
+              </button>
+            </div>
+          </div>
+
+          {form.teve_formacao && (
+            <div className="space-y-3 pt-1 animate-in fade-in slide-in-from-top-2 duration-200">
+              {/* Upload lista de presença */}
+              <div className="space-y-1.5">
+                <Label className="text-indigo-800 text-xs font-semibold">Lista de presença (PDF, XLS, XLSX)</Label>
+                <input
+                  ref={presencaInputRef}
+                  type="file"
+                  accept=".pdf,.xls,.xlsx"
+                  className="hidden"
+                  onChange={handlePresencaUpload}
+                />
+                {form.lista_presenca_url ? (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-indigo-200 text-xs text-indigo-700">
+                    <FileText className="w-4 h-4 flex-shrink-0" />
+                    <a href={form.lista_presenca_url} target="_blank" rel="noreferrer" className="truncate hover:underline flex-1">
+                      Arquivo enviado — clique para visualizar
+                    </a>
+                    <button type="button" onClick={() => set('lista_presenca_url')('')} className="text-indigo-400 hover:text-red-500">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => presencaInputRef.current?.click()}
+                    disabled={uploadingPresenca}
+                    className="flex items-center gap-2 px-4 py-2 border border-dashed border-indigo-300 rounded-lg text-xs text-indigo-600 hover:border-indigo-400 hover:bg-indigo-100 transition-colors w-full justify-center"
+                  >
+                    {uploadingPresenca ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                    {uploadingPresenca ? 'Enviando...' : 'Anexar lista de presença'}
+                  </button>
+                )}
+              </div>
+
+              {/* Link da lista de inscritos */}
+              <div className="space-y-1.5">
+                <Label className="text-indigo-800 text-xs font-semibold">Link da lista de inscritos</Label>
+                <Input
+                  placeholder="https://docs.google.com/..."
+                  value={form.lista_inscritos_url}
+                  onChange={setEv('lista_inscritos_url')}
+                  className="bg-white border-indigo-200 text-sm"
+                />
+              </div>
+
+              {/* Nº inscritos e presentes */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-indigo-800 text-xs font-semibold">Nº de inscritos</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={form.numero_inscritos}
+                    onChange={setEv('numero_inscritos')}
+                    className="bg-white border-indigo-200"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-indigo-800 text-xs font-semibold">Nº de presentes</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={form.numero_presentes}
+                    onChange={setEv('numero_presentes')}
+                    className="bg-white border-indigo-200"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Fotos de evidência */}
         <div className="space-y-2">
           <Label className="flex items-center gap-1.5">
@@ -489,7 +636,15 @@ export default function NovaAtividade() {
       {/* Atalhos pós-criação */}
       {done && (
         <div className="mt-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm space-y-3">
-          <p className="text-sm font-semibold text-gray-700">Próximos passos</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-sm font-semibold text-gray-700">Próximos passos</p>
+            {form.teve_formacao && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 border border-green-200 text-green-700 text-xs font-semibold">
+                <CheckCircle2 className="w-3 h-3" />
+                Formação registrada
+              </span>
+            )}
+          </div>
           <Link
             to="/EntradaUnica"
             className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors group"

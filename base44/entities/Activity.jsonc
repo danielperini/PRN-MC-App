@@ -229,6 +229,27 @@
       "default": false,
       "description": "Permite vincular solicita\u00e7\u00f5es de compra?"
     },
+    "teve_formacao": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se a atividade envolveu forma\u00e7\u00e3o com lista de presen\u00e7a e inscri\u00e7\u00e3o"
+    },
+    "lista_presenca_url": {
+      "type": "string",
+      "description": "URL do arquivo de lista de presen\u00e7a (PDF, XLS ou XLSX)"
+    },
+    "lista_inscritos_url": {
+      "type": "string",
+      "description": "Link da lista de inscritos (ex: Google Sheets ou PDF no Drive)"
+    },
+    "numero_inscritos": {
+      "type": "number",
+      "description": "Total de inscritos na forma\u00e7\u00e3o"
+    },
+    "numero_presentes": {
+      "type": "number",
+      "description": "Total de presentes na forma\u00e7\u00e3o"
+    },
     "fotos": {
       "type": "array",
       "items": {
