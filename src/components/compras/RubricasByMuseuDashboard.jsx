@@ -3,7 +3,8 @@ import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Building2, TrendingUp, AlertCircle } from 'lucide-react';
+import { Building2, TrendingUp, AlertCircle, Layers } from 'lucide-react';
+import EditarRubricasEmLoteModal from '@/components/rubricas/EditarRubricasEmLoteModal';
 
 function toNumber(value) {
   const n = Number(value ?? 0);
@@ -130,6 +131,8 @@ export default function RubricasByMuseuDashboard({ rubricas = [], purchases = []
   const [editingMuseu, setEditingMuseu] = useState(null);
   const [editValue, setEditValue] = useState('');
   const [savingMuseu, setSavingMuseu] = useState(null);
+  const [showLoteModal, setShowLoteModal] = useState(false);
+  const [loteQuery, setLoteQuery] = useState('');
 
   // Calcular dados por centro de custo — usando classificação híbrida
   const dadosPorMuseu = useMemo(() => {
@@ -256,6 +259,16 @@ export default function RubricasByMuseuDashboard({ rubricas = [], purchases = []
 
   return (
     <div className="space-y-6">
+      {/* Botão edição em lote */}
+      <div className="flex justify-end">
+        <button
+          onClick={() => { setLoteQuery(''); setShowLoteModal(true); }}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-neutral-300 bg-white text-sm font-semibold text-neutral-700 hover:bg-neutral-50 transition"
+        >
+          <Layers className="h-4 w-4" /> Editar Rubricas em Lote
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {dadosPorMuseu.map((dados) => {
           const status = statusPorMuseu[dados.museu] || {};
@@ -331,14 +344,20 @@ export default function RubricasByMuseuDashboard({ rubricas = [], purchases = []
 
       {/* Tabela detalhada por museu */}
       <div className="space-y-6">
-        {dadosPorMuseu.map((museuDados) => (
-          <div key={museuDados.museu} className="border rounded-lg overflow-hidden">
-            <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-              <h4 className="font-semibold text-gray-900 flex items-center gap-2">
-                <Building2 className="h-4 w-4" />
-                Rubricas — {museuDados.museu}
-              </h4>
-            </div>
+      {dadosPorMuseu.map((museuDados) => (
+        <div key={museuDados.museu} className="border rounded-lg overflow-hidden">
+          <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+            <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+              <Building2 className="h-4 w-4" />
+              Rubricas — {museuDados.museu}
+            </h4>
+            <button
+              onClick={() => { setLoteQuery(museuDados.museu); setShowLoteModal(true); }}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-neutral-200 bg-white text-xs font-semibold text-neutral-600 hover:bg-neutral-50 transition"
+            >
+              <Layers className="h-3 w-3" /> Editar em Lote
+            </button>
+          </div>
 
             {museuDados.rubricas.length === 0 ? (
               <div className="p-4 text-center text-gray-500 text-sm">Nenhuma rubrica vinculada</div>
@@ -411,6 +430,15 @@ export default function RubricasByMuseuDashboard({ rubricas = [], purchases = []
           </div>
         ))}
       </div>
+
+      {showLoteModal && (
+        <EditarRubricasEmLoteModal
+          rubricas={rubricas}
+          initialQuery={loteQuery}
+          onClose={() => setShowLoteModal(false)}
+          onUpdated={async () => { if (onRefresh) await onRefresh(); setShowLoteModal(false); }}
+        />
+      )}
     </div>
   );
 }

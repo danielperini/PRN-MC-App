@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { CheckCircle2, AlertCircle, X, Search, Users } from 'lucide-react';
+import { CheckCircle2, AlertCircle, X, Search, Users, Layers } from 'lucide-react';
+import EditarRubricasEmLoteModal from '@/components/rubricas/EditarRubricasEmLoteModal';
 import { calculateMetaFinancialMetrics } from '@/utils/finance/metaFinancialMetrics';
 import { getRubricaBudget, getRubricaUsed } from '@/utils/auditoria/reconcileFinancialTotals';
 import { normalizeText } from '@/utils/constants';
@@ -417,6 +418,7 @@ function FiltroControles({ aditivo, setAditivo, dataInicio, setDataInicio, dataF
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRefresh, filtro, museuFiltro }) {
   const [selectedMeta, setSelectedMeta] = useState(null);
+  const [showLoteModal, setShowLoteModal] = useState(false);
   const [rubricas, setRubricas] = useState(rubricasProp || []);
 
   // Filtro interno (se não passado como prop)
@@ -542,7 +544,15 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRef
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-xl font-bold text-slate-900 tracking-tight">Metas do 3º e 4º Aditivo</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-xl font-bold text-slate-900 tracking-tight">Metas do 3º e 4º Aditivo</h2>
+          <button
+            onClick={() => setShowLoteModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-300 bg-white text-xs font-semibold text-neutral-700 hover:bg-neutral-50 transition"
+          >
+            <Layers className="h-3.5 w-3.5" /> Editar Rubricas em Lote
+          </button>
+        </div>
         <FiltroControles
           aditivo={aditivo}
           setAditivo={setAditivo}
@@ -579,6 +589,14 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRef
         onClose={() => setSelectedMeta(null)}
         onUpdated={handleUpdated}
       />
+
+      {showLoteModal && (
+        <EditarRubricasEmLoteModal
+          rubricas={rubricas}
+          onClose={() => setShowLoteModal(false)}
+          onUpdated={async () => { await handleUpdated(); setShowLoteModal(false); }}
+        />
+      )}
     </div>
   );
 }
