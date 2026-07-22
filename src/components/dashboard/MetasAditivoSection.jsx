@@ -76,15 +76,10 @@ function getRubricaNome(rubrica) {
   return rubrica?.rubrica || rubrica?.nome || rubrica?.descricao || 'Rubrica sem nome';
 }
 
+// Vínculo é 100% manual via meta_manual_ids
 function isRubricaLinkedToMeta(rubrica, meta) {
-  const metaRubrica = normalizeText(rubrica?.meta || rubrica?.meta_numero || rubrica?.meta_titulo);
-  const numero = normalizeText(meta.numero);
-  const numeroFormatado = normalizeText(meta.numeroFormatado);
-  const titulo = normalizeText(meta.titulo);
-  return metaRubrica === numero ||
-    metaRubrica.includes(numero) ||
-    metaRubrica.includes(numeroFormatado) ||
-    metaRubrica.includes(titulo);
+  const metaNum = meta?._numero || meta?.numero || '';
+  return Array.isArray(rubrica?.meta_manual_ids) && rubrica.meta_manual_ids.includes(metaNum);
 }
 
 // ─── FisicoMiniPanel ────────────────────────────────────────────────────────
@@ -196,7 +191,17 @@ function MetaCard({ meta, onOpen, atividadesPorMuseu }) {
 // ─── MetaRubricasModal ────────────────────────────────────────────────────────
 function MetaRubricasModal({ meta, rubricas, onClose, onUpdated }) {
   const [query, setQuery] = useState('');
-  const [savingId, setSavingId] = useState(null);
+  const [saving, setSaving] = useState(false);
+  // Vínculos manuais: apenas rubrica.meta_manual_ids (campo explícito) define o vínculo
+  const [selectedIds, setSelectedIds] = useState(() => {
+    if (!meta) return new Set();
+    return new Set(
+      (rubricas || [])
+        .filter(r => Array.isArray(r.meta_manual_ids) && r.meta_manual_ids.includes(meta._numero || meta.numero))
+        .map(r => r.id)
+    );
+  });
+  const [dirty, setDirty] = useState(false);
 
   if (!meta) return null;
 
@@ -216,35 +221,79 @@ function MetaRubricasModal({ meta, rubricas, onClose, onUpdated }) {
     return !q || haystack.includes(q);
   });
 
-  async function toggleRubrica(rubrica) {
-    const id = rubrica?.id;
-    if (!id) return;
-    const linked = isRubricaLinkedToMeta(rubrica, meta);
-    setSavingId(id);
+  function toggleLocal(rubricaId) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(rubricaId)) next.delete(rubricaId);
+      else next.add(rubricaId);
+      return next;
+    });
+    setDirty(true);
+  }
+
+  async function handleSalvar() {
+    setSaving(true);
+    const metaNum = meta._numero || meta.numero;
+    const metaLabel = meta.numeroFormatado || meta.numero;
+    const metaTitulo = meta.titulo;
     try {
-      await base44.entities.Rubrica.update(id, linked ? { meta: '', meta_titulo: '' } : { meta: meta.numeroFormatado || meta.numero, meta_titulo: meta.titulo });
-      toast.success(linked ? 'Rubrica retirada da meta' : 'Rubrica vinculada à meta');
+      // Para cada rubrica, atualiza meta_manual_ids de acordo com a seleção
+      const promises = (rubricas || []).map(async (rubrica) => {
+        const eraVinculada = Array.isArray(rubrica.meta_manual_ids) && rubrica.meta_manual_ids.includes(metaNum);
+        const deveVincular = selectedIds.has(rubrica.id);
+        if (eraVinculada === deveVincular) return; // sem mudança
+        const current = Array.isArray(rubrica.meta_manual_ids) ? [...rubrica.meta_manual_ids] : [];
+        const next = deveVincular
+          ? [...new Set([...current, metaNum])]
+          : current.filter(m => m !== metaNum);
+        // Atualiza meta_manual_ids + meta (campo legado para compatibilidade de cálculo)
+        await base44.entities.Rubrica.update(rubrica.id, {
+          meta_manual_ids: next,
+          meta: next.length > 0 ? (next.includes(metaNum) ? metaLabel : rubrica.meta || '') : '',
+          meta_titulo: deveVincular ? metaTitulo : (rubrica.meta_titulo || ''),
+        });
+      });
+      await Promise.all(promises);
+      toast.success('Vínculos salvos com sucesso!');
+      setDirty(false);
       if (onUpdated) await onUpdated();
     } catch (error) {
       console.error(error);
-      toast.error('Não foi possível atualizar a rubrica');
+      toast.error('Erro ao salvar vínculos');
     } finally {
-      setSavingId(null);
+      setSaving(false);
     }
   }
 
+  const totalPrevisto = (rubricas || [])
+    .filter(r => selectedIds.has(r.id))
+    .reduce((s, r) => s + getRubricaBudget(r), 0);
+  const totalUtilizado = (rubricas || [])
+    .filter(r => selectedIds.has(r.id))
+    .reduce((s, r) => s + getRubricaUsed(r), 0);
+  const pctFinanceiro = totalPrevisto > 0 ? Math.round((totalUtilizado / totalPrevisto) * 100) : 0;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-5xl rounded-2xl bg-white shadow-2xl">
+      <div className="w-full max-w-5xl rounded-2xl bg-white shadow-2xl flex flex-col" style={{ maxHeight: '90vh' }}>
         <div className="flex items-center justify-between border-b p-4">
           <div>
             <h3 className="text-lg font-bold">{meta.numero} · {meta.titulo}</h3>
-            <p className="text-sm text-neutral-500">Vincular e revisar memória de cálculo das rubricas</p>
+            <p className="text-sm text-neutral-500">Selecione as rubricas vinculadas e clique em <b>Salvar</b> para confirmar</p>
           </div>
           <button onClick={onClose} className="rounded-lg border p-2 hover:bg-neutral-100">
             <X className="h-4 w-4" />
           </button>
         </div>
+
+        {/* Totais calculados das selecionadas */}
+        <div className="border-b px-4 py-3 bg-neutral-50 flex flex-wrap gap-6 text-sm">
+          <span className="text-neutral-600">Previsto total: <b>{fmtBRL(totalPrevisto)}</b></span>
+          <span className="text-neutral-600">Utilizado total: <b>{fmtBRL(totalUtilizado)}</b></span>
+          <span className="text-neutral-600">% Execução: <b>{pctFinanceiro}%</b></span>
+          <span className="text-neutral-500">{selectedIds.size} rubrica{selectedIds.size !== 1 ? 's' : ''} selecionada{selectedIds.size !== 1 ? 's' : ''}</span>
+        </div>
+
         <div className="border-b p-4">
           <div className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-neutral-400" />
@@ -256,29 +305,50 @@ function MetaRubricasModal({ meta, rubricas, onClose, onUpdated }) {
             />
           </div>
         </div>
-        <div className="max-h-[60vh] overflow-auto p-4 space-y-2">
+
+        <div className="flex-1 overflow-auto p-4 space-y-2">
           {filteredRubricas.map((rubrica) => {
-            const linked = isRubricaLinkedToMeta(rubrica, meta);
+            const linked = selectedIds.has(rubrica.id);
             const previsto = getRubricaBudget(rubrica);
             const utilizado = getRubricaUsed(rubrica);
             return (
-              <div key={rubrica.id} className="flex items-center justify-between rounded-xl border p-3">
-                <div>
-                  <p className="font-medium">{getRubricaNome(rubrica)}</p>
+              <label
+                key={rubrica.id}
+                className={`flex items-center gap-3 rounded-xl border p-3 cursor-pointer transition hover:bg-neutral-50 ${linked ? 'border-black bg-black/5' : 'border-neutral-200'}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={linked}
+                  onChange={() => toggleLocal(rubrica.id)}
+                  className="h-4 w-4 accent-black flex-shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm">{getRubricaNome(rubrica)}</p>
                   <p className="text-xs text-neutral-500">
+                    {rubrica.grupo && <span className="mr-2">{rubrica.grupo}</span>}
                     Previsto: {fmtBRL(previsto)} · Utilizado: {fmtBRL(utilizado)}
                   </p>
                 </div>
-                <button
-                  disabled={savingId === rubrica.id}
-                  onClick={() => toggleRubrica(rubrica)}
-                  className={`rounded-lg px-4 py-2 text-sm font-medium ${linked ? 'bg-black text-white' : 'border'}`}
-                >
-                  {linked ? 'Vinculada' : 'Vincular'}
-                </button>
-              </div>
+              </label>
             );
           })}
+          {filteredRubricas.length === 0 && (
+            <p className="text-center text-neutral-400 py-8">Nenhuma rubrica encontrada</p>
+          )}
+        </div>
+
+        {/* Rodapé com botão Salvar */}
+        <div className="border-t p-4 flex justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 rounded-lg border text-sm text-neutral-600 hover:bg-neutral-50">
+            Cancelar
+          </button>
+          <button
+            onClick={handleSalvar}
+            disabled={saving || !dirty}
+            className={`px-6 py-2 rounded-lg text-sm font-semibold transition ${dirty && !saving ? 'bg-black text-white hover:bg-neutral-800' : 'bg-neutral-200 text-neutral-400 cursor-not-allowed'}`}
+          >
+            {saving ? 'Salvando...' : 'Salvar vínculos'}
+          </button>
         </div>
       </div>
     </div>

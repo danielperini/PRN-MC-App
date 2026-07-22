@@ -62,26 +62,16 @@ export function normalizeMetaNumber(metaText) {
 }
 
 /**
- * Verifica se uma rubrica está vinculada a uma meta específica
+ * Verifica se uma rubrica está vinculada a uma meta específica.
+ * Fonte de verdade: meta_manual_ids (vínculo manual explícito).
+ * Fallback legado removido — vínculos são 100% manuais a partir de agora.
  */
 export function isRubricaLinkedToMeta(rubrica, meta) {
-  if (rubrica.meta_id && meta.id) {
-    return rubrica.meta_id === meta.id;
+  const metaNum = meta?.numero || '';
+  if (Array.isArray(rubrica?.meta_manual_ids) && rubrica.meta_manual_ids.length > 0) {
+    return rubrica.meta_manual_ids.includes(metaNum);
   }
-  
-  const rubricaMeta = normalizeMetaNumber(rubrica.meta || rubrica.meta_numero || rubrica.meta_titulo || '');
-  const metaNumero = normalizeMetaNumber(meta.numero || meta.numeroFormatado || '');
-  
-  if (rubricaMeta && metaNumero) {
-    if (rubricaMeta === metaNumero) {
-      return true;
-    }
-    
-    if (meta.metaPai && rubricaMeta === meta.numero) {
-      return true;
-    }
-  }
-  
+  // Sem meta_manual_ids: não está vinculada
   return false;
 }
 
