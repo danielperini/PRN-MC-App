@@ -19,6 +19,7 @@ import MetasAditivoSection from '../components/dashboard/MetasAditivoSection';
 import ResumoAtividadesPorMeta from '../components/dashboard/ResumoAtividadesPorMeta';
 import MetasCumprimentoPorMuseu from '../components/dashboard/MetasCumprimentoPorMuseu';
 import CumprimentoMetasFisicas from '../components/dashboard/CumprimentoMetasFisicas';
+import ResumoConsolidadoNoturnoMeta20 from '../components/dashboard/ResumoConsolidadoNoturnoMeta20';
 
 import DashboardProfissional from './DashboardProfissional.jsx';
 import DashboardPatrocinador from './DashboardPatrocinador';
@@ -146,6 +147,8 @@ function DashboardCoordenadorView({
         <MetasCumprimentoPorMuseu rubricas={rubricas} />
 
         <MetasAditivoSection rubricas={rubricas} filtro={filtroMetas} />
+
+        <ResumoConsolidadoNoturnoMeta20 dataInicio={filtroMetas?.dataInicio} dataFim={filtroMetas?.dataFim} />
 
         <CumprimentoMetasFisicas dataInicio={filtroMetas?.dataInicio} dataFim={filtroMetas?.dataFim} />
 
@@ -548,6 +551,7 @@ function DashboardInner() {
           <NewsCarousel />
           <DiariamenteNosMuseus />
           <MetasAditivoSection rubricas={rubricas} filtro={filtroMetas} />
+          <ResumoConsolidadoNoturnoMeta20 dataInicio={filtroMetas.dataInicio} dataFim={filtroMetas.dataFim} />
           <CumprimentoMetasFisicas dataInicio={filtroMetas.dataInicio} dataFim={filtroMetas.dataFim} />
           <ResumoAtividadesPorMeta />
           <DashboardPatrocinador />
