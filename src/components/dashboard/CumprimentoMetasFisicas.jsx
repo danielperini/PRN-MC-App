@@ -5,8 +5,8 @@ import { CheckCircle2, AlertCircle, TrendingUp, Users } from 'lucide-react';
 import { isRelatorioNoPeriodo } from '@/hooks/useMetasPeriodoFiltro';
 
 // Metas com quantitativos físicos definidos no Plano de Trabalho (3º + 4º Aditivo)
+// META 16, 11, 11B são puramente financeiras — não aparecem neste painel físico
 const METAS_FISICAS = [
-  { numero: '16', titulo: '101 diárias de educador',               meta: 101, tipo: 'diaria',     periodo: 'mês 2–28'  },
   { numero: '20', titulo: '30 ações educativas e/ou culturais',    meta: 30,  tipo: 'educativa',  periodo: 'mês 19–28' },
 ];
 
