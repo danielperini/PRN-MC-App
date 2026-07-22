@@ -341,8 +341,19 @@ function ComprasInner() {
     refetchOnWindowFocus: false
   });
 
-  // Recálculo automático silencioso: sincroniza valor_utilizado de cada rubrica
-  // com a soma real das PurchaseRequests aprovadas/pagas. Roda uma vez por sessão.
+  const { budgetLines } = useBudgetLines();
+
+  const { data: rubricas = [], refetch: refetchRubricas, isLoading: loadingRubricas, isFetching: fetchingRubricas } = useQuery({
+    queryKey: ['rubricas'],
+    queryFn: carregarRubricas,
+    enabled: !!currentUser,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnWindowFocus: true
+  });
+
+  // Recálculo automático: sincroniza valor_utilizado de todas as rubricas
+  // com a soma real das NFs aprovadas/pagas ao carregar a página.
   useEffect(() => {
     if (autoRecalcRan.current) return;
     if (!currentUser || !purchases.length || !rubricas.length) return;
@@ -350,53 +361,33 @@ function ComprasInner() {
 
     async function runAutoRecalc() {
       const STATUS_CONTABILIZADOS = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
-      // Agrupa valores por rubrica_id
       const valorPorRubrica = {};
       for (const p of purchases) {
         if (!p.rubrica_id) continue;
         if (!STATUS_CONTABILIZADOS.has(normalizeStatus(p.status))) continue;
         if (p.duplicada_financeira === true || p.incluir_no_somatorio === false) continue;
-        if (!valorPorRubrica[p.rubrica_id]) valorPorRubrica[p.rubrica_id] = 0;
-        valorPorRubrica[p.rubrica_id] += getPurchaseValue(p);
+        valorPorRubrica[p.rubrica_id] = (valorPorRubrica[p.rubrica_id] || 0) + getPurchaseValue(p);
       }
-
-      const updates = [];
-      for (const r of rubricas) {
-        if (!r.id || r.ativo === false) continue;
-        const calculado = valorPorRubrica[r.id] || 0;
-        const armazenado = toNumber(r.valor_utilizado);
-        if (Math.abs(calculado - armazenado) <= 0.01) continue;
-        const total = toNumber(r.valor_rubrica || r.valor_total);
-        updates.push({ id: r.id, valor_utilizado: calculado, saldo: total - calculado, percentual_utilizado: total > 0 ? (calculado / total) * 100 : 0 });
-      }
-
-      if (updates.length === 0) return;
-      console.log(`[AutoRecalc] Atualizando ${updates.length} rubricas divergentes...`);
-
+      const updates = rubricas
+        .filter(r => r.id && r.ativo !== false)
+        .filter(r => Math.abs((valorPorRubrica[r.id] || 0) - toNumber(r.valor_utilizado)) > 0.01)
+        .map(r => {
+          const calculado = valorPorRubrica[r.id] || 0;
+          const total = toNumber(r.valor_rubrica || r.valor_total);
+          return { id: r.id, valor_utilizado: calculado, saldo: total - calculado, percentual_utilizado: total > 0 ? (calculado / total) * 100 : 0 };
+        });
+      if (!updates.length) return;
       try {
-        // Tenta via backend para consistência
-        await base44.functions.invoke('recalculateAllRubricas', {});
+        await base44.functions.invoke('recalcularSaldosRubricas', {});
       } catch {
-        // Fallback: atualiza diretamente as rubricas divergentes
         await Promise.all(updates.map(({ id, ...data }) => base44.entities.Rubrica.update(id, data).catch(() => {})));
       }
-
       await invalidateComprasQueries();
-      console.log(`[AutoRecalc] Concluído — ${updates.length} rubricas sincronizadas.`);
+      await refetchRubricas();
     }
 
     runAutoRecalc();
   }, [purchases, rubricas, currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const { budgetLines } = useBudgetLines();
-
-  const { data: rubricas = [], refetch: refetchRubricas, isLoading: loadingRubricas, isFetching: fetchingRubricas } = useQuery({
-    queryKey: ['rubricas'],
-    queryFn: carregarRubricas,
-    enabled: !!currentUser,
-    staleTime: 1000 * 60,
-    refetchOnWindowFocus: false
-  });
 
   const { data: metas = [] } = useQuery({
     queryKey: ['project-metas'],
