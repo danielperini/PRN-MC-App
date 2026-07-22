@@ -15,6 +15,7 @@ import CentrosCustoCards from '@/components/compras/CentrosCustoCards';
 import { recalculateAllRubricasFromPurchases } from '@/components/compras/AutoRubricasSync';
 import { canManageRubricas } from '@/components/auth/permissions';
 import { getRubricasOficiais3Aditivo } from '@/lib/rubricasOficiais3Aditivo';
+import OrcamentoPorGrupoSection from '@/components/compras/OrcamentoPorGrupoSection';
 
 // ─── Tokens de museu para classificação por nome ───
 const MUSEU_TOKENS = {
@@ -452,6 +453,13 @@ export default function RubricasPorMuseu() {
           <KpiCard label="Utilizado" value={fmt(totaisGerais.totalUtilizado)} helper="rubricas específicas por museu" />
           <KpiCard label="Saldo" value={fmt(totaisGerais.totalSaldo)} helper="saldo disponível" />
         </div>
+
+        {/* Orçamento por grupo */}
+        <OrcamentoPorGrupoSection
+          rubricas={Array.isArray(rubricasBanco) ? rubricasBanco : []}
+          compras={Array.isArray(comprasAprovadas) ? comprasAprovadas : []}
+          onUpdated={refreshAllRubricaData}
+        />
 
         {/* Banner informativo */}
         <div className="flex items-center gap-2 text-xs text-gray-500 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
