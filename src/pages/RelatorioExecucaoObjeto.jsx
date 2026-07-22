@@ -39,6 +39,7 @@ import { listarMetasRelatorio } from '@/utils/sincronizarRelatorioExecucao';
 import { prepararEExportarRelatorioExecucao } from '@/utils/exportarRelatorioExecucao';
 import EquipeTrabalhoTable from '@/components/relatorio/EquipeTrabalhoTable';
 import ExportarEmailConfirmDialog from '@/components/relatorio/ExportarEmailConfirmDialog';
+import RepararLinksTruncadosPanel from '@/components/relatorio/RepararLinksTruncadosPanel';
 
 // Fora do componente — evita re-criação a cada render e captura em closures
 const GRUPOS_GERACAO = [
@@ -833,6 +834,8 @@ export default function RelatorioExecucaoObjeto() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3"><Resumo label="Metas" valor={(relatorio.cronograma_metas || []).length} /><Resumo label="Notas fiscais" valor={(relatorio._notas_fiscais_metas || []).length} /><Resumo label="Atividades" valor={(relatorio._atividades_periodo || []).length} /><Resumo label="Total financeiro" valor={formatarMoeda(relatorio._total_financeiro)} /></div>
+          <RepararLinksTruncadosPanel relatorioId={relatorioId} />
+
           {SECOES_EDITAVEIS.filter(s => s.key !== 'sustentabilidade' || relatorio.tipo === 'final').map(secao => (
             <SecaoEditavel
               key={secao.key}
