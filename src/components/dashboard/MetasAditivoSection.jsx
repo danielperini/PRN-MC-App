@@ -594,22 +594,35 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRef
 
   const metasCalculadas = useMemo(() => {
     const metrics = calculateMetaFinancialMetrics(rubricasFiltradas);
-    return metrics.map(meta => ({
-      numero: meta.numeroFormatado,
-      titulo: meta.titulo,
-      status: meta.status,
-      detalhe: meta.indicador,
-      percentual: meta.percentualFinanceiro,
-      percentualFisico: meta.percentualFisico,
-      previsto: meta.previsto,
-      utilizado: meta.utilizado,
-      saldo: meta.saldo,
-      rubricasCount: meta.rubricasCount,
-      indicador: meta.indicador,
-      _numero: meta.numero,
-      numeroFormatado: meta.numeroFormatado,
-    }));
-  }, [rubricasFiltradas]);
+    return metrics.map(meta => {
+      // Executado Real = soma das PurchaseRequests aprovadas/pagas vinculadas às rubricas desta meta
+      const executadoReal = nfsPorMeta[meta.numero] || 0;
+      // Percentual financeiro baseado no executado real (PurchaseRequests) vs previsto das rubricas
+      const percentualFinanceiroReal = meta.previsto > 0
+        ? Math.min(100, Number(((executadoReal / meta.previsto) * 100).toFixed(2)))
+        : meta.percentualFinanceiro;
+
+      const indicadorReal = meta.previsto > 0
+        ? `${Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(executadoReal)} de ${Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(meta.previsto)} (NFs aprovadas)`
+        : meta.indicador;
+
+      return {
+        numero: meta.numeroFormatado,
+        titulo: meta.titulo,
+        status: meta.status,
+        detalhe: indicadorReal,
+        percentual: percentualFinanceiroReal,
+        percentualFisico: meta.status === 'CONCLUÍDA' ? 100 : percentualFinanceiroReal,
+        previsto: meta.previsto,
+        utilizado: executadoReal,
+        saldo: meta.previsto - executadoReal,
+        rubricasCount: meta.rubricasCount,
+        indicador: indicadorReal,
+        _numero: meta.numero,
+        numeroFormatado: meta.numeroFormatado,
+      };
+    });
+  }, [rubricasFiltradas, nfsPorMeta]);
 
   return (
     <div className="space-y-4">
