@@ -37,7 +37,8 @@ function classifyActivity(a) {
   const class_ = (a.classificacao || '').toLowerCase();
   const metaCod = (a.meta_codigo || a.meta_id || '').toLowerCase();
 
-  if (nome.includes('diária') || nome.includes('diaria') || metaCod.includes('16')) return '16';
+  // Excluir explicitamente Noturno (11, 11B) e Diárias (16) do somatório da META 20
+  if (metaCod.includes('11') || nome.includes('noturno') || metaCod.includes('16') || nome.includes('diária') || nome.includes('diaria')) return null;
   if (nome.includes('iemanjá') || nome.includes('iemanja') || metaCod.includes('19')) return '19';
   if (metaCod.includes('20') || metaCod.includes('10') || nome.includes('mostra') || tipo.includes('mostra')) return '20';
   if (class_ === 'cultural' || tipo.includes('cultural') || tipo.includes('show') || tipo.includes('teatro') || tipo.includes('apresent') || tipo.includes('música')) return '20';
