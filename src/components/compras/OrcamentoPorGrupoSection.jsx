@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
-import { CheckCircle2, AlertCircle, X, Search, Pencil, ArrowLeft } from 'lucide-react';
+import { CheckCircle2, AlertCircle, X, Search, Pencil, ArrowLeft, Link2 } from 'lucide-react';
 
 const GRUPOS_METAS_FISICAS = {
   'm10': { meta: 18, label: '18 mostras' },
@@ -119,6 +119,8 @@ function GrupoRubricasModal({ grupo, todasRubricas, nfsPorRubrica, onClose, onUp
   const [saving, setSaving] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [dirty, setDirty] = useState(false);
+  const [showVincular, setShowVincular] = useState(false);
+  const [queryVincular, setQueryVincular] = useState('');
 
   const grupoNorm = grupo ? normalizeGrupo(grupo.nome) : '';
 
@@ -129,10 +131,12 @@ function GrupoRubricasModal({ grupo, todasRubricas, nfsPorRubrica, onClose, onUp
   }, [grupo, todasRubricas, grupoNorm]);
 
   useEffect(() => {
-    if (!grupo) { setSelectedIds(new Set()); setDirty(false); setMode('view'); return; }
+    if (!grupo) { setSelectedIds(new Set()); setDirty(false); setMode('view'); setShowVincular(false); setQueryVincular(''); return; }
     setSelectedIds(new Set(rubricasDoGrupo.map(r => r.id)));
     setDirty(false);
     setMode('view');
+    setShowVincular(false);
+    setQueryVincular('');
   }, [grupo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!grupo) return null;
@@ -214,11 +218,11 @@ function GrupoRubricasModal({ grupo, todasRubricas, nfsPorRubrica, onClose, onUp
           <div className="flex items-center gap-2 flex-shrink-0">
             {mode === 'view' && (
               <button
-                onClick={() => { setMode('edit'); setQuery(''); }}
-                className="flex items-center gap-1.5 rounded-lg border border-neutral-300 px-3 py-1.5 text-sm font-medium hover:bg-neutral-50 transition"
+                onClick={() => { setShowVincular(v => !v); setQueryVincular(''); }}
+                className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition ${showVincular ? 'border-black bg-black text-white' : 'border-neutral-300 hover:bg-neutral-50'}`}
               >
-                <Pencil className="h-3.5 w-3.5" />
-                Editar rubricas
+                <Link2 className="h-3.5 w-3.5" />
+                Vincular rubricas
               </button>
             )}
             <button onClick={onClose} className="rounded-lg border p-2 hover:bg-neutral-100"><X className="h-4 w-4" /></button>
@@ -314,6 +318,61 @@ function GrupoRubricasModal({ grupo, todasRubricas, nfsPorRubrica, onClose, onUp
                 </tfoot>
               )}
             </table>
+          )}
+
+          {/* ── PAINEL VINCULAR (dentro do view) ── */}
+          {mode === 'view' && showVincular && (
+            <div className="border-t bg-neutral-50">
+              <div className="p-4 border-b flex items-center justify-between">
+                <p className="text-sm font-semibold text-neutral-800">Vincular rubricas manualmente ao grupo <span className="text-black">"{grupo.nome}"</span></p>
+                <button onClick={() => { setShowVincular(false); setQueryVincular(''); setDirty(false); setSelectedIds(new Set(rubricasDoGrupo.map(r => r.id))); }} className="text-xs text-neutral-400 hover:text-neutral-700">Cancelar</button>
+              </div>
+              <div className="p-3 border-b">
+                <div className="relative">
+                  <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-neutral-400" />
+                  <input
+                    value={queryVincular}
+                    onChange={e => setQueryVincular(e.target.value)}
+                    placeholder="Buscar rubrica para vincular..."
+                    className="w-full rounded-lg border pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black"
+                  />
+                </div>
+              </div>
+              <div className="max-h-64 overflow-auto p-3 space-y-1.5">
+                {(todasRubricas || [])
+                  .filter(r => {
+                    const q = normalizeText(queryVincular);
+                    if (!q) return true;
+                    return normalizeText([r.rubrica, r.nome, r.grupo].filter(Boolean).join(' ')).includes(q);
+                  })
+                  .map(rubrica => {
+                    const linked = selectedIds.has(rubrica.id);
+                    const previsto = Number(rubrica.valor_rubrica || rubrica.valor_total || 0);
+                    const utilizado = nfsPorRubrica[rubrica.id] || 0;
+                    return (
+                      <label key={rubrica.id} className={`flex items-center gap-3 rounded-lg border p-2.5 cursor-pointer transition hover:bg-white ${linked ? 'border-black bg-white' : 'border-neutral-200 bg-white'}`}>
+                        <input type="checkbox" checked={linked} onChange={() => toggleLocal(rubrica.id)} className="h-4 w-4 accent-black flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm leading-tight">{rubrica.rubrica || rubrica.nome || '(sem nome)'}</p>
+                          <p className="text-xs text-neutral-400 mt-0.5">
+                            {rubrica.grupo ? <span className="italic mr-2">{rubrica.grupo}</span> : null}
+                            {fmtBRL(previsto)} · Util: {fmtBRL(utilizado)}
+                          </p>
+                        </div>
+                      </label>
+                    );
+                  })}
+              </div>
+              <div className="p-3 border-t flex justify-end gap-2">
+                <button
+                  onClick={handleSalvar}
+                  disabled={saving || !dirty}
+                  className={`px-5 py-2 rounded-lg text-sm font-semibold transition ${dirty && !saving ? 'bg-black text-white hover:bg-neutral-800' : 'bg-neutral-200 text-neutral-400 cursor-not-allowed'}`}
+                >
+                  {saving ? 'Salvando...' : 'Salvar vínculos'}
+                </button>
+              </div>
+            </div>
           )}
 
           {/* ── MODO EDIT: checkboxes ── */}
