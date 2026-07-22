@@ -18,7 +18,6 @@ const METAS_FISICAS_QUANTITATIVAS = {
   '16':  { meta: 101, label: '101 diárias', valorUnitario: 300 },
   '19':  { meta: 4,   label: '4 ações Iemanjá' },
   '20':  { meta: 30,  label: '30 ações educativas/culturais' },
-  '11':  { meta: 3,   label: '3 edições Noturno Centro 2026' },
   '11B': { meta: 1,   label: '1 edição Noturno Pampulha' },
 };
 
@@ -118,7 +117,7 @@ function FisicoMiniPanel({ metaNumero, atividadesPorMuseu }) {
 }
 
 // ─── MetaCard ────────────────────────────────────────────────────────────────
-function MetaCard({ meta, onOpen, atividadesPorMuseu }) {
+function MetaCard({ meta, onOpen, atividadesPorMuseu, nfsAprovadas }) {
   const metaNumero = (meta._numero || meta.numero || '').replace('META ', '').replace(/^0+/, '');
   const totalAtividades = Object.values(atividadesPorMuseu || {}).reduce((s, v) => s + v, 0);
 
@@ -196,8 +195,19 @@ function MetaCard({ meta, onOpen, atividadesPorMuseu }) {
               <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-200">
                 <div className={`h-2 rounded-full transition-all ${barColorFromPct(principal)}`} style={{ width: `${pctDisplay}%` }} />
               </div>
+              {/* META 11: exibe contagem de atividades abaixo da barra, sem barra física */}
+              {metaNumero === '11' && totalAtividades > 0 && (
+                <p className="mt-0.5 text-[10px] text-neutral-400">{totalAtividades} atividade{totalAtividades !== 1 ? 's' : ''} registradas</p>
+              )}
             </div>
           </>
+        )}
+
+        {/* NFs aprovadas */}
+        {nfsAprovadas > 0 && (
+          <p className="text-xs text-neutral-500">
+            NFs aprovadas: <span className="font-bold text-neutral-700">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(nfsAprovadas)}</span>
+          </p>
         )}
       </div>
 
@@ -470,6 +480,15 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRef
     staleTime: 120000,
   });
 
+  const { data: purchases = [] } = useQuery({
+    queryKey: ['purchases-nfs-metas-aditivosection'],
+    queryFn: () => base44.entities.PurchaseRequest.filter(
+      { status: { $in: ['APROVADO_ADMIN', 'APROVADO_COORD', 'PAGO'] } },
+      '-created_date', 2000
+    ),
+    staleTime: 120000,
+  });
+
   async function loadRubricas() {
     setLoadingRubricas(true);
     try {
@@ -546,6 +565,32 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRef
     return result;
   }, [todasAtividades]);
 
+  // Mapa: rubricaId → valor total NFs aprovadas/pagas
+  const nfsPorRubrica = useMemo(() => {
+    const map = {};
+    for (const p of purchases) {
+      if (!p.rubrica_id) continue;
+      if (p.incluir_no_somatorio === false) continue;
+      const valor = Number(p.valor_pago || p.valor_aprovado_admin || p.valor_solicitado || 0);
+      map[p.rubrica_id] = (map[p.rubrica_id] || 0) + valor;
+    }
+    return map;
+  }, [purchases]);
+
+  // Mapa: metaNum → total NFs aprovadas cruzando rubricas vinculadas
+  const nfsPorMeta = useMemo(() => {
+    const map = {};
+    for (const r of rubricas) {
+      if (!Array.isArray(r.meta_manual_ids) || r.meta_manual_ids.length === 0) continue;
+      const valorNF = nfsPorRubrica[r.id] || 0;
+      if (valorNF === 0) continue;
+      for (const metaNum of r.meta_manual_ids) {
+        map[metaNum] = (map[metaNum] || 0) + valorNF;
+      }
+    }
+    return map;
+  }, [rubricas, nfsPorRubrica]);
+
   const metasCalculadas = useMemo(() => {
     const metrics = calculateMetaFinancialMetrics(rubricasFiltradas);
     return metrics.map(meta => ({
@@ -604,6 +649,7 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRef
               meta={meta}
               onOpen={setSelectedMeta}
               atividadesPorMuseu={atividadesPorMetaEMuseu[meta._numero] || {}}
+              nfsAprovadas={nfsPorMeta[meta._numero] || 0}
             />
           ))}
       </div>
