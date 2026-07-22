@@ -1,0 +1,83 @@
+{
+  "name": "LinkAcervo",
+  "type": "object",
+  "properties": {
+    "url": {
+      "type": "string",
+      "description": "URL original do recurso"
+    },
+    "url_normalizada": {
+      "type": "string",
+      "description": "URL normalizada (sem par\u00e2metros de rastreamento) \u2014 chave de deduplica\u00e7\u00e3o"
+    },
+    "drive_file_id": {
+      "type": "string",
+      "description": "ID do arquivo/pasta no Google Drive (extra\u00eddo da URL)"
+    },
+    "tipo": {
+      "type": "string",
+      "enum": [
+        "google_drive_arquivo",
+        "google_drive_pasta",
+        "google_sheets",
+        "google_docs",
+        "google_forms",
+        "relatorio_pdf",
+        "nota_fiscal",
+        "foto",
+        "site_externo",
+        "youtube",
+        "instagram",
+        "adobe",
+        "truncado"
+      ],
+      "description": "Tipo do recurso"
+    },
+    "nome": {
+      "type": "string",
+      "description": "Nome descritivo do recurso"
+    },
+    "paginas_referencia": {
+      "type": "string",
+      "description": "P\u00e1ginas de refer\u00eancia no documento (ex: '2, 16')"
+    },
+    "situacao": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "pendente",
+        "truncado",
+        "aberto_publicamente",
+        "erro"
+      ],
+      "default": "pendente",
+      "description": "Situa\u00e7\u00e3o do link"
+    },
+    "acesso_compartilhamento": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o do n\u00edvel de compartilhamento (ex: 'Qualquer pessoa com o link')"
+    },
+    "origem": {
+      "type": "string",
+      "description": "Origem do link (ex: 'semente_manual', 'PurchaseRequest:abc123', 'Drive:pasta_relatorios')"
+    },
+    "drive_permission_aplicada": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se a permiss\u00e3o p\u00fablica foi aplicada via Drive API"
+    },
+    "corrigido_de": {
+      "type": "string",
+      "description": "URL truncada original (quando este registro foi reparado)"
+    },
+    "gerado_em": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data/hora de gera\u00e7\u00e3o/atualiza\u00e7\u00e3o"
+    }
+  },
+  "required": [
+    "url",
+    "tipo"
+  ]
+}

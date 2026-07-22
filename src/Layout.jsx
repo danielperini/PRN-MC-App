@@ -59,6 +59,7 @@ const PAGE_TITLES = {
   RelatorioAtividadesHtml: '📋 Relatório de Atividades com Fotos (Fev–Jun/2026)',
   BancoRelatorios: 'Banco de Relatórios',
   AuditoriaInstitucional: 'Auditoria',
+  AcervoLinks: 'Acervo de Links',
 };
 
 export default function Layout({ children, currentPageName }) {
