@@ -624,15 +624,16 @@ function ComprasInner() {
 
       await refreshFinanceiroCompleto();
 
-      await notifyPurchaseApproved(
-        {
-          ...purchase,
-          status: 'APROVADO_COORD'
-        },
-        currentUser
-      ).catch((error) => {
-        console.warn('Falha ao notificar aprovação de compra:', error);
-      });
+      // Suprimir notificação se for aprovação direta (nunca passou por SOLICITADO)
+      const isAprovacaoDireta = !purchase.submitted_at;
+      if (!isAprovacaoDireta) {
+        await notifyPurchaseApproved(
+          { ...purchase, status: 'APROVADO_COORD' },
+          currentUser
+        ).catch((error) => {
+          console.warn('Falha ao notificar aprovação de compra:', error);
+        });
+      }
 
       const rubricaInfo = purchase.rubrica_nome || purchase.rubrica_id || '';
       smartToast.success(`✅ Solicitação aprovada!${rubricaInfo ? ` Valor debitado da rubrica "${rubricaInfo}".` : ''} Status atualizado para Aprovado.`);

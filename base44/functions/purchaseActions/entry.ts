@@ -430,15 +430,21 @@ Deno.serve(async (req) => {
         }).catch(() => {});
       }
 
-      // Disparar e-mail automático para setor financeiro (não bloqueia se falhar)
-      try {
-        await base44.asServiceRole.functions.invoke('notifyPurchaseApprovedToFinanceiro', {
-          purchaseId: purchase.id,
-          aprovadorEmail: body.aprovadorEmail || '',
-          aprovadorNome: body.aprovadorNome || '',
-        });
-      } catch (emailErr) {
-        console.warn('E-mail financeiro não enviado:', emailErr?.message);
+      // Notificações: suprimir se for aprovação direta (nunca passou por SOLICITADO)
+      // Critério: submitted_at ausente/nulo → coordenador criou e aprovou sem submissão formal
+      const isAprovacaoDireta = !purchase.submitted_at;
+      if (!isAprovacaoDireta) {
+        try {
+          await base44.asServiceRole.functions.invoke('notifyPurchaseApprovedToFinanceiro', {
+            purchaseId: purchase.id,
+            aprovadorEmail: body.aprovadorEmail || '',
+            aprovadorNome: body.aprovadorNome || '',
+          });
+        } catch (emailErr) {
+          console.warn('E-mail financeiro não enviado:', emailErr?.message);
+        }
+      } else {
+        console.log(`[purchaseActions] Aprovação direta (sem SOLICITADO) — notificações suprimidas para purchase ${purchase.id}`);
       }
 
       return json({ success: true, purchase: updated });
