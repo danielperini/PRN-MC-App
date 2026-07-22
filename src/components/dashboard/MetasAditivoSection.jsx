@@ -192,16 +192,20 @@ function MetaCard({ meta, onOpen, atividadesPorMuseu }) {
 function MetaRubricasModal({ meta, rubricas, onClose, onUpdated }) {
   const [query, setQuery] = useState('');
   const [saving, setSaving] = useState(false);
-  // Vínculos manuais: apenas rubrica.meta_manual_ids (campo explícito) define o vínculo
-  const [selectedIds, setSelectedIds] = useState(() => {
-    if (!meta) return new Set();
-    return new Set(
-      (rubricas || [])
-        .filter(r => Array.isArray(r.meta_manual_ids) && r.meta_manual_ids.includes(meta._numero || meta.numero))
-        .map(r => r.id)
-    );
-  });
+  const [selectedIds, setSelectedIds] = useState(new Set());
   const [dirty, setDirty] = useState(false);
+
+  // Re-inicializa seleção sempre que a meta ou a lista de rubricas muda
+  useEffect(() => {
+    if (!meta) { setSelectedIds(new Set()); setDirty(false); return; }
+    const metaNum = meta._numero || meta.numero;
+    setSelectedIds(new Set(
+      (rubricas || [])
+        .filter(r => Array.isArray(r.meta_manual_ids) && r.meta_manual_ids.includes(metaNum))
+        .map(r => r.id)
+    ));
+    setDirty(false);
+  }, [meta, rubricas]);
 
   if (!meta) return null;
 
