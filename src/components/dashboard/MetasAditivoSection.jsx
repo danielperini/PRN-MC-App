@@ -15,7 +15,7 @@ const METAS_FISICAS_QUANTITATIVAS = {
   '5':   { meta: 60,  label: '60 ações educativas' },
   '6':   { meta: 36,  label: '36 ações culturais' },
   '10':  { meta: 18,  label: '18 mostras' },
-  '16':  { meta: 101, label: '101 diárias de educador' },
+  '16':  { meta: 101, label: '101 diárias', valorUnitario: 300 },
   '19':  { meta: 4,   label: '4 ações Iemanjá' },
   '20':  { meta: 30,  label: '30 ações educativas/culturais' },
   '11':  { meta: 3,   label: '3 edições Noturno Centro 2026' },
@@ -151,6 +151,11 @@ function MetaCard({ meta, onOpen, atividadesPorMuseu }) {
 
       <div className="min-w-0">
         <p className="text-base font-semibold leading-snug text-black">{meta.titulo}</p>
+        {METAS_FISICAS_QUANTITATIVAS[metaNumero]?.valorUnitario && (
+          <p className="mt-0.5 text-xs text-neutral-500">
+            Valor unitário: R$ {METAS_FISICAS_QUANTITATIVAS[metaNumero].valorUnitario.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / diária
+          </p>
+        )}
         <p className="mt-1 text-sm leading-snug text-neutral-600">{meta.detalhe}</p>
       </div>
 

@@ -31,7 +31,7 @@ export const METAS_OFICIAIS = [
   { numero: '10', numeroFormatado: 'META 10', titulo: 'Mostras de baixa/média complexidade (2 mostras: MIS e MHAB)', status: 'EM EXECUÇÃO' },
   { numero: '11', numeroFormatado: 'META 11', titulo: 'Noturno Centro 2026', status: 'EM EXECUÇÃO' },
   { numero: '20', numeroFormatado: 'META 20', titulo: 'Ações educativas e culturais — MHAB, MIS e MUMO (30 ações)', status: 'EM EXECUÇÃO' },
-  { numero: '16', numeroFormatado: 'META 16', titulo: 'Diárias de educadores (101 diárias)', status: 'EM EXECUÇÃO' },
+  { numero: '16', numeroFormatado: 'META 16', titulo: 'Diárias de Educadores', status: 'EM EXECUÇÃO' },
 
   // METAS EM EXECUÇÃO — CUSTEIO E PUBLICAÇÕES
   { numero: '17', numeroFormatado: 'META 17', titulo: 'Publicações e catálogos', status: 'EM EXECUÇÃO' },
@@ -42,7 +42,7 @@ export const METAS_OFICIAIS = [
   { numero: '23', numeroFormatado: 'META 23', titulo: 'Despesas Gerais', status: 'EM EXECUÇÃO' },
 
   // 4º ADITIVO — Noturno Pampulha
-  { numero: '11B', numeroFormatado: 'META 11B', titulo: 'Noturno Pampulha (4º Aditivo)', status: 'EM EXECUÇÃO', metaPai: '11' },
+  { numero: '11B', numeroFormatado: 'META 11B', titulo: 'Noturno Pampulha 2026', status: 'EM EXECUÇÃO', metaPai: '11' },
 ];
 
 /**
