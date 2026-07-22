@@ -17,7 +17,7 @@ const METAS_FISICAS_QUANTITATIVAS = {
   '16':  { meta: 101, label: '101 diárias de educador' },
   '19':  { meta: 4,   label: '4 ações Iemanjá' },
   '20':  { meta: 30,  label: '30 ações educativas/culturais' },
-  '11':  { meta: 3,   label: '3 edições Noturno' },
+  '11':  { meta: 3,   label: '3 edições Noturno Centro 2026' },
   '11B': { meta: 1,   label: '1 edição Noturno Pampulha' },
 };
 
