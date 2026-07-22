@@ -9,13 +9,12 @@ import { FileText, Loader2, AlertCircle, CheckCircle2, Send, Trash2, SplitSquare
 import { useToast } from '@/components/ui/use-toast';
 import { findDuplicatePurchaseRequest } from '@/lib/purchaseDuplicateGuard';
 import DuplicatePurchaseDetectedModal from '@/components/compras/DuplicatePurchaseDetectedModal';
+import { METAS_PROJETO } from '@/lib/metasProjeto';
 
 
 const CENTROS = ['MHAB', 'MIS', 'MUMO', 'Noturno 2026', 'Noturno Pampulha', 'Atuação Geral'];
 const MUSEUS_RATEIO = ['MHAB', 'MIS', 'MUMO'];
 const DEFAULT_RATEIO = MUSEUS_RATEIO.map((m) => ({ museu: m, valor: '' }));
-
-import { METAS_PROJETO, SET_METAS_OFICIAIS } from '@/lib/metasProjeto';
 
 const COORD_EMAILS = [
   'danielperini.mc@viadutodasartes.org.br',
