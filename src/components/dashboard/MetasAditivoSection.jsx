@@ -139,9 +139,9 @@ function MetaCard({ meta, onOpen, atividadesPorMuseu }) {
           <StatusIcon className="h-4 w-4 flex-shrink-0 text-black" />
           <span className="text-xs font-semibold uppercase tracking-wide text-neutral-600">{meta.numero}</span>
         </div>
-        {/* Badge reflete % principal */}
-        <span className={`rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${badgeClassFromPct(principal)}`}>
-          {principal}%
+        {/* Badge status */}
+        <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${badgeClassFromPct(tipoPrincipal === 'fisico' ? principal : principal)}`}>
+          {tipoPrincipal === 'fisico' ? `${principal}% fís.` : `${principal}%`}
         </span>
       </div>
 
@@ -155,32 +155,49 @@ function MetaCard({ meta, onOpen, atividadesPorMuseu }) {
         <p className="mt-1 text-sm leading-snug text-neutral-600">{meta.detalhe}</p>
       </div>
 
-      <div className="mt-auto">
-        <div className="mb-1 flex items-end justify-between gap-3 text-sm text-neutral-700">
-          <span className="leading-snug text-xs text-neutral-500">
-            {tipoPrincipal === 'fisico' ? `${totalAtividades} atividade${totalAtividades !== 1 ? 's' : ''} realizadas` : meta.indicador}
-          </span>
-          <span className="shrink-0 font-bold text-black">{principal}%</span>
-        </div>
+      <div className="mt-auto space-y-2">
+        {tipoPrincipal === 'fisico' ? (
+          <>
+            {/* Barra Física */}
+            <div>
+              <div className="mb-1 flex items-center justify-between text-xs">
+                <span className="text-neutral-500 font-medium">Físico</span>
+                <span className="font-bold text-black">
+                  {principal}%{principalReal > 100 ? <span className="ml-1 text-green-600 font-semibold">({principalReal}% real)</span> : ''}
+                </span>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-200">
+                <div className={`h-2 rounded-full transition-all ${barColorFromPct(principal)}`} style={{ width: `${pctDisplay}%` }} />
+              </div>
+              <p className="mt-0.5 text-[10px] text-neutral-400">{totalAtividades} atividade{totalAtividades !== 1 ? 's' : ''} realizadas</p>
+            </div>
 
-        {/* Barra principal — cor por status do % principal */}
-        <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-200">
-          <div
-            className={`h-2 rounded-full transition-all ${barColorFromPct(principal)}`}
-            style={{ width: `${pctDisplay}%` }}
-          />
-        </div>
-
-        {/* Linha secundária */}
-        {tipoPrincipal === 'fisico' && secundario !== null && (
-          <p className="mt-1.5 text-[11px] text-slate-400">
-            % financeiro: {secundario}%{principalReal > 100 ? ` · físico real: ${principalReal}%` : ''}
-          </p>
-        )}
-        {tipoPrincipal === 'financeiro' && (
-          <p className="mt-1.5 text-[11px] text-slate-400">
-            Sem meta física definida
-          </p>
+            {/* Barra Financeira (quando há dados financeiros) */}
+            {secundario !== null && (
+              <div>
+                <div className="mb-1 flex items-center justify-between text-xs">
+                  <span className="text-neutral-500 font-medium">Financeiro</span>
+                  <span className="font-bold text-neutral-700">{secundario}%</span>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-200">
+                  <div className={`h-1.5 rounded-full transition-all ${barColorFromPct(secundario)}`} style={{ width: `${Math.min(secundario, 100)}%` }} />
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            {/* Barra Financeira apenas */}
+            <div>
+              <div className="mb-1 flex items-center justify-between text-xs">
+                <span className="text-neutral-500 font-medium">Financeiro</span>
+                <span className="font-bold text-black">{principal}%</span>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-200">
+                <div className={`h-2 rounded-full transition-all ${barColorFromPct(principal)}`} style={{ width: `${pctDisplay}%` }} />
+              </div>
+            </div>
+          </>
         )}
       </div>
 
