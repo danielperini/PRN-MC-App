@@ -28,7 +28,6 @@ import {
   ChevronUp,
   UserCog,
   LogOut,
-  CheckSquare,
   Bot,
 } from 'lucide-react';
 
@@ -57,7 +56,6 @@ const NAV_GROUPS = [
   {
     label: 'Meu Trabalho',
     items: [
-      { path: 'NovaAtividade', label: 'Atividades', icon: CheckSquare, roles: ['all'] },
       { path: 'MeusDados', label: 'Meus Dados', icon: User, roles: ['all'] },
       { path: 'Perfil', label: 'Perfil', icon: User, roles: ['all'] },
       { path: 'Manual', label: 'Ajuda', icon: HelpCircle, roles: ['all'] },
