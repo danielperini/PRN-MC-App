@@ -56,7 +56,6 @@ import MeusPagamentosTab from '@/components/compras/MeusPagamentosTab';
 import PagarSolicitacaoDialog from '@/components/compras/PagarSolicitacaoDialog';
 import NovaRubricaDialog from '@/components/rubricas/NovaRubricaDialog';
 import TotaisAditivoCards from '@/components/compras/TotaisAditivoCards';
-import RubricasConsumoDashboard from '@/components/compras/RubricasConsumoDashboard';
 import RecalcularTotaisButton from '@/components/compras/RecalcularTotaisButton';
 import PainelVerificacaoFinanceira from '@/components/compras/PainelVerificacaoFinanceira';
 import PainelAuditoriaMetas from '@/components/compras/PainelAuditoriaMetas';
@@ -252,6 +251,7 @@ function ComprasInner() {
   const [vinculandoNatureza, setVinculandoNatureza] = useState(false);
   const [filters, setFilters] = useState({ status: 'all', meta_id: 'all', search: '', rubrica_id: 'all', inconsistencias: 'all', centro_custo: 'all', data_inicio: '', data_fim: '' });
   const queryClient = useQueryClient();
+  const autoRecalcRan = React.useRef(false);
 
   useEffect(() => {
     let mounted = true;
@@ -340,6 +340,53 @@ function ComprasInner() {
     staleTime: 1000 * 60,
     refetchOnWindowFocus: false
   });
+
+  // Recálculo automático silencioso: sincroniza valor_utilizado de cada rubrica
+  // com a soma real das PurchaseRequests aprovadas/pagas. Roda uma vez por sessão.
+  useEffect(() => {
+    if (autoRecalcRan.current) return;
+    if (!currentUser || !purchases.length || !rubricas.length) return;
+    autoRecalcRan.current = true;
+
+    async function runAutoRecalc() {
+      const STATUS_CONTABILIZADOS = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
+      // Agrupa valores por rubrica_id
+      const valorPorRubrica = {};
+      for (const p of purchases) {
+        if (!p.rubrica_id) continue;
+        if (!STATUS_CONTABILIZADOS.has(normalizeStatus(p.status))) continue;
+        if (p.duplicada_financeira === true || p.incluir_no_somatorio === false) continue;
+        if (!valorPorRubrica[p.rubrica_id]) valorPorRubrica[p.rubrica_id] = 0;
+        valorPorRubrica[p.rubrica_id] += getPurchaseValue(p);
+      }
+
+      const updates = [];
+      for (const r of rubricas) {
+        if (!r.id || r.ativo === false) continue;
+        const calculado = valorPorRubrica[r.id] || 0;
+        const armazenado = toNumber(r.valor_utilizado);
+        if (Math.abs(calculado - armazenado) <= 0.01) continue;
+        const total = toNumber(r.valor_rubrica || r.valor_total);
+        updates.push({ id: r.id, valor_utilizado: calculado, saldo: total - calculado, percentual_utilizado: total > 0 ? (calculado / total) * 100 : 0 });
+      }
+
+      if (updates.length === 0) return;
+      console.log(`[AutoRecalc] Atualizando ${updates.length} rubricas divergentes...`);
+
+      try {
+        // Tenta via backend para consistência
+        await base44.functions.invoke('recalculateAllRubricas', {});
+      } catch {
+        // Fallback: atualiza diretamente as rubricas divergentes
+        await Promise.all(updates.map(({ id, ...data }) => base44.entities.Rubrica.update(id, data).catch(() => {})));
+      }
+
+      await invalidateComprasQueries();
+      console.log(`[AutoRecalc] Concluído — ${updates.length} rubricas sincronizadas.`);
+    }
+
+    runAutoRecalc();
+  }, [purchases, rubricas, currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { budgetLines } = useBudgetLines();
 
@@ -995,7 +1042,6 @@ function ComprasInner() {
           {[
           { id: 'lista', label: 'Solicitações' },
           ...(podeGerenciarRubricas ? [{ id: 'rubricas', label: 'Rubricas' }] : []),
-          { id: 'consumo', label: 'Consumo Rubricas' },
           { id: 'documentos', label: 'Documentos' },
           ...(isCoordenador ? [{ id: 'equipe', label: 'Equipe' }] : []),
           { id: 'meus_pagamentos', label: 'Meus Pagamentos' },
@@ -1512,10 +1558,6 @@ function ComprasInner() {
 
           }
           </div>
-        }
-
-        {tab === 'consumo' &&
-        <RubricasConsumoDashboard rubricas={rubricas} />
         }
 
         {tab === 'documentos' &&
