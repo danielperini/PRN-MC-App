@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { CheckCircle2, AlertCircle, X, Search, Users, Layers } from 'lucide-react';
 import EditarRubricasEmLoteModal from '@/components/rubricas/EditarRubricasEmLoteModal';
@@ -178,7 +178,7 @@ function MetaCard({ meta, onOpen, atividadesPorMuseu }) {
         {/* Linha secundária */}
         {tipoPrincipal === 'fisico' && secundario !== null && (
           <p className="mt-1.5 text-[11px] text-slate-400">
-            % financeiro: {secundario}%
+            % financeiro: {secundario}%{resolveMetaPercentual(meta, totalAtividades, METAS_FISICAS_QUANTITATIVAS).principalReal > 100 ? ` · físico real: ${resolveMetaPercentual(meta, totalAtividades, METAS_FISICAS_QUANTITATIVAS).principalReal}%` : ''}
           </p>
         )}
         {tipoPrincipal === 'financeiro' && (
@@ -425,6 +425,8 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRef
   const [selectedMeta, setSelectedMeta] = useState(null);
   const [showLoteModal, setShowLoteModal] = useState(false);
   const [rubricas, setRubricas] = useState(rubricasProp || []);
+  const [loadingRubricas, setLoadingRubricas] = useState(false);
+  const queryClient = useQueryClient();
 
   // Filtro interno (se não passado como prop)
   const [aditivoInterno, setAditivoInterno] = useState('ambos');
@@ -456,11 +458,14 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRef
   });
 
   async function loadRubricas() {
+    setLoadingRubricas(true);
     try {
       const data = await base44.entities.Rubrica.list('rubrica', 1000);
       setRubricas(Array.isArray(data) ? data.filter((item) => item?.ativo !== false) : []);
     } catch (error) {
       console.error(error);
+    } finally {
+      setLoadingRubricas(false);
     }
   }
 
@@ -474,6 +479,7 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRef
 
   async function handleUpdated() {
     await loadRubricas();
+    queryClient.invalidateQueries({ queryKey: ['rubricas'] });
     if (onRefresh) onRefresh();
   }
 
@@ -551,6 +557,7 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRef
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <h2 className="text-xl font-bold text-slate-900 tracking-tight">Metas do 3º e 4º Aditivo</h2>
+          {loadingRubricas && <span className="text-xs text-neutral-400 animate-pulse">Atualizando...</span>}
           <button
             onClick={() => setShowLoteModal(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-300 bg-white text-xs font-semibold text-neutral-700 hover:bg-neutral-50 transition"
@@ -568,7 +575,7 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRef
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div className={`grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 transition-opacity ${loadingRubricas ? 'opacity-60' : 'opacity-100'}`}>
         {metasCalculadas
           .filter((meta) => !deveOcultarMetaTerceiroAditivo(meta))
           .filter((meta) => {

@@ -15,9 +15,11 @@ export function resolveMetaPercentual(meta, atividadesContadas, METAS_FISICAS_QU
   const percentualFinanceiro = meta.percentual ?? 0;
 
   if (defFisica && defFisica.meta > 0) {
-    const pctFisico = Math.round((atividadesContadas / defFisica.meta) * 100);
+    const pctFisicoReal = Math.round((atividadesContadas / defFisica.meta) * 100);
+    const pctFisico = Math.min(100, pctFisicoReal);
     return {
       principal: pctFisico,
+      principalReal: pctFisicoReal,
       secundario: percentualFinanceiro,
       tipoPrincipal: 'fisico',
       metaFisica: defFisica.meta,
