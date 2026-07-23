@@ -188,6 +188,8 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
   const [rateio, setRateio] = useState(DEFAULT_RATEIO)
   const [showNotificationConfirm, setShowNotificationConfirm] = useState(false)
   const [sendingNotification, setSendingNotification] = useState(false)
+  // Flag para garantir que o setForm inicial só roda uma vez por abertura (por prefill.id)
+  const initializedForId = useRef(null)
 
   // Hook unificado de análise de documentos
   const {
@@ -259,7 +261,13 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
       .catch(() => setMetas(METAS_PROJETO_FALLBACK.map(m => ({ id: m.id, nome: m.label }))))
   }, [])
 
+  // Inicializa o form UMA ÚNICA VEZ por abertura (identificada por prefill.id ou ausência de prefill).
+  // NÃO depende de `metas` para evitar reset das edições do usuário quando metas carregam.
   useEffect(() => {
+    const currentId = prefill?.id ?? '__new__'
+    if (initializedForId.current === currentId) return
+    initializedForId.current = currentId
+
     if (prefill) {
       const ia = prefill.resultado_ia || {}
       const existingUrl = getExistingUrl(prefill)
@@ -302,18 +310,8 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
           fornecedorNome
         )
 
-      const nfNumero =
-        firstFilled(
-          prefill.nf_numero,
-          ia.nf_numero
-        )
-
-      const nfData =
-        firstFilled(
-          prefill.nf_data_emissao,
-          ia.nf_data_emissao,
-          ia.data_emissao
-        )
+      const nfNumero = firstFilled(prefill.nf_numero, ia.nf_numero)
+      const nfData = firstFilled(prefill.nf_data_emissao, ia.nf_data_emissao, ia.data_emissao)
 
       const arquivoNome =
         firstFilled(
@@ -332,6 +330,10 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
           getDocumentKind(arquivoNome)
         )
 
+      // meta_id: normaliza com as metas já carregadas (pode ser [] se metas ainda não chegaram —
+      // nesse caso o useEffect abaixo vai atualizar apenas esse campo quando metas chegarem)
+      const metaIdRaw = firstFilled(prefill.meta_id, ia.meta_id, ia.meta_sugerida)
+
       setForm({
         descricao_item: descricao,
         fornecedor_nome: fornecedorNome,
@@ -340,7 +342,7 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
         centro_custo: firstFilled(prefill.centro_custo, ia.centro_custo_sugerido, ia.centro_custo),
         rubrica_id: firstFilled(prefill.rubrica_id, ia.rubrica_id, ia.rubrica_id_sugerida),
         rubrica_nome: firstFilled(prefill.rubrica_nome, ia.rubrica_nome_sugerida, ia.rubrica_nome),
-        meta_id: normalizeMetaValue(firstFilled(prefill.meta_id, ia.meta_id, ia.meta_sugerida), metas),
+        meta_id: normalizeMetaValue(metaIdRaw, metas),
         meta_extra_descricao: prefill.meta_extra_descricao || '',
         categoria: firstFilled(prefill.categoria, ia.categoria, 'Nota Fiscal'),
         tipo_gasto: firstFilled(prefill.tipo_gasto, ia.tipo_gasto, 'Serviço'),
@@ -379,7 +381,22 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
     setShowReturnInput(false)
     setAttachedFile(null)
     setAiPreenchido(false)
-  }, [prefill, metas])
+  }, [prefill?.id])
+
+  // Quando metas terminam de carregar, atualiza APENAS o meta_id caso ele ainda não tenha sido
+  // normalizado corretamente (não toca em nenhum outro campo do form).
+  useEffect(() => {
+    if (!metas.length || !prefill) return
+    const metaIdRaw = firstFilled(prefill.meta_id, prefill.resultado_ia?.meta_id, prefill.resultado_ia?.meta_sugerida)
+    if (!metaIdRaw) return
+    const normalized = normalizeMetaValue(metaIdRaw, metas)
+    setForm((prev) => {
+      // Só atualiza se o campo ainda está no valor bruto (não foi editado pelo usuário)
+      if (prev.meta_id === normalized) return prev
+      if (prev.meta_id && prev.meta_id !== metaIdRaw) return prev // usuário já editou
+      return { ...prev, meta_id: normalized }
+    })
+  }, [metas, prefill?.id])
 
   // ── ANÁLISE UNIFICADA DE DOCUMENTOS ──
   const triggerAnalise = useCallback(async () => {
