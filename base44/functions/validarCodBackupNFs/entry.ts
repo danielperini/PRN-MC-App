@@ -148,6 +148,10 @@ const MAPA_N4: Array<{ codigo: string; termos: string[] }> = [
       'apresentacoes culturais',
       'pesquisa e texto mhab',
       'pesquisa e texto',
+      'contratacao de artistas e atracoes noturno pampulha',
+      'artistas e atracoes pampulha',
+      'contratacao de artistas',
+      'artistas pampulha',
     ],
   },
   {
@@ -249,6 +253,9 @@ const MAPA_N4: Array<{ codigo: string; termos: string[] }> = [
       'coordenador comunicacao',
       'coordenadora comunicacao',
       'coordenador de comunicacao',
+      'comunicacao e divulgacao noturno pampulha',
+      'divulgacao pampulha',
+      'comunicacao pampulha',
     ],
   },
   {
@@ -269,6 +276,9 @@ const MAPA_N4: Array<{ codigo: string; termos: string[] }> = [
       'maquete tatil',
       'video com libras',
       'audio descricao',
+      'producao e infraestrutura noturno pampulha',
+      'infraestrutura pampulha',
+      'producao pampulha',
     ],
   },
 ];
