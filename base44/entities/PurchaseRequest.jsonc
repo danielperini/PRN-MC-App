@@ -36,6 +36,14 @@
     "rubrica_id": {
       "type": "string"
     },
+    "rubrica_mes_inicial": {
+      "type": "number",
+      "description": "M\u00eas inicial de execu\u00e7\u00e3o conforme o Plano de Trabalho oficial (ex: 19)"
+    },
+    "rubrica_mes_final": {
+      "type": "number",
+      "description": "M\u00eas final de execu\u00e7\u00e3o conforme o Plano de Trabalho oficial (ex: 28)"
+    },
     "natureza_despesa": {
       "type": "string",
       "description": "Natureza da despesa (339030|339035|339037|339039) \u2014 espelhada da rubrica vinculada"
@@ -408,7 +416,7 @@
         "SEM_RUBRICA",
         "SEM_CODIGO"
       ],
-      "description": "Status da valida\u00e7\u00e3o do campo cod: OK=c\u00f3digo validado, REVISAR=requer revis\u00e3o manual, SEM_RUBRICA=sem rubrica vinculada, SEM_CODIGO=rubrica sem c\u00f3digo"
+      "description": "Status da valida\u00e7\u00e3o do campo cod"
     },
     "codigo_pdf_ok": {
       "type": "string",
@@ -416,8 +424,7 @@
         "SIM",
         "N\u00c3O",
         "N\u00c3O_SE_APLICA"
-      ],
-      "description": "Se o c\u00f3digo N4 aparece como token separado no nome do arquivo PDF da NF"
+      ]
     },
     "codigo_xml_ok": {
       "type": "string",
@@ -425,20 +432,17 @@
         "SIM",
         "N\u00c3O",
         "N\u00c3O_SE_APLICA"
-      ],
-      "description": "Se o c\u00f3digo N4 aparece como token separado no nome do arquivo XML da NF"
+      ]
     },
     "backup_validado": {
       "type": "string",
       "enum": [
         "SIM",
         "N\u00c3O"
-      ],
-      "description": "SIM somente quando cod correto, c\u00f3digo oficial, rubrica correspondente, codigo_pdf_ok=SIM e codigo_xml_ok=SIM ou N/A, sem diverg\u00eancia"
+      ]
     },
     "motivo_revisao": {
-      "type": "string",
-      "description": "Raz\u00e3o pela qual a compra precisa de revis\u00e3o manual (status_cod=REVISAR ou backup_validado=N\u00c3O)"
+      "type": "string"
     }
   },
   "required": [

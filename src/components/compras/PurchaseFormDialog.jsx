@@ -156,6 +156,8 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
     nf_valor_total: '',
     nf_emitente_nome: '',
     nf_emitente_cpf_cnpj: '',
+    rubrica_mes_inicial: '',
+    rubrica_mes_final: '',
     intake_id: '',
     documento_intake_id: '',
     entidade_destino_id: '',
@@ -366,6 +368,8 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
         nf_valor_total: valor,
         nf_emitente_nome: fornecedorNome,
         nf_emitente_cpf_cnpj: fornecedorCnpj,
+        rubrica_mes_inicial: prefill.rubrica_mes_inicial ?? '',
+        rubrica_mes_final: prefill.rubrica_mes_final ?? '',
         intake_id: firstFilled(prefill.intake_id, prefill.documento_intake_id, ia.intake_id),
         documento_intake_id: firstFilled(prefill.documento_intake_id, prefill.intake_id, ia.documento_intake_id),
         entidade_destino_id: prefill.entidade_destino_id || '',
@@ -607,6 +611,8 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
       origem: form.origem || 'EntradaUnica',
       centro_custo: dividirEntreMuseus ? 'Rateado' : form.centro_custo,
       rateio_museus: getRateioPayload(),
+      rubrica_mes_inicial: form.rubrica_mes_inicial !== '' ? Number(form.rubrica_mes_inicial) : undefined,
+      rubrica_mes_final: form.rubrica_mes_final !== '' ? Number(form.rubrica_mes_final) : undefined,
     }
   }
 
@@ -1380,12 +1386,47 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
                     const isPampulha = String(r.centro_custo || '').toUpperCase() === 'NOTURNO PAMPULHA';
                     setField('centro_custo', isPampulha ? 'Noturno Pampulha' : 'Noturno nos Museus 2026')
                   }
+                  // Sugestão silenciosa de mês inicial/final a partir da rubrica (só se vazio)
+                  if (r?.periodo_frequencia && !form.rubrica_mes_inicial) {
+                    setField('rubrica_mes_inicial', r.periodo_frequencia)
+                  }
+                  if (r?.numero_parcelas_unidades && !form.rubrica_mes_final) {
+                    const parsed = parseInt(r.numero_parcelas_unidades, 10)
+                    if (!isNaN(parsed)) setField('rubrica_mes_final', parsed)
+                  }
                   // Não sobrescreve meta_id ao selecionar rubrica (meta usa código próprio)
                 }}
                 items={filteredRubricItems}
                 placeholder="Selecione"
               />
             </div>
+          </div>
+
+          {/* ── MÊS INICIAL / MÊS FINAL (Plano de Trabalho) ── */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-gray-700">Mês Inicial (Plano de Trabalho)</label>
+              <Input
+                type="number"
+                min="1"
+                step="1"
+                value={form.rubrica_mes_inicial}
+                onChange={(e) => setField('rubrica_mes_inicial', e.target.value)}
+                placeholder="19"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-gray-700">Mês Final (Plano de Trabalho)</label>
+              <Input
+                type="number"
+                min="1"
+                step="1"
+                value={form.rubrica_mes_final}
+                onChange={(e) => setField('rubrica_mes_final', e.target.value)}
+                placeholder="28"
+              />
+            </div>
+            <p className="col-span-2 text-xs text-gray-400 -mt-2">Conforme a coluna 'Nº Parcelas/Meses' do Plano de Trabalho oficial.</p>
           </div>
 
           {form.meta_id === 'MC3A-EXTRA' && (
