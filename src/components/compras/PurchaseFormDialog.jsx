@@ -185,7 +185,10 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
   const [nfDuplicateBypass, setNfDuplicateBypass] = useState(false)
   const [checkingNfDuplicate, setCheckingNfDuplicate] = useState(false)
   const [deletingDuplicate, setDeletingDuplicate] = useState(false)
-  const [aiPreenchido, setAiPreenchido] = useState(false)
+  // Em registros existentes, bloqueia a análise automática de IA para evitar
+  // que ela sobrescreva edições do usuário com dados antigos do documento.
+  // O usuário ainda pode acionar manualmente via botão "Reanalisar documentos".
+  const [aiPreenchido, setAiPreenchido] = useState(!!prefill?.id)
   const [dividirEntreMuseus, setDividirEntreMuseus] = useState(false)
   const [rateio, setRateio] = useState(DEFAULT_RATEIO)
   const [showNotificationConfirm, setShowNotificationConfirm] = useState(false)
@@ -384,7 +387,9 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
     setReturnComment('')
     setShowReturnInput(false)
     setAttachedFile(null)
-    setAiPreenchido(false)
+    // Em edição de registro existente, bloqueia análise automática de IA para
+    // evitar que sobrescreva campos editados pelo usuário. Só libera para novos registros.
+    setAiPreenchido(!!prefill?.id)
   }, [prefill?.id])
 
   // Quando metas terminam de carregar, atualiza APENAS o meta_id caso ele ainda não tenha sido
