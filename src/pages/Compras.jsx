@@ -971,6 +971,12 @@ function ComprasInner() {
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-bold text-black">Suprimentos</h1>
 
+                {isCoordenador && (
+                  <span className="hidden sm:flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-xs text-gray-500" title="Backup diário de NFs para o Google Drive às 02h00 (Brasília)">
+                    🗄️ Backup NFs: hoje 02h00
+                  </span>
+                )}
+
                 {isCoordenador ?
                 <span className="flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700">
                     <ShieldCheck className="h-3 w-3" />
