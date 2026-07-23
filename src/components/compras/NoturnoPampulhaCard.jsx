@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
-import { AlertTriangle, ExternalLink, Wand2, CheckCircle2, Loader2 } from 'lucide-react';
+import { AlertTriangle, ExternalLink, Wand2, CheckCircle2, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 const DRIVE_PASTA_NFS = 'https://drive.google.com/drive/u/0/folders/1Ov9ci6Dwg297mm7QiqX1wfLIb92EZSGf';
@@ -97,21 +97,24 @@ function previstoRubrica(compra, rubricaById) {
 export default function NoturnoPampulhaCard({ isCoordenador = false }) {
   const queryClient = useQueryClient();
   const [preenchendo, setPreenchendo] = useState(false);
-  const [resultadoLote, setResultadoLote] = useState(null);
-  const [confirmando, setConfirmando] = useState(false);
+  const [resultado, setResultado] = useState(null);
 
   async function handlePreencherLote() {
-    setConfirmando(false);
+    if (!window.confirm('Preencher automaticamente rubrica, natureza de despesa e Cód. N4 para todas as solicitações do Noturno Pampulha com campos faltantes?')) return;
     setPreenchendo(true);
-    setResultadoLote(null);
+    setResultado(null);
     try {
-      const res = await base44.functions.invoke('preencherCamposNFPampulha', {});
-      const data = res?.data || res;
-      setResultadoLote(data);
-      toast.success(`${data.atualizadas} solicitações atualizadas com sucesso.`);
-      queryClient.invalidateQueries({ queryKey: ['compras-pampulha-4aditivo'] });
-    } catch (err) {
-      toast.error('Erro ao preencher campos: ' + (err?.message || 'Tente novamente.'));
+      const resp = await base44.functions.invoke('preencherCamposNFPampulha', {});
+      const data = resp?.data || resp;
+      setResultado(data);
+      if (data?.atualizadas > 0) {
+        toast.success(`${data.atualizadas} solicitação(ões) atualizadas com sucesso!`);
+        queryClient.invalidateQueries({ queryKey: ['compras-pampulha-4aditivo'] });
+      } else {
+        toast.info('Nenhuma solicitação precisava de atualização.');
+      }
+    } catch (e) {
+      toast.error('Erro ao preencher: ' + (e?.message || 'Tente novamente'));
     } finally {
       setPreenchendo(false);
     }
@@ -237,12 +240,13 @@ export default function NoturnoPampulhaCard({ isCoordenador = false }) {
         <div className="flex items-center gap-2">
           {isCoordenador && (
             <button
-              onClick={() => setConfirmando(true)}
+              onClick={handlePreencherLote}
               disabled={preenchendo}
-              className="flex items-center gap-1.5 rounded-lg border border-violet-300 bg-violet-600 px-3 py-2 text-xs font-medium text-white hover:bg-violet-700 transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-lg border border-violet-300 bg-violet-100 px-3 py-2 text-xs font-medium text-violet-800 hover:bg-violet-200 transition-colors disabled:opacity-50"
+              title="Preencher rubrica, natureza e Cód. N4 em lote"
             >
-              {preenchendo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
-              {preenchendo ? 'Processando...' : 'Preencher em lote'}
+              <Wand2 className={`w-3.5 h-3.5 ${preenchendo ? 'animate-spin' : ''}`} />
+              {preenchendo ? 'Preenchendo...' : 'Preencher em lote'}
             </button>
           )}
           <a
@@ -303,34 +307,15 @@ export default function NoturnoPampulhaCard({ isCoordenador = false }) {
           </div>
         )}
 
-        {resultadoLote && (
-          <div className="mb-3 rounded-xl border border-green-200 bg-green-50 px-3 py-2 flex items-center gap-2 text-xs text-green-700">
-            <CheckCircle2 className="w-4 h-4 shrink-0" />
-            <span>
-              <strong>{resultadoLote.atualizadas}</strong> atualizadas ·{' '}
-              <strong>{resultadoLote.semMatch}</strong> sem correspondência ·{' '}
-              <strong>{resultadoLote.jaCompletas}</strong> já completas
-            </span>
-          </div>
-        )}
-
-        {confirmando && (
-          <div className="mb-3 rounded-xl border border-violet-200 bg-violet-50 px-3 py-3 text-xs text-violet-800">
-            <p className="font-semibold mb-2">Confirmar preenchimento em lote?</p>
-            <p className="text-violet-600 mb-3">Serão preenchidos apenas campos vazios (rubrica_id, natureza_despesa, cod) — dados já preenchidos não serão sobrescritos.</p>
-            <div className="flex gap-2">
-              <button
-                onClick={handlePreencherLote}
-                className="rounded-lg bg-violet-600 text-white px-3 py-1.5 font-medium hover:bg-violet-700 transition-colors"
-              >
-                Confirmar
-              </button>
-              <button
-                onClick={() => setConfirmando(false)}
-                className="rounded-lg border border-violet-200 bg-white text-violet-700 px-3 py-1.5 font-medium hover:bg-violet-50 transition-colors"
-              >
-                Cancelar
-              </button>
+        {resultado && (
+          <div className={`mb-3 rounded-xl border px-3 py-2 text-xs flex items-start gap-2 ${resultado.atualizadas > 0 ? 'border-green-200 bg-green-50 text-green-800' : 'border-slate-200 bg-slate-50 text-slate-700'}`}>
+            {resultado.atualizadas > 0
+              ? <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-green-600" />
+              : <XCircle className="w-4 h-4 shrink-0 mt-0.5 text-slate-500" />
+            }
+            <div>
+              <span className="font-semibold">Resultado do preenchimento:</span>{' '}
+              {resultado.atualizadas} atualizada(s) · {resultado.ja_completas} já completa(s) · {resultado.sem_match} sem correspondência
             </div>
           </div>
         )}
