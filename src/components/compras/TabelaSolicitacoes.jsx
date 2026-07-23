@@ -334,9 +334,26 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
 
               {/* Código Nº 4 do orçamento */}
               <td className="px-3 py-2.5 text-center" style={tdStyle}>
-                {rubrica?.codigo
-                  ? <span className="inline-block rounded px-1.5 py-0.5 font-mono text-xs bg-amber-100 text-amber-800">{rubrica.codigo}</span>
-                  : <span className="text-gray-300 text-xs">—</span>}
+                {(() => {
+                  const codDisplay = p.cod || rubrica?.codigo;
+                  const statusCod = p.status_cod;
+                  if (codDisplay) {
+                    return (
+                      <span className="inline-flex items-center gap-0.5">
+                        <span className="inline-block rounded px-1.5 py-0.5 font-mono text-xs bg-amber-100 text-amber-800">{codDisplay}</span>
+                        {statusCod === 'REVISAR' && (
+                          <Tooltip content={p.motivo_revisao || 'Requer revisão manual'}>
+                            <AlertTriangle className="h-3 w-3 text-amber-500 cursor-help flex-shrink-0" />
+                          </Tooltip>
+                        )}
+                      </span>
+                    );
+                  }
+                  if (statusCod === 'SEM_RUBRICA' || statusCod === 'SEM_CODIGO') {
+                    return <span className="inline-block rounded px-1.5 py-0.5 font-mono text-xs bg-gray-100 text-gray-400">?</span>;
+                  }
+                  return <span className="text-gray-300 text-xs">—</span>;
+                })()}
               </td>
 
               {/* Fornecedor */}

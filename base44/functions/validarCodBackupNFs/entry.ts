@@ -22,34 +22,72 @@ function norm(v: string): string {
     .trim();
 }
 
-// ── Mapa N4 oficial (SOMENTE os códigos da tabela do Plano de Trabalho) ────────
-// Formato: { codigo, termos[] } — termos normalizados
+// ── Mapa N4 oficial (tabela exata do Plano de Trabalho — 3º Aditivo) ───────────
+// Todos os códigos com 2 dígitos (zero à esquerda). Termos normalizados (sem acentos, lowercase).
 const MAPA_N4: Array<{ codigo: string; termos: string[] }> = [
-  // 02 — Segurança
-  { codigo: '02', termos: ['seguranca', 'segurança', 'locacao de mao de obra seguranca', 'vigilancia', 'vigia', 'servico de seguranca'] },
+  // 01 — Consultorias (Programação, Temas Transversais, Formação Ambiente Seguro)
+  { codigo: '01', termos: [
+    'consultoria de programacao', 'consultorias de temas transversais', 'consultoria temas transversais',
+    'formacao ambiente seguro', 'formacao de ambiente seguro', 'consultoria acessibilidade', 'consultoria pedagogica',
+  ]},
 
-  // 03 — Projeto Expográfico / Identidade Visual (Meta 12/13)
-  { codigo: '03', termos: ['projeto expografico', 'expografia', 'identidade visual exposicao', 'identidade visual meta 12', 'identidade visual meta 13', 'montagem expografica'] },
+  // 02 — Segurança (Ed. 2026)
+  { codigo: '02', termos: [
+    'seguranca', 'locacao de mao de obra seguranca', 'vigilancia', 'vigia', 'servico de seguranca',
+    'seguranca ed 2026', 'seguranca noturno',
+  ]},
 
-  // 04 — Combustível / Transporte / Energia elétrica
-  { codigo: '04', termos: ['combustivel', 'energia eletrica', 'conta de luz', 'gasolina', 'abastecimento', 'transporte combustivel'] },
+  // 03 — Manutenção MIS/MUMO/MHAB, Mostras, Peça em destaque, Exposição MUMO
+  { codigo: '03', termos: [
+    'manutencao mis', 'manutencao mumo', 'manutencao mhab', 'manutencao dos museus',
+    'manutencao uma exposicao', 'manutencao 2 expo', 'manutencao expo',
+    'mostras mis', 'mostras mumo', 'mostras mhab', 'mostra mis', 'mostra mumo', 'mostra mhab',
+    'mostra baixa complexidade', 'mostra media complexidade',
+    'peca em destaque',
+    'exposicao mumo',
+  ]},
 
-  // 12 — Alimentação / Material de escritório
-  { codigo: '12', termos: ['lanche', 'lanches', 'alimentacao', 'coffee break', 'cafe', 'refeicao', 'buffet', 'lanchonete', 'fornecimento de lanches', 'fornecimento de alimentacao', 'material de escritorio', 'material de consumo escritorio'] },
+  // 04 — Transporte, Energia elétrica
+  { codigo: '04', termos: [
+    'transporte', 'combustivel', 'energia eletrica', 'conta de luz', 'gasolina',
+    'abastecimento', 'transporte combustivel',
+  ]},
 
-  // 13 — Sinalização / Impressão
-  { codigo: '13', termos: ['sinalizacao', 'sinalização', 'impressao mis', 'impressao mumo', 'impressao mhab', 'impressao material', 'impressao 2a publicacao', 'impressao 2 publicacao'] },
+  // 12 — Lanches/buffet, Alimentação, Material escritório
+  { codigo: '12', termos: [
+    'lanche', 'lanches', 'alimentacao', 'coffee break', 'cafe', 'refeicao', 'buffet', 'lanchonete',
+    'fornecimento de lanches', 'fornecimento de alimentacao',
+    'material de escritorio', 'material de consumo escritorio',
+  ]},
 
-  // 15 — Material de consumo (museus)
-  { codigo: '15', termos: ['material mis', 'material mumo', 'material mhab', 'material consumo', 'material educativo', 'material grafico'] },
+  // 13 — Sinalização (Ed. 2026), Impressão MHAB
+  { codigo: '13', termos: [
+    'sinalizacao', 'sinalizacao ed 2026', 'sinalizacao noturno',
+    'impressao mhab', 'impressao mis', 'impressao mumo', 'impressao material',
+    'impressao 2a publicacao', 'impressao 2 publicacao',
+  ]},
 
-  // 17 — Kit de Iluminação / Infraestrutura iluminação
-  { codigo: '17', termos: ['kit de iluminacao', 'kit iluminacao', 'infraestrutura e iluminacao', 'infraestrutura iluminacao', 'locacao de iluminacao', 'iluminacao e infraestrutura noturno', 'iluminacao pampulha'] },
+  // 15 — Material MIS/MUMO/MHAB
+  { codigo: '15', termos: [
+    'material mis', 'material mumo', 'material mhab', 'material consumo',
+    'material educativo', 'material grafico',
+  ]},
 
-  // 18 — Vans / Ônibus
-  { codigo: '18', termos: ['van', 'vans', 'onibus', 'micro onibus', 'microonibus', 'transporte escolar', 'locacao de veiculo', 'onibus micro onibus'] },
+  // 17 — Kit de Iluminação (Ed. 2026)
+  { codigo: '17', termos: [
+    'kit de iluminacao', 'kit iluminacao', 'infraestrutura e iluminacao', 'infraestrutura iluminacao',
+    'locacao de iluminacao', 'iluminacao e infraestrutura noturno', 'iluminacao pampulha',
+    'kit de iluminacao ed 2026',
+  ]},
 
-  // 22 — Assistente Adm / Ações Educativas e Culturais / Apresentações / Curadoria / Pesquisa / Consultoria
+  // 18 — Vans (Ed. 2026)
+  { codigo: '18', termos: [
+    'van', 'vans', 'onibus', 'micro onibus', 'microonibus', 'transporte escolar',
+    'locacao de veiculo', 'onibus micro onibus', 'vans ed 2026',
+  ]},
+
+  // 22 — Assistente Administrativo, Ações Educativo-culturais, Apresentações MIS/MUMO/MHAB,
+  //       Apresentações Culturais 3 museus PBH, Pesquisa e texto
   { codigo: '22', termos: [
     'assistente administrativo', 'assistente administrativa',
     'acoes educativas', 'acao educativa',
@@ -57,60 +95,37 @@ const MAPA_N4: Array<{ codigo: string; termos: string[] }> = [
     'acoes educativo culturais', 'acoes educativo-culturais',
     'apresentacoes mis', 'apresentacoes mumo', 'apresentacoes mhab',
     'apresentacoes 3 museus', 'apresentacoes 2 museus',
-    'apresentacoes culturais', 'apresentacoes culturais 3 museus',
+    'apresentacoes culturais', 'apresentacoes culturais 3 museus pbh',
     'apresentacoes culturais mck', 'apresentacoes culturais map', 'apresentacoes culturais casa do baile',
-    'curadoria', 'curadora',
     'pesquisa e texto', 'pesquisa e producao de texto',
-    'consultoria de programacao', 'consultoria pedagogica', 'consultoria acessibilidade', 'consultoria temas transversais',
-    'programacao meta 19', 'programacao iemanja',
   ]},
 
-  // 23 — Comunicação / Designer / Assessor de Imprensa / Redator
+  // 23 — Assessor de Imprensa, Rede Social/Marketing Cultural, Designer MHAB
   { codigo: '23', termos: [
     'assessor de imprensa', 'assessora de imprensa', 'assessoria de imprensa',
     'rede social', 'redes sociais', 'marketing cultural', 'social media',
-    'criacao de site', 'site',
+    'criacao de site',
     'redator', 'redatora', 'redacao',
-    'designer', 'web designer', 'webdesigner', 'id designer', 'design grafico', 'designer e web designer',
+    'designer mhab', 'designer mis', 'designer mumo',
+    'web designer', 'webdesigner', 'id designer', 'design grafico', 'designer e web designer',
     'identidade visual comunicacao',
   ]},
 
-  // 24 — Fotógrafo / Vídeo e Fotografia
+  // 24 — Fotógrafo, Vídeo e Fotografia
   { codigo: '24', termos: [
     'fotografo', 'fotografia', 'fotografa',
     'video e fotografia', 'video fotografia', 'cobertura fotografica', 'cobertura de video',
     'fotografo mhab',
   ]},
 
-  // 31 — Mostras
-  { codigo: '31', termos: [
-    'mostras mis', 'mostras mumo', 'mostras mhab', 'mostra mis', 'mostra mumo', 'mostra mhab',
-    'mostra baixa complexidade', 'mostra media complexidade',
-    'peca em destaque', 'mostra de cinema', 'mostra de video', 'mostra de arte',
+  // 41 — Limpeza (Ed. 2026)
+  { codigo: '41', termos: [
+    'limpeza', 'servico de limpeza', 'higienizacao', 'limpeza ed 2026',
   ]},
 
-  // 33 — Manutenção (exposições)
-  { codigo: '33', termos: [
-    'manutencao mis', 'manutencao mumo', 'manutencao mhab',
-    'manutencao dos museus', 'manutencao uma exposicao', 'manutencao 2 expo', 'manutencao expo',
-  ]},
-
-  // 34 — Alteração sala expo
-  { codigo: '34', termos: [
-    'alteracao sala expo', 'alteracao sala exposicao', 'alteracao da sala', 'alteracao do espaco expositivo',
-    'reforma sala expo',
-  ]},
-
-  // 38 — Exposição MHAB
-  { codigo: '38', termos: ['exposicao mhab', 'exposicao abilio barreto', 'exposicao historico municipal'] },
-
-  // 39 — Exposição MIS
-  { codigo: '39', termos: ['exposicao mis', 'exposicao imagem e som'] },
-
-  // 41 — Limpeza
-  { codigo: '41', termos: ['limpeza', 'servico de limpeza', 'higienizacao'] },
-
-  // 42 — Pessoal (coordenadores, produção, educadores, monitores, etc.)
+  // 42 — Coordenador Geral, Assistente de Coordenação e Produção, Analista Adm. Financeira,
+  //       Produção MIS/MUMO/MHAB, Educador, Produção Ed. 2026, Assistente de Produção Ed. 2026,
+  //       Monitores Ed. 2026, Diárias, Contador
   { codigo: '42', termos: [
     'coordenador geral', 'coordenadora geral',
     'coordenador producao', 'coordenador de producao', 'coordenadora de producao',
@@ -121,26 +136,34 @@ const MAPA_N4: Array<{ codigo: string; termos: string[] }> = [
     'assistente de producao',
     'mobilizador', 'mobilizadora',
     'producao mis', 'producao mumo', 'producao mhab',
-    'producao noturno',
+    'producao noturno', 'producao ed 2026', 'assistente de producao ed 2026',
     'educador mis', 'educador mumo', 'educador mhab', 'educadora',
     'monitor noturno', 'monitores noturno', 'monitores ed', 'monitores educacao', 'monitores',
-    'diarias mis', 'diarias mumo', 'diarias mhab', 'diarias meta',
+    'monitores ed 2026',
+    'diarias mis', 'diarias mumo', 'diarias mhab', 'diarias meta', 'diarias',
     'contador', 'contadora',
     'produtor pampulha', 'produtor 4 aditivo', 'producao meta 19',
   ]},
 
   // 46 — Assessoria Jurídica
-  { codigo: '46', termos: ['assessoria juridica', 'assessor juridico', 'advogado', 'advocacia'] },
+  { codigo: '46', termos: [
+    'assessoria juridica', 'assessor juridico', 'advogado', 'advocacia',
+  ]},
 
   // 53 — Coordenador Comunicação
-  { codigo: '53', termos: ['coordenador comunicacao', 'coordenadora comunicacao', 'coordenador de comunicacao', 'coordenadora de comunicacao'] },
+  { codigo: '53', termos: [
+    'coordenador comunicacao', 'coordenadora comunicacao',
+    'coordenador de comunicacao', 'coordenadora de comunicacao',
+  ]},
 
-  // 99 — Infraestrutura / Revisão / Tradução / Dispositivos / Som e Iluminação
+  // 99 — Infraestrutura MIS/MUMO/MHAB (Ed. 2026), Infraestrutura 3 museus PBH,
+  //       Revisão MHAB, Tradução MHAB, Fornecimento de som e iluminação
   { codigo: '99', termos: [
     'infraestrutura noturno', 'infraestrutura mis', 'infraestrutura mumo', 'infraestrutura mhab',
-    'infraestrutura 3 museus', 'infraestrutura ed', 'infraestrutura educacao',
-    'revisao mis', 'revisao mumo', 'revisao mhab', 'revisao de texto', 'revisao textual',
-    'traducao', 'tradutor', 'tradutora', 'traducao mhab',
+    'infraestrutura 3 museus', 'infraestrutura 3 museus pbh', 'infraestrutura ed', 'infraestrutura educacao',
+    'infraestrutura ed 2026',
+    'revisao mhab', 'revisao de texto', 'revisao textual',
+    'traducao mhab', 'traducao', 'tradutor', 'tradutora',
     'maquete tatil', 'video com libras', 'audio descricao',
     'dispositivos acessiveis', 'dispositivo acessivel',
     'fornecimento de som e iluminacao', 'fornecimento de som', 'som e iluminacao',
@@ -148,8 +171,8 @@ const MAPA_N4: Array<{ codigo: string; termos: string[] }> = [
   ]},
 ];
 
-// Conjunto de códigos oficiais válidos para validação
-const CODIGOS_OFICIAIS = new Set(['02','03','04','12','13','15','17','18','22','23','24','31','33','34','38','39','41','42','46','53','99']);
+// Conjunto de códigos oficiais válidos (tabela oficial 3º Aditivo — zero à esquerda)
+const CODIGOS_OFICIAIS = new Set(['01','02','03','04','12','13','15','17','18','22','23','24','41','42','46','53','99']);
 
 // ── Busca de código pelo nome/grupo da rubrica ────────────────────────────────
 function buscarCodigoPorNome(rubrica: any): { codigo: string | null; status: 'ok' | 'ambiguo' | 'nao_encontrado' } {
