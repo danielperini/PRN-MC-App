@@ -125,8 +125,16 @@ export default function ReviewModalNF(props) {
       setAnalise(intake.resultado_analise_deterministica);
       return;
     }
-    // FLUXO 1: primeira análise
-    executarAnalise(false);
+    // FLUXO 3: intake já processado ou vinculado a compra PAGA — não bloquear com análise automática
+    const statusProcessado = ['APROVADO', 'ENVIADO_APROVACAO', 'AGUARDANDO_REVISAO', 'RASCUNHO', 'ENVIADO'].includes(intake.status_processamento || '');
+    const jaTemDados = intake.resultado_ia?.nf_numero || intake.resultado_ia?.nf_valor_total || intake.nf_numero;
+    if (jaTemDados && !statusProcessado) {
+      return;
+    }
+    // FLUXO 1: primeira análise apenas se ainda não há dados suficientes
+    if (!jaTemDados) {
+      executarAnalise(false);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [intake.id]);
 
