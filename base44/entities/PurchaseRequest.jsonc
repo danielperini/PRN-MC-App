@@ -369,8 +369,7 @@
       "description": "ID da PurchaseRequest original, quando esta for identificada como duplicata"
     },
     "duplicidade_motivo": {
-      "type": "string",
-      "description": "Motivo/crit\u00e9rio que gerou a suspeita de duplicidade"
+      "type": "string"
     },
     "duplicidade_revisado_por": {
       "type": "string"
@@ -390,13 +389,56 @@
       "description": "Se true, esta NF \u00e9 duplicata financeira e n\u00e3o entra no somat\u00f3rio"
     },
     "duplicata_de": {
-      "type": "string",
-      "description": "ID da PurchaseRequest principal (quando esta \u00e9 duplicata)"
+      "type": "string"
     },
     "incluir_no_somatorio": {
       "type": "boolean",
       "default": true,
-      "description": "Se false, esta NF \u00e9 exclu\u00edda do somat\u00f3rio financeiro (duplicata ou corre\u00e7\u00e3o manual)"
+      "description": "Se false, esta NF \u00e9 exclu\u00edda do somat\u00f3rio financeiro"
+    },
+    "cod": {
+      "type": "string",
+      "description": "C\u00f3digo oficial de 2 d\u00edgitos da coluna N4 do Plano de Trabalho (ex: 42, 53, 22)"
+    },
+    "status_cod": {
+      "type": "string",
+      "enum": [
+        "OK",
+        "REVISAR",
+        "SEM_RUBRICA",
+        "SEM_CODIGO"
+      ],
+      "description": "Status da valida\u00e7\u00e3o do campo cod: OK=c\u00f3digo validado, REVISAR=requer revis\u00e3o manual, SEM_RUBRICA=sem rubrica vinculada, SEM_CODIGO=rubrica sem c\u00f3digo"
+    },
+    "codigo_pdf_ok": {
+      "type": "string",
+      "enum": [
+        "SIM",
+        "N\u00c3O",
+        "N\u00c3O_SE_APLICA"
+      ],
+      "description": "Se o c\u00f3digo N4 aparece como token separado no nome do arquivo PDF da NF"
+    },
+    "codigo_xml_ok": {
+      "type": "string",
+      "enum": [
+        "SIM",
+        "N\u00c3O",
+        "N\u00c3O_SE_APLICA"
+      ],
+      "description": "Se o c\u00f3digo N4 aparece como token separado no nome do arquivo XML da NF"
+    },
+    "backup_validado": {
+      "type": "string",
+      "enum": [
+        "SIM",
+        "N\u00c3O"
+      ],
+      "description": "SIM somente quando cod correto, c\u00f3digo oficial, rubrica correspondente, codigo_pdf_ok=SIM e codigo_xml_ok=SIM ou N/A, sem diverg\u00eancia"
+    },
+    "motivo_revisao": {
+      "type": "string",
+      "description": "Raz\u00e3o pela qual a compra precisa de revis\u00e3o manual (status_cod=REVISAR ou backup_validado=N\u00c3O)"
     }
   },
   "required": [
