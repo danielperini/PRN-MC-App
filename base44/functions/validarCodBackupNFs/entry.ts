@@ -3,13 +3,13 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 /**
  * validarCodBackupNFs
  *
- * Fluxo completo de preenchimento e validação do campo `cod` (N4 oficial)
- * para cada PurchaseRequest, com verificação de arquivos PDF/XML no Drive.
+ * Atualiza MAPA_N4 oficial completo e valida/preenche o campo `cod` (N4 oficial)
+ * de cada PurchaseRequest. Usa `centro_custo` da Compra para desempate em casos ambíguos.
  *
  * Params: { dryRun?: boolean, force?: boolean, purchaseIds?: string[] }
- * - dryRun=true → apenas preview, sem salvar (default: true)
- * - force=false → não sobrescreve cod já preenchido com status_cod=OK (default: false)
- * - purchaseIds → array de IDs específicos (opcional; vazio = todos)
+ * - dryRun=false → grava no banco (DEFAULT agora é false)
+ * - force=false  → não sobrescreve cod já com status_cod=OK (default: false)
+ * - purchaseIds  → array de IDs específicos (vazio = todos)
  */
 
 // ── Normalização canônica ──────────────────────────────────────────────────────
@@ -22,184 +22,323 @@ function norm(v: string): string {
     .trim();
 }
 
-// ── Mapa N4 oficial (tabela exata do Plano de Trabalho — 3º Aditivo) ───────────
-// Todos os códigos com 2 dígitos (zero à esquerda). Termos normalizados (sem acentos, lowercase).
+function pad2(s: string | number): string {
+  return String(s).padStart(2, '0');
+}
+
+// ── MAPA N4 OFICIAL COMPLETO ──────────────────────────────────────────────────
+// Termos normalizados (sem acentos, lowercase, barra/hífen→espaço).
+// Substituição integral do mapa anterior.
 const MAPA_N4: Array<{ codigo: string; termos: string[] }> = [
-  // 01 — Consultorias (Programação, Temas Transversais, Formação Ambiente Seguro)
-  { codigo: '01', termos: [
-    'consultoria de programacao', 'consultorias de temas transversais', 'consultoria temas transversais',
-    'formacao ambiente seguro', 'formacao de ambiente seguro', 'consultoria acessibilidade', 'consultoria pedagogica',
-  ]},
-
-  // 02 — Segurança (Ed. 2026)
-  { codigo: '02', termos: [
-    'seguranca', 'locacao de mao de obra seguranca', 'vigilancia', 'vigia', 'servico de seguranca',
-    'seguranca ed 2026', 'seguranca noturno',
-  ]},
-
-  // 03 — Manutenção MIS/MUMO/MHAB, Mostras, Peça em destaque, Exposição MUMO
-  { codigo: '03', termos: [
-    'manutencao mis', 'manutencao mumo', 'manutencao mhab', 'manutencao dos museus',
-    'manutencao uma exposicao', 'manutencao 2 expo', 'manutencao expo',
-    'mostras mis', 'mostras mumo', 'mostras mhab', 'mostra mis', 'mostra mumo', 'mostra mhab',
-    'mostra baixa complexidade', 'mostra media complexidade',
-    'peca em destaque',
-    'exposicao mumo',
-  ]},
-
-  // 04 — Transporte, Energia elétrica
-  { codigo: '04', termos: [
-    'transporte', 'combustivel', 'energia eletrica', 'conta de luz', 'gasolina',
-    'abastecimento', 'transporte combustivel',
-  ]},
-
-  // 12 — Lanches/buffet, Alimentação, Material escritório
-  { codigo: '12', termos: [
-    'lanche', 'lanches', 'alimentacao', 'coffee break', 'cafe', 'refeicao', 'buffet', 'lanchonete',
-    'fornecimento de lanches', 'fornecimento de alimentacao',
-    'material de escritorio', 'material de consumo escritorio',
-  ]},
-
-  // 13 — Sinalização (Ed. 2026), Impressão MHAB
-  { codigo: '13', termos: [
-    'sinalizacao', 'sinalizacao ed 2026', 'sinalizacao noturno',
-    'impressao mhab', 'impressao mis', 'impressao mumo', 'impressao material',
-    'impressao 2a publicacao', 'impressao 2 publicacao',
-  ]},
-
-  // 15 — Material MIS/MUMO/MHAB
-  { codigo: '15', termos: [
-    'material mis', 'material mumo', 'material mhab', 'material consumo',
-    'material educativo', 'material grafico',
-  ]},
-
-  // 17 — Kit de Iluminação (Ed. 2026)
-  { codigo: '17', termos: [
-    'kit de iluminacao', 'kit iluminacao', 'infraestrutura e iluminacao', 'infraestrutura iluminacao',
-    'locacao de iluminacao', 'iluminacao e infraestrutura noturno', 'iluminacao pampulha',
-    'kit de iluminacao ed 2026',
-  ]},
-
-  // 18 — Vans (Ed. 2026)
-  { codigo: '18', termos: [
-    'van', 'vans', 'onibus', 'micro onibus', 'microonibus', 'transporte escolar',
-    'locacao de veiculo', 'onibus micro onibus', 'vans ed 2026',
-  ]},
-
-  // 22 — Assistente Administrativo, Ações Educativo-culturais, Apresentações MIS/MUMO/MHAB,
-  //       Apresentações Culturais 3 museus PBH, Pesquisa e texto
-  { codigo: '22', termos: [
-    'assistente administrativo', 'assistente administrativa',
-    'acoes educativas', 'acao educativa',
-    'acoes culturais', 'acao cultural',
-    'acoes educativo culturais', 'acoes educativo-culturais',
-    'apresentacoes mis', 'apresentacoes mumo', 'apresentacoes mhab',
-    'apresentacoes 3 museus', 'apresentacoes 2 museus',
-    'apresentacoes culturais', 'apresentacoes culturais 3 museus pbh',
-    'apresentacoes culturais mck', 'apresentacoes culturais map', 'apresentacoes culturais casa do baile',
-    'pesquisa e texto', 'pesquisa e producao de texto',
-  ]},
-
-  // 23 — Assessor de Imprensa, Rede Social/Marketing Cultural, Designer MHAB
-  { codigo: '23', termos: [
-    'assessor de imprensa', 'assessora de imprensa', 'assessoria de imprensa',
-    'rede social', 'redes sociais', 'marketing cultural', 'social media',
-    'criacao de site',
-    'redator', 'redatora', 'redacao',
-    'designer mhab', 'designer mis', 'designer mumo',
-    'web designer', 'webdesigner', 'id designer', 'design grafico', 'designer e web designer',
-    'identidade visual comunicacao',
-  ]},
-
-  // 24 — Fotógrafo, Vídeo e Fotografia
-  { codigo: '24', termos: [
-    'fotografo', 'fotografia', 'fotografa',
-    'video e fotografia', 'video fotografia', 'cobertura fotografica', 'cobertura de video',
-    'fotografo mhab',
-  ]},
-
-  // 41 — Limpeza (Ed. 2026)
-  { codigo: '41', termos: [
-    'limpeza', 'servico de limpeza', 'higienizacao', 'limpeza ed 2026',
-  ]},
-
-  // 42 — Coordenador Geral, Assistente de Coordenação e Produção, Analista Adm. Financeira,
-  //       Produção MIS/MUMO/MHAB, Educador, Produção Ed. 2026, Assistente de Produção Ed. 2026,
-  //       Monitores Ed. 2026, Diárias, Contador
-  { codigo: '42', termos: [
-    'coordenador geral', 'coordenadora geral',
-    'coordenador producao', 'coordenador de producao', 'coordenadora de producao',
-    'coordenador programacao', 'coordenador de programacao',
-    'analista adm', 'analista administrativo financeiro', 'analista adm financeiro',
-    'gestor administrativo financeiro', 'gestor adm financeiro', 'gestora adm',
-    'assistente de coordenacao', 'assistente de coordenacao e producao',
-    'assistente de producao',
-    'mobilizador', 'mobilizadora',
-    'producao mis', 'producao mumo', 'producao mhab',
-    'producao noturno', 'producao ed 2026', 'assistente de producao ed 2026',
-    'educador mis', 'educador mumo', 'educador mhab', 'educadora',
-    'monitor noturno', 'monitores noturno', 'monitores ed', 'monitores educacao', 'monitores',
-    'monitores ed 2026',
-    'diarias mis', 'diarias mumo', 'diarias mhab', 'diarias meta', 'diarias',
-    'contador', 'contadora',
-    'produtor pampulha', 'produtor 4 aditivo', 'producao meta 19',
-  ]},
-
-  // 46 — Assessoria Jurídica
-  { codigo: '46', termos: [
-    'assessoria juridica', 'assessor juridico', 'advogado', 'advocacia',
-  ]},
-
-  // 53 — Coordenador Comunicação
-  { codigo: '53', termos: [
-    'coordenador comunicacao', 'coordenadora comunicacao',
-    'coordenador de comunicacao', 'coordenadora de comunicacao',
-  ]},
-
-  // 99 — Infraestrutura MIS/MUMO/MHAB (Ed. 2026), Infraestrutura 3 museus PBH,
-  //       Revisão MHAB, Tradução MHAB, Fornecimento de som e iluminação
-  { codigo: '99', termos: [
-    'infraestrutura noturno', 'infraestrutura mis', 'infraestrutura mumo', 'infraestrutura mhab',
-    'infraestrutura 3 museus', 'infraestrutura 3 museus pbh', 'infraestrutura ed', 'infraestrutura educacao',
-    'infraestrutura ed 2026',
-    'revisao mhab', 'revisao de texto', 'revisao textual',
-    'traducao mhab', 'traducao', 'tradutor', 'tradutora',
-    'maquete tatil', 'video com libras', 'audio descricao',
-    'dispositivos acessiveis', 'dispositivo acessivel',
-    'fornecimento de som e iluminacao', 'fornecimento de som', 'som e iluminacao',
-    'equipamentos de som', 'equipamentos audiovisuais',
-  ]},
+  {
+    codigo: '01',
+    termos: [
+      'consultoria de programacao',
+      'consultorias de temas transversais',
+      'consultoria temas transversais',
+      'formacao sobre ambiente seguro diversidade e inclusao',
+      'formacao ambiente seguro diversidade e inclusao',
+      'formacao ambiente seguro',
+      'consultoria acessibilidade',
+      'consultoria pedagogica',
+    ],
+  },
+  {
+    codigo: '02',
+    termos: [
+      'seguranca',
+      'locacao de mao de obra seguranca',
+      'vigilancia',
+      'vigia',
+      'servico de seguranca',
+      'seguranca ed 2026',
+      'seguranca noturno',
+    ],
+  },
+  {
+    codigo: '03',
+    termos: [
+      'manutencao mis',
+      'manutencao mumo',
+      'manutencao mhab',
+      'mostra baixa complexidade',
+      'mostra media complexidade',
+      'peca em destaque',
+      'exposicao mumo',
+    ],
+  },
+  {
+    codigo: '04',
+    termos: [
+      'transporte',
+      'combustivel',
+      'energia eletrica',
+      'conta de luz',
+      'gasolina',
+      'abastecimento',
+    ],
+  },
+  {
+    codigo: '12',
+    termos: [
+      'lanche',
+      'lanches',
+      'alimentacao',
+      'coffee break',
+      'cafe',
+      'refeicao',
+      'buffet',
+      'lanchonete',
+      'fornecimento de lanches',
+      'material de escritorio',
+      'material escritorio',
+    ],
+  },
+  {
+    codigo: '13',
+    termos: [
+      'sinalizacao',
+      'sinalizacao ed 2026',
+      'sinalizacao noturno',
+      'impressao mhab',
+      'impressao mis',
+      'impressao mumo',
+    ],
+  },
+  {
+    codigo: '15',
+    termos: [
+      'material mis',
+      'material mumo',
+      'material mhab',
+    ],
+  },
+  {
+    codigo: '17',
+    termos: [
+      'kit de iluminacao',
+      'kit iluminacao',
+      'kit de iluminacao ed 2026',
+      'locacao de iluminacao',
+      'iluminacao pampulha',
+    ],
+  },
+  {
+    codigo: '18',
+    termos: [
+      'van',
+      'vans',
+      'onibus',
+      'micro onibus',
+      'microonibus',
+      'transporte escolar',
+      'locacao de veiculo',
+    ],
+  },
+  {
+    codigo: '22',
+    termos: [
+      'assistente administrativo',
+      'assistente administrativa',
+      'acoes educativo culturais',
+      'acoes educativas',
+      'acoes culturais',
+      'apresentacoes mis mumo mhab',
+      'apresentacoes culturais 3 museus pbh',
+      'apresentacoes culturais',
+      'pesquisa e texto mhab',
+      'pesquisa e texto',
+    ],
+  },
+  {
+    codigo: '23',
+    termos: [
+      'assessor de imprensa',
+      'assessoria de imprensa',
+      'rede social',
+      'redes sociais',
+      'marketing cultural',
+      'social media',
+      'designer mhab',
+      'designer mis',
+      'designer mumo',
+      'id designer',
+      'id design',
+      'design grafico',
+      'identidade visual comunicacao',
+      'redacao',
+      'redator',
+    ],
+  },
+  {
+    codigo: '24',
+    termos: [
+      'fotografo',
+      'fotografia',
+      'fotografa',
+      'video e fotografia',
+      'video fotografia',
+      'cobertura fotografica',
+      'cobertura de video',
+      'fotografo mhab',
+    ],
+  },
+  {
+    codigo: '41',
+    termos: [
+      'limpeza',
+      'servico de limpeza',
+      'higienizacao',
+      'limpeza ed 2026',
+      'limpeza noturno',
+    ],
+  },
+  {
+    codigo: '42',
+    termos: [
+      'coordenador geral',
+      'assistente de coordenacao e producao',
+      'analista adm financeira',
+      'producao mis mumo mhab',
+      'educador mis mumo mhab',
+      'producao ed 2026',
+      'assistente de producao ed 2026',
+      'monitores ed 2026',
+      'diarias mis mumo mhab',
+      'contador',
+      'coordenador producao',
+      'analista adm',
+      'gestor administrativo financeiro',
+      'assistente de coordenacao',
+      'assistente de producao',
+      'mobilizador',
+      'producao mis',
+      'producao mumo',
+      'producao mhab',
+      'producao noturno',
+      'educador mis',
+      'educador mumo',
+      'educador mhab',
+      'educadora',
+      'monitor noturno',
+      'monitores noturno',
+      'monitores ed',
+      'monitores educacao',
+      'monitores',
+      'diarias mis',
+      'diarias mumo',
+      'diarias mhab',
+      'diarias meta',
+      'diarias',
+      'contadora',
+      'produtor pampulha',
+    ],
+  },
+  {
+    codigo: '46',
+    termos: [
+      'assessoria juridica',
+      'assessor juridico',
+      'advogado',
+      'advocacia',
+    ],
+  },
+  {
+    codigo: '53',
+    termos: [
+      'coordenador comunicacao',
+      'coordenadora comunicacao',
+      'coordenador de comunicacao',
+    ],
+  },
+  {
+    codigo: '99',
+    termos: [
+      'infraestrutura mis mumo mhab',
+      'infraestrutura 3 museus pbh',
+      'infraestrutura ed 2026',
+      'revisao mhab',
+      'traducao mhab',
+      'fornecimento de som e iluminacao',
+      'som e iluminacao',
+      'revisao de texto',
+      'revisao textual',
+      'traducao',
+      'tradutor',
+      'tradutora',
+      'maquete tatil',
+      'video com libras',
+      'audio descricao',
+    ],
+  },
 ];
 
-// Conjunto de códigos oficiais válidos (tabela oficial 3º Aditivo — zero à esquerda)
+// Conjunto oficial de códigos válidos
 const CODIGOS_OFICIAIS = new Set(['01','02','03','04','12','13','15','17','18','22','23','24','41','42','46','53','99']);
 
+// Centros que indicam museu físico (para desempate)
+const CENTROS_MUSEU_FISICO = new Set(['MHAB','MIS','MUMO','MIS BH']);
+
 // ── Busca de código pelo nome/grupo da rubrica ────────────────────────────────
-function buscarCodigoPorNome(rubrica: any): { codigo: string | null; status: 'ok' | 'ambiguo' | 'nao_encontrado' } {
+function buscarCodigoPorNome(rubrica: any): { codigo: string | null; matches: string[]; status: 'ok' | 'ambiguo' | 'nao_encontrado' } {
   const texto = norm([
     rubrica.rubrica || rubrica.nome || '',
     rubrica.grupo || '',
-    rubrica.meta || '',
     rubrica.descricao || '',
   ].join(' '));
 
-  const matches = new Set<string>();
+  const matchedCodes = new Set<string>();
   for (const entrada of MAPA_N4) {
     if (entrada.termos.some(t => texto.includes(t))) {
-      matches.add(entrada.codigo);
+      matchedCodes.add(entrada.codigo);
     }
   }
 
-  if (matches.size === 0) return { codigo: null, status: 'nao_encontrado' };
-  if (matches.size === 1) return { codigo: [...matches][0], status: 'ok' };
-  return { codigo: null, status: 'ambiguo' };
+  const matches = [...matchedCodes];
+  if (matches.length === 0) return { codigo: null, matches, status: 'nao_encontrado' };
+  if (matches.length === 1) return { codigo: matches[0], matches, status: 'ok' };
+  return { codigo: null, matches, status: 'ambiguo' };
+}
+
+// ── Desempate por centro_custo da Compra ──────────────────────────────────────
+function desempatarPorCentroCusto(rubrica: any, centroCustoCompra: string, codigosAmbiguos: string[]): string | null {
+  const textoRubrica = norm(rubrica.rubrica || rubrica.nome || '');
+  const centro = norm(centroCustoCompra || '');
+  const ambSet = new Set(codigosAmbiguos);
+
+  // Regra 1: 'Material' + museu físico → '15'; senão → '12'
+  if (textoRubrica.includes('material') && ambSet.has('12') && ambSet.has('15')) {
+    const ehMuseuFisico = CENTROS_MUSEU_FISICO.has(String(centroCustoCompra || '').toUpperCase().trim());
+    return ehMuseuFisico ? '15' : '12';
+  }
+
+  // Regra 2: 'Designer'/'design' sem museu específico + centro Comunicação/Geral → '23'
+  if ((textoRubrica.includes('designer') || textoRubrica.includes('design')) && ambSet.has('23')) {
+    if (centro.includes('comunicac') || centro.includes('geral') || !centroCustoCompra) {
+      return '23';
+    }
+  }
+
+  // Regra 3: 'Infraestrutura' + museu específico → '99'
+  if (textoRubrica.includes('infraestrutura') && ambSet.has('99')) {
+    const ehMuseuFisico = CENTROS_MUSEU_FISICO.has(String(centroCustoCompra || '').toUpperCase().trim());
+    if (ehMuseuFisico) return '99';
+  }
+
+  // Regra 4: 'Apresentações' + múltiplos museus ou '3 museus' → '22'
+  if ((textoRubrica.includes('apresentac') || textoRubrica.includes('apresentacao')) && ambSet.has('22')) {
+    if (textoRubrica.includes('3 museus') || textoRubrica.includes('mis') || textoRubrica.includes('mumo') || textoRubrica.includes('mhab')) {
+      return '22';
+    }
+  }
+
+  return null;
 }
 
 // ── Verifica se o código aparece como token separado no nome do arquivo ────────
 function codigoNoNomeArquivo(nomeArquivo: string, cod: string): boolean {
   if (!nomeArquivo || !cod) return false;
   const nome = norm(nomeArquivo);
-  // Código deve estar separado por delimitador ou no início/fim
   const regex = new RegExp(`(^|[_\\-\\s])${cod}([_\\-\\s]|$)`);
   return regex.test(nome);
 }
@@ -210,7 +349,6 @@ function extrairNomeArquivo(url: string): string {
   try {
     const decoded = decodeURIComponent(url);
     const partes = decoded.split(/[/?#]/);
-    // Pega o último segmento que parece ser um nome de arquivo
     for (let i = partes.length - 1; i >= 0; i--) {
       const p = partes[i].trim();
       if (p && p.includes('.')) return p;
@@ -238,10 +376,7 @@ async function renomearNoDrive(driveToken: string, fileId: string, novoNome: str
       `https://www.googleapis.com/drive/v3/files/${fileId}`,
       {
         method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${driveToken}`,
-          'Content-Type': 'application/json',
-        },
+        headers: { Authorization: `Bearer ${driveToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: novoNome }),
       }
     );
@@ -251,7 +386,7 @@ async function renomearNoDrive(driveToken: string, fileId: string, novoNome: str
   }
 }
 
-// ── Extrai fileId de uma URL do Drive ────────────────────────────────────────
+// ── Extrai fileId de URL do Drive ────────────────────────────────────────────
 function extrairDriveFileId(url: string): string | null {
   if (!url) return null;
   const m = url.match(/\/d\/([a-zA-Z0-9_-]{10,})/);
@@ -268,128 +403,152 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
-    const dryRun: boolean = body.dryRun !== false; // default true (seguro)
-    const force: boolean = body.force === true;     // default false
+    // DEFAULT AGORA É dryRun=false (grava no banco)
+    const dryRun: boolean = body.dryRun === true;
+    const force: boolean = body.force === true;
     const purchaseIds: string[] = Array.isArray(body.purchaseIds) ? body.purchaseIds : [];
 
     // ── Buscar compras ─────────────────────────────────────────────────────────
     let compras: any[];
     if (purchaseIds.length > 0) {
-      compras = await Promise.all(purchaseIds.map(id => base44.asServiceRole.entities.PurchaseRequest.get(id)));
-      compras = compras.filter(Boolean);
+      const results = await Promise.all(purchaseIds.map(id => base44.asServiceRole.entities.PurchaseRequest.get(id).catch(() => null)));
+      compras = results.filter(Boolean);
     } else {
       compras = await base44.asServiceRole.entities.PurchaseRequest.list('-created_date', 2000);
     }
 
-    // ── Buscar rubricas (mapa id → rubrica) ───────────────────────────────────
+    // ── Buscar rubricas ────────────────────────────────────────────────────────
     const todasRubricas = await base44.asServiceRole.entities.Rubrica.list('ordem_exibicao', 2000);
     const rubricaMap = new Map<string, any>();
     for (const r of todasRubricas) rubricaMap.set(r.id, r);
 
-    // ── Tentar obter token do Drive ────────────────────────────────────────────
+    // ── Token do Drive ─────────────────────────────────────────────────────────
     let driveToken: string | null = null;
     try {
       const conn = await base44.asServiceRole.connectors.getConnection('googledrive');
       driveToken = conn?.access_token || null;
-    } catch { /* sem Drive token — renomeação não disponível */ }
+    } catch { /* sem token — renomeação indisponível */ }
 
     // ── Estatísticas ──────────────────────────────────────────────────────────
     const stats = {
-      total: 0,
-      cod_ok: 0,
-      preenchidos_agora: 0,
-      revisar: 0,
-      sem_rubrica: 0,
-      pdf_verificados: 0,
-      xml_verificados: 0,
-      pdf_ok: 0,
-      xml_ok: 0,
+      total_analisado: 0,
+      codigos_preenchidos: 0,
+      codigos_corretos: 0,
+      codigos_corrigidos: 0,
+      rubricas_nao_encontradas: 0,
+      associacoes_ambiguas: 0,
+      arquivos_sem_codigo: 0,
+      arquivos_com_codigo_divergente: 0,
+      backup_validado_sim: 0,
       arquivos_renomeados: 0,
-      divergencia_pdf_xml: 0,
-      backup_validado: 0,
     };
 
     const logs: any[] = [];
 
     for (const purchase of compras) {
-      stats.total++;
+      stats.total_analisado++;
 
       const log: any = {
         id: purchase.id,
-        descricao: purchase.descricao_item || '?',
+        descricao: (purchase.descricao_item || '').substring(0, 80),
         fornecedor: purchase.fornecedor_nome || '',
         cod_anterior: purchase.cod || null,
         status_cod_anterior: purchase.status_cod || null,
         cod_final: null,
         status_cod: null,
-        codigo_pdf_ok: null,
-        codigo_xml_ok: null,
-        backup_validado: null,
+        codigo_pdf_ok: 'NÃO_SE_APLICA',
+        codigo_xml_ok: 'NÃO_SE_APLICA',
+        backup_validado: 'NÃO',
         motivo_revisao: null,
         acoes: [],
       };
 
-      // ── FLUXO 2: Determinar código ─────────────────────────────────────────
+      // ── Determinar código ──────────────────────────────────────────────────
       let cod: string | null = purchase.cod || null;
       let statusCod: string = purchase.status_cod || '';
+
+      // Normalizar código existente para 2 dígitos
+      if (cod) {
+        const padded = pad2(cod);
+        if (CODIGOS_OFICIAIS.has(padded)) cod = padded;
+      }
 
       // Pular se já OK e não force
       if (cod && statusCod === 'OK' && !force) {
         log.cod_final = cod;
         log.status_cod = 'OK';
-        stats.cod_ok++;
+        stats.codigos_corretos++;
       } else {
-        // 2a. Tentar via rubrica vinculada
-        let rubrica: any = null;
-        if (purchase.rubrica_id) {
-          rubrica = rubricaMap.get(purchase.rubrica_id) || null;
-        }
+        const codAnterior = purchase.cod || null;
 
-        if (!rubrica && !purchase.rubrica_id) {
-          // Sem rubrica
+        // Buscar rubrica vinculada
+        const rubrica = purchase.rubrica_id ? (rubricaMap.get(purchase.rubrica_id) || null) : null;
+
+        if (!purchase.rubrica_id) {
           cod = null;
           statusCod = 'SEM_RUBRICA';
           log.motivo_revisao = 'Sem rubrica vinculada';
-          stats.revisar++;
-        } else if (rubrica) {
-          // 2b. rubrica.codigo já preenchido?
-          if (rubrica.codigo && CODIGOS_OFICIAIS.has(rubrica.codigo)) {
-            cod = rubrica.codigo;
+          stats.rubricas_nao_encontradas++;
+        } else if (!rubrica) {
+          cod = null;
+          statusCod = 'SEM_RUBRICA';
+          log.motivo_revisao = `Rubrica ID ${purchase.rubrica_id} não encontrada`;
+          stats.rubricas_nao_encontradas++;
+        } else {
+          // 1. Rubrica.codigo já preenchido e oficial?
+          if (rubrica.codigo && CODIGOS_OFICIAIS.has(pad2(rubrica.codigo))) {
+            cod = pad2(rubrica.codigo);
             statusCod = 'OK';
           } else {
-            // 2c. Fallback: mapa N4 pelo nome
+            // 2. Buscar no mapa N4
             const resultado = buscarCodigoPorNome(rubrica);
+
             if (resultado.status === 'ok' && resultado.codigo) {
               cod = resultado.codigo;
               statusCod = 'OK';
               log.acoes.push(`cod inferido do mapa N4: ${cod}`);
-              // Preencher também Rubrica.codigo se vazio
+              // Sincronizar Rubrica.codigo se vazio
               if (!rubrica.codigo && !dryRun) {
-                await base44.asServiceRole.entities.Rubrica.update(rubrica.id, { codigo: cod });
-                log.acoes.push(`Rubrica ${rubrica.id} atualizada com codigo=${cod}`);
+                await base44.asServiceRole.entities.Rubrica.update(rubrica.id, { codigo: cod }).catch(() => null);
+                log.acoes.push(`Rubrica ${rubrica.id} atualizada: codigo=${cod}`);
               }
             } else if (resultado.status === 'ambiguo') {
-              cod = null;
-              statusCod = 'REVISAR';
-              log.motivo_revisao = 'Código ambíguo no mapa N4 — revisar manualmente';
-              stats.revisar++;
+              // Tentar desempate por centro_custo da compra
+              const codDesempate = desempatarPorCentroCusto(rubrica, purchase.centro_custo || '', resultado.matches);
+              if (codDesempate) {
+                cod = codDesempate;
+                statusCod = 'OK';
+                log.acoes.push(`cod desempatado por centro_custo (${purchase.centro_custo}): ${cod}`);
+                if (!rubrica.codigo && !dryRun) {
+                  await base44.asServiceRole.entities.Rubrica.update(rubrica.id, { codigo: cod }).catch(() => null);
+                }
+              } else {
+                cod = null;
+                statusCod = 'REVISAR';
+                log.motivo_revisao = `Código ambíguo no mapa N4 (candidatos: ${resultado.matches.join(', ')}) — revisar manualmente`;
+                stats.associacoes_ambiguas++;
+              }
             } else {
               cod = null;
               statusCod = 'SEM_CODIGO';
-              log.motivo_revisao = 'Rubrica sem código e sem correspondência no mapa N4';
-              stats.revisar++;
+              log.motivo_revisao = 'Rubrica sem correspondência no mapa N4';
+              stats.rubricas_nao_encontradas++;
             }
           }
         }
 
+        // Contabilizar tipo de atualização
         if (cod && statusCod === 'OK') {
           log.cod_final = cod;
           log.status_cod = 'OK';
-          if (cod !== purchase.cod || statusCod !== purchase.status_cod) {
-            stats.preenchidos_agora++;
-            log.acoes.push(`cod atribuído: ${cod}`);
+          if (!codAnterior) {
+            stats.codigos_preenchidos++;
+            log.acoes.push(`cod preenchido: ${cod}`);
+          } else if (pad2(codAnterior) !== cod) {
+            stats.codigos_corrigidos++;
+            log.acoes.push(`cod corrigido: ${codAnterior} → ${cod}`);
           } else {
-            stats.cod_ok++;
+            stats.codigos_corretos++;
           }
         } else {
           log.cod_final = cod;
@@ -397,20 +556,14 @@ Deno.serve(async (req) => {
         }
       }
 
-      // ── FLUXO 3: Validação de arquivos PDF/XML ─────────────────────────────
-      const pdfUrl = purchase.nota_fiscal_url || purchase.nf_pdf_url || purchase.arquivo_url || '';
-      const xmlUrl = purchase.nota_fiscal_url?.toLowerCase().endsWith('.xml')
-        ? purchase.nota_fiscal_url
-        : (purchase.nf_chave_acesso ? '' : ''); // XML pode não ter URL separada
-
-      // Detectar URL XML separada
-      const xmlUrlFinal = purchase.nota_fiscal_url?.toLowerCase().endsWith('.xml')
-        ? purchase.nota_fiscal_url
-        : '';
-
-      const pdfUrlFinal = !purchase.nota_fiscal_url?.toLowerCase().endsWith('.xml')
+      // ── Validação de arquivos PDF/XML ──────────────────────────────────────
+      const pdfUrlFinal = !String(purchase.nota_fiscal_url || '').toLowerCase().endsWith('.xml')
         ? (purchase.nota_fiscal_url || purchase.nf_pdf_url || purchase.arquivo_url || '')
         : (purchase.nf_pdf_url || '');
+
+      const xmlUrlFinal = String(purchase.nota_fiscal_url || '').toLowerCase().endsWith('.xml')
+        ? purchase.nota_fiscal_url
+        : '';
 
       let codigoPdfOk = 'NÃO_SE_APLICA';
       let codigoXmlOk = 'NÃO_SE_APLICA';
@@ -419,23 +572,22 @@ Deno.serve(async (req) => {
       if (cod) {
         // PDF
         if (pdfUrlFinal) {
-          stats.pdf_verificados++;
           const nomeArquivoPdf = extrairNomeArquivo(pdfUrlFinal);
           const temCod = codigoNoNomeArquivo(nomeArquivoPdf, cod);
           codigoPdfOk = temCod ? 'SIM' : 'NÃO';
-          if (temCod) stats.pdf_ok++;
-          log.acoes.push(`PDF: "${nomeArquivoPdf}" → cod ${temCod ? '✓' : '✗'}`);
-
-          // Renomear se necessário
-          if (!temCod && !dryRun && driveToken) {
-            const fileId = extrairDriveFileId(pdfUrlFinal);
-            if (fileId) {
-              const novoNome = construirNovoNome(purchase, cod, 'NF');
-              const ok = await renomearNoDrive(driveToken, fileId, novoNome);
-              if (ok) {
-                codigoPdfOk = 'SIM';
-                stats.arquivos_renomeados++;
-                log.acoes.push(`PDF renomeado para: ${novoNome}`);
+          if (!temCod) {
+            stats.arquivos_sem_codigo++;
+            log.acoes.push(`PDF sem cod no nome: "${nomeArquivoPdf}"`);
+            if (!dryRun && driveToken) {
+              const fileId = extrairDriveFileId(pdfUrlFinal);
+              if (fileId) {
+                const novoNome = construirNovoNome(purchase, cod, 'NF');
+                const ok = await renomearNoDrive(driveToken, fileId, novoNome);
+                if (ok) {
+                  codigoPdfOk = 'SIM';
+                  stats.arquivos_renomeados++;
+                  log.acoes.push(`PDF renomeado → ${novoNome}`);
+                }
               }
             }
           }
@@ -443,48 +595,40 @@ Deno.serve(async (req) => {
 
         // XML
         if (xmlUrlFinal) {
-          stats.xml_verificados++;
           const nomeArquivoXml = extrairNomeArquivo(xmlUrlFinal);
           const temCod = codigoNoNomeArquivo(nomeArquivoXml, cod);
           codigoXmlOk = temCod ? 'SIM' : 'NÃO';
-          if (temCod) stats.xml_ok++;
-          log.acoes.push(`XML: "${nomeArquivoXml}" → cod ${temCod ? '✓' : '✗'}`);
-
-          // Renomear se necessário
-          if (!temCod && !dryRun && driveToken) {
-            const fileId = extrairDriveFileId(xmlUrlFinal);
-            if (fileId) {
-              const novoNome = construirNovoNome(purchase, cod, 'XML');
-              const ok = await renomearNoDrive(driveToken, fileId, novoNome);
-              if (ok) {
-                codigoXmlOk = 'SIM';
-                stats.arquivos_renomeados++;
-                log.acoes.push(`XML renomeado para: ${novoNome}`);
+          if (!temCod) {
+            log.acoes.push(`XML sem cod no nome: "${nomeArquivoXml}"`);
+            if (!dryRun && driveToken) {
+              const fileId = extrairDriveFileId(xmlUrlFinal);
+              if (fileId) {
+                const novoNome = construirNovoNome(purchase, cod, 'XML');
+                const ok = await renomearNoDrive(driveToken, fileId, novoNome);
+                if (ok) {
+                  codigoXmlOk = 'SIM';
+                  stats.arquivos_renomeados++;
+                  log.acoes.push(`XML renomeado → ${novoNome}`);
+                }
               }
             }
           }
         }
 
-        // Verificar divergência
+        // Detectar divergência entre PDF e XML
         if (pdfUrlFinal && xmlUrlFinal) {
-          const nomePdf = extrairNomeArquivo(pdfUrlFinal);
-          const nomeXml = extrairNomeArquivo(xmlUrlFinal);
-          // Extrair código detectado em cada arquivo
-          const codPdfEncontrado = CODIGOS_OFICIAIS.has(cod) && codigoNoNomeArquivo(nomePdf, cod);
-          const codXmlEncontrado = CODIGOS_OFICIAIS.has(cod) && codigoNoNomeArquivo(nomeXml, cod);
-          // Divergência: ambos têm códigos mas são diferentes (buscar qualquer código oficial nos nomes)
           let codNoPdf: string | null = null;
           let codNoXml: string | null = null;
+          const nomePdf = extrairNomeArquivo(pdfUrlFinal);
+          const nomeXml = extrairNomeArquivo(xmlUrlFinal);
           for (const c of CODIGOS_OFICIAIS) {
-            if (codigoNoNomeArquivo(nomePdf, c)) { codNoPdf = c; break; }
-          }
-          for (const c of CODIGOS_OFICIAIS) {
-            if (codigoNoNomeArquivo(nomeXml, c)) { codNoXml = c; break; }
+            if (!codNoPdf && codigoNoNomeArquivo(nomePdf, c)) codNoPdf = c;
+            if (!codNoXml && codigoNoNomeArquivo(nomeXml, c)) codNoXml = c;
           }
           if (codNoPdf && codNoXml && codNoPdf !== codNoXml) {
-            stats.divergencia_pdf_xml++;
+            stats.arquivos_com_codigo_divergente++;
+            motivoRevisao = (motivoRevisao ? motivoRevisao + ' | ' : '') + `Código divergente: PDF=${codNoPdf} vs XML=${codNoXml}`;
             if (log.status_cod === 'OK') log.status_cod = 'REVISAR';
-            motivoRevisao = (motivoRevisao ? motivoRevisao + ' | ' : '') + `CÓDIGO DIVERGENTE ENTRE NOTA E XML (PDF: ${codNoPdf}, XML: ${codNoXml})`;
           }
         }
       }
@@ -493,20 +637,20 @@ Deno.serve(async (req) => {
       log.codigo_xml_ok = codigoXmlOk;
       log.motivo_revisao = motivoRevisao || null;
 
-      // ── FLUXO 5: backup_validado ───────────────────────────────────────────
+      // ── backup_validado ────────────────────────────────────────────────────
       const backupValidado = (
         cod &&
         CODIGOS_OFICIAIS.has(cod) &&
         log.status_cod === 'OK' &&
         codigoPdfOk === 'SIM' &&
         (codigoXmlOk === 'SIM' || codigoXmlOk === 'NÃO_SE_APLICA') &&
-        !motivoRevisao?.includes('DIVERGENTE')
+        !String(motivoRevisao || '').includes('divergente')
       ) ? 'SIM' : 'NÃO';
 
       log.backup_validado = backupValidado;
-      if (backupValidado === 'SIM') stats.backup_validado++;
+      if (backupValidado === 'SIM') stats.backup_validado_sim++;
 
-      // ── Persistir no banco (se não dryRun) ────────────────────────────────
+      // ── Persistir (dryRun=false) ───────────────────────────────────────────
       if (!dryRun) {
         const updates: any = {
           status_cod: log.status_cod,
@@ -516,30 +660,32 @@ Deno.serve(async (req) => {
         };
         if (log.cod_final) updates.cod = log.cod_final;
         if (log.motivo_revisao) updates.motivo_revisao = log.motivo_revisao;
+        else updates.motivo_revisao = null;
 
-        await base44.asServiceRole.entities.PurchaseRequest.update(purchase.id, updates);
+        await base44.asServiceRole.entities.PurchaseRequest.update(purchase.id, updates).catch(e => {
+          log.acoes.push(`ERRO ao salvar: ${e?.message || e}`);
+        });
       }
 
       logs.push(log);
     }
 
-    // ── FLUXO 6: Relatório final ───────────────────────────────────────────────
+    // ── Relatório final ────────────────────────────────────────────────────────
     return Response.json({
       ok: true,
       dry_run: dryRun,
       force,
       stats: {
-        total_analisadas: stats.total,
-        cod_correto: stats.cod_ok,
-        preenchidos_nesta_execucao: stats.preenchidos_agora,
-        marcados_revisar: stats.revisar,
-        pdf_verificados: stats.pdf_verificados,
-        xml_verificados: stats.xml_verificados,
-        codigo_pdf_ok_sim: stats.pdf_ok,
-        codigo_xml_ok_sim: stats.xml_ok,
+        total_analisado: stats.total_analisado,
+        codigos_preenchidos: stats.codigos_preenchidos,
+        codigos_corretos: stats.codigos_corretos,
+        codigos_corrigidos: stats.codigos_corrigidos,
+        rubricas_nao_encontradas: stats.rubricas_nao_encontradas,
+        associacoes_ambiguas: stats.associacoes_ambiguas,
+        arquivos_sem_codigo: stats.arquivos_sem_codigo,
+        arquivos_com_codigo_divergente: stats.arquivos_com_codigo_divergente,
+        backup_validado_sim: stats.backup_validado_sim,
         arquivos_renomeados: stats.arquivos_renomeados,
-        divergencia_pdf_xml: stats.divergencia_pdf_xml,
-        backup_validado_sim: stats.backup_validado,
       },
       logs,
     });
