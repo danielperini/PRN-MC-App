@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
-import { AlertTriangle, ExternalLink } from 'lucide-react';
+import { AlertTriangle, ExternalLink, Wand2, CheckCircle2, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 const DRIVE_PASTA_NFS = 'https://drive.google.com/drive/u/0/folders/1Ov9ci6Dwg297mm7QiqX1wfLIb92EZSGf';
 const TOTAL_PREVISTO_PAMPULHA = 81719.85;
@@ -93,8 +94,28 @@ function previstoRubrica(compra, rubricaById) {
   return toNumber(rubrica?.valor_rubrica || rubrica?.valor_total);
 }
 
-export default function NoturnoPampulhaCard() {
+export default function NoturnoPampulhaCard({ isCoordenador = false }) {
   const queryClient = useQueryClient();
+  const [preenchendo, setPreenchendo] = useState(false);
+  const [resultadoLote, setResultadoLote] = useState(null);
+  const [confirmando, setConfirmando] = useState(false);
+
+  async function handlePreencherLote() {
+    setConfirmando(false);
+    setPreenchendo(true);
+    setResultadoLote(null);
+    try {
+      const res = await base44.functions.invoke('preencherCamposNFPampulha', {});
+      const data = res?.data || res;
+      setResultadoLote(data);
+      toast.success(`${data.atualizadas} solicitações atualizadas com sucesso.`);
+      queryClient.invalidateQueries({ queryKey: ['compras-pampulha-4aditivo'] });
+    } catch (err) {
+      toast.error('Erro ao preencher campos: ' + (err?.message || 'Tente novamente.'));
+    } finally {
+      setPreenchendo(false);
+    }
+  }
 
   const { data: rubricas = [], isLoading: loadingRubricas } = useQuery({
     queryKey: ['rubricas-pampulha-4aditivo'],
@@ -213,15 +234,27 @@ export default function NoturnoPampulhaCard() {
           <h2 className="text-lg font-bold text-gray-900 leading-tight">Noturno Pampulha</h2>
           <p className="text-xs text-gray-500 mt-0.5">Custos reais aprovados ou pagos, vinculados ao centro de custo do Noturno Pampulha.</p>
         </div>
-        <a
-          href={DRIVE_PASTA_NFS}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1.5 rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs font-medium text-violet-700 hover:bg-violet-50 transition-colors"
-        >
-          <ExternalLink className="w-3.5 h-3.5" />
-          Pasta Drive NFs
-        </a>
+        <div className="flex items-center gap-2">
+          {isCoordenador && (
+            <button
+              onClick={() => setConfirmando(true)}
+              disabled={preenchendo}
+              className="flex items-center gap-1.5 rounded-lg border border-violet-300 bg-violet-600 px-3 py-2 text-xs font-medium text-white hover:bg-violet-700 transition-colors disabled:opacity-50"
+            >
+              {preenchendo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
+              {preenchendo ? 'Processando...' : 'Preencher em lote'}
+            </button>
+          )}
+          <a
+            href={DRIVE_PASTA_NFS}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs font-medium text-violet-700 hover:bg-violet-50 transition-colors"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            Pasta Drive NFs
+          </a>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-gray-100 border-b border-gray-100">
@@ -267,6 +300,38 @@ export default function NoturnoPampulhaCard() {
           <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 flex items-center gap-2 text-xs text-amber-700">
             <AlertTriangle className="w-4 h-4 shrink-0" />
             {resumo.semRubrica} documento(s) ainda sem rubrica vinculada.
+          </div>
+        )}
+
+        {resultadoLote && (
+          <div className="mb-3 rounded-xl border border-green-200 bg-green-50 px-3 py-2 flex items-center gap-2 text-xs text-green-700">
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            <span>
+              <strong>{resultadoLote.atualizadas}</strong> atualizadas ·{' '}
+              <strong>{resultadoLote.semMatch}</strong> sem correspondência ·{' '}
+              <strong>{resultadoLote.jaCompletas}</strong> já completas
+            </span>
+          </div>
+        )}
+
+        {confirmando && (
+          <div className="mb-3 rounded-xl border border-violet-200 bg-violet-50 px-3 py-3 text-xs text-violet-800">
+            <p className="font-semibold mb-2">Confirmar preenchimento em lote?</p>
+            <p className="text-violet-600 mb-3">Serão preenchidos apenas campos vazios (rubrica_id, natureza_despesa, cod) — dados já preenchidos não serão sobrescritos.</p>
+            <div className="flex gap-2">
+              <button
+                onClick={handlePreencherLote}
+                className="rounded-lg bg-violet-600 text-white px-3 py-1.5 font-medium hover:bg-violet-700 transition-colors"
+              >
+                Confirmar
+              </button>
+              <button
+                onClick={() => setConfirmando(false)}
+                className="rounded-lg border border-violet-200 bg-white text-violet-700 px-3 py-1.5 font-medium hover:bg-violet-50 transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
           </div>
         )}
 

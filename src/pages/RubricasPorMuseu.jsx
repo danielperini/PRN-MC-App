@@ -509,7 +509,7 @@ export default function RubricasPorMuseu() {
         <CentrosCustoCards />
 
         {/* Card específico do 4º Aditivo — Noturno Pampulha */}
-        <NoturnoPampulhaCard />
+        <NoturnoPampulhaCard isCoordenador={isCoordenador} />
 
         <GerenciarRubricasMuseuDialog open={showGerenciar} onClose={() => setShowGerenciar(false)} />
         <CardRubricaEditor open={showCardEditor} onClose={() => setShowCardEditor(false)} />
