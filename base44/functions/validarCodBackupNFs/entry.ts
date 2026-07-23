@@ -1,14 +1,15 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
 /**
- * validarCodBackupNFs
+ * syncComprasCodFromPlanoTrabalho (validarCodBackupNFs)
  *
- * Atualiza MAPA_N4 oficial completo e valida/preenche o campo `cod` (N4 oficial)
- * de cada PurchaseRequest. Usa `centro_custo` da Compra para desempate em casos ambíguos.
+ * Sincroniza TODOS os registros de PurchaseRequest com o Plano de Trabalho oficial.
+ * Fonte soberana: Plano de Trabalho (MAPA_N4 abaixo).
+ * Fontes PROIBIDAS para definir cod: nome de arquivo, número de NF, IDs internos.
  *
  * Params: { dryRun?: boolean, force?: boolean, purchaseIds?: string[] }
- * - dryRun=false → grava no banco (DEFAULT agora é false)
- * - force=false  → não sobrescreve cod já com status_cod=OK (default: false)
+ * - dryRun=false → grava no banco (DEFAULT)
+ * - force=true   → sobrescreve inclusive status_cod=OK
  * - purchaseIds  → array de IDs específicos (vazio = todos)
  */
 
@@ -23,111 +24,160 @@ function norm(v: string): string {
 }
 
 function pad2(s: string | number): string {
-  return String(s).padStart(2, '0');
+  const str = String(s || '').replace(/\D/g, '');
+  if (!str) return '';
+  return str.padStart(2, '0');
 }
 
 // ── MAPA N4 OFICIAL COMPLETO ──────────────────────────────────────────────────
-// Termos normalizados (sem acentos, lowercase, barra/hífen→espaço).
-// Substituição integral do mapa anterior.
+// Baseado integralmente no Plano de Trabalho + arquivo corrigido fornecido.
+// CADA ENTRADA É INEQUÍVOCA — termos que geram ambiguidade ficam FORA do mapa
+// e são resolvidos na função desempatarPorCentroCusto.
+//
+// PRIORIDADE: entradas mais específicas devem vir ANTES das genéricas.
+// A busca retorna TODOS os códigos que batem; se >1, vai para desempate.
+
 const MAPA_N4: Array<{ codigo: string; termos: string[] }> = [
+  // ── 01: Consultorias ───────────────────────────────────────────────────────
   {
     codigo: '01',
     termos: [
       'consultoria de programacao',
       'consultorias de temas transversais',
       'consultoria temas transversais',
-      'formacao sobre ambiente seguro diversidade e inclusao',
-      'formacao ambiente seguro diversidade e inclusao',
+      'consultoria transversal',
+      'assessoria juridica',
+      'assessor juridico',
+      'assessoria contabil',
+      'contabilidade',
+      'advogado',
+      'advocacia',
+      'rh assessoria contabil',
+      'mario amaro',
+      'formacao sobre ambiente seguro',
       'formacao ambiente seguro',
       'consultoria acessibilidade',
       'consultoria pedagogica',
+      'ana luiza teixeira neves',
     ],
   },
+  // ── 02: Segurança ─────────────────────────────────────────────────────────
   {
     codigo: '02',
     termos: [
-      'seguranca',
-      'locacao de mao de obra seguranca',
-      'vigilancia',
-      'vigia',
-      'servico de seguranca',
       'seguranca ed 2026',
-      'seguranca noturno',
+      'servico de seguranca',
+      'locacao de mao de obra seguranca',
+      'vigilancia patrimonial',
     ],
   },
+  // ── 03: Manutenção e exposições (MHAB/MIS/MUMO específicos) ──────────────
   {
     codigo: '03',
     termos: [
+      'manutencao mhab',
       'manutencao mis',
       'manutencao mumo',
-      'manutencao mhab',
-      'mostra baixa complexidade',
-      'mostra media complexidade',
-      'peca em destaque',
+      'mostra baixa complexidade mis',
+      'mostra media complexidade mhab',
+      'mostra pequena complexidade',
+      'peca em destaque mhab',
+      'peca em destaque mis',
+      'peca em destaque mumo',
       'exposicao mumo',
+      'manutencao da exposicao',
+      'manutencao exposicao',
+      'manutencao de exposicao',
+      'montagem mostra',
+      'manutencao rotina exposicoes',
     ],
   },
+  // ── 04: Transporte/Combustível ────────────────────────────────────────────
   {
     codigo: '04',
     termos: [
-      'transporte',
       'combustivel',
-      'energia eletrica',
-      'conta de luz',
       'gasolina',
       'abastecimento',
     ],
   },
+  // ── 12: Lanche/buffet e Material de escritório/Despesas gerais ─────────────
   {
     codigo: '12',
     termos: [
-      'lanche',
-      'lanches',
-      'alimentacao',
+      'lanchesbuffet',
+      'lanches buffet',
+      'fornecimento de lanche',
+      'lanche e buffet',
       'coffee break',
       'cafe',
       'refeicao',
-      'buffet',
       'lanchonete',
-      'fornecimento de lanches',
+      'panificadora',
+      'ticket alimentacao',
+      'ticket refeicao',
+      'disponibilizacao de beneficio',
       'material de escritorio',
       'material escritorio',
+      'cemig',
+      'energia eletrica',
+      'ajuda de custo viaduto',
+      'conta de luz',
+      'agua',
+      'despesas gerais',
     ],
   },
+  // ── 13: Sinalização ────────────────────────────────────────────────────────
   {
     codigo: '13',
     termos: [
-      'sinalizacao',
       'sinalizacao ed 2026',
       'sinalizacao noturno',
+      'servico grafico de sinalizacao',
+      'sinalizacao para a edicao',
       'impressao mhab',
       'impressao mis',
       'impressao mumo',
+      'flag impressao digital',
+      'flag digital',
     ],
   },
+  // ── 15: Material MIS/MUMO/MHAB (atividades educativas) ────────────────────
   {
     codigo: '15',
     termos: [
-      'material mis',
-      'material mumo',
-      'material mhab',
+      'material mis mumo mhab',
+      'material para acao educativa',
+      'material para oficina',
+      'material para atividade',
+      'material educativo',
+      'luva nitrilica',
+      'tecido tricoline',
+      'fios petropolis',
+      'floricultura',
+      'kalunga',
+      'bh seg equipamentos',
+      'eco print distribuidora',
     ],
   },
+  // ── 17: Kit de Iluminação (Ed. 2026) ─────────────────────────────────────
   {
     codigo: '17',
     termos: [
-      'kit de iluminacao',
-      'kit iluminacao',
       'kit de iluminacao ed 2026',
-      'locacao de iluminacao',
-      'iluminacao pampulha',
+      'kit de iluminacao noturno',
+      'kit iluminacao noturno',
+      'arte em iluminar',
+      'iluminacao museus centro',
+      'locacao de iluminacao ed 2026',
     ],
   },
+  // ── 18: Vans/transporte escolar ───────────────────────────────────────────
   {
     codigo: '18',
     termos: [
-      'van',
-      'vans',
+      'van ',
+      ' vans ',
       'onibus',
       'micro onibus',
       'microonibus',
@@ -135,221 +185,396 @@ const MAPA_N4: Array<{ codigo: string; termos: string[] }> = [
       'locacao de veiculo',
     ],
   },
+  // ── 22: Ações educativo-culturais e Apresentações culturais ───────────────
   {
     codigo: '22',
     termos: [
-      'assistente administrativo',
-      'assistente administrativa',
+      'acoes educativo culturais mis mumo mhab',
       'acoes educativo culturais',
       'acoes educativas',
-      'acoes culturais',
-      'apresentacoes mis mumo mhab',
+      'acao educativa cultural',
+      'acao educativa mis',
+      'acao educativa mhab',
+      'acao educativa mumo',
       'apresentacoes culturais 3 museus pbh',
-      'apresentacoes culturais',
+      'apresentacoes mis mumo mhab',
+      'apresentacoes mis mumo mhab ed 2026',
+      'apresentacoes culturais ed 2026',
+      'apresentacao cultural mhab',
+      'apresentacao cultural mis',
+      'apresentacao cultural mumo',
       'pesquisa e texto mhab',
-      'pesquisa e texto',
-      'contratacao de artistas e atracoes noturno pampulha',
-      'artistas e atracoes pampulha',
-      'contratacao de artistas',
-      'artistas pampulha',
+      'pesquisa e texto mis',
+      'pesquisa e texto mumo',
+      'assistente administrativo',
+      'assistente administrativa',
+      'workshop',
+      'oficina cultural',
     ],
   },
+  // ── 23: Designer/Comunicação ──────────────────────────────────────────────
   {
     codigo: '23',
     termos: [
       'assessor de imprensa',
       'assessoria de imprensa',
-      'rede social',
+      'rede social marketing cultural',
       'redes sociais',
+      'rede social',
       'marketing cultural',
       'social media',
       'designer mhab',
       'designer mis',
       'designer mumo',
+      'design grafico mhab',
+      'design grafico mis',
+      'design grafico mumo',
+      'designer mes 19',
+      'design grafico mes 19',
       'id designer',
       'id design',
-      'design grafico',
       'identidade visual comunicacao',
       'redacao',
       'redator',
+      'comunicacao e divulgacao noturno',
+      'cs comunicacao e arte',
+      'retina eletrica filmes',
+      'estudio folha',
+      'samira lopes mota',
+      'engenharia e design ltda',
+      'ammor design',
+      'comunicacao e divulgacao pampulha',
+      'divulgacao pampulha',
     ],
   },
+  // ── 24: Fotógrafo/Vídeo ───────────────────────────────────────────────────
   {
     codigo: '24',
     termos: [
-      'fotografo',
-      'fotografia',
-      'fotografa',
-      'video e fotografia',
-      'video fotografia',
-      'cobertura fotografica',
-      'cobertura de video',
-      'fotografo mhab',
+      'fotografo mes 19',
+      'fotografa mes 19',
+      'video e fotografia ed 2026',
+      'video fotografia ed 2026',
+      'audiovisual noturno',
+      'noturno nos museus audiovisual',
+      'cobertura fotografica noturno',
+      'cobertura de video noturno',
+      'daniel moreira art',
     ],
   },
+  // ── 40: Mostra de média complexidade MHAB ────────────────────────────────
+  {
+    codigo: '40',
+    termos: [
+      'mostra media complexidade mhab',
+      'montagem mostra mhab',
+    ],
+  },
+  // ── 41: Limpeza ───────────────────────────────────────────────────────────
   {
     codigo: '41',
     termos: [
-      'limpeza',
-      'servico de limpeza',
-      'higienizacao',
+      'servico de limpeza ed 2026',
       'limpeza ed 2026',
       'limpeza noturno',
+      'higienizacao',
     ],
   },
+  // ── 42: Equipe/pessoal (educador, produção, coordenação, monitores, diárias)
   {
     codigo: '42',
     termos: [
-      'coordenador geral',
+      'coordenador geral mes 19',
+      'coordenador geral mes',
+      'coordenacao geral mes',
+      'perini projetos',
+      'daniel perini',
       'assistente de coordenacao e producao',
       'analista adm financeira',
+      'analista administrativo financeiro',
+      'josiane amancio',
       'producao mis mumo mhab',
-      'educador mis mumo mhab',
-      'producao ed 2026',
-      'assistente de producao ed 2026',
-      'monitores ed 2026',
-      'diarias mis mumo mhab',
-      'contador',
-      'coordenador producao',
-      'analista adm',
-      'gestor administrativo financeiro',
-      'assistente de coordenacao',
-      'assistente de producao',
-      'mobilizador',
       'producao mis',
       'producao mumo',
       'producao mhab',
-      'producao noturno',
+      'producao mes 19',
+      'produtora mes 19',
+      'educador mis mumo mhab',
       'educador mis',
       'educador mumo',
       'educador mhab',
-      'educadora',
-      'monitor noturno',
-      'monitores noturno',
-      'monitores ed',
-      'monitores educacao',
-      'monitores',
+      'educadora mes 19',
+      'educadora mis',
+      'educadora mumo',
+      'educadora mhab',
+      'monitores ed 2026',
+      'assistente de producao ed 2026',
+      'assistente de producao noturno',
+      'diarias mis mumo mhab',
       'diarias mis',
       'diarias mumo',
       'diarias mhab',
-      'diarias meta',
-      'diarias',
-      'contadora',
+      'diaria de educador',
+      'diaria educadora',
+      'gestor administrativo financeiro',
+      'mobilizador',
+      'monitor noturno',
       'produtor pampulha',
+      'equipe tecnica e coordenacao pampulha',
+      'coordenacao noturno pampulha',
+      'daniela isis',
+      'wanda benevides',
+      'isabella caroline de souza',
+      'lara carvalho ferreira',
+      'ana carolina motta rocha montalvao',
+      'clara braga assumpcao',
+      'clara assumpcao',
+      'juliana cristina da silva',
     ],
   },
-  {
-    codigo: '46',
-    termos: [
-      'assessoria juridica',
-      'assessor juridico',
-      'advogado',
-      'advocacia',
-    ],
-  },
+  // ── 53: Coordenador de Comunicação ────────────────────────────────────────
   {
     codigo: '53',
     termos: [
-      'coordenador comunicacao',
-      'coordenadora comunicacao',
-      'coordenador de comunicacao',
-      'comunicacao e divulgacao noturno pampulha',
-      'divulgacao pampulha',
-      'comunicacao pampulha',
+      'coordenador de comunicacao mes 19',
+      'coordenadora de comunicacao mes 19',
+      'coordenador comunicacao mes 19',
+      'coordenadora comunicacao mes 19',
+      'coord comunicacao mes',
+      'fernanda monte mor',
+      'ammor design coordenadora',
     ],
   },
+  // ── 99: Infraestrutura (excl. sinalização e limpeza) ─────────────────────
   {
     codigo: '99',
     termos: [
+      'infraestrutura 3 museus pbh ed 2026',
+      'infraestrutura mis mumo mhab ed 2026',
       'infraestrutura mis mumo mhab',
-      'infraestrutura 3 museus pbh',
-      'infraestrutura ed 2026',
-      'revisao mhab',
-      'traducao mhab',
-      'fornecimento de som e iluminacao',
-      'som e iluminacao',
-      'revisao de texto',
-      'revisao textual',
-      'traducao',
-      'tradutor',
-      'tradutora',
-      'maquete tatil',
-      'video com libras',
-      'audio descricao',
+      'infraestrutura mhab ed 2026',
+      'infraestrutura mis ed 2026',
+      'infraestrutura mumo ed 2026',
+      'infraestrutura noturno',
       'producao e infraestrutura noturno pampulha',
-      'infraestrutura pampulha',
-      'producao pampulha',
+      'producao infraestrutura pampulha',
+      'sonorizacao noturno',
+      'sonorizacao museus',
+      'servico de sonorizacao',
+      'som e iluminacao',
+      'fornecimento de agua noturno',
+      'global support',
+      'locacao de grades',
+      'servico de carreto',
+      'iluminacao museus pampulha',
+      'servico de iluminacao museus pampulha',
+      'atelie do evento',
+      'polvo studio',
+      'fornecimento de lanche camarim',
     ],
   },
 ];
 
+// ── Mapeamentos de rubrica → código (por nome exato normalizado) ─────────────
+// Serve como "override" para casos onde o mapa por termos não é suficiente.
+// Chave: nome normalizado da rubrica oficial (campo rubrica/nome/grupo)
+const MAPA_RUBRICA_EXATA: Record<string, string> = {
+  'assessor de imprensa mes 19 ao 28': '23',
+  'assessora de imprensa mes 19 ao 28': '23',
+  'assessoria de imprensa mes 19 ao 28': '23',
+  'rede social marketing cultural mes 19 ao 28': '23',
+  'designer mes 19 ao 28': '23',
+  'designer mhab': '23',
+  'design grafico mhab': '23',
+  'id designer ed 2026': '23',
+  'coordenador de comunicacao mes 19 ao 28': '53',
+  'coordenadora de comunicacao mes 19 ao 28': '53',
+  'coordenador comunicacao mes 19 ao 28': '53',
+  'coordenadora comunicacao mes 19 ao 28': '53',
+  'coordenador geral mes 19 ao 28': '42',
+  'coordenador geral': '42',
+  'assistente administrativo mes 19 ao 28': '22',
+  'assistente administrativa mes 19 ao 28': '22',
+  'acoes educativo culturais mis mumo mhab': '22',
+  'acoes educativo culturais': '22',
+  'apresentacoes culturais 3 museus pbh ed 2026': '22',
+  'apresentacoes mis mumo mhab ed 2026': '22',
+  'fotografo mes 19 ao 28': '24',
+  'fotografia mes 19 ao 28': '24',
+  'video e fotografia ed 2026': '24',
+  'producao mis mumo mhab mes 19 ao 28': '42',
+  'educador mis mumo mhab mes 19 ao 28': '42',
+  'educadora mis mumo mhab mes 19 ao 28': '42',
+  'diarias mis mumo mhab': '42',
+  'monitores ed 2026': '42',
+  'assistente de producao ed 2026': '42',
+  'assistente de coordenacao e producao': '42',
+  'analista adm financeira mes 19 ao 28': '42',
+  'analista administrativo financeira mes 19 ao 28': '42',
+  'material mis mumo mhab mes 19 ao 28': '15',
+  'material mis': '15',
+  'material mumo': '15',
+  'material mhab': '15',
+  'lanchesbuffet mes 19 ao 28': '12',
+  'lanches buffet mes 19 ao 28': '12',
+  'material de escritorio': '12',
+  'consultorias de temas transversais diversos': '01',
+  'consultoria de programacao': '01',
+  'seguranca ed 2026': '02',
+  'limpeza ed 2026': '41',
+  'kit de iluminacao ed 2026': '17',
+  'sinalizacao ed 2026': '13',
+  'infraestrutura 3 museus pbh ed 2026': '99',
+  'infraestrutura mis mumo mhab ed 2026': '99',
+  'producao e infraestrutura noturno pampulha': '99',
+  'exposicao mumo': '03',
+  'manutencao mhab mes 19 ao 28': '03',
+  'manutencao mis mes 19 ao 28': '03',
+  'peca em destaque mhab': '03',
+  'mostra de baixa complexidade mis': '03',
+  'mostra de media complexidade mhab': '40',
+  'contratacao de artistas e atracoes noturno pampulha': '22',
+};
+
 // Conjunto oficial de códigos válidos
-const CODIGOS_OFICIAIS = new Set(['01','02','03','04','12','13','15','17','18','22','23','24','41','42','46','53','99']);
+const CODIGOS_OFICIAIS = new Set(['01','02','03','04','12','13','15','17','18','22','23','24','40','41','42','46','53','99']);
 
-// Centros que indicam museu físico (para desempate)
-const CENTROS_MUSEU_FISICO = new Set(['MHAB','MIS','MUMO','MIS BH']);
-
-// ── Busca de código pelo nome/grupo da rubrica ────────────────────────────────
-function buscarCodigoPorNome(rubrica: any): { codigo: string | null; matches: string[]; status: 'ok' | 'ambiguo' | 'nao_encontrado' } {
-  const texto = norm([
-    rubrica.rubrica || rubrica.nome || '',
+// ── Normalização para busca ────────────────────────────────────────────────────
+function normBusca(rubrica: any): string {
+  return norm([
+    rubrica.rubrica || rubrica.nome || rubrica.item_rubrica || '',
     rubrica.grupo || '',
     rubrica.descricao || '',
+    rubrica.meta_titulo || '',
   ].join(' '));
+}
 
+// ── Busca de código pelo nome/grupo da rubrica ────────────────────────────────
+function buscarCodigoPorRubrica(rubrica: any, centroCustoCompra?: string): {
+  codigo: string | null;
+  matches: string[];
+  status: 'ok' | 'ambiguo' | 'nao_encontrado';
+  metodo: string;
+} {
+  const nomeRubrica = norm(rubrica.rubrica || rubrica.nome || rubrica.item_rubrica || '');
+  const grupo = norm(rubrica.grupo || '');
+  const texto = normBusca(rubrica);
+
+  // 1. Rubrica.codigo já oficial?
+  if (rubrica.codigo) {
+    const padded = pad2(rubrica.codigo);
+    if (CODIGOS_OFICIAIS.has(padded)) {
+      return { codigo: padded, matches: [padded], status: 'ok', metodo: 'rubrica.codigo' };
+    }
+  }
+
+  // 2. Mapa de rubrica exata (nome normalizado)
+  for (const [chave, cod] of Object.entries(MAPA_RUBRICA_EXATA)) {
+    if (texto.includes(chave) || nomeRubrica.includes(chave) || grupo.includes(chave)) {
+      return { codigo: cod, matches: [cod], status: 'ok', metodo: 'mapa_exato' };
+    }
+  }
+
+  // 3. Mapa N4 por termos (ordem de especificidade)
   const matchedCodes = new Set<string>();
   for (const entrada of MAPA_N4) {
-    if (entrada.termos.some(t => texto.includes(t))) {
+    if (entrada.termos.some(t => texto.includes(t.trim()))) {
       matchedCodes.add(entrada.codigo);
     }
   }
 
   const matches = [...matchedCodes];
-  if (matches.length === 0) return { codigo: null, matches, status: 'nao_encontrado' };
-  if (matches.length === 1) return { codigo: matches[0], matches, status: 'ok' };
-  return { codigo: null, matches, status: 'ambiguo' };
+  if (matches.length === 0) return { codigo: null, matches, status: 'nao_encontrado', metodo: 'nenhum' };
+  if (matches.length === 1) return { codigo: matches[0], matches, status: 'ok', metodo: 'mapa_n4' };
+
+  // 4. Tentativa de desempate automático
+  const desempate = desempatarPorCentroCusto(rubrica, centroCustoCompra || '', matches, texto);
+  if (desempate) {
+    return { codigo: desempate, matches, status: 'ok', metodo: 'desempate_centro_custo' };
+  }
+
+  return { codigo: null, matches, status: 'ambiguo', metodo: 'ambiguo' };
 }
 
-// ── Desempate por centro_custo da Compra ──────────────────────────────────────
-function desempatarPorCentroCusto(rubrica: any, centroCustoCompra: string, codigosAmbiguos: string[]): string | null {
-  const textoRubrica = norm(rubrica.rubrica || rubrica.nome || '');
+// ── Desempate por centro_custo da Compra e texto da rubrica ──────────────────
+function desempatarPorCentroCusto(rubrica: any, centroCustoCompra: string, codigosAmbiguos: string[], textoNorm?: string): string | null {
+  const texto = textoNorm || normBusca(rubrica);
   const centro = norm(centroCustoCompra || '');
   const ambSet = new Set(codigosAmbiguos);
 
-  // Regra 1: 'Material' + museu físico → '15'; senão → '12'
-  if (textoRubrica.includes('material') && ambSet.has('12') && ambSet.has('15')) {
-    const ehMuseuFisico = CENTROS_MUSEU_FISICO.has(String(centroCustoCompra || '').toUpperCase().trim());
-    return ehMuseuFisico ? '15' : '12';
-  }
-
-  // Regra 2: 'Designer'/'design' sem museu específico + centro Comunicação/Geral → '23'
-  if ((textoRubrica.includes('designer') || textoRubrica.includes('design')) && ambSet.has('23')) {
-    if (centro.includes('comunicac') || centro.includes('geral') || !centroCustoCompra) {
-      return '23';
+  // Regra 1: 'Material' genérico → depende do centro
+  // Material de escritório / Despesas gerais → '12'
+  // Material MIS/MUMO/MHAB (atividades) → '15'
+  if (ambSet.has('12') && ambSet.has('15')) {
+    if (texto.includes('escritorio') || texto.includes('despesas gerais') || centro.includes('despesas gerais') || centro.includes('geral')) {
+      return '12';
+    }
+    if (texto.includes('atividade') || texto.includes('oficina') || texto.includes('educativa') ||
+        centro.includes('mhab') || centro.includes('mis') || centro.includes('mumo')) {
+      return '15';
     }
   }
 
-  // Regra 3: 'Infraestrutura' + museu específico → '99'
-  if (textoRubrica.includes('infraestrutura') && ambSet.has('99')) {
-    const ehMuseuFisico = CENTROS_MUSEU_FISICO.has(String(centroCustoCompra || '').toUpperCase().trim());
-    if (ehMuseuFisico) return '99';
+  // Regra 2: 'Lanche' → '12' sempre (sem ambiguidade possível com 99)
+  if (ambSet.has('12') && texto.includes('lanche') && !texto.includes('camarim')) {
+    return '12';
   }
 
-  // Regra 4: 'Apresentações' + múltiplos museus ou '3 museus' → '22'
-  if ((textoRubrica.includes('apresentac') || textoRubrica.includes('apresentacao')) && ambSet.has('22')) {
-    if (textoRubrica.includes('3 museus') || textoRubrica.includes('mis') || textoRubrica.includes('mumo') || textoRubrica.includes('mhab')) {
-      return '22';
-    }
+  // Regra 3: 'Lanche/Camarim' (Noturno) → '99' (infraestrutura)
+  if (texto.includes('lanche') && texto.includes('camarim')) {
+    return '99';
+  }
+
+  // Regra 4: 'Designer'/'design gráfico' → '23' por padrão (exceto MHAB com rubrica manutenção)
+  if (ambSet.has('23') && (texto.includes('designer') || texto.includes('design grafico'))) {
+    return '23';
+  }
+
+  // Regra 5: 'Infraestrutura' + 'sinalização' → '13' se 'sinalização' no texto
+  if (ambSet.has('13') && ambSet.has('99') && texto.includes('sinalizac')) {
+    return '13';
+  }
+
+  // Regra 6: 'Infraestrutura' + 'limpeza' → '41'
+  if (ambSet.has('41') && ambSet.has('99') && texto.includes('limpeza')) {
+    return '41';
+  }
+
+  // Regra 7: 'Apresentações' → '22'
+  if (ambSet.has('22') && (texto.includes('apresentac') || texto.includes('acao educativa'))) {
+    return '22';
+  }
+
+  // Regra 8: 'Coordenador de Comunicação' → '53'
+  if (ambSet.has('53') && (texto.includes('coord') && texto.includes('comunicac'))) {
+    return '53';
+  }
+
+  // Regra 9: 'Monitores' → '42'
+  if (ambSet.has('42') && texto.includes('monitor')) {
+    return '42';
+  }
+
+  // Regra 10: 'Consultorias' → '01'
+  if (ambSet.has('01') && (texto.includes('consultoria') || texto.includes('contabil') || texto.includes('juridic'))) {
+    return '01';
   }
 
   return null;
+}
+
+// ── Normaliza código vazio/inválido para null ─────────────────────────────────
+function codEhVazio(cod: any): boolean {
+  if (!cod) return true;
+  const s = String(cod).trim();
+  return s === '' || s === '?' || s === '—' || s === '-' || s === 'null' || s === 'undefined' || s === '0';
 }
 
 // ── Verifica se o código aparece como token separado no nome do arquivo ────────
 function codigoNoNomeArquivo(nomeArquivo: string, cod: string): boolean {
   if (!nomeArquivo || !cod) return false;
   const nome = norm(nomeArquivo);
-  const regex = new RegExp(`(^|[_\\-\\s])${cod}([_\\-\\s]|$)`);
+  const regex = new RegExp(`(^|[_\\-\\s])0*${parseInt(cod, 10)}([_\\-\\s]|$)`);
   return regex.test(nome);
 }
 
@@ -396,7 +621,7 @@ async function renomearNoDrive(driveToken: string, fileId: string, novoNome: str
   }
 }
 
-// ── Extrai fileId de URL do Drive ────────────────────────────────────────────
+// ── Extrai fileId de URL do Drive ─────────────────────────────────────────────
 function extrairDriveFileId(url: string): string | null {
   if (!url) return null;
   const m = url.match(/\/d\/([a-zA-Z0-9_-]{10,})/);
@@ -406,6 +631,21 @@ function extrairDriveFileId(url: string): string | null {
   return null;
 }
 
+// ── Busca compras em lotes de 500 para cobrir todos os registros ──────────────
+async function buscarTodasCompras(base44: any): Promise<any[]> {
+  const resultado: any[] = [];
+  let skip = 0;
+  const limit = 500;
+  while (true) {
+    const lote = await base44.asServiceRole.entities.PurchaseRequest.list('-created_date', limit, skip).catch(() => []);
+    if (!lote || lote.length === 0) break;
+    resultado.push(...lote);
+    if (lote.length < limit) break;
+    skip += limit;
+  }
+  return resultado;
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -413,9 +653,9 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
-    // DEFAULT AGORA É dryRun=false (grava no banco)
     const dryRun: boolean = body.dryRun === true;
-    const force: boolean = body.force === true;
+    // force=true sobrescreve TODOS, inclusive OK. Por padrão false = só preenche/corrige divergências.
+    const force: boolean = body.force !== false; // default TRUE para sincronização definitiva
     const purchaseIds: string[] = Array.isArray(body.purchaseIds) ? body.purchaseIds : [];
 
     // ── Buscar compras ─────────────────────────────────────────────────────────
@@ -424,7 +664,7 @@ Deno.serve(async (req) => {
       const results = await Promise.all(purchaseIds.map(id => base44.asServiceRole.entities.PurchaseRequest.get(id).catch(() => null)));
       compras = results.filter(Boolean);
     } else {
-      compras = await base44.asServiceRole.entities.PurchaseRequest.list('-created_date', 2000);
+      compras = await buscarTodasCompras(base44);
     }
 
     // ── Buscar rubricas ────────────────────────────────────────────────────────
@@ -441,6 +681,7 @@ Deno.serve(async (req) => {
 
     // ── Estatísticas ──────────────────────────────────────────────────────────
     const stats = {
+      total_registros: compras.length,
       total_analisado: 0,
       codigos_preenchidos: 0,
       codigos_corretos: 0,
@@ -454,18 +695,24 @@ Deno.serve(async (req) => {
     };
 
     const logs: any[] = [];
+    const alteracoes: any[] = [];
 
     for (const purchase of compras) {
       stats.total_analisado++;
+
+      const codAnterior = purchase.cod || null;
+      const statusCodAnterior = purchase.status_cod || null;
 
       const log: any = {
         id: purchase.id,
         descricao: (purchase.descricao_item || '').substring(0, 80),
         fornecedor: purchase.fornecedor_nome || '',
-        cod_anterior: purchase.cod || null,
-        status_cod_anterior: purchase.status_cod || null,
+        rubrica_nome: '',
+        cod_anterior: codAnterior,
+        status_cod_anterior: statusCodAnterior,
         cod_final: null,
         status_cod: null,
+        metodo: '',
         codigo_pdf_ok: 'NÃO_SE_APLICA',
         codigo_xml_ok: 'NÃO_SE_APLICA',
         backup_validado: 'NÃO',
@@ -473,96 +720,60 @@ Deno.serve(async (req) => {
         acoes: [],
       };
 
-      // ── Determinar código ──────────────────────────────────────────────────
-      let cod: string | null = purchase.cod || null;
-      let statusCod: string = purchase.status_cod || '';
+      // ── Determinar código via Plano de Trabalho ────────────────────────────
+      let cod: string | null = null;
+      let statusCod: string = 'SEM_RUBRICA';
+      let metodo = '';
 
-      // Normalizar código existente para 2 dígitos
-      if (cod) {
-        const padded = pad2(cod);
-        if (CODIGOS_OFICIAIS.has(padded)) cod = padded;
+      const rubrica = purchase.rubrica_id ? (rubricaMap.get(purchase.rubrica_id) || null) : null;
+      log.rubrica_nome = rubrica ? (rubrica.rubrica || rubrica.nome || '') : '(sem rubrica)';
+
+      if (!purchase.rubrica_id || !rubrica) {
+        cod = null;
+        statusCod = 'SEM_RUBRICA';
+        log.motivo_revisao = purchase.rubrica_id ? `Rubrica ID ${purchase.rubrica_id} não encontrada` : 'Sem rubrica vinculada';
+        stats.rubricas_nao_encontradas++;
+      } else {
+        const resultado = buscarCodigoPorRubrica(rubrica, purchase.centro_custo);
+
+        if (resultado.status === 'ok' && resultado.codigo) {
+          cod = resultado.codigo;
+          statusCod = 'OK';
+          metodo = resultado.metodo;
+
+          // Sincronizar Rubrica.codigo se vazio ou diferente
+          if ((!rubrica.codigo || pad2(rubrica.codigo) !== cod) && !dryRun) {
+            await base44.asServiceRole.entities.Rubrica.update(rubrica.id, { codigo: cod }).catch(() => null);
+            log.acoes.push(`Rubrica atualizada: codigo=${cod}`);
+          }
+        } else if (resultado.status === 'ambiguo') {
+          cod = null;
+          statusCod = 'REVISAR';
+          log.motivo_revisao = `Código ambíguo (candidatos: ${resultado.matches.join(', ')}) — revisar manualmente`;
+          stats.associacoes_ambiguas++;
+        } else {
+          cod = null;
+          statusCod = 'SEM_CODIGO';
+          log.motivo_revisao = 'Rubrica sem correspondência no Plano de Trabalho';
+          stats.rubricas_nao_encontradas++;
+        }
       }
 
-      // Pular se já OK e não force
-      if (cod && statusCod === 'OK' && !force) {
-        log.cod_final = cod;
-        log.status_cod = 'OK';
-        stats.codigos_corretos++;
-      } else {
-        const codAnterior = purchase.cod || null;
+      log.cod_final = cod;
+      log.status_cod = statusCod;
+      log.metodo = metodo;
 
-        // Buscar rubrica vinculada
-        const rubrica = purchase.rubrica_id ? (rubricaMap.get(purchase.rubrica_id) || null) : null;
-
-        if (!purchase.rubrica_id) {
-          cod = null;
-          statusCod = 'SEM_RUBRICA';
-          log.motivo_revisao = 'Sem rubrica vinculada';
-          stats.rubricas_nao_encontradas++;
-        } else if (!rubrica) {
-          cod = null;
-          statusCod = 'SEM_RUBRICA';
-          log.motivo_revisao = `Rubrica ID ${purchase.rubrica_id} não encontrada`;
-          stats.rubricas_nao_encontradas++;
+      // Contabilizar tipo de atualização
+      if (cod && statusCod === 'OK') {
+        const codAntPad = codAnterior ? pad2(codAnterior) : null;
+        if (codEhVazio(codAnterior)) {
+          stats.codigos_preenchidos++;
+          log.acoes.push(`cod PREENCHIDO: ${cod}`);
+        } else if (codAntPad !== cod) {
+          stats.codigos_corrigidos++;
+          log.acoes.push(`cod CORRIGIDO: ${codAnterior} → ${cod}`);
         } else {
-          // 1. Rubrica.codigo já preenchido e oficial?
-          if (rubrica.codigo && CODIGOS_OFICIAIS.has(pad2(rubrica.codigo))) {
-            cod = pad2(rubrica.codigo);
-            statusCod = 'OK';
-          } else {
-            // 2. Buscar no mapa N4
-            const resultado = buscarCodigoPorNome(rubrica);
-
-            if (resultado.status === 'ok' && resultado.codigo) {
-              cod = resultado.codigo;
-              statusCod = 'OK';
-              log.acoes.push(`cod inferido do mapa N4: ${cod}`);
-              // Sincronizar Rubrica.codigo se vazio
-              if (!rubrica.codigo && !dryRun) {
-                await base44.asServiceRole.entities.Rubrica.update(rubrica.id, { codigo: cod }).catch(() => null);
-                log.acoes.push(`Rubrica ${rubrica.id} atualizada: codigo=${cod}`);
-              }
-            } else if (resultado.status === 'ambiguo') {
-              // Tentar desempate por centro_custo da compra
-              const codDesempate = desempatarPorCentroCusto(rubrica, purchase.centro_custo || '', resultado.matches);
-              if (codDesempate) {
-                cod = codDesempate;
-                statusCod = 'OK';
-                log.acoes.push(`cod desempatado por centro_custo (${purchase.centro_custo}): ${cod}`);
-                if (!rubrica.codigo && !dryRun) {
-                  await base44.asServiceRole.entities.Rubrica.update(rubrica.id, { codigo: cod }).catch(() => null);
-                }
-              } else {
-                cod = null;
-                statusCod = 'REVISAR';
-                log.motivo_revisao = `Código ambíguo no mapa N4 (candidatos: ${resultado.matches.join(', ')}) — revisar manualmente`;
-                stats.associacoes_ambiguas++;
-              }
-            } else {
-              cod = null;
-              statusCod = 'SEM_CODIGO';
-              log.motivo_revisao = 'Rubrica sem correspondência no mapa N4';
-              stats.rubricas_nao_encontradas++;
-            }
-          }
-        }
-
-        // Contabilizar tipo de atualização
-        if (cod && statusCod === 'OK') {
-          log.cod_final = cod;
-          log.status_cod = 'OK';
-          if (!codAnterior) {
-            stats.codigos_preenchidos++;
-            log.acoes.push(`cod preenchido: ${cod}`);
-          } else if (pad2(codAnterior) !== cod) {
-            stats.codigos_corrigidos++;
-            log.acoes.push(`cod corrigido: ${codAnterior} → ${cod}`);
-          } else {
-            stats.codigos_corretos++;
-          }
-        } else {
-          log.cod_final = cod;
-          log.status_cod = statusCod || 'REVISAR';
+          stats.codigos_corretos++;
         }
       }
 
@@ -580,7 +791,6 @@ Deno.serve(async (req) => {
       let motivoRevisao = log.motivo_revisao || '';
 
       if (cod) {
-        // PDF
         if (pdfUrlFinal) {
           const nomeArquivoPdf = extrairNomeArquivo(pdfUrlFinal);
           const temCod = codigoNoNomeArquivo(nomeArquivoPdf, cod);
@@ -603,7 +813,6 @@ Deno.serve(async (req) => {
           }
         }
 
-        // XML
         if (xmlUrlFinal) {
           const nomeArquivoXml = extrairNomeArquivo(xmlUrlFinal);
           const temCod = codigoNoNomeArquivo(nomeArquivoXml, cod);
@@ -627,10 +836,10 @@ Deno.serve(async (req) => {
 
         // Detectar divergência entre PDF e XML
         if (pdfUrlFinal && xmlUrlFinal) {
-          let codNoPdf: string | null = null;
-          let codNoXml: string | null = null;
           const nomePdf = extrairNomeArquivo(pdfUrlFinal);
           const nomeXml = extrairNomeArquivo(xmlUrlFinal);
+          let codNoPdf: string | null = null;
+          let codNoXml: string | null = null;
           for (const c of CODIGOS_OFICIAIS) {
             if (!codNoPdf && codigoNoNomeArquivo(nomePdf, c)) codNoPdf = c;
             if (!codNoXml && codigoNoNomeArquivo(nomeXml, c)) codNoXml = c;
@@ -660,7 +869,7 @@ Deno.serve(async (req) => {
       log.backup_validado = backupValidado;
       if (backupValidado === 'SIM') stats.backup_validado_sim++;
 
-      // ── Persistir (dryRun=false) ───────────────────────────────────────────
+      // ── Persistir ─────────────────────────────────────────────────────────
       if (!dryRun) {
         const updates: any = {
           status_cod: log.status_cod,
@@ -668,9 +877,8 @@ Deno.serve(async (req) => {
           codigo_xml_ok: codigoXmlOk,
           backup_validado: backupValidado,
         };
-        if (log.cod_final) updates.cod = log.cod_final;
-        if (log.motivo_revisao) updates.motivo_revisao = log.motivo_revisao;
-        else updates.motivo_revisao = null;
+        if (cod) updates.cod = cod;
+        updates.motivo_revisao = log.motivo_revisao || null;
 
         await base44.asServiceRole.entities.PurchaseRequest.update(purchase.id, updates).catch(e => {
           log.acoes.push(`ERRO ao salvar: ${e?.message || e}`);
@@ -678,14 +886,27 @@ Deno.serve(async (req) => {
       }
 
       logs.push(log);
+
+      // Log de alterações efetivas
+      if (log.acoes.some((a: string) => a.includes('CORRIGIDO') || a.includes('PREENCHIDO'))) {
+        alteracoes.push({
+          compra_id: purchase.id,
+          fornecedor: purchase.fornecedor_nome || '',
+          rubrica_original: log.rubrica_nome,
+          cod_anterior: codAnterior,
+          cod_novo: cod,
+          motivo: 'Sincronização com Plano de Trabalho oficial',
+          data_hora: new Date().toISOString(),
+        });
+      }
     }
 
-    // ── Relatório final ────────────────────────────────────────────────────────
     return Response.json({
       ok: true,
       dry_run: dryRun,
       force,
       stats: {
+        total_registros: stats.total_registros,
         total_analisado: stats.total_analisado,
         codigos_preenchidos: stats.codigos_preenchidos,
         codigos_corretos: stats.codigos_corretos,
@@ -697,11 +918,12 @@ Deno.serve(async (req) => {
         backup_validado_sim: stats.backup_validado_sim,
         arquivos_renomeados: stats.arquivos_renomeados,
       },
+      alteracoes,
       logs,
     });
 
   } catch (err) {
-    console.error('[validarCodBackupNFs]', err);
+    console.error('[syncComprasCodFromPlanoTrabalho]', err);
     return Response.json({ ok: false, error: String((err as any)?.message || err) }, { status: 500 });
   }
 });
