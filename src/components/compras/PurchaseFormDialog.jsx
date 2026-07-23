@@ -1386,13 +1386,22 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
                     const isPampulha = String(r.centro_custo || '').toUpperCase() === 'NOTURNO PAMPULHA';
                     setField('centro_custo', isPampulha ? 'Noturno Pampulha' : 'Noturno nos Museus 2026')
                   }
-                  // Sugestão silenciosa de mês inicial/final a partir da rubrica (só se vazio)
-                  if (r?.periodo_frequencia && !form.rubrica_mes_inicial) {
-                    setField('rubrica_mes_inicial', r.periodo_frequencia)
-                  }
-                  if (r?.numero_parcelas_unidades && !form.rubrica_mes_final) {
-                    const parsed = parseInt(r.numero_parcelas_unidades, 10)
-                    if (!isNaN(parsed)) setField('rubrica_mes_final', parsed)
+                  // Sugestão silenciosa de mês inicial/final (só se vazio)
+                  // Extrai do padrão "mês X ao mês Y" ou "mês X a mês Y" no nome/descrição da rubrica
+                  const textoRubrica = `${r?.rubrica || ''} ${r?.nome || ''} ${r?.descricao || ''}`.toLowerCase()
+                  const matchMes = textoRubrica.match(/m[êe]s\s+(\d+)\s+ao?\s+m[êe]s\s+(\d+)/)
+                  if (matchMes) {
+                    if (!form.rubrica_mes_inicial) setField('rubrica_mes_inicial', parseInt(matchMes[1], 10))
+                    if (!form.rubrica_mes_final) setField('rubrica_mes_final', parseInt(matchMes[2], 10))
+                  } else {
+                    // Fallback: campos estruturados da entidade
+                    if (r?.periodo_frequencia && !form.rubrica_mes_inicial) {
+                      setField('rubrica_mes_inicial', r.periodo_frequencia)
+                    }
+                    if (r?.numero_parcelas_unidades && !form.rubrica_mes_final) {
+                      const parsed = parseInt(r.numero_parcelas_unidades, 10)
+                      if (!isNaN(parsed)) setField('rubrica_mes_final', parsed)
+                    }
                   }
                   // Não sobrescreve meta_id ao selecionar rubrica (meta usa código próprio)
                 }}
