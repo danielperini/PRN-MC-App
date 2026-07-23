@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -10,6 +10,8 @@ import { useToast } from '@/components/ui/use-toast';
 import { findDuplicatePurchaseRequest } from '@/lib/purchaseDuplicateGuard';
 import DuplicatePurchaseDetectedModal from '@/components/compras/DuplicatePurchaseDetectedModal';
 import { METAS_PROJETO } from '@/lib/metasProjeto';
+import { analisarNFDeterministico } from '@/lib/analiseDeterministicaNF';
+import PainelAnaliseDeterministica from './PainelAnaliseDeterministica';
 
 
 const CENTROS = ['MHAB', 'MIS', 'MUMO', 'Noturno 2026', 'Noturno Pampulha', 'Atuação Geral'];
@@ -155,6 +157,8 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   const [deleting, setDeleting] = useState(false);
   const [reprocessing, setReprocessing] = useState(false);
   const [preenchendoIA, setPreenchendoIA] = useState(false);
+  const [analise, setAnalise] = useState(() => intake?.resultado_analise_deterministica || null);
+  const [reanalisando, setReanalisando] = useState(false);
   const [xmlCandidates, setXmlCandidates] = useState([]);
   const [selectedXmlId, setSelectedXmlId] = useState('');
   const [loadingXmls, setLoadingXmls] = useState(false);
@@ -196,6 +200,39 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
+
+  // Executa análise determinística apenas uma vez (na abertura, se ainda não foi feita)
+  useEffect(() => {
+    if (analise?.executado_em) return; // já analisado — não reanalisar
+    const resultado = analisarNFDeterministico({ intake });
+    setAnalise(resultado);
+    // Salva no banco para evitar reanálise futura
+    base44.entities.DocumentIntake.update(intake.id, {
+      resultado_analise_deterministica: resultado,
+    }).catch(() => {});
+    // Preenche campos vazios do formulário com dados extraídos
+    setForm((f) => {
+      const updates = {};
+      for (const item of resultado.preenchidos_automaticamente || []) {
+        if (item.campo === 'competencia' && !f.competencia) updates.competencia = item.valor;
+        if (item.campo === 'detalhe_pagamento' && !f.detalhe_pagamento) updates.detalhe_pagamento = item.valor;
+      }
+      return Object.keys(updates).length > 0 ? { ...f, ...updates } : f;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleReanalisar = useCallback(async () => {
+    setReanalisando(true);
+    const resultado = analisarNFDeterministico({ intake });
+    setAnalise(resultado);
+    try {
+      await base44.entities.DocumentIntake.update(intake.id, {
+        resultado_analise_deterministica: resultado,
+      });
+    } catch { /* silencioso */ }
+    setReanalisando(false);
+  }, [intake]);
 
   const [dividirEntreMuseus, setDividirEntreMuseus] = useState(false);
   const [rateio, setRateio] = useState(DEFAULT_RATEIO);
@@ -898,10 +935,19 @@ export default function ReviewModalNF({ intake, onClose, onSaved }) {
           {/* Corpo rolável apenas verticalmente */}
           <div className="flex-1 overflow-y-auto overflow-x-hidden px-6 py-4 min-w-0 box-border">
         <div className="space-y-4 w-full min-w-0">
-          <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg border border-blue-100 text-sm text-blue-700">
-            <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-            Documento analisado pela IA. Campos preenchidos automaticamente.
-          </div>
+          {analise ? (
+            <PainelAnaliseDeterministica
+              analise={analise}
+              isCoordenador={user && COORD_EMAILS.includes((user.email || '').toLowerCase().trim())}
+              onReanalisar={handleReanalisar}
+              reanalisando={reanalisando}
+            />
+          ) : (
+            <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg border border-blue-100 text-sm text-blue-700">
+              <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+              Documento analisado pela IA. Campos preenchidos automaticamente.
+            </div>
+          )}
 
           {ia.classificacao_justificativa && (
             <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-sm text-indigo-700">
