@@ -3,9 +3,101 @@ import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, CheckCircle2, PlayCircle, Eye } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, PlayCircle, Eye, Trash2 } from 'lucide-react';
 
 const fmt = (v) => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+function LimparRubricasIndevidasPanel() {
+  const [preview, setPreview] = useState(null);
+  const [resultado, setResultado] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  async function carregarPreview() {
+    setLoading(true);
+    setPreview(null);
+    setResultado(null);
+    const res = await base44.functions.invoke('limparRubricasIndevidas', { confirmar: false });
+    setPreview(res.data);
+    setLoading(false);
+  }
+
+  async function confirmarDelecao() {
+    if (!window.confirm(`Confirmar exclusão PERMANENTE de ${preview?.total_indevidas} rubricas? Esta ação não pode ser desfeita.`)) return;
+    setLoading(true);
+    const res = await base44.functions.invoke('limparRubricasIndevidas', { confirmar: true });
+    setResultado(res.data);
+    setPreview(null);
+    setLoading(false);
+  }
+
+  const fmt = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+  return (
+    <Card className="border-red-200">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center gap-2 text-red-800">
+          <Trash2 className="w-4 h-4" />
+          Limpar Rubricas Indevidas (fora do 3º e 4º Aditivo)
+        </CardTitle>
+        <p className="text-xs text-slate-500">Remove permanentemente rubricas com origem diferente de "3º ADITIVO" ou "4º ADITIVO". Compras vinculadas não são alteradas.</p>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={carregarPreview} disabled={loading} className="border-red-200 text-red-700 hover:bg-red-50">
+            <Eye className="w-4 h-4 mr-1" />
+            {loading && !preview ? 'Buscando...' : 'Ver rubricas indevidas'}
+          </Button>
+          {preview && preview.total_indevidas > 0 && (
+            <Button size="sm" onClick={confirmarDelecao} disabled={loading} className="bg-red-600 hover:bg-red-700 text-white">
+              <Trash2 className="w-4 h-4 mr-1" />
+              {loading ? 'Deletando...' : `Deletar ${preview.total_indevidas} rubricas`}
+            </Button>
+          )}
+        </div>
+
+        {preview && (
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-red-700">{preview.total_indevidas} rubricas indevidas encontradas:</p>
+            <div className="max-h-60 overflow-y-auto space-y-1">
+              {preview.rubricas.map((r) => (
+                <div key={r.id} className="flex items-start gap-2 rounded border border-red-100 bg-red-50 px-3 py-2 text-xs">
+                  <div className="flex-1 min-w-0">
+                    <span className="font-medium text-red-800 block truncate">{r.rubrica}</span>
+                    <span className="text-red-500">{r.grupo} · {r.origem_recurso} · {fmt(r.valor_rubrica)}</span>
+                  </div>
+                  <Badge variant="outline" className={r.ativo ? 'border-red-300 text-red-600' : 'border-gray-300 text-gray-400'}>
+                    {r.ativo ? 'ativa' : 'inativa'}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+            {preview.total_indevidas === 0 && (
+              <p className="text-sm text-green-700 flex items-center gap-1"><CheckCircle2 className="w-4 h-4" /> Nenhuma rubrica indevida encontrada.</p>
+            )}
+          </div>
+        )}
+
+        {resultado && (
+          <div className={`rounded-lg border p-3 text-sm space-y-2 ${resultado.total_erros > 0 ? 'border-amber-200 bg-amber-50' : 'border-green-200 bg-green-50'}`}>
+            <p className={`font-semibold flex items-center gap-2 ${resultado.total_erros > 0 ? 'text-amber-800' : 'text-green-800'}`}>
+              {resultado.total_erros > 0 ? <AlertTriangle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
+              {resultado.mensagem}
+            </p>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="bg-white rounded p-2 border"><span className="text-slate-500">Deletadas</span><br /><span className="font-bold text-lg text-green-700">{resultado.total_deletadas}</span></div>
+              <div className="bg-white rounded p-2 border"><span className="text-slate-500">Erros</span><br /><span className="font-bold text-lg text-red-600">{resultado.total_erros}</span></div>
+            </div>
+            {resultado.erros?.length > 0 && (
+              <div className="text-xs text-amber-700 space-y-0.5">
+                {resultado.erros.map((e, i) => <p key={i}>⚠ {e.rubrica}: {e.erro}</p>)}
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function RestaurarRubricasAdmin() {
   const [resultado, setResultado] = useState(null);
@@ -105,6 +197,8 @@ export default function RestaurarRubricasAdmin() {
           </CardContent>
         </Card>
       )}
+
+      <LimparRubricasIndevidasPanel />
     </div>
   );
 }
