@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -16,6 +16,7 @@ import {
   Trash2,
   Search,
   X,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -85,6 +86,9 @@ export default function Relatorios() {
   const [deleteDialog, setDeleteDialog] = useState({ open: false, report: null });
   const [returnComment, setReturnComment] = useState('');
   const [cachedReports, setCachedReports] = useState(() => readReportsCache());
+  const [deepSearchResults, setDeepSearchResults] = useState(null); // null = not triggered
+  const [deepSearchLoading, setDeepSearchLoading] = useState(false);
+  const deepSearchTimeout = useRef(null);
 
   const isAdmin = user?.role === 'admin';
 
@@ -208,9 +212,50 @@ export default function Relatorios() {
     return effectiveReports.filter((report) => report.created_by === user?.email);
   }, [effectiveReports, user, isAdmin, isCoordenador]);
 
-  const filtered = useMemo(() => {
+  // Deep search: dispara quando busca local retorna 0 ou termo começa com 'MC-'
+  const runDeepSearch = useCallback(async (term) => {
+    if (!term || term.trim().length < 2) { setDeepSearchResults(null); return; }
+    setDeepSearchLoading(true);
+    try {
+      const q = term.trim();
+      const isProtocol = q.toUpperCase().startsWith('MC-');
+      let results = [];
+      if (isProtocol) {
+        results = await base44.entities.Report.filter({ numero_protocolo: q });
+      } else {
+        // Busca por author_name (sem limite)
+        const byName = await base44.entities.Report.filter({ author_name: q });
+        results = byName;
+      }
+      setDeepSearchResults(Array.isArray(results) ? results : []);
+    } catch (e) {
+      console.warn('Deep search failed:', e);
+      setDeepSearchResults([]);
+    } finally {
+      setDeepSearchLoading(false);
+    }
+  }, []);
+
+  // Monitora mudança no searchTerm para disparar busca profunda quando necessário
+  useEffect(() => {
+    if (deepSearchTimeout.current) clearTimeout(deepSearchTimeout.current);
+    const term = searchTerm.trim();
+    if (!term) { setDeepSearchResults(null); return; }
+    // Disparo imediato para protocolos MC-
+    if (term.toUpperCase().startsWith('MC-')) {
+      deepSearchTimeout.current = setTimeout(() => runDeepSearch(term), 400);
+      return;
+    }
+    // Para texto livre: aguarda filtro local rodar e verifica se deu 0
+    deepSearchTimeout.current = setTimeout(() => {
+      // será avaliado no useMemo abaixo
+    }, 600);
+    return () => { if (deepSearchTimeout.current) clearTimeout(deepSearchTimeout.current); };
+  }, [searchTerm, runDeepSearch]);
+
+  const applyFilters = useCallback((reportList) => {
     const q = searchTerm.trim().toLowerCase();
-    return myReports.filter((report) => {
+    return reportList.filter((report) => {
       if (filterMuseu !== 'todos' && report.museu !== filterMuseu) return false;
       if (filterMes !== 'todos' && (report.mes_referencia || '').toLowerCase() !== filterMes.toLowerCase()) return false;
       if (filterStatus !== 'todos' && report.status !== filterStatus) return false;
@@ -224,12 +269,35 @@ export default function Relatorios() {
           report.equipe,
           report.resumo_periodo,
           report.comentarios_gerais,
+          report.numero_protocolo,
         ].join(' ').toLowerCase();
         if (!haystack.includes(q)) return false;
       }
       return true;
     });
-  }, [myReports, filterMuseu, filterMes, filterStatus, searchTerm]);
+  }, [filterMuseu, filterMes, filterStatus, searchTerm]);
+
+  const localFiltered = useMemo(() => applyFilters(myReports), [myReports, applyFilters]);
+
+  // Se busca local retornou 0 e há termo de busca (não protocolo), dispara busca profunda
+  useEffect(() => {
+    const term = searchTerm.trim();
+    if (!term || term.toUpperCase().startsWith('MC-')) return;
+    if (localFiltered.length === 0 && !deepSearchLoading && deepSearchResults === null) {
+      runDeepSearch(term);
+    }
+  }, [localFiltered, searchTerm, deepSearchLoading, deepSearchResults, runDeepSearch]);
+
+  // Quando o searchTerm muda, reseta deepSearchResults para forçar reavaliação
+  useEffect(() => {
+    setDeepSearchResults(null);
+  }, [searchTerm]);
+
+  const isDeepSearch = deepSearchResults !== null;
+  const filtered = useMemo(() => {
+    if (isDeepSearch) return applyFilters(deepSearchResults);
+    return localFiltered;
+  }, [isDeepSearch, deepSearchResults, localFiltered, applyFilters]);
 
   // Chips de museu com contagem
   const museuCounts = useMemo(() => {
@@ -341,21 +409,30 @@ export default function Relatorios() {
         <div className="relative mb-4">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
           <Input
-            placeholder="Buscar por profissional, função, museu, mês..."
+            placeholder="Buscar por profissional, protocolo (MC-...), função, museu, mês..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
             className="pl-9 pr-9 h-10 text-sm"
           />
-          {searchTerm && (
+          {deepSearchLoading ? (
+            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-blue-500 animate-spin pointer-events-none" />
+          ) : searchTerm ? (
             <button
               type="button"
-              onClick={() => setSearchTerm('')}
+              onClick={() => { setSearchTerm(''); setDeepSearchResults(null); }}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
             >
               <X className="h-4 w-4" />
             </button>
-          )}
+          ) : null}
         </div>
+
+        {deepSearchLoading && (
+          <div className="mb-3 text-xs text-blue-600 flex items-center gap-1.5">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            Buscando em todos os relatórios...
+          </div>
+        )}
 
         {/* Chips rápidos de museu */}
         {Object.keys(museuCounts).length > 0 && (
@@ -433,6 +510,14 @@ export default function Relatorios() {
         {(isAdmin || isCoordenador) && (
           <div className="mb-5">
             <RestaurarRelatoriosDrive />
+          </div>
+        )}
+
+        {isDeepSearch && !deepSearchLoading && filtered.length > 0 && (
+          <div className="mb-3 flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs px-2.5 py-1 font-medium">
+              🔍 Resultado de busca expandida — {filtered.length} encontrado{filtered.length !== 1 ? 's' : ''}
+            </span>
           </div>
         )}
 

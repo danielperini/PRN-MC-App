@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, Save, FileDown, ArrowLeft } from 'lucide-react';
+import { Plus, Trash2, Save, FileDown, ArrowLeft, Image, FileText, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import AtividadeCamposBasicos from './AtividadeCamposBasicos';
 import ActivityPhotoLinker from './ActivityPhotoLinker';
@@ -51,6 +51,74 @@ function dedupeAtividades(list) {
     seen.add(key);
     return true;
   });
+}
+
+/** Exibe fotos[] e documentos[] já salvos na entidade Activity */
+function AtividadeFotosDocumentos({ atividade }) {
+  const fotos = Array.isArray(atividade?.fotos) ? atividade.fotos.filter(f => f?.file_url || f?.attachment_id) : [];
+  const documentos = Array.isArray(atividade?.documentos) ? atividade.documentos.filter(d => d?.file_url || d?.attachment_id) : [];
+
+  if (fotos.length === 0 && documentos.length === 0) return null;
+
+  return (
+    <div className="mt-3 pt-3 border-t border-gray-100 space-y-3">
+      {fotos.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+            <Image className="w-3.5 h-3.5" />
+            Fotos ({fotos.length})
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {fotos.map((foto, i) => (
+              <div key={foto.attachment_id || i} className="relative group">
+                {foto.file_url ? (
+                  <a href={foto.file_url} target="_blank" rel="noopener noreferrer">
+                    <img
+                      src={foto.file_url}
+                      alt={foto.legenda || `Foto ${i + 1}`}
+                      className="w-20 h-20 object-cover rounded-lg border border-gray-200 hover:opacity-90 transition-opacity"
+                      onError={e => { e.target.style.display = 'none'; }}
+                    />
+                    {foto.legenda && (
+                      <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[9px] px-1 py-0.5 rounded-b-lg truncate opacity-0 group-hover:opacity-100 transition-opacity">
+                        {foto.legenda}
+                      </div>
+                    )}
+                  </a>
+                ) : (
+                  <div className="w-20 h-20 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center">
+                    <Image className="w-6 h-6 text-gray-400" />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {documentos.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+            <FileText className="w-3.5 h-3.5" />
+            Documentos ({documentos.length})
+          </p>
+          <div className="space-y-1">
+            {documentos.map((doc, i) => (
+              <div key={doc.attachment_id || i} className="flex items-center gap-2 text-xs text-gray-700 bg-gray-50 rounded px-2.5 py-1.5">
+                <FileText className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                <span className="truncate flex-1">{doc.nome || doc.file_name || `Documento ${i + 1}`}</span>
+                {doc.file_url && (
+                  <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="flex-shrink-0">
+                    <ExternalLink className="w-3 h-3 text-blue-500 hover:text-blue-700" />
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function AtividadesSection({
@@ -333,6 +401,9 @@ export default function AtividadesSection({
               disabled={!canEdit}
             />
           )}
+
+          {/* Fotos e documentos salvos na entidade Activity (campos fotos[] e documentos[]) */}
+          <AtividadeFotosDocumentos atividade={atividade} />
         </div>
       ))}
 
