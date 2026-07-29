@@ -7,17 +7,42 @@ function normalize(str: string) {
   return (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 }
 
+// Tokens genéricos a ignorar no match de nomes
+const IGNORE_TOKENS = new Set([
+  'contrato', 'termo', 'acordo', 'aditivo', 'assinado', 'assinada', 'signed',
+  'mc', 'museu', 'museus', 'centro', 'viaduto', 'artes', 'de', 'da', 'do',
+  'e', 'com', '2024', '2025', '2026', 'pdf', 'doc',
+]);
+
+function extractNameTokens(filename: string): string[] {
+  return normalize(filename)
+    .replace(/\.(pdf|docx|doc)$/i, '')
+    .replace(/[-_]+/g, ' ')
+    .split(/\s+/)
+    .filter(t => t.length > 1 && !IGNORE_TOKENS.has(t));
+}
+
+function scoreMatch(fileTokens: string[], memberName: string): number {
+  const memberTokens = normalize(memberName).split(/\s+/).filter(t => t.length > 1);
+  if (memberTokens.length === 0) return 0;
+  let matched = 0;
+  for (const mt of memberTokens) {
+    if (fileTokens.some(ft => ft.includes(mt) || mt.includes(ft))) matched++;
+  }
+  return matched / memberTokens.length;
+}
+
 // Fingerprint de duplicata: normaliza nome removendo datas, versões, sufixos numéricos
 function fingerprintNome(nome: string): string {
   return normalize(nome)
-    .replace(/\.(pdf|docx|doc)$/i, '')           // remove extensão
-    .replace(/\s*[-_v]\s*\d+(\.\d+)?$/g, '')     // remove versões: -v2, _2, -2.1
-    .replace(/\s+\d{2}\/\d{2}\/\d{4}$/, '')      // remove data no final
-    .replace(/\s+\d{4}-\d{2}-\d{2}$/, '')        // remove data ISO no final
-    .replace(/\s+copia\s*\d*$/g, '')              // remove "copia", "copia 2"
-    .replace(/\s+assinado\s*$/g, '')              // remove sufixo "assinado"
-    .replace(/\s+signed\s*$/g, '')                // remove sufixo "signed"
-    .replace(/\s{2,}/g, ' ')                      // normaliza espaços
+    .replace(/\.(pdf|docx|doc)$/i, '')
+    .replace(/\s*[-_v]\s*\d+(\.\d+)?$/g, '')
+    .replace(/\s+\d{2}\/\d{2}\/\d{4}$/, '')
+    .replace(/\s+\d{4}-\d{2}-\d{2}$/, '')
+    .replace(/\s+copia\s*\d*$/g, '')
+    .replace(/\s+assinado\s*$/g, '')
+    .replace(/\s+signed\s*$/g, '')
+    .replace(/\s{2,}/g, ' ')
     .trim();
 }
 
@@ -40,7 +65,8 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const folderId = body.folder_id || CONTRATOS_FOLDER_ID;
-    const importar = body.importar === true; // false = só listar/detectar duplicatas
+    const importar = body.importar === true;
+    const syncTeamMembers = body.sync_team_members === true;
 
     // Obter token do Drive
     let token: string | null = null;
@@ -98,7 +124,6 @@ Deno.serve(async (req) => {
     const unicos: any[] = [];
     for (const [fp, grupo] of Object.entries(fpMap)) {
       if (grupo.length > 1) {
-        // Ordenar: mais recente primeiro
         grupo.sort((a, b) => new Date(b.modifiedTime || b.createdTime).getTime() - new Date(a.modifiedTime || a.createdTime).getTime());
         duplicatas.push({
           fingerprint: fp,
@@ -115,15 +140,76 @@ Deno.serve(async (req) => {
           mais_recente: grupo[0].name,
           link_mais_recente: grupo[0].webViewLink,
         });
+        // Mesmo sendo duplicata, o mais recente participa do sync
+        unicos.push(grupo[0]);
       } else {
         unicos.push(grupo[0]);
       }
     }
 
-    // Importar contratos únicos como TermoCompromisso/DocumentIntake (opcional)
+    // ─── SYNC DE TEAM MEMBERS ────────────────────────────────────────────────
+    const vinculados: any[] = [];
+    if (syncTeamMembers && unicos.length > 0) {
+      const members = await base44.asServiceRole.entities.TeamMember.list('', 500).catch(() => []) as any[];
+
+      for (const f of unicos) {
+        const fileTokens = extractNameTokens(f.name);
+        if (fileTokens.length === 0) continue;
+
+        let bestMember: any = null;
+        let bestScore = 0;
+
+        for (const m of members) {
+          if (!m.user_name) continue;
+          const score = scoreMatch(fileTokens, m.user_name);
+          if (score > bestScore) {
+            bestScore = score;
+            bestMember = m;
+          }
+        }
+
+        // Score mínimo de 0.5 (metade dos tokens do nome bateram)
+        if (!bestMember || bestScore < 0.5) continue;
+
+        // Só atualizar se contrato_url estiver vazio OU se o arquivo do Drive for mais recente
+        const existingUrl = bestMember.contrato_url || '';
+        const fileModified = new Date(f.modifiedTime || f.createdTime).getTime();
+        const memberAssinatura = bestMember.data_assinatura ? new Date(bestMember.data_assinatura).getTime() : 0;
+
+        const shouldUpdate = !existingUrl || (memberAssinatura && fileModified > memberAssinatura);
+        if (!shouldUpdate) continue;
+
+        const driveUrl = f.webViewLink || `https://drive.google.com/file/d/${f.id}/view`;
+
+        try {
+          await base44.asServiceRole.entities.TeamMember.update(bestMember.id, {
+            contrato_url: driveUrl,
+          });
+
+          // Log silencioso
+          await base44.asServiceRole.entities.BackupLog.create({
+            backup_type: 'drive_folders',
+            entity_type: 'CONTRACT_AUTO_SYNC',
+            entity_id: bestMember.id,
+            drive_file_id: f.id,
+            file_name: f.name,
+            status: 'success',
+            processed_at: new Date().toISOString(),
+            details: `Contrato vinculado a ${bestMember.user_name} (score: ${Math.round(bestScore * 100)}%)`,
+            triggered_by: 'scheduled',
+          }).catch(() => {});
+
+          vinculados.push({ membro: bestMember.user_name, arquivo: f.name, score: bestScore });
+        } catch (e) {
+          console.error(`[Contratos] Erro ao vincular ${f.name} -> ${bestMember.user_name}:`, e);
+        }
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // Importar contratos únicos como DocumentIntake (opcional)
     const importados: any[] = [];
     if (importar && unicos.length > 0) {
-      // Buscar contratos já importados para não duplicar
       const existentes = await base44.asServiceRole.entities.DocumentIntake.filter(
         { tipo_detectado: 'CONTRATO', status_registro: 'ATIVO' }, '', 500
       ).catch(() => []);
@@ -163,6 +249,7 @@ Deno.serve(async (req) => {
         total_duplicatas: duplicatas.reduce((s, d) => s + d.quantidade - 1, 0),
         nao_contratos: naoContratos.length,
         importados: importados.length,
+        vinculados_team_members: vinculados.length,
       },
       duplicatas,
       contratos_unicos: unicos.map(f => ({
@@ -173,6 +260,7 @@ Deno.serve(async (req) => {
         link: f.webViewLink,
       })),
       importados,
+      vinculados,
     });
 
   } catch (error) {

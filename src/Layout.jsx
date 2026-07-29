@@ -11,6 +11,7 @@ import GlobalAnnouncementBanner from '@/components/common/GlobalAnnouncementBann
 import SystemBannerDisplay from '@/components/mensagens/SystemBannerDisplay';
 import AutoRubricasSync from '@/components/compras/AutoRubricasSync';
 import AutoNotasDriveSync from '@/components/movimentacoes/AutoNotasDriveSync';
+import AutoContratosDriveSync from '@/components/contratos/AutoContratosDriveSync';
 import { RotateCw } from 'lucide-react';
 
 const PAGE_TITLES = {
@@ -137,6 +138,7 @@ export default function Layout({ children, currentPageName }) {
       <div className="min-h-screen bg-slate-50 text-slate-900">
         {currentUser && <AutoRubricasSync />}
         {currentUser && <AutoNotasDriveSync />}
+        {currentUser && <AutoContratosDriveSync currentUser={currentUser} />}
         <GlobalAnnouncementBanner />
         <SystemBannerDisplay />
         <div className="hidden lg:flex min-h-screen items-stretch">
