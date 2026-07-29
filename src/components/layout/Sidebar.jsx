@@ -68,7 +68,6 @@ const NAV_GROUPS_BASE = [
     label: 'Documentos',
     items: [
       { path: 'EntradaUnica', label: 'Entrada de Docs', icon: Inbox, roles: ['all'] },
-      { path: 'GestorArquivos', label: 'Arquivos', icon: Folder, roles: ['all'] },
     ],
   },
   {
