@@ -1,155 +1,107 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 
+const APP_BASE_URL = 'https://relatorios-perini-pro-mc-viadutodasartes.base44.app';
+
+const RECIPIENTS = [
+  'adm@viadutodasartes.org.br',
+  'josianeamancio@viadutodasartes.org.br',
+  'danielperini.mc@viadutodasartes.org.br',
+];
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
 
-    // Aceitar chamada de automação agendada (sem sessão) ou de admin manual
-    const user = await base44.auth.me().catch(() => null);
-    const isScheduled = !user;
-
-    if (!isScheduled && (!user || !['admin', 'ADMIN'].includes(user.role))) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Receber slot forçado via payload ou detectar pelo horário (UTC-3)
     let body: any = {};
-    try { body = await req.json(); } catch { /* sem body */ }
+    try { body = await req.json(); } catch { /* sem body — contexto de cron */ }
 
-    const now = new Date();
-    // Horário de Brasília = UTC-3
-    const brasiliaHour = (now.getUTCHours() - 3 + 24) % 24;
-    const brasiliaMinute = now.getUTCMinutes();
-
-    // Se forçado (force=true) e sem slot definido, processar todos os pendentes
     const force = body.force === true;
 
-    let batchSlot: string | null = body.slot || null;
-
-    if (!batchSlot) {
-      // Manhã: 09h00-10h59 | Tarde: 16h00-18h59
-      if (brasiliaHour >= 9 && brasiliaHour < 11) {
-        batchSlot = 'manha';
-      } else if (brasiliaHour >= 16 && brasiliaHour < 19) {
-        batchSlot = 'tarde';
-      } else if (force) {
-        batchSlot = 'forçado';
-      }
-    }
-
-    // Buscar pendentes — service role para funcionar em automações agendadas
-    let pendingItems: any[];
-    if (batchSlot && !force) {
-      pendingItems = await base44.asServiceRole.entities.PurchaseNotificationQueue.filter({
-        status: 'pendente_lote',
-        batch_slot: batchSlot
-      });
-    } else if (force) {
-      pendingItems = await base44.asServiceRole.entities.PurchaseNotificationQueue.filter({
-        status: 'pendente_lote'
-      });
-    } else {
-      return Response.json({
-        success: true,
-        message: `Fora do horário de processamento (Brasília: ${brasiliaHour}h${brasiliaMinute}m). Passe slot="manha"|"tarde" para forçar.`,
-        brasiliaHour, brasiliaMinute,
-      });
-    }
+    // Buscar TODOS os pendentes (sem filtrar por batch_slot — digest único diário)
+    const pendingItems: any[] = await base44.asServiceRole.entities.PurchaseNotificationQueue.filter({
+      status: 'pendente_lote'
+    });
 
     if (!pendingItems || pendingItems.length === 0) {
-      return Response.json({ 
-        success: true, 
-        message: `Nenhuma notificação pendente no slot ${batchSlot}` 
+      return Response.json({
+        success: true,
+        message: 'Nenhuma compra aprovada pendente para notificar.',
+        itemsSent: 0
       });
     }
 
-    // Agrupar por centro de custo para melhor organização
-    const groupedByCentroCusto = pendingItems.reduce((acc, item) => {
+    const now = new Date();
+    const dataFormatada = now.toLocaleString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+
+    const totalGeral = pendingItems.reduce((sum, item) => sum + (item.valor || 0), 0);
+
+    // Agrupar por centro de custo
+    const groupedByCentroCusto: Record<string, any[]> = pendingItems.reduce((acc: any, item: any) => {
       const cc = item.centro_custo || 'Geral';
       if (!acc[cc]) acc[cc] = [];
       acc[cc].push(item);
       return acc;
     }, {});
 
-    const appBaseUrl = 'https://relatorios-perini-pro-mc-viadutodasartes.base44.app';
-    const totalGeral = pendingItems.reduce((sum, item) => sum + (item.valor || 0), 0);
-    const dataFormatada = now.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-
-    // Cabeçalho institucional
+    // ── E-mail HTML ──
     let emailBody = `
-      <!DOCTYPE html>
-      <html lang="pt-BR">
-      <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-      <body style="margin:0;padding:0;background:#f1f5f9;font-family:'Segoe UI',Arial,sans-serif;color:#1e293b;">
-        <div style="max-width:680px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
-          <!-- Header -->
-          <div style="background:linear-gradient(135deg,#1e3a8a,#2563eb);padding:24px 28px;">
-            <table width="100%" cellpadding="0" cellspacing="0">
-              <tr>
-                <td style="vertical-align:middle;">
-                  <div style="color:#ffffff;font-size:13px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;opacity:0.85;">Museus Centro · Sistema de Compras</div>
-                  <div style="color:#ffffff;font-size:22px;font-weight:700;margin-top:4px;">Notificação de Compras</div>
-                </td>
-                <td style="vertical-align:middle;text-align:right;">
-                  <span style="display:inline-block;background:rgba(255,255,255,0.18);color:#ffffff;font-size:13px;font-weight:600;padding:6px 14px;border-radius:20px;">Lote ${batchSlot.toUpperCase()}</span>
-                </td>
-              </tr>
-            </table>
-          </div>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:'Segoe UI',Arial,sans-serif;color:#1e293b;">
+  <div style="max-width:680px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
 
-          <!-- Resumo -->
-          <div style="padding:20px 28px 8px 28px;">
-            <table width="100%" cellpadding="0" cellspacing="0">
-              <tr>
-                <td style="vertical-align:top;">
-                  <div style="font-size:12px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Data/Hora</div>
-                  <div style="font-size:15px;color:#1e293b;font-weight:600;margin-top:2px;">${dataFormatada}</div>
-                </td>
-                <td style="vertical-align:top;text-align:right;">
-                  <div style="font-size:12px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Total de solicitações</div>
-                  <div style="font-size:15px;color:#2563eb;font-weight:700;margin-top:2px;">${pendingItems.length}</div>
-                </td>
-                <td style="vertical-align:top;text-align:right;">
-                  <div style="font-size:12px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Valor total</div>
-                  <div style="font-size:15px;color:#059669;font-weight:700;margin-top:2px;">R$ ${totalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-                </td>
-              </tr>
-            </table>
-          </div>
+    <!-- Header -->
+    <div style="background:linear-gradient(135deg,#1e3a8a,#2563eb);padding:24px 28px;">
+      <div style="color:#ffffff;font-size:13px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;opacity:0.85;">Museus Centro · Sistema de Compras</div>
+      <div style="color:#ffffff;font-size:22px;font-weight:700;margin-top:4px;">Resumo Diário de Compras Aprovadas</div>
+      <div style="color:rgba(255,255,255,0.75);font-size:13px;margin-top:4px;">${dataFormatada}</div>
+    </div>
 
-          <div style="padding:8px 28px 0 28px;">
-            <div style="height:1px;background:#e2e8f0;"></div>
-          </div>
-    `;
+    <!-- Sumário -->
+    <div style="padding:20px 28px 8px 28px;">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="vertical-align:top;">
+            <div style="font-size:12px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Total de compras</div>
+            <div style="font-size:22px;color:#2563eb;font-weight:700;margin-top:2px;">${pendingItems.length}</div>
+          </td>
+          <td style="vertical-align:top;text-align:right;">
+            <div style="font-size:12px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Valor total</div>
+            <div style="font-size:22px;color:#059669;font-weight:700;margin-top:2px;">R$ ${totalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+          </td>
+        </tr>
+      </table>
+    </div>
 
-    // Iterar por centro de custo
+    <div style="padding:8px 28px 0 28px;"><div style="height:1px;background:#e2e8f0;"></div></div>
+`;
+
     for (const [centroCusto, items] of Object.entries(groupedByCentroCusto)) {
-      const totalCentroCusto = items.reduce((sum, item) => sum + (item.valor || 0), 0);
+      const totalCC = items.reduce((sum, item) => sum + (item.valor || 0), 0);
 
       emailBody += `
-          <!-- Grupo: ${centroCusto} -->
-          <div style="padding:20px 28px 0 28px;">
-            <table width="100%" cellpadding="0" cellspacing="0">
-              <tr>
-                <td style="vertical-align:middle;">
-                  <span style="display:inline-block;background:#eff6ff;color:#1e3a8a;font-size:13px;font-weight:700;padding:4px 12px;border-radius:6px;">${centroCusto}</span>
-                </td>
-                <td style="vertical-align:middle;text-align:right;">
-                  <span style="color:#64748b;font-size:13px;">${items.length} solicitação(ões) · <strong style="color:#059669;">R$ ${totalCentroCusto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong></span>
-                </td>
-              </tr>
-            </table>
-          </div>
-
-          <div style="padding:12px 28px 0 28px;">
-      `;
+    <!-- Grupo: ${centroCusto} -->
+    <div style="padding:20px 28px 0 28px;">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td><span style="display:inline-block;background:#eff6ff;color:#1e3a8a;font-size:13px;font-weight:700;padding:4px 12px;border-radius:6px;">${centroCusto}</span></td>
+          <td style="text-align:right;"><span style="color:#64748b;font-size:13px;">${items.length} item(s) · <strong style="color:#059669;">R$ ${totalCC.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong></span></td>
+        </tr>
+      </table>
+    </div>
+    <div style="padding:12px 28px 0 28px;">
+`;
 
       for (const item of items) {
-        const linkSolicitacao = item.link_app_compras || item.purchase_snapshot_json?.link_app_compras || (item.purchase_id
-          ? `${appBaseUrl}/Compras?purchaseId=${item.purchase_id}`
-          : `${appBaseUrl}/Compras`);
+        const linkSolicitacao = item.link_app_compras
+          || (item.purchase_id ? `${APP_BASE_URL}/Compras?purchaseId=${item.purchase_id}` : `${APP_BASE_URL}/Compras`);
 
-        const docsLinks = [];
+        const docsLinks: string[] = [];
         if (item.drive_backup_nf_pdf_link || item.nota_fiscal_pdf_url) {
           docsLinks.push(`<a href="${item.drive_backup_nf_pdf_link || item.nota_fiscal_pdf_url}" style="color:#059669;font-size:12px;text-decoration:none;">📄 NF PDF</a>`);
         }
@@ -161,104 +113,78 @@ Deno.serve(async (req) => {
         }
 
         emailBody += `
-            <!-- Card solicitação -->
-            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 16px;margin-bottom:10px;">
-              <table width="100%" cellpadding="0" cellspacing="0">
-                <tr>
-                  <td style="vertical-align:top;">
-                    <div style="font-size:15px;font-weight:600;color:#1e293b;">${item.purchase_descricao || 'N/A'}</div>
-                    <div style="font-size:13px;color:#475569;margin-top:4px;">
-                      <strong>Fornecedor:</strong> ${item.fornecedor_nome || 'N/A'}${item.fornecedor_cnpj ? ` · CNPJ: ${item.fornecedor_cnpj}` : ''}
-                    </div>
-                    <div style="font-size:12px;color:#64748b;margin-top:4px;">
-                      <strong>Rubrica:</strong> ${item.rubrica_grupo || item.rubrica_nome || 'N/A'}
-                      ${item.data_emissao_nf ? ` · <strong>NF:</strong> ${new Date(item.data_emissao_nf).toLocaleDateString('pt-BR')}` : ''}
-                    </div>
-                  </td>
-                  <td style="vertical-align:top;text-align:right;width:120px;">
-                    <div style="font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;">Valor</div>
-                    <div style="font-size:18px;font-weight:700;color:#059669;margin-top:2px;">R$ ${(item.valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-                  </td>
-                </tr>
-              </table>
-              ${docsLinks.length > 0 ? `<div style="margin-top:8px;padding-top:8px;border-top:1px dashed #e2e8f0;font-size:12px;">${docsLinks.join(' &nbsp;·&nbsp; ')}</div>` : ''}
-              <div style="margin-top:10px;">
-                <a href="${linkSolicitacao}" style="display:inline-block;background:#2563eb;color:#ffffff;font-size:13px;font-weight:600;padding:8px 18px;border-radius:6px;text-decoration:none;">Ver solicitação no app →</a>
-              </div>
-            </div>
-        `;
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 16px;margin-bottom:10px;">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="vertical-align:top;">
+              <div style="font-size:15px;font-weight:600;color:#1e293b;">${item.purchase_descricao || 'N/A'}</div>
+              <div style="font-size:13px;color:#475569;margin-top:4px;"><strong>Fornecedor:</strong> ${item.fornecedor_nome || 'N/A'}${item.fornecedor_cnpj ? ` · CNPJ: ${item.fornecedor_cnpj}` : ''}</div>
+              <div style="font-size:12px;color:#64748b;margin-top:4px;"><strong>Rubrica:</strong> ${item.rubrica_grupo || item.rubrica_nome || 'N/A'}${item.data_emissao_nf ? ` · <strong>NF:</strong> ${new Date(item.data_emissao_nf).toLocaleDateString('pt-BR')}` : ''}</div>
+            </td>
+            <td style="vertical-align:top;text-align:right;width:120px;">
+              <div style="font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;">Valor</div>
+              <div style="font-size:18px;font-weight:700;color:#059669;margin-top:2px;">R$ ${(item.valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+            </td>
+          </tr>
+        </table>
+        ${docsLinks.length > 0 ? `<div style="margin-top:8px;padding-top:8px;border-top:1px dashed #e2e8f0;">${docsLinks.join(' &nbsp;·&nbsp; ')}</div>` : ''}
+        <div style="margin-top:10px;">
+          <a href="${linkSolicitacao}" style="display:inline-block;background:#2563eb;color:#ffffff;font-size:13px;font-weight:600;padding:8px 18px;border-radius:6px;text-decoration:none;">Ver solicitação no app →</a>
+        </div>
+      </div>
+`;
       }
 
-      emailBody += `
-          </div>
-        `;
+      emailBody += `    </div>\n`;
     }
 
     emailBody += `
-          <!-- Footer -->
-          <div style="padding:16px 28px 24px 28px;">
-            <div style="height:1px;background:#e2e8f0;margin-bottom:16px;"></div>
-            <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 14px;">
-              <div style="font-size:12px;color:#92400e;font-weight:600;">📋 Instruções</div>
-              <ul style="font-size:12px;color:#92400e;margin:6px 0 0 0;padding-left:16px;line-height:1.7;">
-                <li>Verifique a conformidade de cada nota fiscal antes de aprovar.</li>
-                <li>Clique em <strong>"Ver solicitação no app"</strong> para abrir diretamente no sistema.</li>
-                <li>Este email é automático e não deve ser respondido.</li>
-              </ul>
-            </div>
-            <div style="text-align:center;margin-top:16px;">
-              <a href="${appBaseUrl}/Compras" style="display:inline-block;background:#1e293b;color:#ffffff;font-size:14px;font-weight:600;padding:12px 28px;border-radius:8px;text-decoration:none;">Acessar Solicitações de Compras</a>
-            </div>
-            <p style="text-align:center;font-size:11px;color:#94a3b8;margin-top:16px;">
-              Museus Centro · Viaduto das Artes · Sistema de Gestão de Compras
-            </p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
+    <!-- Footer -->
+    <div style="padding:16px 28px 24px 28px;">
+      <div style="height:1px;background:#e2e8f0;margin-bottom:16px;"></div>
+      <div style="text-align:center;">
+        <a href="${APP_BASE_URL}/Compras" style="display:inline-block;background:#1e293b;color:#ffffff;font-size:14px;font-weight:600;padding:12px 28px;border-radius:8px;text-decoration:none;">Acessar Solicitações de Compras</a>
+      </div>
+      <p style="text-align:center;font-size:11px;color:#94a3b8;margin-top:16px;">
+        Museus Centro · Viaduto das Artes · E-mail automático gerado às ${dataFormatada}
+      </p>
+    </div>
+  </div>
+</body>
+</html>`;
 
-    // Destinatários — apenas usuários registrados no app (SendEmail só funciona para eles)
-    // adm@, josianeamancio@ e danielperini.mc@ são os administradores registrados
-    const recipients = [
-      'adm@viadutodasartes.org.br',
-      'josianeamancio@viadutodasartes.org.br',
-      'danielperini.mc@viadutodasartes.org.br'
-    ];
+    const digestId = `DIGEST-DIARIO-${now.toISOString().split('T')[0]}-${Date.now()}`;
+    const subject = `Resumo Diário de Compras Aprovadas — ${now.toLocaleDateString('pt-BR')} (${pendingItems.length} compra${pendingItems.length > 1 ? 's' : ''})`;
 
-    const digestId = `DIGEST-${batchSlot.toUpperCase()}-${now.toISOString().split('T')[0]}-${Date.now()}`;
-
-    // Enviar para cada destinatário
-    const sendPromises = recipients.map(recipient => 
-      base44.integrations.Core.SendEmail({
+    // Enviar para destinatários fixos usando asServiceRole (obrigatório em contexto de cron)
+    await Promise.all(RECIPIENTS.map(recipient =>
+      base44.asServiceRole.integrations.Core.SendEmail({
         to: recipient,
-        subject: `Notificação de Compras - Lote ${batchSlot.toUpperCase()} - ${pendingItems.length} solicitação(ões)`,
+        subject,
         body: emailBody,
-        from_name: 'Museus Centro - Sistema de Compras'
-      })
-    );
+        from_name: 'Museus Centro — Compras'
+      }).catch((e: any) => console.warn(`Falha ao enviar para ${recipient}:`, e?.message))
+    ));
 
-    await Promise.all(sendPromises);
-
-    // Marcar registros como enviados
+    // Marcar todos como enviados
     for (const item of pendingItems) {
       await base44.asServiceRole.entities.PurchaseNotificationQueue.update(item.id, {
         status: 'enviado',
         sent_at: now.toISOString(),
         digest_id: digestId
-      });
+      }).catch(() => {});
     }
 
     return Response.json({
       success: true,
-      message: `Lote ${batchSlot || 'forçado'} processado com sucesso`,
+      message: `Digest diário enviado com sucesso`,
       digestId,
       itemsSent: pendingItems.length,
-      recipients
+      recipients: RECIPIENTS
     });
 
   } catch (error: any) {
-    console.error('Erro ao enviar lote de notificações:', error);
+    console.error('Erro ao enviar digest de compras:', error);
     return Response.json({ error: error.message }, { status: 500 });
   }
 });

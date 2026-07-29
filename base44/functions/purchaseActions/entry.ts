@@ -447,6 +447,11 @@ Deno.serve(async (req) => {
         console.log(`[purchaseActions] Aprovação direta (sem SOLICITADO) — notificações suprimidas para purchase ${purchase.id}`);
       }
 
+      // Enfileirar para digest diário das 06h (fire-and-forget)
+      base44.asServiceRole.functions.invoke('addPurchaseToNotificationQueue', {
+        purchaseId: purchase.id
+      }).catch((e: any) => console.warn('[purchaseActions] Falha ao enfileirar digest:', e?.message));
+
       return json({ success: true, purchase: updated });
     }
 
