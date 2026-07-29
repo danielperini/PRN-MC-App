@@ -38,9 +38,9 @@ function EmptyState({ text }) {
 }
 
 export default function DocumentosTab({ targetEmail, teamMember }) {
-  // Contratos
-  const { data: contratos = [] } = useQuery({
-    queryKey: ['user-contratos-meusdados', teamMember?.id],
+  // Contratos — busca por id do membro OU por user_email como fallback
+  const { data: contratosPorId = [] } = useQuery({
+    queryKey: ['user-contratos-meusdados-id', teamMember?.id],
     queryFn: () => base44.entities.DocumentIntake.filter(
       { contrato_team_member_id: teamMember.id, entidade_destino: 'TeamMember' },
       '-created_date', 10
@@ -48,6 +48,18 @@ export default function DocumentosTab({ targetEmail, teamMember }) {
     enabled: !!teamMember?.id,
     staleTime: 120000,
   });
+
+  const { data: contratosPorEmail = [] } = useQuery({
+    queryKey: ['user-contratos-meusdados-email', targetEmail],
+    queryFn: () => base44.entities.DocumentIntake.filter(
+      { user_email: targetEmail, entidade_destino: 'TeamMember' },
+      '-created_date', 10
+    ),
+    enabled: !!targetEmail && !teamMember?.id,
+    staleTime: 120000,
+  });
+
+  const contratos = teamMember?.id ? contratosPorId : contratosPorEmail;
 
   // Team Payments (NFs pessoais)
   const { data: teamPayments = [] } = useQuery({

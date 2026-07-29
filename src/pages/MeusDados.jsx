@@ -15,6 +15,9 @@ import DeleteAccountDialog from '@/components/auth/DeleteAccountDialog';
 import { buildTeamMemberFormPreset } from '@/lib/teamRegistryBase';
 import AtividadesMetasTab from '@/components/meus-dados/AtividadesMetasTab';
 import DocumentosTab from '@/components/meus-dados/DocumentosTab';
+import DadosExpandidosSection from '@/components/meus-dados/DadosExpandidosSection';
+import AiContractSuggestionsBanner from '@/components/meus-dados/AiContractSuggestionsBanner';
+import ConvidarCadastroPanel from '@/components/meus-dados/ConvidarCadastroPanel';
 
 const FORM_FIELDS = [
   { name: 'email_pessoal', label: 'Email Pessoal', type: 'email' },
@@ -45,7 +48,12 @@ const TEAM_LINK_FIELDS = [
 const EMPTY_FORM = {
   email_pessoal: '',
   telefone: '',
+  celular: '',
   cpf: '',
+  endereco_residencial: '',
+  contato_emergencia_nome: '',
+  contato_emergencia_telefone: '',
+  museu_vinculado: '',
   tipo_pessoa: 'PF',
   cnpj: '',
   empresa_nome: '',
@@ -58,78 +66,104 @@ const EMPTY_FORM = {
   conta: '',
   tipo_conta: 'Corrente',
   pix_key: '',
+  contrato_num_parcelas: '',
+  contrato_valor_parcela: '',
   funcao_institucional: '',
   valor_referencia: '',
   inicio_vinculo_referencia: '',
 };
 
 function mergeWithoutOverwrite(current, incoming) {
+  const pick = (k, def = '') => current[k] || incoming[k] || def;
   return {
     ...current,
-    email_pessoal: current.email_pessoal || incoming.email_pessoal || '',
-    telefone: current.telefone || incoming.telefone || '',
-    cpf: current.cpf || incoming.cpf || '',
-    tipo_pessoa: current.tipo_pessoa || incoming.tipo_pessoa || 'PF',
-    cnpj: current.cnpj || incoming.cnpj || '',
-    empresa_nome: current.empresa_nome || incoming.empresa_nome || '',
-    empresa_endereco: current.empresa_endereco || incoming.empresa_endereco || '',
-    representante_legal_nome: current.representante_legal_nome || incoming.representante_legal_nome || '',
-    representante_legal_cpf: current.representante_legal_cpf || incoming.representante_legal_cpf || '',
-    cargo_representante: current.cargo_representante || incoming.cargo_representante || '',
-    banco: current.banco || incoming.banco || '',
-    agencia: current.agencia || incoming.agencia || '',
-    conta: current.conta || incoming.conta || '',
-    tipo_conta: current.tipo_conta || incoming.tipo_conta || 'Corrente',
-    pix_key: current.pix_key || incoming.pix_key || '',
-    funcao_institucional: current.funcao_institucional || incoming.funcao_institucional || '',
-    valor_referencia: current.valor_referencia || incoming.valor_referencia || '',
-    inicio_vinculo_referencia: current.inicio_vinculo_referencia || incoming.inicio_vinculo_referencia || '',
+    email_pessoal: pick('email_pessoal'),
+    telefone: pick('telefone'),
+    celular: pick('celular'),
+    cpf: pick('cpf'),
+    endereco_residencial: pick('endereco_residencial'),
+    contato_emergencia_nome: pick('contato_emergencia_nome'),
+    contato_emergencia_telefone: pick('contato_emergencia_telefone'),
+    museu_vinculado: pick('museu_vinculado'),
+    tipo_pessoa: pick('tipo_pessoa', 'PF'),
+    cnpj: pick('cnpj'),
+    empresa_nome: pick('empresa_nome'),
+    empresa_endereco: pick('empresa_endereco'),
+    representante_legal_nome: pick('representante_legal_nome'),
+    representante_legal_cpf: pick('representante_legal_cpf'),
+    cargo_representante: pick('cargo_representante'),
+    banco: pick('banco'),
+    agencia: pick('agencia'),
+    conta: pick('conta'),
+    tipo_conta: pick('tipo_conta', 'Corrente'),
+    pix_key: pick('pix_key'),
+    contrato_num_parcelas: pick('contrato_num_parcelas'),
+    contrato_valor_parcela: pick('contrato_valor_parcela'),
+    funcao_institucional: pick('funcao_institucional'),
+    valor_referencia: pick('valor_referencia'),
+    inicio_vinculo_referencia: pick('inicio_vinculo_referencia'),
   };
 }
 
 function mapUserToForm(u) {
+  const f = (k, d = '') => u?.[k] || d;
   return {
-    email_pessoal: u?.email_pessoal || '',
-    telefone: u?.telefone || '',
-    cpf: u?.cpf || '',
-    tipo_pessoa: u?.tipo_pessoa || 'PF',
-    cnpj: u?.cnpj || '',
-    empresa_nome: u?.empresa_nome || '',
-    empresa_endereco: u?.empresa_endereco || '',
-    representante_legal_nome: u?.representante_legal_nome || '',
-    representante_legal_cpf: u?.representante_legal_cpf || '',
-    cargo_representante: u?.cargo_representante || '',
-    banco: u?.banco || '',
-    agencia: u?.agencia || '',
-    conta: u?.conta || '',
-    tipo_conta: u?.tipo_conta || 'Corrente',
-    pix_key: u?.pix_key || '',
-    funcao_institucional: u?.funcao_institucional || '',
-    valor_referencia: u?.valor_referencia || '',
-    inicio_vinculo_referencia: u?.inicio_vinculo_referencia || '',
+    email_pessoal: f('email_pessoal'),
+    telefone: f('telefone'),
+    celular: f('celular'),
+    cpf: f('cpf'),
+    endereco_residencial: f('endereco_residencial'),
+    contato_emergencia_nome: f('contato_emergencia_nome'),
+    contato_emergencia_telefone: f('contato_emergencia_telefone'),
+    museu_vinculado: f('museu_vinculado'),
+    tipo_pessoa: f('tipo_pessoa', 'PF'),
+    cnpj: f('cnpj'),
+    empresa_nome: f('empresa_nome'),
+    empresa_endereco: f('empresa_endereco'),
+    representante_legal_nome: f('representante_legal_nome'),
+    representante_legal_cpf: f('representante_legal_cpf'),
+    cargo_representante: f('cargo_representante'),
+    banco: f('banco'),
+    agencia: f('agencia'),
+    conta: f('conta'),
+    tipo_conta: f('tipo_conta', 'Corrente'),
+    pix_key: f('pix_key'),
+    contrato_num_parcelas: f('contrato_num_parcelas'),
+    contrato_valor_parcela: f('contrato_valor_parcela'),
+    funcao_institucional: f('funcao_institucional'),
+    valor_referencia: f('valor_referencia'),
+    inicio_vinculo_referencia: f('inicio_vinculo_referencia'),
   };
 }
 
 function mapMemberToForm(member) {
+  const f = (k, d = '') => member?.[k] || d;
   return {
-    email_pessoal: member?.email_pessoal || '',
-    telefone: member?.telefone || '',
-    cpf: member?.cpf || '',
-    tipo_pessoa: member?.tipo_pessoa || 'PF',
-    cnpj: member?.cnpj || '',
-    empresa_nome: member?.empresa_nome || '',
-    empresa_endereco: member?.empresa_endereco || '',
-    representante_legal_nome: member?.representante_legal_nome || '',
-    representante_legal_cpf: member?.representante_legal_cpf || '',
-    cargo_representante: member?.cargo_representante || '',
-    banco: member?.banco || '',
-    agencia: member?.agencia || '',
-    conta: member?.conta || '',
-    tipo_conta: member?.tipo_conta || 'Corrente',
-    pix_key: member?.pix_key || '',
-    funcao_institucional: member?.funcao_institucional || member?.funcao || '',
-    valor_referencia: member?.valor_referencia || '',
-    inicio_vinculo_referencia: member?.inicio_vinculo_referencia || member?.data_inicio_contrato || '',
+    email_pessoal: f('email_pessoal'),
+    telefone: f('telefone'),
+    celular: f('celular'),
+    cpf: f('cpf'),
+    endereco_residencial: f('endereco_residencial'),
+    contato_emergencia_nome: f('contato_emergencia_nome'),
+    contato_emergencia_telefone: f('contato_emergencia_telefone'),
+    museu_vinculado: f('museu_vinculado') || f('museu') || f('centro_custo'),
+    tipo_pessoa: f('tipo_pessoa', 'PF'),
+    cnpj: f('cnpj'),
+    empresa_nome: f('empresa_nome'),
+    empresa_endereco: f('empresa_endereco'),
+    representante_legal_nome: f('representante_legal_nome'),
+    representante_legal_cpf: f('representante_legal_cpf'),
+    cargo_representante: f('cargo_representante'),
+    banco: f('banco'),
+    agencia: f('agencia'),
+    conta: f('conta'),
+    tipo_conta: f('tipo_conta', 'Corrente'),
+    pix_key: f('pix_key'),
+    contrato_num_parcelas: f('contrato_num_parcelas'),
+    contrato_valor_parcela: f('contrato_valor_parcela'),
+    funcao_institucional: f('funcao_institucional') || f('funcao'),
+    valor_referencia: f('valor_referencia'),
+    inicio_vinculo_referencia: f('inicio_vinculo_referencia') || f('data_inicio_contrato'),
   };
 }
 
@@ -156,7 +190,7 @@ function DadosPessoaisTab({
   user, isSponsor, coordGeral, selectedUserEmail, setSelectedUserEmail,
   allUsers, teamData, targetEmail, targetUser, formData, set,
   autoFillLoading, isComplete, saveMutation, aiApplied, handleAiApply,
-  showDeleteDialog, setShowDeleteDialog, resetAiTracking,
+  handleAiConfirm, showDeleteDialog, setShowDeleteDialog, resetAiTracking,
 }) {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -185,10 +219,11 @@ function DadosPessoaisTab({
         </div>
       )}
 
+      {/* Banner IA expandido com novos campos */}
       {!isSponsor && (
-        <ContractAutoFill
+        <AiContractSuggestionsBanner
           userEmail={targetEmail}
-          onApply={handleAiApply}
+          onConfirm={handleAiConfirm}
           appliedFields={aiApplied}
         />
       )}
@@ -214,7 +249,7 @@ function DadosPessoaisTab({
             <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-semibold text-amber-900">Informações Incompletas</p>
-              <p className="text-xs text-amber-700 mt-0.5">Você pode preencher manualmente qualquer campo abaixo.</p>
+              <p className="text-xs text-amber-700 mt-0.5">Preencha os campos abaixo. Campos com ✨ têm sugestão da IA.</p>
             </div>
           </>
         )}
@@ -245,48 +280,7 @@ function DadosPessoaisTab({
               </SelectContent>
             </Select>
           </div>
-
-          {formData.tipo_pessoa !== 'PF' && (
-            <div className="space-y-1.5">
-              <Label>CNPJ</Label>
-              <Input
-                value={formData.cnpj}
-                onChange={(e) => set('cnpj', e.target.value)}
-                placeholder="00.000.000/0001-00"
-              />
-            </div>
-          )}
         </Section>
-
-        {formData.tipo_pessoa !== 'PF' && (
-          <Section title="Dados da Empresa">
-            {EMPRESA_FIELDS.map((field) => (
-              <div key={field.name} className="space-y-1.5">
-                <Label>{field.label}</Label>
-                <Input
-                  type={field.type}
-                  value={formData[field.name] || ''}
-                  onChange={(e) => set(field.name, e.target.value)}
-                  placeholder={field.label}
-                />
-              </div>
-            ))}
-
-            <div className="space-y-1.5">
-              <Label>Cargo do Representante</Label>
-              <Select value={formData.cargo_representante} onValueChange={(v) => set('cargo_representante', v)}>
-                <SelectTrigger><SelectValue placeholder="Selecione o cargo" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Sócio-Gerente">Sócio-Gerente</SelectItem>
-                  <SelectItem value="Diretor">Diretor</SelectItem>
-                  <SelectItem value="Gerente">Gerente</SelectItem>
-                  <SelectItem value="Procurador">Procurador</SelectItem>
-                  <SelectItem value="Outro">Outro</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </Section>
-        )}
 
         {!isSponsor && (
           <Section title="Vínculo com a Equipe">
@@ -299,7 +293,6 @@ function DadosPessoaisTab({
                 className="bg-slate-50"
               />
             </div>
-
             {TEAM_LINK_FIELDS.map((field) => (
               <div key={field.name} className="space-y-1.5">
                 <Label>{field.label}</Label>
@@ -314,10 +307,22 @@ function DadosPessoaisTab({
           </Section>
         )}
 
+        {/* Campos expandidos (novos) */}
+        {!isSponsor && (
+          <div className="space-y-2">
+            <h2 className="text-lg font-semibold text-black border-b pb-2">Informações Complementares</h2>
+            <DadosExpandidosSection
+              formData={formData}
+              set={set}
+              aiSuggestedFields={aiApplied}
+            />
+          </div>
+        )}
+
         {!isSponsor && (
           <Section title="Dados Bancários">
             <div className="space-y-4">
-              {BANKING_FIELDS.map((field) => (
+              {BANKING_FIELDS.filter(f => f.name !== 'pix_key').map((field) => (
                 <div key={field.name} className="space-y-1.5">
                   <Label>{field.label}</Label>
                   <Input
@@ -328,7 +333,6 @@ function DadosPessoaisTab({
                   />
                 </div>
               ))}
-
               <div className="space-y-1.5">
                 <Label>Tipo de Conta</Label>
                 <Select value={formData.tipo_conta} onValueChange={(v) => set('tipo_conta', v)}>
@@ -350,9 +354,7 @@ function DadosPessoaisTab({
             disabled={saveMutation.isPending}
           >
             {saveMutation.isPending ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Salvando...
-              </>
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Salvando...</>
             ) : (
               'Salvar Dados'
             )}
@@ -360,8 +362,15 @@ function DadosPessoaisTab({
         </div>
       </form>
 
+      {/* Painel admin de convite — apenas coordGeral */}
+      {coordGeral && !selectedUserEmail && (
+        <div className="mt-8">
+          <ConvidarCadastroPanel allUsers={allUsers} teamData={teamData} />
+        </div>
+      )}
+
       {!selectedUserEmail && (
-        <div className="mt-12 pt-8 border-t space-y-4">
+        <div className="mt-8 pt-8 border-t space-y-4">
           <h3 className="text-lg font-semibold text-red-600">Zona de Perigo</h3>
           <p className="text-sm text-gray-600">
             Deletar sua conta removerá permanentemente todos os seus dados do sistema.
@@ -495,7 +504,14 @@ function MeusDadosInner() {
     : !!(
         formData.email_pessoal &&
         formData.telefone &&
+        formData.celular &&
         formData.cpf &&
+        formData.endereco_residencial &&
+        formData.contato_emergencia_nome &&
+        formData.museu_vinculado &&
+        formData.contrato_num_parcelas &&
+        formData.contrato_valor_parcela &&
+        formData.pix_key &&
         formData.banco &&
         formData.agencia &&
         formData.conta &&
@@ -519,7 +535,12 @@ function MeusDadosInner() {
         role: funcaoResolvida,
         email_pessoal: formData.email_pessoal,
         telefone: formData.telefone,
+        celular: formData.celular,
         cpf: formData.cpf,
+        endereco_residencial: formData.endereco_residencial,
+        contato_emergencia_nome: formData.contato_emergencia_nome,
+        contato_emergencia_telefone: formData.contato_emergencia_telefone,
+        museu_vinculado: formData.museu_vinculado,
         tipo_pessoa: formData.tipo_pessoa,
         cnpj: formData.cnpj,
         empresa_nome: formData.empresa_nome,
@@ -532,6 +553,8 @@ function MeusDadosInner() {
         conta: formData.conta,
         tipo_conta: formData.tipo_conta,
         pix_key: formData.pix_key,
+        contrato_num_parcelas: formData.contrato_num_parcelas ? Number(formData.contrato_num_parcelas) : undefined,
+        contrato_valor_parcela: formData.contrato_valor_parcela ? Number(formData.contrato_valor_parcela) : undefined,
         funcao_institucional: formData.funcao_institucional,
         valor_referencia: formData.valor_referencia,
         inicio_vinculo_referencia: formData.inicio_vinculo_referencia,
@@ -560,6 +583,27 @@ function MeusDadosInner() {
   const handleAiApply = useCallback((suggestions) => {
     setFormData((prev) => applyAiSuggestions(prev, suggestions, manualFields.current));
     setAiApplied(suggestions);
+  }, []);
+
+  // Novo: aplica sugestões do banner expandido (novos campos + campos existentes)
+  const handleAiConfirm = useCallback((suggestions) => {
+    setFormData((prev) => {
+      const next = { ...prev };
+      for (const [key, s] of Object.entries(suggestions)) {
+        if (!manualFields.current.has(key)) {
+          next[key] = s.aiValue;
+        }
+      }
+      return next;
+    });
+    // Marca todos os campos sugeridos como "aplicados" para mostrar ✓ no banner
+    setAiApplied((prev) => {
+      const next = { ...prev };
+      for (const [key, s] of Object.entries(suggestions)) {
+        next[key] = s;
+      }
+      return next;
+    });
   }, []);
 
   if (!user) {
@@ -607,6 +651,7 @@ function MeusDadosInner() {
               saveMutation={saveMutation}
               aiApplied={aiApplied}
               handleAiApply={handleAiApply}
+              handleAiConfirm={handleAiConfirm}
               showDeleteDialog={showDeleteDialog}
               setShowDeleteDialog={setShowDeleteDialog}
               resetAiTracking={resetAiTracking}
