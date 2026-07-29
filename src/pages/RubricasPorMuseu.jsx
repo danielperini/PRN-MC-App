@@ -347,7 +347,9 @@ export default function RubricasPorMuseu() {
       if (up === 'MHAB' || up === 'MAB') return 'MHAB';
       if (up === 'MUMO' || up === 'MUMU') return 'MUMO';
       const low = raw.toLowerCase();
+      // Noturno Pampulha (4º Aditivo)
       if (low.includes('noturno') && (low.includes('pampulha') || low.includes('4'))) return 'Noturno Pampulha';
+      // Todos os aliases de Noturno 2026 (inclui "Noturno nos Museus 2026", "Noturno nos Museus", etc.)
       if (low.includes('noturno')) return 'Noturno 2026';
       // Aliases genéricos → não mapeia para card de museu específico
       return null;

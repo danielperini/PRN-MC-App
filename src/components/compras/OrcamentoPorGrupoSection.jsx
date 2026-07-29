@@ -426,7 +426,8 @@ export default function OrcamentoPorGrupoSection({ rubricas = [], compras = [], 
   const [todasRubricas, setTodasRubricas] = useState([]);
 
   useEffect(() => {
-    setTodasRubricas(Array.isArray(rubricas) ? rubricas.filter(r => r?.ativo !== false) : []);
+    // Excluir rubricas sem grupo — não devem aparecer em nenhum card de grupo
+    setTodasRubricas(Array.isArray(rubricas) ? rubricas.filter(r => r?.ativo !== false && String(r?.grupo || '').trim() !== '') : []);
   }, [rubricas]);
 
   const nfsPorRubrica = useMemo(() => {
