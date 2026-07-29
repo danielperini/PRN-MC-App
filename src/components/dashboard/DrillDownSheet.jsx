@@ -2,7 +2,10 @@ import React from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
-import { ExternalLink, FileText, Users, Calendar, Building2, TrendingUp } from 'lucide-react';
+import { ExternalLink, FileText, Users, Calendar, Building2, TrendingUp, Loader2 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useActivityEdits } from '@/hooks/useActivityEdits';
+import EditableActivityRow from './EditableActivityRow';
 
 function fmtBRL(v) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(Number(v || 0));
@@ -183,8 +186,8 @@ function PainelOrcamento({ rubricas = [] }) {
   );
 }
 
-// ─── Painel: Noturno + Meta 20 ───────────────────────────────────────────────
-function PainelNoturnoMeta20({ relatorios = [], tipo }) {
+// ─── Painel: Noturno + Meta 20 (com edição inline) ───────────────────────────
+function PainelNoturnoMeta20({ relatorios = [], tipo, edits, setEdit }) {
   const MUSEUS = ['MIS', 'MHAB', 'MUMO'];
 
   function classificar(a) {
@@ -220,17 +223,21 @@ function PainelNoturnoMeta20({ relatorios = [], tipo }) {
           </div>
         ))}
       </div>
-      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Relatórios com esta classificação</p>
+      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Atividades desta classificação</p>
       <div className="space-y-2">
-        {relComAtividades.map(r => (
-          <div key={r.id} className="border border-slate-100 rounded-lg p-2.5 bg-slate-50">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-semibold text-slate-700 truncate">{r.author_name} — {r.museu}</span>
-              <span className="text-xs font-bold text-slate-700">{r.atividadesFiltradas.length} ativ.</span>
-            </div>
-            <p className="text-[11px] text-slate-400 mt-0.5">{r.mes_referencia} {r.ano}</p>
-          </div>
-        ))}
+        {relComAtividades.flatMap(r =>
+          r.atividadesFiltradas.map((a, i) => {
+            const actId = a.id || `${r.id}_${i}`;
+            return (
+              <EditableActivityRow
+                key={actId}
+                activity={{ ...a, id: actId, museu: a.museu || r.museu }}
+                edits={edits[actId] || {}}
+                onEdit={(field, val) => setEdit(actId, field, val)}
+              />
+            );
+          })
+        )}
         {relComAtividades.length === 0 && <p className="text-xs text-slate-400 text-center py-4">Nenhum relatório encontrado.</p>}
       </div>
     </div>
@@ -239,12 +246,26 @@ function PainelNoturnoMeta20({ relatorios = [], tipo }) {
 
 // ─── Componente Principal ─────────────────────────────────────────────────────
 export default function DrillDownSheet({ open, onClose, config }) {
+  const queryClient = useQueryClient();
+  const { edits, setEdit, saveAll, isSaving, dirtyCount, clearEdits } = useActivityEdits({
+    onSaved: () => {
+      queryClient.invalidateQueries({ queryKey: ['relatorios-list'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-metas-activities'] });
+      queryClient.invalidateQueries({ queryKey: ['reports-resumo-consolidado-noturno-meta20'] });
+    },
+  });
+
+  // Limpar edições ao fechar
+  React.useEffect(() => { if (!open) clearEdits(); }, [open]);
+
   if (!config) return null;
   const { title, value, sourceBadges = [], type, reports = [], rubricas = [], museu, relatorios = [], tipoNoturno } = config;
 
+  const hasEditableActivities = type === 'noturno_meta20';
+
   return (
     <Sheet open={open} onOpenChange={v => { if (!v) onClose(); }}>
-      <SheetContent side="right" className="w-full sm:w-[600px] sm:max-w-[600px] overflow-y-auto p-0">
+      <SheetContent side="right" className="w-full sm:w-[600px] sm:max-w-[600px] overflow-y-auto p-0 flex flex-col">
         {/* Cabeçalho */}
         <div className="sticky top-0 z-10 bg-white border-b border-slate-100 px-6 py-4">
           <SheetHeader>
@@ -271,14 +292,44 @@ export default function DrillDownSheet({ open, onClose, config }) {
         </div>
 
         {/* Conteúdo */}
-        <div className="px-6 py-4">
+        <div className="flex-1 px-6 py-4">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Origem dos dados</p>
 
           {type === 'relatorios' && <PainelRelatorios reports={reports} />}
           {type === 'museu' && <PainelMuseu museu={museu} reports={reports} />}
           {type === 'orcamento' && <PainelOrcamento rubricas={rubricas} />}
-          {type === 'noturno_meta20' && <PainelNoturnoMeta20 relatorios={relatorios} tipo={tipoNoturno} />}
+          {type === 'noturno_meta20' && (
+            <PainelNoturnoMeta20 relatorios={relatorios} tipo={tipoNoturno} edits={edits} setEdit={setEdit} />
+          )}
         </div>
+
+        {/* Rodapé de salvar — apenas quando há atividades editáveis */}
+        {hasEditableActivities && (
+          <div className="sticky bottom-0 border-t border-slate-100 bg-white px-6 py-3 flex justify-end gap-3">
+            {dirtyCount > 0 && (
+              <button
+                type="button"
+                onClick={clearEdits}
+                className="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition"
+              >
+                Descartar
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={dirtyCount === 0 || isSaving}
+              onClick={saveAll}
+              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition ${
+                dirtyCount === 0
+                  ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
+              }`}
+            >
+              {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+              {isSaving ? 'Salvando...' : `Salvar alterações${dirtyCount > 0 ? ` (${dirtyCount})` : ''}`}
+            </button>
+          </div>
+        )}
       </SheetContent>
     </Sheet>
   );
