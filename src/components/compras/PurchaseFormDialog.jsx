@@ -21,6 +21,23 @@ import { METAS_PROJETO_FALLBACK } from '@/lib/metasProjeto'
 import { metaOcultaNoTerceiroAditivo } from '@/utils/metasAditivosPermitidos'
 
 const CENTROS = ['MUMO','MIS','MHAB','Noturno nos Museus 2026','Noturno Pampulha','Publicações','Geral']
+
+// Mapeia variações conhecidas para o valor canônico do enum CENTROS
+function normalizeCentroCusto(value) {
+  if (!value) return ''
+  const v = String(value).trim()
+  const upper = v.toUpperCase()
+  if (upper === 'GERAL' || upper === 'GERAL/TRANSVERSAL') return 'Geral'
+  if (upper === 'MIS' || upper === 'MIS BH') return 'MIS'
+  if (upper === 'MUMO') return 'MUMO'
+  if (upper === 'MHAB' || upper === 'MAB') return 'MHAB'
+  if (upper === 'NOTURNO' || upper === 'NOTURNO NOS MUSEUS' || upper === 'NOTURNO NOS MUSEUS 2026' || upper === 'NOTURNO 2026') return 'Noturno nos Museus 2026'
+  if (upper === 'NOTURNO PAMPULHA') return 'Noturno Pampulha'
+  if (upper === 'PUBLICAÇÕES' || upper === 'PUBLICACOES') return 'Publicações'
+  // Se já é um valor canônico, retorna como está
+  if (CENTROS.includes(v)) return v
+  return v
+}
 const MUSEUS_RATEIO = ['MHAB', 'MIS', 'MUMO']
 const DEFAULT_RATEIO = MUSEUS_RATEIO.map((m) => ({ museu: m, valor: '' }))
 
@@ -344,7 +361,7 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
         fornecedor_nome: fornecedorNome,
         fornecedor_cnpj: fornecedorCnpj,
         fornecedor_contato: prefill.fornecedor_contato || '',
-        centro_custo: firstFilled(prefill.centro_custo, ia.centro_custo_sugerido, ia.centro_custo),
+        centro_custo: normalizeCentroCusto(firstFilled(prefill.centro_custo, ia.centro_custo_sugerido, ia.centro_custo)),
         rubrica_id: firstFilled(prefill.rubrica_id, ia.rubrica_id, ia.rubrica_id_sugerida),
         rubrica_nome: firstFilled(prefill.rubrica_nome, ia.rubrica_nome_sugerida, ia.rubrica_nome),
         meta_id: normalizeMetaValue(metaIdRaw, metas),
@@ -469,8 +486,8 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
               next.descricao_item = String(val);
             break;
           case 'centro_custo':
-            if (!prev.centro_custo?.trim())
-              next.centro_custo = String(val);
+            if (!prev.centro_custo?.trim() && fieldStates['centro_custo']?.estado !== 'manual')
+              next.centro_custo = normalizeCentroCusto(String(val));
             break;
           case 'categoria':
             if (!prev.categoria?.trim())
@@ -614,7 +631,7 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
       arquivo_tipo: fileKind,
       tipo_origem: form.tipo_origem || 'ENTRADA_UNICA',
       origem: form.origem || 'EntradaUnica',
-      centro_custo: dividirEntreMuseus ? 'Rateado' : form.centro_custo,
+      centro_custo: dividirEntreMuseus ? 'Rateado' : normalizeCentroCusto(form.centro_custo),
       rateio_museus: getRateioPayload(),
       rubrica_mes_inicial: form.rubrica_mes_inicial !== '' ? Number(form.rubrica_mes_inicial) : undefined,
       rubrica_mes_final: form.rubrica_mes_final !== '' ? Number(form.rubrica_mes_final) : undefined,
@@ -1402,12 +1419,15 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
                   const r = rubricas.find((x) => x.id === v)
                   setField('rubrica_id', v)
                   setField('rubrica_nome', r?.rubrica || r?.nome || '')
-                  if (r?.museu_codigo && r.museu_codigo !== 'GERAL') {
-                    setField('centro_custo', r.museu_codigo === 'MIS' ? 'MIS' : r.museu_codigo === 'MUMO' ? 'MUMO' : r.museu_codigo === 'MHAB' ? 'MHAB' : form.centro_custo)
-                  }
-                  if (r?.escopo_orcamentario === 'NOTURNO') {
-                    const isPampulha = String(r.centro_custo || '').toUpperCase() === 'NOTURNO PAMPULHA';
-                    setField('centro_custo', isPampulha ? 'Noturno Pampulha' : 'Noturno nos Museus 2026')
+                  // Só sobrescreve centro_custo se o usuário NÃO o editou manualmente
+                  const centroCustoManual = fieldStates['centro_custo']?.estado === 'manual'
+                  if (!centroCustoManual) {
+                    if (r?.escopo_orcamentario === 'NOTURNO') {
+                      const isPampulha = String(r.centro_custo || '').toUpperCase() === 'NOTURNO PAMPULHA';
+                      setField('centro_custo', isPampulha ? 'Noturno Pampulha' : 'Noturno nos Museus 2026')
+                    } else if (r?.museu_codigo && r.museu_codigo !== 'GERAL') {
+                      setField('centro_custo', normalizeCentroCusto(r.museu_codigo))
+                    }
                   }
                   // Sugestão silenciosa de mês inicial/final (só se vazio)
                   // Extrai do padrão "mês X ao mês Y" ou "mês X a mês Y" no nome/descrição da rubrica
