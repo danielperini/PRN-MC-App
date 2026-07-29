@@ -35,6 +35,14 @@ export default function WelcomeSplash({ userName, userEmail, onDone }) {
       .catch(() => {});
   }, [userEmail]);
 
+  // Jingle institucional
+  useEffect(() => {
+    const audio = new Audio('https://media.base44.com/files/public/6a11dbeecf8f7a5977ffc750/0870ff7c4_abertura_app_museus_3s1.wav');
+    audio.volume = 0.8;
+    audio.play().catch(() => {});
+    return () => { audio.pause(); audio.src = ''; };
+  }, []);
+
   useEffect(() => {
     const t1 = setTimeout(() => setPhase('visible'), 600);
     const t2 = setTimeout(() => setPhase('out'), 600 + 1800);
