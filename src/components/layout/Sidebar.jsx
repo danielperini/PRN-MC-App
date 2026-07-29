@@ -164,7 +164,7 @@ function UserFooterMenu({ currentUser, collapsed }) {
 
   const menuItems = [
     { label: salaLabel, path: '/MeusDados', icon: UserCog },
-    { label: 'Perfil', path: '/Perfil', icon: User },
+  
     { label: 'Aparência', path: '/Aparencia', icon: Palette },
     { label: 'Ajuda', path: '/Manual', icon: HelpCircle },
   ];
