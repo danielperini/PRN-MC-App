@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 
-const APP_URL = 'https://relatorios-perini-pro-mc-viadutodasartes.base44.app';
+const APP_URL = 'https://app.base44.com/apps/6834f59edf1a8e9c07bdfba2';
 
 const CAMPOS_OBRIGATORIOS = [
   { key: 'cpf', label: 'CPF / CNPJ' },

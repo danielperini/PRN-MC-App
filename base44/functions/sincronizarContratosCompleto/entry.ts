@@ -1,7 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 
 const CONTRATOS_FOLDER_ID = '1sI_XEZpUo3W5gcs2Nik3rGm1v6bAbKTh';
-const APP_URL = 'https://relatorios-perini-pro-mc-viadutodasartes.base44.app';
+const APP_URL = 'https://app.base44.com/apps/6834f59edf1a8e9c07bdfba2';
 
 function normalize(str) {
   return (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
