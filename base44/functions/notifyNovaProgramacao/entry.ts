@@ -153,6 +153,15 @@ function buildEmailHtml(prog) {
             </td>
           </tr>
 
+          <!-- AVISO INTERNO -->
+          <tr>
+            <td style="padding:0 32px 24px;">
+              <div style="border-left:3px solid #d97706;background:#fffbeb;border-radius:6px;padding:12px 16px;">
+                <p style="margin:0;font-size:12px;color:#666666;line-height:1.6;">Este e-mail é uma atualização interna do sistema Museus Centro, enviada exclusivamente para membros e observadores cadastrados na plataforma. Não se trata de material de divulgação pública — por favor, não encaminhe ou compartilhe este conteúdo.</p>
+              </div>
+            </td>
+          </tr>
+
           <!-- FOOTER -->
           <tr>
             <td style="background:#f8f8f8;border-top:1px solid #eeeeee;padding:20px 32px;text-align:center;">
