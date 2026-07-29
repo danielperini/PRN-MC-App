@@ -22,6 +22,7 @@ import AiContractSuggestionsBanner from '@/components/meus-dados/AiContractSugge
 import ConvidarCadastroPanel from '@/components/meus-dados/ConvidarCadastroPanel';
 import NFsEComprasTab from '@/components/meus-dados/NFsEComprasTab';
 import RelatoriosAtividadesTab from '@/components/meus-dados/RelatoriosAtividadesTab';
+import { artigoSala, flexionarFuncao, inferirGenero } from '@/utils/generoUtils';
 
 const EMPTY_FORM = {
   email_pessoal: '',
@@ -686,9 +687,7 @@ function MeusDadosInner() {
         {/* CABEÇALHO */}
         {(() => {
           const firstName = displayName.split(' ')[0];
-          const vogais = new Set(['A','E','I','O','U','a','e','i','o','u']);
-          const artigo = firstName && vogais.has(firstName[0]) ? 'da' : 'de';
-          const salaTitle = firstName ? `Sala ${artigo} ${firstName}` : 'Espaço do Usuário';
+          const salaTitle = firstName ? `Sala ${artigoSala(firstName)} ${firstName}` : 'Espaço do Usuário';
           return (
             <div className="mb-8 space-y-2">
               <h1 className="text-2xl font-bold text-gray-900">{salaTitle}</h1>
@@ -701,7 +700,7 @@ function MeusDadosInner() {
                 )}
                 {displayFuncao && (
                   <Badge variant="outline" className="text-gray-600 font-normal">
-                    {displayFuncao}
+                    {flexionarFuncao(displayFuncao, inferirGenero(displayName.split(' ')[0]))}
                   </Badge>
                 )}
               </div>

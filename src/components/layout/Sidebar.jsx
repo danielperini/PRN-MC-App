@@ -46,6 +46,7 @@ import {
 import { normalizeEmail } from '@/utils/auth/recoverExistingUserAccess';
 import { requestDashboardPriorityRefresh } from '@/utils/dashboardRefresh';
 import SidebarTooltip from './SidebarTooltip';
+import { artigoSala } from '@/utils/generoUtils';
 
 const NAV_GROUPS_BASE = [
   {
@@ -160,7 +161,7 @@ function UserFooterMenu({ currentUser, collapsed }) {
   }, []);
 
   const firstName = (currentUser?.full_name || currentUser?.email || '').split(' ')[0];
-  const salaLabel = firstName ? `Sala ${firstName.startsWith('A') || firstName.startsWith('E') || firstName.startsWith('I') || firstName.startsWith('O') || firstName.startsWith('U') ? 'da' : 'de'} ${firstName}` : 'Meu Espaço';
+  const salaLabel = firstName ? `Sala ${artigoSala(firstName)} ${firstName}` : 'Meu Espaço';
 
   const menuItems = [
     { label: salaLabel, path: '/MeusDados', icon: UserCog },
@@ -260,9 +261,7 @@ function NavItem({ item, isActive, collapsed, userPermission, user }) {
 function getSalaLabel(fullName) {
   const firstName = (fullName || '').split(' ')[0];
   if (!firstName) return 'Meu Espaço';
-  const vogais = new Set(['A','E','I','O','U','a','e','i','o','u']);
-  const artigo = vogais.has(firstName[0]) ? 'da' : 'de';
-  return `Sala ${artigo} ${firstName}`;
+  return `Sala ${artigoSala(firstName)} ${firstName}`;
 }
 
 export default function Sidebar({ currentPageName, collapsed, onToggle, currentUser }) {
