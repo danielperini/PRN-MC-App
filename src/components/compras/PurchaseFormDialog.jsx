@@ -751,6 +751,9 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
         await base44.entities.PurchaseRequest.update(prefill.id, payload)
         await createAttachmentForPurchase({ id: prefill.id }, payload)
 
+        // Passa o payload salvo + id para o onSuccess para atualização otimista no cache
+        const payloadComId = { ...payload, id: prefill.id }
+
         // Se estava DEVOLVIDO e está sendo reenviado, resolver notificações de devolução
         if (String(prefill?.status || '').toUpperCase() === 'DEVOLVIDO') {
           base44.entities.Notification.filter({
@@ -775,6 +778,8 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
         }
 
         smartToast.success('Solicitação atualizada.')
+        onSuccess?.(payloadComId)
+        return
       } else {
         const payload = buildPayload('SOLICITADO')
 
@@ -793,9 +798,8 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
         await tryNotifyPurchaseSubmitted(created)
 
         smartToast.success('Solicitação criada e encaminhada para aprovação.')
+        onSuccess?.({ ...payload, id: created?.id })
       }
-
-      onSuccess?.()
     } catch (err) {
       smartToast.error('Erro ao salvar', err.message)
     } finally {

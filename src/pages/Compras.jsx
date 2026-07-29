@@ -1659,7 +1659,17 @@ function ComprasInner() {
           setShowForm(false);
           setEditingPurchase(null);
         }}
-        onSuccess={async () => {
+        onSuccess={async (savedPayload) => {
+          // Atualização otimista: aplica o payload salvo imediatamente na lista local,
+          // antes do refetch do banco (que pode estar cacheado ou lento).
+          if (savedPayload?.id) {
+            queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email, userMuseu], (old) => {
+              if (!Array.isArray(old)) return old;
+              return old.map((item) =>
+                item.id === savedPayload.id ? { ...item, ...savedPayload } : item
+              );
+            });
+          }
           setShowForm(false);
           setEditingPurchase(null);
           await refreshFinanceiroCompleto();
