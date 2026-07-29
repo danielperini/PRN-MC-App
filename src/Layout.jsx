@@ -40,6 +40,7 @@ const PAGE_TITLES = {
   GeradorListaPresenca: 'Gerador de Lista de Presença',
   GeradorTermoCompromisso: 'Gerador de Termo de Compromisso',
   MeusDados: 'Espaço do Usuário',
+  Equipe: 'Equipe',
   ProgramacaoEspelho: 'Programação',
   Agenda: 'Agenda',
   EntradaUnica: 'Entrada de Documentos',

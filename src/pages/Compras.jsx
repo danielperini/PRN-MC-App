@@ -1041,7 +1041,6 @@ function ComprasInner() {
           { id: 'lista', label: 'Solicitações' },
           ...(podeGerenciarRubricas ? [{ id: 'rubricas', label: 'Rubricas' }] : []),
           { id: 'documentos', label: 'Documentos' },
-          ...(isCoordenador ? [{ id: 'equipe', label: 'Equipe' }] : []),
           { id: 'meus_pagamentos', label: 'Meus Pagamentos' },
           ...(isCoordenador ? [{ id: 'verificacao', label: '🔍 Verificação' }] : [])].
           map((t) =>
@@ -1570,10 +1569,6 @@ function ComprasInner() {
 
             <GestaoDocumental />
           </div>
-        }
-
-        {tab === 'equipe' && isCoordenador &&
-        <TeamManager budgetLines={budgetLines} />
         }
 
         {tab === 'verificacao' && isCoordenador &&

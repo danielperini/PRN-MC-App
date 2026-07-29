@@ -17,6 +17,7 @@ import { buildTeamMemberFormPreset } from '@/lib/teamRegistryBase';
 import AtividadesMetasTab from '@/components/meus-dados/AtividadesMetasTab';
 import DocumentosTab from '@/components/meus-dados/DocumentosTab';
 import MinhaGaleriaTab from '@/components/meus-dados/MinhaGaleriaTab';
+import TabelaPagamentosContrato from '@/components/meusdados/TabelaPagamentosContrato';
 import AiContractSuggestionsBanner from '@/components/meus-dados/AiContractSuggestionsBanner';
 import ConvidarCadastroPanel from '@/components/meus-dados/ConvidarCadastroPanel';
 
@@ -704,6 +705,7 @@ function MeusDadosInner() {
         <Tabs defaultValue="perfil">
           <TabsList className="mb-6 w-full sm:w-auto flex-wrap gap-1">
             <TabsTrigger value="perfil">Meu Perfil</TabsTrigger>
+            {!isSponsor && <TabsTrigger value="pagamentos">Meus Pagamentos</TabsTrigger>}
             {!isSponsor && <TabsTrigger value="atividades">Atividades e Metas</TabsTrigger>}
             {!isSponsor && <TabsTrigger value="documentos">Documentos</TabsTrigger>}
             {!isSponsor && <TabsTrigger value="galeria">Minha Galeria</TabsTrigger>}
@@ -732,6 +734,12 @@ function MeusDadosInner() {
               resetAiTracking={resetAiTracking}
             />
           </TabsContent>
+
+          {!isSponsor && (
+            <TabsContent value="pagamentos">
+              <TabelaPagamentosContrato targetEmail={targetEmail} />
+            </TabsContent>
+          )}
 
           {!isSponsor && (
             <TabsContent value="atividades">

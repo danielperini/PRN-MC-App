@@ -29,6 +29,7 @@ import {
   UserCog,
   LogOut,
   Bot,
+  UsersRound,
 } from 'lucide-react';
 
 import { base44 } from '@/api/base44Client';
@@ -89,6 +90,7 @@ const NAV_GROUPS = [
       { path: 'Compras', label: 'Compras', icon: ShoppingCart, roles: ['all'], hideForObservador: true },
       { path: 'RubricasPorMuseu', label: 'Orçamento', icon: DollarSign, roles: ['all'] },
       { path: 'Movimentacoes', label: 'Movimentações', icon: Banknote, roles: ['coord', 'admin'] },
+      { path: 'Equipe', label: 'Equipe', icon: UsersRound, roles: ['all'], hideForObservador: true, hideForPatrocinador: true },
     ],
   },
   {
@@ -285,6 +287,7 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
         return SIDEBAR_PATROCINADOR.has(item.path);
       }
       if (item.hideForObservador && obs) return false;
+      if (item.hideForPatrocinador && sponsor) return false;
       if (item.permission === 'canManageUsers') {
         const emailNorm = String(currentUser?.email || '').toLowerCase();
         const isCoordGeralByEmail = COORD_GERAL_EMAILS.includes(emailNorm);

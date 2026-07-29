@@ -350,6 +350,40 @@ export default function PagarSolicitacaoDialog({ purchase, currentUser, onClose,
         });
       }
 
+      // Notificação financeira para pagamentos de equipe (TeamPayment)
+      if (updatedPurchase.team_payment_id || String(updatedPurchase.tipo_origem || '').toLowerCase().includes('equipe')) {
+        try {
+          // Busca TeamMember para obter dados bancários completos
+          const memberEmail = updatedPurchase.user_email || updatedPurchase.created_by || '';
+          let member = null;
+          if (memberEmail) {
+            const members = await base44.entities.TeamMember.filter({ user_email: memberEmail }).catch(() => []);
+            member = members?.[0] || null;
+          }
+          await base44.functions.invoke('notifyTeamPaymentStatusChange', {
+            payment_id: updatedPurchase.id,
+            status: 'PAGO',
+            team_member_name: member?.user_name || updatedPurchase.fornecedor_nome || memberEmail,
+            cargo: member?.funcao || member?.funcao_institucional || '',
+            mes: updatedPurchase.mes_referencia || updatedPurchase.mes || '',
+            ano: updatedPurchase.ano || '',
+            numero_parcela: updatedPurchase.numero_parcela || null,
+            total_parcelas: member?.contrato_num_parcelas || member?.numero_parcelas || null,
+            valor_parcela: getPurchaseValue(updatedPurchase),
+            valor_total_contrato: member?.valor_total || null,
+            pix_key: member?.pix_key || '',
+            banco: member?.banco || '',
+            agencia: member?.agencia || '',
+            conta: member?.conta || '',
+            tipo_conta: member?.tipo_conta || '',
+            nota_fiscal_url: updatedPurchase.nota_fiscal_url || updatedPurchase.arquivo_url || '',
+            app_link: 'https://relatorios-perini-pro-mc-viadutodasartes.base44.app/Compras',
+          }).catch(err => console.warn('Falha ao notificar equipe financeira:', err));
+        } catch (e) {
+          console.warn('Erro ao disparar notificação de pagamento de equipe:', e);
+        }
+      }
+
       toast.success(
         withoutReceipt && !nextHasReceipt
           ? 'Solicitacao marcada como paga sem comprovante.'
