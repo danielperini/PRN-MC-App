@@ -16,6 +16,8 @@ import {
 'recharts';
 import { Activity, Calendar, MapPin, RotateCw, TrendingUp, Users } from 'lucide-react';
 import AgendaCard from '@/components/patrocinador/AgendaCard';
+import DashboardDrilldownSheet, { SectionTitle, RowItem } from '@/components/dashboard/DashboardDrilldownSheet';
+import { useNavigate } from 'react-router-dom';
 import { consolidateOfficialDashboardMetrics } from '@/utils/auditoria/institutionalMetrics';
 import { consumeDashboardPriorityRefresh } from '@/utils/dashboardRefresh';
 
@@ -413,6 +415,9 @@ function SectionCard({ title, children }) {
 export default function DashboardPatrocinadorSync() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [openSheet, setOpenSheet] = useState(null); // 'atividades'|'previstas'|'participantes'|'execucao'|'agenda'|museu
+  const [museuSheet, setMuseuSheet] = useState(null); // nome do museu para o sheet
+  const navigate = useNavigate();
   const [lastUpdate, setLastUpdate] = useState(null);
   const [loadError, setLoadError] = useState('');
   const isFetchingRef = useRef(false);
@@ -652,10 +657,18 @@ export default function DashboardPatrocinadorSync() {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard icon={Activity} label="Atividades do mês" value={fmtInt(data.totalAtividadesMes)} helper={`${fmtInt(data.totalAtividadesAno)} no acumulado`} dark />
-        <KpiCard icon={Calendar} label="Previstas na agenda" value={fmtInt(data.atividadesPrevistasMes)} helper={`período ${data.periodoAgenda || data.periodo}`} dark />
-        <KpiCard icon={Users} label="Participantes em atividades" value={fmtInt(data.totalPublico)} helper={`${fmtInt(data.publicoMes)} no mês`} />
-        <KpiCard icon={TrendingUp} label="Execução orçamentária" value={`${data.percentualExecucao}%`} helper={`${fmtBRL(data.totalUtilizado)} utilizado`} />
+        <div className="cursor-pointer" onClick={() => setOpenSheet('atividades')} role="button" tabIndex={0}>
+          <KpiCard icon={Activity} label="Atividades do mês" value={fmtInt(data.totalAtividadesMes)} helper={`${fmtInt(data.totalAtividadesAno)} no acumulado`} dark />
+        </div>
+        <div className="cursor-pointer" onClick={() => setOpenSheet('previstas')} role="button" tabIndex={0}>
+          <KpiCard icon={Calendar} label="Previstas na agenda" value={fmtInt(data.atividadesPrevistasMes)} helper={`período ${data.periodoAgenda || data.periodo}`} dark />
+        </div>
+        <div className="cursor-pointer" onClick={() => setOpenSheet('participantes')} role="button" tabIndex={0}>
+          <KpiCard icon={Users} label="Participantes em atividades" value={fmtInt(data.totalPublico)} helper={`${fmtInt(data.publicoMes)} no mês`} />
+        </div>
+        <div className="cursor-pointer" onClick={() => setOpenSheet('execucao')} role="button" tabIndex={0}>
+          <KpiCard icon={TrendingUp} label="Execução orçamentária" value={`${data.percentualExecucao}%`} helper={`${fmtBRL(data.totalUtilizado)} utilizado`} />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
@@ -673,7 +686,13 @@ export default function DashboardPatrocinadorSync() {
             {MUSEUS.map((museu) => {
               const item = data.comparativoMuseu.find((x) => x.museu === museu) || {};
               return (
-                <div key={museu} className="rounded-xl border border-gray-200 p-3 space-y-2">
+                <div
+                  key={museu}
+                  onClick={() => { setMuseuSheet(museu); setOpenSheet('museu'); }}
+                  className="rounded-xl border border-gray-200 p-3 space-y-2 cursor-pointer hover:border-gray-400 hover:shadow-md transition"
+                  role="button"
+                  tabIndex={0}
+                >
                   <p className="text-sm font-bold text-black">{museu}</p>
                   {item.publicoGeral > 0 &&
                   <div>
@@ -755,6 +774,134 @@ export default function DashboardPatrocinadorSync() {
         <span>Fonte oficial dos indicadores: atividades deduplicadas dos relatórios aprovados; público consolidado mensal prevalece quando informado.</span>
         {lastUpdate && <span>Última atualização: {lastUpdate.toLocaleString('pt-BR')}</span>}
       </div>
+
+      {/* ── Sheets de drill-down ── */}
+
+      {/* Atividades do mês */}
+      <DashboardDrilldownSheet
+        open={openSheet === 'atividades'}
+        onClose={() => setOpenSheet(null)}
+        title="Atividades do mês"
+        value={`${fmtInt(data.totalAtividadesMes)} no mês · ${fmtInt(data.totalAtividadesAno)} no acumulado`}
+        fontes={['relatorios']}
+      >
+        <SectionTitle>Origem dos dados</SectionTitle>
+        <RowItem label="Fonte" sub="Atividades dos relatórios aprovados (deduplicadas)" />
+        <RowItem label="Mês de referência" value={data.periodo} />
+        <RowItem label="Total acumulado" value={fmtInt(data.totalAtividadesAno)} />
+        <div className="mt-3 text-xs text-gray-500 bg-gray-50 rounded-xl p-3">
+          Os números exibem apenas atividades de relatórios com status Aprovado, após deduplicação por título/data/museu.
+        </div>
+      </DashboardDrilldownSheet>
+
+      {/* Previstas na agenda */}
+      <DashboardDrilldownSheet
+        open={openSheet === 'previstas'}
+        onClose={() => setOpenSheet(null)}
+        title="Atividades previstas na agenda"
+        value={`${fmtInt(data.atividadesPrevistasMes)} atividades`}
+        fontes={['programacao']}
+      >
+        <SectionTitle>{data.atividadesPrevistasMes} atividades cadastradas para {data.periodoAgenda || data.periodo}</SectionTitle>
+        <div className="space-y-2">
+          {data.programacao.filter(p => {
+            const d = p._date;
+            if (!d) return false;
+            const now = new Date();
+            return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+          }).slice(0, 20).map((item, i) => (
+            <RowItem
+              key={i}
+              label={getProgramacaoTitle(item)}
+              sub={`${getProgramacaoMuseu(item)} · ${item._date ? item._date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '—'}`}
+              badge={item.status || ''}
+            />
+          ))}
+          {data.atividadesPrevistasMes === 0 && (
+            <p className="text-sm text-gray-400 text-center py-6">Nenhuma atividade cadastrada na agenda para este mês</p>
+          )}
+        </div>
+      </DashboardDrilldownSheet>
+
+      {/* Participantes */}
+      <DashboardDrilldownSheet
+        open={openSheet === 'participantes'}
+        onClose={() => setOpenSheet(null)}
+        title="Participantes em atividades"
+        value={`${fmtInt(data.totalPublico)} participantes`}
+        fontes={['relatorios']}
+      >
+        <SectionTitle>Por museu</SectionTitle>
+        <div className="space-y-2 mb-4">
+          {data.comparativoMuseu.map((m) => (
+            <RowItem key={m.museu} label={m.museu} sub={`${fmtInt(m.atividadesComPublico)} atividades com público`} value={fmtInt(m.publico)} />
+          ))}
+        </div>
+        <SectionTitle>No mês de referência</SectionTitle>
+        <RowItem label="Participantes no mês" value={fmtInt(data.publicoMes)} />
+        <RowItem label="Participantes acumulado" value={fmtInt(data.totalPublico)} />
+      </DashboardDrilldownSheet>
+
+      {/* Execução orçamentária */}
+      <DashboardDrilldownSheet
+        open={openSheet === 'execucao'}
+        onClose={() => setOpenSheet(null)}
+        title="Execução orçamentária"
+        value={`${data.percentualExecucao}% · ${fmtBRL(data.totalUtilizado)}`}
+        fontes={['rubricas', 'compras']}
+        footerAction={
+          <button
+            onClick={() => { setOpenSheet(null); navigate('/Compras'); }}
+            className="px-4 py-2 rounded-lg bg-black text-white text-sm font-semibold hover:bg-gray-800 transition"
+          >
+            Ver no Compras →
+          </button>
+        }
+      >
+        <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 space-y-2 text-sm mb-4">
+          <div className="flex justify-between"><span className="text-gray-600">Previsto</span><span className="font-bold">{fmtBRL(data.totalOrcado)}</span></div>
+          <div className="flex justify-between"><span className="text-gray-600">Utilizado</span><span className="font-bold">{fmtBRL(data.totalUtilizado)}</span></div>
+          <div className="flex justify-between"><span className="text-gray-600">Saldo</span><span className="font-bold">{fmtBRL(data.saldoTotal)}</span></div>
+          <div className="flex justify-between"><span className="text-gray-600">% Execução</span><span className="font-bold">{data.percentualExecucao}%</span></div>
+          <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden mt-2">
+            <div className="h-2 rounded-full bg-black" style={{ width: `${Math.min(data.percentualExecucao, 100)}%` }} />
+          </div>
+        </div>
+        <SectionTitle>Fonte dos dados</SectionTitle>
+        <div className="text-xs text-gray-500 bg-gray-50 rounded-xl p-3">
+          Valores calculados a partir das rubricas do Plano de Trabalho oficial (3º e 4º Aditivo). Clique em "Ver no Compras" para visualizar todas as notas fiscais e compras aprovadas.
+        </div>
+      </DashboardDrilldownSheet>
+
+      {/* Museu específico */}
+      {museuSheet && (() => {
+        const item = data.comparativoMuseu.find(x => x.museu === museuSheet) || {};
+        return (
+          <DashboardDrilldownSheet
+            open={openSheet === 'museu'}
+            onClose={() => { setOpenSheet(null); setMuseuSheet(null); }}
+            title={`${museuSheet} — Origem dos dados`}
+            value={museuSheet}
+            fontes={['relatorios']}
+          >
+            {item.publicoGeral > 0 && (
+              <>
+                <SectionTitle>Público Geral declarado</SectionTitle>
+                <RowItem label="Circulação total do museu" sub="Campo 'Público geral declarado' nos relatórios" value={fmtInt(item.publicoGeral)} />
+              </>
+            )}
+            <SectionTitle>Atividades com público</SectionTitle>
+            <RowItem label={`${fmtInt(item.atividadesComPublico)} de ${fmtInt(item.atividades)} atividades`} sub="Apenas atividades com público informado" />
+            <SectionTitle>Participantes</SectionTitle>
+            <RowItem label="Total de participantes" sub="Soma do público das atividades" value={fmtInt(item.publico)} />
+            {item.mediaPublico > 0 && <RowItem label="Média por atividade" value={fmtInt(item.mediaPublico)} />}
+            <div className="mt-3 text-xs text-gray-500 bg-gray-50 rounded-xl p-3">
+              Dados calculados a partir dos relatórios aprovados. Público Geral é declarado pelo profissional no relatório mensal e não entra na soma de participantes em atividades (evita dupla contagem).
+            </div>
+          </DashboardDrilldownSheet>
+        );
+      })()}
+
     </div>);
 
 }
