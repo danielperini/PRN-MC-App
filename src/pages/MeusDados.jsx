@@ -20,6 +20,8 @@ import MinhaGaleriaTab from '@/components/meus-dados/MinhaGaleriaTab';
 import TabelaPagamentosContrato from '@/components/meusdados/TabelaPagamentosContrato';
 import AiContractSuggestionsBanner from '@/components/meus-dados/AiContractSuggestionsBanner';
 import ConvidarCadastroPanel from '@/components/meus-dados/ConvidarCadastroPanel';
+import NFsEComprasTab from '@/components/meus-dados/NFsEComprasTab';
+import RelatoriosAtividadesTab from '@/components/meus-dados/RelatoriosAtividadesTab';
 
 const EMPTY_FORM = {
   email_pessoal: '',
@@ -682,33 +684,42 @@ function MeusDadosInner() {
     <div className="min-h-screen bg-white pb-20">
       <div className="max-w-5xl mx-auto px-4 md:px-6 py-10">
         {/* CABEÇALHO */}
-        <div className="mb-8 space-y-2">
-          <h1 className="text-2xl font-bold text-gray-900">Espaço do Usuário</h1>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xl font-semibold text-gray-800">{displayName}</span>
-            {displayMuseu && (
-              <Badge className="bg-slate-100 text-slate-700 border border-slate-200 font-medium">
-                {displayMuseu}
-              </Badge>
-            )}
-            {displayFuncao && (
-              <Badge variant="outline" className="text-gray-600 font-normal">
-                {displayFuncao}
-              </Badge>
-            )}
-          </div>
-          <p className="text-sm text-gray-500">
-            {isSponsor ? 'Atualize seus dados pessoais' : 'Gerencie seu perfil, galeria de fotos e documentos'}
-          </p>
-        </div>
+        {(() => {
+          const firstName = displayName.split(' ')[0];
+          const vogais = new Set(['A','E','I','O','U','a','e','i','o','u']);
+          const artigo = firstName && vogais.has(firstName[0]) ? 'da' : 'de';
+          const salaTitle = firstName ? `Sala ${artigo} ${firstName}` : 'Espaço do Usuário';
+          return (
+            <div className="mb-8 space-y-2">
+              <h1 className="text-2xl font-bold text-gray-900">{salaTitle}</h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-base font-medium text-gray-600">{displayName}</span>
+                {displayMuseu && (
+                  <Badge className="bg-slate-100 text-slate-700 border border-slate-200 font-medium">
+                    {displayMuseu}
+                  </Badge>
+                )}
+                {displayFuncao && (
+                  <Badge variant="outline" className="text-gray-600 font-normal">
+                    {displayFuncao}
+                  </Badge>
+                )}
+              </div>
+              <p className="text-sm text-gray-500">
+                {isSponsor ? 'Atualize seus dados pessoais' : 'Gerencie seu perfil, galeria de fotos e documentos'}
+              </p>
+            </div>
+          );
+        })()}
 
         <Tabs defaultValue="perfil">
           <TabsList className="mb-6 w-full sm:w-auto flex-wrap gap-1">
             <TabsTrigger value="perfil">Meu Perfil</TabsTrigger>
-            {!isSponsor && <TabsTrigger value="pagamentos">Meus Pagamentos</TabsTrigger>}
-            {!isSponsor && <TabsTrigger value="atividades">Atividades e Metas</TabsTrigger>}
+            {!isSponsor && <TabsTrigger value="pagamentos">Pagamentos</TabsTrigger>}
+            {!isSponsor && <TabsTrigger value="nfs">NFs e Compras</TabsTrigger>}
+            {!isSponsor && <TabsTrigger value="relatorios">Relatórios e Metas</TabsTrigger>}
             {!isSponsor && <TabsTrigger value="documentos">Documentos</TabsTrigger>}
-            {!isSponsor && <TabsTrigger value="galeria">Minha Galeria</TabsTrigger>}
+            {!isSponsor && <TabsTrigger value="galeria">Galeria</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="perfil">
@@ -742,8 +753,21 @@ function MeusDadosInner() {
           )}
 
           {!isSponsor && (
-            <TabsContent value="atividades">
-              <AtividadesMetasTab targetEmail={targetEmail} userMuseum={userMuseum} />
+            <TabsContent value="nfs">
+              <NFsEComprasTab
+                targetEmail={targetEmail}
+                museuVinculado={teamMember?.museu_vinculado || teamMember?.museu_projeto || userMuseum}
+                memberName={targetUser?.full_name || user?.full_name || ''}
+              />
+            </TabsContent>
+          )}
+
+          {!isSponsor && (
+            <TabsContent value="relatorios">
+              <RelatoriosAtividadesTab
+                targetEmail={targetEmail}
+                memberName={targetUser?.full_name || user?.full_name || ''}
+              />
             </TabsContent>
           )}
 

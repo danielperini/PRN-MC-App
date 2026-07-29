@@ -47,7 +47,7 @@ import { normalizeEmail } from '@/utils/auth/recoverExistingUserAccess';
 import { requestDashboardPriorityRefresh } from '@/utils/dashboardRefresh';
 import SidebarTooltip from './SidebarTooltip';
 
-const NAV_GROUPS = [
+const NAV_GROUPS_BASE = [
   {
     label: '',
     items: [
@@ -159,8 +159,11 @@ function UserFooterMenu({ currentUser, collapsed }) {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
+  const firstName = (currentUser?.full_name || currentUser?.email || '').split(' ')[0];
+  const salaLabel = firstName ? `Sala ${firstName.startsWith('A') || firstName.startsWith('E') || firstName.startsWith('I') || firstName.startsWith('O') || firstName.startsWith('U') ? 'da' : 'de'} ${firstName}` : 'Meu Espaço';
+
   const menuItems = [
-    { label: 'Meus Dados', path: '/MeusDados', icon: UserCog },
+    { label: salaLabel, path: '/MeusDados', icon: UserCog },
     { label: 'Perfil', path: '/Perfil', icon: User },
     { label: 'Aparência', path: '/Aparencia', icon: Palette },
     { label: 'Ajuda', path: '/Manual', icon: HelpCircle },
@@ -254,6 +257,14 @@ function NavItem({ item, isActive, collapsed, userPermission, user }) {
   );
 }
 
+function getSalaLabel(fullName) {
+  const firstName = (fullName || '').split(' ')[0];
+  if (!firstName) return 'Meu Espaço';
+  const vogais = new Set(['A','E','I','O','U','a','e','i','o','u']);
+  const artigo = vogais.has(firstName[0]) ? 'da' : 'de';
+  return `Sala ${artigo} ${firstName}`;
+}
+
 export default function Sidebar({ currentPageName, collapsed, onToggle, currentUser }) {
   const [userPermission, setUserPermission] = useState(null);
 
@@ -278,9 +289,21 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
   const obs = isObservador(currentUserWithPermission, userPermission);
   const userRoleNorm = String(currentUser?.role || '').toUpperCase();
   const externalReadOnly = sponsor || obs;
-  const sourceGroups = externalReadOnly ? SPONSOR_NAV_GROUPS : NAV_GROUPS;
 
-  const filteredGroups = sourceGroups.map(group => ({
+  // Label dinâmico "Sala da [Nome]"
+  const salaLabel = getSalaLabel(currentUser?.full_name);
+
+  const sourceGroups = externalReadOnly ? SPONSOR_NAV_GROUPS : NAV_GROUPS_BASE;
+
+  // Substituir label "Meus Dados" pelo label dinâmico em todos os grupos
+  const groupsWithDynamic = sourceGroups.map(group => ({
+    ...group,
+    items: group.items.map(item =>
+      item.path === 'MeusDados' ? { ...item, label: salaLabel } : item
+    ),
+  }));
+
+  const filteredGroups = groupsWithDynamic.map(group => ({
     ...group,
     items: group.items.filter(item => {
       if (externalReadOnly) {
