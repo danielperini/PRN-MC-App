@@ -1,49 +1,24 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import RequireAuth from '../components/auth/RequireAuth';
-import ContractAutoFill, { applyAiSuggestions } from '@/components/users/ContractAutoFill';
+import { applyAiSuggestions } from '@/components/users/ContractAutoFill';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Loader2, Sparkles, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { isCoordGeral } from '@/components/auth/permissions';
 import DeleteAccountDialog from '@/components/auth/DeleteAccountDialog';
 import { buildTeamMemberFormPreset } from '@/lib/teamRegistryBase';
 import AtividadesMetasTab from '@/components/meus-dados/AtividadesMetasTab';
 import DocumentosTab from '@/components/meus-dados/DocumentosTab';
-import DadosExpandidosSection from '@/components/meus-dados/DadosExpandidosSection';
+import MinhaGaleriaTab from '@/components/meus-dados/MinhaGaleriaTab';
 import AiContractSuggestionsBanner from '@/components/meus-dados/AiContractSuggestionsBanner';
 import ConvidarCadastroPanel from '@/components/meus-dados/ConvidarCadastroPanel';
-
-const FORM_FIELDS = [
-  { name: 'email_pessoal', label: 'Email Pessoal', type: 'email' },
-  { name: 'telefone', label: 'Telefone de Contato', type: 'tel' },
-  { name: 'cpf', label: 'CPF', type: 'text' },
-];
-
-const EMPRESA_FIELDS = [
-  { name: 'empresa_nome', label: 'Razão Social / Nome da Empresa', type: 'text' },
-  { name: 'empresa_endereco', label: 'Endereço', type: 'text' },
-  { name: 'representante_legal_nome', label: 'Nome do Representante Legal', type: 'text' },
-  { name: 'representante_legal_cpf', label: 'CPF do Representante', type: 'text' },
-];
-
-const BANKING_FIELDS = [
-  { name: 'banco', label: 'Banco', type: 'text' },
-  { name: 'agencia', label: 'Agência', type: 'text' },
-  { name: 'conta', label: 'Conta', type: 'text' },
-  { name: 'pix_key', label: 'Chave PIX (opcional)', type: 'text' },
-];
-
-const TEAM_LINK_FIELDS = [
-  { name: 'funcao_institucional', label: 'Função no projeto', type: 'text' },
-  { name: 'valor_referencia', label: 'Valor de referência do vínculo', type: 'text' },
-  { name: 'inicio_vinculo_referencia', label: 'Início do vínculo / contratação', type: 'text' },
-];
 
 const EMPTY_FORM = {
   email_pessoal: '',
@@ -69,9 +44,10 @@ const EMPTY_FORM = {
   pix_key: '',
   contrato_num_parcelas: '',
   contrato_valor_parcela: '',
-  funcao_institucional: '',
-  valor_referencia: '',
+  funcao: '',
   inicio_vinculo_referencia: '',
+  data_inicio_contrato: '',
+  data_fim_contrato: '',
 };
 
 function mergeWithoutOverwrite(current, incoming) {
@@ -101,9 +77,10 @@ function mergeWithoutOverwrite(current, incoming) {
     pix_key: pick('pix_key'),
     contrato_num_parcelas: pick('contrato_num_parcelas'),
     contrato_valor_parcela: pick('contrato_valor_parcela'),
-    funcao_institucional: pick('funcao_institucional'),
-    valor_referencia: pick('valor_referencia'),
+    funcao: pick('funcao'),
     inicio_vinculo_referencia: pick('inicio_vinculo_referencia'),
+    data_inicio_contrato: pick('data_inicio_contrato'),
+    data_fim_contrato: pick('data_fim_contrato'),
   };
 }
 
@@ -133,9 +110,10 @@ function mapUserToForm(u) {
     pix_key: f('pix_key'),
     contrato_num_parcelas: f('contrato_num_parcelas'),
     contrato_valor_parcela: f('contrato_valor_parcela'),
-    funcao_institucional: f('funcao_institucional'),
-    valor_referencia: f('valor_referencia'),
+    funcao: f('funcao'),
     inicio_vinculo_referencia: f('inicio_vinculo_referencia'),
+    data_inicio_contrato: f('data_inicio_contrato'),
+    data_fim_contrato: f('data_fim_contrato'),
   };
 }
 
@@ -165,39 +143,95 @@ function mapMemberToForm(member) {
     pix_key: f('pix_key'),
     contrato_num_parcelas: f('contrato_num_parcelas'),
     contrato_valor_parcela: f('contrato_valor_parcela'),
-    funcao_institucional: f('funcao_institucional') || f('funcao'),
-    valor_referencia: f('valor_referencia'),
+    funcao: f('funcao') || f('funcao_institucional'),
     inicio_vinculo_referencia: f('inicio_vinculo_referencia') || f('data_inicio_contrato'),
+    data_inicio_contrato: f('data_inicio_contrato'),
+    data_fim_contrato: f('data_fim_contrato'),
   };
-}
-
-function resolveFuncao(currentMember, targetUser) {
-  return String(
-    currentMember?.funcao ||
-    currentMember?.role ||
-    targetUser?.funcao ||
-    targetUser?.role ||
-    ''
-  ).trim();
 }
 
 function Section({ title, children }) {
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-black border-b pb-2">{title}</h2>
+      <h2 className="text-base font-semibold text-gray-900 border-b pb-2">{title}</h2>
       {children}
     </div>
+  );
+}
+
+function Field({ label, children }) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-sm font-medium">{label}</Label>
+      {children}
+    </div>
+  );
+}
+
+// Banner IA compacto — apenas ícone + texto curto
+function IaBannerCompacto({ userEmail, onConfirm, appliedFields }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 hover:bg-amber-100 transition-colors"
+      >
+        <Sparkles className="w-3.5 h-3.5" />
+        {Object.keys(appliedFields || {}).length > 0
+          ? `✓ ${Object.keys(appliedFields).length} campos via IA`
+          : 'Preencher com IA'}
+        {open ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+      </button>
+      {open && (
+        <div className="mt-2">
+          <AiContractSuggestionsBanner
+            userEmail={userEmail}
+            onConfirm={(sug) => { onConfirm(sug); setOpen(false); }}
+            appliedFields={appliedFields}
+          />
+        </div>
+      )}
+    </>
   );
 }
 
 function DadosPessoaisTab({
   user, isSponsor, coordGeral, selectedUserEmail, setSelectedUserEmail,
   allUsers, teamData, targetEmail, targetUser, formData, set,
-  autoFillLoading, isComplete, saveMutation, aiApplied, handleAiApply,
-  handleAiConfirm, showDeleteDialog, setShowDeleteDialog, resetAiTracking,
+  autoFillLoading, isComplete, saveMutation, aiApplied, handleAiConfirm,
+  showDeleteDialog, setShowDeleteDialog, resetAiTracking,
 }) {
+  const [mesmoDadosTitular, setMesmoDadosTitular] = useState(false);
+  const [bancarioAviso, setBancarioAviso] = useState(false);
+
+  // Sincroniza checkbox "mesmos dados"
+  useEffect(() => {
+    if (mesmoDadosTitular) {
+      set('representante_legal_nome', formData.user_name || targetUser?.full_name || '');
+      set('representante_legal_cpf', formData.cpf);
+    }
+  }, [mesmoDadosTitular, formData.cpf]);
+
+  const isPJ = formData.tipo_pessoa && formData.tipo_pessoa !== 'PF';
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    const hasPix = !!formData.pix_key?.trim();
+    const hasBancario = !!(formData.banco?.trim() && formData.agencia?.trim() && formData.conta?.trim());
+    if (!hasPix && !hasBancario) {
+      setBancarioAviso(true);
+      return;
+    }
+    setBancarioAviso(false);
+    saveMutation.mutate();
+  }
+
   return (
     <div className="max-w-2xl mx-auto space-y-6">
+      {/* Seletor de usuário (coordGeral) */}
       {coordGeral && (
         <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
           <Label className="text-sm font-semibold text-slate-700">Editar dados de outro usuário</Label>
@@ -208,9 +242,7 @@ function DadosPessoaisTab({
               resetAiTracking();
             }}
           >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
+            <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="__own__">— Meus próprios dados —</SelectItem>
               {allUsers.filter((u) => u.email !== user?.email).map((u) => (
@@ -223,9 +255,9 @@ function DadosPessoaisTab({
         </div>
       )}
 
-      {/* Banner IA expandido com novos campos */}
+      {/* Banner IA compacto */}
       {!isSponsor && (
-        <AiContractSuggestionsBanner
+        <IaBannerCompacto
           userEmail={targetEmail}
           onConfirm={handleAiConfirm}
           appliedFields={aiApplied}
@@ -239,6 +271,7 @@ function DadosPessoaisTab({
         </div>
       )}
 
+      {/* Status de preenchimento */}
       <div className={`p-4 border rounded-lg flex items-start gap-3 ${isComplete ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
         {isComplete ? (
           <>
@@ -253,63 +286,42 @@ function DadosPessoaisTab({
             <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-semibold text-amber-900">Informações Incompletas</p>
-              <p className="text-xs text-amber-700 mt-0.5">Preencha os campos abaixo. Campos com ✨ têm sugestão da IA.</p>
+              <p className="text-xs text-amber-700 mt-0.5">Preencha os campos abaixo. Use ✨ para sugestões da IA.</p>
             </div>
           </>
         )}
       </div>
 
-      <form onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(); }} className="space-y-8">
+      <form onSubmit={handleSubmit} className="space-y-8">
+        {/* DADOS PESSOAIS */}
         <Section title="Dados Pessoais">
-          {FORM_FIELDS.map((field) => (
-            <div key={field.name} className="space-y-1.5">
-              <Label>{field.label}</Label>
-              <Input
-                type={field.type}
-                value={formData[field.name] || ''}
-                onChange={(e) => set(field.name, e.target.value)}
-                placeholder={field.label}
-              />
-            </div>
-          ))}
-
-          <div className="space-y-1.5">
-            <Label>Tipo de Pessoa</Label>
-            <Select value={formData.tipo_pessoa} onValueChange={(v) => set('tipo_pessoa', v)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="PF">Pessoa Física (PF)</SelectItem>
-                <SelectItem value="MEI">MEI</SelectItem>
-                <SelectItem value="ME">ME (Microempresa)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <Field label="Email Pessoal">
+            <Input type="email" value={formData.email_pessoal || ''} onChange={(e) => set('email_pessoal', e.target.value)} placeholder="email@pessoal.com" />
+          </Field>
+          <Field label="Telefone de Contato">
+            <Input type="tel" value={formData.telefone || ''} onChange={(e) => set('telefone', e.target.value)} placeholder="(00) 00000-0000" />
+          </Field>
+          <Field label="CPF">
+            <Input value={formData.cpf || ''} onChange={(e) => set('cpf', e.target.value)} placeholder="000.000.000-00" />
+          </Field>
         </Section>
 
+        {/* VÍNCULO COM A EQUIPE */}
         {!isSponsor && (
           <Section title="Vínculo com a Equipe">
-            <div className="space-y-1.5">
-              <Label>Função cadastrada no sistema</Label>
-              <Input
-                value={resolveFuncao(teamData.find((m) => m.user_email === targetEmail), targetUser) || ''}
-                readOnly
-                placeholder="Função vinculada ao usuário"
-                className="bg-slate-50"
-              />
-            </div>
-            {TEAM_LINK_FIELDS.map((field) => (
-              <div key={field.name} className="space-y-1.5">
-                <Label>{field.label}</Label>
-                <Input
-                  type={field.type}
-                  value={formData[field.name] || ''}
-                  onChange={(e) => set(field.name, e.target.value)}
-                  placeholder={field.label}
-                />
-              </div>
-            ))}
-            <div className="space-y-1.5">
-              <Label>Regime de Trabalho</Label>
+            <Field label="Função">
+              <Input value={formData.funcao || ''} onChange={(e) => set('funcao', e.target.value)} placeholder="Ex: Educador, Produtor Cultural, Designer" />
+            </Field>
+            <Field label="Início do vínculo / contratação">
+              <Input value={formData.inicio_vinculo_referencia || ''} onChange={(e) => set('inicio_vinculo_referencia', e.target.value)} placeholder="Ex: Janeiro/2025" />
+            </Field>
+            <Field label="Início do contrato">
+              <Input type="date" value={formData.data_inicio_contrato || ''} onChange={(e) => set('data_inicio_contrato', e.target.value)} />
+            </Field>
+            <Field label="Fim do contrato">
+              <Input type="date" value={formData.data_fim_contrato || ''} onChange={(e) => set('data_fim_contrato', e.target.value)} />
+            </Field>
+            <Field label="Regime de Trabalho">
               <Select value={formData.regime_trabalho || ''} onValueChange={(v) => set('regime_trabalho', v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione o regime" /></SelectTrigger>
                 <SelectContent>
@@ -318,66 +330,148 @@ function DadosPessoaisTab({
                   <SelectItem value="Híbrido">Híbrido</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
+            </Field>
           </Section>
         )}
 
-        {/* Campos expandidos (novos) */}
-        {!isSponsor && (
-          <div className="space-y-2">
-            <h2 className="text-lg font-semibold text-black border-b pb-2">Informações Complementares</h2>
-            <DadosExpandidosSection
-              formData={formData}
-              set={set}
-              aiSuggestedFields={aiApplied}
-            />
-          </div>
+        {/* DADOS PJ/MEI — condicional */}
+        {!isSponsor && isPJ && (
+          <Section title="Dados da Empresa (PJ/MEI)">
+            <Field label="Tipo de Empresa">
+              <Select value={formData.tipo_pessoa} onValueChange={(v) => set('tipo_pessoa', v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="MEI">MEI</SelectItem>
+                  <SelectItem value="ME">ME (Microempresa)</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="CNPJ">
+              <Input value={formData.cnpj || ''} onChange={(e) => set('cnpj', e.target.value)} placeholder="00.000.000/0001-00" />
+            </Field>
+            <Field label="Razão Social / Nome da Empresa">
+              <Input value={formData.empresa_nome || ''} onChange={(e) => set('empresa_nome', e.target.value)} placeholder="Nome da empresa" />
+            </Field>
+            <Field label="Endereço da Empresa">
+              <Input value={formData.empresa_endereco || ''} onChange={(e) => set('empresa_endereco', e.target.value)} placeholder="Rua, número, cidade" />
+            </Field>
+
+            {/* Checkbox mesmos dados */}
+            <div className={`flex items-center gap-2 py-2 rounded-lg transition-all ${mesmoDadosTitular ? 'border-l-2 border-amber-300 bg-amber-50 pl-3' : ''}`}>
+              <input
+                id="mesmo-titular"
+                type="checkbox"
+                checked={mesmoDadosTitular}
+                onChange={(e) => setMesmoDadosTitular(e.target.checked)}
+                className="w-4 h-4 rounded"
+              />
+              <label htmlFor="mesmo-titular" className="text-sm text-gray-700 cursor-pointer">
+                Meus dados pessoais são os mesmos do titular da empresa
+              </label>
+            </div>
+
+            <Field label="Nome do Representante Legal">
+              <Input
+                value={formData.representante_legal_nome || ''}
+                onChange={(e) => set('representante_legal_nome', e.target.value)}
+                placeholder="Nome completo"
+                readOnly={mesmoDadosTitular}
+                className={mesmoDadosTitular ? 'bg-amber-50 border-amber-200' : ''}
+              />
+            </Field>
+            <Field label="CPF do Representante">
+              <Input
+                value={formData.representante_legal_cpf || ''}
+                onChange={(e) => set('representante_legal_cpf', e.target.value)}
+                placeholder="000.000.000-00"
+                readOnly={mesmoDadosTitular}
+                className={mesmoDadosTitular ? 'bg-amber-50 border-amber-200' : ''}
+              />
+            </Field>
+            <Field label="Cargo do Representante">
+              <Input value={formData.cargo_representante || ''} onChange={(e) => set('cargo_representante', e.target.value)} placeholder="Ex: Sócio-administrador" />
+            </Field>
+          </Section>
         )}
 
+        {/* Seletor de tipo de pessoa — só para PF aparece aqui */}
+        {!isSponsor && !isPJ && (
+          <Section title="Tipo de Vínculo">
+            <Field label="Tipo de Pessoa">
+              <Select value={formData.tipo_pessoa} onValueChange={(v) => set('tipo_pessoa', v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PF">Pessoa Física (PF)</SelectItem>
+                  <SelectItem value="MEI">MEI</SelectItem>
+                  <SelectItem value="ME">ME (Microempresa)</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+          </Section>
+        )}
+
+        {/* DADOS BANCÁRIOS */}
         {!isSponsor && (
           <Section title="Dados Bancários">
-            <div className="space-y-4">
-              {BANKING_FIELDS.filter(f => f.name !== 'pix_key').map((field) => (
-                <div key={field.name} className="space-y-1.5">
-                  <Label>{field.label}</Label>
-                  <Input
-                    type={field.type}
-                    value={formData[field.name] || ''}
-                    onChange={(e) => set(field.name, e.target.value)}
-                    placeholder={field.label}
-                  />
-                </div>
-              ))}
-              <div className="space-y-1.5">
-                <Label>Tipo de Conta</Label>
-                <Select value={formData.tipo_conta} onValueChange={(v) => set('tipo_conta', v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Corrente">Corrente</SelectItem>
-                    <SelectItem value="Poupança">Poupança</SelectItem>
-                  </SelectContent>
-                </Select>
+            <p className="text-xs text-muted-foreground -mt-2">Preencha ao menos a Chave PIX ou os dados bancários tradicionais.</p>
+            <div className="space-y-3">
+              <Field label="Chave PIX">
+                <Input value={formData.pix_key || ''} onChange={(e) => set('pix_key', e.target.value)} placeholder="CPF, e-mail, telefone ou chave aleatória" />
+              </Field>
+              <div className="border-t pt-3 space-y-3">
+                <p className="text-xs font-medium text-gray-600">Dados bancários tradicionais</p>
+                <Field label="Banco">
+                  <Input value={formData.banco || ''} onChange={(e) => set('banco', e.target.value)} placeholder="Nome do banco" />
+                </Field>
+                <Field label="Agência">
+                  <Input value={formData.agencia || ''} onChange={(e) => set('agencia', e.target.value)} placeholder="0000" />
+                </Field>
+                <Field label="Conta">
+                  <Input value={formData.conta || ''} onChange={(e) => set('conta', e.target.value)} placeholder="00000-0" />
+                </Field>
+                <Field label="Tipo de Conta">
+                  <Select value={formData.tipo_conta || 'Corrente'} onValueChange={(v) => set('tipo_conta', v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Corrente">Corrente</SelectItem>
+                      <SelectItem value="Poupança">Poupança</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
               </div>
             </div>
           </Section>
         )}
 
+        {/* DADOS CONTRATUAIS */}
+        {!isSponsor && (
+          <Section title="Dados Contratuais">
+            <Field label="Nº de Parcelas">
+              <Input type="number" value={formData.contrato_num_parcelas || ''} onChange={(e) => set('contrato_num_parcelas', e.target.value)} placeholder="Ex: 12" />
+            </Field>
+            <Field label="Valor por Parcela (R$)">
+              <Input type="number" value={formData.contrato_valor_parcela || ''} onChange={(e) => set('contrato_valor_parcela', e.target.value)} placeholder="Ex: 3500.00" />
+            </Field>
+          </Section>
+        )}
+
+        {/* Aviso bancário inline */}
+        {bancarioAviso && (
+          <div className="flex items-start gap-2 p-3 border border-amber-200 bg-amber-50 rounded-lg text-sm text-amber-800">
+            <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <span>Preencha ao menos a Chave PIX ou os dados bancários (banco, agência e conta) para salvar.</span>
+          </div>
+        )}
+
         <div className="flex gap-2 justify-end pt-6 border-t">
-          <Button
-            type="submit"
-            className="bg-black hover:bg-gray-800 text-white"
-            disabled={saveMutation.isPending}
-          >
+          <Button type="submit" className="bg-black hover:bg-gray-800 text-white" disabled={saveMutation.isPending}>
             {saveMutation.isPending ? (
-              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Salvando...</>
-            ) : (
-              'Salvar Dados'
-            )}
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Salvando...</>
+            ) : 'Salvar Dados'}
           </Button>
         </div>
       </form>
 
-      {/* Painel admin de convite — apenas coordGeral */}
       {coordGeral && !selectedUserEmail && (
         <div className="mt-8">
           <ConvidarCadastroPanel allUsers={allUsers} teamData={teamData} />
@@ -387,24 +481,14 @@ function DadosPessoaisTab({
       {!selectedUserEmail && (
         <div className="mt-8 pt-8 border-t space-y-4">
           <h3 className="text-lg font-semibold text-red-600">Zona de Perigo</h3>
-          <p className="text-sm text-gray-600">
-            Deletar sua conta removerá permanentemente todos os seus dados do sistema.
-          </p>
-          <Button
-            variant="destructive"
-            onClick={() => setShowDeleteDialog(true)}
-            className="w-full bg-red-600 hover:bg-red-700"
-          >
+          <p className="text-sm text-gray-600">Deletar sua conta removerá permanentemente todos os seus dados do sistema.</p>
+          <Button variant="destructive" onClick={() => setShowDeleteDialog(true)} className="w-full bg-red-600 hover:bg-red-700">
             Deletar Minha Conta
           </Button>
         </div>
       )}
 
-      <DeleteAccountDialog
-        userEmail={user?.email}
-        open={showDeleteDialog}
-        onOpenChange={setShowDeleteDialog}
-      />
+      <DeleteAccountDialog userEmail={user?.email} open={showDeleteDialog} onOpenChange={setShowDeleteDialog} />
     </div>
   );
 }
@@ -422,10 +506,7 @@ function MeusDadosInner() {
 
   useEffect(() => {
     base44.auth.me().then((u) => {
-      if (!u) {
-        setUser(null);
-        return;
-      }
+      if (!u) { setUser(null); return; }
       setUser(u);
       setCoordGeral(isCoordGeral(u));
       setIsSponsor(u.role === 'PATROCINADOR' || u.role === 'OBSERVADOR');
@@ -447,35 +528,24 @@ function MeusDadosInner() {
 
   const targetEmail = selectedUserEmail || user?.email;
   const targetUser = selectedUserEmail ? allUsers.find((u) => u.email === selectedUserEmail) : user;
-
   const teamMember = teamData.find((m) => m.user_email === targetEmail) || null;
   const userMuseum = teamMember?.museu || teamMember?.centro_custo || null;
 
   useEffect(() => {
-    if (!user?.email) return;
-    if (!selectedUserEmail) {
-      setFormData((prev) => mergeWithoutOverwrite(prev, mapUserToForm(user)));
-    }
+    if (!user?.email || selectedUserEmail) return;
+    setFormData((prev) => mergeWithoutOverwrite(prev, mapUserToForm(user)));
   }, [user?.email, selectedUserEmail, user]);
 
   useEffect(() => {
-    if (!teamData?.length || !user?.email) return;
-    if (!selectedUserEmail) {
-      const currentMember = teamData.find((m) => m.user_email === user.email);
-      if (currentMember) {
-        setFormData((prev) => mergeWithoutOverwrite(prev, mapMemberToForm(currentMember)));
-      }
-    }
+    if (!teamData?.length || !user?.email || selectedUserEmail) return;
+    const currentMember = teamData.find((m) => m.user_email === user.email);
+    if (currentMember) setFormData((prev) => mergeWithoutOverwrite(prev, mapMemberToForm(currentMember)));
   }, [teamData, user?.email, selectedUserEmail, user]);
 
   useEffect(() => {
     if (!selectedUserEmail || !teamData.length) return;
     const member = teamData.find((m) => m.user_email === selectedUserEmail);
-    if (member) {
-      setFormData(mapMemberToForm(member));
-    } else {
-      setFormData(EMPTY_FORM);
-    }
+    setFormData(member ? mapMemberToForm(member) : EMPTY_FORM);
   }, [selectedUserEmail, teamData]);
 
   useEffect(() => {
@@ -487,9 +557,7 @@ function MeusDadosInner() {
 
   useEffect(() => {
     if (!targetEmail || isSponsor) return;
-
     let active = true;
-
     const runAutoComplete = async () => {
       try {
         setAutoFillLoading(true);
@@ -498,10 +566,8 @@ function MeusDadosInner() {
           team_member_id: existingMember?.id,
           user_email: targetEmail,
         });
-
         const member = res?.data?.member || null;
         if (!active || !member) return;
-
         setFormData((prev) => mergeWithoutOverwrite(prev, mapMemberToForm(member)));
       } catch (e) {
         console.warn('Erro auto-complete (não bloqueante)', e);
@@ -509,7 +575,6 @@ function MeusDadosInner() {
         if (active) setAutoFillLoading(false);
       }
     };
-
     runAutoComplete();
     return () => { active = false; };
   }, [targetEmail, isSponsor, teamData]);
@@ -517,37 +582,23 @@ function MeusDadosInner() {
   const isComplete = isSponsor
     ? !!(formData.email_pessoal && formData.telefone)
     : !!(
-        formData.email_pessoal &&
-        formData.telefone &&
-        formData.celular &&
-        formData.cpf &&
-        formData.endereco_residencial &&
-        formData.contato_emergencia_nome &&
-        formData.museu_vinculado &&
-        formData.contrato_num_parcelas &&
-        formData.contrato_valor_parcela &&
-        formData.pix_key &&
-        formData.banco &&
-        formData.agencia &&
-        formData.conta &&
+        formData.email_pessoal && formData.telefone && formData.cpf &&
+        (formData.pix_key || (formData.banco && formData.agencia && formData.conta)) &&
         (formData.tipo_pessoa === 'PF' || (formData.cnpj && formData.empresa_nome))
       );
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      if (!selectedUserEmail) {
-        await base44.auth.updateMe(formData);
-      }
+      if (!selectedUserEmail) await base44.auth.updateMe(formData);
 
       const currentMember = teamData.find((m) => m.user_email === targetEmail);
-      const funcaoResolvida = resolveFuncao(currentMember, targetUser);
-
       const teamPayload = {
         user_email: targetEmail,
         user_name: targetUser?.full_name || '',
         tipo_equipe: targetUser?.equipe || '',
-        funcao: funcaoResolvida,
-        role: funcaoResolvida,
+        funcao: formData.funcao,
+        role: formData.funcao,
+        funcao_institucional: formData.funcao,
         email_pessoal: formData.email_pessoal,
         telefone: formData.telefone,
         celular: formData.celular,
@@ -571,9 +622,9 @@ function MeusDadosInner() {
         pix_key: formData.pix_key,
         contrato_num_parcelas: formData.contrato_num_parcelas ? Number(formData.contrato_num_parcelas) : undefined,
         contrato_valor_parcela: formData.contrato_valor_parcela ? Number(formData.contrato_valor_parcela) : undefined,
-        funcao_institucional: formData.funcao_institucional,
-        valor_referencia: formData.valor_referencia,
         inicio_vinculo_referencia: formData.inicio_vinculo_referencia,
+        data_inicio_contrato: formData.data_inicio_contrato,
+        data_fim_contrato: formData.data_fim_contrato,
       };
 
       if (currentMember) {
@@ -596,28 +647,17 @@ function MeusDadosInner() {
     setAiApplied({});
   };
 
-  const handleAiApply = useCallback((suggestions) => {
-    setFormData((prev) => applyAiSuggestions(prev, suggestions, manualFields.current));
-    setAiApplied(suggestions);
-  }, []);
-
-  // Novo: aplica sugestões do banner expandido (novos campos + campos existentes)
   const handleAiConfirm = useCallback((suggestions) => {
     setFormData((prev) => {
       const next = { ...prev };
       for (const [key, s] of Object.entries(suggestions)) {
-        if (!manualFields.current.has(key)) {
-          next[key] = s.aiValue;
-        }
+        if (!manualFields.current.has(key)) next[key] = s.aiValue;
       }
       return next;
     });
-    // Marca todos os campos sugeridos como "aplicados" para mostrar ✓ no banner
     setAiApplied((prev) => {
       const next = { ...prev };
-      for (const [key, s] of Object.entries(suggestions)) {
-        next[key] = s;
-      }
+      for (const [key, s] of Object.entries(suggestions)) next[key] = s;
       return next;
     });
   }, []);
@@ -630,26 +670,46 @@ function MeusDadosInner() {
     );
   }
 
+  // Dados de exibição do cabeçalho
+  const displayName = selectedUserEmail
+    ? targetUser?.full_name || selectedUserEmail
+    : user?.full_name || user?.email || '';
+  const displayMuseu = teamMember?.museu_vinculado || teamMember?.museu_projeto || userMuseum || '';
+  const displayFuncao = formData.funcao || teamMember?.funcao || teamMember?.funcao_institucional || '';
+
   return (
     <div className="min-h-screen bg-white pb-20">
       <div className="max-w-5xl mx-auto px-4 md:px-6 py-10">
-        <div className="mb-8">
-          <h1 className="text-3xl font-semibold text-black mb-1">
-            {selectedUserEmail ? `Informações de ${targetUser?.full_name || selectedUserEmail}` : 'Informações'}
-          </h1>
-          <p className="text-gray-600">
-            {isSponsor ? 'Atualize seus dados pessoais' : 'Preencha suas informações pessoais e acompanhe seu desempenho'}
+        {/* CABEÇALHO */}
+        <div className="mb-8 space-y-2">
+          <h1 className="text-2xl font-bold text-gray-900">Espaço do Usuário</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xl font-semibold text-gray-800">{displayName}</span>
+            {displayMuseu && (
+              <Badge className="bg-slate-100 text-slate-700 border border-slate-200 font-medium">
+                {displayMuseu}
+              </Badge>
+            )}
+            {displayFuncao && (
+              <Badge variant="outline" className="text-gray-600 font-normal">
+                {displayFuncao}
+              </Badge>
+            )}
+          </div>
+          <p className="text-sm text-gray-500">
+            {isSponsor ? 'Atualize seus dados pessoais' : 'Gerencie seu perfil, galeria de fotos e documentos'}
           </p>
         </div>
 
-        <Tabs defaultValue="dados">
-          <TabsList className="mb-6 w-full sm:w-auto">
-            <TabsTrigger value="dados">Dados Pessoais</TabsTrigger>
+        <Tabs defaultValue="perfil">
+          <TabsList className="mb-6 w-full sm:w-auto flex-wrap gap-1">
+            <TabsTrigger value="perfil">Meu Perfil</TabsTrigger>
             {!isSponsor && <TabsTrigger value="atividades">Atividades e Metas</TabsTrigger>}
             {!isSponsor && <TabsTrigger value="documentos">Documentos</TabsTrigger>}
+            {!isSponsor && <TabsTrigger value="galeria">Minha Galeria</TabsTrigger>}
           </TabsList>
 
-          <TabsContent value="dados">
+          <TabsContent value="perfil">
             <DadosPessoaisTab
               user={user}
               isSponsor={isSponsor}
@@ -666,7 +726,6 @@ function MeusDadosInner() {
               isComplete={isComplete}
               saveMutation={saveMutation}
               aiApplied={aiApplied}
-              handleAiApply={handleAiApply}
               handleAiConfirm={handleAiConfirm}
               showDeleteDialog={showDeleteDialog}
               setShowDeleteDialog={setShowDeleteDialog}
@@ -676,19 +735,19 @@ function MeusDadosInner() {
 
           {!isSponsor && (
             <TabsContent value="atividades">
-              <AtividadesMetasTab
-                targetEmail={targetEmail}
-                userMuseum={userMuseum}
-              />
+              <AtividadesMetasTab targetEmail={targetEmail} userMuseum={userMuseum} />
             </TabsContent>
           )}
 
           {!isSponsor && (
             <TabsContent value="documentos">
-              <DocumentosTab
-                targetEmail={targetEmail}
-                teamMember={teamMember}
-              />
+              <DocumentosTab targetEmail={targetEmail} teamMember={teamMember} />
+            </TabsContent>
+          )}
+
+          {!isSponsor && (
+            <TabsContent value="galeria">
+              <MinhaGaleriaTab targetEmail={targetEmail} />
             </TabsContent>
           )}
         </Tabs>

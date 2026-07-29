@@ -2,7 +2,8 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Badge } from '@/components/ui/badge';
-import { ExternalLink, FileText, CreditCard, ShoppingCart, ClipboardList } from 'lucide-react';
+import { ExternalLink, FileText, CreditCard, ShoppingCart, FileCheck } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 function fmtBRL(v) {
   return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -185,9 +186,9 @@ export default function DocumentosTab({ targetEmail, teamMember }) {
         )}
       </div>
 
-      {/* Relatórios Enviados */}
+      {/* Meus Relatórios */}
       <div>
-        <SectionTitle icon={ClipboardList} title="Relatórios Enviados" />
+        <SectionTitle icon={FileCheck} title="Meus Relatórios" />
         {relatorios.length === 0 ? (
           <EmptyState text="Nenhum relatório encontrado." />
         ) : (
@@ -212,7 +213,15 @@ export default function DocumentosTab({ targetEmail, teamMember }) {
                       {r.submitted_at ? `Enviado em ${fmtDate(r.submitted_at)}` : r.created_date ? fmtDate(r.created_date) : '—'}
                     </p>
                   </div>
-                  <Badge className={`${st.cls} font-medium flex-shrink-0`}>{st.label}</Badge>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <Badge className={`${st.cls} font-medium`}>{st.label}</Badge>
+                    <Link
+                      to={`/ReportEditor?id=${r.id}`}
+                      className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                    >
+                      <ExternalLink className="w-3 h-3" /> Abrir
+                    </Link>
+                  </div>
                 </div>
               );
             })}

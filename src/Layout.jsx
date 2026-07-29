@@ -39,7 +39,7 @@ const PAGE_TITLES = {
   Manual: 'Ajuda',
   GeradorListaPresenca: 'Gerador de Lista de Presença',
   GeradorTermoCompromisso: 'Gerador de Termo de Compromisso',
-  MeusDados: 'Meus Dados',
+  MeusDados: 'Espaço do Usuário',
   ProgramacaoEspelho: 'Programação',
   Agenda: 'Agenda',
   EntradaUnica: 'Entrada de Documentos',
