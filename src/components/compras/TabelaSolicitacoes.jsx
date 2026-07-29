@@ -81,6 +81,21 @@ function isCompraEquipe(purchase) {
   return !!purchase?.team_payment_id || raw.includes('team') || raw.includes('equipe');
 }
 
+function isCompraEquipeSalario(purchase) {
+  if (!purchase) return false;
+  if (!!purchase.team_payment_id) return true;
+  const raw = [purchase?.tipo_origem, purchase?.origem, purchase?.categoria, purchase?.tipo_solicitacao, purchase?.descricao_item, purchase?.observacoes].map((v) => String(v || '').toLowerCase()).join(' ');
+  return (
+    raw.includes('team') ||
+    raw.includes('equipe') ||
+    raw.includes('monitores') ||
+    raw.includes('educadores') ||
+    raw.includes('coordenadoria') ||
+    raw.includes('pagamento da equipe') ||
+    raw.includes('pagamento equipe')
+  );
+}
+
 function categorizeSolicitacoes(purchases) {
   const categories = { geral: [], mhab: [], mis: [], mumo: [], noturno2026: [], noturnoPampulha: [], pessoas: [] };
   purchases.forEach((p) => {
@@ -496,8 +511,12 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
   );
 }
 
-export default function TabelaSolicitacoes({ purchases, rubricas, attachmentByPurchaseId, isCoordenador, currentUser, podeAprovarSolicitacoes, hasGestaoCompras, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onAccess, userPermission }) {
+export default function TabelaSolicitacoes({ purchases, rubricas, attachmentByPurchaseId, isCoordenador, currentUser, podeAprovarSolicitacoes, hasGestaoCompras, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onAccess, userPermission, canSeeEquipeSalarios }) {
   const [sendingNotif, setSendingNotif] = useState({});
+  // Segunda camada de segurança: se canSeeEquipeSalarios for explicitamente false,
+  // filtra qualquer compra de equipe/salário que tenha vazado até aqui
+  const canSee = canSeeEquipeSalarios !== false ? true : isCoordenador;
+  const purchasesFiltered = canSee ? (purchases || []) : (purchases || []).filter(p => !isCompraEquipeSalario(p));
 
   async function handleSendNotification(p) {
     const valor = getPurchaseValue(p);
@@ -524,10 +543,10 @@ export default function TabelaSolicitacoes({ purchases, rubricas, attachmentByPu
     return m;
   }, [rubricas]);
 
-  if (!purchases || purchases.length === 0) return null;
+  if (!purchasesFiltered || purchasesFiltered.length === 0) return null;
 
   const podeAprovar = isCoordenador || podeAprovarSolicitacoes === true || hasGestaoCompras === true;
-  const categories = categorizeSolicitacoes(purchases);
+  const categories = categorizeSolicitacoes(purchasesFiltered);
   const isObservador = !isCoordenador && userPermission?.base_role === 'OBSERVADOR';
 
   const museusCentroCategories = [

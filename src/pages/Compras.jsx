@@ -148,6 +148,22 @@ function isCompraEquipe(purchase) {
   return !!purchase?.team_payment_id || raw.includes('team') || raw.includes('equipe') || raw.includes('pagamento da equipe') || raw.includes('pagamento equipe');
 }
 
+// Detecção mais ampla — inclui monitores, educadores, coordenadoria
+function isCompraEquipeSalario(purchase) {
+  if (!purchase) return false;
+  if (!!purchase.team_payment_id) return true;
+  const raw = [purchase?.tipo_origem, purchase?.origem, purchase?.categoria, purchase?.tipo_solicitacao, purchase?.descricao_item, purchase?.observacoes].map((v) => String(v || '').toLowerCase()).join(' ');
+  return (
+    raw.includes('team') ||
+    raw.includes('equipe') ||
+    raw.includes('monitores') ||
+    raw.includes('educadores') ||
+    raw.includes('coordenadoria') ||
+    raw.includes('pagamento da equipe') ||
+    raw.includes('pagamento equipe')
+  );
+}
+
 function isEntradaUnicaAttachment(att) {
   const description = normalizeText(att?.description);
   const fileName = normalizeText(att?.file_name);
@@ -196,19 +212,32 @@ async function carregarRubricas() {
   return [];
 }
 
-async function carregarSolicitacoes({ isCoordenador, currentUser }) {
+async function carregarSolicitacoes({ isCoordenador, currentUser, userMuseu }) {
   if (!currentUser) return [];
   if (isCoordenador) return await base44.entities.PurchaseRequest.list('-created_date', 500);
   const dedup = new Map();
+  // Museus válidos para filtro direto por museu
+  const MUSEUS_FISICOS = ['MHAB', 'MIS', 'MUMO'];
+  // Determinar quais centros mostrar com base no museu vinculado do usuário
+  const museuFisico = MUSEUS_FISICOS.includes(userMuseu) ? userMuseu : null;
   try {
     const listaGeral = await base44.entities.PurchaseRequest.list('-created_date', 500);
     listaGeral.filter(Boolean).forEach((p) => {
       if (!p?.id) return;
-      if (isCompraEquipe(p)) return;
+      // Nunca exibir compras de equipe/salário para não-coordenadores
+      if (isCompraEquipeSalario(p)) return;
       const centroCusto = normalizeCentro(p?.centro_custo);
-      if (centroCusto === 'Geral') return;
-      const museusCentro = ['MHAB', 'MIS', 'MUMO'];
-      if (museusCentro.includes(centroCusto)) dedup.set(p.id, p);
+      if (museuFisico) {
+        // Mostrar apenas o museu do usuário + Geral
+        if (centroCusto === museuFisico || centroCusto === 'Geral') {
+          dedup.set(p.id, p);
+        }
+      } else {
+        // Sem museu definido (Geral/Transversal): mostrar apenas Geral
+        if (centroCusto === 'Geral') {
+          dedup.set(p.id, p);
+        }
+      }
     });
   } catch (error) {console.error('Erro ao buscar lista geral de PurchaseRequest:', error);}
   return Array.from(dedup.values()).sort((a, b) => new Date(b?.created_date || 0) - new Date(a?.created_date || 0));
@@ -265,6 +294,26 @@ function ComprasInner() {
 
   const isCoordenador = ['admin', 'ADMIN', 'COORDENADOR', 'COORD_COMUNICACAO', 'COORD_ADMINISTRATIVA', 'COORD_PRODUCAO'].includes(currentUser?.role);
 
+  // Buscar museu vinculado do usuário (TeamMember) — usado para filtrar solicitações de não-coordenadores
+  const { data: userTeamMember } = useQuery({
+    queryKey: ['team-member-museu', currentUser?.email],
+    queryFn: async () => {
+      if (!currentUser?.email) return null;
+      const results = await base44.entities.TeamMember.filter({ user_email: currentUser.email });
+      return results?.[0] || null;
+    },
+    enabled: !!currentUser?.email && !isCoordenador,
+    staleTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
+  });
+
+  // Mapear museu_vinculado → centro_custo (MUMO|MIS|MHAB → direto; Geral/Transversal → null)
+  const userMuseu = isCoordenador ? null : (() => {
+    const mv = userTeamMember?.museu_vinculado;
+    if (mv === 'MUMO' || mv === 'MIS' || mv === 'MHAB') return mv;
+    return null; // Geral/Transversal ou não cadastrado → mostrar apenas Geral
+  })();
+
   const invalidateComprasQueries = useCallback(async () => {
     await Promise.all([
     queryClient.invalidateQueries({ queryKey: ['purchases'], refetchType: 'all' }),
@@ -294,9 +343,9 @@ function ComprasInner() {
   const podeGerenciarRubricas = canManageRubricas(currentUser, userPermission);
 
   const { data: purchases = [], isLoading, isFetching: fetchingPurchases } = useQuery({
-    queryKey: ['purchases', isCoordenador, currentUser?.email],
-    queryFn: () => carregarSolicitacoes({ isCoordenador, currentUser }),
-    enabled: !!currentUser,
+    queryKey: ['purchases', isCoordenador, currentUser?.email, userMuseu],
+    queryFn: () => carregarSolicitacoes({ isCoordenador, currentUser, userMuseu }),
+    enabled: !!currentUser && (isCoordenador || userTeamMember !== undefined),
     staleTime: 1000 * 60,
     refetchOnWindowFocus: false
   });
@@ -606,7 +655,7 @@ function ComprasInner() {
       }
 
       // Atualização otimista do cache para mudança imediata na tabela
-      queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email], (old) => {
+      queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email, userMuseu], (old) => {
         if (!Array.isArray(old)) return old;
         return old.map((item) =>
         item.id === purchase.id ?
@@ -652,7 +701,7 @@ function ComprasInner() {
       const result = response?.data || response;
       if (!result?.success) throw new Error(result?.error || 'Falha ao devolver.');
 
-      queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email], (old) => {
+      queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email, userMuseu], (old) => {
         if (!Array.isArray(old)) return old;
         return old.map((item) =>
           item.id === purchase.id ? { ...item, status: 'DEVOLVIDO', comentario_devolucao: motivo } : item
@@ -664,7 +713,7 @@ function ComprasInner() {
         status: 'DEVOLVIDO',
         comentario_devolucao: motivo,
       });
-      queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email], (old) => {
+      queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email, userMuseu], (old) => {
         if (!Array.isArray(old)) return old;
         return old.map((item) =>
           item.id === purchase.id ? { ...item, status: 'DEVOLVIDO', comentario_devolucao: motivo } : item
@@ -709,7 +758,7 @@ function ComprasInner() {
       }
 
       // Atualização otimista do cache
-      queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email], (old) => {
+      queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email, userMuseu], (old) => {
         if (!Array.isArray(old)) return old;
         return old.map((item) =>
         item.id === purchase.id ?
@@ -763,7 +812,7 @@ function ComprasInner() {
         });
 
         // Atualização otimista do cache (fallback)
-        queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email], (old) => {
+        queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email, userMuseu], (old) => {
           if (!Array.isArray(old)) return old;
           return old.map((item) =>
           item.id === purchase.id ?
@@ -805,7 +854,7 @@ function ComprasInner() {
       }
 
       // Atualização otimista: remove imediatamente da lista
-      queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email], (old) => {
+      queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email, userMuseu], (old) => {
         if (!Array.isArray(old)) return old;
         return old.filter((item) => item.id !== purchaseId);
       });
@@ -1269,6 +1318,7 @@ function ComprasInner() {
             podeAprovarSolicitacoes={podeAprovarSolicitacoes}
             hasGestaoCompras={hasGestaoCompras}
             userPermission={userPermission}
+            canSeeEquipeSalarios={isCoordenador}
             onApprove={handleApprovePurchase}
             onReturn={handleReturnPurchase}
             onUnapprove={handleUnapprovePurchase}
