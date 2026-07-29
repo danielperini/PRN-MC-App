@@ -731,6 +731,17 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
         await base44.entities.PurchaseRequest.update(prefill.id, payload)
         await createAttachmentForPurchase({ id: prefill.id }, payload)
 
+        // Se estava DEVOLVIDO e está sendo reenviado, resolver notificações de devolução
+        if (String(prefill?.status || '').toUpperCase() === 'DEVOLVIDO') {
+          base44.entities.Notification.filter({
+            entity_id: prefill.id,
+            type: 'NF_DEVOLVIDA',
+            read: false,
+          }).then(notifs => {
+            (notifs || []).forEach(n => base44.entities.Notification.update(n.id, { resolved: true }).catch(() => {}))
+          }).catch(() => {})
+        }
+
         // Se rubrica mudou e já estava debitada, reequilibra os saldos
         const rubricaMudou = form.rubrica_id && form.rubrica_id !== prefill?.rubrica_id
         const jaDebitado = !!prefill?.rubrica_debitada_em
@@ -910,6 +921,13 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
       }, currentUser).catch((error) => {
         console.warn('Falha ao notificar devolução de compra:', error)
       })
+
+      // Notificar via e-mail + sino (Notification entity)
+      await base44.functions.invoke('notifyNFDevolvida', {
+        purchase_id: prefill.id,
+        motivo: returnComment,
+        actor_email: currentUser?.email,
+      }).catch((e) => console.warn('Falha ao enviar notifyNFDevolvida:', e))
 
       smartToast.success('Solicitação devolvida.')
       onSuccess?.()

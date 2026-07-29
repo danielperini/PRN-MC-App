@@ -13,6 +13,8 @@ import {
   Send,
   FileText,
 } from 'lucide-react';
+
+const APP_URL = window.location.origin;
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -102,13 +104,33 @@ function CoordReviewInner() {
       }
 
       if (action === 'return') {
-        await notifyReportReturned({
-          ...report,
-          ...updatedReport,
-          return_comment: comment || '',
-        }, user).catch((error) => {
+        const returnedReport = { ...report, ...updatedReport, return_comment: comment || '' };
+        await notifyReportReturned(returnedReport, user).catch((error) => {
           console.warn('Falha ao notificar devolução de relatório:', error);
         });
+
+        // Criar Notification no sino do profissional
+        const authorEmail = returnedReport.author_email || returnedReport.created_by || '';
+        if (authorEmail) {
+          const mesMuseu = [returnedReport.mes_referencia, returnedReport.museu].filter(Boolean).join(' — ');
+          const appLink = `/Relatorios`;
+          try {
+            await base44.entities.Notification.create({
+              user_email: authorEmail,
+              type: 'REPORT_RETURNED',
+              title: 'Relatório devolvido',
+              message: `${mesMuseu}\n\nMotivo: ${comment || ''}`,
+              entity_type: 'Report',
+              entity_id: id,
+              action_url: appLink,
+              read: false,
+              resolved: false,
+              email_sent: false,
+            });
+          } catch (notifErr) {
+            console.warn('Falha ao criar Notification de devolução:', notifErr);
+          }
+        }
       }
 
       try {

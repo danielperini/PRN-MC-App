@@ -115,6 +115,24 @@ export default function Relatorios() {
         console.warn('Falha ao notificar devolução de relatório:', error);
       });
 
+      // Criar Notification no sino do profissional
+      const authorEmail = report.author_email || report.created_by || '';
+      if (authorEmail) {
+        const mesMuseu = [report.mes_referencia, report.museu].filter(Boolean).join(' — ');
+        base44.entities.Notification.create({
+          user_email: authorEmail,
+          type: 'REPORT_RETURNED',
+          title: 'Relatório devolvido',
+          message: `${mesMuseu}\n\nMotivo: ${comment || ''}`,
+          entity_type: 'Report',
+          entity_id: report.id,
+          action_url: `/Relatorios`,
+          read: false,
+          resolved: false,
+          email_sent: false,
+        }).catch(e => console.warn('Falha ao criar Notification:', e));
+      }
+
       try {
         await base44.entities.AuditLog.create({
           action: 'RETURN',

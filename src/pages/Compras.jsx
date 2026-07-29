@@ -62,6 +62,7 @@ import PainelAuditoriaMetas from '@/components/compras/PainelAuditoriaMetas';
 import ConferenciaExtratosVsPagamentos from '@/components/compras/ConferenciaExtratosVsPagamentos';
 import { canManageRubricas } from '@/components/auth/permissions';
 import { normalizeStatus, isStatusPendente, isStatusAprovado, getStatusLabel, getStatusColor } from '@/lib/normalizeStatus';
+import DevolverNFDialog from '@/components/compras/DevolverNFDialog';
 
 const STATUS_CONFIG = {
   RASCUNHO: { label: 'Rascunho', color: 'bg-gray-100 text-gray-700' },
@@ -247,6 +248,7 @@ function ComprasInner() {
   const [selectedRubrica, setSelectedRubrica] = useState(null);
   const [paymentPurchase, setPaymentPurchase] = useState(null);
   const [recalculando, setRecalculando] = useState(false);
+  const [devolverNFDialog, setDevolverNFDialog] = useState({ open: false, purchase: null });
   const [limpandoDuplicatas, setLimpandoDuplicatas] = useState(false);
   const [vinculandoNatureza, setVinculandoNatureza] = useState(false);
   const [filters, setFilters] = useState({ status: 'all', meta_id: 'all', search: '', rubrica_id: 'all', inconsistencias: 'all', centro_custo: 'all', data_inicio: '', data_fim: '' });
@@ -634,88 +636,53 @@ function ComprasInner() {
     }
   }
 
-  async function handleReturnPurchase(purchase) {
+  function handleReturnPurchase(purchase) {
     if (!purchase?.id) return;
+    setDevolverNFDialog({ open: true, purchase });
+  }
 
-    const comentario = window.prompt(
-      'Informe o comentário de devolução:',
-      'Devolvido pela coordenação para ajustes.'
-    );
-
-    if (comentario === null) return;
-
+  async function executarDevolucaoNF(purchase, motivo) {
     try {
       const response = await base44.functions.invoke('purchaseActions', {
         purchaseId: purchase.id,
         action: 'devolver',
-        comentario: comentario || 'Devolvido pela coordenação.'
+        comentario: motivo,
       });
 
       const result = response?.data || response;
+      if (!result?.success) throw new Error(result?.error || 'Falha ao devolver.');
 
-      if (!result?.success) {
-        throw new Error(result?.error || 'Falha ao devolver.');
-      }
-
-      // Atualização otimista do cache
       queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email], (old) => {
         if (!Array.isArray(old)) return old;
         return old.map((item) =>
-        item.id === purchase.id ?
-        { ...item, status: 'DEVOLVIDO', comentario_devolucao: comentario || '' } :
-        item
+          item.id === purchase.id ? { ...item, status: 'DEVOLVIDO', comentario_devolucao: motivo } : item
         );
       });
-
-      await refreshFinanceiroCompleto();
-
-      await notifyPurchaseReturned(
-        {
-          ...purchase,
-          status: 'DEVOLVIDO',
-          comentario_devolucao: comentario || ''
-        },
-        currentUser
-      ).catch((error) => {
-        console.warn('Falha ao notificar devolução de compra:', error);
+    } catch {
+      // Fallback direto
+      await base44.entities.PurchaseRequest.update(purchase.id, {
+        status: 'DEVOLVIDO',
+        comentario_devolucao: motivo,
       });
-
-      smartToast.success('Solicitação devolvida.');
-    } catch (error) {
-      try {
-        await base44.entities.PurchaseRequest.update(purchase.id, {
-          status: 'DEVOLVIDO',
-          comentario_devolucao: comentario || ''
-        });
-
-        // Atualização otimista do cache (fallback)
-        queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email], (old) => {
-          if (!Array.isArray(old)) return old;
-          return old.map((item) =>
-          item.id === purchase.id ?
-          { ...item, status: 'DEVOLVIDO', comentario_devolucao: comentario || '' } :
-          item
-          );
-        });
-
-        await refreshFinanceiroCompleto();
-
-        await notifyPurchaseReturned(
-          {
-            ...purchase,
-            status: 'DEVOLVIDO',
-            comentario_devolucao: comentario || ''
-          },
-          currentUser
-        ).catch((error) => {
-          console.warn('Falha ao notificar devolução de compra:', error);
-        });
-
-        smartToast.success('Solicitação devolvida.');
-      } catch (e2) {
-        smartToast.error('Erro ao devolver', e2.message);
-      }
+      queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email], (old) => {
+        if (!Array.isArray(old)) return old;
+        return old.map((item) =>
+          item.id === purchase.id ? { ...item, status: 'DEVOLVIDO', comentario_devolucao: motivo } : item
+        );
+      });
     }
+
+    await refreshFinanceiroCompleto();
+
+    // Notificar via e-mail + sino
+    await base44.functions.invoke('notifyNFDevolvida', {
+      purchase_id: purchase.id,
+      motivo,
+      actor_email: currentUser?.email,
+    }).catch((e) => console.warn('Falha ao notificar devolução NF:', e));
+
+    setDevolverNFDialog({ open: false, purchase: null });
+    smartToast.success('Solicitação devolvida.');
   }
 
   async function handleUnapprovePurchase(purchase) {
@@ -1686,6 +1653,13 @@ function ComprasInner() {
           setShowNovaRubrica(false);
           await refreshFinanceiroCompleto();
         }} />
+
+      <DevolverNFDialog
+        open={devolverNFDialog.open}
+        purchase={devolverNFDialog.purchase}
+        onClose={() => setDevolverNFDialog({ open: false, purchase: null })}
+        onConfirm={(motivo) => executarDevolucaoNF(devolverNFDialog.purchase, motivo)}
+      />
       
     </div>);
 

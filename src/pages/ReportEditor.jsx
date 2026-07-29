@@ -411,6 +411,17 @@ export default function ReportEditor() {
         console.warn('Falha ao notificar envio de relatório:', error);
       });
 
+      // Se estava RETURNED, resolver notificações de devolução
+      if (report?.status === 'RETURNED') {
+        base44.entities.Notification.filter({
+          entity_id: report.id,
+          type: 'REPORT_RETURNED',
+          read: false,
+        }).then(notifs => {
+          (notifs || []).forEach(n => base44.entities.Notification.update(n.id, { resolved: true }).catch(() => {}));
+        }).catch(() => {});
+      }
+
       toast.success('📤 Relatório enviado para revisão!');
       queryClient.invalidateQueries({ queryKey: ['reports'] });
       queryClient.invalidateQueries({ queryKey: ['relatorios-list'] });
