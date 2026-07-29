@@ -55,6 +55,9 @@ Deno.serve(async (req) => {
     try { const c = await base44.asServiceRole.connectors.getConnection('gmail'); gmailToken = c?.access_token || null; } catch (_) {}
 
     // ── 3. Buscar TeamMembers ativos ────────────────────────────────────────
+    const body = await req.json().catch(() => ({}));
+    const notifyMember = body.notify_member !== false; // default true
+
     const members = await base44.asServiceRole.entities.TeamMember.filter({ status: 'ATIVO' }, '', 500).catch(() => []);
 
     // ── 4. Listar contratos no Drive recursivamente ────────────────────────
@@ -157,6 +160,22 @@ Deno.serve(async (req) => {
           details: `Contrato vinculado a ${bestMember.user_name} (score: ${Math.round(bestScore * 100)}%, fonte: ${f.source || 'drive'})`,
           triggered_by: 'scheduled',
         }).catch(() => {});
+
+        // Enviar e-mail de confirmação ao membro (se notify_member ativo)
+        if (notifyMember && bestMember.user_email) {
+          await base44.asServiceRole.integrations.Core.SendEmail({
+            to: bestMember.user_email,
+            subject: '✅ Seu contrato foi localizado e vinculado ao seu cadastro',
+            body: `
+              <p>Olá, <strong>${bestMember.user_name}</strong>!</p>
+              <p>Identificamos e vinculamos automaticamente o seu contrato ao seu cadastro na plataforma <strong>Museus Centro</strong>.</p>
+              <p><strong>Arquivo:</strong> ${f.name}</p>
+              <p><a href="${driveUrl}" style="background:#1a1a1a;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:600;">Ver documento no Drive</a></p>
+              <p style="margin-top:16px;">Você pode acessar seu cadastro completo acessando sua <strong>Sala</strong> na plataforma.</p>
+              <p style="color:#888;font-size:12px;">Museus Centro — Viaduto das Artes</p>
+            `,
+          }).catch(err => console.warn(`[sincronizarContratosCompleto] Email não enviado para ${bestMember.user_email}:`, err.message));
+        }
 
         vinculados.push({ membro: bestMember.user_name, arquivo: f.name, score: bestScore, fonte: f.source || 'drive' });
       } catch (e) {

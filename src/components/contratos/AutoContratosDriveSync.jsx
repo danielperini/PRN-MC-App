@@ -16,7 +16,7 @@ export default function AutoContratosDriveSync({ currentUser }) {
     sessionStorage.setItem(SESSION_KEY, '1');
 
     // Disparo silencioso — sem await no useEffect para não bloquear render
-    base44.functions.invoke('buscarContratosAssinadosDrive', { sync_team_members: true })
+    base44.functions.invoke('sincronizarContratosCompleto', { notify_member: true })
       .catch(() => { /* silencioso */ });
   }, [currentUser?.email]);
 
