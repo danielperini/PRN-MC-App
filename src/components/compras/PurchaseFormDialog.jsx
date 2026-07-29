@@ -20,22 +20,25 @@ import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 import { METAS_PROJETO_FALLBACK } from '@/lib/metasProjeto'
 import { metaOcultaNoTerceiroAditivo } from '@/utils/metasAditivosPermitidos'
 
+// Valores EXATOS do enum PurchaseRequest.centro_custo no banco
 const CENTROS = ['MUMO','MIS','MHAB','Noturno nos Museus 2026','Noturno Pampulha','Publicações','Geral']
 
-// Mapeia variações conhecidas para o valor canônico do enum CENTROS
+// Mapeia qualquer variação legada para o valor canônico do enum do banco
 function normalizeCentroCusto(value) {
   if (!value) return ''
   const v = String(value).trim()
-  const upper = v.toUpperCase()
-  if (upper === 'GERAL' || upper === 'GERAL/TRANSVERSAL') return 'Geral'
-  if (upper === 'MIS' || upper === 'MIS BH') return 'MIS'
-  if (upper === 'MUMO') return 'MUMO'
-  if (upper === 'MHAB' || upper === 'MAB') return 'MHAB'
-  if (upper === 'NOTURNO' || upper === 'NOTURNO NOS MUSEUS' || upper === 'NOTURNO NOS MUSEUS 2026' || upper === 'NOTURNO 2026') return 'Noturno nos Museus 2026'
-  if (upper === 'NOTURNO PAMPULHA') return 'Noturno Pampulha'
-  if (upper === 'PUBLICAÇÕES' || upper === 'PUBLICACOES') return 'Publicações'
-  // Se já é um valor canônico, retorna como está
+  // Já é canônico → retorna direto (evita transformações desnecessárias)
   if (CENTROS.includes(v)) return v
+  const upper = v.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  if (upper === 'GERAL' || upper === 'GERAL/TRANSVERSAL' || upper === 'ATUACAO GERAL') return 'Geral'
+  if (upper === 'MIS' || upper === 'MIS BH' || upper.includes('IMAGEM E SOM')) return 'MIS'
+  if (upper === 'MUMO' || upper.includes('MODA')) return 'MUMO'
+  if (upper === 'MHAB' || upper === 'MAB' || upper.includes('ABILIO')) return 'MHAB'
+  if (upper === 'NOTURNO PAMPULHA' || upper.includes('PAMPULHA')) return 'Noturno Pampulha'
+  // "Noturno 2026", "Noturno nos Museus", "Noturno" → canônico do banco
+  if (upper.includes('NOTURNO')) return 'Noturno nos Museus 2026'
+  if (upper === 'PUBLICACOES' || upper === 'PUBLICACOES') return 'Publicações'
+  // Fallback: retorna o valor original sem transformar para não corromper
   return v
 }
 const MUSEUS_RATEIO = ['MHAB', 'MIS', 'MUMO']

@@ -92,20 +92,15 @@ function fmtBRL(v) {
 function normalizeCentro(value) {
   const raw = String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
   if (!raw) return '';
-  if (raw === 'mis') return 'MIS';
-  if (raw === 'mhab') return 'MHAB';
-  if (raw === 'mumo') return 'MUMO';
-  if (raw === 'geral' || raw === 'atuação geral' || raw === 'atuacao geral') return 'Geral';
+  if (raw === 'mis' || raw === 'mis bh' || raw.includes('imagem e som')) return 'MIS';
+  if (raw === 'mhab' || raw === 'mab' || raw.includes('abilio')) return 'MHAB';
+  if (raw === 'mumo' || raw.includes('moda')) return 'MUMO';
+  if (raw === 'geral' || raw === 'geral/transversal' || raw === 'atuacao geral') return 'Geral';
   if (raw === 'rateado') return 'Rateado';
-  if (raw === 'publicacoes') return 'Publicações';
-  if (raw === 'noturno nos museus 2026' || raw === 'noturno nos museus') return 'Noturno 2026';
-  if (raw === 'noturno 2026') return 'Noturno 2026';
-  if (raw === 'noturno pampulha') return 'Noturno Pampulha';
+  if (raw === 'publicacoes' || raw === 'publicações') return 'Publicações';
   if (raw.includes('pampulha')) return 'Noturno Pampulha';
-  if (raw.includes('noturno')) return 'Noturno 2026';
-  if (raw.includes('imagem e som')) return 'MIS';
-  if (raw.includes('abilio barreto')) return 'MHAB';
-  if (raw.includes('moda')) return 'MUMO';
+  // "Noturno 2026" (legado) e "Noturno nos Museus 2026" (canônico atual) → mesmo bucket
+  if (raw.includes('noturno')) return 'Noturno nos Museus 2026';
   return String(value || '').trim();
 }
 
@@ -252,7 +247,7 @@ function categorizeSolicitacoes(purchases) {
       if (centro === 'MHAB') categories.mhab.push(p);else
       if (centro === 'MIS') categories.mis.push(p);else
       if (centro === 'MUMO') categories.mumo.push(p);else
-      if (centro === 'Noturno 2026') categories.noturno2026.push(p);else
+      if (centro === 'Noturno nos Museus 2026') categories.noturno2026.push(p);else
       if (centro === 'Noturno Pampulha') categories.noturnoPampulha.push(p);else
       categories.geral.push(p);
     }
