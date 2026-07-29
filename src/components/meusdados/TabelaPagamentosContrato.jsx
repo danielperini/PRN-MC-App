@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Badge } from '@/components/ui/badge';
 import { ExternalLink, AlertCircle, TrendingUp, CheckCircle2, Clock } from 'lucide-react';
+import NFsSolicitacoesMuseuSection from '@/components/meus-dados/NFsSolicitacoesMuseuSection';
 
 function fmtBRL(v) {
   return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -83,7 +84,7 @@ function SummaryCard({ icon: Icon, label, value, colorClass }) {
   );
 }
 
-export default function TabelaPagamentosContrato({ targetEmail }) {
+export default function TabelaPagamentosContrato({ targetEmail, teamMember, museuVinculado, targetName }) {
   const { data: members = [] } = useQuery({
     queryKey: ['team-member-pagamentos', targetEmail],
     queryFn: () => base44.entities.TeamMember.filter({ user_email: targetEmail }),
@@ -102,9 +103,18 @@ export default function TabelaPagamentosContrato({ targetEmail }) {
 
   if (!member) {
     return (
-      <div className="flex items-center gap-2 text-sm text-muted-foreground py-6">
-        <AlertCircle className="w-4 h-4" />
-        Nenhum vínculo contratual encontrado.
+      <div className="space-y-6">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground py-6">
+          <AlertCircle className="w-4 h-4" />
+          Nenhum vínculo contratual encontrado.
+        </div>
+        {museuVinculado && (
+          <NFsSolicitacoesMuseuSection
+            targetEmail={targetEmail}
+            museuVinculado={museuVinculado}
+            targetName={targetName}
+          />
+        )}
       </div>
     );
   }
@@ -162,6 +172,14 @@ export default function TabelaPagamentosContrato({ targetEmail }) {
   return (
     <div className="space-y-5">
       {/* Info do contrato */}
+      {/* Seção financeira do museu (NFs + Solicitações) */}
+      {museuVinculado && (
+        <NFsSolicitacoesMuseuSection
+          targetEmail={targetEmail}
+          museuVinculado={museuVinculado}
+          targetName={targetName}
+        />
+      )}
       {(member.data_inicio_contrato || member.data_fim_contrato || member.contrato_num_parcelas) && (
         <div className="flex flex-wrap gap-3 text-sm">
           {member.data_inicio_contrato && (
