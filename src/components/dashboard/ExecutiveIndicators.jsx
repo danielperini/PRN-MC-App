@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { Activity, Wallet, BarChart3, CalendarDays, MapPin } from 'lucide-react';
 import { useCurrentUser } from '@/components/auth/useCurrentUser';
 import { consolidateOfficialDashboardMetrics } from '@/utils/auditoria/institutionalMetrics';
+import DrillDownSheet from '@/components/dashboard/DrillDownSheet';
 
 const MONTH_ORDER = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const MUSEUS = ['MIS', 'MHAB', 'MUMO'];
@@ -56,9 +57,12 @@ function getProgramacaoMuseu(item) {
   return item?.museu || item?.centro_custo || item?.local_museu || item?.equipamento || item?.local || 'Museus Centro';
 }
 
-function KpiCard({ label, value, icon: Icon, highlight = false, helper }) {
+function KpiCard({ label, value, icon: Icon, highlight = false, helper, onClick }) {
   return (
-    <div className={`p-5 border rounded-2xl transition-all shadow-sm min-w-[190px] ${highlight ? 'border-primary bg-primary text-primary-foreground shadow-md' : 'border-border bg-card hover:shadow-md'}`}>
+    <div
+      onClick={onClick}
+      className={`p-5 border rounded-2xl transition-all shadow-sm min-w-[190px] ${highlight ? 'border-primary bg-primary text-primary-foreground shadow-md' : 'border-border bg-card hover:shadow-md'} ${onClick ? 'cursor-pointer hover:ring-2 hover:ring-primary/40' : ''}`}
+    >
       <div className="flex items-center gap-2 mb-3 min-w-0">
         {Icon && <Icon className={`w-5 h-5 flex-shrink-0 ${highlight ? 'text-primary-foreground' : 'text-muted-foreground'}`} />}
         <span className={`text-sm font-semibold uppercase tracking-wide truncate ${highlight ? 'text-primary-foreground/85' : 'text-muted-foreground'}`}>{label}</span>
@@ -111,6 +115,7 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [] }) {
   const [agendaItems, setAgendaItems] = React.useState([]);
   const [agendaDate, setAgendaDate] = React.useState(null);
   const [agendaIndex, setAgendaIndex] = React.useState(0);
+  const [drillDown, setDrillDown] = React.useState(null);
   const { user } = useCurrentUser();
   const isCoordenador = user?.role === 'COORDENADOR' || user?.base_role === 'COORDENADOR';
   const officialMetrics = React.useMemo(() => consolidateOfficialDashboardMetrics({ reports, rubricas }), [reports, rubricas]);
@@ -174,6 +179,11 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [] }) {
   const percentual = officialMetrics.financeiro?.percentualExecucao || 0;
   const fmtBRL = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
+  const approvedReports = React.useMemo(
+    () => reports.filter(r => ['SUBMITTED', 'IN_REVIEW', 'APPROVED', 'ARCHIVED'].includes(r.status)),
+    [reports]
+  );
+
   return (
     <div className="mt-8 space-y-5">
       <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -185,11 +195,58 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [] }) {
 
       <div className="flex justify-center">
         <div className="grid w-fit mx-auto grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 justify-center">
-          <KpiCard label={`Atividades ${ultimoMes.mes}`} value={fmtInt(ultimoMes.atividades)} icon={Activity} highlight helper="relatórios aprovados" />
-          <KpiCard label="Atividades previstas" value={fmtInt(atividadesPrevistasMes)} icon={CalendarDays} highlight helper="mês atual na agenda" />
+          <KpiCard
+            label={`Atividades ${ultimoMes.mes}`}
+            value={fmtInt(ultimoMes.atividades)}
+            icon={Activity}
+            highlight
+            helper="relatórios aprovados"
+            onClick={() => setDrillDown({
+              title: `Atividades — ${ultimoMes.mes}`,
+              value: fmtInt(ultimoMes.atividades),
+              sourceBadges: ['Relatórios', 'Atividades'],
+              type: 'relatorios',
+              reports: approvedReports,
+            })}
+          />
+          <KpiCard
+            label="Atividades previstas"
+            value={fmtInt(atividadesPrevistasMes)}
+            icon={CalendarDays}
+            highlight
+            helper="mês atual na agenda"
+          />
           <AgendaKpiCard agendaItems={agendaItems} agendaDate={agendaDate} agendaIndex={agendaIndex} />
-          {isCoordenador && <KpiCard label="Execução" value={`${percentual.toFixed(1)}%`} icon={BarChart3} helper="orçamento utilizado" />}
-          {isCoordenador && <KpiCard label="Utilizado" value={fmtBRL(totalUtilizado)} icon={Wallet} helper="valor realizado" />}
+          {isCoordenador && (
+            <KpiCard
+              label="Execução"
+              value={`${percentual.toFixed(1)}%`}
+              icon={BarChart3}
+              helper="orçamento utilizado"
+              onClick={() => setDrillDown({
+                title: 'Execução Orçamentária',
+                value: `${percentual.toFixed(1)}%`,
+                sourceBadges: ['Rubricas', 'Compras'],
+                type: 'orcamento',
+                rubricas,
+              })}
+            />
+          )}
+          {isCoordenador && (
+            <KpiCard
+              label="Utilizado"
+              value={fmtBRL(totalUtilizado)}
+              icon={Wallet}
+              helper="valor realizado"
+              onClick={() => setDrillDown({
+                title: 'Valor Utilizado',
+                value: fmtBRL(totalUtilizado),
+                sourceBadges: ['Rubricas', 'Compras'],
+                type: 'orcamento',
+                rubricas,
+              })}
+            />
+          )}
         </div>
       </div>
 
@@ -198,6 +255,12 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [] }) {
         <CardSection title="Público por Mês" empty={activitiesByMonth.length === 0}>{activitiesByMonth.map((m) => <MiniBar key={m.mes} label={m.mes} value={m.publico} max={maxPub} color="bg-chart-secondary" />)}</CardSection>
         <CardSection title="Comparativo por Museu" empty={false}>{MUSEUS.map((museu) => <MiniBar key={museu} label={museu} value={0} max={1} color="bg-muted" />)}</CardSection>
       </div>
+
+      <DrillDownSheet
+        open={!!drillDown}
+        onClose={() => setDrillDown(null)}
+        config={drillDown}
+      />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend
 } from 'recharts';
 import { Target, ChevronDown, ChevronUp } from 'lucide-react';
+import DrillDownSheet from '@/components/dashboard/DrillDownSheet';
 
 const MUSEUS = ['MUMO', 'MIS', 'MHAB'];
 const MUSEU_COLORS = { MUMO: '#1e293b', MIS: '#475569', MHAB: '#94a3b8' };
@@ -92,6 +93,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 export default function MetasCumprimentoPorMuseu({ rubricas = [] }) {
   const [expanded, setExpanded] = useState(true);
+  const [drillDown, setDrillDown] = useState(null);
 
   // --- Solicitações de compra aprovadas/pagas (execução financeira real) ---
   const { data: purchases = [] } = useQuery({
@@ -110,24 +112,26 @@ export default function MetasCumprimentoPorMuseu({ rubricas = [] }) {
     staleTime: 1000 * 60 * 3,
   });
 
-  // --- Atividades dentro dos relatórios (fallback / complemento) ---
-  const { data: reportActivities = [] } = useQuery({
-    queryKey: ['dashboard-metas-report-activities'],
-    queryFn: async () => {
-      const reports = await base44.entities.Report.filter(
-        { status: { $in: ['SUBMITTED', 'IN_REVIEW', 'APPROVED', 'ARCHIVED'] } },
-        '-created_date', 300
-      );
-      const all = [];
-      for (const r of (Array.isArray(reports) ? reports : [])) {
-        for (const a of (Array.isArray(r.atividades) ? r.atividades : [])) {
-          all.push({ ...a, _museu: r.museu });
-        }
-      }
-      return all;
-    },
+  // --- Relatórios (para drill-down por museu) ---
+  const { data: allReports = [] } = useQuery({
+    queryKey: ['dashboard-metas-all-reports'],
+    queryFn: () => base44.entities.Report.filter(
+      { status: { $in: ['SUBMITTED', 'IN_REVIEW', 'APPROVED', 'ARCHIVED'] } },
+      '-created_date', 300
+    ),
     staleTime: 1000 * 60 * 5,
   });
+
+  // --- Atividades dentro dos relatórios (fallback / complemento) ---
+  const reportActivities = useMemo(() => {
+    const all = [];
+    for (const r of allReports) {
+      for (const a of (Array.isArray(r.atividades) ? r.atividades : [])) {
+        all.push({ ...a, _museu: r.museu });
+      }
+    }
+    return all;
+  }, [allReports]);
 
   // ── Execução financeira por museu ──────────────────────────────────────────
   // Usa: 1) rubricas (valor_utilizado) 2) purchases (valor_pago / valor_aprovado_admin)
@@ -232,7 +236,19 @@ export default function MetasCumprimentoPorMuseu({ rubricas = [] }) {
             </p>
             <div className="grid grid-cols-3 gap-4">
               {gaugesPorMuseu.map(g => (
-                <div key={g.museu} className="flex flex-col items-center gap-2 rounded-xl border border-slate-100 p-4 bg-slate-50">
+                <button
+                  key={g.museu}
+                  type="button"
+                  onClick={() => setDrillDown({
+                    title: `Museu ${g.museu}`,
+                    value: `Score: ${g.score}%`,
+                    sourceBadges: ['Relatórios', 'Público', 'Atividades'],
+                    type: 'museu',
+                    museu: g.museu,
+                    reports: allReports,
+                  })}
+                  className="flex flex-col items-center gap-2 rounded-xl border border-slate-100 p-4 bg-slate-50 cursor-pointer hover:ring-2 hover:ring-slate-300 hover:bg-white transition-all text-left w-full"
+                >
                   <span className="text-sm font-bold text-slate-800">{g.museu}</span>
                   <GaugeCircle value={g.score} color={MUSEU_COLORS[g.museu]} size={80} />
                   <div className="w-full space-y-1.5 mt-1">
@@ -253,7 +269,7 @@ export default function MetasCumprimentoPorMuseu({ rubricas = [] }) {
                       </div>
                     </div>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -344,6 +360,12 @@ export default function MetasCumprimentoPorMuseu({ rubricas = [] }) {
 
         </div>
       )}
+
+      <DrillDownSheet
+        open={!!drillDown}
+        onClose={() => setDrillDown(null)}
+        config={drillDown}
+      />
     </div>
   );
 }

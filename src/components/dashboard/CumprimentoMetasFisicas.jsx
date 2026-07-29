@@ -1,13 +1,12 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { CheckCircle2, AlertCircle, TrendingUp, Users } from 'lucide-react';
 import { isRelatorioNoPeriodo } from '@/hooks/useMetasPeriodoFiltro';
+import DashboardDrilldownSheet, { SectionTitle, RowItem, MuseuBreakdown } from './DashboardDrilldownSheet';
 
-// Metas com quantitativos físicos definidos no Plano de Trabalho (3º + 4º Aditivo)
-// META 16, 11, 11B são puramente financeiras — não aparecem neste painel físico
 const METAS_FISICAS = [
-  { numero: '20', titulo: '30 ações educativas e/ou culturais',    meta: 30,  tipo: 'educativa',  periodo: 'mês 19–28' },
+  { numero: '20', titulo: '30 ações educativas e/ou culturais', meta: 30, tipo: 'educativa', periodo: 'mês 19–28' },
 ];
 
 const MUSEUS_ORDEM = ['MHAB', 'MIS', 'MUMO', 'Geral'];
@@ -37,7 +36,6 @@ function classifyActivity(a) {
   const class_ = (a.classificacao || '').toLowerCase();
   const metaCod = (a.meta_codigo || a.meta_id || '').toLowerCase();
 
-  // Excluir explicitamente Noturno (11, 11B) e Diárias (16) do somatório da META 20
   if (metaCod.includes('11') || nome.includes('noturno') || metaCod.includes('16') || nome.includes('diária') || nome.includes('diaria')) return null;
   if (nome.includes('iemanjá') || nome.includes('iemanja') || metaCod.includes('19')) return '19';
   if (metaCod.includes('20') || metaCod.includes('10') || nome.includes('mostra') || tipo.includes('mostra')) return '20';
@@ -53,12 +51,10 @@ function getMuseu(a) {
   return a.museu || 'Geral';
 }
 
-/**
- * Props:
- *  - dataInicio: { mes: string, ano: number } — opcional; se omitido, conta tudo
- *  - dataFim:    { mes: string, ano: number } — opcional
- */
 export default function CumprimentoMetasFisicas({ dataInicio, dataFim }) {
+  const [sheetMeta, setSheetMeta] = useState(null);   // número da meta ou null
+  const [sheetMuseu, setSheetMuseu] = useState(null); // museu filtro ou null (all)
+
   const { data: relatorios = [], isLoading } = useQuery({
     queryKey: ['reports-para-metas-fisicas'],
     queryFn: () => base44.entities.Report.filter(
@@ -69,7 +65,6 @@ export default function CumprimentoMetasFisicas({ dataInicio, dataFim }) {
     staleTime: 60000,
   });
 
-  // Filtrar relatórios por período se filtro passado
   const relatoriosFiltrados = useMemo(() => {
     if (!dataInicio || !dataFim) return relatorios;
     return relatorios.filter(r => isRelatorioNoPeriodo(r.mes_referencia, r.ano, dataInicio, dataFim));
@@ -79,7 +74,7 @@ export default function CumprimentoMetasFisicas({ dataInicio, dataFim }) {
     const arr = [];
     for (const r of relatoriosFiltrados) {
       for (const a of (r.atividades || [])) {
-        arr.push({ ...a, _museu: getMuseu(a) });
+        arr.push({ ...a, _museu: getMuseu(a), _relatorio: r });
       }
     }
     return arr;
@@ -91,7 +86,6 @@ export default function CumprimentoMetasFisicas({ dataInicio, dataFim }) {
       counts[meta.numero] = { total: 0, porMuseu: {} };
       for (const m of MUSEUS_ORDEM) counts[meta.numero].porMuseu[m] = 0;
     }
-
     for (const a of todasAtividades) {
       const key = classifyActivity(a);
       if (!key || !counts[key]) continue;
@@ -99,7 +93,6 @@ export default function CumprimentoMetasFisicas({ dataInicio, dataFim }) {
       const museu = MUSEUS_ORDEM.includes(a._museu) ? a._museu : 'Geral';
       counts[key].porMuseu[museu] = (counts[key].porMuseu[museu] || 0) + 1;
     }
-
     return counts;
   }, [todasAtividades]);
 
@@ -114,6 +107,50 @@ export default function CumprimentoMetasFisicas({ dataInicio, dataFim }) {
     return tot;
   }, [stats]);
 
+  // Resumo por relatório para drill-down
+  const resumoRelatoriosPorMeta = useMemo(() => {
+    const map = {};
+    for (const a of todasAtividades) {
+      const key = classifyActivity(a);
+      if (!key) continue;
+      const r = a._relatorio;
+      if (!r) continue;
+      const rid = r.id;
+      if (!map[rid]) {
+        map[rid] = {
+          autor: r.author_name || 'Profissional',
+          museu: r.museu || '—',
+          mes: r.mes_referencia || '—',
+          ano: r.ano || '',
+          status: r.status,
+          contagens: {},
+        };
+      }
+      map[rid].contagens[key] = (map[rid].contagens[key] || 0) + 1;
+    }
+    return map;
+  }, [todasAtividades]);
+
+  const openSheet = (metaNumero, museu = null) => {
+    setSheetMeta(metaNumero);
+    setSheetMuseu(museu);
+  };
+
+  const closeSheet = () => { setSheetMeta(null); setSheetMuseu(null); };
+
+  const sheetRelatorios = useMemo(() => {
+    if (!sheetMeta) return [];
+    return Object.values(resumoRelatoriosPorMeta)
+      .filter(r => (r.contagens[sheetMeta] || 0) > 0)
+      .filter(r => !sheetMuseu || r.museu === sheetMuseu)
+      .sort((a, b) => (b.contagens[sheetMeta] || 0) - (a.contagens[sheetMeta] || 0));
+  }, [sheetMeta, sheetMuseu, resumoRelatoriosPorMeta]);
+
+  const sheetPorMuseu = useMemo(() => {
+    if (!sheetMeta) return {};
+    return stats[sheetMeta]?.porMuseu || {};
+  }, [sheetMeta, stats]);
+
   if (isLoading) return (
     <div className="flex items-center justify-center py-12 text-slate-500 text-sm">
       Carregando dados de atividades…
@@ -123,6 +160,8 @@ export default function CumprimentoMetasFisicas({ dataInicio, dataFim }) {
   const periodoLabel = dataInicio && dataFim
     ? ` · ${dataInicio.mes}/${dataInicio.ano} – ${dataFim.mes}/${dataFim.ano}`
     : '';
+
+  const cardBase = 'cursor-pointer transition hover:shadow-md hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-black/10';
 
   return (
     <div className="space-y-6">
@@ -140,7 +179,12 @@ export default function CumprimentoMetasFisicas({ dataInicio, dataFim }) {
           const porMuseu = stats[meta.numero]?.porMuseu || {};
 
           return (
-            <div key={meta.numero} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
+            <button
+              key={meta.numero}
+              type="button"
+              onClick={() => openSheet(meta.numero, null)}
+              className={`text-left rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3 ${cardBase}`}
+            >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2">
                   {pct >= 100
@@ -162,17 +206,18 @@ export default function CumprimentoMetasFisicas({ dataInicio, dataFim }) {
                   <span>meta: {meta.meta}</span>
                 </div>
                 <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
-                  <div
-                    className={`h-2 rounded-full transition-all ${barColor(pct)}`}
-                    style={{ width: `${pct}%` }}
-                  />
+                  <div className={`h-2 rounded-full transition-all ${barColor(pct)}`} style={{ width: `${pct}%` }} />
                 </div>
               </div>
 
               {Object.values(porMuseu).some(v => v > 0) && (
                 <div className="grid grid-cols-2 gap-1">
                   {MUSEUS_ORDEM.filter(m => (porMuseu[m] || 0) > 0).map(m => (
-                    <div key={m} className="flex items-center justify-between rounded-lg bg-slate-50 px-2 py-1">
+                    <div
+                      key={m}
+                      onClick={e => { e.stopPropagation(); openSheet(meta.numero, m); }}
+                      className="flex items-center justify-between rounded-lg bg-slate-50 px-2 py-1 hover:bg-slate-100 cursor-pointer"
+                    >
                       <span className="text-[11px] font-medium text-slate-600">{m}</span>
                       <span className="text-[11px] font-bold text-slate-800">{porMuseu[m]}</span>
                     </div>
@@ -181,7 +226,7 @@ export default function CumprimentoMetasFisicas({ dataInicio, dataFim }) {
               )}
 
               <p className="text-[11px] text-slate-400">{meta.periodo}</p>
-            </div>
+            </button>
           );
         })}
       </div>
@@ -196,24 +241,70 @@ export default function CumprimentoMetasFisicas({ dataInicio, dataFim }) {
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {MUSEUS_ORDEM.map(museu => (
-            <div key={museu} className="rounded-xl border border-slate-100 bg-slate-50 p-3 text-center">
+            <button
+              key={museu}
+              type="button"
+              onClick={() => openSheet('20', museu)}
+              className={`rounded-xl border border-slate-100 bg-slate-50 p-3 text-center ${cardBase}`}
+            >
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{museu}</p>
               <p className="text-3xl font-black text-slate-900 mt-1">{acoesPorMuseu[museu] || 0}</p>
               <p className="text-[11px] text-slate-400 mt-0.5">ações</p>
-            </div>
+            </button>
           ))}
         </div>
 
         <div className="mt-4">
-          <div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3">
+          <button
+            type="button"
+            onClick={() => openSheet('20', null)}
+            className={`w-full flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3 ${cardBase}`}
+          >
             <TrendingUp className="h-5 w-5 text-slate-500 flex-shrink-0" />
-            <div className="min-w-0">
+            <div className="min-w-0 text-left">
               <p className="text-xs text-slate-500 truncate">Ações educativas e culturais (Meta 20)</p>
               <p className="text-lg font-bold text-slate-900">{stats['20']?.total || 0} <span className="text-sm font-normal text-slate-400">/ 30</span></p>
             </div>
-          </div>
+          </button>
         </div>
       </div>
+
+      {/* Sheet de drill-down */}
+      {sheetMeta && (
+        <DashboardDrilldownSheet
+          open={!!sheetMeta}
+          onClose={closeSheet}
+          title={sheetMuseu ? `Meta ${sheetMeta} — ${sheetMuseu}` : `Meta ${sheetMeta} — Atividades Realizadas`}
+          value={`${sheetRelatorios.reduce((s, r) => s + (r.contagens[sheetMeta] || 0), 0)} atividades`}
+          fontes={['relatorios']}
+        >
+          {!sheetMuseu && (
+            <>
+              <SectionTitle>Por museu</SectionTitle>
+              <MuseuBreakdown porMuseu={sheetPorMuseu} />
+            </>
+          )}
+
+          <SectionTitle>
+            {sheetRelatorios.length} relatório{sheetRelatorios.length !== 1 ? 's' : ''} contribuindo
+            {sheetMuseu ? ` — ${sheetMuseu}` : ''}
+          </SectionTitle>
+          <div className="space-y-2">
+            {sheetRelatorios.length === 0 && (
+              <p className="text-sm text-slate-400 text-center py-6">Nenhum relatório encontrado</p>
+            )}
+            {sheetRelatorios.map((rel, i) => (
+              <RowItem
+                key={i}
+                label={rel.autor}
+                sub={`${rel.museu} · ${rel.mes} ${rel.ano}`}
+                value={`${rel.contagens[sheetMeta] || 0} atividades`}
+                badge={rel.status === 'APPROVED' ? 'Aprovado' : rel.status === 'SUBMITTED' ? 'Enviado' : rel.status}
+              />
+            ))}
+          </div>
+        </DashboardDrilldownSheet>
+      )}
     </div>
   );
 }
