@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { base44 } from '@/api/base44Client';
 
 function getSaudacao() {
   const hora = new Date().getHours();
@@ -12,16 +13,29 @@ function getPrimeiroNome(fullName) {
   return fullName.trim().split(' ')[0];
 }
 
-/**
- * Exibe um splash de boas-vindas com fade in → espera → fade out.
- * Após o ciclo completo, chama onDone() para o dashboard assumir.
- * Mostra apenas uma vez por sessão.
- */
-export default function WelcomeSplash({ userName, onDone }) {
+function formatEquipe(teamMember) {
+  if (!teamMember) return null;
+  const partes = [teamMember.museu_vinculado, teamMember.tipo_equipe].filter(Boolean);
+  return partes.length > 0 ? partes.join(' · ') : null;
+}
+
+export default function WelcomeSplash({ userName, userEmail, onDone }) {
   const [phase, setPhase] = useState('in'); // 'in' | 'visible' | 'out' | 'done'
+  const [equipe, setEquipe] = useState(null);
+
+  // Busca TeamMember sem bloquear o splash
+  useEffect(() => {
+    if (!userEmail) return;
+    base44.entities.TeamMember.filter({ user_email: userEmail })
+      .then((results) => {
+        if (results?.length > 0) {
+          setEquipe(formatEquipe(results[0]));
+        }
+      })
+      .catch(() => {});
+  }, [userEmail]);
 
   useEffect(() => {
-    // fade in: 600ms → visível 1800ms → fade out 600ms
     const t1 = setTimeout(() => setPhase('visible'), 600);
     const t2 = setTimeout(() => setPhase('out'), 600 + 1800);
     const t3 = setTimeout(() => {
@@ -50,18 +64,25 @@ export default function WelcomeSplash({ userName, onDone }) {
         <p className="text-gray-400 text-lg font-light tracking-widest uppercase">
           {saudacao}{nome ? ',' : ''}
         </p>
+
         {nome && (
           <p className="text-white text-4xl md:text-5xl font-bold tracking-tight">
             {nome}!
           </p>
         )}
+
+        {equipe && (
+          <p className="text-gray-400 text-base font-light">
+            {equipe}
+          </p>
+        )}
+
         <p className="text-gray-300 text-base md:text-lg font-light mt-2">
           Seja bem-vindo ao{' '}
           <span className="text-white font-semibold">Museus Centro App</span>
         </p>
       </div>
 
-      {/* logo / detalhe sutil */}
       <div className="absolute bottom-10 flex items-center gap-2">
         <div className="w-1.5 h-1.5 rounded-full bg-white/30 animate-pulse" />
         <div className="w-1.5 h-1.5 rounded-full bg-white/50 animate-pulse delay-150" />

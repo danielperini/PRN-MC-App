@@ -166,6 +166,19 @@ function DashboardInner() {
   const [showSplash, setShowSplash] = React.useState(() => {
     try { return !sessionStorage.getItem(SPLASH_KEY); } catch { return false; }
   });
+  const [splashTeamInfo, setSplashTeamInfo] = React.useState(null);
+
+  React.useEffect(() => {
+    if (!showSplash || !currentUser?.email) return;
+    base44.entities.TeamMember.filter({ user_email: currentUser.email })
+      .then((members) => {
+        const m = Array.isArray(members) ? members[0] : null;
+        if (!m) return;
+        const parts = [m.museu_vinculado, m.tipo_equipe].filter(Boolean);
+        if (parts.length > 0) setSplashTeamInfo(parts.join(' · '));
+      })
+      .catch(() => {});
+  }, [showSplash, currentUser?.email]);
 
   const handleSplashDone = React.useCallback(() => {
     try { sessionStorage.setItem(SPLASH_KEY, '1'); } catch {}
@@ -483,7 +496,7 @@ function DashboardInner() {
     (isCoordenador && fetchingAll);
 
   if (showSplash) {
-    return <WelcomeSplash userName={currentUser?.full_name} onDone={handleSplashDone} />;
+    return <WelcomeSplash userName={currentUser?.full_name} teamInfo={splashTeamInfo} onDone={handleSplashDone} />;
   }
 
   if (isInitialPageLoading) {
