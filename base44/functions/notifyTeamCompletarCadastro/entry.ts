@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 
-const APP_URL = 'https://app.base44.com';
+const APP_URL = 'https://periniprojetos.com.br';
 
 Deno.serve(async (req) => {
   try {

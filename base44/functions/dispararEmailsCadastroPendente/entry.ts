@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 
-const APP_URL = 'https://app.base44.com/apps/6834f59edf1a8e9c07bdfba2';
+const APP_URL = 'https://periniprojetos.com.br';
 
 const CAMPOS_OBRIGATORIOS = [
   { key: 'cpf', label: 'CPF / CNPJ' },
@@ -86,14 +86,17 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Acesso restrito a coordenadores e admins' }, { status: 403 });
     }
 
+    const reqBody = await req.json().catch(() => ({}));
+    const forceResend = reqBody.force_resend === true;
+
     // Buscar todos os TeamMembers ativos não-observadores
     const members = await base44.asServiceRole.entities.TeamMember.filter({ status: 'ATIVO' }, '', 500).catch(() => []);
 
-    // Calcular janela de deduplicação: última semana
+    // Calcular janela de deduplicação: última semana (ignorada se force_resend)
     const umaSemanAtras = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
 
     // Buscar NotificationLog recentes do tipo TEAM_COMPLETAR_CADASTRO
-    const logsRecentes = await base44.asServiceRole.entities.NotificationLog.filter({
+    const logsRecentes = forceResend ? [] : await base44.asServiceRole.entities.NotificationLog.filter({
       notification_type: 'TEAM_COMPLETAR_CADASTRO',
     }, '-sent_at', 500).catch(() => []);
 
