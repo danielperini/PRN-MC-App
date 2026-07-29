@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
     }
 
     // Buscar pendentes do slot atual
-    const pendingItems = await base44.entities.PurchaseNotificationQueue.filter({
+    const pendingItems = await base44.asServiceRole.entities.PurchaseNotificationQueue.filter({
       status: 'pendente_lote',
       batch_slot: batchSlot
     });
@@ -151,7 +151,7 @@ Deno.serve(async (req) => {
 
     // Atualizar registros como enviados
     const updatePromises = pendingItems.map(item =>
-      base44.entities.PurchaseNotificationQueue.update(item.id, {
+      base44.asServiceRole.entities.PurchaseNotificationQueue.update(item.id, {
         status: 'enviado',
         sent_at: now.toISOString(),
         digest_id: digestId
@@ -174,9 +174,8 @@ Deno.serve(async (req) => {
     console.error('Erro ao processar lote de notificações:', error);
     
     // Marcar itens com erro
-    const batchSlot = error.message.includes('manha') ? 'manha' : 'tarde';
-    await base44.entities.PurchaseNotificationQueue.updateMany(
-      { status: 'pendente_lote', batch_slot: batchSlot },
+    await base44.asServiceRole.entities.PurchaseNotificationQueue.updateMany(
+      { status: 'pendente_lote' },
       { $set: { status: 'erro', error_message: error.message } }
     );
 

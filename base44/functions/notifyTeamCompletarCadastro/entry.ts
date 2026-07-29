@@ -5,17 +5,34 @@ const APP_URL = 'https://app.base44.com';
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    if (user.role !== 'admin' && user.role !== 'COORDENADOR') {
+    const user = await base44.auth.me().catch(() => null);
+
+    // Permite chamada de automação (sem user) ou por admin/coordenador
+    if (user && !['admin', 'coordenador', 'coordinator'].includes((user.role || '').toLowerCase())) {
       return Response.json({ error: 'Acesso restrito a coordenadores e admins' }, { status: 403 });
     }
 
-    const body = await req.json();
-    const { usuarios } = body;
+    const body = await req.json().catch(() => ({}));
+
+    // Suporte à chamada de entity automation (payload com event + data)
+    let usuarios = body.usuarios;
+    if (!usuarios && body.event && body.data) {
+      const m = body.data;
+      const role = (m.role || m.funcao_institucional || '').toLowerCase();
+      if (role.includes('observador') || role.includes('observer')) {
+        return Response.json({ success: true, message: 'Observador ignorado' });
+      }
+      const camposFaltantes = [];
+      if (!m.cpf && !m.cnpj) camposFaltantes.push('CPF / CNPJ');
+      if (!m.banco) camposFaltantes.push('Banco');
+      if (!m.pix_key) camposFaltantes.push('Chave PIX');
+      if (!m.telefone && !m.celular) camposFaltantes.push('Telefone / Celular');
+      if (!m.contrato_url) camposFaltantes.push('Contrato assinado');
+      usuarios = [{ email: m.user_email, nome: m.user_name, campos_faltantes: camposFaltantes }];
+    }
 
     if (!Array.isArray(usuarios) || usuarios.length === 0) {
-      return Response.json({ error: 'Lista de usuários vazia' }, { status: 400 });
+      return Response.json({ success: true, message: 'Nenhum usuário para notificar' });
     }
 
     let enviados = 0;
