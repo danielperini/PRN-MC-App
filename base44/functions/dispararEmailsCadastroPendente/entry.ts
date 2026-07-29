@@ -45,9 +45,11 @@ function buildEmail(nome, temContrato, camposFaltantes) {
        </ol>`;
 
   const botoes = temContrato
-    ? `<a href="${APP_URL}/MeusDados" style="display:inline-block;background:#111;color:#fff;padding:10px 22px;border-radius:6px;text-decoration:none;font-size:14px;margin:4px 4px 4px 0;">Acessar minha Sala →</a>`
+    ? `<a href="${APP_URL}/MeusDados" style="display:inline-block;background:#111;color:#fff;padding:10px 22px;border-radius:6px;text-decoration:none;font-size:14px;margin:4px 4px 4px 0;">Acessar minha Sala →</a>
+       <a href="${APP_URL}/Agenda" style="display:inline-block;background:#0369a1;color:#fff;padding:10px 22px;border-radius:6px;text-decoration:none;font-size:14px;margin:4px;">Ver Agenda →</a>`
     : `<a href="${APP_URL}/MeusDados" style="display:inline-block;background:#111;color:#fff;padding:10px 22px;border-radius:6px;text-decoration:none;font-size:14px;margin:4px 4px 4px 0;">Acessar minha Sala →</a>
-       <a href="${APP_URL}/EntradaUnica" style="display:inline-block;background:#6d28d9;color:#fff;padding:10px 22px;border-radius:6px;text-decoration:none;font-size:14px;margin:4px;">Enviar Contrato →</a>`;
+       <a href="${APP_URL}/EntradaUnica" style="display:inline-block;background:#6d28d9;color:#fff;padding:10px 22px;border-radius:6px;text-decoration:none;font-size:14px;margin:4px;">Enviar Contrato →</a>
+       <a href="${APP_URL}/Agenda" style="display:inline-block;background:#0369a1;color:#fff;padding:10px 22px;border-radius:6px;text-decoration:none;font-size:14px;margin:4px;">Ver Agenda →</a>`;
 
   return `<!DOCTYPE html>
 <html lang="pt-BR">

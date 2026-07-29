@@ -78,6 +78,7 @@ ${campos_faltantes.length > 0 ? `
 <div style="margin:24px 0;">
   <a href="${APP_URL}/MeusDados" class="btn">Completar Meus Dados</a>
   <a href="${APP_URL}/EntradaUnica" class="btn" style="background:#6d28d9;">Fazer Upload do Contrato</a>
+  <a href="${APP_URL}/Agenda" class="btn" style="background:#0369a1;">Ver Agenda</a>
 </div>
 
 <div class="box">
