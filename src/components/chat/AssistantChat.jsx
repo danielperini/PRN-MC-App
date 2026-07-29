@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { MessageCircle, X, Send, Minimize2, Maximize2, BookOpen, FileText } from 'lucide-react';
+import { MessageCircle, X, Send, Minimize2, Maximize2, BookOpen, FileText, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import BuscaCompras from './BuscaCompras';
 
 const MANUAL_KEYWORDS = [
   'manual',
@@ -206,6 +207,7 @@ function dedupe(items, getKey) {
 export default function AssistantChat() {
   const [open, setOpen] = useState(false);
   const [minimized, setMinimized] = useState(false);
+  const [activeTab, setActiveTab] = useState('chat');
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
@@ -692,24 +694,41 @@ ${textToSend}
 
   return (
     <div
-      className={`fixed bottom-6 right-6 ${minimized ? 'h-16' : 'h-96'} w-80 md:w-96 bg-white border rounded-xl flex flex-col shadow-xl z-50`}
+      className={`fixed bottom-6 right-6 ${minimized ? 'h-16' : 'h-[480px]'} w-80 md:w-96 bg-white border rounded-xl flex flex-col shadow-xl z-50`}
     >
-      <div className="flex justify-between items-center p-2 border-b bg-gray-50 rounded-t-xl">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-sm">Assistente</span>
-          <div className="flex items-center gap-1 text-[10px] text-gray-500">
-            <BookOpen className="w-3 h-3" />
-            <span>Biblioteca</span>
-            <FileText className="w-3 h-3 ml-1" />
-            <span>+5 fontes</span>
-          </div>
+      {/* Header */}
+      <div className="flex justify-between items-center px-3 pt-2 pb-0 bg-gray-50 rounded-t-xl border-b">
+        <div className="flex items-center gap-3">
+          {/* Abas estilo underline */}
+          <button
+            onClick={() => setActiveTab('chat')}
+            className={`flex items-center gap-1 text-sm pb-2 border-b-2 transition-colors ${
+              activeTab === 'chat'
+                ? 'border-black text-black font-semibold'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <MessageCircle className="w-3.5 h-3.5" />
+            Chat
+          </button>
+          <button
+            onClick={() => setActiveTab('busca')}
+            className={`flex items-center gap-1 text-sm pb-2 border-b-2 transition-colors ${
+              activeTab === 'busca'
+                ? 'border-black text-black font-semibold'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <Search className="w-3.5 h-3.5" />
+            Busca
+          </button>
         </div>
 
-        <div className="flex gap-1">
-          <Button variant="ghost" size="icon" onClick={() => setMinimized(!minimized)}>
+        <div className="flex gap-1 pb-1">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setMinimized(!minimized)}>
             {minimized ? <Maximize2 className="w-4 h-4" /> : <Minimize2 className="w-4 h-4" />}
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => setOpen(false)}>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setOpen(false)}>
             <X className="w-4 h-4" />
           </Button>
         </div>
@@ -717,42 +736,48 @@ ${textToSend}
 
       {!minimized && (
         <>
-          <div className="flex-1 overflow-auto p-3 space-y-2">
-            {messages.map((m, i) => (
-              <div key={i} className={m.role === 'user' ? 'text-right' : ''}>
-                <div
-                  className={`inline-block p-2 rounded max-w-[88%] text-sm whitespace-pre-wrap ${
-                    m.role === 'user'
-                      ? 'bg-black text-white'
-                      : 'bg-gray-100 text-gray-900'
-                  }`}
-                >
-                  {m.content}
-                </div>
+          {activeTab === 'chat' ? (
+            <>
+              <div className="flex-1 overflow-auto p-3 space-y-2">
+                {messages.map((m, i) => (
+                  <div key={i} className={m.role === 'user' ? 'text-right' : ''}>
+                    <div
+                      className={`inline-block p-2 rounded max-w-[88%] text-sm whitespace-pre-wrap ${
+                        m.role === 'user'
+                          ? 'bg-black text-white'
+                          : 'bg-gray-100 text-gray-900'
+                      }`}
+                    >
+                      {m.content}
+                    </div>
+                  </div>
+                ))}
+
+                {loading && (
+                  <div className="text-sm text-gray-500 bg-gray-100 rounded inline-block p-2">
+                    Buscando em programação, compras, rubricas, equipe e biblioteca...
+                  </div>
+                )}
+
+                <div ref={messagesEndRef} />
               </div>
-            ))}
 
-            {loading && (
-              <div className="text-sm text-gray-500 bg-gray-100 rounded inline-block p-2">
-                Buscando em programação, compras, rubricas, equipe e biblioteca...
+              <div className="flex p-2 gap-2 border-t">
+                <Input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                  disabled={loading}
+                  placeholder="Pergunte sobre programação, compras, rubricas, equipe, etc"
+                />
+                <Button onClick={() => handleSend()} disabled={loading || !input.trim()}>
+                  <Send className="w-4 h-4" />
+                </Button>
               </div>
-            )}
-
-            <div ref={messagesEndRef} />
-          </div>
-
-          <div className="flex p-2 gap-2 border-t">
-            <Input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-              disabled={loading}
-              placeholder="Pergunte sobre programação, compras, rubricas, equipe, etc"
-            />
-            <Button onClick={() => handleSend()} disabled={loading || !input.trim()}>
-              <Send className="w-4 h-4" />
-            </Button>
-          </div>
+            </>
+          ) : (
+            <BuscaCompras />
+          )}
         </>
       )}
     </div>
