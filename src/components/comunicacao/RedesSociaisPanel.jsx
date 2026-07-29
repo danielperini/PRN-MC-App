@@ -10,11 +10,6 @@ const MUSEUS_INSTAGRAM = [
     handle: '@museuabiliobarretobh',
     url: 'https://www.instagram.com/museuabiliobarretobh/reels/',
     bio: 'Museu histórico no coração de BH, guardando a memória da cidade desde 1943. Cultura, patrimônio e identidade.',
-    posts: [
-      'https://placehold.co/300x300/f5f0eb/7c6f5e?text=MHAB+1',
-      'https://placehold.co/300x300/ede8e1/7c6f5e?text=MHAB+2',
-      'https://placehold.co/300x300/e8e2da/7c6f5e?text=MHAB+3',
-    ],
   },
   {
     museu: 'MUMO',
@@ -22,11 +17,6 @@ const MUSEUS_INSTAGRAM = [
     handle: '@museudamodabh',
     url: 'https://www.instagram.com/museudamodabh/',
     bio: 'Moda como expressão cultural e histórica. Acervo, exposições e programação para quem ama arte e vestimenta.',
-    posts: [
-      'https://placehold.co/300x300/fdf0f8/9b5ea2?text=MUMO+1',
-      'https://placehold.co/300x300/f9e8f6/9b5ea2?text=MUMO+2',
-      'https://placehold.co/300x300/f4e0f2/9b5ea2?text=MUMO+3',
-    ],
   },
   {
     museu: 'MIS BH',
@@ -34,11 +24,6 @@ const MUSEUS_INSTAGRAM = [
     handle: '@museudaimagemedosombh',
     url: 'https://www.instagram.com/museudaimagemedosombh/',
     bio: 'Imagem, som e memória audiovisual de Belo Horizonte. Exposições, mostras e acervo do MIS BH.',
-    posts: [
-      'https://placehold.co/300x300/e8f0fe/4a6fa5?text=MIS+1',
-      'https://placehold.co/300x300/dde8fc/4a6fa5?text=MIS+2',
-      'https://placehold.co/300x300/d2e0f9/4a6fa5?text=MIS+3',
-    ],
   },
 ];
 
@@ -108,25 +93,6 @@ function InstagramMuseuCard({ museu }) {
 
         {/* Bio */}
         <p className="text-xs text-gray-500 leading-relaxed">{museu.bio}</p>
-
-        {/* Grade de posts 3×1 */}
-        <div className="grid grid-cols-3 gap-1">
-          {museu.posts.map((src, i) => (
-            <a
-              key={i}
-              href={museu.url}
-              target="_blank"
-              rel="noreferrer"
-              className="aspect-square overflow-hidden rounded-lg block group"
-            >
-              <img
-                src={src}
-                alt={`Post ${i + 1} — ${museu.handle}`}
-                className="w-full h-full object-cover group-hover:opacity-80 transition-opacity"
-              />
-            </a>
-          ))}
-        </div>
 
         {/* Botão */}
         <a
