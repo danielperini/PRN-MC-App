@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { Search, UserPlus, Save, Users, KeyRound, Pencil, Trash2, Clock3, LogIn } from 'lucide-react';
+import { Search, UserPlus, Save, Users, KeyRound, Pencil, Trash2, Clock3, LogIn, Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import InviteDialog from '@/components/users/InviteDialog';
 import { normalizeEmail, revokeUserAccess } from '@/utils/auth/recoverExistingUserAccess';
@@ -357,20 +357,70 @@ function UserCard({
   );
 }
 
-function PendingRegistrationCard({ registration, onApprove, onReject, busy }) {
-  const role = registration.base_role || registration.role || 'PROFISSIONAL';
+function PendingRegistrationCard({ registration, onApprove, onReject, busyId, selectedRole, onRoleChange }) {
+  const defaultRole = registration.base_role || registration.role || 'PROFISSIONAL';
+  const role = selectedRole || defaultRole;
+  const isApproving = busyId === registration.id + '_approve';
+  const isRejecting = busyId === registration.id + '_reject';
+  const isBusy = isApproving || isRejecting;
+
+  const initials = (registration.full_name || registration.email || '?')
+    .split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+
+  const createdDate = registration.created_date
+    ? new Date(registration.created_date).toLocaleString('pt-BR', {
+        day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+      }).replace(',', '')
+    : null;
+
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center gap-3 border border-amber-200 bg-amber-50 rounded-2xl px-5 py-4">
-      <div className="flex-1 min-w-0">
-        <p className="font-semibold text-amber-950 truncate">{registration.full_name || 'Novo usuário'}</p>
-        <p className="text-xs text-amber-800 truncate">{registration.email}</p>
-        <p className="text-xs text-amber-700 mt-1">{[registration.museu, role, registration.funcao].filter(Boolean).join(' · ')}</p>
+    <div className="border border-amber-200 bg-amber-50 rounded-2xl px-5 py-4 space-y-3">
+      {/* Linha superior: avatar + info + data */}
+      <div className="flex items-start gap-3">
+        <div className="w-10 h-10 rounded-full bg-yellow-100 text-amber-700 flex items-center justify-center text-sm font-bold flex-shrink-0">
+          {initials}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-amber-950 truncate">{registration.full_name || 'Novo usuário'}</p>
+          <p className="text-xs text-amber-800 truncate">{registration.email}</p>
+          {createdDate && <p className="text-xs text-amber-600 mt-0.5">{createdDate}</p>}
+        </div>
       </div>
-      <div className="flex gap-2 flex-wrap">
-        <Button size="sm" className="bg-green-700 hover:bg-green-800 text-white" onClick={() => onApprove(registration)} disabled={busy}>
+
+      {/* Linha inferior: museu badge + dropdown + botões */}
+      <div className="flex flex-wrap items-center gap-2">
+        {registration.museu && (
+          <Badge className="text-xs px-2.5 py-0.5 bg-slate-100 text-slate-600 border-0">{registration.museu}</Badge>
+        )}
+
+        <Select value={role} onValueChange={v => onRoleChange(registration.id, v)}>
+          <SelectTrigger className="h-7 text-xs px-2.5 w-auto min-w-[130px] bg-white border-amber-300">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="PROFISSIONAL">Profissional</SelectItem>
+            <SelectItem value="COORDENADOR">Coordenador</SelectItem>
+            <SelectItem value="OBSERVADOR">Observador</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Button
+          size="sm"
+          className="bg-green-700 hover:bg-green-800 text-white gap-1.5"
+          onClick={() => onApprove(registration, role)}
+          disabled={isBusy}
+        >
+          {isApproving ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3" />}
           Aprovar
         </Button>
-        <Button size="sm" variant="outline" className="border-red-200 text-red-700 hover:bg-red-50" onClick={() => onReject(registration)} disabled={busy}>
+        <Button
+          size="sm"
+          variant="outline"
+          className="border-red-200 text-red-700 hover:bg-red-50 gap-1.5"
+          onClick={() => onReject(registration)}
+          disabled={isBusy}
+        >
+          {isRejecting ? <Loader2 className="w-3 h-3 animate-spin" /> : <XCircle className="w-3 h-3" />}
           Negar
         </Button>
       </div>
@@ -385,6 +435,10 @@ export default function UserManagement() {
   const [permissionsUser, setPermissionsUser] = useState(null);
   const [showInvite, setShowInvite] = useState(false);
   const [deletingUser, setDeletingUser] = useState(null);
+  // Perfil selecionado por card de pendente (key = registration.id)
+  const [pendingRoles, setPendingRoles] = useState({});
+  // ID do card em loading no formato "<id>_approve" ou "<id>_reject"
+  const [busyCardId, setBusyCardId] = useState(null);
   const queryClient = useQueryClient();
   const { user: currentUser } = useAuth();
   const showLoginMonitoring = canViewUserLoginMonitoring(currentUser);
@@ -417,12 +471,14 @@ export default function UserManagement() {
     queryFn: () => base44.entities.UserRegistration.filter({ status: 'PENDENTE' }),
   });
 
-  const approveRegistration = useMutation({
-    mutationFn: async (registration) => {
-      const email = String(registration.email || '').toLowerCase();
-      if (!email) throw new Error('Solicitação sem e-mail.');
-      const requestedRoleRaw = registration.role || registration.base_role || 'PROFISSIONAL';
-      const requestedRole = requestedRoleRaw === 'PATROCINADOR' ? 'OBSERVADOR' : requestedRoleRaw;
+  async function handleApproveRegistration(registration, chosenRole) {
+    const email = String(registration.email || '').toLowerCase();
+    if (!email) { toast.error('Solicitação sem e-mail.'); return; }
+    setBusyCardId(registration.id + '_approve');
+    try {
+      const requestedRole = (chosenRole || registration.role || registration.base_role || 'PROFISSIONAL') === 'PATROCINADOR'
+        ? 'OBSERVADOR'
+        : (chosenRole || registration.role || registration.base_role || 'PROFISSIONAL');
       const roleDefaults = defaultsForRole(requestedRole);
       const permissionData = {
         ...roleDefaults,
@@ -463,28 +519,31 @@ export default function UserManagement() {
         base_role: requestedRole,
       });
 
-      // Fire-and-forget: notificar o usuário aprovado por e-mail
+      // Fire-and-forget
       base44.functions.invoke('notifyUserRegistrationStatus', {
         registration: {
           full_name: registration.full_name,
-          email: String(registration.email || '').toLowerCase(),
+          email,
           museu: registration.museu,
           base_role: requestedRole,
           status: 'APROVADO',
         },
       }).catch(e => console.warn('Notificação de aprovação:', e));
-    },
-    onSuccess: () => {
-      toast.success('Usuário aprovado.');
+
+      toast.success('Usuário aprovado e notificado.');
       queryClient.invalidateQueries(['user-management']);
       queryClient.invalidateQueries(['user-management-pending-registrations']);
       queryClient.invalidateQueries({ queryKey: ['pending-users'] });
-    },
-    onError: (e) => toast.error('Erro ao aprovar: ' + (e?.message || 'erro desconhecido')),
-  });
+    } catch (e) {
+      toast.error('Erro ao aprovar: ' + (e?.message || 'erro desconhecido'));
+    } finally {
+      setBusyCardId(null);
+    }
+  }
 
-  const rejectRegistration = useMutation({
-    mutationFn: async (registration) => {
+  async function handleRejectRegistration(registration) {
+    setBusyCardId(registration.id + '_reject');
+    try {
       await revokeUserAccess(registration.email, {
         status: 'REJEITADO',
         origin: 'user-management-reject',
@@ -492,7 +551,7 @@ export default function UserManagement() {
         full_name: registration.full_name,
       });
 
-      // Fire-and-forget: notificar o usuário rejeitado por e-mail
+      // Fire-and-forget
       base44.functions.invoke('notifyUserRegistrationStatus', {
         registration: {
           full_name: registration.full_name,
@@ -502,14 +561,16 @@ export default function UserManagement() {
           status: 'REJEITADO',
         },
       }).catch(e => console.warn('Notificação de rejeição:', e));
-    },
-    onSuccess: () => {
+
       toast.success('Solicitação negada.');
       queryClient.invalidateQueries(['user-management-pending-registrations']);
       queryClient.invalidateQueries({ queryKey: ['pending-users'] });
-    },
-    onError: (e) => toast.error('Erro ao negar: ' + (e?.message || 'erro desconhecido')),
-  });
+    } catch (e) {
+      toast.error('Erro ao negar: ' + (e?.message || 'erro desconhecido'));
+    } finally {
+      setBusyCardId(null);
+    }
+  }
 
   async function handleDelete(user) {
     if (!window.confirm(`Tem certeza que deseja excluir o usuário "${user.full_name || user.email}"? Esta ação não pode ser desfeita.`)) return;
@@ -685,9 +746,11 @@ export default function UserManagement() {
                 <PendingRegistrationCard
                   key={registration.id}
                   registration={registration}
-                  onApprove={(item) => approveRegistration.mutate(item)}
-                  onReject={(item) => rejectRegistration.mutate(item)}
-                  busy={approveRegistration.isPending || rejectRegistration.isPending}
+                  onApprove={handleApproveRegistration}
+                  onReject={handleRejectRegistration}
+                  busyId={busyCardId}
+                  selectedRole={pendingRoles[registration.id]}
+                  onRoleChange={(id, role) => setPendingRoles(prev => ({ ...prev, [id]: role }))}
                 />
               ))}
             </div>
