@@ -320,9 +320,9 @@ function ComprasInner() {
     queryClient.invalidateQueries({ queryKey: ['team-members-all-for-coordinator'], refetchType: 'all' }),
     queryClient.invalidateQueries({ queryKey: ['team-payments'], refetchType: 'all' })]
     );
-    // Garantir refetch imediato das queries ativas
-    await queryClient.refetchQueries({ queryKey: ['purchases'] });
-    await queryClient.refetchQueries({ queryKey: ['rubricas'] });
+    // Garantir refetch imediato das queries ativas (forçado, independente de staleTime)
+    await queryClient.refetchQueries({ queryKey: ['purchases'], type: 'active' });
+    await queryClient.refetchQueries({ queryKey: ['rubricas'], type: 'active' });
   }, [queryClient]);
 
   const { data: userPermission, isLoading: loadingUserPermission } = useQuery({
