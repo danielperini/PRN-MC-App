@@ -1,13 +1,11 @@
 import React from 'react';
 import { base44 } from '@/api/base44Client';
-import { Activity, Wallet, BarChart3, CalendarDays, MapPin, Loader2 } from 'lucide-react';
+import { Activity, Wallet, BarChart3, CalendarDays, MapPin } from 'lucide-react';
 import { useCurrentUser } from '@/components/auth/useCurrentUser';
 import { consolidateOfficialDashboardMetrics } from '@/utils/auditoria/institutionalMetrics';
 import { useNavigate } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
 import DashboardDrilldownSheet, { SectionTitle, RowItem, RubricaRow } from './DashboardDrilldownSheet';
-import { useActivityEdits } from '@/hooks/useActivityEdits';
-import EditableActivityRow from './EditableActivityRow';
+import EditableActivityList from './EditableActivityList';
 
 const MONTH_ORDER = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const MUSEUS = ['MIS', 'MHAB', 'MUMO'];
@@ -145,15 +143,6 @@ function CardSection({ title, children, empty, className = '' }) {
 export default function ExecutiveIndicators({ reports = [], rubricas = [] }) {
   const [openSheet, setOpenSheet] = React.useState(null); // 'atividades' | 'previstas' | 'agenda' | 'execucao' | 'participantes'
   const [atividadesPrevistasMes, setAtividadesPrevistasMes] = React.useState(0);
-  const queryClient = useQueryClient();
-  const { edits, setEdit, saveAll, isSaving, dirtyCount, clearEdits } = useActivityEdits({
-    onSaved: () => {
-      queryClient.invalidateQueries({ queryKey: ['relatorios-list'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-metas-activities'] });
-    },
-  });
-
-  React.useEffect(() => { if (openSheet !== 'atividades') clearEdits(); }, [openSheet]);
   const [programacaoItems, setProgramacaoItems] = React.useState([]);
   const [agendaItems, setAgendaItems] = React.useState([]);
   const [agendaDate, setAgendaDate] = React.useState(null);
@@ -343,73 +332,35 @@ export default function ExecutiveIndicators({ reports = [], rubricas = [] }) {
       </div>
 
       {/* ── Sheet: Atividades do mês ── */}
-      <DashboardDrilldownSheet
-        open={openSheet === 'atividades'}
-        onClose={() => setOpenSheet(null)}
-        title={`Atividades ${ultimoMes.mes}`}
-        value={`${ultimoMes.atividades} atividades`}
-        fontes={['relatorios']}
-        footerAction={
-          <div className="flex gap-2">
-            {dirtyCount > 0 && (
-              <button
-                type="button"
-                onClick={clearEdits}
-                className="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition"
-              >
-                Descartar
-              </button>
-            )}
-            <button
-              type="button"
-              disabled={dirtyCount === 0 || isSaving}
-              onClick={saveAll}
-              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition ${
-                dirtyCount === 0
-                  ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                  : 'bg-blue-600 text-white hover:bg-blue-700'
-              }`}
-            >
-              {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
-              {isSaving ? 'Salvando...' : `Salvar alterações${dirtyCount > 0 ? ` (${dirtyCount})` : ''}`}
-            </button>
-          </div>
-        }
-      >
-        <SectionTitle>Por museu</SectionTitle>
-        <div className="grid grid-cols-2 gap-2 mb-4">
-          {MUSEUS.map(m => (
-            <div key={m} className="flex items-center justify-between rounded-lg border border-slate-100 bg-white px-3 py-2">
-              <span className="text-xs font-semibold text-slate-600">{m}</span>
-              <span className="text-sm font-bold text-slate-900">{porMuseuResumo[m]?.atividades || 0}</span>
+      {(() => {
+        const mesAtual = new Date().getMonth();
+        const anoAtual = new Date().getFullYear();
+        const MESES_ALL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+        const atividadesDoMes = reports
+          .filter(r => { const idx = MESES_ALL.findIndex(m => m === r.mes_referencia); return idx === mesAtual && (r.ano || anoAtual) === anoAtual; })
+          .flatMap(r => (Array.isArray(r.atividades) ? r.atividades : []).map(a => ({ ...a, _museu: r.museu, _autor: r.author_name })));
+        return (
+          <DashboardDrilldownSheet
+            open={openSheet === 'atividades'}
+            onClose={() => setOpenSheet(null)}
+            title={`Atividades ${ultimoMes.mes}`}
+            value={`${ultimoMes.atividades} atividades`}
+            fontes={['relatorios']}
+          >
+            <SectionTitle>Por museu</SectionTitle>
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              {MUSEUS.map(m => (
+                <div key={m} className="flex items-center justify-between rounded-lg border border-slate-100 bg-white px-3 py-2">
+                  <span className="text-xs font-semibold text-slate-600">{m}</span>
+                  <span className="text-sm font-bold text-slate-900">{porMuseuResumo[m]?.atividades || 0}</span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-        <SectionTitle>Atividades do mês — editar vínculos</SectionTitle>
-        <div className="space-y-2">
-          {resumoRelatoriosUltimoMes.length === 0 && <p className="text-sm text-slate-400 text-center py-6">Nenhum relatório no mês atual</p>}
-          {reports
-            .filter(r => {
-              const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-              const mesAtual = new Date().getMonth();
-              const anoAtual = new Date().getFullYear();
-              const idx = MESES.findIndex(m => m === r.mes_referencia);
-              return idx === mesAtual && (r.ano || anoAtual) === anoAtual;
-            })
-            .flatMap(r => (r.atividades || []).map((a, i) => {
-              const actId = a.id || `${r.id}_ativ_${i}`;
-              return (
-                <EditableActivityRow
-                  key={actId}
-                  activity={{ ...a, id: actId, museu: a.museu || r.museu }}
-                  edits={edits[actId] || {}}
-                  onEdit={(field, val) => setEdit(actId, field, val)}
-                />
-              );
-            }))
-          }
-        </div>
-      </DashboardDrilldownSheet>
+            <SectionTitle>Atividades editáveis ({atividadesDoMes.length})</SectionTitle>
+            <EditableActivityList activities={atividadesDoMes} />
+          </DashboardDrilldownSheet>
+        );
+      })()}
 
       {/* ── Sheet: Participantes ── */}
       <DashboardDrilldownSheet

@@ -1,11 +1,10 @@
 import React from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
 import { ExternalLink, FileText, Users, Calendar, Building2, TrendingUp, Loader2 } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
 import { useActivityEdits } from '@/hooks/useActivityEdits';
-import EditableActivityRow from './EditableActivityRow';
+import { useQuery } from '@tanstack/react-query';
+import { base44 } from '@/api/base44Client';
 
 function fmtBRL(v) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(Number(v || 0));
@@ -106,29 +105,14 @@ function PainelMuseu({ museu, reports = [] }) {
         </div>
       )}
 
-      {/* Atividades por relatório */}
+      {/* Atividades editáveis */}
       <div>
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Atividades por profissional</p>
-        <div className="space-y-2">
-          {museuReports.map(r => {
-            const atividades = Array.isArray(r.atividades) ? r.atividades : [];
-            const participantes = atividades.reduce((s, a) => s + Number(a.publico_total || a.publico_estimado || 0), 0);
-            return (
-              <div key={r.id} className="border border-slate-100 rounded-lg p-2.5 bg-slate-50">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-slate-700 truncate">{r.author_name || '—'}</span>
-                  <StatusBadge status={r.status} />
-                </div>
-                <div className="flex items-center gap-4 mt-1 text-[11px] text-slate-500">
-                  <span>{r.mes_referencia} {r.ano}</span>
-                  <span className="font-semibold text-slate-700">{atividades.length} ativ.</span>
-                  <span>{participantes.toLocaleString('pt-BR')} participantes</span>
-                </div>
-              </div>
-            );
-          })}
-          {museuReports.length === 0 && <p className="text-xs text-slate-400">Nenhum relatório para este museu.</p>}
-        </div>
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Atividades ({museuReports.reduce((s, r) => s + (Array.isArray(r.atividades) ? r.atividades.length : 0), 0)})</p>
+        <EditableActivitiesPanel
+          activities={museuReports.flatMap(r =>
+            (Array.isArray(r.atividades) ? r.atividades : []).map(a => ({ ...a, _museu: r.museu, _autor: r.author_name }))
+          )}
+        />
       </div>
     </div>
   );
@@ -186,8 +170,98 @@ function PainelOrcamento({ rubricas = [] }) {
   );
 }
 
-// ─── Painel: Noturno + Meta 20 (com edição inline) ───────────────────────────
-function PainelNoturnoMeta20({ relatorios = [], tipo, edits, setEdit }) {
+const MUSEUS_OPTIONS = ['MUMO', 'MIS', 'MHAB', 'Casa Kubitschek', 'Casa do Baile', 'MAP'];
+const CLASSIFICACAO_OPTIONS = ['META', 'ROTINA', 'EXTRA'];
+
+// ─── Hook de metas ────────────────────────────────────────────────────────────
+function useMetasOptions() {
+  const { data = [] } = useQuery({
+    queryKey: ['project-metas-3-4-aditivo'],
+    queryFn: async () => {
+      const res = await base44.entities.ProjectMeta.list('ordem', 200);
+      return (Array.isArray(res) ? res : []).filter(m => m.ativo !== false);
+    },
+    staleTime: 60000,
+  });
+  return data;
+}
+
+// ─── Linha editável de atividade ─────────────────────────────────────────────
+function ActivityEditRow({ act, index, edits, setEdit, metas }) {
+  const id = act?.id;
+  const isDirty = !!id && !!edits[id];
+  const current = isDirty ? { ...act, ...edits[id] } : act;
+  return (
+    <div className={`rounded-xl border bg-slate-50 px-3 py-2.5 transition-all ${isDirty ? 'border-l-4 border-yellow-400 border-t border-r border-b border-slate-200' : 'border-slate-100'}`}>
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <p className="text-sm font-semibold text-slate-800 leading-snug">
+          {act.titulo || act.nome || `Atividade ${index + 1}`}
+        </p>
+        {isDirty && (
+          <span className="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700 border border-yellow-300">Alterado</span>
+        )}
+      </div>
+      {id ? (
+        <div className="grid grid-cols-3 gap-1.5">
+          <div>
+            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-0.5">Classificação</label>
+            <select value={current.classificacao || ''} onChange={e => setEdit(id, 'classificacao', e.target.value)} className="w-full text-xs rounded-lg border border-slate-200 bg-white px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400">
+              <option value="">—</option>
+              {CLASSIFICACAO_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-0.5">Meta</label>
+            <select value={current.meta_codigo || current.meta_id || ''} onChange={e => setEdit(id, 'meta_codigo', e.target.value)} className="w-full text-xs rounded-lg border border-slate-200 bg-white px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400">
+              <option value="">—</option>
+              {metas.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-0.5">Museu</label>
+            <select value={current.museu || ''} onChange={e => setEdit(id, 'museu', e.target.value)} className="w-full text-xs rounded-lg border border-slate-200 bg-white px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400">
+              <option value="">—</option>
+              {MUSEUS_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+            </select>
+          </div>
+        </div>
+      ) : (
+        <p className="text-xs text-slate-400 italic">Sem ID — edição não disponível</p>
+      )}
+    </div>
+  );
+}
+
+// ─── Wrapper editável com rodapé salvar ──────────────────────────────────────
+function EditableActivitiesPanel({ activities = [] }) {
+  const { edits, setEdit, saveAll, isSaving, dirtyCount } = useActivityEdits(activities);
+  const metas = useMetasOptions();
+  return (
+    <div>
+      <div className="space-y-2 mb-4">
+        {activities.length === 0 && <p className="text-sm text-slate-400 text-center py-6">Nenhuma atividade encontrada</p>}
+        {activities.map((act, i) => (
+          <ActivityEditRow key={act?.id || i} act={act} index={i} edits={edits} setEdit={setEdit} metas={metas} />
+        ))}
+      </div>
+      {dirtyCount > 0 && (
+        <div className="sticky bottom-0 bg-white border-t border-slate-100 pt-3 pb-1">
+          <button
+            onClick={saveAll}
+            disabled={isSaving}
+            className="w-full flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 transition"
+          >
+            {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+            {isSaving ? 'Salvando...' : `Salvar alterações (${dirtyCount})`}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Painel: Noturno + Meta 20 ───────────────────────────────────────────────
+function PainelNoturnoMeta20({ relatorios = [], tipo }) {
   const MUSEUS = ['MIS', 'MHAB', 'MUMO'];
 
   function classificar(a) {
@@ -201,8 +275,11 @@ function PainelNoturnoMeta20({ relatorios = [], tipo, edits, setEdit }) {
     return null;
   }
 
+  // Coletar todas as atividades filtradas com id
+  const allActivities = [];
   const relComAtividades = relatorios.map(r => {
     const atividades = (Array.isArray(r.atividades) ? r.atividades : []).filter(a => classificar(a) === tipo);
+    atividades.forEach(a => allActivities.push({ ...a, _museu: r.museu, _autor: r.author_name, _mes: r.mes_referencia, _ano: r.ano }));
     return { ...r, atividadesFiltradas: atividades };
   }).filter(r => r.atividadesFiltradas.length > 0);
 
@@ -223,49 +300,20 @@ function PainelNoturnoMeta20({ relatorios = [], tipo, edits, setEdit }) {
           </div>
         ))}
       </div>
-      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Atividades desta classificação</p>
-      <div className="space-y-2">
-        {relComAtividades.flatMap(r =>
-          r.atividadesFiltradas.map((a, i) => {
-            const actId = a.id || `${r.id}_${i}`;
-            return (
-              <EditableActivityRow
-                key={actId}
-                activity={{ ...a, id: actId, museu: a.museu || r.museu }}
-                edits={edits[actId] || {}}
-                onEdit={(field, val) => setEdit(actId, field, val)}
-              />
-            );
-          })
-        )}
-        {relComAtividades.length === 0 && <p className="text-xs text-slate-400 text-center py-4">Nenhum relatório encontrado.</p>}
-      </div>
+      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Atividades ({allActivities.length})</p>
+      <EditableActivitiesPanel activities={allActivities} />
     </div>
   );
 }
 
 // ─── Componente Principal ─────────────────────────────────────────────────────
 export default function DrillDownSheet({ open, onClose, config }) {
-  const queryClient = useQueryClient();
-  const { edits, setEdit, saveAll, isSaving, dirtyCount, clearEdits } = useActivityEdits({
-    onSaved: () => {
-      queryClient.invalidateQueries({ queryKey: ['relatorios-list'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-metas-activities'] });
-      queryClient.invalidateQueries({ queryKey: ['reports-resumo-consolidado-noturno-meta20'] });
-    },
-  });
-
-  // Limpar edições ao fechar
-  React.useEffect(() => { if (!open) clearEdits(); }, [open]);
-
   if (!config) return null;
   const { title, value, sourceBadges = [], type, reports = [], rubricas = [], museu, relatorios = [], tipoNoturno } = config;
 
-  const hasEditableActivities = type === 'noturno_meta20';
-
   return (
     <Sheet open={open} onOpenChange={v => { if (!v) onClose(); }}>
-      <SheetContent side="right" className="w-full sm:w-[600px] sm:max-w-[600px] overflow-y-auto p-0 flex flex-col">
+      <SheetContent side="right" className="w-full sm:w-[600px] sm:max-w-[600px] overflow-y-auto p-0">
         {/* Cabeçalho */}
         <div className="sticky top-0 z-10 bg-white border-b border-slate-100 px-6 py-4">
           <SheetHeader>
@@ -292,44 +340,14 @@ export default function DrillDownSheet({ open, onClose, config }) {
         </div>
 
         {/* Conteúdo */}
-        <div className="flex-1 px-6 py-4">
+        <div className="px-6 py-4">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Origem dos dados</p>
 
           {type === 'relatorios' && <PainelRelatorios reports={reports} />}
           {type === 'museu' && <PainelMuseu museu={museu} reports={reports} />}
           {type === 'orcamento' && <PainelOrcamento rubricas={rubricas} />}
-          {type === 'noturno_meta20' && (
-            <PainelNoturnoMeta20 relatorios={relatorios} tipo={tipoNoturno} edits={edits} setEdit={setEdit} />
-          )}
+          {type === 'noturno_meta20' && <PainelNoturnoMeta20 relatorios={relatorios} tipo={tipoNoturno} />}
         </div>
-
-        {/* Rodapé de salvar — apenas quando há atividades editáveis */}
-        {hasEditableActivities && (
-          <div className="sticky bottom-0 border-t border-slate-100 bg-white px-6 py-3 flex justify-end gap-3">
-            {dirtyCount > 0 && (
-              <button
-                type="button"
-                onClick={clearEdits}
-                className="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition"
-              >
-                Descartar
-              </button>
-            )}
-            <button
-              type="button"
-              disabled={dirtyCount === 0 || isSaving}
-              onClick={saveAll}
-              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition ${
-                dirtyCount === 0
-                  ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                  : 'bg-blue-600 text-white hover:bg-blue-700'
-              }`}
-            >
-              {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
-              {isSaving ? 'Salvando...' : `Salvar alterações${dirtyCount > 0 ? ` (${dirtyCount})` : ''}`}
-            </button>
-          </div>
-        )}
       </SheetContent>
     </Sheet>
   );
