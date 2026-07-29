@@ -463,15 +463,16 @@ export default function UserManagement() {
         base_role: requestedRole,
       });
 
-      // Notificar o usuário por e-mail
-      try {
-        await base44.functions.invoke('notifyUserRegistrationStatus', {
-          registration: { ...registration, base_role: requestedRole },
+      // Fire-and-forget: notificar o usuário aprovado por e-mail
+      base44.functions.invoke('notifyUserRegistrationStatus', {
+        registration: {
+          full_name: registration.full_name,
+          email: String(registration.email || '').toLowerCase(),
+          museu: registration.museu,
+          base_role: requestedRole,
           status: 'APROVADO',
-        });
-      } catch (e) {
-        console.warn('Falha ao enviar e-mail de aprovação:', e);
-      }
+        },
+      }).catch(e => console.warn('Notificação de aprovação:', e));
     },
     onSuccess: () => {
       toast.success('Usuário aprovado.');
@@ -491,15 +492,16 @@ export default function UserManagement() {
         full_name: registration.full_name,
       });
 
-      // Notificar o usuário por e-mail
-      try {
-        await base44.functions.invoke('notifyUserRegistrationStatus', {
-          registration,
+      // Fire-and-forget: notificar o usuário rejeitado por e-mail
+      base44.functions.invoke('notifyUserRegistrationStatus', {
+        registration: {
+          full_name: registration.full_name,
+          email: String(registration.email || '').toLowerCase(),
+          museu: registration.museu,
+          base_role: registration.base_role || registration.role || 'PROFISSIONAL',
           status: 'REJEITADO',
-        });
-      } catch (e) {
-        console.warn('Falha ao enviar e-mail de rejeição:', e);
-      }
+        },
+      }).catch(e => console.warn('Notificação de rejeição:', e));
     },
     onSuccess: () => {
       toast.success('Solicitação negada.');
