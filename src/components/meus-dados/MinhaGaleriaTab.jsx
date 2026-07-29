@@ -107,40 +107,51 @@ export default function MinhaGaleriaTab({ targetEmail }) {
     return m;
   }, [relatorios]);
 
-  // 2. Buscar fotos
+  // 2. Buscar fotos por report_id (o campo created_by nas fotos aponta para serviço de importação, não para o autor real)
   const relIds = relatorios.map((r) => r.id);
   const { data: rawPhotos = [], isLoading: loadingPhotos } = useQuery({
     queryKey: ['minha-galeria', targetEmail, relIds.join(',')],
     queryFn: async () => {
       if (!relIds.length) return [];
-      // SDK não suporta $in nativo em todos os casos — busca em lotes de 10
+      // Busca em paralelo, lotes de 10 IDs
       const chunks = [];
       for (let i = 0; i < relIds.length; i += 10) chunks.push(relIds.slice(i, i + 10));
       const results = await Promise.all(
-        chunks.map((chunk) =>
-          base44.entities.ReportPhoto.filter(
-            { report_id: chunk[0] }, // filtro por id individual, depois mesclamos
-            '-created_date', 500
-          ).catch(() => [])
+        chunks.flatMap((chunk) =>
+          chunk.map((id) =>
+            base44.entities.ReportPhoto.filter({ report_id: id }, '-created_date', 200).catch(() => [])
+          )
         )
       );
-      // Mais simples: busca todas as fotos do usuário via created_by
-      return base44.entities.ReportPhoto.filter({ created_by: targetEmail }, '-created_date', 300).catch(() => []);
+      // Deduplica por id
+      const seen = new Set();
+      const all = [];
+      for (const batch of results) {
+        for (const p of batch) {
+          if (!seen.has(p.id)) { seen.add(p.id); all.push(p); }
+        }
+      }
+      return all;
     },
-    enabled: !!targetEmail,
+    enabled: !!targetEmail && relIds.length > 0,
     staleTime: 60000,
   });
 
   const photos = React.useMemo(() => {
     return rawPhotos
       .filter((p) => p.file_url)
-      .map((p) => ({
-        ...p,
-        _museu: relMap[p.report_id]?.museu || p.museu || '',
-        _mes: relMap[p.report_id]?.mes_referencia
-          ? `${relMap[p.report_id].mes_referencia} ${relMap[p.report_id].ano || ''}`.trim()
-          : '',
-      }));
+      .map((p) => {
+        const rel = relMap[p.report_id];
+        return {
+          ...p,
+          _museu: p.museu || rel?.museu || '',
+          _mes: p.mes_referencia
+            ? `${p.mes_referencia} ${p.ano || ''}`.trim()
+            : rel?.mes_referencia
+              ? `${rel.mes_referencia} ${rel.ano || ''}`.trim()
+              : '',
+        };
+      });
   }, [rawPhotos, relMap]);
 
   const loading = loadingRels || loadingPhotos;
