@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Building2, LogIn, Send, CheckCircle, ChevronRight } from 'lucide-react';
+import { Building2, LogIn, Send, CheckCircle, ChevronRight, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -37,6 +37,7 @@ const UserNotRegisteredError = () => {
   const [userName, setUserName] = useState('');
   const [form, setForm] = useState({ full_name: '', email: '', museu: '', role: 'PROFISSIONAL', funcao: '' });
   const [approvedRegistration, setApprovedRegistration] = useState(null);
+  const [pendingRegistration, setPendingRegistration] = useState(null);
   const [recoveringAccess, setRecoveringAccess] = useState(true);
 
 
@@ -64,18 +65,16 @@ const UserNotRegisteredError = () => {
             return;
           }
 
-          const registrations = await base44.entities.UserRegistration.filter({
-            email,
-          });
+          const registrations = await base44.entities.UserRegistration.filter({ email });
 
           const approved = registrations.find(r => r.status === 'APROVADO');
+          const pending = registrations.find(r => r.status === 'PENDENTE');
 
           if (approved) {
             setApprovedRegistration(approved);
-
-            setTimeout(() => {
-              window.location.reload();
-            }, 2500);
+            setTimeout(() => { window.location.reload(); }, 2500);
+          } else if (pending) {
+            setPendingRegistration(pending);
           }
         } catch (e) {
           console.warn('Falha ao verificar aprovação:', e);
@@ -104,7 +103,7 @@ const UserNotRegisteredError = () => {
     setError('');
     setLoading(true);
     try {
-      await base44.entities.UserRegistration.create({
+      const registrationData = {
         full_name: form.full_name.trim(),
         email: form.email.trim().toLowerCase(),
         museu: form.museu,
@@ -113,7 +112,18 @@ const UserNotRegisteredError = () => {
         funcao: form.funcao || '',
         equipe: form.role === 'OBSERVADOR' ? 'Observador' : '',
         status: 'PENDENTE',
-      });
+      };
+      await base44.entities.UserRegistration.create(registrationData);
+
+      // Notificar o coordenador sobre o novo cadastro
+      try {
+        await base44.functions.invoke('notifyAdminOnNewRegistration', {
+          registration: registrationData,
+        });
+      } catch (e) {
+        console.warn('Falha ao notificar admin:', e);
+      }
+
       setStep('done');
     } catch (e) {
       setError(e?.message || 'Não foi possível enviar a solicitação.');
@@ -138,6 +148,26 @@ const UserNotRegisteredError = () => {
         <p className="text-slate-500 max-w-md text-sm">
           Estamos sincronizando automaticamente cadastros antigos, permissÃµes e histÃ³rico do usuÃ¡rio antes de solicitar novo cadastro.
         </p>
+      </div>
+    );
+  }
+
+  if (pendingRegistration) {
+    return (
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center px-6 text-center">
+        <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mb-5">
+          <Clock className="w-8 h-8 text-amber-500" />
+        </div>
+        <h1 className="text-2xl font-semibold text-slate-900 mb-2">Cadastro em validação</h1>
+        <p className="text-slate-500 max-w-md text-sm">
+          Sua solicitação foi recebida e está sendo analisada pelo coordenador. Você receberá um e-mail assim que o acesso for liberado.
+        </p>
+        <button
+          onClick={handleLoginOther}
+          className="mt-8 text-xs text-slate-400 underline underline-offset-2"
+        >
+          Sair e usar outro e-mail
+        </button>
       </div>
     );
   }

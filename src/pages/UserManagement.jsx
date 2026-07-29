@@ -462,6 +462,16 @@ export default function UserManagement() {
         acesso_liberado: true,
         base_role: requestedRole,
       });
+
+      // Notificar o usuário por e-mail
+      try {
+        await base44.functions.invoke('notifyUserRegistrationStatus', {
+          registration: { ...registration, base_role: requestedRole },
+          status: 'APROVADO',
+        });
+      } catch (e) {
+        console.warn('Falha ao enviar e-mail de aprovação:', e);
+      }
     },
     onSuccess: () => {
       toast.success('Usuário aprovado.');
@@ -480,6 +490,16 @@ export default function UserManagement() {
         reason: 'Solicitação negada pela coordenação',
         full_name: registration.full_name,
       });
+
+      // Notificar o usuário por e-mail
+      try {
+        await base44.functions.invoke('notifyUserRegistrationStatus', {
+          registration,
+          status: 'REJEITADO',
+        });
+      } catch (e) {
+        console.warn('Falha ao enviar e-mail de rejeição:', e);
+      }
     },
     onSuccess: () => {
       toast.success('Solicitação negada.');
