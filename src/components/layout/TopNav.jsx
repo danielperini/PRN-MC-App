@@ -1,6 +1,6 @@
 import React from 'react';
 import { base44 } from '@/api/base44Client';
-import { LogOut, UserCircle, Home, ArrowLeft, Eye, EyeOff } from 'lucide-react';
+import { LogOut, Home, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { usePatrocinadorView } from '@/context/PatrocinadorViewContext';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -43,12 +43,6 @@ export default function TopNav({ currentUser }) {
           </Button>
         )}
         
-        <Link to="/Perfil">
-           <Button variant="ghost" size="icon" className="text-black hover:bg-black hover:text-white h-11 w-11">
-             <UserCircle className="w-5 h-5" />
-           </Button>
-         </Link>
-
          <Button
            variant="ghost"
            size="icon"

@@ -301,19 +301,22 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
     ),
   }));
 
+  const isCoordGeralFixo = COORD_GERAL_EMAILS.includes(String(currentUser?.email || '').toLowerCase());
+
   const filteredGroups = groupsWithDynamic.map(group => ({
     ...group,
     items: group.items.filter(item => {
+      // Bypass absoluto para emails privilegiados — nunca bloqueados
+      if (isCoordGeralFixo) return true;
+
       if (externalReadOnly) {
         return SIDEBAR_PATROCINADOR.has(item.path);
       }
       if (item.hideForObservador && obs) return false;
       if (item.hideForPatrocinador && sponsor) return false;
       if (item.permission === 'canManageUsers') {
-        const emailNorm = String(currentUser?.email || '').toLowerCase();
-        const isCoordGeralByEmail = COORD_GERAL_EMAILS.includes(emailNorm);
         const isAdminRole = userRoleNorm === 'ADMIN' || userRoleNorm === 'COORDENADOR';
-        if (!isCoordGeralByEmail && !isAdminRole && !canManageUsers(currentUserWithPermission || currentUser, userPermission)) return false;
+        if (!isAdminRole && !canManageUsers(currentUserWithPermission || currentUser, userPermission)) return false;
       }
       if (item.permission === 'canManagePlatform' && userRoleNorm !== 'ADMIN') return false;
       if (item.roles?.includes('admin') && !item.roles?.includes('all') && userRoleNorm !== 'ADMIN') return false;
@@ -380,8 +383,8 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
         ))}
       </nav>
 
-      {/* Seção Drive — visível apenas para coordenadores e observadores */}
-      {(coord || obs || currentUser?.role === 'admin' || String(currentUser?.role || '').toUpperCase() === 'ADMIN') && (
+      {/* Seção Drive — visível para coordenadores, admins e emails privilegiados */}
+      {(isCoordGeralFixo || coord || obs || currentUser?.role === 'admin' || String(currentUser?.role || '').toUpperCase() === 'ADMIN') && (
         <div className="px-2 pb-2">
           {!collapsed && (
             <p className="text-[10px] uppercase tracking-widest text-primary-foreground/30 px-2 mb-1 font-semibold">

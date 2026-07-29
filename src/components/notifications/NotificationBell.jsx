@@ -110,20 +110,26 @@ export default function NotificationBell() {
   const outrasNaoLidas = notifications.filter(n => !DEVOLUCAO_TYPES.has(n.type));
 
   async function handleRead(id) {
+    // Remove otimisticamente da lista local imediatamente
+    queryClient.setQueryData(['notifications-bell', user?.email], (old = []) =>
+      old.filter(n => n.id !== id)
+    );
     try {
       await base44.entities.Notification.update(id, { read: true });
-      queryClient.invalidateQueries({ queryKey: ['notifications-bell', user?.email] });
     } catch (e) {
       console.warn('Erro ao marcar notificação como lida:', e);
+      queryClient.invalidateQueries({ queryKey: ['notifications-bell', user?.email] });
     }
   }
 
   async function handleReadAll() {
+    // Limpa a lista local de forma otimista antes do refetch
+    queryClient.setQueryData(['notifications-bell', user?.email], []);
     try {
       await Promise.all(notifications.map(n => base44.entities.Notification.update(n.id, { read: true })));
-      queryClient.invalidateQueries({ queryKey: ['notifications-bell', user?.email] });
     } catch (e) {
       console.warn('Erro ao marcar todas como lidas:', e);
+      queryClient.invalidateQueries({ queryKey: ['notifications-bell', user?.email] });
     }
   }
 
