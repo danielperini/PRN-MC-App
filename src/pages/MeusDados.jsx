@@ -54,6 +54,7 @@ const EMPTY_FORM = {
   contato_emergencia_nome: '',
   contato_emergencia_telefone: '',
   museu_vinculado: '',
+  regime_trabalho: '',
   tipo_pessoa: 'PF',
   cnpj: '',
   empresa_nome: '',
@@ -85,6 +86,7 @@ function mergeWithoutOverwrite(current, incoming) {
     contato_emergencia_nome: pick('contato_emergencia_nome'),
     contato_emergencia_telefone: pick('contato_emergencia_telefone'),
     museu_vinculado: pick('museu_vinculado'),
+    regime_trabalho: pick('regime_trabalho'),
     tipo_pessoa: pick('tipo_pessoa', 'PF'),
     cnpj: pick('cnpj'),
     empresa_nome: pick('empresa_nome'),
@@ -116,6 +118,7 @@ function mapUserToForm(u) {
     contato_emergencia_nome: f('contato_emergencia_nome'),
     contato_emergencia_telefone: f('contato_emergencia_telefone'),
     museu_vinculado: f('museu_vinculado'),
+    regime_trabalho: f('regime_trabalho'),
     tipo_pessoa: f('tipo_pessoa', 'PF'),
     cnpj: f('cnpj'),
     empresa_nome: f('empresa_nome'),
@@ -147,6 +150,7 @@ function mapMemberToForm(member) {
     contato_emergencia_nome: f('contato_emergencia_nome'),
     contato_emergencia_telefone: f('contato_emergencia_telefone'),
     museu_vinculado: f('museu_vinculado') || f('museu') || f('centro_custo'),
+    regime_trabalho: f('regime_trabalho'),
     tipo_pessoa: f('tipo_pessoa', 'PF'),
     cnpj: f('cnpj'),
     empresa_nome: f('empresa_nome'),
@@ -304,6 +308,17 @@ function DadosPessoaisTab({
                 />
               </div>
             ))}
+            <div className="space-y-1.5">
+              <Label>Regime de Trabalho</Label>
+              <Select value={formData.regime_trabalho || ''} onValueChange={(v) => set('regime_trabalho', v)}>
+                <SelectTrigger><SelectValue placeholder="Selecione o regime" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Presencial">Presencial</SelectItem>
+                  <SelectItem value="Home Office">Home Office</SelectItem>
+                  <SelectItem value="Híbrido">Híbrido</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </Section>
         )}
 
@@ -541,6 +556,7 @@ function MeusDadosInner() {
         contato_emergencia_nome: formData.contato_emergencia_nome,
         contato_emergencia_telefone: formData.contato_emergencia_telefone,
         museu_vinculado: formData.museu_vinculado,
+        regime_trabalho: formData.regime_trabalho,
         tipo_pessoa: formData.tipo_pessoa,
         cnpj: formData.cnpj,
         empresa_nome: formData.empresa_nome,

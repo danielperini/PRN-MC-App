@@ -44,6 +44,15 @@
       ],
       "description": "Museu ao qual o membro est\u00e1 vinculado no projeto"
     },
+    "regime_trabalho": {
+      "type": "string",
+      "enum": [
+        "Presencial",
+        "Home Office",
+        "H\u00edbrido"
+      ],
+      "description": "Regime de trabalho do profissional"
+    },
     "tipo_pessoa": {
       "type": "string",
       "enum": [

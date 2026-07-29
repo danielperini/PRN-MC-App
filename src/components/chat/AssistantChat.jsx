@@ -210,7 +210,7 @@ export default function AssistantChat() {
     {
       role: 'assistant',
       content:
-        'Assistente ativo. Posso buscar respostas na Biblioteca de Conhecimento, Programação, Compras, Rubricas e Equipe. Faça sua pergunta.',
+        'Assistente ativo. Posso ajudar com:\n• Passo a passo operacional (submeter compra, aprovar NF, enviar relatório)\n• Consulta de compras aprovadas/pagas por museu ou período\n• Diretório da equipe: quem é quem, função e regime de trabalho\n• Endereços e contatos dos museus\n• Biblioteca de Conhecimento, Programação e Rubricas\n\nFaça sua pergunta.',
     },
   ]);
   const [input, setInput] = useState('');
@@ -223,13 +223,15 @@ export default function AssistantChat() {
 
   async function buscarContexto(pergunta) {
     try {
-      const [docs, programacoes, compras, rubricas, teamPayments] = await withTimeout(
+      const [docs, programacoes, compras, rubricas, teamPayments, teamMembers, museus] = await withTimeout(
         Promise.all([
           base44.entities.KnowledgeDocument.list('-created_date', 120).catch(() => []),
           base44.entities.Programacao.list('-data_inicio', 500).catch(() => []),
           base44.entities.PurchaseRequest.list('-created_date', 300).catch(() => []),
           base44.entities.Rubrica.list('ordem_exibicao', 150).catch(() => []),
           base44.entities.TeamPayment.list('-created_date', 150).catch(() => []),
+          base44.entities.TeamMember.list('-created_date', 200).catch(() => []),
+          base44.entities.Museu.list().catch(() => []),
         ]),
         20000,
         'Busca da base de conhecimento'
@@ -305,8 +307,46 @@ export default function AssistantChat() {
             .slice(0, 2)
         : [];
 
+      // Buscar em TeamMember (diretório da equipe)
+      const hasEquipeDir = ['equipe', 'profissional', 'membro', 'quem', 'educador', 'produtor', 'coordenador', 'regime', 'presencial', 'home office', 'hibrido'].some(kw => q.includes(kw));
+      const rankedTeamMembers = hasEquipeDir
+        ? (teamMembers || [])
+            .map((tm) => ({
+              ...tm,
+              _score: scoreText(
+                [tm?.user_name, tm?.funcao, tm?.funcao_institucional, tm?.museu_vinculado, tm?.tipo_equipe, tm?.regime_trabalho]
+                  .filter(Boolean)
+                  .join(' '),
+                pergunta
+              ),
+              _type: 'team_member',
+            }))
+            .filter((tm) => tm._score > 0)
+            .sort((a, b) => b._score - a._score)
+            .slice(0, 5)
+        : [];
+
+      // Buscar em Museu (endereços)
+      const hasMuseuKeywords = ['endereco', 'endereço', 'onde', 'fica', 'localiza', 'telefone', 'email', 'contato', 'museu', 'mumo', 'mis', 'mhab'].some(kw => q.includes(kw));
+      const rankedMuseus = hasMuseuKeywords
+        ? (museus || [])
+            .map((m) => ({
+              ...m,
+              _score: scoreText(
+                [m?.nome, m?.sigla, m?.endereco, m?.bairro, m?.cidade, m?.telefone]
+                  .filter(Boolean)
+                  .join(' '),
+                pergunta
+              ),
+              _type: 'museu',
+            }))
+            .filter((m) => m._score > 0)
+            .sort((a, b) => b._score - a._score)
+            .slice(0, 3)
+        : [];
+
       // Buscar em TeamPayment (Equipe)
-      const hasEquipeKeywords = ['equipe', 'profissional', 'membro', 'contrato', 'pagamento', 'pago'].some(kw => q.includes(kw));
+      const hasEquipeKeywords = ['contrato', 'pagamento', 'pago', 'nota fiscal equipe'].some(kw => q.includes(kw));
       const rankedTeamPayments = hasEquipeKeywords
         ? (teamPayments || [])
             .map((tp) => ({
@@ -331,7 +371,9 @@ export default function AssistantChat() {
         ...rankedCompras,
         ...rankedRubricas,
         ...rankedTeamPayments,
-      ].slice(0, 8);
+        ...rankedTeamMembers,
+        ...rankedMuseus,
+      ].slice(0, 10);
 
       if (selectedItems.length > 0) {
         return selectedItems
@@ -378,6 +420,28 @@ Valor NF: R$ ${(item?.valor_nf || 0).toLocaleString('pt-BR', { minimumFractionDi
 Status: ${item?.status || 'Sem status'}
 `.trim();
             }
+            if (item._type === 'team_member') {
+              return `
+[Membro da Equipe ${index + 1}]
+Nome: ${item?.user_name || 'Não especificado'}
+Função: ${item?.funcao_institucional || item?.funcao || 'Não especificada'}
+Museu Vinculado: ${item?.museu_vinculado || item?.museu_projeto || 'Não especificado'}
+Regime de Trabalho: ${item?.regime_trabalho || 'Não informado'}
+Tipo de Equipe: ${item?.tipo_equipe || 'Não especificado'}
+`.trim();
+            }
+            if (item._type === 'museu') {
+              return `
+[Museu ${index + 1}]
+Nome: ${item?.nome || 'Não especificado'}
+Sigla: ${item?.sigla || ''}
+Endereço: ${item?.endereco || 'Não informado'}
+Bairro: ${item?.bairro || ''}
+Cidade: ${item?.cidade || ''}
+Telefone: ${item?.telefone || 'Não informado'}
+Email: ${item?.email || 'Não informado'}
+`.trim();
+            }
             return `
 [Documento ${index + 1}]
 Título: ${item?.titulo || 'Documento sem título'}
@@ -398,6 +462,8 @@ ${(item?.conteudo_extraido || '').slice(0, 2000)}
         ...rankedCompras.slice(0, 1),
         ...rankedRubricas.slice(0, 1),
         ...rankedTeamPayments.slice(0, 1),
+        ...rankedTeamMembers.slice(0, 2),
+        ...rankedMuseus.slice(0, 2),
       ];
 
       if (fallbackAll.length === 0) return '';
@@ -446,6 +512,28 @@ Valor NF: R$ ${(item?.valor_nf || 0).toLocaleString('pt-BR', { minimumFractionDi
 Status: ${item?.status || 'Sem status'}
 `.trim();
           }
+          if (item._type === 'team_member') {
+            return `
+[Membro da Equipe ${index + 1}]
+Nome: ${item?.user_name || 'Não especificado'}
+Função: ${item?.funcao_institucional || item?.funcao || 'Não especificada'}
+Museu Vinculado: ${item?.museu_vinculado || item?.museu_projeto || 'Não especificado'}
+Regime de Trabalho: ${item?.regime_trabalho || 'Não informado'}
+Tipo de Equipe: ${item?.tipo_equipe || 'Não especificado'}
+`.trim();
+          }
+          if (item._type === 'museu') {
+            return `
+[Museu ${index + 1}]
+Nome: ${item?.nome || 'Não especificado'}
+Sigla: ${item?.sigla || ''}
+Endereço: ${item?.endereco || 'Não informado'}
+Bairro: ${item?.bairro || ''}
+Cidade: ${item?.cidade || ''}
+Telefone: ${item?.telefone || 'Não informado'}
+Email: ${item?.email || 'Não informado'}
+`.trim();
+          }
           return `
 [Documento ${index + 1}]
 Título: ${item?.titulo || 'Documento sem título'}
@@ -484,29 +572,63 @@ ${(item?.conteudo_extraido || '').slice(0, 2000)}
 Você é o assistente da plataforma Museus Centro.
 
 REGRAS:
-- Consulte sempre a Biblioteca de Conhecimento, Programação, Compras, Rubricas e Equipe.
-- Para perguntas sobre funcionamento do sistema, priorize o Manual e documentos de ajuda.
-- Leia os documentos do contexto antes de responder.
-- Use SOMENTE a base abaixo.
-- Nunca invente.
+- Consulte sempre a Biblioteca de Conhecimento, Programação, Compras, Rubricas, Equipe e Museus.
+- Para perguntas sobre funcionamento do sistema, use os GUIAS PASSO A PASSO abaixo.
+- Use SOMENTE a base abaixo e os guias embutidos.
+- Nunca invente informações.
 - Não use internet.
-- Se não houver base suficiente, responda exatamente: "Não encontrei essa informação na base de conhecimento."
-- Quando a pergunta for operacional, responda com:
-  1. tela/caminho
-  2. botão principal
-  3. passo a passo
-  4. atenção
+- Se não houver base suficiente, responda: "Não encontrei essa informação na base de conhecimento."
+- Quando a pergunta for operacional, responda com: Tela/Caminho → Botão Principal → Passos numerados (1. 2. 3.) → ⚠️ Atenção
+- Para perguntas sobre equipe, use os dados de [Membro da Equipe] do contexto (nome, função, museu, regime de trabalho).
+- Para perguntas sobre endereço/localização, use os dados de [Museu] do contexto.
+- Para perguntas sobre compras aprovadas/pagas, use os dados de [Compra] do contexto.
 - Seja direto, claro e útil.
 - Responda em português do Brasil.
 
 REGRAS DO SISTEMA:
 - Equipe é gerida e paga pelos coordenadores.
 - Profissional apenas envia nota fiscal.
-- Pagamento de equipe acontece via módulo Equipe.
+- Pagamento de equipe acontece via módulo Equipe/Pagamentos.
 - Compras são usadas para fornecedores, materiais e serviços.
 - Nunca misturar os fluxos de Compras e Equipe.
 - Toda nota fiscal da equipe precisa ser aprovada antes do pagamento.
 - Rubrica só é debitada quando aprovado.
+
+GUIAS PASSO A PASSO (use para perguntas operacionais):
+
+[FLUXO: SUBMETER COMPRA]
+Tela/Caminho: Menu lateral → Compras
+Botão principal: "Nova Solicitação" (botão azul/preto no topo)
+1. Clique em "Nova Solicitação"
+2. Preencha a descrição do item, quantidade e valor
+3. Selecione o fornecedor (ou cadastre um novo)
+4. Escolha a rubrica orçamentária correspondente
+5. Selecione o centro de custo (museu)
+6. Anexe proposta ou orçamento (obrigatório quando disponível)
+7. Clique em "Enviar para Aprovação"
+⚠️ Atenção: A solicitação precisa ser aprovada pelo coordenador e depois pelo admin antes do pagamento. Não é possível editar após envio.
+
+[FLUXO: APROVAR NF / NOTA FISCAL]
+Tela/Caminho: Menu lateral → Compras → aba "Aprovação" (ou Aprovação de NFs)
+Botão principal: "Aprovar" em cada solicitação pendente
+1. Acesse o menu Compras
+2. Filtre por status "Solicitado" ou acesse a aba de aprovação
+3. Abra a solicitação desejada clicando nela
+4. Verifique descrição, valor, fornecedor e rubrica
+5. Clique em "Aprovar" (coordenador) ou "Aprovação Final" (admin)
+6. Adicione comentário se necessário e confirme
+⚠️ Atenção: Coordenadores aprovam na primeira etapa; admins na segunda. Após aprovação admin, o financeiro é notificado para efetuar o pagamento.
+
+[FLUXO: ENVIAR RELATÓRIO MENSAL]
+Tela/Caminho: Menu lateral → Relatórios → selecione o mês → "Editar"
+Botão principal: "Enviar para Revisão" (botão verde ao final do formulário)
+1. Acesse Relatórios no menu lateral
+2. Localize o relatório do mês atual (ou crie um novo)
+3. Clique em "Editar" para abrir o formulário
+4. Preencha: resumo do período, atividades realizadas (com público e classificação), oportunidades e avaliação
+5. Adicione fotos das atividades (obrigatório para metas)
+6. Revise todos os campos e clique em "Enviar para Revisão"
+⚠️ Atenção: O relatório enviado fica com status "Em Revisão" até aprovação do coordenador. Após retorno, você pode editar e reenviar.
 
 HISTÓRICO RECENTE:
 ${recentHistory || 'Sem histórico anterior.'}
