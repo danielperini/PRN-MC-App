@@ -6,7 +6,8 @@
 const EXCECOES_MASCULINAS = new Set([
   'lucas', 'luca', 'nikita', 'tuca', 'joshua', 'elias', 'jonas',
   'matias', 'tobias', 'dimas', 'isaias', 'esdras', 'thomas',
-  'nicolas', 'bautista',
+  'nicolas', 'bautista', 'daniel', 'gabriel', 'miguel', 'rafael',
+  'samuel', 'emanuel', 'ezequiel', 'israel', 'manuel',
 ]);
 
 function normalizar(str) {
@@ -43,6 +44,9 @@ export function artigoSala(primeiroNome) {
 const SUBSTITUICOES_EXATAS = {
   'produtor cultural': 'Produtora Cultural',
   'coordenador': 'Coordenadora',
+  'coordenador de comunicacao': 'Coordenadora de Comunicação',
+  'coordenador de comunicação': 'Coordenadora de Comunicação',
+  'analista financeiro': 'Analista Financeira',
   'educador': 'Educadora',
   'administrador': 'Administradora',
   'gestor': 'Gestora',
