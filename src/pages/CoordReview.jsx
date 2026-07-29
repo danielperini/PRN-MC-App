@@ -101,6 +101,19 @@ function CoordReviewInner() {
         }, user).catch((error) => {
           console.warn('Falha ao notificar aprovação de relatório:', error);
         });
+
+        // Dispara e-mail de aprovação para o autor
+        const authorEmail = report.author_email || report.created_by || updatedReport.created_by || '';
+        if (authorEmail) {
+          base44.functions.invoke('notifyReportApprovedEmail', {
+            report_id: id,
+            author_email: authorEmail,
+            author_name: report.author_name || '',
+            mes_referencia: report.mes_referencia || '',
+            museu: report.museu || '',
+            reviewer_name: user?.full_name || '',
+          }).catch(e => console.warn('Falha ao enviar e-mail de aprovação:', e));
+        }
       }
 
       if (action === 'return') {

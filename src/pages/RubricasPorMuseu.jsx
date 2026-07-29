@@ -4,7 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { TrendingUp, RefreshCw, LayoutGrid, Plus, Database } from 'lucide-react';
+import { TrendingUp, RefreshCw, LayoutGrid, Plus, Database, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import GerenciarRubricasMuseuDialog from '@/components/rubricas/GerenciarRubricasMuseuDialog';
 import RubricasMuseuEditor from '@/components/rubricas/RubricasMuseuEditor';
@@ -31,6 +31,7 @@ const CENTROS_CUSTO = [
   'MUMO',
   'Noturno 2026',
   'Noturno Pampulha',
+  'Monitores',
   'Coordenação',
   'Comunicação',
   'Educação',
@@ -58,6 +59,13 @@ const GRUPOS_PESSOAL = new Set([
   'Equipe de produção',
   'Pagamento para produção',
 ]);
+
+// Helper: detecta se rubrica é de Monitores
+function isMonitor(rubrica) {
+  const grupo = normalizeText(rubrica.grupo || '');
+  const nome = normalizeText(rubrica.rubrica || rubrica.nome || '');
+  return grupo.includes('monitor') || nome.includes('monitor');
+}
 
 const CENTROS_EXCLUIR_PESSOAL = new Set(['MHAB', 'MIS', 'MUMO', 'Noturno 2026', 'Noturno Pampulha']);
 
@@ -167,7 +175,7 @@ function normalizarCentroCustoParaUI(centroCusto) {
 
 // ─── Classificação híbrida: centro_custo → nome → rateio ───
 const MUSEUS_FISICOS = ['MHAB', 'MIS', 'MUMO'];
-const MUSEUS_TODOS = ['MHAB', 'MIS', 'MUMO', 'Noturno 2026', 'Noturno Pampulha'];
+const MUSEUS_TODOS = ['MHAB', 'MIS', 'MUMO', 'Noturno 2026', 'Noturno Pampulha', 'Monitores'];
 
 /**
  * Retorna um array de {museu, peso} para rateio.
@@ -175,6 +183,11 @@ const MUSEUS_TODOS = ['MHAB', 'MIS', 'MUMO', 'Noturno 2026', 'Noturno Pampulha']
  * Se array tem múltiplos itens → rubrica compartilhada, ratear igualmente.
  */
 function classificarRubrica(rubrica) {
+  // 0. Monitores → card próprio (independente do centro_custo)
+  if (isMonitor(rubrica)) {
+    return [{ museu: 'Monitores', peso: 1 }];
+  }
+
   // 1. Prioridade: centro_custo explícito e válido
   const centroUI = normalizarCentroCustoParaUI(rubrica.centro_custo);
   if (centroUI && MUSEUS_TODOS.includes(centroUI)) {
@@ -272,6 +285,9 @@ export default function RubricasPorMuseu() {
   const [userPermission, setUserPermission] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshNonce, setRefreshNonce] = useState(0);
+  const [diagnostico, setDiagnostico] = useState(null);
+  const [isDiagnosticando, setIsDiagnosticando] = useState(false);
+  const [isCorrigindo, setIsCorrigindo] = useState(false);
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -316,7 +332,8 @@ export default function RubricasPorMuseu() {
    *   Aliases: "Noturno nos Museus 2026" → "Noturno 2026", "Atuação Geral" → rubricas transversais ignoradas nos cards de museu físico
    */
   const resumoPorMuseu = useMemo(() => {
-    const banco = Array.isArray(rubricasBanco) ? rubricasBanco.filter(r => r?.ativo !== false) : [];
+    // Filtra rubricas: ativas e com grupo preenchido (sem grupo = inválidas, não exibir)
+    const banco = Array.isArray(rubricasBanco) ? rubricasBanco.filter(r => r?.ativo !== false && String(r?.grupo || '').trim() !== '') : [];
     const compras = Array.isArray(comprasAprovadas) ? comprasAprovadas : [];
 
     const STATUS_APROVADOS = new Set(['APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
@@ -394,7 +411,7 @@ export default function RubricasPorMuseu() {
 
   // KPIs gerais = soma EXATA dos cards visíveis na grade (museus físicos + noturno),
   // excluindo centros transversais que são exibidos separadamente em CentrosCustoCards
-  const CENTROS_CARDS_GRADE = new Set(['MHAB', 'MIS', 'MUMO', 'Noturno 2026', 'Noturno Pampulha']);
+  const CENTROS_CARDS_GRADE = new Set(['MHAB', 'MIS', 'MUMO', 'Noturno 2026', 'Noturno Pampulha', 'Monitores']);
 
   const totaisGerais = useMemo(() => {
     const cardsGrade = resumoPorMuseu.filter(item => CENTROS_CARDS_GRADE.has(item.museu));
@@ -430,6 +447,31 @@ export default function RubricasPorMuseu() {
     setIsRefreshing(false);
   };
 
+  const handleDiagnosticar = async () => {
+    setIsDiagnosticando(true);
+    try {
+      const res = await base44.functions.invoke('diagnosticarCorrigirNoturno', { confirmar: false });
+      setDiagnostico(res?.data || res);
+    } catch (e) {
+      toast.error('Erro ao diagnosticar: ' + e.message);
+    }
+    setIsDiagnosticando(false);
+  };
+
+  const handleCorrigir = async () => {
+    setIsCorrigindo(true);
+    try {
+      const res = await base44.functions.invoke('diagnosticarCorrigirNoturno', { confirmar: true });
+      const result = res?.data || res;
+      toast.success(result.mensagem || 'Correções aplicadas com sucesso');
+      setDiagnostico(null);
+      await refreshAllRubricaData();
+    } catch (e) {
+      toast.error('Erro ao corrigir: ' + e.message);
+    }
+    setIsCorrigindo(false);
+  };
+
   return (
     <div className="min-h-screen bg-white">
       <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10 space-y-6">
@@ -442,6 +484,7 @@ export default function RubricasPorMuseu() {
             <div className="flex gap-2 flex-wrap">
               <Button variant="outline" className="gap-2 border-gray-200 text-black hover:bg-gray-50 rounded-xl" onClick={() => setShowNovaRubrica(true)}><Plus className="w-4 h-4" />Nova Rubrica</Button>
               <Button variant="outline" className="gap-2 border-gray-200 text-black hover:bg-gray-50 rounded-xl" onClick={handleRefresh} disabled={isRefreshing}><RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />Sincronizar</Button>
+              {isCoordenador && <Button variant="outline" className="gap-2 border-amber-200 text-amber-700 hover:bg-amber-50 rounded-xl" onClick={handleDiagnosticar} disabled={isDiagnosticando}><AlertTriangle className={`w-4 h-4 ${isDiagnosticando ? 'animate-pulse' : ''}`} />Diagnosticar</Button>}
               {isCoordenador && <Button variant="outline" className="gap-2 border-gray-200 text-black hover:bg-gray-50 rounded-xl" onClick={() => setShowCardEditor(true)}><LayoutGrid className="w-4 h-4" />Editor de Cards</Button>}
             </div>
           )}
@@ -466,6 +509,53 @@ export default function RubricasPorMuseu() {
           <Database className="w-3 h-3 text-blue-600" />
           <span>Saldos calculados diretamente das compras aprovadas por rubrica_id — todos os aditivos e centros de custo. Clique em "Sincronizar" para recalcular agora.</span>
         </div>
+
+        {/* Painel de diagnóstico */}
+        {diagnostico && isCoordenador && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 space-y-3">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-600" />
+                <h3 className="font-semibold text-amber-900">Resultado do Diagnóstico</h3>
+              </div>
+              <button className="text-xs text-amber-600 hover:underline" onClick={() => setDiagnostico(null)}>Fechar</button>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+              <div className="bg-white rounded-xl p-3 border border-amber-100">
+                <p className="text-xs text-gray-500">NFs Noturno 2026 com alias errado</p>
+                <p className="text-2xl font-bold text-amber-700">{diagnostico.diagnostico?.compras_alias_noturno2026 ?? 0}</p>
+              </div>
+              <div className="bg-white rounded-xl p-3 border border-amber-100">
+                <p className="text-xs text-gray-500">NFs Noturno Pampulha com alias errado</p>
+                <p className="text-2xl font-bold text-amber-700">{diagnostico.diagnostico?.compras_alias_pampulha ?? 0}</p>
+              </div>
+              <div className="bg-white rounded-xl p-3 border border-amber-100">
+                <p className="text-xs text-gray-500">Rubricas sem grupo (zeradas)</p>
+                <p className="text-2xl font-bold text-amber-700">{diagnostico.diagnostico?.rubricas_sem_grupo_zeradas ?? 0}</p>
+              </div>
+              <div className="bg-white rounded-xl p-3 border border-amber-100">
+                <p className="text-xs text-gray-500">Rubricas com nome inválido</p>
+                <p className="text-2xl font-bold text-amber-700">{diagnostico.diagnostico?.rubricas_nome_invalido ?? 0}</p>
+              </div>
+            </div>
+            {diagnostico.diagnostico?.exemplos_nome_invalido?.length > 0 && (
+              <div className="bg-white rounded-xl p-3 border border-amber-100">
+                <p className="text-xs font-semibold text-gray-600 mb-2">Exemplos de nomes inválidos detectados:</p>
+                {diagnostico.diagnostico.exemplos_nome_invalido.map((ex, i) => (
+                  <p key={i} className="text-xs text-gray-500">• {ex.nome} (valor: R$ {Number(ex.valor || 0).toFixed(2)})</p>
+                ))}
+              </div>
+            )}
+            {(diagnostico.diagnostico?.compras_alias_noturno2026 > 0 || diagnostico.diagnostico?.compras_alias_pampulha > 0 || diagnostico.diagnostico?.rubricas_sem_grupo_zeradas > 0) ? (
+              <Button onClick={handleCorrigir} disabled={isCorrigindo} className="bg-amber-600 hover:bg-amber-700 text-white gap-2">
+                <CheckCircle2 className={`w-4 h-4 ${isCorrigindo ? 'animate-spin' : ''}`} />
+                {isCorrigindo ? 'Corrigindo...' : 'Aplicar Correções Automáticas'}
+              </Button>
+            ) : (
+              <p className="text-sm text-green-700 font-medium flex items-center gap-1"><CheckCircle2 className="w-4 h-4" />Nenhuma correção necessária.</p>
+            )}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {resumoPorMuseu.map((item) => <MuseuCard key={item.museu} item={item} active={museuAtivo === item.museu} onClick={() => setMuseuAtivo(item.museu)} fmt={fmt} fmtPct={fmtPct} />)}
