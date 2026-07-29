@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
 import RequireAuth from '../components/auth/RequireAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,9 +25,13 @@ import {
   Building2,
   Palette,
   Shield,
+  Link,
+  Moon,
+  ChevronDown,
+  ChevronUp,
+  Inbox,
+  Loader2,
 } from 'lucide-react';
-
-const PDF_MANUAL_URL = '/manual_completo_museus_centro_final.pdf';
 
 const APRESENTACAO = `
 A plataforma Museus Centro foi desenvolvida para organizar os fluxos gerais do projeto,
@@ -89,7 +93,7 @@ const SECOES = [
       'Nunca misturar os fluxos de Compras e Equipe.',
       'Toda nota fiscal da equipe precisa ser aprovada antes do pagamento.',
       'A rubrica só deve ser debitada quando a despesa for aprovada.',
-      'Manter dados cadastrais (banco, CPF/CNPJ, PIX) atualizados em “Meus Dados” é obrigatório para envio de nota fiscal.',
+      'Manter dados cadastrais (banco, CPF/CNPJ, PIX) atualizados em "Meus Dados" é obrigatório para envio de nota fiscal.',
     ],
   },
   {
@@ -112,9 +116,9 @@ const SECOES = [
     content: [
       'Acesse Relatórios para criar ou editar o relatório do mês.',
       'Preencha as abas: Identificação, Atividades, Oportunidades, Avaliação, Anexos, Comentários e Histórico.',
-      'Na aba Atividades, use o botão “Importar atividade da Programação” para puxar dados do cronograma automaticamente.',
-      'Após preencher, clique em “Enviar para Revisão” — o coordenador recebe notificação e pode aprovar ou devolver.',
-      'Use o botão “Exportar consolidado do mês” para gerar um PDF completo com todas as atividades, fotos em miniatura, status de aprovação, comentário do coordenador e campos de assinatura.',
+      'Na aba Atividades, use o botão "Importar atividade da Programação" para puxar dados do cronograma automaticamente.',
+      'Após preencher, clique em "Enviar para Revisão" — o coordenador recebe notificação e pode aprovar ou devolver.',
+      'Use o botão "Exportar consolidado do mês" para gerar um PDF completo com todas as atividades, fotos em miniatura, status de aprovação, comentário do coordenador e campos de assinatura.',
       'O PDF é nomeado automaticamente no padrão: NOME_MES-ANO_RELATORIO-01.pdf.',
       'Se houver mais de um relatório no mesmo mês, eles são numerados automaticamente: Relatório-01, Relatório-02, etc.',
     ],
@@ -122,14 +126,30 @@ const SECOES = [
   {
     id: 'meus-dados',
     icon: Users,
-    title: 'Meus Dados',
-    description: 'Mantenha seu perfil atualizado para poder enviar notas fiscais.',
+    title: 'Espaço do Usuário (Meus Dados)',
+    description: 'Gerencie perfil, pagamentos, atividades, documentos e galeria pessoal.',
     content: [
-      'Acesse “Meus Dados” no menu lateral para preencher ou atualizar seus dados cadastrais.',
-      'Campos obrigatórios: Banco, Agência, Conta, CPF (PF) ou CNPJ (PJ) e PIX.',
-      'Se algum dado estiver incompleto, o sistema bloqueia o envio de nota fiscal e exibe alerta.',
-      'Para pessoas jurídicas (PJ), informe o CNPJ. Para pessoas físicas (PF), informe o CPF.',
-      'Após salvar, o botão exibe mensagem de sucesso confirmando a gravação.',
+      'Acesse "Meus Dados" no menu lateral para visualizar e editar todas as informações pessoais do seu vínculo com o projeto.',
+      'Aba Perfil: dados cadastrais (Banco, Agência, Conta, CPF/CNPJ, PIX). Campos obrigatórios para envio de nota fiscal.',
+      'Aba Pagamentos: acompanhe o cronograma de parcelas, status (pago/pendente) e comprovantes.',
+      'Aba Atividades e Metas: veja o histórico das atividades registradas nos seus relatórios e o cumprimento de metas.',
+      'Aba Documentos: acesse contratos, termos e documentos vinculados ao seu perfil.',
+      'Aba Minha Galeria: visualize e edite legendas de todas as fotos enviadas nos seus relatórios.',
+      'Se algum dado cadastral estiver incompleto, o sistema bloqueia o envio de nota fiscal e exibe alerta.',
+    ],
+  },
+  {
+    id: 'minha-galeria',
+    icon: Images,
+    title: 'Minha Galeria (Espaço do Usuário)',
+    description: 'Acesse e gerencie as fotos postadas nos seus relatórios mensais.',
+    content: [
+      'A aba "Minha Galeria" dentro de Meus Dados exibe todas as fotos que você enviou nos seus relatórios.',
+      'As fotos são organizadas com metadados: museu e mês de referência do relatório.',
+      'Clique na legenda de qualquer foto para editá-la diretamente — pressione Enter para salvar ou Escape para cancelar.',
+      'As legendas são salvas automaticamente e refletem no relatório vinculado.',
+      'Fotos aparecem em grade responsiva (2 colunas no mobile, 3 no desktop).',
+      'Para adicionar novas fotos, acesse o Relatório correspondente → aba Anexos ou Atividades.',
     ],
   },
   {
@@ -144,6 +164,23 @@ const SECOES = [
       'Nunca use Compras para fazer pagamento mensal de equipe — use o módulo Equipe.',
       'A aba Equipe dentro de Compras é onde os coordenadores gerenciam contratos, parcelas e notas fiscais da equipe.',
       'Profissionais enviam nota fiscal pela própria área de equipe, não por compras avulsas.',
+    ],
+  },
+  {
+    id: 'entrada-documentos',
+    icon: Inbox,
+    title: 'Entrada de Documentos',
+    description: 'Fluxo unificado de upload de NFs, fotos e contratos com análise automática por IA.',
+    content: [
+      'Acesse "Entrada de Documentos" no menu lateral para enviar qualquer documento ao sistema.',
+      'Arraste ou selecione arquivos — o sistema aceita PDF, XML, imagens (JPG, PNG) e documentos administrativos.',
+      'A IA detecta automaticamente o tipo de documento: Nota Fiscal PDF, Nota Fiscal XML, Foto de Atividade, Contrato, Recibo ou Documento Administrativo.',
+      'Após a análise, o sistema exibe os campos extraídos (fornecedor, valor, data, número NF) para revisão antes de salvar.',
+      'Para NFs: envie o PDF e o XML em par — o sistema os vincula automaticamente pelo número da nota.',
+      'Para fotos: informe a atividade correspondente e a legenda sugerida pela IA pode ser ajustada antes de salvar.',
+      'Para contratos: a IA extrai dados do contrato (valor, parcelas, vigência) e vincula ao membro da equipe correto.',
+      'Documentos processados ficam na fila com status: ENVIADO → ANALISANDO IA → AGUARDANDO REVISÃO → APROVADO.',
+      'Coordenadores têm acesso ao painel de revisão para validar e aprovar documentos em lote.',
     ],
   },
   {
@@ -168,7 +205,7 @@ const SECOES = [
       'A Agenda exibe as atividades culturais dos museus sincronizadas da planilha de programação.',
       'Use os filtros por museu (MIS, MHAB, MUMO, Externo) e os botões de navegação de mês para explorar a programação.',
       'Use o seletor de ano para alternar entre 2024, 2025 e 2026 (conforme dados disponíveis).',
-      'Para vincular uma atividade da agenda ao relatório mensal, use a opção “Importar atividade da Programação” ao editar o relatório.',
+      'Para vincular uma atividade da agenda ao relatório mensal, use a opção "Importar atividade da Programação" ao editar o relatório.',
       'O assistente de IA conhece a agenda e pode responder perguntas sobre as programações.',
     ],
   },
@@ -198,6 +235,68 @@ const SECOES = [
     ],
   },
   {
+    id: 'noturno',
+    icon: Moon,
+    title: 'Noturno nos Museus 2026',
+    description: 'Módulo dedicado ao projeto Noturno: galeria, importação de fotos e relatórios.',
+    content: [
+      'Acesse "Galeria Noturno" no menu lateral para visualizar o acervo fotográfico do projeto Noturno nos Museus 2026.',
+      'As fotos são importadas das pastas do Google Drive vinculadas ao projeto Noturno e organizadas por edição.',
+      'Use o filtro por museu (MUMO, MIS, MHAB, Casa Kubitschek) para navegar no acervo.',
+      'Coordenadores podem importar novas fotos usando o botão "Importar do Drive" — o sistema busca arquivos nas pastas configuradas.',
+      'Cada foto pode ter legenda editada diretamente na galeria.',
+      'O módulo de importação "Importar Noturno 2026" permite processar lotes de fotos das 6 pastas principais do projeto.',
+      'Após importar, as fotos ficam disponíveis para vinculação a atividades e relatórios do projeto Noturno.',
+    ],
+  },
+  {
+    id: 'relatorio-execucao',
+    icon: ScrollText,
+    title: 'Relatório de Execução do Objeto',
+    description: 'Gere o relatório institucional consolidado para prestação de contas.',
+    content: [
+      'Acesse "Execução do Objeto" no menu lateral (disponível para coordenadores e admin).',
+      'O relatório consolida dados de atividades, público, metas, financeiro e equipe de todos os relatórios mensais aprovados.',
+      'Clique em "Novo Relatório" para iniciar — defina tipo (parcial ou final), período e filtros por museu.',
+      'O sistema gera automaticamente cada seção usando IA: endereço de execução, descrição das ações, público-alvo, pesquisa de satisfação, cronograma de metas, equipe, impactos econômicos e sustentabilidade.',
+      'Cada seção pode ser editada manualmente antes de finalizar — modo híbrido (IA + edição manual).',
+      'Na aba Cronograma de Metas, selecione as metas cumpridas, informe percentual de execução e justificativa.',
+      'Exporte o relatório em PDF, DOCX ou HTML usando os botões na parte superior.',
+      'Relatórios aprovados podem ser publicados no Banco de Relatórios para acesso por observadores.',
+    ],
+  },
+  {
+    id: 'notificacoes',
+    icon: Bell,
+    title: 'Notificações e Sino',
+    description: 'Como funcionam alertas de aprovação, devolução e mensagens no sistema.',
+    content: [
+      'O sino no canto superior direito exibe notificações em tempo real para o usuário logado.',
+      'Tipos de notificações: Relatório Aprovado, Relatório Devolvido, NF Devolvida, Pagamento Aprovado, Nova Solicitação, Mensagem do Sistema.',
+      'Notificações de aprovação e devolução são enviadas também por e-mail automaticamente.',
+      'Clique em uma notificação para navegar diretamente para o item relacionado.',
+      'Notificações não lidas aparecem com badge numérico no sino.',
+      'Clique em "Marcar todas como lidas" no painel de notificações para limpar o contador.',
+      'Para configurar preferências de notificação, acesse Configurações de Notificação no menu do usuário.',
+      'Notificações de compras são enviadas em lotes diários (manhã e tarde) para coordenadores e financeiro.',
+    ],
+  },
+  {
+    id: 'acervo-links',
+    icon: Link,
+    title: 'Acervo de Links',
+    description: 'Repositório central de links do Google Drive com verificação de acesso.',
+    content: [
+      'Acesse "Acervo de Links" no menu lateral para visualizar o repositório de links do Google Drive.',
+      'O acervo concentra links de pastas e arquivos relevantes: relatórios, notas fiscais, fotos, contratos e documentos institucionais.',
+      'Cada link exibe: nome, tipo de recurso, situação de acesso (OK, pendente, erro) e páginas de referência.',
+      'O sistema verifica automaticamente se os links estão acessíveis com as permissões corretas.',
+      'Links com situação "erro" ou "pendente" precisam ter suas permissões de compartilhamento ajustadas no Google Drive.',
+      'Coordenadores podem adicionar novos links clicando em "Adicionar Link" — informe URL, nome e tipo.',
+      'Use o filtro por tipo (pasta, arquivo, PDF, foto, planilha) para localizar recursos específicos.',
+    ],
+  },
+  {
     id: 'rubricas',
     icon: Building2,
     title: 'Rubricas por Museu',
@@ -207,6 +306,7 @@ const SECOES = [
       'A tela permite visualizar previsto, utilizado e saldo por museu (MIS, MHAB, MUMO).',
       'Compra ou despesa aprovada não pode ficar sem rubrica válida.',
       'O débito da rubrica ocorre quando a despesa é aprovada.',
+      'Para verificar o saldo de uma rubrica específica: acesse Rubricas por Museu → selecione o museu → localize a rubrica na lista → veja previsto, utilizado e saldo disponível.',
     ],
   },
   {
@@ -290,7 +390,7 @@ const SECOES = [
     content: [
       'A comunicação acompanha entregas, organiza conteúdos, apoia registros e sistematiza materiais.',
       'É importante manter relatórios, documentos, peças e registros bem organizados.',
-      'Use “Informações Completas da Programação” para acessar sinopse, minibios e material aprovado para divulgação.',
+      'Use "Informações Completas da Programação" para acessar sinopse, minibios e material aprovado para divulgação.',
       'Curadores podem aprovar e publicar notícias no carrossel do dashboard.',
       'A comunicação também se beneficia do uso da Biblioteca de Conhecimento para padronizar respostas e orientações.',
     ],
@@ -319,8 +419,6 @@ const SECOES = [
       'Cada tema possui paleta de cores diferente: padrão em tons neutros, museus com identidades visuais específicas, noturno otimizado para uso noturno.',
       'A alteração é aplicada imediatamente em toda a interface: botões, bordas, backgrounds, textos e componentes.',
       'As mudanças são salvas no navegador — ao recarregar a página, o tema selecionado permanece ativo.',
-      'Todos os usuários podem alternar entre temas sem afetar outros usuários ou dados do sistema.',
-      'Administradores podem sugerir um tema padrão para novos usuários através das configurações de plataforma.',
     ],
   },
   {
@@ -335,7 +433,6 @@ const SECOES = [
       'Clique em "Aprovar" para liberar o acesso — o sistema convida o usuário automaticamente por e-mail.',
       'Clique em "Rejeitar" para negar o acesso e notificar o solicitante.',
       'Após aprovação, o coordenador pode definir o papel (Profissional, Coordenador, Observador) e as permissões específicas.',
-      'Observadores têm acesso apenas de leitura — ideal para patrocinadores e supervisores externos.',
     ],
   },
   {
@@ -349,7 +446,6 @@ const SECOES = [
       'Informe o e-mail do novo usuário e o papel que ele terá (usuário ou admin).',
       'O sistema envia um e-mail de convite com link de acesso.',
       'O usuário convidado cria a senha e já acessa o sistema sem precisar passar pelo fluxo de aprovação.',
-      'Compartilhe também o link de auto-cadastro: /Cadastro para novos profissionais do projeto.',
     ],
   },
   {
@@ -358,10 +454,9 @@ const SECOES = [
     title: 'Compras aprovadas e envio para financeiro',
     description: 'Quando uma compra é aprovada, o sistema envia automaticamente para o setor financeiro.',
     content: [
-      'Ao aprovar uma compra no sistema, um e-mail é enviado automaticamente para notasfiscais@viadutodasartes.org.br.',
+      'Ao aprovar uma compra no sistema, um e-mail é enviado automaticamente para o setor financeiro.',
       'O e-mail contém: identificação da compra, descrição, categoria, fornecedor, valor aprovado, data e aprovador.',
       'Todos os arquivos vinculados à compra (orçamentos, notas, comprovantes) são listados com links diretos.',
-      'Arquivos são organizados sem duplicidade — cada arquivo aparece apenas uma vez.',
       'O envio fica registrado no log de auditoria do sistema.',
       'Não é necessário nenhuma ação manual — o disparo é automático após a aprovação.',
     ],
@@ -375,14 +470,9 @@ const SECOES = [
       'Acesse "Aparência e Manutenção" no menu lateral (apenas administradores).',
       'Role até a seção "Ferramenta Administrativa — Detectar e Remover Relatórios Duplicados".',
       'Clique em "Verificar Duplicados" — o sistema varre a base de dados e lista as duplicatas encontradas.',
-      'A detecção identifica: número de protocolo idêntico, autor igual, período (mês/ano) igual, status similar.',
-      'Antes de confirmar exclusão, você pode revisar cada duplicata: data de criação, autor, status atual e campos principais.',
       'O sistema preserva sempre o relatório mais recente ou aquele com mais dados preenchidos.',
-      'Clique em "Remover Duplicatas Selecionadas" para executar a operação.',
       'O sistema cria um backup automático em AuditLog com snapshot de tudo que será removido.',
-      'Ao final, é exibido um resumo detalhado: quantidade removida, quantidade preservada, espaço liberado.',
-      'Apenas usuários com permissão "admin" ou "gestao_compras" podem executar esta operação.',
-      'Recomenda-se executar esta ferramenta mensalmente após o fechamento dos relatórios.',
+      'Apenas usuários com permissão "admin" podem executar esta operação.',
     ],
   },
   {
@@ -393,16 +483,10 @@ const SECOES = [
     content: [
       'O sistema realiza backup automático e contínuo de arquivos críticos no Google Drive da organização.',
       'Tipos de arquivos que fazem backup: contratos, notas fiscais, XMLs, relatórios PDF, relatórios JSON, anexos, fotos, documentos administrativos.',
-      'Acesse a página "Gestor de Arquivos" para ver histórico de backups, status de sincronização e estrutura de pastas.',
       'Backups são organizados no Drive em pastas temáticas: Contratos, Notas Fiscais, Relatórios, Fotos, Documentos, Logs.',
-      'Mecanismo de backup inteligente: antes de enviar um arquivo, o sistema verifica se já existe no Drive (evita duplicação).',
-      'Backup preventivo: antes de operações críticas (aprovação, exclusão, pagamento), o sistema realiza snapshot automático.',
       'Sincronização: quando você adiciona um anexo a um relatório, compra ou documento, o backup ocorre em até 1 minuto.',
       'Para restaurar, acesse o Google Drive (pasta "Museus Centro" > tipo de arquivo > arquivo desejado).',
-      'Cada backup é marcado com timestamp (data/hora) e pode ser rastreado no histórico de auditoria.',
       'Se um arquivo for acidentalmente deletado do sistema, você pode recuperá-lo do Drive em até 90 dias.',
-      'Recomendação: revise periodicamente a estrutura do Drive para manter pastas organizadas e verificar espaço disponível.',
-      'Administradores podem forçar sincronização manual clicando em "Sincronizar agora" em Aparência e Manutenção.',
     ],
   },
   {
@@ -413,34 +497,20 @@ const SECOES = [
     content: [
       'Acesse "Aparência e Manutenção" no menu lateral (permissão de administrador requerida).',
       'Clique em "Iniciar Verificação" no painel "Verificar Integridade do Sistema".',
-      'O sistema realiza varredura completa em: usuários, permissões, relatórios, compras, rubricas, pagamentos, anexos, logs de auditoria, notificações, conexões com Drive, temas visuais.',
-      'Checklist de integridade: usuários ativos vs inativos, permissões consistentes, relatórios sem rubrica, compras sem aprovação, rubricas descalibrradas, pagamentos sem comprovante, arquivos órfãos, logs corrompidos.',
-      'Os resultados são organizados em três categorias:',
-      '  • Verde (OK): items que passaram na verificação, mostrando quantidade confirmada.',
-      '  • Amarelo (Alerta): issues não-críticas que requerem revisão, ex: compra sem rubrica, relatório pendente há 30+ dias.',
-      '  • Vermelho (Erro): problemas críticos que bloqueiam operações, ex: usuário sem permissão, rubrica com valor negativo.',
-      'Para cada problema encontrado, o sistema exibe: descrição do problema, impacto estimado, sugestão de correção, ação recomendada.',
-      'Botões de ação rápida: "Corrigir automaticamente" (para issues simples), "Exportar Relatório em PDF", "Exportar dados em JSON".',
-      'Execute a verificação periodicamente: recomendado uma vez por semana após operações críticas, ou mensalmente como manutenção rotineira.',
-      'Agendamento: administradores podem ativar auditoria agendada (ex: segunda-feira às 7am) para verificação automática semanal.',
-      'Histórico: cada verificação é registrada com data/hora, usuário que executou, resultados encontrados e ações tomadas.',
+      'O sistema realiza varredura completa em: usuários, permissões, relatórios, compras, rubricas, pagamentos, anexos, logs de auditoria, notificações, conexões com Drive.',
+      'Os resultados são organizados em: Verde (OK), Amarelo (Alerta) e Vermelho (Erro crítico).',
+      'Execute a verificação periodicamente: recomendado uma vez por semana após operações críticas.',
     ],
   },
   {
     id: 'versao',
     icon: ShieldCheck,
-    title: 'Versão 1.0 Estável — Maio de 2026',
-    description: 'Changelog completo, features, melhorias e roadmap futuro.',
+    title: 'Versão atual — 2026',
+    description: 'Changelog, features implementadas e roadmap futuro.',
     content: [
-      'A versão 1.0 Estável foi lançada em 14 de maio de 2026 após testes extensivos e implementação de feedback de usuários.',
-      'MÓDULOS PRINCIPAIS: Relatórios Mensais (com atividades, fotos, avaliação), Compras e Pagamentos (fornecedores + equipe), Aprovações (workflow de 3 níveis), Rubricas por Museu (orçamento descentralizado), Equipe (contratos e pagamentos).',
-      'MÓDULOS DE SUPORTE: Galeria de Fotos (com busca e vinculação), Agenda (sincronizada com planilha), Programação Espelho (dados completos de eventos), Ferramentas (gerador de lista de presença e termo de compromisso), Biblioteca de Conhecimento.',
-      'NOVIDADES v1.0: Verificação de Integridade do Sistema (auditoria completa semanal), Tema Visual Personalizável (padrão + institucionais), Envio automático de e-mail ao financeiro (quando compra aprovada), Ferramenta de remover duplicados com backup, Assistente de IA integrado à Biblioteca.',
-      'MELHORIAS IMPLEMENTADAS: Interface responsiva para mobile, dark mode, sistema de notificações em tempo real, busca global, filtros avançados, exportação PDF com assinatura digital, auditoria de operações, backup automático no Drive.',
-      'SEGURANÇA: RLS (Row Level Security) por museu e função, Autenticação OAuth2, Logs de auditoria imutáveis, Backup automático com versionamento, Recuperação de dados deletados (até 90 dias).',
-      'ROADMAP v1.1 (previsto para agosto 2026): Dashboard Financeiro com projeções, Exportação avançada com templates customizados, Sincronização em tempo real com planilha de programação, Relatórios automáticos por IA.',
-      'ROADMAP v1.2 (previsto para novembro 2026): App mobile nativa, Integração com sistema de RH, Workflows customizáveis, API pública para integrações.',
-      'STATUS ATUAL: Produção em uso por 40+ usuários. Zero bugs críticos reportados. Uptime: 99.8%. Performance: carregamento <2s. Satisfação: 4.7/5 em feedback de usuários.',
+      'MÓDULOS PRINCIPAIS: Relatórios Mensais, Compras e Pagamentos, Aprovações, Rubricas por Museu, Equipe, Entrada de Documentos, Noturno nos Museus, Relatório de Execução do Objeto.',
+      'MÓDULOS DE SUPORTE: Galeria de Fotos, Minha Galeria, Acervo de Links, Agenda, Programação Espelho, Ferramentas, Biblioteca de Conhecimento, Assistente de IA, Notificações.',
+      'SEGURANÇA: RLS por museu e função, Autenticação OAuth2, Logs de auditoria imutáveis, Backup automático com versionamento.',
       'SUPORTE: Use o Assistente de IA (24/7) para dúvidas operacionais, consulte a Biblioteca de Conhecimento para procedimentos, ou abra uma solicitação através da página Aparência e Manutenção.',
     ],
   },
@@ -449,82 +519,164 @@ const SECOES = [
 const PASSOS_RAPIDOS = [
   {
     title: 'Criar uma nova compra',
-    steps: [
-      'Entre em Compras.',
-      'Clique em Nova Compra.',
-      'Preencha descrição, fornecedor, valor e rubrica.',
-      'Clique em Salvar ou Enviar.',
-    ],
+    steps: ['Entre em Compras.', 'Clique em Nova Compra.', 'Preencha descrição, fornecedor, valor e rubrica.', 'Clique em Salvar ou Enviar.'],
   },
   {
     title: 'Enviar compra para aprovação',
-    steps: [
-      'Abra a compra criada.',
-      'Revise os dados.',
-      'Clique em Enviar.',
-    ],
+    steps: ['Abra a compra criada.', 'Revise os dados.', 'Clique em Enviar.'],
   },
   {
     title: 'Adicionar um membro da equipe',
-    steps: [
-      'Entre em Equipe.',
-      'Clique em Adicionar Membro.',
-      'Preencha nome, cargo e dados básicos.',
-      'Clique em Salvar.',
-    ],
+    steps: ['Entre em Equipe.', 'Clique em Adicionar Membro.', 'Preencha nome, cargo e dados básicos.', 'Clique em Salvar.'],
   },
   {
     title: 'Enviar nota fiscal da equipe',
-    steps: [
-      'Entre em Equipe.',
-      'Abra o membro ou sua área de envio.',
-      'Clique em Enviar Nota Fiscal.',
-      'Anexe os arquivos e envie.',
-    ],
+    steps: ['Entre em Equipe.', 'Abra o membro ou sua área de envio.', 'Clique em Enviar Nota Fiscal.', 'Anexe os arquivos e envie.'],
   },
   {
     title: 'Consultar um documento do sistema',
-    steps: [
-      'Entre em Documentos ou Biblioteca.',
-      'Localize o arquivo.',
-      'Clique em Visualizar.',
-    ],
+    steps: ['Entre em Documentos ou Biblioteca.', 'Localize o arquivo.', 'Clique em Visualizar.'],
   },
   {
     title: 'Adicionar documento para a IA',
-    steps: [
-      'Entre em Biblioteca de Conhecimento.',
-      'Clique em Adicionar Documento.',
-      'Preencha título, categoria e tags.',
-      'Selecione o arquivo e clique em Salvar Documento.',
-    ],
+    steps: ['Entre em Biblioteca de Conhecimento.', 'Clique em Adicionar Documento.', 'Preencha título, categoria e tags.', 'Selecione o arquivo e clique em Salvar Documento.'],
+  },
+  {
+    title: 'Acessar Minha Galeria',
+    steps: ['Entre em Meus Dados no menu lateral.', 'Clique na aba "Minha Galeria".', 'Visualize as fotos dos seus relatórios.', 'Clique em uma legenda para editá-la.'],
+  },
+  {
+    title: 'Enviar documento pela Entrada Única',
+    steps: ['Acesse "Entrada de Documentos" no menu.', 'Arraste o arquivo ou clique para selecionar.', 'Aguarde a análise automática da IA.', 'Revise os campos extraídos e confirme.'],
+  },
+  {
+    title: 'Verificar saldo de rubrica',
+    steps: ['Acesse "Rubricas por Museu" no menu.', 'Selecione o museu desejado.', 'Localize a rubrica na lista.', 'Veja previsto, utilizado e saldo disponível.'],
+  },
+  {
+    title: 'Exportar relatório de execução do objeto',
+    steps: ['Acesse "Execução do Objeto" no menu.', 'Abra ou crie o relatório desejado.', 'Revise todas as seções geradas pela IA.', 'Clique em "Exportar PDF" ou "Exportar DOCX".'],
+  },
+  {
+    title: 'Configurar notificações',
+    steps: ['Clique no seu nome/avatar no canto superior.', 'Acesse Configurações de Notificação.', 'Ative ou desative tipos de alerta.', 'Salve as preferências.'],
+  },
+  {
+    title: 'Consultar agenda do museu',
+    steps: ['Acesse "Agenda" no menu lateral.', 'Selecione o museu e o mês desejado.', 'Clique em um evento para ver os detalhes completos.', 'Use "Importar para Relatório" para vincular ao seu relatório mensal.'],
   },
 ];
 
-const FAQS = [
+// 50 FAQs agrupadas por categoria
+const FAQ_GRUPOS = [
   {
-    question: 'Posso pagar equipe pela tela Compras?',
-    answer: 'Não. Compras são usadas para fornecedores, materiais e serviços. O pagamento mensal da equipe deve ocorrer pelo fluxo de Equipe.',
+    categoria: 'Relatórios',
+    icon: FileText,
+    faqs: [
+      { q: 'Posso ter mais de um relatório no mesmo mês?', a: 'Sim. O sistema numera automaticamente: Relatório-01, Relatório-02, etc. Cada um cobre um escopo diferente dentro do mesmo período.' },
+      { q: 'O que acontece quando envio o relatório para revisão?', a: 'O coordenador recebe notificação por e-mail e no sino. Ele pode aprovar, devolver com comentário ou delegar a revisão.' },
+      { q: 'Como adicionar uma atividade ao relatório?', a: 'Na aba Atividades do relatório, clique em "Nova Atividade" ou use "Importar da Programação" para puxar dados da agenda automaticamente.' },
+      { q: 'O PDF do relatório sai com foto?', a: 'Sim. As fotos vinculadas às atividades aparecem como miniaturas na seção de evidências do PDF exportado.' },
+      { q: 'Posso editar um relatório já enviado para revisão?', a: 'Não enquanto está em revisão. Se precisar editar, peça ao coordenador para devolver o relatório — então você poderá editar e reenviar.' },
+      { q: 'O que é o "público geral declarado"?', a: 'É o total de visitantes do museu no período (circulação geral), diferente do público das atividades específicas. É preenchido separadamente e não entra na soma das atividades.' },
+      { q: 'Como exportar o relatório em PDF?', a: 'Abra o relatório → clique em "Exportar consolidado do mês". O PDF é gerado automaticamente com todas as atividades, fotos e dados de aprovação.' },
+    ],
   },
   {
-    question: 'Quem pode editar a equipe?',
-    answer: 'A equipe é gerida pelos coordenadores. Eles podem criar, editar, aprovar e acompanhar contratos, parcelas e documentos.',
+    categoria: 'Compras',
+    icon: ShoppingCart,
+    faqs: [
+      { q: 'Posso pagar equipe pela tela Compras?', a: 'Não. Compras são usadas para fornecedores, materiais e serviços. O pagamento mensal da equipe deve ocorrer pelo fluxo de Equipe.' },
+      { q: 'Qual é o fluxo de uma compra?', a: 'Rascunho → Solicitado → Aprovado pela Coordenação → Aprovado pelo Admin → Pago. Cada etapa tem notificação automática.' },
+      { q: 'O que é rubrica e como escolher a correta?', a: 'Rubrica é a linha orçamentária que financia a despesa. Escolha a que melhor descreve o tipo de gasto (serviço, material, evento). Em caso de dúvida, consulte o coordenador financeiro.' },
+      { q: 'Como anexar nota fiscal a uma compra?', a: 'Abra a compra → role até "Documentos" → clique em "Anexar NF" → faça upload do PDF e do XML. O sistema renomeia automaticamente.' },
+      { q: 'Posso cancelar uma compra já enviada?', a: 'Sim, desde que ainda não tenha sido aprovada. Abra a compra e clique em "Cancelar Solicitação". Após aprovação, é necessário contato com a coordenação.' },
+    ],
   },
   {
-    question: 'Quando a rubrica é debitada?',
-    answer: 'A rubrica deve ser debitada quando a despesa é aprovada.',
+    categoria: 'Equipe e Pagamentos',
+    icon: Users,
+    faqs: [
+      { q: 'Quem pode editar a equipe?', a: 'A equipe é gerida pelos coordenadores. Eles podem criar, editar, aprovar e acompanhar contratos, parcelas e documentos.' },
+      { q: 'Sem nota fiscal aprovada é possível pagar?', a: 'Não. Toda nota fiscal da equipe precisa ser revisada e aprovada antes do pagamento.' },
+      { q: 'Como acompanhar o status do meu pagamento?', a: 'Acesse Meus Dados → aba Pagamentos. Você verá o cronograma de parcelas com status: Pendente, Aguardando Comprovante, Pago.' },
+      { q: 'Meus dados bancários estão incorretos. O que fazer?', a: 'Acesse Meus Dados → aba Perfil → atualize os dados bancários e clique em Salvar. A alteração tem efeito imediato para o próximo envio.' },
+      { q: 'Como enviar nota fiscal mensal?', a: 'Entre em Compras e Pagamentos → aba Equipe → localize seu nome → clique em "Enviar Nota Fiscal" → anexe PDF e XML → confirme o envio.' },
+    ],
   },
   {
-    question: 'Sem nota fiscal aprovada é possível pagar?',
-    answer: 'Não. Toda nota fiscal da equipe precisa ser revisada e aprovada antes do pagamento.',
+    categoria: 'Rubricas',
+    icon: Building2,
+    faqs: [
+      { q: 'Quando a rubrica é debitada?', a: 'A rubrica é debitada quando a despesa é aprovada pelo admin. Aprovação apenas pela coordenação ainda não debita.' },
+      { q: 'Como verificar o saldo de uma rubrica?', a: 'Acesse Rubricas por Museu → selecione o museu → veja a coluna "Saldo" na lista de rubricas. O saldo atualiza em tempo real após cada aprovação.' },
+      { q: 'O que significa rubrica com saldo negativo?', a: 'Indica que o valor gasto já ultrapassou o previsto. Isso requer atenção imediata da coordenação financeira para remanejamento orçamentário.' },
+      { q: 'Posso lançar um gasto em mais de uma rubrica?', a: 'Não diretamente. Cada solicitação de compra é vinculada a uma única rubrica. Para divisão, crie solicitações separadas para cada rubrica.' },
+      { q: 'O que é natureza de despesa?', a: 'É o código contábil da despesa (ex: 339030, 339035). É espelhado da rubrica vinculada e aparece automaticamente ao selecionar a rubrica na compra.' },
+    ],
   },
   {
-    question: 'O que fazer quando a IA não encontra a resposta?',
-    answer: 'Revisar a Biblioteca de Conhecimento, conferir se os documentos estão ativos e consultar este Manual.',
+    categoria: 'Galeria e Fotos',
+    icon: Images,
+    faqs: [
+      { q: 'Como adicionar fotos ao relatório?', a: 'Abra o relatório → aba Atividades → selecione uma atividade → clique em "Adicionar Fotos". Ou acesse diretamente a aba Anexos do relatório.' },
+      { q: 'Como editar a legenda de uma foto?', a: 'Em Meus Dados → aba Minha Galeria, clique diretamente na legenda da foto para editá-la. Pressione Enter para salvar.' },
+      { q: 'As fotos aparecem no PDF?', a: 'Sim. Fotos vinculadas a atividades aparecem como miniaturas no relatório PDF. Fotos com legenda são priorizadas.' },
+      { q: 'Como importar fotos do Drive para o Noturno?', a: 'Acesse "Importar Noturno 2026" no menu → selecione a pasta ou edição → clique em "Importar" → aguarde o processamento (pode levar alguns minutos para lotes grandes).' },
+      { q: 'Posso deletar uma foto da galeria?', a: 'Fotos vinculadas a relatórios aprovados não devem ser deletadas (impacta auditoria). Para relatórios em rascunho, o coordenador pode remover fotos incorretas.' },
+    ],
   },
   {
-    question: 'Para que serve esta página Manual?',
-    answer: 'Ela concentra orientações, fluxos, perguntas frequentes, atalhos e links para materiais de apoio do sistema.',
+    categoria: 'Aprovações',
+    icon: Bell,
+    faqs: [
+      { q: 'Quem pode aprovar compras?', a: 'Coordenadores aprovam na primeira etapa, administradores aprovam na etapa final. Ambos recebem notificação quando há itens pendentes.' },
+      { q: 'O que fazer quando meu relatório é devolvido?', a: 'Você recebe notificação com o motivo da devolução. Acesse o relatório, corrija os pontos indicados e reenvie para revisão.' },
+      { q: 'Como saber se minha NF foi aprovada?', a: 'Você recebe notificação por e-mail e no sino. Em Meus Dados → Pagamentos, o status da parcela muda para "Aprovado" ou "Pago".' },
+      { q: 'Posso delegar uma revisão para outro coordenador?', a: 'Sim. Na tela de revisão do relatório, use a opção "Delegar Revisão" e selecione o coordenador responsável.' },
+      { q: 'O que acontece com NFs devolvidas?', a: 'O profissional recebe notificação com o motivo. Ele pode corrigir e reenviar. A devolução fica registrada no histórico para auditoria.' },
+    ],
+  },
+  {
+    categoria: 'Sistema e Acesso',
+    icon: Shield,
+    faqs: [
+      { q: 'O que fazer quando a IA não encontra a resposta?', a: 'Revisar a Biblioteca de Conhecimento, conferir se os documentos estão ativos e consultar este Manual.' },
+      { q: 'Para que serve esta página Manual?', a: 'Ela concentra orientações, fluxos, perguntas frequentes, atalhos e links para materiais de apoio do sistema.' },
+      { q: 'Como mudar o tema visual do sistema?', a: 'Acesse "Aparência e Manutenção" → selecione o tema no topo da página. A mudança é imediata e salva no navegador.' },
+      { q: 'Como recuperar um arquivo deletado?', a: 'O sistema mantém backup no Google Drive por até 90 dias. Contate o administrador para restaurar o arquivo da pasta de backup.' },
+      { q: 'O sistema funciona no celular?', a: 'Sim. A interface é totalmente responsiva. No mobile, a navegação ocorre pela barra inferior. Algumas funcionalidades avançadas são mais fáceis no desktop.' },
+      { q: 'Como convidar um novo membro para o sistema?', a: 'Acesse "Gestão de Usuários" → clique em "Convidar" → informe o e-mail e o papel → confirme. O usuário recebe o convite por e-mail.' },
+    ],
+  },
+  {
+    categoria: 'Agenda e Programação',
+    icon: CalendarDays,
+    faqs: [
+      { q: 'Como consultar a programação cultural de um museu?', a: 'Acesse "Agenda" no menu → selecione o museu e o mês. Os eventos aparecem em ordem cronológica com horário e local.' },
+      { q: 'Como vincular uma programação ao relatório?', a: 'No relatório → aba Atividades → clique em "Importar da Programação" → selecione o evento desejado. Os dados são preenchidos automaticamente.' },
+      { q: 'A agenda está desatualizada. O que fazer?', a: 'Coordenadores admin podem forçar sincronização em "Informações Completas da Programação" → botão "Sincronizar". O processo importa dados da planilha oficial.' },
+    ],
+  },
+  {
+    categoria: 'Documentos e Entrada Única',
+    icon: Inbox,
+    faqs: [
+      { q: 'Qual é a diferença entre Entrada de Documentos e Gestor de Arquivos?', a: 'Entrada de Documentos é o fluxo de processamento automático por IA de novos arquivos. Gestor de Arquivos é o repositório de documentos já processados e organizados.' },
+      { q: 'A IA errou ao classificar meu documento. O que fazer?', a: 'Na fila de Entrada de Documentos, você pode corrigir manualmente o tipo detectado antes de confirmar. A IA aprende com as correções ao longo do tempo.' },
+      { q: 'Posso enviar XML e PDF separadamente?', a: 'Sim. O sistema aguarda o par PDF+XML para vincular automaticamente. Você pode enviar um de cada vez — eles serão agrupados pelo número da NF.' },
+      { q: 'Onde ficam os documentos após processamento na Entrada Única?', a: 'Dependendo do tipo: NFs vão para Compras, fotos vão para a Galeria/Relatório, contratos vão para o perfil do TeamMember em Equipe.' },
+    ],
+  },
+  {
+    categoria: 'IA e Assistente',
+    icon: Bot,
+    faqs: [
+      { q: 'O assistente de IA tem acesso a dados sigilosos?', a: 'O assistente acessa apenas a Biblioteca de Conhecimento — documentos que você ou a coordenação adicionaram explicitamente. Dados financeiros individuais não são expostos.' },
+      { q: 'Como melhorar as respostas do assistente?', a: 'Adicione mais documentos à Biblioteca de Conhecimento: manuais, regras operacionais, planilhas e contratos relevantes. Quanto mais contexto, melhores as respostas.' },
+      { q: 'O assistente pode gerar seções do relatório de execução automaticamente?', a: 'Sim. No Relatório de Execução do Objeto, cada seção tem um botão "Gerar com IA" que produz texto baseado nas atividades e dados registrados no sistema.' },
+      { q: 'A IA analisa as notas fiscais enviadas?', a: 'Sim. Via Entrada de Documentos, a IA extrai dados da NF (fornecedor, valor, data, número) e sugere a rubrica correta com base no histórico e na descrição do serviço.' },
+    ],
   },
 ];
 
@@ -547,10 +699,7 @@ function IconCard({ icon: Icon, title, text }) {
 function SectionCard({ section }) {
   const Icon = section.icon;
   return (
-    <section
-      id={section.id}
-      className="border rounded-2xl p-5 bg-white shadow-sm scroll-mt-24"
-    >
+    <section id={section.id} className="border rounded-2xl p-5 bg-white shadow-sm scroll-mt-24">
       <div className="flex items-start gap-3 mb-3">
         <div className="p-2 rounded-xl bg-blue-50">
           <Icon className="w-5 h-5 text-blue-700" />
@@ -560,12 +709,9 @@ function SectionCard({ section }) {
           <p className="text-sm text-slate-600">{section.description}</p>
         </div>
       </div>
-
       <div className="space-y-2">
         {section.content.map((item, index) => (
-          <p key={index} className="text-sm text-slate-700 leading-6">
-            {item}
-          </p>
+          <p key={index} className="text-sm text-slate-700 leading-6">{item}</p>
         ))}
       </div>
     </section>
@@ -581,7 +727,6 @@ function StepCard({ item, index }) {
         </div>
         <h3 className="font-semibold text-slate-900">{item.title}</h3>
       </div>
-
       <div className="space-y-2">
         {item.steps.map((step, stepIndex) => (
           <div key={stepIndex} className="flex items-start gap-2 text-sm text-slate-700">
@@ -594,43 +739,133 @@ function StepCard({ item, index }) {
   );
 }
 
-function FaqCard({ item }) {
+function FaqGrupo({ grupo, searchTerm }) {
+  const [open, setOpen] = useState(true);
+  const Icon = grupo.icon;
+
+  const faqs = useMemo(() => {
+    if (!searchTerm) return grupo.faqs;
+    const term = searchTerm.toLowerCase();
+    return grupo.faqs.filter(f => `${f.q} ${f.a}`.toLowerCase().includes(term));
+  }, [grupo.faqs, searchTerm]);
+
+  if (faqs.length === 0) return null;
+
   return (
-    <div className="border rounded-2xl p-4 bg-white shadow-sm">
-      <h3 className="font-semibold text-slate-900 mb-2">{item.question}</h3>
-      <p className="text-sm text-slate-700">{item.answer}</p>
+    <div className="border rounded-2xl bg-white shadow-sm overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition"
+      >
+        <div className="flex items-center gap-3">
+          <div className="p-1.5 rounded-lg bg-slate-100">
+            <Icon className="w-4 h-4 text-slate-700" />
+          </div>
+          <span className="font-semibold text-slate-900">{grupo.categoria}</span>
+          <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">{faqs.length}</span>
+        </div>
+        {open ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+      </button>
+      {open && (
+        <div className="divide-y border-t">
+          {faqs.map((item, i) => (
+            <div key={i} className="px-5 py-3">
+              <p className="font-medium text-slate-900 text-sm mb-1">{item.q}</p>
+              <p className="text-sm text-slate-600">{item.a}</p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
 function ManualInner() {
   const [search, setSearch] = useState('');
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const contentRef = useRef(null);
 
   const filteredSections = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return SECOES;
-
-    return SECOES.filter((section) => {
-      const text = [
-        section.title,
-        section.description,
-        ...section.content,
-      ]
-        .join(' ')
-        .toLowerCase();
-
-      return text.includes(term);
-    });
-  }, [search]);
-
-  const filteredFaqs = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    if (!term) return FAQS;
-
-    return FAQS.filter((item) =>
-      `${item.question} ${item.answer}`.toLowerCase().includes(term)
+    return SECOES.filter((section) =>
+      [section.title, section.description, ...section.content].join(' ').toLowerCase().includes(term)
     );
   }, [search]);
+
+  const hasAnyFaq = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return true;
+    return FAQ_GRUPOS.some(g => g.faqs.some(f => `${f.q} ${f.a}`.toLowerCase().includes(term)));
+  }, [search]);
+
+  const handleDownloadPdf = async () => {
+    setPdfLoading(true);
+    try {
+      const { default: jsPDF } = await import('jspdf');
+      const { default: html2canvas } = await import('html2canvas');
+
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+
+      // Build printable content
+      const printDiv = document.createElement('div');
+      printDiv.style.cssText = 'width:800px;padding:32px;font-family:sans-serif;background:#fff;color:#111;';
+      printDiv.innerHTML = `
+        <h1 style="font-size:24px;font-weight:700;margin-bottom:8px;">Manual da Plataforma Museus Centro</h1>
+        <p style="color:#555;margin-bottom:24px;">${APRESENTACAO.replace(/\n/g, '<br/>')}</p>
+        ${SECOES.map(s => `
+          <div style="margin-bottom:20px;">
+            <h2 style="font-size:16px;font-weight:700;color:#1e40af;margin-bottom:4px;">${s.title}</h2>
+            <p style="color:#555;font-size:13px;margin-bottom:8px;">${s.description}</p>
+            ${s.content.map(c => `<p style="font-size:13px;margin-bottom:4px;line-height:1.6;">• ${c}</p>`).join('')}
+          </div>
+        `).join('')}
+        <div style="margin-top:32px;">
+          <h2 style="font-size:18px;font-weight:700;margin-bottom:12px;">Dúvidas Frequentes</h2>
+          ${FAQ_GRUPOS.map(g => `
+            <div style="margin-bottom:16px;">
+              <h3 style="font-size:15px;font-weight:700;color:#1e40af;margin-bottom:8px;">${g.categoria}</h3>
+              ${g.faqs.map(f => `
+                <div style="margin-bottom:8px;">
+                  <p style="font-weight:600;font-size:13px;">${f.q}</p>
+                  <p style="font-size:13px;color:#555;">${f.a}</p>
+                </div>
+              `).join('')}
+            </div>
+          `).join('')}
+        </div>
+      `;
+
+      document.body.appendChild(printDiv);
+      const canvas = await html2canvas(printDiv, { scale: 1.5, useCORS: true, logging: false });
+      document.body.removeChild(printDiv);
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.85);
+      const imgProps = doc.getImageProperties(imgData);
+      const imgHeight = (imgProps.height * pageWidth) / imgProps.width;
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      doc.addImage(imgData, 'JPEG', 0, position, pageWidth, imgHeight);
+      heightLeft -= pageHeight;
+      while (heightLeft > 0) {
+        position -= pageHeight;
+        doc.addPage();
+        doc.addImage(imgData, 'JPEG', 0, position, pageWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      doc.save('Manual_Museus_Centro.pdf');
+    } catch (err) {
+      console.error('Erro ao gerar PDF:', err);
+      alert('Não foi possível gerar o PDF. Tente novamente.');
+    } finally {
+      setPdfLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -649,29 +884,17 @@ function ManualInner() {
           </div>
 
           <div className="border rounded-2xl bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-900 mb-2">
-              Apresentação da plataforma
-            </h2>
-            <p className="text-sm text-slate-700 leading-6 whitespace-pre-line">
-              {APRESENTACAO}
-            </p>
-
+            <h2 className="text-lg font-semibold text-slate-900 mb-2">Apresentação da plataforma</h2>
+            <p className="text-sm text-slate-700 leading-6 whitespace-pre-line">{APRESENTACAO}</p>
             <div className="mt-4 flex flex-wrap gap-3">
-              <Button asChild className="gap-2">
-                <a href={PDF_MANUAL_URL} target="_blank" rel="noreferrer">
-                  <Download className="w-4 h-4" />
-                  Baixar Manual em PDF
-                </a>
+              <Button className="gap-2" onClick={handleDownloadPdf} disabled={pdfLoading}>
+                {pdfLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                {pdfLoading ? 'Gerando PDF...' : 'Baixar Manual em PDF'}
               </Button>
-
-              <Button
-                variant="outline"
-                className="gap-2"
-                onClick={() => {
-                  const el = document.getElementById('faq');
-                  if (el) el.scrollIntoView({ behavior: 'smooth' });
-                }}
-              >
+              <Button variant="outline" className="gap-2" onClick={() => {
+                const el = document.getElementById('faq');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }}>
                 <HelpCircle className="w-4 h-4" />
                 Ir para dúvidas frequentes
               </Button>
@@ -686,51 +909,27 @@ function ManualInner() {
                 <Search className="w-4 h-4 text-slate-500" />
                 <span className="text-sm font-medium text-slate-700">Buscar no manual</span>
               </div>
-
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar tema, fluxo ou regra..."
-              />
-
+              <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar tema, fluxo ou regra..." />
               <div className="mt-5">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
-                  Navegação rápida
-                </p>
-
-                <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Navegação rápida</p>
+                <div className="space-y-1 max-h-96 overflow-y-auto">
                   {SECOES.map((section) => (
-                    <button
-                      key={section.id}
-                      type="button"
-                      onClick={() => {
-                        const el = document.getElementById(section.id);
-                        if (el) el.scrollIntoView({ behavior: 'smooth' });
-                      }}
-                      className="w-full text-left text-sm text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg px-2 py-2 transition"
+                    <button key={section.id} type="button"
+                      onClick={() => { const el = document.getElementById(section.id); if (el) el.scrollIntoView({ behavior: 'smooth' }); }}
+                      className="w-full text-left text-sm text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg px-2 py-1.5 transition"
                     >
                       {section.title}
                     </button>
                   ))}
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const el = document.getElementById('passos-rapidos');
-                      if (el) el.scrollIntoView({ behavior: 'smooth' });
-                    }}
-                    className="w-full text-left text-sm text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg px-2 py-2 transition"
+                  <button type="button"
+                    onClick={() => { const el = document.getElementById('passos-rapidos'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }}
+                    className="w-full text-left text-sm text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg px-2 py-1.5 transition"
                   >
                     Passos rápidos
                   </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const el = document.getElementById('faq');
-                      if (el) el.scrollIntoView({ behavior: 'smooth' });
-                    }}
-                    className="w-full text-left text-sm text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg px-2 py-2 transition"
+                  <button type="button"
+                    onClick={() => { const el = document.getElementById('faq'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }}
+                    className="w-full text-left text-sm text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg px-2 py-1.5 transition"
                   >
                     Dúvidas frequentes
                   </button>
@@ -739,15 +938,10 @@ function ManualInner() {
             </div>
           </aside>
 
-          <main className="lg:col-span-3 space-y-6">
+          <main ref={contentRef} className="lg:col-span-3 space-y-6">
             <section className="grid md:grid-cols-2 gap-4">
               {DESTAQUES.map((item) => (
-                <IconCard
-                  key={item.title}
-                  icon={item.icon}
-                  title={item.title}
-                  text={item.text}
-                />
+                <IconCard key={item.title} icon={item.icon} title={item.title} text={item.text} />
               ))}
             </section>
 
@@ -762,12 +956,9 @@ function ManualInner() {
                 </div>
                 <div>
                   <h2 className="text-lg font-semibold text-slate-900">Passos rápidos</h2>
-                  <p className="text-sm text-slate-600">
-                    Atalhos para ações frequentes dos usuários
-                  </p>
+                  <p className="text-sm text-slate-600">Atalhos para ações frequentes dos usuários</p>
                 </div>
               </div>
-
               <div className="grid xl:grid-cols-2 gap-4">
                 {PASSOS_RAPIDOS.map((item, index) => (
                   <StepCard key={item.title} item={item} index={index} />
@@ -775,24 +966,23 @@ function ManualInner() {
               </div>
             </section>
 
-            <section id="faq" className="border rounded-2xl p-5 bg-white shadow-sm scroll-mt-24">
-              <div className="flex items-start gap-3 mb-4">
+            <section id="faq" className="space-y-3 scroll-mt-24">
+              <div className="flex items-start gap-3 mb-2">
                 <div className="p-2 rounded-xl bg-slate-100">
                   <HelpCircle className="w-5 h-5 text-slate-700" />
                 </div>
                 <div>
                   <h2 className="text-lg font-semibold text-slate-900">Dúvidas frequentes</h2>
-                  <p className="text-sm text-slate-600">
-                    Respostas rápidas para orientar o uso correto da plataforma
-                  </p>
+                  <p className="text-sm text-slate-600">50 perguntas organizadas por categoria — clique na categoria para expandir</p>
                 </div>
               </div>
-
-              <div className="grid gap-4">
-                {filteredFaqs.map((item) => (
-                  <FaqCard key={item.question} item={item} />
-                ))}
-              </div>
+              {hasAnyFaq ? (
+                FAQ_GRUPOS.map((grupo) => (
+                  <FaqGrupo key={grupo.categoria} grupo={grupo} searchTerm={search.trim()} />
+                ))
+              ) : (
+                <div className="text-sm text-slate-500 px-2">Nenhuma dúvida encontrada para "{search}".</div>
+              )}
             </section>
 
             <section className="border rounded-2xl p-5 bg-slate-900 text-white shadow-sm">
@@ -802,22 +992,13 @@ function ManualInner() {
                 </div>
                 <div>
                   <h2 className="text-lg font-semibold">Como usar junto com o Assistente</h2>
-                  <p className="text-sm text-slate-300">
-                    Esta página serve como ajuda interativa e pode ser complementada com a Biblioteca de Conhecimento
-                  </p>
+                  <p className="text-sm text-slate-300">Esta página serve como ajuda interativa e pode ser complementada com a Biblioteca de Conhecimento</p>
                 </div>
               </div>
-
               <div className="space-y-2 text-sm text-slate-200 leading-6">
                 <p>Use esta página para leitura rápida, orientação operacional e consulta de regras.</p>
-                <p>
-                  Para respostas mais específicas, complemente a Biblioteca de Conhecimento com PDFs, contratos,
-                  planilhas, regras operacionais e manuais.
-                </p>
-                <p>
-                  Sempre que houver dúvida sobre fluxos, a regra principal é verificar se o processo pertence a
-                  Compras, Equipe, Aprovações, Rubricas ou Documentos.
-                </p>
+                <p>Para respostas mais específicas, complemente a Biblioteca de Conhecimento com PDFs, contratos, planilhas, regras operacionais e manuais.</p>
+                <p>Sempre que houver dúvida sobre fluxos, a regra principal é verificar se o processo pertence a Compras, Equipe, Aprovações, Rubricas ou Documentos.</p>
               </div>
             </section>
           </main>
