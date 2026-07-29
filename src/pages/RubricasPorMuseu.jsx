@@ -1,20 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { TrendingUp, RefreshCw, LayoutGrid, Plus, Database, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { TrendingUp, Plus, Database } from 'lucide-react';
 import GerenciarRubricasMuseuDialog from '@/components/rubricas/GerenciarRubricasMuseuDialog';
 import RubricasMuseuEditor from '@/components/rubricas/RubricasMuseuEditor';
-import CardRubricaEditor from '@/components/rubricas/CardRubricaEditor';
 import NovaRubricaDialog from '@/components/rubricas/NovaRubricaDialog';
 import NoturnoPampulhaCard from '@/components/compras/NoturnoPampulhaCard';
 import CentrosCustoCards from '@/components/compras/CentrosCustoCards';
-import { recalculateAllRubricasFromPurchases } from '@/components/compras/AutoRubricasSync';
 import { canManageRubricas } from '@/components/auth/permissions';
-import { getRubricasOficiais3Aditivo } from '@/lib/rubricasOficiais3Aditivo';
 import OrcamentoPorGrupoSection from '@/components/compras/OrcamentoPorGrupoSection';
 
 // ─── Tokens de museu para classificação por nome ───
@@ -279,16 +275,11 @@ function MuseuCard({ item, active, onClick, fmt, fmtPct }) {
 export default function RubricasPorMuseu() {
   const [museuAtivo, setMuseuAtivo] = useState(CENTROS_CUSTO[0]);
   const [showGerenciar, setShowGerenciar] = useState(false);
-  const [showCardEditor, setShowCardEditor] = useState(false);
   const [showNovaRubrica, setShowNovaRubrica] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [userPermission, setUserPermission] = useState(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+
   const [refreshNonce, setRefreshNonce] = useState(0);
-  const [diagnostico, setDiagnostico] = useState(null);
-  const [isDiagnosticando, setIsDiagnosticando] = useState(false);
-  const [isCorrigindo, setIsCorrigindo] = useState(false);
-  const queryClient = useQueryClient();
 
   useEffect(() => {
     base44.auth.me().then(async (user) => {
@@ -431,48 +422,11 @@ export default function RubricasPorMuseu() {
     setRefreshNonce((prev) => prev + 1);
   };
 
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    try {
-      const res = await base44.functions.invoke('recalcularSaldosRubricas', {});
-      const result = res?.data || res;
-      await refreshAllRubricaData();
-      if (result?.success) {
-        toast.success(`Rubricas recalculadas: ${result.atualizadas} atualizadas de ${result.rubricasAtivas} ativas, considerando ${result.comprasContabilizadas} compras aprovadas.`);
-      } else {
-        toast.success('Sincronização concluída');
-      }
-    } catch (e) {
-      await refreshAllRubricaData();
-      toast.success('Sincronização concluída');
-    }
-    setIsRefreshing(false);
-  };
+  // Diagnóstico e correção automáticos — roda silenciosamente ao carregar dados
+  useEffect(() => {
+    base44.functions.invoke('diagnosticarCorrigirNoturno', { confirmar: true }).catch(() => {});
+  }, []);
 
-  const handleDiagnosticar = async () => {
-    setIsDiagnosticando(true);
-    try {
-      const res = await base44.functions.invoke('diagnosticarCorrigirNoturno', { confirmar: false });
-      setDiagnostico(res?.data || res);
-    } catch (e) {
-      toast.error('Erro ao diagnosticar: ' + e.message);
-    }
-    setIsDiagnosticando(false);
-  };
-
-  const handleCorrigir = async () => {
-    setIsCorrigindo(true);
-    try {
-      const res = await base44.functions.invoke('diagnosticarCorrigirNoturno', { confirmar: true });
-      const result = res?.data || res;
-      toast.success(result.mensagem || 'Correções aplicadas com sucesso');
-      setDiagnostico(null);
-      await refreshAllRubricaData();
-    } catch (e) {
-      toast.error('Erro ao corrigir: ' + e.message);
-    }
-    setIsCorrigindo(false);
-  };
 
   return (
     <div className="min-h-screen bg-white">
@@ -485,9 +439,6 @@ export default function RubricasPorMuseu() {
           {canEdit && (
             <div className="flex gap-2 flex-wrap">
               <Button variant="outline" className="gap-2 border-gray-200 text-black hover:bg-gray-50 rounded-xl" onClick={() => setShowNovaRubrica(true)}><Plus className="w-4 h-4" />Nova Rubrica</Button>
-              <Button variant="outline" className="gap-2 border-gray-200 text-black hover:bg-gray-50 rounded-xl" onClick={handleRefresh} disabled={isRefreshing}><RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />Sincronizar</Button>
-              {isCoordenador && <Button variant="outline" className="gap-2 border-amber-200 text-amber-700 hover:bg-amber-50 rounded-xl" onClick={handleDiagnosticar} disabled={isDiagnosticando}><AlertTriangle className={`w-4 h-4 ${isDiagnosticando ? 'animate-pulse' : ''}`} />Diagnosticar</Button>}
-              {isCoordenador && <Button variant="outline" className="gap-2 border-gray-200 text-black hover:bg-gray-50 rounded-xl" onClick={() => setShowCardEditor(true)}><LayoutGrid className="w-4 h-4" />Editor de Cards</Button>}
             </div>
           )}
         </div>
@@ -509,55 +460,10 @@ export default function RubricasPorMuseu() {
         {/* Banner informativo */}
         <div className="flex items-center gap-2 text-xs text-gray-500 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
           <Database className="w-3 h-3 text-blue-600" />
-          <span>Saldos calculados diretamente das compras aprovadas por rubrica_id — todos os aditivos e centros de custo. Clique em "Sincronizar" para recalcular agora.</span>
+          <span>Saldos calculados diretamente das compras aprovadas por rubrica_id — todos os aditivos e centros de custo.</span>
         </div>
 
-        {/* Painel de diagnóstico */}
-        {diagnostico && isCoordenador && (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 space-y-3">
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-amber-600" />
-                <h3 className="font-semibold text-amber-900">Resultado do Diagnóstico</h3>
-              </div>
-              <button className="text-xs text-amber-600 hover:underline" onClick={() => setDiagnostico(null)}>Fechar</button>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-              <div className="bg-white rounded-xl p-3 border border-amber-100">
-                <p className="text-xs text-gray-500">NFs Noturno 2026 com alias errado</p>
-                <p className="text-2xl font-bold text-amber-700">{diagnostico.diagnostico?.compras_alias_noturno2026 ?? 0}</p>
-              </div>
-              <div className="bg-white rounded-xl p-3 border border-amber-100">
-                <p className="text-xs text-gray-500">NFs Noturno Pampulha com alias errado</p>
-                <p className="text-2xl font-bold text-amber-700">{diagnostico.diagnostico?.compras_alias_pampulha ?? 0}</p>
-              </div>
-              <div className="bg-white rounded-xl p-3 border border-amber-100">
-                <p className="text-xs text-gray-500">Rubricas sem grupo (zeradas)</p>
-                <p className="text-2xl font-bold text-amber-700">{diagnostico.diagnostico?.rubricas_sem_grupo_zeradas ?? 0}</p>
-              </div>
-              <div className="bg-white rounded-xl p-3 border border-amber-100">
-                <p className="text-xs text-gray-500">Rubricas com nome inválido</p>
-                <p className="text-2xl font-bold text-amber-700">{diagnostico.diagnostico?.rubricas_nome_invalido ?? 0}</p>
-              </div>
-            </div>
-            {diagnostico.diagnostico?.exemplos_nome_invalido?.length > 0 && (
-              <div className="bg-white rounded-xl p-3 border border-amber-100">
-                <p className="text-xs font-semibold text-gray-600 mb-2">Exemplos de nomes inválidos detectados:</p>
-                {diagnostico.diagnostico.exemplos_nome_invalido.map((ex, i) => (
-                  <p key={i} className="text-xs text-gray-500">• {ex.nome} (valor: R$ {Number(ex.valor || 0).toFixed(2)})</p>
-                ))}
-              </div>
-            )}
-            {(diagnostico.diagnostico?.compras_alias_noturno2026 > 0 || diagnostico.diagnostico?.compras_alias_pampulha > 0 || diagnostico.diagnostico?.rubricas_sem_grupo_zeradas > 0) ? (
-              <Button onClick={handleCorrigir} disabled={isCorrigindo} className="bg-amber-600 hover:bg-amber-700 text-white gap-2">
-                <CheckCircle2 className={`w-4 h-4 ${isCorrigindo ? 'animate-spin' : ''}`} />
-                {isCorrigindo ? 'Corrigindo...' : 'Aplicar Correções Automáticas'}
-              </Button>
-            ) : (
-              <p className="text-sm text-green-700 font-medium flex items-center gap-1"><CheckCircle2 className="w-4 h-4" />Nenhuma correção necessária.</p>
-            )}
-          </div>
-        )}
+
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {resumoPorMuseu.map((item) => <MuseuCard key={item.museu} item={item} active={museuAtivo === item.museu} onClick={() => setMuseuAtivo(item.museu)} fmt={fmt} fmtPct={fmtPct} />)}
@@ -604,7 +510,6 @@ export default function RubricasPorMuseu() {
         <NoturnoPampulhaCard isCoordenador={isCoordenador} />
 
         <GerenciarRubricasMuseuDialog open={showGerenciar} onClose={() => setShowGerenciar(false)} />
-        <CardRubricaEditor open={showCardEditor} onClose={() => setShowCardEditor(false)} />
         <NovaRubricaDialog open={showNovaRubrica} currentUser={currentUser}
           onClose={async () => { setShowNovaRubrica(false); await refreshAllRubricaData(); }} />
       </div>
