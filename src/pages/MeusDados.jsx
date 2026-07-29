@@ -758,6 +758,7 @@ function MeusDadosInner() {
                 targetEmail={targetEmail}
                 museuVinculado={teamMember?.museu_vinculado || teamMember?.museu_projeto || userMuseum}
                 memberName={targetUser?.full_name || user?.full_name || ''}
+                teamMember={teamMember}
               />
             </TabsContent>
           )}
