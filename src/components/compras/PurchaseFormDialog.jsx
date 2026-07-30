@@ -253,9 +253,8 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
 
   const BLOCKED_STATUSES = new Set(['CANCELADO', 'RECUSADO'])
 
-  // Admins podem editar qualquer campo mesmo após aprovação (correção pós-aprovação);
-  // coordenadores só editam enquanto não aprovado
-  const canEdit = isAdmin || !isApproved
+  // Coordenadores e administradores podem corrigir campos mesmo após aprovação/pagamento.
+  const canEdit = isCoordenador || !isApproved
 
   const canApproveOrReturn =
     isCoordenador &&
@@ -707,10 +706,9 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
   }
 
   async function handleSave() {
-    // Modo correção pós-aprovação (admin): não exige meta/rubrica/fornecedor —
-    // registros antigos podem não ter esses campos e o admin precisa poder
-    // corrigir campos isolados (ex: centro de custo) sem preencher tudo
-    const correcaoPosAprovacao = isEditing && isApproved && isAdmin
+    // Modo correção pós-aprovação: coordenadores podem ajustar campos isolados
+    // em registros antigos sem precisar preencher dados que já estavam ausentes.
+    const correcaoPosAprovacao = isEditing && isApproved && isCoordenador
 
     if (!form.descricao_item?.trim()) {
       smartToast.error('Informe a descrição do item.')
@@ -783,7 +781,7 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
         // estornar o saldo dela antes de debitar na nova
         const rubricaMudou = form.rubrica_id && form.rubrica_id !== prefill?.rubrica_id
         const centroCustoMudou = payload.centro_custo && payload.centro_custo !== prefill?.centro_custo
-        if (isAdmin && isApproved && form.rubrica_id && (rubricaMudou || centroCustoMudou)) {
+        if (isCoordenador && isApproved && form.rubrica_id && (rubricaMudou || centroCustoMudou)) {
           const res = await base44.functions.invoke('purchaseActions', {
             action: 'trocar_rubrica',
             purchaseId: prefill.id,
@@ -1338,7 +1336,7 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
             </div>
           )}
 
-          {isApproved && isAdmin && (
+          {isApproved && isCoordenador && (
             <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600" />
               <span className="text-xs text-amber-700 font-medium">Correção pós-aprovação — alterações não alteram o status da solicitação.</span>

@@ -197,7 +197,7 @@ function formatDateBR(value) {
   return value;
 }
 
-function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentUser, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onAccess, sendingNotif, handleSendNotification }) {
+function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentUser, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onAccess, onCentroUpdated, sendingNotif, handleSendNotification }) {
   const [menuOpenId, setMenuOpenId] = useState(null);
   const [sortField, setSortField] = useState(null);
   const [sortDir, setSortDir] = useState('asc');
@@ -211,12 +211,11 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
     setEditingCentroId(null);
     if (!newValue || newValue === (p.centro_custo || '')) return;
 
-    const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'ADMIN';
     const aprovado = STATUS_APROVADOS.has(normalizeStatus(p.status));
 
     setSavingCentro(true);
     try {
-      if (isAdmin && aprovado && p.rubrica_debitada_em && p.rubrica_id) {
+      if (aprovado && p.rubrica_debitada_em && p.rubrica_id) {
         const res = await base44.functions.invoke('purchaseActions', {
           action: 'trocar_rubrica',
           purchaseId: p.id,
@@ -225,13 +224,12 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
           novoValor: getPurchaseValue(p),
         });
         const result = res?.data || res;
-        if (result?.success === false) {
-          toast.warning('Centro de custo pode não ter sido reequilibrado: ' + (result?.error || 'erro desconhecido'));
-        } else {
-          toast.success('Centro de custo atualizado e saldo da rubrica reequilibrado.');
-        }
+        if (result?.success === false) throw new Error(result?.error || 'Falha no reequilíbrio.');
+        onCentroUpdated?.(result?.purchase || { ...p, centro_custo: newValue });
+        toast.success('Centro de custo atualizado e saldo da rubrica reequilibrado.');
       } else {
-        await base44.entities.PurchaseRequest.update(p.id, { centro_custo: newValue });
+        const updated = await base44.entities.PurchaseRequest.update(p.id, { centro_custo: newValue });
+        onCentroUpdated?.(updated || { ...p, centro_custo: newValue });
         toast.success('Centro de custo atualizado.');
       }
     } catch (e) {
@@ -426,8 +424,11 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
                   <select
                     autoFocus
                     value={centroValue}
-                    onChange={(e) => setCentroValue(e.target.value)}
-                    onBlur={() => handleSaveCentro(p, centroValue)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setCentroValue(value);
+                      handleSaveCentro(p, value);
+                    }}
                     disabled={savingCentro}
                     className="w-full rounded border border-gray-300 px-1 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
                   >
@@ -579,7 +580,7 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
   );
 }
 
-export default function TabelaSolicitacoes({ purchases, rubricas, attachmentByPurchaseId, isCoordenador, currentUser, podeAprovarSolicitacoes, hasGestaoCompras, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onAccess, userPermission, canSeeEquipeSalarios }) {
+export default function TabelaSolicitacoes({ purchases, rubricas, attachmentByPurchaseId, isCoordenador, currentUser, podeAprovarSolicitacoes, hasGestaoCompras, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onAccess, onCentroUpdated, userPermission, canSeeEquipeSalarios }) {
   const [sendingNotif, setSendingNotif] = useState({});
   // Segunda camada de segurança: se canSeeEquipeSalarios for explicitamente false,
   // filtra qualquer compra de equipe/salário que tenha vazado até aqui
@@ -630,7 +631,7 @@ export default function TabelaSolicitacoes({ purchases, rubricas, attachmentByPu
     { key: 'noturnoPampulha', label: 'Noturno Pampulha', visible: true }
   ].filter((cat) => cat.visible && categories[cat.key].length > 0);
 
-  const sharedProps = { rubricaById, isCoordenador, podeAprovar, currentUser, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onAccess, sendingNotif, handleSendNotification };
+  const sharedProps = { rubricaById, isCoordenador, podeAprovar, currentUser, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onAccess, onCentroUpdated, sendingNotif, handleSendNotification };
 
   return (
     <div className="space-y-8">

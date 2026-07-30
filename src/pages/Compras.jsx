@@ -1323,6 +1323,16 @@ function ComprasInner() {
               setEditingPurchase({ ...purchase });
               setShowForm(true);
             }}
+            onCentroUpdated={(updatedPurchase) => {
+              const queryKey = ['purchases', isCoordenador, currentUser?.email, userMuseu];
+              queryClient.setQueryData(queryKey, (old) => {
+                if (!Array.isArray(old)) return old;
+                return old.map((item) => item.id === updatedPurchase.id
+                  ? { ...item, ...updatedPurchase }
+                  : item);
+              });
+              invalidateComprasQueries();
+            }}
             onDelete={handleDeletePurchase} />
 
           }
