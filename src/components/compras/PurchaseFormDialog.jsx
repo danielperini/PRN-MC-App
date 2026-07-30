@@ -253,8 +253,9 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
 
   const BLOCKED_STATUSES = new Set(['CANCELADO', 'RECUSADO'])
 
-  // Coordenadores podem editar qualquer campo mesmo após aprovação (correção pós-aprovação)
-  const canEdit = !isApproved || isCoordenador
+  // Admins podem editar qualquer campo mesmo após aprovação (correção pós-aprovação);
+  // coordenadores só editam enquanto não aprovado
+  const canEdit = isAdmin || !isApproved
 
   const canApproveOrReturn =
     isCoordenador &&
@@ -770,6 +771,30 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
         const statusToUse = isApproved ? prefill.status : (prefill?.status || 'SOLICITADO')
         const payload = buildPayload(statusToUse)
 
+        // Reequilíbrio automático (exclusivo de admins) — DEVE rodar ANTES do update
+        // principal, para que o backend leia a rubrica antiga do banco e consiga
+        // estornar o saldo dela antes de debitar na nova
+        const rubricaMudou = form.rubrica_id && form.rubrica_id !== prefill?.rubrica_id
+        const centroCustoMudou = payload.centro_custo && payload.centro_custo !== prefill?.centro_custo
+        if (isAdmin && isApproved && form.rubrica_id && (rubricaMudou || centroCustoMudou)) {
+          const res = await base44.functions.invoke('purchaseActions', {
+            action: 'trocar_rubrica',
+            purchaseId: prefill.id,
+            novaRubricaId: form.rubrica_id,
+            novoCentroCusto: payload.centro_custo || undefined,
+            novoValor: toNumber(form.valor_solicitado),
+          }).catch(e => {
+            console.warn('Reequilíbrio de rubrica falhou:', e)
+            return null
+          })
+          const result = res?.data || res
+          if (result?.success === false) {
+            smartToast.error('Falha no reequilíbrio de rubrica: ' + (result?.error || 'erro desconhecido'))
+            setSaving(false)
+            return
+          }
+        }
+
         // UPDATE ÚNICO com apenas os campos editáveis — evita conflito de enum
         // e garante que centro_custo canônico seja persistido sem interferência
         const updateFields = {
@@ -834,22 +859,6 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
           }).then(notifs => {
             (notifs || []).forEach(n => base44.entities.Notification.update(n.id, { resolved: true }).catch(() => {}))
           }).catch(() => {})
-        }
-
-        // Reequilíbrio automático: dispara sempre que rubrica ou centro de custo mudar
-        // em registros já aprovados, passando ambos para o backend decidir o que movimentar
-        const rubricaMudou = form.rubrica_id && form.rubrica_id !== prefill?.rubrica_id
-        const centroCustoMudou = form.centro_custo && form.centro_custo !== prefill?.centro_custo
-        const jaDebitado = !!prefill?.rubrica_debitada_em
-        const precisaReequilibrar = form.rubrica_id && isApproved && (rubricaMudou || centroCustoMudou || !jaDebitado)
-        if (precisaReequilibrar) {
-          await base44.functions.invoke('purchaseActions', {
-            action: 'trocar_rubrica',
-            purchaseId: prefill.id,
-            novaRubricaId: form.rubrica_id,
-            novoCentroCusto: form.centro_custo || undefined,
-            novoValor: toNumber(form.valor_solicitado),
-          }).catch(e => console.warn('Reequilíbrio de rubrica falhou (não crítico):', e))
         }
 
         smartToast.success('Solicitação atualizada.')
@@ -1333,7 +1342,7 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
             </div>
           )}
 
-          {isApproved && isCoordenador && (
+          {isApproved && isAdmin && (
             <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600" />
               <span className="text-xs text-amber-700 font-medium">Correção pós-aprovação — alterações não alteram o status da solicitação.</span>
