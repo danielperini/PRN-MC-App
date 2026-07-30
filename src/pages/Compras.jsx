@@ -1671,18 +1671,17 @@ function ComprasInner() {
           setEditingPurchase(null);
         }}
         onSuccess={async (savedPayload) => {
-          // (1) Fecha o modal imediatamente — síncrono, sem await
+          // (1) Fecha o modal imediatamente
           setShowForm(false);
           setEditingPurchase(null);
 
           const queryKey = ['purchases', isCoordenador, currentUser?.email, userMuseu];
 
-          // (2) Cancela qualquer refetch em andamento para essa query, evitando
-          // que uma resposta antiga (com dados desatualizados) sobrescreva o
-          // cache otimista que vamos aplicar a seguir
+          // (2) Cancela qualquer refetch em andamento para evitar sobrescrita
           await queryClient.cancelQueries({ queryKey });
 
-          // (3) Atualização otimista imediata do cache
+          // (3) Atualização otimista imediata — usa exclusivamente o payload
+          // confirmado pelo servidor, sem nenhum ciclo de leitura adicional
           if (savedPayload?.id) {
             queryClient.setQueryData(queryKey, (old) => {
               if (!Array.isArray(old)) return old;
@@ -1692,10 +1691,9 @@ function ComprasInner() {
             });
           }
 
-          // (4) Fire-and-forget: invalida queries em background — NÃO reaplica o
-          // savedPayload após o refetch, pois isso sobrescreveria dados já
-          // atualizados do banco (ou o cache otimista, se o refetch ainda não chegou)
-          invalidateComprasQueries();
+          // (4) Adia a invalidação por 8s para que o banco propague a escrita
+          // antes do próximo refetch — evita que a leitura retorne o valor antigo
+          setTimeout(() => { invalidateComprasQueries(); }, 8000);
         }} />
 
       }
