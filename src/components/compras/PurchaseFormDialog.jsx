@@ -489,7 +489,9 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
               next.descricao_item = String(val);
             break;
           case 'centro_custo':
-            if (!prev.centro_custo?.trim() && fieldStates['centro_custo']?.estado !== 'manual')
+            // Nunca sobrescreve centro_custo se o registro já tem um valor salvo no banco
+            // ou se o usuário editou manualmente
+            if (!prev.centro_custo?.trim() && !prefill?.centro_custo?.trim() && fieldStates['centro_custo']?.estado !== 'manual')
               next.centro_custo = normalizeCentroCusto(String(val));
             break;
           case 'categoria':
@@ -543,7 +545,7 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
       !form.fornecedor_nome?.trim() ||
       form.fornecedor_nome === 'Fornecedor não informado' ||
       !toNumber(form.valor_solicitado) ||
-      !form.centro_custo?.trim() ||
+      (!form.centro_custo?.trim() && !prefill?.centro_custo?.trim()) ||
       !form.rubrica_id?.trim();
 
     if (!precisaPreencher) return;
