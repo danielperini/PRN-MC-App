@@ -254,6 +254,9 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
 
   const BLOCKED_STATUSES = new Set(['CANCELADO', 'RECUSADO'])
 
+  // Coordenadores podem editar qualquer campo mesmo após aprovação (correção pós-aprovação)
+  const canEdit = !isApproved || isCoordenador
+
   const canApproveOrReturn =
     isCoordenador &&
     isEditing &&
@@ -764,7 +767,9 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
 
     try {
       if (isEditing) {
-        const payload = buildPayload(prefill?.status || 'SOLICITADO')
+        // Para registros aprovados, sempre preserva o status atual — nunca regride
+        const statusToUse = isApproved ? prefill.status : (prefill?.status || 'SOLICITADO')
+        const payload = buildPayload(statusToUse)
 
         // UPDATE ÚNICO com apenas os campos editáveis — evita conflito de enum
         // e garante que centro_custo canônico seja persistido sem interferência
@@ -1322,6 +1327,13 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
               >
                 {prefill.status}
               </span>
+            </div>
+          )}
+
+          {isApproved && isCoordenador && (
+            <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+              <span className="text-xs text-amber-700 font-medium">Correção pós-aprovação — alterações não alteram o status da solicitação.</span>
             </div>
           )}
 
@@ -1963,14 +1975,16 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
               Cancelar
             </Button>
 
-            <Button
-              size="sm"
-              className="bg-black text-white hover:bg-gray-800"
-              onClick={handleSave}
-              disabled={saving}
-            >
-              {saving ? 'Salvando...' : isEditing ? 'Salvar alterações' : 'Criar solicitação'}
-            </Button>
+            {canEdit && (
+              <Button
+                size="sm"
+                className="bg-black text-white hover:bg-gray-800"
+                onClick={handleSave}
+                disabled={saving}
+              >
+                {saving ? 'Salvando...' : isEditing ? 'Salvar alterações' : 'Criar solicitação'}
+              </Button>
+            )}
           </div>
         </div>
       </DialogContent>
