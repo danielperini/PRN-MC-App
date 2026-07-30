@@ -836,25 +836,20 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
           }).catch(() => {})
         }
 
-        // Se rubrica mudou (ou nunca foi debitada mas está aprovada), reequilibra os saldos
+        // Reequilíbrio automático: dispara sempre que rubrica ou centro de custo mudar
+        // em registros já aprovados, passando ambos para o backend decidir o que movimentar
         const rubricaMudou = form.rubrica_id && form.rubrica_id !== prefill?.rubrica_id
         const centroCustoMudou = form.centro_custo && form.centro_custo !== prefill?.centro_custo
         const jaDebitado = !!prefill?.rubrica_debitada_em
-        if (form.rubrica_id && (rubricaMudou || centroCustoMudou) && jaDebitado) {
+        const precisaReequilibrar = form.rubrica_id && isApproved && (rubricaMudou || centroCustoMudou || !jaDebitado)
+        if (precisaReequilibrar) {
           await base44.functions.invoke('purchaseActions', {
             action: 'trocar_rubrica',
             purchaseId: prefill.id,
             novaRubricaId: form.rubrica_id,
+            novoCentroCusto: form.centro_custo || undefined,
             novoValor: toNumber(form.valor_solicitado),
           }).catch(e => console.warn('Reequilíbrio de rubrica falhou (não crítico):', e))
-        } else if (form.rubrica_id && isApproved && !jaDebitado) {
-          // Registros aprovados sem débito ainda: faz o débito agora
-          await base44.functions.invoke('purchaseActions', {
-            action: 'trocar_rubrica',
-            purchaseId: prefill.id,
-            novaRubricaId: form.rubrica_id,
-            novoValor: toNumber(form.valor_solicitado),
-          }).catch(e => console.warn('Débito inicial de rubrica falhou (não crítico):', e))
         }
 
         smartToast.success('Solicitação atualizada.')

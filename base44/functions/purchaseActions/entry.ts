@@ -278,20 +278,54 @@ Deno.serve(async (req) => {
       }
 
       const valorTroca = novoValor != null ? toNumber(novoValor) : getPurchaseValue(purchase);
+      const novoCentroCusto = body.novoCentroCusto as string | undefined;
 
-      const { debitou } = await trocarRubricaSeNecessario(base44, purchase, novaRubricaId, valorTroca);
+      const rubricaAntigaId = purchase.rubrica_id;
+      const jaDebitado = !!purchase.rubrica_debitada_em;
+      const rubricaMudou = novaRubricaId !== rubricaAntigaId;
+      const centroCustoMudou = novoCentroCusto && novoCentroCusto !== purchase.centro_custo;
+
+      let debitou = false;
+
+      if (jaDebitado) {
+        if (rubricaMudou) {
+          // Rubrica mudou: estorna antiga e debita nova
+          if (rubricaAntigaId) {
+            const rubricaAntiga = await getRubrica(base44, rubricaAntigaId);
+            const valorEstorno = toNumber(purchase.rubrica_debitada_valor) || valorTroca;
+            await estornarRubrica(base44, rubricaAntiga, valorEstorno);
+          }
+          const rubricaNova = await getRubrica(base44, novaRubricaId);
+          await debitarRubrica(base44, rubricaNova, valorTroca);
+          debitou = true;
+        } else if (centroCustoMudou) {
+          // Centro de custo mudou mas rubrica é a mesma:
+          // estorna o valor antigo e redebita com o novo valor (pode ter mudado)
+          const rubrica = await getRubrica(base44, novaRubricaId);
+          const valorEstorno = toNumber(purchase.rubrica_debitada_valor) || valorTroca;
+          if (valorEstorno !== valorTroca) {
+            await estornarRubrica(base44, rubrica, valorEstorno);
+            await debitarRubrica(base44, rubrica, valorTroca);
+          }
+          debitou = true;
+        }
+      } else if (rubricaMudou || centroCustoMudou) {
+        // Não debitado ainda: apenas registra o vínculo sem mover saldo
+        debitou = false;
+      }
 
       const now = new Date().toISOString();
-      const updated = await base44.asServiceRole.entities.PurchaseRequest.update(purchase.id, {
-        rubrica_id: novaRubricaId,
-        ...(debitou ? {
-          rubrica_debitada_em: now,
-          rubrica_debitada_valor: valorTroca,
-          financeiro_lancado_em: purchase.financeiro_lancado_em || now
-        } : {})
-      });
+      const updateData: any = { rubrica_id: novaRubricaId };
+      if (novoCentroCusto) updateData.centro_custo = novoCentroCusto;
+      if (debitou) {
+        updateData.rubrica_debitada_em = now;
+        updateData.rubrica_debitada_valor = valorTroca;
+        updateData.financeiro_lancado_em = purchase.financeiro_lancado_em || now;
+      }
 
-      return json({ success: true, purchase: updated });
+      const updated = await base44.asServiceRole.entities.PurchaseRequest.update(purchase.id, updateData);
+
+      return json({ success: true, purchase: updated, debitou, rubricaMudou, centroCustoMudou });
     }
 
     // Helper: gerar número de processamento único
