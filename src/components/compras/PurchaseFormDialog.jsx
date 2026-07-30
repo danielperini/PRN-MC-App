@@ -806,11 +806,11 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
         // e garante que centro_custo canônico seja persistido sem interferência
         const updateFields = {
           centro_custo: payload.centro_custo,
-          meta_extra_descricao: payload.meta_extra_descricao || '',
+          meta_extra_descricao: payload.meta_extra_descricao || undefined,
           descricao_item: payload.descricao_item,
           fornecedor_nome: payload.fornecedor_nome,
           fornecedor_cnpj: payload.fornecedor_cnpj,
-          fornecedor_contato: payload.fornecedor_contato || '',
+          fornecedor_contato: payload.fornecedor_contato || undefined,
           nf_emitente_nome: payload.fornecedor_nome,
           nf_emitente_cpf_cnpj: payload.fornecedor_cnpj,
           fornecedor_cpf_cnpj: payload.fornecedor_cnpj,
@@ -818,16 +818,16 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
           valor_total: payload.valor_total,
           valor: payload.valor_solicitado,
           nf_valor_total: payload.valor_solicitado,
-          meio_pagamento: payload.meio_pagamento || '',
-          detalhe_pagamento: payload.detalhe_pagamento || '',
-          observacoes: payload.observacoes || '',
-          nf_numero: payload.nf_numero || '',
-          nf_data_emissao: payload.nf_data_emissao || '',
-          categoria: payload.categoria || '',
-          tipo_gasto: payload.tipo_gasto || '',
+          detalhe_pagamento: payload.detalhe_pagamento || undefined,
+          observacoes: payload.observacoes || undefined,
+          nf_numero: payload.nf_numero || undefined,
+          nf_data_emissao: payload.nf_data_emissao || undefined,
         }
         // Campos com enum/FK: só envia se preenchidos — string vazia é rejeitada
         // pelo banco e faria o update inteiro falhar silenciosamente
+        if (payload.meio_pagamento) updateFields.meio_pagamento = payload.meio_pagamento
+        if (payload.categoria) updateFields.categoria = payload.categoria
+        if (payload.tipo_gasto) updateFields.tipo_gasto = payload.tipo_gasto
         if (payload.rubrica_id) {
           updateFields.rubrica_id = payload.rubrica_id
           updateFields.rubrica_nome = payload.rubrica_nome || ''
@@ -840,23 +840,8 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
         await base44.entities.PurchaseRequest.update(prefill.id, updateFields)
         await createAttachmentForPurchase({ id: prefill.id }, payload)
 
-        // Lê o registro atualizado diretamente do banco para confirmar a persistência
-        // e usar os dados reais (não o payload local) na atualização otimista do cache
-        let confirmedRecord = { ...prefill, ...updateFields, id: prefill.id }
-        try {
-          const fresh = await base44.entities.PurchaseRequest.get(prefill.id)
-          if (fresh?.id) {
-            // Garante que o centro_custo que o usuário escolheu nunca seja descartado
-            // caso o banco retorne o valor antigo (propagação lenta)
-            confirmedRecord = {
-              ...fresh,
-              centro_custo: updateFields.centro_custo || fresh.centro_custo,
-            }
-          }
-        } catch (_) {
-          // Fallback: usa payload local com o valor canônico que foi enviado ao banco
-          confirmedRecord = { ...prefill, ...updateFields, id: prefill.id, centro_custo: updateFields.centro_custo }
-        }
+        // Usa o payload local enviado ao banco para evitar corrida com a propagação da escrita
+        const confirmedRecord = { ...prefill, ...updateFields, id: prefill.id }
 
         // Passa o registro confirmado para o onSuccess
         const payloadComId = confirmedRecord
