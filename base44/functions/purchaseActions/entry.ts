@@ -300,13 +300,13 @@ Deno.serve(async (req) => {
           debitou = true;
         } else if (centroCustoMudou) {
           // Centro de custo mudou mas rubrica é a mesma:
-          // estorna o valor antigo e redebita com o novo valor (pode ter mudado)
+          // sempre estorna o valor antigo e redebita, mesmo que o valor seja
+          // idêntico, garantindo que rubrica_debitada_valor e o saldo fiquem
+          // sempre consistentes
           const rubrica = await getRubrica(base44, novaRubricaId);
           const valorEstorno = toNumber(purchase.rubrica_debitada_valor) || valorTroca;
-          if (valorEstorno !== valorTroca) {
-            await estornarRubrica(base44, rubrica, valorEstorno);
-            await debitarRubrica(base44, rubrica, valorTroca);
-          }
+          await estornarRubrica(base44, rubrica, valorEstorno);
+          await debitarRubrica(base44, rubrica, valorTroca);
           debitou = true;
         }
       } else if (rubricaMudou || centroCustoMudou) {

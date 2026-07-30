@@ -17,6 +17,8 @@ const STATUS_CONFIG = {
   APROVADO: { label: 'Aprovado', color: 'bg-green-100 text-green-700' }
 };
 
+const CENTROS = ['MUMO', 'MIS', 'MHAB', 'Noturno nos Museus 2026', 'Noturno Pampulha', 'Publicações', 'Geral'];
+
 const STATUS_APROVADOS = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
 const STATUS_ELEGIVEIS_PAGAMENTO = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
 const STATUS_AGUARDANDO_PAGAMENTO = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'APROVADA']);
@@ -201,6 +203,43 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
   const [sortDir, setSortDir] = useState('asc');
   const [editingDataNF, setEditingDataNF] = useState(null); // id da linha em edição
   const [dataNFValue, setDataNFValue] = useState('');
+  const [editingCentroId, setEditingCentroId] = useState(null); // id da linha em edição
+  const [centroValue, setCentroValue] = useState('');
+  const [savingCentro, setSavingCentro] = useState(false);
+
+  async function handleSaveCentro(p, newValue) {
+    setEditingCentroId(null);
+    if (!newValue || newValue === (p.centro_custo || '')) return;
+
+    const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'ADMIN';
+    const aprovado = STATUS_APROVADOS.has(normalizeStatus(p.status));
+
+    setSavingCentro(true);
+    try {
+      if (isAdmin && aprovado && p.rubrica_debitada_em && p.rubrica_id) {
+        const res = await base44.functions.invoke('purchaseActions', {
+          action: 'trocar_rubrica',
+          purchaseId: p.id,
+          novaRubricaId: p.rubrica_id,
+          novoCentroCusto: newValue,
+          novoValor: getPurchaseValue(p),
+        });
+        const result = res?.data || res;
+        if (result?.success === false) {
+          toast.warning('Centro de custo pode não ter sido reequilibrado: ' + (result?.error || 'erro desconhecido'));
+        } else {
+          toast.success('Centro de custo atualizado e saldo da rubrica reequilibrado.');
+        }
+      } else {
+        await base44.entities.PurchaseRequest.update(p.id, { centro_custo: newValue });
+        toast.success('Centro de custo atualizado.');
+      }
+    } catch (e) {
+      toast.warning('Centro de custo pode não ter sido salvo corretamente: ' + (e?.message || 'desconhecido'));
+    } finally {
+      setSavingCentro(false);
+    }
+  }
 
   function handleSort(field) {
     if (!SORTABLE_COLS.includes(field)) return;
@@ -381,11 +420,38 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
                 </Tooltip>
               </td>
 
-              {/* Centro */}
+              {/* Centro — editável inline para coordenadores/admin */}
               <td className="px-3 py-2.5" style={tdStyle}>
-                {p._centro_custo_normalizado
-                  ? <span className="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">{p._centro_custo_normalizado}</span>
-                  : <span className="text-xs text-gray-400">—</span>}
+                {editingCentroId === p.id ? (
+                  <select
+                    autoFocus
+                    value={centroValue}
+                    onChange={(e) => setCentroValue(e.target.value)}
+                    onBlur={() => handleSaveCentro(p, centroValue)}
+                    disabled={savingCentro}
+                    className="w-full rounded border border-gray-300 px-1 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  >
+                    {!CENTROS.includes(p.centro_custo) && p.centro_custo && (
+                      <option value={p.centro_custo}>{p.centro_custo}</option>
+                    )}
+                    {CENTROS.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                ) : isCoordenador ? (
+                  <button
+                    type="button"
+                    title="Clique para editar o centro de custo"
+                    onClick={() => { setEditingCentroId(p.id); setCentroValue(p.centro_custo || ''); }}
+                    className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                  >
+                    {p._centro_custo_normalizado || '—'}
+                  </button>
+                ) : p._centro_custo_normalizado ? (
+                  <span className="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">{p._centro_custo_normalizado}</span>
+                ) : (
+                  <span className="text-xs text-gray-400">—</span>
+                )}
               </td>
 
               {/* Rubrica: grupo + nome */}

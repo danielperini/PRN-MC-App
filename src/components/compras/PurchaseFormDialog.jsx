@@ -787,7 +787,7 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
           const res = await base44.functions.invoke('purchaseActions', {
             action: 'trocar_rubrica',
             purchaseId: prefill.id,
-            novaRubricaId: form.rubrica_id,
+            novaRubricaId: form.rubrica_id || prefill?.rubrica_id,
             novoCentroCusto: payload.centro_custo || undefined,
             novoValor: toNumber(form.valor_solicitado),
           }).catch(e => {
