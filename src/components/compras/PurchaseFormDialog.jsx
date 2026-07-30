@@ -803,8 +803,18 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
         let confirmedRecord = { ...prefill, ...updateFields, id: prefill.id }
         try {
           const fresh = await base44.entities.PurchaseRequest.get(prefill.id)
-          if (fresh?.id) confirmedRecord = fresh
-        } catch (_) { /* fallback para payload local */ }
+          if (fresh?.id) {
+            // Garante que o centro_custo que o usuário escolheu nunca seja descartado
+            // caso o banco retorne o valor antigo (propagação lenta)
+            confirmedRecord = {
+              ...fresh,
+              centro_custo: updateFields.centro_custo || fresh.centro_custo,
+            }
+          }
+        } catch (_) {
+          // Fallback: usa payload local com o valor canônico que foi enviado ao banco
+          confirmedRecord = { ...prefill, ...updateFields, id: prefill.id, centro_custo: updateFields.centro_custo }
+        }
 
         // Passa o registro confirmado para o onSuccess
         const payloadComId = confirmedRecord

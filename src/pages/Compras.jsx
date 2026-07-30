@@ -1663,7 +1663,7 @@ function ComprasInner() {
           setShowForm(false);
           setEditingPurchase(null);
 
-          // Aplica imediatamente no cache os dados confirmados do banco
+          // (1) Aplica imediatamente no cache os dados confirmados do banco
           if (savedPayload?.id) {
             queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email, userMuseu], (old) => {
               if (!Array.isArray(old)) return old;
@@ -1675,9 +1675,22 @@ function ComprasInner() {
             });
           }
 
-          // Aguarda propagação no banco antes de invalidar e refazer o fetch
-          await new Promise(r => setTimeout(r, 1500));
+          // (2) Aguarda propagação no banco (3s) antes de invalidar
+          await new Promise(r => setTimeout(r, 3000));
           await invalidateComprasQueries();
+
+          // (3) Re-aplica os dados confirmados APÓS o refetch para garantir que
+          // o banco não sobrescreva com valor antigo caso o cache SDK ainda não tenha expirado
+          if (savedPayload?.id) {
+            queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email, userMuseu], (old) => {
+              if (!Array.isArray(old)) return old;
+              return old.map((item) =>
+                item.id === savedPayload.id
+                  ? { ...item, ...savedPayload }
+                  : item
+              );
+            });
+          }
         }} />
 
       }
