@@ -278,6 +278,8 @@ function ComprasInner() {
   const [filters, setFilters] = useState({ status: 'all', meta_id: 'all', search: '', rubrica_id: 'all', inconsistencias: 'all', centro_custo: 'all', data_inicio: '', data_fim: '' });
   const queryClient = useQueryClient();
   const autoRecalcRan = React.useRef(false);
+  // Bloqueia refetch automático por 10s após qualquer save para preservar cache otimista
+  const recentSaveRef = React.useRef(0);
 
   useEffect(() => {
     let mounted = true;
@@ -310,18 +312,23 @@ function ComprasInner() {
   })();
 
   const invalidateComprasQueries = useCallback(async () => {
+    // Se houve um save recente (< 10s), não rebusca purchases para preservar o cache otimista
+    const msSinceSave = Date.now() - recentSaveRef.current;
+    const blockPurchasesRefetch = msSinceSave < 10000;
+
     await Promise.all([
-    queryClient.invalidateQueries({ queryKey: ['purchases'], refetchType: 'all' }),
+    !blockPurchasesRefetch && queryClient.invalidateQueries({ queryKey: ['purchases'], refetchType: 'all' }),
     queryClient.invalidateQueries({ queryKey: ['attachments-compras'], refetchType: 'all' }),
     queryClient.invalidateQueries({ queryKey: ['purchase-documents-all'], refetchType: 'all' }),
     queryClient.invalidateQueries({ queryKey: ['rubricas'], refetchType: 'all' }),
     queryClient.invalidateQueries({ queryKey: ['budget-lines'], refetchType: 'all' }),
     queryClient.invalidateQueries({ queryKey: ['team-member-own'], refetchType: 'all' }),
     queryClient.invalidateQueries({ queryKey: ['team-members-all-for-coordinator'], refetchType: 'all' }),
-    queryClient.invalidateQueries({ queryKey: ['team-payments'], refetchType: 'all' })]
+    queryClient.invalidateQueries({ queryKey: ['team-payments'], refetchType: 'all' })].filter(Boolean)
     );
-    // Garantir refetch imediato das queries ativas (forçado, independente de staleTime)
-    await queryClient.refetchQueries({ queryKey: ['purchases'], type: 'active' });
+    if (!blockPurchasesRefetch) {
+      await queryClient.refetchQueries({ queryKey: ['purchases'], type: 'active' });
+    }
     await queryClient.refetchQueries({ queryKey: ['rubricas'], type: 'active' });
   }, [queryClient]);
 
@@ -1331,7 +1338,9 @@ function ComprasInner() {
                   ? { ...item, ...updatedPurchase }
                   : item);
               });
-              invalidateComprasQueries();
+              // Atrasa invalidação para preservar o cache otimista
+              recentSaveRef.current = Date.now();
+              setTimeout(() => { invalidateComprasQueries(); }, 10000);
             }}
             onDelete={handleDeletePurchase} />
 
@@ -1691,9 +1700,10 @@ function ComprasInner() {
             });
           }
 
-          // (4) Adia a invalidação por 8s para que o banco propague a escrita
-          // antes do próximo refetch — evita que a leitura retorne o valor antigo
-          setTimeout(() => { invalidateComprasQueries(); }, 8000);
+          // (4) Marca o timestamp do save e adia a invalidação por 10s para que
+          // o banco propague a escrita antes do próximo refetch
+          recentSaveRef.current = Date.now();
+          setTimeout(() => { invalidateComprasQueries(); }, 10000);
         }} />
 
       }
