@@ -278,8 +278,6 @@ function ComprasInner() {
   const [filters, setFilters] = useState({ status: 'all', meta_id: 'all', search: '', rubrica_id: 'all', inconsistencias: 'all', centro_custo: 'all', data_inicio: '', data_fim: '' });
   const queryClient = useQueryClient();
   const autoRecalcRan = React.useRef(false);
-  // Bloqueia refetch automático por 10s após qualquer save para preservar cache otimista
-  const recentSaveRef = React.useRef(0);
 
   useEffect(() => {
     let mounted = true;
@@ -312,24 +310,19 @@ function ComprasInner() {
   })();
 
   const invalidateComprasQueries = useCallback(async () => {
-    // Se houve um save recente (< 10s), não rebusca purchases para preservar o cache otimista
-    const msSinceSave = Date.now() - recentSaveRef.current;
-    const blockPurchasesRefetch = msSinceSave < 10000;
-
+    // Apenas marca as queries como stale — o React Query as rebuscará
+    // quando o usuário navegar ou interagir, sem forçar refetch imediato.
+    // Isso preserva o cache otimista após saves.
     await Promise.all([
-    !blockPurchasesRefetch && queryClient.invalidateQueries({ queryKey: ['purchases'], refetchType: 'all' }),
-    queryClient.invalidateQueries({ queryKey: ['attachments-compras'], refetchType: 'all' }),
-    queryClient.invalidateQueries({ queryKey: ['purchase-documents-all'], refetchType: 'all' }),
-    queryClient.invalidateQueries({ queryKey: ['rubricas'], refetchType: 'all' }),
-    queryClient.invalidateQueries({ queryKey: ['budget-lines'], refetchType: 'all' }),
-    queryClient.invalidateQueries({ queryKey: ['team-member-own'], refetchType: 'all' }),
-    queryClient.invalidateQueries({ queryKey: ['team-members-all-for-coordinator'], refetchType: 'all' }),
-    queryClient.invalidateQueries({ queryKey: ['team-payments'], refetchType: 'all' })].filter(Boolean)
-    );
-    if (!blockPurchasesRefetch) {
-      await queryClient.refetchQueries({ queryKey: ['purchases'], type: 'active' });
-    }
-    await queryClient.refetchQueries({ queryKey: ['rubricas'], type: 'active' });
+      queryClient.invalidateQueries({ queryKey: ['purchases'], refetchType: 'none' }),
+      queryClient.invalidateQueries({ queryKey: ['attachments-compras'], refetchType: 'none' }),
+      queryClient.invalidateQueries({ queryKey: ['purchase-documents-all'], refetchType: 'none' }),
+      queryClient.invalidateQueries({ queryKey: ['rubricas'], refetchType: 'none' }),
+      queryClient.invalidateQueries({ queryKey: ['budget-lines'], refetchType: 'none' }),
+      queryClient.invalidateQueries({ queryKey: ['team-member-own'], refetchType: 'none' }),
+      queryClient.invalidateQueries({ queryKey: ['team-members-all-for-coordinator'], refetchType: 'none' }),
+      queryClient.invalidateQueries({ queryKey: ['team-payments'], refetchType: 'none' }),
+    ]);
   }, [queryClient]);
 
   const { data: userPermission, isLoading: loadingUserPermission } = useQuery({
@@ -567,10 +560,13 @@ function ComprasInner() {
 
   });
 
+  // Rebusca dados financeiros explicitamente (para ações de aprovação, deleção, etc.)
   const refreshFinanceiroCompleto = useCallback(async () => {
     await invalidateComprasQueries();
-    await refetchRubricas();
-  }, [invalidateComprasQueries, refetchRubricas]);
+    // Força rebusca ativa das queries principais após ação financeira real
+    await queryClient.refetchQueries({ queryKey: ['purchases'], type: 'active' });
+    await queryClient.refetchQueries({ queryKey: ['rubricas'], type: 'active' });
+  }, [invalidateComprasQueries, queryClient]);
 
   async function handleApprovePurchase(purchase) {
     if (!purchase?.id) return;
@@ -1341,9 +1337,8 @@ function ComprasInner() {
                   ? { ...item, ...updatedPurchase }
                   : item);
               });
-              // Atrasa invalidação para preservar o cache otimista
-              recentSaveRef.current = Date.now();
-              setTimeout(() => { invalidateComprasQueries(); }, 10000);
+              // Marca stale sem forçar refetch — cache otimista permanece intacto
+              invalidateComprasQueries();
             }}
             onDelete={handleDeletePurchase} />
 
@@ -1683,17 +1678,15 @@ function ComprasInner() {
           setEditingPurchase(null);
         }}
         onSuccess={async (savedPayload) => {
-          // (1) Fecha o modal imediatamente
           setShowForm(false);
           setEditingPurchase(null);
 
           const queryKey = ['purchases', isCoordenador, currentUser?.email, userMuseu];
 
-          // (2) Cancela qualquer refetch em andamento para evitar sobrescrita
-          await queryClient.cancelQueries({ queryKey });
+          // Cancela refetch em andamento
+          queryClient.cancelQueries({ queryKey });
 
-          // (3) Atualização otimista imediata — usa exclusivamente o payload
-          // confirmado pelo servidor, sem nenhum ciclo de leitura adicional
+          // Aplica imediatamente no cache — única fonte de verdade visual
           if (savedPayload?.id) {
             queryClient.setQueryData(queryKey, (old) => {
               if (!Array.isArray(old)) return old;
@@ -1703,10 +1696,8 @@ function ComprasInner() {
             });
           }
 
-          // (4) Marca o timestamp do save e adia a invalidação por 10s para que
-          // o banco propague a escrita antes do próximo refetch
-          recentSaveRef.current = Date.now();
-          setTimeout(() => { invalidateComprasQueries(); }, 10000);
+          // Marca como stale sem rebuscar — próxima navegação/ação buscará do banco
+          await invalidateComprasQueries();
         }} />
 
       }
