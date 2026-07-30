@@ -707,6 +707,11 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
   }
 
   async function handleSave() {
+    // Modo correção pós-aprovação (admin): não exige meta/rubrica/fornecedor —
+    // registros antigos podem não ter esses campos e o admin precisa poder
+    // corrigir campos isolados (ex: centro de custo) sem preencher tudo
+    const correcaoPosAprovacao = isEditing && isApproved && isAdmin
+
     if (!form.descricao_item?.trim()) {
       smartToast.error('Informe a descrição do item.')
       return
@@ -717,18 +722,25 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
       return
     }
 
-    if (!form.rubrica_id?.trim()) {
-      smartToast.error('Selecione uma rubrica antes de salvar.')
-      return
-    }
+    if (!correcaoPosAprovacao) {
+      if (!form.rubrica_id?.trim()) {
+        smartToast.error('Selecione uma rubrica antes de salvar.')
+        return
+      }
 
-    if (!form.meta_id?.trim()) {
-      smartToast.error('Selecione uma meta orçamentária antes de salvar.')
-      return
-    }
-    if (metaOcultaNoTerceiroAditivo({ id: form.meta_id, nome: form.meta_id })) {
-      smartToast.error('A meta selecionada não está disponível no sistema.')
-      return
+      if (!form.meta_id?.trim()) {
+        smartToast.error('Selecione uma meta orçamentária antes de salvar.')
+        return
+      }
+      if (metaOcultaNoTerceiroAditivo({ id: form.meta_id, nome: form.meta_id })) {
+        smartToast.error('A meta selecionada não está disponível no sistema.')
+        return
+      }
+
+      if (!form.fornecedor_nome?.trim() || form.fornecedor_nome === 'Fornecedor não informado') {
+        smartToast.error('Informe o nome do fornecedor antes de salvar.')
+        return
+      }
     }
 
     if (!dividirEntreMuseus && !form.centro_custo?.trim()) {
@@ -737,11 +749,6 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
     }
     if (dividirEntreMuseus && !rateioValido) {
       smartToast.error('Ajuste o rateio entre museus — a soma deve ser igual ao valor total.')
-      return
-    }
-
-    if (!form.fornecedor_nome?.trim() || form.fornecedor_nome === 'Fornecedor não informado') {
-      smartToast.error('Informe o nome do fornecedor antes de salvar.')
       return
     }
 
@@ -799,9 +806,6 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
         // e garante que centro_custo canônico seja persistido sem interferência
         const updateFields = {
           centro_custo: payload.centro_custo,
-          rubrica_id: payload.rubrica_id,
-          rubrica_nome: payload.rubrica_nome,
-          meta_id: payload.meta_id,
           meta_extra_descricao: payload.meta_extra_descricao || '',
           descricao_item: payload.descricao_item,
           fornecedor_nome: payload.fornecedor_nome,
@@ -822,6 +826,13 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
           categoria: payload.categoria || '',
           tipo_gasto: payload.tipo_gasto || '',
         }
+        // Campos com enum/FK: só envia se preenchidos — string vazia é rejeitada
+        // pelo banco e faria o update inteiro falhar silenciosamente
+        if (payload.rubrica_id) {
+          updateFields.rubrica_id = payload.rubrica_id
+          updateFields.rubrica_nome = payload.rubrica_nome || ''
+        }
+        if (payload.meta_id) updateFields.meta_id = payload.meta_id
         // Adiciona campos numéricos opcionais apenas se definidos
         if (payload.rubrica_mes_inicial != null) updateFields.rubrica_mes_inicial = payload.rubrica_mes_inicial
         if (payload.rubrica_mes_final != null) updateFields.rubrica_mes_final = payload.rubrica_mes_final
