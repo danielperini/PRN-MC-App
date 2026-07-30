@@ -1660,22 +1660,25 @@ function ComprasInner() {
           setEditingPurchase(null);
         }}
         onSuccess={async (savedPayload) => {
-          // Atualização otimista: aplica o payload salvo imediatamente na lista local,
-          // antes do refetch do banco (que pode estar cacheado ou lento).
+          // Atualização otimista imediata: substitui o registro no cache local
+          // com os dados exatos que foram persistidos no banco.
           if (savedPayload?.id) {
             queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email, userMuseu], (old) => {
               if (!Array.isArray(old)) return old;
               return old.map((item) =>
-                item.id === savedPayload.id ? { ...item, ...savedPayload } : item
+                item.id === savedPayload.id
+                  ? { ...item, ...savedPayload }
+                  : item
               );
             });
           }
           setShowForm(false);
           setEditingPurchase(null);
-          // Aguarda 600ms para o banco propagar a escrita antes de refetch,
-          // evitando que o refetch traga dados desatualizados e sobrescreva o otimístico.
-          await new Promise(r => setTimeout(r, 600));
-          await refreshFinanceiroCompleto();
+          // Aguarda propagação no banco (write-after-read gap) antes de invalidar.
+          // 1200ms é suficiente para evitar que o refetch traga dado anterior.
+          await new Promise(r => setTimeout(r, 1200));
+          await invalidateComprasQueries();
+          await queryClient.refetchQueries({ queryKey: ['purchases'], type: 'active' });
         }} />
 
       }

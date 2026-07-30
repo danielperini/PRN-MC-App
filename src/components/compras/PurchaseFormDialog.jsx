@@ -613,7 +613,15 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
 
     const valor = toNumber(form.valor_solicitado)
 
-    return {
+    // Normaliza centro_custo: 'Rateado' não está no enum do banco — usa 'Geral' como
+    // representação neutra quando há rateio (o campo rateio_museus carrega o detalhe).
+    const centroCustoNormalizado = dividirEntreMuseus
+      ? 'Geral'
+      : normalizeCentroCusto(form.centro_custo)
+
+    // Monta payload apenas com campos definidos (evita sobrescrever campos existentes
+    // com string vazia, o que pode causar rejeição silenciosa pelo banco).
+    const payload = {
       ...form,
       valor_solicitado: valor,
       valor_total: valor,
@@ -623,22 +631,30 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
       nf_emitente_nome: form.fornecedor_nome,
       nf_emitente_cpf_cnpj: form.fornecedor_cnpj,
       status: statusOverride || prefill?.status || 'SOLICITADO',
-      file_url: fileUrl,
-      arquivo_url: fileUrl,
-      documento_url: fileUrl,
-      nota_fiscal_url: fileUrl,
-      nf_pdf_url: fileKind === 'pdf_nf' ? fileUrl : form.nf_pdf_url || fileUrl,
-      orcamento_url: fileUrl,
-      link_proposta: form.link_proposta || fileUrl,
-      arquivo_nome: fileName,
-      arquivo_tipo: fileKind,
+      file_url: fileUrl || undefined,
+      arquivo_url: fileUrl || undefined,
+      documento_url: fileUrl || undefined,
+      nota_fiscal_url: fileUrl || undefined,
+      nf_pdf_url: fileKind === 'pdf_nf' ? fileUrl : (form.nf_pdf_url || fileUrl || undefined),
+      orcamento_url: fileUrl || undefined,
+      link_proposta: form.link_proposta || fileUrl || undefined,
+      arquivo_nome: fileName || undefined,
+      arquivo_tipo: fileKind || undefined,
       tipo_origem: form.tipo_origem || 'ENTRADA_UNICA',
       origem: form.origem || 'EntradaUnica',
-      centro_custo: dividirEntreMuseus ? 'Rateado' : normalizeCentroCusto(form.centro_custo),
+      // centro_custo é sempre um valor canônico do enum — nunca 'Rateado'
+      centro_custo: centroCustoNormalizado,
       rateio_museus: getRateioPayload(),
       rubrica_mes_inicial: form.rubrica_mes_inicial !== '' ? Number(form.rubrica_mes_inicial) : undefined,
       rubrica_mes_final: form.rubrica_mes_final !== '' ? Number(form.rubrica_mes_final) : undefined,
     }
+
+    // Remove campos undefined para não sobrescrever dados existentes no banco
+    Object.keys(payload).forEach((k) => {
+      if (payload[k] === undefined) delete payload[k]
+    })
+
+    return payload
   }
 
   async function createAttachmentForPurchase(purchase, payload) {
@@ -748,7 +764,30 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
       if (isEditing) {
         const payload = buildPayload(prefill?.status || 'SOLICITADO')
 
-        await base44.entities.PurchaseRequest.update(prefill.id, payload)
+        // Salva explicitamente os campos críticos primeiro para garantir persistência,
+        // depois salva o payload completo (evita conflito de enum no banco).
+        await base44.entities.PurchaseRequest.update(prefill.id, {
+          centro_custo: payload.centro_custo,
+          rubrica_id: payload.rubrica_id,
+          rubrica_nome: payload.rubrica_nome,
+          meta_id: payload.meta_id,
+          valor_solicitado: payload.valor_solicitado,
+          valor_total: payload.valor_total,
+          descricao_item: payload.descricao_item,
+          fornecedor_nome: payload.fornecedor_nome,
+          fornecedor_cnpj: payload.fornecedor_cnpj,
+          nf_emitente_cpf_cnpj: payload.nf_emitente_cpf_cnpj,
+          meio_pagamento: payload.meio_pagamento,
+          detalhe_pagamento: payload.detalhe_pagamento,
+          observacoes: payload.observacoes,
+          nf_numero: payload.nf_numero,
+          nf_data_emissao: payload.nf_data_emissao,
+          nf_valor_total: payload.nf_valor_total,
+          categoria: payload.categoria,
+          tipo_gasto: payload.tipo_gasto,
+          rubrica_mes_inicial: payload.rubrica_mes_inicial,
+          rubrica_mes_final: payload.rubrica_mes_final,
+        })
         await createAttachmentForPurchase({ id: prefill.id }, payload)
 
         // Passa o payload salvo + id para o onSuccess para atualização otimista no cache
