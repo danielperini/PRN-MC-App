@@ -346,22 +346,23 @@ function ComprasInner() {
   });
 
   // Auto-abrir solicitação quando vier via ?id= (link de email de notificação)
+  // Limpa o parâmetro ANTES de abrir o modal para evitar re-abertura após fechamento
   useEffect(() => {
     if (!purchases || purchases.length === 0) return;
     const urlParams = new URLSearchParams(window.location.search);
     const targetId = urlParams.get('id');
     if (!targetId) return;
+    // Remove o parâmetro da URL imediatamente para não re-acionar em refetches
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('id');
+      window.history.replaceState({}, '', url.toString());
+    } catch { /* noop */ }
     const found = purchases.find((p) => p._id === targetId || p.id === targetId);
     if (found) {
       setEditingPurchase({ ...found });
       setShowForm(true);
       setTab('lista');
-      // Limpar o parâmetro para não reabrir a cada render
-      try {
-        const url = new URL(window.location.href);
-        url.searchParams.delete('id');
-        window.history.replaceState({}, '', url.toString());
-      } catch { /* noop */ }
     }
   }, [purchases]);
 
@@ -1659,38 +1660,32 @@ function ComprasInner() {
           setShowForm(false);
           setEditingPurchase(null);
         }}
-        onSuccess={async (savedPayload) => {
+        onSuccess={(savedPayload) => {
+          // (1) Fecha o modal imediatamente — síncrono, sem await
           setShowForm(false);
           setEditingPurchase(null);
 
-          // (1) Aplica imediatamente no cache os dados confirmados do banco
+          // (2) Atualização otimista imediata do cache
           if (savedPayload?.id) {
             queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email, userMuseu], (old) => {
               if (!Array.isArray(old)) return old;
               return old.map((item) =>
-                item.id === savedPayload.id
-                  ? { ...item, ...savedPayload }
-                  : item
+                item.id === savedPayload.id ? { ...item, ...savedPayload } : item
               );
             });
           }
 
-          // (2) Aguarda propagação no banco (3s) antes de invalidar
-          await new Promise(r => setTimeout(r, 3000));
-          await invalidateComprasQueries();
-
-          // (3) Re-aplica os dados confirmados APÓS o refetch para garantir que
-          // o banco não sobrescreva com valor antigo caso o cache SDK ainda não tenha expirado
-          if (savedPayload?.id) {
-            queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email, userMuseu], (old) => {
-              if (!Array.isArray(old)) return old;
-              return old.map((item) =>
-                item.id === savedPayload.id
-                  ? { ...item, ...savedPayload }
-                  : item
-              );
-            });
-          }
+          // (3) Fire-and-forget: invalida e re-aplica dados confirmados em background
+          invalidateComprasQueries().then(() => {
+            if (savedPayload?.id) {
+              queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email, userMuseu], (old) => {
+                if (!Array.isArray(old)) return old;
+                return old.map((item) =>
+                  item.id === savedPayload.id ? { ...item, ...savedPayload } : item
+                );
+              });
+            }
+          });
         }} />
 
       }
