@@ -173,18 +173,28 @@ function GrupoCell({ row, allGroups, onSave }) {
   );
 }
 
+const MUSEUS_FILTRO = ['MIS', 'MUMO', 'MHAB'];
+
 function DrilldownModal({ open, onOpenChange, title, description, rows = [], totals, allGroups = [], isCoordenador = false, onRubricaGroupChange }) {
   const [query, setQuery] = React.useState('');
+  const [museuFiltro, setMuseuFiltro] = React.useState(null);
   const [localRows, setLocalRows] = React.useState(rows);
 
   // Sync rows when modal opens or rows change
-  React.useEffect(() => { setLocalRows(rows); }, [rows]);
+  React.useEffect(() => { setLocalRows(rows); setMuseuFiltro(null); setQuery(''); }, [rows]);
 
   const filteredRows = React.useMemo(() => {
+    let result = localRows;
+    if (museuFiltro) {
+      result = result.filter((row) => {
+        const m = String(row.museu || '').toUpperCase();
+        return m === museuFiltro || m.includes(museuFiltro);
+      });
+    }
     const q = query.trim().toLowerCase();
-    if (!q) return localRows;
-    return localRows.filter((row) => [row.rubrica, row.grupo, row.meta].join(' ').toLowerCase().includes(q));
-  }, [query, localRows]);
+    if (!q) return result;
+    return result.filter((row) => [row.rubrica, row.grupo, row.meta].join(' ').toLowerCase().includes(q));
+  }, [query, museuFiltro, localRows]);
 
   function handleSave(id, novoGrupo) {
     setLocalRows((prev) => prev.map((r) => r.id === id ? { ...r, grupo: novoGrupo } : r));
@@ -241,6 +251,39 @@ function DrilldownModal({ open, onOpenChange, title, description, rows = [], tot
             <button type="button" onClick={() => setQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
               <X className="h-4 w-4" />
             </button>
+          )}
+        </div>
+
+        {/* Filtros rápidos por museu */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-muted-foreground">Filtrar por museu:</span>
+          {MUSEUS_FILTRO.map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setMuseuFiltro(museuFiltro === m ? null : m)}
+              className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+                museuFiltro === m
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-border bg-background text-muted-foreground hover:border-primary/60 hover:text-foreground'
+              }`}
+            >
+              {m}
+            </button>
+          ))}
+          {museuFiltro && (
+            <button
+              type="button"
+              onClick={() => setMuseuFiltro(null)}
+              className="flex items-center gap-1 rounded-full border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-3 w-3" /> Limpar
+            </button>
+          )}
+          {museuFiltro && (
+            <span className="ml-auto text-xs text-muted-foreground">
+              {filteredRows.length} rubrica{filteredRows.length !== 1 ? 's' : ''}
+            </span>
           )}
         </div>
 
@@ -312,6 +355,7 @@ export default function BudgetByGroupCards({ rubricas = [], isCoordenador = fals
       rubrica: getRubricaName(rubrica),
       grupo: getGroupName(rubrica),
       meta: rubrica?.meta_titulo || rubrica?.meta || rubrica?.meta_numero || '',
+      museu: String(rubrica?.museu_codigo || rubrica?.centro_custo || '').toUpperCase().replace('MAB', 'MHAB').trim(),
       previsto,
       utilizado,
       saldo,
