@@ -11,6 +11,7 @@ import EquipeManager from '../components/admin/EquipeManager';
 import UserPermissionsManager from '../components/admin/UserPermissionsManager';
 import AuditSystemPanel from '../components/admin/AuditSystemPanel';
 import HardeningPanel from '../components/admin/HardeningPanel';
+import ComunicadosPanel from '../components/admin/ComunicadosPanel';
 import {
   Users, FileText, History, Settings,
   CheckCircle, ChevronRight,
@@ -128,6 +129,7 @@ function PlataformaAdminInner() {
           <TabsTrigger value="relatorios">Relatórios</TabsTrigger>
           <TabsTrigger value="auditoria">📊 Auditoria</TabsTrigger>
           <TabsTrigger value="hardening">🔒 Hardening</TabsTrigger>
+          <TabsTrigger value="comunicados">📣 Comunicados</TabsTrigger>
           <TabsTrigger value="metadados">Metadados</TabsTrigger>
         </TabsList>
 
@@ -227,6 +229,10 @@ function PlataformaAdminInner() {
 
         <TabsContent value="hardening">
           <HardeningPanel />
+        </TabsContent>
+
+        <TabsContent value="comunicados">
+          <ComunicadosPanel />
         </TabsContent>
 
       </Tabs>
