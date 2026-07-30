@@ -1660,8 +1660,10 @@ function ComprasInner() {
           setEditingPurchase(null);
         }}
         onSuccess={async (savedPayload) => {
-          // Atualização otimista imediata: substitui o registro no cache local
-          // com os dados exatos que foram persistidos no banco.
+          setShowForm(false);
+          setEditingPurchase(null);
+
+          // Aplica imediatamente no cache os dados confirmados do banco
           if (savedPayload?.id) {
             queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email, userMuseu], (old) => {
               if (!Array.isArray(old)) return old;
@@ -1672,13 +1674,10 @@ function ComprasInner() {
               );
             });
           }
-          setShowForm(false);
-          setEditingPurchase(null);
-          // Aguarda propagação no banco (write-after-read gap) antes de invalidar.
-          // 1200ms é suficiente para evitar que o refetch traga dado anterior.
-          await new Promise(r => setTimeout(r, 1200));
+
+          // Aguarda propagação no banco antes de invalidar e refazer o fetch
+          await new Promise(r => setTimeout(r, 1500));
           await invalidateComprasQueries();
-          await queryClient.refetchQueries({ queryKey: ['purchases'], type: 'active' });
         }} />
 
       }

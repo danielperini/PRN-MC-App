@@ -764,34 +764,50 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
       if (isEditing) {
         const payload = buildPayload(prefill?.status || 'SOLICITADO')
 
-        // Salva explicitamente os campos críticos primeiro para garantir persistência,
-        // depois salva o payload completo (evita conflito de enum no banco).
-        await base44.entities.PurchaseRequest.update(prefill.id, {
+        // UPDATE ÚNICO com apenas os campos editáveis — evita conflito de enum
+        // e garante que centro_custo canônico seja persistido sem interferência
+        const updateFields = {
           centro_custo: payload.centro_custo,
           rubrica_id: payload.rubrica_id,
           rubrica_nome: payload.rubrica_nome,
           meta_id: payload.meta_id,
-          valor_solicitado: payload.valor_solicitado,
-          valor_total: payload.valor_total,
+          meta_extra_descricao: payload.meta_extra_descricao || '',
           descricao_item: payload.descricao_item,
           fornecedor_nome: payload.fornecedor_nome,
           fornecedor_cnpj: payload.fornecedor_cnpj,
-          nf_emitente_cpf_cnpj: payload.nf_emitente_cpf_cnpj,
-          meio_pagamento: payload.meio_pagamento,
-          detalhe_pagamento: payload.detalhe_pagamento,
-          observacoes: payload.observacoes,
-          nf_numero: payload.nf_numero,
-          nf_data_emissao: payload.nf_data_emissao,
-          nf_valor_total: payload.nf_valor_total,
-          categoria: payload.categoria,
-          tipo_gasto: payload.tipo_gasto,
-          rubrica_mes_inicial: payload.rubrica_mes_inicial,
-          rubrica_mes_final: payload.rubrica_mes_final,
-        })
+          fornecedor_contato: payload.fornecedor_contato || '',
+          nf_emitente_nome: payload.fornecedor_nome,
+          nf_emitente_cpf_cnpj: payload.fornecedor_cnpj,
+          fornecedor_cpf_cnpj: payload.fornecedor_cnpj,
+          valor_solicitado: payload.valor_solicitado,
+          valor_total: payload.valor_total,
+          valor: payload.valor_solicitado,
+          nf_valor_total: payload.valor_solicitado,
+          meio_pagamento: payload.meio_pagamento || '',
+          detalhe_pagamento: payload.detalhe_pagamento || '',
+          observacoes: payload.observacoes || '',
+          nf_numero: payload.nf_numero || '',
+          nf_data_emissao: payload.nf_data_emissao || '',
+          categoria: payload.categoria || '',
+          tipo_gasto: payload.tipo_gasto || '',
+        }
+        // Adiciona campos numéricos opcionais apenas se definidos
+        if (payload.rubrica_mes_inicial != null) updateFields.rubrica_mes_inicial = payload.rubrica_mes_inicial
+        if (payload.rubrica_mes_final != null) updateFields.rubrica_mes_final = payload.rubrica_mes_final
+
+        await base44.entities.PurchaseRequest.update(prefill.id, updateFields)
         await createAttachmentForPurchase({ id: prefill.id }, payload)
 
-        // Passa o payload salvo + id para o onSuccess para atualização otimista no cache
-        const payloadComId = { ...payload, id: prefill.id }
+        // Lê o registro atualizado diretamente do banco para confirmar a persistência
+        // e usar os dados reais (não o payload local) na atualização otimista do cache
+        let confirmedRecord = { ...prefill, ...updateFields, id: prefill.id }
+        try {
+          const fresh = await base44.entities.PurchaseRequest.get(prefill.id)
+          if (fresh?.id) confirmedRecord = fresh
+        } catch (_) { /* fallback para payload local */ }
+
+        // Passa o registro confirmado para o onSuccess
+        const payloadComId = confirmedRecord
 
         // Se estava DEVOLVIDO e está sendo reenviado, resolver notificações de devolução
         if (String(prefill?.status || '').toUpperCase() === 'DEVOLVIDO') {
