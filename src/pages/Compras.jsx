@@ -348,8 +348,10 @@ function ComprasInner() {
     queryKey: ['purchases', isCoordenador, currentUser?.email, userMuseu],
     queryFn: () => carregarSolicitacoes({ isCoordenador, currentUser, userMuseu }),
     enabled: !!currentUser && (isCoordenador || userTeamMember !== undefined),
-    staleTime: 1000 * 60,
-    refetchOnWindowFocus: false
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 10,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
   // Auto-abrir solicitação quando vier via ?id= (link de email de notificação)
@@ -401,9 +403,9 @@ function ComprasInner() {
     queryKey: ['rubricas'],
     queryFn: carregarRubricas,
     enabled: !!currentUser,
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnWindowFocus: true
+    staleTime: 1000 * 60,
+    gcTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false
   });
 
   // Recálculo automático: sincroniza valor_utilizado de todas as rubricas
@@ -441,7 +443,8 @@ function ComprasInner() {
     }
 
     runAutoRecalc();
-  }, [purchases, rubricas, currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser]); // Só roda uma vez ao carregar o usuário, não em cada mudança de purchases/rubricas
 
   const { data: metas = [] } = useQuery({
     queryKey: ['project-metas'],
