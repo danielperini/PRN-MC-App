@@ -1675,17 +1675,10 @@ function ComprasInner() {
             });
           }
 
-          // (3) Fire-and-forget: invalida e re-aplica dados confirmados em background
-          invalidateComprasQueries().then(() => {
-            if (savedPayload?.id) {
-              queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email, userMuseu], (old) => {
-                if (!Array.isArray(old)) return old;
-                return old.map((item) =>
-                  item.id === savedPayload.id ? { ...item, ...savedPayload } : item
-                );
-              });
-            }
-          });
+          // (3) Fire-and-forget: invalida queries em background — NÃO reaplica o
+          // savedPayload após o refetch, pois isso sobrescreveria dados já
+          // atualizados do banco (ou o cache otimista, se o refetch ainda não chegou)
+          invalidateComprasQueries();
         }} />
 
       }
