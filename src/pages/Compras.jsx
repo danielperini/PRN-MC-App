@@ -1672,6 +1672,9 @@ function ComprasInner() {
           }
           setShowForm(false);
           setEditingPurchase(null);
+          // Aguarda 600ms para o banco propagar a escrita antes de refetch,
+          // evitando que o refetch traga dados desatualizados e sobrescreva o otimístico.
+          await new Promise(r => setTimeout(r, 600));
           await refreshFinanceiroCompleto();
         }} />
 
