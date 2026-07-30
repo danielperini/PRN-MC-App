@@ -136,7 +136,7 @@ export const PurchaseNotificationTemplate = {
 
       for (const item of centroItems) {
         // Link direto para a solicitação no app
-        const appBaseUrl = 'https://museus-centro.base44-apps.com';
+        const appBaseUrl = 'https://periniprojetos.com.br';
         const linkSolicitacao = item.purchase_id
           ? `${appBaseUrl}/Compras?id=${item.purchase_id}`
           : `${appBaseUrl}/Compras`;
@@ -194,7 +194,7 @@ export const PurchaseNotificationTemplate = {
                       - Este email é automático e não deve ser respondido.
                     </div>
                     <p style="margin:20px 0 0 0;">
-                      <a href="https://museus-centro.base44-apps.com/Compras" 
+                      <a href="https://periniprojetos.com.br/Compras" 
                          style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:600;">
                         Acessar Solicitações de Compras
                       </a>

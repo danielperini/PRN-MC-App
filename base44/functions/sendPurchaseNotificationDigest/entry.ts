@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 
-const APP_BASE_URL = 'https://relatorios-perini-pro-mc-viadutodasartes.base44.app';
+const APP_BASE_URL = 'https://periniprojetos.com.br';
 
 const RECIPIENTS = [
   'adm@viadutodasartes.org.br',
@@ -99,7 +99,7 @@ Deno.serve(async (req) => {
 
       for (const item of items) {
         const linkSolicitacao = item.link_app_compras
-          || (item.purchase_id ? `${APP_BASE_URL}/Compras?purchaseId=${item.purchase_id}` : `${APP_BASE_URL}/Compras`);
+          || (item.purchase_id ? `${APP_BASE_URL}/Compras?id=${item.purchase_id}` : `${APP_BASE_URL}/Compras`);
 
         const docsLinks: string[] = [];
         if (item.drive_backup_nf_pdf_link || item.nota_fiscal_pdf_url) {
@@ -143,7 +143,7 @@ Deno.serve(async (req) => {
     <div style="padding:16px 28px 24px 28px;">
       <div style="height:1px;background:#e2e8f0;margin-bottom:16px;"></div>
       <div style="text-align:center;">
-        <a href="${APP_BASE_URL}/Compras" style="display:inline-block;background:#1e293b;color:#ffffff;font-size:14px;font-weight:600;padding:12px 28px;border-radius:8px;text-decoration:none;">Acessar Solicitações de Compras</a>
+        <a href="${APP_BASE_URL}/Compras?tab=lista" style="display:inline-block;background:#1e293b;color:#ffffff;font-size:14px;font-weight:600;padding:12px 28px;border-radius:8px;text-decoration:none;">Acessar Solicitações de Compras</a>
       </div>
       <p style="text-align:center;font-size:11px;color:#94a3b8;margin-top:16px;">
         Museus Centro · Viaduto das Artes · E-mail automático gerado às ${dataFormatada}
