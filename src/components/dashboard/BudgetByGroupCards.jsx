@@ -1,5 +1,5 @@
 import React from 'react';
-import { Wallet, TrendingUp, Layers, PiggyBank, Search, X } from 'lucide-react';
+import { Wallet, TrendingUp, Layers, PiggyBank, Search, X, Pencil, Check, Loader2 } from 'lucide-react';
 import { isOrigemAditivo } from '@/services/canonicalMetrics';
 import {
   Dialog,
@@ -9,6 +9,9 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { base44 } from '@/api/base44Client';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 const TOTAL_PREVISTO_OFICIAL = 1401719.85;
 
@@ -86,14 +89,116 @@ function BudgetKpi({ label, value, helper, icon: Icon, onClick }) {
   );
 }
 
-function DrilldownModal({ open, onOpenChange, title, description, rows = [], totals }) {
+function GrupoCell({ row, allGroups, onSave }) {
+  const [editing, setEditing] = React.useState(false);
+  const [value, setValue] = React.useState(row.grupo);
+  const [saving, setSaving] = React.useState(false);
+  const inputRef = React.useRef(null);
+
+  // Suggestions: all existing group names
+  const suggestions = React.useMemo(() => {
+    const q = value.trim().toLowerCase();
+    return allGroups.filter((g) => g.toLowerCase().includes(q) && g !== row.grupo);
+  }, [allGroups, value, row.grupo]);
+
+  function handleEdit() {
+    setValue(row.grupo);
+    setEditing(true);
+    setTimeout(() => inputRef.current?.select(), 50);
+  }
+
+  function handleCancel() {
+    setEditing(false);
+    setValue(row.grupo);
+  }
+
+  async function handleSave() {
+    const novoGrupo = value.trim();
+    if (!novoGrupo || novoGrupo === row.grupo) { setEditing(false); return; }
+    setSaving(true);
+    try {
+      await base44.entities.Rubrica.update(row.id, { grupo: novoGrupo });
+      onSave(row.id, novoGrupo);
+      toast.success(`Grupo atualizado para "${novoGrupo}"`);
+      setEditing(false);
+    } catch (err) {
+      toast.error('Erro ao salvar grupo: ' + (err?.message || 'desconhecido'));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!editing) {
+    return (
+      <span className="group flex items-center gap-1">
+        <span className="text-muted-foreground">{row.grupo}</span>
+        <button
+          type="button"
+          onClick={handleEdit}
+          className="invisible shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground group-hover:visible"
+          title="Mover para outro grupo"
+        >
+          <Pencil className="h-3 w-3" />
+        </button>
+      </span>
+    );
+  }
+
+  return (
+    <span className="flex items-center gap-1">
+      <span className="relative flex-1 min-w-[140px]">
+        <input
+          ref={inputRef}
+          list={`grupos-${row.id}`}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') handleCancel(); }}
+          className="w-full rounded border border-primary bg-background px-2 py-0.5 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+          disabled={saving}
+          autoFocus
+        />
+        <datalist id={`grupos-${row.id}`}>
+          {suggestions.map((g) => <option key={g} value={g} />)}
+        </datalist>
+      </span>
+      {saving ? (
+        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+      ) : (
+        <>
+          <button type="button" onClick={handleSave} className="rounded p-0.5 text-green-600 hover:bg-green-50" title="Salvar"><Check className="h-4 w-4" /></button>
+          <button type="button" onClick={handleCancel} className="rounded p-0.5 text-muted-foreground hover:bg-muted" title="Cancelar"><X className="h-4 w-4" /></button>
+        </>
+      )}
+    </span>
+  );
+}
+
+function DrilldownModal({ open, onOpenChange, title, description, rows = [], totals, allGroups = [], isCoordenador = false, onRubricaGroupChange }) {
   const [query, setQuery] = React.useState('');
+  const [localRows, setLocalRows] = React.useState(rows);
+
+  // Sync rows when modal opens or rows change
+  React.useEffect(() => { setLocalRows(rows); }, [rows]);
 
   const filteredRows = React.useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((row) => [row.rubrica, row.grupo, row.meta].join(' ').toLowerCase().includes(q));
-  }, [query, rows]);
+    if (!q) return localRows;
+    return localRows.filter((row) => [row.rubrica, row.grupo, row.meta].join(' ').toLowerCase().includes(q));
+  }, [query, localRows]);
+
+  function handleSave(id, novoGrupo) {
+    setLocalRows((prev) => prev.map((r) => r.id === id ? { ...r, grupo: novoGrupo } : r));
+    onRubricaGroupChange?.(id, novoGrupo);
+  }
+
+  // Recalculate totals from localRows
+  const localTotals = React.useMemo(() => {
+    const previsto = localRows.reduce((a, r) => a + r.previsto, 0);
+    const utilizado = localRows.reduce((a, r) => a + r.utilizado, 0);
+    const saldo = previsto - utilizado;
+    const percentual = previsto > 0 ? (utilizado / previsto) * 100 : 0;
+    return { previsto: previsto || totals?.previsto, utilizado: utilizado || totals?.utilizado, saldo: saldo || totals?.saldo, percentual: percentual || totals?.percentual };
+  }, [localRows, totals]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -108,19 +213,19 @@ function DrilldownModal({ open, onOpenChange, title, description, rows = [], tot
         <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
           <div className="rounded-xl border bg-muted/40 p-3">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Previsto</div>
-            <div className="text-base font-bold leading-tight tabular-nums">{fmtBRL(totals?.previsto)}</div>
+            <div className="text-base font-bold leading-tight tabular-nums">{fmtBRL(localTotals?.previsto)}</div>
           </div>
           <div className="rounded-xl border bg-muted/40 p-3">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Utilizado</div>
-            <div className="text-base font-bold leading-tight tabular-nums">{fmtBRL(totals?.utilizado)}</div>
+            <div className="text-base font-bold leading-tight tabular-nums">{fmtBRL(localTotals?.utilizado)}</div>
           </div>
           <div className="rounded-xl border bg-muted/40 p-3">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Saldo</div>
-            <div className="text-base font-bold leading-tight tabular-nums">{fmtBRL(totals?.saldo)}</div>
+            <div className="text-base font-bold leading-tight tabular-nums">{fmtBRL(localTotals?.saldo)}</div>
           </div>
           <div className="rounded-xl border bg-muted/40 p-3">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Execução</div>
-            <div className="text-lg font-bold">{fmtPct(totals?.percentual)}</div>
+            <div className="text-lg font-bold">{fmtPct(localTotals?.percentual)}</div>
           </div>
         </div>
 
@@ -156,7 +261,13 @@ function DrilldownModal({ open, onOpenChange, title, description, rows = [], tot
               {filteredRows.map((row) => (
                 <tr key={row.id || `${row.rubrica}-${row.grupo}`} className="border-t">
                   <td className="p-3 font-medium text-foreground">{row.rubrica}</td>
-                  <td className="p-3 text-muted-foreground">{row.grupo}</td>
+                  <td className="p-3">
+                    {isCoordenador && row.id ? (
+                      <GrupoCell row={row} allGroups={allGroups} onSave={handleSave} />
+                    ) : (
+                      <span className="text-muted-foreground">{row.grupo}</span>
+                    )}
+                  </td>
                   <td className="p-3 text-muted-foreground">{row.meta || '—'}</td>
                   <td className="p-3 text-right tabular-nums">{fmtBRL(row.previsto)}</td>
                   <td className="p-3 text-right tabular-nums">{fmtBRL(row.utilizado)}</td>
@@ -175,14 +286,16 @@ function DrilldownModal({ open, onOpenChange, title, description, rows = [], tot
 
         <div className="text-xs text-muted-foreground">
           Fórmula: utilizado ÷ previsto × 100. Saldo = previsto − utilizado. Fonte: rubricas ativas do 3º Aditivo.
+          {isCoordenador && <span className="ml-2 text-primary">· Passe o mouse sobre o grupo para mover a rubrica.</span>}
         </div>
       </DialogContent>
     </Dialog>
   );
 }
 
-export default function BudgetByGroupCards({ rubricas = [] }) {
+export default function BudgetByGroupCards({ rubricas = [], isCoordenador = false }) {
   const [drilldown, setDrilldown] = React.useState(null);
+  const queryClient = useQueryClient();
 
   const activeRubricas = React.useMemo(
     () => (Array.isArray(rubricas) ? rubricas : []).filter((r) => r?.ativo !== false && isOrigemAditivo(r)),
@@ -214,6 +327,11 @@ export default function BudgetByGroupCards({ rubricas = [] }) {
     const percentual = previsto > 0 ? (utilizado / previsto) * 100 : 0;
 
     return { previsto, utilizado, saldo, percentual };
+  }, [rubricaRows]);
+
+  const allGroupNames = React.useMemo(() => {
+    const names = new Set(rubricaRows.map((r) => r.grupo));
+    return Array.from(names).sort();
   }, [rubricaRows]);
 
   const groups = React.useMemo(() => {
@@ -250,6 +368,12 @@ export default function BudgetByGroupCards({ rubricas = [] }) {
   }, [rubricaRows]);
 
   if (activeRubricas.length === 0) return null;
+
+  function handleRubricaGroupChange(id, novoGrupo) {
+    // Invalidate so cards recalculate groups
+    queryClient.invalidateQueries({ queryKey: ['dashboard-rubricas'] });
+    queryClient.invalidateQueries({ queryKey: ['rubricas'] });
+  }
 
   function openAll() {
     setDrilldown({
@@ -333,6 +457,9 @@ export default function BudgetByGroupCards({ rubricas = [] }) {
         description={drilldown?.description}
         rows={drilldown?.rows || []}
         totals={drilldown?.totals}
+        allGroups={allGroupNames}
+        isCoordenador={isCoordenador}
+        onRubricaGroupChange={handleRubricaGroupChange}
       />
     </section>
   );

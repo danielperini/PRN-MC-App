@@ -132,7 +132,7 @@ function DashboardCoordenadorView({
         <DiariamenteNosMuseus />
 
         <ComplianceStats currentMonth={currentMonth} currentYear={currentYear} />
-        <BudgetByGroupCards rubricas={rubricas} />
+        <BudgetByGroupCards rubricas={rubricas} isCoordenador={isCoordenador} />
 
         <CoordDashboard
           reports={isCoordenador ? allReports : myReports}
