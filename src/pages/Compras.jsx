@@ -281,9 +281,12 @@ function ComprasInner() {
   // Trava de campo centro_custo: Map<purchaseId, { value: string, expiresAt: number }>
   // Impede que qualquer refetch do servidor sobrescreva o valor local por 60s após o save.
   const centroCustoLock = React.useRef(new Map());
+  // Versão que sobe a cada lock para forçar re-render e re-aplicação dos locks
+  const [lockVersion, setLockVersion] = useState(0);
 
   function lockCentroCusto(purchaseId, value) {
     centroCustoLock.current.set(purchaseId, { value, expiresAt: Date.now() + 60000 });
+    setLockVersion((v) => v + 1);
   }
 
   function applyLock(record) {
@@ -359,7 +362,7 @@ function ComprasInner() {
   const podeAprovarSolicitacoes = isCoordenador || userPermission?.pode_aprovar_solicitacoes === true;
   const podeGerenciarRubricas = canManageRubricas(currentUser, userPermission);
 
-  const { data: purchases = [], isLoading, isFetching: fetchingPurchases } = useQuery({
+  const { data: rawPurchases = [], isLoading, isFetching: fetchingPurchases } = useQuery({
     queryKey: ['purchases', isCoordenador, currentUser?.email, userMuseu],
     queryFn: () => carregarSolicitacoes({ isCoordenador, currentUser, userMuseu }),
     enabled: !!currentUser && (isCoordenador || userTeamMember !== undefined),
@@ -367,9 +370,11 @@ function ComprasInner() {
     gcTime: 1000 * 60 * 10,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
-    // Intercepta qualquer dado que chegue do servidor e aplica as travas ativas
-    select: (data) => applyLocksToList(data),
   });
+
+  // Aplica locks de centro_custo a cada atualização vinda do servidor ou quando um lock é ativado
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const purchases = useMemo(() => applyLocksToList(rawPurchases), [rawPurchases, lockVersion]);
 
   // Auto-abrir solicitação quando vier via ?id= (link de email de notificação)
   // Limpa o parâmetro ANTES de abrir o modal para evitar re-abertura após fechamento
