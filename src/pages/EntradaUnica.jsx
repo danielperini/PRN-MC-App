@@ -409,7 +409,9 @@ export default function EntradaUnica() {
       if (melhorPdf && melhorScore >= 2) {
         await base44.entities.DocumentIntake.update(melhorPdf.id, {
           nf_xml_intake_id: xml.id,
-          nf_xml_url: xml.arquivo_original_url
+          nf_xml_url: xml.arquivo_original_url,
+          xml_obrigatorio_pendente: false,
+          enviado_sem_xml: false
         }).catch(() => {});
 
         await base44.entities.DocumentIntake.update(xml.id, {
@@ -1015,6 +1017,8 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
         if (outreTipo === 'NOTA_FISCAL_XML') {
           pdfUpdate.nf_xml_intake_id = outro.id;
           pdfUpdate.nf_xml_url = outro.arquivo_original_url;
+          pdfUpdate.xml_obrigatorio_pendente = false;
+          pdfUpdate.enviado_sem_xml = false;
         } else {
           pdfUpdate.recibo_intake_id = outro.id;
           pdfUpdate.recibo_url = outro.arquivo_original_url;
@@ -1123,7 +1127,9 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
       await base44.entities.DocumentIntake.update(pdfIntake.id, {
         grupo_status: 'COMPLETO',
         nf_xml_intake_id: xmlIntake.id,
-        nf_xml_url: xmlIntake.arquivo_original_url
+        nf_xml_url: xmlIntake.arquivo_original_url,
+        xml_obrigatorio_pendente: false,
+        enviado_sem_xml: false
       });
 
       await base44.entities.DocumentIntake.update(xmlIntake.id, {
@@ -1162,7 +1168,9 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
       await base44.entities.DocumentIntake.update(pdfIntake.id, {
         grupo_status: 'COMPLETO',
         nf_xml_intake_id: xmlIntake.id,
-        nf_xml_url: file_url
+        nf_xml_url: file_url,
+        xml_obrigatorio_pendente: false,
+        enviado_sem_xml: false
       });
 
       await base44.entities.DocumentIntake.update(xmlIntake.id, {
@@ -1220,6 +1228,10 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
 
         const isXmlFile = ext === 'NOTA_FISCAL_XML';
 
+        const DATA_CORTE_XML_OBRIG = new Date('2026-08-01');
+        const isPdfFile = ext === 'NOTA_FISCAL_PDF';
+        const xmlObrigatorio = isPdfFile && new Date() >= DATA_CORTE_XML_OBRIG;
+
         const intake = await base44.entities.DocumentIntake.create({
           user_email: user.email,
           user_name: user.full_name || user.email,
@@ -1230,7 +1242,8 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
           status_registro: 'ATIVO',
           tipo_detectado: ext,
           revisado_pelo_usuario: false,
-          resultado_ia: orientacoes ? { orientacoes_usuario: orientacoes } : {}
+          resultado_ia: orientacoes ? { orientacoes_usuario: orientacoes } : {},
+          ...(xmlObrigatorio ? { xml_obrigatorio_pendente: true, xml_pendente_desde: new Date().toISOString() } : {})
         });
 
         intakesCriados.push({

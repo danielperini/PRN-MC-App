@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   FileText, Image, CheckCircle2, Clock, AlertCircle, Loader2,
-  Eye, Send, RefreshCw, X, Download, ExternalLink, Link2, Plus } from
+  Eye, Send, RefreshCw, X, Download, ExternalLink, Link2, Plus, AlertTriangle } from
 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -129,11 +129,15 @@ function detectarDuplicatas(intake, allIntakes) {
   return duplicatas;
 }
 
+// Data de corte para exigir XML obrigatório
+const DATA_CORTE_XML = new Date('2026-08-01');
+
 export default function DocumentIntakeCard({ intake, allIntakes, onReview, onDeleted, onSentToApproval, onReanalyse, onLinkXml, onAddXmlToPdf, onLinkArquivo }) {
   const [loading, setLoading] = useState(false);
   const [sendingApproval, setSendingApproval] = useState(false);
   const [addingXml, setAddingXml] = useState(false);
   const [prDuplicatas, setPrDuplicatas] = useState([]);
+  const [confirmSemXml, setConfirmSemXml] = useState(false);
   const xmlInputRef = useRef(null);
 
   // Verifica duplicatas em PurchaseRequests existentes (NFs já enviadas p/ aprovação)
@@ -263,6 +267,11 @@ export default function DocumentIntakeCard({ intake, allIntakes, onReview, onDel
     }
   }
 
+  // Verifica se é NF PDF nova (a partir de 01/08/2026) sem XML
+  const createdAt = new Date(intake.created_date || intake.updated_date || 0);
+  const isNovaSemXml = isPDF && !intake.nf_xml_intake_id && createdAt >= DATA_CORTE_XML;
+  const isAntigaSemXml = isPDF && !intake.nf_xml_intake_id && !intake.recibo_intake_id && createdAt < DATA_CORTE_XML;
+
   async function handleSendToApproval() {
     const ia = intake.resultado_ia || {};
     const rubrica_id = intake.rubrica_id_sugerida || ia.rubrica_id;
@@ -272,6 +281,12 @@ export default function DocumentIntakeCard({ intake, allIntakes, onReview, onDel
     if (!rubrica_id || !centro_custo || !valor) {
       toast.error('Preencha rubrica, centro de custo e valor antes de enviar. Clique em "Revisar" para completar.');
       if (onReview) onReview({ ...intake });
+      return;
+    }
+
+    // Se não tem XML e é nova (>=01/08/2026), pedir confirmação
+    if (isNovaSemXml && !confirmSemXml) {
+      setConfirmSemXml(true);
       return;
     }
 
@@ -349,12 +364,17 @@ export default function DocumentIntakeCard({ intake, allIntakes, onReview, onDel
         console.warn('Vínculo automático não aplicado:', linkError);
       }
 
+      const xmlPendingPatch = isNovaSemXml
+        ? { enviado_sem_xml: true, xml_obrigatorio_pendente: false }
+        : {};
+
       await base44.entities.DocumentIntake.update(intake.id, {
         status_processamento: 'ENVIADO_APROVACAO',
         ocultar_entrada_unica: true,
         entidade_destino: 'PurchaseRequest',
         entidade_destino_id: novaPurchase?.id || '',
-        ...linkPatch
+        ...linkPatch,
+        ...xmlPendingPatch
       });
 
       toast.success('Enviado para aprovação com sucesso.');
@@ -368,6 +388,61 @@ export default function DocumentIntakeCard({ intake, allIntakes, onReview, onDel
 
   return (
     <div className="border border-slate-200 rounded-xl p-4 bg-white hover:shadow-sm transition-shadow">
+    {/* Diálogo de confirmação: enviar NF sem XML */}
+    {confirmSemXml && (
+      <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+              <AlertTriangle className="w-5 h-5 text-orange-600" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-slate-900">Enviar NF sem XML?</h3>
+              <p className="text-sm text-slate-600 mt-1">Esta nota fiscal não possui XML vinculado. A partir de 01/08/2026, o XML é obrigatório para conformidade fiscal. Deseja enviar mesmo assim?</p>
+            </div>
+          </div>
+          <div className="flex gap-3 justify-end">
+            <button onClick={() => setConfirmSemXml(false)} className="px-4 py-2 text-sm rounded-lg border border-slate-200 hover:bg-slate-50">Cancelar</button>
+            <button
+              onClick={async () => {
+                setConfirmSemXml(false);
+                setSendingApproval(true);
+                try {
+                  const ia2 = intake.resultado_ia || {};
+                  const rubrica_id2 = intake.rubrica_id_sugerida || ia2.rubrica_id;
+                  const centro_custo2 = intake.centro_custo || ia2.centro_custo_sugerido;
+                  const valor2 = parseValorBR(ia2.nf_valor_total || ia2.valor || ia2.valor_total || 0);
+                  const fileName2 = intake.file_name_final || intake.file_name_original || 'Arquivo';
+                  const rubrica2 = await base44.entities.Rubrica.get(rubrica_id2).catch(() => null);
+                  const rubrica_nome2 = rubrica2?.rubrica || rubrica2?.nome || rubrica2?.descricao || '';
+                  const novaPurchase2 = await base44.entities.PurchaseRequest.create({
+                    descricao_item: ia2.descricao_servico || ia2.nf_emitente_nome || fileName2,
+                    fornecedor_nome: ia2.nf_emitente_nome || '', fornecedor_cpf_cnpj: ia2.nf_emitente_cpf_cnpj || '',
+                    valor_solicitado: valor2, valor_total: valor2, valor: valor2,
+                    rubrica_id: rubrica_id2, rubrica_nome: rubrica_nome2, budgetline_id: rubrica_id2, centro_custo: centro_custo2,
+                    nota_fiscal_url: intake.arquivo_original_url || '', arquivo_url: intake.arquivo_original_url || '',
+                    status: 'SOLICITADO', origem: 'EntradaUnica', intake_id: intake.id, documento_intake_id: intake.id,
+                    nf_numero: ia2.nf_numero || '', nf_data_emissao: ia2.nf_data_emissao || ia2.data_emissao || ''
+                  });
+                  await base44.entities.DocumentIntake.update(intake.id, {
+                    status_processamento: 'ENVIADO_APROVACAO', ocultar_entrada_unica: true,
+                    entidade_destino: 'PurchaseRequest', entidade_destino_id: novaPurchase2?.id || '',
+                    enviado_sem_xml: true, xml_obrigatorio_pendente: false
+                  });
+                  toast.success('Enviado para aprovação com sucesso.');
+                  if (onSentToApproval) onSentToApproval(intake.id);
+                } catch (e) {
+                  toast.error('Erro ao enviar: ' + e.message);
+                } finally {
+                  setSendingApproval(false);
+                }
+              }}
+              className="px-4 py-2 text-sm rounded-lg bg-orange-600 text-white hover:bg-orange-700 font-medium"
+            >Enviar mesmo assim</button>
+          </div>
+        </div>
+      </div>
+    )}
       <div className="flex items-center gap-3">
         {/* Ícone */}
         <div className={cn(
@@ -418,6 +493,20 @@ export default function DocumentIntakeCard({ intake, allIntakes, onReview, onDel
               <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-blue-100 text-blue-700">
                 <CheckCircle2 className="w-3 h-3" />
                 XML vinculado
+              </span>
+            }
+            {/* Badge XML pendente — NF nova (≥01/08/2026) sem XML */}
+            {isNovaSemXml &&
+              <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-orange-100 text-orange-700 border border-orange-200">
+                <AlertTriangle className="w-3 h-3" />
+                XML pendente
+              </span>
+            }
+            {/* Badge XML pendente suave — NF antiga sem XML */}
+            {isAntigaSemXml &&
+              <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-yellow-50 text-yellow-700 border border-yellow-200">
+                <AlertTriangle className="w-3 h-3" />
+                XML pendente
               </span>
             }
             {isPDF && temReciboVinculado &&

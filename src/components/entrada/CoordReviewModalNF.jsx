@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { base44 } from '@/api/base44Client';
-import { FileText, Loader2, AlertCircle, CheckCircle2, Send, Trash2, SplitSquareHorizontal, BookOpen, ShieldCheck, RefreshCw, LinkIcon, Search, X, Sparkles } from 'lucide-react';
+import { FileText, Loader2, AlertCircle, CheckCircle2, Send, Trash2, SplitSquareHorizontal, BookOpen, ShieldCheck, RefreshCw, LinkIcon, Search, X, Sparkles, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { findDuplicatePurchaseRequest } from '@/lib/purchaseDuplicateGuard';
 import DuplicatePurchaseDetectedModal from '@/components/compras/DuplicatePurchaseDetectedModal';
@@ -900,6 +900,17 @@ export default function ReviewModalNF({ intake, onClose, onSaved, painelDadosIde
         <div className="space-y-4 w-full min-w-0">
           {painelDadosIdentificados && (
             <div>{painelDadosIdentificados}</div>
+          )}
+
+          {/* Banner: NF sem XML vinculado */}
+          {!intake.nf_xml_intake_id && intake.tipo_detectado === 'NOTA_FISCAL_PDF' && (
+            <div className="flex items-start gap-3 p-3 bg-yellow-50 border-l-4 border-orange-400 rounded-lg text-sm text-yellow-800">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 text-orange-500" />
+              <div className="flex-1">
+                <p className="font-medium">Esta NF não possui XML vinculado.</p>
+                <p className="text-xs mt-0.5">Vincule o XML para conformidade fiscal.</p>
+              </div>
+            </div>
           )}
 
           <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg border border-blue-100 text-sm text-blue-700">
