@@ -1,5 +1,39 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
+// ── OPENAI GPT-4o (único modelo de IA permitido) ──
+async function invokeOpenAI({ prompt, fileUrls = [], jsonSchema = null, model = 'gpt-4o', maxTokens = 4096 }: any): Promise<any> {
+  const apiKey = Deno.env.get('OPENAI_API_KEY');
+  if (!apiKey) throw new Error('OPENAI_API_KEY não configurada');
+  const userContent: any[] = [{ type: 'text', text: prompt }];
+  for (const url of fileUrls) { if (url) userContent.push({ type: 'image_url', image_url: { url, detail: 'high' } }); }
+  const body: any = {
+    model,
+    messages: [{ role: 'user', content: userContent.length === 1 ? userContent[0].text : userContent }],
+    max_tokens: maxTokens,
+    temperature: 0.2,
+  };
+  if (jsonSchema) body.response_format = { type: 'json_object' };
+  let lastErr: any;
+  for (let i = 0; i < 2; i++) {
+    try {
+      const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(90_000),
+      });
+      if (!resp.ok) { const t = await resp.text().catch(() => resp.statusText); throw new Error(`OpenAI ${resp.status}: ${t}`); }
+      const data = await resp.json();
+      const content = data?.choices?.[0]?.message?.content ?? '';
+      const usage = data?.usage;
+      if (usage) console.log(`[analisarDocs] model=${model} in=${usage.prompt_tokens} out=${usage.completion_tokens}`);
+      if (jsonSchema) { try { return JSON.parse(content); } catch { const m = content.match(/\{[\s\S]*\}/); return m ? JSON.parse(m[0]) : {}; } }
+      return content;
+    } catch (e: any) { lastErr = e; if (i === 0) { console.warn('[analisarDocs] retry:', e.message); await new Promise(r => setTimeout(r, 2000)); } }
+  }
+  throw lastErr;
+}
+
 // ── UTILS ──
 const onlyDigits = (v) => String(v || '').replace(/\D/g, '');
 const safeStr = (v) => String(v || '').trim();
@@ -221,54 +255,29 @@ Deno.serve(async (req) => {
     if ((temPDF || temImagem || uniqueUrls.length > 1) && modo !== 'sugerir_apenas') {
       try {
         const hoje = new Date().toISOString().slice(0, 10);
-        const iaResp = await base44.asServiceRole.integrations.Core.InvokeLLM({
+        const ia = await invokeOpenAI({
           prompt: `Você é um especialista em documentos fiscais e administrativos brasileiros. Analise TODOS os arquivos anexados e extraia CADA campo abaixo.
-          
-          INSTRUÇÕES CRÍTICAS:
-          - Leia TODAS as páginas de cada PDF. Não pule nenhuma página.
-          - Se houver XML e PDF, PREFIRA os dados do XML (é a fonte oficial).
-          - Se houver COMPROVANTE DE PAGAMENTO / RECIBO, extraia dele o VALOR LÍQUIDO efetivamente pago (campo nf_valor_liquido). Este valor pode ser menor que o valor total da NF devido a retenções.
-          - Extraia TODOS os campos, mesmo que parcialmente visíveis.
-          - NÃO DEIXE CAMPOS EM BRANCO se o dado existir no documento.
-          - Para dados bancários, procure em TODAS as páginas: banco, agência, conta, PIX.
-          - O CPF/CNPJ do EMITENTE (fornecedor) é OBRIGATÓRIO.
-          - O valor total é OBRIGATÓRIO.
-          
-          Dados já extraídos do XML (se houver): ${JSON.stringify(dadosXML)}
-          Contexto adicional: ${JSON.stringify({ descricao: descricaoGeral, fornecedor: contexto.fornecedor_nome })}
-          
-          Data atual: ${hoje}`,
-          file_urls: uniqueUrls,
-          model: 'claude_sonnet_4_6',
-          response_json_schema: {
-            type: 'object',
-            properties: {
-              tipo_documento: { type: 'string' },
-              descricao_servico: { type: 'string' },
-              fornecedor_nome: { type: 'string' },
-              fornecedor_cpf_cnpj: { type: 'string' },
-              nf_numero: { type: 'string' },
-              nf_data_emissao: { type: 'string' },
-              nf_horario_emissao: { type: 'string' },
-              nf_valor_total: { type: 'number' },
-              nf_valor_liquido: { type: 'number' },
-              nf_retencoes: { type: 'number' },
-              nf_chave_acesso: { type: 'string' },
-              competencia: { type: 'string' },
-              municipio: { type: 'string' },
-              dados_bancarios: { type: 'string' },
-              chave_pix: { type: 'string' },
-              meio_pagamento: { type: 'string' },
-              observacoes: { type: 'string' },
-              contrato_numero: { type: 'string' },
-              museu_identificado: { type: 'string' },
-              atividade_identificada: { type: 'string' },
-              projeto_identificado: { type: 'string' },
-            },
-          },
-        });
 
-        const ia = iaResp?.response || iaResp || {};
+INSTRUÇÕES CRÍTICAS:
+- Leia TODAS as páginas de cada PDF. Não pule nenhuma página.
+- Se houver XML e PDF, PREFIRA os dados do XML (é a fonte oficial).
+- Se houver COMPROVANTE DE PAGAMENTO / RECIBO, extraia dele o VALOR LÍQUIDO efetivamente pago (campo nf_valor_liquido). Este valor pode ser menor que o valor total da NF devido a retenções.
+- Extraia TODOS os campos, mesmo que parcialmente visíveis.
+- NÃO DEIXE CAMPOS EM BRANCO se o dado existir no documento.
+- Para dados bancários, procure em TODAS as páginas: banco, agência, conta, PIX.
+- O CPF/CNPJ do EMITENTE (fornecedor) é OBRIGATÓRIO.
+- O valor total é OBRIGATÓRIO.
+
+Dados já extraídos do XML (se houver): ${JSON.stringify(dadosXML)}
+Contexto adicional: ${JSON.stringify({ descricao: descricaoGeral, fornecedor: contexto.fornecedor_nome })}
+Data atual: ${hoje}
+
+Responda APENAS com JSON válido contendo os campos: tipo_documento, descricao_servico, fornecedor_nome, fornecedor_cpf_cnpj, nf_numero, nf_data_emissao, nf_horario_emissao, nf_valor_total (number), nf_valor_liquido (number), nf_retencoes (number), nf_chave_acesso, competencia, municipio, dados_bancarios, chave_pix, meio_pagamento, observacoes, contrato_numero, museu_identificado, atividade_identificada, projeto_identificado.`,
+          fileUrls: uniqueUrls,
+          jsonSchema: true,
+          model: 'gpt-4o',
+          maxTokens: 4096,
+        });
 
         // Mesclar dados do XML (prioridade) com IA
         const merge = (campo, valorIA, valorXML, origemIA) => {
