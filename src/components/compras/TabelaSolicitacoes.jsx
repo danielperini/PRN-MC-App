@@ -212,6 +212,9 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
     if (!newValue || newValue === (p.centro_custo || '')) return;
 
     const aprovado = STATUS_APROVADOS.has(normalizeStatus(p.status));
+    // Atualização otimista imediata — sem esperar o servidor
+    const updatedRecord = { ...p, centro_custo: newValue };
+    onCentroUpdated?.(updatedRecord);
 
     setSavingCentro(true);
     try {
@@ -225,15 +228,17 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
         });
         const result = res?.data || res;
         if (result?.success === false) throw new Error(result?.error || 'Falha no reequilíbrio.');
-        onCentroUpdated?.(result?.purchase || { ...p, centro_custo: newValue });
+        // Reconcilia com dados do servidor se disponíveis
+        if (result?.purchase) onCentroUpdated?.(result.purchase);
         toast.success('Centro de custo atualizado e saldo da rubrica reequilibrado.');
       } else {
-        const updated = await base44.entities.PurchaseRequest.update(p.id, { centro_custo: newValue });
-        onCentroUpdated?.(updated || { ...p, centro_custo: newValue });
+        await base44.entities.PurchaseRequest.update(p.id, { centro_custo: newValue });
         toast.success('Centro de custo atualizado.');
       }
     } catch (e) {
-      toast.warning('Centro de custo pode não ter sido salvo corretamente: ' + (e?.message || 'desconhecido'));
+      // Reverte o cache otimista se o servidor falhou
+      onCentroUpdated?.(p);
+      toast.warning('Erro ao salvar centro de custo: ' + (e?.message || 'desconhecido'));
     } finally {
       setSavingCentro(false);
     }
@@ -504,10 +509,14 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
                     onBlur={async () => {
                       setEditingDataNF(null);
                       if (dataNFValue !== (p.nf_data_emissao || '')) {
+                        // Atualização otimista imediata
+                        onCentroUpdated?.({ ...p, nf_data_emissao: dataNFValue });
                         try {
                           await base44.entities.PurchaseRequest.update(p.id, { nf_data_emissao: dataNFValue });
                           toast.success('Data de emissão atualizada.');
                         } catch {
+                          // Reverte em caso de erro
+                          onCentroUpdated?.(p);
                           toast.error('Erro ao salvar data de emissão.');
                         }
                       }
