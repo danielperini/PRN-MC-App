@@ -233,8 +233,17 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
         if (result?.purchase) onCentroUpdated?.(result.purchase);
         toast.success('Centro de custo atualizado e saldo da rubrica reequilibrado.');
       } else {
-        await base44.entities.PurchaseRequest.update(p.id, { centro_custo: newValue });
-        onCentroCustoSaved?.(p.id, newValue);
+        const res = await base44.functions.invoke('purchaseActions', {
+          action: 'updateCentroCusto',
+          purchaseId: p.id,
+          novoCentroCusto: newValue,
+        });
+        const result = res?.data || res;
+        if (result?.success === false) throw new Error(result?.error || 'Falha ao atualizar centro de custo.');
+        // Confirma trava com o valor retornado pelo servidor (fonte da verdade)
+        const valorConfirmado = result?.purchase?.centro_custo || newValue;
+        onCentroCustoSaved?.(p.id, valorConfirmado);
+        if (result?.purchase) onCentroUpdated?.(result.purchase);
         toast.success('Centro de custo atualizado.');
       }
     } catch (e) {

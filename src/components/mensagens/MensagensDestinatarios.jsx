@@ -11,12 +11,16 @@ const EQUIPES = ['Comunicação', 'Administração', 'Educativo', 'Produção', 
 
 const GRUPOS_RAPIDOS = [
   { key: 'todos', label: 'Todos os usuários' },
+  { key: 'equipe_ativa', label: 'Equipe ativa (sem Obs/Patrocinadores)' },
   { key: 'coordenadores', label: 'Apenas coordenadores/admin' },
   { key: 'profissionais', label: 'Apenas profissionais' },
 ];
 
+const ROLES_EXCLUIDOS = new Set(['OBSERVADOR', 'PATROCINADOR', 'observador', 'patrocinador']);
+
 export default function MensagensDestinatarios({ destinatarios, setDestinatarios, filtros, setFiltros }) {
   const [allUsers, setAllUsers] = useState([]);
+  const [allPermissions, setAllPermissions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [grupoSelecionado, setGrupoSelecionado] = useState('');
   const [museuFiltro, setMuseuFiltro] = useState('');
@@ -27,9 +31,13 @@ export default function MensagensDestinatarios({ destinatarios, setDestinatarios
 
   useEffect(() => {
     setLoading(true);
-    base44.entities.User.list().then((users) => {
+    Promise.all([
+      base44.entities.User.list().catch(() => []),
+      base44.entities.UserPermission.list().catch(() => []),
+    ]).then(([users, permissions]) => {
       setAllUsers(users || []);
-    }).catch(() => setAllUsers([])).finally(() => setLoading(false));
+      setAllPermissions(permissions || []);
+    }).finally(() => setLoading(false));
   }, []);
 
   function applyGroup(key) {
@@ -46,6 +54,20 @@ export default function MensagensDestinatarios({ destinatarios, setDestinatarios
         'COORD_COMUNICACAO', 'COORD_PROGRAMACAO', 'CONSULTORIA_PROGRAMACAO'];
       filtered = allUsers
         .filter((u) => coordRoles.includes(u.role))
+        .map((u) => u.email)
+        .filter(Boolean);
+    } else if (key === 'equipe_ativa') {
+      // Pega UserPermissions com base_role excluído (OBSERVADOR/PATROCINADOR)
+      const permissionMap = new Map(allPermissions.map((p) => [
+        (p.user_email || '').toLowerCase(), p
+      ]));
+      filtered = allUsers
+        .filter((u) => {
+          if (!u.email) return false;
+          const perm = permissionMap.get(u.email.toLowerCase());
+          const baseRole = perm?.base_role || u.role || '';
+          return !ROLES_EXCLUIDOS.has(baseRole);
+        })
         .map((u) => u.email)
         .filter(Boolean);
     } else if (key === 'profissionais') {

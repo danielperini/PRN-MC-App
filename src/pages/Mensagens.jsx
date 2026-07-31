@@ -20,6 +20,29 @@ export default function Mensagens() {
   const [view, setView] = useState(VIEWS.form);
   const [loading, setLoading] = useState(false);
 
+  const now = new Date();
+  const mesAtual = now.toLocaleDateString('pt-BR', { month: 'long' });
+  const mesSeguinte = new Date(now.getFullYear(), now.getMonth() + 1, 1).toLocaleDateString('pt-BR', { month: 'long' });
+  const diaMesSeguinte = `1º de ${mesSeguinte.charAt(0).toUpperCase() + mesSeguinte.slice(1)}`;
+
+  const TEMPLATE_NF = {
+    titulo: `Regra de emissão de NF — ${mesAtual.charAt(0).toUpperCase() + mesAtual.slice(1)} ${now.getFullYear()}`,
+    assunto: `📋 Lembrete: Regra de emissão de notas fiscais — Museus Centro`,
+    corpo: `Olá, [Nome]! 😊
+
+Para manter o fluxo financeiro do projeto organizado, pedimos que as notas fiscais sejam emitidas seguindo a seguinte regra:
+
+👉 A nota referente ao mês de trabalho deve ser emitida a partir do 1º dia do mês seguinte.
+
+Por exemplo: se você trabalhou em ${mesAtual}, emita a nota a partir de ${diaMesSeguinte}.
+
+Isso facilita o fechamento mensal e a prestação de contas do projeto junto à SUCC.
+
+Qualquer dúvida, fale com a coordenação. Obrigada pela parceria! 🙏
+
+Equipe Museus Centro`,
+  };
+
   const [form, setForm] = useState({
     titulo: '',
     assunto: '',
@@ -206,7 +229,16 @@ export default function Mensagens() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Formulário principal */}
           <div className="lg:col-span-2 space-y-5 bg-white rounded-xl border border-slate-200 p-6">
-            <h2 className="font-semibold text-slate-800 text-base">Composição da mensagem</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-slate-800 text-base">Composição da mensagem</h2>
+              <button
+                type="button"
+                onClick={() => setForm((prev) => ({ ...prev, titulo: TEMPLATE_NF.titulo, assunto: TEMPLATE_NF.assunto, corpo: TEMPLATE_NF.corpo }))}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors"
+              >
+                📋 Usar template: Regra de NF
+              </button>
+            </div>
 
             <div className="space-y-1">
               <Label>Título interno</Label>

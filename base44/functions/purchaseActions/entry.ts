@@ -254,7 +254,7 @@ Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req);
     const body = await req.json().catch(() => ({}));
 
-    const { action, purchaseId, comentario, novaRubricaId, novoValor } = body;
+    const { action, purchaseId, comentario, novaRubricaId, novoValor, novoCentroCusto } = body;
 
     if (!purchaseId) {
       return json({ success: false, error: 'purchaseId obrigatório.' }, 400);
@@ -326,6 +326,36 @@ Deno.serve(async (req) => {
       const updated = await base44.asServiceRole.entities.PurchaseRequest.update(purchase.id, updateData);
 
       return json({ success: true, purchase: updated, debitou, rubricaMudou, centroCustoMudou });
+    }
+
+    // =========================
+    // ATUALIZAR APENAS CENTRO DE CUSTO
+    // Payload mínimo: só o campo fornecido, sem spreads com undefined
+    // =========================
+    if (action === 'updateCentroCusto') {
+      const novoCentro = novoCentroCusto as string | undefined;
+      if (!novoCentro) {
+        return json({ success: false, error: 'novoCentroCusto obrigatório.' }, 400);
+      }
+
+      const updatePayload: { centro_custo: string } = { centro_custo: novoCentro };
+      const updated = await base44.asServiceRole.entities.PurchaseRequest.update(purchase.id, updatePayload);
+
+      // Se a rubrica já foi debitada, faz reequilíbrio financeiro (estorno + redébito)
+      // com o mesmo valor, pois somente o centro mudou
+      if (purchase.rubrica_id && !!purchase.rubrica_debitada_em) {
+        try {
+          const valorTroca = getPurchaseValue(purchase);
+          const rubrica = await getRubrica(base44, purchase.rubrica_id);
+          const valorEstorno = toNumber(purchase.rubrica_debitada_valor) || valorTroca;
+          await estornarRubrica(base44, rubrica, valorEstorno);
+          await debitarRubrica(base44, rubrica, valorTroca);
+        } catch (finErr) {
+          console.warn('Reequilíbrio financeiro no updateCentroCusto falhou (não bloqueante):', finErr?.message);
+        }
+      }
+
+      return json({ success: true, purchase: updated });
     }
 
     // Helper: gerar número de processamento único
