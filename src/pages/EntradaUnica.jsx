@@ -284,6 +284,7 @@ function calcularScoreVinculo(a, b) {
 
 export default function EntradaUnica() {
   const [user, setUser] = useState(null);
+  const [userPermission, setUserPermission] = useState(null);
   const [userLoading, setUserLoading] = useState(true);
   const [userLoadError, setUserLoadError] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -310,25 +311,27 @@ export default function EntradaUnica() {
     setUserLoading(true);
     setUserLoadError(false);
 
-    base44.auth.
-    me().
-    then((currentUser) => {
+    base44.auth.me().then(async (currentUser) => {
       if (!mounted) return;
       setUser(currentUser || null);
-    }).
-    catch(() => {
+      if (currentUser?.email) {
+        try {
+          const perms = await base44.entities.UserPermission.filter({ user_email: currentUser.email });
+          if (mounted) setUserPermission(perms?.[0] || null);
+        } catch {
+          // silencioso — canSeeAll apenas com role=admin
+        }
+      }
+    }).catch(() => {
       if (!mounted) return;
       setUser(null);
       setUserLoadError(true);
-    }).
-    finally(() => {
+    }).finally(() => {
       if (!mounted) return;
       setUserLoading(false);
     });
 
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, []);
 
   const corrigirTravados = useCallback(async (lista) => {
@@ -473,13 +476,15 @@ export default function EntradaUnica() {
     setLoadingIntakes(true);
     setIntakesLoadError(false);
 
-    const isAdmin = user?.role === 'admin';
+    const base = String(userPermission?.base_role || '').toUpperCase();
+    const canSeeAll = user?.role === 'admin' || base.includes('COORD') || base.includes('ADMIN');
+
     try {
       // Tenta filter com timeout de 10s via Promise.race
       let list = null;
       try {
         const query = { status_registro: 'ATIVO' };
-        if (!isAdmin) query.user_email = user.email;
+        if (!canSeeAll) query.user_email = user.email;
         list = await Promise.race([
         base44.entities.DocumentIntake.filter(
           query,
@@ -499,7 +504,7 @@ export default function EntradaUnica() {
         list = (all || []).filter(
           (d) => {
             if (d.status_registro === 'REMOVIDO') return false;
-            if (!isAdmin && d.user_email !== user.email) return false;
+            if (!canSeeAll && d.user_email !== user.email) return false;
             return true;
           }
         ).slice(0, 200);
@@ -547,7 +552,7 @@ export default function EntradaUnica() {
     } finally {
       setLoadingIntakes(false);
     }
-  }, [user, corrigirTravados, tentarVincularLista]);
+  }, [user, userPermission, corrigirTravados, tentarVincularLista]);
 
   useEffect(() => {
     if (user) loadIntakes();
@@ -1381,6 +1386,9 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
     toast.success('Enviado para aprovação com sucesso.');
   }
 
+  const base = String(userPermission?.base_role || '').toUpperCase();
+  const canSeeAll = user?.role === 'admin' || base.includes('COORD') || base.includes('ADMIN');
+
   const tipo = reviewIntake?.tipo_detectado;
   const isNF = tipo === 'NOTA_FISCAL_PDF' || tipo === 'NOTA_FISCAL_XML' || tipo === 'DOCUMENTO_ADMINISTRATIVO';
   const isFoto = tipo === 'FOTO_ATIVIDADE';
@@ -1652,6 +1660,9 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
                               {intake.nf_valor_total ? ` · R$ ${Number(intake.nf_valor_total).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''}
                               {intake.nf_numero ? ` · NF ${intake.nf_numero}` : ''}
                             </p>
+                            {canSeeAll && intake.user_name && (
+                              <p className="text-xs text-blue-600 font-medium mt-0.5">👤 {intake.user_name || intake.user_email}</p>
+                            )}
                           </div>
                         </div>
                         <span className={`flex-shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full ${intake.status_processamento === 'APROVADO' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>

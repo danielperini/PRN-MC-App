@@ -70,7 +70,7 @@ function StatusXML({ intake }) {
     : <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-orange-600 bg-orange-100 rounded-full px-2.5 py-1"><AlertCircle className="w-3 h-3" /> XML faltante</span>;
 }
 
-function NFCard({ intake, onAprovar, onRejeitar, processando }) {
+function NFCard({ intake, onAprovar, onRejeitar, processando, canSeeAll }) {
   const d = dados(intake); const ia = resultado(intake);
   const xml = xmlUrl(intake); const pdf = pdfUrl(intake);
   const valor = d.nf_valor_total || d.valor_total || intake.nf_valor_total || ia.nf_valor_total;
@@ -80,11 +80,12 @@ function NFCard({ intake, onAprovar, onRejeitar, processando }) {
   const rubrica = d.rubrica_nome_sugerida || ia.rubrica_nome_sugerida || '';
   const fileName = d.file_name_final || d.file_name_original || intake.file_name_final || intake.file_name_original || '—';
   const score = ia.score_confiabilidade ?? ia.response?.score_confiabilidade;
+  const solicitante = d.user_name || intake.user_name || d.user_email || intake.user_email || '';
 
   return <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${xml ? 'border-gray-200' : 'border-orange-200'}`}>
     <div className={`h-1 ${xml ? 'bg-green-400' : 'bg-orange-400'}`} />
     <div className="p-4 space-y-3">
-      <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-sm font-bold text-slate-900 truncate" title={fileName}>{fileName}</p><p className="text-xs text-gray-400 truncate mt-0.5">{fornecedor}</p><div className="flex gap-2 mt-2 flex-wrap"><StatusXML intake={intake} />{numeroNF && <span className="text-[10px] bg-gray-100 rounded-full px-2 py-1">NF {numeroNF}</span>}{score != null && <span className="text-[10px] bg-blue-50 text-blue-700 rounded-full px-2 py-1">IA {Number(score) <= 1 ? Math.round(Number(score) * 100) : Math.round(Number(score))}%</span>}</div></div><div className="text-right shrink-0"><p className="text-lg font-bold">{fmtBRL(valor)}</p>{centro && <span className="text-[10px] bg-gray-100 rounded-full px-2 py-1">{centro}</span>}</div></div>
+      <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-sm font-bold text-slate-900 truncate" title={fileName}>{fileName}</p><p className="text-xs text-gray-400 truncate mt-0.5">{fornecedor}</p>{canSeeAll && solicitante && <p className="text-xs text-blue-600 font-medium mt-0.5">👤 {solicitante}</p>}<div className="flex gap-2 mt-2 flex-wrap"><StatusXML intake={intake} />{numeroNF && <span className="text-[10px] bg-gray-100 rounded-full px-2 py-1">NF {numeroNF}</span>}{score != null && <span className="text-[10px] bg-blue-50 text-blue-700 rounded-full px-2 py-1">IA {Number(score) <= 1 ? Math.round(Number(score) * 100) : Math.round(Number(score))}%</span>}</div></div><div className="text-right shrink-0"><p className="text-lg font-bold">{fmtBRL(valor)}</p>{centro && <span className="text-[10px] bg-gray-100 rounded-full px-2 py-1">{centro}</span>}</div></div>
       {rubrica && <p className="text-[11px] text-gray-500"><b>Rubrica:</b> {rubrica}</p>}
       <div className="flex gap-2 flex-wrap">{pdf && <a href={pdf} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-[11px] text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5"><ExternalLink className="w-3 h-3" />Ver PDF</a>}{xml && <a href={xml} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-[11px] text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-1.5"><FileCode2 className="w-3 h-3" />Ver XML</a>}</div>
       <div className="flex gap-2 pt-3 border-t"><Button size="sm" disabled={processando === intake.id} onClick={() => onAprovar(intake)} className="flex-1 bg-green-600 hover:bg-green-700 rounded-xl">{processando === intake.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />} Aprovar</Button><Button size="sm" variant="outline" disabled={processando === intake.id} onClick={() => onRejeitar(intake)} className="flex-1 border-red-200 text-red-600 rounded-xl"><XCircle className="w-4 h-4" /> Rejeitar</Button></div>
@@ -98,9 +99,39 @@ export default function AprovacaoNFs() {
   const [processando, setProcessando] = useState(null);
   const [limpando, setLimpando] = useState(false);
 
+  const { data: currentUser } = useQuery({
+    queryKey: ['current-user-aprovacao'],
+    queryFn: () => base44.auth.me(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const { data: userPermissionData } = useQuery({
+    queryKey: ['user-permission-aprovacao', currentUser?.email],
+    queryFn: async () => {
+      if (!currentUser?.email) return null;
+      const perms = await base44.entities.UserPermission.filter({ user_email: currentUser.email });
+      return perms?.[0] || null;
+    },
+    enabled: !!currentUser?.email,
+    staleTime: 5 * 60 * 1000,
+  });
+  const canSeeAll = useMemo(() => {
+    if (!currentUser) return false;
+    if (currentUser.role === 'admin') return true;
+    const base = String(userPermissionData?.base_role || '').toUpperCase();
+    return base.includes('COORD') || base.includes('ADMIN');
+  }, [currentUser, userPermissionData]);
+
   const { data: intakesBrutos = [], isLoading, refetch } = useQuery({
-    queryKey: ['intakes-aprovacao'],
-    queryFn: async () => (await Promise.all(STATUS_PENDENTES.map(status => base44.entities.DocumentIntake.filter({ status_processamento: status }, '-created_date', 3000)))).flat(),
+    queryKey: ['intakes-aprovacao', canSeeAll, currentUser?.email],
+    queryFn: async () => {
+      if (!currentUser?.email) return [];
+      if (canSeeAll) {
+        return (await Promise.all(STATUS_PENDENTES.map(status => base44.entities.DocumentIntake.filter({ status_processamento: status }, '-created_date', 3000)))).flat();
+      } else {
+        return (await Promise.all(STATUS_PENDENTES.map(status => base44.entities.DocumentIntake.filter({ status_processamento: status, user_email: currentUser.email }, '-created_date', 3000)))).flat();
+      }
+    },
+    enabled: !!currentUser,
     staleTime: 60000,
   });
   const { data: aprovadosIntake = [], refetch: refetchAprovados } = useQuery({
@@ -245,6 +276,6 @@ export default function AprovacaoNFs() {
     )}
     <div className="grid grid-cols-3 gap-3"><div className="rounded-2xl border bg-white p-4 text-center"><p className="text-2xl font-bold">{intakes.length}</p><p className="text-xs text-gray-400">Aguardando</p></div><div className="rounded-2xl border border-green-200 bg-green-50 p-4 text-center"><p className="text-2xl font-bold text-green-700">{comXml}</p><p className="text-xs text-green-600">Com XML</p></div><div className="rounded-2xl border border-orange-200 bg-orange-50 p-4 text-center"><p className="text-2xl font-bold text-orange-600">{semXml}</p><p className="text-xs text-orange-500">XML faltante</p></div></div>
     <div className="flex gap-3 flex-wrap"><div className="relative flex-1 min-w-48"><Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" /><input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar por nome, fornecedor, número…" className="w-full pl-9 pr-8 py-2 text-sm rounded-xl border" />{busca && <button onClick={() => setBusca('')} className="absolute right-2.5 top-2.5"><X className="w-4 h-4" /></button>}</div><div className="flex gap-2">{[['todos','Todos'],['com_xml','Com XML'],['sem_xml','XML faltante']].map(([key,label]) => <button key={key} onClick={() => setFiltroXml(key)} className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border ${filtroXml===key?'bg-slate-900 text-white':'bg-white text-gray-500'}`}><Filter className="w-3 h-3" />{label}</button>)}</div></div>
-    {isLoading ? <div className="text-center py-20"><Loader2 className="w-8 h-8 animate-spin mx-auto text-gray-300" /></div> : filtrados.length === 0 ? <div className="rounded-2xl border-2 border-dashed py-16 text-center"><CheckCircle className="w-10 h-10 text-gray-300 mx-auto mb-3" /><p className="font-semibold text-gray-500">Nenhuma NF pendente única</p></div> : <><p className="text-xs text-gray-400">{filtrados.length} nota(s) fiscal(is) encontrada(s)</p><div className="grid gap-4 sm:grid-cols-2">{filtrados.map(intake => <NFCard key={intake.id} intake={intake} onAprovar={handleAprovar} onRejeitar={handleRejeitar} processando={processando} />)}</div></>}
+    {isLoading ? <div className="text-center py-20"><Loader2 className="w-8 h-8 animate-spin mx-auto text-gray-300" /></div> : filtrados.length === 0 ? <div className="rounded-2xl border-2 border-dashed py-16 text-center"><CheckCircle className="w-10 h-10 text-gray-300 mx-auto mb-3" /><p className="font-semibold text-gray-500">Nenhuma NF pendente única</p></div> : <><p className="text-xs text-gray-400">{filtrados.length} nota(s) fiscal(is) encontrada(s)</p><div className="grid gap-4 sm:grid-cols-2">{filtrados.map(intake => <NFCard key={intake.id} intake={intake} onAprovar={handleAprovar} onRejeitar={handleRejeitar} processando={processando} canSeeAll={canSeeAll} />)}</div></>}
   </div>;
 }
