@@ -278,6 +278,22 @@ function ComprasInner() {
   const [filters, setFilters] = useState({ status: 'all', meta_id: 'all', search: '', rubrica_id: 'all', inconsistencias: 'all', centro_custo: 'all', data_inicio: '', data_fim: '' });
   const queryClient = useQueryClient();
   const autoRecalcRan = React.useRef(false);
+  // Trava de campo centro_custo: Map<purchaseId, { value: string, expiresAt: number }>
+  // Impede que qualquer merge do servidor sobrescreva o valor local por 5s após o save.
+  const centroCustoLock = React.useRef(new Map());
+
+  function lockCentroCusto(purchaseId, value) {
+    centroCustoLock.current.set(purchaseId, { value, expiresAt: Date.now() + 5000 });
+  }
+
+  function applyLock(record) {
+    if (!record?.id) return record;
+    const lock = centroCustoLock.current.get(record.id);
+    if (lock && Date.now() < lock.expiresAt) {
+      return { ...record, centro_custo: lock.value };
+    }
+    return record;
+  }
 
   useEffect(() => {
     let mounted = true;
@@ -1329,12 +1345,15 @@ function ComprasInner() {
               setEditingPurchase({ ...purchase });
               setShowForm(true);
             }}
+            onCentroCustoSaved={(purchaseId, novoValor) => {
+              lockCentroCusto(purchaseId, novoValor);
+            }}
             onCentroUpdated={(updatedPurchase) => {
               const queryKey = ['purchases', isCoordenador, currentUser?.email, userMuseu];
               queryClient.setQueryData(queryKey, (old) => {
                 if (!Array.isArray(old)) return old;
                 return old.map((item) => item.id === updatedPurchase.id
-                  ? { ...item, ...updatedPurchase }
+                  ? applyLock({ ...item, ...updatedPurchase })
                   : item);
               });
               // Marca stale sem forçar refetch — cache otimista permanece intacto
@@ -1688,10 +1707,14 @@ function ComprasInner() {
 
           // Aplica imediatamente no cache — única fonte de verdade visual
           if (savedPayload?.id) {
+            // Se o payload contém centro_custo, trava o valor antes de aplicar ao cache
+            if (savedPayload.centro_custo) {
+              lockCentroCusto(savedPayload.id, savedPayload.centro_custo);
+            }
             queryClient.setQueryData(queryKey, (old) => {
               if (!Array.isArray(old)) return old;
               return old.map((item) =>
-                item.id === savedPayload.id ? { ...item, ...savedPayload } : item
+                item.id === savedPayload.id ? applyLock({ ...item, ...savedPayload }) : item
               );
             });
           }

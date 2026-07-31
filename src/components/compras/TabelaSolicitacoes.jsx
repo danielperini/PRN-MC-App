@@ -197,7 +197,7 @@ function formatDateBR(value) {
   return value;
 }
 
-function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentUser, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onAccess, onCentroUpdated, sendingNotif, handleSendNotification }) {
+function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentUser, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onAccess, onCentroUpdated, onCentroCustoSaved, sendingNotif, handleSendNotification }) {
   const [menuOpenId, setMenuOpenId] = useState(null);
   const [sortField, setSortField] = useState(null);
   const [sortDir, setSortDir] = useState('asc');
@@ -228,11 +228,13 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
         });
         const result = res?.data || res;
         if (result?.success === false) throw new Error(result?.error || 'Falha no reequilíbrio.');
+        onCentroCustoSaved?.(p.id, newValue);
         // Reconcilia com dados do servidor se disponíveis
         if (result?.purchase) onCentroUpdated?.(result.purchase);
         toast.success('Centro de custo atualizado e saldo da rubrica reequilibrado.');
       } else {
         await base44.entities.PurchaseRequest.update(p.id, { centro_custo: newValue });
+        onCentroCustoSaved?.(p.id, newValue);
         toast.success('Centro de custo atualizado.');
       }
     } catch (e) {
@@ -589,7 +591,7 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
   );
 }
 
-export default function TabelaSolicitacoes({ purchases, rubricas, attachmentByPurchaseId, isCoordenador, currentUser, podeAprovarSolicitacoes, hasGestaoCompras, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onAccess, onCentroUpdated, userPermission, canSeeEquipeSalarios }) {
+export default function TabelaSolicitacoes({ purchases, rubricas, attachmentByPurchaseId, isCoordenador, currentUser, podeAprovarSolicitacoes, hasGestaoCompras, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onAccess, onCentroUpdated, onCentroCustoSaved, userPermission, canSeeEquipeSalarios }) {
   const [sendingNotif, setSendingNotif] = useState({});
   // Segunda camada de segurança: se canSeeEquipeSalarios for explicitamente false,
   // filtra qualquer compra de equipe/salário que tenha vazado até aqui
@@ -640,7 +642,7 @@ export default function TabelaSolicitacoes({ purchases, rubricas, attachmentByPu
     { key: 'noturnoPampulha', label: 'Noturno Pampulha', visible: true }
   ].filter((cat) => cat.visible && categories[cat.key].length > 0);
 
-  const sharedProps = { rubricaById, isCoordenador, podeAprovar, currentUser, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onAccess, onCentroUpdated, sendingNotif, handleSendNotification };
+  const sharedProps = { rubricaById, isCoordenador, podeAprovar, currentUser, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onAccess, onCentroUpdated, onCentroCustoSaved, sendingNotif, handleSendNotification };
 
   return (
     <div className="space-y-8">
