@@ -208,6 +208,8 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
   // que ela sobrescreva edições do usuário com dados antigos do documento.
   // O usuário ainda pode acionar manualmente via botão "Reanalisar documentos".
   const [aiPreenchido, setAiPreenchido] = useState(!!prefill?.id)
+  const [enrichingNF, setEnrichingNF] = useState(false)
+  const [enrichedFields, setEnrichedFields] = useState(new Set())
   const [dividirEntreMuseus, setDividirEntreMuseus] = useState(false)
   const [rateio, setRateio] = useState(DEFAULT_RATEIO)
   const [showNotificationConfirm, setShowNotificationConfirm] = useState(false)
@@ -566,6 +568,68 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
 
     triggerAnalise();
   }, [prefill?.id, form.fornecedor_cnpj, form.fornecedor_nome, form.valor_solicitado, form.centro_custo, form.rubrica_id]);
+
+  // FLUXO 1 — Enriquecimento automático de CNPJ e dados bancários ao abrir edição
+  useEffect(() => {
+    if (!prefill?.id || enrichingNF) return;
+
+    const faltaCnpj = !form.fornecedor_cnpj?.trim() && !form.nf_emitente_cpf_cnpj?.trim();
+    const faltaBancario = !form.detalhe_pagamento?.trim();
+
+    if (!faltaCnpj && !faltaBancario) return;
+
+    const pdfUrl =
+      prefill.nf_pdf_url ||
+      prefill.nota_fiscal_url ||
+      prefill.arquivo_url ||
+      prefill.file_url ||
+      prefill.documento_url;
+
+    if (!pdfUrl) return;
+
+    let cancelled = false;
+    setEnrichingNF(true);
+
+    base44.functions.invoke('processarNotaFiscalComClaude', {
+      intake_id: prefill.intake_id || prefill.documento_intake_id || '',
+      file_url: pdfUrl,
+      orientacoes_usuario: '',
+    }).then(res => {
+      if (cancelled) return;
+      const ia = res?.data?.resultado_ia || res?.data || res || {};
+      const newFields = new Set();
+
+      setForm(prev => {
+        const next = { ...prev };
+
+        if (faltaCnpj && ia.nf_emitente_cpf_cnpj && !prev.fornecedor_cnpj?.trim()) {
+          next.fornecedor_cnpj = ia.nf_emitente_cpf_cnpj;
+          next.nf_emitente_cpf_cnpj = ia.nf_emitente_cpf_cnpj;
+          newFields.add('fornecedor_cnpj');
+        }
+
+        if (faltaBancario) {
+          const partes = [];
+          if (ia.nf_emitente_banco) partes.push(`Banco: ${ia.nf_emitente_banco}`);
+          if (ia.nf_emitente_agencia) partes.push(`Ag: ${ia.nf_emitente_agencia}`);
+          if (ia.nf_emitente_conta) partes.push(`Cc: ${ia.nf_emitente_conta}`);
+          if (ia.nf_emitente_pix) partes.push(`PIX: ${ia.nf_emitente_pix}`);
+          if (partes.length > 0 && !prev.detalhe_pagamento?.trim()) {
+            next.detalhe_pagamento = partes.join(' | ');
+            newFields.add('detalhe_pagamento');
+          }
+        }
+
+        return next;
+      });
+
+      setEnrichedFields(newFields);
+    }).catch(() => {}).finally(() => {
+      if (!cancelled) setEnrichingNF(false);
+    });
+
+    return () => { cancelled = true; };
+  }, [prefill?.id]);
 
   function setField(key, value) {
     setForm((f) => ({ ...f, [key]: value }))
@@ -1605,14 +1669,19 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
             </div>
 
             <div className="space-y-1">
-              <label className="text-sm font-medium text-gray-700">
-                CPF / CNPJ
-              </label>
-
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-700">CPF / CNPJ</label>
+                {enrichedFields.has('fornecedor_cnpj') && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-full px-2 py-0.5">
+                    <Sparkles className="w-2.5 h-2.5" /> IA ✦
+                  </span>
+                )}
+              </div>
               <Input
                 value={form.fornecedor_cnpj}
-                onChange={(e) => setField('fornecedor_cnpj', e.target.value)}
+                onChange={(e) => { setField('fornecedor_cnpj', e.target.value); setEnrichedFields(s => { const n = new Set(s); n.delete('fornecedor_cnpj'); return n; }); }}
                 placeholder="Somente dígitos"
+                className={enrichedFields.has('fornecedor_cnpj') ? 'border-indigo-300 ring-1 ring-indigo-200' : ''}
               />
             </div>
           </div>
@@ -1684,14 +1753,19 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
           </div>
 
           <div className="space-y-1">
-            <label className="text-sm font-medium text-gray-700">
-              Dados bancários / Chave PIX
-            </label>
-
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700">Dados bancários / Chave PIX</label>
+              {enrichedFields.has('detalhe_pagamento') && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-full px-2 py-0.5">
+                  <Sparkles className="w-2.5 h-2.5" /> IA ✦
+                </span>
+              )}
+            </div>
             <Input
               value={form.detalhe_pagamento}
-              onChange={(e) => setField('detalhe_pagamento', e.target.value)}
+              onChange={(e) => { setField('detalhe_pagamento', e.target.value); setEnrichedFields(s => { const n = new Set(s); n.delete('detalhe_pagamento'); return n; }); }}
               placeholder="Banco, agência, conta ou chave PIX"
+              className={enrichedFields.has('detalhe_pagamento') ? 'border-indigo-300 ring-1 ring-indigo-200' : ''}
             />
           </div>
 

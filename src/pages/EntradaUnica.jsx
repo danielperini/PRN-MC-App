@@ -411,7 +411,8 @@ export default function EntradaUnica() {
           nf_xml_intake_id: xml.id,
           nf_xml_url: xml.arquivo_original_url,
           xml_obrigatorio_pendente: false,
-          enviado_sem_xml: false
+          enviado_sem_xml: false,
+          xml_pendente_desde: null
         }).catch(() => {});
 
         await base44.entities.DocumentIntake.update(xml.id, {
@@ -1019,6 +1020,7 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
           pdfUpdate.nf_xml_url = outro.arquivo_original_url;
           pdfUpdate.xml_obrigatorio_pendente = false;
           pdfUpdate.enviado_sem_xml = false;
+          pdfUpdate.xml_pendente_desde = null;
         } else {
           pdfUpdate.recibo_intake_id = outro.id;
           pdfUpdate.recibo_url = outro.arquivo_original_url;
@@ -1129,7 +1131,8 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
         nf_xml_intake_id: xmlIntake.id,
         nf_xml_url: xmlIntake.arquivo_original_url,
         xml_obrigatorio_pendente: false,
-        enviado_sem_xml: false
+        enviado_sem_xml: false,
+        xml_pendente_desde: null
       });
 
       await base44.entities.DocumentIntake.update(xmlIntake.id, {
@@ -1170,7 +1173,8 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
         nf_xml_intake_id: xmlIntake.id,
         nf_xml_url: file_url,
         xml_obrigatorio_pendente: false,
-        enviado_sem_xml: false
+        enviado_sem_xml: false,
+        xml_pendente_desde: null
       });
 
       await base44.entities.DocumentIntake.update(xmlIntake.id, {

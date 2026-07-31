@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -151,6 +151,11 @@ export default function ReviewModalNF({ intake, onClose, onSaved, painelDadosIde
   const [user, setUser] = useState(null);
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
+  const [showSolicitarXmlPanel, setShowSolicitarXmlPanel] = useState(false);
+  const [destinatariosDisponiveis, setDestinatariosDisponiveis] = useState([]);
+  const [destinatariosSelecionados, setDestinatariosSelecionados] = useState(new Set());
+  const [mensagemXml, setMensagemXml] = useState('');
+  const [enviandoXml, setEnviandoXml] = useState(false);
   const [approvingDirect, setApprovingDirect] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [reprocessing, setReprocessing] = useState(false);
@@ -196,6 +201,92 @@ export default function ReviewModalNF({ intake, onClose, onSaved, painelDadosIde
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
+
+  const abrirSolicitarXml = useCallback(async () => {
+    setShowSolicitarXmlPanel(true);
+
+    // Monta lista de destinatários: solicitante + membros do mesmo centro_custo
+    const lista = [];
+    const visto = new Set();
+
+    const addEmail = (email, nome) => {
+      if (!email || visto.has(email)) return;
+      visto.add(email);
+      lista.push({ email, nome: nome || email });
+    };
+
+    // Solicitante do intake
+    addEmail(intake.user_email, intake.user_name);
+
+    // TeamMembers do mesmo centro_custo ou fornecedor
+    try {
+      const cc = intake.centro_custo || ia.centro_custo_sugerido;
+      const cnpj = form.nf_emitente_cpf_cnpj || ia.nf_emitente_cpf_cnpj;
+      const [porCc, porCnpj] = await Promise.all([
+        cc ? base44.entities.TeamMember.filter({ centro_custo: cc }, '', 50).catch(() => []) : [],
+        cnpj ? base44.entities.TeamMember.filter({ cpf: cnpj }, '', 10).catch(() =>
+          base44.entities.TeamMember.filter({ cnpj }, '', 10).catch(() => [])) : [],
+      ]);
+      [...(porCc || []), ...(porCnpj || [])].forEach(m => addEmail(m.user_email || m.email_pessoal, m.user_name));
+    } catch {}
+
+    setDestinatariosDisponiveis(lista);
+    setDestinatariosSelecionados(new Set(lista.map(d => d.email)));
+
+    // Monta mensagem padrão
+    const linkBase = window.location.origin;
+    const prId = intake.entidade_destino_id;
+    const link = prId ? `${linkBase}/Compras?id=${prId}` : `${linkBase}/EntradaUnica`;
+    const valor = form.nf_valor_total ? `R$ ${form.nf_valor_total}` : '—';
+    const msg = `Olá,
+
+Identificamos que a Nota Fiscal abaixo foi enviada sem o arquivo XML correspondente:
+
+• Número da NF: ${form.nf_numero || '—'}
+• Fornecedor: ${form.nf_emitente_nome || '—'}
+• Valor: ${valor}
+• Data de Emissão: ${form.nf_data_emissao || '—'}
+
+Para conformidade fiscal, é obrigatório o envio do XML da NF-e. Por favor, acesse o sistema e faça o upload do XML pelo link abaixo:
+
+${link}
+
+Em caso de dúvidas, entre em contato com a coordenação.
+
+Atenciosamente,
+Equipe Museus Centro`;
+    setMensagemXml(msg);
+  }, [intake, ia, form]);
+
+  const handleEnviarEmailXml = useCallback(async () => {
+    const destinatarios = [...destinatariosSelecionados];
+    if (destinatarios.length === 0) return;
+    setEnviandoXml(true);
+    try {
+      // Enviar para cada destinatário selecionado
+      await Promise.all(destinatarios.map(email =>
+        base44.functions.invoke('sendSystemMessage', {
+          to: email,
+          subject: `[Museus Centro] XML pendente — NF ${form.nf_numero || intake.file_name_original}`,
+          body: mensagemXml.replace(/\n/g, '<br>'),
+        }).catch(e => console.warn('Falha ao enviar para', email, e))
+      ));
+
+      // Atualizar xml_pendente_desde no intake (Fluxo 4)
+      await base44.entities.DocumentIntake.update(intake.id, {
+        xml_pendente_desde: new Date().toISOString(),
+        enviado_sem_xml: true,
+      }).catch(() => {});
+
+      toast({ title: `E-mail enviado para ${destinatarios.length} destinatário(s).`, duration: 3000 });
+      setShowSolicitarXmlPanel(false);
+      onSaved?.();
+    } catch (e) {
+      toast({ title: 'Erro ao enviar e-mail', description: e?.message, variant: 'destructive', duration: 3000 });
+    } finally {
+      setEnviandoXml(false);
+    }
+  }, [destinatariosSelecionados, mensagemXml, form, intake, onSaved]);
 
   const [dividirEntreMuseus, setDividirEntreMuseus] = useState(false);
   const [rateio, setRateio] = useState(DEFAULT_RATEIO);
@@ -902,14 +993,88 @@ export default function ReviewModalNF({ intake, onClose, onSaved, painelDadosIde
             <div>{painelDadosIdentificados}</div>
           )}
 
-          {/* Banner: NF sem XML vinculado */}
+          {/* Banner: NF sem XML vinculado — FLUXO 2 */}
           {!intake.nf_xml_intake_id && intake.tipo_detectado === 'NOTA_FISCAL_PDF' && (
-            <div className="flex items-start gap-3 p-3 bg-yellow-50 border-l-4 border-orange-400 rounded-lg text-sm text-yellow-800">
-              <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 text-orange-500" />
-              <div className="flex-1">
-                <p className="font-medium">Esta NF não possui XML vinculado.</p>
-                <p className="text-xs mt-0.5">Vincule o XML para conformidade fiscal.</p>
+            <div className="bg-yellow-50 border-l-4 border-orange-400 rounded-lg text-sm text-yellow-800">
+              <div className="flex items-start gap-3 p-3">
+                <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 text-orange-500" />
+                <div className="flex-1">
+                  <p className="font-medium">Esta NF não possui XML vinculado.</p>
+                  <p className="text-xs mt-0.5">Vincule o XML para conformidade fiscal ou solicite ao responsável.</p>
+                </div>
+                {!showSolicitarXmlPanel && (
+                  <button
+                    onClick={abrirSolicitarXml}
+                    className="flex-shrink-0 flex items-center gap-1.5 text-xs font-semibold bg-orange-500 text-white rounded-lg px-3 py-1.5 hover:bg-orange-600 transition-colors"
+                  >
+                    <AlertTriangle className="w-3 h-3" />
+                    Solicitar XML por e-mail
+                  </button>
+                )}
               </div>
+
+              {/* Sub-painel de envio — FLUXO 3 */}
+              {showSolicitarXmlPanel && (
+                <div className="border-t border-orange-200 bg-white rounded-b-lg p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-slate-800">Enviar solicitação de XML por e-mail</p>
+                    <button onClick={() => setShowSolicitarXmlPanel(false)} className="text-slate-400 hover:text-slate-600">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Destinatários */}
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-slate-600">Destinatários</p>
+                    {destinatariosDisponiveis.length === 0 ? (
+                      <p className="text-xs text-slate-400">Nenhum destinatário encontrado.</p>
+                    ) : (
+                      <div className="space-y-1">
+                        {destinatariosDisponiveis.map(d => (
+                          <label key={d.email} className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={destinatariosSelecionados.has(d.email)}
+                              onChange={e => {
+                                setDestinatariosSelecionados(prev => {
+                                  const next = new Set(prev);
+                                  e.target.checked ? next.add(d.email) : next.delete(d.email);
+                                  return next;
+                                });
+                              }}
+                              className="rounded accent-orange-500"
+                            />
+                            <span className="text-xs text-slate-700">{d.nome} <span className="text-slate-400">({d.email})</span></span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Prévia da mensagem */}
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-slate-600">Mensagem (editável)</p>
+                    <textarea
+                      className="w-full text-xs border border-slate-200 rounded-lg p-2 bg-slate-50 resize-y focus:outline-none focus:ring-1 focus:ring-orange-300"
+                      rows={8}
+                      value={mensagemXml}
+                      onChange={e => setMensagemXml(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="flex gap-2 justify-end">
+                    <button onClick={() => setShowSolicitarXmlPanel(false)} className="text-xs px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50">Cancelar</button>
+                    <button
+                      onClick={handleEnviarEmailXml}
+                      disabled={enviandoXml || destinatariosSelecionados.size === 0}
+                      className="flex items-center gap-1.5 text-xs font-semibold bg-orange-500 text-white rounded-lg px-4 py-1.5 hover:bg-orange-600 disabled:opacity-50 transition-colors"
+                    >
+                      {enviandoXml ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                      Enviar e-mail
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
