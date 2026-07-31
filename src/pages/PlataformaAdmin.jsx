@@ -55,6 +55,8 @@ function PlataformaAdminInner() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [restoringMembers, setRestoringMembers] = useState(false);
   const [restoreResult, setRestoreResult] = useState(null);
+  const [fundindoMetas, setFundindoMetas] = useState(false);
+  const [fusaoResult, setFusaoResult] = useState(null);
 
   const { data: users = [] } = useQuery({
     queryKey: ['users'],
@@ -75,6 +77,20 @@ function PlataformaAdminInner() {
     mutationFn: (id) => base44.entities.Report.update(id, { status: 'ARCHIVED' }),
     onSuccess: () => queryClient.invalidateQueries(['reports']),
   });
+
+  const handleFundirMetas = async () => {
+    setFundindoMetas(true);
+    setFusaoResult(null);
+    try {
+      const res = await base44.functions.invoke('fundirMetasEducativas', {});
+      setFusaoResult(res.data);
+      toastMessages.success('Fusão de metas concluída com sucesso');
+    } catch (error) {
+      toastMessages.error(error?.message || 'Erro ao fundir metas');
+    } finally {
+      setFundindoMetas(false);
+    }
+  };
 
   const handleRestoreInactiveMembers = async () => {
     setRestoringMembers(true);
@@ -131,6 +147,7 @@ function PlataformaAdminInner() {
           <TabsTrigger value="hardening">🔒 Hardening</TabsTrigger>
           <TabsTrigger value="comunicados">📣 Comunicados</TabsTrigger>
           <TabsTrigger value="metadados">Metadados</TabsTrigger>
+          <TabsTrigger value="ferramentas">🔧 Ferramentas</TabsTrigger>
         </TabsList>
 
         <TabsContent value="permissoes">
@@ -233,6 +250,63 @@ function PlataformaAdminInner() {
 
         <TabsContent value="comunicados">
           <ComunicadosPanel />
+        </TabsContent>
+
+        <TabsContent value="ferramentas">
+          <div className="space-y-6">
+            {/* Fusão de Metas Educativas */}
+            <div className="border-2 border-amber-400 rounded-lg p-6 bg-amber-50">
+              <h2 className="text-lg font-bold text-amber-900 mb-1">Fusão de Metas Educativas</h2>
+              <p className="text-sm text-amber-800 mb-4">
+                Consolida Meta 5 e Meta 6 na Meta 20 ("Realizar no mínimo 30 ações educativas").
+                Migra todos os vínculos em PurchaseRequest, Activity e ReportPhoto, e deleta as metas fundidas.
+                A operação é idempotente — pode ser executada mais de uma vez com segurança.
+              </p>
+
+              <Button
+                onClick={handleFundirMetas}
+                disabled={fundindoMetas}
+                className="bg-amber-700 text-white hover:bg-amber-800 gap-2"
+              >
+                {fundindoMetas ? (
+                  <>
+                    <RotateCw className="w-4 h-4 animate-spin" />
+                    Executando fusão...
+                  </>
+                ) : (
+                  <>
+                    <Database className="w-4 h-4" />
+                    Executar fusão de metas educativas
+                  </>
+                )}
+              </Button>
+
+              {fusaoResult && (
+                <div className="mt-6 p-4 border border-amber-300 rounded-lg bg-white">
+                  <p className="font-semibold text-gray-800 mb-3">📋 Relatório de execução</p>
+                  <ul className="text-sm text-gray-700 space-y-1">
+                    <li>✅ Meta 20 renomeada: {fusaoResult.report?.meta20_renomeada ? 'Sim' : 'Não'}</li>
+                    <li>📦 PurchaseRequests migradas (Meta 6): {fusaoResult.report?.purchaseRequests_meta6_migradas ?? 0}</li>
+                    <li>📦 PurchaseRequests migradas (Meta 5): {fusaoResult.report?.purchaseRequests_meta5_migradas ?? 0}</li>
+                    <li>🎯 Atividades migradas (Meta 5): {fusaoResult.report?.activities_meta5_migradas ?? 0}</li>
+                    <li>🎯 Atividades migradas (Meta 6): {fusaoResult.report?.activities_meta6_migradas ?? 0}</li>
+                    <li>📸 Fotos migradas (Meta 5): {fusaoResult.report?.reportPhotos_meta5_migradas ?? 0}</li>
+                    <li>📸 Fotos migradas (Meta 6): {fusaoResult.report?.reportPhotos_meta6_migradas ?? 0}</li>
+                    <li>🗑️ Meta 5 deletada: {fusaoResult.report?.meta5_deletada ? 'Sim' : 'Não'}</li>
+                    <li>🗑️ Meta 6 deletada: {fusaoResult.report?.meta6_deletada ? 'Sim' : 'Não'}</li>
+                  </ul>
+                  {fusaoResult.report?.erros?.length > 0 && (
+                    <div className="mt-3 text-red-700">
+                      <p className="font-medium mb-1">⚠️ Erros encontrados:</p>
+                      <ul className="list-disc list-inside space-y-1 text-xs">
+                        {fusaoResult.report.erros.map((e, i) => <li key={i}>{e}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         </TabsContent>
 
       </Tabs>
