@@ -569,14 +569,19 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
     triggerAnalise();
   }, [prefill?.id, form.fornecedor_cnpj, form.fornecedor_nome, form.valor_solicitado, form.centro_custo, form.rubrica_id]);
 
-  // FLUXO 1 — Enriquecimento automático de CNPJ e dados bancários ao abrir edição
+  // FLUXO 1 — Enriquecimento automático de campos faltantes ao abrir edição
   useEffect(() => {
     if (!prefill?.id || enrichingNF) return;
 
-    const faltaCnpj = !form.fornecedor_cnpj?.trim() && !form.nf_emitente_cpf_cnpj?.trim();
+    const faltaCnpj    = !form.fornecedor_cnpj?.trim() && !form.nf_emitente_cpf_cnpj?.trim();
+    const faltaNome    = !form.fornecedor_nome?.trim() || form.fornecedor_nome === 'Fornecedor não informado';
+    const faltaNumero  = !form.nf_numero?.trim();
+    const faltaValor   = !form.nf_valor_total && !form.valor_solicitado;
+    const faltaData    = !form.nf_data_emissao?.trim();
     const faltaBancario = !form.detalhe_pagamento?.trim();
 
-    if (!faltaCnpj && !faltaBancario) return;
+    // Só dispara se houver ao menos um campo faltante
+    if (!faltaCnpj && !faltaNome && !faltaNumero && !faltaValor && !faltaData && !faltaBancario) return;
 
     const pdfUrl =
       prefill.nf_pdf_url ||
@@ -597,24 +602,52 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
     }).then(res => {
       if (cancelled) return;
       const ia = res?.data?.resultado_ia || res?.data || res || {};
-      const newFields = new Set();
+      const confianca = ia.confianca != null ? Number(ia.confianca) : null;
+      // Se confiança vier como fração (0–1), normaliza para 0–100
+      const confPct = confianca != null ? (confianca <= 1 ? confianca * 100 : confianca) : null;
+      const temConfianca = (confPct == null) || confPct >= 85;
+
+      const newFields = new Set(enrichedFields);
 
       setForm(prev => {
         const next = { ...prev };
 
-        if (faltaCnpj && ia.nf_emitente_cpf_cnpj && !prev.fornecedor_cnpj?.trim()) {
+        if (faltaCnpj && ia.nf_emitente_cpf_cnpj && !prev.fornecedor_cnpj?.trim() && temConfianca) {
           next.fornecedor_cnpj = ia.nf_emitente_cpf_cnpj;
           next.nf_emitente_cpf_cnpj = ia.nf_emitente_cpf_cnpj;
           newFields.add('fornecedor_cnpj');
         }
 
-        if (faltaBancario) {
+        if (faltaNome && ia.nf_emitente_nome && (!prev.fornecedor_nome?.trim() || prev.fornecedor_nome === 'Fornecedor não informado') && temConfianca) {
+          next.fornecedor_nome = ia.nf_emitente_nome;
+          newFields.add('fornecedor_nome');
+        }
+
+        if (faltaNumero && ia.nf_numero && !prev.nf_numero?.trim() && temConfianca) {
+          next.nf_numero = String(ia.nf_numero);
+          newFields.add('nf_numero');
+        }
+
+        if (faltaValor && ia.nf_valor_total && !prev.nf_valor_total && !prev.valor_solicitado && temConfianca) {
+          next.nf_valor_total = ia.nf_valor_total;
+          next.valor_solicitado = ia.nf_valor_total;
+          next.valor_total = ia.nf_valor_total;
+          next.valor = ia.nf_valor_total;
+          newFields.add('nf_valor_total');
+        }
+
+        if (faltaData && ia.nf_data_emissao && !prev.nf_data_emissao?.trim() && temConfianca) {
+          next.nf_data_emissao = ia.nf_data_emissao;
+          newFields.add('nf_data_emissao');
+        }
+
+        if (faltaBancario && !prev.detalhe_pagamento?.trim() && temConfianca) {
           const partes = [];
           if (ia.nf_emitente_banco) partes.push(`Banco: ${ia.nf_emitente_banco}`);
           if (ia.nf_emitente_agencia) partes.push(`Ag: ${ia.nf_emitente_agencia}`);
           if (ia.nf_emitente_conta) partes.push(`Cc: ${ia.nf_emitente_conta}`);
           if (ia.nf_emitente_pix) partes.push(`PIX: ${ia.nf_emitente_pix}`);
-          if (partes.length > 0 && !prev.detalhe_pagamento?.trim()) {
+          if (partes.length > 0) {
             next.detalhe_pagamento = partes.join(' | ');
             newFields.add('detalhe_pagamento');
           }
@@ -1657,14 +1690,19 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-sm font-medium text-gray-700">
-                Fornecedor / Nome
-              </label>
-
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-700">Fornecedor / Nome</label>
+                {enrichedFields.has('fornecedor_nome') && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-full px-2 py-0.5">
+                    <Sparkles className="w-2.5 h-2.5" /> IA ✦
+                  </span>
+                )}
+              </div>
               <Input
                 value={form.fornecedor_nome}
-                onChange={(e) => setField('fornecedor_nome', e.target.value)}
+                onChange={(e) => { setField('fornecedor_nome', e.target.value); setEnrichedFields(s => { const n = new Set(s); n.delete('fornecedor_nome'); return n; }); }}
                 placeholder="Nome ou razão social"
+                className={enrichedFields.has('fornecedor_nome') ? 'border-indigo-300 ring-1 ring-indigo-200' : ''}
               />
             </div>
 
@@ -1688,36 +1726,50 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-sm font-medium text-gray-700">
-                Número da NF
-              </label>
-
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-700">Número da NF</label>
+                {enrichedFields.has('nf_numero') && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-full px-2 py-0.5">
+                    <Sparkles className="w-2.5 h-2.5" /> IA ✦
+                  </span>
+                )}
+              </div>
               <Input
                 value={form.nf_numero}
-                onChange={(e) => setField('nf_numero', e.target.value)}
+                onChange={(e) => { setField('nf_numero', e.target.value); setEnrichedFields(s => { const n = new Set(s); n.delete('nf_numero'); return n; }); }}
                 placeholder="Número da nota fiscal"
+                className={enrichedFields.has('nf_numero') ? 'border-indigo-300 ring-1 ring-indigo-200' : ''}
               />
             </div>
 
             <div className="space-y-1">
-              <label className="text-sm font-medium text-gray-700">
-                Data de emissão
-              </label>
-
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-700">Data de emissão</label>
+                {enrichedFields.has('nf_data_emissao') && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-full px-2 py-0.5">
+                    <Sparkles className="w-2.5 h-2.5" /> IA ✦
+                  </span>
+                )}
+              </div>
               <Input
                 type="date"
                 value={form.nf_data_emissao}
-                onChange={(e) => setField('nf_data_emissao', e.target.value)}
+                onChange={(e) => { setField('nf_data_emissao', e.target.value); setEnrichedFields(s => { const n = new Set(s); n.delete('nf_data_emissao'); return n; }); }}
+                className={enrichedFields.has('nf_data_emissao') ? 'border-indigo-300 ring-1 ring-indigo-200' : ''}
               />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-sm font-medium text-gray-700">
-                Valor solicitado (R$) *
-              </label>
-
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-700">Valor solicitado (R$) *</label>
+                {enrichedFields.has('nf_valor_total') && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-full px-2 py-0.5">
+                    <Sparkles className="w-2.5 h-2.5" /> IA ✦
+                  </span>
+                )}
+              </div>
               <Input
                 type="number"
                 value={form.valor_solicitado}
@@ -1726,8 +1778,10 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
                   setField('valor_total', e.target.value)
                   setField('valor', e.target.value)
                   setField('nf_valor_total', e.target.value)
+                  setEnrichedFields(s => { const n = new Set(s); n.delete('nf_valor_total'); return n; })
                 }}
                 placeholder="0,00"
+                className={enrichedFields.has('nf_valor_total') ? 'border-indigo-300 ring-1 ring-indigo-200' : ''}
               />
             </div>
 
