@@ -279,11 +279,11 @@ function ComprasInner() {
   const queryClient = useQueryClient();
   const autoRecalcRan = React.useRef(false);
   // Trava de campo centro_custo: Map<purchaseId, { value: string, expiresAt: number }>
-  // Impede que qualquer merge do servidor sobrescreva o valor local por 5s após o save.
+  // Impede que qualquer refetch do servidor sobrescreva o valor local por 60s após o save.
   const centroCustoLock = React.useRef(new Map());
 
   function lockCentroCusto(purchaseId, value) {
-    centroCustoLock.current.set(purchaseId, { value, expiresAt: Date.now() + 5000 });
+    centroCustoLock.current.set(purchaseId, { value, expiresAt: Date.now() + 60000 });
   }
 
   function applyLock(record) {
@@ -292,7 +292,13 @@ function ComprasInner() {
     if (lock && Date.now() < lock.expiresAt) {
       return { ...record, centro_custo: lock.value };
     }
+    centroCustoLock.current.delete(record.id);
     return record;
+  }
+
+  function applyLocksToList(list) {
+    if (!Array.isArray(list) || centroCustoLock.current.size === 0) return list;
+    return list.map(applyLock);
   }
 
   useEffect(() => {
@@ -361,6 +367,8 @@ function ComprasInner() {
     gcTime: 1000 * 60 * 10,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
+    // Intercepta qualquer dado que chegue do servidor e aplica as travas ativas
+    select: (data) => applyLocksToList(data),
   });
 
   // Auto-abrir solicitação quando vier via ?id= (link de email de notificação)
@@ -1356,8 +1364,6 @@ function ComprasInner() {
                   ? applyLock({ ...item, ...updatedPurchase })
                   : item);
               });
-              // Marca stale sem forçar refetch — cache otimista permanece intacto
-              invalidateComprasQueries();
             }}
             onDelete={handleDeletePurchase} />
 
