@@ -38,6 +38,7 @@ const PAGE_TITLES = {
   BaseConhecimento: 'Base de Conhecimento',
   LeitorNoticias: 'Notícias',
   Manual: 'Ajuda',
+  Tutoriais: 'Tutoriais em Vídeo',
   GeradorListaPresenca: 'Gerador de Lista de Presença',
   GeradorTermoCompromisso: 'Gerador de Termo de Compromisso',
   MeusDados: 'Espaço do Usuário',

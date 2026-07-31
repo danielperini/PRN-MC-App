@@ -30,6 +30,7 @@ import {
   LogOut,
   Bot,
   UsersRound,
+  PlayCircle,
 } from 'lucide-react';
 
 import { base44 } from '@/api/base44Client';
@@ -61,6 +62,7 @@ const NAV_GROUPS_BASE = [
       { path: 'MeusDados', label: 'Meus Dados', icon: User, roles: ['all'] },
       { path: 'Perfil', label: 'Perfil', icon: User, roles: ['all'] },
       { path: 'Manual', label: 'Ajuda', icon: HelpCircle, roles: ['all'] },
+      { path: 'Tutoriais', label: 'Tutoriais', icon: PlayCircle, roles: ['all'] },
       { path: 'Aparencia', label: 'Aparência', icon: Palette, roles: ['all'] },
     ],
   },
