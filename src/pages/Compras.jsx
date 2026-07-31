@@ -285,6 +285,7 @@ function ComprasInner() {
   const [lockVersion, setLockVersion] = useState(0);
 
   function lockCentroCusto(purchaseId, value) {
+    console.warn('[COMPRAS DEBUG] lockCentroCusto ativado:', purchaseId, value, 'às', new Date().toISOString());
     centroCustoLock.current.set(purchaseId, { value, expiresAt: Date.now() + 60000 });
     setLockVersion((v) => v + 1);
   }
@@ -364,7 +365,10 @@ function ComprasInner() {
 
   const { data: rawPurchases = [], isLoading, isFetching: fetchingPurchases } = useQuery({
     queryKey: ['purchases', isCoordenador, currentUser?.email, userMuseu],
-    queryFn: () => carregarSolicitacoes({ isCoordenador, currentUser, userMuseu }),
+    queryFn: () => {
+      console.warn('[COMPRAS DEBUG] queryFn disparada — stack:', new Error().stack?.split('\n').slice(1, 6).join(' | '));
+      return carregarSolicitacoes({ isCoordenador, currentUser, userMuseu });
+    },
     enabled: !!currentUser && (isCoordenador || userTeamMember !== undefined),
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 10,
@@ -374,7 +378,12 @@ function ComprasInner() {
 
   // Aplica locks de centro_custo a cada atualização vinda do servidor ou quando um lock é ativado
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const purchases = useMemo(() => applyLocksToList(rawPurchases), [rawPurchases, lockVersion]);
+  const purchases = useMemo(() => {
+    if (centroCustoLock.current.size > 0) {
+      console.warn('[COMPRAS DEBUG] useMemo re-executando com', centroCustoLock.current.size, 'locks ativos. rawPurchases.length=', rawPurchases.length, 'lockVersion=', lockVersion);
+    }
+    return applyLocksToList(rawPurchases);
+  }, [rawPurchases, lockVersion]);
 
   // Auto-abrir solicitação quando vier via ?id= (link de email de notificação)
   // Limpa o parâmetro ANTES de abrir o modal para evitar re-abertura após fechamento
