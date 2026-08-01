@@ -251,12 +251,18 @@ function GestaoPagamentosInner() {
          return !isTeamPayment && (ownerEmails.includes(userEmail) || p?.created_by?.toLowerCase() === userEmail);
        });
      },
-     enabled: !!currentUser
+     enabled: !!currentUser,
+     staleTime: 1 * 60 * 1000,
+     gcTime: 5 * 60 * 1000,
+     refetchOnWindowFocus: false,
    });
 
   const { data: budgetLines = [] } = useQuery({
     queryKey: ['budget_lines_pgto'],
-    queryFn: () => base44.entities.BudgetLine.list(),
+    queryFn: async () => { try { return await base44.entities.BudgetLine.list(); } catch { return []; } },
+    staleTime: 30 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const filtered = purchases.filter(p =>

@@ -56,7 +56,15 @@ function CoordReviewInner() {
 
   const { data: reports = [], isLoading } = useQuery({
     queryKey: ['review-reports'],
-    queryFn: () => base44.entities.Report.list('-created_date'),
+    queryFn: async () => {
+      try {
+        const data = await base44.entities.Report.list('-created_date');
+        return Array.isArray(data) ? data : [];
+      } catch { return []; }
+    },
+    staleTime: 1 * 60 * 1000,
+    gcTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const pending = useMemo(
@@ -173,13 +181,20 @@ function CoordReviewInner() {
   });
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-semibold mb-4">Revisão de Relatórios</h1>
+    <div className="max-w-5xl mx-auto px-4 md:px-6 py-6 space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold text-black tracking-tight">Revisão de Relatórios</h1>
+        <p className="text-sm text-gray-500 mt-0.5">{pending.length} relatório{pending.length !== 1 ? 's' : ''} aguardando revisão</p>
+      </div>
 
       {isLoading ? (
-        <p>Carregando...</p>
+        <p className="text-sm text-gray-500">Carregando...</p>
       ) : pending.length === 0 ? (
-        <p>Nenhum relatório pendente</p>
+        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-8 text-center">
+          <CheckCircle className="w-10 h-10 text-green-400 mx-auto mb-3" />
+          <p className="font-medium text-gray-700">Nenhum relatório pendente</p>
+          <p className="text-sm text-gray-400 mt-1">Todos os relatórios foram revisados.</p>
+        </div>
       ) : (
         <div className="grid gap-4">
           {pending.map((report) => {
@@ -187,7 +202,7 @@ function CoordReviewInner() {
             const Icon = cfg?.icon || FileText;
 
             return (
-              <div key={report.id} className="border rounded-lg p-4 bg-white">
+              <div key={report.id} className="rounded-2xl border border-gray-200 bg-white shadow-sm p-4">
                 <div className="flex flex-wrap justify-between gap-2 mb-2">
                   <Badge className={cfg.color}>
                     <Icon className="w-3.5 h-3.5 mr-1" />

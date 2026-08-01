@@ -307,16 +307,18 @@ export default function RubricasPorMuseu() {
 
   const { data: rubricasBanco, refetch: refetchRubricas } = useQuery({
     queryKey: ['rubricas-banco', refreshNonce],
-    queryFn: () => base44.entities.Rubrica.list('ordem_exibicao', 1000),
-    staleTime: 0, gcTime: 0, refetchOnWindowFocus: true,
+    queryFn: async () => { try { return await base44.entities.Rubrica.list('ordem_exibicao', 1000); } catch { return []; } },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const { data: comprasAprovadas, refetch: refetchCompras } = useQuery({
     queryKey: ['compras-aprovadas-resumo', refreshNonce],
-    queryFn: () => base44.entities.PurchaseRequest.filter({
-      status: { $in: ['APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO'] }
-    }, '-created_date', 2000),
-    staleTime: 0, gcTime: 0, refetchOnWindowFocus: true,
+    queryFn: async () => { try { return await base44.entities.PurchaseRequest.filter({ status: { $in: ['APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO'] } }, '-created_date', 2000); } catch { return []; } },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   /**

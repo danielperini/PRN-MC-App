@@ -202,7 +202,8 @@ export default function Relatorios() {
       return Array.isArray(data) ? data : [];
     },
     enabled: !!user?.email,
-    staleTime: 1000 * 60,
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 10,
     refetchOnWindowFocus: false,
     retry: (failureCount, err) => {
       const msg = String(err?.message || '').toLowerCase();

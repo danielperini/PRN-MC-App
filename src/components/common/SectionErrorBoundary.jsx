@@ -1,39 +1,52 @@
 import React from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, RotateCw } from 'lucide-react';
+import { CARD_BASE } from '@/lib/styleTokens';
+import { cn } from '@/lib/utils';
 
-export default class SectionErrorBoundary extends React.Component {
+class SectionErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, error: null };
+    this.reset = this.reset.bind(this);
   }
 
-  static getDerivedStateFromError() {
-    return { hasError: true };
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
   }
 
   componentDidCatch(error, info) {
-    console.warn('[SectionErrorBoundary]', this.props.title || 'Seção', error, info?.componentStack);
+    console.error('[SectionErrorBoundary]', this.props.title || 'Seção', error, info);
+  }
+
+  reset() {
+    this.setState({ hasError: false, error: null });
+    if (this.props.onRetry) this.props.onRetry();
   }
 
   render() {
-    if (!this.state.hasError) return this.props.children;
-
-    return (
-      <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50/60 px-5 py-4 flex items-start gap-3">
-        <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
-        <div className="flex-1 min-w-0">
-          <p className="text-sm text-amber-700">
-            {this.props.title ? <span className="font-medium">{this.props.title}: </span> : null}
-            Esta seção encontrou um problema e foi ocultada temporariamente.
-          </p>
+    if (this.state.hasError) {
+      return (
+        <div className={cn(CARD_BASE, 'border-amber-200 bg-amber-50 p-4 flex items-start gap-3', this.props.className)}>
+          <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-amber-800">
+              {this.props.title ? `"${this.props.title}" não pôde ser carregada` : 'Esta seção não pôde ser carregada'}
+            </p>
+            <p className="text-xs text-amber-600 mt-0.5">Tente novamente ou recarregue a página.</p>
+          </div>
           <button
-            onClick={() => window.location.reload()}
-            className="mt-1 text-xs text-amber-600 underline underline-offset-2 hover:text-amber-800"
+            onClick={this.reset}
+            className="shrink-0 flex items-center gap-1 text-xs font-medium text-amber-700 hover:text-amber-900 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition-colors"
           >
-            Recarregar
+            <RotateCw className="w-3 h-3" />
+            Tentar novamente
           </button>
         </div>
-      </div>
-    );
+      );
+    }
+
+    return this.props.children;
   }
 }
+
+export default SectionErrorBoundary;
