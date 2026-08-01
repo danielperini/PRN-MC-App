@@ -92,9 +92,20 @@ function buildEmailBody(nomeUsuario: string, mesAno: string): string {
 
 Deno.serve(async (req) => {
   try {
-    const base44 = createClientFromRequest(req);
-
     const now = new Date();
+
+    // ── JANELA DE ENVIO ───────────────────────────────────────────────────────
+    // Só envia entre os dias 1 e 4 do mês (UTC). Fora desse intervalo, retorna silenciosamente.
+    if (now.getUTCDate() > 4) {
+      return Response.json({
+        success: true,
+        skipped: true,
+        reason: 'Fora da janela de envio (dias 1–4)',
+      });
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
+    const base44 = createClientFromRequest(req);
     const mesAtualIdx = now.getMonth();
     const ano = now.getFullYear();
     // O lembrete é para o mês anterior (dia 1 do mês atual = emitir NF do mês passado)
