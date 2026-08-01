@@ -1472,7 +1472,7 @@ function ComprasInner() {
               onSelectRubrica={setSelectedRubrica}
               onRefresh={refreshFinanceiroCompleto}
               isCoordenador={isCoordenador}
-              totalPrevisto={1320000} />
+              totalPrevisto={1417519.85} />
             
               </>
           }
@@ -1620,7 +1620,7 @@ function ComprasInner() {
             onSelectRubrica={setSelectedRubrica}
             onRefresh={refreshFinanceiroCompleto}
             isCoordenador={isCoordenador}
-            totalPrevisto={1320000} />
+            totalPrevisto={1417519.85} />
 
           }
           </div>

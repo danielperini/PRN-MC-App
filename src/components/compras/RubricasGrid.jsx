@@ -208,7 +208,8 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
   // Totais contratuais oficiais fixos — não derivados da soma das rubricas
   const CONTRATO_3A = 1320000;
   const CONTRATO_4A = 81719.85;
-  const CONTRATO_TOTAL = CONTRATO_3A + CONTRATO_4A; // R$ 1.401.719,85
+  const CONTRATO_5A = 15800;
+  const CONTRATO_TOTAL = CONTRATO_3A + CONTRATO_4A + CONTRATO_5A; // R$ 1.417.519,85
 
   const totais = useMemo(() => {
     let utilizado = 0;
