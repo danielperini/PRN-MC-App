@@ -95,7 +95,7 @@ function AditivoBlock({ titulo, badge, badgeColor, totalPrevisto, totalUtilizado
 }
 
 export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
-  const { totais3, totais4, rubricas4, duplicadas, datasInvalidas } = useMemo(() => {
+  const { totais3, totais4, totais5, rubricas4, rubricas5, duplicadas, datasInvalidas } = useMemo(() => {
     const ativas = rubricas.filter((r) => r?.ativo !== false);
 
     const rubricas4 = ativas.filter((r) => {
@@ -106,12 +106,17 @@ export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
       const origem = (r.origem_recurso || '').trim();
       return origem === '3º ADITIVO' || origem === '3º Aditivo';
     });
+    const rubricas5 = ativas.filter((r) => {
+      const origem = (r.origem_recurso || '').trim();
+      return origem === '5º ADITIVO' || origem === '5º Aditivo';
+    });
 
     // Previsto e utilizado direto das rubricas (mesma fonte do Dashboard)
     const previsto3 = rubricas3.reduce((s, r) => s + toNumber(r.valor_rubrica || r.valor_total), 0);
     const utilizado3 = rubricas3.reduce((s, r) => s + toNumber(r.valor_utilizado || r.utilizado), 0);
     const previsto4 = rubricas4.reduce((s, r) => s + toNumber(r.valor_rubrica || r.valor_total), 0);
     const utilizado4 = rubricas4.reduce((s, r) => s + toNumber(r.valor_utilizado || r.utilizado), 0);
+    const utilizado5 = rubricas5.reduce((s, r) => s + toNumber(r.valor_utilizado || r.utilizado), 0);
 
     const auditoria = auditAditivoTotals(compras, ativas);
 
@@ -128,7 +133,13 @@ export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
         saldo: previsto4 - utilizado4,
         qtdNFs: auditoria.noturno_2026.quantidade_nfs,
       },
+      totais5: {
+        totalUtilizado: utilizado5,
+        saldo: CONTRATO_5_ADITIVO - utilizado5,
+        qtdNFs: rubricas5.length,
+      },
       rubricas4,
+      rubricas5,
       duplicadas: auditoria.duplicadas_ignoradas,
       datasInvalidas: auditoria.datas_invalidas_ignoradas,
     };
@@ -157,7 +168,7 @@ export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
         <span className="block mt-1 text-gray-500">O previsto exibido nos cards é a soma real das rubricas cadastradas. O 4º Aditivo apura o Noturno Pampulha. Rubricas "Noturno 2026" pertencem ao 3º Aditivo.</span>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <AditivoBlock
           titulo="3º Termo Aditivo — Museus Centro"
           badge="3º Aditivo"
@@ -178,6 +189,17 @@ export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
           saldo={totais4.saldo}
           rubricasList={rubricas4}
           qtdNFs={totais4.qtdNFs}
+          qtdDuplicatas={0}
+        />
+        <AditivoBlock
+          titulo="5º Aditivo — 3º Simpósio Patrimônio Cultural BH"
+          badge="5º Aditivo"
+          badgeColor="bg-emerald-100 text-emerald-700"
+          totalPrevisto={CONTRATO_5_ADITIVO}
+          totalUtilizado={totais5.totalUtilizado}
+          saldo={totais5.saldo}
+          rubricasList={rubricas5}
+          qtdNFs={totais5.qtdNFs}
           qtdDuplicatas={0}
         />
       </div>
