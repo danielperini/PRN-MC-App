@@ -275,7 +275,7 @@ export default function CurationDashboard() {
   const handleApprove = async (id) => {
     setProcessingId(id);
     try {
-      await base44.functions.invoke('approveCuratedNews', { newsId: id });
+      await base44.functions.invoke('selectDailyNews', { newsId: id });
 
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['news-pending-curated'] }),
