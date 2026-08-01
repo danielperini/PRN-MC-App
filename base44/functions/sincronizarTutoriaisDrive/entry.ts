@@ -14,15 +14,21 @@ Deno.serve(async (req) => {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-    // Buscar token do connector googledrive
+    // Buscar token do connector googledrive (BYO_SHARED workspace connector)
     let accessToken: string;
     try {
-      const connection = await base44.asServiceRole.connectors.getConnection('googledrive');
+      const connection = await base44.asServiceRole.connectors.getConnection('6a6d5c4b784a7fe768da2d1d');
       accessToken = connection.access_token;
     } catch (connErr) {
-      return Response.json({
-        error: 'Conector Google Drive não conectado. Acesse Configurações > Conectores e reconecte o Google Drive.'
-      }, { status: 200 });
+      // Fallback: tentar pelo tipo (shared connector)
+      try {
+        const connection2 = await base44.asServiceRole.connectors.getConnection('googledrive');
+        accessToken = connection2.access_token;
+      } catch (e2) {
+        return Response.json({
+          error: 'Conector Google Drive não conectado. Acesse Configurações > Conectores e reconecte o Google Drive.'
+        }, { status: 200 });
+      }
     }
 
     // Listar arquivos na pasta Tutoriais
