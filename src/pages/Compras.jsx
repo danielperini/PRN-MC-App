@@ -63,6 +63,7 @@ import ConferenciaExtratosVsPagamentos from '@/components/compras/ConferenciaExt
 import { canManageRubricas } from '@/components/auth/permissions';
 import { normalizeStatus, isStatusPendente, isStatusAprovado, getStatusLabel, getStatusColor } from '@/lib/normalizeStatus';
 import DevolverNFDialog from '@/components/compras/DevolverNFDialog';
+import NotificarAditivoButton from '@/components/compras/NotificarAditivoButton';
 
 const STATUS_CONFIG = {
   RASCUNHO: { label: 'Rascunho', color: 'bg-gray-100 text-gray-700' },
@@ -1434,6 +1435,7 @@ function ComprasInner() {
 
                 {podeGerenciarRubricas &&
             <div className="flex justify-end gap-2">
+                    <NotificarAditivoButton />
                     <Button
                 type="button"
                 variant="outline"
