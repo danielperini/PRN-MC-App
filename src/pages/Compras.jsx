@@ -1051,6 +1051,11 @@ function ComprasInner() {
                 'Visão geral — todas as solicitações' :
                 'Solicitações — 3º Termo Aditivo'}
               </p>
+              {!isCoordenador && (
+                <p className="text-xs text-blue-500 mt-0.5">
+                  Exibindo solicitações do seu museu e as suas próprias
+                </p>
+              )}
             </div>
           </div>
 

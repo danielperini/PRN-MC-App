@@ -227,7 +227,11 @@ export default function Relatorios() {
 
   const myReports = useMemo(() => {
     if (isAdmin || isCoordenador) return effectiveReports;
-    return effectiveReports.filter((report) => report.created_by === user?.email);
+    const email = String(user?.email || '').toLowerCase();
+    return effectiveReports.filter((report) =>
+      String(report.created_by || '').toLowerCase() === email ||
+      String(report.author_email || '').toLowerCase() === email
+    );
   }, [effectiveReports, user, isAdmin, isCoordenador]);
 
   // Deep search: dispara quando busca local retorna 0 ou termo começa com 'MC-'

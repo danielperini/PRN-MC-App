@@ -5,7 +5,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Search, Users, Phone, Mail, MapPin, Briefcase, Building2 } from 'lucide-react';
-import { isCoordenador } from '@/components/auth/permissions';
+import { isCoordenador, isProfissional } from '@/components/auth/permissions';
 import RequireAuth from '@/components/auth/RequireAuth';
 
 function fmtBRL(v) {
@@ -113,6 +113,12 @@ function EquipeInner() {
   }, []);
 
   const isCoord = isCoordenador(currentUser);
+  // Profissional só vê dados financeiros/sensíveis do seu próprio perfil
+  const isProf = !isCoord && isProfissional(currentUser);
+  const selectedIsOwn = selected && currentUser &&
+    String(selected.user_email || '').toLowerCase() === String(currentUser.email || '').toLowerCase();
+  // Para profissionais: isCoord no drawer = true apenas se for o próprio perfil
+  const drawerIsCoord = isCoord || (isProf && selectedIsOwn);
 
   const { data: members = [], isLoading } = useQuery({
     queryKey: ['team-members-equipe'],
@@ -214,7 +220,7 @@ function EquipeInner() {
 
       <MemberDrawer
         member={selected}
-        isCoord={isCoord}
+        isCoord={drawerIsCoord}
         open={!!selected}
         onClose={() => setSelected(null)}
       />

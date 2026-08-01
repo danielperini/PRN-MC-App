@@ -412,3 +412,28 @@ export const OBSERVADOR_PATROCINADOR_PERMISSIONS = PATROCINADOR_PERMISSIONS;
 export function canSponsorAccess(permission) {
   return PATROCINADOR_PERMISSIONS[permission] === true;
 }
+
+/**
+ * Retorna o museu vinculado de um profissional com base nos TeamMembers carregados.
+ * Usado para filtrar solicitações de compras por museu.
+ */
+export function getProfissionalMuseu(email, teamMembers) {
+  if (!email || !Array.isArray(teamMembers)) return null;
+  const normalizedEmail = String(email).toLowerCase().trim();
+  const member = teamMembers.find(m => String(m.user_email || '').toLowerCase().trim() === normalizedEmail);
+  return member?.museu_vinculado || null;
+}
+
+/**
+ * Lista de campos sensíveis que NÃO devem ser exibidos para profissionais
+ * ao visualizar perfis de outros membros da equipe.
+ */
+export const CAMPOS_SENSIVEIS_EQUIPE = [
+  'cpf', 'cnpj', 'banco', 'agencia', 'conta', 'pix_key',
+  'valor_total', 'valor_parcela', 'contrato_valor_parcela',
+  'numero_parcelas', 'contrato_num_parcelas', 'cronograma_parcelas',
+  'contrato_url', 'objeto_contrato',
+  'escopo_descricao', 'escopo_atividades', 'escopo_entregas',
+  'escopo_responsabilidades', 'escopo_carga_horaria', 'escopo_periodo',
+  'escopo_observacoes', 'contratante_cnpj', 'representante_legal_cpf',
+];

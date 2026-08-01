@@ -12,6 +12,7 @@ import ReviewModalContrato from '@/components/entrada/ReviewModalContrato';
 import LinkXmlModal from '@/components/entrada/LinkXmlModal';
 import LinkArquivoModal from '@/components/entrada/LinkArquivoModal';
 import { backupContractIntakeToDrive, isContractIntakeType } from '@/lib/contractDriveBackup';
+import { isCoordenador } from '@/components/auth/permissions';
 import { Link } from 'react-router-dom';
 import {
   Loader2,
@@ -480,7 +481,7 @@ export default function EntradaUnica() {
     setIntakesLoadError(false);
 
     const base = String(userPermission?.base_role || '').toUpperCase();
-    const canSeeAll = user?.role === 'admin' || base.includes('COORD') || base.includes('ADMIN');
+    const canSeeAll = user?.role === 'admin' || base.includes('COORD') || base.includes('ADMIN') || isCoordenador(user);
 
     try {
       // Tenta filter com timeout de 10s via Promise.race
@@ -1404,7 +1405,7 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
   }
 
   const base = String(userPermission?.base_role || '').toUpperCase();
-  const canSeeAll = user?.role === 'admin' || base.includes('COORD') || base.includes('ADMIN');
+  const canSeeAll = user?.role === 'admin' || base.includes('COORD') || base.includes('ADMIN') || isCoordenador(user);
 
   const tipo = reviewIntake?.tipo_detectado;
   const isNF = tipo === 'NOTA_FISCAL_PDF' || tipo === 'NOTA_FISCAL_XML' || tipo === 'DOCUMENTO_ADMINISTRATIVO';
