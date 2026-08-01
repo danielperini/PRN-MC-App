@@ -15,8 +15,15 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     // Buscar token do connector googledrive
-    const connection = await base44.asServiceRole.connectors.getConnection('googledrive');
-    const accessToken = connection.access_token;
+    let accessToken: string;
+    try {
+      const connection = await base44.asServiceRole.connectors.getConnection('googledrive');
+      accessToken = connection.access_token;
+    } catch (connErr) {
+      return Response.json({
+        error: 'Conector Google Drive não conectado. Acesse Configurações > Conectores e reconecte o Google Drive.'
+      }, { status: 200 });
+    }
 
     // Listar arquivos na pasta Tutoriais
     const listUrl = `https://www.googleapis.com/drive/v3/files?q='${TUTORIAIS_FOLDER_ID}'+in+parents+and+trashed=false&fields=files(id,name,createdTime,mimeType)&pageSize=100`;
@@ -24,8 +31,10 @@ Deno.serve(async (req) => {
       headers: { Authorization: `Bearer ${accessToken}` }
     });
     if (!listRes.ok) {
-      const err = await listRes.text();
-      return Response.json({ error: `Erro ao listar Drive: ${err}` }, { status: 500 });
+      const errText = await listRes.text();
+      return Response.json({
+        error: `Pasta de tutoriais não encontrada ou sem permissão de leitura (ID: ${TUTORIAIS_FOLDER_ID}). Status HTTP: ${listRes.status}. Detalhe: ${errText}`
+      }, { status: 200 });
     }
     const listData = await listRes.json();
     const allFiles = listData.files || [];
@@ -70,6 +79,16 @@ Deno.serve(async (req) => {
       }
     }
 
+    if (videoFiles.length === 0) {
+      return Response.json({
+        success: true,
+        total: 0,
+        criados: 0,
+        atualizados: 0,
+        message: 'Nenhum vídeo encontrado na pasta. Verifique se há arquivos .mp4/.mov na pasta correta do Drive.'
+      });
+    }
+
     return Response.json({
       success: true,
       total: videoFiles.length,
@@ -78,6 +97,7 @@ Deno.serve(async (req) => {
       message: `${videoFiles.length} vídeo(s) encontrado(s): ${criados} novo(s), ${atualizados} atualizado(s).`
     });
   } catch (error) {
-    return Response.json({ error: error.message }, { status: 500 });
+    console.error('[sincronizarTutoriaisDrive] Erro inesperado:', error.message);
+    return Response.json({ error: `Erro inesperado: ${error.message}` }, { status: 200 });
   }
 });

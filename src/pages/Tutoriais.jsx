@@ -105,8 +105,12 @@ export default function Tutoriais() {
     setSyncing(true);
     try {
       const res = await base44.functions.invoke('sincronizarTutoriaisDrive', {});
-      toast.success(res.data?.message || 'Sincronização concluída');
-      refetch();
+      if (res.data?.error) {
+        toast.error(res.data.error);
+      } else {
+        toast.success(res.data?.message || 'Sincronização concluída');
+        refetch();
+      }
     } catch (err) {
       toast.error(err?.message || 'Erro ao sincronizar');
     } finally {
