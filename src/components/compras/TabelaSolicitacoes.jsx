@@ -212,9 +212,12 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
     if (!newValue || newValue === (p.centro_custo || '')) return;
 
     const aprovado = STATUS_APROVADOS.has(normalizeStatus(p.status));
-    // Atualização otimista imediata — sem esperar o servidor
+
+    // Atualiza otimisticamente o cache local E trava o valor antes da chamada async
+    // para que qualquer refetch durante o save não sobrescreva o novo centro
     const updatedRecord = { ...p, centro_custo: newValue };
     onCentroUpdated?.(updatedRecord);
+    onCentroCustoSaved?.(p.id, newValue); // trava imediata (60s) antes de ir ao servidor
 
     setSavingCentro(true);
     try {
@@ -228,9 +231,11 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
         });
         const result = res?.data || res;
         if (result?.success === false) throw new Error(result?.error || 'Falha no reequilíbrio.');
-        onCentroCustoSaved?.(p.id, newValue);
-        // Reconcilia com dados do servidor se disponíveis
-        if (result?.purchase) onCentroUpdated?.(result.purchase);
+        // Reconcilia com dados confirmados do servidor
+        if (result?.purchase) {
+          onCentroCustoSaved?.(p.id, result.purchase.centro_custo || newValue);
+          onCentroUpdated?.(result.purchase);
+        }
         toast.success('Centro de custo atualizado e saldo da rubrica reequilibrado.');
       } else {
         const res = await base44.functions.invoke('purchaseActions', {
@@ -240,15 +245,16 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
         });
         const result = res?.data || res;
         if (result?.success === false) throw new Error(result?.error || 'Falha ao atualizar centro de custo.');
-        // Confirma trava com o valor retornado pelo servidor (fonte da verdade)
+        // Reforça trava com o valor confirmado pelo servidor
         const valorConfirmado = result?.purchase?.centro_custo || newValue;
         onCentroCustoSaved?.(p.id, valorConfirmado);
         if (result?.purchase) onCentroUpdated?.(result.purchase);
         toast.success('Centro de custo atualizado.');
       }
     } catch (e) {
-      // Reverte o cache otimista se o servidor falhou
+      // Reverte cache otimista e cancela a trava se o servidor falhou
       onCentroUpdated?.(p);
+      onCentroCustoSaved?.(p.id, p.centro_custo || ''); // reverte a trava
       toast.warning('Erro ao salvar centro de custo: ' + (e?.message || 'desconhecido'));
     } finally {
       setSavingCentro(false);
