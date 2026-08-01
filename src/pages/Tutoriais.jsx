@@ -3,8 +3,9 @@ import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { useCurrentUser } from '@/components/auth/useCurrentUser';
 import { Button } from '@/components/ui/button';
-import { PlayCircle, RotateCw, X, AlertTriangle } from 'lucide-react';
+import { PlayCircle, RotateCw, X, AlertTriangle, FileText, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
+import { Link } from 'react-router-dom';
 
 function VideoSkeleton() {
   return (
@@ -175,6 +176,46 @@ export default function Tutoriais() {
             )}
           </Button>
         )}
+      </div>
+
+      {/* Seção: Como enviar sua NF */}
+      <div className="mb-8 rounded-2xl border border-amber-200 bg-amber-50 p-5 md:p-6">
+        <div className="flex items-start gap-3 mb-4">
+          <div className="flex-shrink-0 w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center">
+            <FileText className="w-5 h-5 text-amber-700" />
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-amber-900">Como enviar sua nota fiscal</h2>
+            <p className="text-sm text-amber-700 mt-1">
+              <strong>Emita a NF do mês trabalhado a partir do dia 1º</strong> e envie pelo app{' '}
+              <strong>preferencialmente até o dia 4.</strong>
+            </p>
+          </div>
+        </div>
+
+        <ol className="space-y-3 mb-5">
+          {[
+            'Emita sua nota fiscal no portal da prefeitura (NFS-e ou sistema municipal).',
+            'Baixe o arquivo PDF e, se disponível, o XML.',
+            'Acesse "Entrada de Documentos" no menu lateral.',
+            'Clique em "Enviar arquivos" e faça o upload do PDF e do XML.',
+            'Aguarde a análise automática, revise os dados e clique em "Enviar para aprovação".',
+          ].map((step, i) => (
+            <li key={i} className="flex items-start gap-3">
+              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-slate-800 text-white text-xs font-bold flex items-center justify-center mt-0.5">
+                {i + 1}
+              </span>
+              <span className="text-sm text-slate-700 leading-relaxed">{step}</span>
+            </li>
+          ))}
+        </ol>
+
+        <Link to="/EntradaUnica">
+          <Button className="gap-2 bg-slate-900 hover:bg-slate-700 text-white">
+            Acessar Entrada de Documentos
+            <ArrowRight className="w-4 h-4" />
+          </Button>
+        </Link>
       </div>
 
       {/* Banner de erro da sync automática — visível apenas para coordenadores */}

@@ -21,7 +21,7 @@ function buildEmailBody(nomeUsuario: string, mesAno: string): string {
     <!-- Header -->
     <div style="background:linear-gradient(135deg,#1e3a8a,#2563eb);padding:28px;">
       <div style="color:rgba(255,255,255,0.8);font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">Museus Centro · Viaduto das Artes</div>
-      <div style="color:#ffffff;font-size:22px;font-weight:700;margin-top:6px;">📋 Lembrete Mensal de Nota Fiscal</div>
+      <div style="color:#ffffff;font-size:22px;font-weight:700;margin-top:6px;">📋 Lembrete: Emita e envie sua Nota Fiscal</div>
       <div style="color:rgba(255,255,255,0.75);font-size:14px;margin-top:4px;">${mesAno}</div>
     </div>
 
@@ -29,18 +29,17 @@ function buildEmailBody(nomeUsuario: string, mesAno: string): string {
     <div style="padding:28px;">
       <p style="font-size:16px;font-weight:600;color:#1e293b;margin:0 0 8px 0;">Olá, ${primeiroNome}!</p>
       <p style="font-size:14px;color:#475569;line-height:1.7;margin:0 0 20px 0;">
-        Este é um lembrete institucional para que você envie sua(s) nota(s) fiscal(is) referente ao mês de <strong>${mesAno}</strong>
-        por meio da plataforma <strong>Museus Centro</strong>. O envio correto e pontual é essencial para o controle financeiro
-        e prestação de contas do projeto.
+        Este é o lembrete mensal para que você emita e envie sua nota fiscal referente ao mês de
+        <strong>${mesAno}</strong> pelo aplicativo <strong>Museus Centro</strong>.
       </p>
 
-      <!-- Destaque -->
-      <div style="background:#eff6ff;border-left:4px solid #2563eb;border-radius:6px;padding:14px 16px;margin-bottom:24px;">
-        <p style="font-size:14px;font-weight:600;color:#1e3a8a;margin:0;">
-          ⚡ Envie agora pela Entrada de Documentos
+      <!-- Destaque prazo -->
+      <div style="background:#fffbeb;border-left:4px solid #d97706;border-radius:6px;padding:14px 16px;margin-bottom:24px;">
+        <p style="font-size:14px;font-weight:700;color:#92400e;margin:0;">
+          ⏰ Prazo recomendado: até o dia 4 deste mês
         </p>
-        <p style="font-size:13px;color:#3b82f6;margin:6px 0 0 0;">
-          <a href="${ENTRADA_UNICA_URL}" style="color:#2563eb;font-weight:600;">${ENTRADA_UNICA_URL}</a>
+        <p style="font-size:13px;color:#b45309;margin:6px 0 0 0;">
+          Emita sua NF no portal da prefeitura a partir do dia 1º e envie pelo app preferencialmente até o dia 4.
         </p>
       </div>
 
@@ -49,19 +48,17 @@ function buildEmailBody(nomeUsuario: string, mesAno: string): string {
 
       <table width="100%" cellpadding="0" cellspacing="0">
         ${[
-          ['1', '📁 Reúna os dois arquivos da NF', 'Você precisará do arquivo <strong>PDF</strong> e do arquivo <strong>XML</strong> da nota fiscal.'],
-          ['2', '🌐 Acesse a Entrada de Documentos', `Clique no link: <a href="${ENTRADA_UNICA_URL}" style="color:#2563eb;">Entrada de Documentos</a>`],
-          ['3', '📤 Arraste ambos os arquivos ao mesmo tempo', 'Selecione o <strong>XML e o PDF simultaneamente</strong> e arraste para a área de upload. O sistema os reconhece automaticamente como um par.'],
-          ['4', '🤖 Aguarde a análise automática pela IA', 'Os dados da nota fiscal (fornecedor, valor, data) serão preenchidos automaticamente.'],
-          ['5', '🔍 Revise os dados identificados', 'Confira o fornecedor, o valor total, a rubrica sugerida e faça ajustes se necessário.'],
-          ['6', '✅ Clique em "Enviar para Aprovação"', 'Após a revisão, clique no botão para submeter a NF à aprovação da coordenação.'],
-          ['7', '📊 Acompanhe o status pelo painel de Compras', 'Você pode monitorar o andamento da sua solicitação no painel <strong>Compras</strong> do sistema.'],
+          ['1', 'Emita sua NF no portal da prefeitura', 'Acesse o sistema NFS-e ou sistema municipal da sua cidade e emita a nota fiscal referente ao mês trabalhado.'],
+          ['2', 'Baixe o PDF e o XML', 'Faça download do arquivo <strong>PDF</strong> e do arquivo <strong>XML</strong> da nota emitida.'],
+          ['3', 'Acesse a Entrada de Documentos no app', `Clique no link abaixo ou acesse o menu lateral do sistema: <a href="${ENTRADA_UNICA_URL}" style="color:#2563eb;">Entrada de Documentos</a>`],
+          ['4', 'Faça o upload do PDF e do XML', 'Arraste ou selecione ambos os arquivos na área de upload. O sistema reconhece o par automaticamente.'],
+          ['5', 'Revise os dados e envie para aprovação', 'Confirme as informações preenchidas automaticamente e clique em <strong>"Enviar para Aprovação"</strong>.'],
         ].map(([num, titulo, desc]) => `
         <tr>
-          <td style="vertical-align:top;width:36px;padding-bottom:14px;">
-            <div style="width:28px;height:28px;background:#2563eb;color:#fff;font-size:13px;font-weight:700;border-radius:50%;display:flex;align-items:center;justify-content:center;text-align:center;line-height:28px;">${num}</div>
+          <td style="vertical-align:top;width:36px;padding-bottom:16px;">
+            <div style="width:28px;height:28px;background:#1e293b;color:#fff;font-size:13px;font-weight:700;border-radius:50%;text-align:center;line-height:28px;">${num}</div>
           </td>
-          <td style="vertical-align:top;padding-bottom:14px;padding-left:10px;">
+          <td style="vertical-align:top;padding-bottom:16px;padding-left:10px;">
             <div style="font-size:14px;font-weight:600;color:#1e293b;">${titulo}</div>
             <div style="font-size:13px;color:#64748b;margin-top:3px;line-height:1.5;">${desc}</div>
           </td>
@@ -71,8 +68,8 @@ function buildEmailBody(nomeUsuario: string, mesAno: string): string {
       <!-- CTA -->
       <div style="text-align:center;margin-top:24px;">
         <a href="${ENTRADA_UNICA_URL}"
-           style="display:inline-block;background:#2563eb;color:#ffffff;font-size:15px;font-weight:700;padding:14px 32px;border-radius:8px;text-decoration:none;">
-          Ir para a Entrada de Documentos →
+           style="display:inline-block;background:#1e293b;color:#ffffff;font-size:15px;font-weight:700;padding:14px 32px;border-radius:8px;text-decoration:none;">
+          Acessar Entrada de Documentos →
         </a>
       </div>
 
@@ -98,12 +95,35 @@ Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req);
 
     const now = new Date();
-    const mesNome = MESES_PT[now.getMonth()];
+    const mesAtualIdx = now.getMonth();
     const ano = now.getFullYear();
-    // O lembrete é para o mês anterior (dia 1 do mês atual = enviar NF do mês passado)
-    const mesPrev = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
-    const anoPrev = now.getMonth() === 0 ? ano - 1 : ano;
-    const mesAno = `${MESES_PT[mesPrev]}/${anoPrev}`;
+    // O lembrete é para o mês anterior (dia 1 do mês atual = emitir NF do mês passado)
+    const mesPrevIdx = mesAtualIdx === 0 ? 11 : mesAtualIdx - 1;
+    const anoPrev = mesAtualIdx === 0 ? ano - 1 : ano;
+    const mesAno = `${MESES_PT[mesPrevIdx]}/${anoPrev}`;
+
+    // ── IDEMPOTÊNCIA ──────────────────────────────────────────────────────────
+    // Verifica se já existe log de MONTHLY_NF_REMINDER para este mês/ano atual
+    const primeiroDiaMes = new Date(ano, mesAtualIdx, 1).toISOString();
+    const ultimoDiaMes = new Date(ano, mesAtualIdx + 1, 0, 23, 59, 59).toISOString();
+
+    let existingLogs: any[] = [];
+    try {
+      existingLogs = await base44.asServiceRole.entities.NotificationLog.filter({
+        notification_type: 'MONTHLY_NF_REMINDER',
+        sent_at: { $gte: primeiroDiaMes, $lte: ultimoDiaMes },
+      }, '-created_date', 5);
+    } catch (_) { /* ignora erro de filtro; prossegue com envio */ }
+
+    if (existingLogs && existingLogs.length > 0) {
+      return Response.json({
+        success: true,
+        message: `Lembrete já enviado neste mês (${mesAno}). Ignorando reenvio.`,
+        idempotent: true,
+        sent: 0,
+      });
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     // Buscar permissões com perfis elegíveis
     const allPermissions: any[] = await base44.asServiceRole.entities.UserPermission.list('-created_date', 500);
@@ -125,10 +145,9 @@ Deno.serve(async (req) => {
       if (u.email) userMap[u.email.toLowerCase()] = u;
     }
 
-    const results: any[] = [];
     let sentCount = 0;
     let failCount = 0;
-    let skippedCount = 0;
+    const results: any[] = [];
 
     // Deduplicar por e-mail (um usuário pode ter múltiplas permissões)
     const seen = new Set<string>();
@@ -142,16 +161,14 @@ Deno.serve(async (req) => {
     }
 
     for (const target of targets) {
-      if (!target.email) { skippedCount++; continue; }
-
+      if (!target.email) continue;
       try {
         await base44.asServiceRole.integrations.Core.SendEmail({
           to: target.email,
-          subject: `📋 Lembrete: Envie sua Nota Fiscal — ${mesAno}`,
+          subject: `📋 Lembrete: emita sua nota fiscal até o dia 4`,
           body: buildEmailBody(target.nome, mesAno),
           from_name: 'Museus Centro — Administrativo'
         });
-
         results.push({ email: target.email, status: 'sent' });
         sentCount++;
       } catch (e: any) {
@@ -161,16 +178,16 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Registrar log de auditoria
+    // Registrar log de auditoria com tipo canônico MONTHLY_NF_REMINDER
     try {
       await base44.asServiceRole.entities.NotificationLog.create({
-        notification_type: 'MONTHLY_INVOICE_REMINDER',
+        notification_type: 'MONTHLY_NF_REMINDER',
         channel: 'EMAIL',
         recipients: targets.map((t: any) => t.email),
-        subject: `📋 Lembrete: Envie sua Nota Fiscal — ${mesAno}`,
-        status: failCount === targets.length ? 'FAILED' : 'SENT',
+        subject: `📋 Lembrete: emita sua nota fiscal até o dia 4`,
+        status: failCount === targets.length && targets.length > 0 ? 'FAILED' : 'SENT',
         sent_at: now.toISOString(),
-        metadata_json: { sent: sentCount, failed: failCount, skipped: skippedCount, mesAno, details: results }
+        metadata_json: { sent: sentCount, failed: failCount, mesAno, details: results }
       });
     } catch (logErr: any) {
       console.warn('[notifyMonthlyInvoiceReminder] Falha ao registrar log:', logErr?.message);
@@ -181,7 +198,6 @@ Deno.serve(async (req) => {
       mesAno,
       sent: sentCount,
       failed: failCount,
-      skipped: skippedCount,
       total: targets.length,
       details: results
     });
