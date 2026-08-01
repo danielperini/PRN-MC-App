@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 
-const TUTORIAIS_FOLDER_ID = '1uoA5dDwINz6v7vxpF4nbAn4G16-LppkO';
+const TUTORIAIS_FOLDER_ID = '1re7Bcv4D3p7oEeg5BHUbFotF2aJstE6R';
 const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.avi', '.webm', '.mkv'];
 
 function tituloFromNome(nome: string): string {
