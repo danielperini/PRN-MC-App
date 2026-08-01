@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bell, AlertCircle, CheckCircle, X, ArrowRight } from 'lucide-react';
@@ -73,6 +73,8 @@ export default function NotificationBell() {
   const [user, setUser] = useState(null);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const isMarkingRef = useRef(false);
+  const localReadIds = useRef(new Set());
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => setUser(null));
@@ -87,17 +89,20 @@ export default function NotificationBell() {
         '-created_date',
         50
       );
-      return (notifs || []).filter(n => !n.resolved);
+      // Filtra IDs já marcados como lidos localmente nesta sessão (evita race condition)
+      const readSet = localReadIds.current;
+      return (notifs || []).filter(n => !n.resolved && !readSet.has(n.id));
     },
     enabled: !!user?.email,
     staleTime: 30000,
     refetchInterval: 60000,
   });
 
-  // Subscribe em tempo real
+  // Subscribe em tempo real — ignora eventos durante operação de leitura (evita race condition)
   useEffect(() => {
     if (!user?.email) return;
     const unsub = base44.entities.Notification.subscribe((event) => {
+      if (isMarkingRef.current) return;
       if (event.data?.user_email === user.email) refetch();
     });
     return unsub;
@@ -110,26 +115,41 @@ export default function NotificationBell() {
   const outrasNaoLidas = notifications.filter(n => !DEVOLUCAO_TYPES.has(n.type));
 
   async function handleRead(id) {
-    // Remove otimisticamente da lista local imediatamente
+    // Adiciona ao set local e remove otimisticamente da lista
+    localReadIds.current.add(id);
     queryClient.setQueryData(['notifications-bell', user?.email], (old = []) =>
       old.filter(n => n.id !== id)
     );
+    isMarkingRef.current = true;
     try {
       await base44.entities.Notification.update(id, { read: true });
+      // Banco confirmou: remove do set local (próximos refetches já filtram read:false no servidor)
+      localReadIds.current.delete(id);
     } catch (e) {
       console.warn('Erro ao marcar notificação como lida:', e);
+      localReadIds.current.delete(id);
       queryClient.invalidateQueries({ queryKey: ['notifications-bell', user?.email] });
+    } finally {
+      isMarkingRef.current = false;
     }
   }
 
   async function handleReadAll() {
-    // Limpa a lista local de forma otimista antes do refetch
+    const ids = notifications.map(n => n.id);
+    // Adiciona todos ao set local e limpa a lista otimisticamente
+    ids.forEach(id => localReadIds.current.add(id));
     queryClient.setQueryData(['notifications-bell', user?.email], []);
+    isMarkingRef.current = true;
     try {
-      await Promise.all(notifications.map(n => base44.entities.Notification.update(n.id, { read: true })));
+      await Promise.all(ids.map(id => base44.entities.Notification.update(id, { read: true })));
+      // Banco confirmou: limpa o set local
+      ids.forEach(id => localReadIds.current.delete(id));
     } catch (e) {
       console.warn('Erro ao marcar todas como lidas:', e);
+      ids.forEach(id => localReadIds.current.delete(id));
       queryClient.invalidateQueries({ queryKey: ['notifications-bell', user?.email] });
+    } finally {
+      isMarkingRef.current = false;
     }
   }
 
