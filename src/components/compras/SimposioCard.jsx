@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
+import RubricaEditRow from '@/components/rubricas/RubricaEditRow';
 
 const GRUPO_SIMPOSIO = 'Simpósio do Patrimônio Cultural de BH';
 const STATUS_CONTABILIZADOS = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
@@ -27,7 +28,9 @@ function valorCompra(compra) {
     || 0;
 }
 
-export default function SimposioCard() {
+export default function SimposioCard({ isCoordenador = false }) {
+  const queryClient = useQueryClient();
+
   const { data: rubricas = [], isLoading: loadingRubricas } = useQuery({
     queryKey: ['rubricas-simposio'],
     queryFn: () => base44.entities.Rubrica.filter({ grupo: GRUPO_SIMPOSIO, ativo: true }),
@@ -48,13 +51,25 @@ export default function SimposioCard() {
 
   const isLoading = loadingRubricas || loadingCompras;
 
+  // Mapa comprasUtilizadas por rubrica.id
+  const comprasUtilizadas = useMemo(() => {
+    const STATUS_APROVADOS = new Set(['APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
+    const mapa = {};
+    for (const c of todasCompras) {
+      if (!c.rubrica_id) continue;
+      const status = String(c.status || '').toUpperCase();
+      if (!STATUS_APROVADOS.has(status)) continue;
+      const val = valorCompra(c);
+      mapa[c.rubrica_id] = (mapa[c.rubrica_id] || 0) + val;
+    }
+    return mapa;
+  }, [todasCompras]);
+
   const resumo = useMemo(() => {
     const rubricaIds = new Set((rubricas || []).map(r => String(r.id)));
-    const rubricaById = new Map((rubricas || []).map(r => [String(r.id), r]));
 
     const totalPrevisto = (rubricas || []).reduce((acc, r) => acc + toNumber(r.valor_rubrica || r.valor_total), 0);
 
-    // Compras vinculadas por rubrica_id
     const comprasDoSimposio = (todasCompras || []).filter(c => {
       const status = String(c?.status || '').toUpperCase();
       if (!STATUS_CONTABILIZADOS.has(status)) return false;
@@ -64,36 +79,12 @@ export default function SimposioCard() {
 
     let totalUtilizado = 0;
     let totalPago = 0;
-    const porRubrica = new Map();
 
     comprasDoSimposio.forEach(c => {
       const val = valorCompra(c);
       totalUtilizado += val;
       if (String(c.status || '').toUpperCase() === 'PAGO') totalPago += val;
-
-      const rubId = String(c?.rubrica_id || c?.budgetline_id || '');
-      const rubrica = rubricaById.get(rubId);
-      const nome = rubrica?.rubrica || rubrica?.nome || c?.rubrica_nome || 'Sem rubrica';
-      const previsto = toNumber(rubrica?.valor_rubrica || rubrica?.valor_total);
-
-      const atual = porRubrica.get(rubId) || { nome, previsto, utilizado: 0 };
-      atual.utilizado += val;
-      porRubrica.set(rubId, atual);
     });
-
-    // Garantir que todas as rubricas apareçam mesmo sem compras
-    (rubricas || []).forEach(r => {
-      if (!porRubrica.has(String(r.id))) {
-        porRubrica.set(String(r.id), {
-          nome: r.rubrica || r.nome || '—',
-          previsto: toNumber(r.valor_rubrica || r.valor_total),
-          utilizado: 0,
-        });
-      }
-    });
-
-    const linhas = Array.from(porRubrica.values())
-      .sort((a, b) => b.previsto - a.previsto);
 
     return {
       totalPrevisto: Number(totalPrevisto.toFixed(2)),
@@ -101,7 +92,6 @@ export default function SimposioCard() {
       totalPago: Number(totalPago.toFixed(2)),
       saldo: Number((totalPrevisto - totalUtilizado).toFixed(2)),
       pct: totalPrevisto > 0 ? (totalUtilizado / totalPrevisto) * 100 : 0,
-      linhas,
     };
   }, [rubricas, todasCompras]);
 
@@ -151,39 +141,64 @@ export default function SimposioCard() {
         </div>
       </div>
 
-      {/* Lista de rubricas */}
+      {/* Lista de rubricas — com edição inline para coordenadores */}
       <div className="px-5 py-4">
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-          Rubricas vinculadas ({resumo.linhas.length})
+          Rubricas vinculadas ({rubricas.length})
         </p>
 
         {isLoading ? (
           <p className="text-xs text-gray-400">Carregando...</p>
+        ) : rubricas.length === 0 ? (
+          <p className="text-xs text-gray-400">Nenhuma rubrica encontrada para o Simpósio.</p>
+        ) : isCoordenador ? (
+          // Modo edição: RubricaEditRow por rubrica
+          <div>
+            {rubricas
+              .slice()
+              .sort((a, b) => toNumber(b.valor_rubrica || b.valor_total) - toNumber(a.valor_rubrica || a.valor_total))
+              .map(rubrica => (
+                <RubricaEditRow
+                  key={rubrica.id}
+                  rubrica={rubrica}
+                  comprasUtilizadas={comprasUtilizadas}
+                  isCoordenador={true}
+                  showMuseuLinks={false}
+                  queryKeysToInvalidate={[['rubricas-simposio'], ['compras-simposio']]}
+                />
+              ))}
+          </div>
         ) : (
+          // Modo somente-leitura: exibição simples
           <div className="space-y-2">
-            {resumo.linhas.map((item, idx) => {
-              const pct = item.previsto > 0 ? (item.utilizado / item.previsto) * 100 : 0;
-              return (
-                <div key={idx} className="rounded-xl border border-gray-100 bg-gray-50/50 p-3">
-                  <div className="flex items-start justify-between gap-2 mb-1.5">
-                    <p className="text-xs font-medium text-gray-800 flex-1 min-w-0">{item.nome}</p>
-                    <span className="text-xs font-bold tabular-nums shrink-0 text-gray-800">{fmtBRL(item.utilizado)}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-[11px] text-gray-400 mb-1">
-                    <span>Prev: {fmtBRL(item.previsto)}</span>
-                    <span>{pct > 0 ? `${pct.toFixed(0)}%` : '0%'}</span>
-                  </div>
-                  {item.previsto > 0 && (
-                    <div className="h-1 w-full rounded-full bg-gray-100 overflow-hidden">
-                      <div
-                        className={`h-1 rounded-full ${pct > 90 ? 'bg-red-500' : 'bg-amber-500'}`}
-                        style={{ width: `${Math.min(pct, 100)}%` }}
-                      />
+            {rubricas
+              .slice()
+              .sort((a, b) => toNumber(b.valor_rubrica || b.valor_total) - toNumber(a.valor_rubrica || a.valor_total))
+              .map((rubrica) => {
+                const previsto = toNumber(rubrica.valor_rubrica || rubrica.valor_total);
+                const utilizado = comprasUtilizadas[rubrica.id] || toNumber(rubrica.valor_utilizado);
+                const pct = previsto > 0 ? (utilizado / previsto) * 100 : 0;
+                return (
+                  <div key={rubrica.id} className="rounded-xl border border-gray-100 bg-gray-50/50 p-3">
+                    <div className="flex items-start justify-between gap-2 mb-1.5">
+                      <p className="text-xs font-medium text-gray-800 flex-1 min-w-0">{rubrica.rubrica || rubrica.nome || '—'}</p>
+                      <span className="text-xs font-bold tabular-nums shrink-0 text-gray-800">{fmtBRL(utilizado)}</span>
                     </div>
-                  )}
-                </div>
-              );
-            })}
+                    <div className="flex items-center justify-between text-[11px] text-gray-400 mb-1">
+                      <span>Prev: {fmtBRL(previsto)}</span>
+                      <span>{pct > 0 ? `${pct.toFixed(0)}%` : '0%'}</span>
+                    </div>
+                    {previsto > 0 && (
+                      <div className="h-1 w-full rounded-full bg-gray-100 overflow-hidden">
+                        <div
+                          className={`h-1 rounded-full ${pct > 90 ? 'bg-red-500' : 'bg-amber-500'}`}
+                          style={{ width: `${Math.min(pct, 100)}%` }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
           </div>
         )}
       </div>

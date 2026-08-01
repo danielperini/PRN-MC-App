@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { AlertTriangle, ExternalLink, Wand2, CheckCircle2, XCircle } from 'lucide-react';
+import RubricaEditRow from '@/components/rubricas/RubricaEditRow';
 import { toast } from 'sonner';
 
 const DRIVE_PASTA_NFS = 'https://drive.google.com/drive/u/0/folders/1Ov9ci6Dwg297mm7QiqX1wfLIb92EZSGf';
@@ -163,6 +164,20 @@ export default function NoturnoPampulhaCard({ isCoordenador = false }) {
     };
   }, [queryClient]);
 
+  const comprasUtilizadas = useMemo(() => {
+    const STATUS_APROVADOS = new Set(['APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
+    const mapa = {};
+    for (const c of compras) {
+      if (!c.rubrica_id) continue;
+      const status = String(c.status || '').toUpperCase();
+      if (!STATUS_APROVADOS.has(status)) continue;
+      if (!isPampulha(c?.centro_custo)) continue;
+      const val = valorCompra(c);
+      mapa[c.rubrica_id] = (mapa[c.rubrica_id] || 0) + val;
+    }
+    return mapa;
+  }, [compras]);
+
   const resumo = useMemo(() => {
     const rubricaById = new Map((rubricas || []).map(r => [String(r.id), r]));
     const comprasUnicas = new Map();
@@ -322,6 +337,20 @@ export default function NoturnoPampulhaCard({ isCoordenador = false }) {
 
         {isLoading ? (
           <p className="text-xs text-gray-400">Carregando...</p>
+        ) : isCoordenador && rubricas.length > 0 ? (
+          // Modo coordenador: edição inline por rubrica do banco
+          <div>
+            {rubricas.map(rubrica => (
+              <RubricaEditRow
+                key={rubrica.id}
+                rubrica={rubrica}
+                comprasUtilizadas={comprasUtilizadas}
+                isCoordenador={true}
+                showMuseuLinks={false}
+                queryKeysToInvalidate={[['rubricas-pampulha-4aditivo'], ['compras-pampulha-4aditivo']]}
+              />
+            ))}
+          </div>
         ) : resumo.rubricasComCusto.length === 0 ? (
           <p className="text-xs text-gray-400">Nenhum custo aprovado ou pago foi encontrado para este centro de custo.</p>
         ) : (

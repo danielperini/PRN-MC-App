@@ -33,7 +33,7 @@ const CENTROS_TRANSVERSAIS = [
   'Geral/Transversal',
 ];
 
-export default function CentrosCustoCards() {
+export default function CentrosCustoCards({ isCoordenador = false }) {
   const [drawerCentro, setDrawerCentro] = useState(null);
   const { data: rubricas = [] } = useQuery({
     queryKey: ['rubricas-centros-transversais'],
@@ -184,6 +184,7 @@ export default function CentrosCustoCards() {
         compras={compras}
         open={!!drawerCentro}
         onClose={() => setDrawerCentro(null)}
+        isCoordenador={isCoordenador}
       />
     </>
   );

@@ -9,6 +9,7 @@ import GerenciarRubricasMuseuDialog from '@/components/rubricas/GerenciarRubrica
 import RubricasMuseuEditor from '@/components/rubricas/RubricasMuseuEditor';
 import NovaRubricaDialog from '@/components/rubricas/NovaRubricaDialog';
 import NoturnoPampulhaCard from '@/components/compras/NoturnoPampulhaCard';
+import MuseuRubricasDrawer from '@/components/rubricas/MuseuRubricasDrawer';
 import SimposioCard from '@/components/compras/SimposioCard';
 import CentrosCustoCards from '@/components/compras/CentrosCustoCards';
 import { canManageRubricas } from '@/components/auth/permissions';
@@ -277,6 +278,7 @@ export default function RubricasPorMuseu() {
   const [museuAtivo, setMuseuAtivo] = useState(CENTROS_CUSTO[0]);
   const [showGerenciar, setShowGerenciar] = useState(false);
   const [showNovaRubrica, setShowNovaRubrica] = useState(false);
+  const [drawerMuseu, setDrawerMuseu] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [userPermission, setUserPermission] = useState(null);
 
@@ -467,7 +469,20 @@ export default function RubricasPorMuseu() {
 
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-          {resumoPorMuseu.map((item) => <MuseuCard key={item.museu} item={item} active={museuAtivo === item.museu} onClick={() => setMuseuAtivo(item.museu)} fmt={fmt} fmtPct={fmtPct} />)}
+          {resumoPorMuseu.map((item) => (
+            <div key={item.museu} className="relative group">
+              <MuseuCard item={item} active={museuAtivo === item.museu} onClick={() => setMuseuAtivo(item.museu)} fmt={fmt} fmtPct={fmtPct} />
+              {isCoordenador && (
+                <button
+                  onClick={e => { e.stopPropagation(); setDrawerMuseu(item); }}
+                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white border border-gray-200 rounded-lg px-2 py-1 text-[10px] font-medium text-gray-600 hover:bg-gray-50 shadow-sm z-10"
+                  title="Editar rubricas"
+                >
+                  ✏️ Rubricas
+                </button>
+              )}
+            </div>
+          ))}
         </div>
 
         {resumoPorMuseu.length > 0 && (
@@ -505,13 +520,23 @@ export default function RubricasPorMuseu() {
         )}
 
         {/* Cards de Centros de Custo Transversais */}
-        <CentrosCustoCards />
+        <CentrosCustoCards isCoordenador={isCoordenador} />
 
         {/* Card específico do 5º Aditivo — Simpósio do Patrimônio Cultural de BH */}
-        <SimposioCard />
+        <SimposioCard isCoordenador={isCoordenador} />
 
         {/* Card específico do 4º Aditivo — Noturno Pampulha */}
         <NoturnoPampulhaCard isCoordenador={isCoordenador} />
+
+        <MuseuRubricasDrawer
+          museu={drawerMuseu?.museu}
+          rubricas={Array.isArray(rubricasBanco) ? rubricasBanco : []}
+          compras={Array.isArray(comprasAprovadas) ? comprasAprovadas : []}
+          open={!!drawerMuseu}
+          onClose={() => setDrawerMuseu(null)}
+          isCoordenador={isCoordenador}
+          totais={drawerMuseu}
+        />
 
         <GerenciarRubricasMuseuDialog open={showGerenciar} onClose={() => setShowGerenciar(false)} />
         <NovaRubricaDialog open={showNovaRubrica} currentUser={currentUser}
