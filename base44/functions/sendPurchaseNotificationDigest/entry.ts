@@ -17,7 +17,14 @@ Deno.serve(async (req) => {
 
     const force = body.force === true;
 
-    // Buscar TODOS os pendentes (sem filtrar por batch_slot — digest único diário)
+    // ── Verificar dia útil (America/Sao_Paulo) ──
+    const nowBRT = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+    const diaSemana = nowBRT.getDay(); // 0=Dom, 6=Sab
+    if (!force && (diaSemana === 0 || diaSemana === 6)) {
+      return Response.json({ success: true, message: 'Fim de semana — nenhum e-mail enviado', itemsSent: 0 });
+    }
+
+    // Buscar TODOS os pendentes
     const pendingItems: any[] = await base44.asServiceRole.entities.PurchaseNotificationQueue.filter({
       status: 'pendente_lote'
     });
