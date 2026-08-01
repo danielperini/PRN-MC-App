@@ -103,10 +103,9 @@ export default function Tutoriais() {
     queryFn: () => base44.entities.TutorialVideo.filter({ ativo: true }, 'ordem', 100),
   });
 
-  // Auto-sync: dispara uma vez por sessão se banco estiver vazio após carregamento
+  // Auto-sync: dispara uma vez por sessão ao montar
   useEffect(() => {
     if (isLoading) return;
-    if (videos.length > 0) return;
     if (autoSyncRan.current) return;
     autoSyncRan.current = true;
 
@@ -126,7 +125,7 @@ export default function Tutoriais() {
     }
 
     runAutoSync();
-  }, [isLoading, videos.length]);
+  }, [isLoading]);
 
   const handleSync = async () => {
     setSyncing(true);
