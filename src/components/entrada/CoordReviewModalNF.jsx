@@ -202,6 +202,36 @@ export default function ReviewModalNF({ intake, onClose, onSaved, painelDadosIde
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
 
+  const [dividirEntreMuseus, setDividirEntreMuseus] = useState(false);
+  const [rateio, setRateio] = useState(DEFAULT_RATEIO);
+
+  // Fallback: extrai dados do nome do arquivo se IA não preencheu campos essenciais
+  const fallbackArquivo = extrairDadosDoNomeArquivo(intake.file_name_original);
+  const iaIncompleta = !ia.nf_numero && !ia.nf_emitente_nome && !ia.nf_valor_total;
+
+  const dataEmissaoNormalizada = normalizeDateToInput(dataEmissaoIA);
+  const dataEmissaoFinal = dataIAValida(dataEmissaoNormalizada)
+    ? dataEmissaoNormalizada
+    : (fallbackArquivo.nf_data_emissao_fallback || '');
+
+  const [form, setForm] = useState({
+    nf_numero: ia.nf_numero || fallbackArquivo.nf_numero || '',
+    nf_valor_total: ia.nf_valor_total || fallbackArquivo.nf_valor_total || '',
+    nf_data_emissao: dataEmissaoFinal,
+    nf_horario_emissao: ia.nf_horario_emissao || ia.horario_emissao || '',
+    nf_emitente_nome: ia.nf_emitente_nome || fallbackArquivo.nf_emitente_nome_fallback || '',
+    nf_emitente_cpf_cnpj: ia.nf_emitente_cpf_cnpj || intake.nf_emitente_cpf_cnpj || intake.fornecedor_cpf_cnpj || fallbackArquivo.nf_emitente_cpf_cnpj || '',
+    nf_destinatario_nome: ia.nf_destinatario_nome || '',
+    descricao_servico: ia.descricao_servico || fallbackArquivo.descricao_servico_fallback || '',
+    municipio: ia.municipio || intake.municipio || '',
+    competencia: ia.competencia || ia.competencia_sugerida || '',
+    centro_custo: ia.centro_custo_sugerido || intake.centro_custo || '',
+    rubrica_id: intake.rubrica_id_sugerida || '',
+    file_name_final: intake.file_name_final || intake.file_name_original,
+    meta_id: '',
+    tipo_gasto: ia.tipo_gasto || 'Serviço',
+  });
+
   const abrirSolicitarXml = useCallback(async () => {
     setShowSolicitarXmlPanel(true);
 
@@ -287,36 +317,6 @@ Equipe Museus Centro`;
       setEnviandoXml(false);
     }
   }, [destinatariosSelecionados, mensagemXml, form, intake, onSaved]);
-
-  const [dividirEntreMuseus, setDividirEntreMuseus] = useState(false);
-  const [rateio, setRateio] = useState(DEFAULT_RATEIO);
-
-  // Fallback: extrai dados do nome do arquivo se IA não preencheu campos essenciais
-  const fallbackArquivo = extrairDadosDoNomeArquivo(intake.file_name_original);
-  const iaIncompleta = !ia.nf_numero && !ia.nf_emitente_nome && !ia.nf_valor_total;
-
-  const dataEmissaoNormalizada = normalizeDateToInput(dataEmissaoIA);
-  const dataEmissaoFinal = dataIAValida(dataEmissaoNormalizada)
-    ? dataEmissaoNormalizada
-    : (fallbackArquivo.nf_data_emissao_fallback || '');
-
-  const [form, setForm] = useState({
-    nf_numero: ia.nf_numero || fallbackArquivo.nf_numero || '',
-    nf_valor_total: ia.nf_valor_total || fallbackArquivo.nf_valor_total || '',
-    nf_data_emissao: dataEmissaoFinal,
-    nf_horario_emissao: ia.nf_horario_emissao || ia.horario_emissao || '',
-    nf_emitente_nome: ia.nf_emitente_nome || fallbackArquivo.nf_emitente_nome_fallback || '',
-    nf_emitente_cpf_cnpj: ia.nf_emitente_cpf_cnpj || intake.nf_emitente_cpf_cnpj || intake.fornecedor_cpf_cnpj || fallbackArquivo.nf_emitente_cpf_cnpj || '',
-    nf_destinatario_nome: ia.nf_destinatario_nome || '',
-    descricao_servico: ia.descricao_servico || fallbackArquivo.descricao_servico_fallback || '',
-    municipio: ia.municipio || intake.municipio || '',
-    competencia: ia.competencia || ia.competencia_sugerida || '',
-    centro_custo: ia.centro_custo_sugerido || intake.centro_custo || '',
-    rubrica_id: intake.rubrica_id_sugerida || '',
-    file_name_final: intake.file_name_final || intake.file_name_original,
-    meta_id: '',
-    tipo_gasto: ia.tipo_gasto || 'Serviço',
-  });
 
   useEffect(() => {
     const normalized = normalizeDateToInput(dataEmissaoIA);
