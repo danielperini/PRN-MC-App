@@ -3,32 +3,24 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 const TUTORIAIS_FOLDER_ID = '1uoA5dDwINz6v7vxpF4nbAn4G16-LppkO';
 const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.avi', '.webm', '.mkv'];
 
-function tituloFromNome(nome) {
-  // Remove extensão e underscores/hifens
+function tituloFromNome(nome: string): string {
   return nome.replace(/\.[^.]+$/, '').replace(/[_-]/g, ' ').trim();
 }
 
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-    // Buscar token do connector googledrive (BYO_SHARED workspace connector)
+    // Obter token do conector Google Drive (shared)
     let accessToken: string;
     try {
-      const connection = await base44.asServiceRole.connectors.getConnection('6a6d5c4b784a7fe768da2d1d');
-      accessToken = connection.access_token;
-    } catch (connErr) {
-      // Fallback: tentar pelo tipo (shared connector)
-      try {
-        const connection2 = await base44.asServiceRole.connectors.getConnection('googledrive');
-        accessToken = connection2.access_token;
-      } catch (e2) {
-        return Response.json({
-          error: 'Conector Google Drive não conectado. Acesse Configurações > Conectores e reconecte o Google Drive.'
-        }, { status: 200 });
-      }
+      const { accessToken: token } = await base44.asServiceRole.connectors.getConnection('googledrive');
+      if (!token) throw new Error('Token vazio');
+      accessToken = token;
+    } catch (e) {
+      return Response.json({
+        error: `Conector Google Drive sem token válido: ${e?.message}. Reconecte em Configurações > Conectores.`
+      });
     }
 
     // Listar arquivos na pasta Tutoriais
@@ -36,17 +28,18 @@ Deno.serve(async (req) => {
     const listRes = await fetch(listUrl, {
       headers: { Authorization: `Bearer ${accessToken}` }
     });
+
     if (!listRes.ok) {
       const errText = await listRes.text();
       return Response.json({
-        error: `Pasta de tutoriais não encontrada ou sem permissão de leitura (ID: ${TUTORIAIS_FOLDER_ID}). Status HTTP: ${listRes.status}. Detalhe: ${errText}`
-      }, { status: 200 });
+        error: `Pasta de tutoriais não encontrada ou sem permissão (ID: ${TUTORIAIS_FOLDER_ID}). Status: ${listRes.status}. Detalhe: ${errText}`
+      });
     }
+
     const listData = await listRes.json();
     const allFiles = listData.files || [];
 
-    // Filtrar apenas arquivos de vídeo
-    const videoFiles = allFiles.filter(f =>
+    const videoFiles = allFiles.filter((f: any) =>
       VIDEO_EXTENSIONS.some(ext => f.name.toLowerCase().endsWith(ext)) ||
       (f.mimeType && f.mimeType.startsWith('video/'))
     );
@@ -60,7 +53,6 @@ Deno.serve(async (req) => {
       const embed_url = `https://drive.google.com/file/d/${file.id}/preview`;
       const titulo = tituloFromNome(file.name);
 
-      // Buscar se já existe
       const existentes = await sr.entities.TutorialVideo.filter({ drive_file_id: file.id });
 
       if (existentes && existentes.length > 0) {
@@ -100,10 +92,11 @@ Deno.serve(async (req) => {
       total: videoFiles.length,
       criados,
       atualizados,
-      message: `${videoFiles.length} vídeo(s) encontrado(s): ${criados} novo(s), ${atualizados} atualizado(s).`
+      message: `${videoFiles.length} vídeo(s): ${criados} novo(s), ${atualizados} atualizado(s).`
     });
-  } catch (error) {
-    console.error('[sincronizarTutoriaisDrive] Erro inesperado:', error.message);
-    return Response.json({ error: `Erro inesperado: ${error.message}` }, { status: 200 });
+
+  } catch (error: any) {
+    console.error('[sincronizarTutoriaisDrive] Erro:', error.message);
+    return Response.json({ error: `Erro inesperado: ${error.message}` });
   }
 });
