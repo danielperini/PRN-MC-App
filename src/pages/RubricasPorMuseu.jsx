@@ -9,6 +9,7 @@ import GerenciarRubricasMuseuDialog from '@/components/rubricas/GerenciarRubrica
 import RubricasMuseuEditor from '@/components/rubricas/RubricasMuseuEditor';
 import NovaRubricaDialog from '@/components/rubricas/NovaRubricaDialog';
 import NoturnoPampulhaCard from '@/components/compras/NoturnoPampulhaCard';
+import SimposioCard from '@/components/compras/SimposioCard';
 import CentrosCustoCards from '@/components/compras/CentrosCustoCards';
 import { canManageRubricas } from '@/components/auth/permissions';
 import OrcamentoPorGrupoSection from '@/components/compras/OrcamentoPorGrupoSection';
@@ -505,6 +506,9 @@ export default function RubricasPorMuseu() {
 
         {/* Cards de Centros de Custo Transversais */}
         <CentrosCustoCards />
+
+        {/* Card específico do 5º Aditivo — Simpósio do Patrimônio Cultural de BH */}
+        <SimposioCard />
 
         {/* Card específico do 4º Aditivo — Noturno Pampulha */}
         <NoturnoPampulhaCard isCoordenador={isCoordenador} />
