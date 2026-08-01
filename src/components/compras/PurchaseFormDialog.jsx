@@ -1291,6 +1291,8 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
 
     // Filtro por centro de custo
     const matchCentro = (r) => {
+      // Rubricas do 5º Aditivo (Simpósio) sempre aparecem, independente do centro selecionado
+      if (r.origem_recurso === '5º ADITIVO' || String(r.grupo || '').includes('Simpósio')) return true;
       if (!form.centro_custo) return true;
       const cc = String(form.centro_custo).toUpperCase().replace('MAB', 'MHAB').trim();
       const rc = String(r.museu_codigo || '').toUpperCase().replace('MAB', 'MHAB').trim();
@@ -1313,10 +1315,13 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
       filtradas = [atual, ...filtradas];
     }
 
-    return filtradas.map((r) => ({
-      id: r.id,
-      label: r.rubrica || r.nome || r.id,
-    }));
+    return filtradas.map((r) => {
+      const isSimpósio = r.origem_recurso === '5º ADITIVO' || String(r.grupo || '').includes('Simpósio');
+      const label = isSimpósio
+        ? `[5º Aditivo] ${r.rubrica || r.nome || r.id}`
+        : (r.rubrica || r.nome || r.id);
+      return { id: r.id, label };
+    });
   }, [rubricas, form.meta_id, form.centro_custo, form.rubrica_id]);
 
   const existingFileUrl =
