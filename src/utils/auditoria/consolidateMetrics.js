@@ -89,96 +89,109 @@ function buildOrphanPhotoIssues(orphanPhotos = []) {
   }];
 }
 
+const SAFE_EMPTY_METRICS = {
+  activities: { total: 0, items: [], publicas: 0, internas: 0, semMeta: 0, byMonth: [], byMuseum: [] },
+  audience: { publicoTotal: 0, byMuseum: [] },
+  summary: { consistencyScore: 0, status: 'green', errors: 0, warnings: 0, infos: 0, issueCount: 0 },
+  issues: [],
+  reports: { total: 0, approved: 0, items: [] },
+};
+
 export function consolidateMetrics(datasets = {}, options = {}) {
-  const filter = options.filter || buildTemporalFilter(options.period || {});
-  const reports = withReportAuditFields(datasets.reports || []);
-  const programacao = datasets.programacao || [];
-  const rubricas = datasets.rubricas || [];
-  const metas = datasets.metas || [];
-  const photos = datasets.photos || datasets.galeria || datasets.attachments || [];
-  const presenceRecords = datasets.presenceRecords || datasets.presencas || [];
+  try {
+    const filter = options.filter || buildTemporalFilter(options.period || {});
+    const reports = withReportAuditFields(datasets.reports || []);
+    const programacao = datasets.programacao || [];
+    const rubricas = datasets.rubricas || [];
+    const metas = datasets.metas || [];
+    const photos = datasets.photos || datasets.galeria || datasets.attachments || [];
+    const presenceRecords = datasets.presenceRecords || datasets.presencas || [];
 
-  const activities = reconcileActivities(reports, programacao, filter);
-  const filteredReports = filter?.from || filter?.to
-    ? reports.filter((report) => filter.contains(report._date))
-    : reports;
+    const activities = reconcileActivities(reports, programacao, filter);
+    const filteredReports = filter?.from || filter?.to
+      ? reports.filter((report) => filter.contains(report._date))
+      : reports;
 
-  const approvedFilteredReports = filteredReports.filter(isApprovedReport);
-  const presenceAudience = consolidatePresenceAudience(presenceRecords, { filter, activities: activities.activities });
-  const audience = reconcileAudienceTotals({ reports: approvedFilteredReports, activities: activities.activities, presenceAudience });
-  const financeiro = reconcileFinancialTotals(rubricas, options.financeiro || {});
-  const gallery = reconcileGallery(photos, activities.activities);
+    const approvedFilteredReports = filteredReports.filter(isApprovedReport);
+    const presenceAudience = consolidatePresenceAudience(presenceRecords, { filter, activities: activities.activities });
+    const audience = reconcileAudienceTotals({ reports: approvedFilteredReports, activities: activities.activities, presenceAudience });
+    const financeiro = reconcileFinancialTotals(rubricas, options.financeiro || {});
+    const gallery = reconcileGallery(photos, activities.activities);
 
-  const reportValidation = validateReports(filteredReports);
-  const programacaoValidation = validateProgramacao(programacao);
-  const metaValidation = validateMetas({ activities: activities.activities, metas });
-  const rubricaValidation = validateRubricas(rubricas);
-  const exceptionalRubricaValidation = validateExceptionalRubricas(rubricas);
-  const duplicateActivityIssues = buildDuplicateActivityIssues(activities.duplicateActivities);
-  const orphanPhotoIssues = buildOrphanPhotoIssues(gallery.orphanPhotos);
+    const reportValidation = validateReports(filteredReports);
+    const programacaoValidation = validateProgramacao(programacao);
+    const metaValidation = validateMetas({ activities: activities.activities, metas });
+    const rubricaValidation = validateRubricas(rubricas);
+    const exceptionalRubricaValidation = validateExceptionalRubricas(rubricas);
+    const duplicateActivityIssues = buildDuplicateActivityIssues(activities.duplicateActivities);
+    const orphanPhotoIssues = buildOrphanPhotoIssues(gallery.orphanPhotos);
 
-  const preliminary = {
-    period: filter,
-    reports: {
-      total: filteredReports.length,
-      approved: approvedFilteredReports.length,
-      items: filteredReports,
-    },
-    activities: {
-      total: activities.activities.length,
-      publicas: activities.publicActivities.length,
-      internas: activities.internalActivities.length,
-      semMeta: activities.activitiesWithoutMeta.length,
-      items: activities.activities,
-      duplicateActivities: activities.duplicateActivities,
-      duplicateActivitiesForAudit: duplicateActivityIssues,
-      consolidatedAudienceGroups: activities.consolidatedAudienceGroups,
-      byMonth: groupActivitiesByMonth(activities.activities),
-      byMuseum: groupActivitiesByMuseum(activities.activities),
-    },
-    audience,
-    presence: presenceAudience,
-    financeiro,
-    gallery,
-  };
+    const preliminary = {
+      period: filter,
+      reports: {
+        total: filteredReports.length,
+        approved: approvedFilteredReports.length,
+        items: filteredReports,
+      },
+      activities: {
+        total: activities.activities.length,
+        publicas: activities.publicActivities.length,
+        internas: activities.internalActivities.length,
+        semMeta: activities.activitiesWithoutMeta.length,
+        items: activities.activities,
+        duplicateActivities: activities.duplicateActivities,
+        duplicateActivitiesForAudit: duplicateActivityIssues,
+        consolidatedAudienceGroups: activities.consolidatedAudienceGroups,
+        byMonth: groupActivitiesByMonth(activities.activities),
+        byMuseum: groupActivitiesByMuseum(activities.activities),
+      },
+      audience,
+      presence: presenceAudience,
+      financeiro,
+      gallery,
+    };
 
-  const dashboardValidation = validateDashboardMetrics(preliminary);
-  const issues = [
-    ...reportValidation.issues,
-    ...programacaoValidation.issues,
-    ...metaValidation.issues,
-    ...rubricaValidation.issues,
-    ...exceptionalRubricaValidation.issues,
-    ...financeiro.inconsistencies,
-    ...dashboardValidation.issues,
-    ...duplicateActivityIssues,
-    ...gallery.duplicatePhotos.map((item) => ({
-      type: 'DUPLICATE_PHOTO',
-      severity: 'info',
-      message: `Foto possivelmente duplicada: ${item.duplicate?.nome || item.duplicate?.name || item.key}`,
-      entityId: item.duplicate?.id,
-    })),
-    ...orphanPhotoIssues,
-  ];
+    const dashboardValidation = validateDashboardMetrics(preliminary);
+    const issues = [
+      ...reportValidation.issues,
+      ...programacaoValidation.issues,
+      ...metaValidation.issues,
+      ...rubricaValidation.issues,
+      ...exceptionalRubricaValidation.issues,
+      ...financeiro.inconsistencies,
+      ...dashboardValidation.issues,
+      ...duplicateActivityIssues,
+      ...gallery.duplicatePhotos.map((item) => ({
+        type: 'DUPLICATE_PHOTO',
+        severity: 'info',
+        message: `Foto possivelmente duplicada: ${item.duplicate?.nome || item.duplicate?.name || item.key}`,
+        entityId: item.duplicate?.id,
+      })),
+      ...orphanPhotoIssues,
+    ];
 
-  const errors = issues.filter((item) => item.severity === 'error').length;
-  const warnings = issues.filter((item) => item.severity === 'warning').length;
-  const consistencyScore = Math.max(0, Math.round(100 - errors * 12 - warnings * 4 - Math.max(0, issues.length - errors - warnings)));
+    const errors = issues.filter((item) => item.severity === 'error').length;
+    const warnings = issues.filter((item) => item.severity === 'warning').length;
+    const consistencyScore = Math.max(0, Math.round(100 - errors * 12 - warnings * 4 - Math.max(0, issues.length - errors - warnings)));
 
-  return {
-    ...preliminary,
-    issues,
-    summary: {
-      consistencyScore,
-      status: errors > 0 ? 'red' : warnings > 0 ? 'yellow' : 'green',
-      errors,
-      warnings,
-      infos: issues.length - errors - warnings,
-      issueCount: issues.length,
-      officialAudience: audience.publicoTotal,
-      officialActivities: activities.activities.length,
-      officialBudget: financeiro.officialTotal,
-      officialUsed: financeiro.totalUtilizado,
-    },
-  };
+    return {
+      ...preliminary,
+      issues,
+      summary: {
+        consistencyScore,
+        status: errors > 0 ? 'red' : warnings > 0 ? 'yellow' : 'green',
+        errors,
+        warnings,
+        infos: issues.length - errors - warnings,
+        issueCount: issues.length,
+        officialAudience: audience.publicoTotal,
+        officialActivities: activities.activities.length,
+        officialBudget: financeiro.officialTotal,
+        officialUsed: financeiro.totalUtilizado,
+      },
+    };
+  } catch (error) {
+    console.warn('[consolidateMetrics] erro ao consolidar métricas — retornando estrutura segura:', error);
+    return SAFE_EMPTY_METRICS;
+  }
 }

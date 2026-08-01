@@ -14,6 +14,7 @@ import RecentReportsCard from '../components/dashboard/RecentReportsCard';
 import ProfessionalGeneralCharts from '../components/dashboard/ProfessionalGeneralCharts';
 import MetasAditivoSection from '../components/dashboard/MetasAditivoSection';
 import { consolidateOfficialDashboardMetrics } from '@/utils/auditoria/institutionalMetrics';
+import SectionErrorBoundary from '@/components/common/SectionErrorBoundary';
 
 const APPROVED = new Set(['APPROVED', 'APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN']);
 const SUBMITTED = new Set(['SUBMITTED', 'ENVIADO', 'ENVIADO_REVISAO', 'AGUARDANDO_REVISAO', 'SOLICITADO']);
@@ -232,14 +233,14 @@ function DashboardProfissionalInner() {
 
   const { data: myReports = [], isLoading } = useQuery({ queryKey: ['my-reports-prof', currentUser?.email], queryFn: () => base44.entities.Report.filter({ created_by: currentUser?.email }, '-created_date', 100), enabled: !!currentUser?.email });
   const { data: myActivities = [], isLoading: isLoadingActivities } = useQuery({ queryKey: ['my-activities-prof', currentUser?.email, myReports], queryFn: async () => getReportsActivities(myReports), enabled: !!currentUser?.email && myReports.length > 0 });
-  const { data: myAttachments = [] } = useQuery({ queryKey: ['my-attachments-prof', myReports], queryFn: async () => { const attachments = []; for (const report of myReports) { try { attachments.push(...await base44.entities.Attachment.filter({ report_id: report.id }, '-created_date')); } catch {} } return attachments; }, enabled: myReports.length > 0 });
+  const { data: myAttachments = [] } = useQuery({ queryKey: ['my-attachments-prof', myReports], queryFn: async () => { try { const attachments = []; for (const report of myReports) { try { attachments.push(...await base44.entities.Attachment.filter({ report_id: report.id }, '-created_date')); } catch {} } return attachments; } catch { return []; } }, enabled: myReports.length > 0, staleTime: 1000 * 60 * 5 });
   const { data: myRequests = [] } = useQuery({ queryKey: ['my-purchase-requests-prof', currentUser?.email], queryFn: async () => { try { const list = await base44.entities.PurchaseRequest.list('-created_date', 300); return (Array.isArray(list) ? list : []).filter((item) => isMine(item, currentUser?.email)); } catch { return []; } }, enabled: !!currentUser?.email });
-  const { data: myProgramacao = [] } = useQuery({ queryKey: ['my-programacao-prof', currentUser?.email], queryFn: async () => { try { const list = await base44.entities.Programacao.list('-data_realizacao', 200); return (Array.isArray(list) ? list : []).filter((item) => isMine(item, currentUser?.email)); } catch { return []; } }, enabled: !!currentUser?.email });
+  const { data: myProgramacao = [] } = useQuery({ queryKey: ['my-programacao-prof', currentUser?.email], queryFn: async () => { try { const list = await base44.entities.Programacao.list('-data_realizacao', 200); return (Array.isArray(list) ? list : []).filter((item) => isMine(item, currentUser?.email)); } catch { return []; } }, enabled: !!currentUser?.email, staleTime: 1000 * 60 * 5 });
   const { data: allReports = [], isLoading: isLoadingAllReports } = useQuery({ queryKey: ['all-reports-prof-general'], queryFn: () => base44.entities.Report.list('-created_date', 500), enabled: !!currentUser?.email });
   const { data: allProgramacao = [], isLoading: isLoadingAllProgramacao } = useQuery({ queryKey: ['all-programacao-prof-general'], queryFn: () => base44.entities.Programacao.list('-data_realizacao', 500), enabled: !!currentUser?.email });
   const { data: rubricas = [] } = useQuery({ queryKey: ['dashboard-profissional-rubricas'], queryFn: async () => { try { const data = await base44.entities.Rubrica.list('rubrica', 1000); return Array.isArray(data) ? data.filter((r) => r.ativo !== false) : []; } catch { return []; } }, enabled: !!currentUser?.email });
 
-  const approvedMetrics = useMemo(() => consolidateOfficialDashboardMetrics({ reports: allReports, programacao: allProgramacao, rubricas }), [allReports, allProgramacao, rubricas]);
+  const approvedMetrics = useMemo(() => { try { return consolidateOfficialDashboardMetrics({ reports: allReports, programacao: allProgramacao, rubricas }); } catch { return { activities: { total: 0, items: [] }, audience: { publicoTotal: 0, byMuseum: [] }, summary: {} }; } }, [allReports, allProgramacao, rubricas]);
   const publicByMuseum = useMemo(() => Object.fromEntries((approvedMetrics.audience?.byMuseum || []).map((item) => [item.museu, item.total])), [approvedMetrics]);
   const museuAtualPublico = userMuseu ? toNumber(publicByMuseum[userMuseu]) : myActivities.reduce((sum, a) => sum + getActivityPublic(a), 0);
   const recentReports = myReports.slice(0, 5);
@@ -252,12 +253,17 @@ function DashboardProfissionalInner() {
           <div><h1 className="text-3xl font-semibold text-foreground">Painel</h1><p className="mt-1 text-sm text-muted-foreground">Bem-vindo, {currentUser?.full_name || ''}! Sua atuação nas instituições{userMuseu ? ` · ${userMuseu}` : ''}</p></div>
           <Link to="/ReportEditor?novo=1"><Button className="gap-2"><Plus className="h-4 w-4" />Novo Relatório</Button></Link>
         </div>
-        <div className="mb-6 space-y-6"><GaleriaTickerCarousel /><NewsCarousel /><DiariamenteNosMuseus /><MetasAditivoSection rubricas={rubricas} /></div>
-        {!isLoadingAllReports && !isLoadingAllProgramacao && <ProfessionalGeneralCharts reports={allReports} programacao={allProgramacao} />}
-        {!isLoading && <PersonalCards myReports={myReports} myActivities={myActivities} myAttachments={myAttachments} myRequests={myRequests} myProgramacao={myProgramacao} userMuseu={userMuseu} />}
-        {!isLoading && <div className="mb-8"><h2 className="mb-4 text-xl font-semibold text-foreground">Dados</h2><ProfessionalStats stats={stats} /></div>}
-        {recentReports.length > 0 && <div className="mb-8"><h2 className="mb-4 text-xl font-semibold text-foreground">Relatórios Recentes</h2><RecentReportsCard reports={recentReports} /></div>}
-        <ProfessionalDataSection myReports={myReports} myActivities={myActivities} isLoadingActivities={isLoadingActivities} />
+        <div className="mb-6 space-y-6">
+          <SectionErrorBoundary title="Galeria"><GaleriaTickerCarousel /></SectionErrorBoundary>
+          <SectionErrorBoundary title="Notícias"><NewsCarousel /></SectionErrorBoundary>
+          <SectionErrorBoundary title="Diariamente nos Museus"><DiariamenteNosMuseus /></SectionErrorBoundary>
+          <SectionErrorBoundary title="Metas do Aditivo"><MetasAditivoSection rubricas={rubricas} /></SectionErrorBoundary>
+        </div>
+        {!isLoadingAllReports && !isLoadingAllProgramacao && <SectionErrorBoundary title="Gráficos Gerais"><ProfessionalGeneralCharts reports={allReports} programacao={allProgramacao} /></SectionErrorBoundary>}
+        {!isLoading && <SectionErrorBoundary title="Resumo Pessoal"><PersonalCards myReports={myReports} myActivities={myActivities} myAttachments={myAttachments} myRequests={myRequests} myProgramacao={myProgramacao} userMuseu={userMuseu} /></SectionErrorBoundary>}
+        {!isLoading && <SectionErrorBoundary title="Dados"><div className="mb-8"><h2 className="mb-4 text-xl font-semibold text-foreground">Dados</h2><ProfessionalStats stats={stats} /></div></SectionErrorBoundary>}
+        {recentReports.length > 0 && <SectionErrorBoundary title="Relatórios Recentes"><div className="mb-8"><h2 className="mb-4 text-xl font-semibold text-foreground">Relatórios Recentes</h2><RecentReportsCard reports={recentReports} /></div></SectionErrorBoundary>}
+        <SectionErrorBoundary title="Atividades"><ProfessionalDataSection myReports={myReports} myActivities={myActivities} isLoadingActivities={isLoadingActivities} /></SectionErrorBoundary>
         {!isLoading && myReports.length === 0 && <div className="mt-8 rounded-2xl border border-dashed border-border p-12 text-center"><p className="font-medium text-foreground">Você ainda não tem relatórios</p><p className="mt-2 text-sm text-muted-foreground">Comece criando um novo relatório mensal para registrar suas atividades e atuação.</p><Link to="/ReportEditor?novo=1"><Button className="mt-6 gap-2"><Plus className="h-4 w-4" />Criar Primeiro Relatório</Button></Link></div>}
       </div>
     </div>

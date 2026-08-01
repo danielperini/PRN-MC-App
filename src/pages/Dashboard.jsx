@@ -26,6 +26,7 @@ import DashboardPatrocinador from './DashboardPatrocinador';
 import GaleriaTickerCarousel from '../components/dashboard/GaleriaTickerCarousel';
 import DiariamenteNosMuseus from '../components/dashboard/DiariamenteNosMuseus';
 import { consumeDashboardPriorityRefresh } from '@/utils/dashboardRefresh';
+import SectionErrorBoundary from '@/components/common/SectionErrorBoundary';
 import WelcomeSplash from '@/components/dashboard/WelcomeSplash';
 
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
@@ -127,32 +128,36 @@ function DashboardCoordenadorView({
           </div>
         </div>
 
-        <GaleriaTickerCarousel />
-        <NewsCarousel />
-        <DiariamenteNosMuseus />
+        <SectionErrorBoundary title="Galeria"><GaleriaTickerCarousel /></SectionErrorBoundary>
+        <SectionErrorBoundary title="Notícias"><NewsCarousel /></SectionErrorBoundary>
+        <SectionErrorBoundary title="Diariamente nos Museus"><DiariamenteNosMuseus /></SectionErrorBoundary>
 
-        <ComplianceStats currentMonth={currentMonth} currentYear={currentYear} />
-        <BudgetByGroupCards rubricas={rubricas} isCoordenador={isCoordenador} />
+        <SectionErrorBoundary title="Conformidade"><ComplianceStats currentMonth={currentMonth} currentYear={currentYear} /></SectionErrorBoundary>
+        <SectionErrorBoundary title="Orçamento por Grupo"><BudgetByGroupCards rubricas={rubricas} isCoordenador={isCoordenador} /></SectionErrorBoundary>
 
-        <CoordDashboard
-          reports={isCoordenador ? allReports : myReports}
-          isLoading={loadingAll}
-        />
+        <SectionErrorBoundary title="Painel de Coordenação">
+          <CoordDashboard
+            reports={isCoordenador ? allReports : myReports}
+            isLoading={loadingAll}
+          />
+        </SectionErrorBoundary>
 
-        <ExecutiveIndicators
-          reports={isCoordenador ? allReports : myReports}
-          rubricas={rubricas}
-        />
+        <SectionErrorBoundary title="Indicadores Executivos">
+          <ExecutiveIndicators
+            reports={isCoordenador ? allReports : myReports}
+            rubricas={rubricas}
+          />
+        </SectionErrorBoundary>
 
-        <MetasCumprimentoPorMuseu rubricas={rubricas} />
+        <SectionErrorBoundary title="Metas por Museu"><MetasCumprimentoPorMuseu rubricas={rubricas} /></SectionErrorBoundary>
 
-        <MetasAditivoSection rubricas={rubricas} filtro={filtroMetas} />
+        <SectionErrorBoundary title="Metas do Aditivo"><MetasAditivoSection rubricas={rubricas} filtro={filtroMetas} /></SectionErrorBoundary>
 
-        <ResumoConsolidadoNoturnoMeta20 dataInicio={filtroMetas?.dataInicio} dataFim={filtroMetas?.dataFim} />
+        <SectionErrorBoundary title="Noturno Meta 20"><ResumoConsolidadoNoturnoMeta20 dataInicio={filtroMetas?.dataInicio} dataFim={filtroMetas?.dataFim} /></SectionErrorBoundary>
 
-        <CumprimentoMetasFisicas dataInicio={filtroMetas?.dataInicio} dataFim={filtroMetas?.dataFim} />
+        <SectionErrorBoundary title="Cumprimento de Metas"><CumprimentoMetasFisicas dataInicio={filtroMetas?.dataInicio} dataFim={filtroMetas?.dataFim} /></SectionErrorBoundary>
 
-        <ResumoAtividadesPorMeta />
+        <SectionErrorBoundary title="Resumo por Meta"><ResumoAtividadesPorMeta /></SectionErrorBoundary>
       </div>
     </div>
   );
@@ -560,14 +565,14 @@ function DashboardInner() {
             />
           ) : null}
 
-          <GaleriaTickerCarousel />
-          <NewsCarousel />
-          <DiariamenteNosMuseus />
-          <MetasAditivoSection rubricas={rubricas} filtro={filtroMetas} />
-          <ResumoConsolidadoNoturnoMeta20 dataInicio={filtroMetas.dataInicio} dataFim={filtroMetas.dataFim} />
-          <CumprimentoMetasFisicas dataInicio={filtroMetas.dataInicio} dataFim={filtroMetas.dataFim} />
-          <ResumoAtividadesPorMeta />
-          <DashboardPatrocinador />
+          <SectionErrorBoundary title="Galeria"><GaleriaTickerCarousel /></SectionErrorBoundary>
+          <SectionErrorBoundary title="Notícias"><NewsCarousel /></SectionErrorBoundary>
+          <SectionErrorBoundary title="Diariamente nos Museus"><DiariamenteNosMuseus /></SectionErrorBoundary>
+          <SectionErrorBoundary title="Metas do Aditivo"><MetasAditivoSection rubricas={rubricas} filtro={filtroMetas} /></SectionErrorBoundary>
+          <SectionErrorBoundary title="Noturno Meta 20"><ResumoConsolidadoNoturnoMeta20 dataInicio={filtroMetas.dataInicio} dataFim={filtroMetas.dataFim} /></SectionErrorBoundary>
+          <SectionErrorBoundary title="Cumprimento de Metas"><CumprimentoMetasFisicas dataInicio={filtroMetas.dataInicio} dataFim={filtroMetas.dataFim} /></SectionErrorBoundary>
+          <SectionErrorBoundary title="Resumo por Meta"><ResumoAtividadesPorMeta /></SectionErrorBoundary>
+          <SectionErrorBoundary title="Painel Observador"><DashboardPatrocinador /></SectionErrorBoundary>
         </div>
       </div>
     );
