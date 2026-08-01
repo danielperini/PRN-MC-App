@@ -18,7 +18,8 @@ function fmtBRL(v) {
 // Valores contratuais oficiais — referência para o banner
 const CONTRATO_3_ADITIVO = 1320000;
 const CONTRATO_4_ADITIVO = 81719.85;
-const CONTRATO_TOTAL = CONTRATO_3_ADITIVO + CONTRATO_4_ADITIVO;
+const CONTRATO_5_ADITIVO = 15800;
+const CONTRATO_TOTAL = CONTRATO_3_ADITIVO + CONTRATO_4_ADITIVO + CONTRATO_5_ADITIVO;
 
 function AditivoBlock({ titulo, badge, badgeColor, totalPrevisto, totalUtilizado, saldo, rubricasList, qtdNFs, qtdDuplicatas }) {
   const pct = totalPrevisto > 0 ? ((totalUtilizado / totalPrevisto) * 100) : 0;
@@ -151,7 +152,7 @@ export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
 
       <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-700">
         <span className="font-semibold">Base contratual oficial:</span> {fmtBRL(CONTRATO_TOTAL)}
-        <span className="ml-2 text-gray-500">(3º aditivo {fmtBRL(CONTRATO_3_ADITIVO)} + 4º aditivo {fmtBRL(CONTRATO_4_ADITIVO)})</span>
+        <span className="ml-2 text-gray-500">(3º aditivo {fmtBRL(CONTRATO_3_ADITIVO)} + 4º aditivo {fmtBRL(CONTRATO_4_ADITIVO)} + 5º aditivo {fmtBRL(CONTRATO_5_ADITIVO)})</span>
         <span className="ml-3 font-semibold">Base rubricas cadastradas:</span> {fmtBRL(totais3.totalPrevisto + totais4.totalPrevisto)}
         <span className="block mt-1 text-gray-500">O previsto exibido nos cards é a soma real das rubricas cadastradas. O 4º Aditivo apura o Noturno Pampulha. Rubricas "Noturno 2026" pertencem ao 3º Aditivo.</span>
       </div>
