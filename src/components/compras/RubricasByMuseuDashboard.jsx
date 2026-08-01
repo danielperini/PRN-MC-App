@@ -148,6 +148,18 @@ export default function RubricasByMuseuDashboard({ rubricas = [], purchases = []
       };
     });
 
+    // Calcular utilizado por rubrica_id a partir das compras aprovadas
+    const STATUS_APROVADOS = new Set(['APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO', 'APROVADO']);
+    const utilizadoPorRubricaId = {};
+    (purchases || []).forEach(c => {
+      const rid = c.rubrica_id || c.budgetline_id;
+      if (!rid) return;
+      const status = String(c.status || '').toUpperCase();
+      if (!STATUS_APROVADOS.has(status)) return;
+      const val = toNumber(c.valor_pago || c.valor_aprovado_admin || c.valor_aprovado || c.valor_solicitado);
+      utilizadoPorRubricaId[rid] = (utilizadoPorRubricaId[rid] || 0) + val;
+    });
+
     // Deduplicar rubricas por id
     const seen = new Set();
     const unicas = (rubricas || []).filter(r => {
@@ -159,13 +171,15 @@ export default function RubricasByMuseuDashboard({ rubricas = [], purchases = []
     unicas.forEach((r) => {
       const centro = classificarRubrica(r);
       if (!centro || !map[centro]) {
-        // Garantir que centro existe (criar dinamicamente se necessário)
         if (centro && !map[centro]) map[centro] = { museu: centro, rubricas: [], totalPrevisto: 0, totalUtilizado: 0, totalDisponivel: 0 };
         if (!centro || !map[centro]) return;
       }
 
       const valor = toNumber(r?.valor_rubrica || r?.valor_total);
-      const utilizado = toNumber(r?.valor_utilizado);
+      // Usar compras aprovadas como fonte de verdade para utilizado
+      const utilizado = utilizadoPorRubricaId[r.id] !== undefined
+        ? utilizadoPorRubricaId[r.id]
+        : toNumber(r?.valor_utilizado);
       const disponivel = valor - utilizado;
 
       map[centro].rubricas.push({
@@ -181,21 +195,9 @@ export default function RubricasByMuseuDashboard({ rubricas = [], purchases = []
       map[centro].totalDisponivel += disponivel;
     });
 
-    // Sobrescrever previstos com valores contratuais oficiais
-    const PREVISTOS_OFICIAIS = {
-      'Noturno 2026': 1320000,
-      'Noturno Pampulha': 81719.85,
-    };
-    Object.entries(PREVISTOS_OFICIAIS).forEach(([centro, previsto]) => {
-      if (map[centro] && map[centro].rubricas.length > 0) {
-        map[centro].totalPrevisto = previsto;
-        map[centro].totalDisponivel = previsto - map[centro].totalUtilizado;
-      }
-    });
-
     // Retorna apenas centros que têm rubricas
     return Object.values(map).filter((d) => d.rubricas.length > 0);
-  }, [rubricas]);
+  }, [rubricas, purchases]);
 
   // Calcular status por centro de custo
   const statusPorMuseu = useMemo(() => {

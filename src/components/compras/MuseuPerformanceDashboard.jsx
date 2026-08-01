@@ -16,14 +16,28 @@ export default function MuseuPerformanceDashboard({ purchases = [], rubricas = [
   const museus = ['MHAB', 'MIS', 'MUMO'];
 
   const performanceData = useMemo(() => {
+    // Calcular utilizado por centro_custo a partir das compras aprovadas
+    const STATUS_APROVADOS = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
+    const utilizadoPorCentro = {};
+    (purchases || []).forEach(p => {
+      const status = String(p?.status || '').toUpperCase();
+      if (!STATUS_APROVADOS.has(status)) return;
+      const cc = String(p?.centro_custo || '').trim().toUpperCase();
+      const val = toNumber(p.valor_pago || p.valor_aprovado_admin || p.valor_aprovado || p.valor_solicitado);
+      if (cc === 'MIS BH') { utilizadoPorCentro['MIS'] = (utilizadoPorCentro['MIS'] || 0) + val; }
+      else if (cc === 'MAB') { utilizadoPorCentro['MHAB'] = (utilizadoPorCentro['MHAB'] || 0) + val; }
+      else { utilizadoPorCentro[cc] = (utilizadoPorCentro[cc] || 0) + val; }
+    });
+
     return museus.map((museu) => {
       const purchasesMuseu = (purchases || []).filter((p) => {
         const centro = String(p?.centro_custo || '').trim().toUpperCase();
-        return centro === museu || centro.includes(museu);
+        return centro === museu || centro === (museu === 'MIS' ? 'MIS BH' : '') || centro === (museu === 'MHAB' ? 'MAB' : '');
       });
 
       const rubricasMuseu = (rubricas || []).filter((r) => {
-        return r?.rubrica?.includes(museu) || r?.grupo?.includes(museu) || r?.meta?.includes(museu);
+        const cc = String(r?.centro_custo || '').trim().toUpperCase();
+        return cc === museu || cc === (museu === 'MIS' ? 'MIS BH' : '') || cc === (museu === 'MHAB' ? 'MAB' : '');
       });
 
       const rascunho = purchasesMuseu.filter((p) => String(p?.status || '').toUpperCase() === 'RASCUNHO');
@@ -36,7 +50,8 @@ export default function MuseuPerformanceDashboard({ purchases = [], rubricas = [
       const reprovados = purchasesMuseu.filter((p) => String(p?.status || '').toUpperCase() === 'RECUSADO');
 
       const totalOrcado = rubricasMuseu.reduce((acc, r) => acc + toNumber(r.valor_rubrica || r.valor_total), 0);
-      const totalUtilizado = rubricasMuseu.reduce((acc, r) => acc + toNumber(r.valor_utilizado), 0);
+      // Usar compras aprovadas como fonte de verdade para utilizado
+      const totalUtilizado = utilizadoPorCentro[museu] || 0;
       const totalDisponivel = totalOrcado - totalUtilizado;
 
       const percentualExecutado = totalOrcado > 0 ? (totalUtilizado / totalOrcado) * 100 : 0;
