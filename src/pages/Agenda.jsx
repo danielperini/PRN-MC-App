@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { toastMessages } from '@/lib/toastMessages';
 import LoadingPage from '@/components/common/LoadingPage';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ChevronLeft,
   ChevronRight,
@@ -13,7 +13,9 @@ import {
   Calendar,
   Search,
   Clock,
-  Star
+  Star,
+  RefreshCw,
+  Loader2
 } from 'lucide-react';
 
 import { MESES, MUSEUS } from '@/utils/constants';
@@ -187,6 +189,41 @@ export default function Agenda() {
   const [currentMonth, setCurrentMonth] = useState(getMonthKey(new Date()));
   const [museuFilter, setMuseuFilter] = useState('Todos');
   const [search, setSearch] = useState('');
+  const [syncing, setSyncing] = useState(false);
+  const queryClient = useQueryClient();
+
+  const currentUser = React.useMemo(() => {
+    let user = null;
+    base44.auth.me().then(u => { user = u; }).catch(() => {});
+    return user;
+  }, []);
+
+  const [isCoordenador, setIsCoordenador] = useState(false);
+  React.useEffect(() => {
+    base44.auth.me().then(u => {
+      const coordRoles = ['admin', 'ADMIN', 'COORDENADOR', 'COORD_COMUNICACAO', 'COORD_ADMINISTRATIVA', 'COORD_PRODUCAO'];
+      setIsCoordenador(coordRoles.includes(u?.role) || u?.email === 'daniel@periniprojetos.com.br');
+    }).catch(() => {});
+  }, []);
+
+  async function handleSync() {
+    setSyncing(true);
+    try {
+      const res = await base44.functions.invoke('syncBaseConhecimento', {});
+      const result = res?.data || res;
+      await queryClient.invalidateQueries({ queryKey: ['agenda-programacao'] });
+      const criados = result?.criados ?? result?.created ?? 0;
+      const atualizados = result?.atualizados ?? result?.updated ?? 0;
+      const removidos = result?.removidos ?? result?.deleted ?? 0;
+      const { toast } = await import('sonner');
+      toast.success(`Agenda sincronizada — ${criados} criados, ${atualizados} atualizados, ${removidos} removidos`);
+    } catch (err) {
+      const { toast } = await import('sonner');
+      toast.error('Erro ao sincronizar agenda: ' + (err?.message || 'desconhecido'));
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   const {
     data: allItems = [],
@@ -299,12 +336,20 @@ export default function Agenda() {
           <p className="text-sm text-muted-foreground mt-0.5">
             Programação dos Museus Centro · Viaduto das Artes
           </p>
-          <Link to="/ProgramacaoEspelho" className="inline-flex">
-            <Button variant="outline" className="gap-2 mt-3">
-              <Star className="h-4 w-4" />
-              Programação Completa
-            </Button>
-          </Link>
+          <div className="flex gap-2 mt-3 flex-wrap">
+            <Link to="/ProgramacaoEspelho" className="inline-flex">
+              <Button variant="outline" className="gap-2">
+                <Star className="h-4 w-4" />
+                Programação Completa
+              </Button>
+            </Link>
+            {isCoordenador && (
+              <Button variant="outline" className="gap-2" onClick={handleSync} disabled={syncing}>
+                {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                {syncing ? 'Sincronizando...' : 'Sincronizar Agenda'}
+              </Button>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-2 bg-card border border-border rounded-2xl px-3 py-2 shadow-sm w-fit">
