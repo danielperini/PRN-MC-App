@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { useCurrentUser } from '@/components/auth/useCurrentUser';
 import { Button } from '@/components/ui/button';
-import { PlayCircle, RotateCw, X } from 'lucide-react';
+import { PlayCircle, RotateCw, X, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 
 function VideoSkeleton() {
@@ -93,6 +93,8 @@ export default function Tutoriais() {
   const { user } = useCurrentUser();
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [syncing, setSyncing] = useState(false);
+  const [autoSyncError, setAutoSyncError] = useState(null);
+  const autoSyncRan = useRef(false);
 
   const isCoord = user?.role === 'admin' || user?.base_role === 'COORDENADOR';
 
@@ -101,18 +103,47 @@ export default function Tutoriais() {
     queryFn: () => base44.entities.TutorialVideo.filter({ ativo: true }, 'ordem', 100),
   });
 
+  // Auto-sync: dispara uma vez por sessão se banco estiver vazio após carregamento
+  useEffect(() => {
+    if (isLoading) return;
+    if (videos.length > 0) return;
+    if (autoSyncRan.current) return;
+    autoSyncRan.current = true;
+
+    async function runAutoSync() {
+      try {
+        const res = await base44.functions.invoke('sincronizarTutoriaisDrive', {});
+        const result = res?.data || res;
+        if (result?.error) {
+          setAutoSyncError(result.error);
+        } else {
+          setAutoSyncError(null);
+          refetch();
+        }
+      } catch (err) {
+        setAutoSyncError(err?.message || 'Erro ao sincronizar tutoriais com o Drive.');
+      }
+    }
+
+    runAutoSync();
+  }, [isLoading, videos.length]);
+
   const handleSync = async () => {
     setSyncing(true);
+    setAutoSyncError(null);
     try {
       const res = await base44.functions.invoke('sincronizarTutoriaisDrive', {});
-      if (res.data?.error) {
-        toast.error(res.data.error);
+      const result = res?.data || res;
+      if (result?.error) {
+        toast.error(result.error);
+        if (isCoord) setAutoSyncError(result.error);
       } else {
-        toast.success(res.data?.message || 'Sincronização concluída');
+        toast.success(result?.message || 'Sincronização concluída');
         refetch();
       }
     } catch (err) {
       toast.error(err?.message || 'Erro ao sincronizar');
+      if (isCoord) setAutoSyncError(err?.message || 'Erro ao sincronizar');
     } finally {
       setSyncing(false);
     }
@@ -146,6 +177,26 @@ export default function Tutoriais() {
           </Button>
         )}
       </div>
+
+      {/* Banner de erro da sync automática — visível apenas para coordenadores */}
+      {isCoord && autoSyncError && (
+        <div className="mb-6 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-500" />
+          <div className="flex-1">
+            <p className="font-semibold">Erro na sincronização automática</p>
+            <p className="mt-0.5 text-red-700">{autoSyncError}</p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleSync}
+            disabled={syncing}
+            className="flex-shrink-0 border-red-300 text-red-700 hover:bg-red-100"
+          >
+            Tentar novamente
+          </Button>
+        </div>
+      )}
 
       {/* Grid de vídeos */}
       {isLoading ? (
