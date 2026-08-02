@@ -1,16 +1,15 @@
 import React from 'react';
 import { AlertTriangle, Users } from 'lucide-react';
+import { rubricaUtilizado } from '@/services/canonicalMetrics';
+import { CONTRATO_3_ADITIVO } from '@/lib/contratoConstants';
+import { resolveValor } from '@/utils/fieldResolvers';
 
 function toNumber(v) {
   return Number(v) || 0;
 }
 
 function getPurchaseValue(p) {
-  return (
-    toNumber(p?.valor_pago) ||
-    toNumber(p?.valor_aprovado) ||
-    toNumber(p?.valor_solicitado));
-
+  return resolveValor(p);
 }
 
 function normalizeText(value) {
@@ -21,19 +20,7 @@ function normalizeText(value) {
   trim();
 }
 
-function getRubricaPrevisto(r) {
-  return (
-    toNumber(r?.valor_rubrica) ||
-    toNumber(r?.valor_previsto) ||
-    toNumber(r?.previsto) ||
-    toNumber(r?.saldo_inicial) ||
-    0);
 
-}
-
-function getRubricaUtilizado(r) {
-  return toNumber(r?.valor_utilizado) || toNumber(r?.utilizado) || 0;
-}
 
 function getRubricaNome(r) {
   return (
@@ -202,11 +189,10 @@ export default function OrcamentoDashboard({
 }) {
   /* ================= BASE ================= */
 
-  const TOTAL_PREVISTO = 1320000;
-  const totalInicial = TOTAL_PREVISTO;
+  const totalInicial = CONTRATO_3_ADITIVO;
 
   const totalComprometido = rubricas.reduce(
-    (acc, r) => acc + toNumber(r.valor_utilizado),
+    (acc, r) => acc + rubricaUtilizado(r),
     0
   );
 
@@ -235,7 +221,7 @@ export default function OrcamentoDashboard({
   const rubricasEquipe = rubricas.filter(isRubricaEquipe);
 
   const totalEquipeViaRubrica = rubricasEquipe.reduce(
-    (acc, r) => acc + getRubricaUtilizado(r),
+    (acc, r) => acc + rubricaUtilizado(r),
     0
   );
 
@@ -248,7 +234,7 @@ export default function OrcamentoDashboard({
   totalEquipeViaPurchases;
 
   const totalUtilizadoGeralRubricas = rubricas.reduce(
-    (acc, r) => acc + getRubricaUtilizado(r),
+    (acc, r) => acc + rubricaUtilizado(r),
     0
   );
 
@@ -299,21 +285,14 @@ export default function OrcamentoDashboard({
 
   const porNatureza = budgetLines.reduce((acc, l) => {
     const key = l.natureza_nome || l.natureza_codigo || 'Outros';
-
-    if (!acc[key]) {
-      acc[key] = { nome: key, previsto: 0, comprometido: 0 };
-    }
-
+    if (!acc[key]) acc[key] = { nome: key, previsto: 0, comprometido: 0 };
     acc[key].previsto += toNumber(l.saldo_inicial);
     acc[key].comprometido += toNumber(l.saldo_comprometido);
-
     return acc;
   }, {});
 
   const fmt = (v) =>
-  `R$ ${toNumber(v).toLocaleString('pt-BR', {
-    minimumFractionDigits: 2
-  })}`;
+    `R$ ${(Number(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 
   return null;
 

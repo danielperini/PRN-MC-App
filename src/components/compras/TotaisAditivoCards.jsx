@@ -1,10 +1,7 @@
 import React, { useMemo } from 'react';
-import { auditAditivoTotals, normalizeCentroCusto } from '@/utils/finance/financeiroUtils';
-
-function toNumber(value) {
-  const n = Number(value ?? 0);
-  return Number.isFinite(n) ? n : 0;
-}
+import { auditAditivoTotals } from '@/utils/finance/financeiroUtils';
+import { rubricaPrevisto, rubricaUtilizado } from '@/services/canonicalMetrics';
+import { CONTRATO_3_ADITIVO, CONTRATO_4_ADITIVO, CONTRATO_5_ADITIVO, CONTRATO_TOTAL } from '@/lib/contratoConstants';
 
 function fmtBRL(v) {
   return new Intl.NumberFormat('pt-BR', {
@@ -14,12 +11,6 @@ function fmtBRL(v) {
     maximumFractionDigits: 2
   }).format(v ?? 0);
 }
-
-// Valores contratuais oficiais — referência para o banner
-const CONTRATO_3_ADITIVO = 1320000;
-const CONTRATO_4_ADITIVO = 81719.85;
-const CONTRATO_5_ADITIVO = 15800;
-const CONTRATO_TOTAL = CONTRATO_3_ADITIVO + CONTRATO_4_ADITIVO + CONTRATO_5_ADITIVO;
 
 function AditivoBlock({ titulo, badge, badgeColor, totalPrevisto, totalUtilizado, saldo, rubricasList, qtdNFs, qtdDuplicatas }) {
   const pct = totalPrevisto > 0 ? ((totalUtilizado / totalPrevisto) * 100) : 0;
@@ -75,8 +66,8 @@ function AditivoBlock({ titulo, badge, badgeColor, totalPrevisto, totalUtilizado
           </summary>
           <ul className="mt-2 space-y-1.5 pl-1">
             {rubricasList.map((r) => {
-              const prev = toNumber(r.valor_rubrica || r.valor_total || r.valor_previsto);
-              const util = toNumber(r.valor_utilizado || r.utilizado);
+              const prev = rubricaPrevisto(r);
+              const util = rubricaUtilizado(r);
               const saldoR = prev - util;
               return (
                 <li key={r.id} className="text-[11px] text-gray-600 flex justify-between gap-2 border-b border-gray-50 pb-1">
@@ -111,20 +102,17 @@ export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
       return origem === '5º ADITIVO' || origem === '5º Aditivo';
     });
 
-    // Previsto e utilizado direto das rubricas (mesma fonte do Dashboard)
-    const previsto3 = rubricas3.reduce((s, r) => s + toNumber(r.valor_rubrica || r.valor_total), 0);
-    const utilizado3 = rubricas3.reduce((s, r) => s + toNumber(r.valor_utilizado || r.utilizado), 0);
-    const previsto4 = rubricas4.reduce((s, r) => s + toNumber(r.valor_rubrica || r.valor_total), 0);
-    const utilizado4 = rubricas4.reduce((s, r) => s + toNumber(r.valor_utilizado || r.utilizado), 0);
-    const utilizado5 = rubricas5.reduce((s, r) => s + toNumber(r.valor_utilizado || r.utilizado), 0);
+    // Previsto e utilizado via funções canônicas
+    const utilizado3 = rubricas3.reduce((s, r) => s + rubricaUtilizado(r), 0);
+    const previsto4 = rubricas4.reduce((s, r) => s + rubricaPrevisto(r), 0);
+    const utilizado4 = rubricas4.reduce((s, r) => s + rubricaUtilizado(r), 0);
+    const utilizado5 = rubricas5.reduce((s, r) => s + rubricaUtilizado(r), 0);
 
     const auditoria = auditAditivoTotals(compras, ativas);
 
     return {
       totais3: {
-        totalPrevisto: previsto3,
         totalUtilizado: utilizado3,
-        saldo: previsto3 - utilizado3,
         qtdNFs: auditoria.terceiro_aditivo.quantidade_nfs,
       },
       totais4: {
@@ -164,7 +152,7 @@ export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
       <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-700">
         <span className="font-semibold">Base contratual oficial:</span> {fmtBRL(CONTRATO_TOTAL)}
         <span className="ml-2 text-gray-500">(3º aditivo {fmtBRL(CONTRATO_3_ADITIVO)} + 4º aditivo {fmtBRL(CONTRATO_4_ADITIVO)} + 5º aditivo {fmtBRL(CONTRATO_5_ADITIVO)})</span>
-        <span className="ml-3 font-semibold">Base rubricas cadastradas:</span> {fmtBRL(totais3.totalPrevisto + totais4.totalPrevisto)}
+        <span className="ml-3 font-semibold">Base rubricas cadastradas (4º+5º):</span> {fmtBRL(totais4.totalPrevisto + CONTRATO_5_ADITIVO)}
         <span className="block mt-1 text-gray-500">O previsto exibido nos cards é a soma real das rubricas cadastradas. O 4º Aditivo apura o Noturno Pampulha. Rubricas "Noturno 2026" pertencem ao 3º Aditivo.</span>
       </div>
 

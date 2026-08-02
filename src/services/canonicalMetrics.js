@@ -118,7 +118,9 @@ export function isOrigemAditivo(r) {
     origem === '3º ADITIVO' ||
     origem === '3º Aditivo' ||
     origem === '4º ADITIVO' ||
-    origem === '4º Aditivo'
+    origem === '4º Aditivo' ||
+    origem === '5º ADITIVO' ||
+    origem === '5º Aditivo'
   );
 }
 
