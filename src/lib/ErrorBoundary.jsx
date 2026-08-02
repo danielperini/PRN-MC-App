@@ -1,6 +1,7 @@
 import React from 'react';
 import { AlertCircle, RefreshCw, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { base44 } from '@/api/base44Client';
 
 export class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -39,6 +40,23 @@ export class ErrorBoundary extends React.Component {
       localStorage.setItem('app_error_logs', JSON.stringify(logs.slice(-20)));
     } catch (e) {
       console.error('Erro ao salvar log:', e);
+    }
+
+    // Enviar para o servidor para diagnóstico remoto (fire-and-forget)
+    try {
+      base44.auth.me().catch(() => null).then((user) => {
+        base44.entities.ClientErrorLog.create({
+          error_id: errorId,
+          message: String(error?.message || '').slice(0, 500),
+          stack: String(error?.stack || '').slice(0, 3000),
+          component_stack: String(errorInfo?.componentStack || '').slice(0, 3000),
+          url: window.location.href,
+          user_email: user?.email || '',
+          user_agent: navigator.userAgent,
+        }).catch(() => {});
+      });
+    } catch (e) {
+      // diagnóstico é opcional; nunca bloqueia a tela de erro
     }
 
     this.setState({

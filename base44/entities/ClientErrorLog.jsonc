@@ -1,0 +1,37 @@
+{
+  "name": "ClientErrorLog",
+  "type": "object",
+  "properties": {
+    "error_id": {
+      "type": "string",
+      "description": "ID \u00fanico do erro exibido ao usu\u00e1rio (ERR-...)"
+    },
+    "message": {
+      "type": "string",
+      "description": "Mensagem do erro"
+    },
+    "stack": {
+      "type": "string",
+      "description": "Stack trace do erro"
+    },
+    "component_stack": {
+      "type": "string",
+      "description": "Component stack do React"
+    },
+    "url": {
+      "type": "string",
+      "description": "URL onde o erro ocorreu"
+    },
+    "user_email": {
+      "type": "string",
+      "description": "Email do usu\u00e1rio afetado"
+    },
+    "user_agent": {
+      "type": "string",
+      "description": "Navegador/dispositivo"
+    }
+  },
+  "required": [
+    "error_id"
+  ]
+}
