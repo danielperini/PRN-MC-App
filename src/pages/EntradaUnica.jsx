@@ -314,9 +314,16 @@ export default function EntradaUnica() {
     setUserLoading(true);
     setUserLoadError(false);
 
-    base44.auth.me().then(async (currentUser) => {
-      if (!mounted) return;
-      setUser(currentUser || null);
+    (async () => {
+      let currentUser = null;
+      try {
+        currentUser = await base44.auth.me();
+      } catch {
+        if (mounted) setUserLoadError(true);
+      }
+
+      if (mounted) setUser(currentUser || null);
+
       if (currentUser?.email) {
         try {
           const perms = await base44.entities.UserPermission.filter({ user_email: currentUser.email });
@@ -325,12 +332,11 @@ export default function EntradaUnica() {
           // silencioso — canSeeAll apenas com role=admin
         }
       }
-    }).catch(() => {
+
+      if (mounted) setUserLoading(false);
+    })().catch(() => {
       if (!mounted) return;
-      setUser(null);
       setUserLoadError(true);
-    }).finally(() => {
-      if (!mounted) return;
       setUserLoading(false);
     });
 
@@ -338,9 +344,12 @@ export default function EntradaUnica() {
   }, []);
 
   const corrigirTravados = useCallback(async (lista) => {
+    if (!Array.isArray(lista) || lista.length === 0) return;
+
     const agora = Date.now();
 
-    for (const item of lista || []) {
+    for (const item of lista) {
+      if (!item?.id) continue;
       const status = String(item.status_processamento || '').toUpperCase();
 
       // Libera documentos travados em ENVIADO há mais de 3 minutos para revisão manual
@@ -486,7 +495,7 @@ export default function EntradaUnica() {
     const canSeeAll = user?.role === 'admin' || base.includes('COORD') || base.includes('ADMIN') || isCoordenador(user);
 
     try {
-      // Tenta filter com timeout de 10s via Promise.race
+      // Tenta filter com timeout de 15s — em vez de rejeitar, resolve null e cai no fallback
       let list = null;
       try {
         const query = { status_registro: 'ATIVO' };
@@ -497,7 +506,7 @@ export default function EntradaUnica() {
           '-created_date',
           200
         ),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('FILTER_TIMEOUT')), 10000))]
+        new Promise((resolve) => setTimeout(() => resolve(null), 15000))]
         );
       } catch (filterErr) {
         console.warn('Filter falhou/timeout, usando list() como fallback:', filterErr?.message);
@@ -1314,22 +1323,27 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
 
           const isPDF = mime_type?.includes('pdf') || file_url?.toLowerCase().endsWith('.pdf');
 
+          const comTimeout = (promise) => Promise.race([
+          promise,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_60S')), 60000))]
+          );
+
           try {
             if (isPDF) {
               // PDFs: backend robusto (Claude → Gemini → GPT) com normalização completa
-              await base44.functions.invoke('processarNotaFiscalComClaude', {
+              await comTimeout(base44.functions.invoke('processarNotaFiscalComClaude', {
                 intake_id: intake.id,
                 file_url,
                 orientacoes_usuario: intake.resultado_ia?.orientacoes_usuario || ''
-              });
+              }));
             } else {
-              await analisarComIA(intake.id, file_url, mime_type, null);
+              await comTimeout(analisarComIA(intake.id, file_url, mime_type, null));
             }
           } catch (e) {
             console.error(`Falha ao analisar ${intake.file_name_original || intake.id}:`, e);
             // Fallback: tenta fluxo frontend
             try {
-              await analisarComIA(intake.id, file_url, mime_type, null);
+              await comTimeout(analisarComIA(intake.id, file_url, mime_type, null));
             } catch (e2) {
               await base44.entities.DocumentIntake.update(intake.id, {
                 status_processamento: 'AGUARDANDO_REVISAO',
@@ -1338,7 +1352,7 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
             }
           }
 
-          await loadIntakes();
+          await loadIntakes().catch(() => {});
           await new Promise((r) => setTimeout(r, 300));
         }
       }
@@ -1433,7 +1447,7 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
 
   }
 
-  if (userLoadError && !user || intakesLoadError) {
+  if (userLoadError && !user) {
     return (
       <LoadingPage
         error
@@ -1619,7 +1633,9 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
           </div>
         </div>
 
-        <ImportarPacoteRelatorios />
+        <SectionErrorBoundary title="Importar pacote de relatórios">
+          <ImportarPacoteRelatorios />
+        </SectionErrorBoundary>
 
         <div className="rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden">
           <div className="px-5 md:px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
@@ -1665,6 +1681,21 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
           </div>
 
           <div className="p-4 md:p-6">
+            {intakesLoadError && (
+              <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                <p className="text-sm text-amber-800">
+                  Não foi possível carregar os documentos agora. Os itens já carregados continuam disponíveis.
+                </p>
+                <button
+                  onClick={() => loadIntakes()}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  Tentar novamente
+                </button>
+              </div>
+            )}
+
             {/* Aba processados */}
             {abaAtiva === 'processados' && (
               <div>
