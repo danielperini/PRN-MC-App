@@ -1,93 +1,73 @@
 import React, { useState } from 'react';
 import { toast } from 'sonner';
-import { RefreshCw, Sparkles, Type } from 'lucide-react';
+import { RefreshCw, AlignLeft } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 
 export default function CorrigirLegendasLoteItem({ onConcluido }) {
   const [running, setRunning] = useState(false);
-  const [runningReformat, setRunningReformat] = useState(false);
 
-  async function corrigir(event) {
+  async function executar(event) {
     event?.preventDefault?.();
     setRunning(true);
-    const aviso = toast.loading('Corrigindo legendas de toda a galeria...');
+    const toastId = toast.loading('Iniciando correção de legendas...');
     try {
       let skip = 0;
-      let total = 0;
-      let paginas = 0;
+      let totalAtualizadas = 0;
+      let lote = 0;
       let hasMore = true;
-      while (hasMore && paginas < 40) {
-        const res = await base44.functions.invoke('reforcarLegendasGaleria', { skip, limit: 200 });
+      const LIMIT = 100;
+      const MAX_LOTES = 100; // até 10.000 fotos
+
+      while (hasMore && lote < MAX_LOTES) {
+        const res = await base44.functions.invoke('reformatarLegendasGaleria', {
+          skip,
+          limit: LIMIT,
+          dry_run: false,
+        });
         const data = res?.data || {};
-        total += data.atualizadas || 0;
+
+        totalAtualizadas += data.atualizadas || 0;
         hasMore = Boolean(data.has_more);
-        skip = data.proximo_skip ?? skip + 200;
-        paginas += 1;
-        toast.loading(`Corrigindo legendas... ${total} atualizadas`, { id: aviso });
+        skip = data.proximo_skip ?? skip + LIMIT;
+        lote++;
+
+        toast.loading(
+          `Lote ${lote} — ${totalAtualizadas} legendas atualizadas`,
+          { id: toastId }
+        );
       }
-      toast.success(`${total} ${total === 1 ? 'legenda persistida' : 'legendas persistidas'} com dados reais.`, { id: aviso });
+
+      toast.success(
+        `${totalAtualizadas} ${totalAtualizadas === 1 ? 'legenda atualizada' : 'legendas atualizadas'} no padrão Atividade — Museu — Mês/Ano.`,
+        { id: toastId }
+      );
       onConcluido?.();
     } catch (error) {
-      toast.error('Não foi possível corrigir as legendas: ' + (error?.message || 'tente novamente.'), { id: aviso });
+      toast.error(
+        'Erro ao corrigir legendas: ' + (error?.message || 'tente novamente.'),
+        { id: toastId }
+      );
     } finally {
       setRunning(false);
     }
   }
 
-  async function reformatar(event) {
-    event?.preventDefault?.();
-    setRunningReformat(true);
-    const aviso = toast.loading('Reformatando legendas (sem IA)...');
-    try {
-      let skip = 0;
-      let total = 0;
-      let lote = 0;
-      let hasMore = true;
-      while (hasMore && lote < 100) {
-        const res = await base44.functions.invoke('reformatarLegendasGaleria', { skip, limit: 50 });
-        const data = res?.data || {};
-        total += data.atualizadas || 0;
-        hasMore = Boolean(data.has_more);
-        skip = data.proximo_skip ?? skip + 50;
-        lote += 1;
-        toast.loading(`Lote ${lote} — ${total} atualizadas`, { id: aviso });
-      }
-      toast.success(`${total} ${total === 1 ? 'legenda reformatada' : 'legendas reformatadas'} com sucesso.`, { id: aviso });
-      onConcluido?.();
-    } catch (error) {
-      toast.error('Erro ao reformatar legendas: ' + (error?.message || 'tente novamente.'), { id: aviso });
-    } finally {
-      setRunningReformat(false);
-    }
-  }
-
   return (
-    <>
-      <DropdownMenuItem
-        disabled={running}
-        onSelect={corrigir}
-        className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
-        <span className="font-medium text-gray-900 flex items-center gap-1.5">
-          {running ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-          Corrigir legendas de toda a galeria
-        </span>
-        <span className="text-xs text-gray-500 pl-5">
-          Substitui legendas genéricas pelos dados reais da atividade, museu e data.
-        </span>
-      </DropdownMenuItem>
-      <DropdownMenuItem
-        disabled={runningReformat}
-        onSelect={reformatar}
-        className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
-        <span className="font-medium text-gray-900 flex items-center gap-1.5">
-          {runningReformat ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Type className="h-3.5 w-3.5" />}
-          Reformatar legendas (sem IA)
-        </span>
-        <span className="text-xs text-gray-500 pl-5">
-          Converte "2026-05-MHAB-NOME" para "Nome — Museu — Mês/Ano" usando só os metadados.
-        </span>
-      </DropdownMenuItem>
-    </>
+    <DropdownMenuItem
+      disabled={running}
+      onSelect={executar}
+      className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer"
+    >
+      <span className="font-medium text-gray-900 flex items-center gap-1.5">
+        {running
+          ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+          : <AlignLeft className="h-3.5 w-3.5" />}
+        Corrigir legendas em lote
+      </span>
+      <span className="text-xs text-gray-500 pl-5">
+        Aplica o padrão "Atividade — Museu — Mês/Ano" em todas as fotos usando apenas os metadados salvos.
+      </span>
+    </DropdownMenuItem>
   );
 }

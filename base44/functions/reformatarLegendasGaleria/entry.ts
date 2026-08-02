@@ -5,17 +5,18 @@ const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Ag
 function mesNumParaNome(mesStr) {
   const n = parseInt(mesStr, 10);
   if (n >= 1 && n <= 12) return MESES[n - 1];
+  // Já pode ser nome
   return mesStr;
 }
 
 function normalizarMuseu(codigo = '') {
   const c = codigo.toUpperCase().trim();
-  if (c === 'MISBH' || c === 'MIS BH') return 'MIS';
+  if (c === 'MISBH' || c === 'MIS BH' || c === 'MIS-BH') return 'MIS';
   return c;
 }
 
 function titleCase(str = '') {
-  const minusculas = new Set(['de','da','do','das','dos','e','em','a','o','as','os','por','para','com','que','um','uma']);
+  const minusculas = new Set(['de','da','do','das','dos','e','em','a','o','as','os','por','para','com','que','um','uma','no','na','nos','nas']);
   return str
     .toLowerCase()
     .split(' ')
@@ -23,8 +24,7 @@ function titleCase(str = '') {
     .join(' ');
 }
 
-// Tenta parsear o padrão: "Foto de Registro — 2026-MM-MUSEU-NOME_ATIVIDADE"
-// Regex: /(20\d{2})-(\d{2})-(MHAB|MISBH|MIS BH|MUMO|MIS)-(.+?)(?:\s*-\s.*|$)/i
+// Tenta parsear padrão bruto: "2026-05-MHAB-NOME_ATIVIDADE" (pode ter prefixo)
 function parsearLegendaBruta(legenda = '') {
   if (!legenda) return null;
   const regex = /(20\d{2})-(\d{2})-(MHAB|MISBH|MIS\s*BH|MUMO|MIS)-(.+?)(?:\s+-\s+.*)?$/i;
@@ -32,8 +32,8 @@ function parsearLegendaBruta(legenda = '') {
   if (!match) return null;
   const ano = match[1];
   const mesNum = match[2];
-  const museuRaw = match[3];
-  const nomeAtividade = match[4].replace(/_+/g, ' ').replace(/\s+/g, ' ').trim();
+  const museuRaw = match[3].replace(/\s+/g, '');
+  const nomeAtividade = match[4].replace(/_+/g, ' ').replace(/-+/g, ' ').replace(/\s+/g, ' ').trim();
   return {
     ano,
     mes: mesNumParaNome(mesNum),
@@ -42,18 +42,38 @@ function parsearLegendaBruta(legenda = '') {
   };
 }
 
-function montarNovaLegenda(parsed) {
-  // Formato: "Nome Atividade — MUSEU — Mês/ANO"
-  return `${parsed.nomeAtividade} — ${parsed.museu} — ${parsed.mes}/${parsed.ano}`;
-}
-
-function legendaFallback(foto, report) {
-  const museu = foto.museu || report?.museu || '';
-  const mes = foto.mes_referencia || report?.mes_referencia || '';
-  const ano = foto.ano || report?.ano || '';
-  const partes = [museu, mes, ano].filter(Boolean);
+// Gera legenda no padrão "Atividade — Museu — Mês/Ano"
+function montarLegenda(atividade, museu, mes, ano) {
+  const partes = [];
+  if (atividade) partes.push(atividade);
+  if (museu) partes.push(normalizarMuseu(museu));
+  if (mes || ano) partes.push([mes, ano].filter(Boolean).join('/'));
   if (partes.length === 0) return null;
   return partes.join(' — ');
+}
+
+// Derivar legenda totalmente dos campos estruturados de foto + relatório
+function legendaDosMetadados(foto, report) {
+  // 1. Tentar parsear legenda/caption bruta existente
+  const bruta = foto.legenda || foto.caption || foto.file_name || '';
+  const parsed = parsearLegendaBruta(bruta);
+  if (parsed) {
+    return montarLegenda(parsed.nomeAtividade, parsed.museu, parsed.mes, parsed.ano);
+  }
+
+  // 2. Campos estruturados do registro de foto
+  const museu = normalizarMuseu(foto.museu || report?.museu || '');
+  const mes = mesNumParaNome(foto.mes_referencia || report?.mes_referencia || '');
+  const ano = foto.ano || report?.ano || '';
+
+  // Atividade: extrair do file_name ou caption se tiver padrão legível
+  let atividade = '';
+  const fnMatch = (foto.file_name || '').match(/(?:20\d{2}-\d{2}-\w+-)?(.+?)\.\w+$/i);
+  if (fnMatch) {
+    atividade = titleCase(fnMatch[1].replace(/_+/g, ' ').replace(/-+/g, ' ').trim());
+  }
+
+  return montarLegenda(atividade, museu, mes, String(ano));
 }
 
 Deno.serve(async (req) => {
@@ -63,17 +83,20 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
-    const { skip = 0, limit = 50, dry_run = false } = body;
+    const { skip = 0, limit = 100, dry_run = false } = body;
 
-    // Buscar lote de ReportPhotos com paginação
-    const allPhotos = await base44.asServiceRole.entities.ReportPhoto.list('-created_date', 5000);
-    const reports = await base44.asServiceRole.entities.Report.list('-created_date', 500);
+    // Paginação real no banco — sem carregar tudo de uma vez
+    const photos = await base44.asServiceRole.entities.ReportPhoto.list('-created_date', limit + skip);
+    const lote = (photos || []).slice(skip, skip + limit);
+    const totalGeral = (photos || []).length;
 
+    // Carregar relatórios referenciados apenas pelo lote atual
+    const reportIds = [...new Set(lote.map(f => f.report_id).filter(Boolean))];
     const reportById = new Map();
-    for (const r of (reports || [])) reportById.set(r.id, r);
-
-    const lote = (allPhotos || []).slice(skip, skip + limit);
-    const totalGeral = (allPhotos || []).length;
+    if (reportIds.length > 0) {
+      const reports = await base44.asServiceRole.entities.Report.list('-created_date', 500);
+      for (const r of (reports || [])) reportById.set(r.id, r);
+    }
 
     let atualizadas = 0;
     let semMudanca = 0;
@@ -82,28 +105,15 @@ Deno.serve(async (req) => {
     for (const foto of lote) {
       try {
         const report = foto.report_id ? reportById.get(foto.report_id) : null;
-        const legendaBruta = foto.legenda || foto.caption || '';
-
-        let novaLegenda = null;
-
-        // Tentar parse do padrão bruto
-        const parsed = parsearLegendaBruta(legendaBruta);
-        if (parsed) {
-          novaLegenda = montarNovaLegenda(parsed);
-        } else {
-          // Fallback: usar campos estruturados
-          novaLegenda = legendaFallback(foto, report);
-        }
+        const novaLegenda = legendaDosMetadados(foto, report);
 
         if (!novaLegenda) {
           semMudanca++;
           continue;
         }
 
-        const legendaAtual = foto.legenda || '';
-        const captionAtual = foto.caption || '';
-
-        if (novaLegenda === legendaAtual && novaLegenda === captionAtual) {
+        const jaOk = novaLegenda === foto.legenda && novaLegenda === foto.caption;
+        if (jaOk) {
           semMudanca++;
           continue;
         }
@@ -115,7 +125,7 @@ Deno.serve(async (req) => {
           });
         }
         atualizadas++;
-      } catch (e) {
+      } catch (_e) {
         erros++;
       }
     }

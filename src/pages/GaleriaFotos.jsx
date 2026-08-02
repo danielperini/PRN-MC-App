@@ -31,7 +31,6 @@ import { PhotoActionBar, BulkActionBar, EditCaptionDialog, DeleteConfirmDialog, 
 import { base44 } from '@/api/base44Client';
 import { normalizeMuseuKey, resolvePhotoCaption } from '@/utils/galleryNormalization';
 import CorrigirLegendasLoteItem from '@/components/gallery/CorrigirLegendasLoteItem';
-import ReformatarLegendasItem from '@/components/gallery/ReformatarLegendasItem';
 
 const INITIAL_VISIBLE_IMAGES = 20;
 const VISIBLE_IMAGES_STEP = 20;
@@ -640,9 +639,7 @@ function GaleriaFotosInner() {
                 {currentUser?.role === 'admin' && (
                   <CorrigirLegendasLoteItem onConcluido={async () => { clearGalleryCache(); await refetch(); }} />
                 )}
-                {currentUser?.role === 'admin' && (
-                  <ReformatarLegendasItem onConcluido={async () => { clearGalleryCache(); await refetch(); }} />
-                )}
+
                 <DropdownMenuItem
                   onClick={() => setShowRestaurar((v) => !v)}
                   className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
