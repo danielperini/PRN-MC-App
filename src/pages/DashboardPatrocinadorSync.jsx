@@ -16,6 +16,8 @@ import {
 'recharts';
 import { Activity, Calendar, MapPin, RotateCw, TrendingUp, Users } from 'lucide-react';
 import AgendaCard from '@/components/patrocinador/AgendaCard';
+import GaleriaTickerCarousel from '@/components/dashboard/GaleriaTickerCarousel';
+import SectionErrorBoundary from '@/components/common/SectionErrorBoundary';
 import DashboardDrilldownSheet, { SectionTitle, RowItem } from '@/components/dashboard/DashboardDrilldownSheet';
 import { useNavigate } from 'react-router-dom';
 import { consolidateOfficialDashboardMetrics } from '@/utils/auditoria/institutionalMetrics';
@@ -634,6 +636,10 @@ export default function DashboardPatrocinadorSync() {
 
   return (
     <div className="space-y-8">
+      <SectionErrorBoundary>
+        <GaleriaTickerCarousel />
+      </SectionErrorBoundary>
+
       {loadError && <div className="bg-white border border-gray-200 rounded-2xl p-4 text-sm text-gray-700">{loadError}</div>}
 
       {!data.hasData && <div className="bg-white border border-black rounded-2xl p-5 text-sm text-black font-medium">Sem dados disponíveis. Sincronize relatórios aprovados e atividades para visualizar métricas.</div>}

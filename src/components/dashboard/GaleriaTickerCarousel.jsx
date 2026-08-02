@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 
-const CURATED_PHOTO_COUNT = 24;
+const CURATED_PHOTO_COUNT = 10;
 const CURATION_INTERVAL_MS = 2 * 24 * 60 * 60 * 1000;
 const GALLERY_ROUTE = '/GaleriaFotos';
 
@@ -271,8 +271,8 @@ export default function GaleriaTickerCarousel() {
   if (images.length === 0) return null;
 
   // Duplicar para loop visual infinito
-  const totalWidth = images.length * 88; // 80px + 8px gap
-  const duration = images.length * 1.67; // ~40s para 24 fotos
+  const totalWidth = images.length * 172; // 160px + 12px gap
+  const duration = images.length * 4; // ~40s para 10 fotos
 
   return (
     <div className="relative flex items-center gap-3 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
@@ -282,7 +282,7 @@ export default function GaleriaTickerCarousel() {
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}>
         <div
-          className="flex w-max gap-2"
+          className="flex w-max gap-3"
           style={{
             animation: `gticker ${duration}s linear infinite`,
             animationPlayState: paused ? 'paused' : 'running'
@@ -293,7 +293,7 @@ export default function GaleriaTickerCarousel() {
               src={url}
               alt=""
               loading="lazy"
-              className="h-16 w-16 flex-none rounded-xl object-cover shadow-sm md:h-20 md:w-20" />
+              className="h-32 w-32 flex-none rounded-xl object-cover shadow-sm md:h-40 md:w-40" />
           )}
         </div>
       </div>
