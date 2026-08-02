@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
     }
 
     // ─── Atualizar ReportPhotos ──────────────────────────────────────────
-    const loteReportPhotos = (reportPhotos || []).slice(0, limit);
+    const loteReportPhotos = (reportPhotos || []).slice(skip, skip + limit);
 
     for (const foto of loteReportPhotos) {
       const report = foto.report_id ? reportById.get(foto.report_id) : null;
@@ -148,6 +148,9 @@ Deno.serve(async (req) => {
       success: true,
       dry_run,
       total_processadas: loteAttachments.length + loteReportPhotos.length,
+      total_geral: Math.max(fotos.length, (reportPhotos || []).length),
+      proximo_skip: skip + limit,
+      has_more: skip + limit < Math.max(fotos.length, (reportPhotos || []).length),
       atualizadas,
       sem_mudanca: semMudanca,
       erros: erros.length,
