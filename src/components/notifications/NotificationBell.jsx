@@ -87,7 +87,7 @@ export default function NotificationBell() {
       const notifs = await base44.entities.Notification.filter(
         { user_email: user.email, read: false },
         '-created_date',
-        50
+        200
       );
       // Filtra IDs já marcados como lidos localmente nesta sessão (evita race condition)
       const readSet = localReadIds.current;
@@ -95,7 +95,7 @@ export default function NotificationBell() {
     },
     enabled: !!user?.email,
     staleTime: 30000,
-    refetchInterval: 60000,
+    refetchInterval: 120000,
   });
 
   // Subscribe em tempo real — ignora eventos durante operação de leitura (evita race condition)
@@ -123,8 +123,7 @@ export default function NotificationBell() {
     isMarkingRef.current = true;
     try {
       await base44.entities.Notification.update(id, { read: true });
-      // Banco confirmou: remove do set local (próximos refetches já filtram read:false no servidor)
-      localReadIds.current.delete(id);
+      // Mantém no set local durante a sessão — evita o item ressurgir em refetches
     } catch (e) {
       console.warn('Erro ao marcar notificação como lida:', e);
       localReadIds.current.delete(id);
@@ -142,8 +141,7 @@ export default function NotificationBell() {
     isMarkingRef.current = true;
     try {
       await Promise.all(ids.map(id => base44.entities.Notification.update(id, { read: true })));
-      // Banco confirmou: limpa o set local
-      ids.forEach(id => localReadIds.current.delete(id));
+      // Mantém no set local durante a sessão — evita os itens ressurgirem em refetches
     } catch (e) {
       console.warn('Erro ao marcar todas como lidas:', e);
       ids.forEach(id => localReadIds.current.delete(id));
@@ -175,8 +173,8 @@ export default function NotificationBell() {
       >
         <Bell className="w-5 h-5" />
         {unreadCount > 0 && (
-          <span className={`absolute -top-1 -right-1 text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center text-white ${hasDevolucoes ? 'bg-red-500' : 'bg-blue-500'}`}>
-            {unreadCount > 9 ? '9+' : unreadCount}
+          <span className={`absolute -top-1 -right-1 text-[10px] font-bold rounded-full min-w-5 h-5 px-1 flex items-center justify-center text-white ${hasDevolucoes ? 'bg-red-500' : 'bg-blue-500'}`}>
+            {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
       </Button>
