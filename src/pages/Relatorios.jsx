@@ -227,7 +227,8 @@ export default function Relatorios() {
   }, [reports, isError, cachedReports]);
 
   const myReports = useMemo(() => {
-    if (isAdmin || isCoordenador) return effectiveReports;
+    if (isAdmin) return effectiveReports;
+    if (isCoordenador) return effectiveReports.filter((report) => report.status !== 'DRAFT');
     const email = String(user?.email || '').toLowerCase();
     return effectiveReports.filter((report) =>
       String(report.created_by || '').toLowerCase() === email ||
