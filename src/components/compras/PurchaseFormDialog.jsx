@@ -1505,8 +1505,6 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
                 value={form.meta_id}
                 onValueChange={(v) => {
                   setField('meta_id', v)
-                  setField('rubrica_id', '')
-                  setField('rubrica_nome', '')
                   if (v !== 'MC3A-EXTRA') {
                     setField('meta_extra_descricao', '')
                   }
