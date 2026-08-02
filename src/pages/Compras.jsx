@@ -208,32 +208,17 @@ async function carregarRubricas() {
   return [];
 }
 
-async function carregarSolicitacoes({ isCoordenador, currentUser, userMuseu }) {
+async function carregarSolicitacoes({ isCoordenador, currentUser }) {
   if (!currentUser) return [];
   if (isCoordenador) return await base44.entities.PurchaseRequest.list('-created_date', 500);
+  // Não-coordenador: apenas as próprias solicitações
   const dedup = new Map();
-  // Museus válidos para filtro direto por museu
-  const MUSEUS_FISICOS = ['MHAB', 'MIS', 'MUMO'];
-  // Determinar quais centros mostrar com base no museu vinculado do usuário
-  const museuFisico = MUSEUS_FISICOS.includes(userMuseu) ? userMuseu : null;
   try {
     const listaGeral = await base44.entities.PurchaseRequest.list('-created_date', 500);
     listaGeral.filter(Boolean).forEach((p) => {
       if (!p?.id) return;
-      // Nunca exibir compras de equipe/salário para não-coordenadores
-      if (isCompraEquipeSalario(p)) return;
-      const centroCusto = normalizeCentro(p?.centro_custo);
-      if (museuFisico) {
-        // Mostrar apenas o museu do usuário + Geral
-        if (centroCusto === museuFisico || centroCusto === 'Geral') {
-          dedup.set(p.id, p);
-        }
-      } else {
-        // Sem museu definido (Geral/Transversal): mostrar apenas Geral
-        if (centroCusto === 'Geral') {
-          dedup.set(p.id, p);
-        }
-      }
+      if (!purchaseBelongsToUser(p, currentUser?.email)) return;
+      dedup.set(p.id, p);
     });
   } catch (error) {console.error('Erro ao buscar lista geral de PurchaseRequest:', error);}
   return Array.from(dedup.values()).sort((a, b) => new Date(b?.created_date || 0) - new Date(a?.created_date || 0));
@@ -1054,7 +1039,7 @@ function ComprasInner() {
               </p>
               {!isCoordenador && (
                 <p className="text-xs text-blue-500 mt-0.5">
-                  Exibindo solicitações do seu museu e as suas próprias
+                  Exibindo apenas as suas solicitações
                 </p>
               )}
             </div>
