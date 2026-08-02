@@ -170,14 +170,6 @@ export function calcularExecucaoOrcamentariaOficial(rubricas = []) {
 
 /**
  * Ponto único de entrada para os cards de aditivo.
- * Retorna totais consolidados por aditivo usando as constantes contratuais como Previsto
- * para o 3º e 5º Aditivo, e soma real de rubricas para o 4º Aditivo.
- *
- * @param {Array} rubricas — array completo de rubricas (ativas ou não)
- * @returns {{ terceiro, quarto, quinto, total }}
- */
-/**
- * Ponto único de entrada para os cards de aditivo.
  * Previsto de TODOS os aditivos é o valor fixo contratual de contratoConstants.js.
  * Utilizado é a soma de rubricaUtilizado(r) das rubricas filtradas por origem_recurso.
  *

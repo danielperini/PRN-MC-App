@@ -87,7 +87,7 @@ function AditivoBlock({ titulo, badge, badgeColor, totalPrevisto, totalUtilizado
 }
 
 export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
-  const { terceiro, quarto, quinto, duplicadas, datasInvalidas } = useMemo(() => {
+  const { terceiro, quarto, quinto, auditoria, duplicadas, datasInvalidas } = useMemo(() => {
     const ativas = rubricas.filter((r) => r?.ativo !== false);
     // Única fonte de verdade para Previsto/Utilizado/Saldo
     const totais = calcularTotaisPorAditivo(rubricas);
@@ -97,6 +97,7 @@ export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
       terceiro: { ...totais.terceiro, qtdNFs: auditoria.terceiro_aditivo.quantidade_nfs },
       quarto:   { ...totais.quarto,   qtdNFs: auditoria.noturno_2026.quantidade_nfs },
       quinto:   { ...totais.quinto,   qtdNFs: totais.quinto.rubricas.length },
+      auditoria,
       duplicadas: auditoria.duplicadas_ignoradas,
       datasInvalidas: auditoria.datas_invalidas_ignoradas,
     };
