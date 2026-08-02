@@ -272,9 +272,39 @@ export default function GaleriaTickerCarousel() {
 
   // Duplicar para loop visual infinito
   const totalWidth = images.length * 88; // 80px + 8px gap
-  const duration = images.length * 3.9; // mantém a mesma velocidade proporcional do carrossel original
+  const duration = images.length * 1.67; // ~40s para 24 fotos
 
-  return null;
+  return (
+    <div className="relative flex items-center gap-3 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+      <style>{`@keyframes gticker { from { transform: translateX(0); } to { transform: translateX(-${totalWidth}px); } }`}</style>
+      <div
+        className="min-w-0 flex-1 overflow-hidden"
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}>
+        <div
+          className="flex w-max gap-2"
+          style={{
+            animation: `gticker ${duration}s linear infinite`,
+            animationPlayState: paused ? 'paused' : 'running'
+          }}>
+          {looped.map((url, index) =>
+            <img
+              key={`${url}-${index}`}
+              src={url}
+              alt=""
+              loading="lazy"
+              className="h-16 w-16 flex-none rounded-xl object-cover shadow-sm md:h-20 md:w-20" />
+          )}
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={goToGallery}
+        className="flex-none rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100">
+        Ver Galeria →
+      </button>
+    </div>
+  );
 
 
 
