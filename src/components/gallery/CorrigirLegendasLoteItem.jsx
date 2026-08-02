@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { toast } from 'sonner';
-import { RefreshCw, Sparkles } from 'lucide-react';
+import { RefreshCw, Sparkles, Type } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 
 export default function CorrigirLegendasLoteItem({ onConcluido }) {
   const [running, setRunning] = useState(false);
+  const [runningReformat, setRunningReformat] = useState(false);
 
   async function corrigir(event) {
     event?.preventDefault?.();
@@ -34,18 +35,59 @@ export default function CorrigirLegendasLoteItem({ onConcluido }) {
     }
   }
 
+  async function reformatar(event) {
+    event?.preventDefault?.();
+    setRunningReformat(true);
+    const aviso = toast.loading('Reformatando legendas (sem IA)...');
+    try {
+      let skip = 0;
+      let total = 0;
+      let lote = 0;
+      let hasMore = true;
+      while (hasMore && lote < 100) {
+        const res = await base44.functions.invoke('reformatarLegendasGaleria', { skip, limit: 50 });
+        const data = res?.data || {};
+        total += data.atualizadas || 0;
+        hasMore = Boolean(data.has_more);
+        skip = data.proximo_skip ?? skip + 50;
+        lote += 1;
+        toast.loading(`Lote ${lote} — ${total} atualizadas`, { id: aviso });
+      }
+      toast.success(`${total} ${total === 1 ? 'legenda reformatada' : 'legendas reformatadas'} com sucesso.`, { id: aviso });
+      onConcluido?.();
+    } catch (error) {
+      toast.error('Erro ao reformatar legendas: ' + (error?.message || 'tente novamente.'), { id: aviso });
+    } finally {
+      setRunningReformat(false);
+    }
+  }
+
   return (
-    <DropdownMenuItem
-      disabled={running}
-      onSelect={corrigir}
-      className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
-      <span className="font-medium text-gray-900 flex items-center gap-1.5">
-        {running ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-        Corrigir legendas de toda a galeria
-      </span>
-      <span className="text-xs text-gray-500 pl-5">
-        Substitui legendas genéricas pelos dados reais da atividade, museu e data.
-      </span>
-    </DropdownMenuItem>
+    <>
+      <DropdownMenuItem
+        disabled={running}
+        onSelect={corrigir}
+        className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
+        <span className="font-medium text-gray-900 flex items-center gap-1.5">
+          {running ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+          Corrigir legendas de toda a galeria
+        </span>
+        <span className="text-xs text-gray-500 pl-5">
+          Substitui legendas genéricas pelos dados reais da atividade, museu e data.
+        </span>
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        disabled={runningReformat}
+        onSelect={reformatar}
+        className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
+        <span className="font-medium text-gray-900 flex items-center gap-1.5">
+          {runningReformat ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Type className="h-3.5 w-3.5" />}
+          Reformatar legendas (sem IA)
+        </span>
+        <span className="text-xs text-gray-500 pl-5">
+          Converte "2026-05-MHAB-NOME" para "Nome — Museu — Mês/Ano" usando só os metadados.
+        </span>
+      </DropdownMenuItem>
+    </>
   );
 }
