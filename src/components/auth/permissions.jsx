@@ -87,7 +87,6 @@ export const OBSERVADOR_PAGES = new Set([
   'ComunicacaoVisibilidade',
   'ProgramacaoEspelho',
   'RubricasPorMuseu',
-  'Movimentacoes',
   'LeitorNoticias',
   'Relatorios',
   'AuditoriaInstitucional',
@@ -157,6 +156,7 @@ export const COORDENADOR_ONLY_PAGES = new Set([
   'GestaoDocumental',
   'GestaoDocumentalClean',
   'GestaoPagamentos',
+  'Movimentacoes',
   'ConsolidacaoFinanceira',
   'MonitoringPanel',
   'RelatorioMeta',
@@ -174,6 +174,7 @@ export function canAccessPage(pageName, user, userPermission) {
   if (!user) return false;
   if (COORD_GERAL_ONLY_PAGES.has(pageName)) return isCoordGeral(user);
   if (isCoordenador(user)) return true;
+  if (COORDENADOR_ONLY_PAGES.has(pageName)) return false;
   if (isPatrocinador(user)) return PATROCINADOR_PAGES.has(pageName);
   if (isObservador(user, userPermission)) return OBSERVADOR_PAGES.has(pageName);
   return PROFISSIONAL_PAGES.has(pageName);
@@ -202,7 +203,6 @@ export const SIDEBAR_OBSERVADOR = new Set([
   'Agenda',
   'GaleriaFotos',
   'RubricasPorMuseu',
-  'Movimentacoes',
   'LeitorNoticias',
   'ProgramacaoEspelho',
   'Manual',
