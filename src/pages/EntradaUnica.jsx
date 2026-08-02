@@ -35,6 +35,7 @@ import {
   DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import ImportarPacoteRelatorios from '@/components/entrada/ImportarPacoteRelatorios';
+import SectionErrorBoundary from '@/components/common/SectionErrorBoundary';
 
 function normalizeText(value) {
   return String(value || '').
@@ -305,6 +306,7 @@ export default function EntradaUnica() {
   const [processados, setProcessados] = useState([]);
   const filaRef = useRef([]);
   const abortarRef = useRef(false);
+  const retryingRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
@@ -502,8 +504,8 @@ export default function EntradaUnica() {
         list = null;
       }
 
-      // Fallback: se filter falhou, usa list() e filtra no cliente
-      if (!list || list.length === 0) {
+      // Fallback: só quando o filter realmente falhou (lista vazia é resultado válido)
+      if (!list) {
         const all = await base44.entities.DocumentIntake.list('-created_date', 200);
         list = (all || []).filter(
           (d) => {
@@ -514,11 +516,9 @@ export default function EntradaUnica() {
         ).slice(0, 200);
       }
 
-      // Correções e vinculações em background — via backend
+      // Correções em background (leves). Vinculação automática roda apenas sob
+      // ação do administrador, para não estourar o limite de requisições.
       corrigirTravados(list || []).catch(() => {});
-      tentarVincularLista(list || []).catch(() => {});
-      // Também dispara vinculação backend (não bloqueia)
-      base44.functions.invoke('vincularDocumentosAutomatico', { dryRun: false }).catch(() => {});
 
       const filtrados = (list || []).filter((i) => {
         const status = String(i.status_processamento || '').toUpperCase();
@@ -552,7 +552,16 @@ export default function EntradaUnica() {
       setProcessados(jaProcessados);
     } catch (e) {
       console.error('loadIntakes fatal:', e);
-      setIntakesLoadError(true);
+      // Limite de requisições: aguarda e tenta uma vez antes de mostrar erro
+      if (e?.status === 429 && !retryingRef.current) {
+        retryingRef.current = true;
+        setTimeout(() => {
+          retryingRef.current = false;
+          loadIntakes();
+        }, 4000);
+      } else {
+        setIntakesLoadError(true);
+      }
     } finally {
       setLoadingIntakes(false);
     }
@@ -1724,62 +1733,65 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
 
             abaAtiva === 'pendentes' && <div className="space-y-3">
                 {intakes.map((intake) =>
-              <DocumentIntakeCard
-                key={intake.id}
-                intake={intake}
-                allIntakes={intakes}
-                onReview={handleReview}
-                onDeleted={handleDeleted}
-                onSentToApproval={handleSentToApproval}
-                onReanalyse={handleReanalyse}
-                onLinkXml={handleLinkXml}
-                onAddXmlToPdf={handleAddXmlToPdf}
-                onLinkArquivo={handleLinkArquivo} />
-
+              <SectionErrorBoundary key={intake.id} title={intake.file_name_original || 'Documento'}>
+                <DocumentIntakeCard
+                  intake={intake}
+                  allIntakes={intakes}
+                  onReview={handleReview}
+                  onDeleted={handleDeleted}
+                  onSentToApproval={handleSentToApproval}
+                  onReanalyse={handleReanalyse}
+                  onLinkXml={handleLinkXml}
+                  onAddXmlToPdf={handleAddXmlToPdf}
+                  onLinkArquivo={handleLinkArquivo} />
+              </SectionErrorBoundary>
               )}
               </div>
             }
           </div>
         </div>
 
-        {reviewIntake && isNF &&
-        <ReviewModalNF
-          intake={reviewIntake}
-          onClose={() => setReviewIntake(null)}
-          onSaved={handleSaved} />
+        {reviewIntake &&
+        <SectionErrorBoundary
+          key={reviewIntake.id}
+          title="Conferência do documento"
+          onRetry={() => setReviewIntake(null)}
+        >
+          {isNF &&
+          <ReviewModalNF
+            intake={reviewIntake}
+            onClose={() => setReviewIntake(null)}
+            onSaved={handleSaved} />
+          }
 
-        }
+          {isFoto &&
+          <ReviewModalFoto
+            intake={reviewIntake}
+            onClose={() => setReviewIntake(null)}
+            onSaved={handleSaved} />
+          }
 
-        {reviewIntake && isFoto &&
-        <ReviewModalFoto
-          intake={reviewIntake}
-          onClose={() => setReviewIntake(null)}
-          onSaved={handleSaved} />
+          {isDocAdmin &&
+          <ReviewModalDocAdmin
+            intake={reviewIntake}
+            onClose={() => setReviewIntake(null)}
+            onSaved={handleSaved} />
+          }
 
-        }
+          {isContrato &&
+          <ReviewModalContrato
+            intake={reviewIntake}
+            onClose={() => setReviewIntake(null)}
+            onSaved={handleSaved} />
+          }
 
-        {reviewIntake && isDocAdmin &&
-        <ReviewModalDocAdmin
-          intake={reviewIntake}
-          onClose={() => setReviewIntake(null)}
-          onSaved={handleSaved} />
-
-        }
-
-        {reviewIntake && isContrato &&
-        <ReviewModalContrato
-          intake={reviewIntake}
-          onClose={() => setReviewIntake(null)}
-          onSaved={handleSaved} />
-
-        }
-
-        {reviewIntake && !isNF && !isFoto && !isDocAdmin && !isContrato &&
-        <ReviewModalOutro
-          intake={reviewIntake}
-          onClose={() => setReviewIntake(null)}
-          onSaved={handleSaved} />
-
+          {!isNF && !isFoto && !isDocAdmin && !isContrato &&
+          <ReviewModalOutro
+            intake={reviewIntake}
+            onClose={() => setReviewIntake(null)}
+            onSaved={handleSaved} />
+          }
+        </SectionErrorBoundary>
         }
 
         {linkXmlIntake &&
