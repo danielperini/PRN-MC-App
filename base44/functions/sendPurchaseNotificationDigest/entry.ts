@@ -3,9 +3,9 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 const APP_BASE_URL = 'https://periniprojetos.com.br';
 
 const RECIPIENTS = [
-  'adm@viadutodasartes.org.br',
-  'josianeamancio@viadutodasartes.org.br',
-  'danielperini.mc@viadutodasartes.org.br',
+  'adm@viadutodasartes.org.br',           // Marcos
+  'josianeamancio@viadutodasartes.org.br', // Josiane Amâncio
+  'danielperini.mc@viadutodasartes.org.br', // Daniel Perini
 ];
 
 Deno.serve(async (req) => {
