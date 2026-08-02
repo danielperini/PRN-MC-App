@@ -171,13 +171,30 @@ export function calcularExecucaoOrcamentariaOficial(rubricas = []) {
 /**
  * Ponto único de entrada para os cards de aditivo.
  * Previsto de TODOS os aditivos é o valor fixo contratual de contratoConstants.js.
- * Utilizado é a soma de rubricaUtilizado(r) das rubricas filtradas por origem_recurso.
+ * Utilizado:
+ *   - 3º e 5º: soma de rubricaUtilizado(r) das rubricas filtradas por origem_recurso.
+ *   - 4º: soma das compras aprovadas/pagas com centro_custo "Noturno Pampulha"
+ *         (as compras deste aditivo estão vinculadas a rubricas antigas, não às 4 rubricas do 4º Aditivo).
  *
  * @param {Array} rubricas — array completo de rubricas (ativas ou não)
+ * @param {Array} [compras] — array de PurchaseRequest (necessário para calcular utilizado do 4º)
  * @returns {{ terceiro, quarto, quinto, total }}
  *   cada bloco: { previsto, utilizado, saldo, percentual, rubricas }
  */
-export function calcularTotaisPorAditivo(rubricas = []) {
+const STATUS_FINANCEIROS = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
+
+function getPurchaseValueLocal(c) {
+  return (
+    Number(c?.valor_pago) ||
+    Number(c?.valor_aprovado_admin) ||
+    Number(c?.valor_aprovado) ||
+    Number(c?.valor_solicitado) ||
+    Number(c?.nf_valor_total) ||
+    0
+  );
+}
+
+export function calcularTotaisPorAditivo(rubricas = [], compras = []) {
   const ativas = (Array.isArray(rubricas) ? rubricas : []).filter((r) => r?.ativo !== false);
 
   const r3 = ativas.filter((r) => {
@@ -194,8 +211,21 @@ export function calcularTotaisPorAditivo(rubricas = []) {
   });
 
   const utilizado3 = r3.reduce((s, r) => s + rubricaUtilizado(r), 0);
-  const utilizado4 = r4.reduce((s, r) => s + rubricaUtilizado(r), 0);
   const utilizado5 = r5.reduce((s, r) => s + rubricaUtilizado(r), 0);
+
+  // 4º Aditivo: calcular via compras com centro_custo "Noturno Pampulha"
+  // pois as compras deste aditivo estão vinculadas a rubricas do pool do Noturno,
+  // não às 4 rubricas criadas especificamente para o 4º Aditivo.
+  const utilizado4 = (Array.isArray(compras) ? compras : [])
+    .filter((c) => {
+      const status = String(c?.status || '').toUpperCase();
+      const cc = (c?.centro_custo || '').toLowerCase();
+      return STATUS_FINANCEIROS.has(status) &&
+        (cc.includes('pampulha') || cc === 'noturno pampulha') &&
+        c?.duplicada_financeira !== true &&
+        c?.incluir_no_somatorio !== false;
+    })
+    .reduce((s, c) => s + getPurchaseValueLocal(c), 0);
 
   const mkBloco = (previsto, utilizado, rubricas) => ({
     previsto,

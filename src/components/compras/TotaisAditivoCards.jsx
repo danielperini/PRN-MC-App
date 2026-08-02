@@ -90,7 +90,7 @@ export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
   const { terceiro, quarto, quinto, auditoria, duplicadas, datasInvalidas } = useMemo(() => {
     const ativas = rubricas.filter((r) => r?.ativo !== false);
     // Única fonte de verdade para Previsto/Utilizado/Saldo
-    const totais = calcularTotaisPorAditivo(rubricas);
+    const totais = calcularTotaisPorAditivo(rubricas, compras);
     const auditoria = auditAditivoTotals(compras, ativas);
 
     return {
