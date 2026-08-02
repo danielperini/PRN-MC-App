@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+// fonte: canonicalMetrics.js — Previsto/Utilizado/Saldo via funções canônicas + contratoConstants.js
 import { auditAditivoTotals } from '@/utils/finance/financeiroUtils';
 import { rubricaPrevisto, rubricaUtilizado } from '@/services/canonicalMetrics';
 import { CONTRATO_3_ADITIVO, CONTRATO_4_ADITIVO, CONTRATO_5_ADITIVO, CONTRATO_TOTAL } from '@/lib/contratoConstants';

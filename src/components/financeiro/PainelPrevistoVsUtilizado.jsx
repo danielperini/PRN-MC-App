@@ -4,6 +4,7 @@ import { ChevronDown, ChevronUp, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+// fonte: canonicalMetrics.js — Previsto/Utilizado/Saldo via funções canônicas
 import { rubricaPrevisto, rubricaUtilizado } from '@/services/canonicalMetrics';
 
 const fmtBRL = (v) => {

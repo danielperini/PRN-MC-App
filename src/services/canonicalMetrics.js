@@ -168,6 +168,49 @@ export function calcularExecucaoOrcamentariaOficial(rubricas = []) {
 }
 
 /**
+ * Ponto único de entrada para os cards de aditivo.
+ * Retorna totais consolidados por aditivo usando as constantes contratuais como Previsto
+ * para o 3º e 5º Aditivo, e soma real de rubricas para o 4º Aditivo.
+ *
+ * @param {Array} rubricas — array completo de rubricas (ativas ou não)
+ * @returns {{ terceiro, quarto, quinto, total }}
+ */
+export function calcularTotaisPorAditivo(rubricas = []) {
+  // Importação inline para evitar dependência circular — valores fixos contratuais
+  const CONTRATO_3 = 1_320_000;
+  const CONTRATO_5 = 15_800;
+
+  const ativas = (Array.isArray(rubricas) ? rubricas : []).filter((r) => r?.ativo !== false);
+
+  const r3 = ativas.filter((r) => {
+    const o = (r.origem_recurso || '').trim();
+    return o === '3º ADITIVO' || o === '3º Aditivo';
+  });
+  const r4 = ativas.filter((r) => {
+    const o = (r.origem_recurso || '').trim();
+    return o === '4º ADITIVO' || o === '4º Aditivo';
+  });
+  const r5 = ativas.filter((r) => {
+    const o = (r.origem_recurso || '').trim();
+    return o === '5º ADITIVO' || o === '5º Aditivo';
+  });
+
+  const utilizado3 = r3.reduce((s, r) => s + rubricaUtilizado(r), 0);
+  const previsto4   = r4.reduce((s, r) => s + rubricaPrevisto(r), 0);
+  const utilizado4 = r4.reduce((s, r) => s + rubricaUtilizado(r), 0);
+  const utilizado5 = r5.reduce((s, r) => s + rubricaUtilizado(r), 0);
+
+  const terceiro = { previsto: CONTRATO_3, utilizado: utilizado3, saldo: CONTRATO_3 - utilizado3 };
+  const quarto   = { previsto: previsto4,  utilizado: utilizado4,  saldo: previsto4 - utilizado4 };
+  const quinto   = { previsto: CONTRATO_5, utilizado: utilizado5,  saldo: CONTRATO_5 - utilizado5 };
+  const totalPrevisto   = terceiro.previsto + quarto.previsto + quinto.previsto;
+  const totalUtilizado  = terceiro.utilizado + quarto.utilizado + quinto.utilizado;
+  const total = { previsto: totalPrevisto, utilizado: totalUtilizado, saldo: totalPrevisto - totalUtilizado };
+
+  return { terceiro, quarto, quinto, total };
+}
+
+/**
  * Filtra e soma notas fiscais aprovadas/pagas em um período.
  *
  * @param {Array}  compras

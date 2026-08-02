@@ -14,6 +14,7 @@ import SimposioCard from '@/components/compras/SimposioCard';
 import CentrosCustoCards from '@/components/compras/CentrosCustoCards';
 import { canManageRubricas } from '@/components/auth/permissions';
 import OrcamentoPorGrupoSection from '@/components/compras/OrcamentoPorGrupoSection';
+import { rubricaPrevisto, rubricaUtilizado } from '@/services/canonicalMetrics'; // fonte: canonicalMetrics.js
 
 // ─── Tokens de museu para classificação por nome ───
 const MUSEU_TOKENS = {
@@ -362,7 +363,7 @@ export default function RubricasPorMuseu() {
     const rubricasUnicas = banco.filter(r => { if (seen.has(r.id)) return false; seen.add(r.id); return true; });
 
     for (const r of rubricasUnicas) {
-      const previsto = toNumber(r.valor_rubrica || r.valor_total);
+      const previsto = rubricaPrevisto(r); // fonte: canonicalMetrics.js
       const grupo = String(r?.grupo || '').trim();
       const alocacoes = classificarRubrica(r);
 

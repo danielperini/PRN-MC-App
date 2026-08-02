@@ -12,6 +12,7 @@ import NovaRubricaDialog from '@/components/rubricas/NovaRubricaDialog';
 import { canManageRubricas } from '@/components/auth/permissions';
 import PainelPrevistoVsUtilizado from '@/components/financeiro/PainelPrevistoVsUtilizado';
 import MemoriaCalculoDrawer from '@/components/financeiro/MemoriaCalculoDrawer';
+// fonte: canonicalMetrics.js — Previsto/Utilizado/Saldo via funções canônicas
 import { calcularExecucaoOrcamentariaOficial, isOrigemAditivo, rubricaPrevisto, rubricaUtilizado } from '@/services/canonicalMetrics';
 
 function DashboardFinanceiroInner() {

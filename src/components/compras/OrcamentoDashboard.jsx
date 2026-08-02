@@ -1,15 +1,12 @@
 import React from 'react';
 import { AlertTriangle, Users } from 'lucide-react';
+// fonte: canonicalMetrics.js — todos os cálculos de Previsto/Utilizado/Saldo via funções canônicas
 import { rubricaUtilizado } from '@/services/canonicalMetrics';
 import { CONTRATO_3_ADITIVO } from '@/lib/contratoConstants';
 import { resolveValor } from '@/utils/fieldResolvers';
 
 function toNumber(v) {
   return Number(v) || 0;
-}
-
-function getPurchaseValue(p) {
-  return resolveValor(p);
 }
 
 function normalizeText(value) {
@@ -203,7 +200,7 @@ export default function OrcamentoDashboard({
 
   const totalPago = purchases.
   filter((p) => p.status === 'PAGO').
-  reduce((acc, p) => acc + getPurchaseValue(p), 0);
+  reduce((acc, p) => acc + resolveValor(p), 0); // fonte: canonicalMetrics.js (via resolveValor)
 
   const totalAprovado = purchases.
   filter(
@@ -212,7 +209,7 @@ export default function OrcamentoDashboard({
     p.status === 'APROVADO_ADMIN' ||
     p.status === 'PAGO'
   ).
-  reduce((acc, p) => acc + getPurchaseValue(p), 0);
+  reduce((acc, p) => acc + resolveValor(p), 0); // fonte: canonicalMetrics.js (via resolveValor)
 
   const pctExecucao = totalInicial > 0 ? totalPago / totalInicial * 100 : 0;
 
@@ -227,7 +224,7 @@ export default function OrcamentoDashboard({
 
   const totalEquipeViaPurchases = purchases.
   filter((p) => p.origem === 'TEAM_PAYMENT' || p.team_payment_id).
-  reduce((acc, p) => acc + getPurchaseValue(p), 0);
+  reduce((acc, p) => acc + resolveValor(p), 0); // fonte: canonicalMetrics.js (via resolveValor)
 
   const totalEquipe = totalEquipeViaRubrica > 0 ?
   totalEquipeViaRubrica :
@@ -238,7 +235,7 @@ export default function OrcamentoDashboard({
     0
   );
 
-  const totalCompras = purchases.reduce((acc, p) => acc + getPurchaseValue(p), 0);
+  const totalCompras = purchases.reduce((acc, p) => acc + resolveValor(p), 0); // fonte: canonicalMetrics.js (via resolveValor)
 
   const basePercentualEquipe = totalUtilizadoGeralRubricas > 0 ?
   totalUtilizadoGeralRubricas :
