@@ -6,6 +6,7 @@
  */
 
 import { resolvePublico, resolveValor, resolveData } from '@/utils/fieldResolvers';
+import { CONTRATO_3_ADITIVO, CONTRATO_4_ADITIVO, CONTRATO_5_ADITIVO } from '@/lib/contratoConstants';
 
 const STATUS_APROVADOS = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
 
@@ -175,11 +176,16 @@ export function calcularExecucaoOrcamentariaOficial(rubricas = []) {
  * @param {Array} rubricas — array completo de rubricas (ativas ou não)
  * @returns {{ terceiro, quarto, quinto, total }}
  */
+/**
+ * Ponto único de entrada para os cards de aditivo.
+ * Previsto de TODOS os aditivos é o valor fixo contratual de contratoConstants.js.
+ * Utilizado é a soma de rubricaUtilizado(r) das rubricas filtradas por origem_recurso.
+ *
+ * @param {Array} rubricas — array completo de rubricas (ativas ou não)
+ * @returns {{ terceiro, quarto, quinto, total }}
+ *   cada bloco: { previsto, utilizado, saldo, percentual, rubricas }
+ */
 export function calcularTotaisPorAditivo(rubricas = []) {
-  // Importação inline para evitar dependência circular — valores fixos contratuais
-  const CONTRATO_3 = 1_320_000;
-  const CONTRATO_5 = 15_800;
-
   const ativas = (Array.isArray(rubricas) ? rubricas : []).filter((r) => r?.ativo !== false);
 
   const r3 = ativas.filter((r) => {
@@ -196,16 +202,29 @@ export function calcularTotaisPorAditivo(rubricas = []) {
   });
 
   const utilizado3 = r3.reduce((s, r) => s + rubricaUtilizado(r), 0);
-  const previsto4   = r4.reduce((s, r) => s + rubricaPrevisto(r), 0);
   const utilizado4 = r4.reduce((s, r) => s + rubricaUtilizado(r), 0);
   const utilizado5 = r5.reduce((s, r) => s + rubricaUtilizado(r), 0);
 
-  const terceiro = { previsto: CONTRATO_3, utilizado: utilizado3, saldo: CONTRATO_3 - utilizado3 };
-  const quarto   = { previsto: previsto4,  utilizado: utilizado4,  saldo: previsto4 - utilizado4 };
-  const quinto   = { previsto: CONTRATO_5, utilizado: utilizado5,  saldo: CONTRATO_5 - utilizado5 };
-  const totalPrevisto   = terceiro.previsto + quarto.previsto + quinto.previsto;
-  const totalUtilizado  = terceiro.utilizado + quarto.utilizado + quinto.utilizado;
-  const total = { previsto: totalPrevisto, utilizado: totalUtilizado, saldo: totalPrevisto - totalUtilizado };
+  const mkBloco = (previsto, utilizado, rubricas) => ({
+    previsto,
+    utilizado,
+    saldo: previsto - utilizado,
+    percentual: previsto > 0 ? (utilizado / previsto) * 100 : 0,
+    rubricas,
+  });
+
+  const terceiro = mkBloco(CONTRATO_3_ADITIVO, utilizado3, r3);
+  const quarto   = mkBloco(CONTRATO_4_ADITIVO, utilizado4, r4);
+  const quinto   = mkBloco(CONTRATO_5_ADITIVO, utilizado5, r5);
+
+  const totalPrevisto  = terceiro.previsto + quarto.previsto + quinto.previsto;
+  const totalUtilizado = terceiro.utilizado + quarto.utilizado + quinto.utilizado;
+  const total = {
+    previsto: totalPrevisto,
+    utilizado: totalUtilizado,
+    saldo: totalPrevisto - totalUtilizado,
+    percentual: totalPrevisto > 0 ? (totalUtilizado / totalPrevisto) * 100 : 0,
+  };
 
   return { terceiro, quarto, quinto, total };
 }
