@@ -160,12 +160,42 @@ export function normalizePeriodoForComparison(periodo) {
  * @returns {string}
  */
 export function resolvePhotoCaption(image) {
-  if (!image) return 'Foto da galeria';
+  if (!image) return '';
   const candidates = [image.legenda, image.caption, image.activityTitulo];
   for (const candidate of candidates) {
-    if (candidate && !isTechnicalFileName(candidate)) {
-      return candidate;
+    if (candidate && !isTechnicalFileName(candidate) && !isInventedCaption(candidate)) {
+      return String(candidate).trim();
     }
   }
-  return 'Foto da galeria';
+  const museu = String(image.museu || '').trim();
+  const periodo = String(image.reportMes || '').trim();
+  return [museu, periodo].filter(Boolean).join(' — ');
+}
+
+// Textos genéricos/inventados que não representam dado real do relatório
+const INVENTED_CAPTION_PATTERNS = [
+  'foto da galeria',
+  'foto de registro',
+  'registro fotografico',
+  'instalacao noturna',
+  'instalacao noturno',
+  'noturno nos museus 20',
+  'sem legenda',
+];
+
+/**
+ * Detecta legendas genéricas/inventadas (aplicadas em lote), que devem ser
+ * tratadas como ausentes para forçar a cascata de dados reais.
+ * @param {string} text
+ * @returns {boolean}
+ */
+export function isInventedCaption(text) {
+  const normalized = String(text || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+  if (!normalized) return true;
+  return INVENTED_CAPTION_PATTERNS.some((pattern) => normalized.startsWith(pattern) || normalized.includes(pattern));
 }

@@ -1,6 +1,7 @@
 import { base44 } from '@/api/base44Client';
 import { dedupePhotosByTechnicalIdentity, getPhotoIdentity } from '@/utils/photoSimilarity';
 import { deduplicateGalleryPhotos } from '@/utils/galleryDeduplication';
+import { isInventedCaption, isTechnicalFileName } from '@/utils/galleryNormalization';
 
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'avif', 'heic'];
 const DEFAULT_CACHE_KEY = 'museus_centro_galeria_fotos_cache_v19_three_sources';
@@ -195,6 +196,13 @@ function mapPhoto(item, sourceEntity = 'Attachment') {
   const timestamp = normalizeDate(firstValue(item, ['data_foto', 'photo_date', 'taken_at', 'captured_at', 'date_taken']) || driveContext.data_foto || item.created_at || item.created_date || item.updated_date);
   const source = resolvePhotoSource(item);
   const fileName = item.file_name || item.filename || item.name || 'imagem';
+  const activityTitulo = item.atividade_titulo || item.activity_title || driveContext.atividade_nome || '';
+  const rawCaption = item.legenda || item.caption || item.titulo || item.title || item.descricao || item.description || '';
+  const realCaption = rawCaption && !isInventedCaption(rawCaption) && !isTechnicalFileName(rawCaption) ? rawCaption : '';
+  const periodoCtx = item.mes_referencia ? `${item.mes_referencia}${item.ano ? `/${item.ano}` : ''}` : '';
+  const legendaFinal = realCaption
+    || activityTitulo
+    || [section.shortTitle && sectionKey !== 'SEM_IDENTIFICACAO' ? section.shortTitle : '', periodoCtx].filter(Boolean).join(' — ');
   const mapped = {
     id: `${sourceEntity.toLowerCase()}-${item.id || source.driveFileId || fileName || timestamp}`,
     sourceId: item.id || source.driveFileId || fileName || '',
@@ -204,7 +212,7 @@ function mapPhoto(item, sourceEntity = 'Attachment') {
     originalFileUrl: source.originalFileUrl,
     legacyDriveUrl: source.legacyDriveUrl,
     fileName,
-    legenda: item.legenda || item.caption || item.titulo || item.title || item.descricao || item.description || '',
+    legenda: legendaFinal,
     description: item.descricao || item.description || item.caption || '',
     museu: section.shortTitle,
     sectionKey,
@@ -216,7 +224,7 @@ function mapPhoto(item, sourceEntity = 'Attachment') {
     reportLabel: sourceEntity,
     reportMes: item.mes_referencia ? `${item.mes_referencia}${item.ano ? `/${item.ano}` : ''}` : '',
     authorName: item.author || item.author_name || '',
-    activityTitulo: item.atividade_titulo || item.activity_title || driveContext.atividade_nome || '',
+    activityTitulo,
     driveFileId: source.driveFileId,
   };
   return { ...mapped, duplicateIdentity: getPhotoIdentity(mapped) };
@@ -335,6 +343,10 @@ export async function loadGalleryReportData({
     if (r.id) reportCtxMap.set(r.id, { museu: r.museu || '', mes_referencia: r.mes_referencia || '', ano: r.ano || r.ano_referencia || '', author_name: r.author_name || '' });
   });
 
+  // Título da atividade por id, para dar legenda real às fotos de ReportPhoto
+  const activityTituloById = new Map();
+  activities.forEach((a) => { if (a.id && a.titulo) activityTituloById.set(a.id, a.titulo); });
+
   // Controle de deduplicação por file_url entre todas as fontes
   const seenUrlsInit = new Set();
 
@@ -378,7 +390,7 @@ export async function loadGalleryReportData({
       mes_referencia: rp.mes_referencia || ctx.mes_referencia || '',
       ano: rp.ano || ctx.ano || '',
       author: rp.author || ctx.author_name || '',
-      atividade_titulo: '',
+      atividade_titulo: activityTituloById.get(rp.activity_id) || '',
       id: rp.id,
     }, 'ReportPhoto'));
   });

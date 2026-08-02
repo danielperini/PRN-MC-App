@@ -30,12 +30,13 @@ import { getAtividadeKey } from '@/components/gallery/ActivityChipsBar';
 import { PhotoActionBar, BulkActionBar, EditCaptionDialog, DeleteConfirmDialog, EmailPhotosDialog } from '@/components/gallery/GalleryPhotoActions';
 import { base44 } from '@/api/base44Client';
 import { normalizeMuseuKey, resolvePhotoCaption } from '@/utils/galleryNormalization';
+import CorrigirLegendasLoteItem from '@/components/gallery/CorrigirLegendasLoteItem';
 
 const INITIAL_VISIBLE_IMAGES = 20;
 const VISIBLE_IMAGES_STEP = 20;
 // Inclui data do dia na chave para invalidar o cache automaticamente a cada novo dia
 const TODAY = new Date().toISOString().slice(0, 10);
-const GALLERY_CACHE_KEY = `museus_centro_galeria_fotos_cache_v17_resilient_${TODAY}`;
+const GALLERY_CACHE_KEY = `museus_centro_galeria_fotos_cache_v18_legendas_reais_${TODAY}`;
 const GALLERY_CACHE_TTL_MS = 5 * 60 * 1000; // 5 min para pegar fotos novas mais rápido
 
 const SECTION_LABELS = {
@@ -86,7 +87,8 @@ function formatDateBR(value) {
 function clearGalleryCache() {
   try {
     // Limpa versões antigas e a atual
-    ['v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v10', 'v11', 'v12', 'v13', 'v14', 'v15', 'v16'].forEach((v) => {
+    ['v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v10', 'v11', 'v12', 'v13', 'v14', 'v15', 'v16', 'v17'].forEach((v) => {
+      localStorage.removeItem(`museus_centro_galeria_fotos_cache_${v}_resilient_${TODAY}`);
       localStorage.removeItem(`museus_centro_galeria_fotos_cache_${v}`);
       localStorage.removeItem(`museus_centro_galeria_fotos_cache_${v}_deduped_3layers`);
       localStorage.removeItem(`museus_centro_galeria_fotos_cache_${v}_drive_thumbs_${TODAY}`);
@@ -118,14 +120,9 @@ function GalleryCard({ image, onClick, eager = false, selected, onToggleSelect, 
   const museuLabel = image.sectionKey !== 'SEM_IDENTIFICACAO' ?
   image.sectionTitle || image.museu || 'Museus Centro' :
   null;
-  // Prioridade: legenda própria da foto > título de atividade > museu/período > "Foto da galeria"
-  // NUNCA exibir nome de arquivo como legenda — nomes de arquivo são técnicos
-  const resolvedCaption = resolvePhotoCaption(image);
-  const legendaDisplay = resolvedCaption && resolvedCaption !== 'Foto da galeria'
-    ? resolvedCaption
-    : (image.activityTitulo
-      || (image.museu && image.reportMes ? `${image.museu} — ${image.reportMes}` : '')
-      || 'Foto da galeria');
+  // Somente legendas reais: legenda do banco (não genérica) > atividade vinculada > museu + período
+  // Nunca exibir nome de arquivo nem texto inventado; se não houver dado real, não renderiza legenda.
+  const legendaDisplay = resolvePhotoCaption(image);
 
   return (
     <div className={`group relative overflow-hidden rounded-2xl border bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md
@@ -174,9 +171,11 @@ function GalleryCard({ image, onClick, eager = false, selected, onToggleSelect, 
           
         </div>
         <div className="space-y-1 p-2">
-          <p className="line-clamp-1 text-xs font-semibold leading-snug text-black">
-            {legendaDisplay}
-          </p>
+          {legendaDisplay && (
+            <p className="line-clamp-1 text-xs font-semibold leading-snug text-black">
+              {legendaDisplay}
+            </p>
+          )}
           <div className="space-y-0.5 text-[11px] text-gray-500">
             {museuLabel &&
             <p className="font-medium text-gray-700 truncate">{museuLabel}</p>
@@ -637,6 +636,9 @@ function GaleriaFotosInner() {
                 <DropdownMenuLabel className="text-xs text-amber-600 uppercase tracking-wide flex items-center gap-1">
                   <TriangleAlert className="h-3 w-3" /> Ação administrativa
                 </DropdownMenuLabel>
+                {currentUser?.role === 'admin' && (
+                  <CorrigirLegendasLoteItem onConcluido={async () => { clearGalleryCache(); await refetch(); }} />
+                )}
                 <DropdownMenuItem
                   onClick={() => setShowRestaurar((v) => !v)}
                   className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
