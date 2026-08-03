@@ -1,6 +1,6 @@
 // Descrições curtas de cada item do sidebar para o tour guiado.
 // Chave = path (sem barra inicial) usado no atributo href do Link.
-const TOUR_DESCRICAO = {
+export const TOUR_DESCRICAO = {
   Dashboard: 'Painel principal com resumo das ações, relatórios e indicadores do mês.',
   DashboardPatrocinador: 'Painel do patrocinador com indicadores e visão geral do projeto.',
   MeusDados: 'Seu espaço pessoal: perfil, pagamentos, atividades, documentos e galeria.',
@@ -8,7 +8,8 @@ const TOUR_DESCRICAO = {
   Manual: 'Manual e ajuda interativa da plataforma.',
   Tutoriais: 'Tutoriais em vídeo para aprender a usar o sistema.',
   Aparencia: 'Personalize o tema visual e acesse ferramentas administrativas.',
-  EntradaUnica: 'Fluxo unificado de upload de documentos com análise automática por IA.',
+  EntradaUnica: '1. Arraste ou selecione o PDF e o XML ao mesmo tempo — o sistema os vincula pelo número da NF. → 2. Após o upload, aguarde alguns minutos enquanto a IA analisa e extrai os dados. → 3. Quando a análise terminar, o documento aparece na fila com status "Aguardando Revisão". → 4. Você que fez o upload revisa os dados extraídos (fornecedor, valor, data, número) e confirma ou corrige. → 5. Após a revisão, clique em "Enviar para Aprovação".',
+  AssistantChat: 'Este é o Assistente de IA — clique no ícone de balão para abrir o chat. Ele está conectado à base de conhecimento da plataforma e responde perguntas sobre compras, relatórios, rubricas, equipe, programação e muito mais. Basta digitar sua dúvida e pressionar Enter.',
   Agenda: 'Consulte a programação cultural por museu e mês.',
   AssistentePlanejamento: 'Assistente de IA para planejamento e consultas operacionais.',
   Relatorios: 'Crie, edite e exporte relatórios mensais com atividades e fotos.',

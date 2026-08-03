@@ -686,6 +686,8 @@ ${textToSend}
       <Button
         onClick={() => setOpen(true)}
         className="fixed bottom-6 right-6 w-12 h-12 rounded-full bg-black text-white"
+        data-tour-id="assistant-chat-button"
+        aria-label="Abrir assistente de IA"
       >
         <MessageCircle />
       </Button>

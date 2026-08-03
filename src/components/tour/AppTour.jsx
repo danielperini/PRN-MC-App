@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
-import { X, ChevronLeft, ChevronRight, Check } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Check, Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { gatherTourSteps } from './tourSteps';
+import { gatherTourSteps, TOUR_DESCRICAO } from './tourSteps';
 
 const STORAGE_KEY = 'app_tour_done';
 const PADDING = 6;
@@ -31,6 +31,33 @@ export default function AppTour({ active, onExit, sidebarCollapsed, onExpandSide
     }, delay);
     return () => { cancelled = true; clearTimeout(t); };
   }, [active, sidebarCollapsed, onExpandSidebar]);
+
+  // Sondagem robusta: anexa o passo extra do Assistente de IA assim que o
+  // botão flutuante estiver no DOM (ele pode montar tardiamente em algumas rotas).
+  useEffect(() => {
+    if (!active) return;
+    let cancelled = false;
+    let tries = 0;
+    const poll = setInterval(() => {
+      if (cancelled) return;
+      tries += 1;
+      const chatEl = document.querySelector('[data-tour-id="assistant-chat-button"]');
+      if (chatEl) {
+        setSteps((prev) => {
+          if (prev.some((s) => s.path === 'AssistantChat')) return prev;
+          if (!prev.some((s) => s.path)) return prev; // evita adicionar antes do sidebar
+          return [
+            ...prev,
+            { path: 'AssistantChat', label: 'Assistente de IA', element: chatEl, descricao: TOUR_DESCRICAO['AssistantChat'] || '' },
+          ];
+        });
+        clearInterval(poll);
+      } else if (tries > 24) {
+        clearInterval(poll);
+      }
+    }, 200);
+    return () => { cancelled = true; clearInterval(poll); };
+  }, [active]);
 
   const measure = useCallback(() => {
     cancelAnimationFrame(rafRef.current);
@@ -108,15 +135,35 @@ export default function AppTour({ active, onExit, sidebarCollapsed, onExpandSide
 
   const step = steps[index];
 
+  const isChatStep = step.path === 'AssistantChat';
+  const isListStep = (step.descricao || '').includes(' → ');
+  const listItems = isListStep ? step.descricao.split(' → ').map((s) => s.trim()).filter(Boolean) : [];
+
   // Posicionamento do tooltip: à direita do item; se não couber, à esquerda.
+  // Para o passo do chat (botão flutuante no canto inferior direito), posiciona
+  // o tooltip acima e à esquerda do botão para não cobri-lo.
   const gap = 16;
   const vh = window.innerHeight;
-  let tooltipLeft = rect ? rect.left + rect.width + gap : 264;
-  if (tooltipLeft + TOOLTIP_WIDTH > vhToViewportWidth() - 16) {
-    tooltipLeft = rect ? rect.left - TOOLTIP_WIDTH - gap : 16;
+  const vw = vhToViewportWidth();
+  let tooltipLeft;
+  let tooltipTop;
+  if (isChatStep) {
+    tooltipLeft = rect ? Math.max(16, rect.left - TOOLTIP_WIDTH - gap) : Math.max(16, vw - TOOLTIP_WIDTH - 76);
+    tooltipTop = rect ? Math.max(16, rect.top - 360 - gap) : Math.max(16, vh - 460);
+  } else if (rect) {
+    tooltipLeft = rect.left + rect.width + gap;
+    if (tooltipLeft + TOOLTIP_WIDTH > vw - 16) {
+      tooltipLeft = rect.left - TOOLTIP_WIDTH - gap;
+    }
+    tooltipTop = rect.top + rect.height / 2 - 90;
+    tooltipTop = Math.max(16, Math.min(tooltipTop, vh - 300));
+  } else {
+    // Sem elemento: centraliza na tela
+    tooltipLeft = Math.max(16, (vw - TOOLTIP_WIDTH) / 2);
+    tooltipTop = Math.max(16, (vh - 320) / 2);
   }
-  let tooltipTop = rect ? rect.top + rect.height / 2 - 90 : 80;
-  tooltipTop = Math.max(16, Math.min(tooltipTop, vh - 240));
+
+  const tooltipMaxHeight = isListStep ? Math.min(380, vh - tooltipTop - 80) : undefined;
 
   return (
     <div className="fixed inset-0 z-[100]" role="dialog" aria-modal="true" aria-label="Tour da plataforma">
@@ -139,11 +186,12 @@ export default function AppTour({ active, onExit, sidebarCollapsed, onExpandSide
       {/* Card de tooltip */}
       <div
         className="absolute bg-white rounded-2xl shadow-2xl border border-slate-200 transition-all duration-300 ease-out"
-        style={{ left: tooltipLeft, top: tooltipTop, width: TOOLTIP_WIDTH }}
+        style={{ left: tooltipLeft, top: tooltipTop, width: TOOLTIP_WIDTH, maxHeight: tooltipMaxHeight }}
       >
-        <div className="p-5">
+        <div className={`p-5 ${isListStep ? 'overflow-y-auto' : ''}`} style={{ maxHeight: tooltipMaxHeight }}>
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-1 rounded-full">
+            <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-1 rounded-full flex items-center gap-1">
+              {isChatStep && <Bot className="w-3 h-3" />}
               Passo {index + 1} de {steps.length}
             </span>
             <button
@@ -156,7 +204,20 @@ export default function AppTour({ active, onExit, sidebarCollapsed, onExpandSide
             </button>
           </div>
           <h3 className="text-base font-bold text-slate-900 mb-1">{step.label}</h3>
-          <p className="text-sm text-slate-600 leading-relaxed mb-5">{step.descricao}</p>
+          {isListStep ? (
+            <ol className="space-y-2 mb-5 mt-2">
+              {listItems.map((item, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                  <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-[11px] font-bold flex items-center justify-center mt-0.5">
+                    {i + 1}
+                  </span>
+                  <span>{item.replace(/^\d+\.\s*/, '')}</span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="text-sm text-slate-600 leading-relaxed mb-5">{step.descricao}</p>
+          )}
 
           {/* Indicador de progresso (bolinhas) */}
           <div className="flex items-center gap-1.5 mb-4 flex-wrap">
