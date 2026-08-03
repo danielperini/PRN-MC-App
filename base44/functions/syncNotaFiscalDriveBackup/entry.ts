@@ -1,5 +1,9 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.34';
 
+import { buildNomeOficial, resolveTeamMemberForPR } from '../_shared/nfNomeOficial.ts';
+
+type TipoNFArquivo = 'NF' | 'XML' | 'COMP NF';
+
 const DEFAULT_PARENT_FOLDER_ID = '1aJ5nfpgXcpu6SrDVecmhIQ2eq4vexqe3';
 const MESES = ['JANEIRO', 'FEVEREIRO', 'MARCO', 'ABRIL', 'MAIO', 'JUNHO', 'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'];
 const BATCH_SIZE = 10;
@@ -109,81 +113,13 @@ function detectTipoComplementar(attachment: any, context: any = {}): string | nu
 }
 
 /**
- * Sanitiza preservando espaços e hífens (para nomes legíveis).
- */
-function sanitizeReadable(v: unknown, max = 60): string {
-  return String(v || '')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9\s\-]/g, ' ')
-    .replace(/\s+/g, ' ').trim()
-    .substring(0, max).trim();
-}
-
-/**
- * Verifica se a PR é de equipe/pessoal (usa TeamMember vinculado).
- */
-function ehEquipe(pr: any): boolean {
-  const cat = normalizeText(pr?.categoria || '');
-  return cat.includes('EQUIPE') || cat.includes('COORDENACAO') || cat.includes('PESSOAL');
-}
-
-/**
- * Resolve o nome de exibição oficial:
- *  - Equipe (categoria含 equipe/coordenação/pessoal): {empresa} - {pessoa} - {funcao}
- *  - Fornecedor: fornecedor_nome ou nf_emitente_nome
- * Busca TeamMember por team_payment_id, fornecedor_id ou user_name.
- */
-async function resolveNomeExibicao(base44: any, pr: any): Promise<string> {
-  const fornecedor = safeStr(pr?.fornecedor_nome || pr?.nf_emitente_nome || 'FORNECEDOR');
-
-  if (!ehEquipe(pr)) {
-    return sanitizeReadable(fornecedor, 60) || 'FORNECEDOR';
-  }
-
-  let teamMember: any = null;
-  try {
-    if (pr?.team_payment_id) {
-      teamMember = await safeGet(base44.asServiceRole.entities.TeamMember, pr.team_payment_id);
-    }
-    if (!teamMember && pr?.fornecedor_id) {
-      const byForn = await safeFilter(
-        base44.asServiceRole.entities.TeamMember,
-        { fornecedor_id: pr.fornecedor_id },
-        '-created_date',
-        5
-      );
-      teamMember = byForn?.[0] || null;
-    }
-    if (!teamMember) {
-      const byName = await safeFilter(
-        base44.asServiceRole.entities.TeamMember,
-        { user_name: fornecedor },
-        '-created_date',
-        5
-      );
-      teamMember = byName?.[0] || null;
-    }
-  } catch { /* ignore */ }
-
-  if (!teamMember) {
-    return sanitizeReadable(fornecedor, 60) || 'FORNECEDOR';
-  }
-
-  const empresa = sanitizeReadable(teamMember.empresa_nome || '', 40);
-  const pessoa = sanitizeReadable(teamMember.user_name || fornecedor, 40);
-  const funcao = sanitizeReadable(teamMember.funcao || teamMember.role || '', 30);
-  const partes = [empresa, pessoa, funcao].filter(Boolean);
-
-  return partes.join(' - ').substring(0, 120) || sanitizeReadable(fornecedor, 60);
-}
-
-/**
- * Padrão oficial unificado (usado por novos backups E migração):
- *   NF {num} {descricao} - {nomeExibicao} - MUSEUS CENTRO - R$ {valor}.{ext}
- * nomeExibicao resolvido pelo chamador (resolveNomeExibicao) e passado via context.nome_exibicao.
- * Equipe: "PERINI PROJETOS - Daniel Perini - Coordenador"
- * Fornecedor: nome do fornecedor / emitente
- * XML usa prefixo XML; comprovante usa COMP NF.
+ * Padrão NF normal:
+ *   NF [número] - [razão social] - [nome profissional] - MUSEUS CENTRO - [museu] - R$ [valor]
+ * Padrão complementar (Recibo/Comprovante):
+ *   NF [número] - [razão social] - [nome profissional] - MUSEUS CENTRO - [museu] - R$ [valor] - RECIBO
+ *   NF [número] - [razão social] - [nome profissional] - MUSEUS CENTRO - [museu] - R$ [valor] - COMPROVANTE
+ * Se sem número de NF:
+ *   DOC COMPLEMENTAR - [razão social] - ... - [tipo]
  */
 function buildFileName(attachment: any, context: any = {}) {
   const tipoComplementar = detectTipoComplementar(attachment, context);
@@ -196,23 +132,38 @@ function buildFileName(attachment: any, context: any = {}) {
   const nfNumero = safeStr(attachment?.nf_numero || context?.nf_numero || 'SN');
   const numero = nfNumeroRef || nfNumero;
 
-  // Descrição curta (natureza/categoria)
-  const descricaoRaw = safeStr(
-    context?.natureza_despesa || attachment?.rubrica_nome || context?.rubrica_nome || context?.categoria || ''
+  // Centro de custo
+  const centroCusto = normalizarCentroCusto(
+    context?.centro_custo || attachment?.centro_custo || attachment?.resultado_ia?.centro_custo || ''
   );
-  const descricao = sanitizeReadable(descricaoRaw, 30) || 'Geral';
 
-  // Nome de exibição (fornecedor ou empresa+pessoa+funcao)
-  const nomeExibicao = safeStr(context?.nome_exibicao || attachment?.nome_exibicao || 'FORNECEDOR');
+  // Fornecedor (limpo)
+  const emitenteRaw = safeStr(
+    attachment?.nf_emitente_nome || context?.nf_emitente_nome || context?.fornecedor_nome || 'FORNECEDOR'
+  );
+  const fornecedor = limparNomeArquivo(emitenteRaw).substring(0, 50) || 'Fornecedor';
+
+  // Natureza da despesa
+  const natureza = limparNomeArquivo(
+    context?.natureza_despesa || attachment?.rubrica_nome || context?.rubrica_nome || context?.categoria || ''
+  ).substring(0, 40) || 'Geral';
+
+  // Mês/Ano
+  const dataRef = safeStr(
+    attachment?.nf_data_emissao || context?.nf_data_emissao || context?.created_date || new Date().toISOString()
+  );
+  const d = getDateValue(dataRef) || new Date();
+  const mesExtenso = MESES[d.getMonth()];
+  const ano = String(d.getFullYear());
 
   const valor = formatValor(attachment?.nf_valor_total || context?.valor_solicitado || context?.valor || 0);
 
-  const prefixo = tipoComplementar ? 'COMP NF' : (ext === 'xml' ? 'XML' : 'NF');
+  const prefixo = tipoComplementar ? 'COMP' : (ext === 'xml' ? 'XML' : 'NF');
 
-  const nome = `${prefixo} ${numero} ${descricao} - ${nomeExibicao} - MUSEUS CENTRO - R$ ${valor}.${ext}`;
+  const nome = `${prefixo}-${numero}-${centroCusto}-${fornecedor}-${natureza}-MuseusCentro-${mesExtenso}-${ano}-R$-${valor}.${ext}`;
 
-  // Sanitizar caracteres inválidos preservando espaços, hífens e R$
-  return nome.replace(/[\\/;?*"'\[\]{}\(\)]/g, '').replace(/\s+/g, ' ').trim();
+  // Sanitizar caracteres inválidos para Windows/Drive
+  return nome.replace(/[\\\/\:\;\?\*\"\'\(\)\[\]\{\}]/g, '').replace(/\s+/g, '');
 }
 
 async function safeGet(entity: any, id: string) {
@@ -384,6 +335,20 @@ async function deleteDriveFile(drive: any, fileId: string) {
   return { deleted: false };
 }
 
+/**
+ * Determina o tipo canônico do arquivo (NF | XML | COMP NF) a partir
+ * do attachment e contexto. Usa detecção de documento complementar
+ * (recibo/comprovante) + extensão.
+ */
+function detectTipoArquivo(attachment: any, context: any = {}): TipoNFArquivo {
+  const current = safeStr(attachment?.nf_nome_renomeado || attachment?.nome_padronizado_ia || attachment?.file_name);
+  const ext = getExt(current, attachment?.nf_tipo_documento === 'xml_nf' ? 'xml' : 'pdf');
+  if (ext === 'xml') return 'XML';
+  const tipoComplementar = detectTipoComplementar(attachment, context);
+  if (tipoComplementar === 'RECIBO' || tipoComplementar === 'COMPROVANTE') return 'COMP NF';
+  return 'NF';
+}
+
 async function handleBackup(base44: any, body: any) {
   const parentId = safeStr(body.parent_folder_id) || DEFAULT_PARENT_FOLDER_ID;
   const pr = await resolvePurchaseRequest(base44, body);
@@ -395,12 +360,34 @@ async function handleBackup(base44: any, body: any) {
   const folderId = folder?.id || '';
   const results: any[] = [];
 
-  // Resolve o nome de exibição oficial uma vez (fornecedor ou empresa+pessoa+funcao)
-  const nomeExibicao = pr ? await resolveNomeExibicao(base44, pr) : safeStr(body.nome_exibicao || 'FORNECEDOR');
-  const contextBase = { ...(pr || body), nome_exibicao: nomeExibicao };
+  // Resolve o DocumentIntake associado (se houver) para repassar ao buildNomeOficial
+  let intake: any = null;
+  if (body.document_intake_id) {
+    intake = await safeGet(base44.asServiceRole.entities.DocumentIntake, body.document_intake_id);
+  }
+
+  // Resolve o TeamMember vinculado (apenas se PR for equipe/pessoal)
+  const teamMember = pr ? await resolveTeamMemberForPR(base44, pr) : null;
 
   for (const attachment of attachments) {
-    const fileName = buildFileName(attachment, contextBase);
+    // Nome canônico oficial — usa PR como fonte primária; fallback para buildFileName
+    // (compatibilidade) quando não houver PR vinculado.
+    let fileName: string;
+    if (pr) {
+      const tipo = detectTipoArquivo(attachment, pr || body);
+      fileName = buildNomeOficial(pr, intake, tipo, teamMember);
+      // Garante extensão correta conforme attachment
+      const desiredExt = getExt(
+        safeStr(attachment?.nf_nome_renomeado || attachment?.file_name),
+        attachment?.nf_tipo_documento === 'xml_nf' ? 'xml' : 'pdf',
+      );
+      if (!fileName.toLowerCase().endsWith('.' + desiredExt)) {
+        fileName = fileName.replace(/\.[^.]+$/, '') + '.' + desiredExt;
+      }
+    } else {
+      fileName = buildFileName(attachment, body);
+    }
+
     if (attachment?.backup_drive_file_id && attachment?.backup_drive_file_name === fileName) {
       results.push({ attachment_id: attachment.id, skipped: true, reason: 'already_synced', fileName });
       continue;
