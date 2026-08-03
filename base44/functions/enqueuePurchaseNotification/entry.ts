@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { buildAppLink } from '../_shared/appUrl.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -91,7 +92,7 @@ Deno.serve(async (req) => {
       drive_backup_nf_xml_link: purchase.drive_backup_files?.find(f => f.tipo === 'XML')?.url,
       detalhe_pagamento: purchase.detalhe_pagamento,
       data_emissao_nf: purchase.nf_data_emissao,
-      link_app_compras: `https://relatorios-perini-pro-mc-viadutodasartes.base44.app/Compras?purchaseId=${purchaseId}`
+      link_app_compras: buildAppLink(req, `/Compras?purchaseId=${purchaseId}`)
     };
 
     // Criar registro na fila

@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { buildAppLink } from '../_shared/appUrl.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -91,7 +92,7 @@ Deno.serve(async (req) => {
         if (item.drive_backup_nf_xml_link) links.push('<a href="' + item.drive_backup_nf_xml_link + '">XML</a>');
         if (item.comprovante_url) links.push('<a href="' + item.comprovante_url + '">Comprovante</a>');
 
-        const itemLink = item.link_app_compras || item.purchase_snapshot_json?.link_app_compras || `https://relatorios-perini-pro-mc-viadutodasartes.base44.app/Compras?purchaseId=${item.purchase_id}`;
+        const itemLink = item.link_app_compras || item.purchase_snapshot_json?.link_app_compras || buildAppLink(req, `/Compras?purchaseId=${item.purchase_id}`);
         
         emailBody += `
           <tr>
@@ -122,7 +123,7 @@ Deno.serve(async (req) => {
           - Este email é automático e não deve ser respondido.
         </p>
         <p style="margin-top: 20px;">
-          <a href="https://relatorios-perini-pro-mc-viadutodasartes.base44.app/Compras" style="background: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">Acessar Sistema de Compras</a>
+          <a href="${buildAppLink(req, '/Compras')}" style="background: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">Acessar Sistema de Compras</a>
         </p>
       </body>
       </html>
