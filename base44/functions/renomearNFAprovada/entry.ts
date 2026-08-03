@@ -11,8 +11,6 @@ import {
   resolveTeamMemberForPR,
 } from '../_shared/nfNomeOficial.ts';
 
-type TipoNFArquivo = 'NF' | 'XML' | 'COMP NF';
-
 /**
  * renomearNFAprovada
  *
@@ -25,24 +23,23 @@ type TipoNFArquivo = 'NF' | 'XML' | 'COMP NF';
  * HTTP com { purchase_request_id }.
  *
  * Comportamento:
- *  - Se o backup no Drive ainda não foi concluído (sem drive_backup_folder_id
- *    ou drive_backup_status !== 'concluido'), computa o nome-alvo e retorna
- *    skipped — syncNotaFiscalDriveBackup já usa buildNomeOficial em uploads
- *    novos, então o arquivo nascerá com o nome correto.
+ *  - Se o backup no Drive ainda não foi concluído, computa o nome-alvo e
+ *    retorna skipped — syncNotaFiscalDriveBackup já usa buildNomeOficial,
+ *    então o arquivo nascerá com o nome correto.
  *  - Caso contrário, lista os arquivos da pasta mensal, filtra apenas os que
  *    pertencem a esta PR (por fileId em drive_backup_files ou por parsing do
  *    nome legado com match de nf_numero/sol-id), e renomeia no Drive.
- *  - Atualiza drive_backup_files da PR com os novos nomes para rastreabilidade.
+ *  - Atualiza drive_backup_files da PR com os novos nomes.
  */
 
-const FOLDER_MIME = 'application/vnd.google-apps.folder';
+var FOLDER_MIME = 'application/vnd.google-apps.folder';
 
-function safeStr(v: unknown): string {
-  return String(v ?? '').trim();
+function safeStr(v) {
+  return String(v == null ? '' : v).trim();
 }
 
-function classificarTipo(nome: string): { tipo: TipoNFArquivo; ext: string } {
-  const lower = (nome || '').toLowerCase();
+function classificarTipo(nome) {
+  var lower = String(nome || '').toLowerCase();
   if (lower.endsWith('.xml')) return { tipo: 'XML', ext: 'xml' };
   if (lower.startsWith('comp') || lower.includes('comprovante') || lower.includes('recibo')) {
     return { tipo: 'COMP NF', ext: 'pdf' };
@@ -50,134 +47,123 @@ function classificarTipo(nome: string): { tipo: TipoNFArquivo; ext: string } {
   return { tipo: 'NF', ext: 'pdf' };
 }
 
-/**
- * Determina se o arquivo pertence à PurchaseRequest.
- * Estratégias (qualquer uma positiva):
- *  1. fileId está no array drive_backup_files da PR (fonte principal)
- *  2. Padrão máquina com sufixo sol-XXXXXXXX correspondente ao id da PR
- *  3. Padrão legível/legado cujo número de NF bate com pr.nf_numero
- *  4. Padrão oficial já aplicado cujo número de NF bate com pr.nf_numero
- */
-function arquivoPertencePR(file: any, pr: any): boolean {
-  const nome = String(file?.name || '');
+function arquivoPertencePR(file, pr) {
+  var nome = String((file && file.name) || '');
   if (!nome) return false;
-  const prId = String(pr?.id || '');
-  const idSuffix = prId.slice(-8).toLowerCase();
+  var prId = String((pr && pr.id) || '');
+  var idSuffix = prId.slice(-8).toLowerCase();
 
   if (isMachineName(nome)) {
-    if (idSuffix && nome.toLowerCase().includes(`sol-${idSuffix}`)) return true;
+    if (idSuffix && nome.toLowerCase().indexOf('sol-' + idSuffix) >= 0) return true;
   }
 
-  const prNf = String(pr?.nf_numero || '').trim();
+  var prNf = String((pr && pr.nf_numero) || '').trim();
   if (!prNf) return false;
 
-  let nfNum = '';
-  const legacy = parseLegacyName(nome);
-  if (legacy?.nfNum) nfNum = legacy.nfNum;
+  var nfNum = '';
+  var legacy = parseLegacyName(nome);
+  if (legacy && legacy.nfNum) nfNum = legacy.nfNum;
   if (!nfNum && isMachineName(nome)) {
-    const machine = parseMachineName(nome);
-    if (machine?.nfNum) nfNum = machine.nfNum;
+    var machine = parseMachineName(nome);
+    if (machine && machine.nfNum) nfNum = machine.nfNum;
   }
   if (!nfNum) nfNum = extractNfNumGeneric(nome);
 
   if (nfNum && nfNum === prNf) return true;
 
   if (isNomeOficial(nome)) {
-    const m = nome.match(/^(?:NF|XML|COMP NF)\s+(\d+)\s+/i);
+    var m = nome.match(/^(?:NF|XML|COMP NF)\s+(\d+)\s+/i);
     if (m && m[1] === prNf) return true;
   }
 
   return false;
 }
 
-async function driveReq(token: string, url: string, opts: any = {}) {
-  return fetch(url, { ...opts, headers: { Authorization: `Bearer ${token}`, ...(opts.headers || {}) } });
+async function driveReq(token, url, opts) {
+  opts = opts || {};
+  return fetch(url, Object.assign({}, opts, {
+    headers: Object.assign({ Authorization: 'Bearer ' + token }, opts.headers || {}),
+  }));
 }
 
-async function listAllInFolder(token: string, folderId: string) {
-  const items: any[] = [];
-  let pt: string | null = null;
+async function listAllInFolder(token, folderId) {
+  var items = [];
+  var pt = null;
   do {
-    const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
-    let url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,mimeType)&pageSize=1000`;
-    if (pt) url += `&pageToken=${encodeURIComponent(pt)}`;
-    const r = await driveReq(token, url);
+    var q = encodeURIComponent("'" + folderId + "' in parents and trashed=false");
+    var url = 'https://www.googleapis.com/drive/v3/files?q=' + q + '&fields=files(id,name,mimeType)&pageSize=1000';
+    if (pt) url += '&pageToken=' + encodeURIComponent(pt);
+    var r = await driveReq(token, url);
     if (!r.ok) break;
-    const d = await r.json();
-    if (Array.isArray(d.files)) items.push(...d.files);
+    var d = await r.json();
+    if (Array.isArray(d.files)) items = items.concat(d.files);
     pt = d.nextPageToken || null;
   } while (pt);
   return items;
 }
 
-async function renameFile(token: string, fileId: string, newName: string) {
-  const r = await driveReq(token, `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name`, {
+async function renameFile(token, fileId, newName) {
+  var r = await driveReq(token, 'https://www.googleapis.com/drive/v3/files/' + fileId + '?fields=id,name', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: newName }),
   });
-  const d = await r.json();
+  var d = await r.json();
   if (d.error) throw new Error(d.error.message);
-  return d.name as string;
+  return d.name;
 }
 
-function extractPrId(body: any): string {
+function extractPrId(body) {
   return (
     safeStr(body.purchase_request_id) ||
     safeStr(body.purchaseId) ||
     safeStr(body.entity_id) ||
-    safeStr(body.event?.entity_id) ||
-    safeStr(body.data?.id) ||
+    safeStr((body.event || {}).entity_id) ||
+    safeStr((body.data || {}).id) ||
     safeStr(body.id)
   );
 }
 
-Deno.serve(async (req) => {
-  const startedAt = Date.now();
+Deno.serve(async function (req) {
+  var startedAt = Date.now();
   try {
-    const base44 = createClientFromRequest(req);
-    const body = await req.json().catch(() => ({}));
+    var base44 = createClientFromRequest(req);
+    var body = await req.json().catch(function () { return {}; });
 
-    const dryRun = body.dry_run === true || body.dryRun === true;
+    var dryRun = body.dry_run === true || body.dryRun === true;
 
-    const prId = extractPrId(body);
+    var prId = extractPrId(body);
     if (!prId) {
       return Response.json({ ok: false, error: 'purchase_request_id obrigatório' }, { status: 400 });
     }
 
-    const pr = await base44.asServiceRole.entities.PurchaseRequest.get(prId).catch(() => null);
+    var pr = await base44.asServiceRole.entities.PurchaseRequest.get(prId).catch(function () { return null; });
     if (!pr) {
       return Response.json({ ok: false, error: 'PurchaseRequest não encontrada' }, { status: 404 });
     }
 
-    // Resolve credenciais Google Drive
-    let token: string;
+    var token;
     try {
-      const conn = await base44.asServiceRole.connectors.getConnection('googledrive');
+      var conn = await base44.asServiceRole.connectors.getConnection('googledrive');
       token = conn.accessToken;
-    } catch {
+    } catch (e) {
       return Response.json({ ok: false, error: 'Google Drive não configurado' }, { status: 503 });
     }
 
-    const teamMember = await resolveTeamMemberForPR(base44, pr).catch(() => null);
+    var teamMember = await resolveTeamMemberForPR(base44, pr).catch(function () { return null; });
 
-    // Caso A: backup ainda não concluído — nome-alvo é computado apenas para
-    // informação; syncNotaFiscalDriveBackup já usa buildNomeOficial em novos
-    // uploads, então o arquivo nascerá com o nome correto.
-    const folderId = safeStr(pr.drive_backup_folder_id);
-    const backupConcluido = pr.drive_backup_status === 'concluido' && !!folderId;
+    var folderId = safeStr(pr.drive_backup_folder_id);
+    var backupConcluido = pr.drive_backup_status === 'concluido' && !!folderId;
 
     if (!backupConcluido) {
-      const targetNames = {
+      var targetNames = {
         NF: buildNomeOficial(pr, null, 'NF', teamMember),
         XML: buildNomeOficial(pr, null, 'XML', teamMember),
         'COMP NF': buildNomeOficial(pr, null, 'COMP NF', teamMember),
       };
-      // Apenas log — não precisamos persistir campo novo, pois o sync aplica
-      // buildNomeOficial no próprio fluxo de upload.
       console.log(
-        `[renomearNFAprovada] PR ${pr.id} backup pendente (${pr.drive_backup_status}). ` +
-          `Nome-alvo preparado para syncNotaFiscalDriveBackup.`,
+        '[renomearNFAprovada] PR ' + pr.id + ' backup pendente (' + pr.drive_backup_status + '). ' +
+          'Nome-alvo preparado para syncNotaFiscalDriveBackup.'
       );
       return Response.json({
         ok: true,
@@ -189,22 +175,22 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Caso B: backup concluído — localiza e renomeia arquivos da PR na pasta
-    const items = await listAllInFolder(token, folderId!);
-    const nomesExistentes = new Set(items.map((i) => i.name));
+    var items = await listAllInFolder(token, folderId);
+    var nomesExistentes = new Set(items.map(function (i) { return i.name; }));
 
-    const prFiles: any[] = Array.isArray(pr.drive_backup_files) ? pr.drive_backup_files : [];
-    const fileIdsDaPR = new Set(prFiles.map((f) => safeStr(f.fileId)).filter(Boolean));
+    var prFiles = Array.isArray(pr.drive_backup_files) ? pr.drive_backup_files : [];
+    var fileIdsDaPR = new Set(prFiles.map(function (f) { return safeStr(f.fileId); }).filter(Boolean));
 
-    const renamed: any[] = [];
-    const errors: any[] = [];
-    const backupFilesAtualizado = prFiles.map((f) => ({ ...f }));
+    var renamed = [];
+    var errors = [];
+    var backupFilesAtualizado = prFiles.map(function (f) { return Object.assign({}, f); });
 
-    for (const item of items) {
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i];
       if (item.mimeType === FOLDER_MIME) continue;
 
-      const porFileId = fileIdsDaPR.has(safeStr(item.id));
-      const porNome = arquivoPertencePR(item, pr);
+      var porFileId = fileIdsDaPR.has(safeStr(item.id));
+      var porNome = arquivoPertencePR(item, pr);
       if (!porFileId && !porNome) continue;
 
       if (isNomeOficial(item.name)) {
@@ -212,9 +198,11 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const { tipo, ext } = classificarTipo(item.name);
-      let novoNome = buildNomeOficial(pr, null, tipo, teamMember);
-      if (!novoNome.toLowerCase().endsWith('.' + ext)) {
+      var tipoInfo = classificarTipo(item.name);
+      var tipo = tipoInfo.tipo;
+      var ext = tipoInfo.ext;
+      var novoNome = buildNomeOficial(pr, null, tipo, teamMember);
+      if (novoNome.toLowerCase().lastIndexOf('.' + ext) !== novoNome.length - (ext.length + 1)) {
         novoNome = novoNome.replace(/\.[^.]+$/, '') + '.' + ext;
       }
 
@@ -227,7 +215,6 @@ Deno.serve(async (req) => {
         novoNome = ensureUniqueName(novoNome, nomesExistentes);
       }
 
-      // dry_run: não toca no Drive nem no banco, apenas simula
       if (dryRun) {
         renamed.push({ fileId: item.id, from: item.name, to: novoNome, status: 'simulado' });
         continue;
@@ -239,21 +226,26 @@ Deno.serve(async (req) => {
       try {
         await renameFile(token, item.id, novoNome);
         renamed.push({ fileId: item.id, from: item.name, to: novoNome, status: 'renomeado' });
-        const idx = backupFilesAtualizado.findIndex((f) => safeStr(f.fileId) === safeStr(item.id));
-        if (idx >= 0) backupFilesAtualizado[idx] = { ...backupFilesAtualizado[idx], name: novoNome };
-      } catch (e: any) {
-        errors.push({ fileId: item.id, name: item.name, erro: e?.message || String(e) });
+        for (var k = 0; k < backupFilesAtualizado.length; k++) {
+          if (safeStr(backupFilesAtualizado[k].fileId) === safeStr(item.id)) {
+            backupFilesAtualizado[k] = Object.assign({}, backupFilesAtualizado[k], { name: novoNome });
+            break;
+          }
+        }
+      } catch (e) {
+        errors.push({ fileId: item.id, name: item.name, erro: (e && e.message) || String(e) });
         nomesExistentes.delete(novoNome);
         nomesExistentes.add(item.name);
       }
     }
 
-    if (!dryRun && renamed.some((r) => r.status === 'renomeado')) {
+    var renomeadosCount = renamed.filter(function (r) { return r.status === 'renomeado'; }).length;
+    if (!dryRun && renomeadosCount > 0) {
       await base44.asServiceRole.entities.PurchaseRequest
         .update(pr.id, { drive_backup_files: backupFilesAtualizado })
-        .catch((err: any) =>
-          console.warn(`[renomearNFAprovada] Falha ao atualizar drive_backup_files: ${err?.message || err}`),
-        );
+        .catch(function (err) {
+          console.warn('[renomearNFAprovada] Falha ao atualizar drive_backup_files: ' + ((err && err.message) || err));
+        });
     }
 
     return Response.json({
@@ -261,16 +253,16 @@ Deno.serve(async (req) => {
       dry_run: dryRun,
       purchase_id: pr.id,
       folder_id: folderId,
-      renomeados: renamed.filter((r) => r.status === 'renomeado').length,
-      simulados: renamed.filter((r) => r.status === 'simulado').length,
-      ja_padrao: renamed.filter((r) => r.status === 'ja_padrao').length,
+      renomeados: renomeadosCount,
+      simulados: renamed.filter(function (r) { return r.status === 'simulado'; }).length,
+      ja_padrao: renamed.filter(function (r) { return r.status === 'ja_padrao'; }).length,
       erros: errors.length,
-      renamed,
-      errors,
+      renamed: renamed,
+      errors: errors,
       execution_ms: Date.now() - startedAt,
     });
-  } catch (err: any) {
+  } catch (err) {
     console.error('[renomearNFAprovada] erro:', err);
-    return Response.json({ ok: false, error: err?.message || String(err) }, { status: 500 });
+    return Response.json({ ok: false, error: (err && err.message) || String(err) }, { status: 500 });
   }
 });

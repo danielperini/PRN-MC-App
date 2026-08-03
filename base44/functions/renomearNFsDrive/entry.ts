@@ -256,12 +256,51 @@ async function processarPasta(
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me().catch(() => null);
-    if (!user) return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+
+    // Permite tanto chamadas HTTP autenticadas (admin) quanto invocações
+    // automáticas (service role) — automações de entidade não trazem user.
+    let isServiceCall = false;
+    try {
+      const user = await base44.auth.me();
+      if (!user) isServiceCall = true;
+    } catch {
+      isServiceCall = true;
+    }
 
     const body = await req.json().catch(() => ({}));
     const dryRun = body.dryRun !== false; // padrão: true (seguro)
-    const folderIds: string[] = body.folderIds || ROOT_FOLDERS;
+
+    // Aceita tanto chamada direta (purchase_request_id) quanto evento de
+    // automação (event.entity_id / data.id).
+    const purchaseRequestId: string =
+      body.purchase_request_id ||
+      body.purchaseId ||
+      (body.event && body.event.entity_id) ||
+      (body.data && body.data.id) ||
+      '';
+
+    // Se um purchase_request_id foi fornecido, escaneia apenas a pasta de backup
+    // vinculada a esta PR (deixa a automação de aprovação chamar este handler
+    // no padrão oficial). Se o backup ainda não foi concluído, retorna skipped.
+    let folderIds: string[] = body.folderIds || ROOT_FOLDERS;
+    if (purchaseRequestId) {
+      const pr = await base44.asServiceRole.entities.PurchaseRequest.get(purchaseRequestId).catch(() => null);
+      if (!pr) {
+        return Response.json({ ok: false, error: 'PurchaseRequest não encontrada' }, { status: 404 });
+      }
+      if (!pr.drive_backup_folder_id || pr.drive_backup_status !== 'concluido') {
+        // Backup pendente — syncNotaFiscalDriveBackup usará buildNomeOficial no
+        // upload futuro, então não há nada a renomear no Drive ainda.
+        return Response.json({
+          ok: true,
+          skipped: true,
+          reason: 'backup_pendente',
+          purchase_id: pr.id,
+          drive_backup_status: pr.drive_backup_status || null,
+        });
+      }
+      folderIds = [pr.drive_backup_folder_id];
+    }
 
     const { accessToken } = await base44.asServiceRole.connectors.getConnection('googledrive');
     const token = accessToken;
@@ -282,9 +321,29 @@ Deno.serve(async (req) => {
       await processarPasta(base44, token, folderId, dryRun, stats, logs, prCache, tmCache);
     }
 
+    // Se escopado a uma PR, atualiza drive_backup_files com os novos nomes
+    if (purchaseRequestId && !dryRun && stats.renomeados > 0) {
+      try {
+        const pr = await base44.asServiceRole.entities.PurchaseRequest.get(purchaseRequestId);
+        if (pr?.drive_backup_files && Array.isArray(pr.drive_backup_files)) {
+          const updated = pr.drive_backup_files.map((f: any) => {
+            const r = logs.find((l: any) => l.de === f.name && l.para);
+            return r ? { ...f, name: r.para } : f;
+          });
+          await base44.asServiceRole.entities.PurchaseRequest.update(purchaseRequestId, {
+            drive_backup_files: updated,
+          });
+        }
+      } catch (updateErr: any) {
+        console.warn('[renomearNFsDrive] Falha ao atualizar drive_backup_files:', updateErr?.message);
+      }
+    }
+
     return Response.json({
       ok: true,
       dry_run: dryRun,
+      scoped_to_pr: !!purchaseRequestId,
+      purchase_id: purchaseRequestId || null,
       stats,
       execution_ms: Date.now() - start,
       logs: logs.slice(0, 200),
