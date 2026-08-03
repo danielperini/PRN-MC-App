@@ -211,29 +211,29 @@ export default function MetasCumprimentoPorMuseu({ rubricas = [] }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
       {/* Header */}
-      <button
-        type="button"
-        onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors hidden">
-        
-        <div className="flex items-center gap-3">
-          <Target className="w-5 h-5 text-slate-700" />
-          <div className="text-left">
-            <h2 className="text-base font-bold text-slate-900">Cumprimento de Metas por Museu</h2>
-            <p className="text-xs text-slate-500">Execução financeira + atividades · 3º Aditivo</p>
-          </div>
-        </div>
-        {expanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-      </button>
+      
+
+
+
+
+
+
+
+
+
+
+
+
+      
 
       {expanded &&
       <div className="px-5 pb-6 space-y-6 border-t border-slate-100">
 
           {/* ── Gauges por museu ── */}
           <div className="pt-4">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-4 hidden">
-              Score consolidado (financeiro + atividades)
-            </p>
+            
+
+          
             <div className="grid grid-cols-3 gap-4">
               {gaugesPorMuseu.map((g) =>
             <button

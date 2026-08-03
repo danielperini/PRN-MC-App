@@ -63,88 +63,88 @@ export default function ResumoConsolidadoNoturnoMeta20({ dataInicio, dataFim }) 
 
   if (isLoading) return null;
 
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hidden">
-      <div className="flex items-center gap-2 mb-4">
-        <BarChart3 className="h-4 w-4 text-slate-600" />
-        <h3 className="text-base font-bold text-slate-800">Atividades Consolidadas — Noturno Centro + Meta 20</h3>
-        <div className="ml-auto flex items-center gap-1">
-          <CriteriosMetaTrigger
-            chave="dashboard_criterios_noturno"
-            atividades={atividadesFiltradas}
-            isCoordGeral={isCoordGeral} />
-          
-          <CriteriosMetaTrigger
-            chave="dashboard_criterios_meta_20"
-            atividades={atividadesFiltradas}
-            isCoordGeral={isCoordGeral} />
-          
-        </div>
-      </div>
+  return null;
 
-      <div className="grid grid-cols-3 gap-3">
-        {/* Noturno Centro */}
-        <button
-          type="button"
-          onClick={() => setDrillDown({
-            title: 'Noturno Centro — META 11',
-            value: `${totalNoturno} atividades`,
-            sourceBadges: ['Relatórios', 'Atividades'],
-            type: 'noturno_meta20',
-            relatorios: relFiltrados,
-            tipoNoturno: 'noturno'
-          })}
-          className="rounded-xl border border-slate-100 bg-indigo-50 p-4 text-center cursor-pointer hover:ring-2 hover:ring-indigo-300 hover:bg-indigo-100 transition-all">
-          
-          <div className="flex justify-center mb-1">
-            <Moon className="h-4 w-4 text-indigo-500" />
-          </div>
-          <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wide mb-1">Noturno Centro</p>
-          <p className="text-4xl font-black text-indigo-700">{totalNoturno}</p>
-          <p className="text-[11px] text-indigo-400 mt-0.5">atividades</p>
-        </button>
 
-        {/* Meta 20 */}
-        <button
-          type="button"
-          onClick={() => setDrillDown({
-            title: 'Ações Educativas — META 20',
-            value: `${totalMeta20} atividades`,
-            sourceBadges: ['Relatórios', 'Atividades'],
-            type: 'noturno_meta20',
-            relatorios: relFiltrados,
-            tipoNoturno: 'meta20'
-          })}
-          className="rounded-xl border border-slate-100 bg-emerald-50 p-4 text-center cursor-pointer hover:ring-2 hover:ring-emerald-300 hover:bg-emerald-100 transition-all">
-          
-          <div className="flex justify-center mb-1">
-            <BookOpen className="h-4 w-4 text-emerald-500" />
-          </div>
-          <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wide mb-1">Meta 20 — Educativas</p>
-          <p className="text-4xl font-black text-emerald-700">{totalMeta20}</p>
-          <p className="text-[11px] text-emerald-400 mt-0.5">atividades</p>
-        </button>
 
-        {/* Total Acumulado */}
-        <div className="rounded-xl border border-slate-200 bg-slate-900 p-4 text-center">
-          <div className="flex justify-center mb-1">
-            <BarChart3 className="h-4 w-4 text-slate-300" />
-          </div>
-          <p className="text-xs font-semibold text-slate-300 uppercase tracking-wide mb-1">Total Acumulado</p>
-          <p className="text-4xl font-black text-white">{totalAcumulado}</p>
-          <p className="text-[11px] text-slate-400 mt-0.5">atividades</p>
-        </div>
-      </div>
 
-      <p className="mt-3 text-[11px] text-slate-400 text-center">
-        Soma das atividades registradas nos relatórios submetidos — META 11 (Noturno Centro) + META 20 (educativas e culturais)
-      </p>
 
-      <DrillDownSheet
-        open={!!drillDown}
-        onClose={() => setDrillDown(null)}
-        config={drillDown} />
-      
-    </div>);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 }
