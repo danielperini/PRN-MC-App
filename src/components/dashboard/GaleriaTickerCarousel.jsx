@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 
 const PHOTO_COUNT = 4;
+const ROTATION_INTERVAL_MS = 30000;
 const GALLERY_ROUTE = '/GaleriaFotos';
 
 function normalizeText(value) {
@@ -132,13 +133,24 @@ function curatePeoplePhotos(items) {
 
   return shuffleSeeded(source, seed)
     .sort((a, b) => b.score - a.score)
-    .slice(0, PHOTO_COUNT)
     .map((candidate) => candidate.url);
+}
+
+function sliceWithWrap(pool, startIdx, count) {
+  const result = [];
+  const safeStart = ((startIdx % pool.length) + pool.length) % pool.length;
+  for (let i = 0; i < count; i += 1) {
+    result.push(pool[(safeStart + i) % pool.length]);
+  }
+  return result;
 }
 
 export default function GaleriaTickerCarousel() {
   const navigate = useNavigate();
-  const [images, setImages] = useState([]);
+  const [pool, setPool] = useState([]);
+  const [round, setRound] = useState(0);
+  const [visible, setVisible] = useState(true);
+  const rotationRef = useRef(null);
 
   useEffect(() => {
     let mounted = true;
@@ -159,7 +171,7 @@ export default function GaleriaTickerCarousel() {
         if (reportPhotos.status === 'fulfilled') allItems.push(...(Array.isArray(reportPhotos.value) ? reportPhotos.value : []));
 
         const curated = curatePeoplePhotos(allItems);
-        if (mounted && curated.length > 0) setImages(curated);
+        if (mounted && curated.length > 0) setPool(curated);
       } catch (e) {
         console.error('GaleriaTickerCarousel: erro ao carregar imagens', e);
       }
@@ -169,7 +181,25 @@ export default function GaleriaTickerCarousel() {
     return () => { mounted = false; };
   }, []);
 
-  if (images.length === 0) return null;
+  useEffect(() => {
+    if (pool.length <= PHOTO_COUNT) return () => {};
+
+    rotationRef.current = setInterval(() => {
+      setVisible(false);
+      setTimeout(() => {
+        setRound((prev) => (pool.length > PHOTO_COUNT ? prev + PHOTO_COUNT : prev));
+        setVisible(true);
+      }, 400);
+    }, ROTATION_INTERVAL_MS);
+
+    return () => {
+      if (rotationRef.current) clearInterval(rotationRef.current);
+    };
+  }, [pool]);
+
+  if (pool.length === 0) return null;
+
+  const display = sliceWithWrap(pool, round, PHOTO_COUNT);
 
   return (
     <div className="space-y-3">
@@ -183,10 +213,10 @@ export default function GaleriaTickerCarousel() {
           Ver Galeria →
         </button>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {images.slice(0, PHOTO_COUNT).map((url, index) => (
+      <div className={`grid grid-cols-2 sm:grid-cols-4 gap-3 transition-opacity duration-400 ${visible ? 'opacity-100' : 'opacity-0'}`}>
+        {display.map((url, index) => (
           <button
-            key={`${url}-${index}`}
+            key={`${round}-${index}-${url}`}
             type="button"
             onClick={() => navigate(GALLERY_ROUTE)}
             className="block w-full focus:outline-none"

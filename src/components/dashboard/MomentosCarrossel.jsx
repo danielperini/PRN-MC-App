@@ -17,6 +17,14 @@ export default function MomentosCarrossel() {
     refetchInterval: 60000, // Refresh a cada minuto
   });
 
+  useEffect(() => {
+    if (momentos.length <= 1) return;
+    const interval = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % momentos.length);
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [momentos.length]);
+
   if (isLoading || momentos.length === 0) return null;
 
   const momento = momentos[currentIndex];
@@ -41,14 +49,20 @@ export default function MomentosCarrossel() {
         {/* Imagem */}
         <div className="flex-shrink-0 w-full md:w-48 h-48 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">
           <img
+            key={`img-${currentIndex}`}
             src={momento.imagem_url}
             alt={momento.titulo}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover animate-in fade-in-0"
+            style={{ animationDuration: '400ms' }}
           />
         </div>
 
         {/* Conteúdo */}
-        <div className="flex-1 flex flex-col justify-between">
+        <div
+          key={`content-${currentIndex}`}
+          className="flex-1 flex flex-col justify-between animate-in fade-in-0"
+          style={{ animationDuration: '400ms' }}
+        >
           <div>
             <div className="flex items-start justify-between gap-4 mb-3">
               <div>
