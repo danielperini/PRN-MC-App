@@ -16,7 +16,7 @@ import MemoriaCalculoDrawer from '@/components/financeiro/MemoriaCalculoDrawer';
 import { calcularExecucaoOrcamentariaOficial, isOrigemAditivo, rubricaPrevisto, rubricaUtilizado } from '@/services/canonicalMetrics';
 
 function DashboardFinanceiroInner() {
-  const { user: currentUser, isCoordenador } = useCurrentUser();
+  const { user: currentUser, isCoordenador, isCoordGeral } = useCurrentUser();
   const queryClient = useQueryClient();
   const [filterMuseu, setFilterMuseu] = useState('');
   const [filterEquipe, setFilterEquipe] = useState('');
@@ -361,6 +361,7 @@ function DashboardFinanceiroInner() {
           saldo={execucaoOficial.saldo}
           percentual={execucaoOficial.percentual}
           divergencia={execucaoOficial.divergencia}
+          isCoordGeral={isCoordGeral}
         />
 
         {/* Filtros */}

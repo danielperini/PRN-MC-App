@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 const GRUPOS_PADRAO = ['Equipe e gestão', 'Manutenção e operação', 'Despesas gerais'];
 const METAS_PADRAO = ['MC3A-20', 'MC3A-21', 'MC3A-22', 'MC3A-23', 'MC3A-24', 'MC3A-25', 'MC3A-EXTRA'];
 
-export default function EditRubricaDialog({ isOpen, onClose, rubrica = null }) {
+export default function EditRubricaDialog({ isOpen, onClose, rubrica = null, onSuccess }) {
   const [formData, setFormData] = useState({
     rubrica: '', grupo: '', meta: '', descricao: '',
     numero_parcelas_unidades: '', valor_rubrica: '', observacao_uso: '', ativo: true,
@@ -122,6 +122,7 @@ export default function EditRubricaDialog({ isOpen, onClose, rubrica = null }) {
       }
 
       queryClient.invalidateQueries({ queryKey: ['rubricas'] });
+      onSuccess?.();
       onClose();
     } catch (e) {
       toast.error('Erro: ' + e.message);
@@ -247,6 +248,7 @@ export default function EditRubricaDialog({ isOpen, onClose, rubrica = null }) {
                       await base44.entities.Rubrica.delete(rubrica.id);
                       toast.success('Rubrica deletada!');
                       queryClient.invalidateQueries({ queryKey: ['rubricas'] });
+                      onSuccess?.();
                       onClose();
                     } catch (e) {
                       toast.error('Erro ao deletar: ' + e.message);
