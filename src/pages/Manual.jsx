@@ -15,6 +15,7 @@ import {
   Bot,
   Download,
   ChevronRight,
+  Compass,
   Bell,
   FolderOpen,
   Calculator,
@@ -897,6 +898,14 @@ function ManualInner() {
               }}>
                 <HelpCircle className="w-4 h-4" />
                 Ir para dúvidas frequentes
+              </Button>
+              <Button
+                variant="secondary"
+                className="gap-2"
+                onClick={() => window.dispatchEvent(new CustomEvent('app-tour:start'))}
+              >
+                <Compass className="w-4 h-4" />
+                Iniciar Tour
               </Button>
             </div>
           </div>

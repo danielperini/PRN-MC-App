@@ -13,6 +13,8 @@ import AutoRubricasSync from '@/components/compras/AutoRubricasSync';
 import AutoNotasDriveSync from '@/components/movimentacoes/AutoNotasDriveSync';
 import AutoContratosDriveSync from '@/components/contratos/AutoContratosDriveSync';
 import { RotateCw } from 'lucide-react';
+import AppTour from '@/components/tour/AppTour';
+import WelcomeBanner from '@/components/tour/WelcomeBanner';
 
 const PAGE_TITLES = {
   Dashboard: 'Painel',
@@ -82,9 +84,16 @@ export default function Layout({ children, currentPageName }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
+  const [tourActive, setTourActive] = useState(false);
   const startYRef = useRef(0);
   const mobileMainRef = useRef(null);
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const startTour = () => setTourActive(true);
+    window.addEventListener('app-tour:start', startTour);
+    return () => window.removeEventListener('app-tour:start', startTour);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -179,6 +188,13 @@ export default function Layout({ children, currentPageName }) {
           <MobileBottomTab currentPageName={currentPageName} />
         </div>
         <AssistantChat />
+        {currentUser && <WelcomeBanner />}
+        <AppTour
+          active={tourActive}
+          onExit={() => setTourActive(false)}
+          sidebarCollapsed={sidebarCollapsed}
+          onExpandSidebar={() => setSidebarCollapsed(false)}
+        />
       </div>
     </HelpContextProvider>
   );
