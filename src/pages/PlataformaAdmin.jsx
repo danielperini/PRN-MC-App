@@ -16,7 +16,7 @@ import {
   Users, FileText, History, Settings,
   CheckCircle, ChevronRight,
   AlertTriangle, Download, Database, Building2, Users2,
-  BookOpen, RotateCw
+  BookOpen, RotateCw, Send, Mail
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -57,6 +57,8 @@ function PlataformaAdminInner() {
   const [restoreResult, setRestoreResult] = useState(null);
   const [fundindoMetas, setFundindoMetas] = useState(false);
   const [fusaoResult, setFusaoResult] = useState(null);
+  const [sendingLink, setSendingLink] = useState(false);
+  const [linkResult, setLinkResult] = useState(null);
 
   const { data: users = [] } = useQuery({
     queryKey: ['users'],
@@ -104,6 +106,25 @@ function PlataformaAdminInner() {
       toastMessages.error(error?.message || 'Erro ao restaurar membros');
     } finally {
       setRestoringMembers(false);
+    }
+  };
+
+  const handleSendLinkApp = async () => {
+    setSendingLink(true);
+    setLinkResult(null);
+    try {
+      const res = await base44.functions.invoke('notifyLinkCorretoApp', {});
+      const data = res.data || {};
+      setLinkResult(data);
+      if (data.total !== undefined) {
+        toastMessages.success(`E-mail enviado para ${data.enviados} de ${data.total} destinatários`);
+      } else {
+        toastMessages.error('Não foi possível concluir o envio');
+      }
+    } catch (error) {
+      toastMessages.error(error?.message || 'Erro ao enviar link do app');
+    } finally {
+      setSendingLink(false);
     }
   };
 
@@ -254,6 +275,56 @@ function PlataformaAdminInner() {
 
         <TabsContent value="ferramentas">
           <div className="space-y-6">
+            {/* Enviar Link do App para Todos */}
+            <div className="border-2 border-blue-500 rounded-lg p-6 bg-blue-50">
+              <h2 className="text-lg font-bold text-blue-900 mb-1 flex items-center gap-2">
+                <Send className="w-5 h-5" />
+                Enviar Link do App para Todos
+              </h2>
+              <p className="text-sm text-blue-800 mb-4">
+                Dispara um e-mail institucional único para toda a base de usuários (membros ativos da equipe e usuários com permissão cadastrada)
+                informando o endereço oficial de acesso à plataforma: <span className="font-semibold">periniprojetos.com.br</span>.
+              </p>
+
+              <Button
+                onClick={handleSendLinkApp}
+                disabled={sendingLink}
+                className="bg-blue-700 text-white hover:bg-blue-800 gap-2"
+              >
+                {sendingLink ? (
+                  <>
+                    <RotateCw className="w-4 h-4 animate-spin" />
+                    Enviando...
+                  </>
+                ) : (
+                  <>
+                    <Mail className="w-4 h-4" />
+                    Enviar Link do App para Todos
+                  </>
+                )}
+              </Button>
+
+              {linkResult && (
+                <div className="mt-6 p-4 border border-blue-300 rounded-lg bg-white">
+                  <p className="font-semibold text-gray-800 mb-1">
+                    📧 E-mails enviados: {linkResult.enviados} de {linkResult.total}
+                  </p>
+                  {linkResult.link && (
+                    <p className="text-xs text-gray-500 mb-2">Link compartilhado: {linkResult.link}</p>
+                  )}
+                  {linkResult.erros && linkResult.erros.length > 0 && (
+                    <div className="mt-2 text-sm text-red-700">
+                      <p className="font-medium mb-1">⚠️ Falhas de envio ({linkResult.erros.length}):</p>
+                      <ul className="list-disc list-inside space-y-1 text-xs max-h-40 overflow-y-auto">
+                        {linkResult.erros.map((e, i) => (
+                          <li key={i}>{e.email}: {e.erro}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
             {/* Fusão de Metas Educativas */}
             <div className="border-2 border-amber-400 rounded-lg p-6 bg-amber-50">
               <h2 className="text-lg font-bold text-amber-900 mb-1">Fusão de Metas Educativas</h2>
