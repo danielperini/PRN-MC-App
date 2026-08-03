@@ -2,8 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend
-} from 'recharts';
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend } from
+'recharts';
 import { Target, ChevronDown, ChevronUp } from 'lucide-react';
 import DrillDownSheet from '@/components/dashboard/DrillDownSheet';
 
@@ -12,11 +12,11 @@ const MUSEU_COLORS = { MUMO: '#1e293b', MIS: '#475569', MHAB: '#94a3b8' };
 
 // Metas quantitativas do 3º Aditivo
 const METAS_QUANTITATIVAS = [
-  { numero: '10', label: 'M10', desc: '18 mostras', total: 18 },
-  { numero: '20', label: 'M20', desc: '30 ações educ./culturais', total: 30 },
-  { numero: '16', label: 'M16', desc: '101 diárias educador', total: 101 },
-  { numero: '19', label: 'M19', desc: 'Presente de Iemanjá', total: 1 },
-];
+{ numero: '10', label: 'M10', desc: '18 mostras', total: 18 },
+{ numero: '20', label: 'M20', desc: '30 ações educ./culturais', total: 30 },
+{ numero: '16', label: 'M16', desc: '101 diárias educador', total: 101 },
+{ numero: '19', label: 'M19', desc: 'Presente de Iemanjá', total: 1 }];
+
 
 // Orçamento previsto por museu (rubricas do 3º Aditivo — referência fixa do plano de trabalho)
 const ORCAMENTO_PREVISTO = { MUMO: 228500, MIS: 22500, MHAB: 76250 };
@@ -27,7 +27,7 @@ function fmtBRL(v) {
 
 function pct(used, total) {
   if (!total) return 0;
-  return Math.min(100, Math.round((used / total) * 100));
+  return Math.min(100, Math.round(used / total * 100));
 }
 
 function museuFromString(s) {
@@ -61,7 +61,7 @@ function metaNumeroFromActivity(a) {
 function GaugeCircle({ value, color = '#1e293b', size = 80 }) {
   const r = size / 2 - 7;
   const circ = 2 * Math.PI * r;
-  const offset = circ - (Math.min(100, value) / 100) * circ;
+  const offset = circ - Math.min(100, value) / 100 * circ;
   return (
     <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
       <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
@@ -71,12 +71,12 @@ function GaugeCircle({ value, color = '#1e293b', size = 80 }) {
           fill="none" stroke={color} strokeWidth={7}
           strokeDasharray={circ} strokeDashoffset={offset}
           strokeLinecap="round"
-          style={{ transition: 'stroke-dashoffset 0.6s ease' }}
-        />
+          style={{ transition: 'stroke-dashoffset 0.6s ease' }} />
+        
       </svg>
       <span className="absolute text-sm font-black text-slate-800">{Math.round(value)}%</span>
-    </div>
-  );
+    </div>);
+
 }
 
 const CustomTooltip = ({ active, payload, label }) => {
@@ -84,11 +84,11 @@ const CustomTooltip = ({ active, payload, label }) => {
   return (
     <div className="rounded-xl border bg-white p-3 shadow-lg text-xs space-y-1">
       <p className="font-bold text-slate-800">{label}</p>
-      {payload.map(p => (
-        <p key={p.dataKey} style={{ color: p.color }}>{p.name}: {p.value}%</p>
-      ))}
-    </div>
-  );
+      {payload.map((p) =>
+      <p key={p.dataKey} style={{ color: p.color }}>{p.name}: {p.value}%</p>
+      )}
+    </div>);
+
 };
 
 export default function MetasCumprimentoPorMuseu({ rubricas = [] }) {
@@ -102,14 +102,14 @@ export default function MetasCumprimentoPorMuseu({ rubricas = [] }) {
       { status: { $in: ['APROVADO_ADMIN', 'PAGO'] } },
       '-created_date', 500
     ),
-    staleTime: 1000 * 60 * 5,
+    staleTime: 1000 * 60 * 5
   });
 
   // --- Atividades (entidade Activity) ---
   const { data: activities = [] } = useQuery({
     queryKey: ['dashboard-metas-activities'],
     queryFn: () => base44.entities.Activity.list('-created_date', 500),
-    staleTime: 1000 * 60 * 3,
+    staleTime: 1000 * 60 * 3
   });
 
   // --- Relatórios (para drill-down por museu) ---
@@ -119,14 +119,14 @@ export default function MetasCumprimentoPorMuseu({ rubricas = [] }) {
       { status: { $in: ['SUBMITTED', 'IN_REVIEW', 'APPROVED', 'ARCHIVED'] } },
       '-created_date', 300
     ),
-    staleTime: 1000 * 60 * 5,
+    staleTime: 1000 * 60 * 5
   });
 
   // --- Atividades dentro dos relatórios (fallback / complemento) ---
   const reportActivities = useMemo(() => {
     const all = [];
     for (const r of allReports) {
-      for (const a of (Array.isArray(r.atividades) ? r.atividades : [])) {
+      for (const a of Array.isArray(r.atividades) ? r.atividades : []) {
         all.push({ ...a, _museu: r.museu });
       }
     }
@@ -157,11 +157,11 @@ export default function MetasCumprimentoPorMuseu({ rubricas = [] }) {
       }
     }
 
-    return MUSEUS.map(m => ({
+    return MUSEUS.map((m) => ({
       museu: m,
       previsto: ORCAMENTO_PREVISTO[m] || 0,
       utilizado: map[m],
-      pct: pct(map[m], ORCAMENTO_PREVISTO[m]),
+      pct: pct(map[m], ORCAMENTO_PREVISTO[m])
     }));
   }, [rubricas, purchases]);
 
@@ -169,9 +169,9 @@ export default function MetasCumprimentoPorMuseu({ rubricas = [] }) {
   const metasQuantPorMuseu = useMemo(() => {
     // Merge: Activity entity + atividades dentro de relatórios
     const allActs = [
-      ...activities,
-      ...reportActivities,
-    ];
+    ...activities,
+    ...reportActivities];
+
 
     const counts = {}; // { 'MUMO_10': 2 }
     for (const a of allActs) {
@@ -182,7 +182,7 @@ export default function MetasCumprimentoPorMuseu({ rubricas = [] }) {
       counts[key] = (counts[key] || 0) + 1;
     }
 
-    return METAS_QUANTITATIVAS.map(meta => {
+    return METAS_QUANTITATIVAS.map((meta) => {
       const row = { meta: meta.label, desc: meta.desc, total: meta.total };
       let totalAbs = 0;
       for (const m of MUSEUS) {
@@ -199,9 +199,9 @@ export default function MetasCumprimentoPorMuseu({ rubricas = [] }) {
 
   // ── Score consolidado por museu ───────────────────────────────────────────
   const gaugesPorMuseu = useMemo(() => {
-    return MUSEUS.map(m => {
-      const fin = financeiroPorMuseu.find(x => x.museu === m) || {};
-      const atPcts = metasQuantPorMuseu.map(meta => meta[m] || 0);
+    return MUSEUS.map((m) => {
+      const fin = financeiroPorMuseu.find((x) => x.museu === m) || {};
+      const atPcts = metasQuantPorMuseu.map((meta) => meta[m] || 0);
       const atMedia = atPcts.length > 0 ? atPcts.reduce((a, b) => a + b, 0) / atPcts.length : 0;
       const score = Math.round(0.6 * (fin.pct || 0) + 0.4 * atMedia);
       return { museu: m, score, financeiro: fin.pct || 0, atividades: Math.round(atMedia) };
@@ -213,9 +213,9 @@ export default function MetasCumprimentoPorMuseu({ rubricas = [] }) {
       {/* Header */}
       <button
         type="button"
-        onClick={() => setExpanded(v => !v)}
-        className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors"
-      >
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors">
+        
         <div className="flex items-center gap-3">
           <Target className="w-5 h-5 text-slate-700" />
           <div className="text-left">
@@ -226,29 +226,29 @@ export default function MetasCumprimentoPorMuseu({ rubricas = [] }) {
         {expanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
       </button>
 
-      {expanded && (
-        <div className="px-5 pb-6 space-y-6 border-t border-slate-100">
+      {expanded &&
+      <div className="px-5 pb-6 space-y-6 border-t border-slate-100">
 
           {/* ── Gauges por museu ── */}
           <div className="pt-4">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-4">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-4 hidden">
               Score consolidado (financeiro + atividades)
             </p>
             <div className="grid grid-cols-3 gap-4">
-              {gaugesPorMuseu.map(g => (
-                <button
-                  key={g.museu}
-                  type="button"
-                  onClick={() => setDrillDown({
-                    title: `Museu ${g.museu}`,
-                    value: `Score: ${g.score}%`,
-                    sourceBadges: ['Relatórios', 'Público', 'Atividades'],
-                    type: 'museu',
-                    museu: g.museu,
-                    reports: allReports,
-                  })}
-                  className="flex flex-col items-center gap-2 rounded-xl border border-slate-100 p-4 bg-slate-50 cursor-pointer hover:ring-2 hover:ring-slate-300 hover:bg-white transition-all text-left w-full"
-                >
+              {gaugesPorMuseu.map((g) =>
+            <button
+              key={g.museu}
+              type="button"
+              onClick={() => setDrillDown({
+                title: `Museu ${g.museu}`,
+                value: `Score: ${g.score}%`,
+                sourceBadges: ['Relatórios', 'Público', 'Atividades'],
+                type: 'museu',
+                museu: g.museu,
+                reports: allReports
+              })}
+              className="flex flex-col items-center gap-2 rounded-xl border border-slate-100 p-4 bg-slate-50 cursor-pointer hover:ring-2 hover:ring-slate-300 hover:bg-white transition-all text-left w-full hidden">
+              
                   <span className="text-sm font-bold text-slate-800">{g.museu}</span>
                   <GaugeCircle value={g.score} color={MUSEU_COLORS[g.museu]} size={80} />
                   <div className="w-full space-y-1.5 mt-1">
@@ -270,7 +270,7 @@ export default function MetasCumprimentoPorMuseu({ rubricas = [] }) {
                     </div>
                   </div>
                 </button>
-              ))}
+            )}
             </div>
           </div>
 
@@ -283,24 +283,24 @@ export default function MetasCumprimentoPorMuseu({ rubricas = [] }) {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={financeiroPorMuseu} barCategoryGap="35%">
                   <XAxis dataKey="museu" tick={{ fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `${v}%`} axisLine={false} tickLine={false} domain={[0, 100]} />
+                  <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${v}%`} axisLine={false} tickLine={false} domain={[0, 100]} />
                   <Tooltip content={<CustomTooltip />} />
                   <Bar dataKey="pct" name="Execução" radius={[6, 6, 0, 0]}>
-                    {financeiroPorMuseu.map(entry => (
-                      <Cell key={entry.museu} fill={MUSEU_COLORS[entry.museu]} />
-                    ))}
+                    {financeiroPorMuseu.map((entry) =>
+                  <Cell key={entry.museu} fill={MUSEU_COLORS[entry.museu]} />
+                  )}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
             <div className="grid grid-cols-3 gap-2 mt-1">
-              {financeiroPorMuseu.map(f => (
-                <div key={f.museu} className="rounded-lg bg-slate-50 border border-slate-100 p-2 text-center">
+              {financeiroPorMuseu.map((f) =>
+            <div key={f.museu} className="rounded-lg bg-slate-50 border border-slate-100 p-2 text-center hidden">
                   <p className="text-[10px] text-slate-500 font-semibold">{f.museu}</p>
                   <p className="text-xs font-bold text-slate-800">{fmtBRL(f.utilizado)}</p>
                   <p className="text-[10px] text-slate-400">de {fmtBRL(f.previsto)}</p>
                 </div>
-              ))}
+            )}
             </div>
           </div>
 
@@ -313,12 +313,12 @@ export default function MetasCumprimentoPorMuseu({ rubricas = [] }) {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={metasQuantPorMuseu} barCategoryGap="20%" barGap={2}>
                   <XAxis dataKey="meta" tick={{ fontSize: 11, fontWeight: 600 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `${v}%`} axisLine={false} tickLine={false} domain={[0, 100]} />
+                  <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${v}%`} axisLine={false} tickLine={false} domain={[0, 100]} />
                   <Tooltip content={<CustomTooltip />} />
                   <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
-                  {MUSEUS.map(m => (
-                    <Bar key={m} dataKey={m} name={m} fill={MUSEU_COLORS[m]} radius={[4, 4, 0, 0]} />
-                  ))}
+                  {MUSEUS.map((m) =>
+                <Bar key={m} dataKey={m} name={m} fill={MUSEU_COLORS[m]} radius={[4, 4, 0, 0]} />
+                )}
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -335,8 +335,8 @@ export default function MetasCumprimentoPorMuseu({ rubricas = [] }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {metasQuantPorMuseu.map(m => (
-                    <tr key={m.meta} className="border-b border-slate-50 hover:bg-slate-50">
+                  {metasQuantPorMuseu.map((m) =>
+                <tr key={m.meta} className="border-b border-slate-50 hover:bg-slate-50">
                       <td className="py-1.5 px-2 font-medium text-slate-700">
                         {m.meta} <span className="text-slate-400 font-normal">· {m.desc}</span>
                       </td>
@@ -344,28 +344,28 @@ export default function MetasCumprimentoPorMuseu({ rubricas = [] }) {
                       <td className="py-1.5 px-2 text-center font-semibold text-slate-800">{m.totalAbs}</td>
                       <td className="py-1.5 px-2 text-center">
                         <span className={`px-1.5 py-0.5 rounded-full font-bold ${
-                          m.totalPct >= 80 ? 'bg-slate-900 text-white' :
-                          m.totalPct >= 50 ? 'bg-slate-200 text-slate-800' :
-                          'bg-slate-100 text-slate-500'
-                        }`}>
+                    m.totalPct >= 80 ? 'bg-slate-900 text-white' :
+                    m.totalPct >= 50 ? 'bg-slate-200 text-slate-800' :
+                    'bg-slate-100 text-slate-500'}`
+                    }>
                           {m.totalPct}%
                         </span>
                       </td>
                     </tr>
-                  ))}
+                )}
                 </tbody>
               </table>
             </div>
           </div>
 
         </div>
-      )}
+      }
 
       <DrillDownSheet
         open={!!drillDown}
         onClose={() => setDrillDown(null)}
-        config={drillDown}
-      />
-    </div>
-  );
+        config={drillDown} />
+      
+    </div>);
+
 }
