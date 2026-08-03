@@ -694,7 +694,7 @@ Equipe Museus Centro`;
     }
   }
 
-  async function handleProcessarNota(aprovarDireto = false) {
+  async function handleProcessarNota(aprovarDireto = false, ignoreDup = false) {
     if (sending || approvingDirect) return;
 
     if (!form.rubrica_id) {
@@ -729,8 +729,8 @@ Equipe Museus Centro`;
       return;
     }
 
-    // Verificar duplicidade apenas na primeira tentativa
-    if (!ignoreDuplicate) {
+    // Verificar duplicidade apenas na primeira tentativa (ou quando não forçado a ignorar)
+    if (!ignoreDup && !ignoreDuplicate) {
       try {
         const payloadTeste = {
           nf_numero: form.nf_numero,
@@ -774,7 +774,6 @@ Equipe Museus Centro`;
         valor: valorTotal,
 
         meta_id: (form.meta_id && form.meta_id !== '__none__') ? form.meta_id : undefined,
-        categoria: 'Nota Fiscal',
         tipo_gasto: form.tipo_gasto || 'Serviço',
 
         centro_custo: centroCustoFinal,
@@ -958,13 +957,8 @@ Equipe Museus Centro`;
         onProceed={() => {
           setIgnoreDuplicate(true);
           setDuplicateWarning(null);
-          // Reprocess com ignoreDuplicate = true
-          setApprovingDirect(false);
-          setSending(false);
-          // Dispara novamente o handleProcessarNota
-          setTimeout(() => {
-            // Vai passar direto pois ignoreDuplicate = true
-          }, 0);
+          // Reprocessa direto ignorando a verificação de duplicidade
+          handleProcessarNota(false, true);
         }}
       />
 
