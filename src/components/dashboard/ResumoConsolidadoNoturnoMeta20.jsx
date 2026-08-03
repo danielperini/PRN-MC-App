@@ -4,47 +4,27 @@ import { base44 } from '@/api/base44Client';
 import { isRelatorioNoPeriodo } from '@/hooks/useMetasPeriodoFiltro';
 import { Moon, BookOpen, BarChart3 } from 'lucide-react';
 import DrillDownSheet from '@/components/dashboard/DrillDownSheet';
-
-function getMetaCodigo(a) {
-  return (a.meta_codigo || a.meta_id || '').toLowerCase();
-}
-
-function getTituloNome(a) {
-  return (a.titulo || a.nome || a.descricao || '').toLowerCase();
-}
+import { useCurrentUser } from '@/components/auth/useCurrentUser';
+import { useDashboardCriterios, classificarComCriterios } from '@/hooks/useDashboardCriterios';
+import CriteriosMetaTrigger from './CriteriosMetaTrigger';
 
 /**
- * Classifica a atividade:
- * - 'noturno': META 11 (Noturno Centro) — pelo código ou título
- * - 'meta20': ações educativas/culturais (META 20) — excluindo noturno
- * - null: não contabiliza
+ * Classifica a atividade com critérios dinâmicos persistidos.
+ * Ordem: noturno primeiro (exclui 11b/pampulha, inclui 11 e 'noturno centro'),
+ * depois meta 20 (excluindo noturno/pampulha/diárias).
  */
-function classificar(a) {
-  const cod = getMetaCodigo(a);
-  const nome = getTituloNome(a);
-  const tipo = (a.tipo_acao_lista || []).join(' ').toLowerCase();
-  const class_ = (a.classificacao || '').toLowerCase();
-
-  // Noturno Centro: meta 11 (excluindo 11B/Pampulha)
-  if ((cod.includes('11') && !cod.includes('11b') && !cod.includes('pampulha')) || nome.includes('noturno centro')) {
-    return 'noturno';
-  }
-
-  // Excluir noturno, pampulha, 11B e diárias do somatório da meta20
-  if (cod.includes('11b') || nome.includes('noturno') || cod.includes('16') || nome.includes('diária') || nome.includes('diaria')) {
-    return null;
-  }
-
-  // META 20: ações educativas e culturais
-  if (cod.includes('20') || cod.includes('10') || nome.includes('mostra') || tipo.includes('mostra')) return 'meta20';
-  if (class_ === 'cultural' || tipo.includes('cultural') || tipo.includes('show') || tipo.includes('teatro') || tipo.includes('apresent') || tipo.includes('música')) return 'meta20';
-  if (class_ === 'educativa' || class_ === 'meta' || tipo.includes('educa') || tipo.includes('oficina') || tipo.includes('palestra') || tipo.includes('formação') || tipo.includes('roda')) return 'meta20';
-
+function classificar(a, critNoturno, critMeta20) {
+  if (classificarComCriterios(a, critNoturno)) return 'noturno';
+  if (classificarComCriterios(a, critMeta20)) return 'meta20';
   return null;
 }
 
 export default function ResumoConsolidadoNoturnoMeta20({ dataInicio, dataFim }) {
   const [drillDown, setDrillDown] = useState(null);
+  const { isCoordGeral } = useCurrentUser();
+  const { criterios: criteriosNoturno } = useDashboardCriterios('dashboard_criterios_noturno');
+  const { criterios: criteriosMeta20 } = useDashboardCriterios('dashboard_criterios_meta_20');
+
   const { data: relatorios = [], isLoading } = useQuery({
     queryKey: ['reports-resumo-consolidado-noturno-meta20'],
     queryFn: () => base44.entities.Report.filter(
@@ -74,12 +54,12 @@ export default function ResumoConsolidadoNoturnoMeta20({ dataInicio, dataFim }) 
     let noturno = 0;
     let meta20 = 0;
     for (const a of atividadesFiltradas) {
-      const cat = classificar(a);
+      const cat = classificar(a, criteriosNoturno, criteriosMeta20);
       if (cat === 'noturno') noturno++;
       else if (cat === 'meta20') meta20++;
     }
     return { totalNoturno: noturno, totalMeta20: meta20, totalAcumulado: noturno + meta20 };
-  }, [atividadesFiltradas]);
+  }, [atividadesFiltradas, criteriosNoturno, criteriosMeta20]);
 
   if (isLoading) return null;
 
@@ -88,6 +68,18 @@ export default function ResumoConsolidadoNoturnoMeta20({ dataInicio, dataFim }) 
       <div className="flex items-center gap-2 mb-4">
         <BarChart3 className="h-4 w-4 text-slate-600" />
         <h3 className="text-base font-bold text-slate-800">Atividades Consolidadas — Noturno Centro + Meta 20</h3>
+        <div className="ml-auto flex items-center gap-1">
+          <CriteriosMetaTrigger
+            chave="dashboard_criterios_noturno"
+            atividades={atividadesFiltradas}
+            isCoordGeral={isCoordGeral}
+          />
+          <CriteriosMetaTrigger
+            chave="dashboard_criterios_meta_20"
+            atividades={atividadesFiltradas}
+            isCoordGeral={isCoordGeral}
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-3">

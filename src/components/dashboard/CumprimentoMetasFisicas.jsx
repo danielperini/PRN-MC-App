@@ -3,7 +3,10 @@ import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { CheckCircle2, AlertCircle, TrendingUp, Users } from 'lucide-react';
 import { isRelatorioNoPeriodo } from '@/hooks/useMetasPeriodoFiltro';
+import { useCurrentUser } from '@/components/auth/useCurrentUser';
+import { useDashboardCriterios, classificarComCriterios } from '@/hooks/useDashboardCriterios';
 import DashboardDrilldownSheet, { SectionTitle, RowItem, MuseuBreakdown } from './DashboardDrilldownSheet';
+import CriteriosMetaTrigger from './CriteriosMetaTrigger';
 
 const METAS_FISICAS = [
   { numero: '20', titulo: '30 ações educativas e/ou culturais', meta: 30, tipo: 'educativa', periodo: 'mês 19–28' },
@@ -30,19 +33,8 @@ function barColor(pct) {
   return 'bg-red-400';
 }
 
-function classifyActivity(a) {
-  const nome = (a.nome || a.titulo || a.descricao || '').toLowerCase();
-  const tipo = (a.tipo_acao_lista || []).join(' ').toLowerCase();
-  const class_ = (a.classificacao || '').toLowerCase();
-  const metaCod = (a.meta_codigo || a.meta_id || '').toLowerCase();
-
-  if (metaCod.includes('11') || nome.includes('noturno') || metaCod.includes('16') || nome.includes('diária') || nome.includes('diaria')) return null;
-  if (nome.includes('iemanjá') || nome.includes('iemanja') || metaCod.includes('19')) return '19';
-  if (metaCod.includes('20') || metaCod.includes('10') || nome.includes('mostra') || tipo.includes('mostra')) return '20';
-  if (class_ === 'cultural' || tipo.includes('cultural') || tipo.includes('show') || tipo.includes('teatro') || tipo.includes('apresent') || tipo.includes('música')) return '20';
-  if (class_ === 'educativa' || class_ === 'meta' || tipo.includes('educa') || tipo.includes('oficina') || tipo.includes('palestra') || tipo.includes('formação') || tipo.includes('roda')) return '20';
-
-  return null;
+function classifyActivity(a, criterios) {
+  return classificarComCriterios(a, criterios) ? '20' : null;
 }
 
 function getMuseu(a) {
@@ -54,6 +46,9 @@ function getMuseu(a) {
 export default function CumprimentoMetasFisicas({ dataInicio, dataFim }) {
   const [sheetMeta, setSheetMeta] = useState(null);   // número da meta ou null
   const [sheetMuseu, setSheetMuseu] = useState(null); // museu filtro ou null (all)
+
+  const { isCoordGeral } = useCurrentUser();
+  const { criterios: criteriosMeta20 } = useDashboardCriterios('dashboard_criterios_meta_20');
 
   const { data: relatorios = [], isLoading } = useQuery({
     queryKey: ['reports-para-metas-fisicas'],
@@ -87,31 +82,42 @@ export default function CumprimentoMetasFisicas({ dataInicio, dataFim }) {
       for (const m of MUSEUS_ORDEM) counts[meta.numero].porMuseu[m] = 0;
     }
     for (const a of todasAtividades) {
-      const key = classifyActivity(a);
+      const key = classifyActivity(a, criteriosMeta20);
       if (!key || !counts[key]) continue;
       counts[key].total += 1;
       const museu = MUSEUS_ORDEM.includes(a._museu) ? a._museu : 'Geral';
       counts[key].porMuseu[museu] = (counts[key].porMuseu[museu] || 0) + 1;
     }
     return counts;
-  }, [todasAtividades]);
+  }, [todasAtividades, criteriosMeta20]);
+
+  // Auxiliar: o card 'Geral' usa modo consolidado (soma de todos museus + sem-museu) ou apenas museu=Geral
+  const geralConsolidado = criteriosMeta20?.geral_mode === 'consolidado';
 
   const acoesPorMuseu = useMemo(() => {
     const tot = {};
     for (const m of MUSEUS_ORDEM) tot[m] = 0;
     if (stats['20']) {
-      for (const m of MUSEUS_ORDEM) {
-        tot[m] += (stats['20'].porMuseu[m] || 0);
+      if (geralConsolidado) {
+        // 'Geral' exibe o total (consolidado) — soma de todos museus + sem museu específico
+        tot['Geral'] = stats['20'].total;
+        for (const m of ['MHAB', 'MIS', 'MUMO']) {
+          tot[m] += (stats['20'].porMuseu[m] || 0);
+        }
+      } else {
+        for (const m of MUSEUS_ORDEM) {
+          tot[m] += (stats['20'].porMuseu[m] || 0);
+        }
       }
     }
     return tot;
-  }, [stats]);
+  }, [stats, geralConsolidado]);
 
   // Resumo por relatório para drill-down
   const resumoRelatoriosPorMeta = useMemo(() => {
     const map = {};
     for (const a of todasAtividades) {
-      const key = classifyActivity(a);
+      const key = classifyActivity(a, criteriosMeta20);
       if (!key) continue;
       const r = a._relatorio;
       if (!r) continue;
@@ -129,7 +135,7 @@ export default function CumprimentoMetasFisicas({ dataInicio, dataFim }) {
       map[rid].contagens[key] = (map[rid].contagens[key] || 0) + 1;
     }
     return map;
-  }, [todasAtividades]);
+  }, [todasAtividades, criteriosMeta20]);
 
   const openSheet = (metaNumero, museu = null) => {
     setSheetMeta(metaNumero);
@@ -165,11 +171,18 @@ export default function CumprimentoMetasFisicas({ dataInicio, dataFim }) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-bold text-slate-900 tracking-tight">Cumprimento Físico das Metas</h2>
-        <p className="text-sm text-slate-500 mt-0.5">
-          Atividades realizadas nos relatórios submetidos — 3º e 4º Aditivo{periodoLabel}
-        </p>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900 tracking-tight">Cumprimento Físico das Metas</h2>
+          <p className="text-sm text-slate-500 mt-0.5">
+            Atividades realizadas nos relatórios submetidos — 3º e 4º Aditivo{periodoLabel}
+          </p>
+        </div>
+        <CriteriosMetaTrigger
+          chave="dashboard_criterios_meta_20"
+          atividades={todasAtividades}
+          isCoordGeral={isCoordGeral}
+        />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -237,6 +250,11 @@ export default function CumprimentoMetasFisicas({ dataInicio, dataFim }) {
           <Users className="h-4 w-4 text-slate-600" />
           <h3 className="text-base font-bold text-slate-800">Total de ações culturais e educativas por museu</h3>
           <span className="ml-auto text-xs text-slate-400">(Meta 20 — educativas e culturais)</span>
+          <CriteriosMetaTrigger
+            chave="dashboard_criterios_meta_20"
+            atividades={todasAtividades}
+            isCoordGeral={isCoordGeral}
+          />
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

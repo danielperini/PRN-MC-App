@@ -10,13 +10,14 @@
         "classificacao",
         "status_relatorio",
         "funcao",
-        "equipe"
+        "equipe",
+        "dashboard_criterios"
       ],
-      "description": "Categoria do metadado"
+      "description": "Categoria do metadado (ou 'dashboard_criterios' para configura\u00e7\u00f5es de crit\u00e9rios de metas f\u00edsicas)"
     },
     "valor": {
       "type": "string",
-      "description": "Valor do metadado (ex: 'MHAB', 'Oficina', 'META')"
+      "description": "Valor do metadado (ex: 'MHAB', 'Oficina', 'META'); para dashboard_criterios armazena a chave de config"
     },
     "label": {
       "type": "string",
@@ -35,11 +36,17 @@
       "type": "number",
       "default": 0,
       "description": "Ordem de exibi\u00e7\u00e3o"
+    },
+    "chave_config": {
+      "type": "string",
+      "description": "Chave composta para configura\u00e7\u00f5es de crit\u00e9rios de metas f\u00edsicas (ex: 'dashboard_criterios_meta_20', 'dashboard_criterios_noturno')"
+    },
+    "config_json": {
+      "type": "object",
+      "description": "Objeto JSON com crit\u00e9rios persistidos: { meta_codigos_aceitos:[], classificacoes_aceitas:[], palavras_chave_inclusao:[], palavras_chave_exclusao:[], geral_mode:'consolidado'|'apenas_geral' }"
     }
   },
   "required": [
-    "categoria",
-    "valor",
-    "label"
+    "categoria"
   ]
 }
