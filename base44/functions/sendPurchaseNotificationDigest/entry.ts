@@ -109,8 +109,11 @@ Deno.serve(async (req) => {
 `;
 
       for (const item of items) {
-        const linkSolicitacao = item.link_app_compras
-          || (item.purchase_id ? buildAppLink(req, `/Compras?id=${item.purchase_id}`) : buildAppLink(req, '/Compras'));
+        // Sempre regenera o link via APP_URL — ignora link_app_compras gravado
+        // (que pode conter subdomínio antigo/quebrado).
+        const linkSolicitacao = item.purchase_id
+          ? buildAppLink(req, `/Compras?id=${item.purchase_id}`)
+          : buildAppLink(req, '/Compras');
 
         const docsLinks: string[] = [];
         if (item.drive_backup_nf_pdf_link || item.nota_fiscal_pdf_url) {
