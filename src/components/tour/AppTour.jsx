@@ -27,7 +27,18 @@ export default function AppTour({ active, onExit, sidebarCollapsed, onExpandSide
     const t = setTimeout(() => {
       if (cancelled) return;
       const asideEl = document.querySelector('aside');
-      setSteps(gatherTourSteps(asideEl));
+      const sidebarSteps = gatherTourSteps(asideEl);
+      // Anexa já aqui se o botão flutuante já estiver no DOM.
+      const chatEl = document.querySelector('[data-tour-id="assistant-chat-button"]');
+      if (chatEl && !sidebarSteps.some((s) => s.path === 'AssistantChat')) {
+        sidebarSteps.push({
+          path: 'AssistantChat',
+          label: 'Assistente de IA',
+          element: chatEl,
+          descricao: TOUR_DESCRICAO['AssistantChat'] || '',
+        });
+      }
+      setSteps(sidebarSteps);
     }, delay);
     return () => { cancelled = true; clearTimeout(t); };
   }, [active, sidebarCollapsed, onExpandSidebar]);
@@ -45,14 +56,14 @@ export default function AppTour({ active, onExit, sidebarCollapsed, onExpandSide
       if (chatEl) {
         setSteps((prev) => {
           if (prev.some((s) => s.path === 'AssistantChat')) return prev;
-          if (!prev.some((s) => s.path)) return prev; // evita adicionar antes do sidebar
+          if (prev.length === 0) return prev; // evita adicionar antes do sidebar
           return [
             ...prev,
             { path: 'AssistantChat', label: 'Assistente de IA', element: chatEl, descricao: TOUR_DESCRICAO['AssistantChat'] || '' },
           ];
         });
         clearInterval(poll);
-      } else if (tries > 24) {
+      } else if (tries > 75) {
         clearInterval(poll);
       }
     }, 200);
