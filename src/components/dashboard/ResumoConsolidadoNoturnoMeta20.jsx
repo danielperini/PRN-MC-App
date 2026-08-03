@@ -31,19 +31,19 @@ export default function ResumoConsolidadoNoturnoMeta20({ dataInicio, dataFim }) 
       { status: { $in: ['SUBMITTED', 'IN_REVIEW', 'APPROVED', 'ARCHIVED'] } },
       '-ano', 500
     ),
-    staleTime: 60000,
+    staleTime: 60000
   });
 
   const relFiltrados = useMemo(() => {
-    return (dataInicio && dataFim)
-      ? relatorios.filter(r => isRelatorioNoPeriodo(r.mes_referencia, r.ano, dataInicio, dataFim))
-      : relatorios;
+    return dataInicio && dataFim ?
+    relatorios.filter((r) => isRelatorioNoPeriodo(r.mes_referencia, r.ano, dataInicio, dataFim)) :
+    relatorios;
   }, [relatorios, dataInicio, dataFim]);
 
   const atividadesFiltradas = useMemo(() => {
     const arr = [];
     for (const r of relFiltrados) {
-      for (const a of (r.atividades || [])) {
+      for (const a of r.atividades || []) {
         arr.push(a);
       }
     }
@@ -55,8 +55,8 @@ export default function ResumoConsolidadoNoturnoMeta20({ dataInicio, dataFim }) 
     let meta20 = 0;
     for (const a of atividadesFiltradas) {
       const cat = classificar(a, criteriosNoturno, criteriosMeta20);
-      if (cat === 'noturno') noturno++;
-      else if (cat === 'meta20') meta20++;
+      if (cat === 'noturno') noturno++;else
+      if (cat === 'meta20') meta20++;
     }
     return { totalNoturno: noturno, totalMeta20: meta20, totalAcumulado: noturno + meta20 };
   }, [atividadesFiltradas, criteriosNoturno, criteriosMeta20]);
@@ -64,7 +64,7 @@ export default function ResumoConsolidadoNoturnoMeta20({ dataInicio, dataFim }) 
   if (isLoading) return null;
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hidden">
       <div className="flex items-center gap-2 mb-4">
         <BarChart3 className="h-4 w-4 text-slate-600" />
         <h3 className="text-base font-bold text-slate-800">Atividades Consolidadas — Noturno Centro + Meta 20</h3>
@@ -72,13 +72,13 @@ export default function ResumoConsolidadoNoturnoMeta20({ dataInicio, dataFim }) 
           <CriteriosMetaTrigger
             chave="dashboard_criterios_noturno"
             atividades={atividadesFiltradas}
-            isCoordGeral={isCoordGeral}
-          />
+            isCoordGeral={isCoordGeral} />
+          
           <CriteriosMetaTrigger
             chave="dashboard_criterios_meta_20"
             atividades={atividadesFiltradas}
-            isCoordGeral={isCoordGeral}
-          />
+            isCoordGeral={isCoordGeral} />
+          
         </div>
       </div>
 
@@ -92,10 +92,10 @@ export default function ResumoConsolidadoNoturnoMeta20({ dataInicio, dataFim }) 
             sourceBadges: ['Relatórios', 'Atividades'],
             type: 'noturno_meta20',
             relatorios: relFiltrados,
-            tipoNoturno: 'noturno',
+            tipoNoturno: 'noturno'
           })}
-          className="rounded-xl border border-slate-100 bg-indigo-50 p-4 text-center cursor-pointer hover:ring-2 hover:ring-indigo-300 hover:bg-indigo-100 transition-all"
-        >
+          className="rounded-xl border border-slate-100 bg-indigo-50 p-4 text-center cursor-pointer hover:ring-2 hover:ring-indigo-300 hover:bg-indigo-100 transition-all">
+          
           <div className="flex justify-center mb-1">
             <Moon className="h-4 w-4 text-indigo-500" />
           </div>
@@ -113,10 +113,10 @@ export default function ResumoConsolidadoNoturnoMeta20({ dataInicio, dataFim }) 
             sourceBadges: ['Relatórios', 'Atividades'],
             type: 'noturno_meta20',
             relatorios: relFiltrados,
-            tipoNoturno: 'meta20',
+            tipoNoturno: 'meta20'
           })}
-          className="rounded-xl border border-slate-100 bg-emerald-50 p-4 text-center cursor-pointer hover:ring-2 hover:ring-emerald-300 hover:bg-emerald-100 transition-all"
-        >
+          className="rounded-xl border border-slate-100 bg-emerald-50 p-4 text-center cursor-pointer hover:ring-2 hover:ring-emerald-300 hover:bg-emerald-100 transition-all">
+          
           <div className="flex justify-center mb-1">
             <BookOpen className="h-4 w-4 text-emerald-500" />
           </div>
@@ -143,8 +143,8 @@ export default function ResumoConsolidadoNoturnoMeta20({ dataInicio, dataFim }) 
       <DrillDownSheet
         open={!!drillDown}
         onClose={() => setDrillDown(null)}
-        config={drillDown}
-      />
-    </div>
-  );
+        config={drillDown} />
+      
+    </div>);
+
 }

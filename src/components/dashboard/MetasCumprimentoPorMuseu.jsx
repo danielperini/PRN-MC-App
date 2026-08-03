@@ -214,7 +214,7 @@ export default function MetasCumprimentoPorMuseu({ rubricas = [] }) {
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors">
+        className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors hidden">
         
         <div className="flex items-center gap-3">
           <Target className="w-5 h-5 text-slate-700" />
