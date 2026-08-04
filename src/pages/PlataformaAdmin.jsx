@@ -12,6 +12,7 @@ import UserPermissionsManager from '../components/admin/UserPermissionsManager';
 import AuditSystemPanel from '../components/admin/AuditSystemPanel';
 import HardeningPanel from '../components/admin/HardeningPanel';
 import ComunicadosPanel from '../components/admin/ComunicadosPanel';
+import BoletimSemanalAgendaPanel from '../components/admin/BoletimSemanalAgendaPanel';
 import {
   Users, FileText, History, Settings,
   CheckCircle, ChevronRight,
@@ -325,6 +326,9 @@ function PlataformaAdminInner() {
                 </div>
               )}
             </div>
+            {/* Boletim Semanal da Agenda */}
+            <BoletimSemanalAgendaPanel />
+
             {/* Fusão de Metas Educativas */}
             <div className="border-2 border-amber-400 rounded-lg p-6 bg-amber-50">
               <h2 className="text-lg font-bold text-amber-900 mb-1">Fusão de Metas Educativas</h2>
