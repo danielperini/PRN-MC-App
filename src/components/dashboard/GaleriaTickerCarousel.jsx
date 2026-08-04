@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
+import { isTechnicalFileName, isInventedCaption } from '@/utils/galleryNormalization';
 
 const PHOTO_COUNT = 4;
 const ROTATION_INTERVAL_MS = 30000;
@@ -141,21 +142,19 @@ function curatePeoplePhotos(items) {
 
 function getCaption(item) {
   if (!item) return '';
-  const candidates = [
-    item?.legenda,
-    item?.caption,
-    item?.descricao,
-    item?.description,
-    item?.resultado_ia?.descricao,
-    item?.ai_descricao,
-    item?.titulo,
-    item?.title,
-  ];
-  const text = candidates.find((c) => c && String(c).trim());
-  const value = String(text || '').trim();
-  if (!value) return '';
-  // Limita o comprimento para caber no card
-  return value.length > 90 ? value.slice(0, 87).trimEnd() + '…' : value;
+  // Cascata estrita usando apenas campos reais do registro:
+  // legenda → caption → activityTitulo (todos verificados contra nomes técnicos/inventados).
+  const candidates = [item?.legenda, item?.caption, item?.activityTitulo, item?.titulo];
+  for (const candidate of candidates) {
+    const value = String(candidate || '').trim();
+    if (value && !isTechnicalFileName(value) && !isInventedCaption(value)) {
+      return value.length > 90 ? value.slice(0, 87).trimEnd() + '…' : value;
+    }
+  }
+  // Último recurso real: apenas o período do relatório. Sem museu.
+  const periodo = String(item?.reportMes || item?.mes_referencia || '').trim();
+  if (!periodo) return '';
+  return periodo.length > 90 ? periodo.slice(0, 87).trimEnd() + '…' : periodo;
 }
 
 function sliceWithWrap(pool, startIdx, count) {

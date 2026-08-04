@@ -110,13 +110,15 @@ export default function ModalExposicao({ open, images = [], startIndex = 0, onCl
 
         {/* Legenda + metadados */}
         <div className="mt-4 text-center max-w-2xl">
-          <p className="text-white text-sm md:text-base font-medium leading-snug">
-            {legendaDisplay}
-          </p>
+          {legendaDisplay && (
+            <p className="text-white text-sm md:text-base font-medium leading-snug">
+              {legendaDisplay}
+            </p>
+          )}
           {current.sectionKey && current.sectionKey !== 'SEM_IDENTIFICACAO' && (
             <p className="text-white/60 text-xs mt-1">{current.sectionTitle || current.museu}</p>
           )}
-          {current.reportMes && (
+          {current.reportMes && legendaDisplay !== current.reportMes && (
             <p className="text-white/50 text-xs">{current.reportMes}</p>
           )}
         </div>

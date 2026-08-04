@@ -167,9 +167,9 @@ export function resolvePhotoCaption(image) {
       return String(candidate).trim();
     }
   }
-  const museu = String(image.museu || '').trim();
-  const periodo = String(image.reportMes || '').trim();
-  return [museu, periodo].filter(Boolean).join(' — ');
+  // Último recurso: apenas o período real do relatório (reportMes).
+  // Nenhum nome de museu é concatenado — museu é exibido apenas como metadado separado.
+  return String(image.reportMes || '').trim();
 }
 
 // Textos genéricos/inventados que não representam dado real do relatório
