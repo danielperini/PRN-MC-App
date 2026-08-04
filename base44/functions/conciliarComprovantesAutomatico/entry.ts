@@ -169,25 +169,62 @@ async function listarArquivosPasta(authHeader, folderId) {
   return todos;
 }
 
-async function buscarPasta2026(authHeader) {
-  // busca pasta nome '2026' entre todas as subpastas acessíveis
+async function listarPastas2026(authHeader) {
+  // lista TODAS as pastas nome '2026' acessíveis (shared drives incluídos)
+  const pastas = [];
   let pageToken = null;
   do {
     const params = new URLSearchParams({
-      q: `mimeType='application/vnd.google-apps.folder' and trashed=false`,
-      fields: 'nextPageToken,files(id,name,parents)',
+      q: `mimeType='application/vnd.google-apps.folder' and name='2026' and trashed=false`,
+      fields: 'nextPageToken,files(id,name,createdTime,modifiedTime,parents)',
       pageSize: '1000',
       supportsAllDrives: 'true',
       includeItemsFromAllDrives: 'true'
     });
     if (pageToken) params.set('pageToken', pageToken);
     const r = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`, { headers: authHeader });
+    if (!r.ok) { const e = await r.text(); throw new Error(`Drive list pastas: ${r.status} - ${e.slice(0,200)}`); }
     const d = await r.json();
-    const pasta = (d.files || []).find(f => f.name === '2026');
-    if (pasta) return pasta;
+    if (d.files) pastas.push(...d.files);
     pageToken = d.nextPageToken;
   } while (pageToken);
-  return null;
+  return pastas;
+}
+
+async function contarArquivosPasta(authHeader, folderId) {
+  // contagem rápida (limite 1 página de 1000) — suficiente p/ comparar pastas
+  const params = new URLSearchParams({
+    q: `'${folderId}' in parents and trashed=false`,
+    fields: 'files(id)',
+    pageSize: '1000',
+    supportsAllDrives: 'true',
+    includeItemsFromAllDrives: 'true'
+  });
+  const r = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`, { headers: authHeader });
+  if (!r.ok) return 0;
+  const d = await r.json();
+  return (d.files || []).length;
+}
+
+async function buscarMelhorPasta2026(authHeader) {
+  // Entre todas as pastas '2026', escolhe a mais antiga E mais atualizada:
+  // critério = maior número de arquivos (proxy de uso real); desempate = createdTime mais antigo.
+  const pastas = await listarPastas2026(authHeader);
+  if (!pastas.length) return null;
+
+  const avaliadas = [];
+  for (const p of pastas) {
+    const count = await contarArquivosPasta(authHeader, p.id);
+    avaliadas.push({ id: p.id, name: p.name, createdTime: p.createdTime, modifiedTime: p.modifiedTime, count });
+  }
+  console.log(`Pastas '2026' encontradas: ${JSON.stringify(avaliadas.map(a => ({ id: a.id, count: a.count, created: a.createdTime })))}`);
+
+  // ordena: mais arquivos primeiro; desempate por criado mais antigo
+  avaliadas.sort((a, b) => {
+    if (b.count !== a.count) return b.count - a.count;
+    return new Date(a.createdTime || 0).getTime() - new Date(b.createdTime || 0).getTime();
+  });
+  return avaliadas[0];
 }
 
 Deno.serve(async (req) => {
@@ -207,10 +244,12 @@ Deno.serve(async (req) => {
 
   // 1. Resolve pasta alvo
   let pasta = folderId;
+  let pastaInfo = null;
   if (!pasta) {
-    const encontrada = await buscarPasta2026(authHeader);
+    const encontrada = await buscarMelhorPasta2026(authHeader);
     if (!encontrada) return Response.json({ error: 'Pasta 2026 não encontrada' }, { status: 404 });
     pasta = encontrada.id;
+    pastaInfo = encontrada;
   }
 
   // 2. Lista arquivos e filtra candidatos a comprovante
@@ -273,6 +312,8 @@ Deno.serve(async (req) => {
   return Response.json({
     success: true,
     pasta_id: pasta,
+    pasta_resolvida: pastaInfo,
+    total_pastas_2026: pastaInfo ? pastaInfo.count : null,
     arquivos_total: arquivos.length,
     candidatos_comprovante: candidatos.length,
     alvos_selecionados: alvos.length,
