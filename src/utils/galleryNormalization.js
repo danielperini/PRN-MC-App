@@ -161,15 +161,20 @@ export function normalizePeriodoForComparison(periodo) {
  */
 export function resolvePhotoCaption(image) {
   if (!image) return '';
-  const candidates = [image.legenda, image.caption, image.activityTitulo];
-  for (const candidate of candidates) {
-    if (candidate && !isTechnicalFileName(candidate) && !isInventedCaption(candidate)) {
-      return String(candidate).trim();
-    }
-  }
-  // Último recurso: apenas o período real do relatório (reportMes).
-  // Nenhum nome de museu é concatenado — museu é exibido apenas como metadado separado.
-  return String(image.reportMes || '').trim();
+  // Legenda baseada APENAS em metadados estruturados: atividade → local → período.
+  // Ignora campos de texto livre (legenda/caption) que podem guardar descrição inventada pela IA.
+  const atividade = String(image.activityTitulo || '').trim();
+  const localRaw = String(image.localizacao || image.local || '').trim();
+  // Evita usar "museu" como local quando localizacao caiu para o nome do museu
+  const museuRaw = String(image.museu || image.sectionTitle || '').trim();
+  const local = localRaw && localRaw !== museuRaw ? localRaw : '';
+  const periodo = String(image.reportMes || '').trim();
+  const partes = [
+    atividade && !isTechnicalFileName(atividade) && !isInventedCaption(atividade) ? atividade : '',
+    local,
+    periodo,
+  ].filter(Boolean);
+  return partes.join(' — ');
 }
 
 // Textos genéricos/inventados que não representam dado real do relatório
