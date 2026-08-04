@@ -161,11 +161,13 @@ export function normalizePeriodoForComparison(periodo) {
  */
 export function resolvePhotoCaption(image) {
   if (!image) return '';
-  // Legenda baseada APENAS em metadados estruturados: atividade → local → período.
-  // Ignora campos de texto livre (legenda/caption) que podem guardar descrição inventada pela IA.
+  // Prioriza legenda curada humana (curta, não-verbosa). Cai para metadados se
+  // for nome técnico, descrição inventada pela IA ou estiver vazia.
+  const rawCaption = String(image.legenda || image.caption || '').trim();
+  const realCaption = rawCaption && !isTechnicalFileName(rawCaption) && !isInventedCaption(rawCaption) ? rawCaption : '';
+  if (realCaption) return realCaption;
   const atividade = String(image.activityTitulo || '').trim();
   const localRaw = String(image.localizacao || image.local || '').trim();
-  // Evita usar "museu" como local quando localizacao caiu para o nome do museu
   const museuRaw = String(image.museu || image.sectionTitle || '').trim();
   const local = localRaw && localRaw !== museuRaw ? localRaw : '';
   const periodo = String(image.reportMes || '').trim();
@@ -188,9 +190,37 @@ const INVENTED_CAPTION_PATTERNS = [
   'sem legenda',
 ];
 
+// Marcadores típicos de legendas verbosas geradas por IA: descrições longas em
+// prosa que reconstrõem narrativa sobre a foto. Legendas humanas curadas tendem
+// a ser rótulos curtos, sem essas construções.
+const AI_VERBOSE_MARKERS = [
+  'registrada em',
+  'registrada no',
+  'registrado em',
+  'registrado no',
+  'como parte das',
+  'como parte do',
+  'no contexto do',
+  'com foco na',
+  'com foco no',
+  'faz parte do',
+  'faz parte da',
+  'no ambito',
+  'destacando',
+  'evidenciando',
+  'fotografia realizada',
+  'imagem capturada',
+  'momento registrado',
+  'parte das atividades',
+];
+
+// Legendas humanas curadas raramente ultrapassam este comprimento.
+const CURATED_CAPTION_MAX_LENGTH = 75;
+
 /**
  * Detecta legendas genéricas/inventadas (aplicadas em lote), que devem ser
- * tratadas como ausentes para forçar a cascata de dados reais.
+ * tratadas como ausentes para forçar a cascata de metadados reais.
+ * Também identifica descrições verbosas de IA por comprimento ou marcadores.
  * @param {string} text
  * @returns {boolean}
  */
@@ -202,5 +232,8 @@ export function isInventedCaption(text) {
     .trim()
     .toLowerCase();
   if (!normalized) return true;
-  return INVENTED_CAPTION_PATTERNS.some((pattern) => normalized.startsWith(pattern) || normalized.includes(pattern));
+  if (INVENTED_CAPTION_PATTERNS.some((pattern) => normalized.startsWith(pattern) || normalized.includes(pattern))) return true;
+  if (normalized.length > CURATED_CAPTION_MAX_LENGTH) return true;
+  if (AI_VERBOSE_MARKERS.some((marker) => normalized.includes(marker))) return true;
+  return false;
 }

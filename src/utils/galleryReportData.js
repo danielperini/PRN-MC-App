@@ -197,11 +197,13 @@ function mapPhoto(item, sourceEntity = 'Attachment') {
   const source = resolvePhotoSource(item);
   const fileName = item.file_name || item.filename || item.name || 'imagem';
   const activityTitulo = item.atividade_titulo || item.activity_title || driveContext.atividade_nome || '';
-  // Legenda construída APENAS com metadados estruturados reais: atividade → local → período.
-  // Não usa campos de texto livre (caption/legenda) que podem conter descrição inventada pela IA.
+  // Legenda curada humana (legenda/caption) tem prioridade, desde que não seja nome técnico
+  // nem descrição inventada/verbosa pela IA (verificada por isInventedCaption).
+  const rawCaption = String(item.legenda || item.caption || '').trim();
+  const realCaption = rawCaption && !isTechnicalFileName(rawCaption) && !isInventedCaption(rawCaption) ? rawCaption : '';
   const localReal = String(metadataLocation || item.atividade_local || item.local || '').trim();
   const periodoCtx = item.mes_referencia ? `${item.mes_referencia}${item.ano ? `/${item.ano}` : ''}` : '';
-  const legendaFinal = [activityTitulo, localReal, periodoCtx].filter(Boolean).join(' — ');
+  const legendaFinal = realCaption || [activityTitulo, localReal, periodoCtx].filter(Boolean).join(' — ');
   const mapped = {
     id: `${sourceEntity.toLowerCase()}-${item.id || source.driveFileId || fileName || timestamp}`,
     sourceId: item.id || source.driveFileId || fileName || '',

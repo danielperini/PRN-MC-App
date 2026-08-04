@@ -142,8 +142,13 @@ function curatePeoplePhotos(items) {
 
 function getCaption(item) {
   if (!item) return '';
-  // Legenda apenas com metadados estruturados: atividade → local → período.
-  // Ignora campos de texto livre (legenda/caption) que guardam descrição inventada pela IA.
+  // Prioriza legenda curada humana (curta, não-verbosa). Cai para metadados se
+  // for nome técnico, descrição inventada pela IA ou estiver vazia.
+  const rawCaption = String(item?.legenda || item?.caption || '').trim();
+  const realCaption = rawCaption && !isTechnicalFileName(rawCaption) && !isInventedCaption(rawCaption) ? rawCaption : '';
+  if (realCaption) {
+    return realCaption.length > 90 ? realCaption.slice(0, 87).trimEnd() + '…' : realCaption;
+  }
   const atividadeRaw = String(item?.activityTitulo || item?.atividade_titulo || '').trim();
   const atividade = atividadeRaw && !isTechnicalFileName(atividadeRaw) && !isInventedCaption(atividadeRaw) ? atividadeRaw : '';
   const localRaw = String(item?.atividade_local || item?.local || item?.localizacao || '').trim();
