@@ -9,17 +9,13 @@ const PASTAS_DRIVE = [
   { id: '1OhHErYW9oQobBwKjj8g3sJXH1cBhheQ5', nome: 'Museu Casa Kubitschek' },
   { id: '1j44N8BufKJd64MhdwD0L1pWqIyammD0j', nome: 'Museu da Moda de Belo Horizonte (MUMO)' },
 ];
-const MAX_POR_SUBPASTA = Number.MAX_SAFE_INTEGER; // 100% — sem limite por subpasta
-const BATCH_SIZE = 5;
 const MESES_CAP = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const MESES_NOMES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 
 function normalize(s: any){ return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' '); }
 function normalizeMes(text: any){
   const t = normalize(text);
-  for(let i=0;i<MESES_NOMES.length;i++){
-    if(t.includes(normalize(MESES_NOMES[i]))) return { mes: MESES_CAP[i], mesNum: i+1 };
-  }
+  for(let i=0;i<MESES_NOMES.length;i++){ if(t.includes(normalize(MESES_NOMES[i]))) return { mes: MESES_CAP[i], mesNum: i+1 }; }
   const m = t.match(/(?:^|\D)(0?[1-9]|1[0-2])(?:\D|$)/);
   if(m){ const n=Number(m[1]); return { mes: MESES_CAP[n-1], mesNum: n }; }
   return null;
@@ -35,7 +31,7 @@ function normalizeMuseu(text: any){
   return null;
 }
 
-async function listFolderImagesLimited(accessToken: string, folderId: string, path: string[] = []): Promise<any[]>{
+async function listFolderImages(accessToken: string, folderId: string, path: string[] = []): Promise<any[]>{
   const out: any[] = [];
   let pageToken = '';
   do {
@@ -48,17 +44,12 @@ async function listFolderImagesLimited(accessToken: string, folderId: string, pa
     const folders: any[] = [];
     const images: any[] = [];
     for(const item of data.files || []){
-      if(item.mimeType === 'application/vnd.google-apps.folder'){
-        folders.push(item);
-      } else if(String(item.mimeType||'').startsWith('image/')){
-        images.push({ ...item, _path: path });
-      }
+      if(item.mimeType === 'application/vnd.google-apps.folder') folders.push(item);
+      else if(String(item.mimeType||'').startsWith('image/')) images.push({ ...item, _path: path });
     }
-    // Limita a MAX_POR_SUBPASTA imagens nesta subpasta
-    out.push(...images.slice(0, MAX_POR_SUBPASTA));
-    // Recursão em subpastas
+    out.push(...images); // 100% — sem limite
     for(const folder of folders){
-      out.push(...await listFolderImagesLimited(accessToken, folder.id, [...path, folder.name]));
+      out.push(...await listFolderImages(accessToken, folder.id, [...path, folder.name]));
     }
     pageToken = data.nextPageToken || '';
   } while(pageToken);
@@ -95,105 +86,86 @@ Deno.serve(async (req) => {
     if(!user) return Response.json({ success: false, error: 'Não autenticado.' }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
-    const modo = String(body.modo || 'listar');
-    const offset = Number(body.offset ?? 0);
+    const targetOffset = Number(body.offset ?? 0);
+    const maxNoRequest = Number(body.max_no_request ?? 12); // quantas fotos baixa por request
 
     const connection = await base44.asServiceRole.connectors.getConnection('googledrive').catch(() => null);
     const accessToken = connection?.accessToken;
     if(!accessToken) return Response.json({ success: false, code: 'DRIVE_NOT_CONNECTED', error: 'Google Drive não conectado.' }, { status: 401 });
 
-    // ===== MODO LISTAR =====
-    if(modo === 'listar'){
-      const resultados = await Promise.all(
-        PASTAS_DRIVE.map(async (p) => {
-          const imgs = await listFolderImagesLimited(accessToken, p.id, [p.nome]).catch(() => []);
-          return { pasta: p.nome, id: p.id, total: imgs.length };
-        })
-      );
-      const totalGeral = resultados.reduce((s, r) => s + r.total, 0);
-      return Response.json({ success: true, modo: 'listar', pastas: resultados, total: totalGeral });
+    // 1. Lista todas as 7 pastas recursivamente (uma única vez)
+    const todasImagens: any[] = [];
+    for(const p of PASTAS_DRIVE){
+      const imgs = await listFolderImages(accessToken, p.id, [p.nome]).catch(() => []);
+      for(const img of imgs) todasImagens.push({ ...img, _pasta_nome: p.nome });
     }
 
-    // ===== MODO PROCESSAR =====
-    if(modo === 'processar'){
-      // Lista todas as imagens de todas as pastas
-      const todasImagens: any[] = [];
-      for(const p of PASTAS_DRIVE){
-        const imgs = await listFolderImagesLimited(accessToken, p.id, [p.nome]).catch(() => []);
-        for(const img of imgs){
-          todasImagens.push({ ...img, _pasta_nome: p.nome });
-        }
-      }
-
-      // Deduplicação: monta Set de drive_file_id já importados
-      const existentes = await base44.asServiceRole.entities.ReportPhoto.list('-created_date', 10000).catch(() => []);
-      const idsExistentes = new Set<string>();
-      const porDriveId = new Map<string, any>();
-      for(const foto of existentes){
-        const id = foto?.drive_file_id;
-        if(id){ idsExistentes.add(id); if(!porDriveId.has(id)) porDriveId.set(id, foto); }
-      }
-
-      const bloco = todasImagens.slice(offset, offset + BATCH_SIZE);
-      let criadas = 0, erros = 0, puladas = 0;
-      const falhas: any[] = [];
-
-      for(const img of bloco){
-        try {
-          // Pula fotos já importadas com URL válida
-          if(idsExistentes.has(img.id)){
-            const exist = porDriveId.get(img.id);
-            if(exist?.file_url && !/drive\.google\.com/i.test(String(exist.file_url))){ puladas++; continue; }
-          }
-          const info = classificarFoto(img, img._pasta_nome);
-          const fileUrl = await baixarEEnviar(base44, accessToken, img);
-          const existente = porDriveId.get(img.id);
-          if(existente?.id){
-            await base44.asServiceRole.entities.ReportPhoto.update(existente.id, {
-              file_url: fileUrl,
-              file_name: info.file_name,
-              caption: info.contexto.slice(0, 200),
-              legenda: info.contexto.slice(0, 200),
-              museu: info.museu.toUpperCase(),
-              mes_referencia: info.mes,
-              ano: info.ano,
-              drive_backup_status: 'concluido',
-              fonte_ia: 'drive_sync',
-              contexto_ia: JSON.stringify({ pasta_origem: img._pasta_nome, caminho: (img._path||[]).join('/'), origem: 'Importação 7 Pastas 100%' }),
-            });
-            criadas++;
-          } else {
-            await base44.asServiceRole.entities.ReportPhoto.create({
-              file_url: fileUrl,
-              file_name: info.file_name,
-              caption: info.contexto.slice(0, 200),
-              legenda: info.contexto.slice(0, 200),
-              museu: info.museu.toUpperCase(),
-              mes_referencia: info.mes,
-              ano: info.ano,
-              drive_file_id: img.id,
-              drive_backup_status: 'concluido',
-              fonte_ia: 'drive_sync',
-              contexto_ia: JSON.stringify({ pasta_origem: img._pasta_nome, caminho: (img._path||[]).join('/'), origem: 'Importação 7 Pastas 100%' }),
-            });
-            criadas++;
-          }
-        } catch(error: any){
-          erros++;
-          falhas.push({ id: img.id, nome: img.name, erro: String(error?.message||error) });
-        }
-      }
-
-      const nextOffset = offset + BATCH_SIZE;
-      return Response.json({
-        success: erros === 0, modo: 'processar',
-        total_imagens: todasImagens.length, offset,
-        next_offset: nextOffset, has_more: nextOffset < todasImagens.length,
-        criadas, erros, puladas, falhas
-      });
+    // 2. Deduplicação contra ReportPhoto existentes
+    const existentes = await base44.asServiceRole.entities.ReportPhoto.list('-created_date', 10000).catch(() => []);
+    const porDriveId = new Map<string, any>();
+    for(const foto of existentes){
+      const id = foto?.drive_file_id;
+      if(id && !porDriveId.has(id)) porDriveId.set(id, foto);
     }
 
-    return Response.json({ success: false, error: 'Modo desconhecido: ' + modo }, { status: 400 });
+    // 3. Processa um bloco a partir de targetOffset
+    const bloco = todasImagens.slice(targetOffset, targetOffset + maxNoRequest);
+    let criadas = 0, erros = 0, puladas = 0;
+    const falhas: any[] = [];
+
+    for(const img of bloco){
+      try {
+        const existente = porDriveId.get(img.id);
+        const urlOk = existente?.file_url && !/drive\.google\.com/i.test(String(existente.file_url));
+        if(existente && urlOk){ puladas++; continue; }
+
+        const info = classificarFoto(img, img._pasta_nome);
+        const fileUrl = await baixarEEnviar(base44, accessToken, img);
+        if(existente?.id){
+          await base44.asServiceRole.entities.ReportPhoto.update(existente.id, {
+            file_url: fileUrl,
+            file_name: info.file_name,
+            caption: info.contexto.slice(0, 200),
+            legenda: info.contexto.slice(0, 200),
+            museu: info.museu.toUpperCase(),
+            mes_referencia: info.mes,
+            ano: info.ano,
+            drive_backup_status: 'concluido',
+            fonte_ia: 'drive_sync',
+            contexto_ia: JSON.stringify({ pasta_origem: img._pasta_nome, caminho: (img._path||[]).join('/'), origem: 'Restauração 100%' }),
+          });
+        } else {
+          await base44.asServiceRole.entities.ReportPhoto.create({
+            file_url: fileUrl,
+            file_name: info.file_name,
+            caption: info.contexto.slice(0, 200),
+            legenda: info.contexto.slice(0, 200),
+            museu: info.museu.toUpperCase(),
+            mes_referencia: info.mes,
+            ano: info.ano,
+            drive_file_id: img.id,
+            drive_backup_status: 'concluido',
+            fonte_ia: 'drive_sync',
+            contexto_ia: JSON.stringify({ pasta_origem: img._pasta_nome, caminho: (img._path||[]).join('/'), origem: 'Restauração 100%' }),
+          });
+        }
+        criadas++;
+      } catch(error: any){
+        erros++;
+        falhas.push({ id: img.id, nome: img.name, erro: String(error?.message||error) });
+      }
+    }
+
+    const nextOffset = targetOffset + maxNoRequest;
+    return Response.json({
+      success: erros === 0,
+      modo: 'restaurar_100',
+      total_imagens: todasImagens.length,
+      offset: targetOffset,
+      next_offset: nextOffset,
+      has_more: nextOffset < todasImagens.length,
+      criadas, erros, puladas, falhas,
+    });
   } catch(error: any){
     return Response.json({ success: false, error: String(error?.message||error) }, { status: 500 });
   }

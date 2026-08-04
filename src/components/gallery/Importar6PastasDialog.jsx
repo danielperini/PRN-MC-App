@@ -97,8 +97,9 @@ export default function Importar6PastasDialog({ open, onClose }) {
         {etapa === 'idle' && (
           <div className="space-y-3 py-2">
             <p className="text-sm text-slate-600">
-              Serão escaneadas 7 pastas do Google Drive recursivamente (incluindo subpastas),
-              com limite de <strong>5 fotos por subpasta</strong>, e importadas para a galeria.
+              Serão escaneadas <strong>7 pastas do Google Drive recursivamente</strong> (incluindo subpastas),
+              importando <strong>100% das fotos</strong> de cada subpasta — sem limite por pasta.
+              Fotos já importadas são ignoradas automaticamente (deduplicação por ID do Drive).
             </p>
             <p className="text-xs text-slate-500">
               As fotos serão classificadas por museu, mês e ano com base no nome do arquivo e caminho da pasta.
