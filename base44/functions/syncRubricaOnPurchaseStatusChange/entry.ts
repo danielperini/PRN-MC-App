@@ -98,15 +98,24 @@ Deno.serve(async (req) => {
 
     console.log(`[syncRubrica] Rubrica ${rubricaId} atualizada: utilizado=${valorUtilizado}, saldo=${saldo}`);
 
+    // Preencher rubrica_debitada_em (idempotente) — rastreabilidade de auditoria
+    const purchaseUpdates = {};
+    if (!purchase.rubrica_debitada_em) {
+      purchaseUpdates.rubrica_debitada_em = purchase.approved_at || purchase.aprov_admin_data || purchase.aprov_coord_data || purchase.created_date || new Date().toISOString();
+      purchaseUpdates.rubrica_debitada_valor = toNum(purchase.valor_aprovado_admin || purchase.valor_aprovado || purchase.valor_solicitado || 0);
+      console.log(`[syncRubrica] Débito registrado na compra ${purchaseId}: ${purchaseUpdates.rubrica_debitada_em} R$${purchaseUpdates.rubrica_debitada_valor}`);
+    }
+
     // Corrigir centro_custo da PurchaseRequest se divergente
     const ccRubrica = rubrica.centro_custo || '';
     const ccPurchase = purchase.centro_custo || '';
-
     if (ccRubrica && normCC(ccPurchase) !== normCC(ccRubrica)) {
-      await base44.asServiceRole.entities.PurchaseRequest.update(purchaseId, {
-        centro_custo: ccRubrica
-      });
+      purchaseUpdates.centro_custo = ccRubrica;
       console.log(`[syncRubrica] CC corrigido: "${ccPurchase}" → "${ccRubrica}" na compra ${purchaseId}`);
+    }
+
+    if (Object.keys(purchaseUpdates).length > 0) {
+      await base44.asServiceRole.entities.PurchaseRequest.update(purchaseId, purchaseUpdates);
     }
 
     return Response.json({
