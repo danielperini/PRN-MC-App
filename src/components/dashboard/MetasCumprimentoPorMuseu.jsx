@@ -226,140 +226,140 @@ export default function MetasCumprimentoPorMuseu({ rubricas = [] }) {
 
       
 
-      {expanded &&
-      <div className="px-5 pb-6 space-y-6 border-t border-slate-100 hidden">
+      
 
-          {/* ── Gauges por museu ── */}
-          <div className="pt-4">
-            
 
-          
-            <div className="grid grid-cols-3 gap-4">
-              {gaugesPorMuseu.map((g) =>
-            <button
-              key={g.museu}
-              type="button"
-              onClick={() => setDrillDown({
-                title: `Museu ${g.museu}`,
-                value: `Score: ${g.score}%`,
-                sourceBadges: ['Relatórios', 'Público', 'Atividades'],
-                type: 'museu',
-                museu: g.museu,
-                reports: allReports
-              })}
-              className="flex flex-col items-center gap-2 rounded-xl border border-slate-100 p-4 bg-slate-50 cursor-pointer hover:ring-2 hover:ring-slate-300 hover:bg-white transition-all text-left w-full hidden">
-              
-                  <span className="text-sm font-bold text-slate-800">{g.museu}</span>
-                  <GaugeCircle value={g.score} color={MUSEU_COLORS[g.museu]} size={80} />
-                  <div className="w-full space-y-1.5 mt-1">
-                    <div>
-                      <div className="flex justify-between text-[10px] text-slate-500 mb-0.5">
-                        <span>Financeiro</span><span className="font-semibold text-slate-700">{g.financeiro}%</span>
-                      </div>
-                      <div className="h-1.5 rounded-full bg-slate-200">
-                        <div className="h-1.5 rounded-full bg-slate-700 transition-all" style={{ width: `${g.financeiro}%` }} />
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex justify-between text-[10px] text-slate-500 mb-0.5">
-                        <span>Atividades</span><span className="font-semibold text-slate-700">{g.atividades}%</span>
-                      </div>
-                      <div className="h-1.5 rounded-full bg-slate-200">
-                        <div className="h-1.5 rounded-full bg-slate-400 transition-all" style={{ width: `${g.atividades}%` }} />
-                      </div>
-                    </div>
-                  </div>
-                </button>
-            )}
-            </div>
-          </div>
 
-          {/* ── Execução financeira por museu ── */}
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
-              Execução financeira das rubricas por museu
-            </p>
-            <div className="h-44">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={financeiroPorMuseu} barCategoryGap="35%">
-                  <XAxis dataKey="museu" tick={{ fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${v}%`} axisLine={false} tickLine={false} domain={[0, 100]} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="pct" name="Execução" radius={[6, 6, 0, 0]}>
-                    {financeiroPorMuseu.map((entry) =>
-                  <Cell key={entry.museu} fill={MUSEU_COLORS[entry.museu]} />
-                  )}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="grid grid-cols-3 gap-2 mt-1">
-              {financeiroPorMuseu.map((f) =>
-            <div key={f.museu} className="rounded-lg bg-slate-50 border border-slate-100 p-2 text-center hidden">
-                  <p className="text-[10px] text-slate-500 font-semibold">{f.museu}</p>
-                  <p className="text-xs font-bold text-slate-800">{fmtBRL(f.utilizado)}</p>
-                  <p className="text-[10px] text-slate-400">de {fmtBRL(f.previsto)}</p>
-                </div>
-            )}
-            </div>
-          </div>
 
-          {/* ── Metas quantitativas por museu ── */}
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
-              Metas quantitativas — atividades por museu (%)
-            </p>
-            <div className="h-52">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={metasQuantPorMuseu} barCategoryGap="20%" barGap={2}>
-                  <XAxis dataKey="meta" tick={{ fontSize: 11, fontWeight: 600 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${v}%`} axisLine={false} tickLine={false} domain={[0, 100]} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
-                  {MUSEUS.map((m) =>
-                <Bar key={m} dataKey={m} name={m} fill={MUSEU_COLORS[m]} radius={[4, 4, 0, 0]} />
-                )}
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
 
-            {/* Tabela resumo */}
-            <div className="mt-3 overflow-x-auto">
-              <table className="w-full text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-100">
-                    <th className="text-left py-1.5 px-2 text-slate-500 font-medium">Meta</th>
-                    <th className="text-center py-1.5 px-2 text-slate-500 font-medium">Total</th>
-                    <th className="text-center py-1.5 px-2 text-slate-500 font-medium">Realizado</th>
-                    <th className="text-center py-1.5 px-2 text-slate-500 font-medium">%</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {metasQuantPorMuseu.map((m) =>
-                <tr key={m.meta} className="border-b border-slate-50 hover:bg-slate-50">
-                      <td className="py-1.5 px-2 font-medium text-slate-700">
-                        {m.meta} <span className="text-slate-400 font-normal">· {m.desc}</span>
-                      </td>
-                      <td className="py-1.5 px-2 text-center text-slate-500">{m.total}</td>
-                      <td className="py-1.5 px-2 text-center font-semibold text-slate-800">{m.totalAbs}</td>
-                      <td className="py-1.5 px-2 text-center">
-                        <span className={`px-1.5 py-0.5 rounded-full font-bold ${
-                    m.totalPct >= 80 ? 'bg-slate-900 text-white' :
-                    m.totalPct >= 50 ? 'bg-slate-200 text-slate-800' :
-                    'bg-slate-100 text-slate-500'}`
-                    }>
-                          {m.totalPct}%
-                        </span>
-                      </td>
-                    </tr>
-                )}
-                </tbody>
-              </table>
-            </div>
-          </div>
 
-        </div>
-      }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      
 
       <DrillDownSheet
         open={!!drillDown}
