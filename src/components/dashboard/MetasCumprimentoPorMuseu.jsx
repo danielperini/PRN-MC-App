@@ -227,7 +227,7 @@ export default function MetasCumprimentoPorMuseu({ rubricas = [] }) {
       
 
       {expanded &&
-      <div className="px-5 pb-6 space-y-6 border-t border-slate-100">
+      <div className="px-5 pb-6 space-y-6 border-t border-slate-100 hidden">
 
           {/* ── Gauges por museu ── */}
           <div className="pt-4">
