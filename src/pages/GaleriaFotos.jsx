@@ -36,7 +36,7 @@ const INITIAL_VISIBLE_IMAGES = 20;
 const VISIBLE_IMAGES_STEP = 20;
 // Inclui data do dia na chave para invalidar o cache automaticamente a cada novo dia
 const TODAY = new Date().toISOString().slice(0, 10);
-const GALLERY_CACHE_KEY = `museus_centro_galeria_fotos_cache_v18_legendas_reais_${TODAY}`;
+const GALLERY_CACHE_KEY = `museus_centro_galeria_fotos_cache_v19_legendas_metadados_${TODAY}`;
 const GALLERY_CACHE_TTL_MS = 5 * 60 * 1000; // 5 min para pegar fotos novas mais rápido
 
 const SECTION_LABELS = {
@@ -87,7 +87,7 @@ function formatDateBR(value) {
 function clearGalleryCache() {
   try {
     // Limpa versões antigas e a atual
-    ['v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v10', 'v11', 'v12', 'v13', 'v14', 'v15', 'v16', 'v17'].forEach((v) => {
+    ['v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v10', 'v11', 'v12', 'v13', 'v14', 'v15', 'v16', 'v17', 'v18'].forEach((v) => {
       localStorage.removeItem(`museus_centro_galeria_fotos_cache_${v}_resilient_${TODAY}`);
       localStorage.removeItem(`museus_centro_galeria_fotos_cache_${v}`);
       localStorage.removeItem(`museus_centro_galeria_fotos_cache_${v}_deduped_3layers`);

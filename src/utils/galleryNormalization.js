@@ -171,12 +171,15 @@ export function resolvePhotoCaption(image) {
   const museuRaw = String(image.museu || image.sectionTitle || '').trim();
   const local = localRaw && localRaw !== museuRaw ? localRaw : '';
   const periodo = String(image.reportMes || '').trim();
+  const autor = String(image.authorName || image.author || image.autor || '').trim();
   const partes = [
     atividade && !isTechnicalFileName(atividade) && !isInventedCaption(atividade) ? atividade : '',
     local,
     periodo,
   ].filter(Boolean);
-  return partes.join(' — ');
+  const base = partes.join(' — ');
+  if (!base) return autor || '';
+  return autor ? `${base} • ${autor}` : base;
 }
 
 // Textos genéricos/inventados que não representam dado real do relatório
@@ -232,8 +235,9 @@ export function isInventedCaption(text) {
     .trim()
     .toLowerCase();
   if (!normalized) return true;
-  if (INVENTED_CAPTION_PATTERNS.some((pattern) => normalized.startsWith(pattern) || normalized.includes(pattern))) return true;
-  if (normalized.length > CURATED_CAPTION_MAX_LENGTH) return true;
+  // Só descarta placeholder puro (ex.: "Foto de registro" sem demais metadados)
+  if (INVENTED_CAPTION_PATTERNS.includes(normalized)) return true;
+  // Descrições verbosas geradas por IA continuam descartadas
   if (AI_VERBOSE_MARKERS.some((marker) => normalized.includes(marker))) return true;
   return false;
 }

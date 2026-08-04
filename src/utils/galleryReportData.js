@@ -203,7 +203,9 @@ function mapPhoto(item, sourceEntity = 'Attachment') {
   const realCaption = rawCaption && !isTechnicalFileName(rawCaption) && !isInventedCaption(rawCaption) ? rawCaption : '';
   const localReal = String(metadataLocation || item.atividade_local || item.local || '').trim();
   const periodoCtx = item.mes_referencia ? `${item.mes_referencia}${item.ano ? `/${item.ano}` : ''}` : '';
-  const legendaFinal = realCaption || [activityTitulo, localReal, periodoCtx].filter(Boolean).join(' — ');
+  const autorCampo = String(item.author || item.author_name || '').trim();
+  const baseLegenda = [activityTitulo, localReal, periodoCtx].filter(Boolean).join(' — ');
+  const legendaFinal = realCaption || (baseLegenda ? `${baseLegenda}${autorCampo ? ` • ${autorCampo}` : ''}` : '');
   const mapped = {
     id: `${sourceEntity.toLowerCase()}-${item.id || source.driveFileId || fileName || timestamp}`,
     sourceId: item.id || source.driveFileId || fileName || '',
