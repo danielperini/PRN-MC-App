@@ -133,7 +133,29 @@ function curatePeoplePhotos(items) {
 
   return shuffleSeeded(source, seed)
     .sort((a, b) => b.score - a.score)
-    .map((candidate) => candidate.url);
+    .map((candidate) => ({
+      url: candidate.url,
+      caption: getCaption(candidate.item),
+    }));
+}
+
+function getCaption(item) {
+  if (!item) return '';
+  const candidates = [
+    item?.legenda,
+    item?.caption,
+    item?.descricao,
+    item?.description,
+    item?.resultado_ia?.descricao,
+    item?.ai_descricao,
+    item?.titulo,
+    item?.title,
+  ];
+  const text = candidates.find((c) => c && String(c).trim());
+  const value = String(text || '').trim();
+  if (!value) return '';
+  // Limita o comprimento para caber no card
+  return value.length > 90 ? value.slice(0, 87).trimEnd() + '…' : value;
 }
 
 function sliceWithWrap(pool, startIdx, count) {
@@ -214,19 +236,24 @@ export default function GaleriaTickerCarousel() {
         </button>
       </div>
       <div className={`grid grid-cols-2 sm:grid-cols-4 gap-3 transition-opacity duration-400 ${visible ? 'opacity-100' : 'opacity-0'}`}>
-        {display.map((url, index) => (
+        {display.map((photo, index) => (
           <button
-            key={`${round}-${index}-${url}`}
+            key={`${round}-${index}-${photo.url}`}
             type="button"
             onClick={() => navigate(GALLERY_ROUTE)}
-            className="block w-full focus:outline-none"
+            className="group relative block w-full overflow-hidden rounded-xl focus:outline-none"
           >
             <img
-              src={url}
-              alt=""
+              src={photo.url}
+              alt={photo.caption || ''}
               loading="lazy"
-              className="h-40 md:h-48 w-full rounded-xl object-cover shadow-sm hover:shadow-md transition-shadow"
+              className="h-40 md:h-48 w-full object-cover shadow-sm transition-transform duration-300 group-hover:scale-105"
             />
+            {photo.caption && (
+              <span className="pointer-events-none absolute inset-x-0 bottom-0 block bg-gradient-to-t from-black/75 via-black/40 to-transparent px-3 pb-2 pt-8 text-left text-[11px] font-medium leading-snug text-white">
+                {photo.caption}
+              </span>
+            )}
           </button>
         ))}
       </div>
