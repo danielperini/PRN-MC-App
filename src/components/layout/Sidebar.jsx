@@ -23,8 +23,6 @@ import {
   ShieldCheck,
   ScrollText,
   Banknote,
-  HardDrive,
-  ExternalLink,
   ChevronUp,
   UserCog,
   LogOut,
@@ -384,53 +382,6 @@ export default function Sidebar({ currentPageName, collapsed, onToggle, currentU
           </div>
         ))}
       </nav>
-
-      {/* Seção Drive — visível para coordenadores, admins e emails privilegiados */}
-      {(isCoordGeralFixo || coord || obs || currentUser?.role === 'admin' || String(currentUser?.role || '').toUpperCase() === 'ADMIN') && (
-        <div className="px-2 pb-2">
-          {!collapsed && (
-            <p className="text-[10px] uppercase tracking-widest text-primary-foreground/30 px-2 mb-1 font-semibold">
-              Drive
-            </p>
-          )}
-          <div className="space-y-0.5">
-            {[
-              {
-                label: 'Notas Fiscais',
-                url: 'https://drive.google.com/drive/folders/1LgC94VhIomQZBS7kfkQqgBX8MVzwQqzp',
-                title: 'NFs organizadas por MM-YYYY',
-              },
-              {
-                label: 'Relatórios Mensais',
-                url: 'https://drive.google.com/drive/folders/1MuP2BxtlYPNBfcaDi6cFRhtAufj0cFWY',
-                title: 'HTMLs por Museu/Período',
-              },
-              {
-                label: 'Galeria de Fotos',
-                url: 'https://drive.google.com/drive/folders/1HlhZvINo-j29SqZ3OInEtxNktp6IlKl9',
-                title: 'Fotos por Período/Museu/Atividade',
-              },
-
-            ].map(({ label, url, title }) => (
-              <SidebarTooltip key={label} label={title} collapsed={collapsed}>
-                <a
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={collapsed ? label : undefined}
-                  className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-150 text-primary-foreground/70 hover:bg-primary/80 hover:text-primary-foreground ${collapsed ? 'justify-center px-2' : ''}`}
-                >
-                  <HardDrive className={`flex-shrink-0 ${collapsed ? 'w-5 h-5' : 'w-4 h-4'}`} />
-                  {!collapsed && (
-                    <span className="truncate leading-tight flex-1">{label}</span>
-                  )}
-                  {!collapsed && <ExternalLink className="w-3 h-3 flex-shrink-0 opacity-40" />}
-                </a>
-              </SidebarTooltip>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Footer user */}
       {currentUser && (
