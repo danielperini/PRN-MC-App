@@ -212,9 +212,14 @@ export async function executarBackupDrive(base44, purchase) {
     const nomePastaMs = `${mes} ${ano}`;
     const monthFolder = await getOrCreateFolder(authHeader, rootFolder.id, nomePastaMs);
 
-    // Faz upload de cada arquivo
-    const uploadados = [];
+    // Faz upload de cada arquivo — idempotência: pula XML já presente em drive_backup_files
+    const backupAnterior = Array.isArray(purchase.drive_backup_files) ? purchase.drive_backup_files : [];
+    const uploadados = [...backupAnterior];
     for (const arquivo of arquivos) {
+      // Idempotência para XML: se drive_backup_files já contém nf-xml, não reenvia
+      if (arquivo.tipo === 'nf-xml' && backupAnterior.some(f => f.tipo === 'nf-xml')) {
+        continue;
+      }
       const nomeArquivo = gerarNomeArquivo(purchase, arquivo.tipo, arquivo.url);
       const fileBuffer = await downloadFile(arquivo.url);
       const mime = mimeFromUrl(arquivo.url);

@@ -37,6 +37,14 @@ async function driveGetOrCreateFolder(authHeader, parentId, folderName) {
   return await cr.json();
 }
 
+// Busca arquivo já existente na pasta por nome exato (idempotência — não duplica)
+async function driveFindFileByName(authHeader, folderId, fileName) {
+  const q = encodeURIComponent(`name='${fileName.replace(/'/g,"\\'")}' and '${folderId}' in parents and trashed=false`);
+  const r = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,webViewLink)`, { headers: authHeader });
+  const d = await r.json();
+  return d.files && d.files[0];
+}
+
 async function driveUploadFile(authHeader, folderId, fileName, fileUrl) {
   const res = await fetch(fileUrl);
   if (!res.ok) throw new Error(`Download falhou: ${res.status}`);
@@ -57,11 +65,15 @@ async function driveUploadFile(authHeader, folderId, fileName, fileUrl) {
   return await ur.json();
 }
 
+// Coleta todas as URLs — AGORA INCLUSIVE XMLs
 function coletarUrlsArquivos(purchase) {
   const pares = [];
   const add = (url, tipo) => { if (url && typeof url === 'string' && url.startsWith('http')) pares.push({ url, tipo }); };
   add(purchase.nota_fiscal_url, 'nf-pdf');
   add(purchase.nf_pdf_url, 'nf-pdf');
+  add(purchase.nf_xml_url, 'nf-xml');
+  add(purchase.xml_url, 'nf-xml');
+  add(purchase.nota_fiscal_xml_url, 'nf-xml');
   add(purchase.arquivo_url, 'arquivo');
   add(purchase.file_url, 'arquivo');
   add(purchase.documento_url, 'documento');
@@ -70,6 +82,19 @@ function coletarUrlsArquivos(purchase) {
   add(purchase.orcamento_url, 'orcamento');
   const seen = new Set();
   return pares.filter(a => { if (seen.has(a.url)) return false; seen.add(a.url); return true; });
+}
+
+function temNfXmlNoBackup(purchase) {
+  return Array.isArray(purchase.drive_backup_files) && purchase.drive_backup_files.some(f => f.tipo === 'nf-xml');
+}
+
+function temXmlUrl(purchase) {
+  return !!(purchase.nf_xml_url || purchase.xml_url || purchase.nota_fiscal_xml_url);
+}
+
+async function getAccessToken(base44) {
+  const conn = await base44.asServiceRole.connectors.getConnection('googledrive');
+  return conn.accessToken;
 }
 
 async function executarBackup(base44, purchase) {
@@ -84,10 +109,8 @@ async function executarBackup(base44, purchase) {
   await base44.asServiceRole.entities.PurchaseRequest.update(purchase.id, { drive_backup_status: 'em_processamento' });
 
   let accessToken;
-  try {
-    const conn = await base44.asServiceRole.connectors.getConnection('googledrive');
-    accessToken = conn.accessToken;
-  } catch (err) {
+  try { accessToken = await getAccessToken(base44); }
+  catch (err) {
     await base44.asServiceRole.entities.PurchaseRequest.update(purchase.id, {
       drive_backup_status: 'erro',
       drive_backup_error: 'Google Drive não configurado'
@@ -101,11 +124,21 @@ async function executarBackup(base44, purchase) {
     const { mes, ano } = resolverMesAno(purchase);
     const monthFolder = await driveGetOrCreateFolder(authHeader, rootFolder.id, `${mes} ${ano}`);
 
-    const uploadados = [];
+    const uploadados = Array.isArray(purchase.drive_backup_files) ? [...purchase.drive_backup_files] : [];
+
     for (const arq of arquivos) {
       const nome = gerarNomeArquivo(purchase, arq.tipo, arq.url);
+      // Idempotência: já temos entrada para essa URL/tipo?
+      const existingEntry = uploadados.find(u => u.originalUrl === arq.url || (u.name === nome && u.tipo === arq.tipo));
+      if (existingEntry && existingEntry.fileId) continue;
+      // Idempotência no Drive: arquivo com mesmo nome já existe na pasta?
+      const existingInDrive = await driveFindFileByName(authHeader, monthFolder.id, nome);
+      if (existingInDrive) {
+        uploadados.push({ name: nome, fileId: existingInDrive.id, url: existingInDrive.webViewLink, tipo: arq.tipo, originalUrl: arq.url });
+        continue;
+      }
       const uploaded = await driveUploadFile(authHeader, monthFolder.id, nome, arq.url);
-      uploadados.push({ name: nome, fileId: uploaded.id, url: uploaded.webViewLink, tipo: arq.tipo });
+      uploadados.push({ name: nome, fileId: uploaded.id, url: uploaded.webViewLink, tipo: arq.tipo, originalUrl: arq.url });
     }
 
     await base44.asServiceRole.entities.PurchaseRequest.update(purchase.id, {
@@ -126,11 +159,48 @@ async function executarBackup(base44, purchase) {
   }
 }
 
-// Backup em lote das PurchaseRequests aprovadas/pagas sem backup concluído no Drive.
+// Appends XML ao lado do PDF, na mesma pasta mensal já criada — não reenvia PDF.
+async function appendXmlToExisting(base44, purchase) {
+  if (!temXmlUrl(purchase)) return { skipped: true, reason: 'sem xml url' };
+  if (temNfXmlNoBackup(purchase)) return { skipped: true, reason: 'xml ja no backup' };
+  if (!purchase.drive_backup_folder_id) return { skipped: true, reason: 'sem pasta de backup' };
+
+  let accessToken;
+  try { accessToken = await getAccessToken(base44); }
+  catch (err) { return { error: 'Google Drive não configurado' }; }
+
+  try {
+    const authHeader = { Authorization: `Bearer ${accessToken}` };
+    const folderId = purchase.drive_backup_folder_id;
+    const xmlUrl = purchase.nf_xml_url || purchase.xml_url || purchase.nota_fiscal_xml_url;
+    const nome = gerarNomeArquivo(purchase, 'nf-xml', xmlUrl);
+
+    const uploadados = Array.isArray(purchase.drive_backup_files) ? [...purchase.drive_backup_files] : [];
+    const existing = uploadados.find(u => u.tipo === 'nf-xml' && u.originalUrl === xmlUrl);
+    if (existing && existing.fileId) return { skipped: true, reason: 'xml ja no backup' };
+
+    const driveExisting = await driveFindFileByName(authHeader, folderId, nome);
+    if (driveExisting) {
+      uploadados.push({ name: nome, fileId: driveExisting.id, url: driveExisting.webViewLink, tipo: 'nf-xml', originalUrl: xmlUrl });
+    } else {
+      const uploaded = await driveUploadFile(authHeader, folderId, nome, xmlUrl);
+      uploadados.push({ name: nome, fileId: uploaded.id, url: uploaded.webViewLink, tipo: 'nf-xml', originalUrl: xmlUrl });
+    }
+
+    await base44.asServiceRole.entities.PurchaseRequest.update(purchase.id, {
+      drive_backup_files: uploadados,
+      drive_backup_at: new Date().toISOString()
+    });
+    return { success: true, appended: 'xml', total: uploadados.length };
+  } catch (err) { return { error: err?.message }; }
+}
+
+// Backup em lote das PurchaseRequests aprovadas/pagas.
+// Reprocessa as pendentes/erro com backup completo (incluindo XML)
+// e acrescenta XML às já concluídas sem o tipo nf-xml (sem reenviar PDF).
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-
     const body = await req.json().catch(() => ({}));
     const { purchaseId } = body;
 
@@ -141,24 +211,36 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, result });
     }
 
-    // Reprocessa todas aprovadas/pagas com backup pendente ou erro
     const todas = await base44.asServiceRole.entities.PurchaseRequest.list('-created_date', 500);
-    const pendentes = (todas || []).filter(p =>
-      APPROVED_STATUSES.has(p.status) &&
-      (!p.drive_backup_status || p.drive_backup_status === 'pendente' || p.drive_backup_status === 'erro')
+    const aprovadas = (todas || []).filter(p => APPROVED_STATUSES.has(p.status));
+
+    const pendentes = aprovadas.filter(p =>
+      !p.drive_backup_status || p.drive_backup_status === 'pendente' || p.drive_backup_status === 'erro'
+    );
+    const concluidosSemXml = aprovadas.filter(p =>
+      p.drive_backup_status === 'concluido' && !temNfXmlNoBackup(p) && temXmlUrl(p)
     );
 
-    console.log(`Reprocessando ${pendentes.length} solicitações...`);
+    console.log(`Reprocessando ${pendentes.length} pendentes e ${concluidosSemXml.length} concluídos sem XML...`);
     const resultados = [];
+
     for (const p of pendentes) {
       const r = await executarBackup(base44, p);
-      resultados.push({ id: p.id, fornecedor: p.fornecedor_nome, result: r });
-      console.log(`${p.id}: ${JSON.stringify(r)}`);
+      resultados.push({ id: p.id, fornecedor: p.fornecedor_nome, result: r, fase: 'full' });
+      console.log(`${p.id} (full): ${JSON.stringify(r)}`);
+    }
+
+    for (const p of concluidosSemXml) {
+      const r = await appendXmlToExisting(base44, p);
+      resultados.push({ id: p.id, fornecedor: p.fornecedor_nome, result: r, fase: 'append-xml' });
+      console.log(`${p.id} (append-xml): ${JSON.stringify(r)}`);
     }
 
     return Response.json({
       success: true,
-      total_candidatos: pendentes.length,
+      total_candidatos: pendentes.length + concluidosSemXml.length,
+      pendentes_full: pendentes.length,
+      append_xml: concluidosSemXml.length,
       resultados
     });
   } catch (error) {
