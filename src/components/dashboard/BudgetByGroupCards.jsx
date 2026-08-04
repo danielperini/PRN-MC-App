@@ -464,7 +464,9 @@ export default function BudgetByGroupCards({ rubricas = [], isCoordenador = fals
       </div>
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        {groups.map((group) => {
+        {groups
+          .filter((group) => String(group.grupo || '').trim().length > 0)
+          .map((group) => {
           const width = Math.min(Math.max(group.percentual, 0), 100);
           return (
             <button key={group.grupo.trim().toLowerCase()} type="button" onClick={() => openGroup(group)} className="rounded-2xl border border-border bg-background p-4 text-left transition-all hover:border-primary/40 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary/20">
