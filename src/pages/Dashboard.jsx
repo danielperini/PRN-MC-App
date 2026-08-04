@@ -129,8 +129,8 @@ function DashboardCoordenadorView({
         </div>
 
         <SectionErrorBoundary title="Galeria"><GaleriaTickerCarousel /></SectionErrorBoundary>
-        <SectionErrorBoundary title="Notícias"><NewsCarousel /></SectionErrorBoundary>
         <SectionErrorBoundary title="Diariamente nos Museus"><DiariamenteNosMuseus /></SectionErrorBoundary>
+        <SectionErrorBoundary title="Notícias"><NewsCarousel /></SectionErrorBoundary>
 
         <SectionErrorBoundary title="Conformidade"><ComplianceStats currentMonth={currentMonth} currentYear={currentYear} /></SectionErrorBoundary>
         <SectionErrorBoundary title="Orçamento por Grupo"><BudgetByGroupCards rubricas={rubricas} isCoordenador={isCoordenador} /></SectionErrorBoundary>
@@ -569,8 +569,8 @@ function DashboardInner() {
           ) : null}
 
           <SectionErrorBoundary title="Galeria"><GaleriaTickerCarousel /></SectionErrorBoundary>
-          <SectionErrorBoundary title="Notícias"><NewsCarousel /></SectionErrorBoundary>
           <SectionErrorBoundary title="Diariamente nos Museus"><DiariamenteNosMuseus /></SectionErrorBoundary>
+          <SectionErrorBoundary title="Notícias"><NewsCarousel /></SectionErrorBoundary>
           <SectionErrorBoundary title="Metas do Aditivo"><MetasAditivoSection rubricas={rubricas} filtro={filtroMetas} /></SectionErrorBoundary>
           <SectionErrorBoundary title="Noturno Meta 20"><ResumoConsolidadoNoturnoMeta20 dataInicio={filtroMetas.dataInicio} dataFim={filtroMetas.dataFim} /></SectionErrorBoundary>
           <SectionErrorBoundary title="Cumprimento de Metas"><CumprimentoMetasFisicas dataInicio={filtroMetas.dataInicio} dataFim={filtroMetas.dataFim} /></SectionErrorBoundary>
