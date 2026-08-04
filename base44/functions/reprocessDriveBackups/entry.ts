@@ -126,12 +126,10 @@ async function executarBackup(base44, purchase) {
   }
 }
 
+// Backup em lote das PurchaseRequests aprovadas/pagas sem backup concluído no Drive.
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    if (user.role !== 'admin') return Response.json({ error: 'Forbidden: admin only' }, { status: 403 });
 
     const body = await req.json().catch(() => ({}));
     const { purchaseId } = body;
