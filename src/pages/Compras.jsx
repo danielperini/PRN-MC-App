@@ -64,6 +64,7 @@ import { canManageRubricas } from '@/components/auth/permissions';
 import { normalizeStatus, isStatusPendente, isStatusAprovado, getStatusLabel, getStatusColor } from '@/lib/normalizeStatus';
 import DevolverNFDialog from '@/components/compras/DevolverNFDialog';
 import NotificarAditivoButton from '@/components/compras/NotificarAditivoButton';
+import RevincularRubricasOrfasButton from '@/components/financeiro/RevincularRubricasOrfasButton';
 
 const STATUS_CONFIG = {
   RASCUNHO: { label: 'Rascunho', color: 'bg-gray-100 text-gray-700' },
@@ -1046,13 +1047,16 @@ function ComprasInner() {
           </div>
 
           <div className="flex gap-2">
+            {isCoordenador && (
+              <RevincularRubricasOrfasButton onConcluido={refreshFinanceiroCompleto} />
+            )}
             <Button
               className="bg-black text-white hover:bg-gray-800"
               onClick={() => {
                 setEditingPurchase(null);
                 setShowForm(true);
               }}>
-              
+
               <Plus className="mr-2 h-4 w-4" />
               Nova Solicitação
             </Button>

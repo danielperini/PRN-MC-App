@@ -25,6 +25,7 @@ import RubricaDetail from '@/components/rubricas/RubricaDetail';
 import RubricaExporter from '@/components/rubricas/RubricaExporter';
 import NovaRubricaDialog from '@/components/rubricas/NovaRubricaDialog';
 import MapeamentoRubricasEditor from '@/components/rubricas/MapeamentoRubricasEditor';
+import RevincularRubricasOrfasButton from '@/components/financeiro/RevincularRubricasOrfasButton';
 import { useCurrentUser } from '@/components/auth/useCurrentUser';
 import { canManageRubricas } from '@/components/auth/permissions';
 
@@ -140,6 +141,7 @@ export default function RubricasPage() {
             >
               🔗 Mapeamentos
             </Button>
+            {canManage && <RevincularRubricasOrfasButton onConcluido={() => queryClient.invalidateQueries({ queryKey: ['rubricas'] })} />}
             <RubricaExporter rubricas={rubricas} />
           </div>
 
