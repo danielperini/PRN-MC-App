@@ -327,15 +327,7 @@ function AuthenticatedApp() {
             />
           }
         />
-        <Route
-          path="/AprovacaoNFs"
-          element={
-            <SafePage
-              Page={React.lazy(() => import('./pages/AprovacaoNFs'))}
-              pageName="AprovacaoNFs"
-            />
-          }
-        />
+        <Route path="/AprovacaoNFs" element={<Navigate to="/EntradaUnica" replace />} />
         <Route
           path="/RelatorioExecucaoDashboard"
           element={

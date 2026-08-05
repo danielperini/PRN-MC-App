@@ -12,7 +12,7 @@ import ReviewModalContrato from '@/components/entrada/ReviewModalContrato';
 import LinkXmlModal from '@/components/entrada/LinkXmlModal';
 import LinkArquivoModal from '@/components/entrada/LinkArquivoModal';
 import { backupContractIntakeToDrive, isContractIntakeType } from '@/lib/contractDriveBackup';
-import { isCoordenador } from '@/components/auth/permissions';
+import { isCoordenador, COORD_GERAL_EMAILS } from '@/components/auth/permissions';
 import { Link } from 'react-router-dom';
 import {
   Loader2,
@@ -28,7 +28,9 @@ import {
   Link2,
   FileSignature,
   ArrowRight,
-  Settings } from
+  Settings,
+  Send,
+  Sparkles } from
 'lucide-react';
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
@@ -284,6 +286,64 @@ function calcularScoreVinculo(a, b) {
   return score;
 }
 
+// ---- Matching por percentual (threshold 85%) para vínculo XML <-> PDF ----
+function normalizarNomeBaseArquivo(value) {
+  return normalizeText(value || '')
+    .replace(/\.(pdf|xml)$/i, '')
+    .replace(/\b(comp|comprovante|boleto|bol|recibo|pix|pagamento)\b/g, '')
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function extrairNumeroNFDoNome(value) {
+  const m = String(value || '').match(/(?:^|\D)(\d{3,})/);
+  return m ? m[1] : '';
+}
+
+function extrairValorDoNome(value) {
+  const m = String(value || '').match(/r\$?\s*([\d.,]+)/i);
+  return m ? m[1] : '';
+}
+
+function jaccardTokens(a, b) {
+  const setA = new Set(a.split(' ').filter((p) => p.length > 1));
+  const setB = new Set(b.split(' ').filter((p) => p.length > 1));
+  if (setA.size === 0 || setB.size === 0) return 0;
+  let inter = 0;
+  for (const t of setA) if (setB.has(t)) inter++;
+  const union = setA.size + setB.size - inter;
+  return union > 0 ? inter / union : 0;
+}
+
+function matchPercentualXmlPdf(xml, pdf) {
+  const xmlNome = normalizarNomeBaseArquivo(xml?.file_name_original || xml?.file_name_final || '');
+  const pdfNome = normalizarNomeBaseArquivo(pdf?.file_name_original || pdf?.file_name_final || '');
+
+  const xmlNfObj = getNFNumero(xml) || extrairNumeroNFDoNome(xmlNome);
+  const pdfNfObj = getNFNumero(pdf) || extrairNumeroNFDoNome(pdfNome);
+
+  const xmlValorObj = getValorNF(xml) || Number((extrairValorDoNome(xmlNome) || '0').replace(/\./g, '').replace(',', '.')) || 0;
+  const pdfValorObj = getValorNF(pdf) || Number((extrairValorDoNome(pdfNome) || '0').replace(/\./g, '').replace(',', '.')) || 0;
+
+  // Match por número de NF + valor
+  if (xmlNfObj && pdfNfObj && xmlNfObj === pdfNfObj) {
+    if (xmlValorObj > 0 && pdfValorObj > 0 && Math.abs(xmlValorObj - pdfValorObj) < 0.02) return 100;
+    return 92;
+  }
+
+  // Match por nome base identico
+  if (xmlNome && pdfNome && xmlNome === pdfNome) return 100;
+
+  // Jaccard alto
+  if (xmlNome && pdfNome) {
+    const j = jaccardTokens(xmlNome, pdfNome);
+    if (j >= 0.85) return Math.round(j * 100);
+  }
+
+  return 0;
+}
+
 export default function EntradaUnica() {
   const [user, setUser] = useState(null);
   const [userPermission, setUserPermission] = useState(null);
@@ -309,6 +369,10 @@ export default function EntradaUnica() {
   const filaRef = useRef([]);
   const abortarRef = useRef(false);
   const retryingRef = useRef(false);
+  const jaVinculouRef = useRef(false);
+  const [higienizarLoading, setHigienizarLoading] = useState(false);
+  const [preenchendoIAHistorico, setPreenchendoIAHistorico] = useState(false);
+  const [enviandoCoordenacaoLote, setEnviandoCoordenacaoLote] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -405,6 +469,7 @@ export default function EntradaUnica() {
       return tipo === 'RECIBO_PDF' || isReciboLike(i);
     });
 
+    let xmlVinculadosCount = 0;
     for (const xml of xmls) {
       if (xml.nf_pdf_intake_id || xml.grupo_status === 'COMPLETO') continue;
 
@@ -412,7 +477,8 @@ export default function EntradaUnica() {
       let melhorScore = 0;
 
       for (const pdf of pdfs) {
-        const score = calcularScoreVinculo(xml, pdf);
+        if (pdf.nf_xml_intake_id || pdf.grupo_status === 'COMPLETO') continue;
+        const score = matchPercentualXmlPdf(xml, pdf);
 
         if (score > melhorScore) {
           melhorScore = score;
@@ -420,7 +486,8 @@ export default function EntradaUnica() {
         }
       }
 
-      if (melhorPdf && melhorScore >= 2) {
+      if (melhorPdf && melhorScore >= 85) {
+        xmlVinculadosCount++;
         await base44.entities.DocumentIntake.update(melhorPdf.id, {
           nf_xml_intake_id: xml.id,
           nf_xml_url: xml.arquivo_original_url,
@@ -438,6 +505,7 @@ export default function EntradaUnica() {
       }
     }
 
+    let reciboVinculadosCount = 0;
     for (const recibo of recibos) {
       if (recibo.nf_pdf_intake_id || recibo.grupo_status === 'COMPLETO') continue;
 
@@ -445,6 +513,7 @@ export default function EntradaUnica() {
       let melhorScore = 0;
 
       for (const pdf of pdfs) {
+        if (pdf.nf_xml_intake_id || pdf.recibo_intake_id || pdf.grupo_status === 'COMPLETO') continue;
         const score = calcularScoreVinculo(recibo, pdf);
 
         if (score > melhorScore) {
@@ -454,6 +523,7 @@ export default function EntradaUnica() {
       }
 
       if (melhorPdf && melhorScore >= 2) {
+        reciboVinculadosCount++;
         await base44.entities.DocumentIntake.update(recibo.id, {
           grupo_status: 'COMPLETO',
           nf_pdf_intake_id: melhorPdf.id,
@@ -485,6 +555,11 @@ export default function EntradaUnica() {
         }
       }
     }
+
+    return {
+      vinculadosXml: xmlVinculadosCount,
+      vinculadosRecibo: reciboVinculadosCount,
+    };
   }, []);
 
   const loadIntakes = useCallback(async () => {
@@ -561,6 +636,18 @@ export default function EntradaUnica() {
 
       setIntakes(filtrados);
       setProcessados(jaProcessados);
+
+      // Vínculo automático XML↔PDF ao carregar — uma vez por sessão
+      if (!jaVinculouRef.current && (list || []).length > 0) {
+        jaVinculouRef.current = true;
+        tentarVincularLista(list || [])
+          .then((res) => {
+            if (res && (res.vinculadosXml > 0 || res.vinculadosRecibo > 0)) {
+              loadIntakes();
+            }
+          })
+          .catch(() => {});
+      }
     } catch (e) {
       console.error('loadIntakes fatal:', e);
       // Limite de requisições: aguarda e tenta uma vez antes de mostrar erro
@@ -1173,6 +1260,195 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
     }
   }
 
+  async function handleHigienizarFila() {
+    if (!user || user.role !== 'admin') {
+      toast.error('Função exclusiva da coordenação geral.');
+      return;
+    }
+    setHigienizarLoading(true);
+    try {
+      const res = await tentarVincularLista(intakes || []);
+      const xml = res?.vinculadosXml || 0;
+      const recibo = res?.vinculadosRecibo || 0;
+      if (xml > 0 || recibo > 0) {
+        toast.success(`Higienização concluída: ${xml} XML(s) e ${recibo} recibo(s) vinculados.`);
+        await loadIntakes();
+      } else {
+        toast.info('Nenhum novo vínculo encontrado. Tudo já está vinculado.');
+      }
+    } catch (e) {
+      toast.error('Erro ao higienizar fila: ' + (e?.message || e));
+    } finally {
+      setHigienizarLoading(false);
+    }
+  }
+
+  async function handlePreencherIAHistorico() {
+    if (!user || user.role !== 'admin') {
+      toast.error('Função exclusiva da coordenação geral.');
+      return;
+    }
+    // Intakes pendentes: NF PDF em AGUARDANDO_REVISAO / RASCUNHO / ENVIADO sem preenchimento IA histórico
+    const candidatos = (intakes || []).filter((i) => {
+      const tipo = i.tipo_detectado || getTipoByFile(i);
+      if (tipo !== 'NOTA_FISCAL_PDF') return false;
+      const status = String(i.status_processamento || '').toUpperCase();
+      const ia = i.resultado_ia || {};
+      const ehHistorico = ia.preenchido_por_ia_historico === true;
+      const jaTemRubrica = !!i.rubrica_id_sugerida || !!ia.rubrica_id;
+      // Já preenchido por IA histórico com score>=70: pula
+      if (ehHistorico && Number(ia.ia_historico_score || 0) >= 70) return false;
+      // Aprovações: pula
+      if (['APROVADO', 'ENVIADO_APROVACAO', 'DELETADO', 'REJEITADO'].includes(status)) return false;
+      // Precisa ter CNPJ ou nome emitente para buscar histórico
+      const cnpj = onlyDigits(ia.nf_emitente_cpf_cnpj || i.nf_emitente_cpf_cnpj || i.fornecedor_cpf_cnpj || '');
+      const emitente = normalizeText(ia.nf_emitente_nome || i.nf_emitente_nome || i.fornecedor_nome || '');
+      return !!cnpj || !!emitente || !jaTemRubrica;
+    });
+
+    if (candidatos.length === 0) {
+      toast.info('Nenhuma NF pendente elegível para preenchimento com IA histórico.');
+      return;
+    }
+
+    setPreenchendoIAHistorico(true);
+    try {
+      const res = await base44.functions.invoke('preencherNFsComHistoricoIA', {
+        intake_ids: candidatos.map((c) => c.id),
+      });
+      const data = res?.data || {};
+      const preenchidos = data.preenchidos || 0;
+      const total = data.total || candidatos.length;
+      toast.success(`Preenchimento IA histórico: ${preenchidos} de ${total} NFs preenchidas.`);
+      await loadIntakes();
+    } catch (e) {
+      toast.error('Erro ao preencher com IA histórico: ' + (e?.message || e));
+    } finally {
+      setPreenchendoIAHistorico(false);
+    }
+  }
+
+  async function handleEnviarCoordenacaoLote() {
+    if (!user || (user.role !== 'admin' && !isCoordenador(user))) {
+      toast.error('Função exclusiva da coordenação geral.');
+      return;
+    }
+
+    const elegiveis = (intakes || []).filter((i) => {
+      const tipo = i.tipo_detectado || getTipoByFile(i);
+      if (tipo !== 'NOTA_FISCAL_PDF') return false;
+      const status = String(i.status_processamento || '').toUpperCase();
+      if (status !== 'AGUARDANDO_REVISAO') return false;
+      const ia = i.resultado_ia || {};
+      return ia.preenchido_por_ia_historico === true && Number(ia.ia_historico_score || 0) >= 70;
+    });
+
+    if (elegiveis.length === 0) {
+      toast.info('Nenhuma NF elegível para envio direto à coordenação.');
+      return;
+    }
+
+    setEnviandoCoordenacaoLote(true);
+    let enviados = 0;
+    let falhas = 0;
+    try {
+      for (const intake of elegiveis) {
+        try {
+          const ia = intake.resultado_ia || {};
+          const rubrica_id = intake.rubrica_id_sugerida || ia.rubrica_id;
+          const centro_custo = intake.centro_custo || ia.centro_custo_sugerido;
+          const valor = parseValorBR(ia.nf_valor_total || ia.valor || ia.valor_total || 0);
+          const fileName = intake.file_name_final || intake.file_name_original || 'Arquivo';
+
+          if (!rubrica_id || !centro_custo || !valor) {
+            falhas++;
+            continue;
+          }
+
+          const rubrica = await base44.entities.Rubrica.get(rubrica_id).catch(() => null);
+          const rubrica_nome = rubrica?.rubrica || rubrica?.nome || rubrica?.descricao || '';
+
+          const novaPurchase = await base44.entities.PurchaseRequest.create({
+            descricao_item: ia.descricao_servico || ia.nf_emitente_nome || fileName,
+            fornecedor_nome: ia.nf_emitente_nome || '',
+            fornecedor_cpf_cnpj: ia.nf_emitente_cpf_cnpj || '',
+            valor_solicitado: valor,
+            valor_total: valor,
+            valor: valor,
+            rubrica_id,
+            rubrica_nome,
+            budgetline_id: rubrica_id,
+            centro_custo,
+            nota_fiscal_url: intake.arquivo_original_url || '',
+            arquivo_url: intake.arquivo_original_url || '',
+            status: 'SOLICITADO',
+            origem: 'EntradaUnica',
+            intake_id: intake.id,
+            documento_intake_id: intake.id,
+            nf_numero: ia.nf_numero || '',
+            nf_data_emissao: ia.nf_data_emissao || ia.data_emissao || '',
+          });
+
+          await base44.entities.Attachment.create({
+            purchase_request_id: novaPurchase?.id || '',
+            document_intake_id: intake.id,
+            file_name: fileName,
+            file_url: intake.arquivo_original_url || '',
+            file_type: intake.mime_type || 'application/pdf',
+            description: 'Entrada Única — IA Histórico (envio direto à coordenação)',
+            nf_tipo_documento: 'pdf_nf',
+            nf_numero: ia.nf_numero || '',
+            nf_valor_total: valor,
+            nf_data_emissao: ia.nf_data_emissao || ia.data_emissao || '',
+            nf_emitente_nome: ia.nf_emitente_nome || '',
+            nf_emitente_cpf_cnpj: ia.nf_emitente_cpf_cnpj || '',
+            rubrica_id,
+            rubrica_nome,
+          }).catch(() => null);
+
+          await base44.entities.DocumentIntake.update(intake.id, {
+            status_processamento: 'ENVIADO_APROVACAO',
+            ocultar_entrada_unica: true,
+            entidade_destino: 'PurchaseRequest',
+            entidade_destino_id: novaPurchase?.id || '',
+          });
+
+          // Notificação in-app para coordenadores (sem e-mail)
+          await Promise.all(
+            COORD_GERAL_EMAILS.map((email) =>
+              base44.entities.Notification.create({
+                user_email: email,
+                type: 'INVOICE_SUBMITTED',
+                title: 'NF enviada para aprovação (IA Histórico)',
+                message: `${fileName} — R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} — ${ia.nf_emitente_nome || ''}`,
+                entity_type: 'PurchaseRequest',
+                entity_id: novaPurchase?.id || '',
+                action_url: '/Compras',
+                read: false,
+                email_sent: false,
+              }).catch(() => {})
+            )
+          );
+
+          enviados++;
+        } catch (e) {
+          falhas++;
+        }
+      }
+
+      if (enviados > 0) {
+        toast.success(`${enviados} NF${enviados !== 1 ? 's' : ''} enviada${enviados !== 1 ? 's' : ''} para coordenação.`);
+        await loadIntakes();
+      } else if (falhas > 0) {
+        toast.error(`Falha ao enviar ${falhas} NF(s). Verifique rubrica/centro de custo/valor.`);
+      } else {
+        toast.info('Nenhuma NF elegível para envio.');
+      }
+    } finally {
+      setEnviandoCoordenacaoLote(false);
+    }
+  }
+
   async function handleConfirmLinkXml(xmlIntake, pdfIntake) {
     try {
       await base44.entities.DocumentIntake.update(pdfIntake.id, {
@@ -1582,12 +1858,28 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
-                          onClick={handleAutoVinculo}
-                          disabled={autoVinculoLoading}
+                          onClick={handleHigienizarFila}
+                          disabled={higienizarLoading}
                           className="flex items-center gap-2 cursor-pointer"
                         >
-                          {autoVinculoLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
-                          Auto-vincular documentos
+                          {higienizarLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
+                          Higienizar fila (XML↔PDF)
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={handlePreencherIAHistorico}
+                          disabled={preenchendoIAHistorico}
+                          className="flex items-center gap-2 cursor-pointer"
+                        >
+                          {preenchendoIAHistorico ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                          Preencher com IA histórico
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={handleEnviarCoordenacaoLote}
+                          disabled={enviandoCoordenacaoLote}
+                          className="flex items-center gap-2 cursor-pointer"
+                        >
+                          {enviandoCoordenacaoLote ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                          Enviar p/ coordenação (lote)
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={handleReanalisarPendentes}
@@ -1735,14 +2027,7 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
               Processados / Aprovados
               {processados.length > 0 && <span className="ml-1.5 text-xs bg-green-100 text-green-700 rounded-full px-1.5 py-0.5">{processados.length}</span>}
             </button>
-            <Link
-              to="/AprovacaoNFs"
-              className="ml-auto my-auto inline-flex items-center gap-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-full px-3 py-1.5 hover:bg-blue-100 transition-colors"
-            >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              Aprovar NFs
-              <ArrowRight className="w-3 h-3" />
-            </Link>
+
           </div>
 
           <div className="p-4 md:p-6">

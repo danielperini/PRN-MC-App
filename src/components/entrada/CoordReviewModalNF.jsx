@@ -967,9 +967,15 @@ Equipe Museus Centro`;
           {/* Cabeçalho fixo */}
           <DialogHeader className="px-6 pt-6 pb-3 border-b flex-shrink-0">
             <div className="flex items-start justify-between">
-              <DialogTitle className="flex items-center gap-2">
+              <DialogTitle className="flex items-center gap-2 flex-wrap">
                 <FileText className="w-5 h-5 text-blue-500" />
                 Conferência de Nota Fiscal
+                {ia?.preenchido_por_ia_historico === true && Number(ia?.ia_historico_score || 0) >= 70 && (
+                  <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium" style={{ backgroundColor: '#dbeafe', color: '#1e40af' }}>
+                    <Sparkles className="w-3 h-3" />
+                    IA Histórico {Math.round(Number(ia.ia_historico_score))}%
+                  </span>
+                )}
               </DialogTitle>
               <a href="/GuiaNotaFiscal" target="_blank" rel="noopener noreferrer">
                 <Button variant="outline" size="sm" className="text-xs h-8">

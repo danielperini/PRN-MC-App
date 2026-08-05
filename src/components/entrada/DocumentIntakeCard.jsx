@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   FileText, Image, CheckCircle2, Clock, AlertCircle, Loader2,
-  Eye, Send, RefreshCw, X, Download, ExternalLink, Link2, Plus, AlertTriangle } from
+  Eye, Send, RefreshCw, X, Download, ExternalLink, Link2, Plus, AlertTriangle, Sparkles } from
 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ import {
   suggestEntityLinks,
 } from '@/utils/linking/smartEntityLinker';
 import QuickViewIA from '@/components/entrada/QuickViewIA';
+import { COORD_GERAL_EMAILS } from '@/components/auth/permissions';
 
 const STATUS_CONFIG = {
   ENVIADO: { label: 'Enviado', color: 'bg-blue-100 text-blue-700', icon: Clock },
@@ -132,7 +133,7 @@ function detectarDuplicatas(intake, allIntakes) {
 // Data de corte para exigir XML obrigatório
 const DATA_CORTE_XML = new Date('2026-08-01');
 
-export default function DocumentIntakeCard({ intake, allIntakes, onReview, onDeleted, onSentToApproval, onReanalyse, onLinkXml, onAddXmlToPdf, onLinkArquivo }) {
+export default function DocumentIntakeCard({ intake, allIntakes, onReview, onDeleted, onSentToApproval, onReanalyse, onLinkXml, onAddXmlToPdf, onLinkArquivo, onEnviarCoordenacao }) {
   const [loading, setLoading] = useState(false);
   const [sendingApproval, setSendingApproval] = useState(false);
   const [addingXml, setAddingXml] = useState(false);
@@ -189,6 +190,11 @@ export default function DocumentIntakeCard({ intake, allIntakes, onReview, onDel
   // Status de vinculação
   const temXmlVinculado = isPDF && !!intake.nf_xml_intake_id;
   const temReciboVinculado = isPDF && !!intake.recibo_intake_id;
+
+  // IA Histórico — badge e botão de envio direto à coordenação
+  const iaHistorico = intake?.resultado_ia?.preenchido_por_ia_historico === true;
+  const iaHistoricoScore = Number(intake?.resultado_ia?.ia_historico_score || 0);
+  const isIAHistoricoElegivel = iaHistorico && iaHistoricoScore >= 70 && isPDF && statusKey === 'AGUARDANDO_REVISAO';
   const estaSemVinculo = (isPDF && !intake.nf_xml_intake_id && !intake.recibo_intake_id && intake.grupo_status !== 'COMPLETO') ||
     (isXML && !intake.nf_pdf_intake_id && intake.grupo_status !== 'COMPLETO') ||
     (isRecibo && !intake.nf_pdf_intake_id && intake.grupo_status !== 'COMPLETO');
@@ -377,6 +383,25 @@ export default function DocumentIntakeCard({ intake, allIntakes, onReview, onDel
         ...xmlPendingPatch
       });
 
+      // Notificação in-app para coordenadores (sem e-mail) quando é IA Histórico
+      if (iaHistorico && iaHistoricoScore >= 70 && novaPurchase?.id) {
+        try {
+          await Promise.all(COORD_GERAL_EMAILS.map((email) =>
+            base44.entities.Notification.create({
+              user_email: email,
+              type: 'INVOICE_SUBMITTED',
+              title: 'NF enviada para aprovação (IA Histórico)',
+              message: `${fileName} — R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} — ${ia.nf_emitente_nome || ''}`,
+              entity_type: 'PurchaseRequest',
+              entity_id: novaPurchase.id,
+              action_url: '/Compras',
+              read: false,
+              email_sent: false,
+            }).catch(() => {})
+          ));
+        } catch (_) {}
+      }
+
       toast.success('Enviado para aprovação com sucesso.');
       if (onSentToApproval) onSentToApproval(intake.id);
     } catch (e) {
@@ -464,6 +489,12 @@ export default function DocumentIntakeCard({ intake, allIntakes, onReview, onDel
             <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
               {tipoLabel}
             </span>
+            {iaHistorico && iaHistoricoScore >= 70 &&
+              <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium" style={{ backgroundColor: '#dbeafe', color: '#1e40af' }}>
+                <Sparkles className="w-3 h-3" />
+                IA Histórico {Math.round(iaHistoricoScore)}%
+              </span>
+            }
             {/* XML vinculado: só mostrar "Aguardando vínculo"; se já vinculado, não mostrar status */}
             {isXML && !intake.nf_pdf_intake_id && intake.grupo_status !== 'COMPLETO' &&
             <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-700">
@@ -490,7 +521,7 @@ export default function DocumentIntakeCard({ intake, allIntakes, onReview, onDel
               </span>
             }
             {isPDF && temXmlVinculado &&
-              <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-blue-100 text-blue-700">
+              <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700">
                 <CheckCircle2 className="w-3 h-3" />
                 XML vinculado
               </span>
@@ -647,6 +678,17 @@ export default function DocumentIntakeCard({ intake, allIntakes, onReview, onDel
             <Loader2 className="w-3 h-3 animate-spin mr-1" /> :
             <Send className="w-3 h-3 mr-1" />}
               {sendingApproval ? 'Enviando...' : 'Enviar'}
+            </Button>
+          }
+
+          {/* PDF IA Histórico: botão de envio direto à coordenação (azul escuro) */}
+          {isIAHistoricoElegivel &&
+          <Button size="sm" onClick={handleSendToApproval} disabled={sendingApproval}
+          className="h-8 text-xs px-3 text-white" style={{ backgroundColor: '#1e40af' }} title="Enviar direto para coordenação">
+              {sendingApproval ?
+            <Loader2 className="w-3 h-3 animate-spin mr-1" /> :
+            <Send className="w-3 h-3 mr-1" />}
+              {sendingApproval ? 'Enviando...' : 'Enviar p/ coordenação'}
             </Button>
           }
 
