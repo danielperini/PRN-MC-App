@@ -45,6 +45,72 @@ function extrairValorDoNome(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
+// ===== Frente 7: extração determinística do fornecedor pelo nome do arquivo =====
+// Marcadores estruturais que delimitam o fim da descrição da atividade e o início do
+// bloco "projeto/museu/valor". O fornecedor é o segmento IMEDIATAMENTE ANTERIOR ao
+// primeiro marcador estrutural, ou — quando não há marcador — o segmento antes/contendo "R$".
+const MARCADORES_ESTRUTURAIS = [
+  'museus centro',
+  'noturno nos museus',
+  'museus pampulha',
+  'noturno pampulha',
+  'museus bh',
+];
+function ehMarcadorEstrutural(p) {
+  const n = norm(p);
+  if (!n) return false;
+  if (MARCADORES_ESTRUTURAIS.some((m) => n === m || n.startsWith(m))) return true;
+  // "MUSEUS 2026" genérico (evento/projeto)
+  if (/^museus\s+\d{4}/.test(n)) return true;
+  return false;
+}
+
+function extrairFornecedorDoNome(filename) {
+  if (!filename) return '';
+  const s = String(filename).replace(/\.[^.]+$/, '').trim();
+  const partes = s.split(/\s+-\s+/).map((p) => p.trim()).filter(Boolean);
+  if (partes.length < 2) return '';
+  const normP = partes.map((p) => norm(p));
+
+  // 1. Primeiro marcador estrutural (MUSEUS CENTRO / NOTURNO NOS MUSEUS / ...)
+  const idxMarc = normP.findIndex((p) => ehMarcadorEstrutural(p));
+
+  let candidato = '';
+  if (idxMarc > 0) {
+    candidato = partes[idxMarc - 1];
+  } else {
+    // 2. Sem marcador: procura último segmento contendo "R$"
+    let idxR = -1;
+    for (let i = normP.length - 1; i >= 0; i--) {
+      if (normP[i].startsWith('r$') || normP[i].includes(' r$')) { idxR = i; break; }
+    }
+    if (idxR > 0) {
+      const segR = partes[idxR];
+      if (norm(segR).startsWith('r$')) {
+        candidato = partes[idxR - 1];
+      } else {
+        candidato = segR;
+      }
+    } else if (partes.length === 2) {
+      candidato = partes[1];
+    }
+  }
+
+  if (!candidato) return '';
+  // Remove sufixo " R$ ..." e " COMP" final
+  candidato = candidato.replace(/\s*r\$.*$/i, '').replace(/\s+comp$/i, '').trim();
+
+  // Validações: descarta candidatos inválidos
+  if (!candidato || candidato.length < 3) return '';
+  const cn = norm(candidato);
+  if (ehMarcadorEstrutural(candidato)) return ''; // candidato é marcador (ex: "NOTURNO NOS MUSEUS 2026")
+  if (/^\d+\s+nf/i.test(candidato)) return ''; // começa com "NN NF" = descrição da atividade
+  if (/^\d[\d.\s,]*$/.test(candidato)) return ''; // só números/pontuação
+  if (/^\d{2}-\d{4}$/.test(candidato) || /^\d{4}-\d{2}$/.test(candidato)) return ''; // competence (MM-YYYY)
+  if (['mis', 'mumo', 'mhab', 'comp'].includes(cn)) return '';
+  return candidato;
+}
+
 const MESES_PT = {
   janeiro: 1, janeiro: 1, fevereiro: 2, fevereiro: 2, marco: 3, marco: 3, marco: 3,
   abril: 4, maio: 5, junho: 6, junho: 6, julho: 7, julho: 7, agosto: 8, agosto: 8,
@@ -154,6 +220,8 @@ Deno.serve(async (req) => {
     fornecedores_promovidos: 0,
     fornecedores_criados: 0,
     fornecedores_vinculados: 0,
+    fornecedores_por_nome_arquivo: 0,
+    fornecedores_vinculados_por_nome: 0,
     rubricas_confirmadas_historico: 0,
     ids_processados: [],
     detalhes_xml_pdf: [],
@@ -191,9 +259,22 @@ Deno.serve(async (req) => {
     const ia = intake.resultado_ia || {};
     const patch = {};
 
-    if (!String(intake.fornecedor_nome || '').trim()) {
-      const v = String(pickIa(ia, 'fornecedor_nome', 'emitente_nome', 'razao_social', 'fornecedor_razao_social') || '').trim();
-      if (v) patch.fornecedor_nome = v;
+    const nomeAtual = String(intake.fornecedor_nome || '').trim();
+    const nomeAtualEhMarcador = nomeAtual && ehMarcadorEstrutural(nomeAtual);
+    if (!nomeAtual || nomeAtualEhMarcador) {
+      let v = String(pickIa(ia, 'fornecedor_nome', 'emitente_nome', 'razao_social', 'fornecedor_razao_social') || '').trim();
+      // Não confia em valor da IA que seja marcador estrutural
+      if (v && ehMarcadorEstrutural(v)) v = '';
+      let origem = 'ia';
+      if (!v) {
+        // Frente 7: extração determinística do nome do arquivo
+        const doArquivo = extrairFornecedorDoNome(intake.file_name_final || intake.file_name_original || '');
+        if (doArquivo) { v = doArquivo; origem = 'arquivo'; }
+      }
+      if (v && v !== nomeAtual) {
+        patch.fornecedor_nome = v;
+        if (origem === 'arquivo' || nomeAtualEhMarcador) stats.fornecedores_por_nome_arquivo++;
+      }
     }
     if (!String(intake.nf_emitente_nome || '').trim()) {
       const v = String(pickIa(ia, 'nf_emitente_nome', 'emitente_nome', 'razao_social_emitente', 'emitente_razao_social') || '').trim();
@@ -260,6 +341,13 @@ Deno.serve(async (req) => {
   let criados = 0;
   const patchFornVincPorId = {};
 
+  // Indexa fornecedores por nome normalizado (vínculo por nome — Frente 7 complementar)
+  const fornecedoresPorNome = new Map();
+  for (const f of fornecedoresCadastrados) {
+    const n = norm(f.nome || f.razao_social || '');
+    if (n && !fornecedoresPorNome.has(n)) fornecedoresPorNome.set(n, f);
+  }
+
   for (const intake of intakesComFornecedor) {
     if (!intake?.id) continue;
     if (intake.fornecedor_id_vinculado) continue; // já vinculado
@@ -308,6 +396,34 @@ Deno.serve(async (req) => {
         }
       } catch (err) {
         stats.erros.push({ id: intake.id, fase: 'fornecedor_criar', msg: String(err?.message || err) });
+      }
+    }
+  }
+
+  // ===== Vínculo por NOME (sem CPF/CNPJ) — complementar à Frente 5 =====
+  // Para intakes com fornecedor_nome mas sem doc e sem vínculo: link por nome EXATO
+  // (não cria novo fornecedor só por nome — não confiável sem documento).
+  for (const intake of intakesComFornecedor) {
+    if (!intake?.id) continue;
+    if (intake.fornecedor_id_vinculado) continue;
+    if (patchFornVincPorId[intake.id]) continue; // já vinculado por doc neste ciclo
+    const tipo = String(intake.tipo_detectado || '').toUpperCase();
+    if (tipo !== 'NOTA_FISCAL_PDF' && tipo !== 'NOTA_FISCAL_XML') continue;
+    const doc = digits(intake.fornecedor_cpf_cnpj || intake.nf_emitente_cpf_cnpj || '');
+    if (doc) continue; // tem doc — já tratado no loop por CNPJ acima
+    const nomeForn = String(intake.fornecedor_nome || intake.nf_emitente_nome || '').trim();
+    if (!nomeForn) continue;
+
+    const existente = fornecedoresPorNome.get(norm(nomeForn));
+    if (existente) {
+      patchFornVincPorId[intake.id] = { fornecedor_id_vinculado: existente.id };
+      stats.fornecedores_vinculados_por_nome++;
+      stats.detalhes_fornecedor.push({ id: intake.id, acao: 'vincular_por_nome', fornecedor_id: existente.id, nome: nomeForn });
+      const nfs = Array.isArray(existente.nfs_intake_ids) ? existente.nfs_intake_ids : [];
+      if (!nfs.includes(intake.id)) {
+        nfs.push(intake.id);
+        try { await db.Fornecedor.update(existente.id, { nfs_intake_ids: nfs }); }
+        catch (err) { stats.erros.push({ id: existente.id, fase: 'fornecedor_nfs_push_nome', msg: String(err?.message || err) }); }
       }
     }
   }
@@ -577,9 +693,9 @@ Deno.serve(async (req) => {
         backup_type: 'auditoria_entrada_unica',
         entity_type: 'PROCESSAMENTO_ENTRADA_UNICA_LOTE',
         status: 'concluido',
-        details: `Lote: ${stats.total_analisados} intakes | XMLs: ${stats.xmls_vinculados} | Datas: ${stats.datas_preenchidas} | Valores: ${stats.valores_preenchidos} | CC: ${stats.centros_custo_corrigidos} | Forn. promovidos: ${stats.fornecedores_promovidos} | Forn. criados: ${stats.fornecedores_criados} | Forn. vinculados: ${stats.fornecedores_vinculados} | Rubricas confirmadas: ${stats.rubricas_confirmadas_historico}`,
+        details: `Lote: ${stats.total_analisados} intakes | XMLs: ${stats.xmls_vinculados} | Datas: ${stats.datas_preenchidas} | Valores: ${stats.valores_preenchidos} | CC: ${stats.centros_custo_corrigidos} | Forn. promovidos: ${stats.fornecedores_promovidos} | Forn. por nome arquivo: ${stats.fornecedores_por_nome_arquivo} | Forn. criados: ${stats.fornecedores_criados} | Forn. vinculados: ${stats.fornecedores_vinculados} | Forn. vinculados por nome: ${stats.fornecedores_vinculados_por_nome} | Rubricas confirmadas: ${stats.rubricas_confirmadas_historico}`,
         total_files: stats.total_analisados,
-        files_copied: stats.xmls_vinculados + stats.datas_preenchidas + stats.valores_preenchidos + stats.centros_custo_corrigidos + stats.fornecedores_promovidos + stats.fornecedores_criados + stats.fornecedores_vinculados + stats.rubricas_confirmadas_historico,
+        files_copied: stats.xmls_vinculados + stats.datas_preenchidas + stats.valores_preenchidos + stats.centros_custo_corrigidos + stats.fornecedores_promovidos + stats.fornecedores_por_nome_arquivo + stats.fornecedores_criados + stats.fornecedores_vinculados + stats.fornecedores_vinculados_por_nome + stats.rubricas_confirmadas_historico,
         execution_time_ms: Date.now() - startTime,
         triggered_by: 'scheduled',
       });
@@ -597,8 +713,10 @@ Deno.serve(async (req) => {
         valores_preenchidos: stats.valores_preenchidos,
         centros_custo_corrigidos: stats.centros_custo_corrigidos,
         fornecedores_promovidos: stats.fornecedores_promovidos,
+        fornecedores_por_nome_arquivo: stats.fornecedores_por_nome_arquivo,
         fornecedores_criados: stats.fornecedores_criados,
         fornecedores_vinculados: stats.fornecedores_vinculados,
+        fornecedores_vinculados_por_nome: stats.fornecedores_vinculados_por_nome,
         rubricas_confirmadas_historico: stats.rubricas_confirmadas_historico,
       },
     });
