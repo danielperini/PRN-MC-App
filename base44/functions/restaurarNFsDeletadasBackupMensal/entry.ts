@@ -303,6 +303,7 @@ Deno.serve(async (req) => {
     const batchSize = Math.min(parseInt(body.batch_size, 10) || MAX_FILES_PER_EXEC, MAX_FILES_PER_EXEC);
     const dryRun = Boolean(body.dry_run);
     const mesUnico = body.mes_unico ? safeStr(body.mes_unico) : null;
+    const startIndex = Math.max(parseInt(body.start_index, 10) || 0, 0);
     const deadline = startTime + TIMEOUT_BUDGET_MS;
 
     let token: string;
@@ -326,8 +327,8 @@ Deno.serve(async (req) => {
     const erros: string[] = [];
     const criadosResumo: any[] = [];
 
-    const limite = Math.min(batchSize, totalDrive);
-    for (let i = 0; i < limite; i++) {
+    const limite = Math.min(startIndex + batchSize, totalDrive);
+    for (let i = startIndex; i < limite; i++) {
       if (Date.now() > deadline) {
         totalPendentes = totalDrive - i;
         break;
@@ -401,6 +402,7 @@ Deno.serve(async (req) => {
     if (limite < totalDrive) {
       totalPendentes = totalDrive - limite;
     }
+    const nextStartIndex = limite;
 
     const cobertura = totalDrive > 0
       ? ((totalPulados + totalCriados) / totalDrive) * 100
@@ -448,6 +450,8 @@ Deno.serve(async (req) => {
       cobertura_percentual: Number(cobertura.toFixed(1)),
       execution_ms,
       email_enviado: emailRes.enviados > 0,
+      next_start_index: nextStartIndex,
+      has_more: nextStartIndex < totalDrive,
       amostra_criados: criadosResumo,
       erros,
     });
