@@ -6,7 +6,8 @@
       "type": "string",
       "enum": [
         "drive_folders",
-        "reports"
+        "reports",
+        "drive_nf_sync_mensal"
       ],
       "description": "Tipo de backup realizado"
     },
