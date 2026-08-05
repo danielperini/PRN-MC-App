@@ -17,12 +17,13 @@ import {
   Users, FileText, History, Settings,
   CheckCircle, ChevronRight,
   AlertTriangle, Download, Database, Building2, Users2,
-  BookOpen, RotateCw, Send, Mail
+  BookOpen, RotateCw, Send, Mail, HardDrive
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toastMessages } from '@/lib/toastMessages';
+import { toast } from 'sonner';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
@@ -62,6 +63,8 @@ function PlataformaAdminInner() {
   const [linkResult, setLinkResult] = useState(null);
   const [higienizando, setHigienizando] = useState(false);
   const [higienizacaoResult, setHigienizacaoResult] = useState(null);
+  const [sincronizandoNFs, setSincronizandoNFs] = useState(false);
+  const [sincronizacaoNFsResult, setSincronizacaoNFsResult] = useState(null);
 
   const { data: users = [] } = useQuery({
     queryKey: ['users'],
@@ -83,6 +86,25 @@ function PlataformaAdminInner() {
     onSuccess: () => queryClient.invalidateQueries(['reports']),
   });
 
+  const handleSincronizarNFsDrive = async () => {
+    setSincronizandoNFs(true);
+    setSincronizacaoNFsResult(null);
+    try {
+      const res = await base44.functions.invoke('sincronizarNFsPastaRaizDrive', { batch_size: 80 });
+      const data = res?.data || res;
+      setSincronizacaoNFsResult(data);
+      if (data?.cobertura_percentual >= 100) {
+        toast.success(`Sincronização 100% concluída — ${data.total_criados} notas sincronizadas.`);
+      } else {
+        toast.success(`Sincronização parcial: ${data?.cobertura_percentual?.toFixed(1)}% (${data?.total_pendentes || 0} pendentes).`);
+      }
+    } catch (e) {
+      toast.error(`Falha na sincronização: ${e?.message || e}`);
+      setSincronizacaoNFsResult({ erro: String(e?.message || e) });
+    } finally {
+      setSincronizandoNFs(false);
+    }
+  };
   const handleFundirMetas = async () => {
     setFundindoMetas(true);
     setFusaoResult(null);
@@ -299,6 +321,61 @@ function PlataformaAdminInner() {
 
         <TabsContent value="ferramentas">
           <div className="space-y-6">
+            {/* Sincronizar NFs do Drive */}
+            <div className="border-2 border-emerald-500 rounded-lg p-6 bg-emerald-50">
+              <h2 className="text-lg font-bold text-emerald-900 mb-1 flex items-center gap-2">
+                <HardDrive className="w-5 h-5" />
+                Sincronizar NFs do Drive
+              </h2>
+              <p className="text-sm text-emerald-800 mb-4">
+                Varre a pasta raiz do Google Drive e cria DocumentIntakes para PDFs/XMLs/comprovantes ainda
+                não representados no banco (sem IA, sem PurchaseRequest automático, sem fila de notificações).
+                Útil para recuperar arquivos cujos registros foram apagados. Envia e-mail ao admin ao concluir.
+              </p>
+
+              <Button
+                onClick={handleSincronizarNFsDrive}
+                disabled={sincronizandoNFs}
+                className="bg-emerald-700 text-white hover:bg-emerald-800 gap-2"
+              >
+                {sincronizandoNFs ? (
+                  <>
+                    <RotateCw className="w-4 h-4 animate-spin" />
+                    Sincronizando arquivos do Drive...
+                  </>
+                ) : (
+                  <>
+                    <HardDrive className="w-4 h-4" />
+                    Sincronizar NFs do Drive
+                  </>
+                )}
+              </Button>
+
+              {sincronizacaoNFsResult && !sincronizacaoNFsResult.erro && (
+                <div className="mt-6 p-4 border border-emerald-300 rounded-lg bg-white">
+                  <p className="font-semibold text-gray-800 mb-3">📋 Resumo da sincronização</p>
+                  <ul className="text-sm text-gray-700 space-y-1">
+                    <li>📂 Total no Drive (raiz + nível 1): {sincronizacaoNFsResult.total_arquivos_drive ?? 0}</li>
+                    <li>➕ DocumentIntakes criados: {sincronizacaoNFsResult.total_criados ?? 0}</li>
+                    <li>⏭️ Pulados (já existentes / duplicatas): {sincronizacaoNFsResult.total_pulados ?? 0}</li>
+                    <li>🎯 Cobertura: {typeof sincronizacaoNFsResult.cobertura_percentual === 'number' ? sincronizacaoNFsResult.cobertura_percentual.toFixed(1) : '0'}%</li>
+                    {sincronizacaoNFsResult.total_pendentes > 0 && (
+                      <li className="text-amber-700">⚠️ Pendentes para próxima execução: {sincronizacaoNFsResult.total_pendentes}</li>
+                    )}
+                    {sincronizacaoNFsResult.email_enviado && (
+                      <li className="text-blue-700">📧 E-mail enviado ao admin.</li>
+                    )}
+                    <li>⏱️ Tempo: {((sincronizacaoNFsResult.execution_ms || 0) / 1000).toFixed(1)}s</li>
+                  </ul>
+                </div>
+              )}
+
+              {sincronizacaoNFsResult?.erro && (
+                <div className="mt-6 p-4 border border-red-300 rounded-lg bg-white text-red-700 text-sm">
+                  ❌ {sincronizacaoNFsResult.erro}
+                </div>
+              )}
+            </div>
             {/* Enviar Link do App para Todos */}
             <div className="border-2 border-blue-500 rounded-lg p-6 bg-blue-50">
               <h2 className="text-lg font-bold text-blue-900 mb-1 flex items-center gap-2">

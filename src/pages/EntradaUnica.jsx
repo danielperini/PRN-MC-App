@@ -302,6 +302,8 @@ export default function EntradaUnica() {
   const [filaProcessando, setFilaProcessando] = useState(false);
   const [progressoFila, setProgressoFila] = useState({ atual: 0, total: 0 });
   const [padronizarLoading, setPadronizarLoading] = useState(false);
+  const [syncNFsRootLoading, setSyncNFsRootLoading] = useState(false);
+  const [syncNFsRootResult, setSyncNFsRootResult] = useState(null);
   const [abaAtiva, setAbaAtiva] = useState('pendentes'); // 'pendentes' | 'processados'
   const [processados, setProcessados] = useState([]);
   const filaRef = useRef([]);
@@ -926,6 +928,34 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
     }
   }
 
+  async function handleSincronizarNFsDriveRaiz() {
+    if (!user || (user.role !== 'admin' && !isCoordenador(user))) {
+      toast.error('Função exclusiva da coordenação geral.');
+      return;
+    }
+    setSyncNFsRootLoading(true);
+    setSyncNFsRootResult(null);
+    try {
+      const res = await base44.functions.invoke('sincronizarNFsPastaRaizDrive', { batch_size: 80 });
+      const data = res?.data || res;
+      setSyncNFsRootResult(data);
+      if (data?.erro) {
+        toast.error(data.erro);
+      } else if (data?.cobertura_percentual >= 100) {
+        toast.success(`Sincronização 100% concluída — ${data.total_criados} notas sincronizadas.`);
+      } else {
+        toast.success(`Sincronização parcial: ${data?.cobertura_percentual?.toFixed(1)}% (${data?.total_pendentes || 0} pendentes).`);
+      }
+      await loadIntakes();
+    } catch (e) {
+      console.error('Erro ao sincronizar NFs do Drive:', e);
+      toast.error('Erro ao executar sincronização: ' + (e?.message || e));
+      setSyncNFsRootResult({ erro: String(e?.message || e) });
+    } finally {
+      setSyncNFsRootLoading(false);
+    }
+  }
+
   async function handleSyncGmail() {
     if (!user || user.role !== 'admin') {
       toast.error('Função exclusiva da coordenação geral.');
@@ -1521,7 +1551,7 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
                   </div>
                 </div>
 
-                {user?.role === 'admin' &&
+                {(user?.role === 'admin' || isCoordenador(user)) &&
                 <div className="mt-1">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -1575,16 +1605,51 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
                           {padronizarLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileSignature className="w-3.5 h-3.5" />}
                           Padronizar nomes
                         </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={handleSincronizarNFsDriveRaiz}
+                          disabled={syncNFsRootLoading}
+                          className="flex items-center gap-2 cursor-pointer"
+                        >
+                          {syncNFsRootLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <HardDrive className="w-3.5 h-3.5" />}
+                          Sincronizar NFs do Drive (recuperar)
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
+                  {syncNFsRootLoading && (
+                    <div className="mt-3 flex items-center gap-2 text-xs text-emerald-700">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Sincronizando arquivos do Drive...
+                    </div>
+                  )}
+                  {syncNFsRootResult && !syncNFsRootLoading && (
+                    <div className="mt-3 p-3 rounded-xl border border-emerald-200 bg-emerald-50 text-xs text-gray-700">
+                      {syncNFsRootResult.erro ? (
+                        <p className="text-red-700">❌ {syncNFsRootResult.erro}</p>
+                      ) : (
+                        <ul className="space-y-0.5">
+                          <li>📂 Total no Drive (raiz + nível 1): {syncNFsRootResult.total_arquivos_drive ?? 0}</li>
+                          <li>➕ Criados: {syncNFsRootResult.total_criados ?? 0}</li>
+                          <li>⏭️ Pulados: {syncNFsRootResult.total_pulados ?? 0}</li>
+                          <li>🎯 Cobertura: {typeof syncNFsRootResult.cobertura_percentual === 'number' ? syncNFsRootResult.cobertura_percentual.toFixed(1) : '0'}%</li>
+                          {syncNFsRootResult.total_pendentes > 0 && (
+                            <li className="text-amber-700">⚠️ Pendentes: {syncNFsRootResult.total_pendentes}</li>
+                          )}
+                          {syncNFsRootResult.email_enviado && (
+                            <li className="text-blue-700">📧 E-mail enviado ao admin.</li>
+                          )}
+                        </ul>
+                      )}
+                    </div>
+                  )}
                   </div>
-                }
-              </div>
-            </div>
-          </div>
+                  }
+                  </div>
+                  </div>
+                  </div>
 
-          <div className="p-4 md:p-6">
-            <DocumentUploadZone
+                  <div className="p-4 md:p-6">
+                  <DocumentUploadZone
               onFilesSelected={handleFilesSelected}
               uploading={uploading}
               disabled={!user} />
