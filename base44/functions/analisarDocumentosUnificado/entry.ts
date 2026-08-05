@@ -290,7 +290,6 @@ Data atual: ${hoje}
 Responda APENAS com JSON válido contendo os campos: tipo_documento, descricao_servico, fornecedor_nome, fornecedor_cpf_cnpj, nf_numero, nf_data_emissao, nf_horario_emissao, nf_valor_total (number), nf_valor_liquido (number), nf_retencoes (number), nf_chave_acesso, competencia, municipio, dados_bancarios, chave_pix, meio_pagamento, observacoes, contrato_numero, museu_identificado, atividade_identificada, projeto_identificado.`,
           fileUrls: uniqueUrls,
           jsonSchema: true,
-          model: 'gpt-4o',
           maxTokens: 4096,
         });
 
