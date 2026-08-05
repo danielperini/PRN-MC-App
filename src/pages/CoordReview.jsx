@@ -12,7 +12,11 @@ import {
   AlertCircle,
   Send,
   FileText,
+  Images,
+  RefreshCw,
+  X,
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 const APP_URL = window.location.origin;
 import { Button } from '@/components/ui/button';
@@ -53,6 +57,8 @@ function CoordReviewInner() {
   const [returnDialog, setReturnDialog] = useState({ open: false, report: null });
   const [reviewDialog, setReviewDialog] = useState({ open: false, report: null });
   const [comment, setComment] = useState('');
+  // Feedback da sincronização de fotos na galeria após aprovação
+  const [syncFeedback, setSyncFeedback] = useState(null); // { reportId, fotos, erro, pendente }
 
   const { data: reports = [], isLoading } = useQuery({
     queryKey: ['review-reports'],
@@ -122,6 +128,33 @@ function CoordReviewInner() {
             reviewer_name: user?.full_name || '',
           }).catch(e => console.warn('Falha ao enviar e-mail de aprovação:', e));
         }
+
+        // Sincroniza fotos do relatório aprovado na galeria central (ReportPhoto)
+        // em background, reutilizando a função backend existente. Não bloqueia
+        // o fluxo de aprovação — feedback é exibido via banner/toast.
+        setSyncFeedback({ reportId: id, pendente: true });
+        base44.functions.invoke('publicarFotosRelatorioAprovado', { report_id: id })
+          .then((res) => {
+            const data = res?.data || {};
+            const criadas = Number(data.fotos_criadas || 0);
+            const atualizadas = Number(data.fotos_atualizadas || 0);
+            const erros = Array.isArray(data.erros) ? data.erros : [];
+            const total = criadas + atualizadas;
+            if (erros.length > 0 && total === 0) {
+              setSyncFeedback({ reportId: id, erro: true });
+              toast.warning('Sincronização de fotos pendente — verifique os logs.');
+            } else if (total === 0) {
+              setSyncFeedback({ reportId: id, fotos: 0 });
+            } else {
+              setSyncFeedback({ reportId: id, fotos: total });
+              toast.success(`${total} ${total === 1 ? 'foto sincronizada' : 'fotos sincronizadas'} na galeria.`);
+            }
+          })
+          .catch((err) => {
+            console.warn('Falha ao sincronizar fotos do relatório aprovado:', err);
+            setSyncFeedback({ reportId: id, erro: true });
+            toast.warning('Sincronização de fotos pendente — tente novamente pela Galeria.');
+          });
       }
 
       if (action === 'return') {
@@ -186,6 +219,51 @@ function CoordReviewInner() {
         <h1 className="text-2xl font-semibold text-black tracking-tight">Revisão de Relatórios</h1>
         <p className="text-sm text-gray-500 mt-0.5">{pending.length} relatório{pending.length !== 1 ? 's' : ''} aguardando revisão</p>
       </div>
+
+      {syncFeedback && (
+        <div
+          className={`flex items-start gap-3 rounded-2xl border px-4 py-3 text-sm shadow-sm ${
+            syncFeedback.erro
+              ? 'border-amber-300 bg-amber-50 text-amber-800'
+              : syncFeedback.pendente
+                ? 'border-blue-200 bg-blue-50 text-blue-700'
+                : 'border-emerald-300 bg-emerald-50 text-emerald-800'
+          }`}
+        >
+          {syncFeedback.erro ? (
+            <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+          ) : syncFeedback.pendente ? (
+            <RefreshCw className="h-4 w-4 mt-0.5 shrink-0 animate-spin" />
+          ) : (
+            <CheckCircle className="h-4 w-4 mt-0.5 shrink-0" />
+          )}
+          <div className="flex-1">
+            {syncFeedback.erro ? (
+              <span>⚠ Sincronização de fotos pendente — dispare novamente pela Galeria.</span>
+            ) : syncFeedback.pendente ? (
+              <span>Sincronizando fotos do relatório aprovado na galeria...</span>
+            ) : syncFeedback.fotos === 0 ? (
+              <span className="inline-flex items-center gap-1.5">
+                <Images className="h-3.5 w-3.5" />
+                Relatório aprovado sem fotos — nada a sincronizar na galeria.
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5">
+                <Images className="h-3.5 w-3.5" />
+                ✓ {syncFeedback.fotos} {syncFeedback.fotos === 1 ? 'foto sincronizada' : 'fotos sincronizadas'} na galeria.
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setSyncFeedback(null)}
+            className="text-gray-400 hover:text-gray-600"
+            aria-label="Fechar"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {isLoading ? (
         <p className="text-sm text-gray-500">Carregando...</p>

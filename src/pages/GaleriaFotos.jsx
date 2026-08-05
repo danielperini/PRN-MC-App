@@ -26,6 +26,7 @@ import ReconstruirGaleriaDialog from '@/components/gallery/ReconstruirGaleriaDia
 import Importar6PastasDialog from '@/components/gallery/Importar6PastasDialog';
 import DeduplicarIAFotosDialog from '@/components/gallery/DeduplicarIAFotosDialog';
 import { gerarAmostraRelatorioExecutivo } from '@/utils/exportarAmostraRelatorioExecutivo';
+import SincronizarFotosAprovadasItem from '@/components/gallery/SincronizarFotosAprovadasItem';
 import { getAtividadeKey } from '@/components/gallery/ActivityChipsBar';
 import { PhotoActionBar, BulkActionBar, EditCaptionDialog, DeleteConfirmDialog, EmailPhotosDialog } from '@/components/gallery/GalleryPhotoActions';
 import { base44 } from '@/api/base44Client';
@@ -639,6 +640,7 @@ function GaleriaFotosInner() {
                 {currentUser?.role === 'admin' && (
                   <CorrigirLegendasLoteItem onConcluido={async () => { clearGalleryCache(); await refetch(); }} />
                 )}
+                <SincronizarFotosAprovadasItem onConcluido={async () => { clearGalleryCache(); await refetch(); }} />
 
                 <DropdownMenuItem
                   onClick={() => setShowRestaurar((v) => !v)}
