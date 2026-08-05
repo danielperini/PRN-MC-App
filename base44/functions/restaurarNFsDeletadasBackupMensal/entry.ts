@@ -221,15 +221,15 @@ async function sendAdminEmail(srv: any, dados: any) {
     `${prefix}Restauração de DocumentIntakes de notas fiscais deletadas do banco concluída.`,
     '',
     `Pasta de backup mensal (Drive): ${dados.root_id}`,
-    `Total de arquivos no Drive (subpastas mensais): ${dados.total_drive}`,
-    `DocumentIntakes restaurados neste lote: ${dados.total_criados}`,
-    `Arquivos pulados (duplicatas/existentes): ${dados.total_pulados}`,
+    `Total de arquivos no Drive (subpastas mensais): ${dados.totalDrive}`,
+    `DocumentIntakes restaurados neste lote: ${dados.totalCriados}`,
+    `Arquivos pulados (duplicatas/existentes): ${dados.totalPulados}`,
     `Duplicidade semântica (CNPJ|numero|valor): ${dados.duplicidade_semantica}`,
     `Cobertura atual: ${dados.cobertura.toFixed(1)}%`,
     `Origem dos registros restaurados: ${ORIGEM_RESTAURACAO}`,
   ];
-  if (dados.total_pendentes > 0) {
-    bodyLines.push(`Arquivos pendentes para a próxima execução: ${dados.total_pendentes}`);
+  if (dados.totalPendentes > 0) {
+    bodyLines.push(`Arquivos pendentes para a próxima execução: ${dados.totalPendentes}`);
   }
   bodyLines.push('', 'Restauração de auditoria — não cria PurchaseRequest nem dispara notificações de compra.');
   const body = bodyLines.join('\n');
