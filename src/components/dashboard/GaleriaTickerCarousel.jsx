@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { isTechnicalFileName, isInventedCaption } from '@/utils/galleryNormalization';
+import { filterByCooldown, registerImpressions } from '@/utils/carouselCooldown';
 
 const PHOTO_COUNT = 4;
 const ROTATION_INTERVAL_MS = 30000;
@@ -195,7 +196,9 @@ export default function GaleriaTickerCarousel() {
         if (reportPhotos.status === 'fulfilled') allItems.push(...(Array.isArray(reportPhotos.value) ? reportPhotos.value : []));
 
         const curated = curatePeoplePhotos(allItems);
-        if (mounted && curated.length > 0) setPool(curated);
+        if (!mounted) return;
+        const filtered = filterByCooldown(curated, PHOTO_COUNT);
+        if (filtered.length > 0) setPool(filtered);
       } catch (e) {
         console.error('GaleriaTickerCarousel: erro ao carregar imagens', e);
       }
@@ -220,6 +223,12 @@ export default function GaleriaTickerCarousel() {
       if (rotationRef.current) clearInterval(rotationRef.current);
     };
   }, [pool]);
+
+  // Registra impressões do conjunto atual sempre que o round muda.
+  useEffect(() => {
+    if (pool.length === 0) return;
+    registerImpressions(sliceWithWrap(pool, round, PHOTO_COUNT).map((p) => p.url));
+  }, [round, pool]);
 
   if (pool.length === 0) return null;
 
