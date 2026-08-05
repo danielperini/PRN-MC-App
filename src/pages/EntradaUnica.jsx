@@ -39,6 +39,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import ImportarPacoteRelatorios from '@/components/entrada/ImportarPacoteRelatorios';
 import SectionErrorBoundary from '@/components/common/SectionErrorBoundary';
+import MonitoramentoFila from '@/components/entrada/MonitoramentoFila';
 
 function normalizeText(value) {
   return String(value || '').
@@ -1999,6 +2000,16 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
                   </div>
                   </div>
                   </div>
+
+                  {(user?.role === 'admin' || isCoordenador(user)) && (
+                    <div className="px-5 md:px-6 pb-2">
+                      <MonitoramentoFila
+                        intakes={intakes}
+                        processados={processados}
+                        onRefresh={loadIntakes}
+                      />
+                    </div>
+                  )}
 
                   <div className="p-4 md:p-6">
                   <DocumentUploadZone
