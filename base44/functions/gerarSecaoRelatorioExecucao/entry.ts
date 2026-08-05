@@ -259,8 +259,25 @@ REGRAS ABSOLUTAS:
 7. Citações literais apenas se o texto original foi fornecido.
 
 `;
+      const fullPrompt = instrucao + prompt;
+      // Gemini preferencial via Service Account, fallback OpenAI
+      if (Deno.env.get('GOOGLE_SERVICE_ACCOUNT_JSON')) {
+        try {
+          const res = await base44.functions.invoke('callGemini', {
+            prompt: fullPrompt,
+            jsonSchema: schema || null,
+            maxTokens: 4096,
+            model: 'gemini-2.0-flash',
+          });
+          const data = res?.data || res;
+          if (data?.ok === false) throw new Error(data?.error || 'Gemini falhou');
+          return data?.result ?? data;
+        } catch (geminiErr) {
+          console.warn('[gerarSecao] Gemini falhou, caindo em OpenAI:', String(geminiErr?.message || geminiErr));
+        }
+      }
       return await invokeOpenAI({
-        prompt: instrucao + prompt,
+        prompt: fullPrompt,
         jsonSchema: schema || null,
         model: 'gpt-4o-mini',
       });

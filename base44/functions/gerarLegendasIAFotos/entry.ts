@@ -19,6 +19,21 @@ async function invokeOpenAI({ prompt, jsonSchema = null, model = 'gpt-4o-mini' }
   throw lastErr;
 }
 
+// Gemini (preferencial) com fallback OpenAI
+async function invokeLLM({ prompt, jsonSchema = null, model = 'gemini-2.0-flash', maxTokens = 2048, base44Client = null }: any): Promise<any> {
+  if (Deno.env.get('GOOGLE_SERVICE_ACCOUNT_JSON') && base44Client) {
+    try {
+      const res = await base44Client.functions.invoke('callGemini', { prompt, jsonSchema: jsonSchema || null, maxTokens, model });
+      const data = res?.data || res;
+      if (data?.ok === false) throw new Error(data?.error || 'Gemini falhou');
+      return data?.result ?? data;
+    } catch (geminiErr) {
+      console.warn('[gerarLegendasIAFotos] Gemini falhou, caindo em OpenAI:', String(geminiErr?.message || geminiErr));
+    }
+  }
+  return invokeOpenAI({ prompt, jsonSchema, model: 'gpt-4o-mini' });
+}
+
 const MESES_CAP = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
 function normalizeUrl(url) {
@@ -231,10 +246,11 @@ ${fotosContext}
 Gere as ${lote.length} legendas em ordem, correspondendo a FOTO_1, FOTO_2, etc.:`;
 
       try {
-        const result = await invokeOpenAI({
+        const result = await invokeLLM({
           prompt,
           jsonSchema: { type: 'object' },
-          model: 'gpt-4o-mini',
+          model: 'gemini-2.0-flash',
+          base44Client: base44,
         });
 
         const legendas = Array.isArray(result?.legendas) ? result.legendas : [];
