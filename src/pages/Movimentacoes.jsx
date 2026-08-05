@@ -4,7 +4,6 @@ import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { ArrowDownLeft, ArrowUpRight, Banknote, CalendarDays, ExternalLink, FolderSync, Loader2, RefreshCw, Search, TrendingUp, X } from 'lucide-react';
-import FluxoCaixaMensal from '@/components/dashboard/FluxoCaixaMensal';
 import ConferenciaNotasDrive from '@/components/movimentacoes/ConferenciaNotasDrive';
 import PagamentosSemNF from '@/components/movimentacoes/PagamentosSemNF';
 import { agruparMovimentacoesPorMes, ehTransferenciaInterna, resumirGruposMensais, resumirRegistrosMensais } from '@/utils/movimentacoesMensais';
@@ -127,7 +126,6 @@ export default function Movimentacoes() {
         { label: 'Débitos operacionais', valor: totaisGerais.debitos, icon: <ArrowDownLeft className="h-5 w-5 text-red-500" />, classe: 'border-red-200 text-red-600' },
         { label: 'Rendimentos', valor: totaisGerais.rendimento, icon: <TrendingUp className="h-5 w-5 text-blue-600" />, classe: 'border-blue-200 text-blue-700' },
       ].map((item) => <div key={item.label} className={`rounded-2xl border bg-white p-5 shadow-sm ${item.classe}`}><div className="mb-2 flex items-center justify-between">{item.icon}<span className="text-[10px] font-bold uppercase tracking-wide">{item.label}</span></div><p className="text-xl font-bold">{fmtBRL(item.valor)}</p></div>)}</div>
-      <FluxoCaixaMensal />
       <PagamentosSemNF grupos={grupos} />
       <ConferenciaNotasDrive />
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="grid gap-4 lg:grid-cols-[280px_1fr] lg:items-end"><div><label htmlFor="mes-extrato" className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-gray-500"><CalendarDays className="h-3.5 w-3.5" /> Extrato mensal</label><select id="mes-extrato" value={mesSelecionado} onChange={(e) => setMesSelecionado(e.target.value)} className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm font-semibold">{grupos.map((grupo) => <option key={grupo.key} value={grupo.key}>{MESES_NOME[grupo.mes_num]} de {grupo.ano}</option>)}</select></div><div className="relative"><Search className="absolute left-3.5 top-3 h-4 w-4 text-gray-400" /><input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar lançamento, banco ou descrição…" className="w-full rounded-xl border border-gray-200 py-2.5 pl-10 pr-10 text-sm" />{busca && <button type="button" onClick={() => setBusca('')} className="absolute right-3.5 top-3"><X className="h-4 w-4" /></button>}</div></div></section>
