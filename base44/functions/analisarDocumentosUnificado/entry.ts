@@ -252,25 +252,10 @@ Deno.serve(async (req) => {
     const temPDF = uniqueUrls.some(u => getFileExt(u, '') === 'pdf');
     const temImagem = uniqueUrls.some(u => getFileExt(u, '') === 'imagem');
     
-    // Gemini preferencial (visão) via Service Account, fallback OpenAI GPT-4o
-    async function invokeVisionLLM({ prompt, fileUrls, jsonSchema = null, maxTokens = 4096, geminiModel = 'gemini-2.5-flash' }) {
-      if (Deno.env.get('GOOGLE_SERVICE_ACCOUNT_JSON')) {
-        try {
-          const res = await base44.functions.invoke('callGemini', { prompt, fileUrls, jsonSchema, maxTokens, model: geminiModel });
-          const data = res?.data || res;
-          if (data?.ok === false) throw new Error(data?.error || 'Gemini falhou');
-          return data?.result ?? data;
-        } catch (geminiErr) {
-          console.warn('[analisarDocs] Gemini falhou, caindo em OpenAI:', String(geminiErr?.message || geminiErr));
-        }
-      }
-      return invokeOpenAI({ prompt, fileUrls, jsonSchema, model: 'gpt-4o', maxTokens });
-    }
-
     if ((temPDF || temImagem || uniqueUrls.length > 1) && modo !== 'sugerir_apenas') {
       try {
         const hoje = new Date().toISOString().slice(0, 10);
-        const ia = await invokeVisionLLM({
+        const ia = await invokeOpenAI({
           prompt: `Você é um especialista em documentos fiscais e administrativos brasileiros. Analise TODOS os arquivos anexados e extraia CADA campo abaixo.
 
 INSTRUÇÕES CRÍTICAS:
@@ -290,6 +275,7 @@ Data atual: ${hoje}
 Responda APENAS com JSON válido contendo os campos: tipo_documento, descricao_servico, fornecedor_nome, fornecedor_cpf_cnpj, nf_numero, nf_data_emissao, nf_horario_emissao, nf_valor_total (number), nf_valor_liquido (number), nf_retencoes (number), nf_chave_acesso, competencia, municipio, dados_bancarios, chave_pix, meio_pagamento, observacoes, contrato_numero, museu_identificado, atividade_identificada, projeto_identificado.`,
           fileUrls: uniqueUrls,
           jsonSchema: true,
+          model: 'gpt-4o',
           maxTokens: 4096,
         });
 

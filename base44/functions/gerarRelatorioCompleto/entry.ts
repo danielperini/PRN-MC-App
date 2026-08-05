@@ -56,24 +56,7 @@ REGRAS:
 6. Não use caixa alta desnecessária nem jargão burocrático vazio.
 
 `;
-      const fullPrompt = instrucao + prompt;
-      // Gemini preferencial via Service Account, fallback InvokeLLM (Base44 Core)
-      if (Deno.env.get('GOOGLE_SERVICE_ACCOUNT_JSON')) {
-        try {
-          const res = await base44.functions.invoke('callGemini', {
-            prompt: fullPrompt,
-            jsonSchema: schema || null,
-            maxTokens: 4096,
-            model: 'gemini-2.0-flash',
-          });
-          const data = res?.data || res;
-          if (data?.ok === false) throw new Error(data?.error || 'Gemini falhou');
-          return data?.result ?? data;
-        } catch (geminiErr) {
-          console.warn('[gerarRelatorioCompleto] Gemini falhou, caindo em InvokeLLM:', String(geminiErr?.message || geminiErr));
-        }
-      }
-      const opts: any = { prompt: fullPrompt };
+      const opts: any = { prompt: instrucao + prompt };
       if (schema) opts.response_json_schema = schema;
       return await base44.integrations.Core.InvokeLLM(opts);
     }

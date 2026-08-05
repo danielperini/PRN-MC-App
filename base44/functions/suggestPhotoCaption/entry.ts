@@ -21,24 +21,6 @@ async function invokeOpenAI({ prompt, fileUrls = [], jsonSchema = null, model = 
   throw lastErr;
 }
 
-// Gemini (preferencial via Service Account) com fallback OpenAI
-async function invokeLLM({ prompt, fileUrls = [], jsonSchema = null, model = 'gemini-2.0-flash', maxTokens = 1024 }: any): Promise<any> {
-  const base44 = (globalThis as any).__base44_suggest_caption;
-  if (Deno.env.get('GOOGLE_SERVICE_ACCOUNT_JSON') && base44) {
-    try {
-      const res = await base44.functions.invoke('callGemini', {
-        prompt, fileUrls, jsonSchema: jsonSchema || null, maxTokens, model
-      });
-      const data = res?.data || res;
-      if (data?.ok === false) throw new Error(data?.error || 'Gemini falhou');
-      return data?.result ?? data;
-    } catch (geminiErr) {
-      console.warn('[suggestPhotoCaption] Gemini falhou, caindo em OpenAI:', String(geminiErr?.message || geminiErr));
-    }
-  }
-  return invokeOpenAI({ prompt, fileUrls, jsonSchema, model: 'gpt-4o' });
-}
-
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -149,12 +131,12 @@ Formato obrigatório:
   "location": "texto"
 }`;
 
-    const geminiRes = await base44.functions.invoke('geminiInvoke', {
+    const result = await invokeOpenAI({
       prompt,
       fileUrls: [photoUrl],
       jsonSchema: { type: 'object' },
+      model: 'gpt-4o',
     });
-    const result = geminiRes?.data?.result || {};
 
     return Response.json({
       success: true,
