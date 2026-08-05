@@ -8,10 +8,10 @@ import { base44 } from '@/api/base44Client';
  */
 export const DEFAULTS_CRITERIOS = {
   'dashboard_criterios_meta_20': {
-    meta_codigos_aceitos: ['20', '10'],
-    classificacoes_aceitas: ['cultural', 'educativa', 'meta'],
-    palavras_chave_inclusao: ['mostra', 'cultural', 'show', 'teatro', 'apresent', 'música', 'educa', 'oficina', 'palestra', 'formação', 'roda'],
-    palavras_chave_exclusao: ['11b', 'pampulha', '11', '16', '19', 'iemanjá', 'iemanja', 'noturno', 'diária', 'diaria'],
+    meta_codigos_aceitos: ['20 -'],
+    classificacoes_aceitas: [],
+    palavras_chave_inclusao: [],
+    palavras_chave_exclusao: [],
     geral_mode: 'consolidado',
   },
   'dashboard_criterios_noturno': {
