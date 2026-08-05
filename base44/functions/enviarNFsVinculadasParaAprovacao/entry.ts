@@ -42,6 +42,7 @@ Deno.serve(async (req) => {
     total: 0,
     enviados: 0,
     falhas: 0,
+    sem_rubrica: 0,
     pulados_idempotentes: 0,
     sem_xml: 0,
     duplicados: 0,
@@ -97,11 +98,11 @@ Deno.serve(async (req) => {
 
     if (elegiveis.length === 0) {
       await registrarBackupLog(srv, {
-        status: 'concluido', total: 0, enviados: 0, falhas: 0, execution_ms: Date.now() - startTime,
+        status: 'concluido', total: 0, enviados: 0, falhas: 0, sem_rubrica: 0, execution_ms: Date.now() - startTime,
         triggeredBy, erro: '',
       });
       return Response.json({
-        ok: true, total: 0, enviados: 0, falhas: 0, pulados_idempotentes: 0, sem_xml: resumo.sem_xml, duplicados: resumo.duplicados,
+        ok: true, total: 0, enviados: 0, falhas: 0, sem_rubrica: 0, pulados_idempotentes: 0, sem_xml: resumo.sem_xml, duplicados: resumo.duplicados,
       });
     }
 
@@ -149,8 +150,7 @@ Deno.serve(async (req) => {
         const fileName = intake.file_name_final || intake.file_name_original || 'Arquivo';
 
         if (!rubrica_id || !centro_custo || !valor) {
-          resumo.falhas++;
-          resumo.erros.push(`${fileName}: rubrica/centro_custo/valor ausente`);
+          resumo.sem_rubrica++;
           continue;
         }
 
@@ -237,11 +237,17 @@ Deno.serve(async (req) => {
 
     // ---- 4. BackupLog ----
     const execution_ms = Date.now() - startTime;
+    // Status 'concluido' quando a função executou até o fim (mesmo sem enviados —
+    // intakes sem rubrica ficam aguardando enriquecimento da automação de 2h).
+    // 'failure' reservado para erros fatais (tratados no catch externo).
+    const status = resumo.falhas > 0 && resumo.enviados === 0 && resumo.sem_rubrica === 0
+      ? 'failure' : 'concluido';
     await registrarBackupLog(srv, {
-      status: resumo.falhas > 0 && resumo.enviados === 0 ? 'failure' : 'concluido',
+      status,
       total: resumo.total,
       enviados: resumo.enviados,
       falhas: resumo.falhas,
+      sem_rubrica: resumo.sem_rubrica,
       pulados_idempotentes: resumo.pulados_idempotentes,
       execution_ms,
       triggeredBy,
@@ -253,6 +259,7 @@ Deno.serve(async (req) => {
       total: resumo.total,
       enviados: resumo.enviados,
       falhas: resumo.falhas,
+      sem_rubrica: resumo.sem_rubrica,
       pulados_idempotentes: resumo.pulados_idempotentes,
       sem_xml: resumo.sem_xml,
       duplicados: resumo.duplicados,
@@ -279,6 +286,7 @@ async function registrarBackupLog(srv, dados) {
       details: safeStr(JSON.stringify({
         enviados: dados.enviados,
         falhas: dados.falhas,
+        sem_rubrica: dados.sem_rubrica,
         pulados_idempotentes: dados.pulados_idempotentes,
       })),
       error_message: dados.erro || '',
