@@ -244,7 +244,7 @@ async function registrarBackupLog(srv, dados) {
         email_enviado_admin: dados.email_enviado,
       })),
       error_message: dados.erro || '',
-      triggered_by: 'manual',
+      triggered_by: dados.triggered_by || 'manual',
     });
   } catch (e) {
     console.warn('[BackupLog] falha ao registrar:', e.message);
@@ -260,14 +260,23 @@ Deno.serve(async (req) => {
     const srv = base44.asServiceRole;
     if (!srv) return Response.json({ error: 'Service role indisponível' }, { status: 500 });
 
-    const isAuth = await base44.auth.isAuthenticated();
-    if (!isAuth) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    const user = await base44.auth.me().catch(() => null);
-    if (user && !['admin', 'coordenador', 'coordinator'].includes(String(user.role || '').toLowerCase())) {
-      return Response.json({ error: 'Apenas administradores ou coordenadores.' }, { status: 403 });
+    const url = new URL(req.url);
+    const body = await req.json().catch(() => ({}));
+    const isCron = url.searchParams.get('cron') === '1'
+      || req.headers.get('x-base44-trigger') === 'cron'
+      || body.cron === '1'
+      || body.cron === true;
+
+    let user = null;
+    if (!isCron) {
+      const isAuth = await base44.auth.isAuthenticated();
+      if (!isAuth) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+      user = await base44.auth.me().catch(() => null);
+      if (user && !['admin', 'coordenador', 'coordinator'].includes(String(user.role || '').toLowerCase())) {
+        return Response.json({ error: 'Apenas administradores ou coordenadores.' }, { status: 403 });
+      }
     }
 
-    const body = await req.json().catch(() => ({}));
     const batchSize = Math.min(parseInt(body.batch_size, 10) || MAX_FILES_PER_EXEC, MAX_FILES_PER_EXEC);
     const deadline = startTime + TIMEOUT_BUDGET_MS;
 
@@ -365,6 +374,7 @@ Deno.serve(async (req) => {
       totalDrive, totalCriados, totalPulados, cobertura, pendentes: totalPendentes,
     });
     await registrarBackupLog(srv, {
+      triggered_by: safeStr(body.triggeredBy || (isCron ? 'scheduled' : 'manual')),
       total_drive: totalDrive,
       total_criados: totalCriados,
       total_pulados: totalPulados,
