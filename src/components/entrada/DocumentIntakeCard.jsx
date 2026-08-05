@@ -191,6 +191,9 @@ export default function DocumentIntakeCard({ intake, allIntakes, onReview, onDel
   const temXmlVinculado = isPDF && !!intake.nf_xml_intake_id;
   const temReciboVinculado = isPDF && !!intake.recibo_intake_id;
 
+  // statusKey declarado antes de qualquer uso (TDZ-safe)
+  const statusKey = String(intake.status_processamento || '').toUpperCase();
+
   // IA Histórico — badge e botão de envio direto à coordenação
   const iaHistorico = intake?.resultado_ia?.preenchido_por_ia_historico === true;
   const iaHistoricoScore = Number(intake?.resultado_ia?.ia_historico_score || 0);
@@ -200,7 +203,6 @@ export default function DocumentIntakeCard({ intake, allIntakes, onReview, onDel
     (isRecibo && !intake.nf_pdf_intake_id && intake.grupo_status !== 'COMPLETO');
 
   const fileName = intake.file_name_final || intake.file_name_original || 'Arquivo';
-  const statusKey = String(intake.status_processamento || '').toUpperCase();
   const isProcessing = ['ANALISANDO_IA', 'ENVIADO'].includes(statusKey);
   const isEnviadoTravado = statusKey === 'ENVIADO' && isPDF;
   const canFallbackReview = isPDF && isProcessing && hasStrongFileNameData(fileName);
