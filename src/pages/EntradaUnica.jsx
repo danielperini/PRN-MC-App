@@ -1475,54 +1475,26 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
 
     setConciliarEnviandoLote(true);
     try {
-      // 1. Conciliação no backend (vínculo XML↔PDF + preenchimento de campos)
-      let xmlsVinculados = 0;
+      // Pipeline completo: Fase 1 (local) → Fase 2 (Drive) → Fase 3 (Gmail) → Fase 4 (aprovação)
+      let totals = null;
       try {
-        const res = await base44.functions.invoke('processarEntradaUnicaLote', {});
-        const data = res?.data || res || {};
-        if (data?.success === false) {
-          toast.error('Erro ao conciliar: ' + (data?.error || 'falha no backend'));
+        const res = await base44.functions.invoke('conciliarEEnviarNFsPipeline', { triggeredBy: 'manual' });
+        totals = res?.data?.totals || res?.totals || null;
+        const okFlag = res?.data?.ok !== false && res?.ok !== false;
+        if (!okFlag) {
+          toast.error('Erro ao conciliar: ' + (res?.data?.error || res?.error || 'falha no backend'));
           return;
         }
-        xmlsVinculados = data?.resumo?.xmls_vinculados ?? data?.xmls_vinculados ?? 0;
       } catch (e) {
-        console.error('Erro ao chamar processarEntradaUnicaLote:', e);
+        console.error('Erro ao chamar conciliarEEnviarNFsPipeline:', e);
         toast.error('Erro ao conciliar fila: ' + (e?.message || e));
         return;
       }
 
-      // 2. Recarrega a fila para refletir vínculos e campos preenchidos
-      const { filtrados: lista } = await loadIntakes();
-
-      // 3. Filtra NF PDFs elegíveis: XML vinculado, em revisão, sem duplicidade
-      const naFilaSemXml = [];
-      const elegiveis = [];
-      for (const i of lista) {
-        const tipo = i.tipo_detectado || getTipoByFile(i);
-        if (tipo !== 'NOTA_FISCAL_PDF') continue;
-        const status = String(i.status_processamento || '').toUpperCase();
-        if (status !== 'AGUARDANDO_REVISAO') continue;
-        const duplicidade = String(i.duplicidade_status || '').toLowerCase();
-        if (duplicidade === 'confirmada' || i.duplicada_financeira === true) continue;
-
-        if (i.nf_xml_intake_id) {
-          elegiveis.push(i);
-        } else {
-          naFilaSemXml.push(i);
-        }
-      }
-
-      // 4. Envia cada NF elegível para aprovação (lógica compartilhada)
-      let enviados = 0;
-      for (const intake of elegiveis) {
-        const res = await enviarIntakeParaAprovacao(intake);
-        if (res?.ok) enviados++;
-      }
-
       await loadIntakes();
-
+      const t = totals || {};
       toast.success(
-        `${xmlsVinculados} XML(s) vinculado(s), ${enviados} NF(s) enviada(s) para aprovação. ${naFilaSemXml.length} ficaram na fila (sem XML).`
+        `Local: ${t.vinculados_local || 0} | Drive: ${t.encontrados_drive || 0} | Gmail: ${t.encontrados_gmail || 0} | Enviados: ${t.enviados_aprovacao || 0} | Pendentes s/ XML: ${t.pendentes_sem_xml || 0}`
       );
     } finally {
       setConciliarEnviandoLote(false);
