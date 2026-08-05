@@ -76,6 +76,21 @@
           },
           "saldo": {
             "type": "number"
+          },
+          "competencia_bancaria": {
+            "type": "string",
+            "description": "Chave YYYY-MM da compet\u00eancia banc\u00e1ria do lan\u00e7amento"
+          },
+          "categoria": {
+            "type": "string"
+          },
+          "compra_vinculada_id": {
+            "type": "string",
+            "description": "ID do PurchaseRequest vinculado a este lan\u00e7amento (concilia\u00e7\u00e3o autom\u00e1tica)"
+          },
+          "compra_vinculada_score": {
+            "type": "number",
+            "description": "Score de confian\u00e7a do v\u00ednculo (0-1)"
           }
         }
       }

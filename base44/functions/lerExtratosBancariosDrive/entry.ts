@@ -94,8 +94,9 @@ function deterministic(extracted:any,recordType:string){
 Deno.serve(async(req)=>{
   try{
     const base44=createClientFromRequest(req);const body=await req.json().catch(()=>({}));
-    const user=await base44.auth.me().catch(()=>null);if(!user)return Response.json({success:false,error:'Unauthorized'},{status:401});
-    if(!['admin','coordenador','coordinator'].includes(normalize(user.role)))return Response.json({success:false,error:'Apenas administradores ou coordenadores podem executar esta rotina.'},{status:403});
+    const user=await base44.auth.me().catch(()=>null);
+    const isServiceRole=!user; // automação headless não carrega usuário
+    if(user&&!['admin','coordenador','coordinator'].includes(normalize(user.role)))return Response.json({success:false,error:'Apenas administradores ou coordenadores podem executar esta rotina.'},{status:403});
     let token:string|null=null;try{token=(await base44.asServiceRole.connectors.getConnection('googledrive'))?.accessToken||null}catch(_){ }
     if(!token)return Response.json({success:false,error:'Google Drive não está conectado.',code:'DRIVE_NOT_CONNECTED'},{status:401});
     async function listFolder(folderId:string){const out:any[]=[];let pageToken='';do{const q=encodeURIComponent(`'${folderId}' in parents and trashed=false`);const fields=encodeURIComponent('nextPageToken,files(id,name,mimeType,size,createdTime,modifiedTime,webViewLink,md5Checksum)');const url=`https://www.googleapis.com/drive/v3/files?q=${q}&fields=${fields}&pageSize=100&supportsAllDrives=true&includeItemsFromAllDrives=true${pageToken?`&pageToken=${pageToken}`:''}`;const r=await fetch(url,{headers:{Authorization:`Bearer ${token}`}});if(!r.ok)throw new Error(`Drive listagem HTTP ${r.status}: ${await r.text()}`);const d=await r.json();out.push(...(d.files||[]));pageToken=d.nextPageToken||''}while(pageToken);return out}
