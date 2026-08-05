@@ -98,6 +98,27 @@
       "type": "string",
       "description": "Justificativa da sugest\u00e3o de rubrica"
     },
+    "rubrica_id": {
+      "type": "string",
+      "description": "Rubrica confirmada (definitiva). Preenchida automaticamente quando h\u00e1 hist\u00f3rico suficiente do fornecedor, ou manualmente pelo admin."
+    },
+    "rubrica_nome": {
+      "type": "string",
+      "description": "Nome da rubrica confirmada (espelho de rubrica_id)"
+    },
+    "rubrica_confirmada_em": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data/hora da confirma\u00e7\u00e3o autom\u00e1tica da rubrica"
+    },
+    "rubrica_confirmada_origem": {
+      "type": "string",
+      "enum": [
+        "historico_fornecedor",
+        "manual"
+      ],
+      "description": "Origem da confirma\u00e7\u00e3o da rubrica"
+    },
     "centro_custo": {
       "type": "string",
       "description": "Centro de custo identificado ou selecionado"
@@ -161,6 +182,10 @@
     },
     "fornecedor_cpf_cnpj": {
       "type": "string"
+    },
+    "fornecedor_id_vinculado": {
+      "type": "string",
+      "description": "ID do Fornecedor vinculado no cadastro (FK \u2192 Fornecedor)"
     },
     "municipio": {
       "type": "string"

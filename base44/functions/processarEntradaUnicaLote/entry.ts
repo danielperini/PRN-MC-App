@@ -151,12 +151,254 @@ Deno.serve(async (req) => {
     datas_preenchidas: 0,
     valores_preenchidos: 0,
     centros_custo_corrigidos: 0,
+    fornecedores_promovidos: 0,
+    fornecedores_criados: 0,
+    fornecedores_vinculados: 0,
+    rubricas_confirmadas_historico: 0,
     ids_processados: [],
     detalhes_xml_pdf: [],
     detalhes_data_valor: [],
     detalhes_centro_custo: [],
+    detalhes_fornecedor: [],
+    detalhes_rubrica: [],
     erros: [],
   };
+
+  // ===== FRENTE 4: promoção de campos de fornecedor da IA para a raiz =====
+  // Copia fornecedor_nome, nf_emitente_nome, nf_emitente_cpf_cnpj, fornecedor_cpf_cnpj
+  // do resultado_ia para os campos raiz do DocumentIntake (apenas se raiz vazio).
+  function pickIa(ia, ...keys) {
+    for (const k of keys) {
+      const v = ia?.[k];
+      if (v !== undefined && v !== null && String(v).trim() !== '') return v;
+    }
+    return '';
+  }
+
+  const patchFornecedorPorId = {};
+  for (const intake of intakes) {
+    if (!intake?.id) continue;
+    const tipo = String(intake.tipo_detectado || '').toUpperCase();
+    if (tipo !== 'NOTA_FISCAL_PDF' && tipo !== 'NOTA_FISCAL_XML') continue;
+
+    const ia = intake.resultado_ia || {};
+    const patch = {};
+
+    if (!String(intake.fornecedor_nome || '').trim()) {
+      const v = String(pickIa(ia, 'fornecedor_nome', 'emitente_nome', 'razao_social', 'fornecedor_razao_social') || '').trim();
+      if (v) patch.fornecedor_nome = v;
+    }
+    if (!String(intake.nf_emitente_nome || '').trim()) {
+      const v = String(pickIa(ia, 'nf_emitente_nome', 'emitente_nome', 'razao_social_emitente', 'emitente_razao_social') || '').trim();
+      if (v) patch.nf_emitente_nome = v;
+    }
+    if (!String(intake.nf_emitente_cpf_cnpj || '').trim()) {
+      const v = String(pickIa(ia, 'nf_emitente_cpf_cnpj', 'emitente_cpf_cnpj', 'emitente_cnpj', 'emitente_cpf', 'cnpj_emitente', 'cpf_emitente') || '').trim();
+      if (v) patch.nf_emitente_cpf_cnpj = digits(v);
+    }
+    if (!String(intake.fornecedor_cpf_cnpj || '').trim()) {
+      const v = String(pickIa(ia, 'fornecedor_cpf_cnpj', 'fornecedor_cnpj', 'fornecedor_cpf', 'cnpj_fornecedor', 'cpf_fornecedor') || '').trim();
+      if (v) patch.fornecedor_cpf_cnpj = digits(v);
+    }
+
+    if (Object.keys(patch).length > 0) {
+      patchFornecedorPorId[intake.id] = patch;
+      stats.fornecedores_promovidos++;
+      stats.detalhes_fornecedor.push({ id: intake.id, acao: 'promover_campos', campos: Object.keys(patch) });
+    }
+  }
+
+  const bulkFornecedor = Object.keys(patchFornecedorPorId).map((id) => ({ id, ...patchFornecedorPorId[id] }));
+  if (bulkFornecedor.length > 0) {
+    try {
+      await db.DocumentIntake.bulkUpdate(bulkFornecedor);
+    } catch (e) {
+      for (const item of bulkFornecedor) {
+        try { await db.DocumentIntake.update(item.id, item); }
+        catch (err) { stats.erros.push({ id: item.id, fase: 'fornecedor_promover', msg: String(err?.message || err) }); }
+      }
+    }
+  }
+
+  // ===== FRENTE 5: criação/vinculação de Fornecedor no cadastro =====
+  // Após promover campos, recarrega intakes com campos atualizados e para cada NF
+  // com CPF/CNPJ: tenta vincular a Fornecedor existente ou cria novo (máx 20/ciclo).
+  let intakesComFornecedor = [];
+  try {
+    const refreshF = await db.DocumentIntake.filter({
+      status_registro: 'ATIVO',
+    }, '-created_date', LIMIT);
+    intakesComFornecedor = (refreshF || []).filter((i) => {
+      const st = String(i.status_processamento || '').toUpperCase();
+      return !['APROVADO', 'ENVIADO_APROVACAO', 'DELETADO', 'REJEITADO'].includes(st);
+    });
+  } catch (_) {
+    intakesComFornecedor = intakes;
+  }
+
+  // Indexa fornecedores existentes por cpf_cnpj normalizado
+  let fornecedoresCadastrados = [];
+  try {
+    fornecedoresCadastrados = await db.Fornecedor.list('-updated_date', 500) || [];
+  } catch (e) {
+    stats.erros.push({ fase: 'fornecedor_list', msg: String(e?.message || e) });
+  }
+  const fornecedoresPorDoc = new Map();
+  for (const f of fornecedoresCadastrados) {
+    const doc = digits(f.cpf_cnpj || f.cnpj || f.cpf || '');
+    if (doc && !fornecedoresPorDoc.has(doc)) fornecedoresPorDoc.set(doc, f);
+  }
+
+  const MAX_FORNECEDORES_CRIAR = 20;
+  let criados = 0;
+  const patchFornVincPorId = {};
+
+  for (const intake of intakesComFornecedor) {
+    if (!intake?.id) continue;
+    if (intake.fornecedor_id_vinculado) continue; // já vinculado
+    const tipo = String(intake.tipo_detectado || '').toUpperCase();
+    if (tipo !== 'NOTA_FISCAL_PDF' && tipo !== 'NOTA_FISCAL_XML') continue;
+
+    const doc = digits(intake.fornecedor_cpf_cnpj || intake.nf_emitente_cpf_cnpj || '');
+    const nomeForn = String(intake.fornecedor_nome || intake.nf_emitente_nome || '').trim();
+    if (!doc || !nomeForn) continue;
+
+    const existente = fornecedoresPorDoc.get(doc);
+    if (existente) {
+      patchFornVincPorId[intake.id] = { fornecedor_id_vinculado: existente.id };
+      stats.fornecedores_vinculados++;
+      stats.detalhes_fornecedor.push({ id: intake.id, acao: 'vincular', fornecedor_id: existente.id, doc });
+      // Adiciona intake ao nfs_intake_ids se ainda não presente
+      const nfs = Array.isArray(existente.nfs_intake_ids) ? existente.nfs_intake_ids : [];
+      if (!nfs.includes(intake.id)) {
+        nfs.push(intake.id);
+        try { await db.Fornecedor.update(existente.id, { nfs_intake_ids: nfs }); }
+        catch (err) { stats.erros.push({ id: existente.id, fase: 'fornecedor_nfs_push', msg: String(err?.message || err) }); }
+      }
+    } else if (criados < MAX_FORNECEDORES_CRIAR) {
+      // Cria novo fornecedor
+      const tipoPessoa = doc.length === 14 ? 'pessoa_juridica' : doc.length === 11 ? 'pessoa_fisica' : 'prestador';
+      const novoForn = {
+        nome: nomeForn,
+        cpf_cnpj: doc,
+        tipo_pessoa: tipoPessoa,
+        status: 'ATIVO',
+        ativo: true,
+        nfs_intake_ids: [intake.id],
+      };
+      if (doc.length === 14) novoForn.cnpj = doc;
+      else if (doc.length === 11) novoForn.cpf = doc;
+      if (String(intake.municipio || '').trim()) novoForn.municipio = String(intake.municipio).trim();
+
+      try {
+        const created = await db.Fornecedor.create(novoForn);
+        if (created?.id) {
+          fornecedoresPorDoc.set(doc, created);
+          patchFornVincPorId[intake.id] = { fornecedor_id_vinculado: created.id };
+          criados++;
+          stats.fornecedores_criados++;
+          stats.detalhes_fornecedor.push({ id: intake.id, acao: 'criar', fornecedor_id: created.id, doc, nome: nomeForn });
+        }
+      } catch (err) {
+        stats.erros.push({ id: intake.id, fase: 'fornecedor_criar', msg: String(err?.message || err) });
+      }
+    }
+  }
+
+  const bulkFornVinc = Object.keys(patchFornVincPorId).map((id) => ({ id, ...patchFornVincPorId[id] }));
+  if (bulkFornVinc.length > 0) {
+    try {
+      await db.DocumentIntake.bulkUpdate(bulkFornVinc);
+    } catch (e) {
+      for (const item of bulkFornVinc) {
+        try { await db.DocumentIntake.update(item.id, item); }
+        catch (err) { stats.erros.push({ id: item.id, fase: 'fornecedor_vincular', msg: String(err?.message || err) }); }
+      }
+    }
+  }
+
+  // ===== FRENTE 6: confirmação automática de rubrica por histórico do fornecedor =====
+  // Para intakes com rubrica_id_sugerida e sem rubrica_id: se o fornecedor (por CPF/CNPJ)
+  // tem histórico de ≥1 compra aprovada com a mesma rubrica, confirma.
+  const STATUS_APROVADOS_COMPRA = new Set(['APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
+  let comprasAprovadas = [];
+  try {
+    comprasAprovadas = await db.PurchaseRequest.list('-updated_date', 500) || [];
+  } catch (e) {
+    stats.erros.push({ fase: 'compras_list', msg: String(e?.message || e) });
+  }
+  // Map cpf_cnpj -> { rubrica_id -> count }
+  const histPorDoc = new Map();
+  for (const c of comprasAprovadas) {
+    if (!c) continue;
+    const st = String(c.status || '').toUpperCase();
+    if (!STATUS_APROVADOS_COMPRA.has(st)) continue;
+    const rid = String(c.rubrica_id || '').trim();
+    if (!rid) continue;
+    const doc = digits(c.nf_emitente_cpf_cnpj || c.fornecedor_cnpj || c.fornecedor_cpf || '');
+    if (!doc) continue;
+    if (!histPorDoc.has(doc)) histPorDoc.set(doc, new Map());
+    const m = histPorDoc.get(doc);
+    m.set(rid, (m.get(rid) || 0) + 1);
+  }
+
+  // Recarrega intakes atualizados com fornecedor_id_vinculado
+  let intakesComRubrica = [];
+  try {
+    const refreshR = await db.DocumentIntake.filter({
+      status_registro: 'ATIVO',
+    }, '-created_date', LIMIT);
+    intakesComRubrica = (refreshR || []).filter((i) => {
+      const st = String(i.status_processamento || '').toUpperCase();
+      return !['APROVADO', 'ENVIADO_APROVACAO', 'DELETADO', 'REJEITADO'].includes(st);
+    });
+  } catch (_) {
+    intakesComRubrica = intakesComFornecedor;
+  }
+
+  const patchRubricaPorId = {};
+  const agoraISO = new Date().toISOString();
+  for (const intake of intakesComRubrica) {
+    if (!intake?.id) continue;
+    const sugerida = String(intake.rubrica_id_sugerida || '').trim();
+    if (!sugerida) continue;
+    if (String(intake.rubrica_id || '').trim()) continue; // já confirmada
+
+    // Resolve CPF/CNPJ do fornecedor
+    let doc = digits(intake.fornecedor_cpf_cnpj || intake.nf_emitente_cpf_cnpj || '');
+    if (!doc && intake.fornecedor_id_vinculado) {
+      try {
+        const f = await db.Fornecedor.get(intake.fornecedor_id_vinculado);
+        doc = digits(f?.cpf_cnpj || f?.cnpj || f?.cpf || '');
+      } catch (_) {}
+    }
+    if (!doc) continue;
+
+    const hist = histPorDoc.get(doc);
+    if (!hist || !hist.has(sugerida)) continue; // sem histórico da mesma rubrica
+
+    const nomeSugerido = String(intake.rubrica_nome_sugerida || '').trim();
+    patchRubricaPorId[intake.id] = {
+      rubrica_id: sugerida,
+      rubrica_nome: nomeSugerido,
+      rubrica_confirmada_em: agoraISO,
+      rubrica_confirmada_origem: 'historico_fornecedor',
+    };
+    stats.rubricas_confirmadas_historico++;
+    stats.detalhes_rubrica.push({ id: intake.id, rubrica_id: sugerida, doc, frequencia: hist.get(sugerida) });
+  }
+
+  const bulkRubrica = Object.keys(patchRubricaPorId).map((id) => ({ id, ...patchRubricaPorId[id] }));
+  if (bulkRubrica.length > 0) {
+    try {
+      await db.DocumentIntake.bulkUpdate(bulkRubrica);
+    } catch (e) {
+      for (const item of bulkRubrica) {
+        try { await db.DocumentIntake.update(item.id, item); }
+        catch (err) { stats.erros.push({ id: item.id, fase: 'rubrica_confirmar', msg: String(err?.message || err) }); }
+      }
+    }
+  }
 
   try {
     const todos = await db.DocumentIntake.filter({
@@ -328,9 +570,9 @@ Deno.serve(async (req) => {
         backup_type: 'auditoria_entrada_unica',
         entity_type: 'PROCESSAMENTO_ENTRADA_UNICA_LOTE',
         status: 'concluido',
-        details: `Lote: ${stats.total_analisados} intakes | XMLs: ${stats.xmls_vinculados} | Datas: ${stats.datas_preenchidas} | Valores: ${stats.valores_preenchidos} | CC: ${stats.centros_custo_corrigidos}`,
+        details: `Lote: ${stats.total_analisados} intakes | XMLs: ${stats.xmls_vinculados} | Datas: ${stats.datas_preenchidas} | Valores: ${stats.valores_preenchidos} | CC: ${stats.centros_custo_corrigidos} | Forn. promovidos: ${stats.fornecedores_promovidos} | Forn. criados: ${stats.fornecedores_criados} | Forn. vinculados: ${stats.fornecedores_vinculados} | Rubricas confirmadas: ${stats.rubricas_confirmadas_historico}`,
         total_files: stats.total_analisados,
-        files_copied: stats.xmls_vinculados + stats.datas_preenchidas + stats.valores_preenchidos + stats.centros_custo_corrigidos,
+        files_copied: stats.xmls_vinculados + stats.datas_preenchidas + stats.valores_preenchidos + stats.centros_custo_corrigidos + stats.fornecedores_promovidos + stats.fornecedores_criados + stats.fornecedores_vinculados + stats.rubricas_confirmadas_historico,
         execution_time_ms: Date.now() - startTime,
         triggered_by: 'scheduled',
       });
@@ -347,6 +589,10 @@ Deno.serve(async (req) => {
         datas_preenchidas: stats.datas_preenchidas,
         valores_preenchidos: stats.valores_preenchidos,
         centros_custo_corrigidos: stats.centros_custo_corrigidos,
+        fornecedores_promovidos: stats.fornecedores_promovidos,
+        fornecedores_criados: stats.fornecedores_criados,
+        fornecedores_vinculados: stats.fornecedores_vinculados,
+        rubricas_confirmadas_historico: stats.rubricas_confirmadas_historico,
       },
     });
   } catch (e) {
