@@ -330,7 +330,9 @@ function buildHtml(report: any) {
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    await base44.auth.me();
+    // Automações agendadas invocam sem usuário de sessão; usa asServiceRole nesses casos.
+    const user = await base44.auth.me().catch(() => null);
+    const scoped = user ? base44.entities : base44.asServiceRole.entities;
 
     const body = await req.json().catch(() => ({}));
     const reportId = body?.reportId;
@@ -340,7 +342,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'reportId é obrigatório' }, { status: 400 });
     }
 
-    const report = await base44.entities.Report.get(reportId);
+    const report = await scoped.Report.get(reportId);
 
     if (!report?.id) {
       return Response.json({ error: 'Relatório não encontrado' }, { status: 404 });

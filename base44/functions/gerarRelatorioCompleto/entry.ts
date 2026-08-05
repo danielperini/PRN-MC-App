@@ -11,8 +11,9 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    // Automações agendadas invocam sem usuário de sessão; prossegue via asServiceRole.
+    const user = await base44.auth.me().catch(() => null);
+    if (!user && !base44.asServiceRole) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json();
     const {
@@ -694,7 +695,7 @@ REGRAS:
         _rubricas_periodo: rubricasPeriodo,
         _links_documentos: Object.values(ctx.nfsPorMeta || {}).flatMap((m: any) => m.itens || []).map(p => ({ nf_numero: p.numero || '', fornecedor: p.fornecedor || '', descricao: p.descricao || '', valor: p.valor || 0, data_emissao: '' })).slice(0, 50),
         sustentabilidade: { texto_ia: typeof sustentabilidade === 'string' ? sustentabilidade : '', texto_editado: '', modo: 'ia' },
-        assinatura: { nome_representante: user.full_name || '', cargo: 'Coordenador Geral', data: new Date().toISOString().split('T')[0], modo: 'ia' },
+        assinatura: { nome_representante: (user && user.full_name) || 'Museus Centro — Automação IA', cargo: 'Coordenador Geral', data: new Date().toISOString().split('T')[0], modo: 'ia' },
         identificacao_projeto: { organizacao: 'Viaduto das Artes', projeto: 'Museus Centro', instrumento_juridico: 'Termo de Colaboração nº 01-031.069/24-80', processo_administrativo: '01-031.069/24-80', vigencia_inicio: '2024-01-01', vigencia_fim: '2026-12-31', responsavel: 'Daniel Perini', telefone: '', email: 'danielperini.mc@viadutodasartes.org.br', ...(relatorio.identificacao_projeto || {}) },
       });
       return Response.json({ success: true, etapa, total_equipe: equipe.length, total_rubricas: rubricasPeriodo.length });
