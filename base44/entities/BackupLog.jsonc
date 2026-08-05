@@ -7,7 +7,8 @@
       "enum": [
         "drive_folders",
         "reports",
-        "drive_nf_sync_mensal"
+        "drive_nf_sync_mensal",
+        "auditoria_entrada_unica"
       ],
       "description": "Tipo de backup realizado"
     },

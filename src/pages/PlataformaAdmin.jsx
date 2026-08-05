@@ -60,6 +60,8 @@ function PlataformaAdminInner() {
   const [fusaoResult, setFusaoResult] = useState(null);
   const [sendingLink, setSendingLink] = useState(false);
   const [linkResult, setLinkResult] = useState(null);
+  const [higienizando, setHigienizando] = useState(false);
+  const [higienizacaoResult, setHigienizacaoResult] = useState(null);
 
   const { data: users = [] } = useQuery({
     queryKey: ['users'],
@@ -107,6 +109,27 @@ function PlataformaAdminInner() {
       toastMessages.error(error?.message || 'Erro ao restaurar membros');
     } finally {
       setRestoringMembers(false);
+    }
+  };
+
+  const handleHigienizarEntradaUnica = async () => {
+    setHigienizando(true);
+    setHigienizacaoResult(null);
+    try {
+      const res = await base44.functions.invoke('higienizarEntradaUnicaNFs', {});
+      const data = res.data || {};
+      setHigienizacaoResult(data?.resumo || null);
+      if (data?.success) {
+        toastMessages.success(
+          `${data.resumo?.duplicatas_ocultadas || 0} duplicatas ocultadas, ${data.resumo?.xmls_vinculados || 0} XMLs vinculados`
+        );
+      } else {
+        toastMessages.error(data?.error || 'Falha na higienização');
+      }
+    } catch (error) {
+      toastMessages.error(error?.message || 'Erro ao higienizar Entrada Única');
+    } finally {
+      setHigienizando(false);
     }
   };
 
@@ -326,6 +349,53 @@ function PlataformaAdminInner() {
                 </div>
               )}
             </div>
+            {/* Higienização da Entrada Única */}
+            <div className="border-2 border-purple-500 rounded-lg p-6 bg-purple-50">
+              <h2 className="text-lg font-bold text-purple-900 mb-1 flex items-center gap-2">
+                <Database className="w-5 h-5" />
+                Higienização da Entrada Única
+              </h2>
+              <p className="text-sm text-purple-800 mb-4">
+                Executa duas operações de saneamento automático:(1) detecta NFs duplicadas pela combinação
+                exata de CNPJ, número, data de emissão, valor e emissor, mantendo apenas o registro original
+                e ocultando as duplicatas; (2) busca XMLs faltantes no Drive e vincula automaticamente aos
+                PDFs correspondentes. Operação idempotente — pode ser executada mais de uma vez com segurança.
+              </p>
+
+              <Button
+                onClick={handleHigienizarEntradaUnica}
+                disabled={higienizando}
+                className="bg-purple-700 text-white hover:bg-purple-800 gap-2"
+              >
+                {higienizando ? (
+                  <>
+                    <RotateCw className="w-4 h-4 animate-spin" />
+                    Higienizando...
+                  </>
+                ) : (
+                  <>
+                    <Database className="w-4 h-4" />
+                    Executar higienização
+                  </>
+                )}
+              </Button>
+
+              {higienizacaoResult && (
+                <div className="mt-6 p-4 border border-purple-300 rounded-lg bg-white">
+                  <p className="font-semibold text-gray-800 mb-3">📋 Relatório de higienização</p>
+                  <ul className="text-sm text-gray-700 space-y-1">
+                    <li>🔎 NFs verificadas: {higienizacaoResult.total_nf_verificadas || 0}</li>
+                    <li>🔁 Grupos duplicados: {higienizacaoResult.grupos_duplicados || 0}</li>
+                    <li>🧹 Duplicatas ocultadas: {higienizacaoResult.duplicatas_ocultadas || 0}</li>
+                    <li>📄 PDFs sem XML: {higienizacaoResult.pdfs_sem_xml || 0}</li>
+                    <li>🔗 XMLs vinculados: {higienizacaoResult.xmls_vinculados || 0}</li>
+                    <li>⚠️ XMLs não encontrados: {higienizacaoResult.xmls_nao_encontrados || 0}</li>
+                    <li>⏱️ Tempo: {(higienizacaoResult.execution_ms / 1000).toFixed(1)}s</li>
+                  </ul>
+                </div>
+              )}
+            </div>
+
             {/* Boletim Semanal da Agenda */}
             <BoletimSemanalAgendaPanel />
 
