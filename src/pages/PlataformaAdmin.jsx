@@ -121,7 +121,7 @@ function PlataformaAdminInner() {
       setHigienizacaoResult(data?.resumo || null);
       if (data?.success) {
         toastMessages.success(
-          `${data.resumo?.duplicatas_ocultadas || 0} duplicatas ocultadas, ${data.resumo?.xmls_vinculados || 0} XMLs vinculados`
+          `${data.resumo?.deletadas_estrutural || 0} deletadas (estrutural), ${data.resumo?.deletadas_nome_idêntico || 0} deletadas (nome), ${data.resumo?.suspeitas_marcadas || 0} suspeitas, ${data.resumo?.xmls_vinculados || 0} XMLs vinculados`
         );
       } else {
         toastMessages.error(data?.error || 'Falha na higienização');
@@ -356,10 +356,11 @@ function PlataformaAdminInner() {
                 Higienização da Entrada Única
               </h2>
               <p className="text-sm text-purple-800 mb-4">
-                Executa duas operações de saneamento automático:(1) detecta NFs duplicadas pela combinação
-                exata de CNPJ, número, data de emissão, valor e emissor, mantendo apenas o registro original
-                e ocultando as duplicatas; (2) busca XMLs faltantes no Drive e vincula automaticamente aos
-                PDFs correspondentes. Operação idempotente — pode ser executada mais de uma vez com segurança.
+                Executa quatro frentes de saneamento automático:(1) <strong>deleta definitivamente</strong> NFs
+                duplicadas com mesma combinação de CNPJ + número + data + valor + emissor;(2) <strong>deleta
+                definitivamente</strong> registros com nome de arquivo idêntico (mesmo tipo); (3) <strong>marca
+                como suspeitas</strong> para revisão manual registros com nome de arquivo similar (≥85%); (4)
+                vincula XMLs faltantes automaticamente. Operação idempotente.
               </p>
 
               <Button
@@ -385,11 +386,13 @@ function PlataformaAdminInner() {
                   <p className="font-semibold text-gray-800 mb-3">📋 Relatório de higienização</p>
                   <ul className="text-sm text-gray-700 space-y-1">
                     <li>🔎 NFs verificadas: {higienizacaoResult.total_nf_verificadas || 0}</li>
-                    <li>🔁 Grupos duplicados: {higienizacaoResult.grupos_duplicados || 0}</li>
-                    <li>🧹 Duplicatas ocultadas: {higienizacaoResult.duplicatas_ocultadas || 0}</li>
+                    <li>🗑️ <strong>Frente 1</strong> — Deletadas (estrutural): {higienizacaoResult.deletadas_estrutural || 0}</li>
+                    <li>🗑️ <strong>Frente 2</strong> — Deletadas (nome idêntico): {higienizacaoResult.deletadas_nome_idêntico || 0}</li>
+                    <li>⚠️ <strong>Frente 3</strong> — Suspeitas para revisão: {higienizacaoResult.suspeitas_marcadas || 0}</li>
+                    <li>🔁 Grupos duplicados (estrutural): {higienizacaoResult.grupos_duplicados || 0}</li>
+                    <li>🔗 <strong>Frente 4</strong> — XMLs vinculados: {higienizacaoResult.xmls_vinculados || 0}</li>
                     <li>📄 PDFs sem XML: {higienizacaoResult.pdfs_sem_xml || 0}</li>
-                    <li>🔗 XMLs vinculados: {higienizacaoResult.xmls_vinculados || 0}</li>
-                    <li>⚠️ XMLs não encontrados: {higienizacaoResult.xmls_nao_encontrados || 0}</li>
+                    <li>❌ XMLs não encontrados: {higienizacaoResult.xmls_nao_encontrados || 0}</li>
                     <li>⏱️ Tempo: {(higienizacaoResult.execution_ms / 1000).toFixed(1)}s</li>
                   </ul>
                 </div>

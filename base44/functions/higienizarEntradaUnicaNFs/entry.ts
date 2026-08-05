@@ -12,13 +12,10 @@ function asNumber(v) {
 function asDate(v) {
   if (!v) return '';
   const s = String(v).trim();
-  // ISO ou date-time
   const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
-  // dd/mm/yyyy
   const br = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
   if (br) return `${br[3]}-${br[2]}-${br[1]}`;
-  // yyyy-mm-dd em qualquer parte
   const any = s.match(/(\d{4})-(\d{2})-(\d{2})/);
   if (any) return `${any[1]}-${any[2]}-${any[3]}`;
   return s.slice(0, 10);
@@ -29,7 +26,41 @@ function chaveDedup(r) {
   const data = asDate(r.nf_data_emissao);
   const valor = asNumber(r.nf_valor_total).toFixed(2);
   const emissor = norm(r.nf_emitente_nome || r.fornecedor_nome);
+  // Só forma chave se houver identificadores mínimos: CNPJ + número (sem isso, regs não analisadas colapsariam juntas)
+  if (cnpj.length < 11 && !numero) return null;
+  if (!cnpj && !emissor) return null;
   return `${cnpj}|${numero}|${data}|${valor}|${emissor}`;
+}
+// Normaliza nome de arquivo: sem acentos, minúsculas, sem espaços extras, sem extensão
+function nomeArquivoNormalizado(r) {
+  const raw = r.file_name_final || r.file_name_original || '';
+  const semExt = String(raw).replace(/\.[^.]+$/, '');
+  return norm(semExt);
+}
+
+// ===== Levenshtein normalizado (similaridade 0..1) =====
+function levenshtein(a, b) {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  let prev = new Array(b.length + 1);
+  let curr = new Array(b.length + 1);
+  for (let j = 0; j <= b.length; j++) prev[j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+    }
+    [prev, curr] = [curr, prev];
+  }
+  return prev[b.length];
+}
+function similaridadeNome(a, b) {
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+  const dist = levenshtein(a, b);
+  return 1 - dist / Math.max(a.length, b.length);
 }
 
 // ===== Drive helpers =====
@@ -62,7 +93,6 @@ function isXml(f) {
 function extractNumberFromName(name) {
   const base = String(name || '').replace(/\.[^.]+$/, '');
   const nums = base.match(/\d+/g) || [];
-  // Procura por sequência longa (geralmente o número da NF)
   const longNums = nums.filter(n => n.length >= 3 && n.length <= 10);
   return longNums.length ? longNums : nums;
 }
@@ -86,8 +116,9 @@ Deno.serve(async (req) => {
     const budgetMs = Number(payload.budget_ms) || 50000;
     const startMs = Date.now();
     const erros = [];
+    const deletadosIds = new Set(); // registros já deletados nesta execução
 
-    // ===== FRENTE 1 — Deduplicação =====
+    // ===== Carrega DocumentIntake de NFs ativos =====
     const intakes = await base44.asServiceRole.entities.DocumentIntake.list('-created_date', 5000);
     const nfs = intakes.filter((i) =>
       (i.tipo_detectado === 'NOTA_FISCAL_PDF' || i.tipo_detectado === 'NOTA_FISCAL_XML') &&
@@ -97,51 +128,122 @@ Deno.serve(async (req) => {
       i.duplicidade_status !== 'confirmada'
     );
 
-    const grupos = new Map();
-    for (const i of nfs) {
-      const chave = chaveDedup(i);
-      if (!chave || chave === '|||||') continue;
-      if (!grupos.has(chave)) grupos.set(chave, []);
-      grupos.get(chave).push(i);
+    // ===== FRENTE 1 — Deduplicação estrutural (certeza 100%) — DELETE definitivo =====
+    let gruposDuplicados = 0;
+    let deletadosFrente1 = 0;
+    const duplicatasDeletadasF1 = [];
+
+    {
+      const grupos = new Map();
+      for (const i of nfs) {
+        const chave = chaveDedup(i);
+        if (!chave) continue;
+        if (!grupos.has(chave)) grupos.set(chave, []);
+        grupos.get(chave).push(i);
+      }
+      for (const [chave, grupo] of grupos) {
+        if (grupo.length < 2) continue;
+        grupo.sort((a, b) => new Date(a.created_date || 0) - new Date(b.created_date || 0));
+        const original = grupo[0];
+        const duplicatas = grupo.slice(1);
+        gruposDuplicados++;
+        for (const dup of duplicatas) {
+          if (Date.now() - startMs > budgetMs) break;
+          try {
+            await base44.asServiceRole.entities.DocumentIntake.delete(dup.id);
+            deletadosIds.add(dup.id);
+            deletadosFrente1++;
+            duplicatasDeletadasF1.push({ id: dup.id, file_name: dup.file_name_original, original_id: original.id, motivo: 'estrutural' });
+          } catch (e) {
+            erros.push({ etapa: 'dedup_estrutural', intake_id: dup.id, erro: String(e?.message || e) });
+          }
+        }
+        if (Date.now() - startMs > budgetMs) break;
+      }
     }
 
-    let gruposDuplicados = 0;
-    let registrosOcultados = 0;
-    const duplicatasOcultas = [];
+    // ===== FRENTE 2 — Deduplicação por nome de arquivo idêntico (certeza 100%) — DELETE definitivo =====
+    let deletadosFrente2 = 0;
+    const duplicatasDeletadasF2 = [];
 
-    for (const [chave, grupo] of grupos) {
-      if (grupo.length < 2) continue;
-      // Original: menor created_date
-      grupo.sort((a, b) => new Date(a.created_date || 0) - new Date(b.created_date || 0));
-      const original = grupo[0];
-      const duplicatas = grupo.slice(1);
-      gruposDuplicados++;
-      for (const dup of duplicatas) {
+    {
+      const sobreviventes = nfs.filter((i) => !deletadosIds.has(i.id));
+      // Agrupa por tipo_detectado + nome normalizado
+      const gruposNome = new Map();
+      for (const i of sobreviventes) {
+        const nome = nomeArquivoNormalizado(i);
+        if (!nome) continue;
+        const key = `${i.tipo_detectado}::${nome}`;
+        if (!gruposNome.has(key)) gruposNome.set(key, []);
+        gruposNome.get(key).push(i);
+      }
+      for (const [key, grupo] of gruposNome) {
+        if (grupo.length < 2) continue;
+        grupo.sort((a, b) => new Date(a.created_date || 0) - new Date(b.created_date || 0));
+        const original = grupo[0];
+        const duplicatas = grupo.slice(1);
+        for (const dup of duplicatas) {
+          if (Date.now() - startMs > budgetMs) break;
+          try {
+            await base44.asServiceRole.entities.DocumentIntake.delete(dup.id);
+            deletadosIds.add(dup.id);
+            deletadosFrente2++;
+            duplicatasDeletadasF2.push({ id: dup.id, file_name: dup.file_name_original, original_id: original.id, motivo: 'nome_idêntico' });
+          } catch (e) {
+            erros.push({ etapa: 'dedup_nome', intake_id: dup.id, erro: String(e?.message || e) });
+          }
+        }
         if (Date.now() - startMs > budgetMs) break;
-        try {
-          await base44.asServiceRole.entities.DocumentIntake.update(dup.id, {
-            status_processamento: 'DELETADO',
-            ocultar_entrada_unica: true,
-            duplicidade_status: 'confirmada',
-            duplicidade_nota_original_id: original.id,
-            duplicidade_motivo: 'Deduplicação automática: CNPJ + número + data + valor + emissor idênticos'
-          });
-          registrosOcultados++;
-          duplicatasOcultas.push({ id: dup.id, file_name: dup.file_name_original, original_id: original.id });
-        } catch (e) {
-          erros.push({ etapa: 'dedup', intake_id: dup.id, erro: String(e?.message || e) });
+      }
+    }
+
+    // ===== FRENTE 3 — Suspeitas por similaridade parcial de nome (≥85%) — marca para revisão =====
+    let suspeitasMarcadas = 0;
+    const suspeitas = [];
+    const THRESHOLD = 0.85;
+
+    {
+      const sobreviventes = nfs.filter((i) =>
+        !deletadosIds.has(i.id) &&
+        i.duplicidade_status !== 'suspeita' &&
+        i.duplicidade_status !== 'confirmada'
+      );
+      const comNome = sobreviventes.map((i) => ({ intake: i, nome: nomeArquivoNormalizado(i) })).filter((x) => x.nome);
+      // Compara todos os pares dentro do mesmo tipo (n², mas limitado pelo budget)
+      for (let a = 0; a < comNome.length; a++) {
+        if (Date.now() - startMs > budgetMs) break;
+        for (let b = a + 1; b < comNome.length; b++) {
+          if (comNome[a].intake.tipo_detectado !== comNome[b].intake.tipo_detectado) continue;
+          const sim = similaridadeNome(comNome[a].nome, comNome[b].nome);
+          if (sim >= THRESHOLD) {
+            // Marca o registro mais recente como suspeito (preserva o mais antigo)
+            const [antigo, recente] = new Date(comNome[a].intake.created_date || 0) <= new Date(comNome[b].intake.created_date || 0)
+              ? [comNome[a].intake, comNome[b].intake]
+              : [comNome[b].intake, comNome[a].intake];
+            try {
+              await base44.asServiceRole.entities.DocumentIntake.update(recente.id, {
+                status_processamento: 'AGUARDANDO_REVISAO',
+                duplicidade_status: 'suspeita',
+                duplicidade_motivo: `Nome de arquivo similar (${(sim * 100).toFixed(0)}%) — verificar manualmente`,
+                duplicidade_nota_original_id: antigo.id
+              });
+              suspeitasMarcadas++;
+              suspeitas.push({ id: recente.id, file_name: recente.file_name_original, original_id: antigo.id, similaridade: Math.round(sim * 100) });
+            } catch (e) {
+              erros.push({ etapa: 'similaridade', intake_id: recente.id, erro: String(e?.message || e) });
+            }
+          }
         }
       }
-      if (Date.now() - startMs > budgetMs) break;
     }
 
-    // ===== FRENTE 2 — Vincular XMLs faltantes =====
+    // ===== FRENTE 4 — Vincular XMLs faltantes (lógica anterior) =====
     const pdfsSemXml = await base44.asServiceRole.entities.DocumentIntake.filter({
       tipo_detectado: 'NOTA_FISCAL_PDF',
       grupo_status: { $ne: 'VINCULADO' }
     }, '-created_date', 500);
 
-    const pendentesXml = pdfsSemXml.filter((i) => !i.nf_xml_intake_id && !i.nf_xml_url);
+    const pendentesXml = pdfsSemXml.filter((i) => !i.nf_xml_intake_id && !i.nf_xml_url && !deletadosIds.has(i.id));
 
     let xmlsVinculados = 0;
     const vinculados = [];
@@ -150,7 +252,6 @@ Deno.serve(async (req) => {
     for (const pdf of pendentesXml) {
       if (Date.now() - startMs > budgetMs) break;
       try {
-        // Recupera o drive_file_id do PDF: pode estar no resultado_ia ou arquivo_original_url
         const resultadoIa = pdf.resultado_ia || {};
         const pdfDriveFileId = resultadoIa.drive_file_id || resultadoIa.drive_pdf_file_id || pdf.arquivo_original_url?.match(/[-\w]{25,}/)?.[0] || null;
         if (!pdfDriveFileId) { xmlsNaoEncontrados++; continue; }
@@ -162,13 +263,11 @@ Deno.serve(async (req) => {
         const siblings = await listChildren(token, parentId);
         const xmls = siblings.filter(isXml);
 
-        // Tenta parear pelo número da NF extraído
         const nfNumeroPdf = digits(pdf.nf_numero);
         let xmlMatch = null;
         if (nfNumeroPdf) {
           xmlMatch = xmls.find((x) => extractNumberFromName(x.name).some((n) => n === nfNumeroPdf || nfNumeroPdf.endsWith(n) || n.endsWith(nfNumeroPdf)));
         }
-        // Fallback: matching por nome base (sem extensão)
         if (!xmlMatch) {
           const pdfBase = (pdf.file_name_original || pdf.file_name_final || '').replace(/\.[^.]+$/, '').toLowerCase().trim();
           xmlMatch = xmls.find((x) => {
@@ -179,7 +278,6 @@ Deno.serve(async (req) => {
 
         if (!xmlMatch) { xmlsNaoEncontrados++; continue; }
 
-        // Verifica se já existe DocumentIntake para este XML (idempotência)
         const xmlIntakeExistente = intakes.find((i) =>
           i.tipo_detectado === 'NOTA_FISCAL_XML' &&
           (i.arquivo_original_url?.includes(xmlMatch.id) || (i.resultado_ia?.drive_file_id === xmlMatch.id))
@@ -198,7 +296,6 @@ Deno.serve(async (req) => {
           xmlIntakeId = xmlIntakeExistente.id;
           xmlUrl = xmlIntakeExistente.arquivo_original_url || xmlUrl;
         } else {
-          // Cria novo DocumentIntake para o XML
           try {
             const novoXml = await base44.asServiceRole.entities.DocumentIntake.create({
               user_email: pdf.user_email,
@@ -223,7 +320,6 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Atualiza o PDF com o vínculo
         await base44.asServiceRole.entities.DocumentIntake.update(pdf.id, {
           nf_xml_intake_id: xmlIntakeId,
           nf_xml_url: xmlUrl,
@@ -248,8 +344,10 @@ Deno.serve(async (req) => {
         execution_time_ms: timingMs,
         triggered_by: 'manual',
         details: JSON.stringify({
-          frente1_dedup: { grupos_duplicados: gruposDuplicados, registros_ocultados: registrosOcultados },
-          frente2_xml: { pdfs_sem_xml: pendentesXml.length, xmls_vinculados: xmlsVinculados, xmls_nao_encontrados: xmlsNaoEncontrados },
+          frente1_estrutural: { grupos_duplicados: gruposDuplicados, deletadas: deletadosFrente1 },
+          frente2_nome_idêntico: { deletadas: deletadosFrente2 },
+          frente3_similaridade: { suspeitas_marcadas: suspeitasMarcadas },
+          frente4_xml: { pdfs_sem_xml: pendentesXml.length, xmls_vinculados: xmlsVinculados, xmls_nao_encontrados: xmlsNaoEncontrados },
           erros: erros.length,
           truncado_budget: Date.now() - startMs > budgetMs
         })
@@ -261,14 +359,17 @@ Deno.serve(async (req) => {
       resumo: {
         total_nf_verificadas: nfs.length,
         grupos_duplicados: gruposDuplicados,
-        duplicatas_ocultadas: registrosOcultados,
+        deletadas_estrutural: deletadosFrente1,
+        deletadas_nome_idêntico: deletadosFrente2,
+        suspeitas_marcadas: suspeitasMarcadas,
         pdfs_sem_xml: pendentesXml.length,
         xmls_vinculados: xmlsVinculados,
         xmls_nao_encontrados: xmlsNaoEncontrados,
         erros: erros.length,
         execution_ms: timingMs
       },
-      duplicatasOcultas,
+      duplicatasDeletadas: [...duplicatasDeletadasF1, ...duplicatasDeletadasF2],
+      suspeitas,
       vinculados,
       erros
     });
