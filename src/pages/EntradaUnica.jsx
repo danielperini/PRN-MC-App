@@ -30,7 +30,8 @@ import {
   ArrowRight,
   Settings,
   Send,
-  Sparkles } from
+  Sparkles,
+  Zap } from
 'lucide-react';
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
@@ -373,6 +374,94 @@ export default function EntradaUnica() {
   const [higienizarLoading, setHigienizarLoading] = useState(false);
   const [preenchendoIAHistorico, setPreenchendoIAHistorico] = useState(false);
   const [enviandoCoordenacaoLote, setEnviandoCoordenacaoLote] = useState(false);
+  const [conciliarEnviandoLote, setConciliarEnviandoLote] = useState(false);
+
+  // Reutilizado por handleEnviarCoordenacaoLote e handleConciliarEEnviarTudo.
+  // Cria PurchaseRequest (SOLICITADO), Attachment, atualiza DocumentIntake para
+  // ENVIADO_APROVACAO + ocultar_entrada_unica=true e gera Notification in-app
+  // (sem e-mail) para os coordenadores gerais. Retorna { ok, motivo }.
+  async function enviarIntakeParaAprovacao(intake) {
+    try {
+      const ia = intake.resultado_ia || {};
+      const rubrica_id = intake.rubrica_id_sugerida || intake.rubrica_id || ia.rubrica_id;
+      const centro_custo = intake.centro_custo || ia.centro_custo_sugerido;
+      const valor = parseValorBR(ia.nf_valor_total || ia.valor || ia.valor_total || intake.nf_valor_total || 0);
+      const fileName = intake.file_name_final || intake.file_name_original || 'Arquivo';
+
+      if (!rubrica_id || !centro_custo || !valor) {
+        return { ok: false, motivo: 'rubrica/centro_custo/valor ausente' };
+      }
+
+      const rubrica = await base44.entities.Rubrica.get(rubrica_id).catch(() => null);
+      const rubrica_nome = rubrica?.rubrica || rubrica?.nome || rubrica?.descricao || intake.rubrica_nome_sugerida || '';
+
+      const novaPurchase = await base44.entities.PurchaseRequest.create({
+        descricao_item: ia.descricao_servico || ia.nf_emitente_nome || intake.fornecedor_nome || fileName,
+        fornecedor_nome: ia.nf_emitente_nome || intake.fornecedor_nome || '',
+        fornecedor_cpf_cnpj: ia.nf_emitente_cpf_cnpj || intake.fornecedor_cpf_cnpj || '',
+        valor_solicitado: valor,
+        valor_total: valor,
+        valor: valor,
+        rubrica_id,
+        rubrica_nome,
+        budgetline_id: rubrica_id,
+        centro_custo,
+        nota_fiscal_url: intake.arquivo_original_url || '',
+        arquivo_url: intake.arquivo_original_url || '',
+        status: 'SOLICITADO',
+        origem: 'EntradaUnica',
+        intake_id: intake.id,
+        documento_intake_id: intake.id,
+        nf_numero: ia.nf_numero || intake.nf_numero || '',
+        nf_data_emissao: ia.nf_data_emissao || ia.data_emissao || intake.nf_data_emissao || '',
+      });
+
+      await base44.entities.Attachment.create({
+        purchase_request_id: novaPurchase?.id || '',
+        document_intake_id: intake.id,
+        file_name: fileName,
+        file_url: intake.arquivo_original_url || '',
+        file_type: intake.mime_type || 'application/pdf',
+        description: 'Entrada Única — envio para aprovação (conciliação automática)',
+        nf_tipo_documento: 'pdf_nf',
+        nf_numero: ia.nf_numero || intake.nf_numero || '',
+        nf_valor_total: valor,
+        nf_data_emissao: ia.nf_data_emissao || ia.data_emissao || intake.nf_data_emissao || '',
+        nf_emitente_nome: ia.nf_emitente_nome || intake.fornecedor_nome || '',
+        nf_emitente_cpf_cnpj: ia.nf_emitente_cpf_cnpj || intake.fornecedor_cpf_cnpj || '',
+        rubrica_id,
+        rubrica_nome,
+      }).catch(() => null);
+
+      await base44.entities.DocumentIntake.update(intake.id, {
+        status_processamento: 'ENVIADO_APROVACAO',
+        ocultar_entrada_unica: true,
+        entidade_destino: 'PurchaseRequest',
+        entidade_destino_id: novaPurchase?.id || '',
+      });
+
+      // Notificação in-app para coordenadores (sem e-mail — e-mails pausados)
+      await Promise.all(
+        COORD_GERAL_EMAILS.map((email) =>
+          base44.entities.Notification.create({
+            user_email: email,
+            type: 'INVOICE_SUBMITTED',
+            title: 'NF enviada para aprovação',
+            message: `${fileName} — R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} — ${ia.nf_emitente_nome || intake.fornecedor_nome || ''}`,
+            entity_type: 'PurchaseRequest',
+            entity_id: novaPurchase?.id || '',
+            action_url: '/Compras',
+            read: false,
+            email_sent: false,
+          }).catch(() => {})
+        )
+      );
+
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, motivo: String(e?.message || e) };
+    }
+  }
 
   useEffect(() => {
     let mounted = true;
@@ -648,6 +737,8 @@ export default function EntradaUnica() {
           })
           .catch(() => {});
       }
+
+      return { filtrados, jaProcessados };
     } catch (e) {
       console.error('loadIntakes fatal:', e);
       // Limite de requisições: aguarda e tenta uma vez antes de mostrar erro
@@ -1353,87 +1444,9 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
     let falhas = 0;
     try {
       for (const intake of elegiveis) {
-        try {
-          const ia = intake.resultado_ia || {};
-          const rubrica_id = intake.rubrica_id_sugerida || ia.rubrica_id;
-          const centro_custo = intake.centro_custo || ia.centro_custo_sugerido;
-          const valor = parseValorBR(ia.nf_valor_total || ia.valor || ia.valor_total || 0);
-          const fileName = intake.file_name_final || intake.file_name_original || 'Arquivo';
-
-          if (!rubrica_id || !centro_custo || !valor) {
-            falhas++;
-            continue;
-          }
-
-          const rubrica = await base44.entities.Rubrica.get(rubrica_id).catch(() => null);
-          const rubrica_nome = rubrica?.rubrica || rubrica?.nome || rubrica?.descricao || '';
-
-          const novaPurchase = await base44.entities.PurchaseRequest.create({
-            descricao_item: ia.descricao_servico || ia.nf_emitente_nome || fileName,
-            fornecedor_nome: ia.nf_emitente_nome || '',
-            fornecedor_cpf_cnpj: ia.nf_emitente_cpf_cnpj || '',
-            valor_solicitado: valor,
-            valor_total: valor,
-            valor: valor,
-            rubrica_id,
-            rubrica_nome,
-            budgetline_id: rubrica_id,
-            centro_custo,
-            nota_fiscal_url: intake.arquivo_original_url || '',
-            arquivo_url: intake.arquivo_original_url || '',
-            status: 'SOLICITADO',
-            origem: 'EntradaUnica',
-            intake_id: intake.id,
-            documento_intake_id: intake.id,
-            nf_numero: ia.nf_numero || '',
-            nf_data_emissao: ia.nf_data_emissao || ia.data_emissao || '',
-          });
-
-          await base44.entities.Attachment.create({
-            purchase_request_id: novaPurchase?.id || '',
-            document_intake_id: intake.id,
-            file_name: fileName,
-            file_url: intake.arquivo_original_url || '',
-            file_type: intake.mime_type || 'application/pdf',
-            description: 'Entrada Única — IA Histórico (envio direto à coordenação)',
-            nf_tipo_documento: 'pdf_nf',
-            nf_numero: ia.nf_numero || '',
-            nf_valor_total: valor,
-            nf_data_emissao: ia.nf_data_emissao || ia.data_emissao || '',
-            nf_emitente_nome: ia.nf_emitente_nome || '',
-            nf_emitente_cpf_cnpj: ia.nf_emitente_cpf_cnpj || '',
-            rubrica_id,
-            rubrica_nome,
-          }).catch(() => null);
-
-          await base44.entities.DocumentIntake.update(intake.id, {
-            status_processamento: 'ENVIADO_APROVACAO',
-            ocultar_entrada_unica: true,
-            entidade_destino: 'PurchaseRequest',
-            entidade_destino_id: novaPurchase?.id || '',
-          });
-
-          // Notificação in-app para coordenadores (sem e-mail)
-          await Promise.all(
-            COORD_GERAL_EMAILS.map((email) =>
-              base44.entities.Notification.create({
-                user_email: email,
-                type: 'INVOICE_SUBMITTED',
-                title: 'NF enviada para aprovação (IA Histórico)',
-                message: `${fileName} — R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} — ${ia.nf_emitente_nome || ''}`,
-                entity_type: 'PurchaseRequest',
-                entity_id: novaPurchase?.id || '',
-                action_url: '/Compras',
-                read: false,
-                email_sent: false,
-              }).catch(() => {})
-            )
-          );
-
-          enviados++;
-        } catch (e) {
-          falhas++;
-        }
+        const res = await enviarIntakeParaAprovacao(intake);
+        if (res?.ok) enviados++;
+        else falhas++;
       }
 
       if (enviados > 0) {
@@ -1446,6 +1459,73 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
       }
     } finally {
       setEnviandoCoordenacaoLote(false);
+    }
+  }
+
+  // Ação única: (1) chama processarEntradaUnicaLote no backend para vincular
+  // XML↔PDF e preencher campos faltantes; (2) recarrega a fila; (3) envia para
+  // aprovação todas as NF PDFs que ficaram com XML vinculado (sem duplicar).
+  // NFs sem XML, extratos, recibos, contratos e documentos administrativos
+  // permanecem na fila.
+  async function handleConciliarEEnviarTudo() {
+    if (!user || (user.role !== 'admin' && !isCoordenador(user))) {
+      toast.error('Função exclusiva da coordenação geral.');
+      return;
+    }
+
+    setConciliarEnviandoLote(true);
+    try {
+      // 1. Conciliação no backend (vínculo XML↔PDF + preenchimento de campos)
+      let xmlsVinculados = 0;
+      try {
+        const res = await base44.functions.invoke('processarEntradaUnicaLote', {});
+        const data = res?.data || res || {};
+        if (data?.success === false) {
+          toast.error('Erro ao conciliar: ' + (data?.error || 'falha no backend'));
+          return;
+        }
+        xmlsVinculados = data?.resumo?.xmls_vinculados ?? data?.xmls_vinculados ?? 0;
+      } catch (e) {
+        console.error('Erro ao chamar processarEntradaUnicaLote:', e);
+        toast.error('Erro ao conciliar fila: ' + (e?.message || e));
+        return;
+      }
+
+      // 2. Recarrega a fila para refletir vínculos e campos preenchidos
+      const { filtrados: lista } = await loadIntakes();
+
+      // 3. Filtra NF PDFs elegíveis: XML vinculado, em revisão, sem duplicidade
+      const naFilaSemXml = [];
+      const elegiveis = [];
+      for (const i of lista) {
+        const tipo = i.tipo_detectado || getTipoByFile(i);
+        if (tipo !== 'NOTA_FISCAL_PDF') continue;
+        const status = String(i.status_processamento || '').toUpperCase();
+        if (status !== 'AGUARDANDO_REVISAO') continue;
+        const duplicidade = String(i.duplicidade_status || '').toLowerCase();
+        if (duplicidade === 'confirmada' || i.duplicada_financeira === true) continue;
+
+        if (i.nf_xml_intake_id) {
+          elegiveis.push(i);
+        } else {
+          naFilaSemXml.push(i);
+        }
+      }
+
+      // 4. Envia cada NF elegível para aprovação (lógica compartilhada)
+      let enviados = 0;
+      for (const intake of elegiveis) {
+        const res = await enviarIntakeParaAprovacao(intake);
+        if (res?.ok) enviados++;
+      }
+
+      await loadIntakes();
+
+      toast.success(
+        `${xmlsVinculados} XML(s) vinculado(s), ${enviados} NF(s) enviada(s) para aprovação. ${naFilaSemXml.length} ficaram na fila (sem XML).`
+      );
+    } finally {
+      setConciliarEnviandoLote(false);
     }
   }
 
@@ -1874,8 +1954,16 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
                           Preencher com IA histórico
                         </DropdownMenuItem>
                         <DropdownMenuItem
+                          onClick={handleConciliarEEnviarTudo}
+                          disabled={conciliarEnviandoLote || enviandoCoordenacaoLote}
+                          className="flex items-center gap-2 cursor-pointer"
+                        >
+                          {conciliarEnviandoLote ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+                          Conciliar e enviar tudo
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
                           onClick={handleEnviarCoordenacaoLote}
-                          disabled={enviandoCoordenacaoLote}
+                          disabled={enviandoCoordenacaoLote || conciliarEnviandoLote}
                           className="flex items-center gap-2 cursor-pointer"
                         >
                           {enviandoCoordenacaoLote ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
