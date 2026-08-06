@@ -1,12 +1,11 @@
 // ================================================================
-// organizarNFsComIA
-// Reprocessamento em lote das NFs existentes no banco (DocumentIntake
-// NOTA_FISCAL_PDF/XML/RECIBO_PDF ativos) chamando diretamente o módulo
-// compartilhado `_shared/lerNotaFiscalGPTCore.ts` (mesmo runtime, sem
-// HTTP/SDK cross-function). Preenche campos faltantes e espelha no
-// PurchaseRequest vinculado (salvo status imutável). Ao final envia
-// e-mail para danielperini.mc@viadutodasartes.org.br e registra em
-// BackupLog + AIUsageLog.
+// organizarNFsCore
+// Substituto estável de `organizarNFsComIA` (que falha recorrentemente
+// no deploy). Reprocessa NFs em lote chamando diretamente o módulo
+// compartilhado `_shared/lerNotaFiscalGPTCore.ts` (mesmo runtime,
+// sem HTTP/SDK cross-function). Preenche campos faltantes e espelha
+// no PurchaseRequest vinculado (salvo status imutável). Ao final
+// envia e-mail e registra em BackupLog + AIUsageLog.
 // ================================================================
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.41';
 import { analisarNotaFiscal } from '../_shared/lerNotaFiscalGPTCore.ts';
@@ -34,7 +33,7 @@ async function lerNFCore(base44, intake_id, user_email) {
   const promise = analisarNotaFiscal(base44, {
     intake_id,
     user_email: user_email || 'service_role',
-    feature: 'organizar_nfs_lote',
+    feature: 'organizar_nfs_core_lote',
   });
   const timeout = new Promise((_, reject) => {
     timer = setTimeout(() => reject(new Error('Timeout Interno (45s)')), TIMEOUT_POR_NF_MS);
@@ -132,7 +131,7 @@ function gerarCorpoEmail(stats, scoreMedio, appUrl) {
 </table>
 ${errosHtml}
 <p style="margin-top:24px;">Acompanhe o resultado na <a href="${entradaLink}" style="color:#2563eb;">Entrada Única</a>.</p>
-<p style="color:#94a3b8;font-size:11px;margin-top:24px;">Função organizarNFsComIA · processado em ${new Date().toISOString()}</p>
+<p style="color:#94a3b8;font-size:11px;margin-top:24px;">Função organizarNFsCore · processado em ${new Date().toISOString()}</p>
 </body></html>`;
 }
 
@@ -205,7 +204,7 @@ Deno.serve(async (req) => {
           try {
             await espelharEmPurchaseRequest(svc, r.intake, r.resultado, dryRun);
           } catch (e) {
-            console.warn('[organizarNFs] espelho PurchaseRequest falhou:', e.message);
+            console.warn('[organizarNFsCore] espelho PurchaseRequest falhou:', e.message);
           }
           stats.atualizado++;
           stats.scores.push(Number(r.resultado?.score ?? 0));
@@ -233,7 +232,7 @@ Deno.serve(async (req) => {
       });
     } catch (e) {
       emailStatus = 'falhou: ' + e.message;
-      console.warn('[organizarNFs] e-mail de conclusão falhou:', e.message);
+      console.warn('[organizarNFsCore] e-mail de conclusão falhou:', e.message);
       try {
         await svc.entities.Notification.create({
           user_email: EMAIL_DESTINO,
@@ -248,13 +247,13 @@ Deno.serve(async (req) => {
       await svc.entities.BackupLog.create({
         backup_type: 'auditoria_entrada_unica',
         status: stats.erro > 0 ? 'erro' : 'concluido',
-        details: `organizarNFsComIA — total:${stats.total} pulado:${stats.pulado} atualizado:${stats.atualizado} erro:${stats.erro} score_medio:${scoreMedio} email:${emailStatus}`,
+        details: `organizarNFsCore — total:${stats.total} pulado:${stats.pulado} atualizado:${stats.atualizado} erro:${stats.erro} score_medio:${scoreMedio} email:${emailStatus}`,
         total_files: stats.total,
         execution_time_ms: Date.now() - t0,
         triggered_by: user ? 'manual' : 'scheduled',
       });
     } catch (e) {
-      console.warn('[organizarNFs] BackupLog falhou:', e.message);
+      console.warn('[organizarNFsCore] BackupLog falhou:', e.message);
     }
 
     try {
@@ -262,12 +261,12 @@ Deno.serve(async (req) => {
         task_type: 'organizar_nfs_lote',
         model_used: 'gpt-4o-2024-08-06',
         user_email: user?.email || 'service_role',
-        feature: 'organizar_nfs_com_ia',
+        feature: 'organizar_nfs_core',
         duration_ms: Date.now() - t0,
         error: stats.erro > 0 ? `${stats.erro} erros de ${stats.total} processados` : null,
       });
     } catch (e) {
-      console.warn('[organizarNFs] AIUsageLog falhou:', e.message);
+      console.warn('[organizarNFsCore] AIUsageLog falhou:', e.message);
     }
 
     return Response.json({
@@ -278,10 +277,10 @@ Deno.serve(async (req) => {
       has_more: todos.length === limite,
       next_skip: skipInicial + todos.length,
       duration_ms: Date.now() - t0,
-      _marker: 'v2_shared_core_inline',
+      _marker: 'organizarNFsCore_v1_shared_core',
     });
   } catch (err) {
-    console.error('[organizarNFsComIA] erro fatal:', err);
+    console.error('[organizarNFsCore] erro fatal:', err);
     return Response.json({ ok: false, error: err?.message || 'Erro interno' }, { status: 500 });
   }
 });
