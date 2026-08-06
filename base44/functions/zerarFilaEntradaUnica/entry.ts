@@ -97,6 +97,7 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({}));
   const limite = Math.min(Math.max(Number(body?.limit ?? body?.limite ?? LIMITE_PADRAO) || LIMITE_PADRAO, 1), LIMITE_MAX);
   const apenasContar = body?.count === true;
+  const dryRun = body?.dry_run === true;
 
   // Busca todos os pendentes visíveis na fila
   const todos = await srv.entities.DocumentIntake.filter(
@@ -118,6 +119,22 @@ Deno.serve(async (req) => {
   }
 
   const lote = pendentes.slice(0, limite);
+
+  if (dryRun) {
+    return Response.json({
+      ok: true,
+      dry_run: true,
+      total: lote.length,
+      restantes_fila: Math.max(0, pendentes.length - lote.length),
+      amostra: lote.map((p: any) => ({
+        id: p?.id,
+        nome: p?.file_name_original || p?.file_name_final || '',
+        tipo_detectado: safeStr(p?.tipo_detectado),
+        status_processamento: safeStr(p?.status_processamento),
+      })),
+    });
+  }
+
   const resumo: any = {
     total: lote.length,
     enviados_aprovacao: 0,
@@ -432,22 +449,9 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      await srv.entities.Attachment.create({
-        purchase_request_id: novaPurchase?.id || '',
-        document_intake_id: intake.id,
-        file_name: fileName,
-        file_url: safeStr(intakeAtual?.arquivo_original_url),
-        file_type: safeStr(intakeAtual?.mime_type) || 'application/pdf',
-        description: 'Entrada Única — zerar fila automático',
-        nf_tipo_documento: 'pdf_nf',
-        nf_numero: safeStr(iaAtual.nf_numero || intakeAtual?.nf_numero || ''),
-        nf_valor_total: valor,
-        nf_data_emissao: safeStr(iaAtual.nf_data_emissao || iaAtual.data_emissao || intakeAtual?.nf_data_emissao || '') || undefined,
-        nf_emitente_nome: safeStr(iaAtual.nf_emitente_nome || intakeAtual?.fornecedor_nome || ''),
-        nf_emitente_cpf_cnpj: safeStr(iaAtual.nf_emitente_cpf_cnpj || intakeAtual?.fornecedor_cpf_cnpj || ''),
-        rubrica_id,
-        rubrica_nome: rubricaNomeFinal,
-      }).catch(() => {});
+      // NOTA: o Attachment exige report_id obrigatório; aqui a NF não tem Report vinculado.
+      // Os metadados do arquivo já ficam persistidos no PurchaseRequest (nota_fiscal_url,
+      // arquivo_url, nf_numero, nf_emitente_*, nf_valor_total, etc.).
 
       await srv.entities.DocumentIntake.update(intake.id, {
         status_processamento: 'ENVIADO_APROVACAO',
