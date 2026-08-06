@@ -25,7 +25,8 @@ import {
   FileText,
   AlertTriangle,
   Loader2,
-  X } from
+  X,
+  Sparkles } from
 'lucide-react';
 
 import RequireAuth from '@/components/auth/RequireAuth';
@@ -68,6 +69,7 @@ import NotificarAditivoButton from '@/components/compras/NotificarAditivoButton'
 import RevincularRubricasOrfasButton from '@/components/financeiro/RevincularRubricasOrfasButton';
 import PainelConciliacaoComprovantes from '@/components/compras/PainelConciliacaoComprovantes';
 import BackupDriveTab from '@/components/compras/BackupDriveTab';
+import DashboardCompletoIA from '@/components/compras/DashboardCompletoIA';
 
 const STATUS_CONFIG = {
   RASCUNHO: { label: 'Rascunho', color: 'bg-gray-100 text-gray-700' },
@@ -265,6 +267,7 @@ function ComprasInner() {
   const [devolverNFDialog, setDevolverNFDialog] = useState({ open: false, purchase: null });
   const [limpandoDuplicatas, setLimpandoDuplicatas] = useState(false);
   const [vinculandoNatureza, setVinculandoNatureza] = useState(false);
+  const [dashboardIAOpen, setDashboardIAOpen] = useState(false);
   const [filters, setFilters] = useState({ status: 'all', meta_id: 'all', search: '', rubrica_id: 'all', inconsistencias: 'all', centro_custo: 'all', data_inicio: '', data_fim: '' });
   const queryClient = useQueryClient();
   const autoRecalcRan = React.useRef(false);
@@ -1334,10 +1337,20 @@ function ComprasInner() {
             }
             </div>
 
-            <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="mb-3 flex items-center justify-between gap-3 flex-wrap">
               <p className="text-sm text-gray-500">
                 {filtered.length} solicitaç{filtered.length !== 1 ? 'ões' : 'ão'}
               </p>
+              {isCoordenador && (
+                <button
+                  onClick={() => setDashboardIAOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-black text-white px-3 py-1.5 text-xs font-semibold hover:bg-gray-800 transition-colors"
+                  title="Painel para preencher em lote via IA os itens 'Fora do somatório' com status SOLICITADO"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Dashboard Completo (IA)
+                </button>
+              )}
             </div>
 
             {filtered.length === 0 ?
@@ -1800,7 +1813,17 @@ function ComprasInner() {
         onClose={() => setDevolverNFDialog({ open: false, purchase: null })}
         onConfirm={(motivo) => executarDevolucaoNF(devolverNFDialog.purchase, motivo)}
       />
-      
+
+      <DashboardCompletoIA
+        open={dashboardIAOpen}
+        onClose={async () => {
+          setDashboardIAOpen(false);
+          await refreshFinanceiroCompleto();
+        }}
+        compras={purchases}
+        rubricas={rubricas}
+        metas={metas} />
+
     </div>);
 
 }
