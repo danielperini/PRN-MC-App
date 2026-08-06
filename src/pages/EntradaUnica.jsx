@@ -40,6 +40,7 @@ import {
 import ImportarPacoteRelatorios from '@/components/entrada/ImportarPacoteRelatorios';
 import SectionErrorBoundary from '@/components/common/SectionErrorBoundary';
 import MonitoramentoFila from '@/components/entrada/MonitoramentoFila';
+import useAutoProcessarFilaCompleta from '@/hooks/useAutoProcessarFilaCompleta';
 
 function normalizeText(value) {
   return String(value || '').
@@ -760,6 +761,27 @@ export default function EntradaUnica() {
   useEffect(() => {
     if (user) loadIntakes();
   }, [user, loadIntakes]);
+
+  const { disparar: dispararAutoPipeline } = useAutoProcessarFilaCompleta({
+    canSeeAll: user?.role === 'admin' || base.includes('COORD') || base.includes('ADMIN') || isCoordenador(user),
+    loadingIntakes,
+    loadIntakes,
+  });
+
+  // Dispara o pipeline automático UMA vez após a primeira carga de intakes
+  useEffect(() => {
+    if (!user) return;
+    if (loadingIntakes) return;
+    const podeVer =
+      user.role === 'admin' ||
+      base.includes('COORD') ||
+      base.includes('ADMIN') ||
+      isCoordenador(user);
+    if (!podeVer) return;
+    if (intakes.length === 0 && processados.length === 0) return;
+    dispararAutoPipeline();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, loadingIntakes]);
 
   async function analisarComIA(intakeId, fileUrl, mimeType, orientacoes) {
     const isPDF = mimeType?.includes('pdf') || fileUrl?.toLowerCase().endsWith('.pdf');
@@ -2147,6 +2169,11 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
                         <span className={`flex-shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full ${intake.status_processamento === 'APROVADO' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
                           {intake.status_processamento === 'APROVADO' ? 'Aprovado' : 'Enviado p/ aprovação'}
                         </span>
+                        {intake.resultado_ia?.auto_aprovado_ia === true && (
+                          <span className="flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-600 text-white">
+                            Auto-aprovado
+                          </span>
+                        )}
                       </div>
                     ))}
                   </div>
