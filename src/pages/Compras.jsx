@@ -67,6 +67,7 @@ import DevolverNFDialog from '@/components/compras/DevolverNFDialog';
 import NotificarAditivoButton from '@/components/compras/NotificarAditivoButton';
 import RevincularRubricasOrfasButton from '@/components/financeiro/RevincularRubricasOrfasButton';
 import PainelConciliacaoComprovantes from '@/components/compras/PainelConciliacaoComprovantes';
+import BackupDriveTab from '@/components/compras/BackupDriveTab';
 
 const STATUS_CONFIG = {
   RASCUNHO: { label: 'Rascunho', color: 'bg-gray-100 text-gray-700' },
@@ -1095,6 +1096,7 @@ function ComprasInner() {
           ...(podeGerenciarRubricas ? [{ id: 'rubricas', label: 'Rubricas' }] : []),
           { id: 'documentos', label: 'Documentos' },
           { id: 'meus_pagamentos', label: 'Meus Pagamentos' },
+          ...(isCoordenador ? [{ id: 'backup_drive', label: '🗄️ Backup Drive' }] : []),
           ...(isCoordenador ? [{ id: 'verificacao', label: '🔍 Verificação' }] : [])].
           map((t) =>
           <button
@@ -1664,6 +1666,18 @@ function ComprasInner() {
           isCoordenador={isCoordenador}
           hasGestaoCompras={hasGestaoCompras} />
 
+        }
+
+        {tab === 'backup_drive' && isCoordenador &&
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Status de Backup no Google Drive</h2>
+            <p className="text-sm text-gray-500">
+              Acompanhe o backup de notas fiscais aprovadas e reenvie pendências individualmente.
+            </p>
+          </div>
+          <BackupDriveTab />
+        </div>
         }
 
         {isCoordenador &&

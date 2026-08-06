@@ -455,9 +455,12 @@ Deno.serve(async (req) => {
     const dryRun = body.dryRun === true;
     // limite: processa no máximo N registros por execução (padrão 30; use 0 para todos)
     const limite = typeof body.limite === 'number' ? body.limite : 30;
+    // ids: opcional — quando informado, processa apenas esses IDs (reenvio individual do painel)
+    const idsSolicitados = Array.isArray(body.ids) ? body.ids.map((id) => String(id || '').trim()).filter(Boolean) : null;
     const startTime = Date.now();
 
-    // Buscar compras aprovadas com arquivos fiscais
+    // Buscar compras aprovadas com arquivos fiscais — quando `ids` é informado,
+    // restringe àquele conjunto (mantém o filtro de status aprovado).
     const compras = [];
     let skip = 0;
     while (true) {
@@ -472,15 +475,21 @@ Deno.serve(async (req) => {
           pr.nota_fiscal_url || pr.nota_fiscal_pdf_url || pr.nf_pdf_url ||
           pr.nota_fiscal_xml_url || pr.xml_url ||
           pr.comprovante_url || pr.comprovante_pagamento_url;
-        if (temArquivo) compras.push(pr);
+        if (!temArquivo) continue;
+        if (idsSolicitados && !idsSolicitados.includes(pr.id)) continue;
+        compras.push(pr);
       }
 
       if (lote.length < 100) break;
       skip += 100;
     }
 
-    // Filtrar apenas os que ainda não foram sincronizados com sucesso
-    const pendentes = compras.filter(p => p.drive_backup_nf_ok !== true);
+    // Filtrar apenas os que ainda não foram sincronizados com sucesso.
+    // Exceção: quando `ids` é informado explicitamente, reprocessa mesmo os já
+    // concluídos (forçar reenvio manual a partir do painel).
+    const pendentes = idsSolicitados
+      ? compras
+      : compras.filter(p => p.drive_backup_nf_ok !== true);
 
     if (dryRun) {
       return Response.json({

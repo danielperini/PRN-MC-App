@@ -6,16 +6,23 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.41';
 //   - NF-PDF: completa dados via IA (processarNotaFiscalComClaude) +
 //     sugere rubrica/meta/centro (suggestRubrica) e envia para aprovação
 //     como PurchaseRequest (replica enviarIntakeParaAprovacao).
+//     Fallback sem rubrica: cria PurchaseRequest em RASCUNHO com
+//     rubrica_nome='A classificar' e oculta o intake (pendente de
+//     classificação manual em Compras).
 //   - Comprovante (RECIBO_PDF ou nome com "COMP" ou sem valor/nf_numero):
 //     backup best-effort + oculta da fila sem criar solicitação.
 //   - XML órfão: casa com PDF pelo nf_numero+CNPJ ou valor ±1%; se não
 //     achar, backup + oculta.
+// OCR: se a primeira leitura falhar, reprocessa uma vez (retry=true).
+// Se falhar de novo, marca DocumentIntake com status_processamento=
+// 'ERRO_PROCESSAMENTO' e inclui no relatório de erros com tentativas=2.
 // Idempotente: ignora ocultar_entrada_unica=true e status ENVIADO_APROVACAO.
-// Limite: 10 itens por invocação (frontend faz polling). 45s/item no pior caso.
+// Limite: 25 itens por invocação (frontend faz polling). 45s/item no pior caso.
 // =====================================================================
 
 const STATUS_PENDENTES = new Set(['ENVIADO', 'AGUARDANDO_REVISAO', 'ANALISANDO_IA', 'RASCUNHO']);
-const LIMITE_PADRAO = 10;
+const LIMITE_PADRAO = 25;
+const LIMITE_MAX = 25;
 
 function safeStr(v: any): string {
   return String(v ?? '').trim();
@@ -42,11 +49,8 @@ function isComprovanteIntake(p: any): boolean {
   if (t === 'RECIBO_PDF') return true;
   const name = normalizeText(p?.file_name_original);
   if (/\b(comp|comprovante|recibo|boleto|pix|pagamento)\b/.test(name)) {
-    // excluia arquivos que claramente são NF com "COMP" no contexto — mas PRD diz nome com COMP
-    // mantemos a regra literal do PRD.
     return true;
   }
-  // sem valor E sem nf_numero (e não é XML)
   const ia = p?.resultado_ia || {};
   const valor = parseValorBR(ia.nf_valor_total || ia.valor_total || ia.valor || p?.nf_valor_total);
   const nfNum = onlyDigits(ia.nf_numero || p?.nf_numero);
@@ -91,14 +95,14 @@ Deno.serve(async (req) => {
   }
 
   const body = await req.json().catch(() => ({}));
-  const limite = Math.min(Math.max(Number(body?.limit) || LIMITE_PADRAO, 1), 10);
+  const limite = Math.min(Math.max(Number(body?.limit ?? body?.limite ?? LIMITE_PADRAO) || LIMITE_PADRAO, 1), LIMITE_MAX);
   const apenasContar = body?.count === true;
 
   // Busca todos os pendentes visíveis na fila
   const todos = await srv.entities.DocumentIntake.filter(
     { status_registro: 'ATIVO' },
     '-created_date',
-    200
+    300
   ).catch(() => []);
 
   const pendentes = (todos || []).filter((p: any) => {
@@ -117,6 +121,7 @@ Deno.serve(async (req) => {
   const resumo: any = {
     total: lote.length,
     enviados_aprovacao: 0,
+    rascunhos_criados: 0,
     comprovantes_ocultados: 0,
     xmls_vinculados: 0,
     xmls_backup: 0,
@@ -147,8 +152,44 @@ Deno.serve(async (req) => {
     }
   }
 
+  // Reprocessa NF-PDF via IA. Retorna { ok, tentativas, intakeAtual }.
+  async function reprocessarOCR(intake: any): Promise<{ ok: boolean; tentativas: number; intakeAtual: any; error?: string }> {
+    // 1ª tentativa
+    let resp = await invokeFn('processarNotaFiscalComClaude', {
+      intake_id: intake.id,
+      file_url: intake.arquivo_original_url,
+    });
+    if (resp?.ok !== false) {
+      const atualizado = await srv.entities.DocumentIntake.get(intake.id).catch(() => intake);
+      return { ok: true, tentativas: 1, intakeAtual: atualizado };
+    }
+    // 2ª tentativa com retry=true
+    resp = await invokeFn('processarNotaFiscalComClaude', {
+      intake_id: intake.id,
+      file_url: intake.arquivo_original_url,
+      retry: true,
+    });
+    if (resp?.ok !== false) {
+      const atualizado = await srv.entities.DocumentIntake.get(intake.id).catch(() => intake);
+      return { ok: true, tentativas: 2, intakeAtual: atualizado };
+    }
+    // Falhou 2x — marca o intake como ERRO_PROCESSAMENTO
+    await srv.entities.DocumentIntake.update(intake.id, {
+      status_processamento: 'ERRO_PROCESSAMENTO',
+    }).catch(() => {});
+    return {
+      ok: false,
+      tentativas: 2,
+      intakeAtual: intake,
+      error: 'OCR falhou após 2 tentativas: ' + (resp?.error || 'sem resposta'),
+    };
+  }
+
   for (const intake of lote) {
-    const itemResultado: any = { id: intake.id, nome: intake.file_name_original || intake.file_name_final || '' };
+    const itemResultado: any = {
+      id: intake.id,
+      nome: intake.file_name_original || intake.file_name_final || '',
+    };
     try {
       // ---- XML órfão ----
       if (isXmlIntake(intake)) {
@@ -233,21 +274,25 @@ Deno.serve(async (req) => {
       const ia = intake.resultado_ia || {};
       const temDados = parseValorBR(ia.nf_valor_total || ia.valor_total || ia.valor || intake.nf_valor_total) > 0
         && safeStr(ia.nf_emitente_nome || intake.fornecedor_nome || intake.nf_emitente_nome || '').length > 0;
-      let intakeAtual = intake;
+      let intakeAtual: any = intake;
 
-      // Se faltam dados, reprocessa com IA
+      // Se faltam dados, reprocessa com IA (com retry automático em caso de erro)
       if (!temDados) {
-        const ocrResp = await invokeFn('processarNotaFiscalComClaude', {
-          intake_id: intake.id,
-          file_url: intake.arquivo_original_url,
-        });
-        if (ocrResp?.ok === false) {
-          resumo.erros.push({ id: intake.id, nome: itemResultado.nome, motivo: 'OCR falhou: ' + (ocrResp.error || '') });
+        const ocr = await reprocessarOCR(intake);
+        if (!ocr.ok) {
+          resumo.erros.push({
+            id: intake.id,
+            nome: itemResultado.nome,
+            arquivo_url: safeStr(intake.arquivo_original_url),
+            tipo_detectado: safeStr(intake.tipo_detectado),
+            tentativas: ocr.tentativas,
+            motivo: ocr.error || 'OCR falhou',
+          });
           itemResultado.acao = 'erro_ocr';
           resumo.itens.push(itemResultado);
           continue;
         }
-        intakeAtual = await srv.entities.DocumentIntake.get(intake.id).catch(() => intakeAtual);
+        intakeAtual = ocr.intakeAtual;
       }
 
       // Sugere rubrica se não houver
@@ -272,13 +317,71 @@ Deno.serve(async (req) => {
         }
       }
 
-      if (!rubrica_id || !centro_custo || valor <= 0) {
-        resumo.erros.push({
-          id: intake.id,
-          nome: itemResultado.nome,
-          motivo: 'dados insuficientes (rubrica/centro/valor)',
+      // Fallback sem rubrica: cria PurchaseRequest em RASCUNHO e oculta o intake.
+      // O item sai da fila visível e fica pendente de classificação em Compras.
+      const semRubrica = !rubrica_id;
+      const semValor = valor <= 0;
+
+      if (semRubrica || semValor) {
+        const fileName = safeStr(intakeAtual?.file_name_final || intakeAtual?.file_name_original) || 'Arquivo';
+        const rascunho = await base44.entities.PurchaseRequest.create({
+          descricao_item: safeStr(iaAtual.descricao_servico || iaAtual.nf_emitente_nome || intakeAtual?.fornecedor_nome || fileName),
+          fornecedor_nome: safeStr(iaAtual.nf_emitente_nome || intakeAtual?.fornecedor_nome || ''),
+          fornecedor_cnpj: safeStr(iaAtual.nf_emitente_cpf_cnpj || intakeAtual?.fornecedor_cpf_cnpj || ''),
+          fornecedor_cpf_cnpj: safeStr(iaAtual.nf_emitente_cpf_cnpj || intakeAtual?.fornecedor_cpf_cnpj || ''),
+          valor_solicitado: valor > 0 ? valor : 0,
+          valor_total: valor > 0 ? valor : 0,
+          rubrica_id: null,
+          rubrica_nome: 'A classificar',
+          centro_custo: centro_custo || 'Geral',
+          nota_fiscal_url: safeStr(intakeAtual?.arquivo_original_url),
+          arquivo_url: safeStr(intakeAtual?.arquivo_original_url),
+          status: 'RASCUNHO',
+          origem: 'EntradaUnica',
+          intake_id: intake.id,
+          documento_intake_id: intake.id,
+          nf_numero: safeStr(iaAtual.nf_numero || intakeAtual?.nf_numero || ''),
+          nf_emitente_nome: safeStr(iaAtual.nf_emitente_nome || intakeAtual?.fornecedor_nome || ''),
+          nf_emitente_cpf_cnpj: safeStr(iaAtual.nf_emitente_cpf_cnpj || intakeAtual?.fornecedor_cpf_cnpj || ''),
+          nf_valor_total: valor > 0 ? valor : null,
+          nf_data_emissao: safeStr(iaAtual.nf_data_emissao || iaAtual.data_emissao || intakeAtual?.nf_data_emissao || '') || undefined,
+        }).catch((err: any) => {
+          resumo.erros.push({
+            id: intake.id,
+            nome: itemResultado.nome,
+            arquivo_url: safeStr(intake.arquivo_original_url),
+            tipo_detectado: safeStr(intake.tipo_detectado),
+            tentativas: 1,
+            motivo: 'create RASCUNHO fallback: ' + String(err?.message || err),
+          });
+          return null;
         });
-        itemResultado.acao = 'pendente_dados';
+
+        if (!rascunho) {
+          itemResultado.acao = 'erro_purchase_rascunho';
+          resumo.itens.push(itemResultado);
+          continue;
+        }
+
+        await srv.entities.DocumentIntake.update(intake.id, {
+          status_processamento: 'APROVADO',
+          ocultar_entrada_unica: true,
+          entidade_destino: 'PurchaseRequest',
+          entidade_destino_id: rascunho?.id || '',
+          rubrica_id_sugerida: rubrica_id || null,
+          rubrica_nome_sugerida: rubrica_nome || 'A classificar',
+          centro_custo: centro_custo || 'Geral',
+        }).catch(() => {});
+
+        if (intakeAtual?.nf_xml_intake_id) {
+          await srv.entities.DocumentIntake.update(intakeAtual.nf_xml_intake_id, {
+            entidade_destino: 'PurchaseRequest',
+            entidade_destino_id: rascunho?.id || '',
+          }).catch(() => {});
+        }
+
+        resumo.rascunhos_criados++;
+        itemResultado.acao = 'rascunho_sem_rubrica';
         resumo.itens.push(itemResultado);
         continue;
       }
@@ -312,7 +415,14 @@ Deno.serve(async (req) => {
         nf_valor_total: valor,
         nf_data_emissao: safeStr(iaAtual.nf_data_emissao || iaAtual.data_emissao || intakeAtual?.nf_data_emissao || '') || undefined,
       }).catch((err: any) => {
-        resumo.erros.push({ id: intake.id, nome: itemResultado.nome, motivo: 'create PurchaseRequest: ' + String(err?.message || err) });
+        resumo.erros.push({
+          id: intake.id,
+          nome: itemResultado.nome,
+          arquivo_url: safeStr(intake.arquivo_original_url),
+          tipo_detectado: safeStr(intake.tipo_detectado),
+          tentativas: 1,
+          motivo: 'create PurchaseRequest: ' + String(err?.message || err),
+        });
         return null;
       });
 
@@ -360,7 +470,14 @@ Deno.serve(async (req) => {
       itemResultado.acao = 'enviado_aprovacao';
       resumo.itens.push(itemResultado);
     } catch (err: any) {
-      resumo.erros.push({ id: intake.id, nome: itemResultado.nome, motivo: String(err?.message || err) });
+      resumo.erros.push({
+        id: intake.id,
+        nome: itemResultado.nome,
+        arquivo_url: safeStr(intake.arquivo_original_url),
+        tipo_detectado: safeStr(intake.tipo_detectado),
+        tentativas: 1,
+        motivo: String(err?.message || err),
+      });
       itemResultado.acao = 'erro';
       resumo.itens.push(itemResultado);
     }
@@ -377,8 +494,8 @@ Deno.serve(async (req) => {
       status: 'concluido',
       processed_at: new Date().toISOString(),
       total_files: resumo.total,
-      files_copied: resumo.enviados_aprovacao + resumo.comprovantes_ocultados + resumo.xmls_vinculados + resumo.xmls_backup,
-      details: `zerarFilaEntradaUnica: ${resumo.enviados_aprovacao} enviados, ${resumo.comprovantes_ocultados} comprovantes, ${resumo.xmls_vinculados} xmls vinculados, ${resumo.xmls_backup} xmls backup, ${resumo.erros.length} erros`,
+      files_copied: resumo.enviados_aprovacao + resumo.rascunhos_criados + resumo.comprovantes_ocultados + resumo.xmls_vinculados + resumo.xmls_backup,
+      details: `zerarFilaEntradaUnica: ${resumo.enviados_aprovacao} enviados, ${resumo.rascunhos_criados} rascunhos criados, ${resumo.comprovantes_ocultados} comprovantes, ${resumo.xmls_vinculados} xmls vinculados, ${resumo.xmls_backup} xmls backup, ${resumo.erros.length} erros`,
       triggered_by: 'manual',
     }).catch(() => {});
   } catch {}
