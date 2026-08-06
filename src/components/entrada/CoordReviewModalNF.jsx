@@ -10,6 +10,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { findDuplicatePurchaseRequest } from '@/lib/purchaseDuplicateGuard';
 import DuplicatePurchaseDetectedModal from '@/components/compras/DuplicatePurchaseDetectedModal';
 import { METAS_PROJETO } from '@/lib/metasProjeto';
+import { useReanaliseAutomaticaNF } from '@/hooks/useReanaliseAutomaticaNF';
 
 
 const CENTROS = ['MHAB', 'MIS', 'MUMO', 'Noturno 2026', 'Noturno Pampulha', 'Atuação Geral'];
@@ -231,6 +232,18 @@ export default function ReviewModalNF({ intake, onClose, onSaved, painelDadosIde
     meta_id: '',
     tipo_gasto: ia.tipo_gasto || 'Serviço',
   });
+
+  // Ref para capturar form atual sem stale closure no hook de reanálise
+  const formRef = useRef(form);
+  useEffect(() => { formRef.current = form; }, [form]);
+
+  // Reanálise automática quando campos críticos estão vazios ou valor divergente
+  const reanalise = useReanaliseAutomaticaNF({
+    intake,
+    getForm: () => formRef.current,
+    setForm,
+  });
+  const reanaliseAtiva = reanalise.reanalisando;
 
   const abrirSolicitarXml = useCallback(async () => {
     setShowSolicitarXmlPanel(true);
@@ -949,6 +962,14 @@ Equipe Museus Centro`;
     return nomeA.localeCompare(nomeB, 'pt-BR');
   });
 
+  // Helper: classe para inputs — read-only visual durante reanálise + borda emerald em campos atualizados
+  const inputStateClass = (campo) => {
+    const atualizado = reanalise.camposAtualizados.includes(campo);
+    const ring = atualizado ? 'ring-2 ring-emerald-400 border-emerald-400' : '';
+    const ro = reanaliseAtiva ? 'bg-slate-50 cursor-not-allowed' : '';
+    return `${ring} ${ro}`.trim();
+  };
+
   return (
     <>
       <DuplicatePurchaseDetectedModal
@@ -991,6 +1012,30 @@ Equipe Museus Centro`;
         <div className="space-y-4 w-full min-w-0">
           {painelDadosIdentificados && (
             <div>{painelDadosIdentificados}</div>
+          )}
+
+          {/* Banner: reanálise automática em andamento */}
+          {reanalise.reanalisando && (
+            <div className="flex items-center gap-3 p-3 bg-yellow-50 border-l-4 border-yellow-400 rounded-lg text-sm text-yellow-800">
+              <Loader2 className="w-4 h-4 flex-shrink-0 animate-spin" />
+              <span>Campos incompletos ou valor divergente detectado — reanalisando o PDF automaticamente...</span>
+            </div>
+          )}
+
+          {/* Banner: sucesso na reanálise */}
+          {reanalise.reanaliseSucesso && (
+            <div className="flex items-center gap-3 p-3 bg-emerald-50 border-l-4 border-emerald-400 rounded-lg text-sm text-emerald-800">
+              <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+              <span>Campos atualizados automaticamente pela IA.</span>
+            </div>
+          )}
+
+          {/* Banner: falha na reanálise */}
+          {reanalise.reanaliseFalha && (
+            <div className="flex items-center gap-3 p-3 bg-red-50 border-l-4 border-red-400 rounded-lg text-sm text-red-800">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+              <span>Não foi possível extrair todos os campos automaticamente. Preencha manualmente.</span>
+            </div>
           )}
 
           {/* Banner: NF sem XML vinculado — FLUXO 2 */}
@@ -1103,51 +1148,51 @@ Equipe Museus Centro`;
 
           <div className="space-y-1 w-full min-w-0">
             <Label>Nome padronizado do arquivo</Label>
-            <Input className="w-full min-w-0" value={form.file_name_final} onChange={(e) => setForm((f) => ({ ...f, file_name_final: e.target.value }))} />
+            <Input className={`w-full min-w-0 ${inputStateClass('file_name_final')}`} value={form.file_name_final} readOnly={reanaliseAtiva} onChange={(e) => setForm((f) => ({ ...f, file_name_final: e.target.value }))} />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full min-w-0">
             <div className="space-y-1 min-w-0">
               <Label>Número da NF</Label>
-              <Input className="w-full min-w-0" value={form.nf_numero} onChange={(e) => setForm((f) => ({ ...f, nf_numero: e.target.value }))} />
+              <Input className={`w-full min-w-0 ${inputStateClass('nf_numero')}`} value={form.nf_numero} readOnly={reanaliseAtiva} onChange={(e) => setForm((f) => ({ ...f, nf_numero: e.target.value }))} />
             </div>
             <div className="space-y-1 min-w-0">
               <Label>Valor Total (R$)</Label>
-              <Input className="w-full min-w-0" value={form.nf_valor_total} onChange={(e) => setForm((f) => ({ ...f, nf_valor_total: e.target.value }))} />
+              <Input className={`w-full min-w-0 ${inputStateClass('nf_valor_total')}`} value={form.nf_valor_total} readOnly={reanaliseAtiva} onChange={(e) => setForm((f) => ({ ...f, nf_valor_total: e.target.value }))} />
             </div>
             <div className="space-y-1 min-w-0">
               <Label>Data de Emissão</Label>
-              <Input type="date" className="w-full min-w-0" value={form.nf_data_emissao} onChange={(e) => setForm((f) => ({ ...f, nf_data_emissao: e.target.value }))} />
+              <Input type="date" className={`w-full min-w-0 ${inputStateClass('nf_data_emissao')}`} value={form.nf_data_emissao} readOnly={reanaliseAtiva} onChange={(e) => setForm((f) => ({ ...f, nf_data_emissao: e.target.value }))} />
             </div>
             <div className="space-y-1 min-w-0">
               <Label>Horário de Emissão</Label>
-              <Input className="w-full min-w-0" value={form.nf_horario_emissao} onChange={(e) => setForm((f) => ({ ...f, nf_horario_emissao: e.target.value }))} placeholder="HH:MM:SS" />
+              <Input className={`w-full min-w-0 ${inputStateClass('nf_horario_emissao')}`} value={form.nf_horario_emissao} readOnly={reanaliseAtiva} onChange={(e) => setForm((f) => ({ ...f, nf_horario_emissao: e.target.value }))} placeholder="HH:MM:SS" />
             </div>
             <div className="space-y-1 min-w-0">
               <Label>Competência</Label>
-              <Input className="w-full min-w-0" value={form.competencia} onChange={(e) => setForm((f) => ({ ...f, competencia: e.target.value }))} placeholder="Ex: Março/2026" />
+              <Input className={`w-full min-w-0 ${inputStateClass('competencia')}`} value={form.competencia} readOnly={reanaliseAtiva} onChange={(e) => setForm((f) => ({ ...f, competencia: e.target.value }))} placeholder="Ex: Março/2026" />
             </div>
           </div>
 
           <div className="space-y-1 w-full min-w-0">
             <Label>Fornecedor / Emitente</Label>
-            <Input className="w-full min-w-0" value={form.nf_emitente_nome} onChange={(e) => setForm((f) => ({ ...f, nf_emitente_nome: e.target.value }))} />
+            <Input className={`w-full min-w-0 ${inputStateClass('nf_emitente_nome')}`} value={form.nf_emitente_nome} readOnly={reanaliseAtiva} onChange={(e) => setForm((f) => ({ ...f, nf_emitente_nome: e.target.value }))} />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full min-w-0">
             <div className="space-y-1 min-w-0">
               <Label>CNPJ / CPF do Emitente</Label>
-              <Input className="w-full min-w-0" value={form.nf_emitente_cpf_cnpj} onChange={(e) => setForm((f) => ({ ...f, nf_emitente_cpf_cnpj: e.target.value }))} />
+              <Input className={`w-full min-w-0 ${inputStateClass('nf_emitente_cpf_cnpj')}`} value={form.nf_emitente_cpf_cnpj} readOnly={reanaliseAtiva} onChange={(e) => setForm((f) => ({ ...f, nf_emitente_cpf_cnpj: e.target.value }))} />
             </div>
             <div className="space-y-1 min-w-0">
               <Label>Município</Label>
-              <Input className="w-full min-w-0" value={form.municipio} onChange={(e) => setForm((f) => ({ ...f, municipio: e.target.value }))} />
+              <Input className={`w-full min-w-0 ${inputStateClass('municipio')}`} value={form.municipio} readOnly={reanaliseAtiva} onChange={(e) => setForm((f) => ({ ...f, municipio: e.target.value }))} />
             </div>
           </div>
 
           <div className="space-y-1 w-full min-w-0">
             <Label>Descrição do Serviço / Item</Label>
-            <Input className="w-full min-w-0" value={form.descricao_servico} onChange={(e) => setForm((f) => ({ ...f, descricao_servico: e.target.value }))} />
+            <Input className={`w-full min-w-0 ${inputStateClass('descricao_servico')}`} value={form.descricao_servico} readOnly={reanaliseAtiva} onChange={(e) => setForm((f) => ({ ...f, descricao_servico: e.target.value }))} />
           </div>
 
           {/* Dados adicionais extraídos pela IA */}
@@ -1469,7 +1514,7 @@ Equipe Museus Centro`;
               Rereprocessar
             </Button>
 
-            <Button variant="outline" size="sm" onClick={handlePreencherComIA} disabled={preenchendoIA || saving || sending || reprocessing} className="border-purple-200 text-purple-700 hover:bg-purple-50">
+            <Button variant="outline" size="sm" onClick={handlePreencherComIA} disabled={preenchendoIA || saving || sending || reprocessing || reanaliseAtiva} className="border-purple-200 text-purple-700 hover:bg-purple-50">
               {preenchendoIA ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Sparkles className="w-4 h-4 mr-1" />}
               Preencher com IA
             </Button>
@@ -1482,7 +1527,7 @@ Equipe Museus Centro`;
             {user && COORD_EMAILS.includes((user.email || '').toLowerCase().trim()) && (
               <Button
                 onClick={() => handleProcessarNota(true)}
-                disabled={sending || approvingDirect || !form.rubrica_id}
+                disabled={sending || approvingDirect || !form.rubrica_id || reanaliseAtiva}
                 className="bg-green-600 hover:bg-green-700"
               >
                 {sending || approvingDirect ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
@@ -1496,7 +1541,8 @@ Equipe Museus Centro`;
                 sending ||
                 !form.rubrica_id ||
                 (!dividirEntreMuseus && !form.centro_custo) ||
-                (dividirEntreMuseus && !rateioValido)
+                (dividirEntreMuseus && !rateioValido) ||
+                reanaliseAtiva
               }
             >
               {sending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
