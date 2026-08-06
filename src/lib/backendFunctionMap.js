@@ -51,6 +51,9 @@ export const FN = {
   PROCESS_PURCHASE_APPROVAL: 'processPurchaseApproval',
   PURCHASE_ACTIONS: 'purchaseActions',
 
+  // Conciliação de comprovantes de pagamento
+  VINCULAR_COMPROVANTES_LOTE: 'vincularComprovantesEmLote',
+
   // Sincronizações
   SYNC_BASE_CONHECIMENTO: 'syncBaseConhecimento',
   SYNC_TUTORIAIS: 'sincronizarTutoriaisDrive',

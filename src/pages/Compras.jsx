@@ -65,6 +65,7 @@ import { normalizeStatus, isStatusPendente, isStatusAprovado, getStatusLabel, ge
 import DevolverNFDialog from '@/components/compras/DevolverNFDialog';
 import NotificarAditivoButton from '@/components/compras/NotificarAditivoButton';
 import RevincularRubricasOrfasButton from '@/components/financeiro/RevincularRubricasOrfasButton';
+import PainelConciliacaoComprovantes from '@/components/compras/PainelConciliacaoComprovantes';
 
 const STATUS_CONFIG = {
   RASCUNHO: { label: 'Rascunho', color: 'bg-gray-100 text-gray-700' },
@@ -1626,6 +1627,10 @@ function ComprasInner() {
         <div className="max-w-7xl space-y-6">
             {isCoordenador &&
           <PainelConferenciaVarredura onSuccess={refreshFinanceiroCompleto} />
+          }
+
+            {isCoordenador &&
+          <PainelConciliacaoComprovantes currentUser={currentUser} isCoordenador={isCoordenador} />
           }
 
             {isCoordenador &&

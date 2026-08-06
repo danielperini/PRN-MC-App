@@ -38,6 +38,7 @@ import {
   DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import ImportarPacoteRelatorios from '@/components/entrada/ImportarPacoteRelatorios';
+import PainelConciliacaoComprovantes from '@/components/compras/PainelConciliacaoComprovantes';
 import SectionErrorBoundary from '@/components/common/SectionErrorBoundary';
 import MonitoramentoFila from '@/components/entrada/MonitoramentoFila';
 import ReprocessarFilaModal from '@/components/entrada/ReprocessarFilaModal';
@@ -2034,6 +2035,12 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
                         processados={processados}
                         onRefresh={loadIntakes}
                       />
+                    </div>
+                  )}
+
+                  {(user?.role === 'admin' || isCoordenador(user)) && (
+                    <div className="px-5 md:px-6 pb-2">
+                      <PainelConciliacaoComprovantes currentUser={user} isCoordenador={user?.role === 'admin' || isCoordenador(user)} />
                     </div>
                   )}
 
