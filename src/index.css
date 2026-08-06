@@ -311,3 +311,211 @@
 [data-theme="nuit"] .sidebar .text-primary-foreground\/60 {
   color: #cccccc !important;
 }
+
+/* ===================================== */
+/* TEMA MONDRIAN — Cores primárias + preto */
+/* ===================================== */
+
+[data-theme="mondrian"] {
+  color-scheme: light;
+  --chart-primary: 0 99% 43%;
+  --chart-secondary: 49 96% 49%;
+  --chart-tertiary: 219 83% 36%;
+}
+
+[data-theme="mondrian"] body,
+[data-theme="mondrian"] #root {
+  background: var(--cor-fundo) !important;
+  color: var(--cor-texto) !important;
+}
+
+[data-theme="mondrian"] aside,
+[data-theme="mondrian"] .sidebar,
+[data-theme="mondrian"] nav,
+[data-theme="mondrian"] .bg-slate-900,
+[data-theme="mondrian"] .bg-gray-900 {
+  background: var(--cor-nav) !important;
+  color: var(--cor-nav-texto) !important;
+  border-color: var(--cor-borda) !important;
+}
+
+[data-theme="mondrian"] .bg-white,
+[data-theme="mondrian"] .bg-background,
+[data-theme="mondrian"] .bg-card,
+[data-theme="mondrian"] .bg-popover,
+[data-theme="mondrian"] .bg-muted,
+[data-theme="mondrian"] .bg-slate-50,
+[data-theme="mondrian"] .bg-slate-100,
+[data-theme="mondrian"] .bg-gray-50,
+[data-theme="mondrian"] .bg-gray-100 {
+  background: var(--cor-card) !important;
+  border-color: var(--cor-borda) !important;
+}
+
+[data-theme="mondrian"] .border,
+[data-theme="mondrian"] .border-slate-200,
+[data-theme="mondrian"] .border-slate-300,
+[data-theme="mondrian"] .border-gray-200,
+[data-theme="mondrian"] .border-gray-300 {
+  border-color: var(--cor-borda) !important;
+}
+
+[data-theme="mondrian"] .text-black,
+[data-theme="mondrian"] .text-slate-900,
+[data-theme="mondrian"] .text-slate-800,
+[data-theme="mondrian"] .text-gray-900,
+[data-theme="mondrian"] .text-gray-800 {
+  color: var(--cor-texto) !important;
+}
+
+[data-theme="mondrian"] .text-slate-700,
+[data-theme="mondrian"] .text-slate-600,
+[data-theme="mondrian"] .text-gray-700,
+[data-theme="mondrian"] .text-gray-600,
+[data-theme="mondrian"] .text-muted-foreground {
+  color: var(--cor-texto-secundario) !important;
+}
+
+[data-theme="mondrian"] input,
+[data-theme="mondrian"] textarea,
+[data-theme="mondrian"] select,
+[data-theme="mondrian"] dialog,
+[data-theme="mondrian"] [role="dialog"] {
+  background: var(--cor-card) !important;
+  color: var(--cor-texto) !important;
+  border-color: var(--cor-borda) !important;
+}
+
+[data-theme="mondrian"] table,
+[data-theme="mondrian"] tr,
+[data-theme="mondrian"] td,
+[data-theme="mondrian"] th {
+  background: var(--cor-card) !important;
+  color: var(--cor-texto) !important;
+  border-color: var(--cor-borda) !important;
+}
+
+[data-theme="mondrian"] .bg-primary,
+[data-theme="mondrian"] .bg-chart-primary {
+  background: hsl(var(--chart-primary)) !important;
+  color: #ffffff !important;
+}
+
+[data-theme="mondrian"] .bg-chart-secondary {
+  background: hsl(var(--chart-secondary)) !important;
+}
+
+[data-theme="mondrian"] .bg-chart-tertiary {
+  background: hsl(var(--chart-tertiary)) !important;
+}
+
+[data-theme="mondrian"] .recharts-cartesian-grid line {
+  stroke: var(--cor-borda) !important;
+}
+
+[data-theme="mondrian"] .recharts-text {
+  fill: var(--cor-texto-secundario) !important;
+}
+
+/* ===================================== */
+/* TEMA GIACOMETTI — Cinzas, ocres e beges */
+/* ===================================== */
+
+[data-theme="giacometti"] {
+  color-scheme: light;
+  --chart-primary: 38 42% 61%;
+  --chart-secondary: 0 0% 47%;
+  --chart-tertiary: 28 37% 45%;
+}
+
+[data-theme="giacometti"] body,
+[data-theme="giacometti"] #root {
+  background: var(--cor-fundo) !important;
+  color: var(--cor-texto) !important;
+}
+
+[data-theme="giacometti"] aside,
+[data-theme="giacometti"] .sidebar,
+[data-theme="giacometti"] nav,
+[data-theme="giacometti"] .bg-slate-900,
+[data-theme="giacometti"] .bg-gray-900 {
+  background: var(--cor-nav) !important;
+  color: var(--cor-nav-texto) !important;
+  border-color: var(--cor-borda) !important;
+}
+
+[data-theme="giacometti"] .bg-white,
+[data-theme="giacometti"] .bg-background,
+[data-theme="giacometti"] .bg-card,
+[data-theme="giacometti"] .bg-popover,
+[data-theme="giacometti"] .bg-muted,
+[data-theme="giacometti"] .bg-slate-50,
+[data-theme="giacometti"] .bg-slate-100,
+[data-theme="giacometti"] .bg-gray-50,
+[data-theme="giacometti"] .bg-gray-100 {
+  background: var(--cor-card) !important;
+  border-color: var(--cor-borda) !important;
+}
+
+[data-theme="giacometti"] .border,
+[data-theme="giacometti"] .border-slate-200,
+[data-theme="giacometti"] .border-slate-300,
+[data-theme="giacometti"] .border-gray-200,
+[data-theme="giacometti"] .border-gray-300 {
+  border-color: var(--cor-borda) !important;
+}
+
+[data-theme="giacometti"] .text-black,
+[data-theme="giacometti"] .text-slate-900,
+[data-theme="giacometti"] .text-slate-800,
+[data-theme="giacometti"] .text-gray-900,
+[data-theme="giacometti"] .text-gray-800 {
+  color: var(--cor-texto) !important;
+}
+
+[data-theme="giacometti"] .text-slate-700,
+[data-theme="giacometti"] .text-slate-600,
+[data-theme="giacometti"] .text-gray-700,
+[data-theme="giacometti"] .text-gray-600,
+[data-theme="giacometti"] .text-muted-foreground {
+  color: var(--cor-texto-secundario) !important;
+}
+
+[data-theme="giacometti"] input,
+[data-theme="giacometti"] textarea,
+[data-theme="giacometti"] select,
+[data-theme="giacometti"] dialog,
+[data-theme="giacometti"] [role="dialog"] {
+  background: var(--cor-card) !important;
+  color: var(--cor-texto) !important;
+  border-color: var(--cor-borda) !important;
+}
+
+[data-theme="giacometti"] table,
+[data-theme="giacometti"] tr,
+[data-theme="giacometti"] td,
+[data-theme="giacometti"] th {
+  background: var(--cor-card) !important;
+  color: var(--cor-texto) !important;
+  border-color: var(--cor-borda) !important;
+}
+
+[data-theme="giacometti"] .bg-chart-primary {
+  background: hsl(var(--chart-primary)) !important;
+}
+
+[data-theme="giacometti"] .bg-chart-secondary {
+  background: hsl(var(--chart-secondary)) !important;
+}
+
+[data-theme="giacometti"] .bg-chart-tertiary {
+  background: hsl(var(--chart-tertiary)) !important;
+}
+
+[data-theme="giacometti"] .recharts-cartesian-grid line {
+  stroke: var(--cor-borda) !important;
+}
+
+[data-theme="giacometti"] .recharts-text {
+  fill: var(--cor-texto-secundario) !important;
+}
