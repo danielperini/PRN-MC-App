@@ -1854,7 +1854,7 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
     <div className="min-h-screen bg-white">
       <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10 space-y-6">
         {(user?.role === 'admin' || isCoordenador(user)) && (
-          <PainelSyncDrive onRefresh={loadIntakes} />
+          <PainelSyncDrive onRefresh={loadIntakes} intakes={intakes} />
         )}
         <div className="rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden">
           <div className="p-5 md:p-7 border-b border-gray-100 bg-gradient-to-br from-white via-white to-gray-50">

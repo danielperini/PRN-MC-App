@@ -11,6 +11,7 @@ import {
   Clock,
 } from 'lucide-react';
 import PreencherDatasButton from '@/components/compras/PreencherDatasButton';
+import ReanalisarNFsSistemaButton from '@/components/entrada/ReanalisarNFsSistemaButton';
 
 const LAST_KEY = 'entrada_unica:sync-drive-last';
 const RESULT_KEY = 'entrada_unica:sync-drive-last-result';
@@ -49,7 +50,7 @@ function loadLastResult() {
  * Visível apenas para admin/coordenador. Permite disparar a sincronização
  * (NFs + comprovantes) e acompanha o andamento via polling de BackupLog.
  */
-export default function PainelSyncDrive({ onRefresh }) {
+export default function PainelSyncDrive({ onRefresh, intakes }) {
   const [collapsed, setCollapsed] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [lastTs, setLastTs] = useState(loadLast);
@@ -158,6 +159,7 @@ export default function PainelSyncDrive({ onRefresh }) {
               {inProgress ? 'Sincronizando...' : 'Sincronizar Agora'}
             </button>
             <PreencherDatasButton onDone={onRefresh} />
+            <ReanalisarNFsSistemaButton intakes={intakes} onRefresh={onRefresh} />
             <span className="text-xs text-gray-400">inclui comprovantes (RECIBO_PDF)</span>
           </div>
 
