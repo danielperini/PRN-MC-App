@@ -483,16 +483,13 @@ Deno.serve(async (req) => {
 
       await syncAttachments(base44, updated, 'APROVADO');
 
-      // Backup automático no Drive — invoca função dedicada de forma confiável
-      try {
-        await base44.asServiceRole.functions.invoke('driveBackupPurchase', { purchaseId: purchase.id });
-      } catch (backupErr) {
+      // Backup automático no Drive — fire-and-forget: nunca bloqueia o retorno de aprovação
+      base44.asServiceRole.functions.invoke('driveBackupPurchase', { purchaseId: purchase.id }).catch((backupErr: any) => {
         console.warn('Backup Drive não concluído imediatamente:', backupErr?.message);
-        // Marca como pendente para reprocessamento posterior
-        await base44.asServiceRole.entities.PurchaseRequest.update(purchase.id, {
+        base44.asServiceRole.entities.PurchaseRequest.update(purchase.id, {
           drive_backup_status: 'pendente'
         }).catch(() => {});
-      }
+      });
 
       // Notificações: suprimir se for aprovação direta (nunca passou por SOLICITADO)
       // Critério: submitted_at ausente/nulo → coordenador criou e aprovou sem submissão formal
