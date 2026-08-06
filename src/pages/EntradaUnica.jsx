@@ -40,6 +40,7 @@ import {
 import ImportarPacoteRelatorios from '@/components/entrada/ImportarPacoteRelatorios';
 import SectionErrorBoundary from '@/components/common/SectionErrorBoundary';
 import MonitoramentoFila from '@/components/entrada/MonitoramentoFila';
+import ReprocessarFilaModal from '@/components/entrada/ReprocessarFilaModal';
 import useAutoProcessarFilaCompleta from '@/hooks/useAutoProcessarFilaCompleta';
 
 function normalizeText(value) {
@@ -377,6 +378,7 @@ export default function EntradaUnica() {
   const [preenchendoIAHistorico, setPreenchendoIAHistorico] = useState(false);
   const [enviandoCoordenacaoLote, setEnviandoCoordenacaoLote] = useState(false);
   const [conciliarEnviandoLote, setConciliarEnviandoLote] = useState(false);
+  const [reprocessarFilaOpen, setReprocessarFilaOpen] = useState(false);
 
   // Reutilizado por handleEnviarCoordenacaoLote e handleConciliarEEnviarTudo.
   // Cria PurchaseRequest (SOLICITADO), Attachment, atualiza DocumentIntake para
@@ -1904,7 +1906,16 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
                 </div>
 
                 {(user?.role === 'admin' || isCoordenador(user)) &&
-                <div className="mt-1">
+                <div className="mt-1 flex items-center gap-2 flex-wrap">
+                    <button
+                      onClick={() => setReprocessarFilaOpen(true)}
+                      disabled={reprocessarFilaOpen}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 shadow-sm hover:bg-amber-100 transition-colors"
+                      title="Limpa dados IA, reanalisa cada NF isoladamente, revincula XMLs e envia automaticamente para aprovação"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      Reprocessar Fila
+                    </button>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <button
@@ -1956,14 +1967,6 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
                         >
                           {conciliarEnviandoLote ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
                           Conciliar e enviar tudo
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={handleEnviarCoordenacaoLote}
-                          disabled={enviandoCoordenacaoLote || conciliarEnviandoLote}
-                          className="flex items-center gap-2 cursor-pointer"
-                        >
-                          {enviandoCoordenacaoLote ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                          Enviar p/ coordenação (lote)
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={handleReanalisarPendentes}
@@ -2306,6 +2309,13 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
 
 
         })()}
+
+        <ReprocessarFilaModal
+          open={reprocessarFilaOpen}
+          intakes={intakes}
+          onClose={() => setReprocessarFilaOpen(false)}
+          onConcluir={loadIntakes}
+        />
       </div>
     </div>);
 

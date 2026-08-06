@@ -20,7 +20,7 @@ import { COORD_GERAL_EMAILS } from '@/components/auth/permissions';
 const STATUS_CONFIG = {
   ENVIADO: { label: 'Enviado', color: 'bg-blue-100 text-blue-700', icon: Clock },
   ANALISANDO_IA: { label: 'Analisando...', color: 'bg-yellow-100 text-yellow-700', icon: Loader2, spin: true },
-  AGUARDANDO_REVISAO: { label: 'Aguardando revisão', color: 'bg-orange-100 text-orange-700', icon: Eye },
+  AGUARDANDO_REVISAO: { label: 'Pendente de revisão', color: 'bg-orange-100 text-orange-700', icon: Eye },
   RASCUNHO: { label: 'Rascunho', color: 'bg-slate-100 text-slate-600', icon: FileText },
   ENVIADO_APROVACAO: { label: 'Enviado p/ aprovação', color: 'bg-purple-100 text-purple-700', icon: Send },
   APROVADO: { label: 'Aprovado', color: 'bg-green-100 text-green-700', icon: CheckCircle2 },
@@ -133,7 +133,7 @@ function detectarDuplicatas(intake, allIntakes) {
 // Data de corte para exigir XML obrigatório
 const DATA_CORTE_XML = new Date('2026-08-01');
 
-export default function DocumentIntakeCard({ intake, allIntakes, onReview, onDeleted, onSentToApproval, onReanalyse, onLinkXml, onAddXmlToPdf, onLinkArquivo, onEnviarCoordenacao }) {
+export default function DocumentIntakeCard({ intake, allIntakes, onReview, onDeleted, onSentToApproval, onReanalyse, onLinkXml, onAddXmlToPdf, onLinkArquivo }) {
   const [loading, setLoading] = useState(false);
   const [sendingApproval, setSendingApproval] = useState(false);
   const [addingXml, setAddingXml] = useState(false);
@@ -672,27 +672,8 @@ export default function DocumentIntakeCard({ intake, allIntakes, onReview, onDel
             </Button>
           }
 
-          {/* PDF: Enviar para aprovação */}
-          {canSendApproval &&
-          <Button size="sm" onClick={handleSendToApproval} disabled={sendingApproval}
-          className="h-8 text-xs px-3 bg-black text-white hover:bg-gray-800 hidden">
-              {sendingApproval ?
-            <Loader2 className="w-3 h-3 animate-spin mr-1" /> :
-            <Send className="w-3 h-3 mr-1" />}
-              {sendingApproval ? 'Enviando...' : 'Enviar'}
-            </Button>
-          }
-
-          {/* PDF IA Histórico: botão de envio direto à coordenação (azul escuro) */}
-          {isIAHistoricoElegivel &&
-          <Button size="sm" onClick={handleSendToApproval} disabled={sendingApproval}
-          className="h-8 text-xs px-3 text-white" style={{ backgroundColor: '#1e40af' }} title="Enviar direto para coordenação">
-              {sendingApproval ?
-            <Loader2 className="w-3 h-3 animate-spin mr-1" /> :
-            <Send className="w-3 h-3 mr-1" />}
-              {sendingApproval ? 'Enviando...' : 'Enviar p/ coordenação'}
-            </Button>
-          }
+          {/* PDF: o envio para coordenação agora é feito automaticamente pelo
+              pipeline "Reprocessar Fila" (admin). Nenhum botão de envio manual. */}
 
           {/* Deletar (XML: mostrar; PDF: mostrar) */}
           <Button size="sm" variant="ghost" onClick={handleDelete} disabled={loading || sendingApproval || addingXml}
