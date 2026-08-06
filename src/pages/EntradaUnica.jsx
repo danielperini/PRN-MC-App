@@ -45,6 +45,7 @@ import ReprocessarFilaModal from '@/components/entrada/ReprocessarFilaModal';
 import useAutoProcessarFilaCompleta from '@/hooks/useAutoProcessarFilaCompleta';
 import useReclassificarComprovantesSilencioso from '@/hooks/useReclassificarComprovantesSilencioso';
 import PainelSyncDrive from '@/components/entrada/PainelSyncDrive';
+import ZerarFilaButton from '@/components/entrada/ZerarFilaButton';
 
 function normalizeText(value) {
   return String(value || '').
@@ -1928,6 +1929,10 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
                       <RefreshCw className="w-3.5 h-3.5" />
                       Reprocessar Fila
                     </button>
+                    <ZerarFilaButton
+                      onRefresh={loadIntakes}
+                      disabled={reprocessarFilaOpen || conciliarEnviandoLote || enviandoCoordenacaoLote || filaProcessando}
+                    />
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <button

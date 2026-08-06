@@ -77,7 +77,16 @@ Deno.serve(async (req) => {
 
   const user = await base44.auth.me().catch(() => null);
   if (!user) return Response.json({ ok: false, error: 'Não autenticado' }, { status: 401 });
-  if (user.role !== 'admin' && !String(user.role || '').toLowerCase().includes('coord')) {
+  const rolesUsuario = [
+    String(user?.role || ''),
+    String(user?.base_role || ''),
+    String(user?.app_role || ''),
+  ].map((r) => r.toLowerCase()).filter(Boolean);
+  const ehAutorizado = rolesUsuario.some((r) =>
+    r === 'admin' || r === 'administrator' || r === 'administrador' ||
+    r.includes('coord') || r.includes('admin')
+  );
+  if (!ehAutorizado) {
     return Response.json({ ok: false, error: 'Acesso restrito à coordenação geral' }, { status: 403 });
   }
 
