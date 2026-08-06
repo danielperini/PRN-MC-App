@@ -1,8 +1,10 @@
 import React from 'react';
 import { Card } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { useThemeChartColors } from '@/hooks/useThemeChartColors';
 
 export default function BudgetChart({ budgetLines = [], purchases = [] }) {
+  const { colors, primary, secondary } = useThemeChartColors();
   // Preparar dados para gráfico de barras (saldo por rubrica)
   const barData = budgetLines.slice(0, 10).map(line => ({
     codigo: line.codigo.substring(0, 8),
@@ -20,16 +22,16 @@ export default function BudgetChart({ budgetLines = [], purchases = [] }) {
   };
 
   const pieData = [
-    { name: 'Rascunho', value: purchasesByStatus.RASCUNHO, color: '#94a3b8' },
-    { name: 'Pendente', value: purchasesByStatus.PENDENTE, color: '#f59e0b' },
-    { name: 'Aprovado', value: purchasesByStatus.APROVADO, color: '#10b981' },
-    { name: 'Rejeitado', value: purchasesByStatus.REJEITADO, color: '#ef4444' },
+    { name: 'Rascunho', value: purchasesByStatus.RASCUNHO, color: colors[3] },
+    { name: 'Pendente', value: purchasesByStatus.PENDENTE, color: colors[1] },
+    { name: 'Aprovado', value: purchasesByStatus.APROVADO, color: colors[0] },
+    { name: 'Rejeitado', value: purchasesByStatus.REJEITADO, color: colors[2] },
   ].filter(d => d.value > 0);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* Gráfico de Barras - Saldo por Rubrica */}
-      <Card className="p-6">
+      <Card className="p-6 themed-card">
         <h3 className="text-sm font-bold text-gray-900 mb-4">Saldo por Rubrica (Top 10)</h3>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={barData}>
@@ -38,14 +40,14 @@ export default function BudgetChart({ budgetLines = [], purchases = [] }) {
             <YAxis />
             <Tooltip formatter={(value) => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} />
             <Legend />
-            <Bar dataKey="comprometido" fill="#f59e0b" name="Comprometido" />
-            <Bar dataKey="disponivel" fill="#10b981" name="Disponível" />
+            <Bar dataKey="comprometido" fill={secondary} name="Comprometido" />
+            <Bar dataKey="disponivel" fill={primary} name="Disponível" />
           </BarChart>
         </ResponsiveContainer>
       </Card>
 
       {/* Gráfico de Pizza - Status de Compras */}
-      <Card className="p-6">
+      <Card className="p-6 themed-card">
         <h3 className="text-sm font-bold text-gray-900 mb-4">Distribuição de Solicitações</h3>
         <ResponsiveContainer width="100%" height={300}>
           <PieChart>

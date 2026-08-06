@@ -1,4 +1,4 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.41';
 
 // ============================================================================
 // sincronizarDriveEntradaUnica
@@ -8,8 +8,14 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 // único registro DocumentIntake, e encaminha documentos válidos para o fluxo
 // já existente da Entrada Única → Compras/PurchaseRequest.
 //
-// Primeira execução: fila XLSX (221 arquivos). Execuções seguintes: varredura
-// recursiva direta na pasta de origem. Sempre dry-run em modo 'simulate'.
+// Comprovantes de pagamento (RECIBO_PDF): PDFs/imagens cujo nome casa o padrão
+// /comp|comprovante|recibo|pagamento|transf|pix/i são classificados como
+// RECIBO_PDF e só são processados quando o payload inclui
+// `incluir_comprovantes: true`. Assim recibos ficam separados das NFs.
+//
+// Registra uma execução em BackupLog (status em_processamento → concluido/
+// failure) para que o painel de sincronização na Entrada Única acompanhe o
+// andamento em tempo real.
 // ============================================================================
 
 const ORIGIN_FOLDER_ID = '1LgC94VhIomQZBS7kfkQqgBX8MVzwQqzp';
@@ -38,6 +44,8 @@ const ACCEPTED_MIMES = new Set([
   'image/heic',
   'image/heif',
 ]);
+
+const COMPROVANTE_NAME_RE = /comp|comprovante|recibo|pagamento|transf|pix/i;
 
 const MONTH_MAP = {
   janeiro: 1, jan: 1, fevereiro: 2, fev: 2, marco: 3, março: 3, mar: 3, march: 3,
@@ -87,6 +95,12 @@ function isReciboImage(name, mime) {
   const ext = getExt(name);
   return ['.jpg', '.jpeg', '.png', '.webp', '.heic'].includes(ext) ||
     ['image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif'].includes(mime);
+}
+
+// PDFs cujo nome indica comprovante/recibo de pagamento → RECIBO_PDF
+function isComprovantePdfByName(name) {
+  if (!name) return false;
+  return COMPROVANTE_NAME_RE.test(safeStr(name));
 }
 
 // Extrai chave de acesso de 44 dígitos de conteúdo XML fiscal
@@ -270,22 +284,6 @@ async function driveListRecursive(token, folderId, folderPath = '') {
   return out;
 }
 
-async function driveDownloadText(token, fileId) {
-  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
-    headers: driveHeaders(token),
-  });
-  if (!res.ok) throw new Error(`Download HTTP ${res.status}`);
-  return await res.text();
-}
-
-async function driveDownloadBytes(token, fileId) {
-  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
-    headers: driveHeaders(token),
-  });
-  if (!res.ok) throw new Error(`Download HTTP ${res.status}`);
-  return new Uint8Array(await res.arrayBuffer());
-}
-
 async function driveFindFileByName(token, folderId, name) {
   const q = encodeURIComponent(`name = '${name.replace(/'/g, "\\'")}' and '${folderId}' in parents and trashed = false`);
   const url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&pageSize=10`;
@@ -363,7 +361,7 @@ async function loadExistingChaves(base44) {
 // PROCESSAMENTO DE ARQUIVO
 // ============================================================================
 
-async function analyzeFile(base44, token, file, existingChavesSet) {
+async function analyzeFile(base44, token, file, existingChavesSet, incluirComprovantes) {
   const ext = getExt(file.name);
   const mime = file.mimeType || '';
   const filepath = file.folderPath ? file.folderPath + '/' + file.name : file.name;
@@ -376,6 +374,7 @@ async function analyzeFile(base44, token, file, existingChavesSet) {
   let xmlData = null;
   let chave = '';
   let hash = '';
+  let tipoToken = null;
 
   if (isXml(file.name, mime)) {
     try {
@@ -383,10 +382,14 @@ async function analyzeFile(base44, token, file, existingChavesSet) {
       xmlData = extractNfDataFromXml(text);
       chave = xmlData?.chave_acesso || '';
       if (!chave) chave = extractChaveFromName(file.name);
+      tipoToken = 'xml_nf';
     } catch (e) {
       return { acao: 'erro', arquivo: file.name, caminho: filepath, motivo: e.message, chave_acesso: '', hash: '' };
     }
-  } else if (isPdf(file.name, mime) || isReciboImage(file.name, mime)) {
+  } else if (isPdf(file.name, mime)) {
+    // PDF:区分 comprovante vs NF pelo nome
+    const ehComprovante = isComprovantePdfByName(file.name);
+    tipoToken = ehComprovante ? 'recibo_pdf' : 'pdf_nf';
     chave = extractChaveFromName(file.name);
     try {
       const bytes = await driveDownloadBytes(token, file.id);
@@ -395,9 +398,30 @@ async function analyzeFile(base44, token, file, existingChavesSet) {
       // sem hash OK — apenas registra
       console.warn(`[Hash] ${file.name}: ${e.message}`);
     }
+  } else if (isReciboImage(file.name, mime)) {
+    tipoToken = 'recibo_imagem';
+    try {
+      const bytes = await driveDownloadBytes(token, file.id);
+      hash = await sha256Hex(bytes);
+    } catch (e) {
+      console.warn(`[Hash] ${file.name}: ${e.message}`);
+    }
   }
 
-  // 2) deduplicação por chave
+  // 2) gate de comprovantes — só processa recibos quando incluir_comprovantes=true
+  const ehRecibo = tipoToken === 'recibo_pdf' || tipoToken === 'recibo_imagem';
+  if (ehRecibo && !incluirComprovantes) {
+    return {
+      acao: 'ignorado_comprovante',
+      arquivo: file.name,
+      caminho: filepath,
+      chave_acesso: chave,
+      hash,
+      motivo: 'Comprovante/recibo ignorado (incluir_comprovantes=false)',
+    };
+  }
+
+  // 3) deduplicação por chave
   if (chave && existingChavesSet.has(chave)) {
     return {
       acao: 'duplicado_bloqueado',
@@ -409,7 +433,7 @@ async function analyzeFile(base44, token, file, existingChavesSet) {
     };
   }
 
-  // 3) período
+  // 4) período
   const periodo = determinePeriod({
     xmlData,
     folderPath: filepath,
@@ -433,13 +457,29 @@ async function analyzeFile(base44, token, file, existingChavesSet) {
     caminho: filepath,
     chave_acesso: chave,
     hash,
-    tipo: isXml(file.name, mime) ? 'xml_nf' : (isPdf(file.name, mime) ? 'pdf_nf' : 'recibo_imagem'),
+    tipo: tipoToken,
     xmlData,
     periodo,
     fileId: file.id,
     fileSize: file.size || 0,
     modifiedTime: file.modifiedTime || '',
   };
+}
+
+async function driveDownloadText(token, fileId) {
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+    headers: driveHeaders(token),
+  });
+  if (!res.ok) throw new Error(`Download HTTP ${res.status}`);
+  return await res.text();
+}
+
+async function driveDownloadBytes(token, fileId) {
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+    headers: driveHeaders(token),
+  });
+  if (!res.ok) throw new Error(`Download HTTP ${res.status}`);
+  return new Uint8Array(await res.arrayBuffer());
 }
 
 // ============================================================================
@@ -456,7 +496,7 @@ function groupByChave(analyzed) {
     const g = groups.get(key);
     if (item.tipo === 'xml_nf') g.xml = item;
     else if (item.tipo === 'pdf_nf') g.pdf = item;
-    else if (item.tipo === 'recibo_imagem') g.recibo = item;
+    else if (item.tipo === 'recibo_pdf' || item.tipo === 'recibo_imagem') g.recibo = item;
   }
   return groups;
 }
@@ -474,7 +514,7 @@ function groupByNfFields(analyzed) {
     const g = groups.get(key);
     if (item.tipo === 'xml_nf') g.xml = item;
     else if (item.tipo === 'pdf_nf') g.pdf = item;
-    else if (item.tipo === 'recibo_imagem') g.recibo = item;
+    else if (item.tipo === 'recibo_pdf' || item.tipo === 'recibo_imagem') g.recibo = item;
   }
   return groups;
 }
@@ -493,6 +533,7 @@ function emptyReport() {
     total_pdf_sem_xml: 0,
     total_xml_sem_pdf: 0,
     total_recibos: 0,
+    total_comprovantes_ignorados: 0,
     total_notas_fiscais: 0,
     total_ignorado_extensao: 0,
     total_ignorado_data: 0,
@@ -504,6 +545,8 @@ function emptyReport() {
 }
 
 Deno.serve(async (req) => {
+  const startTime = Date.now();
+  let backupLogId = null;
   try {
     const base44 = createClientFromRequest(req);
     const isAuth = await base44.auth.isAuthenticated();
@@ -516,8 +559,33 @@ Deno.serve(async (req) => {
     const xlsxFiles = Array.isArray(payload?.xlsx_files) ? payload.xlsx_files : [];
     const pageTokenIn = safeStr(payload?.page_token) || null;
     const batchSize = Math.min(parseInt(payload?.batch_size, 10) || 25, 100);
+    const incluirComprovantes = payload?.incluir_comprovantes === true;
+    const triggeredBy = payload?.triggered_by === 'scheduled' ? 'scheduled' : 'manual';
 
     const report = emptyReport();
+    report.total_comprovantes_ignorados = 0;
+
+    // ---------- BackupLog: marca início da execução (apenas em execute) ----------
+    if (mode === 'execute') {
+      try {
+        const log = await base44.asServiceRole.entities.BackupLog.create({
+          backup_type: 'auditoria_entrada_unica',
+          entity_type: 'SYNC_DRIVE_ENTRADA_UNICA',
+          status: 'em_processamento',
+          triggered_by: triggeredBy,
+          total_files: 0,
+          files_copied: 0,
+          processed_at: new Date().toISOString(),
+          details: incluirComprovantes
+            ? 'Sincronização Drive (NFs + comprovantes) em andamento'
+            : 'Sincronização Drive (NFs) em andamento',
+        });
+        backupLogId = log?.id || null;
+      } catch (e) {
+        console.warn('[BackupLog] não foi possível criar log de início:', e.message);
+      }
+    }
+
     const token = await getDriveToken(base44);
 
     // Carrega chaves existentes para deduplicação
@@ -603,7 +671,7 @@ Deno.serve(async (req) => {
     const analyzed = [];
     for (const f of fila) {
       report.total_analisado++;
-      const item = await analyzeFile(base44, token, f, existingChaves);
+      const item = await analyzeFile(base44, token, f, existingChaves, incluirComprovantes);
       report.detalhes.push({
         arquivo: item.arquivo,
         caminho: item.caminho,
@@ -616,9 +684,8 @@ Deno.serve(async (req) => {
       switch (item.acao) {
         case 'a_sincronizar':
           report.total_a_sincronizar++;
-          if (item.tipo === 'xml_nf') report.total_notas_fiscais++;
-          else if (item.tipo === 'pdf_nf') report.total_notas_fiscais++;
-          else if (item.tipo === 'recibo_imagem') report.total_recibos++;
+          if (item.tipo === 'xml_nf' || item.tipo === 'pdf_nf') report.total_notas_fiscais++;
+          else if (item.tipo === 'recibo_pdf' || item.tipo === 'recibo_imagem') report.total_recibos++;
           analyzed.push(item);
           break;
         case 'duplicado_bloqueado':
@@ -627,6 +694,9 @@ Deno.serve(async (req) => {
           break;
         case 'ignorado_extensao':
           report.total_ignorado_extensao++;
+          break;
+        case 'ignorado_comprovante':
+          report.total_comprovantes_ignorados++;
           break;
         case 'ignorado_data':
           report.total_ignorado_data++;
@@ -679,12 +749,21 @@ Deno.serve(async (req) => {
           else if (g.xml && !g.pdf && !g.recibo) grupoStatus = 'COMPLETO'; // XML apenas
           else if (!g.xml && (g.pdf || g.recibo)) grupoStatus = 'COMPLETO'; // PDF apenas
 
+          // tipo_detectado: NF quando há xml ou pdf_nf; RECIBO_PDF quando só recibo
+          const temNf = !!(g.xml || g.pdf);
+          let tipoDetectado = 'OUTRO';
+          if (temNf) {
+            tipoDetectado = g.xml ? 'NOTA_FISCAL_XML' : 'NOTA_FISCAL_PDF';
+          } else if (g.recibo) {
+            tipoDetectado = 'RECIBO_PDF';
+          }
+
           const intakePayload = {
             user_email: user?.email || 'sistema@museus-centro.org.br',
             user_name: user?.full_name || 'Sistema',
-            tipo_detectado: g.xml ? 'NOTA_FISCAL_XML' : (g.pdf ? 'NOTA_FISCAL_PDF' : 'OUTRO'),
+            tipo_detectado: tipoDetectado,
             status_processamento: 'AGUARDANDO_REVISAO',
-            arquivo_original_url: g.xml || g.pdf || g.recibo ? `https://drive.google.com/file/d/${refItem.fileId}/view` : '',
+            arquivo_original_url: (g.xml || g.pdf || g.recibo) ? `https://drive.google.com/file/d/${refItem.fileId}/view` : '',
             file_name_original: refItem.arquivo,
             file_name_final: refItem.arquivo,
             mime_type: '',
@@ -698,6 +777,7 @@ Deno.serve(async (req) => {
             nf_emitente_nome: '',
             nf_numero: g.xml?.xmlData?.nf_numero || '',
             nf_valor_total: g.xml?.xmlData?.valor_total || 0,
+            nf_data_emissao: g.xml?.xmlData?.nf_data_emissao || '',
             centro_custo: '',
             revisado_pelo_usuario: false,
             status_registro: 'ATIVO',
@@ -714,12 +794,39 @@ Deno.serve(async (req) => {
       }
     }
 
-    // itens não agrupados (recibos sem XML/PDF em grupo próprio) ainda contam como a_sincronizar
-    // — já refletido em analyzed. Em execute mode são tratados no loop de grupos quando são o refItem.
+    // ---------- BackupLog: finaliza ----------
+    if (mode === 'execute' && backupLogId) {
+      try {
+        const ok = report.erros.length === 0;
+        await base44.asServiceRole.entities.BackupLog.update(backupLogId, {
+          status: ok ? 'concluido' : 'failure',
+          total_files: report.total_analisado,
+          files_copied: report.total_sincronizado,
+          execution_time_ms: Date.now() - startTime,
+          processed_at: new Date().toISOString(),
+          details: `analisados=${report.total_analisado} sincronizados=${report.total_sincronizado} duplicados=${report.total_duplicado_bloqueado} recibos=${report.total_recibos} comprovantes_ignorados=${report.total_comprovantes_ignorados}`,
+          error_message: ok ? '' : report.erros.slice(0, 3).join(' | '),
+        });
+      } catch (e) {
+        console.warn('[BackupLog] falha ao finalizar log:', e.message);
+      }
+    }
 
     return Response.json(report);
   } catch (error) {
     console.error('[sincronizarDriveEntradaUnica]', error.message);
+    // Tenta marcar o BackupLog como falha
+    if (backupLogId) {
+      try {
+        const base44 = createClientFromRequest(req);
+        await base44.asServiceRole.entities.BackupLog.update(backupLogId, {
+          status: 'failure',
+          execution_time_ms: Date.now() - startTime,
+          error_message: String(error?.message || error).slice(0, 500),
+          processed_at: new Date().toISOString(),
+        });
+      } catch {}
+    }
     return Response.json({ error: error.message }, { status: 500 });
   }
 });

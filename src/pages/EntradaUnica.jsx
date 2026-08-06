@@ -44,6 +44,7 @@ import MonitoramentoFila from '@/components/entrada/MonitoramentoFila';
 import ReprocessarFilaModal from '@/components/entrada/ReprocessarFilaModal';
 import useAutoProcessarFilaCompleta from '@/hooks/useAutoProcessarFilaCompleta';
 import useReclassificarComprovantesSilencioso from '@/hooks/useReclassificarComprovantesSilencioso';
+import PainelSyncDrive from '@/components/entrada/PainelSyncDrive';
 
 function normalizeText(value) {
   return String(value || '').

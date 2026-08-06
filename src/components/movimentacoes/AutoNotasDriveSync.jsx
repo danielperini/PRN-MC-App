@@ -52,6 +52,18 @@ export default function AutoNotasDriveSync() {
         }
 
         localStorage.setItem(CHAVE_ULTIMA_EXECUCAO, String(Date.now()));
+
+        // Sincroniza também comprovantes de pagamento (RECIBO_PDF) da Entrada Única
+        try {
+          await base44.functions.invoke('sincronizarDriveEntradaUnica', {
+            mode: 'execute',
+            incluir_comprovantes: true,
+            triggered_by: 'manual',
+          });
+        } catch (compErr) {
+          console.warn('Sincronização de comprovantes do Drive:', compErr);
+        }
+
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ['notas-drive-conciliacao-prestacao'] }),
           queryClient.invalidateQueries({ queryKey: ['purchase-requests-conciliacao-drive'] }),

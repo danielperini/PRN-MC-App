@@ -519,3 +519,47 @@
 [data-theme="giacometti"] .recharts-text {
   fill: var(--cor-texto-secundario) !important;
 }
+
+/* ===================================== */
+/* TEMAS ARTÍSTICOS — APLICAÇÃO PROFUNDA */
+/* (mondrian / giacometti) em cards, ícones, badges, botões */
+/* ===================================== */
+
+[data-theme="mondrian"] .themed-card,
+[data-theme="giacometti"] .themed-card {
+  border-left: 4px solid var(--cor-destaque) !important;
+}
+
+[data-theme="mondrian"] .themed-icon svg,
+[data-theme="giacometti"] .themed-icon svg {
+  color: var(--cor-destaque) !important;
+}
+
+[data-theme="mondrian"] .themed-badge-success,
+[data-theme="giacometti"] .themed-badge-success {
+  background: var(--cor-accent) !important;
+  color: #ffffff !important;
+}
+
+[data-theme="mondrian"] .themed-badge-info,
+[data-theme="giacometti"] .themed-badge-info {
+  background: var(--cor-accent) !important;
+  color: #ffffff !important;
+}
+
+[data-theme="mondrian"] .themed-badge-error,
+[data-theme="giacometti"] .themed-badge-error {
+  background: var(--cor-alerta) !important;
+  color: #ffffff !important;
+}
+
+[data-theme="mondrian"] .themed-btn-primary,
+[data-theme="giacometti"] .themed-btn-primary {
+  background: var(--cor-btn-primario) !important;
+  color: var(--cor-btn-primario-texto) !important;
+}
+
+[data-theme="mondrian"] .themed-btn-primary:hover,
+[data-theme="giacometti"] .themed-btn-primary:hover {
+  background: var(--cor-btn-primario-hover) !important;
+}

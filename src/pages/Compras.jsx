@@ -57,6 +57,7 @@ import PagarSolicitacaoDialog from '@/components/compras/PagarSolicitacaoDialog'
 import NovaRubricaDialog from '@/components/rubricas/NovaRubricaDialog';
 import TotaisAditivoCards from '@/components/compras/TotaisAditivoCards';
 import RecalcularTotaisButton from '@/components/compras/RecalcularTotaisButton';
+import PreencherDatasButton from '@/components/compras/PreencherDatasButton';
 import PainelVerificacaoFinanceira from '@/components/compras/PainelVerificacaoFinanceira';
 import PainelAuditoriaMetas from '@/components/compras/PainelAuditoriaMetas';
 import ConferenciaExtratosVsPagamentos from '@/components/compras/ConferenciaExtratosVsPagamentos';
@@ -1643,7 +1644,8 @@ function ComprasInner() {
 
         {tab === 'verificacao' && isCoordenador &&
         <div className="space-y-6">
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2 flex-wrap">
+              <PreencherDatasButton onDone={refreshFinanceiroCompleto} />
               <RecalcularTotaisButton onDone={refreshFinanceiroCompleto} />
             </div>
             <PainelVerificacaoFinanceira onSuccess={refreshFinanceiroCompleto} />

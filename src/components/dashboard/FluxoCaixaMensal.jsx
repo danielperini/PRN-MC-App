@@ -14,6 +14,7 @@ import ExtratosDrivePorMes from '@/components/movimentacoes/ExtratosDrivePorMes'
 import ImportarAuditarTodosMeses from '@/components/movimentacoes/ImportarAuditarTodosMeses';
 import ResumoRubricasExtratos from '@/components/movimentacoes/ResumoRubricasExtratos';
 import NotasDriveForaPrestacao from '@/components/movimentacoes/NotasDriveForaPrestacao';
+import useThemeChartColors from '@/hooks/useThemeChartColors';
 
 const MESES_CURTO = ['', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
@@ -52,6 +53,7 @@ function CustomTooltip({ active, payload, label }) {
 
 export default function FluxoCaixaMensal() {
   const [expanded, setExpanded] = useState(true);
+  const { series, isArtistic } = useThemeChartColors();
 
   const { data: movimentacoes = [], isLoading, refetch } = useQuery({
     queryKey: ['movimentacoes-bancarias-dashboard'],
@@ -175,10 +177,10 @@ export default function FluxoCaixaMensal() {
                         <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={fmtK} axisLine={false} tickLine={false} width={68} />
                         <Tooltip content={<CustomTooltip />} />
                         <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, color: '#64748b' }} />
-                        <Bar dataKey="creditos" name="Créditos" fill="#4ade80" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="debitos" name="Débitos operacionais" fill="#f87171" radius={[4, 4, 0, 0]} />
-                        <Line type="monotone" dataKey="rendimento" name="Rendimentos" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-                        <Line type="monotone" dataKey="saldo" name="Saldo consolidado" stroke="#334155" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                        <Bar dataKey="creditos" name="Créditos" fill={isArtistic ? series[0] : '#4ade80'} radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="debitos" name="Débitos operacionais" fill={isArtistic ? series[1] : '#f87171'} radius={[4, 4, 0, 0]} />
+                        <Line type="monotone" dataKey="rendimento" name="Rendimentos" stroke={isArtistic ? series[2] : '#3b82f6'} strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                        <Line type="monotone" dataKey="saldo" name="Saldo consolidado" stroke={isArtistic ? series[3] : '#334155'} strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                       </ComposedChart>
                     </ResponsiveContainer>
                   </div>
