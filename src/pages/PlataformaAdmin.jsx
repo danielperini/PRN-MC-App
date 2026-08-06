@@ -65,6 +65,8 @@ function PlataformaAdminInner() {
   const [higienizacaoResult, setHigienizacaoResult] = useState(null);
   const [sincronizandoNFs, setSincronizandoNFs] = useState(false);
   const [sincronizacaoNFsResult, setSincronizacaoNFsResult] = useState(null);
+  const [organizandoNFsIA, setOrganizandoNFsIA] = useState(false);
+  const [organizacaoNFsIAResult, setOrganizacaoNFsIAResult] = useState(null);
 
   const { data: users = [] } = useQuery({
     queryKey: ['users'],
@@ -171,6 +173,28 @@ function PlataformaAdminInner() {
       toastMessages.error(error?.message || 'Erro ao enviar link do app');
     } finally {
       setSendingLink(false);
+    }
+  };
+
+  const handleOrganizarNFsIA = async () => {
+    setOrganizandoNFsIA(true);
+    setOrganizacaoNFsIAResult(null);
+    try {
+      toast.success('Processamento iniciado em background...');
+      const res = await base44.functions.invoke('organizarNFsComIA', { limite: 50 });
+      const data = res?.data || res;
+      setOrganizacaoNFsIAResult(data);
+      if (data?.ok) {
+        toast.success(
+          `${data.stats?.atualizado || 0} NFs atualizadas, ${data.stats?.pulado || 0} puladas, ${data.stats?.erro || 0} erros.`
+        );
+      } else {
+        toastMessages.error(data?.error || 'Falha na organização');
+      }
+    } catch (error) {
+      toastMessages.error(error?.message || 'Erro ao organizar NFs com IA');
+    } finally {
+      setOrganizandoNFsIA(false);
     }
   };
 
@@ -472,6 +496,69 @@ function PlataformaAdminInner() {
                     <li>❌ XMLs não encontrados: {higienizacaoResult.xmls_nao_encontrados || 0}</li>
                     <li>⏱️ Tempo: {(higienizacaoResult.execution_ms / 1000).toFixed(1)}s</li>
                   </ul>
+                </div>
+              )}
+            </div>
+
+            {/* Organização automática de NFs com IA (lerNotaFiscalGPT em lote) */}
+            <div className="border-2 border-indigo-500 rounded-lg p-6 bg-indigo-50">
+              <h2 className="text-lg font-bold text-indigo-900 mb-1 flex items-center gap-2">
+                <Database className="w-5 h-5" />
+                Organizar todas as NFs com IA 🤖
+              </h2>
+              <p className="text-sm text-indigo-800 mb-4">
+                Reprocessa até 50 NFs em lote usando a leitura integral (GPT-4o + Structured Outputs),
+                preenchendo automaticamente centro_custo, rubrica, meta, valor, data e fornecedor
+                quando ausentes. Pulamos NFs já organizadas com alta confiança (score ≥ 9) e
+                respeitamos registros revisados manualmente e compras <strong>APROVADO_ADMIN/PAGO</strong>.
+                Idempotente — pode rodar várias vezes. Ao final, envia resumo por e-mail para
+                danielperini.mc@viadutodasartes.org.br.
+              </p>
+
+              <Button
+                onClick={handleOrganizarNFsIA}
+                disabled={organizandoNFsIA}
+                className="bg-indigo-700 text-white hover:bg-indigo-800 gap-2"
+              >
+                {organizandoNFsIA ? (
+                  <>
+                    <RotateCw className="w-4 h-4 animate-spin" />
+                    Organizando com IA...
+                  </>
+                ) : (
+                  <>
+                    <Database className="w-4 h-4" />
+                    Organizar NFs com IA 🤖
+                  </>
+                )}
+              </Button>
+
+              {organizacaoNFsIAResult && (
+                <div className="mt-6 p-4 border border-indigo-300 rounded-lg bg-white">
+                  <p className="font-semibold text-gray-800 mb-3">📋 Resumo da organização com IA</p>
+                  <ul className="text-sm text-gray-700 space-y-1">
+                    <li>🔎 Total processado: {organizacaoNFsIAResult.stats?.total || 0}</li>
+                    <li>⏭️ Puladas (score ≥ 9): {organizacaoNFsIAResult.stats?.pulado || 0}</li>
+                    <li>✅ Atualizadas: {organizacaoNFsIAResult.stats?.atualizado || 0}</li>
+                    <li>❌ Erros: {organizacaoNFsIAResult.stats?.erro || 0}</li>
+                    <li>⭐ Score médio: {organizacaoNFsIAResult.score_medio || '0.00'}</li>
+                    <li>⏱️ Tempo: {((organizacaoNFsIAResult.duration_ms || 0) / 1000).toFixed(1)}s</li>
+                    {organizacaoNFsIAResult.has_more && (
+                      <li className="text-amber-700 font-medium">
+                        ⚠️ Ainda há mais NFs — execute novamente para continuar.
+                      </li>
+                    )}
+                  </ul>
+                  {organizacaoNFsIAResult.stats?.erros?.length > 0 && (
+                    <div className="mt-3 text-red-700">
+                      <p className="font-medium mb-1">⚠️ Erros detalhados:</p>
+                      <ul className="list-disc list-inside space-y-1 text-xs max-h-40 overflow-y-auto">
+                        {organizacaoNFsIAResult.stats.erros.map((e, i) => (
+                          <li key={i}>{e.intake_id || 's/id'}: {e.erro}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
