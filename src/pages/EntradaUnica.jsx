@@ -1853,6 +1853,9 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
   return (
     <div className="min-h-screen bg-white">
       <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10 space-y-6">
+        {(user?.role === 'admin' || isCoordenador(user)) && (
+          <PainelSyncDrive onRefresh={loadIntakes} />
+        )}
         <div className="rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden">
           <div className="p-5 md:p-7 border-b border-gray-100 bg-gradient-to-br from-white via-white to-gray-50">
             <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -1874,7 +1877,7 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
 
               <div className="flex items-start gap-3 flex-wrap">
                 <div className="grid grid-cols-3 gap-2">
-                  <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
+                  <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm themed-card">
                     <p className="text-[11px] uppercase tracking-wide font-semibold text-gray-500">
                       Pendentes
                     </p>
@@ -1883,7 +1886,7 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
                     </p>
                   </div>
 
-                  <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
+                  <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm themed-card">
                     <p className="text-[11px] uppercase tracking-wide font-semibold text-gray-500">
                       IA
                     </p>
@@ -2062,9 +2065,9 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+          <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm themed-card">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center themed-icon">
                 <FileText className="w-5 h-5 text-black" />
               </div>
 
@@ -2075,9 +2078,9 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
             </div>
           </div>
 
-          <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+          <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm themed-card">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center themed-icon">
                 <Clock3 className="w-5 h-5 text-black" />
               </div>
 
@@ -2088,9 +2091,9 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
             </div>
           </div>
 
-          <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+          <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm themed-card">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center themed-icon">
                 <ShieldCheck className="w-5 h-5 text-black" />
               </div>
 
