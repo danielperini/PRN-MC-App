@@ -60,6 +60,7 @@ export function buildNomePadronizado({ nf_numero, nf_emitente_nome, nf_valor_tot
 export function useReanaliseAutomaticaNF({ intake, getForm, setForm }) {
   const [status, setStatus] = useState('idle'); // idle | analisando | sucesso | falha
   const [camposAtualizados, setCamposAtualizados] = useState([]); // nomes dos campos atualizados pela IA
+  const [municipioNaoEncontrado, setMunicipioNaoEncontrado] = useState(false);
   const autoReanalisouRef = useRef(false);
   const timeoutRef = useRef(null);
 
@@ -77,6 +78,7 @@ export function useReanaliseAutomaticaNF({ intake, getForm, setForm }) {
 
     const dataEmissaoVazia = !intake.nf_data_emissao && !intake.resultado_ia?.nf_data_emissao && !intake.resultado_ia?.data_emissao;
     const cnpjVazio = !intake.nf_emitente_cpf_cnpj && !intake.resultado_ia?.nf_emitente_cpf_cnpj;
+    const municipioVazio = !intake.municipio && !intake.resultado_ia?.municipio;
 
     // Divergência de valor entre nome do arquivo e nf_valor_total
     const valorNomeArquivo = extrairValorDoNomeArquivo(intake.file_name_final || intake.file_name_original);
@@ -87,7 +89,7 @@ export function useReanaliseAutomaticaNF({ intake, getForm, setForm }) {
       valorDivergente = diff > valorCampo * 0.01; // > 1% de diferença
     }
 
-    const precisaReanalisar = dataEmissaoVazia || cnpjVazio || valorDivergente;
+    const precisaReanalisar = dataEmissaoVazia || cnpjVazio || valorDivergente || municipioVazio;
     if (!precisaReanalisar) return;
 
     setStatus('analisando');
@@ -129,8 +131,12 @@ export function useReanaliseAutomaticaNF({ intake, getForm, setForm }) {
       );
       const cnpjAtualizado = iaAtualizado.nf_emitente_cpf_cnpj || updated?.nf_emitente_cpf_cnpj || '';
       const valorAtualizado = iaAtualizado.nf_valor_total || updated?.nf_valor_total || '';
+      const municipioAtualizado = iaAtualizado.municipio || updated?.municipio || '';
 
-      // Verifica se a reanálise preencheu os campos críticos
+      // Município é campo não-bloqueante: mesmo que continue vazio, o status pode ser sucesso
+      setMunicipioNaoEncontrado(!municipioAtualizado);
+
+      // Verifica se a reanálise preencheu os campos críticos (município não bloqueia)
       const camposPreenchidos =
         (!dataEmissaoVaziaAntes() || dataIAValida(dataAtualizada)) &&
         (!cnpjVazioAntes() || cnpjAtualizado);
@@ -217,6 +223,7 @@ export function useReanaliseAutomaticaNF({ intake, getForm, setForm }) {
   return {
     status,
     camposAtualizados,
+    municipioNaoEncontrado,
     reanalisando: status === 'analisando',
     reanaliseSucesso: status === 'sucesso',
     reanaliseFalha: status === 'falha',

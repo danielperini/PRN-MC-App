@@ -1026,7 +1026,10 @@ Equipe Museus Centro`;
           {reanalise.reanaliseSucesso && (
             <div className="flex items-center gap-3 p-3 bg-emerald-50 border-l-4 border-emerald-400 rounded-lg text-sm text-emerald-800">
               <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-              <span>Campos atualizados automaticamente pela IA.</span>
+              <span>
+                Campos atualizados automaticamente pela IA.
+                {reanalise.municipioNaoEncontrado && ' (Município não encontrado no documento.)'}
+              </span>
             </div>
           )}
 
@@ -1187,6 +1190,9 @@ Equipe Museus Centro`;
             <div className="space-y-1 min-w-0">
               <Label>Município</Label>
               <Input className={`w-full min-w-0 ${inputStateClass('municipio')}`} value={form.municipio} readOnly={reanaliseAtiva} onChange={(e) => setForm((f) => ({ ...f, municipio: e.target.value }))} />
+              {reanalise.municipioNaoEncontrado && !form.municipio && (
+                <p className="text-xs text-amber-600 mt-1">Município não encontrado no documento. Preencha manualmente.</p>
+              )}
             </div>
           </div>
 
