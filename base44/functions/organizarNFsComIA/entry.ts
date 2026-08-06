@@ -1,24 +1,21 @@
 // ================================================================
 // organizarNFsComIA
 // Reprocessamento em lote das NFs existentes no banco (DocumentIntake
-// do tipo NOTA_FISCAL_PDF/XML/RECIBO_PDF com status_registro=ATIVO)
-// usando a lógica core de `lerNotaFiscalGPT` (leitura integral via
-// OpenAI Structured Outputs). Importa diretamente o módulo
-// compartilhado `_shared/lerNotaFiscalGPTCore.ts` — sem custo de
-// chamada cross-function HTTP/SDK. Preenche automaticamente os
-// campos faltantes ou incorretos — centro_custo, rubrica_id,
+// do tipo NOTA_FISCAL_PDF/XML/RECIBO_PDF, status_registro=ATIVO) usando
+// a função `lerNotaFiscalGPT` (leitura integral via OpenAI Structured
+// Outputs). Preenche campos faltantes/errados (centro_custo, rubrica_id,
 // rubrica_nome, meta_id, nf_data_emissao, nf_valor_total,
-// fornecedor_cnpj, natureza_despesa, resultado_ia — e espelha no
-// PurchaseRequest vinculado (quando não APROVADO_ADMIN/PAGO). Ao
-// final envia e-mail para danielperini.mc@viadutodasartes.org.br e
-// registra em BackupLog.
+// fornecedor_cnpj, natureza_despesa, resultado_ia) e espelha no
+// PurchaseRequest vinculado (quando não APROVADO_ADMIN/PAGO). Ao final
+// envia e-mail para danielperini.mc@viadutodasartes.org.br e registra
+// em BackupLog + AIUsageLog.
 //
 // Propriedades:
-//   - Idempotente: pode rodar múltiplas vezes; só preenche faltantes.
-//   - Merge seguro: nunca sobrescreve campo preenchido manualmente
-//     (revisado_pelo_usuario=true) nem PurchaseRequest APROVADO_ADMIN/PAGO.
-//   - Batches de 5 NFs em paralelo com pausa de 2s para não saturar a API.
-//   - Fire-and-forget: rodando como service role, não exige sessão.
+//   - Idempotente: roda múltiplas vezes; só preenche faltantes.
+//   - Merge seguro: nunca sobrescreve revisado_pelo_usuario=true nem
+//     PurchaseRequest APROVADO_ADMIN/PAGO.
+//   - Batches de 5 em paralelo, pausa de 2s entre batches.
+//   - Aceita service role (sem user) e admin/coordenador.
 // ================================================================
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.41';
 import { analisarNotaFiscal } from '../_shared/lerNotaFiscalGPTCore.ts';
@@ -28,6 +25,7 @@ const TIPOS_ALVO = ['NOTA_FISCAL_PDF', 'NOTA_FISCAL_XML', 'RECIBO_PDF'];
 const MAX_POR_INVOCACAO = 50;
 const BATCH_SIZE = 5;
 const PAUSA_MS = 2000;
+const TIMEOUT_POR_NF_MS = 45_000;
 
 // ─── Helpers ───────────────────────────────────────────────────
 const ehVazio = (v) => v == null || v === '' || (typeof v === 'number' && v === 0);
@@ -35,36 +33,29 @@ const ehVazio = (v) => v == null || v === '' || (typeof v === 'number' && v === 
 function deveAtualizar(atual, novo, score, revisadoManualmente) {
   if (revisadoManualmente === true) return false;
   if (novo == null || novo === '') return false;
-  if (Number(novo) === 0 && typeof novo === 'number') return false;
+  if (typeof novo === 'number' && Number(novo) === 0) return false;
   if (ehVazio(atual)) return true;
   if (score >= 8 && String(novo) !== String(atual)) return true;
   return false;
 }
 
-function resumirIntake(intake) {
-  return {
-    id: intake?.id || null,
-    file_name_original: intake?.file_name_original || null,
-    tipo_detectado: intake?.tipo_detectado || null,
-    status_processamento: intake?.status_processamento || null,
-    nf_numero: intake?.nf_numero || null,
-    fornecedor_nome: intake?.fornecedor_nome || null,
-  };
-}
-
 // ─── Invocação direta do core compartilhado ───────────────────
 // Sem HTTP/SDK cross-function — apenas chamada à função exportada
-// pelo módulo `_shared/lerNotaFiscalGPTCore.ts`. Mantém isolamento
-// de timeout via Promise.race por NF.
-async function lerNFIndependente(base44, intake_id, user_email) {
-  const promise = analisarNotaFiscal(base44, { intake_id, user_email, feature: 'organizar_nfs_lote' });
-  const timeout = new Promise((_, reject) => {
-    setTimeout(() => reject(new Error('Timeout Interno (45s)')), 45_000);
+// pelo módulo `_shared/lerNotaFiscalGPTCore.ts`.
+async function lerNFCrossFunction(base44, intake_id, user_email) {
+  let timer;
+  const promise = analisarNotaFiscal(base44, {
+    intake_id,
+    user_email: user_email || 'service_role',
+    feature: 'organizar_nfs_lote',
   });
-  return Promise.race([promise, timeout]);
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error('Timeout Interno (45s)')), TIMEOUT_POR_NF_MS);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
-// ─── Merge e persistência ─────────────────────────────────────
+// ─── Merge e persistência ──────────────────────────────────────
 async function aplicarMergeEPersistir(svc, intake, resultado, dryRun) {
   if (!resultado) return { atualizado: false, campos: [] };
   const camposAtualizados = [];
@@ -82,20 +73,13 @@ async function aplicarMergeEPersistir(svc, intake, resultado, dryRun) {
     rubrica_nome: resultado.rubrica_nome,
     municipio: resultado.municipio_emissao,
   };
-
+  const revisado = intake?.revisado_pelo_usuario === true;
   for (const [campo, valor] of Object.entries(mapIntake)) {
-    if (deveAtualizar(intake[campo], valor, resultado.score, intake.revisado_pelo_usuario)) {
+    if (deveAtualizar(intake?.[campo], valor, resultado.score, revisado)) {
       atualizacoesIntake[campo] = valor;
       camposAtualizados.push(campo);
     }
   }
-
-  if (camposAtualizados.length === 0 && !dryRun) {
-    // Mesmo sem alterações escalares, persiste o resultado_ia completo para auditoria
-    await svc.entities.DocumentIntake.update(intake.id, { resultado_ia: resultado });
-    return { atualizado: false, campos: ['resultado_ia'] };
-  }
-
   if (!dryRun) {
     await svc.entities.DocumentIntake.update(intake.id, atualizacoesIntake);
   }
@@ -103,7 +87,7 @@ async function aplicarMergeEPersistir(svc, intake, resultado, dryRun) {
 }
 
 async function espelharEmPurchaseRequest(svc, intake, resultado, dryRun) {
-  if (intake.entidade_destino !== 'PurchaseRequest' || !intake.entidade_destino_id) return null;
+  if (intake?.entidade_destino !== 'PurchaseRequest' || !intake?.entidade_destino_id) return null;
   let compra;
   try {
     compra = await svc.entities.PurchaseRequest.get(intake.entidade_destino_id);
@@ -154,7 +138,7 @@ function gerarCorpoEmail(stats, scoreMedio, appUrl) {
 <p style="color:#475569;margin-top:0;">Resumo do processamento em lote:</p>
 <table style="border-collapse:collapse;width:100%;margin-top:8px;">
 <tr><td style="padding:8px;border:1px solid #e5e7eb;background:#f8fafc;">Total listado</td><td style="padding:8px;border:1px solid #e5e7eb;font-weight:600;">${stats.total}</td></tr>
-<tr><td style="padding:8px;border:1px solid #e5e7eb;background:#f8fafc;">Pulados (já organizados / score≥9)</td><td style="padding:8px;border:1px solid #e5e7eb;font-weight:600;">${stats.pulado}</td></tr>
+<tr><td style="padding:8px;border:1px solid #e5e7eb;background:#f8fafc;">Pulados (score≥9 / PRE_APROVADO)</td><td style="padding:8px;border:1px solid #e5e7eb;font-weight:600;">${stats.pulado}</td></tr>
 <tr><td style="padding:8px;border:1px solid #e5e7eb;background:#f8fafc;">Atualizados</td><td style="padding:8px;border:1px solid #e5e7eb;font-weight:600;color:#16a34a;">${stats.atualizado}</td></tr>
 <tr><td style="padding:8px;border:1px solid #e5e7eb;background:#f8fafc;">Erros</td><td style="padding:8px;border:1px solid #e5e7eb;font-weight:600;color:${stats.erro ? '#dc2626' : '#16a34a'};">${stats.erro}</td></tr>
 <tr><td style="padding:8px;border:1px solid #e5e7eb;background:#f8fafc;">Score médio</td><td style="padding:8px;border:1px solid #e5e7eb;font-weight:600;">${scoreMedio}</td></tr>
@@ -172,18 +156,16 @@ Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req);
     const svc = base44.asServiceRole;
 
-    // Permite service role (sem user ativo) e admin/coordenador
     let user = null;
-    try { user = await base44.auth.me(); } catch { /* service role */ }
+    try { user = await base44.auth.me(); } catch { /* service role ok */ }
 
     const body = await req.json().catch(() => ({}));
     const limite = Math.min(Number(body?.limite) || MAX_POR_INVOCACAO, 500);
     const skipInicial = Math.max(0, Number(body?.skip) || 0);
     const dryRun = !!body?.dry_run;
-
     const appUrl = (Deno.env.get('APP_URL') || '').replace(/\/$/, '');
 
-    // 1) Paginação: listar DocumentIntake ativos do tipo NF
+    // 1) Listar DocumentIntake ativos do tipo NF
     let todos = [];
     let skip = skipInicial;
     while (todos.length < limite) {
@@ -219,9 +201,9 @@ Deno.serve(async (req) => {
         if (temAltaConfianca) {
           return { tipo: 'pulado', intake_id: intake.id };
         }
-        // 2.2) Invoca lerNotaFiscalGPT
+        // 2.2) Invoca lerNotaFiscalGPT via cross-function SDK
         try {
-          const r = await lerNFIndependente(base44, intake.id);
+          const r = await lerNFCrossFunction(base44, intake.id, user?.email);
           if (!r?.ok) throw new Error(r?.error || 'lerNotaFiscalGPT falhou');
           return { tipo: 'ok', intake, resultado: r.resultado, ctx: r.contexto_contadores };
         } catch (e) {
@@ -231,22 +213,17 @@ Deno.serve(async (req) => {
 
       // 2.3) Persistir resultados
       for (const r of resultados) {
-        if (r.tipo === 'pulado') {
-          stats.pulado++;
-          continue;
-        }
+        if (r.tipo === 'pulado') { stats.pulado++; continue; }
         if (r.tipo === 'erro') {
           stats.erro++;
           stats.erros.push({ intake_id: r.intake_id, erro: r.erro });
           continue;
         }
         try {
-          const resIntake = await aplicarMergeEPersistir(svc, r.intake, r.resultado, dryRun);
-          let resCompra = null;
+          await aplicarMergeEPersistir(svc, r.intake, r.resultado, dryRun);
           try {
-            resCompra = await espelharEmPurchaseRequest(svc, r.intake, r.resultado, dryRun);
+            await espelharEmPurchaseRequest(svc, r.intake, r.resultado, dryRun);
           } catch (e) {
-            // Falha no espelho não invalida o intake
             console.warn('[organizarNFs] espelho PurchaseRequest falhou:', e.message);
           }
           stats.atualizado++;
@@ -257,7 +234,6 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Pausa entre batches (menos após o último)
       if (i + BATCH_SIZE < todos.length) {
         await new Promise((r) => setTimeout(r, PAUSA_MS));
       }
@@ -268,7 +244,7 @@ Deno.serve(async (req) => {
       ? (stats.scores.reduce((a, b) => a + b, 0) / stats.scores.length).toFixed(2)
       : '0.00';
 
-    // 4) Enviar e-mail de conclusão
+    // 4) E-mail de conclusão
     let emailStatus = 'enviado';
     try {
       await svc.integrations.Core.SendEmail({
@@ -279,9 +255,17 @@ Deno.serve(async (req) => {
     } catch (e) {
       emailStatus = 'falhou: ' + e.message;
       console.warn('[organizarNFs] e-mail de conclusão falhou:', e.message);
+      try {
+        await svc.entities.Notification.create({
+          user_email: EMAIL_DESTINO,
+          type: 'INVOICE_SUBMITTED',
+          title: 'Organização de NFs com IA concluída',
+          message: `Atualizados: ${stats.atualizado} | Erros: ${stats.erro} | Score médio: ${scoreMedio}`,
+        });
+      } catch {}
     }
 
-    // 5) Registrar em BackupLog
+    // 5) BackupLog
     try {
       await svc.entities.BackupLog.create({
         backup_type: 'auditoria_entrada_unica',
@@ -295,7 +279,7 @@ Deno.serve(async (req) => {
       console.warn('[organizarNFs] BackupLog falhou:', e.message);
     }
 
-    // 6) Log AIUsageL consolidado
+    // 6) AIUsageLog consolidado
     try {
       await svc.entities.AIUsageLog.create({
         task_type: 'organizar_nfs_lote',
@@ -317,6 +301,7 @@ Deno.serve(async (req) => {
       has_more: todos.length === limite,
       next_skip: skipInicial + todos.length,
       duration_ms: Date.now() - t0,
+      _marker: 'v3_cross_function',
     });
   } catch (err) {
     console.error('[organizarNFsComIA] erro fatal:', err);
