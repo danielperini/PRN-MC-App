@@ -17,6 +17,7 @@ import {
   XCircle,
   AlertTriangle,
   ArrowRight,
+  Wrench,
 } from 'lucide-react';
 
 // Tempos limite
@@ -101,6 +102,7 @@ export default function MonitoramentoFila({ intakes = [], processados = [], onRe
   const [logsLoaded, setLogsLoaded] = useState(false);
   const [buscandoXmls, setBuscandoXmls] = useState(false);
   const [atualizando, setAtualizando] = useState(false);
+  const [corrigindoComprovantes, setCorrigindoComprovantes] = useState(false);
 
   // Lista combinada: intakes (pendentes) + processados, para calcular o funil completo
   const todosIntakes = useMemo(() => [...intakes, ...processados], [intakes, processados]);
@@ -228,6 +230,34 @@ export default function MonitoramentoFila({ intakes = [], processados = [], onRe
     }
   }
 
+  async function handleCorrigirComprovantes() {
+    setCorrigindoComprovantes(true);
+    try {
+      const res = await base44.functions.invoke('reclassificarComprovantesMalClassificados', { apenas_novos: false });
+      const data = res?.data || res || {};
+      if (data?.ok === false) {
+        toast.error(data.error || 'Erro ao corrigir comprovantes');
+        return;
+      }
+      const reclassificados = data.reclassificados || 0;
+      const vinculados = data.vinculados || 0;
+      const semMatch = data.sem_match || 0;
+      if (reclassificados === 0 && vinculados === 0 && semMatch === 0) {
+        toast.info('Nenhum comprovante mal classificado encontrado.');
+      } else {
+        toast.success(
+          `${reclassificados} comprovante(s) reclassificado(s), ${vinculados} vinculado(s), ${semMatch} sem match.`
+        );
+      }
+      await onRefresh?.();
+    } catch (e) {
+      console.error('Erro ao corrigir comprovantes mal classificados:', e);
+      toast.error('Erro ao corrigir comprovantes: ' + (e?.message || e));
+    } finally {
+      setCorrigindoComprovantes(false);
+    }
+  }
+
   const badgeCount = statusXmlPdf.aguardandoXml;
   const temAtencao = pipeline.travadosAnalisandoIa > 0 || statusXmlPdf.aguardandoXml24h.length > 0;
 
@@ -348,6 +378,19 @@ export default function MonitoramentoFila({ intakes = [], processados = [], onRe
                   <Search className="w-3.5 h-3.5" />
                 )}
                 Buscar XMLs no Drive
+              </button>
+
+              <button
+                onClick={handleCorrigirComprovantes}
+                disabled={corrigindoComprovantes}
+                className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+              >
+                {corrigindoComprovantes ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Wrench className="w-3.5 h-3.5" />
+                )}
+                Corrigir Comprovantes Mal Classificados
               </button>
             </div>
 

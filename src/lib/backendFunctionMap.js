@@ -53,6 +53,7 @@ export const FN = {
 
   // Conciliação de comprovantes de pagamento
   VINCULAR_COMPROVANTES_LOTE: 'vincularComprovantesEmLote',
+  RECLASSIFICAR_COMPROVANTES: 'reclassificarComprovantesMalClassificados',
 
   // Sincronizações
   SYNC_BASE_CONHECIMENTO: 'syncBaseConhecimento',

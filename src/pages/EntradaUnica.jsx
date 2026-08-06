@@ -43,6 +43,7 @@ import SectionErrorBoundary from '@/components/common/SectionErrorBoundary';
 import MonitoramentoFila from '@/components/entrada/MonitoramentoFila';
 import ReprocessarFilaModal from '@/components/entrada/ReprocessarFilaModal';
 import useAutoProcessarFilaCompleta from '@/hooks/useAutoProcessarFilaCompleta';
+import useReclassificarComprovantesSilencioso from '@/hooks/useReclassificarComprovantesSilencioso';
 
 function normalizeText(value) {
   return String(value || '').
@@ -772,6 +773,12 @@ export default function EntradaUnica() {
     loadingIntakes,
     loadIntakes,
   });
+
+  // Reclassificação automática e silenciosa de comprovantes de pagamento mal
+  // classificados como NOTA_FISCAL_PDF (somente registros novos < 24h). Aplica
+  // a regra determinística no nome do arquivo (+fallback IA) e, se houver
+  // mudanças, recarrega a fila.
+  useReclassificarComprovantesSilencioso(loadIntakes);
 
   // Dispara o pipeline automático UMA vez após a primeira carga de intakes
   useEffect(() => {
