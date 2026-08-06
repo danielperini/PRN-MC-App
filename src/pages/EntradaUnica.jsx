@@ -762,6 +762,8 @@ export default function EntradaUnica() {
     if (user) loadIntakes();
   }, [user, loadIntakes]);
 
+  const base = String(userPermission?.base_role || '').toUpperCase();
+
   const { disparar: dispararAutoPipeline } = useAutoProcessarFilaCompleta({
     canSeeAll: user?.role === 'admin' || base.includes('COORD') || base.includes('ADMIN') || isCoordenador(user),
     loadingIntakes,
@@ -1808,7 +1810,6 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
     toast.success('Enviado para aprovação com sucesso.');
   }
 
-  const base = String(userPermission?.base_role || '').toUpperCase();
   const canSeeAll = user?.role === 'admin' || base.includes('COORD') || base.includes('ADMIN') || isCoordenador(user);
 
   const tipo = reviewIntake?.tipo_detectado;
