@@ -426,6 +426,8 @@ async function processarPurchase(base44, token, pr, notasFolderCache) {
   // Atualizar PurchaseRequest
   if (Object.keys(updates).length > 0) {
     updates.drive_backup_nf_ok = true;
+    updates.drive_backup_status = 'concluido';
+    updates.backup_validado = 'SIM';
     updates.backup_last_synced_at = new Date().toISOString();
     await base44.asServiceRole.entities.PurchaseRequest.update(pr.id, updates).catch((e) => {
       log.detalhes.push(`AVISO: falha ao atualizar links no banco — ${e.message}`);

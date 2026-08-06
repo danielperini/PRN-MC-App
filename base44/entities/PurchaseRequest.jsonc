@@ -453,6 +453,28 @@
       "type": "string",
       "format": "date-time",
       "description": "Timestamp do envio da notifica\u00e7\u00e3o de aprova\u00e7\u00e3o pela coordena\u00e7\u00e3o"
+    },
+    "drive_backup_nf_ok": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se true, o backup di\u00e1rio autom\u00e1tico j\u00e1 enviou os arquivos desta NF para a pasta mensal do Drive (Notas Fiscais/ANO/MES)."
+    },
+    "drive_backup_nf_pdf_link": {
+      "type": "string",
+      "description": "URL p\u00fablica do PDF desta NF no Google Drive ap\u00f3s backup autom\u00e1tico (pasta Notas Fiscais/ANO/MES)."
+    },
+    "drive_backup_nf_xml_link": {
+      "type": "string",
+      "description": "URL p\u00fablica do XML desta NF no Google Drive ap\u00f3s backup autom\u00e1tico."
+    },
+    "drive_backup_comprovante_link": {
+      "type": "string",
+      "description": "URL p\u00fablica do comprovante de pagamento no Google Drive ap\u00f3s backup autom\u00e1tico."
+    },
+    "backup_last_synced_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data/hora do \u00faltimo backup autom\u00e1tico conclu\u00eddo (sync Drive)."
     }
   },
   "required": [
