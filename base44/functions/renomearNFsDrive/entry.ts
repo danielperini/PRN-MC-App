@@ -37,6 +37,7 @@ const ROOT_FOLDERS = [
   '1LgC94VhIomQZBS7kfkQqgBX8MVzwQqzp', // pastas MM-YYYY
   '13Lkf42UMaHsyLb8T7Cd0TGUkM3_3YH2T', // pastas "Mês YYYY"
   '10udE1viTbqEtoGdpMZVcRA97SkpcWNsn', // pasta flat (julho 2026)
+  '1jhZBWsOltRSjtdKHPG64PovnxygKLuW-', // pasta extra (notas fiscais)
 ];
 
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
