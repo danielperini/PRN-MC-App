@@ -321,7 +321,7 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me().catch(() => null);
-    if (!user || (user as any).role !== 'admin') {
+    if (!user || String((user as any).role || '').toUpperCase() !== 'ADMIN') {
       return Response.json({ ok: false, error: 'Apenas admin' }, { status: 403 });
     }
 
