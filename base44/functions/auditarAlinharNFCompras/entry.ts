@@ -168,6 +168,101 @@ async function extrairViaIA(
   return { dados: melhor, tentativas: tentativa, confianca: melhorConfianca };
 }
 
+// ── IA: reanálise de centro_custo e rubrica lendo a nota anexa ───────────────
+// Corrige atribuições erradas que usuário denunciou (ex.: "Coordenador Geral /
+// Perini Projetos" marcado como "Noturno Pampulha" deveria ser "Geral").
+
+const CENTROS_CUSTO_VALIDOS = [
+  'MHAB',
+  'MIS',
+  'MUMO',
+  'Noturno nos Museus 2026',
+  'Noturno 2026',
+  'Noturno Pampulha',
+  'Publicações',
+  'Geral',
+];
+
+const SCHEMA_CENTRO_CUSTO = {
+  type: 'object',
+  properties: {
+    centro_custo_correto: { type: 'string', description: 'Um dos valores da lista CENTROS_CUSTO_VALIDOS' },
+    rubrica_id_correto: { type: 'string', description: 'ID da rubrica sugerida (ou string vazia se manter)' },
+    confianca: { type: 'number', description: 'Confiança 0-100 na determinação' },
+    justificativa: { type: 'string', description: 'Breve justificativa' },
+  },
+};
+
+function montarPromptCentroCusto(pr: any): string {
+  return [
+    'Você é o auditor administrativo do projeto Museus Centro. Reanalise o CENTRO DE CUSTO mais adequado para esta Nota Fiscal, considerando que atribuições automáticas anteriores foram corrompidas e precisam ser revisadas.',
+    '',
+    'Dados atuais da solicitação:',
+    `- Fornecedor: ${pr.fornecedor_nome || pr.nf_emitente_nome || '—'}`,
+    `- Descrição do item: ${pr.descricao_item || '—'}`,
+    `- Categoria: ${pr.categoria || '—'}`,
+    `- Rubrica atual: ${pr.rubrica_nome || '—'}`,
+    `- Centro de custo atual (possivelmente errado): ${pr.centro_custo || '—'}`,
+    `- Valor: ${pr.nf_valor_total ?? pr.valor_solicitado ?? '—'}`,
+    '',
+    'CENTROS DE CUSTO VÁLIDOS (escolha OBRIGATORIAMENTE UM destes):',
+    CENTROS_CUSTO_VALIDOS.join(', '),
+    '',
+    'Regras de ouro (use quando se aplicar):',
+    '- "Coordenador Geral", "Coordenação Geral", "Perini Projetos", "Daniel Perini" → "Geral" (transversal). NUNCA "Noturno Pampulha".',
+    '- "Noturno Pampulha" apenas se a rubrica considerar explicitamente a ed. Pampulha 2026 (projeto Noturno Pampulha específico).',
+    '- "Noturno nos Museus 2026" para rubricas do projeto Noturno nos Museus (shows noturnos, agentes, monitores noturnos).',
+    '- "Noturno 2026" para despesas gerais do projeto Noturno 2026.',
+    '- "MHAB", "MIS", "MUMO" para atividades/contratações diretamente executadas naquele museu específico.',
+    '- "Publicações" para produção editorial, catálogos, livros.',
+    '- Em caso de dúvida entre museus específicos e transversal, prefira "Geral" quando o fornecedor é uma empresa/contratado que atende múltiplos museus (ex.: Perini Projetos).',
+    '',
+    'Leia o documento fiscal anexo para confirmar o emitente. Retorne JSON conforme schema. centro_custo_correto deve ser EXATAMENTE um dos valores listados. confianca=100 quando inequívoco pelas regras; <95 quando houver ambiguidade.',
+  ].join('\n');
+}
+
+async function reanalisarCentroCusto(
+  base44: any,
+  pr: any,
+  fileUrl: string | null,
+  confiancaMinima: number = CONFIANCA_MINIMA_DEFAULT,
+  maxTentativas: number = MAXIMO_TENTATIVAS_DEFAULT,
+): Promise<{ dados: any; tentativas: number; confianca: number }> {
+  let tentativa = 0;
+  let melhor: any = null;
+  let melhorConfianca = -1;
+  const prompt = montarPromptCentroCusto(pr);
+  while (tentativa < maxTentativas) {
+    tentativa++;
+    try {
+      const payload: any = {
+        prompt,
+        add_context_from_internet: false,
+        response_json_schema: SCHEMA_CENTRO_CUSTO,
+        model: 'gpt_5_mini',
+      };
+      if (fileUrl) payload.file_urls = [fileUrl];
+      const resp: any = await base44.integrations.Core.InvokeLLM(payload);
+      const dados = resp || {};
+      const confianca = Number(dados.confianca || 0);
+      // Validação: campo deve ser um dos válidos
+      const centro = String(dados.centro_custo_correto || '').trim();
+      if (centro && !CENTROS_CUSTO_VALIDOS.includes(centro)) {
+        dados.centro_custo_correto = '';
+        dados.confianca = Math.min(confianca, 50);
+      }
+      if (Number(dados.confianca) > melhorConfianca) {
+        melhorConfianca = Number(dados.confianca);
+        melhor = dados;
+      }
+      if (melhorConfianca >= confiancaMinima && melhor?.centro_custo_correto) break;
+    } catch (e) {
+      console.warn('[auditarAlinharNFCompras] IA centro_custo erro:', (e as any)?.message || e);
+    }
+  }
+  return { dados: melhor, tentativas: tentativa, confianca: melhorConfianca };
+}
+
 // ── Handler ───────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -186,6 +281,8 @@ Deno.serve(async (req) => {
     const limite = Math.min(Number(body.limite || LIMITE_PADRAO), 50);
     const confiancaMin = Number(body.confianca_minima || CONFIANCA_MINIMA_DEFAULT);
     const maxTentativas = Math.min(Number(body.max_tentativas || MAXIMO_TENTATIVAS_DEFAULT), 5);
+    // padrão: reanalisa centro_custo via IA lendo a nota. Use false para pular.
+    const reanalisarCentroCusto = body.reanalisar_centro_custo !== false;
 
     const { accessToken } = await base44.asServiceRole.connectors.getConnection('googledrive');
     const token = accessToken;
@@ -216,6 +313,8 @@ Deno.serve(async (req) => {
       alinhados: 0,
       divergentes_corrigidos: 0,
       divergentes_nao_corrigidos: 0,
+      correcoes_centro_custo: 0,
+      centro_custo_ok: 0,
       sem_arquivo: 0,
       erros: 0,
     };
@@ -305,6 +404,7 @@ Deno.serve(async (req) => {
           } catch (e: any) {
             item.erro = `upload: ${e.message}`;
           }
+          item._pdf_file_url = fileUrl; // reutilizado na reanálise de centro_custo
           const { dados, tentativas, confianca } = await extrairViaIA(
             base44,
             fileUrl,
@@ -361,6 +461,54 @@ Deno.serve(async (req) => {
           stats.sem_arquivo++;
           item.acao = 'sem_arquivo';
         }
+
+        // ── Reanálise de centro_custo via IA (lendo a nota anexa) ────────────
+        if (reanalisarCentroCusto && pdfUrl && Date.now() - start < TIMEOUT_MS) {
+          try {
+            let iaFileUrl: string | null = item._pdf_file_url || null;
+            if (!iaFileUrl) {
+              const bufCc = await downloadDrive(token, pdfUrl);
+              if (bufCc) {
+                const blobCc = new Blob([bufCc], { type: 'application/pdf' });
+                const upCc: any = await base44.integrations.Core.UploadFile({ file: blobCc });
+                if (upCc?.file_url) iaFileUrl = upCc.file_url;
+              }
+            }
+            const { dados: cc, tentativas: tcc, confianca: ccc } = await reanalisarCentroCusto(
+              base44,
+              pr,
+              iaFileUrl,
+              confiancaMin,
+              maxTentativas,
+            );
+            item.centro_custo_atual = pr.centro_custo || '';
+            item.centro_custo_correto = cc?.centro_custo_correto || '';
+            item.centro_custo_confianca = ccc;
+            item.centro_custo_tentativas = tcc;
+            item.centro_custo_justificativa = cc?.justificativa || '';
+            const ccDivergente = !!(cc?.centro_custo_correto && cc.centro_custo_correto !== pr.centro_custo);
+            item.divergencia_centro_custo = ccDivergente;
+            if (ccDivergente && ccc >= confiancaMin && !dryRun) {
+              await base44.asServiceRole.entities.PurchaseRequest.update(pr.id, {
+                centro_custo: cc.centro_custo_correto,
+              });
+              item.acao_cc = 'corrigido_centro_custo';
+              stats.correcoes_centro_custo++;
+            } else if (ccDivergente && ccc >= confiancaMin && dryRun) {
+              item.acao_cc = 'divergente_simulado_cc';
+            } else if (ccDivergente && ccc < confiancaMin) {
+              item.acao_cc = 'revisao_manual_cc';
+            } else if (!cc?.centro_custo_correto) {
+              item.acao_cc = 'ia_sem_resposta_cc';
+            } else {
+              item.acao_cc = 'centro_custo_ok';
+              stats.centro_custo_ok++;
+            }
+          } catch (e: any) {
+            item.acao_cc = 'erro_cc';
+            item.erro_cc = e.message || String(e);
+          }
+        }
       } catch (e: any) {
         stats.erros++;
         item.erro = e.message || String(e);
@@ -377,7 +525,7 @@ Deno.serve(async (req) => {
         status: stats.erros > 0 ? 'concluido' : 'success',
         total_files: stats.processados,
         files_copied: stats.divergentes_corrigidos,
-        details: `DryRun: ${dryRun} | Alinhados: ${stats.alinhados} | Corrigidos: ${stats.divergentes_corrigidos} | Pendentes revisão: ${stats.divergentes_nao_corrigidos} | Sem arquivo: ${stats.sem_arquivo} | Erros: ${stats.erros}`,
+        details: `DryRun: ${dryRun} | Alinhados: ${stats.alinhados} | Corrigidos valor/data: ${stats.divergentes_corrigidos} | Pendentes revisão: ${stats.divergentes_nao_corrigidos} | Centro de custo corrigidos: ${stats.correcoes_centro_custo} | Centro de custo ok: ${stats.centro_custo_ok} | Sem arquivo: ${stats.sem_arquivo} | Erros: ${stats.erros}`,
         triggered_by: 'manual',
         processed_at: new Date().toISOString(),
         execution_time_ms: Date.now() - start,
