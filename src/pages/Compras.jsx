@@ -74,6 +74,7 @@ import PainelAuditoriaIASolicitacoes from '@/components/compras/PainelAuditoriaI
 import PainelSincronizacaoDriveNFs from '@/components/compras/PainelSincronizacaoDriveNFs';
 import TratarSolicitacoesButton from '@/components/compras/TratarSolicitacoesButton';
 import CorrigirCentroCustoIAButton from '@/components/compras/CorrigirCentroCustoIAButton';
+import PainelAuditoriaValoresNF from '@/components/compras/PainelAuditoriaValoresNF';
 import { isCoordGeral } from '@/components/auth/permissions';
 
 const STATUS_CONFIG = {
@@ -1106,6 +1107,7 @@ function ComprasInner() {
           { id: 'meus_pagamentos', label: 'Meus Pagamentos' },
           ...(isCoordenador ? [{ id: 'backup_drive', label: '🗄️ Backup Drive' }] : []),
           ...(isCoordGeral(currentUser) ? [{ id: 'sinc_drive', label: '📂 Sinc. Drive NFs' }] : []),
+          ...(isCoordenador ? [{ id: 'auditoria_valores', label: '👁️ Divergência de Valores' }] : []),
           ...(isCoordenador ? [{ id: 'verificacao', label: '🔍 Verificação' }] : [])].
           map((t) =>
           <button
@@ -1664,6 +1666,12 @@ function ComprasInner() {
 
             <GestaoDocumental />
           </div>
+        }
+
+        {tab === 'auditoria_valores' && isCoordenador &&
+        <div className="space-y-4">
+          <PainelAuditoriaValoresNF purchases={purchases} />
+        </div>
         }
 
         {tab === 'verificacao' && isCoordenador &&
