@@ -381,7 +381,7 @@ export default function useAutoProcessarFilaCompleta({
 
     toast.info('Processando fila automaticamente...', { icon: '⚡', duration: 4000 });
 
-    const resumo = { vinculados: 0, xmlsArquivados: 0, aprovados: 0, baixaConfianca: 0 };
+    const resumo = { vinculados: 0, xmlsArquivados: 0, aprovados: 0, baixaConfianca: 0, leiturasProfundas: 0 };
 
     try {
       // Carrega a lista mais recente de intakes do banco
@@ -417,9 +417,11 @@ export default function useAutoProcessarFilaCompleta({
         if (status !== 'AGUARDANDO_REVISAO') return false;
         const ia = i.resultado_ia || {};
         const score = Number(ia.ia_historico_score || 0);
-        const jaPreenchido = ia.preenchido_por_ia_historico === true && score >= 90;
+        const fonteLeituraProfunda = ia.fonte === 'lerNotaFiscalGPT';
+        const jaPreenchido =
+          (ia.preenchido_por_ia_historico === true && score >= 90) ||
+          (fonteLeituraProfunda && score >= 70);
         if (jaPreenchido) return false;
-        const jaTemRubrica = !!(i.rubrica_id_sugerida || ia.rubrica_id);
         return true; // reprocessa para elevar score
       });
 
@@ -441,13 +443,106 @@ export default function useAutoProcessarFilaCompleta({
         '-created_date', 200
       ).catch(() => []);
 
+      // Fase 3.5: leitura profunda (lerNotaFiscalGPT) para PDFs sem rubrica ou
+      // com score baixo após histórico. Sequencial, melhor esforço — não bloqueia
+      // o restante do pipeline. Timeout de 90s por documento.
+      const semRubricaOuBaixoScore = (lista3 || []).filter((i) => {
+        const tipo = getTipoArquivo(i);
+        if (tipo !== 'NOTA_FISCAL_PDF') return false;
+        const status = String(i.status_processamento || '').toUpperCase();
+        if (status !== 'AGUARDANDO_REVISAO') return false;
+        if (i.ocultar_entrada_unica) return false;
+        const ia = i.resultado_ia || {};
+        const temRubrica = !!(i.rubrica_id_sugerida || ia.rubrica_id);
+        const score = Number(ia.ia_historico_score || 0);
+        const jaLeituraProfunda = ia.fonte === 'lerNotaFiscalGPT';
+        return (!temRubrica || score < 70) && !jaLeituraProfunda;
+      });
+
+      let leiturasProfundas = 0;
+      for (const intake of semRubricaOuBaixoScore.slice(0, 8)) {
+        try {
+          await base44.entities.DocumentIntake.update(intake.id, {
+            status_processamento: 'ANALISANDO_IA',
+          }).catch(() => {});
+          const acionar = base44.functions.invoke('lerNotaFiscalGPT', {
+            intake_id: intake.id,
+            file_url: intake.arquivo_original_url,
+          });
+          const timeout = new Promise((_, rej) =>
+            setTimeout(() => rej(new Error('timeout-90s')), 90000)
+          );
+          const res = await Promise.race([acionar, timeout]).catch((e) => ({
+            ok: false,
+            error: e?.message || String(e),
+          }));
+          if (res?.ok && res?.resultado) {
+            const r = res.resultado;
+            const resultadoIa = {
+              ...r,
+              nf_numero: String(r.numero_nota || '').replace(/\D/g, ''),
+              nf_emitente_nome: r.fornecedor_nome || '',
+              nf_emitente_cpf_cnpj: String(r.fornecedor_cnpj || r.fornecedor_cpf || '').replace(/\D/g, ''),
+              nf_valor_total: r.valor_total || 0,
+              nf_data_emissao: r.data_emissao || '',
+              valor: r.valor_total || 0,
+              valor_total: r.valor_total || 0,
+              rubrica_id: r.rubrica_id || null,
+              rubrica_nome: r.rubrica_nome || '',
+              centro_custo_sugerido: r.centro_custo || '',
+              meta_id: r.meta_id || null,
+              descricao_servico: r.descricao_normalizada || '',
+              ia_historico_score: Math.round((r.score || 0) * 10),
+              inconsistencias: r.campos_incertos || [],
+              alertas: r.alertas || [],
+              status_revisao: r.status_revisao || '',
+              nota_cancelada: r.nota_cancelada || false,
+              fonte: 'lerNotaFiscalGPT',
+              processado_em: new Date().toISOString(),
+            };
+            await base44.entities.DocumentIntake.update(intake.id, {
+              resultado_ia: resultadoIa,
+              status_processamento: 'AGUARDANDO_REVISAO',
+              rubrica_id_sugerida: r.rubrica_id || null,
+              rubrica_nome_sugerida: r.rubrica_nome || '',
+              centro_custo: r.centro_custo || '',
+              nf_numero: resultadoIa.nf_numero,
+              nf_emitente_nome: r.fornecedor_nome || '',
+              nf_emitente_cpf_cnpj: resultadoIa.nf_emitente_cpf_cnpj,
+              nf_valor_total: r.valor_total || null,
+              nf_data_emissao: r.data_emissao || '',
+              fornecedor_nome: r.fornecedor_nome || '',
+              fornecedor_cpf_cnpj: resultadoIa.nf_emitente_cpf_cnpj,
+              erros_validacao: r.alertas || [],
+            }).catch(() => {});
+            leiturasProfundas++;
+          } else {
+            await base44.entities.DocumentIntake.update(intake.id, {
+              status_processamento: 'AGUARDANDO_REVISAO',
+              erros_validacao: [`Leitura profunda (auto) falhou: ${res?.error || 'sem resultado'}`],
+            }).catch(() => {});
+          }
+        } catch (e) {
+          console.warn('[autoPipeline] leitura profunda falhou para', intake.id, e?.message || e);
+        }
+      }
+      resumo.leiturasProfundas = leiturasProfundas;
+
+      // Recarrega após leitura profunda
+      const lista4 = (lista3 || []).length > 0 && leiturasProfundas > 0
+        ? await base44.entities.DocumentIntake.filter(
+            { status_registro: 'ATIVO' },
+            '-created_date', 200
+          ).catch(() => lista3 || [])
+        : (lista3 || []);
+
       // Fase 4 + 5: score de confiança e auto-aprovação
-      const aprovarRes = await autoAprovarElegiveis(lista3 || []);
+      const aprovarRes = await autoAprovarElegiveis(lista4);
       resumo.aprovados = aprovarRes.aprovados || 0;
       resumo.baixaConfianca = aprovarRes.semConfianca || 0;
 
       // Fase 6: arquivar XMLs órfãos
-      const xmlArq = await arquivarXmlesOrfaos(lista3 || []);
+      const xmlArq = await arquivarXmlesOrfaos(lista4);
       resumo.xmlsArquivados = xmlArq;
 
       return resumo;
@@ -464,10 +559,10 @@ export default function useAutoProcessarFilaCompleta({
 
     const resumo = await executarPipeline();
     if (resumo) {
-      const totalAcao = (resumo.aprovados || 0) + (resumo.vinculados || 0) + (resumo.xmlsArquivados || 0);
+      const totalAcao = (resumo.aprovados || 0) + (resumo.vinculados || 0) + (resumo.xmlsArquivados || 0) + (resumo.leiturasProfundas || 0);
       if (totalAcao > 0) {
         toast.success(
-          `Auto-processamento: ${resumo.aprovados} aprovadas, ${resumo.vinculados} vinculadas, ${resumo.xmlsArquivados} XMLs arquivados, ${resumo.baixaConfianca} com baixa confiança.`,
+          `Auto-processamento: ${resumo.aprovados} aprovadas, ${resumo.leiturasProfundas} leituras profundas, ${resumo.vinculados} vinculadas, ${resumo.xmlsArquivados} XMLs arquivados, ${resumo.baixaConfianca} com baixa confiança.`,
           { duration: 6000 }
         );
       }

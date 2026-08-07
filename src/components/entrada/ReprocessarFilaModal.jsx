@@ -17,11 +17,80 @@ import { enviarIntakeParaAprovacao, parseValorBR } from '@/lib/enviarIntakeParaA
 
 const FASES = [
   { key: 'limpeza', label: 'Limpeza dos dados cruzados', icon: Eraser, color: 'text-amber-600' },
-  { key: 'reanalise', label: 'Reanálise individual com IA', icon: Sparkles, color: 'text-violet-600' },
+  { key: 'reanalise', label: 'Leitura Profunda (lerNotaFiscalGPT)', icon: Sparkles, color: 'text-violet-600' },
   { key: 'revinculacao', label: 'Revinculação XML (critérios triplos)', icon: Link2, color: 'text-blue-600' },
   { key: 'auto_envio', label: 'Auto-envio para aprovação', icon: Send, color: 'text-emerald-600' },
   { key: 'orfaos', label: 'Arquivamento de XMLs órfãos', icon: FileX, color: 'text-slate-600' },
 ];
+
+const TIMEOUT_LEITURA_PROFUNDA_MS = 90000;
+
+// Helper: chama lerNotaFiscalGPT (leitura profunda GPT-4o estruturada) para um
+// DocumentIntake PDF. Sequencial, com timeout de 90s. Mapeia o resultado
+// validado para o formato esperado por calcularConfiancaNF e
+// enviarIntakeParaAprovacao, e persiste tudo no DocumentIntake.
+// Retorna { ok, resultado, error }.
+async function chamarLeituraProfunda(intake) {
+  const acionar = base44.functions.invoke('lerNotaFiscalGPT', {
+    intake_id: intake.id,
+    file_url: intake.arquivo_original_url,
+  });
+  const timeout = new Promise((_, rej) =>
+    setTimeout(() => rej(new Error('Timeout 90s na leitura profunda')), TIMEOUT_LEITURA_PROFUNDA_MS)
+  );
+  const res = await Promise.race([acionar, timeout]).catch((e) => ({
+    ok: false,
+    error: e?.message || String(e),
+  }));
+  if (!res || !res.ok || !res.resultado) {
+    return { ok: false, error: res?.error || 'sem resultado' };
+  }
+  const r = res.resultado;
+  const resultadoIa = {
+    ...r,
+    nf_numero: String(r.numero_nota || '').replace(/\D/g, ''),
+    nf_emitente_nome: r.fornecedor_nome || '',
+    nf_emitente_cpf_cnpj: String(r.fornecedor_cnpj || r.fornecedor_cpf || '').replace(/\D/g, ''),
+    nf_valor_total: r.valor_total || 0,
+    nf_data_emissao: r.data_emissao || '',
+    valor: r.valor_total || 0,
+    valor_total: r.valor_total || 0,
+    rubrica_id: r.rubrica_id || null,
+    rubrica_nome: r.rubrica_nome || '',
+    centro_custo_sugerido: r.centro_custo || '',
+    meta_id: r.meta_id || null,
+    descricao_servico: r.descricao_normalizada || '',
+    ia_historico_score: Math.round((r.score || 0) * 10),
+    inconsistencias: r.campos_incertos || [],
+    alertas: r.alertas || [],
+    status_revisao: r.status_revisao || '',
+    nota_cancelada: r.nota_cancelada || false,
+    fonte: 'lerNotaFiscalGPT',
+    processado_em: new Date().toISOString(),
+  };
+
+  try {
+    await base44.entities.DocumentIntake.update(intake.id, {
+      resultado_ia: resultadoIa,
+      status_processamento: 'AGUARDANDO_REVISAO',
+      rubrica_id_sugerida: r.rubrica_id || null,
+      rubrica_nome_sugerida: r.rubrica_nome || '',
+      centro_custo: r.centro_custo || '',
+      nf_numero: resultadoIa.nf_numero,
+      nf_emitente_nome: r.fornecedor_nome || '',
+      nf_emitente_cpf_cnpj: resultadoIa.nf_emitente_cpf_cnpj,
+      nf_valor_total: r.valor_total || null,
+      nf_data_emissao: r.data_emissao || '',
+      fornecedor_nome: r.fornecedor_nome || '',
+      fornecedor_cpf_cnpj: resultadoIa.nf_emitente_cpf_cnpj,
+      erros_validacao: r.alertas || [],
+    });
+  } catch (e) {
+    console.warn('[leituraProfunda] update falhou:', e?.message || e);
+  }
+
+  return { ok: true, resultado: resultadoIa };
+}
 
 function onlyDigits(v) {
   return String(v || '').replace(/\D/g, '');
@@ -194,28 +263,46 @@ export default function ReprocessarFilaModal({ open, intakes, onClose, onConclui
         setProgresso({ atual: i + 1, total: pdfsParaReprocessar.length });
       }
 
-      // === FASE 2: REANÁLISE INDIVIDUAL (batches de 3) ===
+      // === FASE 2: LEITURA PROFUNDA (lerNotaFiscalGPT, sequencial 1-por-vez) ===
+      // Cada PDF é processado individualmente com timeout de 90s por documento
+      // para evitar rate limit. Em caso de falha/timeout, mantém AGUARDANDO_REVISAO
+      // com mensagem de erro no card.
       setFaseKey('reanalise');
       setProgresso({ atual: 0, total: pdfsParaReprocessar.length });
 
-      for (let i = 0; i < pdfsParaReprocessar.length; i += 3) {
-        const batch = pdfsParaReprocessar.slice(i, i + 3);
-        await Promise.all(
-          batch.map(async (intake) => {
-            try {
-              await base44.functions.invoke('processarNotaFiscalComClaude', {
-                intake_id: intake.id,
-                file_url: intake.arquivo_original_url,
-                orientacoes_usuario: '',
-              });
-              totals.reanalisados++;
-            } catch (e) {
-              totals.erros.push(`Reanálise ${intake.file_name_original || intake.id}: ${e?.message || e}`);
-            }
-          })
-        );
-        setProgresso({ atual: Math.min(i + 3, pdfsParaReprocessar.length), total: pdfsParaReprocessar.length });
-        await sleep(400);
+      for (let i = 0; i < pdfsParaReprocessar.length; i++) {
+        const intake = pdfsParaReprocessar[i];
+        setProgresso({ atual: i, total: pdfsParaReprocessar.length });
+        try {
+          await base44.entities.DocumentIntake.update(intake.id, {
+            status_processamento: 'ANALISANDO_IA',
+            erros_validacao: [],
+          }).catch(() => {});
+
+          const out = await chamarLeituraProfunda(intake);
+          if (out.ok) {
+            totals.reanalisados++;
+          } else {
+            await base44.entities.DocumentIntake.update(intake.id, {
+              status_processamento: 'AGUARDANDO_REVISAO',
+              erros_validacao: [`Leitura profunda falhou: ${out.error || 'resposta inválida'}`],
+            }).catch(() => {});
+            totals.erros.push(
+              `Leitura profunda ${intake.file_name_original || intake.id}: ${out.error || 'sem resultado'}`
+            );
+          }
+        } catch (e) {
+          await base44.entities.DocumentIntake.update(intake.id, {
+            status_processamento: 'AGUARDANDO_REVISAO',
+            erros_validacao: [`Leitura profunda: ${e?.message || e}`],
+          }).catch(() => {});
+          totals.erros.push(
+            `Leitura profunda ${intake.file_name_original || intake.id}: ${e?.message || e}`
+          );
+        }
+        setProgresso({ atual: i + 1, total: pdfsParaReprocessar.length });
+        // Delay curto entre documentos para evitar rate limit do GPT-4o
+        await sleep(250);
       }
 
       // Parse dos XMLs para revinculação (em batches de 5)
@@ -291,14 +378,28 @@ export default function ReprocessarFilaModal({ open, intakes, onClose, onConclui
       // === FASE 4: AUTO-ENVIO ===
       setFaseKey('auto_envio');
       const pdfsFinais = await recarregarPorIds(pdfsReanalisados.map((p) => p.id));
+      // Critério de auto-envio (PRD): rubrica_id + centro_custo + valor > 0 +
+      // CNPJ preenchido + score ≥70 (ia_historico_score ou confiança combinada ou
+      // status_revisao PRE_APROVADO). Não exige XML vinculado. Exclui notas
+      // bloqueadas/canceladas.
       const autoEnviaveis = pdfsFinais.filter((p) => {
         const ia = p.resultado_ia || {};
         const rubrica_id = p.rubrica_id_sugerida || p.rubrica_id || ia.rubrica_id;
         const centro_custo = p.centro_custo || ia.centro_custo_sugerido;
         const valor = parseValorBR(ia.nf_valor_total || ia.valor || p.nf_valor_total || 0);
-        const temXml = !!p.nf_xml_intake_id;
-        const score = calcularConfiancaNF(p);
-        return temXml && rubrica_id && centro_custo && valor > 0 && score >= 90;
+        const cnpj = onlyDigits(
+          ia.nf_emitente_cpf_cnpj || p.nf_emitente_cpf_cnpj || p.fornecedor_cpf_cnpj || ''
+        );
+        const statusRevisao = String(ia.status_revisao || '').toUpperCase();
+        if (!rubrica_id || !centro_custo || valor <= 0 || cnpj.length < 11) return false;
+        if (statusRevisao === 'BLOQUEADO' || ia.nota_cancelada === true) return false;
+        const scoreCC = calcularConfiancaNF(p);
+        const iaScore = Number(ia.ia_historico_score || 0);
+        const scoreRevisaoNum = Number(ia.score || 0);
+        if (scoreCC >= 70) return true;
+        if (iaScore >= 70) return true;
+        if (statusRevisao === 'PRE_APROVADO' || scoreRevisaoNum >= 7) return true;
+        return false;
       });
 
       setProgresso({ atual: 0, total: autoEnviaveis.length });
@@ -373,9 +474,11 @@ export default function ReprocessarFilaModal({ open, intakes, onClose, onConclui
             Reprocessar Fila — Correção de dados IA cruzados
           </DialogTitle>
           <DialogDescription>
-            Limpa os campos IA contaminados, reanalisa cada NF individualmente, revincula XMLs com
-            critérios triplos (número, CNPJ, valor) e envia automaticamente para aprovação as NFs
-            validadas. XMLs órfãos são arquivados.
+            Limpa os dados IA contaminados, realiza <strong>leitura profunda</strong> de cada NF via
+            GPT-4o (lerNotaFiscalGPT, sequencial com timeout de 90s por documento), revincula XMLs
+            com critérios triplos (número, CNPJ, valor) e envia automaticamente para aprovação as
+            NFs com rubrica + centro de custo + valor + CNPJ e confiança ≥70. XMLs órfãos são
+            arquivados.
           </DialogDescription>
         </DialogHeader>
 
@@ -448,7 +551,7 @@ export default function ReprocessarFilaModal({ open, intakes, onClose, onConclui
             <div className="grid grid-cols-2 gap-2 text-xs">
               <ResumeItem label="NFs limpas" value={resumo.limpos} color="text-amber-700" />
               <ResumeItem label="XMLs desvinculados" value={resumo.xmls_desvinculados} color="text-amber-700" />
-              <ResumeItem label="NFs reanalisadas" value={resumo.reanalisados} color="text-violet-700" />
+              <ResumeItem label="NFs com leitura profunda" value={resumo.reanalisados} color="text-violet-700" />
               <ResumeItem label="XMLs parseados" value={resumo.xmls_parseados} color="text-violet-700" />
               <ResumeItem label="Vínculos criados (≥85%)" value={resumo.revinculados} color="text-blue-700" />
               <ResumeItem label="Enviados p/ aprovação (auto)" value={resumo.enviados} color="text-emerald-700" />

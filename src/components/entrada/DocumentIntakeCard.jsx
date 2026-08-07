@@ -205,6 +205,9 @@ export default function DocumentIntakeCard({ intake, allIntakes, onReview, onDel
   const fileName = intake.file_name_final || intake.file_name_original || 'Arquivo';
   const isProcessing = ['ANALISANDO_IA', 'ENVIADO'].includes(statusKey);
   const isEnviadoTravado = statusKey === 'ENVIADO' && isPDF;
+  const errosValidacao = Array.isArray(intake.erros_validacao) ? intake.erros_validacao : [];
+  const alertasIA = Array.isArray(intake?.resultado_ia?.alertas) ? intake.resultado_ia.alertas : [];
+  const revisaoAlertas = statusKey === 'AGUARDANDO_REVISAO' ? [...errosValidacao, ...alertasIA] : [];
   const canFallbackReview = isPDF && isProcessing && hasStrongFileNameData(fileName);
 
   // XML nunca pode revisar nem enviar. Contrato vai para modal próprio.
@@ -557,6 +560,17 @@ export default function DocumentIntakeCard({ intake, allIntakes, onReview, onDel
               <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-semibold bg-red-100 text-red-700 border border-red-200">
                 <AlertCircle className="w-3 h-3" />
                 Duplicata
+              </span>
+            }
+            {revisaoAlertas.length > 0 &&
+              <span
+                className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-amber-50 text-amber-800 border border-amber-200 max-w-[240px]"
+                title={revisaoAlertas.join(' • ')}
+              >
+                <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+                <span className="truncate">
+                  {revisaoAlertas.length === 1 ? revisaoAlertas[0] : `${revisaoAlertas.length} alertas para revisão`}
+                </span>
               </span>
             }
             {isContrato && intake.backup_drive_status &&
