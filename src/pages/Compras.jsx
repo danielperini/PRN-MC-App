@@ -514,10 +514,10 @@ function ComprasInner() {
     return Array.from(centros).sort((a, b) => a.localeCompare(b, 'pt-BR'));
   }, [purchasesWithFlags]);
 
-  const STATUS_PENDENTES = new Set(['RASCUNHO', 'SOLICITADO', 'DEVOLVIDO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'APROVADO']);
+  const STATUS_PENDENTES = new Set(['APROVADO_COORD', 'APROVADO_ADMIN', 'APROVADO']);
 
   const filtered = purchasesWithFlags.filter((p) => {
-    // Filtro rápido "pendentes desde fev": exclui pagos, cancelados e recusados
+    // Filtro rápido "pendentes": apenas aprovadas aguardando pagamento (exclui rascunho, solicitado, devolvido, pago, cancelado e recusado)
     if (filters._pendentes_fev) {
       const st = normalizeStatus(p.status);
       if (!STATUS_PENDENTES.has(st)) return false;
