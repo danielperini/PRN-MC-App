@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -19,7 +19,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { useCurrentUser } from '@/components/auth/useCurrentUser';
 import LimparNomesMaquinaDialog from '@/components/compras/LimparNomesMaquinaDialog';
-import NormalizarPastasDialog from '@/components/compras/NormalizarPastasDialog';
 
 const FOLDER_ID = '1LgC94VhIomQZBS7kfkQqgBX8MVzwQqzp';
 const FOLDER_URL = `https://drive.google.com/drive/folders/${FOLDER_ID}`;
@@ -126,7 +125,6 @@ export default function PainelSincronizacaoDriveNFs({ purchasesPendentes }) {
   const qc = useQueryClient();
   const { isCoordGeral } = useCurrentUser();
   const [limparNomesOpen, setLimparNomesOpen] = useState(false);
-  const [normalizarOpen, setNormalizarOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [scanData, setScanData] = useState(null);
   const [tratandoMes, setTratandoMes] = useState(null);
@@ -134,6 +132,21 @@ export default function PainelSincronizacaoDriveNFs({ purchasesPendentes }) {
   const [marcandoPagos, setMarcandoPagos] = useState(false);
   const [logRecente, setLogRecente] = useState([]);
   const [expanded, setExpanded] = useState(new Set(['2026-07']));
+
+  // Normalização silenciosa de pastas (fire-and-forget) — chamada automaticamente
+  // ao abrir o painel e após cada scan manual. Restrita a isCoordGeral.
+  function dispararNormalizacaoIncrementalBackground() {
+    if (!isCoordGeral) return;
+    base44.functions
+      .invoke('normalizarPastasDriveNFs', { modo: 'incremental' })
+      .catch((err) => console.error('Normalização incremental (background) falhou:', err));
+  }
+
+  // Disparo único ao montar o painel — sem bloquear a UI, sem feedback visual.
+  useEffect(() => {
+    dispararNormalizacaoIncrementalBackground();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function executarScan() {
     setScanning(true);
@@ -148,6 +161,8 @@ export default function PainelSincronizacaoDriveNFs({ purchasesPendentes }) {
       toast.success(
         `Pasta escaneada: ${data.total_xmls} XMLs / ${data.total_pdfs} PDFs · ${data.por_mes?.length || 0} meses.`
       );
+      // Após scan concluir, dispara normalização incremental em background (fire-and-forget).
+      dispararNormalizacaoIncrementalBackground();
     } catch (e) {
       console.error('Erro scan:', e);
       toast.error('Erro ao escanear pasta: ' + (e?.message || e));
@@ -290,16 +305,6 @@ export default function PainelSincronizacaoDriveNFs({ purchasesPendentes }) {
     }
   }
 
-  async function normalizarPastas() {
-    setNormalizarOpen(true);
-  }
-
-  async function onNormalizarConcluido() {
-    // Após modal fechar com sucesso, atualiza scan invalida cache
-    await executarScan();
-    qc.invalidateQueries(['compras']);
-  }
-
   async function marcarAnteriores14JulhoComoPago() {
     setMarcandoPagos(true);
     try {
@@ -386,17 +391,6 @@ export default function PainelSincronizacaoDriveNFs({ purchasesPendentes }) {
               {marcandoPagos ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />}
               {marcandoPagos ? 'Marcando...' : 'Marcar anteriores a 14/07 como PAGO'}
             </Button>
-            {isCoordGeral && (
-              <Button
-                type="button"
-                size="sm"
-                onClick={normalizarPastas}
-                className="gap-2 bg-amber-600 text-white hover:bg-amber-700"
-              >
-                <FolderGit className="h-4 w-4" />
-                Normalizar pastas
-              </Button>
-            )}
             {isCoordGeral && (
               <Button
                 type="button"
@@ -531,13 +525,6 @@ export default function PainelSincronizacaoDriveNFs({ purchasesPendentes }) {
 
       {isCoordGeral && (
         <LimparNomesMaquinaDialog open={limparNomesOpen} onOpenChange={setLimparNomesOpen} />
-      )}
-      {isCoordGeral && (
-        <NormalizarPastasDialog
-          open={normalizarOpen}
-          onOpenChange={setNormalizarOpen}
-          onComplete={onNormalizarConcluido}
-        />
       )}
     </div>
   );
