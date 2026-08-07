@@ -168,9 +168,60 @@ async function extrairViaIA(
   return { dados: melhor, tentativas: tentativa, confianca: melhorConfianca };
 }
 
-// ── IA: reanálise de centro_custo e rubrica lendo a nota anexa ───────────────
+// ── Reanálise de centro_custo ────────────────────────────────────────────────
 // Corrige atribuições erradas que usuário denunciou (ex.: "Coordenador Geral /
 // Perini Projetos" marcado como "Noturno Pampulha" deveria ser "Geral").
+// 1) Regras determinísticas (confiança 100, sem custo de IA) cobrem casos óbvios.
+// 2) Para casos ambíguos, IA lê a nota anexa (se houver PDF) + metadados.
+
+function regraDeterministicaCentroCusto(pr: any): { centro_custo_correto: string; confianca: number; justificativa: string } | null {
+  const rubrica = String(pr.rubrica_nome || pr.rubrica || '').toLowerCase();
+  const categoria = String(pr.categoria || '').toLowerCase();
+  const descricao = String(pr.descricao_item || pr.observacoes || '').toLowerCase();
+  const fornecedor = String(pr.fornecedor_nome || pr.nf_emitente_nome || '').toLowerCase();
+  const atual = String(pr.centro_custo || '').trim();
+  const bag = `${rubrica} ${categoria} ${descricao} ${fornecedor}`;
+
+  // Coordenação Geral / Coordenador Geral / Perini Projetos / Daniel Perini → Geral (transversal)
+  if (
+    rubrica.includes('coordenador geral') ||
+    rubrica.includes('coordenacao geral') ||
+    rubrica.includes('coordenação geral') ||
+    fornecedor.includes('perini projetos') ||
+    fornecedor.includes('daniel perini') ||
+    (categoria.includes('coordenacao') && !bag.includes('noturno'))
+  ) {
+    if (atual !== 'Geral') {
+      return { centro_custo_correto: 'Geral', confianca: 100, justificativa: 'Regra determinística: coordenação geral/Perini Projetos é sempre Geral (transversal)' };
+    }
+    return null; // já correto
+  }
+
+  // Publicações — rubrica/editorial explícita
+  if (rubrica.includes('publicac') || rubrica.includes('catálogo') || rubrica.includes('catalogo') || rubrica.includes('livro') || categoria.includes('publicac')) {
+    if (atual !== 'Publicações' && atual !== 'Geral') {
+      return { centro_custo_correto: 'Publicações', confianca: 95, justificativa: 'Regra determinística: rubrica editorial → Publicações' };
+    }
+  }
+
+  // Noturno Pampulha — apenas se rubrica menciona explicitamente Pampulha
+  if (rubrica.includes('pampulha')) {
+    if (atual !== 'Noturno Pampulha') {
+      return { centro_custo_correto: 'Noturno Pampulha', confianca: 100, justificativa: 'Regra determinística: rubrica menciona Pampulha explicitamente' };
+    }
+    return null;
+  }
+
+  // Noturno nos Museus 2026 — rubrica de projeto noturno (shows/monitores noturnos)
+  if (rubrica.includes('noturno') && !rubrica.includes('pampulha')) {
+    if (atual !== 'Noturno nos Museus 2026' && atual !== 'Noturno 2026') {
+      return { centro_custo_correto: 'Noturno nos Museus 2026', confianca: 95, justificativa: 'Regra determinística: rubrica de projeto noturno' };
+    }
+    return null;
+  }
+
+  return null;
+}
 
 const CENTROS_CUSTO_VALIDOS = [
   'MHAB',
@@ -462,30 +513,36 @@ Deno.serve(async (req) => {
           item.acao = 'sem_arquivo';
         }
 
-        // ── Reanálise de centro_custo via IA (lendo a nota anexa) ────────────
-        if (reanalisarCentroCusto && pdfUrl && Date.now() - start < TIMEOUT_MS) {
+        // ── Reanálise de centro_custo (determinístico primeiro, IA depois) ────
+        if (reanalisarCentroCusto && Date.now() - start < TIMEOUT_MS) {
           try {
-            let iaFileUrl: string | null = item._pdf_file_url || null;
-            if (!iaFileUrl) {
-              const bufCc = await downloadDrive(token, pdfUrl);
-              if (bufCc) {
-                const blobCc = new Blob([bufCc], { type: 'application/pdf' });
-                const upCc: any = await base44.integrations.Core.UploadFile({ file: blobCc });
-                if (upCc?.file_url) iaFileUrl = upCc.file_url;
-              }
-            }
-            const { dados: cc, tentativas: tcc, confianca: ccc } = await reanalisarCentroCusto(
-              base44,
-              pr,
-              iaFileUrl,
-              confiancaMin,
-              maxTentativas,
-            );
             item.centro_custo_atual = pr.centro_custo || '';
+            // 1) Regra determinística (gratuita, confiança 100)
+            const regra = regraDeterministicaCentroCusto(pr);
+            let cc: any = regra ? { centro_custo_correto: regra.centro_custo_correto, justificativa: regra.justificativa } : null;
+            let ccc = regra ? regra.confianca : 0;
+            let tcc = regra ? 0 : 0;
+            // 2) Se a regra não decidiu, usa IA (com PDF se houver)
+            if (!cc && (pdfUrl || pr.rubrica_nome || pr.descricao_item)) {
+              let iaFileUrl: string | null = item._pdf_file_url || null;
+              if (!iaFileUrl && pdfUrl) {
+                const bufCc = await downloadDrive(token, pdfUrl);
+                if (bufCc) {
+                  const blobCc = new Blob([bufCc], { type: 'application/pdf' });
+                  const upCc: any = await base44.integrations.Core.UploadFile({ file: blobCc });
+                  if (upCc?.file_url) iaFileUrl = upCc.file_url;
+                }
+              }
+              const rCc = await reanalisarCentroCusto(base44, pr, iaFileUrl, confiancaMin, maxTentativas);
+              cc = rCc.dados;
+              tcc = rCc.tentativas;
+              ccc = rCc.confianca;
+            }
             item.centro_custo_correto = cc?.centro_custo_correto || '';
             item.centro_custo_confianca = ccc;
             item.centro_custo_tentativas = tcc;
             item.centro_custo_justificativa = cc?.justificativa || '';
+            item.centro_custo_origem = regra ? 'regra_deterministica' : (cc ? 'ia' : 'nenhuma');
             const ccDivergente = !!(cc?.centro_custo_correto && cc.centro_custo_correto !== pr.centro_custo);
             item.divergencia_centro_custo = ccDivergente;
             if (ccDivergente && ccc >= confiancaMin && !dryRun) {
@@ -499,7 +556,7 @@ Deno.serve(async (req) => {
             } else if (ccDivergente && ccc < confiancaMin) {
               item.acao_cc = 'revisao_manual_cc';
             } else if (!cc?.centro_custo_correto) {
-              item.acao_cc = 'ia_sem_resposta_cc';
+              item.acao_cc = 'sem_resposta_cc';
             } else {
               item.acao_cc = 'centro_custo_ok';
               stats.centro_custo_ok++;

@@ -73,6 +73,7 @@ import DashboardCompletoIA from '@/components/compras/DashboardCompletoIA';
 import PainelAuditoriaIASolicitacoes from '@/components/compras/PainelAuditoriaIASolicitacoes';
 import PainelSincronizacaoDriveNFs from '@/components/compras/PainelSincronizacaoDriveNFs';
 import TratarSolicitacoesButton from '@/components/compras/TratarSolicitacoesButton';
+import CorrigirCentroCustoIAButton from '@/components/compras/CorrigirCentroCustoIAButton';
 import { isCoordGeral } from '@/components/auth/permissions';
 
 const STATUS_CONFIG = {
@@ -1672,6 +1673,7 @@ function ComprasInner() {
               <PreencherDatasButton onDone={refreshFinanceiroCompleto} />
               <RecalcularTotaisButton onDone={refreshFinanceiroCompleto} />
             </div>
+            <CorrigirCentroCustoIAButton onDone={refreshFinanceiroCompleto} />
             <PainelVerificacaoFinanceira onSuccess={refreshFinanceiroCompleto} />
             <PainelAuditoriaMetas onSuccess={refreshFinanceiroCompleto} />
             <div className="rounded-2xl border border-gray-200 bg-white p-4">
