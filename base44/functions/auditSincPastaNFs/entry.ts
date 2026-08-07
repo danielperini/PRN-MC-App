@@ -538,12 +538,36 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Backup das NFs tratadas neste lote (par PDF+XML para pastas mensais MM-YYYY).
+    // Idempotente: ignora arquivos já presentes no Drive.
+    const touchedIds = resultados
+      .filter((r) => r.ok && r.pr_id)
+      .map((r) => r.pr_id)
+      .filter(Boolean);
+    let backupRes: any = null;
+    if (touchedIds.length > 0) {
+      try {
+        backupRes = await base44.functions.invoke('backupDiarioNFsDrive', { ids: touchedIds, limite: 0 });
+      } catch (e) {
+        backupRes = { ok: false, error: String(e?.message || e) };
+      }
+    }
+
     return Response.json({
       ok: true,
       mode: 'tratar_lote',
       total: fileIds.length,
       criados, atualizados, pagosMarcados, erros,
       resultados,
+      backup: backupRes
+        ? {
+            ok: !!backupRes.ok,
+            enviados: backupRes.total_enviados ?? 0,
+            ja_existiam: backupRes.total_ja_existiam ?? 0,
+            erros: backupRes.total_erros ?? 0,
+            logs: (backupRes.logs_painel || []).slice(0, 50),
+          }
+        : null,
       elapsed_ms: Date.now() - start,
     });
   }

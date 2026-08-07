@@ -304,7 +304,14 @@ Retorne JSON:
 // ── Processar uma PurchaseRequest ────────────────────────────────────────────
 
 async function processarPurchase(base44, token, pr, notasFolderCache) {
-  const log = { id: pr.id, descricao: pr.descricao_item, status: '', detalhes: [] };
+  const log = {
+    id: pr.id,
+    descricao: pr.descricao_item,
+    fornecedor: pr.fornecedor_nome || pr.nf_emitente_nome || '',
+    nf_numero: pr.nf_numero || '',
+    status: '',
+    detalhes: [],
+  };
 
   // Verificar se tem arquivos fiscais
   const pdfUrl = pr.nota_fiscal_url || pr.nota_fiscal_pdf_url || pr.nf_pdf_url || '';
@@ -335,6 +342,8 @@ async function processarPurchase(base44, token, pr, notasFolderCache) {
   const mesFormatado = String(mesIdx + 1).padStart(2, '0');
   const nomePasta = `${mesFormatado}-${ano}`;
   const mesAno = nomePasta; // usado no nome do arquivo
+  log.mes = mesAno;
+  log.pasta_url = `https://drive.google.com/drive/folders/${''}`;
   const cacheKey = nomePasta;
   let mesFolderId = notasFolderCache[cacheKey];
 
@@ -343,6 +352,7 @@ async function processarPurchase(base44, token, pr, notasFolderCache) {
     notasFolderCache[cacheKey] = mesFolderId;
     log.detalhes.push(`Pasta "${nomePasta}" localizada/criada no Drive`);
   }
+  log.pasta_url = `https://drive.google.com/drive/folders/${mesFolderId}`;
 
   const updates = {};
   let uploaded = 0;
@@ -545,7 +555,8 @@ Deno.serve(async (req) => {
       total_processadas: comprasParaProcessar.length,
       resultados,
       execution_ms: Date.now() - startTime,
-      logs: logs.filter((l) => l.status !== 'ja_sincronizado').slice(0, 100),
+      backup_at: new Date().toISOString(),
+      logs: logs.slice(-200),
     });
 
   } catch (error) {

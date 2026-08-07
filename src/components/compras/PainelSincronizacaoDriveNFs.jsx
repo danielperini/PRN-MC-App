@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button';
 import { useCurrentUser } from '@/components/auth/useCurrentUser';
 import LimparNomesMaquinaDialog from '@/components/compras/LimparNomesMaquinaDialog';
 import UnificarBackupDialog from '@/components/compras/UnificarBackupDialog';
+import BackupDriveConcluidoPanel from '@/components/compras/BackupDriveConcluidoPanel';
 
 const FOLDER_ID = '1LgC94VhIomQZBS7kfkQqgBX8MVzwQqzp';
 const FOLDER_URL = `https://drive.google.com/drive/folders/${FOLDER_ID}`;
@@ -484,6 +485,8 @@ export default function PainelSincronizacaoDriveNFs({ purchasesPendentes }) {
           Nenhum arquivo NF localizado na pasta raiz e subpastas (profundidade até 3).
         </div>
       )}
+
+      {isCoordGeral && <BackupDriveConcluidoPanel visible={true} />}
 
       {logRecente.length > 0 && (
         <div className="rounded-2xl border border-gray-200 bg-white p-4">

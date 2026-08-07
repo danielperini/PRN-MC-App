@@ -229,6 +229,12 @@ Deno.serve(async (req) => {
       resultado.dry_run_aprovar = aprovarDireto.slice(0, 20);
       resultado.dry_run_pago = marcarPago.slice(0, 20);
       resultado.dry_run_inferidos = inferidosRubrica.slice(0, 20);
+      resultado.dry_run_total_tocados = Array.from(new Set([
+        ...duplicatasMarcadas.map((d) => d.id),
+        ...inferidosRubrica.map((i) => i.id),
+        ...aprovarDireto.map((a) => a.id),
+        ...marcarPago.map((m) => m.id),
+      ])).length;
       resultado.elapsed_ms = Date.now() - start;
       return Response.json(resultado);
     }
@@ -309,13 +315,32 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 5. Backup das NFs tratadas
-    try {
-      await base44.functions.invoke('backupDiarioNFsDrive', { triggeredBy: 'manual' });
-      resultado.backup_disparado = true;
-    } catch (e) {
-      resultado.erros.push(`backup: ${String(e?.message || e)}`);
+    // 5. Backup das NFs tratadas — apenas as NFs tocadas neste ciclo (PDF+XML nas
+    //    pastas mensais MM-YYYY), idempotente: ignora arquivos já presentes.
+    const touchedIds = Array.from(new Set([
+      ...duplicatasMarcadas.map((d) => d.id),
+      ...inferidosRubrica.map((i) => i.id),
+      ...aprovarDireto.map((a) => a.id),
+      ...marcarPago.map((m) => m.id),
+    ].filter(Boolean)));
+    resultado.backup_ids = touchedIds.length;
+    let backupLogs: any[] = [];
+    if (touchedIds.length > 0) {
+      try {
+        const r = await base44.functions.invoke('backupDiarioNFsDrive', { ids: touchedIds, limite: 0 });
+        const d = r?.data || r || {};
+        resultado.backup_disparado = !!d?.ok;
+        resultado.backup_enviados = d?.total_enviados ?? 0;
+        resultado.backup_ja_existiam = d?.total_ja_existiam ?? 0;
+        resultado.backup_erros = d?.total_erros ?? 0;
+        backupLogs = Array.isArray(d?.logs_painel) ? d.logs_painel : [];
+        if (!d?.ok) resultado.erros.push('backup: falhou');
+      } catch (e) {
+        resultado.erros.push(`backup: ${String(e?.message || e)}`);
+      }
     }
+
+    resultado.backup_logs = backupLogs.slice(0, 50);
 
     resultado.elapsed_ms = Date.now() - start;
     return Response.json(resultado);
