@@ -75,6 +75,89 @@ async function renameFile(token: string, fileId: string, newName: string) {
   return d.name;
 }
 
+async function downloadFile(token: string, fileId: string): Promise<ArrayBuffer | null> {
+  const r = await driveReq(token, `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`);
+  if (!r.ok) return null;
+  return await r.arrayBuffer();
+}
+
+function parseXmlNFConteudo(xml: string): { nf_numero?: string; nf_valor_total?: number; nf_data_emissao?: string; nf_emitente_nome?: string } {
+  if (!xml) return {};
+  const tag = (re: RegExp) => { const m = xml.match(re); return m ? m[1].trim() : ''; };
+  const result: any = {};
+  const num = tag(/<nNF[^>]*>(\d+)<\/nNF>/i) || tag(/<nNfse[^>]*>(\d+)<\/nNfse>/i) || tag(/<Numero[^>]*>(\d+)<\/Numero>/i);
+  if (num) result.nf_numero = num.replace(/^0+(\d)/, '$1');
+  const valorRaw = tag(/<vNF[^>]*>([\d.,]+)<\/vNF>/i) || tag(/<vPag[^>]*>([\d.,]+)<\/vPag>/i) || tag(/<ValorServicos[^>]*>([\d.,]+)<\/ValorServicos>/i) || tag(/<ValorTotal[^>]*>([\d.,]+)<\/ValorTotal>/i);
+  if (valorRaw) {
+    const s = String(valorRaw).replace(/\s/g, '');
+    if (/^\d{1,3}(\.\d{3})*(,\d+)?$/.test(s)) result.nf_valor_total = parseFloat(s.replace(/\./g, '').replace(',', '.')) || 0;
+    else result.nf_valor_total = parseFloat(s.replace(',', '.')) || 0;
+  }
+  const nome = tag(/<xNome[^>]*>([^<]+)<\/xNome>/i) || tag(/<RazaoSocial[^>]*>([^<]+)<\/RazaoSocial>/i);
+  if (nome) result.nf_emitente_nome = nome;
+  const data = tag(/<dhEmi[^>]*>(\d{4}-\d{2}-\d{2})/i) || tag(/<dEmi[^>]*>(\d{4}-\d{2}-\d{2})/i) || tag(/<DataEmissao[^>]*>(\d{4}-\d{2}-\d{2})/i);
+  if (data) result.nf_data_emissao = data;
+  return result;
+}
+
+const IA_CONTEUDO_SCHEMA = {
+  type: 'object',
+  properties: {
+    nf_numero: { type: 'string', description: 'Número da Nota Fiscal (apenas dígitos)' },
+    nf_valor_total: { type: 'number', description: 'Valor total em reais' },
+    nf_data_emissao: { type: 'string', description: 'Data de emissão YYYY-MM-DD' },
+    nf_emitente_nome: { type: 'string', description: 'Razão social do emitente' },
+    confianca: { type: 'number' },
+  },
+};
+
+async function extrairConteudoArquivo(
+  base44: any,
+  token: string,
+  item: any,
+  ext: string,
+): Promise<{ nf_numero?: string; nf_valor_total?: number; nf_data_emissao?: string; nf_emitente_nome?: string } | null> {
+  try {
+    const buf = await downloadFile(token, item.id);
+    if (!buf) return null;
+    if (ext === 'xml') {
+      const txt = new TextDecoder('utf-8').decode(buf);
+      return parseXmlNFConteudo(txt);
+    }
+    // PDF → IA
+    const blob = new Blob([buf], { type: 'application/pdf' });
+    const up: any = await base44.integrations.Core.UploadFile({ file: blob });
+    if (!up?.file_url) return null;
+    const resp: any = await base44.integrations.Core.InvokeLLM({
+      prompt: 'Analise a Nota Fiscal em anexo (PDF) e extraia: nf_numero (apenas dígitos), nf_valor_total (número em reais), nf_data_emissao (YYYY-MM-DD), nf_emitente_nome (razão social). Retorne APENAS o JSON conforme o schema.',
+      file_urls: [up.file_url],
+      add_context_from_internet: false,
+      response_json_schema: IA_CONTEUDO_SCHEMA,
+      model: 'gpt_5_mini',
+    });
+    return resp || null;
+  } catch (e) {
+    console.warn('[renomearNFsDrive] extrairConteudo erro:', (e as any)?.message || e);
+    return null;
+  }
+}
+
+function fmtBRLConteudo(v: number): string {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(v) || 0);
+}
+
+function buildNomeFromConteudo(c: any, tipo: TipoNFArquivo, ext: string): string {
+  const num = String(c?.nf_numero || '').replace(/^0+(\d)/, '$1');
+  const emit = String(c?.nf_emitente_nome || 'EMITENTE DESCONHECIDO').trim().substring(0, 40).toUpperCase();
+  const valor = fmtBRLConteudo(c?.nf_valor_total || 0);
+  const data = String(c?.nf_data_emissao || '').substring(0, 10);
+  const prefixo = tipo === 'XML' ? 'XML' : tipo === 'COMP NF' ? 'COMP' : 'NF';
+  const partes = [`${prefixo} ${num || '??'}`, emit, valor];
+  if (data) partes.push(data);
+  partes.push('MUSEUS CENTRO');
+  return partes.join(' - ') + '.' + ext;
+}
+
 // ── Busca PurchaseRequest por número de NF + hint de fornecedor ─────────────────
 
 async function findPR(base44: any, nfNum: string, fornecedorHint: string, cache?: Map<string, any>): Promise<any | null> {
