@@ -15,6 +15,8 @@ import {
   Wallet,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useCurrentUser } from '@/components/auth/useCurrentUser';
+import LimparNomesMaquinaDialog from '@/components/compras/LimparNomesMaquinaDialog';
 
 const FOLDER_ID = '1LgC94VhIomQZBS7kfkQqgBX8MVzwQqzp';
 const FOLDER_URL = `https://drive.google.com/drive/folders/${FOLDER_ID}`;
@@ -119,6 +121,8 @@ function StatCard({ icon: Icon, label, value, tone }) {
 
 export default function PainelSincronizacaoDriveNFs({ purchasesPendentes }) {
   const qc = useQueryClient();
+  const { isCoordGeral } = useCurrentUser();
+  const [limparNomesOpen, setLimparNomesOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [scanData, setScanData] = useState(null);
   const [tratandoMes, setTratandoMes] = useState(null);
@@ -332,6 +336,18 @@ export default function PainelSincronizacaoDriveNFs({ purchasesPendentes }) {
               {marcandoPagos ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />}
               {marcandoPagos ? 'Marcando...' : 'Marcar anteriores a 14/07 como PAGO'}
             </Button>
+            {isCoordGeral && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setLimparNomesOpen(true)}
+                className="gap-2 border-gray-300 text-gray-800 hover:bg-gray-100"
+              >
+                <Sparkles className="h-4 w-4" />
+                Limpar nomes de máquina
+              </Button>
+            )}
           </div>
         </div>
 
@@ -419,6 +435,10 @@ export default function PainelSincronizacaoDriveNFs({ purchasesPendentes }) {
             ))}
           </div>
         </div>
+      )}
+
+      {isCoordGeral && (
+        <LimparNomesMaquinaDialog open={limparNomesOpen} onOpenChange={setLimparNomesOpen} />
       )}
     </div>
   );
