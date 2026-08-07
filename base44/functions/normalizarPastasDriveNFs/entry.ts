@@ -256,6 +256,31 @@ async function trashChildFolderByName(token, nameExact, parentId) {
   return await r.json();
 }
 
+// Renomeia uma pasta (PATCH no campo name). Drive não permite colisão de
+// nomes dentro da mesma pasta-pai, então chame após garantir que não há
+// outra pasta com o mesmo nome-vivo (use `findChildFolderByName`).
+async function renameFolder(token, folderId, newName) {
+  const r = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${folderId}?fields=id,name&supportsAllDrives=true`,
+    {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newName }),
+    }
+  );
+  if (!r.ok) {
+    const txt = await r.text().catch(() => '');
+    throw new Error(`Rename HTTP ${r.status}: ${txt.slice(0, 120)}`);
+  }
+  return await r.json();
+}
+
+// Nome ISO alvo: '2026-07 - Julho'
+function nomePastaISO(mesIdx, ano) {
+  const mm = String(mesIdx + 1).padStart(2, '0');
+  return `${ano}-${mm} - ${MESES_PT[mesIdx]}`;
+}
+
 async function deleteFolderIfEmpty(token, folderId) {
   try {
     const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
@@ -957,6 +982,133 @@ Deno.serve(async (req) => {
       prs_aprovados: relatorio.prs_aprovados, intakes_criados: relatorio.intakes_criados,
       pastas_backup_removidas: relatorio.pastas_backup_removidas,
       erros: relatorio.erros, processados: relatorio.processados.slice(0, 100),
+      elapsed_ms: Date.now() - start,
+    });
+  }
+
+  // ═════════════════════════════════════════════════════════════
+  // MODE: normalizar_iso — Normaliza a ORIGEM (notasfiscais-App) renomeando
+  // subpastas mensais para o formato canônico ISO 'YYYY-MM - Mês'
+  // (ex.: '2026-07 - Julho'). Quando o alvo já existe em ORIGEM, move os
+  // arquivos da pasta duplicada para o alvo e manda a duplicada vazia para
+  // lixeira. NÃO processa arquivos (só renomeia/consolida pastas). NÃO
+  // toca no backup.
+  //══════════════════════════════════════════════════════════════
+  if (mode === 'normalizar_iso') {
+    const deadline = start + BUDGET_MS;
+    const relatorio = {
+      pastas_analisadas: [],
+      pastas_renomeadas: [],
+      pastas_consolidadas: [],
+      arquivos_movidos: 0,
+      pastas_removidas: [],
+      erros: [],
+    };
+
+    let subpastas = [];
+    try {
+      const children = await listFolder(driveToken, PASTA_ORIGEM_ID);
+      subpastas = children.filter((f) => f.mimeType === 'application/vnd.google-apps.folder');
+      relatorio.pastas_analisadas = subpastas.map((s) => s.name);
+    } catch (e) {
+      return Response.json({ ok: false, error: 'Erro listar origem: ' + String(e?.message || e) });
+    }
+
+    // Mapa: nomeISO -> folderId (alvo consolidado, criado ou existente)
+    const isoTargetCache = new Map();
+
+    for (const sub of subpastas) {
+      if (Date.now() > deadline) { relatorio.erros.push('Tempo limite'); break; }
+      const det = detectarMesAno(sub.name);
+      if (!det) {
+        relatorio.erros.push(`Pasta não reconhecida: "${sub.name}"`);
+        continue;
+      }
+      const nomeISO = nomePastaISO(det.mesIdx, det.ano);
+
+      // Se já tem o nome ISO → é o alvo. Registra no cache e pula.
+      if (sub.name === nomeISO) {
+        isoTargetCache.set(nomeISO, sub.id);
+        continue;
+      }
+
+      // Determina o alvo: já existe ISO? Caso contrário cria.
+      let targetId;
+      try {
+        if (isoTargetCache.has(nomeISO)) {
+          targetId = isoTargetCache.get(nomeISO);
+        } else {
+          const existing = await findChildFolderByName(driveToken, nomeISO, PASTA_ORIGEM_ID);
+          if (existing?.id) {
+            targetId = existing.id;
+            isoTargetCache.set(nomeISO, targetId);
+          } else {
+            // Cria alvo com o nome ISO
+            const created = await getOrCreateFolder(driveToken, nomeISO, PASTA_ORIGEM_ID);
+            targetId = created.id;
+            isoTargetCache.set(nomeISO, targetId);
+            relatorio.pastas_renomeadas.push({ de: sub.name, para: nomeISO, id_criado: targetId });
+          }
+        }
+      } catch (e) {
+        relatorio.erros.push(`Erro garantir alvo ISO "${nomeISO}": ${String(e?.message || e)}`);
+        continue;
+      }
+
+      // targetId é o mesmo da subpasta? só renomeia.
+      if (targetId === sub.id) continue;
+
+      // Move todos os arquivos da subpasta duplicada → alvo ISO
+      let files;
+      try { files = await listFolder(driveToken, sub.id); }
+      catch (e) { relatorio.erros.push(`Erro listar "${sub.name}": ${String(e?.message || e)}`); continue; }
+
+      for (const f of files) {
+        if (Date.now() > deadline) { relatorio.erros.push('Tempo limite movendo'); break; }
+        try {
+          await moveFile(driveToken, f.id, targetId, sub.id);
+          relatorio.arquivos_movidos++;
+        } catch (e) {
+          relatorio.erros.push(`Erro mover ${f.name} de "${sub.name}": ${String(e?.message || e)}`);
+        }
+      }
+
+      relatorio.pastas_consolidadas.push({ de: sub.name, para: nomeISO, arquivos: files.length });
+
+      // Lixeira a pasta duplicada agora vazia
+      try {
+        const trashed = await trashChildFolderByName(driveToken, sub.name, PASTA_ORIGEM_ID);
+        if (trashed?.id) relatorio.pastas_removidas.push({ nome: sub.name, id: trashed.id });
+      } catch (e) {
+        relatorio.erros.push(`Erro tralizar "${sub.name}": ${String(e?.message || e)}`);
+      }
+    }
+
+    try {
+      await db.BackupLog.create({
+        backup_type: 'drive_nf_sync_mensal', entity_type: 'normalizarPastasDriveNFs_iso',
+        status: relatorio.erros.length > 0 ? 'failure' : 'concluido',
+        processed_at: new Date().toISOString(),
+        total_files: relatorio.arquivos_movidos, files_copied: 0,
+        execution_time_ms: Date.now() - start,
+        details: JSON.stringify({
+          pastas_renomeadas: relatorio.pastas_renomeadas.length,
+          pastas_consolidadas: relatorio.pastas_consolidadas.length,
+          arquivos_movidos: relatorio.arquivos_movidos,
+          pastas_removidas: relatorio.pastas_removidas.length,
+        }),
+        triggered_by: isCron ? 'scheduled' : 'manual',
+      });
+    } catch {}
+
+    return Response.json({
+      ok: true, mode,
+      pastas_analisadas: relatorio.pastas_analisadas,
+      pastas_renomeadas: relatorio.pastas_renomeadas,
+      pastas_consolidadas: relatorio.pastas_consolidadas,
+      arquivos_movidos: relatorio.arquivos_movidos,
+      pastas_removidas: relatorio.pastas_removidas,
+      erros: relatorio.erros,
       elapsed_ms: Date.now() - start,
     });
   }
