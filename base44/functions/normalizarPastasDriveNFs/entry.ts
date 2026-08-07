@@ -1,24 +1,41 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.41';
 
 // ================================================================
-// normalizarPastasDriveNFs — Normalização + backup + processamento
-// de NFs da pasta de ORIGEM do Drive.
+// normalizarPastasDriveNFs — Normalização + merge + backup + processamento
+// da pasta raiz de NFs (notasfiscais-App).
 //
-// Pasta ORIGEM (raiz): 13Lkf42UMaHsyLb8T7Cd0TGUkM3_3YH2T
-// Pasta BACKUP/destino: 1LgC94VhIomQZBS7kfkQqgBX8MVzwQqzp
+// Pasta ORIGEM:  13Lkf42UMaHsyLb8T7Cd0TGUkM3_3YH2T  (notasfiscais-App)
+// Pasta BACKUP:  1LgC94VhIomQZBS7kfkQqgBX8MVzwQqzp  (backup principal)
 //
-// Modes:
-//   1. 'diagnosticar_pastas': Lista subpastas, detecta duplicatas/mal-nomeadas.
-//   2. 'normalizar_completo': FASE 1+2+3 — merge pastas, backup, processa NFs. (manual, uso único)
-//   3. 'incremental': FASE 4 — sync diário de arquivos modificados nas últimas 25h. (agendado)
+// mode='normalizar_completo' (FASE 1+2+3, uso único manual por coord. geral):
+//   1. Varre subpastas da pasta origem, detecta mês/ano pelo nome
+//      (aceita: 'Julho 2026', '2026-07', '2026-07 - Julho', 'Julho', '07-2026'...)
+//   2. Cria/confirma pasta canônica 'Mês Ano' (ex: 'Julho 2026')
+//   3. Move arquivos das pastas alternativas → canônica (Drive files.update addParents/removeParents)
+//   4. Remove pastas duplicadas vazias
+//   5. Para cada arquivo consolidado:
+//      - XML: parseia, cria/atualiza PurchaseRequest, sugere rubrica/meta via IA,
+//        aprova automaticamente (APROVADO_COORD) se sem duplicata
+//      - PDF sem XML: cria DocumentIntake AGUARDANDO_REVISAO
+//   6. Copia cada arquivo para pasta de backup (Mês Ano) com nome padronizado
+//
+// mode='incremental' (FASE 4, agendado diário):
+//   1. Varre apenas arquivos modifiedTime > now-25h na pasta origem
+//   2. Para cada: copia para backup + processa (XML→PR+approve; PDF→intake)
+//   3. Não reorganiza pastas (já normalizado previamente)
+//
+// Budget: 55s. Lotes de 15 arquivos.
 // ================================================================
 
-const ORIGEM_FOLDER_ID = '13Lkf42UMaHsyLb8T7Cd0TGUkM3_3YH2T';
-const BACKUP_FOLDER_ID = '1LgC94VhIomQZBS7kfkQqgBX8MVzwQqzp';
+const PASTA_ORIGEM_ID = '13Lkf42UMaHsyLb8T7Cd0TGUkM3_3YH2T';
+const PASTA_BACKUP_ID = '1LgC94VhIomQZBS7kfkQqgBX8MVzwQqzp';
 const BUDGET_MS = 55000;
-const DATA_CORTE_PAGO_MS = Date.parse('2026-07-14T00:00:00Z');
+const BATCH_SIZE = 15;
+
 const META_IDS = ['MC3A-20','MC3A-21','MC3A-22','MC3A-23','MC3A-24','MC3A-25','MC3A-EXTRA'];
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+const MESES_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const MESES_LOWER = MESES_PT.map(m => m.toLowerCase());
 
 // ─── Utilidades ─────────────────────────────────────────────
 const onlyDigits = (v) => String(v ?? '').replace(/\D+/g, '');
@@ -39,8 +56,7 @@ function parseXmlRaw(xml) {
   return {
     nf_emitente_cpf_cnpj: onlyDigits(
       tag(/<CNPJ[^>]*>(\d+)<\/CNPJ>/i) || (tEmit.match(/<CNPJ[^>]*>(\d+)<\/CNPJ>/i)?.[1] || '') ||
-      tag(/<CPF[^>]*>(\d+)<\/CPF>/i) || (tEmit.match(/<CPF[^>]*>(\d+)<\/CPF>/i)?.[1] || '') ||
-      tag(/<Cnpj[^>]*>(\d+)<\/Cnpj>/i) || (tEmit.match(/<Cnpj[^>]*>(\d+)<\/Cnpj>/i)?.[1] || '')
+      tag(/<CPF[^>]*>(\d+)<\/CPF>/i) || (tEmit.match(/<CPF[^>]*>(\d+)<\/CPF>/i)?.[1] || '')
     ),
     nf_emitente_nome: tag(/<xNome[^>]*>([^<]+)<\/xNome>/i) || (tEmit.match(/<xName[^>]*>([^<]+)<\/xName>/i)?.[1] || '') || tag(/<RazaoSocial[^>]*>([^<]+)<\/RazaoSocial>/i),
     nf_numero: onlyDigits(tag(/<nNF[^>]*>(\d+)<\/nNF>/i) || tag(/<Numero[^>]*>(\d+)<\/Numero>/i) || tag(/<nNfse[^>]*>(\d+)<\/nNfse>/i)),
@@ -48,7 +64,6 @@ function parseXmlRaw(xml) {
     nf_data_emissao: (tag(/<dhEmi[^>]*>(\d{4}-\d{2}-\d{2})/i) || tag(/<dEmi[^>]*>(\d{4}-\d{2}-\d{2})/i) || tag(/<DataEmissao[^>]*>(\d{4}-\d{2}-\d{2})/i) || (compLote?.[1] || '').slice(0, 10)),
     nf_chave_acesso: onlyDigits(tag(/<chNFe[^>]*>(\d{44})<\/chNFe>/i) || tag(/<ChaveAcesso[^>]*>(\d+)<\/ChaveAcesso>/i)).slice(0, 44),
     descricao_servico: tag(/<xServ[^>]*>([^<]+)<\/xServ>/i) || tag(/<Discriminacao[^>]*>([^<]+)<\/Discriminacao>/i),
-    municipio: tag(/<xMun[^>]*>([^<]+)<\/xMun>/i) || tag(/<Municipio[^>]*>([^<]+)<\/Municipio>/i) || block('Endereco').match(/<Municipio[^>]*>([^<]+)<\/Municipio>/i)?.[1],
   };
 }
 
@@ -61,137 +76,72 @@ function isPdf(f) {
   return String(f?.name || '').toLowerCase().endsWith('.pdf');
 }
 
-// ─── Nome padronizado (simplificado de nfNomeOficial) ───────
-function sanitizeNome(v, max = 60) {
-  return String(v || '')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9\s\-]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .substring(0, max)
-    .trim();
-}
-
-function buildStandardName(parsed, tipo) {
-  const ext = tipo === 'XML' ? 'xml' : 'pdf';
-  const num = onlyDigits(parsed.nf_numero) || 'SN';
-  const desc = sanitizeNome(parsed.descricao_servico || parsed.nf_emitente_nome || 'Despesa', 30) || 'Despesa';
-  const forn = sanitizeNome(parsed.nf_emitente_nome || 'FORNECEDOR', 60) || 'FORNECEDOR';
-  const valor = (Number(parsed.nf_valor_total) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return `${tipo} ${num} ${desc} - ${forn} - MUSEUS CENTRO - R$ ${valor}.${ext}`;
-}
-
-// ─── Detecção de Mês/Ano pelo nome da pasta ─────────────────
-const MESES_PT = [
-  { nome: 'Janeiro', re: /janeiro|jan/i, num: 1 },
-  { nome: 'Fevereiro', re: /fevereiro|fev/i, num: 2 },
-  { nome: 'Marco', re: /mar[cç]o|mar\b/i, num: 3 },
-  { nome: 'Abril', re: /abril|abr/i, num: 4 },
-  { nome: 'Maio', re: /maio|mai/i, num: 5 },
-  { nome: 'Junho', re: /junho|jun/i, num: 6 },
-  { nome: 'Julho', re: /julho|jul/i, num: 7 },
-  { nome: 'Agosto', re: /agosto|ago/i, num: 8 },
-  { nome: 'Setembro', re: /setembro|set/i, num: 9 },
-  { nome: 'Outubro', re: /outubro|out/i, num: 10 },
-  { nome: 'Novembro', re: /novembro|nov/i, num: 11 },
-  { nome: 'Dezembro', re: /dezembro|dez/i, num: 12 },
-];
-
+// Detecta mês/ano a partir do nome de uma pasta
+// Retorna { mesIdx (0-11), ano, nomeCanonical: 'Julho 2026' } ou null
 function detectarMesAno(nomePasta) {
-  const nome = safeStr(nomePasta);
-  if (!nome) return null;
-  // Formato ISO: "2026-07" ou "2026-07 - Julho"
-  const isoMatch = nome.match(/(\d{4})-(\d{2})/);
-  if (isoMatch) {
-    const ano = Number(isoMatch[1]);
-    const mes = Number(isoMatch[2]);
-    if (mes >= 1 && mes <= 12) return `${MESES_PT[mes - 1].nome} ${ano}`;
-  }
-  // Formato por nome de mês: "Julho 2026", "Julho", "07 - Julho"
-  for (const m of MESES_PT) {
-    if (m.re.test(nome)) {
-      const anoMatch = nome.match(/(\d{4})/);
-      const ano = anoMatch ? Number(anoMatch[1]) : new Date().getFullYear();
-      return `${m.nome} ${ano}`;
+  const s = safeStr(nomePasta);
+  if (!s) return null;
+
+  // Padrao ISO: '2026-07' ou '2026-07 - Julho' ou '2026-07_Julho'
+  const iso = s.match(/(\d{4})[-_/](\d{2})/);
+  if (iso) {
+    const ano = Number(iso[1]);
+    const mesIdx = Number(iso[2]) - 1;
+    if (mesIdx >= 0 && mesIdx <= 11 && ano >= 2020 && ano <= 2030) {
+      return { mesIdx, ano, nomeCanonical: `${MESES_PT[mesIdx]} ${ano}` };
     }
   }
+
+  // Padrao invertido: '07-2026'
+  const inv = s.match(/(\d{2})[-_/](\d{4})/);
+  if (inv) {
+    const mesIdx = Number(inv[1]) - 1;
+    const ano = Number(inv[2]);
+    if (mesIdx >= 0 && mesIdx <= 11 && ano >= 2020 && ano <= 2030) {
+      return { mesIdx, ano, nomeCanonical: `${MESES_PT[mesIdx]} ${ano}` };
+    }
+  }
+
+  // Nome do mês em PT-BR
+  const lower = s.toLowerCase();
+  for (let i = 0; i < MESES_LOWER.length; i++) {
+    if (lower.includes(MESES_LOWER[i])) {
+      // ano: busca 4 dígitos
+      const anoMatch = s.match(/(\d{4})/);
+      const ano = anoMatch ? Number(anoMatch[1]) : new Date().getFullYear();
+      if (ano >= 2020 && ano <= 2030) {
+        return { mesIdx: i, ano, nomeCanonical: `${MESES_PT[i]} ${ano}` };
+      }
+    }
+  }
+
   return null;
 }
 
-function isCanonicalName(nome) {
-  // Nome canônico: "Julho 2026" (Mês Ano sem hífens/ISO)
-  return MESES_PT.some((m) => new RegExp(`^${m.nome}\\s+\\d{4}$`, 'i').test(safeStr(nome)));
+// Nome canônico da pasta no backup — 'Julho 2026'
+function nomePastaCanonical(mesIdx, ano) {
+  return `${MESES_PT[mesIdx]} ${ano}`;
 }
 
-// ─── Drive API helpers ──────────────────────────────────────
-async function listFolder(token, folderId, extraQuery = '') {
+// ─── Drive helpers ────────────────────────────────────────────
+async function listFolder(token, folderId, modifiedSince) {
   const out = [];
   let page = '';
   do {
-    const q = encodeURIComponent(`'${folderId}' in parents and trashed=false${extraQuery}`);
+    const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
     const fields = encodeURIComponent('nextPageToken,files(id,name,mimeType,modifiedTime,webViewLink)');
-    const url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=${fields}&pageSize=100&supportsAllDrives=true&includeItemsFromAllDrives=true${page ? `&pageToken=${page}` : ''}`;
+    let url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=${fields}&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true`;
+    if (page) url += `&pageToken=${page}`;
     const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     if (!r.ok) throw new Error(`Drive HTTP ${r.status}`);
     const d = await r.json().catch(() => ({}));
     out.push(...(d.files || []));
     page = d.nextPageToken || '';
   } while (page);
-  return out;
-}
-
-async function listRecentlyModified(token, folderId, cutoffISO) {
-  return listFolder(token, folderId, ` and modifiedTime > '${cutoffISO}'`);
-}
-
-async function getOrCreateFolder(token, nome, parentId) {
-  // Busca pasta existente
-  const q = encodeURIComponent(`'${parentId}' in parents and trashed=false and mimeType='application/vnd.google-apps.folder' and name='${nome.replace(/'/g, "\\'")}'`);
-  const url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&pageSize=1&supportsAllDrives=true&includeItemsFromAllDrives=true`;
-  const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-  if (r.ok) {
-    const d = await r.json().catch(() => ({}));
-    if (d.files?.length > 0) return d.files[0];
+  if (modifiedSince) {
+    return out.filter(f => new Date(f.modifiedTime || 0).getTime() > modifiedSince);
   }
-  // Cria nova pasta
-  const cr = await fetch('https://www.googleapis.com/drive/v3/files?supportsAllDrives=true&fields=id,name', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: nome, mimeType: 'application/vnd.google-apps.folder', parents: [parentId] }),
-  });
-  if (!cr.ok) throw new Error(`createFolder HTTP ${cr.status}`);
-  return await cr.json();
-}
-
-async function moveFile(token, fileId, addParentId, removeParentId) {
-  const params = new URLSearchParams({ supportsAllDrives: 'true', fields: 'id,name,parents' });
-  if (addParentId) params.set('addParents', addParentId);
-  if (removeParentId) params.set('removeParents', removeParentId);
-  const r = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?${params}`, {
-    method: 'PATCH',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: '{}',
-  });
-  if (!r.ok) throw new Error(`moveFile HTTP ${r.status}`);
-  return await r.json();
-}
-
-async function copyFile(token, fileId, newName, destFolderId) {
-  const r = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/copy?supportsAllDrives=true&fields=id,name`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: newName, parents: [destFolderId] }),
-  });
-  if (!r.ok) throw new Error(`copyFile HTTP ${r.status}`);
-  return await r.json();
-}
-
-async function deleteFileOrFolder(token, fileId) {
-  const r = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?supportsAllDrives=true`, {
-    method: 'DELETE',
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return r.ok;
+  return out;
 }
 
 async function downloadFile(token, fileId) {
@@ -202,12 +152,114 @@ async function downloadFile(token, fileId) {
   return await r.arrayBuffer();
 }
 
-async function listFileNamesInFolder(token, folderId) {
-  const files = await listFolder(token, folderId);
-  return new Set(files.map((f) => f.name));
+async function getFileMeta(token, fileId) {
+  const r = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=name,mimeType,modifiedTime&supportsAllDrives=true`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!r.ok) throw new Error(`Meta HTTP ${r.status}`);
+  return await r.json();
 }
 
-// ─── Sugestão de rubrica/meta via IA ──────────────────────────
+// Encontra pasta por nome no pai; cria se não existir
+async function getOrCreateFolder(token, name, parentId) {
+  const q = encodeURIComponent(`name='${name.replace(/'/g, "\\'")}' and '${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+  const r = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,webViewLink)&supportsAllDrives=true`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (r.ok) {
+    const d = await r.json();
+    if (d.files?.length > 0) return d.files[0];
+  }
+  const cr = await fetch('https://www.googleapis.com/drive/v3/files?fields=id,name,webViewLink&supportsAllDrives=true', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder', parents: [parentId] }),
+  });
+  return await cr.json();
+}
+
+// Move arquivo entre pastas (addParents/removeParents)
+async function moveFile(token, fileId, addParentId, removeParentId) {
+  const url = `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name&supportsAllDrives=true` +
+    `&addParents=${encodeURIComponent(addParentId)}` +
+    (removeParentId ? `&removeParents=${encodeURIComponent(removeParentId)}` : '');
+  const r = await fetch(url, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: '{}',
+  });
+  if (!r.ok) {
+    const txt = await r.text().catch(() => '');
+    throw new Error(`Move HTTP ${r.status}: ${txt.slice(0, 120)}`);
+  }
+  return await r.json();
+}
+
+// Copia arquivo para nova pasta com nome padronizado (mesma conta Drive — usa files.copy)
+async function copyFile(token, fileId, newName, destParentId) {
+  const r = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/copy?fields=id,webViewLink&supportsAllDrives=true`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: newName, parents: [destParentId] }),
+  });
+  if (!r.ok) {
+    const txt = await r.text().catch(() => '');
+    throw new Error(`Copy HTTP ${r.status}: ${txt.slice(0, 120)}`);
+  }
+  return await r.json();
+}
+
+// Verifica se arquivo com mesmo nome já existe na pasta destino
+async function fileExistsInFolder(token, fileName, folderId) {
+  const q = encodeURIComponent(`name='${fileName.replace(/'/g, "\\'")}' and '${folderId}' in parents and trashed=false`);
+  const r = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&pageSize=5&supportsAllDrives=true`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!r.ok) return null;
+  const d = await r.json();
+  return d.files?.[0] || null;
+}
+
+async function deleteFolderIfEmpty(token, folderId) {
+  try {
+    const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
+    const r = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)&pageSize=1&supportsAllDrives=true`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!r.ok) return false;
+    const d = await r.json();
+    if ((d.files || []).length > 0) return false;
+    await fetch(`https://www.googleapis.com/drive/v3/files/${folderId}?supportsAllDrives=true`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return true;
+  } catch { return false; }
+}
+
+// ─── Nome padronizado para backup (baseado em nfNomeOficial) ──
+function sanitizeName(v, max = 60) {
+  return String(v || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9\s\-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .substring(0, max)
+    .trim();
+}
+function formatValorName(v) {
+  const n = Number(v || 0);
+  return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function buildBackupName(tipo, parsed, ext) {
+  const prefixo = tipo === 'XML' ? 'XML' : 'NF';
+  const num = sanitizeName(parsed.nf_numero || 'SN', 10).replace(/^0+(\d)/, '$1');
+  const fornecedor = sanitizeName(parsed.nf_emitente_nome || 'FORNECEDOR', 60);
+  const valor = formatValorName(parsed.nf_valor_total || 0);
+  return `${prefixo} ${num} ${sanitizeName('Despesa', 30)} - ${fornecedor} - MUSEUS CENTRO - R$ ${valor}.${ext}`;
+}
+
+// ─── Sugestão de rubrica/meta via IA (inline de auditSincPastaNFs) ──
 async function sugerirRubricaMeta(descricao, fornecedorNome, rubricas) {
   if (!OPENAI_API_KEY) return {};
   const desc = safeStr(descricao).slice(0, 200);
@@ -224,8 +276,8 @@ async function sugerirRubricaMeta(descricao, fornecedorNome, rubricas) {
       'Você mapeia nota fiscal para rubrica orçamentária + meta do projeto (Museus Centro / Viaduto das Artes). ' +
       `meta_id deve ser um de: ${META_IDS.join(', ')}. ` +
       'centro_custo deve ser um de: MUMO, MIS, MHAB, Noturno nos Museus 2026, Noturno Pampulha, Publicações, Geral. ' +
-      'Responda JSON com chave estrita {"rubrica_id": string|null, "meta_id": string|null, "centro_custo": string|null}.'
-    },
+      'Responda JSON com chave estrita {"rubrica_id": string|null, "meta_id": string|null, "centro_custo": string|null}. ' +
+      'rubrica_id deve ser o id de uma rubrica do "rubricas_menu" se houver match; se não houver confiança, retorne null.' },
     { role: 'user', content: JSON.stringify({ descricao: desc, fornecedor: forn, rubricas_menu: menuAtivo }) },
   ];
 
@@ -237,7 +289,8 @@ async function sugerirRubricaMeta(descricao, fornecedorNome, rubricas) {
     });
     if (!resp.ok) return {};
     const data = await resp.json();
-    const parsed = JSON.parse(data?.choices?.[0]?.message?.content || '{}');
+    const content = data?.choices?.[0]?.message?.content || '{}';
+    const parsed = JSON.parse(content || '{}');
     return {
       rubrica_id: safeStr(parsed.rubrica_id) || '',
       meta_id: safeStr(parsed.meta_id) || '',
@@ -246,30 +299,31 @@ async function sugerirRubricaMeta(descricao, fornecedorNome, rubricas) {
   } catch { return {}; }
 }
 
-// ─── Detecção de duplicata no banco ──────────────────────────
-function findDuplicata(parsed, allPR) {
-  const nf = safeStr(parsed.nf_numero);
-  const cnpj = safeStr(parsed.nf_emitente_cpf_cnpj);
-  const valor = Number(parsed.nf_valor_total || 0);
-  if (!nf) return null;
-  return (allPR || []).find((p) =>
-    safeStr(p.nf_numero) === nf &&
-    (cnpj ? safeStr(p.nf_emitente_cpf_cnpj || p.fornecedor_cnpj || p.fornecedor_cpf_cnpj) === cnpj : true) &&
-    (valor ? Number(p.nf_valor_total || p.valor_total || 0) === valor : true)
-  ) || null;
+// ─── Detecção de duplicata no banco ─────────────────────────────
+async function findDuplicata(db, nfNumero, cnpj, valor) {
+  if (!nfNumero || (!cnpj && !valor)) return null;
+  let allPR = [];
+  try {
+    allPR = await db.PurchaseRequest.list('-created_date', 2000);
+  } catch { return null; }
+  return allPR.find((p) => {
+    if (safeStr(p.nf_numero) !== safeStr(nfNumero)) return false;
+    if (cnpj && safeStr(p.nf_emitente_cpf_cnpj || p.fornecedor_cnpj) === cnpj) return true;
+    if (valor && Math.abs(Number(p.nf_valor_total || p.valor_solicitado || 0) - Number(valor)) < 0.01) return true;
+    return false;
+  }) || null;
 }
 
-// ─── Handler principal ───────────────────────────────────────
+// ─── Handler principal ─────────────────────────────────────────
 Deno.serve(async (req) => {
   const start = Date.now();
   const base44 = createClientFromRequest(req);
   const srv = base44.asServiceRole;
   const db = srv.entities;
   const body = await req.json().catch(() => ({}));
-  const mode = safeStr(body.mode || 'diagnosticar_pastas');
+  const mode = safeStr(body.mode || 'normalizar_completo');
   const isCron = req.headers.get('x-base44-trigger') === 'cron' || body.cron === '1' || body.cron === true;
 
-  // Autenticação
   if (!isCron) {
     const user = await base44.auth.me().catch(() => null);
     if (!user) return Response.json({ ok: false, error: 'Não autenticado' }, { status: 401 });
@@ -278,7 +332,6 @@ Deno.serve(async (req) => {
     }
   }
 
-  // Token Google Drive
   let driveToken = null;
   try {
     const conn = await srv.connectors.getConnection('googledrive');
@@ -288,372 +341,576 @@ Deno.serve(async (req) => {
   }
   if (!driveToken) return Response.json({ ok: false, error: 'Google Drive não conectado' }, { status: 401 });
 
-  // Carrega rubricas e PRs existentes (cache para todo o processo)
+  // Carrega rubricas para sugestão de IA
   let rubricas = [];
-  let allPR = [];
-  try {
-    rubricas = await db.Rubrica.list('ordem_exibicao', 500);
-  } catch {}
-  try {
-    allPR = await db.PurchaseRequest.list('-created_date', 2000);
-  } catch {}
-  const numeroMap = new Map();
-  for (const p of allPR) {
-    const n = safeStr(p.nf_numero);
-    if (!n) continue;
-    if (!numeroMap.has(n)) numeroMap.set(n, []);
-    numeroMap.get(n).push(p);
-  }
+  try { rubricas = await db.Rubrica.list('ordem_exibicao', 500); } catch {}
 
-  // ══════════════ MODE: diagnosticar_pastas ══════════════
-  if (mode === 'diagnosticar_pastas') {
-    try {
-      const subpastas = (await listFolder(driveToken, ORIGEM_FOLDER_ID))
-        .filter((f) => f.mimeType === 'application/vnd.google-apps.folder');
-      const analise = subpastas.map((sp) => {
-        const canonico = detectarMesAno(sp.name);
-        return {
-          id: sp.id,
-          nome: sp.name,
-          mes_ano_detectado: canonico,
-          ja_canonico: canonico ? isCanonicalName(sp.name) : false,
-        };
-      });
-      const duplicatas = analise.filter((a) => a.mes_ano_detectado && !a.ja_canonico);
-      return Response.json({
-        ok: true,
-        mode: 'diagnosticar_pastas',
-        total_subpastas: subpastas.length,
-        pastas_canonicas: analise.filter((a) => a.ja_canonico).length,
-        pastas_duplicatas: duplicatas.length,
-        duplicatas: duplicatas,
-        pastas_sem_deteccao: analise.filter((a) => !a.mes_ano_detectado).map((a) => ({ id: a.id, nome: a.nome })),
-      });
-    } catch (e) {
-      return Response.json({ ok: false, error: 'Erro diagnosticar: ' + String(e?.message || e) });
-    }
-  }
-
-  // ══════════════ MODE: normalizar_completo (FASE 1+2+3) ══════════════
+  // ═════════════════════════════════════════════════════════════
+  // MODE: normalizar_completo
+  // ═════════════════════════════════════════════════════════════
   if (mode === 'normalizar_completo') {
     const deadline = start + BUDGET_MS;
-    const log = { pastas_renomeadas: 0, arquivos_movidos: 0, backups_feitos: 0, intakes_criados: 0, prs_criados: 0, prs_aprovados: 0, erros: [] };
+    const relatorio = {
+      pastas_analisadas: [],
+      pastas_canonicas: [],
+      pastas_removidas: [],
+      arquivos_movidos: 0,
+      backups_feitos: 0,
+      prs_criados: 0,
+      prs_aprovados: 0,
+      intakes_criados: 0,
+      erros: [],
+      processados: [],
+    };
 
-    // FASE 1: Normalizar pastas — mover arquivos de alias para canônica
-    const subpastas = (await listFolder(driveToken, ORIGEM_FOLDER_ID))
-      .filter((f) => f.mimeType === 'application/vnd.google-apps.folder');
+    // 1. Lista subpastas da pasta origem
+    let subpastas = [];
+    let arquivosRaiz = [];
+    try {
+      const children = await listFolder(driveToken, PASTA_ORIGEM_ID);
+      subpastas = children.filter((f) => f.mimeType === 'application/vnd.google-apps.folder');
+      arquivosRaiz = children.filter((f) => f.mimeType !== 'application/vnd.google-apps.folder');
+      relatorio.pastas_analisadas = subpastas.map((s) => s.name);
+    } catch (e) {
+      return Response.json({ ok: false, error: 'Erro listar origem: ' + String(e?.message || e) });
+    }
 
-    const pastaMap = new Map(); // mes_ano → { id, arquivos: [], alias: [] }
+    // 2. Para cada subpasta: detectar mês/ano, consolidar na canônica
+    const canonicalCache = new Map(); // nomeCanonical -> folderId (em ORIGEM)
+    async function garantirCanonical(mesIdx, ano) {
+      const nome = nomePastaCanonical(mesIdx, ano);
+      if (canonicalCache.has(nome)) return canonicalCache.get(nome);
+      const folder = await getOrCreateFolder(driveToken, nome, PASTA_ORIGEM_ID);
+      canonicalCache.set(nome, folder.id);
+      relatorio.pastas_canonicas.push(nome);
+      return folder.id;
+    }
 
-    for (const sp of subpastas) {
-      if (Date.now() > deadline - 15000) break;
-      const mesAno = detectarMesAno(sp.name);
-      if (!mesAno) {
-        log.erros.push(`Pasta '${sp.name}': mês/ano não detectado, ignorada`);
-        continue;
-      }
-      const jaCanonico = isCanonicalName(sp.name);
-      let entry = pastaMap.get(mesAno);
-      if (!entry) {
-        // Cria ou encontra a pasta canônica na origem
-        try {
-          const canonica = await getOrCreateFolder(driveToken, mesAno, ORIGEM_FOLDER_ID);
-          entry = { id: canonica.id, nome: mesAno, arquivos: [], alias: [] };
-          pastaMap.set(mesAno, entry);
-        } catch (e) {
-          log.erros.push(`Erro ao criar pasta canônica '${mesAno}': ${String(e?.message || e)}`);
+    for (const sub of subpastas) {
+      if (Date.now() > deadline) { relatorio.erros.push('Tempo limite atingido durante normalização'); break; }
+      const det = detectarMesAno(sub.name);
+      const nomeCanonical = det ? det.nomeCanonical : sub.name;
+      const isAlreadyCanonical = sub.name === nomeCanonical && det !== null;
+
+      let canonicalId;
+      try {
+        if (det) {
+          canonicalId = await garantirCanonical(det.mesIdx, det.ano);
+        } else {
+          // Pasta com nome não reconhecido — mantém como está (não move)
+          relatorio.erros.push(`Pasta não reconhecida: "${sub.name}"`);
           continue;
         }
+      } catch (e) {
+        relatorio.erros.push(`Erro criar pasta canônica para "${sub.name}": ${String(e?.message || e)}`);
+        continue;
       }
-      if (jaCanonico && entry.id === sp.id) {
-        // Própria canônica — apenas lista arquivos
+
+      if (isAlreadyCanonical && sub.id === canonicalId) {
+        // já é a canônica — apenas processa arquivos
       } else {
-        entry.alias.push({ id: sp.id, nome: sp.name });
-      }
-      // Lista arquivos da subpasta
-      try {
-        const files = await listFolder(driveToken, sp.id);
-        entry.arquivos.push(...files.map((f) => ({ ...f, pasta_origem_id: sp.id, pasta_origem_nome: sp.name })));
-      } catch (e) {
-        log.erros.push(`Erro ao listar pasta '${sp.name}': ${String(e?.message || e)}`);
-      }
-    }
+        // Move arquivos da subpasta alternativa → canônica
+        let files;
+        try { files = await listFolder(driveToken, sub.id); }
+        catch (e) { relatorio.erros.push(`Erro listar "${sub.name}": ${String(e?.message || e)}`); continue; }
 
-    // Move arquivos das alias para a canônica
-    for (const [mesAno, entry] of pastaMap) {
-      if (Date.now() > deadline - 12000) break;
-      for (const alias of entry.alias) {
-        const arquivosDaAlias = entry.arquivos.filter((a) => a.pasta_origem_id === alias.id);
-        for (const arq of arquivosDaAlias) {
-          if (Date.now() > deadline - 10000) break;
+        for (const f of files) {
+          if (Date.now() > deadline) break;
           try {
-            // Verifica se já existe na canônica (evita duplicar)
-            const nomesExistentes = await listFileNamesInFolder(driveToken, entry.id);
-            const nomeFinal = nomesExistentes.has(arq.name) ? `${arq.name.replace(/\.[^.]+$/, '')} (2)${arq.name.match(/\.[^.]+$/)?.[0] || ''}` : arq.name;
-            await moveFile(driveToken, arq.id, entry.id, alias.id);
-            log.arquivos_movidos++;
+            await moveFile(driveToken, f.id, canonicalId, sub.id);
+            relatorio.arquivos_movidos++;
           } catch (e) {
-            log.erros.push(`Erro ao mover '${arq.name}' de '${alias.nome}': ${String(e?.message || e)}`);
+            relatorio.erros.push(`Erro mover ${f.name}: ${String(e?.message || e)}`);
           }
         }
-        // Remove a pasta alias se vazia
+
+        // Remove pasta alternativa se vazia
         try {
-          const restantes = await listFolder(driveToken, alias.id);
-          if (restantes.length === 0) {
-            await deleteFileOrFolder(driveToken, alias.id);
-            log.pastas_renomeadas++;
-          }
+          const removed = await deleteFolderIfEmpty(driveToken, sub.id);
+          if (removed) relatorio.pastas_removidas.push(sub.name);
         } catch (e) {
-          log.erros.push(`Erro ao remover pasta vazia '${alias.nome}': ${String(e?.message || e)}`);
+          relatorio.erros.push(`Erro remover pasta "${sub.name}": ${String(e?.message || e)}`);
         }
       }
     }
 
-    // FASE 2+3: Backup + Processamento de cada arquivo consolidado
-    // Cria/find pasta de backup raiz mensal no destino
-    const backupFolderCache = new Map();
-    async function getBackupMes(mesAno) {
-      if (backupFolderCache.has(mesAno)) return backupFolderCache.get(mesAno);
+    // 3. Processa arquivos: coleta todos de todas as pastas canônicas + raiz
+    const todasCanonicalIds = new Set(canonicalCache.values());
+    const arquivosParaProcessar = [];
+    for (const cId of todasCanonicalIds) {
       try {
-        const f = await getOrCreateFolder(driveToken, mesAno, BACKUP_FOLDER_ID);
-        backupFolderCache.set(mesAno, f);
-        return f;
+        const fs = await listFolder(driveToken, cId);
+        for (const f of fs) arquivosParaProcessar.push({ ...f, _parent: cId, _mesInfo: Array.from(canonicalCache.entries()).find(([k, v]) => v === cId)?.[0] });
       } catch (e) {
-        log.erros.push(`Erro ao criar pasta backup '${mesAno}': ${String(e?.message || e)}`);
-        return null;
+        relatorio.erros.push(`Erro listar pasta canônica: ${String(e?.message || e)}`);
+      }
+    }
+    // Arquivos soltos na raiz origem — move para canônica do mês atual (fallback) e processa
+    for (const f of arquivosRaiz) {
+      const det = { mesIdx: new Date().getMonth(), ano: new Date().getFullYear() };
+      const cId = await garantirCanonical(det.mesIdx, det.ano);
+      try {
+        await moveFile(driveToken, f.id, cId, PASTA_ORIGEM_ID);
+        relatorio.arquivos_movidos++;
+        arquivosParaProcessar.push({ ...f, _parent: cId, _mesInfo: nomePastaCanonical(det.mesIdx, det.ano) });
+      } catch (e) {
+        relatorio.erros.push(`Erro mover raiz ${f.name}: ${String(e?.message || e)}`);
       }
     }
 
-    for (const [mesAno, entry] of pastaMap) {
-      if (Date.now() > deadline - 8000) break;
-      const arquivos = entry.arquivos;
-      for (let i = 0; i < arquivos.length; i += 15) {
-        if (Date.now() > deadline - 5000) break;
-        const batch = arquivos.slice(i, i + 15);
-        for (const arq of batch) {
-          if (Date.now() > deadline - 3000) break;
-          try {
-            // Garante que arquivo está na canônica (se veio de alias, já foi movido)
-            // Se já era canônica, pasta_origem_id === entry.id
-            const isArquivoXml = isXml(arq);
-            const isArquivoPdf = isPdf(arq);
+    // 4. Processa em lotes: backup + create PR/intake + approve
+    for (let i = 0; i < arquivosParaProcessar.length && Date.now() < deadline; i += BATCH_SIZE) {
+      const batch = arquivosParaProcessar.slice(i, i + BATCH_SIZE);
+      for (const f of batch) {
+        if (Date.now() > deadline) { relatorio.erros.push('Tempo limite no processamento'); break; }
+        const ext = String(f.name || '').toLowerCase().endsWith('.xml') ? 'xml' : 'pdf';
+        try {
+          if (isXml(f)) {
+            // XML: parseia + cria/atualiza PR
+            const bytes = await downloadFile(driveToken, f.id);
+            const xml = new TextDecoder('utf-8').decode(bytes);
+            const parsed = parseXmlRaw(xml);
+            const nf = safeStr(parsed.nf_numero);
+            const valor = Number(parsed.nf_valor_total || 0);
 
-            if (isArquivoXml) {
-              // Processa XML
-              const bytes = await downloadFile(driveToken, arq.id);
-              const xml = new TextDecoder('utf-8').decode(bytes);
-              const parsed = parseXmlRaw(xml);
+            if (!nf || valor <= 0) {
+              relatorio.erros.push(`XML inválido: ${f.name}`);
+              continue;
+            }
 
-              // Backup com nome padronizado
-              const backupPasta = await getBackupMes(mesAno);
-              if (backupPasta) {
-                const nomeStd = buildStandardName(parsed, 'XML');
-                const nomesExistentes = await listFileNamesInFolder(driveToken, backupPasta.id);
-                if (!nomesExistentes.has(nomeStd)) {
-                  await copyFile(driveToken, arq.id, nomeStd, backupPasta.id);
-                  log.backups_feitos++;
-                }
-              }
+            const duplicata = await findDuplicata(db, nf, parsed.nf_emitente_cpf_cnpj, valor);
+            let pr = duplicata;
 
-              // Cria/atualiza PR
-              const nf = safeStr(parsed.nf_numero);
-              const valor = Number(parsed.nf_valor_total || 0);
-              if (!nf) { log.erros.push(`XML sem número NF: ${arq.name}`); continue; }
+            const descBase = safeStr(parsed.descricao_servico).slice(0, 300) || `NF ${nf} - ${safeStr(parsed.nf_emitente_nome)}`;
+            const sug = await sugerirRubricaMeta(descBase, parsed.nf_emitente_nome, rubricas);
 
-              const dup = findDuplicata(parsed, allPR);
-              if (dup) continue; // já existe
-
-              const isPago = parsed.nf_data_emissao ? Date.parse(safeStr(parsed.nf_data_emissao)) < DATA_CORTE_PAGO_MS : false;
-              const descBase = safeStr(parsed.descricao_servico).slice(0, 300) || `NF ${nf} - ${safeStr(parsed.nf_emitente_nome)}`;
-              const sug = await sugerirRubricaMeta(descBase, parsed.nf_emitente_nome, rubricas);
-              const novo = {
+            if (!pr) {
+              // Cria novo PR
+              pr = await db.PurchaseRequest.create({
                 descricao_item: descBase,
-                valor_solicitado: valor, valor_total: valor, nf_valor_total: valor,
-                fornecedor_nome: parsed.nf_emitente_nome, nf_emitente_nome: parsed.nf_emitente_nome,
-                nf_emitente_cpf_cnpj: parsed.nf_emitente_cpf_cnpj, nf_numero: nf,
-                nf_data_emissao: parsed.nf_data_emissao, nf_chave_acesso: parsed.nf_chave_acesso,
-                rubrica_id: sug.rubrica_id || '', meta_id: sug.meta_id || '', centro_custo: sug.centro_custo || '',
-                status: 'APROVADO_COORD', pago: isPago,
-                data_pagamento_efetivo: isPago ? parsed.nf_data_emissao : null,
-                status_pagamento: isPago ? 'pago' : 'pendente',
-                origem: 'normalizarPastasDriveNFs', tipo_origem: 'drive_xml',
-                natureza_despesa: '339039', meio_pagamento: 'PIX',
-                aprov_coord_nome: 'Sistema (normalizarPastasDriveNFs)', aprov_coord_data: new Date().toISOString().slice(0, 10),
-              };
-              try {
-                const created = await db.PurchaseRequest.create(novo);
-                log.prs_criados++; log.prs_aprovados++;
-                numeroMap.set(nf, [...(numeroMap.get(nf) || []), created]);
-                allPR.push(created);
-              } catch (e) {
-                log.erros.push(`Erro ao criar PR NF ${nf}: ${String(e?.message || e)}`);
-              }
-            } else if (isArquivoPdf) {
-              // Backup com nome original
-              const backupPasta = await getBackupMes(mesAno);
-              if (backupPasta) {
-                const nomesExistentes = await listFileNamesInFolder(driveToken, backupPasta.id);
-                if (!nomesExistentes.has(arq.name)) {
-                  await copyFile(driveToken, arq.id, arq.name, backupPasta.id);
-                  log.backups_feitos++;
-                }
-              }
-              // Cria DocumentIntake para revisão humana
-              try {
-                await db.DocumentIntake.create({
-                  user_email: 'sistema@normalizarPastasDriveNFs',
-                  arquivo_original_url: `https://drive.google.com/file/d/${arq.id}/view`,
-                  file_name_original: arq.name, mime_type: 'application/pdf',
-                  tipo_detectado: 'NOTA_FISCAL_PDF', status_processamento: 'AGUARDANDO_REVISAO',
-                  origem: 'normalizarPastasDriveNFs',
-                  erros_validacao: ['PDF sem XML correspondente — revisão humana obrigatória'],
-                });
-                log.intakes_criados++;
-              } catch (e) {
-                log.erros.push(`Erro ao criar intake PDF '${arq.name}': ${String(e?.message || e)}`);
+                valor_solicitado: valor,
+                valor_total: valor,
+                nf_valor_total: valor,
+                fornecedor_nome: parsed.nf_emitente_nome,
+                nf_emitente_nome: parsed.nf_emitente_nome,
+                nf_emitente_cpf_cnpj: parsed.nf_emitente_cpf_cnpj,
+                nf_numero: nf,
+                nf_data_emissao: parsed.nf_data_emissao,
+                nf_chave_acesso: parsed.nf_chave_acesso,
+                nota_fiscal_url: `https://drive.google.com/file/d/${f.id}/view`,
+                rubrica_id: sug.rubrica_id || '',
+                rubrica_nome: (rubricas.find((r) => r.id === sug.rubrica_id)?.rubrica) || '',
+                meta_id: sug.meta_id || '',
+                centro_custo: sug.centro_custo || '',
+                status: 'RASCUNHO',
+                origem: 'normalizarPastasDriveNFs',
+                tipo_origem: 'drive_xml',
+                natureza_despesa: '339039',
+                meio_pagamento: 'PIX',
+              });
+              relatorio.prs_criados++;
+            } else {
+              // Atualiza campos faltantes
+              const updates = {};
+              if (!pr.nota_fiscal_url) updates.nota_fiscal_url = `https://drive.google.com/file/d/${f.id}/view`;
+              if (!pr.nf_data_emissao) updates.nf_data_emissao = parsed.nf_data_emissao;
+              if (!pr.nf_chave_acesso) updates.nf_chave_acesso = parsed.nf_chave_acesso;
+              if (!pr.rubrica_id && sug.rubrica_id) { updates.rubrica_id = sug.rubrica_id; updates.rubrica_nome = (rubricas.find((r) => r.id === sug.rubrica_id)?.rubrica) || ''; }
+              if (!pr.meta_id && sug.meta_id) updates.meta_id = sug.meta_id;
+              if (!pr.centro_custo && sug.centro_custo) updates.centro_custo = sug.centro_custo;
+              if (Object.keys(updates).length > 0) {
+                await db.PurchaseRequest.update(pr.id, updates);
               }
             }
-          } catch (e) {
-            log.erros.push(`Erro geral '${arq.name}': ${String(e?.message || e)}`);
+
+            // Aprova automaticamente via purchaseActions (apenas se não for duplicata já aprovada)
+            if (pr.status !== 'APROVADO_COORD' && pr.status !== 'APROVADO_ADMIN' && pr.status !== 'PAGO') {
+              if (pr.rubrica_id) {
+                try {
+                  const apRes = await srv.functions.invoke('purchaseActions', {
+                    action: 'aprovar',
+                    purchaseId: pr.id,
+                    aprovadorEmail: 'sistema@normalizarPastasDriveNFs',
+                    aprovadorNome: 'Sistema — Normalização Drive',
+                    novaRubricaId: pr.rubrica_id,
+                  });
+                  const ap = apRes?.data || apRes || {};
+                  if (ap?.success) {
+                    relatorio.prs_aprovados++;
+                  } else if (ap?.blocked_by_duplicate) {
+                    relatorio.erros.push(`Aprovação bloqueada (duplicata) NF ${nf}`);
+                  } else {
+                    relatorio.erros.push(`Aprovar NF ${nf}: ${ap?.error || 'falha'}`);
+                  }
+                } catch (e) {
+                  relatorio.erros.push(`Erro aprovar NF ${nf}: ${String(e?.message || e)}`);
+                }
+              } else {
+                relatorio.erros.push(`NF ${nf} sem rubrica — não aprovada automaticamente`);
+              }
+            }
+          } else if (isPdf(f)) {
+            // PDF sem XML: cria DocumentIntake AGUARDANDO_REVISAO
+            try {
+              await db.DocumentIntake.create({
+                user_email: 'sistema@normalizarPastasDriveNFs',
+                arquivo_original_url: `https://drive.google.com/file/d/${f.id}/view`,
+                file_name_original: f.name,
+                mime_type: 'application/pdf',
+                tipo_detectado: 'NOTA_FISCAL_PDF',
+                status_processamento: 'AGUARDANDO_REVISAO',
+                origem: 'normalizarPastasDriveNFs_pdf_sem_xml',
+              });
+              relatorio.intakes_criados++;
+            } catch (e) {
+              relatorio.erros.push(`Intake PDF ${f.name}: ${String(e?.message || e)}`);
+            }
+          } else {
+            continue; // ignora não-XML/PDF
           }
+
+          // Backup: copia para PASTA_BACKUP_ID na subpasta Mês Ano
+          const mesInfo = f._mesInfo || (() => {
+            const det = detectarMesAno(f.name) || { mesIdx: new Date().getMonth(), ano: new Date().getFullYear() };
+            return nomePastaCanonical(det.mesIdx, det.ano);
+          })();
+          let parsedForName = {};
+          if (isXml(f)) {
+            try {
+              const bytes = await downloadFile(driveToken, f.id);
+              parsedForName = parseXmlRaw(new TextDecoder('utf-8').decode(bytes));
+            } catch {}
+          }
+          const ext = isXml(f) ? 'xml' : 'pdf';
+          const tipo = isXml(f) ? 'XML' : 'NF';
+          const backupName = isXml(f)
+            ? buildBackupName(tipo, parsedForName, ext)
+            : f.name; // PDF sem dados → mantém nome original
+
+          try {
+            const destFolder = await getOrCreateFolder(driveToken, mesInfo, PASTA_BACKUP_ID);
+            const existing = await fileExistsInFolder(driveToken, backupName, destFolder.id);
+            if (!existing) {
+              await copyFile(driveToken, f.id, backupName, destFolder.id);
+              relatorio.backups_feitos++;
+            }
+          } catch (e) {
+            relatorio.erros.push(`Backup ${f.name}: ${String(e?.message || e)}`);
+          }
+
+          relatorio.processados.push({ name: f.name, mes: mesInfo, tipo: isXml(f) ? 'xml' : 'pdf' });
+        } catch (e) {
+          relatorio.erros.push(`Processar ${f.name}: ${String(e?.message || e)}`);
         }
       }
     }
 
+    // Registra BackupLog
+    try {
+      await db.BackupLog.create({
+        backup_type: 'drive_nf_sync_mensal',
+        entity_type: 'normalizarPastasDriveNFs_completo',
+        status: relatorio.erros.length > 0 && relatorio.backups_feitos === 0 ? 'failure' : 'concluido',
+        processed_at: new Date().toISOString(),
+        total_files: arquivosParaProcessar.length,
+        files_copied: relatorio.backups_feitos,
+        execution_time_ms: Date.now() - start,
+        details: JSON.stringify({
+          pastas_removidas: relatorio.pastas_removidas.length,
+          arquivos_movidos: relatorio.arquivos_movidos,
+          prs_criados: relatorio.prs_criados,
+          prs_aprovados: relatorio.prs_aprovados,
+          intakes_criados: relatorio.intakes_criados,
+        }),
+        triggered_by: isCron ? 'scheduled' : 'manual',
+      });
+    } catch {}
+
     return Response.json({
-      ok: true, mode: 'normalizar_completo',
-      ...log,
+      ok: true,
+      mode,
+      pastas_analisadas: relatorio.pastas_analisadas,
+      pastas_canonicas: relatorio.pastas_canonicas,
+      pastas_removidas: relatorio.pastas_removidas,
+      arquivos_movidos: relatorio.arquivos_movidos,
+      backups_feitos: relatorio.backups_feitos,
+      prs_criados: relatorio.prs_criados,
+      prs_aprovados: relatorio.prs_aprovados,
+      intakes_criados: relatorio.intakes_criados,
+      erros: relatorio.erros,
+      processados: relatorio.processados.slice(0, 100),
       elapsed_ms: Date.now() - start,
     });
   }
 
-  // ══════════════ MODE: incremental (FASE 4 — diário) ══════════════
-  if (mode === 'incremental') {
+  // ═════════════════════════════════════════════════════════════
+  // MODE: processar_backup — processa arquivos já normalizados (após normalizar_completo)
+  // ═════════════════════════════════════════════════════════════
+  if (mode === 'processar_backup') {
     const deadline = start + BUDGET_MS;
-    const log = { arquivos_modificados: 0, backups_feitos: 0, intakes_criados: 0, prs_criados: 0, prs_aprovados: 0, erros: [] };
-    const cutoffISO = new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString();
+    const relatorio = { backups_feitos: 0, prs_criados: 0, prs_aprovados: 0, intakes_criados: 0, erros: [], processados: [] };
 
+    let subpastas = [];
     try {
-      // Lista subpastas da origem
-      const subpastas = (await listFolder(driveToken, ORIGEM_FOLDER_ID))
-        .filter((f) => f.mimeType === 'application/vnd.google-apps.folder');
+      const children = await listFolder(driveToken, PASTA_ORIGEM_ID);
+      subpastas = children.filter((f) => f.mimeType === 'application/vnd.google-apps.folder');
+    } catch (e) {
+      return Response.json({ ok: false, error: 'Erro listar origem: ' + String(e?.message || e) });
+    }
 
-      // Processa arquivos recentes em cada subpasta + nos arquivos diretos da raiz
-      const backupFolderCache = new Map();
-      async function getBackupMes(mesAno) {
-        if (backupFolderCache.has(mesAno)) return backupFolderCache.get(mesAno);
-        try {
-          const f = await getOrCreateFolder(driveToken, mesAno, BACKUP_FOLDER_ID);
-          backupFolderCache.set(mesAno, f);
-          return f;
-        } catch { return null; }
+    const arquivosParaProcessar = [];
+    for (const sub of subpastas) {
+      if (Date.now() > deadline) break;
+      try {
+        const fs = await listFolder(driveToken, sub.id);
+        for (const f of fs) arquivosParaProcessar.push({ ...f, _pastaName: sub.name });
+      } catch (e) {
+        relatorio.erros.push(`Erro listar "${sub.name}": ${String(e?.message || e)}`);
       }
+    }
 
-      // Arquivos diretos na raiz
-      const arquivosRaiz = await listRecentlyModified(driveToken, ORIGEM_FOLDER_ID, cutoffISO);
-      const todosArquivos = [...arquivosRaiz.map((f) => ({ ...f, mes_ano: detectarMesAno('') || new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }) }))];
-
-      for (const sp of subpastas) {
-        if (Date.now() > deadline - 12000) break;
-        const mesAno = detectarMesAno(sp.name);
-        if (!mesAno) continue;
+    for (let i = 0; i < arquivosParaProcessar.length && Date.now() < deadline; i += BATCH_SIZE) {
+      const batch = arquivosParaProcessar.slice(i, i + BATCH_SIZE);
+      for (const f of batch) {
+        if (Date.now() > deadline) { relatorio.erros.push('Tempo limite'); break; }
         try {
-          const recentes = await listRecentlyModified(driveToken, sp.id, cutoffISO);
-          for (const f of recentes) todosArquivos.push({ ...f, mes_ano: mesAno, pasta_id: sp.id });
-        } catch (e) {
-          log.erros.push(`Erro ao listar recentes '${sp.name}': ${String(e?.message || e)}`);
-        }
-      }
-
-      log.arquivos_modificados = todosArquivos.length;
-
-      // Processa em lotes
-      for (let i = 0; i < todosArquivos.length; i += 15) {
-        if (Date.now() > deadline - 5000) break;
-        const batch = todosArquivos.slice(i, i + 15);
-        for (const arq of batch) {
-          if (Date.now() > deadline - 3000) break;
-          try {
-            if (isXml(arq)) {
-              const bytes = await downloadFile(driveToken, arq.id);
+          const ext = isXml(f) ? 'xml' : isPdf(f) ? 'pdf' : '';
+          if (!ext) continue;
+          let parsed = {};
+          if (isXml(f)) {
+            try {
+              const bytes = await downloadFile(driveToken, f.id);
               const xml = new TextDecoder('utf-8').decode(bytes);
-              const parsed = parseXmlRaw(xml);
-              const backupPasta = await getBackupMes(arq.mes_ano);
-              if (backupPasta) {
-                const nomeStd = buildStandardName(parsed, 'XML');
-                const nomesExistentes = await listFileNamesInFolder(driveToken, backupPasta.id);
-                if (!nomesExistentes.has(nomeStd)) {
-                  await copyFile(driveToken, arq.id, nomeStd, backupPasta.id);
-                  log.backups_feitos++;
-                }
-              }
+              parsed = parseXmlRaw(xml);
               const nf = safeStr(parsed.nf_numero);
-              if (!nf) continue;
-              const dup = findDuplicata(parsed, allPR);
-              if (dup) continue;
-              const isPago = parsed.nf_data_emissao ? Date.parse(safeStr(parsed.nf_data_emissao)) < DATA_CORTE_PAGO_MS : false;
+              const valor = Number(parsed.nf_valor_total || 0);
+              if (!nf || valor <= 0) { relatorio.erros.push(`XML inválido: ${f.name}`); continue; }
+
+              const duplicata = await findDuplicata(db, nf, parsed.nf_emitente_cpf_cnpj, valor);
+              let pr = duplicata;
               const descBase = safeStr(parsed.descricao_servico).slice(0, 300) || `NF ${nf} - ${safeStr(parsed.nf_emitente_nome)}`;
-              const sug = await sugerirRubricaMeta(descBase, parsed.nf_emitente_nome, rubricas);
-              const created = await db.PurchaseRequest.create({
-                descricao_item: descBase, valor_solicitado: Number(parsed.nf_valor_total || 0), valor_total: Number(parsed.nf_valor_total || 0), nf_valor_total: Number(parsed.nf_valor_total || 0),
-                fornecedor_nome: parsed.nf_emitente_nome, nf_emitente_nome: parsed.nf_emitente_nome, nf_emitente_cpf_cnpj: parsed.nf_emitente_cpf_cnpj,
-                nf_numero: nf, nf_data_emissao: parsed.nf_data_emissao, nf_chave_acesso: parsed.nf_chave_acesso,
-                rubrica_id: sug.rubrica_id || '', meta_id: sug.meta_id || '', centro_custo: sug.centro_custo || '',
-                status: 'APROVADO_COORD', pago: isPago, data_pagamento_efetivo: isPago ? parsed.nf_data_emissao : null,
-                status_pagamento: isPago ? 'pago' : 'pendente', origem: 'normalizarPastasDriveNFs', tipo_origem: 'drive_xml_incremental',
-                natureza_despesa: '339039', meio_pagamento: 'PIX',
-                aprov_coord_nome: 'Sistema (sync diário)', aprov_coord_data: new Date().toISOString().slice(0, 10),
-              });
-              log.prs_criados++; log.prs_aprovados++;
-              numeroMap.set(nf, [...(numeroMap.get(nf) || []), created]); allPR.push(created);
-            } else if (isPdf(arq)) {
-              const backupPasta = await getBackupMes(arq.mes_ano);
-              if (backupPasta) {
-                const nomesExistentes = await listFileNamesInFolder(driveToken, backupPasta.id);
-                if (!nomesExistentes.has(arq.name)) {
-                  await copyFile(driveToken, arq.id, arq.name, backupPasta.id);
-                  log.backups_feitos++;
+              const sug = pr ? {} : await sugerirRubricaMeta(descBase, parsed.nf_emitente_nome, rubricas);
+
+              if (!pr) {
+                pr = await db.PurchaseRequest.create({
+                  descricao_item: descBase, valor_solicitado: valor, valor_total: valor, nf_valor_total: valor,
+                  fornecedor_nome: parsed.nf_emitente_nome, nf_emitente_nome: parsed.nf_emitente_nome,
+                  nf_emitente_cpf_cnpj: parsed.nf_emitente_cpf_cnpj, nf_numero: nf,
+                  nf_data_emissao: parsed.nf_data_emissao, nf_chave_acesso: parsed.nf_chave_acesso,
+                  nota_fiscal_url: `https://drive.google.com/file/d/${f.id}/view`,
+                  rubrica_id: sug.rubrica_id || '', rubrica_nome: (rubricas.find((r) => r.id === sug.rubrica_id)?.rubrica) || '',
+                  meta_id: sug.meta_id || '', centro_custo: sug.centro_custo || '',
+                  status: 'RASCUNHO', origem: 'normalizarPastasDriveNFs_processar', tipo_origem: 'drive_xml',
+                  natureza_despesa: '339039', meio_pagamento: 'PIX',
+                });
+                relatorio.prs_criados++;
+              }
+
+              if (pr && pr.status !== 'APROVADO_COORD' && pr.status !== 'PAGO' && pr.rubrica_id) {
+                try {
+                  const apRes = await srv.functions.invoke('purchaseActions', {
+                    action: 'aprovar', purchaseId: pr.id,
+                    aprovadorEmail: 'sistema@normalizarPastasDriveNFs', aprovadorNome: 'Sistema — Normalização Drive',
+                    novaRubricaId: pr.rubrica_id,
+                  });
+                  const ap = apRes?.data || apRes || {};
+                  if (ap?.success) relatorio.prs_aprovados++;
+                  else if (ap?.blocked_by_duplicate) relatorio.erros.push(`Duplicata NF ${nf}`);
+                } catch (e) { relatorio.erros.push(`Aprovar NF ${nf}: ${String(e?.message || e)}`); }
+              } else if (pr && !pr.rubrica_id) {
+                const sug2 = await sugerirRubricaMeta(descBase, parsed.nf_emitente_nome, rubricas);
+                if (sug2.rubrica_id) {
+                  await db.PurchaseRequest.update(pr.id, { rubrica_id: sug2.rubrica_id, rubrica_nome: (rubricas.find((r) => r.id === sug2.rubrica_id)?.rubrica) || '', meta_id: pr.meta_id || sug2.meta_id, centro_custo: pr.centro_custo || sug2.centro_custo });
+                  try {
+                    const apRes = await srv.functions.invoke('purchaseActions', { action: 'aprovar', purchaseId: pr.id, aprovadorEmail: 'sistema@normalizarPastasDriveNFs', aprovadorNome: 'Sistema', novaRubricaId: sug2.rubrica_id });
+                    if (apRes?.data?.success || apRes?.success) relatorio.prs_aprovados++;
+                  } catch (e) { relatorio.erros.push(`Aprovar NF ${nf}: ${String(e?.message || e)}`); }
+                } else {
+                  relatorio.erros.push(`NF ${nf} sem rubrica sugerida — não aprovada`);
                 }
               }
+            } catch (e) { relatorio.erros.push(`XML ${f.name}: ${String(e?.message || e)}`); continue; }
+          } else if (isPdf(f)) {
+            try {
               await db.DocumentIntake.create({
                 user_email: 'sistema@normalizarPastasDriveNFs',
-                arquivo_original_url: `https://drive.google.com/file/d/${arq.id}/view`,
-                file_name_original: arq.name, mime_type: 'application/pdf',
+                arquivo_original_url: `https://drive.google.com/file/d/${f.id}/view`,
+                file_name_original: f.name, mime_type: 'application/pdf',
+                tipo_detectado: 'NOTA_FISCAL_PDF', status_processamento: 'AGUARDANDO_REVISAO',
+                origem: 'normalizarPastasDriveNFs_pdf_sem_xml',
+              });
+              relatorio.intakes_criados++;
+            } catch (e) { relatorio.erros.push(`Intake ${f.name}: ${String(e?.message || e)}`); }
+          }
+
+          // Backup
+          const det = detectarMesAno(f._pastaName) || { mesIdx: new Date().getMonth(), ano: new Date().getFullYear() };
+          const mesInfo = nomePastaCanonical(det.mesIdx, det.ano);
+          const backupName = isXml(f) ? buildBackupName('XML', parsed, 'xml') : f.name;
+          try {
+            const destFolder = await getOrCreateFolder(driveToken, mesInfo, PASTA_BACKUP_ID);
+            const existing = await fileExistsInFolder(driveToken, backupName, destFolder.id);
+            if (!existing) { await copyFile(driveToken, f.id, backupName, destFolder.id); relatorio.backups_feitos++; }
+          } catch (e) { relatorio.erros.push(`Backup ${f.name}: ${String(e?.message || e)}`); }
+          relatorio.processados.push({ name: f.name, mes: mesInfo, tipo: isXml(f) ? 'xml' : 'pdf' });
+        } catch (e) { relatorio.erros.push(`Processar ${f.name}: ${String(e?.message || e)}`); }
+      }
+    }
+
+    try {
+      await db.BackupLog.create({
+        backup_type: 'drive_nf_sync_mensal', entity_type: 'normalizarPastasDriveNFs_processar',
+        status: relatorio.erros.length > 0 && relatorio.backups_feitos === 0 ? 'failure' : 'concluido',
+        processed_at: new Date().toISOString(),
+        total_files: arquivosParaProcessar.length, files_copied: relatorio.backups_feitos,
+        execution_time_ms: Date.now() - start,
+        details: JSON.stringify({ prs_criados: relatorio.prs_criados, prs_aprovados: relatorio.prs_aprovados, intakes_criados: relatorio.intakes_criados }),
+        triggered_by: isCron ? 'scheduled' : 'manual',
+      });
+    } catch {}
+
+    return Response.json({
+      ok: true, mode, total_arquivos: arquivosParaProcessar.length,
+      backups_feitos: relatorio.backups_feitos, prs_criados: relatorio.prs_criados,
+      prs_aprovados: relatorio.prs_aprovados, intakes_criados: relatorio.intakes_criados,
+      erros: relatorio.erros, processados: relatorio.processados.slice(0, 100), elapsed_ms: Date.now() - start,
+    });
+  }
+
+  // ═════════════════════════════════════════════════════════════
+  // MODE: incremental
+  // ═════════════════════════════════════════════════════════════
+  if (mode === 'incremental') {
+    const deadline = start + BUDGET_MS;
+    const cutoff = Date.now() - 25 * 60 * 60 * 1000; // últimas 25h
+    const relatorio = { backups_feitos: 0, prs_criados: 0, prs_aprovados: 0, intakes_criados: 0, erros: [], processados: [] };
+
+    // Lista subpastas + arquivos modificados nas últimas 25h
+    let subpastas = [];
+    let arquivosRaiz = [];
+    try {
+      const children = await listFolder(driveToken, PASTA_ORIGEM_ID);
+      subpastas = children.filter((f) => f.mimeType === 'application/vnd.google-apps.folder');
+      arquivosRaiz = children.filter((f) => f.mimeType !== 'application/vnd.google-apps.folder' && new Date(f.modifiedTime || 0).getTime() > cutoff);
+    } catch (e) {
+      return Response.json({ ok: false, error: 'Erro listar origem: ' + String(e?.message || e) });
+    }
+
+    const arquivosParaProcessar = [];
+    for (const sub of subpastas) {
+      if (Date.now() > deadline) break;
+      try {
+        const fs = await listFolder(driveToken, sub.id, cutoff);
+        for (const f of fs) arquivosParaProcessar.push({ ...f, _parent: sub.id, _pastaName: sub.name });
+      } catch (e) {
+        relatorio.erros.push(`Erro listar "${sub.name}": ${String(e?.message || e)}`);
+      }
+    }
+    for (const f of arquivosRaiz) {
+      arquivosParaProcessar.push({ ...f, _parent: PASTA_ORIGEM_ID, _pastaName: '' });
+    }
+
+    for (let i = 0; i < arquivosParaProcessar.length && Date.now() < deadline; i += BATCH_SIZE) {
+      const batch = arquivosParaProcessar.slice(i, i + BATCH_SIZE);
+      for (const f of batch) {
+        if (Date.now() > deadline) break;
+        try {
+          if (isXml(f)) {
+            const bytes = await downloadFile(driveToken, f.id);
+            const xml = new TextDecoder('utf-8').decode(bytes);
+            const parsed = parseXmlRaw(xml);
+            const nf = safeStr(parsed.nf_numero);
+            const valor = Number(parsed.nf_valor_total || 0);
+            if (!nf || valor <= 0) { relatorio.erros.push(`XML inválido: ${f.name}`); continue; }
+
+            const duplicata = await findDuplicata(db, nf, parsed.nf_emitente_cpf_cnpj, valor);
+            let pr = duplicata;
+            const descBase = safeStr(parsed.descricao_servico).slice(0, 300) || `NF ${nf} - ${safeStr(parsed.nf_emitente_nome)}`;
+            const sug = await sugerirRubricaMeta(descBase, parsed.nf_emitente_nome, rubricas);
+
+            if (!pr) {
+              pr = await db.PurchaseRequest.create({
+                descricao_item: descBase, valor_solicitado: valor, valor_total: valor, nf_valor_total: valor,
+                fornecedor_nome: parsed.nf_emitente_nome, nf_emitente_nome: parsed.nf_emitente_nome,
+                nf_emitente_cpf_cnpj: parsed.nf_emitente_cpf_cnpj, nf_numero: nf,
+                nf_data_emissao: parsed.nf_data_emissao, nf_chave_acesso: parsed.nf_chave_acesso,
+                nota_fiscal_url: `https://drive.google.com/file/d/${f.id}/view`,
+                rubrica_id: sug.rubrica_id || '', rubrica_nome: (rubricas.find((r) => r.id === sug.rubrica_id)?.rubrica) || '',
+                meta_id: sug.meta_id || '', centro_custo: sug.centro_custo || '',
+                status: 'RASCUNHO', origem: 'normalizarPastasDriveNFs_incremental', tipo_origem: 'drive_xml',
+                natureza_despesa: '339039', meio_pagamento: 'PIX',
+              });
+              relatorio.prs_criados++;
+            }
+
+            if (pr && pr.status !== 'APROVADO_COORD' && pr.status !== 'PAGO' && pr.rubrica_id) {
+              try {
+                const apRes = await srv.functions.invoke('purchaseActions', {
+                  action: 'aprovar', purchaseId: pr.id,
+                  aprovadorEmail: 'sistema@normalizarPastasDriveNFs', aprovadorNome: 'Sistema — Sync Diário',
+                  novaRubricaId: pr.rubrica_id,
+                });
+                const ap = apRes?.data || apRes || {};
+                if (ap?.success) relatorio.prs_aprovados++;
+                else if (ap?.blocked_by_duplicate) relatorio.erros.push(`Duplicata NF ${nf}`);
+              } catch (e) { relatorio.erros.push(`Aprovar NF ${nf}: ${String(e?.message || e)}`); }
+            }
+          } else if (isPdf(f)) {
+            try {
+              await db.DocumentIntake.create({
+                user_email: 'sistema@normalizarPastasDriveNFs',
+                arquivo_original_url: `https://drive.google.com/file/d/${f.id}/view`,
+                file_name_original: f.name, mime_type: 'application/pdf',
                 tipo_detectado: 'NOTA_FISCAL_PDF', status_processamento: 'AGUARDANDO_REVISAO',
                 origem: 'normalizarPastasDriveNFs_incremental',
-                erros_validacao: ['PDF sem XML correspondente — revisão humana obrigatória'],
               });
-              log.intakes_criados++;
-            }
-          } catch (e) {
-            log.erros.push(`Erro incremental '${arq.name}': ${String(e?.message || e)}`);
+              relatorio.intakes_criados++;
+            } catch (e) { relatorio.erros.push(`Intake ${f.name}: ${String(e?.message || e)}`); }
+          } else { continue; }
+
+          // Backup
+          const det = detectarMesAno(f._pastaName) || { mesIdx: new Date().getMonth(), ano: new Date().getFullYear() };
+          const mesInfo = nomePastaCanonical(det.mesIdx, det.ano);
+          let parsedForName = {};
+          if (isXml(f)) {
+            try {
+              const bytes = await downloadFile(driveToken, f.id);
+              parsedForName = parseXmlRaw(new TextDecoder('utf-8').decode(bytes));
+            } catch {}
           }
+          const backupName = isXml(f) ? buildBackupName('XML', parsedForName, 'xml') : f.name;
+          try {
+            const destFolder = await getOrCreateFolder(driveToken, mesInfo, PASTA_BACKUP_ID);
+            const existing = await fileExistsInFolder(driveToken, backupName, destFolder.id);
+            if (!existing) { await copyFile(driveToken, f.id, backupName, destFolder.id); relatorio.backups_feitos++; }
+          } catch (e) { relatorio.erros.push(`Backup ${f.name}: ${String(e?.message || e)}`); }
+
+          relatorio.processados.push({ name: f.name, mes: mesInfo, tipo: isXml(f) ? 'xml' : 'pdf' });
+        } catch (e) {
+          relatorio.erros.push(`Processar ${f.name}: ${String(e?.message || e)}`);
         }
       }
-
-      // Registra BackupLog
-      try {
-        await db.BackupLog.create({
-          backup_type: 'drive_nf_sync_mensal',
-          status: log.erros.length > 0 ? 'concluido' : 'success',
-          total_files: log.arquivos_modificados, files_copied: log.backups_feitos,
-          processed_at: new Date().toISOString(),
-          details: `Incremental: ${log.prs_criados} PRs criados, ${log.intakes_criados} intakes, ${log.backups_feitos} backups`,
-          triggered_by: isCron ? 'scheduled' : 'manual',
-          error_message: log.erros.length > 0 ? log.erros.slice(0, 5).join('; ') : '',
-        });
-      } catch {}
-
-      return Response.json({ ok: true, mode: 'incremental', ...log, elapsed_ms: Date.now() - start });
-    } catch (e) {
-      try {
-        await db.BackupLog.create({
-          backup_type: 'drive_nf_sync_mensal', status: 'failure',
-          error_message: String(e?.message || e), processed_at: new Date().toISOString(), triggered_by: isCron ? 'scheduled' : 'manual',
-        });
-      } catch {}
-      return Response.json({ ok: false, error: 'Erro incremental: ' + String(e?.message || e) });
     }
+
+    try {
+      await db.BackupLog.create({
+        backup_type: 'drive_nf_sync_mensal', entity_type: 'normalizarPastasDriveNFs_incremental',
+        status: relatorio.erros.length > 0 && relatorio.backups_feitos === 0 ? 'failure' : 'concluido',
+        processed_at: new Date().toISOString(),
+        total_files: arquivosParaProcessar.length, files_copied: relatorio.backups_feitos,
+        execution_time_ms: Date.now() - start,
+        details: JSON.stringify({ prs_criados: relatorio.prs_criados, prs_aprovados: relatorio.prs_aprovados, intakes_criados: relatorio.intakes_criados }),
+        triggered_by: isCron ? 'scheduled' : 'manual',
+      });
+    } catch {}
+
+    return Response.json({
+      ok: true, mode, arquivos_modificados: arquivosParaProcessar.length,
+      backups_feitos: relatorio.backups_feitos, prs_criados: relatorio.prs_criados,
+      prs_aprovados: relatorio.prs_aprovados, intakes_criados: relatorio.intakes_criados,
+      erros: relatorio.erros, processados: relatorio.processados.slice(0, 100),
+      elapsed_ms: Date.now() - start,
+    });
   }
 
   return Response.json({ ok: false, error: 'mode inválido: ' + mode });

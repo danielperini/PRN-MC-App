@@ -9,7 +9,7 @@ import {
 
 const fmtBR = (n) => new Intl.NumberFormat('pt-BR').format(Number(n || 0));
 
-export default function NormalizarPastasDialog({ open, onOpenChange }) {
+export default function NormalizarPastasDialog({ open, onOpenChange, onComplete }) {
   const [step, setStep] = useState('confirm'); // confirm | running | done
   const [loading, setLoading] = useState(false);
   const [resultado, setResultado] = useState(null);
@@ -28,6 +28,7 @@ export default function NormalizarPastasDialog({ open, onOpenChange }) {
       toast.success(
         `Normalização concluída: ${data.arquivos_movidos || 0} movidos, ${data.prs_aprovados || 0} aprovados, ${data.intakes_criados || 0} intakes.`
       );
+      if (onComplete) onComplete();
     } catch (e) {
       toast.error('Erro na normalização: ' + (e?.message || e));
       setStep('confirm');
