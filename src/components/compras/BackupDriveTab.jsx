@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Upload, Loader2, ExternalLink, FileText, FileCode, Receipt, CloudUpload, CloudOff, CheckCircle2, AlertTriangle, FileX2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import SincronizarXmlsPanel from '@/components/compras/SincronizarXmlsPanel';
 
 function PlainSelect({ value, onChange, items, placeholder, className }) {
   return (
@@ -344,6 +345,9 @@ export default function BackupDriveTab() {
 
   return (
     <div className="space-y-4">
+      {/* Painel de sincronização de XMLs para pastas mensais */}
+      <SincronizarXmlsPanel />
+
       {/* Contadores */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <div className="rounded-xl border border-gray-200 bg-white p-3">
