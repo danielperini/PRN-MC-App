@@ -14,10 +14,12 @@ import {
   CheckCircle2,
   Wallet,
   FileText,
+  FolderGit2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCurrentUser } from '@/components/auth/useCurrentUser';
 import LimparNomesMaquinaDialog from '@/components/compras/LimparNomesMaquinaDialog';
+import NormalizarPastasDialog from '@/components/compras/NormalizarPastasDialog';
 
 const FOLDER_ID = '1LgC94VhIomQZBS7kfkQqgBX8MVzwQqzp';
 const FOLDER_URL = `https://drive.google.com/drive/folders/${FOLDER_ID}`;
@@ -131,6 +133,9 @@ export default function PainelSincronizacaoDriveNFs({ purchasesPendentes }) {
   const [marcandoPagos, setMarcandoPagos] = useState(false);
   const [logRecente, setLogRecente] = useState([]);
   const [expanded, setExpanded] = useState(new Set(['2026-07']));
+  const [normalizarOpen, setNormalizarOpen] = useState(false);
+  const [diagPastas, setDiagPastas] = useState(null);
+  const [diagLoading, setDiagLoading] = useState(false);
 
   async function executarScan() {
     setScanning(true);
@@ -151,6 +156,27 @@ export default function PainelSincronizacaoDriveNFs({ purchasesPendentes }) {
     } finally {
       setScanning(false);
     }
+  }
+
+  async function carregarDiagnosticoPastas() {
+    setDiagLoading(true);
+    try {
+      const res = await base44.functions.invoke('normalizarPastasDriveNFs', { mode: 'diagnosticar_pastas' });
+      const d = res?.data || res || {};
+      if (d?.ok === false) throw new Error(d?.error);
+      setDiagPastas(d);
+    } catch (e) {
+      console.error('Erro diagnóstico pastas:', e);
+    } finally {
+      setDiagLoading(false);
+    }
+  }
+
+  function handleNormalizarResultado() {
+    setNormalizarOpen(false);
+    carregarDiagnosticoPastas();
+    executarScan();
+    qc.invalidateQueries(['compras']);
   }
 
   async function tratarMes(mes, fileIds) {
@@ -319,6 +345,7 @@ export default function PainelSincronizacaoDriveNFs({ purchasesPendentes }) {
   const totalFaltando = porMes.reduce((acc, r) => acc + (r.faltando || 0), 0);
   const totalNoBanco = porMes.reduce((acc, r) => acc + (r.no_banco || 0), 0);
   const faltandoIds = porMes.flatMap((r) => r.faltando_ids || []);
+  const duplicatasPendentes = diagPastas?.pastas_duplicatas || 0;
 
   return (
     <div className="space-y-4">
@@ -378,6 +405,31 @@ export default function PainelSincronizacaoDriveNFs({ purchasesPendentes }) {
                 type="button"
                 size="sm"
                 variant="outline"
+                onClick={carregarDiagnosticoPastas}
+                disabled={diagLoading}
+                className="gap-2 border-gray-400 text-gray-700 hover:bg-gray-100"
+                title="Verificar pastas duplicadas/mal-nomeadas"
+              >
+                {diagLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FolderGit2 className="h-4 w-4" />}
+                Diagnosticar pastas
+              </Button>
+            )}
+            {isCoordGeral && (
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => setNormalizarOpen(true)}
+                className="gap-2 bg-gray-900 text-white hover:bg-gray-800"
+              >
+                <FolderGit2 className="h-4 w-4" />
+                Normalizar pastas
+              </Button>
+            )}
+            {isCoordGeral && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
                 onClick={() => setLimparNomesOpen(true)}
                 className="gap-2 border-gray-300 text-gray-800 hover:bg-gray-100"
               >
@@ -388,7 +440,55 @@ export default function PainelSincronizacaoDriveNFs({ purchasesPendentes }) {
           </div>
         </div>
 
-        {scanData && (
+        {isCoordGeral && diagPastas && (
+          <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-3">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-medium text-gray-700">
+                Diagnóstico de pastas: {diagPastas.total_subpastas} subpastas ·{' '}
+                <span className="text-emerald-600">{diagPastas.pastas_canonicas} canônicas</span> ·{' '}
+                <span className={duplicatasPendentes > 0 ? 'text-amber-600 font-semibold' : 'text-emerald-600'}>
+                  {duplicatasPendentes} duplicatas/mal-nomeadas
+                </span>
+              </span>
+              {duplicatasPendentes > 0 && (
+                <span className="text-xs text-amber-600 font-medium">
+                  Clique em "Normalizar pastas" para fundir e padronizar
+                </span>
+              )}
+            </div>
+            {duplicatasPendentes > 0 && (
+              <ul className="mt-2 space-y-0.5 text-[11px] text-gray-600">
+                {diagPastas.duplicatas?.slice(0, 6).map((d) => (
+                  <li key={d.id}>
+                    <span className="text-amber-600">⚠</span> <strong>{d.nome}</strong> → {d.mes_ano_detectado}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {isCoordGeral && (
+          <div className="mt-5 grid grid-cols-2 sm:grid-cols-6 gap-3">
+            <StatCard icon={FolderSearch} tone="bg-gray-100 text-gray-700" label="Total arquivos" value={fmtInt(scanData?.total_arquivos)} />
+            <StatCard icon={Database} tone="bg-blue-100 text-blue-700" label="XMLs parseados" value={fmtInt(scanData?.total_xmls)} />
+            <StatCard icon={CheckCircle2} tone="bg-emerald-100 text-emerald-700" label="Já no banco" value={fmtInt(totalNoBanco)} />
+            <StatCard icon={AlertTriangle} tone="bg-amber-100 text-amber-700" label="Faltando tratar" value={fmtInt(totalFaltando)} />
+            <StatCard
+              icon={FileText}
+              tone={(scanData?.pdfs_sem_xml?.length || 0) > 0 ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-600'}
+              label="PDFs sem XML"
+              value={fmtInt(scanData?.total_pdfs)}
+            />
+            <StatCard
+              icon={FolderGit2}
+              tone={duplicatasPendentes > 0 ? 'bg-amber-500 text-white' : 'bg-emerald-100 text-emerald-700'}
+              label="Pastas normalizadas"
+              value={duplicatasPendentes > 0 ? `${duplicatasPendentes} pendentes` : 'OK'}
+            />
+          </div>
+        )}
+        {!isCoordGeral && scanData && (
           <div className="mt-5 grid grid-cols-2 sm:grid-cols-5 gap-3">
             <StatCard icon={FolderSearch} tone="bg-gray-100 text-gray-700" label="Total arquivos" value={fmtInt(scanData.total_arquivos)} />
             <StatCard icon={Database} tone="bg-blue-100 text-blue-700" label="XMLs parseados" value={fmtInt(scanData.total_xmls)} />
@@ -502,6 +602,13 @@ export default function PainelSincronizacaoDriveNFs({ purchasesPendentes }) {
       {isCoordGeral && (
         <LimparNomesMaquinaDialog open={limparNomesOpen} onOpenChange={setLimparNomesOpen} />
       )}
+      <NormalizarPastasDialog
+        open={normalizarOpen}
+        onOpenChange={(v) => {
+          if (!v) handleNormalizarResultado();
+          setNormalizarOpen(v);
+        }}
+      />
     </div>
   );
 }
