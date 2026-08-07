@@ -9,7 +9,7 @@
  *
  * Onde:
  *   - prefixo: "NF" | "XML" | "COMP NF"
- *   - NomeExibicao (equipe/pessoal): "{empresa_nome || PESSOA FISICA} - {user_name} - {funcao}"
+ *   - NomeExibicao (equipe/pessoal): "{empresa_nome || PESSOA FISICA} - {funcao}"
  *   - NomeExibicao (fornecedor): "{fornecedor_nome || nf_emitente_nome}"
  *
  * Usado por:
@@ -141,9 +141,8 @@ export function buildNomeOficial(
   let nomeExibicao: string;
   if (isEquipe(pr) && teamMember) {
     const empresa = sanitize(teamMember.empresa_nome || 'PESSOA FISICA', 60);
-    const userName = sanitize(teamMember.user_name || '', 60);
     const funcao = sanitize(teamMember.funcao || teamMember.role || '', 40);
-    nomeExibicao = [empresa, userName, funcao].filter(Boolean).join(' - ');
+    nomeExibicao = [empresa, funcao].filter(Boolean).join(' - ');
   } else {
     nomeExibicao = sanitize(
       pr?.fornecedor_nome ||

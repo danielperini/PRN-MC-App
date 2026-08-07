@@ -6,9 +6,9 @@ import {
   parseMachineName,
   parseLegacyName,
   extractNfNumGeneric,
-  isNomeOficial,
   ensureUniqueName,
   resolveTeamMemberForPR,
+  isEquipe,
 } from '../_shared/nfNomeOficial.ts';
 
 type TipoNFArquivo = 'NF' | 'XML' | 'COMP NF';
@@ -146,6 +146,68 @@ function classificarArquivo(nome: string): ParsedLegacy {
   };
 }
 
+// ── Centro de custo: ajusta PR.centro_custo a partir do TeamMember (equipe) ou Rubrica (fornecedor)
+const CC_EQUIPE_MAP: Record<string, string> = {
+  'MUMO': 'MUMO',
+  'MIS': 'MIS',
+  'MHAB': 'MHAB',
+  'Geral/Transversal': 'Geral',
+};
+
+const CC_RUBRICA_MUSEU_MAP: Record<string, string> = {
+  'MIS': 'MIS',
+  'MUMO': 'MUMO',
+  'MHAB': 'MHAB',
+  'MAB': 'MHAB',
+  'GERAL': 'Geral',
+  'NOTURNO': 'Noturno nos Museus 2026',
+};
+
+const CC_RUBRICA_CC_MAP: Record<string, string> = {
+  'MUMO': 'MUMO',
+  'MIS BH': 'MIS',
+  'MHAB': 'MHAB',
+  'Noturno nos Museus': 'Noturno nos Museus 2026',
+  'Noturno 2026': 'Noturno 2026',
+  'Noturno Pampulha': 'Noturno Pampulha',
+  'Publicações': 'Publicações',
+  'Geral/Transversal': 'Geral',
+};
+
+function rubricaToCentroCusto(r: any): string | null {
+  if (!r) return null;
+  const mc = String(r.museu_codigo || '').trim();
+  if (mc && CC_RUBRICA_MUSEU_MAP[mc]) return CC_RUBRICA_MUSEU_MAP[mc];
+  const cc = String(r.centro_custo || '').trim();
+  if (cc && CC_RUBRICA_CC_MAP[cc]) return CC_RUBRICA_CC_MAP[cc];
+  return null;
+}
+
+async function resolverCentroCustoAlvo(
+  base44: any,
+  pr: any,
+  teamMember: any,
+  rubricaCache: Map<string, any>,
+): Promise<string | null> {
+  if (isEquipe(pr) && teamMember) {
+    const mv = String(teamMember.museu_vinculado || '').trim();
+    return CC_EQUIPE_MAP[mv] || null;
+  }
+  const rubricaId = String(pr?.rubrica_id || '').trim();
+  if (!rubricaId) return null;
+  if (rubricaCache.has(rubricaId)) {
+    return rubricaToCentroCusto(rubricaCache.get(rubricaId));
+  }
+  let r: any = null;
+  try {
+    r = await base44.asServiceRole.entities.Rubrica.get(rubricaId);
+  } catch {
+    r = null;
+  }
+  rubricaCache.set(rubricaId, r);
+  return rubricaToCentroCusto(r);
+}
+
 // ── Processar pasta (flat ou com subpastas) ───────────────────────────────────
 
 async function processarPasta(
@@ -157,6 +219,7 @@ async function processarPasta(
   logs: any[],
   prCache: Map<string, any>,
   tmCache: Map<string, any>,
+  rubricaCache: Map<string, any>,
 ) {
   const items = await listAllInFolder(token, folderId);
 
@@ -166,17 +229,15 @@ async function processarPasta(
   for (const item of items) {
     // Recursivo para subpastas
     if (item.mimeType === FOLDER_MIME) {
-      await processarPasta(base44, token, item.id, dryRun, stats, logs, prCache, tmCache);
+      await processarPasta(base44, token, item.id, dryRun, stats, logs, prCache, tmCache, rubricaCache);
       continue;
     }
 
     const nome = item.name;
 
-    // Já está no padrão oficial — não mexe
-    if (isNomeOficial(nome)) {
-      stats.ja_padrao++;
-      continue;
-    }
+    // Re-rename sempre que necessário (remove nomes legados não-canônicos,
+    // incluindo nomes antigos que ainda continham user_name como "DANIEL PERINI").
+    // A verificação final novoNome === nome decide se há renomeio a fazer.
 
     const parsed = classificarArquivo(nome);
 
@@ -199,6 +260,50 @@ async function processarPasta(
 
     // Resolve TeamMember se for equipe
     const teamMember = await resolveTeamMemberForPR(base44, pr, tmCache);
+
+    // Ajusta centro_custo automaticamente (equipe via TeamMember · fornecedor via Rubrica).
+    try {
+      const alvoCc = await resolverCentroCustoAlvo(base44, pr, teamMember, rubricaCache);
+      if (alvoCc && String(pr.centro_custo || '').trim() !== alvoCc) {
+        const anterior = String(pr.centro_custo || '');
+        if (!dryRun) {
+          try {
+            await base44.asServiceRole.entities.PurchaseRequest.update(pr.id, { centro_custo: alvoCc });
+            pr.centro_custo = alvoCc;
+            stats.centro_custo_ajustado = (stats.centro_custo_ajustado || 0) + 1;
+            logs.push({
+              de: `centro_custo: ${anterior || '(vazio)'}`,
+              para: `centro_custo: ${alvoCc}`,
+              pr_id: pr.id,
+              nf_numero: parsed.nfNum,
+              status: 'centro_ajustado',
+              fonte: 'banco',
+            });
+          } catch (e: any) {
+            logs.push({
+              de: `centro_custo: ${anterior || '(vazio)'}`,
+              para: `centro_custo: ${alvoCc}`,
+              pr_id: pr.id,
+              status: 'erro_centro',
+              erro: e?.message || String(e),
+            });
+            stats.erros = (stats.erros || 0) + 1;
+          }
+        } else {
+          stats.centro_custo_simulado = (stats.centro_custo_simulado || 0) + 1;
+          logs.push({
+            de: `centro_custo: ${anterior || '(vazio)'}`,
+            para: `centro_custo: ${alvoCc}`,
+            pr_id: pr.id,
+            nf_numero: parsed.nfNum,
+            status: 'simulado',
+            fonte: 'banco',
+          });
+        }
+      }
+    } catch {
+      // não interrompe renomeação por falha de centro_custo
+    }
 
     // Monta nome canônico
     let novoNome = buildNomeOficial(pr, null, parsed.tipo, teamMember);
@@ -317,9 +422,10 @@ Deno.serve(async (req) => {
     const logs: any[] = [];
     const prCache = new Map<string, any>();
     const tmCache = new Map<string, any>();
+    const rubricaCache = new Map<string, any>();
 
     for (const folderId of folderIds) {
-      await processarPasta(base44, token, folderId, dryRun, stats, logs, prCache, tmCache);
+      await processarPasta(base44, token, folderId, dryRun, stats, logs, prCache, tmCache, rubricaCache);
     }
 
     // Se escopado a uma PR, atualiza drive_backup_files com os novos nomes
