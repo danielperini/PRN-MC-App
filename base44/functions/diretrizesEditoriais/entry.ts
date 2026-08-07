@@ -329,3 +329,9 @@ export function indexarConteudoEditorial(dados) {
 
   return indice;
 }
+
+Deno.serve(() => Response.json({
+  ok: true,
+  diretrizes: Object.keys(DIRETRIZES_EDITORIAIS),
+  estilos: DIRETRIZES_EDITORIAIS.estilos,
+}));

@@ -1,4 +1,4 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.34';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.41';
 
 import {
   buildNomeOficial,
@@ -9,8 +9,9 @@ import {
   isNomeOficial,
   ensureUniqueName,
   resolveTeamMemberForPR,
-  type TipoNFArquivo,
 } from '../_shared/nfNomeOficial.ts';
+
+type TipoNFArquivo = 'NF' | 'XML' | 'COMP NF';
 
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 

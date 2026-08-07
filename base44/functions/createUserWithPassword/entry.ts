@@ -6,9 +6,7 @@ function normalizeEmail(email: string) {
 
 function isAllowedDirectUserDomain(email: string) {
   const normalized = normalizeEmail(email);
-
   if (!normalized) return false;
-
   return (
     normalized.endsWith('@pbh.gov.br') ||
     normalized.endsWith('@viadutodasartes.org.br') ||
@@ -52,7 +50,6 @@ function getPermissionDefaults(role: string) {
       must_submit_monthly_report: false,
     },
   };
-
   return defaults[role] || defaults.PROFISSIONAL;
 }
 
@@ -157,55 +154,5 @@ Deno.serve(async (req) => {
       { error: error?.message || String(error) },
       { status: 500 }
     );
-  }
-});        can_manage_files: false,
-        can_manage_museus: false,
-        can_manage_equipes: false,
-        can_view_audit_log: false,
-        can_manage_platform: false,
-        must_submit_monthly_report: true
-      },
-      'COORDENADOR': {
-        can_view_all_reports: true,
-        can_review_reports: true,
-        can_manage_users: true,
-        can_manage_files: true,
-        can_manage_museus: true,
-        can_manage_equipes: true,
-        can_view_audit_log: true,
-        can_manage_platform: false,
-        must_submit_monthly_report: false
-      },
-      'ADMIN': {
-        can_view_all_reports: true,
-        can_review_reports: true,
-        can_manage_users: true,
-        can_manage_files: true,
-        can_manage_museus: true,
-        can_manage_equipes: true,
-        can_view_audit_log: true,
-        can_manage_platform: true,
-        must_submit_monthly_report: false
-      }
-    };
-
-    const permissions = await base44.asServiceRole.entities.UserPermission.create({
-      user_email: email,
-      user_name: full_name,
-      base_role: role,
-      ...permissionDefaults[role]
-    });
-
-    return Response.json({ 
-      success: true, 
-      message: 'Usuário cadastrado com sucesso',
-      email: email,
-      full_name: full_name,
-      role: role,
-      permission_id: permissions.id
-    });
-  } catch (error) {
-    console.error('Error creating user:', error);
-    return Response.json({ error: error.message }, { status: 500 });
   }
 });

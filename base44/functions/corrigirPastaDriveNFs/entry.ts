@@ -30,6 +30,7 @@ import {
   isEquipe,
   extractNfNumGeneric,
 } from '../_shared/nfNomeOficial.ts';
+// redeploy trigger
 
 type TipoNFArquivo = 'NF' | 'XML' | 'COMP NF';
 
