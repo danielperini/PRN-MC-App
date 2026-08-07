@@ -16,6 +16,7 @@ const STATUS_COPIA_LABEL = {
   simulado: { label: 'Simulado', cls: 'bg-blue-100 text-blue-700' },
   sem_pasta: { label: 'Sem pasta', cls: 'bg-amber-100 text-amber-700' },
   sem_origem: { label: 'Sem origem', cls: 'bg-gray-100 text-gray-500' },
+  pulado_sem_dados: { label: 'Sem dados', cls: 'bg-gray-100 text-gray-500' },
   erro: { label: 'Erro', cls: 'bg-red-100 text-red-700' },
   pendente: { label: 'Pendente', cls: 'bg-gray-100 text-gray-400' },
 };
@@ -38,22 +39,63 @@ export default function SincronizarXmlsPanel() {
     setResultado(null);
     setMostraTabela(false);
     try {
-      const resp = await base44.functions.invoke('sincronizarXmlsParaPastasMensais', { dryRun });
-      const data = resp?.data || resp;
-      if (data?.ok === false) throw new Error(data?.error || 'Falha na sincronização');
-      setResultado(data);
+      if (dryRun) {
+        // Simulação: lotes pequenos só para estimar
+        const resp = await base44.functions.invoke('sincronizarXmlsParaPastasMensais', { dryRun: true, skip: 0, limite: 50 });
+        const data = resp?.data || resp;
+        if (data?.ok === false) throw new Error(data?.error || 'Falha na simulação');
+        setResultado(data);
+        setMostraTabela(true);
+        const s = data.stats || {};
+        const totalGlobal = s.total_deduplicado || s.total_xmls || 0;
+        toast.success(`Simulação: ${totalGlobal} XMLs únicos (lote amostra: ${s.total_xmls}) · ${s.pareados_pdf || 0} pareados · ${s.sem_pdf || 0} sem PDF`);
+        return;
+      }
+
+      // Sincronização real com paginação automática
+      const LOTE = 40;
+      let skip = 0;
+      let totalGlobal = 0;
+      let hasMore = true;
+      const acumulado = {
+        total_xmls: 0, pareados_pdf: 0, sem_pdf: 0, sem_pr: 0,
+        copiados_primario: 0, copiados_secundario: 0, ja_existiam: 0, erros: 0,
+      };
+      const todasLinhas = [];
+      let loteIdx = 0;
+      while (hasMore) {
+        loteIdx++;
+        const resp = await base44.functions.invoke('sincronizarXmlsParaPastasMensais', { dryRun: false, skip, limite: LOTE });
+        const data = resp?.data || resp;
+        if (data?.ok === false) throw new Error(data?.error || `Falha no lote ${loteIdx}`);
+        const s = data.stats || {};
+        totalGlobal = s.total_deduplicado || totalGlobal;
+        acumulado.total_xmls += s.total_xmls || 0;
+        acumulado.pareados_pdf += s.pareados_pdf || 0;
+        acumulado.sem_pdf += s.sem_pdf || 0;
+        acumulado.sem_pr += s.sem_pr || 0;
+        acumulado.copiados_primario += s.copiados_primario || 0;
+        acumulado.copiados_secundario += s.copiados_secundario || 0;
+        acumulado.ja_existiam += s.ja_existiam || 0;
+        acumulado.erros += s.erros || 0;
+        if (Array.isArray(data.linhas)) todasLinhas.push(...data.linhas);
+        setProgresso({ atual: skip + (s.total_xmls || 0), total: totalGlobal, lote: loteIdx });
+        setResultado({ stats: { ...acumulado, total_deduplicado: totalGlobal, lote_atual: loteIdx }, linhas: todasLinhas });
+        hasMore = !!s.has_more;
+        skip += LOTE;
+        if (s.erros > 0 && s.erros >= (s.total_xmls || 1)) {
+          toast.error(`Lote ${loteIdx} com muitos erros — interrompendo. Verifique detalhes.`);
+          break;
+        }
+      }
       setMostraTabela(true);
-      const s = data.stats || {};
       toast.success(
-        dryRun
-          ? `Simulação: ${s.total_xmls || 0} XMLs · ${s.pareados_pdf || 0} pareados · ${s.sem_pdf || 0} sem PDF`
-          : `${s.copiados_primario || 0} primário · ${s.copiados_secundario || 0} secundário · ${s.ja_existiam || 0} já existiam · ${s.erros || 0} erros`,
+        `Sincronização completa: ${acumulado.total_xmls} XMLs · ${acumulado.copiados_primario} primário · ${acumulado.copiados_secundario} secundário · ${acumulado.ja_existiam} já existiam · ${acumulado.erros} erros`,
       );
     } catch (err) {
       toast.error('Erro: ' + (err?.message || 'erro desconhecido'));
     } finally {
       setExecutando(false);
-      setProgresso({ atual: 0, total: 0 });
     }
   }
 
@@ -100,8 +142,12 @@ export default function SincronizarXmlsPanel() {
       {executando && (
         <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3">
           <div className="mb-1 flex items-center justify-between text-sm">
-            <span className="text-indigo-700">Processando XMLs...</span>
-            {progresso.total > 0 && <span className="text-indigo-700">{progresso.atual}/{progresso.total}</span>}
+            <span className="text-indigo-700">
+              {progresso.lote ? `Sincronizando lote ${progresso.lote}...` : 'Iniciando...'}
+            </span>
+            {progresso.total > 0 && (
+              <span className="text-indigo-700">{progresso.atual}/{progresso.total}</span>
+            )}
           </div>
           <div className="h-2 w-full overflow-hidden rounded-full bg-indigo-100">
             <div
@@ -109,13 +155,17 @@ export default function SincronizarXmlsPanel() {
               style={{ width: `${progresso.total ? (progresso.atual / progresso.total) * 100 : 100}%` }}
             />
           </div>
+          <p className="mt-1 text-[11px] text-indigo-500">
+            Processamento em lotes automáticos para evitar timeout — cada lote copia para os dois destinos no Drive.
+          </p>
         </div>
       )}
 
       {resultado && !executando && (
         <>
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-4 lg:grid-cols-8">
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4 lg:grid-cols-9">
             <StatCard label="Total XMLs" value={stats.total_xmls} />
+            {stats.lote_atual && <StatCard label="Lotes" value={stats.lote_atual} color="indigo" />}
             <StatCard label="Pareados PDF" value={stats.pareados_pdf} color="green" />
             <StatCard label="Sem PDF" value={stats.sem_pdf} color="orange" />
             <StatCard label="Sem PR" value={stats.sem_pr} color="amber" />
@@ -206,6 +256,7 @@ function StatCard({ label, value, color = 'gray' }) {
     orange: 'border-orange-200 bg-orange-50 text-orange-700',
     amber: 'border-amber-200 bg-amber-50 text-amber-700',
     red: 'border-red-200 bg-red-50 text-red-700',
+    indigo: 'border-indigo-200 bg-indigo-50 text-indigo-700',
   };
   return (
     <div className={`rounded-lg border p-2 ${colorMap[color]}`}>

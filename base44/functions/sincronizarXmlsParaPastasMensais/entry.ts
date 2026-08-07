@@ -253,6 +253,30 @@ async function baixarEExtrairXml(url: string): Promise<any> {
   }
 }
 
+// ── Extrair dados do nome do arquivo (fallback) ──────────────────────────────
+// Padrões: "NF 01 PRODUTORA - ISABELLA - R$ 4200,00.xml"
+//          "13 NF 3 - PERINI PROJETOS - R$ 7000,00.xml"
+//          "20 NF 5 Producao - FORNECEDOR - MUSEUS CENTRO - R$ 7000,00.xml"
+function extrairDadosNomeArquivo(nome: string): { nfNumero?: string; fornecedor?: string; valor?: number } {
+  if (!nome) return {};
+  const result: any = {};
+  // NF + número
+  const nfMatch = nome.match(/NF[\s\-_]?(\d{1,5})\b/i);
+  if (nfMatch) result.nfNumero = nfMatch[1].replace(/^0+(\d)/, '$1');
+  // R$ valor
+  const valorMatch = nome.match(/R\$\s*([\d.,]+)/i);
+  if (valorMatch) result.valor = parseValor(valorMatch[1]);
+  // Fornecedor: tenta pegar entre "-" conhecidos — pega o texto entre "NF N " e " - R$" ou " - MUSEUS"
+  const segMatch = nome.match(/NF[\s\-_]?\d{1,5}\s+(.+?)(?:\s+-\s+(?:MUSEUS|R\$))/i);
+  if (segMatch) {
+    const seg = segMatch[1].trim();
+    // remove prefixo de descrição, separar no " - " e pegar a última parte (provável fornecedor)
+    const parts = seg.split(/\s+-\s+/);
+    result.fornecedor = (parts[parts.length - 1] || parts[0] || '').trim();
+  }
+  return result;
+}
+
 function extrairDriveFileId(url: string): string | null {
   if (!url) return null;
   const m = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || url.match(/[?&]id=([a-zA-Z0-9_-]+)/) || url.match(/^([a-zA-Z0-9_-]{20,})$/);
@@ -289,9 +313,10 @@ interface XmlSource {
   fornecedor?: string;
   valor?: number;
   dataEmissao?: string;
+  createdDate?: string;
 }
 
-async function coletarXmls(base44: any, token: string): Promise<{ fontes: XmlSource[]; indicePR: Map<string, any> }> {
+async function coletarXmls(base44: any, token: string): Promise<{ fontes: XmlSource[]; indicePR: Map<string, any>; totalBruto: number }> {
   const fontes: XmlSource[] = [];
   const indicePR = await carregarIndicePRs(base44);
 
@@ -339,6 +364,7 @@ async function coletarXmls(base44: any, token: string): Promise<{ fontes: XmlSou
         fornecedor: di.fornecedor_nome || di.nf_emitente_nome,
         valor: di.nf_valor_total,
         dataEmissao: di.nf_data_emissao,
+        createdDate: di.created_date,
       });
     }
     if (lote.length < 200) break;
@@ -358,10 +384,31 @@ async function coletarXmls(base44: any, token: string): Promise<{ fontes: XmlSou
     });
   }
 
-  return { fontes, indicePR };
+  // ── Deduplicação ──────────────────────────────────────────────────────────
+  // A mesma XML pode aparecer de PR, DI e scan do Drive. Prioriza PR > DI > scan.
+  const prioridade = { purchase_request: 0, document_intake: 1, drive_scan: 2 };
+  const porChave = new Map<string, XmlSource>();
+  for (const f of fontes) {
+    const chave = f.driveFileId || f.url || f.name || f.refId;
+    if (!chave) continue;
+    const existente = porChave.get(chave);
+    if (!existente || prioridade[f.origem] < prioridade[existente.origem]) {
+      porChave.set(chave, f);
+    }
+  }
+  const deduplicadas = Array.from(porChave.values());
+
+  return { fontes: deduplicadas, indicePR, totalBruto: fontes.length };
 }
 
 // ── Localizar PDF par no Drive ────────────────────────────────────────────────
+
+let _sourceFolderItemsCache: any[] | null = null;
+async function getSourceFolderItems(token: string): Promise<any[]> {
+  if (_sourceFolderItemsCache) return _sourceFolderItemsCache;
+  _sourceFolderItemsCache = await listFolder(token, SOURCE_SCAN_FOLDER);
+  return _sourceFolderItemsCache;
+}
 
 async function localizarPdfPar(token: string, fonte: XmlSource, pr: any): Promise<{ driveFileId: string | null; origem: string }> {
   if (pr) {
@@ -372,8 +419,8 @@ async function localizarPdfPar(token: string, fonte: XmlSource, pr: any): Promis
     }
   }
   if (fonte.nfNumero) {
-    const items = await listFolder(token, SOURCE_SCAN_FOLDER);
-    const num = fonte.nfNumero;
+    const items = await getSourceFolderItems(token);
+    const num = String(fonte.nfNumero);
     const pdfMatch = items.find((f: any) =>
       f.mimeType !== FOLDER_MIME &&
       f.name.toLowerCase().endsWith('.pdf') &&
@@ -394,16 +441,22 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const dryRun = body.dryRun === true;
+    const skip = Math.max(0, Number(body.skip || 0));
+    const limite = body.limite ? Math.min(Number(body.limite), 500) : null;
 
     const { accessToken } = await base44.asServiceRole.connectors.getConnection('googledrive');
     const token = accessToken;
     const mesFolderCache = new Map<string, string>();
     const start = Date.now();
 
-    const { fontes, indicePR } = await coletarXmls(base44, token);
+    const { fontes: todasFontes, indicePR, totalBruto } = await coletarXmls(base44, token);
+    const fontes = limite ? todasFontes.slice(skip, skip + limite) : (skip > 0 ? todasFontes.slice(skip) : todasFontes);
 
     const stats = {
       total_xmls: fontes.length,
+      total_deduplicado: totalBruto,
+      skip,
+      has_more: limite ? (skip + limite) < todasFontes.length : false,
       pareados_pdf: 0,
       sem_pdf: 0,
       sem_pr: 0,
@@ -414,7 +467,16 @@ Deno.serve(async (req) => {
     };
     const linhas: any[] = [];
 
+    const arquivosProcessados = new Set<string>();
+
     for (const fonte of fontes) {
+      // Evita reprocessar dentro do mesmo lote (nome_xml + mes_ano)
+      const chaveUnica = `${fonte.driveFileId || fonte.url || fonte.refId}`;
+      if (arquivosProcessados.has(chaveUnica)) {
+        stats.total_xmls--;
+        continue;
+      }
+      arquivosProcessados.add(chaveUnica);
       const linha: any = {
         nome_original: fonte.name || fonte.url || fonte.driveFileId || '',
         nf_numero: fonte.nfNumero || '',
@@ -434,6 +496,18 @@ Deno.serve(async (req) => {
         pr = indicePR.get(`num__${String(fonte.nfNumero).replace(/\D/g, '')}`) || pr;
       }
 
+      // Fallback 1: extrair dados do nome do arquivo
+      if (!pr && !fonte.nfNumero) {
+        const doNome = extrairDadosNomeArquivo(fonte.name);
+        if (doNome.nfNumero) {
+          fonte.nfNumero = doNome.nfNumero;
+          if (!fonte.fornecedor) fonte.fornecedor = doNome.fornecedor;
+          if (!fonte.valor) fonte.valor = doNome.valor;
+          pr = buscarPR(indicePR, fonte.nfNumero, fonte.valor, fonte.fornecedor);
+        }
+      }
+
+      // Fallback 2: baixar e extrair do conteúdo XML
       if (!pr && !fonte.nfNumero && fonte.url) {
         const extraido = await baixarEExtrairXml(fonte.url);
         if (extraido.nfNumero) {
@@ -446,6 +520,17 @@ Deno.serve(async (req) => {
       }
 
       if (!pr) stats.sem_pr++;
+
+      // Guarda: pula XMLs totalmente irresolveríveis (sem nf_numero, sem fornecedor, sem valor)
+      // — copiaríamos lixo com nome "XML SN Despesa - FORNECEDOR - R$ 0,00"
+      if (!fonte.nfNumero && !fonte.fornecedor && !fonte.valor) {
+        linha.status_primario = 'pulado_sem_dados';
+        linha.status_secundario = 'pulado_sem_dados';
+        linha.mes_ano = '';
+        stats.total_xmls--;
+        linhas.push(linha);
+        continue;
+      }
 
       const pdfPar = await localizarPdfPar(token, fonte, pr);
       if (pdfPar.driveFileId) {
@@ -469,6 +554,8 @@ Deno.serve(async (req) => {
       const dataRef = fonte.dataEmissao || pr?.nf_data_emissao || '';
       let mesAno = extrairMesAno(dataRef);
       if (!mesAno && pr) mesAno = extrairMesAno(pr.aprov_admin_data || pr.aprov_coord_data || pr.created_date);
+      // Último fallback: data de criação do intake/arquivo (quando sem PR e sem data NF)
+      if (!mesAno) mesAno = extrairMesAno(fonte.createdDate || fonte.dataEmissao || '');
       linha.mes_ano = mesAno;
 
       if (!mesAno) {
