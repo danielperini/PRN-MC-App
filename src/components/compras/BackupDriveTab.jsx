@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Upload, Loader2, ExternalLink, FileText, FileCode, Receipt, CloudUpload, CloudOff, CheckCircle2, AlertTriangle, FileX2 } from 'lucide-react';
+import { Upload, Loader2, ExternalLink, FileText, FileCode, Receipt, CloudUpload, CloudOff, CheckCircle2, AlertTriangle, FileX2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -110,6 +110,7 @@ export default function BackupDriveTab() {
   const [reenviandoId, setReenviandoId] = useState(null);
   const [reenviandoTodos, setReenviandoTodos] = useState(false);
   const [progressoTodos, setProgressoTodos] = useState({ atual: 0, total: 0 });
+  const [limpandoMaquina, setLimpandoMaquina] = useState(false);
 
   // Busca todas as PurchaseRequests aprovadas/pagas (não filtra por dono — painel do coordenador)
   const { data: purchases = [], isLoading, isFetching } = useQuery({
@@ -286,6 +287,38 @@ export default function BackupDriveTab() {
     }
   }
 
+  async function limparNomesMaquina() {
+    if (limpandoMaquina) return;
+    setLimpandoMaquina(true);
+    try {
+      const dryResp = await base44.functions.invoke('renomearNFsDrive', { dryRun: true });
+      const dry = dryResp?.data || dryResp;
+      const totalRenomear = Number(dry?.total_renomeados ?? dry?.renomeados ?? dry?.total ?? 0);
+      if (!totalRenomear) {
+        toast.info('Nenhum arquivo de máquina encontrado para renomear.');
+        setLimpandoMaquina(false);
+        return;
+      }
+      const confirmar = window.confirm(
+        `${totalRenomear} arquivo(s) serão renomeados no Drive. Confirmar renomeação?`
+      );
+      if (!confirmar) {
+        setLimpandoMaquina(false);
+        return;
+      }
+      const execResp = await base44.functions.invoke('renomearNFsDrive', { dryRun: false });
+      const exec = execResp?.data || execResp;
+      const renomeados = Number(exec?.total_renomeados ?? exec?.renomeados ?? 0);
+      const erros = Number(exec?.total_erros ?? exec?.erros ?? 0);
+      toast.success(`${renomeados} renomeado(s) · ${erros} erro(s)`);
+      await queryClient.invalidateQueries({ queryKey: ['backup-drive-aprovadas'] });
+    } catch (err) {
+      toast.error('Falha ao limpar nomes de máquina: ' + (err?.message || 'erro desconhecido'));
+    } finally {
+      setLimpandoMaquina(false);
+    }
+  }
+
   function exportarCsv() {
     const header = ['Numero NF', 'Fornecedor', 'Valor', 'Mes/Ano', 'Status Backup', 'Ultimo Backup', 'PDF', 'XML', 'Comprovante'];
     const rows = filtradas.map((p) => [
@@ -372,6 +405,20 @@ export default function BackupDriveTab() {
         />
         <Button variant="outline" size="sm" onClick={exportarCsv}>
           Exportar CSV
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={limparNomesMaquina}
+          disabled={limpandoMaquina}
+          title="Renomeia arquivos de máquina no Drive para o padrão oficial"
+        >
+          {limpandoMaquina ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Sparkles className="mr-2 h-4 w-4" />
+          )}
+          Limpar nomes
         </Button>
         <Button
           size="sm"
