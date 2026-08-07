@@ -71,6 +71,8 @@ import PainelConciliacaoComprovantes from '@/components/compras/PainelConciliaca
 import BackupDriveTab from '@/components/compras/BackupDriveTab';
 import DashboardCompletoIA from '@/components/compras/DashboardCompletoIA';
 import PainelAuditoriaIASolicitacoes from '@/components/compras/PainelAuditoriaIASolicitacoes';
+import PainelSincronizacaoDriveNFs from '@/components/compras/PainelSincronizacaoDriveNFs';
+import { isCoordGeral } from '@/components/auth/permissions';
 
 const STATUS_CONFIG = {
   RASCUNHO: { label: 'Rascunho', color: 'bg-gray-100 text-gray-700' },
@@ -1101,6 +1103,7 @@ function ComprasInner() {
           { id: 'documentos', label: 'Documentos' },
           { id: 'meus_pagamentos', label: 'Meus Pagamentos' },
           ...(isCoordenador ? [{ id: 'backup_drive', label: '🗄️ Backup Drive' }] : []),
+          ...(isCoordGeral(currentUser) ? [{ id: 'sinc_drive', label: '📂 Sinc. Drive NFs' }] : []),
           ...(isCoordenador ? [{ id: 'verificacao', label: '🔍 Verificação' }] : [])].
           map((t) =>
           <button
@@ -1681,6 +1684,10 @@ function ComprasInner() {
           isCoordenador={isCoordenador}
           hasGestaoCompras={hasGestaoCompras} />
 
+        }
+
+        {tab === 'sinc_drive' && isCoordGeral(currentUser) &&
+        <PainelSincronizacaoDriveNFs />
         }
 
         {tab === 'backup_drive' && isCoordenador &&
