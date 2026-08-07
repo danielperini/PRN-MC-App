@@ -174,6 +174,49 @@ async function sugerirRubricaMeta(descricao, fornecedorNome, rubricas) {
   }
 }
 
+// ─── Extração de NF de texto de PDF via GPT-4o-mini ──────────
+async function extrairNfDeTextoPDF(textoPDF, nomeArquivo) {
+  if (!OPENAI_API_KEY) return {};
+  const prompt = [
+    {
+      role: 'system',
+      content:
+        'Você extrai dados de Nota Fiscal a partir de texto bruto extraído de um PDF. ' +
+        'O texto pode conter marcadores binários do formato PDF — filtre o ruído e foque nos dados da NF. ' +
+        'Responda JSON estrito: {"nf_numero": string, "nf_emitente_nome": string, "nf_emitente_cpf_cnpj": string (apenas dígitos), "nf_valor_total": number, "nf_data_emissao": "YYYY-MM-DD", "descricao_servico": string}. ' +
+        'Se um campo não for encontrado, use "" ou 0. nf_numero deve conter apenas dígitos.',
+    },
+    { role: 'user', content: `Arquivo: ${nomeArquivo}\n\nTexto extraído do PDF:\n${textoPDF.slice(0, 12000)}` },
+  ];
+
+  try {
+    const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        temperature: 0,
+        response_format: { type: 'json_object' },
+        messages: prompt,
+      }),
+    });
+    if (!resp.ok) return {};
+    const data = await resp.json();
+    const content = data?.choices?.[0]?.message?.content || '{}';
+    const parsed = JSON.parse(content || '{}');
+    return {
+      nf_numero: onlyDigits(safeStr(parsed.nf_numero)),
+      nf_emitente_nome: safeStr(parsed.nf_emitente_nome),
+      nf_emitente_cpf_cnpj: onlyDigits(safeStr(parsed.nf_emitente_cpf_cnpj)),
+      nf_valor_total: Number(parsed.nf_valor_total || 0),
+      nf_data_emissao: safeStr(parsed.nf_data_emissao).slice(0, 10),
+      descricao_servico: safeStr(parsed.descricao_servico).slice(0, 500),
+    };
+  } catch {
+    return {};
+  }
+}
+
 // ─── Handler principal ───────────────────────────────────────
 Deno.serve(async (req) => {
   const start = Date.now();
@@ -302,6 +345,7 @@ Deno.serve(async (req) => {
       total_arquivos: acc.files.length,
       total_xmls: nfFiles.length,
       total_pdfs: naoXml.length,
+      pdfs_sem_xml: naoXml.filter((p) => !p.error).map((p) => ({ id: p.id, name: p.name, modifiedTime: p.modified })),
       total_no_banco_nfs: allPR.filter((p) => safeStr(p.nf_numero)).length,
       total_pago_status: totalPagoStatus,
       requer_marcar_pago_anteriores: requerMarcacao,
@@ -499,6 +543,129 @@ Deno.serve(async (req) => {
       mode: 'tratar_lote',
       total: fileIds.length,
       criados, atualizados, pagosMarcados, erros,
+      resultados,
+      elapsed_ms: Date.now() - start,
+    });
+  }
+
+  // ───────────────────────────── MODE: tratar_pdfs_sem_xml
+  if (mode === 'tratar_pdfs_sem_xml') {
+    const pdfIds = Array.isArray(body.pdf_ids) ? body.pdf_ids.slice(0, 10) : [];
+    if (pdfIds.length === 0) return Response.json({ ok: false, error: 'pdf_ids obrigatório' });
+
+    const resultados = [];
+    let criados = 0, erros = 0;
+
+    for (const pId of pdfIds) {
+      if (Date.now() - start > BUDGET_MS - 5000) {
+        resultados.push({ file_id: pId, ok: false, error: 'Tempo limite atingido neste lote' });
+        erros++;
+        continue;
+      }
+      let fileName = '';
+      try {
+        const meta = await getFileMeta(driveToken, pId);
+        fileName = safeStr(meta.name);
+
+        const bytes = await downloadFile(driveToken, pId);
+        const rawText = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+
+        // Extrai texto legível: captura strings entre parênteses (operadores Tj/TJ do PDF)
+        const textMatches = rawText.match(/\(([^)]*)\)/g);
+        let extractedText = '';
+        if (textMatches) {
+          extractedText = textMatches.map((m) => m.slice(1, -1)).join(' ');
+        }
+        if (extractedText.trim().length < 20) {
+          extractedText = rawText;
+        }
+
+        if (!extractedText || extractedText.trim().length < 10) {
+          // PDF sem texto selecionável — cria intake com erro
+          try {
+            await db.DocumentIntake.create({
+              user_email: 'sistema@auditSincPastaNFs',
+              arquivo_original_url: `https://drive.google.com/file/d/${pId}/view`,
+              file_name_original: fileName,
+              mime_type: 'application/pdf',
+              tipo_detectado: 'NOTA_FISCAL_PDF',
+              status_processamento: 'ERRO_PROCESSAMENTO',
+              origem: 'auditSincPastaNFs_pdf_fallback',
+              erros_validacao: ['PDF sem texto selecionável (provavelmente imagem digitalizada). Não foi possível extrair dados automaticamente.'],
+            });
+            criados++;
+            resultados.push({ file_id: pId, file_name: fileName, ok: true, acao: 'criado_erro_texto', nf_numero: '', emissor: '', valor: 0 });
+          } catch (e) {
+            erros++;
+            resultados.push({ file_id: pId, file_name: fileName, ok: false, error: 'Create intake: ' + String(e?.message || e) });
+          }
+          continue;
+        }
+
+        const campos = await extrairNfDeTextoPDF(extractedText, fileName);
+        const errosValidacao = [];
+        if (!campos.nf_numero) errosValidacao.push('Número da NF não extraído');
+        if (!campos.nf_emitente_nome) errosValidacao.push('Emitente não extraído');
+        if (!campos.nf_valor_total) errosValidacao.push('Valor total não extraído');
+        if (!campos.nf_data_emissao) errosValidacao.push('Data de emissão não extraída');
+        const statusProcessamento = errosValidacao.length < 4 ? 'AGUARDANDO_REVISAO' : 'ERRO_PROCESSAMENTO';
+
+        try {
+          await db.DocumentIntake.create({
+            user_email: 'sistema@auditSincPastaNFs',
+            arquivo_original_url: `https://drive.google.com/file/d/${pId}/view`,
+            file_name_original: fileName,
+            mime_type: 'application/pdf',
+            tipo_detectado: 'NOTA_FISCAL_PDF',
+            status_processamento: statusProcessamento,
+            origem: 'auditSincPastaNFs_pdf_fallback',
+            resultado_ia: campos,
+            erros_validacao: errosValidacao,
+            nf_emitente_nome: campos.nf_emitente_nome || '',
+            nf_emitente_cpf_cnpj: campos.nf_emitente_cpf_cnpj || '',
+            nf_numero: campos.nf_numero || '',
+            nf_valor_total: campos.nf_valor_total || 0,
+            nf_data_emissao: campos.nf_data_emissao || '',
+          });
+          criados++;
+          resultados.push({
+            file_id: pId, file_name: fileName, ok: true,
+            acao: statusProcessamento === 'AGUARDANDO_REVISAO' ? 'criado_revisao' : 'criado_erro_parcial',
+            nf_numero: campos.nf_numero || '',
+            emissor: campos.nf_emitente_nome || '',
+            valor: campos.nf_valor_total || 0,
+          });
+        } catch (e) {
+          erros++;
+          resultados.push({ file_id: pId, file_name: fileName, ok: false, error: 'Create intake: ' + String(e?.message || e) });
+        }
+      } catch (e) {
+        // Falha de download/meta — cria intake com erro para rastreabilidade
+        try {
+          await db.DocumentIntake.create({
+            user_email: 'sistema@auditSincPastaNFs',
+            arquivo_original_url: `https://drive.google.com/file/d/${pId}/view`,
+            file_name_original: fileName || pId,
+            mime_type: 'application/pdf',
+            tipo_detectado: 'NOTA_FISCAL_PDF',
+            status_processamento: 'ERRO_PROCESSAMENTO',
+            origem: 'auditSincPastaNFs_pdf_fallback',
+            erros_validacao: ['Falha ao baixar PDF do Drive: ' + String(e?.message || e)],
+          });
+          criados++;
+          resultados.push({ file_id: pId, file_name: fileName, ok: true, acao: 'criado_erro_download', nf_numero: '', emissor: '', valor: 0 });
+        } catch (e2) {
+          erros++;
+          resultados.push({ file_id: pId, file_name: fileName, ok: false, error: 'Download + create: ' + String(e2?.message || e2) });
+        }
+      }
+    }
+
+    return Response.json({
+      ok: true,
+      mode: 'tratar_pdfs_sem_xml',
+      total: pdfIds.length,
+      criados, erros,
       resultados,
       elapsed_ms: Date.now() - start,
     });

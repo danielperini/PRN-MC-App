@@ -13,6 +13,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Wallet,
+  FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCurrentUser } from '@/components/auth/useCurrentUser';
@@ -222,6 +223,30 @@ export default function PainelSincronizacaoDriveNFs({ purchasesPendentes }) {
     return { criados, atualizados, pagos, erros };
   }
 
+  async function tratarPdfsSemXmlInternal(pdfIds) {
+    const total = pdfIds.length;
+    let criados = 0, erros = 0;
+    const resultadosAcum = [];
+    for (let i = 0; i < total; i += 10) {
+      const batch = pdfIds.slice(i, i + 10);
+      try {
+        const res = await base44.functions.invoke('auditSincPastaNFs', { mode: 'tratar_pdfs_sem_xml', pdf_ids: batch });
+        const d = res?.data || res || {};
+        if (d?.ok === false) throw new Error(d?.error);
+        criados += Number(d.criados || 0);
+        erros += Number(d.erros || 0);
+        if (Array.isArray(d.resultados)) resultadosAcum.push(...d.resultados);
+      } catch (e) {
+        erros += batch.length;
+      }
+    }
+    setLogRecente((prev) => [
+      { mes: 'PDFs IA', pdfIA: true, total, criados, erros, timestamp: new Date().toISOString(), amostra: resultadosAcum.slice(0, 8) },
+      ...prev,
+    ].slice(0, 12));
+    return { criados, erros };
+  }
+
   async function tratarTudo() {
     if (!scanData?.por_mes?.length) {
       toast.info('Execute o scan primeiro.');
@@ -238,8 +263,20 @@ export default function PainelSincronizacaoDriveNFs({ purchasesPendentes }) {
         totalPagos += acc.pagos;
         totalErros += acc.erros;
       }
+
+      // Fallback: PDFs sem XML via IA
+      let pdfCriados = 0, pdfErros = 0;
+      const pdfsSemXml = scanData.pdfs_sem_xml || [];
+      if (pdfsSemXml.length > 0) {
+        toast.info(`${pdfsSemXml.length} PDF(s) sem XML — extraindo dados via IA...`);
+        const accPdf = await tratarPdfsSemXmlInternal(pdfsSemXml.map((p) => p.id));
+        pdfCriados = accPdf.criados;
+        pdfErros = accPdf.erros;
+      }
+
       toast.success(
-        `Tratamento total: ${totalCriados} criados, ${totalAtualizados} atualizados, ${totalPagos} marcados PAGO, ${totalErros} erros.`
+        `Tratamento total: ${totalCriados} criados, ${totalAtualizados} atualizados, ${totalPagos} marcados PAGO, ${totalErros} erros.` +
+        (pdfsSemXml.length > 0 ? ` PDFs IA: ${pdfCriados} intakes, ${pdfErros} erros.` : '')
       );
       await executarScan();
       qc.invalidateQueries(['compras']);
@@ -352,11 +389,17 @@ export default function PainelSincronizacaoDriveNFs({ purchasesPendentes }) {
         </div>
 
         {scanData && (
-          <div className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="mt-5 grid grid-cols-2 sm:grid-cols-5 gap-3">
             <StatCard icon={FolderSearch} tone="bg-gray-100 text-gray-700" label="Total arquivos" value={fmtInt(scanData.total_arquivos)} />
             <StatCard icon={Database} tone="bg-blue-100 text-blue-700" label="XMLs parseados" value={fmtInt(scanData.total_xmls)} />
             <StatCard icon={CheckCircle2} tone="bg-emerald-100 text-emerald-700" label="Já no banco" value={fmtInt(totalNoBanco)} />
             <StatCard icon={AlertTriangle} tone="bg-amber-100 text-amber-700" label="Faltando tratar" value={fmtInt(totalFaltando)} />
+            <StatCard
+              icon={FileText}
+              tone={(scanData.pdfs_sem_xml?.length || 0) > 0 ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-600'}
+              label="PDFs sem XML"
+              value={fmtInt(scanData.total_pdfs)}
+            />
           </div>
         )}
 
@@ -409,16 +452,35 @@ export default function PainelSincronizacaoDriveNFs({ purchasesPendentes }) {
           <h4 className="mb-3 text-sm font-semibold text-gray-700">Processamentos recentes</h4>
           <div className="space-y-2">
             {logRecente.map((log, idx) => (
-              <div key={`${log.mes}-${log.timestamp}-${idx}`} className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs">
+              <div
+                key={`${log.mes}-${log.timestamp}-${idx}`}
+                className={`rounded-lg border p-3 text-xs ${log.pdfIA ? 'border-indigo-200 bg-indigo-50' : 'border-gray-200 bg-gray-50'}`}
+              >
                 <div className="flex items-center justify-between">
-                  <div className="font-medium text-gray-900">{fmtBR(log.mes)} · {log.total} arquivo(s)</div>
+                  <div className="flex items-center gap-2 font-medium text-gray-900">
+                    {log.pdfIA ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-indigo-600 px-2 py-0.5 text-[10px] font-bold uppercase text-white">
+                        <FileText className="h-3 w-3" /> PDFs IA
+                      </span>
+                    ) : null}
+                    {log.pdfIA ? 'PDFs tratados via IA' : `${fmtBR(log.mes)} · ${log.total} arquivo(s)`}
+                  </div>
                   <div className="text-gray-500">{new Date(log.timestamp).toLocaleString('pt-BR')}</div>
                 </div>
                 <div className="mt-1 flex flex-wrap gap-3 text-gray-700">
-                  <span className="text-emerald-700">✓ {log.criados} criados</span>
-                  <span className="text-blue-700">✎ {log.atualizados} atualizados</span>
-                  <span className="text-purple-700">💰 {log.pagos} marcados PAGO</span>
-                  {log.erros > 0 && <span className="text-red-700">⚠ {log.erros} erros</span>}
+                  {log.pdfIA ? (
+                    <>
+                      <span className="text-indigo-700">✓ {log.criados} intakes criados</span>
+                      {log.erros > 0 && <span className="text-red-700">⚠ {log.erros} erros</span>}
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-emerald-700">✓ {log.criados} criados</span>
+                      <span className="text-blue-700">✎ {log.atualizados} atualizados</span>
+                      <span className="text-purple-700">💰 {log.pagos} marcados PAGO</span>
+                      {log.erros > 0 && <span className="text-red-700">⚠ {log.erros} erros</span>}
+                    </>
+                  )}
                 </div>
                 {log.amostra?.length > 0 && (
                   <ul className="mt-2 space-y-0.5 text-[11px] text-gray-600">
