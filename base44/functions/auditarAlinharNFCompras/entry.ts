@@ -342,14 +342,18 @@ Deno.serve(async (req) => {
     const { accessToken } = await base44.asServiceRole.connectors.getConnection('googledrive');
     const token = accessToken;
 
-    // ── Carrega rubricas para o menu da IA (id + nome + centro_custo) ─────
+    // ── Carrega rubricas para o menu da IA (id + nome curto + centro_custo) ─
     let rubricasMenuTxt = '';
     try {
-      const rs: any[] = await base44.asServiceRole.entities.Rubrica.list('', 2000);
+      const rs: any[] = await base44.asServiceRole.entities.Rubrica.list('', 800);
       rubricasMenuTxt = (rs || [])
         .filter((r) => r?.id && (r.rubrica || r.nome || r.descricao))
-        .slice(0, 250)
-        .map((r) => `${r.id}|${String(r.rubrica || r.nome || r.descricao || '').trim()}|${String(r.centro_custo || '-')}`)
+        .filter((r) => r.ativo !== false)
+        .slice(0, 60)
+        .map((r) => {
+          const nome = String(r.rubrica || r.nome || r.descricao || '').trim().substring(0, 55);
+          return `${r.id}|${nome}|${String(r.centro_custo || '-')}`;
+        })
         .join(' || ');
     } catch { /* segue sem menu */ }
 
@@ -465,8 +469,8 @@ Deno.serve(async (req) => {
           }
           let fileUrl = pdfUrl;
           try {
-            const blob = new Blob([buf], { type: 'application/pdf' });
-            const up: any = await base44.integrations.Core.UploadFile({ file: blob });
+            const file = new File([buf], 'nf.pdf', { type: 'application/pdf' });
+            const up: any = await base44.integrations.Core.UploadFile({ file });
             if (up?.file_url) fileUrl = up.file_url;
           } catch (e: any) {
             item.erro = `upload: ${e.message}`;
