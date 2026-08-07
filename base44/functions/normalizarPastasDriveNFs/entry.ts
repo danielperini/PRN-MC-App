@@ -220,6 +220,42 @@ async function fileExistsInFolder(token, fileName, folderId) {
   return d.files?.[0] || null;
 }
 
+// Encontra subpasta FILHA DIRETA de parentId com nome exato (mimeType folder).
+// Retorna o file object folder ou null.
+async function findChildFolderByName(token, nameExact, parentId) {
+  const safeName = nameExact.replace(/'/g, "\\'");
+  const q = encodeURIComponent(
+    `'${parentId}' in parents and name='${safeName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`
+  );
+  const r = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,mimeType)&pageSize=10&supportsAllDrives=true&includeItemsFromAllDrives=true`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!r.ok) return null;
+  const d = await r.json().catch(() => ({}));
+  return d.files?.[0] || null;
+}
+
+// Mandar pasta para LIXEIRA (não delete permanente) — apenas a passada.
+// Não toca em nenhuma outra pasta. Retorna { id, name, already_trashed } ou null.
+async function trashChildFolderByName(token, nameExact, parentId) {
+  const folder = await findChildFolderByName(token, nameExact, parentId);
+  if (!folder?.id) return null;
+  const r = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${folder.id}?fields=id,name,trashed&supportsAllDrives=true`,
+    {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trashed: true }),
+    }
+  );
+  if (!r.ok) {
+    const txt = await r.text().catch(() => '');
+    throw new Error(`Trash HTTP ${r.status}: ${txt.slice(0, 120)}`);
+  }
+  return await r.json();
+}
+
 async function deleteFolderIfEmpty(token, folderId) {
   try {
     const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
@@ -783,9 +819,20 @@ Deno.serve(async (req) => {
   if (mode === 'incremental') {
     const deadline = start + BUDGET_MS;
     const cutoff = Date.now() - 25 * 60 * 60 * 1000; // últimas 25h
-    const relatorio = { backups_feitos: 0, prs_criados: 0, prs_aprovados: 0, intakes_criados: 0, erros: [], processados: [] };
+    // incremental: apenas LÊ da origem. Nunca cria/move/renomeia/exclui arquivos
+    // ou pastas da ORIGEM (PASTA_ORIGEM_ID). Escreve/cria apenas no BACKUP.
+    const relatorio = { backups_feitos: 0, prs_criados: 0, prs_aprovados: 0, intakes_criados: 0, pastas_backup_removidas: [], erros: [], processados: [] };
 
-    // Lista subpastas + arquivos modificados nas últimas 25h
+    // — Correção pontual do backup: remover pasta indevida 'Maio 2026' (lixeira) —
+    // Não toca em nenhuma outra pasta do backup nem na origem.
+    try {
+      const trashed = await trashChildFolderByName(driveToken, 'Maio 2026', PASTA_BACKUP_ID);
+      if (trashed?.id) relatorio.pastas_backup_removidas.push({ nome: 'Maio 2026', id: trashed.id, trashed: true });
+    } catch (e) {
+      relatorio.erros.push(`Remover 'Maio 2026' do backup: ${String(e?.message || e)}`);
+    }
+
+    // Lista subpastas + arquivos modificados nas últimas 25h (LEITURA da origem)
     let subpastas = [];
     let arquivosRaiz = [];
     try {
@@ -899,7 +946,7 @@ Deno.serve(async (req) => {
         processed_at: new Date().toISOString(),
         total_files: arquivosParaProcessar.length, files_copied: relatorio.backups_feitos,
         execution_time_ms: Date.now() - start,
-        details: JSON.stringify({ prs_criados: relatorio.prs_criados, prs_aprovados: relatorio.prs_aprovados, intakes_criados: relatorio.intakes_criados }),
+        details: JSON.stringify({ prs_criados: relatorio.prs_criados, prs_aprovados: relatorio.prs_aprovados, intakes_criados: relatorio.intakes_criados, pastas_backup_removidas: relatorio.pastas_backup_removidas }),
         triggered_by: isCron ? 'scheduled' : 'manual',
       });
     } catch {}
@@ -908,7 +955,42 @@ Deno.serve(async (req) => {
       ok: true, mode, arquivos_modificados: arquivosParaProcessar.length,
       backups_feitos: relatorio.backups_feitos, prs_criados: relatorio.prs_criados,
       prs_aprovados: relatorio.prs_aprovados, intakes_criados: relatorio.intakes_criados,
+      pastas_backup_removidas: relatorio.pastas_backup_removidas,
       erros: relatorio.erros, processados: relatorio.processados.slice(0, 100),
+      elapsed_ms: Date.now() - start,
+    });
+  }
+
+  // ═════════════════════════════════════════════════════════════
+  // MODE: corrigir_backup — apenas remove a pasta indevida 'Maio 2026'
+  // do backup. NÃO toca na origem nem em outras pastas do backup.
+  //══════════════════════════════════════════════════════════════
+  if (mode === 'corrigir_backup') {
+    const pastas_backup_removidas = [];
+    const erros = [];
+    try {
+      const trashed = await trashChildFolderByName(driveToken, 'Maio 2026', PASTA_BACKUP_ID);
+      if (trashed?.id) pastas_backup_removidas.push({ nome: 'Maio 2026', id: trashed.id, trashed: true });
+    } catch (e) {
+      erros.push(`Remover 'Maio 2026' do backup: ${String(e?.message || e)}`);
+    }
+
+    try {
+      await db.BackupLog.create({
+        backup_type: 'drive_nf_sync_mensal', entity_type: 'normalizarPastasDriveNFs_corrigir_backup',
+        status: erros.length > 0 ? 'failure' : 'concluido',
+        processed_at: new Date().toISOString(),
+        total_files: 0, files_copied: 0,
+        execution_time_ms: Date.now() - start,
+        details: JSON.stringify({ pastas_backup_removidas }),
+        triggered_by: isCron ? 'scheduled' : 'manual',
+      });
+    } catch {}
+
+    return Response.json({
+      ok: erros.length === 0, mode,
+      pastas_backup_removidas,
+      erros,
       elapsed_ms: Date.now() - start,
     });
   }
