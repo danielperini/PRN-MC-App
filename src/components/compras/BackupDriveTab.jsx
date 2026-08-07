@@ -2,10 +2,11 @@ import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Upload, Loader2, ExternalLink, FileText, FileCode, Receipt, CloudUpload, CloudOff, CheckCircle2, AlertTriangle, FileX2, Sparkles } from 'lucide-react';
+import { Upload, Loader2, ExternalLink, FileText, FileCode, Receipt, CloudUpload, CloudOff, CheckCircle2, AlertTriangle, FileX2, Sparkles, FilePenLine } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import SincronizarXmlsPanel from '@/components/compras/SincronizarXmlsPanel';
+import RenomearNFsBancoDialog from '@/components/compras/RenomearNFsBancoDialog';
 
 function PlainSelect({ value, onChange, items, placeholder, className }) {
   return (
@@ -112,6 +113,7 @@ export default function BackupDriveTab() {
   const [reenviandoTodos, setReenviandoTodos] = useState(false);
   const [progressoTodos, setProgressoTodos] = useState({ atual: 0, total: 0 });
   const [limpandoMaquina, setLimpandoMaquina] = useState(false);
+  const [dialogCorrigirOpen, setDialogCorrigirOpen] = useState(false);
 
   // Busca todas as PurchaseRequests aprovadas/pagas (não filtra por dono — painel do coordenador)
   const { data: purchases = [], isLoading, isFetching } = useQuery({
@@ -141,6 +143,11 @@ export default function BackupDriveTab() {
     refetchOnWindowFocus: false,
     staleTime: 1000 * 10,
   });
+
+  const candidatosCorrigir = useMemo(
+    () => purchases.filter((p) => p?.drive_backup_nf_pdf_link && String(p.drive_backup_nf_pdf_link).trim()).length,
+    [purchases],
+  );
 
   // Contadores
   const contadores = useMemo(() => {
@@ -425,6 +432,16 @@ export default function BackupDriveTab() {
           Limpar nomes
         </Button>
         <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setDialogCorrigirOpen(true)}
+          disabled={candidatosCorrigir === 0}
+          title="Renomeia no Drive os PDFs dos PurchaseRequests com backup concluído (via banco)"
+        >
+          <FilePenLine className="mr-2 h-4 w-4" />
+          Corrigir Nomes no Drive ({candidatosCorrigir})
+        </Button>
+        <Button
           size="sm"
           className="bg-black text-white hover:bg-gray-800"
           onClick={reenviarTodosPendentes}
@@ -579,6 +596,8 @@ export default function BackupDriveTab() {
       {isFetching && !isLoading && (
         <p className="text-xs text-gray-400">Atualizando lista...</p>
       )}
+
+      <RenomearNFsBancoDialog open={dialogCorrigirOpen} onOpenChange={setDialogCorrigirOpen} />
     </div>
   );
 }
