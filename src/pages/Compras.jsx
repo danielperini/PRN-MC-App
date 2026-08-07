@@ -70,6 +70,7 @@ import RevincularRubricasOrfasButton from '@/components/financeiro/RevincularRub
 import PainelConciliacaoComprovantes from '@/components/compras/PainelConciliacaoComprovantes';
 import BackupDriveTab from '@/components/compras/BackupDriveTab';
 import DashboardCompletoIA from '@/components/compras/DashboardCompletoIA';
+import PainelAuditoriaIASolicitacoes from '@/components/compras/PainelAuditoriaIASolicitacoes';
 
 const STATUS_CONFIG = {
   RASCUNHO: { label: 'Rascunho', color: 'bg-gray-100 text-gray-700' },
@@ -1660,6 +1661,7 @@ function ComprasInner() {
         {tab === 'verificacao' && isCoordenador &&
         <div className="space-y-6">
             <div className="flex justify-end gap-2 flex-wrap">
+              <PainelAuditoriaIASolicitacoes purchases={purchases} rubricas={rubricas} onDone={refreshFinanceiroCompleto} />
               <PreencherDatasButton onDone={refreshFinanceiroCompleto} />
               <RecalcularTotaisButton onDone={refreshFinanceiroCompleto} />
             </div>
