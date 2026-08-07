@@ -19,6 +19,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useCurrentUser } from '@/components/auth/useCurrentUser';
 import LimparNomesMaquinaDialog from '@/components/compras/LimparNomesMaquinaDialog';
+import UnificarBackupDialog from '@/components/compras/UnificarBackupDialog';
 
 const FOLDER_ID = '1LgC94VhIomQZBS7kfkQqgBX8MVzwQqzp';
 const FOLDER_URL = `https://drive.google.com/drive/folders/${FOLDER_ID}`;
@@ -125,6 +126,7 @@ export default function PainelSincronizacaoDriveNFs({ purchasesPendentes }) {
   const qc = useQueryClient();
   const { isCoordGeral } = useCurrentUser();
   const [limparNomesOpen, setLimparNomesOpen] = useState(false);
+  const [unificarBackupOpen, setUnificarBackupOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [scanData, setScanData] = useState(null);
   const [tratandoMes, setTratandoMes] = useState(null);
@@ -396,6 +398,18 @@ export default function PainelSincronizacaoDriveNFs({ purchasesPendentes }) {
                 type="button"
                 size="sm"
                 variant="outline"
+                onClick={() => setUnificarBackupOpen(true)}
+                className="gap-2 border-gray-300 text-gray-800 hover:bg-gray-100"
+              >
+                <FolderGit className="h-4 w-4" />
+                Unificar pastas backup (MM-YYYY)
+              </Button>
+            )}
+            {isCoordGeral && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
                 onClick={() => setLimparNomesOpen(true)}
                 className="gap-2 border-gray-300 text-gray-800 hover:bg-gray-100"
               >
@@ -525,6 +539,9 @@ export default function PainelSincronizacaoDriveNFs({ purchasesPendentes }) {
 
       {isCoordGeral && (
         <LimparNomesMaquinaDialog open={limparNomesOpen} onOpenChange={setLimparNomesOpen} />
+      )}
+      {isCoordGeral && (
+        <UnificarBackupDialog open={unificarBackupOpen} onOpenChange={setUnificarBackupOpen} />
       )}
     </div>
   );

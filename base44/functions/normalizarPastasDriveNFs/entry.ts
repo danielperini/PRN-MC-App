@@ -1147,5 +1147,171 @@ Deno.serve(async (req) => {
     });
   }
 
+  // ═════════════════════════════════════════════════════════════
+  // MODE: unificar_backup — Padroniza TODAS as subpastas da pasta de
+  // BACKUP (1LgC94...) para o formato canônico MM-YYYY (ex: '08-2026').
+  // Resolve duplicatas (ex: 'Maio 2026' + '05-2026') fundindo em uma
+  // única pasta MM-YYYY, renomeia pastas únicas com nome por extenso,
+  // cria '08-2026' se não existir. NÃO toca na ORIGEM.
+  //══════════════════════════════════════════════════════════════
+  if (mode === 'unificar_backup') {
+    const deadline = start + BUDGET_MS;
+    const relatorio = {
+      pastas_analisadas: [],
+      competencias: {},
+      pastas_renomeadas: [],
+      merges_realizados: [],
+      pastas_trash: [],
+      pasta_08_2026: null,
+      erros: [],
+    };
+
+    // Nome canônico do backup = MM-YYYY (zero-fill)
+    function nomeBackupMMYYYY(mesIdx, ano) {
+      return `${String(mesIdx + 1).padStart(2, '0')}-${ano}`;
+    }
+
+    // 1. Lista subpastas diretas da pasta de backup
+    let subpastas = [];
+    try {
+      const children = await listFolder(driveToken, PASTA_BACKUP_ID);
+      subpastas = children.filter((f) => f.mimeType === 'application/vnd.google-apps.folder');
+      relatorio.pastas_analisadas = subpastas.map((s) => s.name);
+    } catch (e) {
+      return Response.json({ ok: false, error: 'Erro listar backup: ' + String(e?.message || e) });
+    }
+
+    // 2. Detecta mês/ano de cada subpasta e agrupa por competência
+    const grupos = new Map(); // chave 'MM-YYYY' -> [{ folder, det }]
+    const nao_reconhecidas = [];
+    for (const sub of subpastas) {
+      const det = detectarMesAno(sub.name);
+      if (!det) {
+        nao_reconhecidas.push(sub.name);
+        continue;
+      }
+      const chave = nomeBackupMMYYYY(det.mesIdx, det.ano);
+      if (!grupos.has(chave)) grupos.set(chave, []);
+      grupos.get(chave).push({ folder: sub, det });
+      if (!relatorio.competencias[chave]) relatorio.competencias[chave] = [];
+      relatorio.competencias[chave].push(sub.name);
+    }
+    if (nao_reconhecidas.length > 0) {
+      relatorio.erros.push(`Pastas não reconhecidas (ignoradas): ${nao_reconhecidas.join(', ')}`);
+    }
+
+    // 3. Processa cada grupo (competência)
+    for (const [chave, pastas] of grupos) {
+      if (Date.now() > deadline) { relatorio.erros.push('Tempo limite'); break; }
+
+      // Pasta destino = a que já tem nome === chave (MM-YYYY)
+      let destino = pastas.find((p) => p.folder.name === chave) || null;
+
+      if (!destino) {
+        // Nenhuma tem o nome canônico — renomeia a primeira via files.update
+        const primeira = pastas[0];
+        try {
+          await renameFolder(driveToken, primeira.folder.id, chave);
+          relatorio.pastas_renomeadas.push({ de: primeira.folder.name, para: chave, id: primeira.folder.id });
+          destino = { ...primeira, folder: { ...primeira.folder, name: chave } };
+        } catch (e) {
+          relatorio.erros.push(`Renomear "${primeira.folder.name}" → "${chave}": ${String(e?.message || e)}`);
+          continue;
+        }
+      }
+
+      const destinoId = destino.folder.id;
+      let arquivosMovidosGrupo = 0;
+
+      // Move arquivos das outras pastas do grupo → destino
+      for (const p of pastas) {
+        if (p.folder.id === destinoId) continue;
+        if (Date.now() > deadline) { relatorio.erros.push('Tempo limite movendo'); break; }
+        let files = [];
+        try { files = await listFolder(driveToken, p.folder.id); }
+        catch (e) {
+          relatorio.erros.push(`Listar "${p.folder.name}": ${String(e?.message || e)}`);
+          continue;
+        }
+        for (const f of files) {
+          if (Date.now() > deadline) break;
+          try {
+            await moveFile(driveToken, f.id, destinoId, p.folder.id);
+            arquivosMovidosGrupo++;
+          } catch (e) {
+            relatorio.erros.push(`Mover ${f.name} de "${p.folder.name}": ${String(e?.message || e)}`);
+          }
+        }
+        relatorio.merges_realizados.push({
+          de: p.folder.name,
+          para: chave,
+          arquivos_movidos: arquivosMovidosGrupo,
+        });
+
+        // Envia a pasta esvaziada para lixeira (trash reversível)
+        try {
+          const trashed = await trashChildFolderByName(driveToken, p.folder.name, PASTA_BACKUP_ID);
+          if (trashed?.id) {
+            relatorio.pastas_trash.push({ nome: p.folder.name, id: trashed.id });
+          }
+        } catch (e) {
+          relatorio.erros.push(`Trash "${p.folder.name}": ${String(e?.message || e)}`);
+        }
+      }
+
+      // 5. Caso especial: pasta única já com nome errado e sem duplicata
+      // (não caiu no merge acima) — renomeia diretamente.
+      if (pastas.length === 1 && destino.folder.id === pastas[0].folder.id && pastas[0].folder.name !== chave) {
+        // já renomeada acima no bloco !destino; nada a fazer aqui
+      }
+    }
+
+    // 6. Verifica/cria '08-2026' (agosto de 2026)
+    try {
+      const existente = await findChildFolderByName(driveToken, '08-2026', PASTA_BACKUP_ID);
+      if (existente?.id) {
+        relatorio.pasta_08_2026 = { status: 'ja_existia', id: existente.id };
+      } else {
+        const criada = await getOrCreateFolder(driveToken, '08-2026', PASTA_BACKUP_ID);
+        relatorio.pasta_08_2026 = { status: 'criada', id: criada?.id || null };
+      }
+    } catch (e) {
+      relatorio.erros.push(`Criar/verificar '08-2026': ${String(e?.message || e)}`);
+    }
+
+    try {
+      await db.BackupLog.create({
+        backup_type: 'drive_nf_sync_mensal',
+        entity_type: 'normalizarPastasDriveNFs_unificar_backup',
+        status: relatorio.erros.length > 0 ? 'failure' : 'concluido',
+        processed_at: new Date().toISOString(),
+        total_files: relatorio.pastas_trash.length,
+        files_copied: relatorio.merges_realizados.reduce((a, m) => a + (m.arquivos_movidos || 0), 0),
+        execution_time_ms: Date.now() - start,
+        details: JSON.stringify({
+          pastas_analisadas: relatorio.pastas_analisadas.length,
+          pastas_renomeadas: relatorio.pastas_renomeadas.length,
+          merges: relatorio.merges_realizados.length,
+          pastas_trash: relatorio.pastas_trash.length,
+          pasta_08_2026: relatorio.pasta_08_2026,
+        }),
+        triggered_by: isCron ? 'scheduled' : 'manual',
+      });
+    } catch {}
+
+    return Response.json({
+      ok: true,
+      mode,
+      pastas_analisadas: relatorio.pastas_analisadas,
+      competencias: relatorio.competencias,
+      pastas_renomeadas: relatorio.pastas_renomeadas,
+      merges_realizados: relatorio.merges_realizados,
+      pastas_trash: relatorio.pastas_trash,
+      pasta_08_2026: relatorio.pasta_08_2026,
+      erros: relatorio.erros,
+      elapsed_ms: Date.now() - start,
+    });
+  }
+
   return Response.json({ ok: false, error: 'mode inválido: ' + mode });
 });
