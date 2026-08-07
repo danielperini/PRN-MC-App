@@ -9,7 +9,6 @@
 // ================================================================
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.41';
 import { analisarNotaFiscal } from '../_shared/lerNotaFiscalGPTCore.ts';
-// redeploy trigger
 
 const EMAIL_DESTINO = 'danielperini.mc@viadutodasartes.org.br';
 const TIPOS_ALVO = ['NOTA_FISCAL_PDF', 'NOTA_FISCAL_XML', 'RECIBO_PDF'];

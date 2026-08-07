@@ -9,9 +9,8 @@ import {
   isNomeOficial,
   ensureUniqueName,
   resolveTeamMemberForPR,
+  type TipoNFArquivo,
 } from '../_shared/nfNomeOficial.ts';
-
-type TipoNFArquivo = 'NF' | 'XML' | 'COMP NF';
 
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 

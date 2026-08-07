@@ -1,4 +1,4 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.34';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.41';
 
 import { buildNomeOficial, resolveTeamMemberForPR } from '../_shared/nfNomeOficial.ts';
 
