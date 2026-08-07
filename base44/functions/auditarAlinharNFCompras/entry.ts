@@ -244,20 +244,23 @@ const SCHEMA_CENTRO_CUSTO = {
   },
 };
 
-function montarPromptCentroCusto(pr: any): string {
+function montarPromptCentroCusto(pr: any, rubricasMenuTxt: string): string {
   return [
-    'Você é o auditor administrativo do projeto Museus Centro. Reanalise o CENTRO DE CUSTO mais adequado para esta Nota Fiscal, considerando que atribuições automáticas anteriores foram corrompidas e precisam ser revisadas.',
+    'Você é o auditor administrativo do projeto Museus Centro. Reanalise o CENTRO DE CUSTO e a RUBRICA mais adequados para esta Nota Fiscal, considerando que atribuições automáticas anteriores podem ter sido corrompidas.',
     '',
     'Dados atuais da solicitação:',
     `- Fornecedor: ${pr.fornecedor_nome || pr.nf_emitente_nome || '—'}`,
     `- Descrição do item: ${pr.descricao_item || '—'}`,
     `- Categoria: ${pr.categoria || '—'}`,
-    `- Rubrica atual: ${pr.rubrica_nome || '—'}`,
+    `- Rubrica atual: ${pr.rubrica_nome || '—'} (id: ${pr.rubrica_id || '—'})`,
     `- Centro de custo atual (possivelmente errado): ${pr.centro_custo || '—'}`,
     `- Valor: ${pr.nf_valor_total ?? pr.valor_solicitado ?? '—'}`,
     '',
     'CENTROS DE CUSTO VÁLIDOS (escolha OBRIGATORIAMENTE UM destes):',
     CENTROS_CUSTO_VALIDOS.join(', '),
+    '',
+    'RUBRICAS DISPONÍVEIS (formato "id|nome|centro_custo"). Escolha a mais aderente ao serviço prestado e retorne o id em rubrica_id_correto. Se a rubrica atual for correta, retorne string vazia em rubrica_id_correto:',
+    rubricasMenuTxt || '(sem rubricas cadastradas)',
     '',
     'Regras de ouro (use quando se aplicar):',
     '- "Coordenador Geral", "Coordenação Geral", "Perini Projetos", "Daniel Perini" → "Geral" (transversal). NUNCA "Noturno Pampulha".',
@@ -268,7 +271,7 @@ function montarPromptCentroCusto(pr: any): string {
     '- "Publicações" para produção editorial, catálogos, livros.',
     '- Em caso de dúvida entre museus específicos e transversal, prefira "Geral" quando o fornecedor é uma empresa/contratado que atende múltiplos museus (ex.: Perini Projetos).',
     '',
-    'Leia o documento fiscal anexo para confirmar o emitente. Retorne JSON conforme schema. centro_custo_correto deve ser EXATAMENTE um dos valores listados. confianca=100 quando inequívoco pelas regras; <95 quando houver ambiguidade.',
+    'Leia o documento fiscal anexo para confirmar o emitente e o serviço prestado. Retorne JSON conforme schema. centro_custo_correto deve ser EXATAMENTE um dos valores listados. rubrica_id_correto deve ser um id válido da lista acima (ou string vazia para manter a atual). confianca=100 quando inequívoco pelas regras; <95 quando houver ambiguidade.',
   ].join('\n');
 }
 
@@ -278,11 +281,12 @@ async function reanalisarCentroCusto(
   fileUrl: string | null,
   confiancaMinima: number = CONFIANCA_MINIMA_DEFAULT,
   maxTentativas: number = MAXIMO_TENTATIVAS_DEFAULT,
+  rubricasMenuTxt: string = '',
 ): Promise<{ dados: any; tentativas: number; confianca: number }> {
   let tentativa = 0;
   let melhor: any = null;
   let melhorConfianca = -1;
-  const prompt = montarPromptCentroCusto(pr);
+  const prompt = montarPromptCentroCusto(pr, rubricasMenuTxt);
   while (tentativa < maxTentativas) {
     tentativa++;
     try {
@@ -338,6 +342,17 @@ Deno.serve(async (req) => {
     const { accessToken } = await base44.asServiceRole.connectors.getConnection('googledrive');
     const token = accessToken;
 
+    // ── Carrega rubricas para o menu da IA (id + nome + centro_custo) ─────
+    let rubricasMenuTxt = '';
+    try {
+      const rs: any[] = await base44.asServiceRole.entities.Rubrica.list('', 2000);
+      rubricasMenuTxt = (rs || [])
+        .filter((r) => r?.id && (r.rubrica || r.nome || r.descricao))
+        .slice(0, 250)
+        .map((r) => `${r.id}|${String(r.rubrica || r.nome || r.descricao || '').trim()}|${String(r.centro_custo || '-')}`)
+        .join(' || ');
+    } catch { /* segue sem menu */ }
+
     // ── Carrega PRs com link de NF Drive (PDF ou XML) ──────────────────────
     const prsTotais: any[] = [];
     let skipAcum = 0;
@@ -365,6 +380,7 @@ Deno.serve(async (req) => {
       divergentes_corrigidos: 0,
       divergentes_nao_corrigidos: 0,
       correcoes_centro_custo: 0,
+      correcoes_rubrica: 0,
       centro_custo_ok: 0,
       sem_arquivo: 0,
       erros: 0,
@@ -533,7 +549,7 @@ Deno.serve(async (req) => {
                   if (upCc?.file_url) iaFileUrl = upCc.file_url;
                 }
               }
-              const rCc = await reanalisarCentroCusto(base44, pr, iaFileUrl, confiancaMin, maxTentativas);
+              const rCc = await reanalisarCentroCusto(base44, pr, iaFileUrl, confiancaMin, maxTentativas, rubricasMenuTxt);
               cc = rCc.dados;
               tcc = rCc.tentativas;
               ccc = rCc.confianca;
@@ -545,12 +561,38 @@ Deno.serve(async (req) => {
             item.centro_custo_origem = regra ? 'regra_deterministica' : (cc ? 'ia' : 'nenhuma');
             const ccDivergente = !!(cc?.centro_custo_correto && cc.centro_custo_correto !== pr.centro_custo);
             item.divergencia_centro_custo = ccDivergente;
-            if (ccDivergente && ccc >= confiancaMin && !dryRun) {
-              await base44.asServiceRole.entities.PurchaseRequest.update(pr.id, {
-                centro_custo: cc.centro_custo_correto,
-              });
-              item.acao_cc = 'corrigido_centro_custo';
-              stats.correcoes_centro_custo++;
+            const rubCorreta = String(cc?.rubrica_id_correto || '').trim();
+            const rubValida = !!(rubCorreta && /^[a-f0-9]{24}$/i.test(rubCorreta) && rubCorreta !== (pr.rubrica_id || ''));
+            const deveAplicar = (ccDivergente || rubValida) && ccc >= confiancaMin && !dryRun;
+            if (deveAplicar) {
+              const updateCC: any = {};
+              if (ccDivergente) updateCC.centro_custo = cc.centro_custo_correto;
+              if (rubValida) {
+                updateCC.rubrica_id = rubCorreta;
+                updateCC.rubrica_ia_validada = true;
+                updateCC.rubrica_ia_score = ccc;
+                updateCC.rubrica_ia_justificativa = cc?.justificativa || 'Auditoria automatica - auditarAlinharNFCompras';
+                updateCC.rubrica_ia_divergente = false;
+                updateCC.rubrica_ia_corrigida_de = pr.rubrica_id || '';
+                try {
+                  const rub: any = await base44.asServiceRole.entities.Rubrica.get(rubCorreta);
+                  if (rub) {
+                    updateCC.rubrica_nome = rub.rubrica || rub.nome || '';
+                    if (rub.natureza_despesa) {
+                      updateCC.natureza_despesa = rub.natureza_despesa;
+                      updateCC.natureza_despesa_purchase = rub.natureza_despesa;
+                    }
+                  }
+                } catch { /* mantém apenas o id */ }
+                item.rubrica_corrigida_de = pr.rubrica_id || '';
+                item.rubrica_corrigida_para = rubCorreta;
+                stats.correcoes_rubrica = (stats.correcoes_rubrica || 0) + 1;
+              }
+              if (Object.keys(updateCC).length) {
+                await base44.asServiceRole.entities.PurchaseRequest.update(pr.id, updateCC);
+              }
+              item.acao_cc = rubValida ? 'corrigido_centro_custo_e_rubrica' : 'corrigido_centro_custo';
+              if (ccDivergente) stats.correcoes_centro_custo++;
             } else if (ccDivergente && ccc >= confiancaMin && dryRun) {
               item.acao_cc = 'divergente_simulado_cc';
             } else if (ccDivergente && ccc < confiancaMin) {
@@ -582,7 +624,7 @@ Deno.serve(async (req) => {
         status: stats.erros > 0 ? 'concluido' : 'success',
         total_files: stats.processados,
         files_copied: stats.divergentes_corrigidos,
-        details: `DryRun: ${dryRun} | Alinhados: ${stats.alinhados} | Corrigidos valor/data: ${stats.divergentes_corrigidos} | Pendentes revisão: ${stats.divergentes_nao_corrigidos} | Centro de custo corrigidos: ${stats.correcoes_centro_custo} | Centro de custo ok: ${stats.centro_custo_ok} | Sem arquivo: ${stats.sem_arquivo} | Erros: ${stats.erros}`,
+        details: `DryRun: ${dryRun} | Alinhados: ${stats.alinhados} | Corrigidos valor/data: ${stats.divergentes_corrigidos} | Pendentes revisão: ${stats.divergentes_nao_corrigidos} | Centro de custo corrigidos: ${stats.correcoes_centro_custo} | Rubricas corrigidas: ${stats.correcoes_rubrica || 0} | Centro de custo ok: ${stats.centro_custo_ok} | Sem arquivo: ${stats.sem_arquivo} | Erros: ${stats.erros}`,
         triggered_by: 'manual',
         processed_at: new Date().toISOString(),
         execution_time_ms: Date.now() - start,

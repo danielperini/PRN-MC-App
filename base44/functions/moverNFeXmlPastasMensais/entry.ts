@@ -91,6 +91,28 @@ function extrairMesAno(dataRaw: any): string {
   return `${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
 }
 
+// Extrai MM-YYYY do nome do arquivo (padrao "NF X - MM-YYYY - ...").
+// Mais confiavel que nf_data_emissao quando o banco foi poluido por IA.
+function extrairMesAnoArquivo(nomeRaw: any): string {
+  if (!nomeRaw) return '';
+  const s = String(nomeRaw);
+  const m = s.match(/\b(0[1-9]|1[0-2])-(20\d{2})\b/);
+  if (!m) return '';
+  return `${m[1]}-${m[2]}`;
+}
+
+// Escolhe o mes-ano prioritizando o filename quando o banco eh suspeito
+// (vazio, ano < 2024 ou ano divergente do filename por mais de 1 ano).
+function escolherMesAno(mesAnoDb: string, mesAnoArq: string): string {
+  if (!mesAnoArq) return mesAnoDb;
+  if (!mesAnoDb) return mesAnoArq;
+  const anoDb = Number(mesAnoDb.slice(3));
+  const anoArq = Number(mesAnoArq.slice(3));
+  if (anoDb < 2024) return mesAnoArq; // provavel alucinacao de IA
+  if (Math.abs(anoDb - anoArq) > 1) return mesAnoArq; // divergencia grande
+  return mesAnoDb;
+}
+
 async function getFileParents(token: string, fileId: string): Promise<string[]> {
   const r = await driveReq(
     token,
@@ -191,8 +213,16 @@ Deno.serve(async (req) => {
         const xmlUrl = pr.nf_xml_url || pr.nota_fiscal_xml_url || pr.xml_url || '';
         if (!pdfUrl && !xmlUrl) continue;
         const dataRef = pr.nf_data_emissao || pr.aprov_admin_data || pr.aprov_coord_data || pr.data_pagamento_efetivo || '';
-        const mesAno = extrairMesAno(dataRef);
+        const mesAnoDb = extrairMesAno(dataRef);
+        const mesAnoArq = extrairMesAnoArquivo(pr.arquivo_nome || '');
+        const mesAno = escolherMesAno(mesAnoDb, mesAnoArq);
         if (!mesAno) continue;
+        const conflito = !!(mesAnoArq && mesAnoDb && mesAno !== mesAnoDb);
+        const anoDb = mesAnoDb ? Number(mesAnoDb.slice(3)) : 0;
+        // Se a data do banco for suspeita (ano < 2024) e nao temos MM-YYYY do
+        // banco do arquivo, precisamos buscar o nome real no Drive para
+        // recalcular o mes-ano antes de mover.
+        const precisa_arquivo = !!(!mesAnoArq && anoDb > 0 && anoDb < 2024);
         candidatos.push({
           pr_id: pr.id,
           nf_numero: pr.nf_numero || '',
@@ -200,6 +230,10 @@ Deno.serve(async (req) => {
           pdf_url: pdfUrl,
           xml_url: xmlUrl,
           mes_ano: mesAno,
+          mes_ano_db: mesAnoDb,
+          mes_ano_arq: mesAnoArq,
+          conflito_data: conflito,
+          precisa_arquivo,
           data_emissao: pr.nf_data_emissao || '',
           arquivo_nome: pr.arquivo_nome || '',
         });
@@ -224,6 +258,7 @@ Deno.serve(async (req) => {
       ja_correto: 0,
       sem_fileid: 0,
       sem_mes_ano: 0,
+      conflitos_data_banco: 0,
       erros: 0,
     };
     const linhas: any[] = [];
@@ -234,10 +269,14 @@ Deno.serve(async (req) => {
         nf_numero: c.nf_numero,
         fornecedor: c.fornecedor,
         mes_ano: c.mes_ano,
+        mes_ano_db: c.mes_ano_db || '',
+        mes_ano_arq: c.mes_ano_arq || '',
+        conflito_data: !!c.conflito_data,
         pdf_status: 'pulado',
         xml_status: 'pulado',
         erro: '',
       };
+      if (c.conflito_data) stats.conflitos_data_banco++;
 
       // ── PDF ──────────────────────────────────────────────────────────────
       let pdfFileId: string | null = null;
@@ -249,6 +288,25 @@ Deno.serve(async (req) => {
         }
       } else {
         linha.pdf_status = 'sem_pdf';
+      }
+
+      // ── Recalcular mes-ano a partir do nome real no Drive quando o banco
+      //    estiver suspeito (ano < 2024, provavel alucinacao de IA) ──────
+      if (pdfFileId && c.precisa_arquivo) {
+        const nomeReal = await getFileName(token, pdfFileId).catch(() => '');
+        if (nomeReal) {
+          c.arquivo_nome = c.arquivo_nome || nomeReal;
+          const novoMesAno = extrairMesAnoArquivo(nomeReal);
+          if (novoMesAno) {
+            c.mes_ano = novoMesAno;
+            linha.mes_ano = novoMesAno;
+            linha.mes_ano_arq = novoMesAno;
+            if (c.mes_ano_db && c.mes_ano_db !== novoMesAno) {
+              linha.conflito_data = true;
+              stats.conflitos_data_banco++;
+            }
+          }
+        }
       }
 
       // ── SECUNDÁRIO (MOVER) ────────────────────────────────────────────────
@@ -367,7 +425,7 @@ Deno.serve(async (req) => {
         status: stats.erros > 0 ? 'concluido' : 'success',
         total_files: stats.processados,
         files_copied: stats.movidos_pdf + stats.copiados_pdf_primario + stats.copiados_xml,
-        details: `PDFs movidos(sec): ${stats.movidos_pdf} | PDFs copiados(pri): ${stats.copiados_pdf_primario} | XMLs copiados: ${stats.copiados_xml} | Já corretos: ${stats.ja_correto} | Sem file_id: ${stats.sem_fileid} | Erros: ${stats.erros}`,
+        details: `PDFs movidos(sec): ${stats.movidos_pdf} | PDFs copiados(pri): ${stats.copiados_pdf_primario} | XMLs copiados: ${stats.copiados_xml} | Já corretos: ${stats.ja_correto} | Sem file_id: ${stats.sem_fileid} | Conflitos data banco: ${stats.conflitos_data_banco} | Erros: ${stats.erros}`,
         triggered_by: 'manual',
         processed_at: new Date().toISOString(),
         execution_time_ms: Date.now() - start,
