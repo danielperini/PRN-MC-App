@@ -279,6 +279,28 @@
     "rubrica_debitada_valor": {
       "type": "number"
     },
+    "rubrica_ia_validada": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se true, a rubrica desta solicita\u00e7\u00e3o foi validada pela IA ( concordou ou corrigiu)"
+    },
+    "rubrica_ia_corrigida_de": {
+      "type": "string",
+      "description": "ID da rubrica original antes da corre\u00e7\u00e3o autom\u00e1tica pela IA (vazia se n\u00e3o houve corre\u00e7\u00e3o)"
+    },
+    "rubrica_ia_score": {
+      "type": "number",
+      "description": "Score de confian\u00e7a (0-100) da valida\u00e7\u00e3o IA da rubrica"
+    },
+    "rubrica_ia_divergente": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se true, a IA sugeriu rubrica divergente com score < 70 \u2014 pendente de revis\u00e3o manual"
+    },
+    "rubrica_ia_justificativa": {
+      "type": "string",
+      "description": "Justificativa retornada pela IA para a rubrica sugerida/validada"
+    },
     "financeiro_lancado_em": {
       "type": "string"
     },

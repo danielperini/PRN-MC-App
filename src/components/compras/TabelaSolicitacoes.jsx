@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { Pencil, Trash2, CheckCircle2, RotateCcw, XCircle, Bell, Loader2, LinkIcon, ExternalLink, FileText, FileCode2, HardDrive, ChevronUp, ChevronDown, AlertTriangle } from 'lucide-react';
 import { normalizeStatus } from '@/lib/normalizeStatus';
 import { isFinanciallyActiveStatus } from '@/utils/finance/financeiroUtils';
+import RubricaIaBadge from './RubricaIaBadge';
 
 const STATUS_CONFIG = {
   RASCUNHO: { label: 'Rascunho', color: 'bg-gray-100 text-gray-700' },
@@ -472,6 +473,9 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
                   {rubricaGrupo && <p className="text-[11px] text-gray-400">{rubricaGrupo}</p>}
                   <p className="text-xs text-gray-800">{rubricaNome}</p>
                 </Tooltip>
+                <div className="mt-1">
+                  <RubricaIaBadge purchase={p} rubricaById={rubricaById} />
+                </div>
               </td>
 
               {/* Status */}

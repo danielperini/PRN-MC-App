@@ -11,6 +11,7 @@ import {
 import { toast } from 'sonner';
 import PurchaseTimeline from './PurchaseTimeline';
 import PagarSolicitacaoDialog from './PagarSolicitacaoDialog';
+import RubricaIaBadge from './RubricaIaBadge';
 
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return 0;
@@ -152,6 +153,15 @@ export default function PurchaseCard({
               Parcela {teamPayment.numero_parcela} • {teamPayment.mes_referencia}/{teamPayment.ano}
               <br />
               Previsto: {formatBRL(teamPayment.valor_parcela_previsto)}
+            </div>
+          )}
+
+          {budgetLine && (
+            <div className="mt-1.5">
+              <span className="text-[11px] text-muted-foreground">{budgetLine.grupo ? `${budgetLine.grupo} › ` : ''}{budgetLine.rubrica || budgetLine.nome || '—'}</span>
+              <div className="mt-1">
+                <RubricaIaBadge purchase={purchase} rubricaById={budgetLines ? Object.fromEntries(budgetLines.map((b) => [b.id, b])) : {}} />
+              </div>
             </div>
           )}
 
