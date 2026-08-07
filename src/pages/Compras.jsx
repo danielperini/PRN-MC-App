@@ -72,6 +72,7 @@ import BackupDriveTab from '@/components/compras/BackupDriveTab';
 import DashboardCompletoIA from '@/components/compras/DashboardCompletoIA';
 import PainelAuditoriaIASolicitacoes from '@/components/compras/PainelAuditoriaIASolicitacoes';
 import PainelSincronizacaoDriveNFs from '@/components/compras/PainelSincronizacaoDriveNFs';
+import TratarSolicitacoesButton from '@/components/compras/TratarSolicitacoesButton';
 import { isCoordGeral } from '@/components/auth/permissions';
 
 const STATUS_CONFIG = {
@@ -1354,6 +1355,9 @@ function ComprasInner() {
                   <Sparkles className="h-3.5 w-3.5" />
                   Dashboard Completo (IA)
                 </button>
+              )}
+              {isCoordGeral(currentUser) && (
+                <TratarSolicitacoesButton onDone={refreshFinanceiroCompleto} />
               )}
             </div>
 
