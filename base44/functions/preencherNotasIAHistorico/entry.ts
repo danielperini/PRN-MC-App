@@ -66,6 +66,25 @@ function limpaCnpj(s: any): string {
   if (/^(\d)\1+$/.test(d)) return "";
   return d;
 }
+const EMITENTE_FAKE_TOKENS = [
+  "museus centro","museu centro","museus bh","viaduto","contador",
+  "transporte","producao mis","producao mumo","producao mhab",
+  "educador mis","educador mumo","educador mhab",
+  "assistente administrativo","designer mes","coordenacao",
+  "mes 19","mes 28","mes 20","atua\u00e7\u00e3o geral","atuacao geral",
+];
+function emitenteConfiavel(s: any): boolean {
+  const n = norm(s);
+  if (!n || n.length < 5) return false;
+  for (const t of EMITENTE_FAKE_TOKENS) {
+    if (n.includes(t)) return false;
+  }
+  // descarta "nome proprio" obvio (so nome/sobrenome, sem LTDA/ME/EPP/etc)
+  if (!/\b(ltda|me|epp|eireli|ss|cpf|cnpj)\b/.test(n) && n.split(" ").length < 4) {
+    // pode ser PF ok (ex.: "MAR DE MINAS FRETAMENTO E TURISMO LTDA") -> nao rejeita
+  }
+  return true;
+}
 function limpaNumero(s: any): string {
   const d = String(s || "").replace(/\D/g, "");
   if (d.length < 3) return "";
