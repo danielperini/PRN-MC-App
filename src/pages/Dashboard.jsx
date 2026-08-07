@@ -20,6 +20,7 @@ import ResumoAtividadesPorMeta from '../components/dashboard/ResumoAtividadesPor
 import MetasCumprimentoPorMuseu from '../components/dashboard/MetasCumprimentoPorMuseu';
 import CumprimentoMetasFisicas from '../components/dashboard/CumprimentoMetasFisicas';
 import ResumoConsolidadoNoturnoMeta20 from '../components/dashboard/ResumoConsolidadoNoturnoMeta20';
+import PainelAuditoriaDashboard from '../components/dashboard/PainelAuditoriaDashboard';
 
 import DashboardProfissional from './DashboardProfissional.jsx';
 import DashboardPatrocinador from './DashboardPatrocinador';
@@ -132,6 +133,7 @@ function DashboardCoordenadorView({
         <SectionErrorBoundary title="Diariamente nos Museus"><DiariamenteNosMuseus /></SectionErrorBoundary>
         <SectionErrorBoundary title="Notícias"><NewsCarousel /></SectionErrorBoundary>
 
+        {isCoordenador && <PainelAuditoriaDashboard />}
         <SectionErrorBoundary title="Conformidade"><ComplianceStats currentMonth={currentMonth} currentYear={currentYear} /></SectionErrorBoundary>
         <SectionErrorBoundary title="Orçamento por Grupo"><BudgetByGroupCards rubricas={rubricas} isCoordenador={isCoordenador} /></SectionErrorBoundary>
 
