@@ -15,15 +15,15 @@ import { toast } from 'sonner';
 //  Fase 5 — Auto-aprovação direta (PurchaseRequest status=APROVADO_COORD)
 //  Fase 6 — XMLs órfãos arquivados (ocultar + status ARQUIVADO + log)
 //
-// Critério de confiança ≥90:
-//   - 50pts: rubrica_id + centro_custo + valor + CNPJ do fornecedor presentes
-//   - 40pts: ia_historico_score ≥90 OU resultado_ia sem inconsistências
-//   - 10pts: XML vinculado
-// Score ≥90 → elegível para auto-aprovação.
+// Critério de confiança ≥70:
+//   - 60pts: rubrica_id + centro_custo + valor + CNPJ do fornecedor presentes (campos fiscais completos)
+//   - 30pts: ia_historico_score ≥70 OU resultado_ia sem inconsistências
+//   - 10pts: XML vinculado (bônus, não obrigatório)
+// Score ≥70 → auto-envio direto para solicitação (PurchaseRequest). XML não é exigido.
 // =====================================================================
 
 const THRESHOLD_VINCULO = 85;
-const THRESHOLD_CONFIANCA = 90;
+const THRESHOLD_CONFIANCA = 70;
 const LOTE_IA = 20;
 
 const COORD_GERAL_EMAILS_SET = new Set([
@@ -114,30 +114,30 @@ function calcularScoreConfianca(intake) {
   const ia = intake?.resultado_ia || {};
   let score = 0;
 
-  // 50pts: campos obrigatórios presentes
+  // 60pts: campos fiscais obrigatórios presentes (rubrica, centro de custo, valor, CNPJ)
   const rubrica_id = intake?.rubrica_id_sugerida || intake?.rubrica_id || ia.rubrica_id;
   const centro_custo = intake?.centro_custo || ia.centro_custo_sugerido;
   const valor = parseValorBR(ia.nf_valor_total || ia.valor || ia.valor_total || intake?.nf_valor_total || 0);
   const cnpj = onlyDigits(ia.nf_emitente_cpf_cnpj || ia.fornecedor_cpf_cnpj || intake?.nf_emitente_cpf_cnpj || '');
 
   const camposOk = !!(rubrica_id && centro_custo && valor > 0 && cnpj);
-  if (camposOk) score += 50;
+  if (camposOk) score += 60;
 
-  // 40pts: score IA histórico ≥90 OU sem inconsistências
+  // 30pts: score IA histórico ≥70 OU sem inconsistências nos campos extraídos
   const scoreIA = Number(ia.ia_historico_score || 0);
   const inconsistencias = Array.isArray(ia.inconsistencias) ? ia.inconsistencias : [];
   const semInconsistencias = inconsistencias.length === 0;
   const preenchidoHistorico = ia.preenchido_por_ia_historico === true;
 
-  if (scoreIA >= 90) {
-    score += 40;
+  if (scoreIA >= 70) {
+    score += 30;
   } else if (preenchidoHistorico && semInconsistencias) {
-    score += 40;
+    score += 30;
   } else if (semInconsistencias && camposOk) {
-    score += 20; // confiança parcial
+    score += 10; // confiança parcial — campos extraídos sem conflitos
   }
 
-  // 10pts: XML vinculado
+  // 10pts: XML vinculado (bônus, não obrigatório)
   if (intake?.nf_xml_intake_id) score += 10;
 
   return score;
@@ -314,7 +314,7 @@ export default function useAutoProcessarFilaCompleta({
           status: 'APROVADO_COORD',
           aprov_coord_nome: 'Sistema IA (auto-aprovação)',
           aprov_coord_data: new Date().toISOString().slice(0, 10),
-          aprov_coord_comentario: `Auto-aprovada em segundo plano (score ${score}/100). Xml: ${intake.nf_xml_intake_id ? 'vinculado' : 'sem XML'}.`,
+          aprov_coord_comentario: `Auto-aprovada em segundo plano (score ${score}/100, campos fiscais completos). Xml: ${intake.nf_xml_intake_id ? 'vinculado' : 'sem XML'}.`,
           origem: 'EntradaUnica',
           tipo_origem: 'auto_aprovacao_ia',
           intake_id: intake.id,
@@ -330,7 +330,7 @@ export default function useAutoProcessarFilaCompleta({
           file_name: fileName,
           file_url: intake.arquivo_original_url || '',
           file_type: intake.mime_type || 'application/pdf',
-          description: 'Entrada Única — auto-aprovação (confiança ≥90%)',
+          description: 'Entrada Única — auto-aprovação (campos fiscais completos, score ≥70)',
           nf_tipo_documento: 'pdf_nf',
           nf_numero: ia.nf_numero || intake.nf_numero || '',
           nf_valor_total: valor,
