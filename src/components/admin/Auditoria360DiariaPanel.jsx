@@ -68,8 +68,9 @@ export default function Auditoria360DiariaPanel() {
             Auditoria 360° Diária
           </h2>
           <p className="text-sm text-gray-700 mt-1">
-            Supervisão ativa automática (03h00 BRT) que percorre cards de metas, totalizações financeiras de rubricas
-            e relatórios mensais, aplicando correções determinísticas e encaminhando itens ambíguos à Sala de Espera.
+            Supervisão ativa automática (03h00 BRT) que percorre 6 superfícies — metas, totalizações financeiras,
+            relatórios mensais, programações, atividades e contratos — aplicando correções determinísticas e
+            encaminhando itens ambíguos ou inconsistentes à Sala de Espera.
           </p>
         </div>
         {badge && (
@@ -166,6 +167,40 @@ function ResumoExecucao({ report }) {
             `Metas sem código: ${f.relatorios?.metas_sem_codigo ?? 0}`,
             `Sem público geral: ${f.relatorios?.sem_publico_geral ?? 0}`,
             `Sem META: ${f.relatorios?.sem_meta_em_mes_obrigatorio ?? 0}`,
+          ]}
+        />
+        <BlocoFase
+          titulo="Fase 4 — Programações"
+          linhas={[
+            `Analisadas: ${f.programacoes?.analisadas ?? 0}`,
+            `Corrigidas: ${f.programacoes?.corrigidas ?? 0}`,
+            `Sem museu: ${f.programacoes?.sem_museu ?? 0}`,
+            `Sem data: ${f.programacoes?.sem_data ?? 0}`,
+            `Sem local: ${f.programacoes?.sem_local ?? 0}`,
+            `Sala de Espera: ${f.programacoes?.encaminhadas_sala_espera ?? 0}`,
+          ]}
+        />
+        <BlocoFase
+          titulo="Fase 5 — Atividades"
+          linhas={[
+            `Analisadas: ${f.atividades?.analisadas ?? 0}`,
+            `Público corrigido: ${f.atividades?.publico_corrigido ?? 0}`,
+            `Sem classificação: ${f.atividades?.sem_classificacao ?? 0}`,
+            `Meta código inválido: ${f.atividades?.meta_codigo_invalido ?? 0}`,
+            `Sem programação vínc.: ${f.atividades?.sem_programacao_vinculada ?? 0}`,
+            `Sala de Espera: ${f.atividades?.encaminhadas_sala_espera ?? 0}`,
+          ]}
+        />
+        <BlocoFase
+          titulo="Fase 6 — Contratos"
+          linhas={[
+            `Analisados: ${f.contratos?.analisados ?? 0}`,
+            `Parcela recalculada: ${f.contratos?.valor_parcela_recalculado ?? 0}`,
+            `Sem contrato: ${f.contratos?.sem_contrato ?? 0}`,
+            `Vencido: ${f.contratos?.vencido ?? 0}`,
+            `Encerrado+ativo: ${f.contratos?.encerrado_ativo ?? 0}`,
+            `Sem fornecedor: ${f.contratos?.sem_fornecedor ?? 0}`,
+            `Sala de Espera: ${f.contratos?.encaminhadas_sala_espera ?? 0}`,
           ]}
         />
       </div>

@@ -115,6 +115,9 @@ Deno.serve(async (req) => {
         metas: { analisadas: 0, corrigidas: 0, encaminhadas_sala_espera: 0, sem_rubricas: 0 },
         financeiro: { rubricas_recalculadas: 0, sem_rubrica_com_valor: 0, duplicatas_corrigidas: 0, encaminhadas_sala_espera: 0 },
         relatorios: { analisados: 0, publico_corrigido: 0, metas_sem_codigo: 0, sem_publico_geral: 0, sem_meta_em_mes_obrigatorio: 0 },
+        programacoes: { analisadas: 0, corrigidas: 0, sem_museu: 0, sem_data: 0, sem_local: 0, encaminhadas_sala_espera: 0 },
+        atividades: { analisadas: 0, publico_corrigido: 0, sem_classificacao: 0, meta_codigo_invalido: 0, sem_programacao_vinculada: 0, encaminhadas_sala_espera: 0 },
+        contratos: { analisados: 0, valor_parcela_recalculado: 0, sem_contrato: 0, vencido: 0, encerrado_ativo: 0, sem_fornecedor: 0, encaminhadas_sala_espera: 0 },
       },
       correcoes: [] as any[],
       encaminhamentos: [] as any[],
@@ -312,6 +315,7 @@ Deno.serve(async (req) => {
     const reportIdsSet = new Set(processar.map((r: any) => r.id));
     const atividadesReport = allActivities.filter((a: any) => reportIdsSet.has(a.report_id));
     const pendentesSugestaoMeta: any[] = [];
+    const publicoCorrigidoFase3 = new Set<string>();
 
     for (const rep of processar) {
       const atvs = atividadesReport.filter((a: any) => a.report_id === rep.id);
@@ -327,6 +331,7 @@ Deno.serve(async (req) => {
           try {
             await base44.asServiceRole.entities.Activity.update(a.id, { publico_total: esperado });
             report.fases.relatorios.publico_corrigido++;
+            publicoCorrigidoFase3.add(a.id);
             report.correcoes.push({
               fase: 'relatorios',
               activity_id: a.id,
@@ -401,6 +406,244 @@ Deno.serve(async (req) => {
       } catch (e: any) {
         report.erros.push(`Fase3 IA sugestão meta: ${e.message}`);
       }
+    }
+
+    // ===================== FASE 4 — PROGRAMAÇÕES =====================
+    const METAS_CODIGOS_VALIDOS = new Set(METAS_OFICIAIS.map((m) => m.numero));
+    const normalizeMetaCodigo = (c: any) => String(c || '').replace(/^MC[34]A[-\s]?/i, '').trim().toUpperCase();
+    try {
+      const programacoes = await base44.asServiceRole.entities.Programacao.list('-updated_date', 2000);
+      for (const p of programacoes) {
+        if (p.ativo === false) continue;
+        report.fases.programacoes.analisadas++;
+        // (a) determinístico: status vazio -> CONFIRMADA
+        if (!p.status) {
+          try {
+            await base44.asServiceRole.entities.Programacao.update(p.id, { status: 'CONFIRMADA' });
+            report.fases.programacoes.corrigidas++;
+            report.correcoes.push({ fase: 'programacoes', programacao_id: p.id, acao: 'status_vazio_confirma' });
+          } catch (e: any) {
+            report.erros.push(`Fase4 status ${p.id}: ${e.message}`);
+          }
+        }
+        // (b) determinístico: month_key ausente derivado de data_inicio
+        if (!p.month_key && p.data_inicio) {
+          const d = new Date(p.data_inicio);
+          if (!isNaN(d.getTime())) {
+            const mk = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            try {
+              await base44.asServiceRole.entities.Programacao.update(p.id, { month_key: mk });
+              report.fases.programacoes.corrigidas++;
+              report.correcoes.push({ fase: 'programacoes', programacao_id: p.id, acao: 'month_key_calculado', month_key: mk });
+            } catch (e: any) {
+              report.erros.push(`Fase4 month_key ${p.id}: ${e.message}`);
+            }
+          }
+        }
+        // (c) ambíguo: sem museu identificado
+        if (!p.museu) {
+          const ok = await criarSalaEspera(base44, {
+            fase: 'programacoes',
+            problema: `Programação ${p.id} (${p.titulo || 'sem título'}) sem museu identificado.`,
+            entidade_id: p.id,
+            entidade_tipo: 'Programacao',
+          });
+          if (ok) { report.fases.programacoes.sem_museu++; report.fases.programacoes.encaminhadas_sala_espera++; report.encaminhamentos.push({ fase: 'programacoes', programacao_id: p.id, motivo: 'sem_museu' }); }
+        }
+        // (d) PLANEJADA/CONFIRMADA/EM_ANDAMENTO sem data
+        if (['PLANEJADA', 'CONFIRMADA', 'EM_ANDAMENTO'].includes(p.status || '')) {
+          if (!p.data && !p.data_inicio) {
+            const ok = await criarSalaEspera(base44, {
+              fase: 'programacoes',
+              problema: `Programação ${p.id} (${p.status}) sem data definida.`,
+              entidade_id: p.id,
+              entidade_tipo: 'Programacao',
+            });
+            if (ok) { report.fases.programacoes.sem_data++; report.fases.programacoes.encaminhadas_sala_espera++; report.encaminhamentos.push({ fase: 'programacoes', programacao_id: p.id, motivo: 'sem_data' }); }
+          }
+          if (p.status === 'CONFIRMADA' && !p.local) {
+            const ok = await criarSalaEspera(base44, {
+              fase: 'programacoes',
+              problema: `Programação ${p.id} CONFIRMADA sem local definido.`,
+              entidade_id: p.id,
+              entidade_tipo: 'Programacao',
+            });
+            if (ok) { report.fases.programacoes.sem_local++; report.fases.programacoes.encaminhadas_sala_espera++; report.encaminhamentos.push({ fase: 'programacoes', programacao_id: p.id, motivo: 'sem_local' }); }
+          }
+        }
+      }
+    } catch (e: any) {
+      report.erros.push(`Fase4: ${e.message}`);
+    }
+
+    // ===================== FASE 5 — ATIVIDADES =====================
+    for (const a of allActivities) {
+      report.fases.atividades.analisadas++;
+      // (a) ambíguo: sem classificacao
+      if (!a.classificacao) {
+        const ok = await criarSalaEspera(base44, {
+          fase: 'atividades',
+          problema: `Activity ${a.id} (${a.titulo || 'sem título'}) sem classificacao (META/ROTINA/EXTRA).`,
+          entidade_id: a.id,
+          entidade_tipo: 'Activity',
+        });
+        if (ok) { report.fases.atividades.sem_classificacao++; report.fases.atividades.encaminhadas_sala_espera++; report.encaminhamentos.push({ fase: 'atividades', activity_id: a.id, motivo: 'sem_classificacao' }); }
+      }
+      // (b) ambíguo: META com meta_codigo inválido
+      if (a.classificacao === 'META' && a.meta_codigo && !METAS_CODIGOS_VALIDOS.has(normalizeMetaCodigo(a.meta_codigo)) && !METAS_CODIGOS_VALIDOS.has(String(a.meta_codigo).toUpperCase())) {
+        const ok = await criarSalaEspera(base44, {
+          fase: 'atividades',
+          problema: `Activity ${a.id} META com meta_codigo '${a.meta_codigo}' não existe nas metas oficiais.`,
+          entidade_id: a.id,
+          entidade_tipo: 'Activity',
+          sugestao_ia: 'Revisar meta_codigo contra lista oficial.',
+        });
+        if (ok) { report.fases.atividades.meta_codigo_invalido++; report.fases.atividades.encaminhadas_sala_espera++; report.encaminhamentos.push({ fase: 'atividades', activity_id: a.id, motivo: 'meta_codigo_invalido' }); }
+      }
+      // (c) ambíguo: eh_programacao sem programacao_id
+      if (a.eh_programacao && !a.programacao_id) {
+        const ok = await criarSalaEspera(base44, {
+          fase: 'atividades',
+          problema: `Activity ${a.id} marcada como programação mas sem programacao_id vinculado.`,
+          entidade_id: a.id,
+          entidade_tipo: 'Activity',
+        });
+        if (ok) { report.fases.atividades.sem_programacao_vinculada++; report.fases.atividades.encaminhadas_sala_espera++; report.encaminhamentos.push({ fase: 'atividades', activity_id: a.id, motivo: 'sem_programacao_vinculada' }); }
+      }
+      // (d) determinístico: publico_total para atividades não corrigidas na fase 3
+      if (!publicoCorrigidoFase3.has(a.id)) {
+        const est = Number(a.publico_estimado || 0);
+        const rept = Number(a.quantas_repeticoes || 1);
+        const esperado = Math.round(est * rept);
+        const atual = Number(a.publico_total || 0);
+        if (esperado > 0 && Math.abs(atual - esperado) > 0) {
+          try {
+            await base44.asServiceRole.entities.Activity.update(a.id, { publico_total: esperado });
+            report.fases.atividades.publico_corrigido++;
+            report.correcoes.push({ fase: 'atividades', activity_id: a.id, publico_anterior: atual, publico_novo: esperado });
+          } catch (e: any) {
+            report.erros.push(`Fase5 publico ${a.id}: ${e.message}`);
+          }
+        }
+      }
+    }
+
+    // (e) atividades embutidas em Report.atividades (array) — principais neste projeto
+    for (const rep of reportsTodos) {
+      const atvs = Array.isArray(rep.atividades) ? rep.atividades : [];
+      for (let idx = 0; idx < atvs.length; idx++) {
+        const a = atvs[idx] || {};
+        report.fases.atividades.analisadas++;
+        const refId = `${rep.id}::atividades::${idx}`;
+        if (!a.classificacao) {
+          const ok = await criarSalaEspera(base44, {
+            fase: 'atividades',
+            problema: `Atividade embutida em Relatório ${rep.id} [índice ${idx}] (${a.titulo || 'sem título'}) sem classificacao (META/ROTINA/EXTRA).`,
+            entidade_id: refId,
+            entidade_tipo: 'Report.atividades',
+          });
+          if (ok) { report.fases.atividades.sem_classificacao++; report.fases.atividades.encaminhadas_sala_espera++; report.encaminhamentos.push({ fase: 'atividades', report_id: rep.id, idx, motivo: 'sem_classificacao' }); }
+        }
+        if (a.classificacao === 'META' && a.meta_codigo && !METAS_CODIGOS_VALIDOS.has(normalizeMetaCodigo(a.meta_codigo)) && !METAS_CODIGOS_VALIDOS.has(String(a.meta_codigo).toUpperCase())) {
+          const ok = await criarSalaEspera(base44, {
+            fase: 'atividades',
+            problema: `Atividade embutida em Relatório ${rep.id} [índice ${idx}] META com meta_codigo '${a.meta_codigo}' não existe nas metas oficiais.`,
+            entidade_id: refId,
+            entidade_tipo: 'Report.atividades',
+            sugestao_ia: 'Revisar meta_codigo contra lista oficial.',
+          });
+          if (ok) { report.fases.atividades.meta_codigo_invalido++; report.fases.atividades.encaminhadas_sala_espera++; report.encaminhamentos.push({ fase: 'atividades', report_id: rep.id, idx, motivo: 'meta_codigo_invalido' }); }
+        }
+        if (a.eh_programacao && !a.programacao_id) {
+          const ok = await criarSalaEspera(base44, {
+            fase: 'atividades',
+            problema: `Atividade embutida em Relatório ${rep.id} [índice ${idx}] marcada como programação mas sem programacao_id vinculado.`,
+            entidade_id: refId,
+            entidade_tipo: 'Report.atividades',
+          });
+          if (ok) { report.fases.atividades.sem_programacao_vinculada++; report.fases.atividades.encaminhadas_sala_espera++; report.encaminhamentos.push({ fase: 'atividades', report_id: rep.id, idx, motivo: 'sem_programacao_vinculada' }); }
+        }
+      }
+    }
+
+    // ===================== FASE 6 — CONTRATOS =====================
+    try {
+      const teamMembers = await base44.asServiceRole.entities.TeamMember.list('-created_date', 2000);
+      const hoje = new Date();
+      for (const m of teamMembers) {
+        const inativo = m.status === 'INATIVO';
+        const temContrato = Boolean(m.status_contrato || m.contrato_url || m.numero_contrato);
+        if (inativo && !temContrato) continue;
+        report.fases.contratos.analisados++;
+        // (a) determinístico: ATIVO sem status_contrato mas com contrato -> VIGENTE
+        if (!inativo && !m.status_contrato && temContrato) {
+          try {
+            await base44.asServiceRole.entities.TeamMember.update(m.id, { status_contrato: 'VIGENTE' });
+            report.correcoes.push({ fase: 'contratos', team_member_id: m.id, acao: 'status_contrato_vigente' });
+          } catch (e: any) {
+            report.erros.push(`Fase6 status ${m.id}: ${e.message}`);
+          }
+        }
+        // (b) determinístico: valor_parcela ausente recalculado
+        if ((!m.valor_parcela || Number(m.valor_parcela) === 0) && m.valor_total && m.numero_parcelas) {
+          const parc = Number(m.valor_total) / Number(m.numero_parcelas);
+          if (parc > 0 && isFinite(parc)) {
+            try {
+              await base44.asServiceRole.entities.TeamMember.update(m.id, { valor_parcela: Number(parc.toFixed(2)) });
+              report.fases.contratos.valor_parcela_recalculado++;
+              report.correcoes.push({ fase: 'contratos', team_member_id: m.id, acao: 'valor_parcela_recalc', valor_parcela: parc });
+            } catch (e: any) {
+              report.erros.push(`Fase6 parcela ${m.id}: ${e.message}`);
+            }
+          }
+        }
+        // (c) ambíguo: ativo sem qualquer contrato
+        if (!inativo && !temContrato) {
+          const ok = await criarSalaEspera(base44, {
+            fase: 'contratos',
+            problema: `TeamMember ${m.id} (${m.user_name || m.user_email}) ativo sem contrato (sem numero_contrato, contrato_url ou status_contrato).`,
+            entidade_id: m.id,
+            entidade_tipo: 'TeamMember',
+          });
+          if (ok) { report.fases.contratos.sem_contrato++; report.fases.contratos.encaminhadas_sala_espera++; report.encaminhamentos.push({ fase: 'contratos', team_member_id: m.id, motivo: 'sem_contrato' }); }
+        }
+        // (d) ambíguo: ativo com status_contrato ENCERRADO
+        if (!inativo && m.status_contrato === 'ENCERRADO') {
+          const ok = await criarSalaEspera(base44, {
+            fase: 'contratos',
+            problema: `TeamMember ${m.id} (${m.user_name || m.user_email}) ativo mas com status_contrato ENCERRADO.`,
+            entidade_id: m.id,
+            entidade_tipo: 'TeamMember',
+          });
+          if (ok) { report.fases.contratos.encerrado_ativo++; report.fases.contratos.encaminhadas_sala_espera++; report.encaminhamentos.push({ fase: 'contratos', team_member_id: m.id, motivo: 'encerrado_ativo' }); }
+        }
+        // (e) ambíguo: VIGENTE com data_fim_contrato vencida
+        if (m.status_contrato === 'VIGENTE' && m.data_fim_contrato) {
+          const fim = new Date(m.data_fim_contrato);
+          if (!isNaN(fim.getTime()) && fim < hoje) {
+            const ok = await criarSalaEspera(base44, {
+              fase: 'contratos',
+              problema: `TeamMember ${m.id} (${m.user_name || m.user_email}) VIGENTE com contrato vencido em ${m.data_fim_contrato}.`,
+              entidade_id: m.id,
+              entidade_tipo: 'TeamMember',
+              sugestao_ia: 'Renovar contrato ou marcar status_contrato=ENCERRADO.',
+            });
+            if (ok) { report.fases.contratos.vencido++; report.fases.contratos.encaminhadas_sala_espera++; report.encaminhamentos.push({ fase: 'contratos', team_member_id: m.id, motivo: 'vencido' }); }
+          }
+        }
+        // (f) ambíguo: contrato sem fornecedor_id vinculado
+        if (temContrato && !m.fornecedor_id) {
+          const ok = await criarSalaEspera(base44, {
+            fase: 'contratos',
+            problema: `TeamMember ${m.id} (${m.user_name || m.user_email}) com contrato mas sem fornecedor_id vinculado.`,
+            entidade_id: m.id,
+            entidade_tipo: 'TeamMember',
+          });
+          if (ok) { report.fases.contratos.sem_fornecedor++; report.fases.contratos.encaminhadas_sala_espera++; report.encaminhamentos.push({ fase: 'contratos', team_member_id: m.id, motivo: 'sem_fornecedor' }); }
+        }
+      }
+    } catch (e: any) {
+      report.erros.push(`Fase6: ${e.message}`);
     }
 
     // ===================== FINALIZAR LOG =====================
