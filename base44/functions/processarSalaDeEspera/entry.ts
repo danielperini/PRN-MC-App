@@ -686,71 +686,214 @@ async function verificarDuplicataIntake(base44, intake) {
   return { duplicata: false };
 }
 
-// ── Pipeline: renomear NF para padrão oficial + mover para pasta mensal (backup) ─
+// ── Pipeline: resolver nome oficial (metadata + histórico + IA leve) ──────────
 
+// Retorna o nome oficial esperado para o arquivo no Drive.
+// Estratégia:
+//   1. buildNomeOficialLocal a partir dos metadados do intake
+//   2. Se campos chave ausentes (degradado): extrai do nome do arquivo original
+//   3. Se ainda degradado: busca histórico no banco (DocumentIntake aprovado
+//      com mesmo fornecedor_cpf_cnpj que já tem file_name_final válido) e copia
+//      nf_numero, fornecedor_nome e nf_valor_total do seu file_name_final
+//   4. Se ainda degradado: chama IA leve (invokeGpt) com nome+metadata p/ inferir
+async function resolverNomeOficial(base44, intake, tipo) {
+  const tipoMarker = tipo === 'XML' ? 'XML' : 'NF';
+  let nomeBase = buildNomeOficialLocal(intake, tipo);
+  const ehDegradado = (n) => /\bSN\b/.test(n) || /\bFORNECEDOR\b/.test(n) || /R\$ 0,00/.test(n);
+  if (!ehDegradado(nomeBase)) return nomeBase;
+
+  // 2. Extrair do nome original do arquivo (padrão NF XXX Despesa - FORN - MUSEUS CENTRO - R$ YY,YY.ext)
+  const fromName = extrairDoNomeArquivo(intake.file_name_original) || {};
+  const mergedIntake = {
+    ...intake,
+    nf_numero: safeStr(intake.nf_numero) || fromName.nf_numero || intake.nf_numero,
+    nf_valor_total: safeNum(intake.nf_valor_total) ?? fromName.nf_valor_total ?? intake.nf_valor_total,
+    nf_data_emissao: safeStr(intake.nf_data_emissao) || fromName.nf_data_emissao || intake.nf_data_emissao,
+  };
+  let nomeMerged = buildNomeOficialLocal(mergedIntake, tipo);
+  if (!ehDegradado(nomeMerged)) return nomeMerged;
+
+  // 3. Histórico: DocumentIntake aprovado, mesmo CNPJ, com file_name_final válido
+  const cnpj = safeStr(intake.fornecedor_cpf_cnpj || intake.nf_emitente_cpf_cnpj).replace(/\D/g, '');
+  if (cnpj) {
+    try {
+      const irmaos = await base44.asServiceRole.entities.DocumentIntake.filter(
+        { fornecedor_cpf_cnpj: cnpj, status_processamento: 'APROVADO' },
+        '-updated_date', 5, 0
+      ).catch(() => []);
+      for (const irmao of (irmaos || [])) {
+        const fname = safeStr(irmao.file_name_final);
+        if (!fname.startsWith(tipoMarker)) continue;
+        const m = fname.match(/^(?:NF|XML)\s+(\d+)\s+([^-]+?)\s+-\s+([^-]+?)\s+-\s+MUSEUS CENTRO\s+-\s+R\$\s*([\d.,]+)/);
+        if (!m) continue;
+        const histIntake = {
+          ...mergedIntake,
+          nf_numero: safeStr(mergedIntake.nf_numero) || m[1],
+          rubrica_nome_sugerida: mergedIntake.rubrica_nome_sugerida || m[2].trim(),
+          fornecedor_nome: safeStr(mergedIntake.fornecedor_nome) || m[3].trim(),
+          nf_valor_total: (safeNum(mergedIntake.nf_valor_total) ?? 0) ||
+            parseFloat(m[4].replace(/\./g, '').replace(',', '.')) || mergedIntake.nf_valor_total,
+        };
+        const nomeHist = buildNomeOficialLocal(histIntake, tipo);
+        if (!ehDegradado(nomeHist)) return nomeHist;
+      }
+    } catch { /* ignore */ }
+  }
+
+  // 4. IA leve — inferir nf_numero, fornecedor, valor a partir do nome do arquivo
+  try {
+    const prompt = `Você é um extrator de metadados de nota fiscal.
+A partir do nome original do arquivo abaixo, retorne apenas JSON com:
+{"nf_numero": "...", "fornecedor_nome": "...", "nf_valor_total": 0.00}
+- nf_numero: dígitos do número da NF (se houver "NF" seguido de número)
+- fornecedor_nome: nome do fornecedor após o hífen (se houver)
+- nf_valor_total: valor numérico em formato 0.00 (de "R$ X,YY" → X.YY)
+- Use null quando não for possível extrair
+Nome do arquivo: "${safeStr(intake.file_name_original)}"`;
+    const iaResp = await invokeLLM(base44, {
+      prompt,
+      response_json_schema: {
+        type: 'object',
+        properties: {
+          nf_numero: { type: 'string' },
+          fornecedor_nome: { type: 'string' },
+          nf_valor_total: { type: 'number' },
+        },
+      },
+    });
+    if (iaResp && typeof iaResp === 'object') {
+      const iaIntake = {
+        ...mergedIntake,
+        nf_numero: safeStr(mergedIntake.nf_numero) || safeStr(iaResp.nf_numero) || mergedIntake.nf_numero,
+        fornecedor_nome: safeStr(mergedIntake.fornecedor_nome) || safeStr(iaResp.fornecedor_nome) || mergedIntake.fornecedor_nome,
+        nf_valor_total: safeNum(mergedIntake.nf_valor_total) ?? safeNum(iaResp.nf_valor_total) ?? mergedIntake.nf_valor_total,
+      };
+      const nomeIA = buildNomeOficialLocal(iaIntake, tipo);
+      if (!ehDegradado(nomeIA)) return nomeIA;
+    }
+  } catch { /* ignore — fallback p/ nome degradado */ }
+
+  return nomeBase;
+}
+
+// ── Pipeline: renomear NF p/ padrão oficial + mover p/ pasta mensal (backup) ─
+// Garante: nome no Drive === nome oficial E arquivo está na pasta mensal MM-YYYY
+// Retorna flags driveNameConfirmed / parentalConfirmado para gate da fila de entrada.
 async function renomearEMoverParaBackup(token, base44, intake, folderCache) {
   const url = intake.nf_pdf_url || intake.nf_xml_url || intake.arquivo_original_url;
   const fileId = extrairDriveId(url);
-  if (!fileId) return { ok: false, motivo: 'sem_file_id_drive' };
+  if (!fileId) return { ok: false, motivo: 'sem_file_id_drive', nome: null };
 
   const tipo = intake.tipo_detectado === 'NOTA_FISCAL_XML' ? 'XML' : 'NF';
-  const nomeOficial = buildNomeOficialLocal(intake, tipo);
-  if (!nomeOficial) return { ok: false, motivo: 'nome_invalido' };
+  const nomeOficial = await resolverNomeOficial(base44, intake, tipo);
+  if (!nomeOficial) return { ok: false, motivo: 'nome_invalido', nome: null };
 
-  const jaTemNome = intake.file_name_final === nomeOficial;
+  const dataInfo = parseDataEmissao(intake.nf_data_emissao);
+  if (!dataInfo) return { ok: false, motivo: 'sem_data_emissao', nome: nomeOficial };
 
-  // 1. Renomear no Drive (idempotente se nome igual)
-  if (!jaTemNome) {
+  const mesFmt = String(dataInfo.mesIdx + 1).padStart(2, '0');
+  const nomePasta = `${mesFmt}-${dataInfo.ano}`;
+  let folderId;
+  try {
+    folderId = await getOrCreate(token, nomePasta, ROOT_NOTAS_FOLDER_ID, folderCache);
+  } catch (e) {
+    return { ok: false, motivo: `pasta_erro:${e.message}`, nome: nomeOficial };
+  }
+  if (!folderId) return { ok: false, motivo: 'pasta_nao_criada', nome: nomeOficial };
+
+  // 0. Pré-verificação — estado atual do arquivo no Drive (idempotência)
+  let nomeDrive = null, parentsDrive = [];
+  try {
+    const rGet = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}?fields=name,parents&supportsAllDrives=true`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (!rGet.ok) {
+      const dErr = await rGet.json().catch(() => ({}));
+      return { ok: false, motivo: `arquivo_inacessivel:${rGet.status}:${dErr.error?.message || ''}`, nome: nomeOficial };
+    }
+    const dGet = await rGet.json();
+    nomeDrive = dGet.name;
+    parentsDrive = dGet.parents || [];
+  } catch (e) {
+    return { ok: false, motivo: `get_erro:${e.message}`, nome: nomeOficial };
+  }
+
+  // 1. Renomear no Drive se o nome atual divergir do padrão oficial
+  if (nomeDrive !== nomeOficial) {
     try {
-      const rRename = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=name`, {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: nomeOficial }),
-      });
-      if (!rRename.ok) return { ok: false, motivo: `rename_falhou:${rRename.status}` };
-    } catch (e) {
-      return { ok: false, motivo: `rename_erro:${e.message}` };
-    }
-  }
-
-  // 2. Mover para pasta mensal (idempotente)
-  let moveOk = false;
-  if (intake.nf_data_emissao) {
-    const dataInfo = parseDataEmissao(intake.nf_data_emissao);
-    if (dataInfo) {
-      try {
-        const mesFmt = String(dataInfo.mesIdx + 1).padStart(2, '0');
-        const nomePasta = `${mesFmt}-${dataInfo.ano}`;
-        const folderId = await getOrCreate(token, nomePasta, ROOT_NOTAS_FOLDER_ID, folderCache);
-
-        const rGet = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=parents`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const dGet = rGet.ok ? await rGet.json() : {};
-        const currentParents = (dGet.parents || []).join(',');
-
-        const moveParams = new URLSearchParams();
-        moveParams.set('addParents', folderId);
-        if (currentParents && currentParents !== folderId) moveParams.set('removeParents', currentParents);
-        const rMove = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?${moveParams.toString()}`, {
+      const rRename = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${fileId}?fields=name&supportsAllDrives=true`,
+        {
           method: 'PATCH',
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        moveOk = rMove.ok;
-      } catch (e) {
-        // Movimentação falhou mas rename OK — segue
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: nomeOficial }),
+        },
+      );
+      if (!rRename.ok) {
+        const dRename = await rRename.json().catch(() => ({}));
+        return { ok: false, motivo: `rename_falhou:${rRename.status}:${dRename.error?.message || ''}`, nome: nomeOficial, driveName: nomeDrive };
       }
+    } catch (e) {
+      return { ok: false, motivo: `rename_erro:${e.message}`, nome: nomeOficial };
     }
   }
 
-  // 3. Persistir nome final no intake
-  if (!jaTemNome) {
+  // 2. Mover para pasta mensal se ainda não estiver lá
+  if (!parentsDrive.includes(folderId)) {
+    try {
+      const moveParams = new URLSearchParams();
+      moveParams.set('addParents', folderId);
+      const toRemove = (parentsDrive || []).join(',');
+      if (toRemove) moveParams.set('removeParents', toRemove);
+      const rMove = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${fileId}?${moveParams.toString()}&supportsAllDrives=true`,
+        { method: 'PATCH', headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (!rMove.ok) {
+        const dMove = await rMove.json().catch(() => ({}));
+        return { ok: false, motivo: `move_falhou:${rMove.status}:${dMove.error?.message || ''}`, nome: nomeOficial };
+      }
+    } catch (e) {
+      return { ok: false, motivo: `move_erro:${e.message}`, nome: nomeOficial };
+    }
+  }
+
+  // 3. Verificação final — GET p/ confirmar nome + parent contém pasta mensal
+  let nomeFinal = null, parentsFinal = [];
+  try {
+    const rVer = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}?fields=name,parents&supportsAllDrives=true`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (rVer.ok) {
+      const dVer = await rVer.json();
+      nomeFinal = dVer.name;
+      parentsFinal = dVer.parents || [];
+    }
+  } catch { /* ignore */ }
+
+  const driveNameConfirmed = nomeFinal === nomeOficial;
+  const parentalConfirmado = Array.isArray(parentsFinal) && parentsFinal.includes(folderId);
+
+  // 4. Persistir nome final no intake (DB) — nomeOficial é a verdade aqui
+  if (intake.file_name_final !== nomeOficial) {
     await base44.asServiceRole.entities.DocumentIntake.update(intake.id, {
       file_name_final: nomeOficial,
     }).catch(() => null);
+    intake.file_name_final = nomeOficial;
   }
 
-  return { ok: true, motivo: moveOk ? 'renomeado_e_movido' : 'renomeado_sem_move', nome: nomeOficial };
+  return {
+    ok: driveNameConfirmed && parentalConfirmado,
+    motivo: driveNameConfirmed && parentalConfirmado
+      ? 'renomeado_e_movido'
+      : `verificacao:${driveNameConfirmed ? 'nome_ok' : 'nome_diff'}:${parentalConfirmado ? 'parent_ok' : 'parent_diff'}`,
+    nome: nomeOficial,
+    driveNameConfirmed,
+    parentalConfirmado,
+    pasta: nomePasta,
+  };
 }
 
 // ── Processar um intake ──────────────────────────────────────────────────────
@@ -888,35 +1031,21 @@ async function processarIntake(base44, token, intake, folderCache, tentativasMap
 
   let backupConfirmado = true; // default p/ não-NF (foto/contrato: upload já é o backup)
 
-  // 6. NF (PDF/XML) → renomear + mover p/ pasta mensal de backup no Drive
+  // 6. NF (PDF/XML) → renomear p/ padrão oficial + mover p/ pasta mensal de backup
+  //     Verificação embutida: driveNameConfirmed (nome) + parentalConfirmado (pasta)
+  //     Só libera ocultar_entrada_unica se ambas as flags forem TRUE
   if (intake.tipo_detectado === 'NOTA_FISCAL_PDF' || intake.tipo_detectado === 'NOTA_FISCAL_XML') {
     try {
       const backupResult = await renomearEMoverParaBackup(token, base44, intake, folderCache);
       log.detalhes.push(`Backup: ${backupResult.motivo}${backupResult.nome ? ' → ' + backupResult.nome : ''}`);
       if (backupResult.nome) intake.file_name_final = backupResult.nome;
 
-      // 6b. Verificação explícita: confirmar que o arquivo está na pasta mensal de backup no Drive
-      backupConfirmado = false;
-      try {
-        const DriveApi = 'https://www.googleapis.com/drive/v3/files/';
-        const verifyUrl = `${DriveApi}${encodeURIComponent(intake.arquivo_original_url.split('id=').pop() || '')}?fields=parents,name,id&supportsAllDrives=true`;
-        const vResp = await fetch(verifyUrl, {
-          method: 'GET',
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (vResp.ok) {
-          const vData = await vResp.json();
-          const destFolderId = await resolverPastaNotasMensal(token, intake.nf_data_emissao || new Date().toISOString());
-          const parents = vData?.parents || [];
-          if (Array.isArray(parents) && parents.includes(destFolderId)) {
-            backupConfirmado = true;
-            log.detalhes.push('Backup Drive confirmado (file em pasta mensal)');
-          } else {
-            log.detalhes.push(`Backup Drive NÃO confirmado — parents esperados não incluem pasta mensal ${destFolderId}`);
-          }
-        }
-      } catch (eVerify) {
-        log.detalhes.push(`Verificação backup falhou: ${eVerify.message}`);
+      // Verificação automática — confirma arquivo na pasta mensal do Drive
+      backupConfirmado = !!(backupResult.ok && backupResult.driveNameConfirmed && backupResult.parentalConfirmado);
+      if (!backupConfirmado) {
+        log.detalhes.push(`Verificação Drive falhou: nome=${backupResult.driveNameConfirmed ? 'OK' : 'DIFF'}, parent=${backupResult.parentalConfirmado ? 'OK' : 'DIFF'}`);
+      } else {
+        log.detalhes.push(`Backup Drive confirmado (nome=${backupResult.driveNameConfirmed}, pasta=${backupResult.parentalConfirmado})`);
       }
     } catch (e) {
       log.detalhes.push(`AVISO backup rename/move: ${e.message}`);

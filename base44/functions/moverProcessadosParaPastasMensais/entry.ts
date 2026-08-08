@@ -120,6 +120,45 @@ async function getOrCreate(token, name, parentId, cache) {
   return id;
 }
 
+// ── Pipeline: resolver nome oficial (metadata + histórico + IA leve) ──────────
+// (Inlined por restrição de deploy — não há import de _shared)
+
+async function resolverNomeOficial(base44, intake, tipo) {
+  const tipoMarker = tipo === 'XML' ? 'XML' : 'NF';
+  let nomeBase = buildNomeOficialLocal(intake, tipo);
+  const ehDegradado = (n) => /\bSN\b/.test(n) || /\bFORNECEDOR\b/.test(n) || /R\$ 0,00/.test(n);
+  if (!ehDegradado(nomeBase)) return nomeBase;
+
+  // 2. Histórico — DocumentIntake aprovado, mesmo CNPJ, com file_name_final válido
+  const cnpj = safeStr(intake.fornecedor_cpf_cnpj || intake.nf_emitente_cpf_cnpj).replace(/\D/g, '');
+  if (cnpj) {
+    try {
+      const irmaos = await base44.asServiceRole.entities.DocumentIntake.filter(
+        { fornecedor_cpf_cnpj: cnpj, status_processamento: 'APROVADO' },
+        '-updated_date', 5, 0
+      ).catch(() => []);
+      for (const irmao of (irmaos || [])) {
+        const fname = safeStr(irmao.file_name_final);
+        if (!fname.startsWith(tipoMarker)) continue;
+        const m = fname.match(/^(?:NF|XML)\s+(\d+)\s+([^-]+?)\s+-\s+([^-]+?)\s+-\s+MUSEUS CENTRO\s+-\s+R\$\s*([\d.,]+)/);
+        if (!m) continue;
+        const histIntake = {
+          ...intake,
+          nf_numero: safeStr(intake.nf_numero) || m[1],
+          rubrica_nome_sugerida: intake.rubrica_nome_sugerida || m[2].trim(),
+          fornecedor_nome: safeStr(intake.fornecedor_nome) || m[3].trim(),
+          nf_valor_total: (safeNum(intake.nf_valor_total) ?? 0) ||
+            parseFloat(m[4].replace(/\./g, '').replace(',', '.')) || intake.nf_valor_total,
+        };
+        const nomeHist = buildNomeOficialLocal(histIntake, tipo);
+        if (!ehDegradado(nomeHist)) return nomeHist;
+      }
+    } catch { /* ignore */ }
+  }
+
+  return nomeBase;
+}
+
 // ── Pipeline: renomear + mover + verificar (1 intake) ────────────────────────
 
 async function processarUm(token, base44, intake, folderCache) {
@@ -128,7 +167,7 @@ async function processarUm(token, base44, intake, folderCache) {
   if (!fileId) return { ok: false, motivo: 'sem_file_id_drive' };
 
   const tipo = intake.tipo_detectado === 'NOTA_FISCAL_XML' ? 'XML' : 'NF';
-  const nomeOficial = buildNomeOficialLocal(intake, tipo);
+  const nomeOficial = await resolverNomeOficial(base44, intake, tipo);
   if (!nomeOficial) return { ok: false, motivo: 'nome_invalido' };
 
   const dataInfo = parseDataEmissao(intake.nf_data_emissao);
