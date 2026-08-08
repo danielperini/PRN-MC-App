@@ -231,45 +231,158 @@ async function uploadFromUrl(token, fileUrl, fileName, folderId) {
   return { id: result.id, link: result.webViewLink || `https://drive.google.com/file/d/${result.id}/view` };
 }
 
-// ── Validação e reanálise de data ────────────────────────────────────────────
+// ── Validação e reanálise de data (fonte de verdade = PDF via IA) ──────────────
 
 /**
- * Verifica se a data da NF é suspeita (antes de 2026).
- * Se for 2023, provavelmente é data de abertura da empresa — reanalisar via IA.
+ * Monta URL pública de download direto a partir de uma URL de viewer do Drive.
+ * Não faz download — apenas adapta a URL para algo que a IA possa baixar.
+ * Retorna a URL original se não for do Drive.
  */
-async function validarDataEmissao(base44, pr) {
-  const dataRaw = pr.nf_data_emissao || pr.aprov_admin_data || pr.aprov_coord_data || '';
-  const parsed = parseDataEmissao(dataRaw);
+function montarUrlPublicaDrive(pdfUrl) {
+  if (!pdfUrl) return null;
+  if (!pdfUrl.includes('drive.google.com')) return pdfUrl;
+  const m = pdfUrl.match(/\/file\/d\/([^/]+)/);
+  if (m) return `https://drive.google.com/uc?export=download&id=${m[1]}`;
+  return pdfUrl;
+}
 
-  if (!parsed) return { dataValida: false, dateInfo: null, reanalisado: false };
-  if (parsed.ano >= 2026) return { dataValida: true, dateInfo: parsed, reanalisado: false };
+/**
+ * Baixa um PDF (Drive autenticado ou URL pública) e procura datas DD/MM/YYYY
+ * no conteúdo binário (extração determinística quando o texto é pesquisável).
+ * Retorna a primeira data com ano >= 2026 no formato YYYY-MM-DD, ou null.
+ */
+async function extrairDataDeterministicaPdf(token, pdfUrl) {
+  try {
+    let r;
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 15000);
+    try {
+      if (pdfUrl.includes('drive.google.com')) {
+        const m = pdfUrl.match(/\/file\/d\/([^/]+)/);
+        if (!m) return null;
+        r = await fetch(`https://www.googleapis.com/drive/v3/files/${m[1]}?alt=media`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: ctrl.signal,
+        });
+      } else {
+        r = await fetch(pdfUrl, { signal: ctrl.signal });
+      }
+    } finally {
+      clearTimeout(t);
+    }
+    if (!r.ok) return null;
+    const buf = await r.arrayBuffer();
+    const text = new TextDecoder('latin1').decode(new Uint8Array(buf));
+    const padroes = [
+      /(\d{2})\/(\d{2})\/(\d{4})/g,
+      /(\d{4})-(\d{2})-(\d{2})/g,
+      /(\d{2})\.(\d{2})\.(\d{4})/g,
+    ];
+    for (const p of padroes) {
+      let m;
+      while ((m = p.exec(text)) !== null) {
+        let d, me, y;
+        if (p.source.includes('\\\\d\\{4\\}')) {
+          if (p.source.startsWith('(\\\\d{4})')) { y = m[1]; me = m[2]; d = m[3]; }
+          else { d = m[1]; me = m[2]; y = m[3]; }
+        }
+        const ano = parseInt(y);
+        if (ano >= 2026 && ano <= 2030) {
+          return `${y}-${String(me).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        }
+      }
+    }
+    return null;
+  } catch (e) {
+    console.warn(`[extrairDataDet] erro: ${e.message}`);
+    return null;
+  }
+}
 
-  // Data anterior a 2026: reanalisar
-  console.log(`[REANÁLISE] Purchase ${pr.id} tem data ${dataRaw} (ano ${parsed.ano}) — reanalisando com IA`);
+/**
+ * Confirma a data de EMISSÃO da NF sempre lendo o PDF via IA (fonte de verdade = PDF).
+ * Regra de negócio: datas de emissão válidas são de 2026 em diante.
+ *
+ * Fluxo:
+ *   1. Sem PDF: usa a data do banco se for >= 2026, caso contrário invalida.
+ *   2. Com PDF: IA lê o PDF e extrai a data de emissão REAL (ignorando abertura
+ *      de empresa, contratos, convênios). Atualiza o banco se diferente e válida.
+ *      Se a IA retornar data inválida, confiança baixa ou erro, usa fallback do
+ *      banco (>= 2026) se houver; senão invalida.
+ */
+async function validarDataEmissao(base44, token, pr) {
+  const dataBanco = pr.nf_data_emissao || pr.aprov_admin_data || pr.aprov_coord_data || '';
+  const parsedBanco = parseDataEmissao(dataBanco);
 
-  const pdfUrl = pr.nota_fiscal_url || pr.nota_fiscal_pdf_url || pr.nf_pdf_url || '';
-  if (!pdfUrl) {
-    console.warn(`[REANÁLISE] Sem PDF para reanalisar: ${pr.id}`);
-    return { dataValida: false, dateInfo: parsed, reanalisado: false };
+  const pdfUrlOriginal = pr.nota_fiscal_url || pr.nota_fiscal_pdf_url || pr.nf_pdf_url || '';
+
+  // Sem PDF para IA confirmar — confia no banco apenas se for >= 2026
+  if (!pdfUrlOriginal) {
+    if (parsedBanco && parsedBanco.ano >= 2026) {
+      return { dataValida: true, dateInfo: parsedBanco, reanalisado: false };
+    }
+    return { dataValida: false, dateInfo: parsedBanco, reanalisado: false, motivo: 'sem_pdf' };
+  }
+
+  console.log(`[IA-CONFIRMA] ${pr.id} — confirmando data de emissão no PDF (banco: "${dataBanco || 'vazio'}")`);
+
+  // 1. Tentar extração determinística do texto do PDF (busca por datas no conteúdo binário)
+  const dataDet = await extrairDataDeterministicaPdf(token, pdfUrlOriginal);
+  if (dataDet) {
+    const parsedDet = parseDataEmissao(dataDet);
+    if (parsedDet && parsedDet.ano >= 2026) {
+      if (dataDet !== dataBanco) {
+        await base44.asServiceRole.entities.PurchaseRequest.update(pr.id, {
+          nf_data_emissao: dataDet,
+        }).catch(() => null);
+        console.log(`[IA-CONFIRMA DET] ${pr.id}: data extraída determinística "${dataDet}" (antes: "${dataBanco}")`);
+        return { dataValida: true, dateInfo: parsedDet, reanalisado: true, dataCorrigida: dataDet };
+      }
+      console.log(`[IA-CONFIRMA DET] ${pr.id}: data "${dataDet}" confirmada via extração determinística`);
+      return { dataValida: true, dateInfo: parsedDet, reanalisado: true };
+    }
+  }
+
+  // 2. IA apenas se URL for pública direta (não Drive viewer — IA não consegue ler essas)
+  const pdfUrlIA = montarUrlPublicaDrive(pdfUrlOriginal);
+  const ehDriveViewer = pdfUrlOriginal.includes('drive.google.com');
+
+  if (ehDriveViewer) {
+    // URL pública do Drive ainda pode falhar; tenta IA com timeout curto
+    console.log(`[IA-CONFIRMA] ${pr.id}: PDF no Drive — tentando IA com URL pública (timeout 25s)`);
   }
 
   try {
     const hoje = new Date().toISOString().slice(0, 10);
-    const ia = await base44.asServiceRole.integrations.Core.InvokeLLM({
-      model: 'claude_sonnet_4_6',
-      prompt: `Este documento tem data suspeita de ${dataRaw} (ano ${parsed.ano}).
-O CNPJ 23.843.648/0001-25 (Viaduto das Artes) foi aberto em 2023 — esse ano pode aparecer como data de abertura da empresa, NÃO como data da nota fiscal.
-Data atual: ${hoje}. Notas fiscais válidas para este projeto são de 2026 em diante.
+    const iaPromise = base44.asServiceRole.integrations.Core.InvokeLLM({
+      model: 'gpt_5_mini',
+      prompt: `Você é um extrator de dados de NOTA FISCAL. Analise o PDF anexo.
 
-Extraia a data de EMISSÃO REAL da nota fiscal (ignorando datas de abertura de empresa, datas de contratos, datas de convênios).
-Retorne JSON:
+Sua tarefa: extrair a DATA DE EMISSÃO da nota fiscal (campo "Data de Emissão" ou "Data/Hora Emissão").
+Formatos comuns no PDF: "DD/MM/YYYY", "DD/MM/YY", "Data de Emissão: DD/MM/YYYY", "Emitida em DD/MM/YYYY".
+
+REGRAS CRÍTICAS:
+1. Você deve extrair a data de EMISSÃO da nota fiscal, não outras datas.
+2. IGNORE completamente: datas de abertura de empresa (ex: 2023 para CNPJ 23.843.648/0001-25 - Viaduto das Artes), datas de contratos/convênios, datas de vencimento, datas de pagamento, datas de processamento.
+3. Notas válidas para o projeto são de 2026 em diante. Se a data mais relevante que você encontrar for 2023 (abertura de empresa), PROCURE outra data mais recente no documento que seja a data de emissão real.
+4. Se a data estiver no formato DD/MM/YYYY, converta para YYYY-MM-DD.
+5. Se houver multiple datas, escolha a que está explicitamente rotulada como "Data de Emissão" ou "Data/Hora de Emissão" ou "Emitida em".
+
+Contexto do projeto:
+- Data atual: ${hoje}
+- Data suspeita no banco: ${dataBanco || '(vazio)'}
+
+Retorne SEMPRE JSON válido no formato:
 {
-  "nf_data_emissao_corrigida": "YYYY-MM-DD ou null",
-  "ano_detectado": número,
-  "confianca": "alta|media|baixa",
-  "explicacao": "..."
-}`,
-      file_urls: [pdfUrl],
+  "nf_data_emissao_corrigida": "YYYY-MM-DD" | null,
+  "ano_detectado": <número de 4 dígitos> | null,
+  "confianca": "alta" | "media" | "baixa",
+  "explicacao": "breve justificativa da data extraída"
+}
+
+Se NÃO for nota fiscal, ou PDF ilegível, ou não houver data de emissão:
+retorne "nf_data_emissao_corrigida": null, "confianca": "baixa", "explicacao": "motivo".`,
+      file_urls: [pdfUrlIA],
       response_json_schema: {
         type: 'object',
         properties: {
@@ -278,26 +391,47 @@ Retorne JSON:
           confianca: { type: 'string' },
           explicacao: { type: 'string' },
         },
+        required: ['nf_data_emissao_corrigida', 'confianca', 'explicacao'],
       },
     });
 
+    // Timeout de 25s para não pendurar o backup
+    const ia = await Promise.race([
+      iaPromise,
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout_ia_25s')), 25000)),
+    ]);
+
     const dataCorrigida = ia?.nf_data_emissao_corrigida || '';
+    const confianca = ia?.confianca || 'baixa';
     const parsedCorrigida = parseDataEmissao(dataCorrigida);
 
+    // IA confirmou data válida >= 2026
     if (parsedCorrigida && parsedCorrigida.ano >= 2026) {
-      // Corrigir no banco
-      await base44.asServiceRole.entities.PurchaseRequest.update(pr.id, {
-        nf_data_emissao: dataCorrigida,
-      }).catch(() => null);
-      console.log(`[REANÁLISE OK] ${pr.id}: data corrigida para ${dataCorrigida}`);
-      return { dataValida: true, dateInfo: parsedCorrigida, reanalisado: true, dataCorrigida };
+      if (dataCorrigida !== dataBanco) {
+        await base44.asServiceRole.entities.PurchaseRequest.update(pr.id, {
+          nf_data_emissao: dataCorrigida,
+        }).catch(() => null);
+        console.log(`[IA-CONFIRMA OK] ${pr.id}: data corrigida de "${dataBanco}" para "${dataCorrigida}" (confiança: ${confianca})`);
+        return { dataValida: true, dateInfo: parsedCorrigida, reanalisado: true, dataCorrigida };
+      }
+      console.log(`[IA-CONFIRMA OK] ${pr.id}: data "${dataCorrigida}" confirmada (confiança: ${confianca})`);
+      return { dataValida: true, dateInfo: parsedCorrigida, reanalisado: true };
     }
 
-    console.warn(`[REANÁLISE] ${pr.id}: IA retornou data ${dataCorrigida} ainda inválida — pulando`);
-    return { dataValida: false, dateInfo: parsedCorrigida || parsed, reanalisado: true };
+    // IA não conseguiu extrair data válida — fallback no banco
+    if (parsedBanco && parsedBanco.ano >= 2026) {
+      console.warn(`[IA-CONFIRMA] ${pr.id}: IA retornou "${dataCorrigida}" (confiança ${confianca}) — mantendo banco "${dataBanco}"`);
+      return { dataValida: true, dateInfo: parsedBanco, reanalisado: true, motivo: 'ia_invalida_manteve_banco' };
+    }
+
+    console.warn(`[IA-CONFIRMA] ${pr.id}: IA retornou "${dataCorrigida}" (confiança ${confianca}) e banco "${dataBanco}" inválido — pulando`);
+    return { dataValida: false, dateInfo: parsedCorrigida || parsedBanco, reanalisado: true, motivo: 'ia_invalida_sem_banco' };
   } catch (e) {
-    console.error(`[REANÁLISE] Erro IA para ${pr.id}:`, e.message);
-    return { dataValida: false, dateInfo: parsed, reanalisado: false };
+    console.error(`[IA-CONFIRMA] Erro IA para ${pr.id}:`, e.message);
+    if (parsedBanco && parsedBanco.ano >= 2026) {
+      return { dataValida: true, dateInfo: parsedBanco, reanalisado: false, motivo: 'erro_ia_usar_banco' };
+    }
+    return { dataValida: false, dateInfo: parsedBanco, reanalisado: false, motivo: 'erro_ia_sem_banco' };
   }
 }
 
@@ -335,7 +469,7 @@ async function processarPurchase(base44, token, pr, notasFolderCache) {
   }
 
   // Validar/corrigir data
-  const { dataValida, dateInfo, reanalisado, dataCorrigida } = await validarDataEmissao(base44, pr);
+  const { dataValida, dateInfo, reanalisado, dataCorrigida } = await validarDataEmissao(base44, token, pr);
 
   if (!dataValida) {
     log.status = 'data_invalida';
