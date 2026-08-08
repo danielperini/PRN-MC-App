@@ -1,6 +1,21 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.41';
 import { invokeLLM } from '../_shared/gatewayIA.ts';
 
+// Versão local inline do construtor de nome oficial (evita dependência de _shared) — touch deploy probe
+function buildNomeOficialLocal(intake, tipo) {
+  const ext = tipo === 'XML' ? 'xml' : 'pdf';
+  const prefix = tipo === 'XML' ? 'XML' : 'NF';
+  const sanitize = (v, max = 60) => String(v || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9\s-]/g, ' ').replace(/\s+/g, ' ').trim().substring(0, max).trim();
+  const num = sanitize(intake?.nf_numero, 10).replace(/^0+(\d)/, '$1') || 'SN';
+  const desc = sanitize(intake?.rubrica_nome_sugerida || intake?.rubrica_nome || 'Despesa', 30) || 'Despesa';
+  const nomeExib = sanitize(intake?.fornecedor_nome || intake?.nf_emitente_nome || 'FORNECEDOR', 60) || 'FORNECEDOR';
+  const v = Number(intake?.nf_valor_total || 0);
+  const valor = v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${prefix} ${num} ${desc} - ${nomeExib} - MUSEUS CENTRO - R$ ${valor}.${ext}`;
+}
+
 /**
  * processarSalaDeEspera
  *
@@ -31,7 +46,7 @@ const ROOT_NOTAS_FOLDER_ID = '1LgC94VhIomQZBS7kfkQqgBX8MVzwQqzp';
 const BATCH_SIZE = 5; // lote fixo de 5 documentos por vez (PRD)
 const MAX_TENTATIVAS_IA = 1;
 const IA_TIMEOUT_MS = 90000; // 90s por NF — leitura profunda via GPT-4o
-const DEADLINE_MS = 500000; // ~8min global (suporta 5 docs × 90s cada com margem)
+const DEADLINE_MS = 270000; // 4.5min global (limite plataforma 5min — sobra buffer p/ resposta)
 const MESES_PT = ['Janeiro','Fevereiro','Marco','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
 // ── Utilitários ──────────────────────────────────────────────────────────────
@@ -541,10 +556,209 @@ Se um campo não existir no documento, retorne null para ele.`;
   }
 }
 
+// ── Pipeline: linkar XML+PDF órfãos (critérios triplos) ────────────────────────
+
+function matchTriplo(a, b) {
+  const na = safeStr(a.nf_numero);
+  const nb = safeStr(b.nf_numero);
+  if (!na || !nb || na !== nb) return false;
+  const ca = safeStr(a.nf_emitente_cpf_cnpj || a.fornecedor_cpf_cnpj).replace(/\D/g, '');
+  const cb = safeStr(b.nf_emitente_cpf_cnpj || b.fornecedor_cpf_cnpj).replace(/\D/g, '');
+  if (!ca || !cb || ca !== cb) return false;
+  const va = Number(a.nf_valor_total);
+  const vb = Number(b.nf_valor_total);
+  if (!va || !vb) return false;
+  const tol = Math.max(va, vb) * 0.05;
+  return Math.abs(va - vb) <= tol;
+}
+
+// Pré-vincula XML+PDF órfãos da fila por critérios triplos (numero + CNPJ + valor ±5%)
+async function linkarXmlPdfOrfaos(base44, token, pendentes) {
+  const pdfs = pendentes.filter((i) => i.tipo_detectado === 'NOTA_FISCAL_PDF' && !i.nf_xml_intake_id);
+  const xmls = pendentes.filter((i) => i.tipo_detectado === 'NOTA_FISCAL_XML' && !i.nf_pdf_intake_id);
+  if (pdfs.length === 0 || xmls.length === 0) return { pares: 0, log: [] };
+
+  const log = [];
+  // Pré-popula campos do XML deterministicamente (instantâneo) p/ permitir match triplo
+  for (const xml of xmls) {
+    const xmlText = await fetchXmlContent(token, xml.arquivo_original_url);
+    if (!xmlText) continue;
+    const parsed = parseXmlNF(xmlText);
+    if (parsed.status_leitura === 'leitura_falhou') continue;
+    const updates = {};
+    if (parsed.numero_nf && !xml.nf_numero) { xml.nf_numero = parsed.numero_nf; updates.nf_numero = parsed.numero_nf; }
+    if (parsed.emitente_cpf_cnpj && !xml.fornecedor_cpf_cnpj) {
+      xml.fornecedor_cpf_cnpj = parsed.emitente_cpf_cnpj;
+      xml.nf_emitente_cpf_cnpj = parsed.emitente_cpf_cnpj;
+      updates.fornecedor_cpf_cnpj = parsed.emitente_cpf_cnpj;
+      updates.nf_emitente_cpf_cnpj = parsed.emitente_cpf_cnpj;
+    }
+    if (parsed.valor_total != null && !xml.nf_valor_total) { xml.nf_valor_total = parsed.valor_total; updates.nf_valor_total = parsed.valor_total; }
+    if (parsed.emitente_nome && !xml.nf_emitente_nome) updates.nf_emitente_nome = parsed.emitente_nome;
+    if (parsed.data_emissao && !xml.nf_data_emissao) updates.nf_data_emissao = parsed.data_emissao.substring(0, 10);
+    if (Object.keys(updates).length > 0) {
+      await base44.asServiceRole.entities.DocumentIntake.update(xml.id, updates).catch(() => null);
+    }
+  }
+
+  // Pareamento triplo
+  const matchedXmlIds = new Set();
+  let pares = 0;
+  for (const pdf of pdfs) {
+    const cand = xmls.find((x) => !matchedXmlIds.has(x.id) && matchTriplo(pdf, x));
+    if (!cand) continue;
+    matchedXmlIds.add(cand.id);
+    await base44.asServiceRole.entities.DocumentIntake.update(pdf.id, {
+      nf_xml_intake_id: cand.id,
+      nf_xml_url: cand.arquivo_original_url,
+    }).catch(() => null);
+    await base44.asServiceRole.entities.DocumentIntake.update(cand.id, {
+      nf_pdf_intake_id: pdf.id,
+      nf_pdf_url: pdf.arquivo_original_url,
+      grupo_status: 'VINCULADO',
+      ocultar_entrada_unica: true,
+      status_processamento: 'APROVADO',
+    }).catch(() => null);
+    log.push(`PDF ${pdf.id} ↔ XML ${cand.id} (NF ${safeStr(pdf.nf_numero || cand.nf_numero)})`);
+    pares++;
+  }
+  return { pares, log };
+}
+
+// ── Pipeline: dedup contra NFs já aprovadas/pagas (do início ao fim) ──────────
+
+async function verificarDuplicataIntake(base44, intake) {
+  const num = safeStr(intake.nf_numero);
+  const cnpj = safeStr(intake.nf_emitente_cpf_cnpj || intake.fornecedor_cpf_cnpj).replace(/\D/g, '');
+  const val = Number(intake.nf_valor_total);
+  if (!num || !cnpj || !val) return { duplicata: false };
+
+  // 1. Verifica PurchaseRequest já aprovada/paga com mesmo triplo (tolerância 2%)
+  try {
+    const existing = await base44.asServiceRole.entities.PurchaseRequest.filter(
+      { nf_numero: num, nf_emitente_cpf_cnpj: cnpj, status: { $in: ['APROVADO_ADMIN', 'PAGO'] } },
+      '-created_date', 20, 0
+    ).catch(() => []);
+    for (const pr of (existing || [])) {
+      const v = Number(pr.nf_valor_total || 0);
+      if (v && Math.abs(v - val) <= Math.max(val, 1) * 0.02) {
+        return { duplicata: true, originalId: pr.id, tabela: 'PurchaseRequest' };
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+
+  // 2. Verifica DocumentIntake já APROVADO recentemente (mesmo triplo)
+  try {
+    const irmaos = await base44.asServiceRole.entities.DocumentIntake.filter(
+      { nf_numero: num, nf_emitente_cpf_cnpj: cnpj, status_processamento: 'APROVADO' },
+      '-updated_date', 20, 0
+    ).catch(() => []);
+    for (const irmao of (irmaos || [])) {
+      if (irmao.id === intake.id) continue;
+      const v = Number(irmao.nf_valor_total || 0);
+      if (v && Math.abs(v - val) <= Math.max(val, 1) * 0.02) {
+        return { duplicata: true, originalId: irmao.id, tabela: 'DocumentIntake' };
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+
+  return { duplicata: false };
+}
+
+// ── Pipeline: renomear NF para padrão oficial + mover para pasta mensal (backup) ─
+
+async function renomearEMoverParaBackup(token, base44, intake, folderCache) {
+  const url = intake.nf_pdf_url || intake.nf_xml_url || intake.arquivo_original_url;
+  const fileId = extrairDriveId(url);
+  if (!fileId) return { ok: false, motivo: 'sem_file_id_drive' };
+
+  const tipo = intake.tipo_detectado === 'NOTA_FISCAL_XML' ? 'XML' : 'NF';
+  const nomeOficial = buildNomeOficialLocal(intake, tipo);
+  if (!nomeOficial) return { ok: false, motivo: 'nome_invalido' };
+
+  const jaTemNome = intake.file_name_final === nomeOficial;
+
+  // 1. Renomear no Drive (idempotente se nome igual)
+  if (!jaTemNome) {
+    try {
+      const rRename = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=name`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: nomeOficial }),
+      });
+      if (!rRename.ok) return { ok: false, motivo: `rename_falhou:${rRename.status}` };
+    } catch (e) {
+      return { ok: false, motivo: `rename_erro:${e.message}` };
+    }
+  }
+
+  // 2. Mover para pasta mensal (idempotente)
+  let moveOk = false;
+  if (intake.nf_data_emissao) {
+    const dataInfo = parseDataEmissao(intake.nf_data_emissao);
+    if (dataInfo) {
+      try {
+        const mesFmt = String(dataInfo.mesIdx + 1).padStart(2, '0');
+        const nomePasta = `${mesFmt}-${dataInfo.ano}`;
+        const folderId = await getOrCreate(token, nomePasta, ROOT_NOTAS_FOLDER_ID, folderCache);
+
+        const rGet = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=parents`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const dGet = rGet.ok ? await rGet.json() : {};
+        const currentParents = (dGet.parents || []).join(',');
+
+        const moveParams = new URLSearchParams();
+        moveParams.set('addParents', folderId);
+        if (currentParents && currentParents !== folderId) moveParams.set('removeParents', currentParents);
+        const rMove = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?${moveParams.toString()}`, {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        moveOk = rMove.ok;
+      } catch (e) {
+        // Movimentação falhou mas rename OK — segue
+      }
+    }
+  }
+
+  // 3. Persistir nome final no intake
+  if (!jaTemNome) {
+    await base44.asServiceRole.entities.DocumentIntake.update(intake.id, {
+      file_name_final: nomeOficial,
+    }).catch(() => null);
+  }
+
+  return { ok: true, motivo: moveOk ? 'renomeado_e_movido' : 'renomeado_sem_move', nome: nomeOficial };
+}
+
 // ── Processar um intake ──────────────────────────────────────────────────────
 
 async function processarIntake(base44, token, intake, folderCache, tentativasMap) {
   const log = { id: intake.id, tipo: intake.tipo_detectado, fileName: intake.file_name_final || intake.file_name_original, status: '', detalhes: [] };
+
+  // 0. NOVO Stage: Verificar duplicata contra NFs já aprovadas/pagas (do início ao fim do pipeline)
+  if (intake.tipo_detectado === 'NOTA_FISCAL_PDF' || intake.tipo_detectado === 'NOTA_FISCAL_XML') {
+    try {
+      const dupCheck = await verificarDuplicataIntake(base44, intake);
+      if (dupCheck.duplicata) {
+        await base44.asServiceRole.entities.DocumentIntake.update(intake.id, {
+          status_processamento: 'REJEITADO',
+          ocultar_entrada_unica: true,
+          erros_validacao: [`Duplicata de ${dupCheck.tabela}:${safeStr(dupCheck.originalId).substring(0, 8)}`],
+        }).catch(() => null);
+        log.status = 'duplicata_rejeitada';
+        log.detalhes.push(`Duplicata confirmada de ${dupCheck.tabela}:${dupCheck.originalId}`);
+        return log;
+      }
+    } catch (e) {
+      log.detalhes.push(`AVISO dedup: ${e.message}`);
+    }
+  }
 
   // 1. Verificar campos obrigatórios
   let check = camposObrigatorios(intake);
@@ -654,18 +868,14 @@ async function processarIntake(base44, token, intake, folderCache, tentativasMap
     ocultar_entrada_unica: true,
   };
 
-  // 6. NF aprovada: garantir pasta mensal MM-YYYY no Drive para auditoria
-  if ((intake.tipo_detectado === 'NOTA_FISCAL_PDF' || intake.tipo_detectado === 'NOTA_FISCAL_XML') && intake.nf_data_emissao) {
-    const dataInfo = parseDataEmissao(intake.nf_data_emissao);
-    if (dataInfo) {
-      try {
-        const mesFmt = String(dataInfo.mesIdx + 1).padStart(2, '0');
-        const nomePasta = `${mesFmt}-${dataInfo.ano}`;
-        const folderId = await getOrCreate(token, nomePasta, ROOT_NOTAS_FOLDER_ID, folderCache);
-        log.detalhes.push(`Pasta mensal ${nomePasta} confirmada: ${folderId}`);
-      } catch (e) {
-        log.detalhes.push(`AVISO pasta mensal: ${e.message}`);
-      }
+  // 6. NOVO Stage: NF aprovada → renomear arquivo para padrão oficial + mover para pasta mensal (backup organizado)
+  if (intake.tipo_detectado === 'NOTA_FISCAL_PDF' || intake.tipo_detectado === 'NOTA_FISCAL_XML') {
+    try {
+      const backupResult = await renomearEMoverParaBackup(token, base44, intake, folderCache);
+      log.detalhes.push(`Backup: ${backupResult.motivo}${backupResult.nome ? ' → ' + backupResult.nome : ''}`);
+      if (backupResult.nome) intake.file_name_final = backupResult.nome;
+    } catch (e) {
+      log.detalhes.push(`AVISO backup rename/move: ${e.message}`);
     }
   }
 
@@ -769,9 +979,18 @@ Deno.serve(async (req) => {
     const deadline = startTime + DEADLINE_MS;
     let paradosPorDeadline = 0;
 
+    // 2b. NOVO Stage: Pré-vincular XML+PDF órfãos da fila (critérios triplos: numero + CNPJ + valor)
+    let linkResult = { pares: 0, log: [] };
+    try {
+      linkResult = await linkarXmlPdfOrfaos(base44, token, pendentes);
+      if (linkResult.log.length) console.log('[SalaEspera] Linkar:', linkResult.log.join('; '));
+    } catch (e) {
+      linkResult.log.push(`Linkar XML+PDF falhou: ${e.message}`);
+    }
+
     // 3. Processar em lotes (interrompe antes do prazo global p/ não estourar execução)
     //    PRIORIZA XMLs (processamento determinístico instantâneo) antes dos PDFs (IA lenta)
-    const resultados = { liberado: 0, pendente_dados: 0, rejeitado_dados_incompletos: 0, erro_update: 0, erro: 0 };
+    const resultados = { liberado: 0, duplicata_rejeitada: 0, pendente_dados: 0, rejeitado_dados_incompletos: 0, erro_update: 0, erro: 0 };
     const logs = [];
     const todos = (pendentes || []).slice(0, limite);
     const intakesParaProcessar = [
@@ -806,7 +1025,7 @@ Deno.serve(async (req) => {
       error_message: resultados.erro > 0 ? `${resultados.erro} erros` : '',
       execution_time_ms: Date.now() - startTime,
       triggered_by: isCron ? 'scheduled' : 'manual',
-      details: `Sala de Espera: ${resultados.liberado} liberados (100% preenchidos), ${resultados.pendente_dados || 0} pendentes IA, ${resultados.rejeitado_dados_incompletos || 0} rejeitados, ${paradosPorDeadline} adiados (deadline)`,
+      details: `Sala de Espera: ${resultados.liberado} liberados (100% preenchidos), ${resultados.duplicata_rejeitada || 0} duplicatas rejeitadas, ${linkResult.pares} XML+PDF linkados, ${resultados.pendente_dados || 0} pendentes IA, ${resultados.rejeitado_dados_incompletos || 0} rejeitados dados, ${paradosPorDeadline} adiados (deadline)`,
     }).catch(() => null);
 
     return Response.json({
