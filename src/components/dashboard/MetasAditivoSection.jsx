@@ -599,12 +599,20 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRef
   }, [todasAtividades, criteriosMeta20, criteriosNoturno]);
 
   // Mapa: rubricaId → valor total NFs aprovadas/pagas
+  // Cadeia oficial: valor_pago -> valor_aprovado_admin -> nf_valor_total -> valor_total -> valor_aprovado -> valor_solicitado
+  // Apenas NFs APROVADO_ADMIN, APROVADO_COORD ou PAGO, que não estejam fora do somatório nem marcadas como duplicata financeira.
   const nfsPorRubrica = useMemo(() => {
     const map = {};
+    const STATUS_OK = new Set(['APROVADO_ADMIN', 'APROVADO_COORD', 'PAGO']);
     for (const p of purchases) {
       if (!p.rubrica_id) continue;
+      if (!STATUS_OK.has(p.status)) continue;
       if (p.incluir_no_somatorio === false) continue;
-      const valor = Number(p.valor_pago || p.valor_aprovado_admin || p.valor_solicitado || 0);
+      if (p.duplicada_financeira === true) continue;
+      const valor = Number(
+        p.valor_pago || p.valor_aprovado_admin || p.nf_valor_total || p.valor_total || p.valor_aprovado || p.valor_solicitado || 0
+      );
+      if (valor <= 0) continue;
       map[p.rubrica_id] = (map[p.rubrica_id] || 0) + valor;
     }
     return map;

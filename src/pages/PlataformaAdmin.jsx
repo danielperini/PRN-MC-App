@@ -68,6 +68,8 @@ function PlataformaAdminInner() {
   const [sincronizacaoNFsResult, setSincronizacaoNFsResult] = useState(null);
   const [organizandoNFsIA, setOrganizandoNFsIA] = useState(false);
   const [organizacaoNFsIAResult, setOrganizacaoNFsIAResult] = useState(null);
+  const [normalizandoValores, setNormalizandoValores] = useState(false);
+  const [normalizacaoValoresResult, setNormalizacaoValoresResult] = useState(null);
 
   const { data: users = [] } = useQuery({
     queryKey: ['users'],
@@ -196,6 +198,39 @@ function PlataformaAdminInner() {
       toastMessages.error(error?.message || 'Erro ao organizar NFs com IA');
     } finally {
       setOrganizandoNFsIA(false);
+    }
+  };
+
+  const handleNormalizarValoresAprovados = async (loop = false) => {
+    setNormalizandoValores(true);
+    if (!loop) setNormalizacaoValoresResult(null);
+    let pular = 0;
+    let acumulado = { total_varridas: 0, corrigidas: 0, rubricas_recalculadas: 0, erros: 0, lotes: 0 };
+    try {
+      // Loop automático até concluir (ou até 15 lotes de segurança)
+      for (let i = 0; i < 15; i++) {
+        const res = await base44.functions.invoke('normalizarValorAprovadoAdminNFs', { limite: 200, pular });
+        const data = res?.data || res;
+        acumulado.total_varridas += data?.total_varridas || 0;
+        acumulado.corrigidas += data?.corrigidas || 0;
+        acumulado.rubricas_recalculadas += data?.rubricas_recalculadas || 0;
+        acumulado.erros += data?.erros || 0;
+        acumulado.lotes += 1;
+        if (data?.has_more) {
+          pular = data?.proximo_pular || 0;
+        } else {
+          break;
+        }
+      }
+      setNormalizacaoValoresResult(acumulado);
+      toast.success(
+        `${acumulado.corrigidas} NFs normalizadas, ${acumulado.rubricas_recalculadas} rubricas recalculadas.`
+      );
+    } catch (error) {
+      toastMessages.error(error?.message || 'Erro ao normalizar valores aprovados');
+      setNormalizacaoValoresResult({ ...acumulado, erro: String(error?.message || error) });
+    } finally {
+      setNormalizandoValores(false);
     }
   };
 
@@ -349,6 +384,59 @@ function PlataformaAdminInner() {
 
         <TabsContent value="ferramentas">
           <div className="space-y-6">
+            {/* Normalizar valor_aprovado_admin das NFs aprovadas/pagas */}
+            <div className="border-2 border-teal-500 rounded-lg p-6 bg-teal-50">
+              <h2 className="text-lg font-bold text-teal-900 mb-1 flex items-center gap-2">
+                <Database className="w-5 h-5" />
+                Normalizar valores aprovados das NFs (Dashboard 0%)
+              </h2>
+              <p className="text-sm text-teal-800 mb-4">
+                Varrer todas as NFs <strong>APROVADO_ADMIN</strong> e <strong>PAGO</strong> que ainda não têm
+                <code className="bg-teal-100 px-1 rounded">valor_aprovado_admin</code> preenchido, normalizar com o
+                valor real (<code>nf_valor_total</code> &rarr; <code>valor_total</code> &rarr; <code>valor_aprovado</code> &rarr;
+                <code>valor_solicitado</code>) e recalcular <code>valor_utilizado</code> das rubricas afetadas.
+                Corrige de vez os cards de metas que aparecem em 0%. Executa em loop automático até concluir.
+              </p>
+
+              <Button
+                onClick={() => handleNormalizarValoresAprovados(true)}
+                disabled={normalizandoValores}
+                className="bg-teal-700 text-white hover:bg-teal-800 gap-2"
+              >
+                {normalizandoValores ? (
+                  <>
+                    <RotateCw className="w-4 h-4 animate-spin" />
+                    Normalizando...
+                  </>
+                ) : (
+                  <>
+                    <Database className="w-4 h-4" />
+                    Normalizar agora
+                  </>
+                )}
+              </Button>
+
+              {normalizacaoValoresResult && !normalizacaoValoresResult.erro && (
+                <div className="mt-6 p-4 border border-teal-300 rounded-lg bg-white">
+                  <p className="font-semibold text-gray-800 mb-3">✅ Normalização concluída ({normalizacaoValoresResult.lotes || 0} lotes)</p>
+                  <ul className="text-sm text-gray-700 space-y-1">
+                    <li>🔎 NFs varridas: {normalizacaoValoresResult.total_varridas || 0}</li>
+                    <li>✅ NFs corrigidas: <strong>{normalizacaoValoresResult.corrigidas || 0}</strong></li>
+                    <li>🔁 Rubricas recalculadas: <strong>{normalizacaoValoresResult.rubricas_recalculadas || 0}</strong></li>
+                    {normalizacaoValoresResult.erros > 0 && (
+                      <li className="text-red-700">❌ Erros pontuais: {normalizacaoValoresResult.erros}</li>
+                    )}
+                  </ul>
+                </div>
+              )}
+
+              {normalizacaoValoresResult?.erro && (
+                <div className="mt-6 p-4 border border-red-300 rounded-lg bg-white text-red-700 text-sm">
+                  ❌ {normalizacaoValoresResult.erro}
+                </div>
+              )}
+            </div>
+
             {/* Sincronizar NFs do Drive */}
             <div className="border-2 border-emerald-500 rounded-lg p-6 bg-emerald-50">
               <h2 className="text-lg font-bold text-emerald-900 mb-1 flex items-center gap-2">

@@ -466,12 +466,22 @@ Deno.serve(async (req) => {
 
       const numeroProcessamento = purchase.numero_processamento || await gerarNumeroProcessamento();
 
+      // Prevenção: garantir que valor_aprovado_admin sempre seja populado ao aprovar,
+      // usando fallback chain oficial.
+      const valorAprovadoAdmin =
+        toNumber(purchase.valor_aprovado_admin) ||
+        toNumber(purchase.nf_valor_total) ||
+        toNumber(purchase.valor_total) ||
+        toNumber(purchase.valor_aprovado) ||
+        valor;
+
       const updated = await base44.asServiceRole.entities.PurchaseRequest.update(
         purchase.id,
         {
           status: 'APROVADO_COORD',
           rubrica_id: rubricaAprovacaoId,
           numero_processamento: numeroProcessamento,
+          valor_aprovado_admin: valorAprovadoAdmin,
           financeiro_lancado_em:
             purchase.financeiro_lancado_em || new Date().toISOString(),
           rubrica_debitada_em:

@@ -165,7 +165,7 @@ Deno.serve(async (req) => {
             !p.duplicada_financeira
         );
         const utilizado = relacionados.reduce(
-          (s: number, p: any) => s + Number(p.valor_aprovado_admin || p.valor_aprovado || p.valor_solicitado || 0),
+          (s: number, p: any) => s + Number(p.valor_aprovado_admin || p.nf_valor_total || p.valor_total || p.valor_aprovado || p.valor_solicitado || 0),
           0
         );
         const valorRubrica = Number(r.valor_rubrica || 0);
@@ -208,7 +208,7 @@ Deno.serve(async (req) => {
           !p.duplicada_financeira
       );
       const utilizado = relacionados.reduce(
-        (s: number, p: any) => s + Number(p.valor_aprovado_admin || p.valor_aprovado || p.valor_solicitado || 0),
+        (s: number, p: any) => s + Number(p.valor_aprovado_admin || p.nf_valor_total || p.valor_total || p.valor_aprovado || p.valor_solicitado || 0),
         0
       );
       const valorRubrica = Number(r.valor_rubrica || 0);
