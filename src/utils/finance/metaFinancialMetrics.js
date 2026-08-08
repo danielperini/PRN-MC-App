@@ -75,10 +75,62 @@ export function isRubricaLinkedToMeta(rubrica, meta) {
   return false;
 }
 
+const STATUS_APROVADOS_NF = new Set(['APROVADO_ADMIN', 'PAGO']);
+
 /**
- * Calcula métricas financeiras para todas as metas do 3º e 4º Aditivo
+ * Extrai o valor financeiro de uma PurchaseRequest/NF usando a cadeia oficial:
+ * valor_aprovado_admin -> valor_aprovado -> nf_valor_total -> valor_total -> valor_solicitado
  */
-export function calculateMetaFinancialMetrics(rubricas = []) {
+export function getPurchaseValueNF(p) {
+  if (!p) return 0;
+  return Number(
+    p.valor_aprovado_admin ||
+      p.valor_aprovado ||
+      p.nf_valor_total ||
+      p.valor_total ||
+      p.valor_solicitado ||
+      0
+  ) || 0;
+}
+
+/**
+ * Verifica se uma PurchaseRequest conta para o somatório financeiro:
+ * status APROVADO_ADMIN ou PAGO, incluir_no_somatorio !== false, duplicada_financeira !== true
+ */
+export function contaParaSomatorio(p) {
+  if (!p) return false;
+  if (!STATUS_APROVADOS_NF.has(String(p.status || '').toUpperCase())) return false;
+  if (p.incluir_no_somatorio === false) return false;
+  if (p.duplicada_financeira === true) return false;
+  return true;
+}
+
+/**
+ * Soma das NFs aprovadas/pagas vinculadas a cada rubrica — usado como fallback
+ * quando rubrica.valor_utilizado está zerado.
+ * Retorna { rubricaId: valorTotal }
+ */
+export function sumarizarNfsPorRubrica(purchases = []) {
+  const map = {};
+  for (const p of purchases || []) {
+    if (!contaParaSomatorio(p)) continue;
+    if (!p.rubrica_id) continue;
+    const valor = getPurchaseValueNF(p);
+    if (valor <= 0) continue;
+    if (!map[p.rubrica_id]) map[p.rubrica_id] = 0;
+    map[p.rubrica_id] += valor;
+  }
+  return map;
+}
+
+/**
+ * Calcula métricas financeiras para todas as metas do 3º e 4º Aditivo.
+ * Fonte primária: rubrica.valor_utilizado (campo já recalculado backend-side).
+ * Fallback: quando valor_utilizado = 0 e existem NFs aprovadas vinculadas,
+ * somar a cadeia valor_aprovado_admin -> valor_aprovado -> nf_valor_total ->
+ * valor_total -> valor_solicitado das NFs.
+ */
+export function calculateMetaFinancialMetrics(rubricas = [], purchases = []) {
   // Deduplicar rubricas por ID
   const rubricasUnicas = new Map();
   (rubricas || []).forEach((rubrica) => {
@@ -88,22 +140,40 @@ export function calculateMetaFinancialMetrics(rubricas = []) {
       rubricasUnicas.set(key, rubrica);
     }
   });
-  
+
   const rubricasArray = Array.from(rubricasUnicas.values());
-  
+
+  // Pré-calcular fallback por rubrica a partir das NFs aprovadas/pagas
+  const nfsPorRubrica = sumarizarNfsPorRubrica(purchases);
+
   // Calcular métricas para cada meta
   return METAS_OFICIAIS.map(meta => {
     // Filtrar rubricas vinculadas a esta meta
     const rubricasVinculadas = rubricasArray.filter(r => isRubricaLinkedToMeta(r, meta));
-    
+
     // Calcular valores
     const previsto = rubricasVinculadas.reduce((sum, r) => sum + getRubricaBudget(r), 0);
-    const utilizado = rubricasVinculadas.reduce((sum, r) => sum + getRubricaUsed(r), 0);
+
+    const utilizado = rubricasVinculadas.reduce((sum, r) => {
+      const valorUtilizadoRubrica = getRubricaUsed(r);
+      if (valorUtilizadoRubrica > 0) {
+        return sum + valorUtilizadoRubrica;
+      }
+      // Fallback: somatório das NFs aprovadas vinculadas a esta rubrica
+      return sum + (nfsPorRubrica[r.id] || 0);
+    }, 0);
+
+    // Total de NFs aprovadas vinculadas (para badge "NFs aprovadas")
+    const nfsAprovadas = rubricasVinculadas.reduce(
+      (sum, r) => sum + (nfsPorRubrica[r.id] || 0),
+      0
+    );
+
     const saldo = previsto - utilizado;
     const percentualFinanceiro = previsto > 0 ? Number(((utilizado / previsto) * 100).toFixed(2)) : 0;
-    
+
     // Indicador de execução
-    const indicador = previsto > 0 
+    const indicador = previsto > 0
       ? `${Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(utilizado)} de ${Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(previsto)}`
       : meta.status === 'CONCLUÍDA' ? '100% concluído' : 'Sem rubricas vinculadas';
 
@@ -116,6 +186,7 @@ export function calculateMetaFinancialMetrics(rubricas = []) {
       percentualFisico: meta.status === 'CONCLUÍDA' ? 100 : percentualFinanceiro,
       rubricasCount: rubricasVinculadas.length,
       rubricasIds: rubricasVinculadas.map(r => r.id),
+      nfsAprovadas,
       indicador
     };
   });
