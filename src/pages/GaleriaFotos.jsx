@@ -62,19 +62,22 @@ function safeText(value = '') {
   return String(value || '').toLowerCase();
 }
 
+// Thumbs menores para carregamento mais rápido da grade.
+// O modal/exposição usa originalFileUrl (alta resolução), não este thumb.
+const CARD_THUMB_W = 320;
 function thumbUrl(url) {
   if (!url) return url;
-  // lh3.googleusercontent.com/d/... — redimensionar para 200px
+  // lh3.googleusercontent.com/d/ID=w400  →  =wCARD_THUMB_W  (regex anterior não pegava 'w')
   if (url.includes('lh3.googleusercontent.com')) {
-    return url.replace(/=s?\d+(-[a-z]+)*$/, '') + '=w200';
+    return url.replace(/=(?:s|w)?\d+(?:-[a-z]+)*(?:[?#].*)?$/, '') + `=w${CARD_THUMB_W}`;
   }
   // Google Drive thumbnail com sz param (sz=w1600, sz=200, etc)
   if (url.includes('drive.google.com') && url.includes('sz=')) {
-    return url.replace(/sz=w?\d+/i, 'sz=w200');
+    return url.replace(/sz=w?\d+/i, `sz=w${CARD_THUMB_W}`);
   }
   // Base44 / storage com width param
-  if (url.includes('width=') || url.includes('w=')) {
-    return url.replace(/width=\d+/, 'width=200').replace(/[?&]w=\d+/, (m) => m.replace(/\d+/, '200'));
+  if (url.includes('width=') || /[?&]w=\d+/.test(url)) {
+    return url.replace(/width=\d+/, `width=${CARD_THUMB_W}`).replace(/([?&])w=\d+/, `$1w=${CARD_THUMB_W}`);
   }
   return url;
 }
