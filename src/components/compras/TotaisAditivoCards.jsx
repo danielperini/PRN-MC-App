@@ -1,8 +1,10 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 // fonte: canonicalMetrics.js — calcularTotaisPorAditivo é a ÚNICA fonte de Previsto/Utilizado/Saldo
-import { auditAditivoTotals } from '@/utils/finance/financeiroUtils';
+import { auditAditivoTotals, isFinanciallyActiveStatus, getPurchaseValue } from '@/utils/finance/financeiroUtils';
 import { rubricaPrevisto, rubricaUtilizado, calcularTotaisPorAditivo } from '@/services/canonicalMetrics';
 import { CONTRATO_3_ADITIVO, CONTRATO_4_ADITIVO, CONTRATO_5_ADITIVO, CONTRATO_TOTAL } from '@/lib/contratoConstants';
+import MemoriaCalculoDrawer from '@/components/compras/MemoriaCalculoDrawer';
 
 function fmtBRL(v) {
   return new Intl.NumberFormat('pt-BR', {
@@ -13,7 +15,27 @@ function fmtBRL(v) {
   }).format(v ?? 0);
 }
 
-function AditivoBlock({ titulo, badge, badgeColor, totalPrevisto, totalUtilizado, saldo, rubricasList, qtdNFs, qtdDuplicatas }) {
+/**
+ * Filtra as NFs ativas que compõem o Utilizado do aditivo.
+ * Lógica espelhada de calcularTotaisPorAditivo (canonicalMetrics.js):
+ *  - 3º e 5º: NFs aprovadas/pagas vinculadas a rubricas do aditivo (mesma origem_recurso)
+ *  - 4º: NFs aprovadas/pagas com centro_custo contendo "pampulha"
+ */
+function nfsAtivasPorAditivo(tipoAditivo, rubricasDoAditivo, compras) {
+  const rubricaIds = new Set((rubricasDoAditivo || []).map((r) => r.id).filter(Boolean));
+  return (Array.isArray(compras) ? compras : []).filter((c) => {
+    const status = String(c?.status || '').toUpperCase();
+    if (!isFinanciallyActiveStatus(status)) return false;
+    if (c?.duplicada_financeira === true || c?.incluir_no_somatorio === false) return false;
+    if (tipoAditivo === 4) {
+      return String(c?.centro_custo || '').toLowerCase().includes('pampulha');
+    }
+    return rubricaIds.size > 0 && c?.rubrica_id && rubricaIds.has(c.rubrica_id);
+  });
+}
+
+function AditivoBlock({ titulo, badge, badgeColor, totalPrevisto, totalUtilizado, saldo, rubricasList, qtdNFs, qtdDuplicatas, nfsAtivas, onRefresh, onRubricasRefresh }) {
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const pct = totalPrevisto > 0 ? ((totalUtilizado / totalPrevisto) * 100) : 0;
   const barColor = pct > 90 ? 'bg-red-500' : pct > 70 ? 'bg-amber-500' : 'bg-black';
 
@@ -60,20 +82,27 @@ function AditivoBlock({ titulo, badge, badgeColor, totalPrevisto, totalUtilizado
         )}
       </div>
 
+      <button
+        type="button"
+        onClick={() => setDrawerOpen(true)}
+        className="text-[11px] text-blue-500 underline hover:text-blue-700 select-none"
+      >
+        Ver memória de cálculo
+      </button>
+
       {rubricasList && rubricasList.length > 0 && (
         <details className="mt-1">
           <summary className="text-[11px] text-gray-400 cursor-pointer hover:text-gray-600 select-none">
-            {rubricasList.length} rubrica{rubricasList.length !== 1 ? 's' : ''} vinculada{rubricasList.length !== 1 ? 's' : ''}
+            Ver rubricas {rubricasList.length} vinculada{rubricasList.length !== 1 ? 's' : ''}
           </summary>
           <ul className="mt-2 space-y-1.5 pl-1">
             {rubricasList.map((r) => {
               const prev = rubricaPrevisto(r);
               const util = rubricaUtilizado(r);
-              const saldoR = prev - util;
               return (
                 <li key={r.id} className="text-[11px] text-gray-600 flex justify-between gap-2 border-b border-gray-50 pb-1">
                   <span className="flex-1 truncate">{r.rubrica || r.nome}</span>
-                  <span className={`tabular-nums shrink-0 ${saldoR < 0 ? 'text-red-500' : 'text-gray-700'}`}>
+                  <span className={`tabular-nums shrink-0 ${(prev - util) < 0 ? 'text-red-500' : 'text-gray-700'}`}>
                     {fmtBRL(prev)}
                   </span>
                 </li>
@@ -82,16 +111,52 @@ function AditivoBlock({ titulo, badge, badgeColor, totalPrevisto, totalUtilizado
           </ul>
         </details>
       )}
+
+      {drawerOpen && (
+        <MemoriaCalculoDrawer
+          open={drawerOpen}
+          onOpenChange={setDrawerOpen}
+          aditivo={{
+            titulo,
+            badge,
+            badgeColor,
+            previsto: totalPrevisto,
+            utilizado: totalUtilizado,
+            saldo,
+            qtdNFs,
+            qtdDuplicatas,
+            rubricasList: rubricasList || [],
+            nfsAtivas: nfsAtivas || [],
+          }}
+          onRefresh={onRefresh}
+          onRubricasRefresh={onRubricasRefresh}
+        />
+      )}
     </div>
   );
 }
 
-export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
-  const { terceiro, quarto, quinto, auditoria, duplicadas, datasInvalidas } = useMemo(() => {
+export default function TotaisAditivoCards({ rubricas = [], compras = [], onRefresh, onRubricasRefresh }) {
+  const queryClient = useQueryClient();
+
+  const { terceiro, quarto, quinto, auditoria, duplicadas, datasInvalidas, nfsTerceiro, nfsQuarto, nfsQuinto, rubricas3, rubricas4, rubricas5 } = useMemo(() => {
     const ativas = rubricas.filter((r) => r?.ativo !== false);
     // Única fonte de verdade para Previsto/Utilizado/Saldo
     const totais = calcularTotaisPorAditivo(rubricas, compras);
     const auditoria = auditAditivoTotals(compras, ativas);
+
+    const r3 = ativas.filter((r) => {
+      const o = (r.origem_recurso || '').trim();
+      return o === '3º ADITIVO' || o === '3º Aditivo';
+    });
+    const r4 = ativas.filter((r) => {
+      const o = (r.origem_recurso || '').trim();
+      return o === '4º ADITIVO' || o === '4º Aditivo';
+    });
+    const r5 = ativas.filter((r) => {
+      const o = (r.origem_recurso || '').trim();
+      return o === '5º ADITIVO' || o === '5º Aditivo';
+    });
 
     return {
       terceiro: { ...totais.terceiro, qtdNFs: auditoria.terceiro_aditivo.quantidade_nfs },
@@ -100,8 +165,32 @@ export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
       auditoria,
       duplicadas: auditoria.duplicadas_ignoradas,
       datasInvalidas: auditoria.datas_invalidas_ignoradas,
+      nfsTerceiro: nfsAtivasPorAditivo(3, r3, compras),
+      nfsQuarto: nfsAtivasPorAditivo(4, r4, compras),
+      nfsQuinto: nfsAtivasPorAditivo(5, r5, compras),
+      rubricas3: r3,
+      rubricas4: r4,
+      rubricas5: r5,
     };
   }, [rubricas, compras]);
+
+  // Reflow padrão: invalida 'compras' e propaga callback opcional do pai
+  const handleRefresh = async () => {
+    try {
+      await queryClient.invalidateQueries({ queryKey: ['compras'] });
+    } catch (e) {
+      // best-effort
+    }
+    if (typeof onRefresh === 'function') onRefresh();
+  };
+  const handleRubricasRefresh = async () => {
+    try {
+      await queryClient.invalidateQueries({ queryKey: ['rubricas'] });
+    } catch (e) {
+      // best-effort
+    }
+    if (typeof onRubricasRefresh === 'function') onRubricasRefresh();
+  };
 
   return (
     <div className="mb-6 space-y-4">
@@ -133,9 +222,12 @@ export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
           totalPrevisto={terceiro.previsto}
           totalUtilizado={terceiro.utilizado}
           saldo={terceiro.saldo}
-          rubricasList={[]}
+          rubricasList={rubricas3}
           qtdNFs={terceiro.qtdNFs}
           qtdDuplicatas={duplicadas.quantidade}
+          nfsAtivas={nfsTerceiro}
+          onRefresh={handleRefresh}
+          onRubricasRefresh={handleRubricasRefresh}
         />
         <AditivoBlock
           titulo="4º Aditivo — Noturno nos Museus 2026 / Pampulha"
@@ -144,9 +236,12 @@ export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
           totalPrevisto={quarto.previsto}
           totalUtilizado={quarto.utilizado}
           saldo={quarto.saldo}
-          rubricasList={quarto.rubricas}
+          rubricasList={rubricas4}
           qtdNFs={quarto.qtdNFs}
           qtdDuplicatas={0}
+          nfsAtivas={nfsQuarto}
+          onRefresh={handleRefresh}
+          onRubricasRefresh={handleRubricasRefresh}
         />
         <AditivoBlock
           titulo="5º Aditivo — 3º Simpósio Patrimônio Cultural BH"
@@ -155,9 +250,12 @@ export default function TotaisAditivoCards({ rubricas = [], compras = [] }) {
           totalPrevisto={quinto.previsto}
           totalUtilizado={quinto.utilizado}
           saldo={quinto.saldo}
-          rubricasList={quinto.rubricas}
+          rubricasList={rubricas5}
           qtdNFs={quinto.qtdNFs}
           qtdDuplicatas={0}
+          nfsAtivas={nfsQuinto}
+          onRefresh={handleRefresh}
+          onRubricasRefresh={handleRubricasRefresh}
         />
       </div>
     </div>
