@@ -1,8 +1,10 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 /**
  * Clipping inteligente: busca web sobre projeto Museus Centro e seus museus
  * Monitora menções, repercussão, alcance, visibilidade
+ * Usa gateway invokeGpt (OpenAI direta) — sem consumir créditos Base44.
  */
 Deno.serve(async (req) => {
   try {
@@ -45,43 +47,8 @@ Forneça estruturadamente:
 
 Seja realista com números, não invente.`;
 
-    const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
-    if (!apiKey) {
-      return Response.json({ error: 'API não configurada' }, { status: 500 });
-    }
-
-    const llmResponse = await fetch(
-      'https://api.openai.com/v1/chat/completions',
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            {
-              role: 'system',
-              content: 'Você é especialista em monitoramento de mídia e clipping. Forneça análise realista baseada em padrões reais.'
-            },
-            {
-              role: 'user',
-              content: prompt
-            }
-          ],
-          max_tokens: 2000,
-          temperature: 0.6
-        })
-      }
-    );
-
-    if (!llmResponse.ok) {
-      return Response.json({ error: 'Falha na busca' }, { status: 500 });
-    }
-
-    const llmData = await llmResponse.json();
-    const clippingTexto = llmData.choices?.[0]?.message?.content || '';
+    const clippingTexto = await invokeLLM(base44, { prompt, model: 'gpt_5_mini' });
+    const clippingFinal = typeof clippingTexto === 'string' ? clippingTexto : String(clippingTexto || '');
 
     // Salvar clipping
     const analise = await base44.entities.AIAnalysis.create({
@@ -90,7 +57,7 @@ Seja realista com números, não invente.`;
       tipo_analise: 'contextual',
       resultado: {
         tipo: 'clipping_inteligente',
-        clipping: clippingTexto,
+        clipping: clippingFinal,
         museus_monitorados: museus,
         dias_analisados: dias_atras,
         data_coleta: new Date().toISOString()
@@ -103,7 +70,7 @@ Seja realista com números, não invente.`;
     return Response.json({
       sucesso: true,
       clipping_id: analise.id,
-      clipping: clippingTexto,
+      clipping: clippingFinal,
       museus: museus,
       periodo: `${dias_atras} dias`
     });

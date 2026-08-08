@@ -1,8 +1,10 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 /**
  * Leitura territorial: analisa atividades, programação, oportunidades por território
- * Identifica tendências, concentrações, vazios, possibilidades
+ * Identifica tendências, concentrações, vazios, possibilidades.
+ * Usa gateway invokeGpt (OpenAI direta) — sem consumir créditos Base44.
  */
 Deno.serve(async (req) => {
   try {
@@ -46,44 +48,10 @@ Deno.serve(async (req) => {
     };
 
     const prompt = construirPromptTerritorial(tipo_leitura, dados, museu);
+    const promptFinal = `Você é analista territorial especializado em políticas culturais. Analise dados reais de atividades/programação em museus. Nunca invente.\n\n${prompt}`;
 
-    const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
-    if (!apiKey) {
-      return Response.json({ error: 'API não configurada' }, { status: 500 });
-    }
-
-    const llmResponse = await fetch(
-      'https://api.openai.com/v1/chat/completions',
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            {
-              role: 'system',
-              content: 'Você é analista territorial especializado em políticas culturais. Analise dados reais de atividades/programação. Nunca invente.'
-            },
-            {
-              role: 'user',
-              content: prompt
-            }
-          ],
-          max_tokens: 2000,
-          temperature: 0.6
-        })
-      }
-    );
-
-    if (!llmResponse.ok) {
-      return Response.json({ error: 'Falha na análise' }, { status: 500 });
-    }
-
-    const llmData = await llmResponse.json();
-    const leituraTexto = llmData.choices?.[0]?.message?.content || '';
+    const llmResult = await invokeLLM(base44, { prompt: promptFinal, model: 'gpt_5_mini' });
+    const leituraTexto = typeof llmResult === 'string' ? llmResult : String(llmResult || '');
 
     // Salvar análise
     const analise = await base44.entities.AIAnalysis.create({
