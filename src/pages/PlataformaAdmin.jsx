@@ -72,6 +72,8 @@ function PlataformaAdminInner() {
   const [normalizacaoValoresResult, setNormalizacaoValoresResult] = useState(null);
   const [sincronizandoRubricas, setSincronizandoRubricas] = useState(false);
   const [sincronizacaoRubricasResult, setSincronizacaoRubricasResult] = useState(null);
+  const [corrigindoMetas, setCorrigindoMetas] = useState(false);
+  const [correcaoMetasResult, setCorrecaoMetasResult] = useState(null);
 
   const { data: users = [] } = useQuery({
     queryKey: ['users'],
@@ -271,6 +273,29 @@ function PlataformaAdminInner() {
     }
   };
 
+  const handleCorrigirMetasSalaEspera = async () => {
+    setCorrigindoMetas(true);
+    setCorrecaoMetasResult(null);
+    try {
+      const res = await base44.functions.invoke('corrigirMetasDashboardSalaEspera', {});
+      const data = res?.data || res;
+      setCorrecaoMetasResult(data);
+      if (data?.ok) {
+        toast.success(
+          `${data.nfs_normalizadas || 0} NFs normalizadas, ${data.rubricas_recalculadas || 0} rubricas recalculadas, ${data.rubricas_vinculadas || 0} vinculadas, ${data.metas_corrigidas_financeiro || 0} metas financeiro + ${data.metas_corrigidas_fisico || 0} físico. ${data.items_sala_criados || 0} itens Sala de Espera.`
+        );
+        await queryClient.invalidateQueries({ queryKey: ['rubricas'] });
+      } else {
+        toastMessages.error(data?.error || 'Falha na correção de metas');
+      }
+    } catch (error) {
+      toastMessages.error(error?.message || 'Erro ao corrigir metas via Sala de Espera');
+      setCorrecaoMetasResult({ erro: String(error?.message || error) });
+    } finally {
+      setCorrigindoMetas(false);
+    }
+  };
+
   const totalUsers = users.length;
   const totalReports = reports.length;
   const approvedReports = reports.filter(r => r.status === 'APPROVED').length;
@@ -421,6 +446,77 @@ function PlataformaAdminInner() {
 
         <TabsContent value="ferramentas">
           <div className="space-y-6">
+            {/* Corrigir Metas do Dashboard via Sala de Espera */}
+            <div className="border-2 border-violet-600 rounded-lg p-6 bg-violet-50">
+              <h2 className="text-lg font-bold text-violet-900 mb-1 flex items-center gap-2">
+                <Database className="w-5 h-5" />
+                Corrigir Metas do Dashboard via Sala de Espera
+              </h2>
+              <p className="text-sm text-violet-800 mb-4">
+                Inteligência da Sala de Espera aplicada aos cards de metas desatualizados (financeiro 0%,
+                físico 0%, "Sem rubricas vinculadas"). Normaliza <code>valor_aprovado_admin</code> das NFs
+                aprovadas, recalcula <code>valor_utilizado</code> das rubricas, vincula rubricas órfãs às
+                metas (determinístico + IA), corrige <code>meta_codigo</code> das atividades e cria itens
+                na Sala de Espera — tratados/devolvidos (APROVADO) para correções automáticas e
+                AGUARDANDO_REVISAO para as ambíguas. Idempotente.
+              </p>
+
+              <Button
+                onClick={handleCorrigirMetasSalaEspera}
+                disabled={corrigindoMetas}
+                className="bg-violet-700 text-white hover:bg-violet-800 gap-2"
+              >
+                {corrigindoMetas ? (
+                  <>
+                    <RotateCw className="w-4 h-4 animate-spin" />
+                    Corrigindo via Sala de Espera...
+                  </>
+                ) : (
+                  <>
+                    <Database className="w-4 h-4" />
+                    Corrigir todas as metas agora
+                  </>
+                )}
+              </Button>
+
+              {correcaoMetasResult && !correcaoMetasResult.erro && (
+                <div className="mt-6 p-4 border border-violet-300 rounded-lg bg-white">
+                  <p className="font-semibold text-gray-800 mb-3">
+                    ✅ Correção concluída ({((correcaoMetasResult.execution_ms || 0) / 1000).toFixed(1)}s)
+                  </p>
+                  <ul className="text-sm text-gray-700 space-y-1">
+                    <li>🔎 NFs verificadas: {correcaoMetasResult.nfs_verificadas || 0}</li>
+                    <li>💵 NFs normalizadas: <strong>{correcaoMetasResult.nfs_normalizadas || 0}</strong></li>
+                    <li>🔁 Rubricas recalculadas: <strong>{correcaoMetasResult.rubricas_recalculadas || 0}</strong></li>
+                    <li>🔗 Rubricas vinculadas a metas: <strong>{correcaoMetasResult.rubricas_vinculadas || 0}</strong></li>
+                    <li>📊 Metas corrigidas (financeiro): <strong>{correcaoMetasResult.metas_corrigidas_financeiro || 0}</strong></li>
+                    <li>🏃 Metas corrigidas (físico): <strong>{correcaoMetasResult.metas_corrigidas_fisico || 0}</strong></li>
+                    <li>📋 Atividades com meta_codigo corrigido: {correcaoMetasResult.atividades_meta_corrigidas || 0}</li>
+                    <li className="text-violet-700">📮 Itens Sala de Espera: {correcaoMetasResult.items_sala_criados || 0} ({correcaoMetasResult.items_sala_aprovados || 0} tratados, {correcaoMetasResult.items_sala_revisao || 0} em revisão)</li>
+                  </ul>
+                  {correcaoMetasResult.detalhes_por_meta?.length > 0 && (
+                    <details className="mt-3">
+                      <summary className="text-xs text-gray-500 cursor-pointer">Detalhe por meta</summary>
+                      <ul className="mt-2 text-xs text-gray-600 space-y-1 max-h-48 overflow-y-auto">
+                        {correcaoMetasResult.detalhes_por_meta.map((d, i) => (
+                          <li key={i}>
+                            <strong>META {d.meta}</strong> ({d.titulo}) — rubricas: {d.rubricas}, previsto: R$ {(d.previsto || 0).toFixed(2)}, utilizado: R$ {(d.utilizado || 0).toFixed(2)}
+                            {d.acoes?.length > 0 && <span className="block text-gray-500 ml-3">↳ {d.acoes.join('; ')}</span>}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                </div>
+              )}
+
+              {correcaoMetasResult?.erro && (
+                <div className="mt-6 p-4 border border-red-300 rounded-lg bg-white text-red-700 text-sm">
+                  ❌ {correcaoMetasResult.erro}
+                </div>
+              )}
+            </div>
+
             {/* Normalizar valor_aprovado_admin das NFs aprovadas/pagas */}
             <div className="border-2 border-teal-500 rounded-lg p-6 bg-teal-50">
               <h2 className="text-lg font-bold text-teal-900 mb-1 flex items-center gap-2">
