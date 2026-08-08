@@ -5,6 +5,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { validateFiles, formatFileSize, UPLOAD_CONFIG } from '@/lib/uploadConfig';
+import { toast } from 'sonner';
+
+const MAX_FILES_PER_LOTE = 5;
 
 export default function DocumentUploadZone({ onFilesSelected, disabled, uploading }) {
   const inputRef = useRef(null);
@@ -35,7 +38,16 @@ export default function DocumentUploadZone({ onFilesSelected, disabled, uploadin
   function handleFiles(files) {
     if (!files || files.length === 0 || isDisabled) return;
 
-    const { valid, invalid } = validateFiles(files);
+    const fileArr = Array.from(files);
+
+    // Limite de 5 arquivos por envio (PRD) — recusa o excedente e avisa o usuário.
+    if (fileArr.length > MAX_FILES_PER_LOTE) {
+      toast.error('Máximo de 5 arquivos por vez. Envie em lotes.');
+    }
+
+    const limited = fileArr.slice(0, MAX_FILES_PER_LOTE);
+
+    const { valid, invalid } = validateFiles(limited);
 
     if (invalid.length > 0) {
       setFileErrors(invalid.map((f) => `${f.name}: ${f.errors[0]}`));
@@ -126,7 +138,7 @@ export default function DocumentUploadZone({ onFilesSelected, disabled, uploadin
           </p>
 
           <p className="text-xs text-slate-400 text-center">
-            Suporta PDF, XML, Word (.docx) e imagens (JPG, PNG).
+            Suporta PDF, XML, Word (.docx) e imagens (JPG, PNG). Máximo de 5 arquivos por vez.
           </p>
 
           <input
@@ -142,8 +154,12 @@ export default function DocumentUploadZone({ onFilesSelected, disabled, uploadin
       ) : (
         <div className="border border-slate-200 rounded-xl p-4 bg-white space-y-3">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-sm font-medium text-slate-700">
-              {selectedFiles.length} arquivo(s) selecionado(s)
+            <span
+              className={`text-sm font-medium ${
+                selectedFiles.length > MAX_FILES_PER_LOTE ? 'text-amber-600' : 'text-slate-700'
+              }`}
+            >
+              {selectedFiles.length}/{MAX_FILES_PER_LOTE} arquivos selecionados
             </span>
 
             <button

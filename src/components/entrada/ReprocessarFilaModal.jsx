@@ -174,9 +174,28 @@ export default function ReprocessarFilaModal({ open, intakes, onClose, onConclui
 
   async function parseXmlViaLLM(xml) {
     try {
+      // Usa lerNotaFiscalGPT (GPT-4o via OPENAI_API_KEY) — única IA do fluxo.
+      // Se houver intake_id, aproveita o pipeline estruturado; senão, InvokeLLM
+      // direto com model explícito 'gpt-4o'.
+      if (xml?.id) {
+        const res = await base44.functions.invoke('lerNotaFiscalGPT', {
+          intake_id: xml.id,
+          file_url: xml.arquivo_original_url,
+        });
+        const data = res?.data || res;
+        if (data?.ok && data?.resultado) {
+          const r = data.resultado;
+          return {
+            nf_numero: String(r.numero_nota || '').replace(/\D/g, ''),
+            nf_emitente_cpf_cnpj: String(r.fornecedor_cnpj || r.fornecedor_cpf || '').replace(/\D/g, ''),
+            nf_valor_total: r.valor_total || 0,
+          };
+        }
+      }
       const res = await aiClient.InvokeLLM({
         prompt:
           'Extraia do XML fiscal anexado os seguintes campos do EMITENTE/PRESTADOR: nf_numero (somente dígitos), nf_emitente_cpf_cnpj (CNPJ ou CPF do emitente, somente dígitos), nf_valor_total (número decimal). Retorne apenas JSON válido.',
+        model: 'gpt-4o',
         file_urls: [xml.arquivo_original_url],
         response_json_schema: {
           type: 'object',

@@ -834,6 +834,7 @@ export default function EntradaUnica() {
       aiClient.InvokeLLM({
         prompt: `Este documento é um CONTRATO (contrato de prestação de serviços, contrato de trabalho, termo de prestação), um ORCAMENTO (proposta comercial, cotação, orçamento sem número de NF) ou uma NOTA FISCAL / RECIBO / OUTRO?
 Responda apenas com uma palavra: CONTRATO ou ORCAMENTO ou NOTA_FISCAL ou OUTRO.`,
+        model: 'gpt-4o',
         file_urls: [fileUrl],
         response_json_schema: {
           type: 'object',
@@ -969,7 +970,7 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
       const resultado = await aiClient.InvokeLLM({
         prompt,
         file_urls: [fileUrl],
-        model: 'claude_sonnet_4_6',
+        model: 'gpt-4o',
         response_json_schema: {
           type: 'object',
           properties: {
@@ -1087,11 +1088,11 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
 
       await loadIntakes();
 
-      // Tenta primeiro via backend robusto (Claude+Gemini+GPT com normalização completa)
+      // Tenta primeiro via backend robusto (GPT-4o via lerNotaFiscalGPT)
       const isPDF = intake.mime_type?.includes('pdf') || intake.arquivo_original_url?.toLowerCase().endsWith('.pdf');
       if (isPDF) {
         try {
-          await base44.functions.invoke('processarNotaFiscalComClaude', {
+          await base44.functions.invoke('lerNotaFiscalGPT', {
             intake_id: intake.id,
             file_url: intake.arquivo_original_url,
             orientacoes_usuario: intake.resultado_ia?.orientacoes_usuario || ''
@@ -1099,7 +1100,7 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
           await loadIntakes();
           return;
         } catch (backendErr) {
-          console.warn('Backend processarNotaFiscalComClaude falhou, usando fluxo frontend:', backendErr);
+          console.warn('Backend lerNotaFiscalGPT falhou, usando fluxo frontend:', backendErr);
         }
       }
 
@@ -1729,8 +1730,8 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
 
           try {
             if (isPDF) {
-              // PDFs: backend robusto (Claude → Gemini → GPT) com normalização completa
-              await comTimeout(base44.functions.invoke('processarNotaFiscalComClaude', {
+              // PDFs: leitura profunda via GPT-4o (lerNotaFiscalGPT) — única IA do fluxo
+              await comTimeout(base44.functions.invoke('lerNotaFiscalGPT', {
                 intake_id: intake.id,
                 file_url,
                 orientacoes_usuario: intake.resultado_ia?.orientacoes_usuario || ''
