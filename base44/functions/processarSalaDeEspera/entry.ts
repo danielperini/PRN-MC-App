@@ -30,7 +30,7 @@ const ROOT_NOTAS_FOLDER_ID = '1LgC94VhIomQZBS7kfkQqgBX8MVzwQqzp';
 const BATCH_SIZE = 10;
 const MAX_TENTATIVAS_IA = 1;
 const IA_TIMEOUT_MS = 35000;
-const DEADLINE_MS = 50000; // prazo global de execução segura
+const DEADLINE_MS = 85000; // prazo global de execução segura
 const MESES_PT = ['Janeiro','Fevereiro','Marco','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
 // ── Utilitários ──────────────────────────────────────────────────────────────
@@ -126,6 +126,272 @@ async function getOrCreate(token, name, parentId, cache) {
   const id = (await findFolder(token, name, parentId)) || (await createFolder(token, name, parentId));
   cache[key] = id;
   return id;
+}
+
+// ── Parser XML determinístico (NF-e / NFS-e) ───────────────────────────────────
+
+function getXmlTag(xml, tag) {
+  const re = new RegExp(`<${tag}[^>]*>([^<]*)<\/${tag}>`, 'i');
+  const m = xml.match(re);
+  return m ? m[1].trim() : null;
+}
+
+function normalizeCurrency(val) {
+  if (!val) return null;
+  const clean = String(val).replace(/[^\d,\.]/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.');
+  const n = parseFloat(clean);
+  return isNaN(n) ? null : n;
+}
+
+function parseXmlNF(xmlText) {
+  try {
+    // Remove prefixos de namespace (ex: <ns3:nNF> → <nNF>) para matching robusto
+    const xml = String(xmlText || '').replace(/<\/?(\w+):/g, '<');
+
+    // Numero da NF — NF-e (nNF) e NFS-e (NumeroNfse, Numero, nRPS)
+    const numero = getXmlTag(xml, 'nNF')
+      || getXmlTag(xml, 'nRPS')
+      || getXmlTag(xml, 'NumeroNfse')
+      || getXmlTag(xml, 'Numero')
+      || getXmlTag(xml, 'NumeroRps');
+
+    // Data de emissão
+    const dataRaw = getXmlTag(xml, 'dhEmi')
+      || getXmlTag(xml, 'dEmi')
+      || getXmlTag(xml, 'dtEmissao')
+      || getXmlTag(xml, 'DataEmissao')
+      || getXmlTag(xml, 'DataEmissaoRps');
+    const data_emissao = dataRaw ? dataRaw.substring(0, 10) : null;
+
+    // Valor total — normaliza formato BR (1.234,56 → 1234.56)
+    const valorRaw = getXmlTag(xml, 'vNF')
+      || getXmlTag(xml, 'vLiquidoNfse')
+      || getXmlTag(xml, 'Valor')
+      || getXmlTag(xml, 'ValorServicos')
+      || getXmlTag(xml, 'ValorLiquidoNfse')
+      || getXmlTag(xml, 'vLiq');
+    // Converte formato brasileiro: "2.100,00" → 2100.00
+    let valor_total = null;
+    if (valorRaw) {
+      const cleaned = String(valorRaw).replace(/\./g, '').replace(',', '.').replace(/[^\d.]/g, '');
+      const n = parseFloat(cleaned);
+      valor_total = isNaN(n) ? null : n;
+    }
+
+    // Emitente — CNPJ/CPF pode aparecer em Emit/Prestador
+    const emit_cnpj = getXmlTag(xml, 'CNPJ') || getXmlTag(xml, 'CpfCnpjPrestador');
+    const emit_cpf = getXmlTag(xml, 'CPF') || getXmlTag(xml, 'CpfPrestador');
+    const emitente_cpf_cnpj = emit_cnpj || emit_cpf;
+    const emitente_nome = getXmlTag(xml, 'xNome')
+      || getXmlTag(xml, 'RazaoSocial')
+      || getXmlTag(xml, 'xFant')
+      || getXmlTag(xml, 'NomeRazaoSocial')
+      || getXmlTag(xml, 'Nome');
+
+    // Município — procura em tags diretas E aninhadas (Endereco/xMun, xMunicipio)
+    const municipio = getXmlTag(xml, 'xMun')
+      || getXmlTag(xml, 'xMunicipio')
+      || getXmlTag(xml, 'Municipio')
+      || getXmlTag(xml, 'Cidade')
+      || getXmlTag(xml, 'CidadePrestador')
+      || (xml.match(/<Endereco[^>]*>[\s\S]*?<Municipio>([^<]*)<\/Municipio>/i)?.[1] || null)
+      || (xml.match(/<Endereco[^>]*>[\s\S]*?<Cidade>([^<]*)<\/Cidade>/i)?.[1] || null);
+
+    return {
+      numero_nf: numero ? String(numero).replace(/[^\d]/g, '') : null,
+      valor_total,
+      data_emissao,
+      emitente_nome,
+      emitente_cpf_cnpj: emitente_cpf_cnpj ? String(emitente_cpf_cnpj).replace(/\D/g, '') : null,
+      municipio: municipio ? String(municipio) : null,
+      status_leitura: (numero && emitente_cpf_cnpj && valor_total != null) ? 'lido_com_sucesso' : 'leitura_parcial',
+    };
+  } catch {
+    return { status_leitura: 'leitura_falhou' };
+  }
+}
+
+// Busca e lê o conteúdo XML (Drive URL ou storage Base44)
+async function fetchXmlContent(token, url) {
+  if (!url) return null;
+  try {
+    let fetchUrl = url;
+    if (url.includes('drive.google.com')) {
+      const id = extrairDriveId(url);
+      if (id) fetchUrl = `https://www.googleapis.com/drive/v3/files/${id}?alt=media`;
+    }
+    const headers = {};
+    if (fetchUrl.includes('googleapis.com')) headers.Authorization = `Bearer ${token}`;
+    const r = await fetch(fetchUrl, { headers });
+    if (!r.ok) return null;
+    return await r.text();
+  } catch {
+    return null;
+  }
+}
+
+// Infere centro de custo a partir do nome do arquivo
+function inferirCentroCustoFromName(fileName) {
+  if (!fileName) return null;
+  const n = fileName.toUpperCase();
+  if (/\bMIS\b/.test(n) && !/MUMO/.test(n)) return 'MIS';
+  if (/MUMO|MOstra/i.test(n) && /MUMO/i.test(n)) return 'MUMO';
+  if (/MHAB|MAB/.test(n)) return 'MHAB';
+  if (/NOTURNO/i.test(n)) return 'Noturno nos Museus 2026';
+  if (/PUBLI/i.test(n)) return 'Publicações';
+  if (/MUSEUS CENTRO|MUSEUS CEN/i.test(n) && !/MIS|MUMO|MHAB/.test(n)) return 'Geral';
+  return null;
+}
+
+// Busca fornecedor por CNPJ no banco para preencher fornecedor_nome e centro_custo históricos
+async function buscarFornecedorByCnpj(base44, cnpj) {
+  if (!cnpj) return null;
+  try {
+    const docs = cnpj.length === 14
+      ? await base44.asServiceRole.entities.Fornecedor.filter({ cnpj }).catch(() => [])
+      : await base44.asServiceRole.entities.Fornecedor.filter({ cpf: cnpj }).catch(() => []);
+    return docs?.[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+// Extrai campos do nome padronizado do arquivo (NF XX ... R$ YY,YY ... mes ano)
+function extrairDoNomeArquivo(fileName) {
+  if (!fileName) return {};
+  const out = {};
+  const name = String(fileName).replace(/\.[^.]+$/, ''); // remove extensão
+
+  // NF número: "XML 73 ...", "NF 73 ...", "XML 9429 ..." — primeiro número após XML/NF
+  const nfNumMatch = name.match(/^(?:XML|NF)\s+(\d+)/i) || name.match(/\bNF\s*(\d+)/i);
+  if (nfNumMatch) out.nf_numero = String(nfNumMatch[1]);
+
+  // Valor: "R$ 2.100,00" → 2100.00
+  const valorMatch = name.match(/R\$\s*([\d.,]+)/i);
+  if (valorMatch) {
+    const cleaned = valorMatch[1].replace(/\./g, '').replace(',', '.');
+    const n = parseFloat(cleaned);
+    if (!isNaN(n)) out.nf_valor_total = n;
+  }
+
+  // Mês/ano: "abril 26", "junho 26", "07-2026" → data_emissao YYYY-MM-DD
+  const MESES_NOME = { janeiro:'01', fevereiro:'02', marco:'03', abril:'04', maio:'05', junho:'06', julho:'07', agosto:'08', setembro:'09', outubro:'10', novembro:'11', dezembro:'12' };
+  const mesAnoMatch = name.match(/(janeiro|fevereiro|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\s+(\d{2})\b/i);
+  if (mesAnoMatch) {
+    const mesKey = mesAnoMatch[1].toLowerCase();
+    const ano = `20${mesAnoMatch[2]}`;
+    out.nf_data_emissao = `${ano}-${MESES_NOME[mesKey] || '01'}-01`;
+  }
+  const mesAnoNumMatch = name.match(/(\d{2})-(\d{4})/);
+  if (!out.nf_data_emissao && mesAnoNumMatch) {
+    out.nf_data_emissao = `${mesAnoNumMatch[2]}-${mesAnoNumMatch[1]}-01`;
+  }
+
+  // Fornecedor_nome: primeiro segmento (após split por " - ") que NÃO é
+  // data, "MUSEUS CENTRO/CEN", "Daniel Perini", "Perini Projetos", não começa com NF/XML/R$
+  const segments = name.split(/\s+-\s+/).map((s) => s.trim()).filter(Boolean);
+  const SKIP = /^(NF|XML|R\$|Daniel Perini|Perini Projetos|MUSEUS CEN|Mes |mes )/i;
+  const DATE_RE = /^\d{2}-\d{4}$/;
+  for (const seg of segments) {
+    if (DATE_RE.test(seg)) continue;
+    if (SKIP.test(seg)) continue;
+    if (seg.length < 5) continue; // muito curto, provavelmente não é nome
+    // Ignorar segmentos que são apenas descrições de função ("Assessor de Imprensa mes 19 ao")
+    if (/mes\s+\d/i.test(seg) && seg.length < 40) continue;
+    out.fornecedor_nome = seg;
+    break;
+  }
+
+  // Centro_custo: via palavras-chave de museu no nome
+  const cc = inferirCentroCustoFromName(name);
+  if (cc) out.centro_custo = cc;
+
+  return out;
+}
+
+// Preenche campos faltantes de XML de forma determinística (SEM IA — instantâneo)
+async function preencherCamposXmlDeterministico(base44, token, intake, faltando) {
+  const xmlUrl = intake.nf_xml_url || intake.arquivo_original_url;
+  const xmlText = await fetchXmlContent(token, xmlUrl);
+  if (!xmlText) return { ok: false, motivo: 'sem_xml_acessivel' };
+
+  const parsed = parseXmlNF(xmlText);
+  if (parsed.status_leitura === 'leitura_falhou') return { ok: false, motivo: 'xml_parse_falhou' };
+
+  const updates = {};
+  if (faltando.includes('nf_numero') && parsed.numero_nf) updates.nf_numero = parsed.numero_nf;
+  if (faltando.includes('nf_valor_total') && parsed.valor_total != null) updates.nf_valor_total = parsed.valor_total;
+  if (faltando.includes('nf_data_emissao') && parsed.data_emissao) {
+    const d = parseDataEmissao(parsed.data_emissao);
+    if (d && d.ano >= 2026) updates.nf_data_emissao = parsed.data_emissao;
+  }
+  if (faltando.includes('nf_emitente_nome') && parsed.emitente_nome) updates.nf_emitente_nome = parsed.emitente_nome;
+  if (faltando.includes('fornecedor_cpf_cnpj') && parsed.emitente_cpf_cnpj) {
+    const doc = String(parsed.emitente_cpf_cnpj).replace(/\D/g, '');
+    if (doc.length === 11 || doc.length === 14) {
+      updates.fornecedor_cpf_cnpj = doc;
+      updates.nf_emitente_cpf_cnpj = doc;
+    }
+  }
+  if (faltando.includes('municipio') && parsed.municipio) updates.municipio = parsed.municipio;
+
+  // fornecedor_nome: se tem emitente_nome, usar como fornecedor_nome
+  if (faltando.includes('fornecedor_nome') && parsed.emitente_nome) {
+    updates.fornecedor_nome = parsed.emitente_nome;
+  }
+
+  // Buscar fornecedor por CNPJ uma única vez e reusar para centro_custo, nome e municipio
+  let fornecedor = null;
+  if (parsed.emitente_cpf_cnpj) {
+    fornecedor = await buscarFornecedorByCnpj(base44, parsed.emitente_cpf_cnpj);
+  }
+
+  // centro_custo: via histórico do fornecedor, senão via nome do arquivo
+  if (faltando.includes('centro_custo')) {
+    if (fornecedor?.centro_custo) {
+      updates.centro_custo = fornecedor.centro_custo;
+    } else if (fornecedor?.museu_vinculado) {
+      updates.centro_custo = fornecedor.museu_vinculado;
+    }
+    if (!updates.centro_custo) {
+      const fromName = inferirCentroCustoFromName(intake.file_name_final || intake.file_name_original);
+      if (fromName) updates.centro_custo = fromName;
+    }
+  }
+
+  // fornecedor_nome: do XML emitente, senão do cadastro de fornecedor
+  if (faltando.includes('fornecedor_nome')) {
+    if (parsed.emitente_nome) {
+      updates.fornecedor_nome = parsed.emitente_nome;
+    } else if (fornecedor?.nome || fornecedor?.razao_social) {
+      updates.fornecedor_nome = fornecedor.nome || fornecedor.razao_social;
+    }
+  }
+
+  // municipio: do XML, senão do cadastro de fornecedor, senão default BH (projeto é em Belo Horizonte)
+  if (faltando.includes('municipio')) {
+    if (parsed.municipio) {
+      updates.municipio = parsed.municipio;
+    } else if (fornecedor?.municipio) {
+      updates.municipio = fornecedor.municipio;
+    } else {
+      updates.municipio = 'Belo Horizonte'; // default do projeto Museus Centro
+    }
+  }
+
+  // Fallback final: extrair campos faltantes do NOME do arquivo (padronizado pelo sistema)
+  const fromName = extrairDoNomeArquivo(intake.file_name_final || intake.file_name_original);
+  if (fromName.nf_numero && faltando.includes('nf_numero') && !updates.nf_numero) updates.nf_numero = fromName.nf_numero;
+  if (fromName.nf_valor_total != null && faltando.includes('nf_valor_total') && !updates.nf_valor_total) updates.nf_valor_total = fromName.nf_valor_total;
+  if (fromName.nf_data_emissao && faltando.includes('nf_data_emissao') && !updates.nf_data_emissao) {
+    const d = parseDataEmissao(fromName.nf_data_emissao);
+    if (d && d.ano >= 2026) updates.nf_data_emissao = fromName.nf_data_emissao;
+  }
+
+  if (Object.keys(updates).length === 0) return { ok: false, motivo: 'xml_sem_campos_uteis' };
+
+  await base44.asServiceRole.entities.DocumentIntake.update(intake.id, updates).catch(() => null);
+  return { ok: true, motivo: 'xml_deterministico', updates };
 }
 
 // ── IA: preencher TODOS os campos faltantes de uma NF ─────────────────────────
@@ -258,20 +524,73 @@ async function processarIntake(base44, token, intake, folderCache, tentativasMap
   // 1. Verificar campos obrigatórios
   let check = camposObrigatorios(intake);
 
-  // 2. Se faltam campos e tem arquivo → IA preenche (até MAX_TENTATIVAS_IA)
+  // 2. Se faltam campos e tem arquivo → Tentar XML determinístico PRIMEIRO (instantâneo), depois IA
   let tentativa = tentativasMap.get(intake.id) || 0;
   while (!check.ok && tentativa < MAX_TENTATIVAS_IA && (intake.tipo_detectado === 'NOTA_FISCAL_PDF' || intake.tipo_detectado === 'NOTA_FISCAL_XML')) {
     tentativa++;
     tentativasMap.set(intake.id, tentativa);
-    log.detalhes.push(`IA validacao preencher tentativa ${tentativa}: faltando [${check.faltando.join(',')}]`);
-    const iaResult = await preencherCamposFaltantesIA(base44, token, intake, check.faltando);
-    if (!iaResult.ok) {
-      log.detalhes.push(`IA falhou: ${iaResult.motivo}`);
+    log.detalhes.push(`Validação tentativa ${tentativa}: faltando [${check.faltando.join(',')}]`);
+
+    // 2a. XML: parser determinístico (sem IA — instantâneo)
+    if (intake.tipo_detectado === 'NOTA_FISCAL_XML') {
+      const xmlResult = await preencherCamposXmlDeterministico(base44, token, intake, check.faltando);
+      if (xmlResult.ok) {
+        log.detalhes.push(`XML determinístico OK: ${Object.keys(xmlResult.updates).join(',')}`);
+        Object.assign(intake, xmlResult.updates);
+        check = camposObrigatorios(intake);
+        if (check.ok) break; // XML resolveu tudo!
+      } else {
+        log.detalhes.push(`XML determinístico falhou: ${xmlResult.motivo}`);
+      }
+      // XML parcial: NÃO chama IA (lenta p/ XML) — deixa pendente p/ revisão manual
       break;
     }
-    // atualiza intake localmente para recheck
-    Object.assign(intake, iaResult.updates);
-    check = camposObrigatorios(intake);
+
+    // 2b. PDF: IA como única estratégia
+    if (intake.tipo_detectado === 'NOTA_FISCAL_PDF' && !check.ok) {
+      const iaResult = await preencherCamposFaltantesIA(base44, token, intake, check.faltando);
+      if (!iaResult.ok) {
+        log.detalhes.push(`IA falhou: ${iaResult.motivo}`);
+        break;
+      }
+      Object.assign(intake, iaResult.updates);
+      check = camposObrigatorios(intake);
+    }
+  }
+
+  // 2c. Fallback final: extrair campos faltantes do NOME padronizado do arquivo
+  if (!check.ok && (intake.tipo_detectado === 'NOTA_FISCAL_PDF' || intake.tipo_detectado === 'NOTA_FISCAL_XML')) {
+    const fromName = extrairDoNomeArquivo(intake.file_name_final || intake.file_name_original);
+    const nameUpdates = {};
+    if (fromName.nf_numero && check.faltando.includes('nf_numero') && !intake.nf_numero) nameUpdates.nf_numero = fromName.nf_numero;
+    if (fromName.nf_valor_total != null && check.faltando.includes('nf_valor_total') && !intake.nf_valor_total) nameUpdates.nf_valor_total = fromName.nf_valor_total;
+    if (fromName.nf_data_emissao && check.faltando.includes('nf_data_emissao') && !intake.nf_data_emissao) {
+      const d = parseDataEmissao(fromName.nf_data_emissao);
+      if (d && d.ano >= 2026) nameUpdates.nf_data_emissao = fromName.nf_data_emissao;
+    }
+    if (fromName.fornecedor_nome) {
+      if (check.faltando.includes('fornecedor_nome') && !intake.fornecedor_nome) nameUpdates.fornecedor_nome = fromName.fornecedor_nome;
+      if (check.faltando.includes('nf_emitente_nome') && !intake.nf_emitente_nome) nameUpdates.nf_emitente_nome = fromName.fornecedor_nome;
+    }
+    if (fromName.centro_custo && check.faltando.includes('centro_custo') && !intake.centro_custo) nameUpdates.centro_custo = fromName.centro_custo;
+    if (check.faltando.includes('municipio') && !intake.municipio) nameUpdates.municipio = 'Belo Horizonte';
+    if (check.faltando.includes('fornecedor_cpf_cnpj') && !intake.fornecedor_cpf_cnpj) {
+      // tentar lookup por fornecedor_nome
+      let forn = null;
+      if (fromName.fornecedor_nome) {
+        forn = await base44.asServiceRole.entities.Fornecedor.filter({ nome: fromName.fornecedor_nome }).catch(() => []);
+        forn = forn?.[0] || null;
+      }
+      if (forn?.cnpj) nameUpdates.fornecedor_cpf_cnpj = forn.cnpj;
+      else if (forn?.cpf) nameUpdates.fornecedor_cpf_cnpj = forn.cpf;
+      else if (forn?.cpf_cnpj) nameUpdates.fornecedor_cpf_cnpj = forn.cpf_cnpj;
+    }
+    if (Object.keys(nameUpdates).length > 0) {
+      Object.assign(intake, nameUpdates);
+      await base44.asServiceRole.entities.DocumentIntake.update(intake.id, nameUpdates).catch(() => null);
+      log.detalhes.push(`Nome arquivo OK: ${Object.keys(nameUpdates).join(',')}`);
+      check = camposObrigatorios(intake);
+    }
   }
 
   // 3. Para foto sem legenda: uma tentativa de IA (lightweight, sem arquivo)
@@ -280,24 +599,25 @@ async function processarIntake(base44, token, intake, folderCache, tentativasMap
     log.detalhes.push('Foto aguardando legenda da IA de análise');
   }
 
-  // 4. Se ainda faltam dados essenciais após tentativas IA
+  // 4. Se ainda faltam dados essenciais após tentativas
   if (!check.ok) {
-    // Após MAX tentativas IA para NF, marcar REJEITADO p/ revisão manual (não acumula indefinidamente)
-    if (tentativa >= MAX_TENTATIVAS_IA && (intake.tipo_detectado === 'NOTA_FISCAL_PDF' || intake.tipo_detectado === 'NOTA_FISCAL_XML')) {
+    // PDFs que esgotaram IA → REJEITADO p/ revisão manual
+    if (tentativa >= MAX_TENTATIVAS_IA && intake.tipo_detectado === 'NOTA_FISCAL_PDF') {
       try {
         await base44.asServiceRole.entities.DocumentIntake.update(intake.id, {
           status_processamento: 'REJEITADO',
           ocultar_entrada_unica: true,
         });
         log.status = 'rejeitado_dados_incompletos';
-        log.detalhes.push(`Marcado REJEITADO após ${tentativa} tentativas IA. Campos faltantes: [${check.faltando.join(',')}]`);
+        log.detalhes.push(`Marcado REJEITADO após ${tentativa} tentativa(s) IA. Campos faltantes: [${check.faltando.join(',')}]`);
       } catch (e) {
         log.status = 'erro_update';
         log.detalhes.push(`Erro ao rejeitar: ${e.message}`);
       }
     } else {
+      // XMLs (parser parcial) ou outros → pendente_dados (mantém na fila, sem REJEITADO)
       log.status = 'pendente_dados';
-      log.detalhes.push(`Motivo: ${check.faltando.join(',')}`);
+      log.detalhes.push(`Pendência: ${check.faltando.join(',')}`);
     }
     return log;
   }
@@ -351,14 +671,44 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const dryRun = body.dryRun === true;
+    const resetRejeitados = body.resetRejeitados === true;
+    const apenasNFs = body.apenasNFs === true;
     const limite = typeof body.limite === 'number' ? body.limite : 40;
 
+    // 0. Modo reset: re-avaliação — REJEITADOS voltam para AGUARDANDO_REVISAO
+    if (resetRejeitados) {
+      const tipoFilter = apenasNFs
+        ? { $in: ['NOTA_FISCAL_PDF', 'NOTA_FISCAL_XML'] }
+        : { $in: ['NOTA_FISCAL_PDF', 'NOTA_FISCAL_XML', 'FOTO_ATIVIDADE', 'CONTRATO', 'DOCUMENTO_ADMINISTRATIVO', 'RECIBO_PDF', 'OUTRO'] };
+      const rejeitados = await base44.asServiceRole.entities.DocumentIntake.filter(
+        { status_processamento: 'REJEITADO', status_registro: 'ATIVO', tipo_detectado: tipoFilter },
+        '-updated_date', 500, 0
+      ).catch(() => []);
+      let resetados = 0;
+      const ids = (rejeitados || []).map((i) => i.id);
+      if (ids.length > 0) {
+        await base44.asServiceRole.entities.DocumentIntake.updateMany(
+          { _id: { $in: ids } },
+          { $set: { status_processamento: 'AGUARDANDO_REVISAO', ocultar_entrada_unica: false } }
+        ).catch(() => null);
+        resetados = ids.length;
+      }
+      return Response.json({
+        ok: true,
+        reset: true,
+        resetados,
+        rejeitados_encontrados: (rejeitados || []).length,
+        mensagem: `${resetados} intakes REJEITADOS voltaram para AGUARDANDO_REVISAO para re-avaliação`,
+      });
+    }
+
     // 1. Buscar intakes pendentes (não ocultos, ativos)
-    const pendentes = await base44.asServiceRole.entities.DocumentIntake.filter(
+    let pendentes = await base44.asServiceRole.entities.DocumentIntake.filter(
       {
         status_processamento: { $in: ['ENVIADO', 'AGUARDANDO_REVISAO', 'ANALISANDO_IA'] },
         ocultar_entrada_unica: { $ne: true },
         status_registro: 'ATIVO',
+        ...(apenasNFs ? { tipo_detectado: { $in: ['NOTA_FISCAL_PDF', 'NOTA_FISCAL_XML'] } } : {}),
       },
       '-updated_date', Math.min(limite, 200), 0
     ).catch(() => []);
@@ -395,9 +745,15 @@ Deno.serve(async (req) => {
     let paradosPorDeadline = 0;
 
     // 3. Processar em lotes (interrompe antes do prazo global p/ não estourar execução)
+    //    PRIORIZA XMLs (processamento determinístico instantâneo) antes dos PDFs (IA lenta)
     const resultados = { liberado: 0, pendente_dados: 0, rejeitado_dados_incompletos: 0, erro_update: 0, erro: 0 };
     const logs = [];
-    const intakesParaProcessar = (pendentes || []).slice(0, limite);
+    const todos = (pendentes || []).slice(0, limite);
+    const intakesParaProcessar = [
+      ...todos.filter((i) => i.tipo_detectado === 'NOTA_FISCAL_XML'),
+      ...todos.filter((i) => i.tipo_detectado === 'NOTA_FISCAL_PDF'),
+      ...todos.filter((i) => i.tipo_detectado !== 'NOTA_FISCAL_XML' && i.tipo_detectado !== 'NOTA_FISCAL_PDF'),
+    ];
 
     for (let i = 0; i < intakesParaProcessar.length; i += BATCH_SIZE) {
       if (Date.now() > deadline - 15000) { paradosPorDeadline = intakesParaProcessar.length - i; break; } // sobra 15s p/ resposta
