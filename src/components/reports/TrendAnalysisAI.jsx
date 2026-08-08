@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Sparkles, Loader2, TrendingUp, AlertCircle, CheckCircle } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
+import aiClient from '@/lib/aiClient';
 import { toast } from 'sonner';
 
 export default function TrendAnalysisAI({ museu, disabled = false }) {
@@ -64,7 +65,7 @@ Gere uma análise estruturada em JSON com a seguinte estrutura:
   "recomendacoes": ["recomendação 1", "recomendação 2", ...]
 }`;
 
-    const result = await base44.integrations.Core.InvokeLLM({
+    const result = await aiClient.InvokeLLM({
       prompt,
       model: 'claude_sonnet_4_6',
       response_json_schema: {

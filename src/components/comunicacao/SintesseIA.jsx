@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Sparkles, Loader2, RefreshCw } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
+import aiClient from '@/lib/aiClient';
 import ReactMarkdown from 'react-markdown';
 
 const CACHE_KEY = 'comunicacao_sintese_ia_v1';
@@ -66,7 +67,7 @@ A síntese deve conter:
 
 Seja objetivo, institucional e use linguagem adequada para patrocinadores.`;
 
-      const result = await base44.integrations.Core.InvokeLLM({ prompt });
+      const result = await aiClient.InvokeLLM({ prompt });
       const text = typeof result === 'string' ? result : result?.output_text || result?.text || JSON.stringify(result);
       const now = new Date().toLocaleString('pt-BR');
       setSintese(text);

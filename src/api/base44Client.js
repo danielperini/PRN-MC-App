@@ -372,3 +372,9 @@ if (functionsApi?.invoke) {
     }
   };
 }
+
+// IA própria via OpenAI (sem créditos Base44): importe `aiClient` de
+// '@/lib/aiClient' e use aiClient.InvokeLLM(...)/GenerateImage(...)/...
+// em vez de base44.integrations.Core.* — roteia para a função backend
+// `invokeGpt` (chave OPENAI_API_KEY). O objeto Core do SDK NÃO aceita
+// sobrescrita, por isso a troca é feita em cada componente.

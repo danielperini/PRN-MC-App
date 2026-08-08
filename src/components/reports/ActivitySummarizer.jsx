@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import aiClient from '@/lib/aiClient';
 import { Button } from '@/components/ui/button';
 import { Sparkles, Loader2, AlertCircle, CheckCircle2, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -107,7 +108,7 @@ Responda em JSON com a seguinte estrutura:
   ]
 }`;
 
-    const result = await base44.integrations.Core.InvokeLLM({
+    const result = await aiClient.InvokeLLM({
       prompt,
       response_json_schema: {
         type: 'object',

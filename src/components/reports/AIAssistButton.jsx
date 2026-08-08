@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import aiClient from '@/lib/aiClient';
 import { Button } from '@/components/ui/button';
 import { Sparkles, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -50,7 +51,7 @@ export default function AIAssistButton({ field, context, onGenerate, placeholder
     setLoading(true);
     try {
       const prompt = buildPrompt(field, context, placeholder);
-      const result = await base44.integrations.Core.InvokeLLM({ prompt });
+      const result = await aiClient.InvokeLLM({ prompt });
       const text = typeof result === 'string' ? result : result?.text || '';
       onGenerate(text);
       toast.success('Texto gerado com sucesso!');

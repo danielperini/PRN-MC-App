@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import aiClient from '@/lib/aiClient';
 import { MessageCircle, X, Send, Minimize2, Maximize2, BookOpen, FileText, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -643,7 +644,7 @@ ${textToSend}
 `.trim();
 
       const response = await withTimeout(
-        base44.integrations.Core.InvokeLLM({
+        aiClient.InvokeLLM({
           prompt,
           add_context_from_internet: false,
         }),

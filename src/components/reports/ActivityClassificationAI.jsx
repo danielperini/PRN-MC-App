@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Sparkles, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
+import aiClient from '@/lib/aiClient';
 import { toast } from 'sonner';
 
 const CLASSIF_BADGE = {
@@ -41,7 +42,7 @@ Responda em JSON: {
   "justificativa": "Breve explicação (máx 1 linha)"
 }`;
 
-    const result = await base44.integrations.Core.InvokeLLM({
+    const result = await aiClient.InvokeLLM({
       prompt,
       model: 'claude_sonnet_4_6',
       response_json_schema: {

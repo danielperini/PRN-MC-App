@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Sparkles, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
+import aiClient from '@/lib/aiClient';
 import { toast } from 'sonner';
 
 export default function ExecutiveSummaryAI({ atividades = [], reportData = {}, onApply, disabled = false }) {
@@ -62,7 +63,7 @@ Gere um resumo executivo que:
 
 Escriba em português do Brasil, de forma concisa, profissional e orientada a resultados.`;
 
-    const result = await base44.integrations.Core.InvokeLLM({
+    const result = await aiClient.InvokeLLM({
       prompt,
       model: 'claude_sonnet_4_6'
     }).catch(() => null);
