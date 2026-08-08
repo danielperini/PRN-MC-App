@@ -250,6 +250,9 @@ Deno.serve(async (req) => {
     const apenas = String(body.apenas || 'ambos').toLowerCase();
     const aceitaPdf = apenas === 'pdf' || apenas === 'ambos';
     const aceitaXml = apenas === 'xml' || apenas === 'ambos';
+    // consolidarExistentes=true: também desce em subpastas MM-AAAA já existentes
+    // na origem para consolidar seus XMLs/PDFs no destino único.
+    const consolidarExistentes = body.consolidarExistentes === true;
 
     const { accessToken } = await base44.asServiceRole.connectors.getConnection('googledrive');
     const token = accessToken;
@@ -288,8 +291,11 @@ Deno.serve(async (req) => {
       for (const it of items) {
         if (arquivos.length >= alvoColeta) return;
         if (it.mimeType === FOLDER_MIME) {
-          // Desce apenas em subpastas não-MM-AAAA (origem); nunca no destino
-          if (!isDest(it.id) && depth < maxProfundidade && !RE_MM_YYYY.test(it.name) && !vistos.has(it.id)) {
+          // Desce em subpastas da origem; nunca no destino.
+          // Por padrão pula MM-AAAA (já organizadas); se consolidarExistentes, também desce.
+          const ehMmAaaa = RE_MM_YYYY.test(it.name);
+          const deveDescer = !isDest(it.id) && depth < maxProfundidade && !vistos.has(it.id) && (consolidarExistentes || !ehMmAaaa);
+          if (deveDescer) {
             vistos.add(it.id);
             await walk(it.id, depth + 1);
           }
