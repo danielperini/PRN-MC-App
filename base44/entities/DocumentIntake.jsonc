@@ -123,6 +123,20 @@
       "type": "string",
       "description": "Centro de custo identificado ou selecionado"
     },
+    "centro_custo_origem": {
+      "type": "string",
+      "enum": [
+        "nome_arquivo",
+        "descricao_nota",
+        "historico_fornecedor",
+        "manual"
+      ],
+      "description": "Origem da detec\u00e7\u00e3o do centro_custo (motor de decis\u00f5es)"
+    },
+    "meta_id": {
+      "type": "string",
+      "description": "ID da meta vinculada automaticamente pelo motor de decis\u00f5es (derivada da rubrica)."
+    },
     "activity_id_vinculada": {
       "type": "string",
       "description": "ID da atividade vinculada (para FOTO_ATIVIDADE)"
@@ -212,6 +226,15 @@
       "type": "string",
       "format": "date",
       "description": "Data de emiss\u00e3o da NF (YYYY-MM-DD), preenchida via XML ou IA. Idempotente: n\u00e3o sobrescreve valor j\u00e1 existente."
+    },
+    "data_abertura_empresa": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de abertura da empresa emitente (YYYY-MM-DD), extra\u00edda via IA do PDF da NF. DIFERENTE da data de emiss\u00e3o da NF \u2014 representa a funda\u00e7\u00e3o do CNPJ."
+    },
+    "descricao_nota": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o detalhada do servi\u00e7o/produto discriminado na NF, extra\u00edda via IA. Usada para identifica\u00e7\u00e3o de museu (MIS/MHAB/MUMO/Noturno 2026/Geral), busca de rubrica e meta."
     },
     "contrato_team_member_id": {
       "type": "string",
