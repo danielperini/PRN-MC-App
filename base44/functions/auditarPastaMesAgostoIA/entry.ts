@@ -395,11 +395,12 @@ Deno.serve(async (req) => {
     if (!folderMeta) return Response.json({ ok: false, error: 'Pasta de agosto não encontrada', folderId }, { status: 404 });
 
     const allFiles = await listFolder(token, folderId);
-    // Pré-filtra arquivos já resolvidos (appProperties ou nome canônico com data de agosto) antes do slice
+    // Pré-filtra arquivos já resolvidos (appProperties.ok ou .erro) antes do slice
+    const RESOLVIDOS = new Set(['ok', 'erro']);
     const candidateFiles = allFiles.filter(f =>
       f.mimeType !== 'application/vnd.google-apps.folder' &&
       /\.(pdf|xml)$/i.test(f.name) &&
-      f.appProperties?.auditoria_agosto !== 'ok'
+      !RESOLVIDOS.has(f.appProperties?.auditoria_agosto)
     ).slice(0, limite);
 
     const stats = {
@@ -448,6 +449,9 @@ Deno.serve(async (req) => {
       const preIntake = intakesPorFilename.get(safeStr(file.name));
       if (preIntake && preIntake.status_processamento === 'ERRO_PROCESSAMENTO') {
         stats.erros_irrecuperaveis.push({ nome: file.name, motivo: 'intake já marcado ERRO_PROCESSAMENTO (pulando)' });
+        if (!dryRun) {
+          try { await setFileAppProperties(token, file.id, { auditoria_agosto: 'erro' }); } catch (e) { /* ignore */ }
+        }
         continue;
       }
       // Pula arquivos já confirmados em agosto/2026 via appProperties do Drive (sem intake)
@@ -460,6 +464,9 @@ Deno.serve(async (req) => {
         const di = parseDataEmissao(preIntake.nf_data_emissao);
         if (di && di.mes === AGOSTO_ESPERADO.mes && di.ano === AGOSTO_ESPERADO.ano) {
           stats.ja_agosto_correto++;
+          if (!dryRun) {
+            try { await setFileAppProperties(token, file.id, { auditoria_agosto: 'ok', mes_ano: `${di.ano}-${String(di.mes).padStart(2, '0')}` }); } catch (e) { /* ignore */ }
+          }
           continue;
         }
       }
@@ -528,6 +535,7 @@ Deno.serve(async (req) => {
                 if (intake && !dryRun) {
                   try { await base44.asServiceRole.entities.DocumentIntake.update(intake.id, { status_processamento: 'ERRO_PROCESSAMENTO', erros_validacao: ['auditoria_agosto: pdf html mascarado sem substituto'] }); } catch (e) { /* ignore */ }
                 }
+                if (!dryRun) { try { await setFileAppProperties(token, file.id, { auditoria_agosto: 'erro' }); } catch (e) { /* ignore */ } }
                 continue;
               }
             } else if (!isPdfValido(bytes)) {
@@ -549,6 +557,7 @@ Deno.serve(async (req) => {
                 if (intake && !dryRun) {
                   try { await base44.asServiceRole.entities.DocumentIntake.update(intake.id, { status_processamento: 'ERRO_PROCESSAMENTO', erros_validacao: ['auditoria_agosto: pdf corrompido sem substituto'] }); } catch (e) { /* ignore */ }
                 }
+                if (!dryRun) { try { await setFileAppProperties(token, file.id, { auditoria_agosto: 'erro' }); } catch (e) { /* ignore */ } }
                 continue;
               }
             }
@@ -576,6 +585,9 @@ Deno.serve(async (req) => {
         stats.erros_irrecuperaveis.push({ nome: file.name, motivo: 'Data de emissão não resolvida (intake/xml/nome/IA)' });
         if (intake && !dryRun) {
           try { await base44.asServiceRole.entities.DocumentIntake.update(intake.id, { status_processamento: 'ERRO_PROCESSAMENTO', erros_validacao: ['auditoria_agosto: data emissao nao resolvida'] }); } catch (e) { /* ignore */ }
+        }
+        if (!dryRun) {
+          try { await setFileAppProperties(token, file.id, { auditoria_agosto: 'erro' }); } catch (e) { /* ignore */ }
         }
         continue;
       }
