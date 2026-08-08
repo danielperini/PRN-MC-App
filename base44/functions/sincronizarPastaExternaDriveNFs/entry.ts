@@ -237,13 +237,17 @@ Deno.serve(async (req) => {
     // Coleta arquivos recursivamente
     const encontrados: any[] = [];
     const vistos = new Set([folderId]);
+    // Pula subpastas mensais de janeiro (formato "01-AAAA") solicitado pelo usuário.
+    function pularMesJaneiro(nome: string): boolean {
+      return /^01-\d{4}$/i.test(String(nome || '').trim());
+    }
     async function walk(fid: string, depth: number) {
       if (depth > MAX_PROFUNDIDADE || encontrados.length >= limite) return;
       const items = await listFolder(token, fid);
       for (const it of items) {
         if (encontrados.length >= limite) return;
         if (it.mimeType === FOLDER_MIME) {
-          if (depth < MAX_PROFUNDIDADE && !vistos.has(it.id)) {
+          if (depth < MAX_PROFUNDIDADE && !vistos.has(it.id) && !pularMesJaneiro(it.name)) {
             vistos.add(it.id);
             await walk(it.id, depth + 1);
           }
