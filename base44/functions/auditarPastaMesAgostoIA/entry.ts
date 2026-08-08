@@ -16,7 +16,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 
 const ROOT_NOTAS_FOLDER_ID = '1LgC94VhIomQZBS7kfkQqgBX8MVzwQqzp';
-const DEFAULT_AGOSTO_FOLDER_ID = '1jhZBWsOltRSjtdKHPG64PovnxygKLuW';
+const DEFAULT_AGOSTO_FOLDER_ID = '1jhZBWsOltRSjtdKHPG64PovnxygKLuW-'; // hífen final é parte do ID
 const AGOSTO_ESPERADO = { mes: '08', ano: 2026 };
 const OPENAI_MODEL = 'gpt-4o-2024-08-06';
 const IA_TIMEOUT_MS = 50_000;
@@ -431,6 +431,22 @@ Deno.serve(async (req) => {
       }
       const file = candidateFiles[i];
       const ext = /\.xml$/i.test(file.name) ? 'xml' : 'pdf';
+
+      // Pula arquivos cujo intake já está marcado como ERRO_PROCESSAMENTO
+      const preIntake = intakesPorFilename.get(safeStr(file.name));
+      if (preIntake && preIntake.status_processamento === 'ERRO_PROCESSAMENTO') {
+        stats.erros_irrecuperaveis.push({ nome: file.name, motivo: 'intake já marcado ERRO_PROCESSAMENTO (pulando)' });
+        continue;
+      }
+      // Pula arquivos já confirmados em agosto/2026 (já estão corretos, não precisa reprocessar IA)
+      if (preIntake && preIntake.nf_data_emissao) {
+        const di = parseDataEmissao(preIntake.nf_data_emissao);
+        if (di && di.mes === AGOSTO_ESPERADO.mes && di.ano === AGOSTO_ESPERADO.ano) {
+          stats.ja_agosto_correto++;
+          continue;
+        }
+      }
+
       let dataInfo = null;
       let num = null;
       let emissor = null;
@@ -492,6 +508,9 @@ Deno.serve(async (req) => {
                 bytes = recuperado;
               } else {
                 stats.erros_irrecuperaveis.push({ nome: file.name, motivo: 'PDF é HTML mascarado e nenhum substituto válido encontrado' });
+                if (intake && !dryRun) {
+                  try { await base44.asServiceRole.entities.DocumentIntake.update(intake.id, { status_processamento: 'ERRO_PROCESSAMENTO', erros_validacao: ['auditoria_agosto: pdf html mascarado sem substituto'] }); } catch (e) { /* ignore */ }
+                }
                 continue;
               }
             } else if (!isPdfValido(bytes)) {
@@ -510,6 +529,9 @@ Deno.serve(async (req) => {
                 bytes = recuperado;
               } else {
                 stats.erros_irrecuperaveis.push({ nome: file.name, motivo: 'PDF corrompido (sem assinatura %PDF) e sem substituto' });
+                if (intake && !dryRun) {
+                  try { await base44.asServiceRole.entities.DocumentIntake.update(intake.id, { status_processamento: 'ERRO_PROCESSAMENTO', erros_validacao: ['auditoria_agosto: pdf corrompido sem substituto'] }); } catch (e) { /* ignore */ }
+                }
                 continue;
               }
             }
@@ -535,6 +557,9 @@ Deno.serve(async (req) => {
 
       if (!dataInfo) {
         stats.erros_irrecuperaveis.push({ nome: file.name, motivo: 'Data de emissão não resolvida (intake/xml/nome/IA)' });
+        if (intake && !dryRun) {
+          try { await base44.asServiceRole.entities.DocumentIntake.update(intake.id, { status_processamento: 'ERRO_PROCESSAMENTO', erros_validacao: ['auditoria_agosto: data emissao nao resolvida'] }); } catch (e) { /* ignore */ }
+        }
         continue;
       }
 
