@@ -19,11 +19,10 @@ import {
   Users, FileText, History, Settings,
   CheckCircle, ChevronRight,
   AlertTriangle, Download, Database, Building2, Users2,
-  BookOpen, RotateCw, Send, Mail, HardDrive, Wrench, ChevronDown
+  BookOpen, RotateCw, Send, Mail, HardDrive, Wrench, ChevronDown, Lock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toastMessages } from '@/lib/toastMessages';
 import { toast } from 'sonner';
 import {
@@ -78,6 +77,7 @@ function PlataformaAdminInner() {
   const [sincronizacaoRubricasResult, setSincronizacaoRubricasResult] = useState(null);
   const [corrigindoMetas, setCorrigindoMetas] = useState(false);
   const [correcaoMetasResult, setCorrecaoMetasResult] = useState(null);
+  const [adminPanel, setAdminPanel] = useState(null);
 
   const { data: users = [] } = useQuery({
     queryKey: ['users'],
@@ -314,35 +314,70 @@ function PlataformaAdminInner() {
         </h1>
 
         <div className="flex items-center gap-2">
-          <Link to={createPageUrl('BaseConhecimento')}>
-            <Button variant="outline" className="gap-2">
-              <BookOpen className="w-4 h-4" />
-              Biblioteca
-            </Button>
-          </Link>
+          <Button
+            variant={adminPanel === null ? "default" : "outline"}
+            className="gap-2"
+            onClick={() => setAdminPanel(null)}
+          >
+            <FileText className="w-4 h-4" />
+            Relatórios
+          </Button>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="gap-2">
-                <Wrench className="w-4 h-4" />
+                <Settings className="w-4 h-4" />
+                Painéis administrativos
+                <ChevronDown className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-60">
+              <DropdownMenuItem onClick={() => setAdminPanel('permissoes')}>
+                <Users2 className="w-4 h-4 mr-2" /> Permissões
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setAdminPanel('museus')}>
+                <Building2 className="w-4 h-4 mr-2" /> Museus
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setAdminPanel('equipes')}>
+                <Users className="w-4 h-4 mr-2" /> Equipes
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setAdminPanel('metadados')}>
+                <Database className="w-4 h-4 mr-2" /> Metadados
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setAdminPanel('auditoria')}>
+                <History className="w-4 h-4 mr-2" /> Auditoria
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setAdminPanel('hardening')}>
+                <Lock className="w-4 h-4 mr-2" /> Hardening
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setAdminPanel('comunicados')}>
+                <Send className="w-4 h-4 mr-2" /> Comunicados
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setAdminPanel('ferramentas')}>
+                <Wrench className="w-4 h-4 mr-2" /> Ferramentas
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to={createPageUrl('BaseConhecimento')} className="flex items-center">
+                  <BookOpen className="w-4 h-4 mr-2" /> Biblioteca
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="gap-2">
+                <Send className="w-4 h-4" />
                 Ações admin
                 <ChevronDown className="w-4 h-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64">
-              <DropdownMenuItem
-                disabled={restoringMembers}
-                onClick={handleRestoreInactiveMembers}
-              >
-                <RotateCw className="w-4 h-4 mr-2" />
-                Restaurar membros inativos
+              <DropdownMenuItem disabled={restoringMembers} onClick={handleRestoreInactiveMembers}>
+                <RotateCw className="w-4 h-4 mr-2" /> Restaurar membros inativos
               </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={sendingLink}
-                onClick={handleSendLinkApp}
-              >
-                <Mail className="w-4 h-4 mr-2" />
-                Enviar link do app a todos
+              <DropdownMenuItem disabled={sendingLink} onClick={handleSendLinkApp}>
+                <Mail className="w-4 h-4 mr-2" /> Enviar link do app a todos
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -356,39 +391,10 @@ function PlataformaAdminInner() {
         <KpiCard label="Aprovados" value={approvedReports} icon={CheckCircle} />
       </div>
 
-      <Tabs defaultValue="relatorios">
-
-        <TabsList>
-          <TabsTrigger value="permissoes">Permissões</TabsTrigger>
-          <TabsTrigger value="museus">Museus</TabsTrigger>
-          <TabsTrigger value="equipes">Equipes</TabsTrigger>
-          <TabsTrigger value="relatorios">Relatórios</TabsTrigger>
-          <TabsTrigger value="auditoria">📊 Auditoria</TabsTrigger>
-          <TabsTrigger value="hardening">🔒 Hardening</TabsTrigger>
-          <TabsTrigger value="comunicados">📣 Comunicados</TabsTrigger>
-          <TabsTrigger value="metadados">Metadados</TabsTrigger>
-          <TabsTrigger value="ferramentas">🔧 Ferramentas</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="permissoes">
-          <UserPermissionsManager />
-        </TabsContent>
-
-        <TabsContent value="museus">
-          <MuseuManager />
-        </TabsContent>
-
-        <TabsContent value="equipes">
-          <EquipeManager />
-        </TabsContent>
-
-        <TabsContent value="metadados">
-          <MetadadosManager />
-        </TabsContent>
-
-        <TabsContent value="relatorios">
+      {adminPanel === null ? (
+        <div className="border rounded-lg divide-y">
           {reports.map(r => (
-            <div key={r.id} className="border p-3 flex justify-between">
+            <div key={r.id} className="p-3 flex justify-between items-center">
               <div>
                 {r.author_name} - {r.mes_referencia}/{r.ano}
                 <Badge className="ml-2">{r.status}</Badge>
@@ -405,40 +411,29 @@ function PlataformaAdminInner() {
               </div>
             </div>
           ))}
-        </TabsContent>
-
-        <TabsContent value="auditoria">
-          <div className="space-y-6">
-            <Auditoria360DiariaPanel />
-            <AuditSystemPanel />
-          </div>
-        </TabsContent>
-
-        <TabsContent value="hardening">
-          <HardeningPanel />
-        </TabsContent>
-
-        <TabsContent value="comunicados">
-          <div className="space-y-6">
-            <ComunicadosPanel />
-            {/* Boletim Semanal da Agenda — acionamento editorial pontual */}
-            <BoletimSemanalAgendaPanel />
-          </div>
-        </TabsContent>
-
-        <TabsContent value="ferramentas">
-          {/* REMOVIDO: substituído por automações agendadas —
-              Corrigir Metas (corrigirMetasDashboardSalaEspera),
-              Normalizar Valores Aprovados (normalizarValorAprovadoAdminNFs),
-              Sincronizar valor_utilizado (sincronizarValorUtilizadoRubricas),
-              Sincronizar NFs do Drive (syncDriveNotasFiscaisDesdeMarco2026),
-              Organizar NFs com IA (organizarNFsComIA),
-              Higienização da Entrada Única (higienizarEntradaUnicaNFs),
-              Fusão de Metas Educativas (operação única já executada). */}
-          <AutomacoesManutencaoCard />
-        </TabsContent>
-
-      </Tabs>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {adminPanel === 'permissoes' && <UserPermissionsManager />}
+          {adminPanel === 'museus' && <MuseuManager />}
+          {adminPanel === 'equipes' && <EquipeManager />}
+          {adminPanel === 'metadados' && <MetadadosManager />}
+          {adminPanel === 'auditoria' && (
+            <>
+              <Auditoria360DiariaPanel />
+              <AuditSystemPanel />
+            </>
+          )}
+          {adminPanel === 'hardening' && <HardeningPanel />}
+          {adminPanel === 'comunicados' && (
+            <>
+              <ComunicadosPanel />
+              <BoletimSemanalAgendaPanel />
+            </>
+          )}
+          {adminPanel === 'ferramentas' && <AutomacoesManutencaoCard />}
+        </div>
+      )}
     </div>
   );
 }
