@@ -5,7 +5,7 @@ import { isTechnicalFileName, isInventedCaption } from '@/utils/galleryNormaliza
 import { filterByCooldown, registerImpressions } from '@/utils/carouselCooldown';
 
 const PHOTO_COUNT = 4;
-const ROTATION_INTERVAL_MS = 15000;
+const ROTATION_INTERVAL_MS = 600000; // 10 minutos — rotação mais tranquila
 const GALLERY_ROUTE = '/GaleriaFotos';
 
 function normalizeText(value) {
@@ -43,8 +43,8 @@ function getDailySeed() {
 }
 
 function getSessionSeed() {
-  // Semente que muda a cada 15 minutos — garante variação frequente do pool
-  return Math.floor(Date.now() / (15 * 60 * 1000));
+  // Semente que muda a cada 10 minutos — alinhada ao ROTATION_INTERVAL_MS
+  return Math.floor(Date.now() / (10 * 60 * 1000));
 }
 
 function getImageUrl(item) {
