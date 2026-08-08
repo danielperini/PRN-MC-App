@@ -617,6 +617,7 @@ function GaleriaFotosInner() {
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => setShowSincInventario(true)}
+                  title="Sincronizar metadados — atualiza arquivos/links já existentes no Drive"
                   className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
                   <span className="font-medium text-gray-900 flex items-center gap-1.5">
                     <HardDriveDownload className="h-3.5 w-3.5" /> Forçar sincronização com Drive
@@ -656,6 +657,7 @@ function GaleriaFotosInner() {
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => setShowImportar6Pastas(true)}
+                  title="Importar fotos novas — escaneia pastas e traz arquivos ainda não importados"
                   className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
                   <span className="font-medium text-blue-600 flex items-center gap-1.5">
                     <Download className="h-3.5 w-3.5" /> Importar 6 Pastas do Drive
@@ -663,13 +665,17 @@ function GaleriaFotosInner() {
                   <span className="text-xs text-gray-500 pl-5">Escaneia 6 pastas recursivamente (máx 5 fotos por subpasta) e importa para a galeria.</span>
                 </DropdownMenuItem>
 
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs text-red-600 uppercase tracking-wide flex items-center gap-1">
+                  <TriangleAlert className="h-3 w-3" /> Ações destrutivas
+                </DropdownMenuLabel>
                 <DropdownMenuItem
                   onClick={() => setShowReconstruir(true)}
                   className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
                   <span className="font-medium text-red-600 flex items-center gap-1.5">
                     <RefreshCw className="h-3.5 w-3.5" /> Reconstruir Galeria do Zero
                   </span>
-                  <span className="text-xs text-gray-500 pl-5">Apaga tudo e reimporta das pastas do Drive, com IA para fotos do MIS.</span>
+                  <span className="text-xs text-red-500 pl-5">⚠ Apaga TODA a galeria e reimporta do Drive — confirmação necessária antes de executar.</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

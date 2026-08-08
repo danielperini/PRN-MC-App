@@ -10,8 +10,10 @@ import {
 const fmtBR = (n) => new Intl.NumberFormat('pt-BR').format(Number(n || 0));
 const fmtMoeda = (n) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(n || 0));
 
-export default function ZerarFilaIAButton({ onConcluido }) {
-  const [open, setOpen] = useState(false);
+export default function ZerarFilaIAButton({ onConcluido, open: externalOpen, onOpenChange, renderTrigger = true }) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = externalOpen !== undefined ? externalOpen : internalOpen;
+  const setOpen = (v) => { if (onOpenChange) onOpenChange(v); setInternalOpen(v); };
   const [loading, setLoading] = useState(false);
   const [resultados, setResultados] = useState([]); // array de resultados por ciclo
   const [total, setTotal] = useState(0);
@@ -68,6 +70,7 @@ export default function ZerarFilaIAButton({ onConcluido }) {
 
   return (
     <>
+      {renderTrigger && (
       <Button
         type="button"
         size="sm"
@@ -79,6 +82,7 @@ export default function ZerarFilaIAButton({ onConcluido }) {
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
         Zerar fila com IA
       </Button>
+      )}
 
       <Dialog open={open} onOpenChange={(v) => !loading && setOpen(v)}>
         <DialogContent className="max-w-3xl">

@@ -9,6 +9,7 @@ export default function RevincularRubricasOrfasButton({ onConcluido }) {
     <>
       <Button
         type="button"
+        size="sm"
         variant="outline"
         className="gap-2 border-red-400 text-red-700 hover:bg-red-50"
         onClick={() => setOpen(true)}

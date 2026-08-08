@@ -9,8 +9,10 @@ import {
 
 const MAX_ITERACOES = 30; // 30 × 10 itens = 300 NFs no máximo
 
-export default function ZerarFilaButton({ onRefresh, disabled }) {
-  const [confirmOpen, setConfirmOpen] = useState(false);
+export default function ZerarFilaButton({ onRefresh, disabled, open: externalOpen, onOpenChange, renderTrigger = true }) {
+  const [internalConfirmOpen, setInternalConfirmOpen] = useState(false);
+  const confirmOpen = externalOpen !== undefined ? externalOpen : internalConfirmOpen;
+  const setConfirmOpen = (v) => { if (onOpenChange) onOpenChange(v); setInternalConfirmOpen(v); };
   const [totalPendentes, setTotalPendentes] = useState(0);
   const [contando, setContando] = useState(false);
   const [executando, setExecutando] = useState(false);
@@ -96,6 +98,7 @@ export default function ZerarFilaButton({ onRefresh, disabled }) {
 
   return (
     <>
+      {renderTrigger && (
       <button
         onClick={abrirConfirm}
         disabled={disabled || contando || executando}
@@ -109,6 +112,7 @@ export default function ZerarFilaButton({ onRefresh, disabled }) {
         )}
         {executando ? 'Zerando fila…' : 'Zerar Fila Automático'}
       </button>
+      )}
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent className="max-w-md">

@@ -26,7 +26,8 @@ import {
   AlertTriangle,
   Loader2,
   X,
-  Sparkles } from
+  Sparkles,
+  Clock } from
 'lucide-react';
 
 import RequireAuth from '@/components/auth/RequireAuth';
@@ -57,8 +58,6 @@ import MeusPagamentosTab from '@/components/compras/MeusPagamentosTab';
 import PagarSolicitacaoDialog from '@/components/compras/PagarSolicitacaoDialog';
 import NovaRubricaDialog from '@/components/rubricas/NovaRubricaDialog';
 import TotaisAditivoCards from '@/components/compras/TotaisAditivoCards';
-import RecalcularTotaisButton from '@/components/compras/RecalcularTotaisButton';
-import PreencherDatasButton from '@/components/compras/PreencherDatasButton';
 import PainelVerificacaoFinanceira from '@/components/compras/PainelVerificacaoFinanceira';
 import PainelAuditoriaMetas from '@/components/compras/PainelAuditoriaMetas';
 import ConferenciaExtratosVsPagamentos from '@/components/compras/ConferenciaExtratosVsPagamentos';
@@ -1453,33 +1452,9 @@ function ComprasInner() {
                 {podeGerenciarRubricas &&
             <div className="flex justify-end gap-2">
                     <NotificarAditivoButton />
-                    <Button
-                type="button"
-                variant="outline"
-                disabled={vinculandoNatureza}
-                className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50"
-                onClick={async () => {
-                  if (!window.confirm('Vincular automaticamente a Natureza de Despesa (339030/339035/339036/339039/449052) a todas as rubricas sem natureza definida?')) return;
-                  setVinculandoNatureza(true);
-                  try {
-                    const res = await base44.functions.invoke('vincularNaturezaDespesaRubricas', {});
-                    const result = res?.data || res;
-                    if (result?.success) {
-                      toast.success(result.message || 'Naturezas vinculadas com sucesso.');
-                      await refreshFinanceiroCompleto();
-                    } else {
-                      toast.error(result?.error || 'Erro ao vincular naturezas.');
-                    }
-                  } catch (e) {
-                    toast.error('Erro: ' + (e?.message || 'desconhecido'));
-                  } finally {
-                    setVinculandoNatureza(false);
-                  }
-                }}>
-                
-                      <FileText className="h-4 w-4" />
-                      {vinculandoNatureza ? 'Vinculando...' : 'Vincular Natureza'}
-                    </Button>
+                    {/* REMOVIDO: 'Vincular Natureza de Despesa' — não é mais botão primário visível.
+                        Use o menu contextual de cada rubrica na RubricasGrid para vincular natureza individualmente,
+                        ou dispare 'vincularNaturezaDespesaRubricas' via backend quando necessário. */}
                     <Button
                 type="button"
                 onClick={() => setShowNovaRubrica(true)}
@@ -1676,11 +1651,15 @@ function ComprasInner() {
 
         {tab === 'verificacao' && isCoordenador &&
         <div className="space-y-6">
-            <div className="flex justify-end gap-2 flex-wrap">
-              <PainelAuditoriaIASolicitacoes purchases={purchases} rubricas={rubricas} onDone={refreshFinanceiroCompleto} />
-              <PreencherDatasButton onDone={refreshFinanceiroCompleto} />
-              <RecalcularTotaisButton onDone={refreshFinanceiroCompleto} />
+            <div className="flex items-start gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+              <Clock className="h-4 w-4 mt-0.5 text-gray-400 flex-shrink-0" />
+              <p>
+                Recálculo de totais e correção de datas de emissão das NFs são executados
+                automaticamente todo dia pela <strong>Auditoria 360° Diária (03h00)</strong> e pela
+                automação <strong>Corrigir Datas de Emissão NFs (06h00)</strong>. Não é necessário disparar manualmente.
+              </p>
             </div>
+            <PainelAuditoriaIASolicitacoes purchases={purchases} rubricas={rubricas} onDone={refreshFinanceiroCompleto} />
             <CorrigirCentroCustoIAButton onDone={refreshFinanceiroCompleto} />
             <PainelVerificacaoFinanceira onSuccess={refreshFinanceiroCompleto} />
             <PainelAuditoriaMetas onSuccess={refreshFinanceiroCompleto} />

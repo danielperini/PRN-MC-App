@@ -384,6 +384,8 @@ export default function EntradaUnica() {
   const [enviandoCoordenacaoLote, setEnviandoCoordenacaoLote] = useState(false);
   const [conciliarEnviandoLote, setConciliarEnviandoLote] = useState(false);
   const [reprocessarFilaOpen, setReprocessarFilaOpen] = useState(false);
+  const [zerarFilaIAOpen, setZerarFilaIAOpen] = useState(false);
+  const [zerarFilaOpen, setZerarFilaOpen] = useState(false);
 
   // Reutilizado por handleEnviarCoordenacaoLote e handleConciliarEEnviarTudo.
   // Cria PurchaseRequest (SOLICITADO), Attachment, atualiza DocumentIntake para
@@ -1921,22 +1923,6 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
 
                 {(user?.role === 'admin' || isCoordenador(user)) &&
                 <div className="mt-1 flex items-center gap-2 flex-wrap">
-                    <button
-                      onClick={() => setReprocessarFilaOpen(true)}
-                      disabled={reprocessarFilaOpen}
-                      className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 shadow-sm hover:bg-amber-100 transition-colors"
-                      title="Limpa dados IA, reanalisa cada NF isoladamente, revincula XMLs e envia automaticamente para aprovação"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                      Reprocessar Fila
-                    </button>
-                    <ZerarFilaIAButton
-                      onConcluido={loadIntakes}
-                    />
-                    <ZerarFilaButton
-                      onRefresh={loadIntakes}
-                      disabled={reprocessarFilaOpen || conciliarEnviandoLote || enviandoCoordenacaoLote || filaProcessando}
-                    />
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <button
@@ -1946,15 +1932,18 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
                           Ações admin
                         </button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-60">
-                        <DropdownMenuLabel className="text-xs text-gray-500 uppercase tracking-wide">Administração</DropdownMenuLabel>
+                      <DropdownMenuContent align="end" className="w-64">
+                        <DropdownMenuLabel className="text-xs text-gray-500 uppercase tracking-wide">Sync externo</DropdownMenuLabel>
                         <DropdownMenuItem
                           onClick={handleSyncDrive}
                           disabled={syncLoading}
                           className="flex items-center gap-2 cursor-pointer"
                         >
                           {syncLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <HardDrive className="w-3.5 h-3.5" />}
-                          Sync Drive
+                          <span className="flex flex-col">
+                            <span>Sync Drive</span>
+                            <span className="text-[10px] text-gray-400">automático às 07h10</span>
+                          </span>
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={handleSyncGmail}
@@ -1962,9 +1951,37 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
                           className="flex items-center gap-2 cursor-pointer"
                         >
                           {syncGmailLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
-                          Sync Gmail
+                          <span className="flex flex-col">
+                            <span>Sync Gmail</span>
+                            <span className="text-[10px] text-gray-400">automático às 09h00</span>
+                          </span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={handleSincronizarNFsDriveRaiz}
+                          disabled={syncNFsRootLoading}
+                          className="flex items-center gap-2 cursor-pointer"
+                        >
+                          {syncNFsRootLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <HardDrive className="w-3.5 h-3.5" />}
+                          Sincronizar NFs do Drive (recuperar)
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
+                        <DropdownMenuLabel className="text-xs text-gray-500 uppercase tracking-wide">Processar fila</DropdownMenuLabel>
+                        <DropdownMenuItem
+                          onClick={() => setReprocessarFilaOpen(true)}
+                          disabled={reprocessarFilaOpen}
+                          className="flex items-center gap-2 cursor-pointer"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" />
+                          Reprocessar Fila
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={handleReanalisarPendentes}
+                          disabled={filaProcessando}
+                          className="flex items-center gap-2 cursor-pointer"
+                        >
+                          {filaProcessando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                          Reanalisar pendentes
+                        </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={handleHigienizarFila}
                           disabled={higienizarLoading}
@@ -1990,14 +2007,6 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
                           Conciliar e enviar tudo
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          onClick={handleReanalisarPendentes}
-                          disabled={filaProcessando}
-                          className="flex items-center gap-2 cursor-pointer"
-                        >
-                          {filaProcessando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                          Reanalisar pendentes
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
                           onClick={handlePadronizarNomes}
                           disabled={padronizarLoading}
                           className="flex items-center gap-2 cursor-pointer"
@@ -2006,16 +2015,37 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
                           Padronizar nomes
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
+                        <DropdownMenuLabel className="text-xs text-gray-500 uppercase tracking-wide">Zerar / limpar</DropdownMenuLabel>
                         <DropdownMenuItem
-                          onClick={handleSincronizarNFsDriveRaiz}
-                          disabled={syncNFsRootLoading}
+                          onClick={() => setZerarFilaIAOpen(true)}
                           className="flex items-center gap-2 cursor-pointer"
                         >
-                          {syncNFsRootLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <HardDrive className="w-3.5 h-3.5" />}
-                          Sincronizar NFs do Drive (recuperar)
+                          <Zap className="w-3.5 h-3.5" />
+                          Zerar fila com IA
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setZerarFilaOpen(true)}
+                          disabled={reprocessarFilaOpen || conciliarEnviandoLote || enviandoCoordenacaoLote || filaProcessando}
+                          className="flex items-center gap-2 cursor-pointer"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          Zerar Fila Automático
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
+                    <ZerarFilaIAButton
+                      open={zerarFilaIAOpen}
+                      onOpenChange={setZerarFilaIAOpen}
+                      renderTrigger={false}
+                      onConcluido={loadIntakes}
+                    />
+                    <ZerarFilaButton
+                      open={zerarFilaOpen}
+                      onOpenChange={setZerarFilaOpen}
+                      renderTrigger={false}
+                      onRefresh={loadIntakes}
+                      disabled={reprocessarFilaOpen || conciliarEnviandoLote || enviandoCoordenacaoLote || filaProcessando}
+                    />
                   {syncNFsRootLoading && (
                     <div className="mt-3 flex items-center gap-2 text-xs text-emerald-700">
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
