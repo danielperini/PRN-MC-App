@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.21';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 function toNumber(value: unknown): number {
   if (value === null || value === undefined || value === '') return 0;
@@ -200,7 +201,7 @@ Deno.serve(async (req) => {
     let extraction: any = null;
 
     try {
-      const llmRaw = await base44.asServiceRole.integrations.Core.InvokeLLM({
+      const llmRaw = await invokeLLM(base44.asServiceRole,{
         prompt: buildPrompt(document, purchase),
       });
 

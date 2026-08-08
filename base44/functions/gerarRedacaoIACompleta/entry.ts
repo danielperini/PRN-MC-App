@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 /**
  * GERAÇÃO DE REDAÇÃO IA POR SEÇÃO
@@ -747,7 +748,7 @@ Narrativa deve:
 
 3 parágrafos densos, tom reflexivo.`;
 
-   const texto = await base44.integrations.Core.InvokeLLM({
+   const texto = await invokeLLM(base44,{
      prompt: prompt,
      model: 'gemini_3_flash'
    });

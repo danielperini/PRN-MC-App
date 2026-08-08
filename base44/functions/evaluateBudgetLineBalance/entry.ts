@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -36,7 +37,7 @@ Deno.serve(async (req) => {
     const percentageUsed = available > 0 ? ((committed + valor_solicitado) / budgetLine.valor_total) * 100 : 100;
 
     // Use Claude to evaluate budget fit
-    const evaluation = await base44.integrations.Core.InvokeLLM({
+    const evaluation = await invokeLLM(base44,{
       model: 'claude_sonnet_4_6',
       prompt: `Você é um avaliador de compras com expertise em gestão orçamentária.
 

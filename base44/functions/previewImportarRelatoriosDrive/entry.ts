@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 const DRIVE_FOLDER_ID = '1gMPRXyamu9YANVFg6Xf7VtWoOoF-3CbQ';
 const MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
@@ -103,7 +104,7 @@ Deno.serve(async (req) => {
       let erroIA = null;
 
       try {
-        dadosIA = await base44.asServiceRole.integrations.Core.InvokeLLM({
+        dadosIA = await invokeLLM(base44.asServiceRole,{
           prompt: `Você é um especialista em relatórios culturais brasileiros de museus.
 Analise este PDF de relatório e extraia TODOS os campos disponíveis em JSON estruturado.
 

@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 const PASTAS_ORIGEM = [
   '1JIQOY1eY29Qt-iUFgivfioaSoaFXGFJy',
@@ -81,7 +82,7 @@ async function gerarLegendaIA(base44: any, fileName: string, folderPath: string)
   try {
     const contextoPasta = folderPath || 'pasta de atividades';
     const prompt = `Gere uma legenda curta e descritiva (máximo 80 caracteres) para uma foto de atividade cultural em museu. Nome do arquivo: "${fileName}". Contexto da pasta de origem: "${contextoPasta}". A legenda deve ser objetiva, em português, sem aspas. Exemplo: "Oficina educativa no MHAB" ou "Visita guiada no MIS".`;
-    const result = await base44.asServiceRole.integrations.Core.InvokeLLM({
+    const result = await invokeLLM(base44.asServiceRole,{
       prompt,
       response_json_schema: { type: 'object', properties: { legenda: { type: 'string' } } },
     });

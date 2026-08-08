@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { extractDataFromUploadedFile } from '../_shared/gatewayIA.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -47,7 +48,7 @@ Deno.serve(async (req) => {
     };
 
     // Extrair dados do PDF
-    const extractResponse = await base44.asServiceRole.integrations.Core.ExtractDataFromUploadedFile({
+    const extractResponse = await extractDataFromUploadedFile(base44.asServiceRole,{
       file_url,
       json_schema: schema
     });

@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -11,7 +12,7 @@ Deno.serve(async (req) => {
     }
 
     // Usar Claude para extrair dados da nota fiscal
-    const extractedData = await base44.integrations.Core.InvokeLLM({
+    const extractedData = await invokeLLM(base44,{
       prompt: `Você é um especialista em leitura de documentos fiscais. Analise a nota fiscal enviada e extraia os seguintes dados em formato JSON:
 
 {

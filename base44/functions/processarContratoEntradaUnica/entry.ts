@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 const CONTRATOS_FOLDER_ID = '1lUvhkeMp-yZ4nNnS33jDw3eekhbpp1R7';
 
@@ -96,7 +97,7 @@ Deno.serve(async (req) => {
     }
 
     // 1. Extrair dados do contrato via IA (Claude para melhor precisão)
-    const resultado = await base44.integrations.Core.InvokeLLM({
+    const resultado = await invokeLLM(base44,{
       prompt: `Você está analisando um contrato de prestação de serviços ou documento equivalente do Projeto Museus Centro (BH).
 
 Leia o documento completo e extraia TODOS os campos abaixo com máxima precisão.

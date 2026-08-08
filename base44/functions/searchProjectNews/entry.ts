@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 const PROJECT_THEMES = [
   'museus e cultura',
@@ -21,7 +22,7 @@ Deno.serve(async (req) => {
     const theme = PROJECT_THEMES[Math.floor(Math.random() * PROJECT_THEMES.length)];
     
     // Buscar notícias com IA
-    const searchResult = await base44.integrations.Core.InvokeLLM({
+    const searchResult = await invokeLLM(base44,{
       prompt: `Busque 3 notícias recentes sobre "${theme}". Para cada notícia, forneça:
       1. Título
       2. Resumo em 2-3 linhas

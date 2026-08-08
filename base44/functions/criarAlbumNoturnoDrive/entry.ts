@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 // Locais do Noturno nos Museus com coordenadas reais de BH
 const LOCAIS_NOTURNO = [
@@ -157,7 +158,7 @@ Retorne JSON com array "fotos_selecionadas" onde cada item tem: id, nome, legend
 
       let selecionadas: any[] = [];
       try {
-        const iaRes = await base44.integrations.Core.InvokeLLM({
+        const iaRes = await invokeLLM(base44,{
           prompt: promptIA,
           response_json_schema: {
             type: 'object',

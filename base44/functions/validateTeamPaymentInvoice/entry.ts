@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 function formatBRL(v: unknown) {
   const n = Number(v) || 0;
@@ -308,7 +309,7 @@ Retorne JSON válido, objetivo e direto, com:
     let result: any = null;
 
     try {
-      result = await base44.asServiceRole.integrations.Core.InvokeLLM({
+      result = await invokeLLM(base44.asServiceRole,{
         prompt,
         file_urls: [file_url],
         response_json_schema: {

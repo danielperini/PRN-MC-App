@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -22,7 +23,7 @@ Deno.serve(async (req) => {
     }
 
     // Extrair dados do contrato com IA
-    const extractResult = await base44.asServiceRole.integrations.Core.InvokeLLM({
+    const extractResult = await invokeLLM(base44.asServiceRole,{
       prompt: `Leia o contrato PDF anexado e extraia as seguintes informações:
 - objeto_contrato (escopo/objetivo do trabalho)
 - data_inicio_contrato (formato YYYY-MM-DD)

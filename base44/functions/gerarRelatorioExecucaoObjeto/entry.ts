@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -141,7 +142,7 @@ IMPORTANTE: Seja conciso, objetivo e formal. Use linguagem de relatório oficial
       const opts = { prompt };
       if (responseSchema) opts.response_json_schema = responseSchema;
 
-      const res = await base44.integrations.Core.InvokeLLM(opts);
+      const res = await invokeLLM(base44,opts);
       return res;
     }
 

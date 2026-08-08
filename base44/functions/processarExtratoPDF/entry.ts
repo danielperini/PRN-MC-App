@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 const MESES_MAP: Record<string, number> = {
   janeiro: 1, fevereiro: 2, marco: 3, março: 3, abril: 4, maio: 5, junho: 6,
@@ -53,7 +54,7 @@ Deno.serve(async (req) => {
     let dadosExtraidos: any = {};
 
     try {
-      dadosExtraidos = await base44.asServiceRole.integrations.Core.InvokeLLM({
+      dadosExtraidos = await invokeLLM(base44.asServiceRole,{
         prompt: `Analise este extrato bancário brasileiro e extraia os dados em JSON.
 Arquivo: "${file_name}"
 Tipo: ${tipo === 'extrato_rendimento' ? 'Extrato de Rendimento/Investimento' : 'Extrato de Conta Corrente'}

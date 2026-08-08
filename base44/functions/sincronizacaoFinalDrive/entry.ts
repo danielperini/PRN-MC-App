@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 const MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 
@@ -57,7 +58,7 @@ async function vincularFotoComIA(base44, foto: any, museu: string, mesNome: stri
 
   if (candidatos.length === 0) {
     // Sem candidatos, gera legenda genérica com IA
-    const res = await base44.asServiceRole.integrations.Core.InvokeLLM({
+    const res = await invokeLLM(base44.asServiceRole,{
       prompt: `Gere uma legenda descritiva e institucional para uma foto tirada no museu ${museu} no mês de ${mesNome}/${ano}. Nome do arquivo: "${foto.file_name || foto.caption || ''}". A legenda deve ter no máximo 15 palavras, no formato: "Atividade — Local — Data".`,
       model: 'gemini_3_flash',
     });
@@ -66,7 +67,7 @@ async function vincularFotoComIA(base44, foto: any, museu: string, mesNome: stri
 
   const listaTexto = candidatos.map((c, i) => `${i + 1}. [${c.tipo}] ${c.titulo}${c.local ? ' — ' + c.local : ''}${c.data ? ' — ' + c.data : ''}${c.descricao ? ' | ' + c.descricao.substring(0, 80) : ''}`).join('\n');
 
-  const res = await base44.asServiceRole.integrations.Core.InvokeLLM({
+  const res = await invokeLLM(base44.asServiceRole,{
     prompt: `Você está ajudando a vincular uma foto institucional à atividade/programação mais provável do museu ${museu} (${mesNome}/${ano}).
 
 Nome do arquivo da foto: "${foto.file_name || ''}"

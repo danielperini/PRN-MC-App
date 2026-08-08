@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 import { PDFDocument, StandardFonts, rgb } from 'npm:pdf-lib@1.17.1';
 
 const PAGE_WIDTH = 595.28;
@@ -98,7 +99,7 @@ async function generateNarrativeWithAI(base44: any, report: any) {
       ocorrencias: item?.quantas_vezes_ocorreu || item?.quantidade_ocorrencias || 1,
     }));
 
-    const result = await base44.integrations.Core.InvokeLLM({
+    const result = await invokeLLM(base44,{
       prompt: `Redija um relatório executivo mensal institucional em português do Brasil. Use apenas os dados fornecidos, não invente fatos, nomes, números ou parcerias. Gere título, introdução, síntese e conclusão.\n\nDADOS:\n${JSON.stringify({
         profissional: report?.author_name,
         funcao: report?.funcao,

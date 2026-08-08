@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -86,7 +87,7 @@ Deno.serve(async (req) => {
             } else {
               // Tentar extrair com LLM
               try {
-                const llm = await base44.asServiceRole.integrations.Core.InvokeLLM({
+                const llm = await invokeLLM(base44.asServiceRole,{
                   prompt: `Extraia APENAS a data de emissão desta Nota Fiscal em formato YYYY-MM-DD. Retorne SOMENTE a data, nada mais.\n\nXML (trecho inicial):\n${text.substring(0, 3000)}`,
                   response_json_schema: {
                     type: "object",
@@ -108,7 +109,7 @@ Deno.serve(async (req) => {
           const pdfUrl = intake?.arquivo_original_url || pr.nota_fiscal_url || pr.documento_url || pr.arquivo_url;
           if (pdfUrl) {
             try {
-              const llm = await base44.asServiceRole.integrations.Core.InvokeLLM({
+              const llm = await invokeLLM(base44.asServiceRole,{
                 prompt: `Extraia APENAS a data de emissão desta Nota Fiscal em formato YYYY-MM-DD.\n\nContexto adicional:\n- Fornecedor: ${pr.fornecedor_nome || atualizacao.fornecedor_nome || 'desconhecido'}\n- Número NF: ${pr.nf_numero || 'desconhecido'}\n- Valor: R$ ${pr.nf_valor_total || pr.valor_solicitado || 0}\n\nRetorne SOMENTE a data.`,
                 file_urls: [pdfUrl],
                 response_json_schema: {

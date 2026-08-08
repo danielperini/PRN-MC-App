@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 const MESES_NUM: Record<string, number> = {
   janeiro:1, fevereiro:2, março:3, abril:4, maio:5, junho:6,
@@ -165,7 +166,7 @@ Deno.serve(async (req) => {
         }
 
         // ── Chamar IA para gerar os campos ──
-        const iaResult = await base44.asServiceRole.integrations.Core.InvokeLLM({
+        const iaResult = await invokeLLM(base44.asServiceRole,{
           prompt: `Você é um redator especializado em relatórios mensais de atividades culturais de museus.
 
 Gere os campos solicitados para o RELATÓRIO MENSAL abaixo. Use linguagem profissional, institucional e objetiva.

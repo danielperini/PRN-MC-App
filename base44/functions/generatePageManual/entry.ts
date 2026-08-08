@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 const PAGES = [
   ['Dashboard', 'Dashboard', 'Painel geral com indicadores, atalhos, notícias e visão consolidada.'],
@@ -52,7 +53,7 @@ Deno.serve(async (req) => {
 
     for (const page of pages) {
       const [name, title, desc] = page;
-      const content = await base44.integrations.Core.InvokeLLM({
+      const content = await invokeLLM(base44,{
         model: 'claude_sonnet_4_6',
         prompt: promptFor(page),
       });

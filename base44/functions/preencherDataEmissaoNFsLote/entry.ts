@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.41';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 // ============================================================================
 // preencherDataEmissaoNFsLote
@@ -133,7 +134,7 @@ async function extrairDataDeIntake(base44, intake, token) {
     const t0 = Date.now();
     try {
       const resposta = await withTimeout(
-        base44.asServiceRole.integrations.Core.InvokeLLM({
+        invokeLLM(base44.asServiceRole,{
           prompt: 'Extraia a DATA DE EMISSÃO desta nota fiscal (campo "Data de Emissão" / "Data Emissão"). Retorne no formato YYYY-MM-DD. Se não encontrar, retorne string vazia.',
           file_urls: [pdfUrl],
           response_json_schema: {
@@ -284,7 +285,7 @@ Deno.serve(async (req) => {
                 const t0 = Date.now();
                 try {
                   const resposta = await withTimeout(
-                    base44.asServiceRole.integrations.Core.InvokeLLM({
+                    invokeLLM(base44.asServiceRole,{
                       prompt: 'Extraia a DATA DE EMISSÃO desta nota fiscal. Retorne no formato YYYY-MM-DD. Se não encontrar, retorne string vazia.',
                       file_urls: [pdfUrl],
                       response_json_schema: {

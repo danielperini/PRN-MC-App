@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 async function buscarReleasesRelevantes(base44, mes, ano, museu) {
   const releases = await base44.asServiceRole.entities.Release.filter({
@@ -129,7 +130,7 @@ Introdução deve:
 
 1 parágrafo denso, tom institucional.`;
 
-    const introducao = await base44.integrations.Core.InvokeLLM({
+    const introducao = await invokeLLM(base44,{
       prompt: prompt,
       model: 'gemini_3_flash'
     });

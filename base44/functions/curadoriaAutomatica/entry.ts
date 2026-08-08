@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 /**
  * Curadoria automática: extrai frases, destaques, trechos, imagens fortes
@@ -78,7 +79,7 @@ Que tipo de imagem/visual acompanharia bem este conteúdo?
 
 Retorne como JSON válido. Seja preciso, use citações diretas.`;
 
-    const curadoriaDados = await base44.asServiceRole.integrations.Core.InvokeLLM({
+    const curadoriaDados = await invokeLLM(base44.asServiceRole,{
       prompt,
       response_json_schema: {
         type: 'object',

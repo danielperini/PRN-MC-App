@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
+import { extractDataFromUploadedFile } from '../_shared/gatewayIA.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -24,7 +25,7 @@ Deno.serve(async (req) => {
     }
 
     // 1. Extrair dados do contrato
-    const extractContract = await base44.asServiceRole.integrations.Core.ExtractDataFromUploadedFile({
+    const extractContract = await extractDataFromUploadedFile(base44.asServiceRole,{
       file_url: contractUrl,
       json_schema: {
         type: 'object',

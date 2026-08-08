@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -62,7 +63,7 @@ DIVERGÊNCIAS - verifique e liste:
 Se um campo não for encontrado no documento, retorne null para esse campo.
 Retorne APENAS o JSON, sem explicações adicionais.`;
 
-    const resultado = await base44.integrations.Core.InvokeLLM({
+    const resultado = await invokeLLM(base44,{
       prompt,
       file_urls: [file_url],
       response_json_schema: {

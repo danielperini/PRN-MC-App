@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 const CUTOFF_DATE = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
 const CUTOFF_STR = CUTOFF_DATE.toISOString().split('T')[0];
@@ -17,7 +18,7 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     // Step 1: Use AI with internet to find recent article URLs (last 90 days)
-    const discoveryResponse = await base44.integrations.Core.InvokeLLM({
+    const discoveryResponse = await invokeLLM(base44,{
       prompt: `Você é um especialista em pesquisa acadêmica e cultural. Busque artigos e publicações recentes publicados APÓS ${CUTOFF_STR} (últimos 90 dias) sobre os seguintes temas:
 
 1. Museologia, curadoria, gestão de museus (especialmente Belo Horizonte / Minas Gerais)
@@ -89,7 +90,7 @@ Retorne apenas as URLs.`,
     const analyzedArticles = await Promise.all(
       validPages.map(async ({ url, text }) => {
         try {
-          const analysis = await base44.integrations.Core.InvokeLLM({
+          const analysis = await invokeLLM(base44,{
             prompt: `Analise o conteúdo desta página e extraia as informações do artigo/publicação mais relevante encontrada.
 
 URL: ${url}

@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 const VIADUTO_EMAIL = 'danielperini.mc@viadutodasartes.org.br';
 const VIADUTO_USER_NAME = 'Daniel Perini';
@@ -123,7 +124,7 @@ Deno.serve(async (req) => {
           const isPdfOrDoc = mimeType === 'application/pdf' || mimeType?.includes('word');
           if (isPdfOrDoc) {
             try {
-              dadosIA = await base44.asServiceRole.integrations.Core.InvokeLLM({
+              dadosIA = await invokeLLM(base44.asServiceRole,{
                 prompt: `Analise este relatório mensal de atividades culturais dos Museus Centro (MIS, MHAB, MUMO, Viaduto das Artes) em Belo Horizonte.
 
 Extraia em JSON estruturado:

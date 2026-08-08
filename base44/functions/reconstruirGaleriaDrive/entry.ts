@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 const FOLDER_GERAL = '1KHek34-ES3eef7E7YAh4q8ZhLgjPZuZC';
 const FOLDER_MIS_MEDIACAO = '1s8t3ERUthNKEStvFAKyGChXlu3MLVuzn';
@@ -91,7 +92,7 @@ Nome do arquivo: "${imgName}"
 
 Retorne APENAS JSON: {"atividade":"...","mes":"...","ano":2026,"local":"...","legenda":"...","museu":"MIS"}`;
   try {
-    const res = await base44.asServiceRole.integrations.Core.InvokeLLM({
+    const res = await invokeLLM(base44.asServiceRole,{
       prompt,
       file_urls: [fileUrl],
       response_json_schema: {

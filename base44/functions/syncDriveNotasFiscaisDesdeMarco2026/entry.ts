@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 // ======================================================================
 // CONSTANTES
@@ -436,7 +437,7 @@ async function importAndAnalyze(base44, token: string, file) {
     // (4) Análise por IA (Claude) — apenas para PDFs
     try {
       const hoje = new Date().toISOString().slice(0, 10);
-      const iaResp = await base44.asServiceRole.integrations.Core.InvokeLLM({
+      const iaResp = await invokeLLM(base44.asServiceRole,{
         model: 'claude_sonnet_4_6',
         prompt: `VOCÊ É UM ESPECIALISTA EM DOCUMENTOS FISCAIS para o projeto MUSEUS CENTRO.
 Data atual: ${hoje}. Datas até ${hoje} são VÁLIDAS.

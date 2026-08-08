@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 const IMAGE_EXTS = /\.(jpg|jpeg|png|webp|gif|bmp|avif)$/i;
 const MAX_PHOTOS_PER_ACTIVITY = 10;
@@ -194,7 +195,7 @@ Regras:
 - Responda somente em JSON válido`;
 
       try {
-        const result = await base44.integrations.Core.InvokeLLM({
+        const result = await invokeLLM(base44,{
           prompt,
           file_urls: urls,
           response_json_schema: {

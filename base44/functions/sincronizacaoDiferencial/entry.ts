@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 // Pasta raiz de exportações do Drive
 const DRIVE_EXPORTS_FOLDER_ID = '1LgC94VhIomQZBS7kfkQqgBX8MVzwQqzp';
@@ -163,7 +164,7 @@ Deno.serve(async (req) => {
         // ── 4a. Extrair dados com IA ──
         let dadosIA: any = {};
         try {
-          dadosIA = await base44.asServiceRole.integrations.Core.InvokeLLM({
+          dadosIA = await invokeLLM(base44.asServiceRole,{
             prompt: `Analise este PDF de relatório mensal de museu cultural e extraia os dados estruturados em JSON.
 
 Extraia:

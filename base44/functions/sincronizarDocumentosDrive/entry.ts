@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 const DRIVE_FOLDER_ID = '1sI_XEZpUo3W5gcs2Nik3rGm1v6bAbKTh';
 const SYSTEM_EMAIL = 'sistema@museus-centro.org.br';
@@ -240,7 +241,7 @@ Deno.serve(async (req) => {
           pdfUrl = await upload(unidade.pdf, pdfBytes);
           const hoje = new Date().toISOString().slice(0, 10);
           const isContrato = tipoPDF === 'CONTRATO';
-          dadosPDF = await base44.asServiceRole.integrations.Core.InvokeLLM({
+          dadosPDF = await invokeLLM(base44.asServiceRole,{
             model: 'claude_sonnet_4_6',
             prompt: isContrato
               ? `VOCÊ É UM ESPECIALISTA EM CONTRATOS. Data atual: ${hoje}. Extraia tipo_documento, contratado_nome, contratado_cpf_cnpj, contratante_nome, contratante_cnpj, objeto, valor_total, data_inicio, data_fim, data_assinatura, numero_parcelas e descricao.`

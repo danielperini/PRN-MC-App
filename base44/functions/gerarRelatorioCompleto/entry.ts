@@ -7,6 +7,7 @@
  */
 
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -59,7 +60,7 @@ REGRAS:
 `;
       const opts: any = { prompt: instrucao + prompt };
       if (schema) opts.response_json_schema = schema;
-      return await base44.integrations.Core.InvokeLLM(opts);
+      return await invokeLLM(base44,opts);
     }
 
     // ── NORMALIZAÇÃO CANÔNICA ────────────────────────────────────────────────

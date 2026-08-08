@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 /**
  * processarSalaDeEspera
@@ -476,7 +477,7 @@ Se um campo não existir no documento, retorne null para ele.`;
     },
   };
 
-  const runIA = async (url) => base44.asServiceRole.integrations.Core.InvokeLLM({
+  const runIA = async (url) => invokeLLM(base44.asServiceRole,{
     model: 'gemini_3_flash',
     prompt,
     file_urls: [url],

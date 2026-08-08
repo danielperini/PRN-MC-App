@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 /**
  * marcarPagosAnteriores14Julho
@@ -77,7 +78,7 @@ async function reanaliseDataComIA(base44, p) {
 
   try {
     const hoje = new Date().toISOString().slice(0, 10);
-    const ia = await base44.asServiceRole.integrations.Core.InvokeLLM({
+    const ia = await invokeLLM(base44.asServiceRole,{
       model: 'claude_sonnet_4_6',
       prompt: `Este documento é uma Nota Fiscal. Extraia EXATAMENTE a data de EMISSÃO da nota fiscal (campo "Data de Emissão" ou "Data Emissão").
 IMPORTANTE:

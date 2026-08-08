@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 /**
  * Consolidação editorial: conecta relatório ↔ releases ↔ programação ↔ atividades
@@ -95,7 +96,7 @@ TAREFA:
 Priorize citações diretas e conexões factuais entre os materiais.`;
 
     // Usar integração nativa da Base44
-    const llmResult = await base44.integrations.Core.InvokeLLM({
+    const llmResult = await invokeLLM(base44,{
       prompt: prompt,
       model: 'gemini_3_flash'
     });

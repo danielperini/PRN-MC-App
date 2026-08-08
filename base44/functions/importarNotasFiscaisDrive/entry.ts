@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -142,7 +143,7 @@ Deno.serve(async (req) => {
 
       if (!skipAI) {
         try {
-          const ai = await base44.asServiceRole.integrations.Core.InvokeLLM({
+          const ai = await invokeLLM(base44.asServiceRole,{
             prompt: `Extraia da nota fiscal: numero, data (YYYY-MM-DD), valor total, nome do emitente, CNPJ (só dígitos). Arquivo: ${pdfNf.name}`,
             response_json_schema: {
               type: "object",

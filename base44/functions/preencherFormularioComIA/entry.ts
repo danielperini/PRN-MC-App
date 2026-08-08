@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -111,7 +112,7 @@ Retorne APENAS um JSON válido com esta estrutura exata:
   "nome_arquivo_origem": "nome do arquivo de onde extraiu os dados"
 }`;
 
-    const resultado = await base44.asServiceRole.integrations.Core.InvokeLLM({
+    const resultado = await invokeLLM(base44.asServiceRole,{
       prompt,
       file_urls: uniqueUrls,
       model: 'claude_sonnet_4_6',

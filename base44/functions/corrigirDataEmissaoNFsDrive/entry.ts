@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 // ============================================================================
 // corrigirDataEmissaoNFsDrive
@@ -247,7 +248,7 @@ async function extrairDataEmissaoViaIA(base44, pdfUrl) {
     let res;
     try {
       res = await Promise.race([
-        base44.asServiceRole.integrations.Core.InvokeLLM({
+        invokeLLM(base44.asServiceRole,{
           model: 'gemini_3_flash',
           prompt: `Você é um extrator de dados de NOTA FISCAL. Analise o PDF anexo.
 

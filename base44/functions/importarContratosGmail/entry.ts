@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 const GMAIL_ACCOUNT = 'danielperini.mc@viadutodasartes.org.br';
 const CONTRATOS_FOLDER_ID = '1lUvhkeMp-yZ4nNnS33jDw3eekhbpp1R7';
@@ -201,7 +202,7 @@ Deno.serve(async (req) => {
           // 4. Analisar contrato com IA (Claude Sonnet para máxima precisão)
           let dadosIA: any = null;
           try {
-            dadosIA = await base44.asServiceRole.integrations.Core.InvokeLLM({
+            dadosIA = await invokeLLM(base44.asServiceRole,{
               prompt: `Você é especialista jurídico em contratos de prestação de serviços culturais do Projeto Museus Centro (BH).
 
 Analise INTEGRALMENTE este documento (contrato ou termo de compromisso) e extraia TODOS os campos abaixo.

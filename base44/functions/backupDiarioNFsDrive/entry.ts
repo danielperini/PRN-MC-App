@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 /**
  * backupDiarioNFsDrive
@@ -354,7 +355,7 @@ async function validarDataEmissao(base44, token, pr) {
 
   try {
     const hoje = new Date().toISOString().slice(0, 10);
-    const iaPromise = base44.asServiceRole.integrations.Core.InvokeLLM({
+    const iaPromise = invokeLLM(base44.asServiceRole,{
       model: 'gpt_5_mini',
       prompt: `Você é um extrator de dados de NOTA FISCAL. Analise o PDF anexo.
 

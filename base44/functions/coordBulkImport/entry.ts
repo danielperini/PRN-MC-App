@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 const COORD_EMAILS = [
   'danielperini.mc@viadutodasartes.org.br',
@@ -104,7 +105,7 @@ Deno.serve(async (req) => {
     if (tipoDetectado === 'PDF_CANDIDATO') {
       try {
         const hoje = new Date().toISOString().slice(0, 10);
-        const iaResp = await base44.asServiceRole.integrations.Core.InvokeLLM({
+        const iaResp = await invokeLLM(base44.asServiceRole,{
           prompt: `Analise este PDF. Determine se é nota fiscal. Se sim, extraia dados. A data atual é ${hoje} — não sinalize datas passadas como futuras.\n\nResponda SOMENTE JSON:\n{"eh_nota_fiscal":true,"nf_numero":"","nf_valor_total":"","nf_data_emissao":"","nf_emitente_nome":"","nf_emitente_cpf_cnpj":"","nf_destinatario_nome":"","descricao_servico":"","municipio":"","competencia":"","inconsistencias":[]}`,
           file_urls: [fileUrl],
           response_json_schema: {

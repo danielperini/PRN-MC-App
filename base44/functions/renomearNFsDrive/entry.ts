@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.41';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 import {
   buildNomeOficial,
@@ -128,7 +129,7 @@ async function extrairConteudoArquivo(
     const blob = new Blob([buf], { type: 'application/pdf' });
     const up: any = await base44.integrations.Core.UploadFile({ file: blob });
     if (!up?.file_url) return null;
-    const resp: any = await base44.integrations.Core.InvokeLLM({
+    const resp: any = await invokeLLM(base44,{
       prompt: 'Analise a Nota Fiscal em anexo (PDF) e extraia: nf_numero (apenas dígitos), nf_valor_total (número em reais), nf_data_emissao (YYYY-MM-DD), nf_emitente_nome (razão social). Retorne APENAS o JSON conforme o schema.',
       file_urls: [up.file_url],
       add_context_from_internet: false,

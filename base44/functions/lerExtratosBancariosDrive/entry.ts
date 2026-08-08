@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 const ROOT_FOLDER_ID = '1sI_XEZpUo3W5gcs2Nik3rGm1v6bAbKTh';
 const MONTH_FOLDERS: Record<number, string | null> = {
@@ -118,7 +119,7 @@ Deno.serve(async(req)=>{
       const folderMonth=Number(pdf._mes_num||monthFromText(pdf.name)||new Date(pdf.createdTime||Date.now()).getMonth()+1);const folderYear=Number(pdf._ano||yearFromText(pdf.name)||requestedYear||new Date().getFullYear());
       const dl=await fetch(`https://www.googleapis.com/drive/v3/files/${pdf.id}?alt=media&supportsAllDrives=true`,{headers:{Authorization:`Bearer ${token}`}});if(!dl.ok)throw new Error(`Drive download HTTP ${dl.status}: ${await dl.text()}`);
       stage='upload';const bytes=await dl.arrayBuffer();if(!bytes.byteLength)throw new Error('O PDF baixado está vazio');const file=new File([bytes],pdf.name||`${pdf.id}.pdf`,{type:'application/pdf'});const upload=await base44.asServiceRole.integrations.Core.UploadFile({file});const url=upload?.file_url||upload?.url||upload?.data?.file_url;if(!url)throw new Error('Upload temporário não retornou URL');
-      stage='analysis';const extracted=await base44.asServiceRole.integrations.Core.InvokeLLM({
+      stage='analysis';const extracted=await invokeLLM(base44.asServiceRole,{
         prompt:`Analise fielmente o extrato bancário brasileiro "${pdf.name}". A pasta sugere ${MONTH_NAMES[folderMonth]}/${folderYear}, mas a competência verdadeira de cada lançamento deve ser definida exclusivamente pela data bancária impressa na linha. Não mova lançamentos para o mês da pasta.
 Classifique como conta corrente ou fundo de investimento. Capture cliente, CPF/CNPJ, banco, conta, saldos e rendimento bruto. Leia rigidamente C/D. RESGATE, RESG AUT e APLICAÇÃO são transferências internas; nunca são débito operacional. PIX, TED, TEV, boleto, pagamento e tarifa com D são débitos operacionais. Retorne todos os lançamentos com data DD/MM/AAAA, descrição literal, indicador_cd, valor positivo, saldo e tipo_sugerido.`,
         file_urls:[url],response_json_schema:{type:'object',properties:{tipo_documento:{type:'string'},nome_cliente:{type:'string'},cpf_cnpj_cliente:{type:'string'},mes_referencia:{type:'number'},ano_referencia:{type:'number'},banco:{type:'string'},numero_conta:{type:'string'},saldo_inicial:{type:'number'},saldo_final:{type:'number'},rendimento_bruto_mes:{type:'number'},rendimento_bruto_no_mes:{type:'number'},rendimento_mes:{type:'number'},rentabilidade_mes:{type:'number'},resultado_mes:{type:'number'},total_creditos:{type:'number'},total_debitos:{type:'number'},total_rendimento:{type:'number'},lancamentos:{type:'array',items:{type:'object',properties:{data:{type:'string'},descricao:{type:'string'},indicador_cd:{type:'string'},tipo_sugerido:{type:'string'},valor:{type:'number'},saldo:{type:'number'}}}},resumo_ia:{type:'string'}}}

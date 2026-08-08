@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -51,7 +52,7 @@ Deno.serve(async (req) => {
       if (!existingKeys.has(comp.key)) {
         try {
           // Gerar com Claude
-          const response = await base44.integrations.Core.InvokeLLM({
+          const response = await invokeLLM(base44,{
             prompt: `Gere um texto breve de ajuda em português do Brasil para este elemento:
 
 Tipo: ${comp.type}

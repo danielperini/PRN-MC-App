@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 /**
  * Importa os PDFs do Plano de Trabalho para a Base de Conhecimento.
@@ -22,7 +23,7 @@ Deno.serve(async (req) => {
     }
 
     // Extrair conteúdo do PDF via LLM
-    const extracted = await base44.asServiceRole.integrations.Core.InvokeLLM({
+    const extracted = await invokeLLM(base44.asServiceRole,{
       prompt: `Extraia TODO o conteúdo textual deste documento PDF do Plano de Trabalho do Projeto Museus Centro.
 Inclua:
 - Todos os quadros de metas com seus campos completos

@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -51,7 +52,7 @@ AVALIAÇÃO:
 `;
 
     // Chamar Claude para análise
-    const response = await base44.integrations.Core.InvokeLLM({
+    const response = await invokeLLM(base44,{
       prompt: `Você é um assistente de curadoria de relatórios mensais. Analise este relatório e identifique APENAS os problemas específicos que precisam ser corrigidos.
 
 ${reportContext}

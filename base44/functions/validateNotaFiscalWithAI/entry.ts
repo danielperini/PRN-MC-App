@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -24,7 +25,7 @@ Deno.serve(async (req) => {
     }
 
     // 2. Analisar com IA se há problemas comuns
-    const ia_analysis = await base44.integrations.Core.InvokeLLM({
+    const ia_analysis = await invokeLLM(base44,{
       prompt: `Analise esta nota fiscal para detectar problemas comuns. Responda em JSON com os campos: 
       {
         "requer_xml": boolean,

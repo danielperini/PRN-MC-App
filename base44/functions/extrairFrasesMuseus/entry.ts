@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 // Seleção determinística pseudo-aleatória baseada em seed
 function seededRandom(seed) {
@@ -134,7 +135,7 @@ Retorne JSON com esta estrutura exata:
   ]
 }`;
 
-    const result = await base44.asServiceRole.integrations.Core.InvokeLLM({
+    const result = await invokeLLM(base44.asServiceRole,{
       prompt,
       response_json_schema: {
         type: 'object',

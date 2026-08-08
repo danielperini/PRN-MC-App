@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 const MAX_PHOTOS_PER_LLM_CALL = 6;
 const MAX_GROUPS = 20;
@@ -96,7 +97,7 @@ Regras:
 - Se houver duplicatas claras, mantenha apenas a melhor de cada grupo`;
 
       try {
-        const llmResponse = await base44.asServiceRole.integrations.Core.InvokeLLM({
+        const llmResponse = await invokeLLM(base44.asServiceRole,{
           prompt,
           file_urls: photoUrls,
           response_json_schema: {

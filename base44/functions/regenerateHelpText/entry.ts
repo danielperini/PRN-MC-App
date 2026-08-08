@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -16,7 +17,7 @@ Deno.serve(async (req) => {
     }
 
     // Chamar Claude para gerar texto
-    const response = await base44.integrations.Core.InvokeLLM({
+    const response = await invokeLLM(base44,{
       prompt: `Você é um especialista em ajuda contextual de interface. Gere um texto curto e útil para esta funcionalidade:
 
 Tipo: ${componentType}

@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 const VIADUTO_EMAIL = 'danielperini.mc@viadutodasartes.org.br';
 const VIADUTO_USER_NAME = 'Daniel Perini';
@@ -162,7 +163,7 @@ Deno.serve(async (req) => {
 
           if (isPdfOrDoc) {
             try {
-              dadosIA = await base44.asServiceRole.integrations.Core.InvokeLLM({
+              dadosIA = await invokeLLM(base44.asServiceRole,{
                 prompt: `Você é especialista em análise de relatórios mensais de atividades culturais de museus.
 Analise este documento PDF/DOCX — é um RELATÓRIO MENSAL de um profissional dos Museus Centro (MIS, MHAB, MUMO, Viaduto das Artes) em Belo Horizonte.
 

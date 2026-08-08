@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return 0;
@@ -27,7 +28,7 @@ Deno.serve(async (req) => {
       return Response.json({ success: false, error: 'file_url é obrigatório' }, { status: 400 });
     }
 
-    const result = await base44.integrations.Core.InvokeLLM({
+    const result = await invokeLLM(base44,{
       prompt: `Você está lendo um contrato de prestação de serviços ou documento equivalente.
 
 Extraia apenas o que estiver claramente presente no documento.

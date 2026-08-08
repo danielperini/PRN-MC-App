@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 // News is considered stale if published more than 90 days ago OR found more than 20 days ago
 const STALE_PUBLICATION_DAYS = 90;
@@ -32,7 +33,7 @@ Deno.serve(async (req) => {
     // 3. Use AI to double-check which ones are truly stale and confirm deactivation
     const titlesForAI = staleNews.map((n, i) => `${i + 1}. [${n.data_publicacao || 'sem data'}] ${n.titulo}`).join('\n');
 
-    const aiReview = await base44.asServiceRole.integrations.Core.InvokeLLM({
+    const aiReview = await invokeLLM(base44.asServiceRole,{
       prompt: `Você é curador de conteúdo cultural. Analise esta lista de notícias/artigos e identifique quais estão desatualizados e devem ser removidos do painel.
 
 Hoje é ${today}. As notícias abaixo foram marcadas como potencialmente antigas:
@@ -70,7 +71,7 @@ Retorne os índices (1-based) dos itens que devem ser removidos.`,
     const slotsToFill = toDeactivate.length;
 
     // 5. Fetch fresh replacements using AI + internet
-    const freshResult = await base44.asServiceRole.integrations.Core.InvokeLLM({
+    const freshResult = await invokeLLM(base44.asServiceRole,{
       prompt: `Você é especialista em comunicação cultural de Belo Horizonte. Hoje é ${today}.
 
 Busque ${slotsToFill + 2} notícias ou artigos recentes (publicados nos últimos 60 dias) sobre:

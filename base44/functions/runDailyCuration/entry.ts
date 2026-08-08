@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 const TEMAS = [
   'Museus Centro Belo Horizonte MUMO MIS BH MHAB',
@@ -111,7 +112,7 @@ Regras:
 - Priorize conteudo sobre Viaduto das Artes, MUMO, MIS BH e MHAB
 - Campo link: use dominio plausivel como portalbelohorizonte.com.br ou culturadoria.com.br`;
 
-    const result = await base44.asServiceRole.integrations.Core.InvokeLLM({
+    const result = await invokeLLM(base44.asServiceRole,{
       model: 'gpt_5_4',
       prompt,
       response_json_schema: {
