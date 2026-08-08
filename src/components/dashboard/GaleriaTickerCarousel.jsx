@@ -5,7 +5,7 @@ import { isTechnicalFileName, isInventedCaption } from '@/utils/galleryNormaliza
 import { filterByCooldown, registerImpressions } from '@/utils/carouselCooldown';
 
 const PHOTO_COUNT = 4;
-const ROTATION_INTERVAL_MS = 30000;
+const ROTATION_INTERVAL_MS = 15000;
 const GALLERY_ROUTE = '/GaleriaFotos';
 
 function normalizeText(value) {
@@ -40,6 +40,11 @@ function shuffleSeeded(arr, seed) {
 
 function getDailySeed() {
   return Math.floor(Date.now() / 86400000);
+}
+
+function getSessionSeed() {
+  // Semente que muda a cada 15 minutos — garante variação frequente do pool
+  return Math.floor(Date.now() / (15 * 60 * 1000));
 }
 
 function getImageUrl(item) {
@@ -128,17 +133,25 @@ function curatePeoplePhotos(items) {
     dedup.set(url, { url, item, score });
   });
 
-  const seed = getDailySeed();
+  const seed = getSessionSeed();
   const candidates = Array.from(dedup.values());
   const strongCandidates = candidates.filter((candidate) => candidate.score > 0);
   const source = strongCandidates.length >= PHOTO_COUNT ? strongCandidates : candidates;
 
-  return shuffleSeeded(source, seed)
-    .sort((a, b) => b.score - a.score)
-    .map((candidate) => ({
-      url: candidate.url,
-      caption: getCaption(candidate.item),
-    }));
+  // Preserva variedade: embaralha primeiro (variedade visual), depois prioriza score
+  // apenas como desempate aproximado nos primeiros itens — mantém pool grande e diverso.
+  const shuffled = shuffleSeeded(source, seed);
+  // Levar os de score mais alto para o topo, mas sem espremer o pool — top 30% por score, resto embaralhado
+  const sorted = [...shuffled].sort((a, b) => b.score - a.score);
+  const topCount = Math.min(Math.floor(sorted.length * 0.3), 40);
+  const top = sorted.slice(0, topCount);
+  const rest = shuffled.filter((c) => !top.includes(c));
+  const finalPool = [...shuffleSeeded(top, seed + 1), ...rest];
+
+  return finalPool.map((candidate) => ({
+    url: candidate.url,
+    caption: getCaption(candidate.item),
+  }));
 }
 
 function getCaption(item) {
@@ -214,7 +227,9 @@ export default function GaleriaTickerCarousel() {
     rotationRef.current = setInterval(() => {
       setVisible(false);
       setTimeout(() => {
-        setRound((prev) => (pool.length > PHOTO_COUNT ? prev + PHOTO_COUNT : prev));
+        // Salto pseudo-aleatório baseado no timestamp — varia completamente o conjunto exibido
+        // a cada rotação, em vez de apenas avançar sequencialmente pelo pool.
+        setRound(() => Math.floor(Math.random() * Math.max(1, pool.length - PHOTO_COUNT)));
         setVisible(true);
       }, 400);
     }, ROTATION_INTERVAL_MS);
