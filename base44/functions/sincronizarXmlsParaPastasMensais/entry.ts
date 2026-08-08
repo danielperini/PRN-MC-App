@@ -18,7 +18,7 @@
  * Cópia via files.copy (preserva original). Idempotente (skip se já existe).
  * Log em BackupLog.
  */
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.41';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 
 const SOURCE_SCAN_FOLDER = '1jhZBWsOltRSjtdKHPG64PovnxygKLuW-';
 const DEST_PRIMARIO = '13Lkf42UMaHsyLb8T7Cd0TGUkM3_3YH2T';
