@@ -38,6 +38,11 @@ const THRESHOLD_PCT = 1;
 const REPORTS_BATCH = 50;
 const DIAS_LIMITE_RELATORIOS = 90;
 
+// Kill-switch: quando false, a auditoria NÃO cria entradas AUDITORIA360_* na
+// Sala de Espera (DocumentIntake). As correções determinísticas (recálculo de
+// rubrica, público_total, status_contrato, month_key, etc.) continuam ativas.
+const PRODUZIR_SALA_ESPERA_AUDITORIA360 = false;
+
 function isRubricaLinkedToMeta(rubrica: any, metaNum: string): boolean {
   if (Array.isArray(rubrica?.meta_manual_ids) && rubrica.meta_manual_ids.length > 0) {
     return rubrica.meta_manual_ids.map((m: string) => String(m).toUpperCase()).includes(metaNum.toUpperCase());
@@ -56,10 +61,11 @@ async function criarSalaEspera(
     confianca?: number;
   }
 ) {
-  const now = new Date().toISOString();
-  const resultado_ia = {
-    fase: args.fase,
-    problema: args.problema,
+if (!PRODUZIR_SALA_ESPERA_AUDITORIA360) return false;
+const now = new Date().toISOString();
+const resultado_ia = {
+  fase: args.fase,
+  problema: args.problema,
     entidade_id: args.entidade_id,
     entidade_tipo: args.entidade_tipo,
     sugestao_ia: args.sugestao_ia || null,
