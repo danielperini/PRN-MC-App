@@ -1,4 +1,4 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 
 /**
  * backupDiarioNFsDrive
@@ -315,7 +315,18 @@ async function processarPurchase(base44, token, pr, notasFolderCache) {
 
   // Verificar se tem arquivos fiscais
   const pdfUrl = pr.nota_fiscal_url || pr.nota_fiscal_pdf_url || pr.nf_pdf_url || '';
-  const xmlUrl = pr.nota_fiscal_xml_url || pr.xml_url || '';
+  let xmlUrl = pr.nota_fiscal_xml_url || pr.xml_url || '';
+  // Fallback: a URL do XML fica armazenada em DocumentIntake vinculado à PurchaseRequest
+  if (!xmlUrl) {
+    try {
+      const intakes = await base44.asServiceRole.entities.DocumentIntake.filter(
+        { entidade_destino: 'PurchaseRequest', entidade_destino_id: pr.id },
+        '-updated_date', 5
+      ).catch(() => []);
+      const intakeWithXml = (intakes || []).find((i) => i && i.nf_xml_url);
+      if (intakeWithXml?.nf_xml_url) xmlUrl = intakeWithXml.nf_xml_url;
+    } catch (e) { /* não bloquear por falha na consulta */ }
+  }
   const comprovanteUrl = pr.comprovante_url || pr.comprovante_pagamento_url || '';
 
   if (!pdfUrl && !xmlUrl && !comprovanteUrl) {
