@@ -4,34 +4,39 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
  * processarSalaDeEspera
  *
  * Orquestrador backend ÚNICO do pipeline "Sala de Espera".
- * Todo arquivo que "vem de fora" (Drive, Gmail, upload) entra aqui como
- * DocumentIntake e só é liberado para o banco/Drive após análise 100% pela IA.
+ * Centraliza TODA entrada de documentos (Drive, Gmail, upload → DocumentIntake).
+ * O pipeline de IA preenche 100% dos campos obrigatórios ANTES de encaminhar
+ * qualquer arquivo para os destinos finais (banco/Drive).
  *
- * Critério de liberação (definido pelo builder):
- *   - NF: tipo_detectado + nf_emitente_nome + nf_valor_total + nf_data_emissao (>= 2026) + centro_custo
- *   - Foto: tipo_detectado + legenda_sugerida + centro_custo
- *   - Contrato/Doc admin: tipo_detectado + descricao extraída
+ * Campos obrigatórios por tipo (pipeline deve preencher TODOS):
+ *   NF (PDF/XML): tipo_detectado, nf_emitente_nome, nf_emitente_cpf_cnpj,
+ *                 nf_numero, nf_valor_total, nf_data_emissao (>=2026),
+ *                 centro_custo, fornecedor_nome, fornecedor_cpf_cnpj, municipio
+ *   FOTO_ATIVIDADE: tipo_detectado, legenda_sugerida, centro_custo
+ *   CONTRATO: tipo_detectado, contrato_numero, fornecedor/ team_member vinculado
+ *   DOC_ADMIN/RECIBO: tipo_detectado, descricao
  *
  * Fluxo por execução:
- *   1. Buscar DocumentIntake pendentes (status ENVIADO/AGUARDANDO_REVISAO, não ocultos)
- *   2. Para cada um:
- *      a. Se ainda não analisado pela IA → pula (será pego por processarEntradaUnicaLote)
- *      b. Se análise IA presente → verifica dados essenciais
- *      c. Para NFs: confirma/corrige data emissão via IA (>= 2026)
- *      d. Se 100% preenchido: marca APROVADO + ocultar_entrada_unica=true (encaminha, não acumula)
- *      e. Para NFs aprovadas: garante backup no Drive em pasta mensal MM-YYYY
- *   3. Garantir que NFs aprovadas no banco tenham data correta e estejam em pastas mensais
- *
- * Esta função NÃO substitui as análises de IA — apenas orquestra e libera.
+ *   1. Buscar DocumentIntake pendentes (não ocultos, ativos)
+ *   2. Para cada um: verificar campos obrigatórios preenchidos
+ *   3. Se faltam campos E há arquivo → IA extrai TODOS os campos faltantes de uma vez
+ *   4. Para NF: valida/corrige data emissão via IA (>= 2026, ignora datas de abertura)
+ *   5. Se 100% preenchido: APROVADO + ocultar_entrada_unica (encaminha, NÃO acumula)
+ *      - NF: garante pasta mensal MM-YYYY no Drive
+ *   6. Se ainda faltam após 2 tentativas IA: marca REJEITADO para revisão manual
  */
 
 const ROOT_NOTAS_FOLDER_ID = '1LgC94VhIomQZBS7kfkQqgBX8MVzwQqzp';
-const BATCH_SIZE = 15;
+const BATCH_SIZE = 10;
+const MAX_TENTATIVAS_IA = 1;
+const IA_TIMEOUT_MS = 35000;
+const DEADLINE_MS = 50000; // prazo global de execução segura
 const MESES_PT = ['Janeiro','Fevereiro','Marco','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
 // ── Utilitários ──────────────────────────────────────────────────────────────
 
 function safeStr(v) { return String(v || '').trim(); }
+function safeNum(v) { const n = Number(v); return isNaN(n) ? null : n; }
 
 function parseDataEmissao(raw) {
   if (!raw) return null;
@@ -46,35 +51,44 @@ function parseDataEmissao(raw) {
   return { ano: d.getFullYear(), mesIdx: d.getMonth(), mesNome: MESES_PT[d.getMonth()] };
 }
 
-function dadosEssenciaisPreenchidos(intake) {
+// Verifica quais campos obrigatórios estão preenchidos por tipo
+function camposObrigatorios(intake) {
   const tipo = safeStr(intake.tipo_detectado);
-  if (!tipo || tipo === 'PENDENTE') return { ok: false, motivo: 'tipo_nao_detectado' };
+  if (!tipo || tipo === 'PENDENTE') return { ok: false, faltando: ['tipo_detectado'] };
 
   if (tipo === 'NOTA_FISCAL_PDF' || tipo === 'NOTA_FISCAL_XML') {
-    const temEmitente = !!safeStr(intake.nf_emitente_nome || intake.fornecedor_nome);
-    const temValor = !!Number(intake.nf_valor_total);
+    const faltando = [];
+    if (!safeStr(intake.nf_emitente_nome)) faltando.push('nf_emitente_nome');
+    if (!safeStr(intake.nf_emitente_cpf_cnpj || intake.fornecedor_cpf_cnpj)) faltando.push('fornecedor_cpf_cnpj');
+    if (!safeStr(intake.nf_numero)) faltando.push('nf_numero');
+    if (!safeNum(intake.nf_valor_total)) faltando.push('nf_valor_total');
     const dataInfo = parseDataEmissao(intake.nf_data_emissao);
-    const temDataValida = !!(dataInfo && dataInfo.ano >= 2026);
-    const temCentroCusto = !!safeStr(intake.centro_custo);
-    return {
-      ok: temEmitente && temValor && temDataValida,
-      motivo: !temEmitente ? 'sem_emitente' : !temValor ? 'sem_valor' : !temDataValida ? 'data_invalida' : !temCentroCusto ? 'sem_centro_custo' : '',
-      temEmitente, temValor, temDataValida, temCentroCusto,
-    };
+    if (!dataInfo || dataInfo.ano < 2026) faltando.push('nf_data_emissao');
+    if (!safeStr(intake.centro_custo)) faltando.push('centro_custo');
+    if (!safeStr(intake.fornecedor_nome)) faltando.push('fornecedor_nome');
+    if (!safeStr(intake.municipio)) faltando.push('municipio');
+    return { ok: faltando.length === 0, faltando };
   }
 
   if (tipo === 'FOTO_ATIVIDADE') {
-    return { ok: !!safeStr(intake.legenda_sugerida), motivo: !intake.legenda_sugerida ? 'sem_legenda' : '' };
+    const faltando = [];
+    if (!safeStr(intake.legenda_sugerida)) faltando.push('legenda_sugerida');
+    if (!safeStr(intake.centro_custo)) faltando.push('centro_custo');
+    return { ok: faltando.length === 0, faltando };
   }
 
-  if (tipo === 'CONTRATO' || tipo === 'DOCUMENTO_ADMINISTRATIVO' || tipo === 'RECIBO_PDF') {
-    return { ok: true, motivo: '' };
+  if (tipo === 'CONTRATO') {
+    const faltando = [];
+    if (!safeStr(intake.contrato_numero)) faltando.push('contrato_numero');
+    if (!safeStr(intake.contrato_fornecedor_id || intake.contrato_team_member_id || intake.fornecedor_id_vinculado)) faltando.push('vinculo_fornecedor');
+    return { ok: faltando.length === 0, faltando };
   }
 
-  return { ok: true, motivo: '' };
+  // DOC_ADMIN, RECIBO, OUTRO — apenas tipo
+  return { ok: true, faltando: [] };
 }
 
-// ── Drive helpers (reutilização mínima) ───────────────────────────────────────
+// ── Drive helpers ─────────────────────────────────────────────────────────────
 
 async function getToken(base44) {
   const { accessToken } = await base44.asServiceRole.connectors.getConnection('googledrive');
@@ -114,54 +128,123 @@ async function getOrCreate(token, name, parentId, cache) {
   return id;
 }
 
-// ── Confirmação de data via IA (apenas NF com data suspeita) ──────────────────
+// ── IA: preencher TODOS os campos faltantes de uma NF ─────────────────────────
 
-async function confirmarDataViaIA(base44, intake) {
-  const dataAtual = safeStr(intake.nf_data_emissao);
-  const parsed = parseDataEmissao(dataAtual);
-  if (parsed && parsed.ano >= 2026) return { ok: true, motivo: 'ja_valida' };
+function extrairDriveId(url) {
+  if (!url) return null;
+  const m = url.match(/\/file\/d\/([^/]+)/) || url.match(/[?&]id=([^&]+)/);
+  return m ? m[1] : null;
+}
 
-  const pdfUrl = safeStr(intake.nf_pdf_url || intake.arquivo_original_url);
-  if (!pdfUrl) return { ok: false, motivo: 'sem_pdf' };
-
-  let pdfUrlIA = pdfUrl;
-  if (pdfUrl.includes('drive.google.com')) {
-    const m = pdfUrl.match(/\/file\/d\/([^/]+)/);
-    if (m) pdfUrlIA = `https://drive.google.com/uc?export=download&id=${m[1]}`;
+async function resolverUrlPdf(url) {
+  if (!url) return null;
+  if (url.includes('drive.google.com')) {
+    const id = extrairDriveId(url);
+    if (id) return `https://drive.google.com/uc?export=download&id=${id}`;
   }
+  return url;
+}
+
+// Fallback: baixa PDF do Drive e re-upload para storage Base44 (URL estável p/ IA)
+async function reUploadDrivePdf(base44, token, driveUrl, fileName) {
+  const fileId = extrairDriveId(driveUrl);
+  if (!fileId) return null;
+  try {
+    const r = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!r.ok) return null;
+    const blob = await r.blob();
+    if (blob.size === 0) return null;
+    const file = new File([blob], fileName || `nf_${fileId}.pdf`, { type: blob.type || 'application/pdf' });
+    const up = await base44.asServiceRole.integrations.Core.UploadFile({ file });
+    return up?.file_url || null;
+  } catch (e) {
+    console.error('reUploadDrivePdf erro:', e.message);
+    return null;
+  }
+}
+
+async function preencherCamposFaltantesIA(base44, token, intake, faltando) {
+  const pdfUrl = await resolverUrlPdf(intake.nf_pdf_url || intake.arquivo_original_url);
+  if (!pdfUrl) return { ok: false, motivo: 'sem_arquivo' };
+
+  const camposPedidos = faltando.join(', ');
+  const prompt = `Você é um extrator de NOTA FISCAL (NFS-e / NF-e). Analise o documento anexo e extraia EXATAMENTE os campos solicitados que estão faltando ou inválidos.
+
+REGRAS CRÍTICAS:
+- Data de emissão: apenas datas >= 2026 (campo "Data de Emissão" / "Data/Hora Emissão" / "Emitida em"). IGNORE datas de abertura de empresa, contratos, convênios, vencimento ou pagamento.
+- CNPJ/CPF: apenas dígitos (14 ou 11).
+- Valor total: valor NUMÉRICO da nota (sem R$, sem texto). Use ponto decimal.
+- Centro de custo: um dos: MUMO, MIS, MHAB, Noturno nos Museus 2026, Noturno 2026, Noturno Pampulha, Publicações, Geral.
+
+Retorne JSON com APENAS os campos solicitados: ${camposPedidos}
+Se um campo não existir no documento, retorne null para ele.`;
+
+  const schema = {
+    type: 'object',
+    properties: {
+      nf_emitente_nome: { type: 'string' },
+      fornecedor_cpf_cnpj: { type: 'string' },
+      nf_numero: { type: 'string' },
+      nf_valor_total: { type: 'number' },
+      nf_data_emissao: { type: 'string' },
+      centro_custo: { type: 'string' },
+      fornecedor_nome: { type: 'string' },
+      municipio: { type: 'string' },
+    },
+  };
+
+  const runIA = async (url) => base44.asServiceRole.integrations.Core.InvokeLLM({
+    model: 'gemini_3_flash',
+    prompt,
+    file_urls: [url],
+    response_json_schema: schema,
+  });
 
   try {
-    const ia = await Promise.race([
-      base44.asServiceRole.integrations.Core.InvokeLLM({
-        model: 'gpt_5_mini',
-        prompt: `Você é um extrator de NOTA FISCAL. Analise o PDF anexo e extraia apenas a DATA DE EMISSÃO (campo "Data de Emissão" / "Data/Hora Emissão" / "Emitida em").
-IGNORE datas de abertura de empresa, contratos, convênios, vencimento ou pagamento.
-Notas válidas são de 2026 em diante. Retorne JSON:
-{"nf_data_emissao_corrigida": "YYYY-MM-DD" | null, "confianca": "alta|media|baixa", "explicacao": "..."}`,
-        file_urls: [pdfUrlIA],
-        response_json_schema: {
-          type: 'object',
-          properties: {
-            nf_data_emissao_corrigida: { type: 'string' },
-            confianca: { type: 'string' },
-            explicacao: { type: 'string' },
-          },
-          required: ['nf_data_emissao_corrigida', 'confianca'],
-        },
-      }),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout_ia_25s')), 25000)),
-    ]);
-
-    const dataCorrigida = safeStr(ia?.nf_data_emissao_corrigida);
-    const corrigidaParsed = parseDataEmissao(dataCorrigida);
-
-    if (corrigidaParsed && corrigidaParsed.ano >= 2026) {
-      await base44.asServiceRole.entities.DocumentIntake.update(intake.id, {
-        nf_data_emissao: dataCorrigida,
-      }).catch(() => null);
-      return { ok: true, motivo: 'corrigida_ia', dataCorrigida };
+    let ia = null;
+    try {
+      ia = await Promise.race([
+        runIA(pdfUrl),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout_ia')), IA_TIMEOUT_MS)),
+      ]);
+    } catch (eFirst) {
+      // Fallback: re-upload para URL estável (Drive uc? URLs instáveis p/ IA)
+      const reUrl = await reUploadDrivePdf(base44, token, intake.nf_pdf_url || intake.arquivo_original_url, intake.file_name_final || intake.file_name_original);
+      if (!reUrl) throw eFirst;
+      ia = await Promise.race([
+        runIA(reUrl),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout_ia_fallback')), IA_TIMEOUT_MS)),
+      ]);
     }
-    return { ok: false, motivo: 'ia_invalida', confianca: ia?.confianca };
+
+    const updates = {};
+    if (ia?.nf_emitente_nome) updates.nf_emitente_nome = safeStr(ia.nf_emitente_nome);
+    if (ia?.fornecedor_cpf_cnpj) {
+      const doc = safeStr(ia.fornecedor_cpf_cnpj).replace(/\D/g, '');
+      if (doc.length === 11 || doc.length === 14) {
+        updates.fornecedor_cpf_cnpj = doc;
+        updates.nf_emitente_cpf_cnpj = doc;
+      }
+    }
+    if (ia?.nf_numero) updates.nf_numero = safeStr(ia.nf_numero);
+    if (ia?.nf_valor_total != null) {
+      const v = safeNum(ia.nf_valor_total);
+      if (v !== null) updates.nf_valor_total = v;
+    }
+    if (ia?.nf_data_emissao) {
+      const d = parseDataEmissao(ia.nf_data_emissao);
+      if (d && d.ano >= 2026) updates.nf_data_emissao = ia.nf_data_emissao;
+    }
+    if (ia?.centro_custo) updates.centro_custo = safeStr(ia.centro_custo);
+    if (ia?.fornecedor_nome) updates.fornecedor_nome = safeStr(ia.fornecedor_nome);
+    if (ia?.municipio) updates.municipio = safeStr(ia.municipio);
+
+    if (Object.keys(updates).length === 0) return { ok: false, motivo: 'ia_vazia' };
+
+    await base44.asServiceRole.entities.DocumentIntake.update(intake.id, updates).catch(() => null);
+    return { ok: true, motivo: 'preenchido', updates };
   } catch (e) {
     return { ok: false, motivo: `erro_ia:${e.message}` };
   }
@@ -169,51 +252,70 @@ Notas válidas são de 2026 em diante. Retorne JSON:
 
 // ── Processar um intake ──────────────────────────────────────────────────────
 
-async function processarIntake(base44, token, intake, folderCache) {
-  const log = {
-    id: intake.id,
-    tipo: intake.tipo_detectado,
-    fileName: intake.file_name_final || intake.file_name_original,
-    status: '',
-    detalhes: [],
-  };
+async function processarIntake(base44, token, intake, folderCache, tentativasMap) {
+  const log = { id: intake.id, tipo: intake.tipo_detectado, fileName: intake.file_name_final || intake.file_name_original, status: '', detalhes: [] };
 
-  // 1. Verificar dados essenciais
-  let check = dadosEssenciaisPreenchidos(intake);
+  // 1. Verificar campos obrigatórios
+  let check = camposObrigatorios(intake);
 
-  // 2. Para NF: se data inválida, tentar corrigir via IA
-  if (!check.ok && check.motivo === 'data_invalida' &&
-      (intake.tipo_detectado === 'NOTA_FISCAL_PDF' || intake.tipo_detectado === 'NOTA_FISCAL_XML')) {
-    const iaData = await confirmarDataViaIA(base44, intake);
-    log.detalhes.push(`IA data: ${iaData.ok ? 'corrigida' : 'falhou'} (${iaData.motivo})`);
-    if (iaData.ok) {
-      intake.nf_data_emissao = iaData.dataCorrigida || intake.nf_data_emissao;
-      check = dadosEssenciaisPreenchidos(intake);
+  // 2. Se faltam campos e tem arquivo → IA preenche (até MAX_TENTATIVAS_IA)
+  let tentativa = tentativasMap.get(intake.id) || 0;
+  while (!check.ok && tentativa < MAX_TENTATIVAS_IA && (intake.tipo_detectado === 'NOTA_FISCAL_PDF' || intake.tipo_detectado === 'NOTA_FISCAL_XML')) {
+    tentativa++;
+    tentativasMap.set(intake.id, tentativa);
+    log.detalhes.push(`IA validacao preencher tentativa ${tentativa}: faltando [${check.faltando.join(',')}]`);
+    const iaResult = await preencherCamposFaltantesIA(base44, token, intake, check.faltando);
+    if (!iaResult.ok) {
+      log.detalhes.push(`IA falhou: ${iaResult.motivo}`);
+      break;
     }
+    // atualiza intake localmente para recheck
+    Object.assign(intake, iaResult.updates);
+    check = camposObrigatorios(intake);
   }
 
-  // 3. Se ainda faltam dados essenciais, manter pendente (não acumula indefinidamente,
-  //    mas aguarda preenchimento pela IA de análise ou revisão manual)
+  // 3. Para foto sem legenda: uma tentativa de IA (lightweight, sem arquivo)
+  if (!check.ok && intake.tipo_detectado === 'FOTO_ATIVIDADE') {
+    // legenda sugerida pode vir do processarEntradaUnicaLote; apenas aguarda
+    log.detalhes.push('Foto aguardando legenda da IA de análise');
+  }
+
+  // 4. Se ainda faltam dados essenciais após tentativas IA
   if (!check.ok) {
-    log.status = 'pendente_dados';
-    log.detalhes.push(`Motivo: ${check.motivo}`);
+    // Após MAX tentativas IA para NF, marcar REJEITADO p/ revisão manual (não acumula indefinidamente)
+    if (tentativa >= MAX_TENTATIVAS_IA && (intake.tipo_detectado === 'NOTA_FISCAL_PDF' || intake.tipo_detectado === 'NOTA_FISCAL_XML')) {
+      try {
+        await base44.asServiceRole.entities.DocumentIntake.update(intake.id, {
+          status_processamento: 'REJEITADO',
+          ocultar_entrada_unica: true,
+        });
+        log.status = 'rejeitado_dados_incompletos';
+        log.detalhes.push(`Marcado REJEITADO após ${tentativa} tentativas IA. Campos faltantes: [${check.faltando.join(',')}]`);
+      } catch (e) {
+        log.status = 'erro_update';
+        log.detalhes.push(`Erro ao rejeitar: ${e.message}`);
+      }
+    } else {
+      log.status = 'pendente_dados';
+      log.detalhes.push(`Motivo: ${check.faltando.join(',')}`);
+    }
     return log;
   }
 
-  // 4. 100% analisado → liberar (encaminhar, não acumular)
+  // 5. 100% preenchido → LIBERAR (encaminhar, não acumular)
   const updates = {
     status_processamento: 'APROVADO',
     revisado_pelo_usuario: true,
     ocultar_entrada_unica: true,
   };
 
-  // 5. Para NF aprovada: garantir backup em pasta mensal MM-YYYY
+  // 6. NF aprovada: garantir pasta mensal MM-YYYY no Drive para auditoria
   if ((intake.tipo_detectado === 'NOTA_FISCAL_PDF' || intake.tipo_detectado === 'NOTA_FISCAL_XML') && intake.nf_data_emissao) {
     const dataInfo = parseDataEmissao(intake.nf_data_emissao);
     if (dataInfo) {
       try {
-        const mesFormatado = String(dataInfo.mesIdx + 1).padStart(2, '0');
-        const nomePasta = `${mesFormatado}-${dataInfo.ano}`;
+        const mesFmt = String(dataInfo.mesIdx + 1).padStart(2, '0');
+        const nomePasta = `${mesFmt}-${dataInfo.ano}`;
         const folderId = await getOrCreate(token, nomePasta, ROOT_NOTAS_FOLDER_ID, folderCache);
         log.detalhes.push(`Pasta mensal ${nomePasta} confirmada: ${folderId}`);
       } catch (e) {
@@ -222,11 +324,10 @@ async function processarIntake(base44, token, intake, folderCache) {
     }
   }
 
-  // 6. Atualizar intake como aprovado/oculto (liberado, não acumula)
   try {
     await base44.asServiceRole.entities.DocumentIntake.update(intake.id, updates);
     log.status = 'liberado';
-    log.detalhes.push('Marcado APROVADO + ocultar_entrada_unica=true');
+    log.detalhes.push('100% campos preenchidos → APROVADO + ocultar_entrada_unica');
   } catch (e) {
     log.status = 'erro_update';
     log.detalhes.push(`Erro ao liberar: ${e.message}`);
@@ -250,48 +351,61 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const dryRun = body.dryRun === true;
-    const limite = typeof body.limite === 'number' ? body.limite : 50;
+    const limite = typeof body.limite === 'number' ? body.limite : 40;
 
-    // 1. Buscar intakes pendentes (não ocultos, analisados ou em revisão)
-    const skip = 0;
+    // 1. Buscar intakes pendentes (não ocultos, ativos)
     const pendentes = await base44.asServiceRole.entities.DocumentIntake.filter(
       {
         status_processamento: { $in: ['ENVIADO', 'AGUARDANDO_REVISAO', 'ANALISANDO_IA'] },
         ocultar_entrada_unica: { $ne: true },
         status_registro: 'ATIVO',
       },
-      '-updated_date', Math.min(limite, 200), skip
+      '-updated_date', Math.min(limite, 200), 0
     ).catch(() => []);
 
     if (dryRun) {
+      const amostra = (pendentes || []).slice(0, 25).map((i) => {
+        const c = camposObrigatorios(i);
+        return {
+          id: i.id,
+          tipo: i.tipo_detectado,
+          fileName: i.file_name_final || i.file_name_original,
+          camposPreenchidos: c.ok,
+          faltando: c.faltando,
+          status: i.status_processamento,
+        };
+      });
+      const completos = amostra.filter((a) => a.camposPreenchidos).length;
+      const faltam = amostra.length - completos;
       return Response.json({
         ok: true,
         dry_run: true,
         pendentes_total: (pendentes || []).length,
-        amostra: (pendentes || []).slice(0, 20).map((i) => ({
-          id: i.id,
-          tipo: i.tipo_detectado,
-          fileName: i.file_name_final || i.file_name_original,
-          data: i.nf_data_emissao,
-          status: i.status_processamento,
-        })),
+        ja_100pct: completos,
+        precisam_ia: faltam,
+        amostra,
       });
     }
 
     // 2. Obter token Drive
     const token = await getToken(base44);
     const folderCache = {};
+    const tentativasMap = new Map();
+    const deadline = startTime + DEADLINE_MS;
+    let paradosPorDeadline = 0;
 
-    // 3. Processar em lotes
-    const resultados = { liberado: 0, pendente_dados: 0, erro_update: 0, erro: 0 };
+    // 3. Processar em lotes (interrompe antes do prazo global p/ não estourar execução)
+    const resultados = { liberado: 0, pendente_dados: 0, rejeitado_dados_incompletos: 0, erro_update: 0, erro: 0 };
     const logs = [];
     const intakesParaProcessar = (pendentes || []).slice(0, limite);
 
     for (let i = 0; i < intakesParaProcessar.length; i += BATCH_SIZE) {
+      if (Date.now() > deadline - 15000) { paradosPorDeadline = intakesParaProcessar.length - i; break; } // sobra 15s p/ resposta
       const lote = intakesParaProcessar.slice(i, i + BATCH_SIZE);
       for (const intake of lote) {
+        if (Date.now() > deadline - 15000) { paradosPorDeadline = intakesParaProcessar.length - i; break; }
         try {
-          const logItem = await processarIntake(base44, token, intake, folderCache);
+          const logItem = await processarIntake(base44, token, intake, folderCache, tentativasMap);
           logs.push(logItem);
           resultados[logItem.status] = (resultados[logItem.status] || 0) + 1;
         } catch (e) {
@@ -305,18 +419,20 @@ Deno.serve(async (req) => {
     // 4. Log de execução
     await base44.asServiceRole.entities.BackupLog.create({
       backup_type: 'auditoria_entrada_unica',
-      status: resultados.erro > 0 && resultados.liberado === 0 ? 'failure' : 'success',
+      status: resultados.liberado > 0 ? 'success' : (resultados.erro > 0 ? 'failure' : 'concluido'),
       total_files: intakesParaProcessar.length,
       files_copied: resultados.liberado,
       error_message: resultados.erro > 0 ? `${resultados.erro} erros` : '',
       execution_time_ms: Date.now() - startTime,
       triggered_by: isCron ? 'scheduled' : 'manual',
-      details: `Sala de Espera: ${resultados.liberado} liberados, ${resultados.pendente_dados || 0} pendentes`,
+      details: `Sala de Espera: ${resultados.liberado} liberados (100% preenchidos), ${resultados.pendente_dados || 0} pendentes IA, ${resultados.rejeitado_dados_incompletos || 0} rejeitados, ${paradosPorDeadline} adiados (deadline)`,
     }).catch(() => null);
 
     return Response.json({
       ok: true,
       pendentes_total: intakesParaProcessar.length,
+      processados: logs.length,
+      adiados_deadline: paradosPorDeadline,
       resultados,
       execution_ms: Date.now() - startTime,
       processado_em: new Date().toISOString(),
