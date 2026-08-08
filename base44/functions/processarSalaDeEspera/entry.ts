@@ -1,7 +1,14 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.41';
-import { invokeLLM } from '../_shared/gatewayIA.ts';
 
-// Versão local inline do construtor de nome oficial (evita dependência de _shared) — touch deploy probe
+// invokeLLM inlined (evita import de _shared/gatewayIA —_HISTORY_DEPLOY_BREAKER)
+async function invokeLLM(client, payload) {
+  const res = await client.functions.invoke('invokeGpt', { operation: 'InvokeLLM', payload });
+  const data = res?.data ?? res;
+  if (data && data.ok === false) throw new Error(data.error || 'invokeGpt falhou (InvokeLLM)');
+  return data?.result;
+}
+
+// Versão local inline do construtor de nome oficial (evita dependência de _shared)
 function buildNomeOficialLocal(intake, tipo) {
   const ext = tipo === 'XML' ? 'xml' : 'pdf';
   const prefix = tipo === 'XML' ? 'XML' : 'NF';
