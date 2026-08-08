@@ -70,9 +70,9 @@ Deno.serve(async (req) => {
 
     // Obter token do Drive
     let token: string | null = null;
-    try { const c = await base44.connectors.getConnection('googledrive'); token = c?.access_token || null; } catch (_) {}
+    try { const c = await base44.connectors.getConnection('googledrive'); token = c?.accessToken || c?.access_token || null; } catch (_) {}
     if (!token) {
-      try { const c = await base44.asServiceRole.connectors.getConnection('googledrive'); token = c?.access_token || null; } catch (_) {}
+      try { const c = await base44.asServiceRole.connectors.getConnection('googledrive'); token = c?.accessToken || c?.access_token || null; } catch (_) {}
     }
     if (!token) {
       return Response.json({ error: 'Google Drive não conectado.', code: 'DRIVE_NOT_CONNECTED' }, { status: 401 });

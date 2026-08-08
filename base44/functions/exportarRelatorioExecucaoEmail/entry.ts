@@ -427,7 +427,7 @@ async function uploadPDFToDrive(base44Client, pdfBuffer, fileName, folderId) {
   combined.set(endBytes, offset);
 
   const conn = await base44Client.asServiceRole.connectors.getConnection('googledrive');
-  const token = conn.access_token;
+  const token = conn.accessToken || conn.access_token;
 
   const resp = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink', {
     method: 'POST',
@@ -448,7 +448,7 @@ async function uploadPDFToDrive(base44Client, pdfBuffer, fileName, folderId) {
 
 async function getOrCreateFolder(base44Client, folderName, parentId) {
   const conn = await base44Client.asServiceRole.connectors.getConnection('googledrive');
-  const token = conn.access_token;
+  const token = conn.accessToken || conn.access_token;
   const q = `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false${parentId ? ` and '${parentId}' in parents` : ''}`;
   const searchResp = await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)`, {
     headers: { 'Authorization': `Bearer ${token}` },
@@ -467,7 +467,7 @@ async function getOrCreateFolder(base44Client, folderName, parentId) {
 
 async function getFolderLink(base44Client, folderId) {
   const conn = await base44Client.asServiceRole.connectors.getConnection('googledrive');
-  const token = conn.access_token;
+  const token = conn.accessToken || conn.access_token;
   const resp = await fetch(`https://www.googleapis.com/drive/v3/files/${folderId}?fields=webViewLink`, {
     headers: { 'Authorization': `Bearer ${token}` },
   });

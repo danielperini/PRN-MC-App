@@ -47,12 +47,12 @@ Deno.serve(async (req) => {
 
     // ── 1. Token do Drive ───────────────────────────────────────────────────
     let driveToken = null;
-    try { const c = await base44.asServiceRole.connectors.getConnection('googledrive'); driveToken = c?.access_token || null; } catch (_) {}
+    try { const c = await base44.asServiceRole.connectors.getConnection('googledrive'); driveToken = c?.accessToken || c?.access_token || null; } catch (_) {}
     if (!driveToken) return Response.json({ error: 'Google Drive não conectado.' }, { status: 401 });
 
     // ── 2. Token do Gmail ───────────────────────────────────────────────────
     let gmailToken = null;
-    try { const c = await base44.asServiceRole.connectors.getConnection('gmail'); gmailToken = c?.access_token || null; } catch (_) {}
+    try { const c = await base44.asServiceRole.connectors.getConnection('gmail'); gmailToken = c?.accessToken || c?.access_token || null; } catch (_) {}
 
     // ── 3. Buscar TeamMembers ativos ────────────────────────────────────────
     const body = await req.json().catch(() => ({}));

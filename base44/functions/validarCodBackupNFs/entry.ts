@@ -692,7 +692,7 @@ Deno.serve(async (req) => {
     let driveToken: string | null = null;
     try {
       const conn = await base44.asServiceRole.connectors.getConnection('googledrive');
-      driveToken = conn?.access_token || null;
+      driveToken = conn?.accessToken || conn?.access_token || null;
     } catch { /* sem token — renomeação indisponível */ }
 
     // ── Estatísticas ──────────────────────────────────────────────────────────

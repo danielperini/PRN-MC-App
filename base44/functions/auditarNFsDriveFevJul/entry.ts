@@ -11,13 +11,13 @@ Deno.serve(async (req) => {
 
     let conn: any = null;
     try { conn = await base44.connectors.getConnection('googledrive'); } catch(_) {}
-    if (!conn?.access_token) {
+    if (!conn?.accessToken && !conn?.access_token) {
       try { conn = await base44.asServiceRole.connectors.getConnection('googledrive'); } catch(_) {}
     }
-    if (!conn || !conn.access_token) {
+    if (!conn || (!conn.accessToken && !conn.access_token)) {
       return Response.json({ error: 'Conector Google Drive não está autenticado. Reconecte o Drive em Configurações > Conectores.' }, { status: 401 });
     }
-    const token = conn.access_token;
+    const token = conn.accessToken || conn.access_token;
 
     const testRes = await fetch('https://www.googleapis.com/drive/v3/about?fields=user', { headers: { Authorization: `Bearer ${token}` } });
     const testData = await testRes.json();

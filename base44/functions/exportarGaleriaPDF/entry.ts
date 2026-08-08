@@ -193,7 +193,7 @@ Deno.serve(async (req) => {
     let driveLink = null;
     try {
       const conn = await base44.asServiceRole.connectors.getConnection('googledrive');
-      const driveToken = conn.access_token;
+      const driveToken = conn.accessToken || conn.access_token;
 
       // Pasta raiz "Exportações" → "Galeria"
       const rootFolders = await fetch('https://www.googleapis.com/drive/v3/files?q=name%3D\'Exporta%C3%A7%C3%B5es\'%20and%20mimeType%3D\'application%2Fvnd.google-apps.folder\'%20and%20\'root\'%20in%20parents%20and%20trashed%3Dfalse&fields=files(id,name)', {

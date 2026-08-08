@@ -88,9 +88,10 @@ async function resolverDownload(base44, url) {
     const fileId = gdMatch[1];
     try {
       const conn = await base44.asServiceRole.connectors.getConnection('googledrive');
-      if (conn?.access_token) {
+      const token = conn?.accessToken || conn?.access_token || conn?.token;
+      if (token) {
         const resp = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
-          headers: { Authorization: `Bearer ${conn.access_token}` },
+          headers: { Authorization: `Bearer ${token}` },
           signal: AbortSignal.timeout(60_000),
         });
         if (resp.ok) return new Uint8Array(await resp.arrayBuffer());

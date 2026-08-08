@@ -50,9 +50,9 @@ async function resolverBytes(base44, url) {
     const fileId = gdMatch[1];
     try {
       const conn = await base44.asServiceRole.connectors.getConnection('googledrive');
-      if (conn?.access_token) {
+      if (conn?.accessToken || conn?.access_token) {
         const r = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
-          headers: { Authorization: `Bearer ${conn.access_token}` },
+          headers: { Authorization: `Bearer ${conn.accessToken || conn.access_token}` },
           signal: AbortSignal.timeout(60_000),
         });
         if (r.ok) return new Uint8Array(await r.arrayBuffer());

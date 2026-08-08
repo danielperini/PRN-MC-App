@@ -175,7 +175,7 @@ Deno.serve(async (req) => {
       );
       driveToken =
         conn?.accessToken ||
-        conn?.access_token ||
+        conn?.accessToken || conn?.access_token ||
         conn?.token ||
         (typeof conn === "string" ? conn : null);
     } catch (_) {
