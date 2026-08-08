@@ -39,6 +39,7 @@ const ROOT_FOLDERS = [
   '13Lkf42UMaHsyLb8T7Cd0TGUkM3_3YH2T', // pastas "Mês YYYY"
   '10udE1viTbqEtoGdpMZVcRA97SkpcWNsn', // pasta flat (julho 2026)
   '1jhZBWsOltRSjtdKHPG64PovnxygKLuW-', // pasta extra (notas fiscais)
+  '1qVwpSypPHyQ_IK_H2yTho46MVCzj0FrU', // pasta externa — recuperação de vínculos 404 (PRD)
 ];
 
 const FOLDER_MIME = 'application/vnd.google-apps.folder';

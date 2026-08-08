@@ -776,6 +776,67 @@ Nome do arquivo: "${safeStr(intake.file_name_original)}"`;
   return nomeBase;
 }
 
+// ── Early rename — garante nome canônico no Drive ANTES do processamento ────
+// Se file_name_final já está oficial → skip. Se metadata insuficiente → skip (deixa
+// p/ resolverNomeOficial no final do pipeline). Se metadata OK → rename via PATCH.
+async function garantirNomeOficialEarly(base44, token, intake) {
+  if (intake.tipo_detectado !== 'NOTA_FISCAL_PDF' && intake.tipo_detectado !== 'NOTA_FISCAL_XML') {
+    return { skip: true, motivo: 'nao_eh_nf' };
+  }
+
+  const fNome = safeStr(intake.file_name_final);
+  const ehOficial = /^(NF|XML|COMP NF)\s+\d+\s+.+\s+-\s+.+\s+-\s+MUSEUS CENTRO\s+-\s+R\$\s+[\d.,]+\.(pdf|xml)$/i.test(fNome);
+  if (ehOficial) return { skip: true, motivo: 'ja_oficial' };
+
+  // Sem metadata mínima — deixa p/ renomearEMoverParaBackup resolver no final do pipeline
+  if (!safeStr(intake.nf_numero) || !safeNum(intake.nf_valor_total)) {
+    return { skip: true, motivo: 'metadata_insuficiente' };
+  }
+
+  const url = intake.nf_pdf_url || intake.nf_xml_url || intake.arquivo_original_url;
+  const fileId = extrairDriveId(url);
+  if (!fileId) return { skip: true, motivo: 'sem_file_id' };
+
+  const tipo = intake.tipo_detectado === 'NOTA_FISCAL_XML' ? 'XML' : 'NF';
+  let nomeOficial;
+  try {
+    nomeOficial = await resolverNomeOficial(base44, intake, tipo);
+  } catch (e) {
+    return { skip: false, motivo: `resolver_erro:${e.message}` };
+  }
+  if (!nomeOficial) return { skip: true, motivo: 'nome_invalido' };
+
+  // Idempotência: nome no Drive já é o oficial
+  if (fNome === nomeOficial) {
+    if (intake.file_name_final !== nomeOficial) {
+      await base44.asServiceRole.entities.DocumentIntake.update(intake.id, {
+        file_name_final: nomeOficial,
+      }).catch(() => null);
+      intake.file_name_final = nomeOficial;
+    }
+    return { skip: true, motivo: 'ja_no_banco' };
+  }
+
+  try {
+    const r = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}?fields=name&supportsAllDrives=true`,
+      {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: nomeOficial }),
+      },
+    );
+    if (!r.ok) return { skip: false, motivo: `rename_falhou:${r.status}` };
+    await base44.asServiceRole.entities.DocumentIntake.update(intake.id, {
+      file_name_final: nomeOficial,
+    }).catch(() => null);
+    intake.file_name_final = nomeOficial;
+    return { skip: false, motivo: 'renomeado', nome: nomeOficial };
+  } catch (e) {
+    return { skip: false, motivo: `erro:${e.message}` };
+  }
+}
+
 // ── Pipeline: renomear NF p/ padrão oficial + mover p/ pasta mensal (backup) ─
 // Garante: nome no Drive === nome oficial E arquivo está na pasta mensal MM-YYYY
 // Retorna flags driveNameConfirmed / parentalConfirmado para gate da fila de entrada.
@@ -900,6 +961,16 @@ async function renomearEMoverParaBackup(token, base44, intake, folderCache) {
 
 async function processarIntake(base44, token, intake, folderCache, tentativasMap) {
   const log = { id: intake.id, tipo: intake.tipo_detectado, fileName: intake.file_name_final || intake.file_name_original, status: '', detalhes: [] };
+
+  // 0. Early canonical rename — se metadata disponível, garante nome oficial no Drive ANTES do pipeline
+  if (intake.tipo_detectado === 'NOTA_FISCAL_PDF' || intake.tipo_detectado === 'NOTA_FISCAL_XML') {
+    try {
+      const early = await garantirNomeOficialEarly(base44, token, intake);
+      if (early?.motivo) log.detalhes.push(`EarlyRename: ${early.motivo}${early.nome ? ' → ' + early.nome.slice(0, 60) : ''}`);
+    } catch (e) {
+      log.detalhes.push(`EarlyRename erro: ${e.message}`);
+    }
+  }
 
   // 0. NOVO Stage: Verificar duplicata contra NFs já aprovadas/pagas (do início ao fim do pipeline)
   if (intake.tipo_detectado === 'NOTA_FISCAL_PDF' || intake.tipo_detectado === 'NOTA_FISCAL_XML') {

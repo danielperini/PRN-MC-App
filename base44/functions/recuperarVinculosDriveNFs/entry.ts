@@ -5,6 +5,8 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.41';
 
 const DRIVE_API = 'https://www.googleapis.com/drive/v3';
+// Pasta externa — PRD: varrer DIRECTAMENTE via listAllInFolder() para recuperação de vínculos 404
+const RECOVERY_PARENT_FOLDER_ID = '1qVwpSypPHyQ_IK_H2yTho46MVCzj0FrU';
 
 function extrairDriveId(url) {
   if (!url) return null;
@@ -24,6 +26,73 @@ function safeStr(v) {
 async function getToken(base44) {
   const conn = await base44.asServiceRole.connectors.getConnection('googledrive');
   return conn?.accessToken || conn?.access_token || conn?.token || conn;
+}
+
+// Lista todos os arquivos em uma pasta específica do Drive (paginação completa).
+// Não recursivo — apenas a pasta informada (subpastas ignoradas).
+async function listAllInFolder(token, folderId) {
+  const items = [];
+  let pt = null;
+  do {
+    const params = new URLSearchParams({
+      q: `'${folderId}' in parents and trashed=false`,
+      fields: 'files(id,name,parents,trashed)',
+      pageSize: '1000',
+      supportsAllDrives: 'true',
+      includeItemsFromAllDrives: 'true',
+      corpora: 'allDrives',
+    });
+    if (pt) params.set('pageToken', pt);
+    let r;
+    try {
+      r = await fetch(`${DRIVE_API}/files?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch {
+      break;
+    }
+    if (!r.ok) {
+      // Fallback p/ corpora=user (Drive compartilhado pode exigir)
+      const p2 = new URLSearchParams({
+        q: `'${folderId}' in parents and trashed=false`,
+        fields: 'files(id,name,parents,trashed)',
+        pageSize: '1000',
+        supportsAllDrives: 'true',
+        includeItemsFromAllDrives: 'true',
+      });
+      if (pt) p2.set('pageToken', pt);
+      try {
+        r = await fetch(`${DRIVE_API}/files?${p2.toString()}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } catch {
+        break;
+      }
+      if (!r.ok) break;
+    }
+    const d = await r.json().catch(() => ({ files: [] }));
+    if (d.files) items.push(...d.files);
+    pt = d.nextPageToken || null;
+  } while (pt);
+  return items;
+}
+
+// Pré-carrega os arquivos da pasta de recuperação para lookup por nome.
+// Retorna um Map<name, file[]> permitindo colisões de nome sensíveis.
+async function scanRecoveryFolder(token) {
+  try {
+    const files = await listAllInFolder(token, RECOVERY_PARENT_FOLDER_ID);
+    const map = new Map();
+    for (const f of files || []) {
+      if (!f.name) continue;
+      if (!map.has(f.name)) map.set(f.name, []);
+      map.get(f.name).push(f);
+    }
+    return { map, total: files.length };
+  } catch (e) {
+    console.warn('[recuperarVinculos] scanRecoveryFolder erro:', e.message);
+    return { map: new Map(), total: 0 };
+  }
 }
 
 // Verifica se o arquivo existe no Drive. Retorna { ok, name, parents, status }.
@@ -117,6 +186,8 @@ async function buscarPorNome(token, nomeArquivo, incluirLixo) {
 }
 
 async function processarLote(base44, token, limite, apenasQuebrados) {
+  // NOVO (PRD): pré-carrega pasta externa p/ lookup direto por nome
+  const { map: recoveryByName, total: recoveryTotal } = await scanRecoveryFolder(token);
   const intakes = await base44.asServiceRole.entities.DocumentIntake.filter(
     {
       tipo_detectado: { $in: ['NOTA_FISCAL_PDF', 'NOTA_FISCAL_XML'] },
@@ -176,6 +247,16 @@ async function processarLote(base44, token, limite, apenasQuebrados) {
       candidatos = cOrig;
     }
 
+    // NOVO (PRD): fallback à pasta externa — match por nome exato (final ou original)
+    if (!candidatos.length) {
+      const folderMatchFinal = recoveryByName.get(nomeBusca);
+      if (folderMatchFinal && folderMatchFinal.length) candidatos = folderMatchFinal.slice();
+      if (!candidatos.length && safeStr(intake.file_name_original)) {
+        const folderMatchOrig = recoveryByName.get(intake.file_name_original);
+        if (folderMatchOrig && folderMatchOrig.length) candidatos = folderMatchOrig.slice();
+      }
+    }
+
     if (!candidatos.length) {
       stats.nao_encontrados++;
       naoEncontrados.push({
@@ -225,6 +306,7 @@ async function processarLote(base44, token, limite, apenasQuebrados) {
     recuperacoes,
     nao_encontrados: naoEncontrados,
     total_analisado: (intakes || []).length,
+    recovery_folder_scanned: recoveryTotal,
   };
 }
 
