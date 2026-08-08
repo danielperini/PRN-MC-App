@@ -19,7 +19,7 @@ import {
   Users, FileText, History, Settings,
   CheckCircle, ChevronRight,
   AlertTriangle, Download, Database, Building2, Users2,
-  BookOpen, RotateCw, Send, Mail, HardDrive
+  BookOpen, RotateCw, Send, Mail, HardDrive, Wrench, ChevronDown
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -30,6 +30,9 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
 } from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 const STATUS_CONFIG = {
   DRAFT:     { label: 'Rascunho',   color: 'bg-gray-100 text-gray-700' },
@@ -305,17 +308,45 @@ function PlataformaAdminInner() {
     <div className="max-w-6xl mx-auto p-6">
 
       {/* HEADER */}
-      <div className="flex justify-between mb-6">
+      <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Settings /> Plataforma
         </h1>
 
-        <Link to={createPageUrl('BaseConhecimento')}>
-          <Button className="gap-2">
-            <BookOpen className="w-4 h-4" />
-            Biblioteca de Conhecimento
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link to={createPageUrl('BaseConhecimento')}>
+            <Button variant="outline" className="gap-2">
+              <BookOpen className="w-4 h-4" />
+              Biblioteca
+            </Button>
+          </Link>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="gap-2">
+                <Wrench className="w-4 h-4" />
+                Ações admin
+                <ChevronDown className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuItem
+                disabled={restoringMembers}
+                onClick={handleRestoreInactiveMembers}
+              >
+                <RotateCw className="w-4 h-4 mr-2" />
+                Restaurar membros inativos
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={sendingLink}
+                onClick={handleSendLinkApp}
+              >
+                <Mail className="w-4 h-4 mr-2" />
+                Enviar link do app a todos
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       {/* KPIs */}
@@ -331,7 +362,6 @@ function PlataformaAdminInner() {
           <TabsTrigger value="permissoes">Permissões</TabsTrigger>
           <TabsTrigger value="museus">Museus</TabsTrigger>
           <TabsTrigger value="equipes">Equipes</TabsTrigger>
-          <TabsTrigger value="membros">👥 Membros</TabsTrigger>
           <TabsTrigger value="relatorios">Relatórios</TabsTrigger>
           <TabsTrigger value="auditoria">📊 Auditoria</TabsTrigger>
           <TabsTrigger value="hardening">🔒 Hardening</TabsTrigger>
@@ -350,59 +380,6 @@ function PlataformaAdminInner() {
 
         <TabsContent value="equipes">
           <EquipeManager />
-        </TabsContent>
-
-        <TabsContent value="membros">
-          <div className="border-2 border-black rounded-lg p-6 bg-white">
-            <h2 className="text-lg font-bold text-black mb-4">Restaurar Membros Inativos</h2>
-            <p className="text-sm text-gray-700 mb-6">
-              Clique abaixo para restaurar automaticamente todos os membros de equipe com status inativo ou suspenso.
-            </p>
-            
-            <Button
-              onClick={handleRestoreInactiveMembers}
-              disabled={restoringMembers}
-              className="bg-black text-white hover:bg-gray-900 gap-2"
-            >
-              {restoringMembers ? (
-                <>
-                  <RotateCw className="w-4 h-4 animate-spin" />
-                  Restaurando...
-                </>
-              ) : (
-                <>
-                  <RotateCw className="w-4 h-4" />
-                  Restaurar Agora
-                </>
-              )}
-            </Button>
-
-            {restoreResult && (
-              <div className="mt-6 p-4 border-2 border-black rounded-lg bg-white">
-                <p className="font-semibold text-black mb-2">{restoreResult.message}</p>
-                {restoreResult.restored && restoreResult.restored.length > 0 && (
-                  <div className="text-sm text-gray-700">
-                    <p className="font-medium mb-2">✅ Restaurados:</p>
-                    <ul className="list-disc list-inside space-y-1">
-                      {restoreResult.restored.map((m) => (
-                        <li key={m.id}>{m.name} (era {m.previousStatus})</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {restoreResult.errors && restoreResult.errors.length > 0 && (
-                  <div className="text-sm text-red-700 mt-3">
-                    <p className="font-medium mb-2">❌ Erros:</p>
-                    <ul className="list-disc list-inside space-y-1">
-                      {restoreResult.errors.map((e) => (
-                        <li key={e.id}>{e.name}: {e.error}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
         </TabsContent>
 
         <TabsContent value="metadados">
@@ -444,56 +421,6 @@ function PlataformaAdminInner() {
         <TabsContent value="comunicados">
           <div className="space-y-6">
             <ComunicadosPanel />
-            {/* Enviar Link do App para Todos — acionamento pontual */}
-            <div className="border-2 border-blue-500 rounded-lg p-6 bg-blue-50">
-              <h2 className="text-lg font-bold text-blue-900 mb-1 flex items-center gap-2">
-                <Send className="w-5 h-5" />
-                Enviar Link do App para Todos
-              </h2>
-              <p className="text-sm text-blue-800 mb-4">
-                Dispara um e-mail institucional único para toda a base de usuários (membros ativos da equipe e usuários com permissão cadastrada)
-                informando o endereço oficial de acesso à plataforma: <span className="font-semibold">periniprojetos.com.br</span>.
-              </p>
-
-              <Button
-                onClick={handleSendLinkApp}
-                disabled={sendingLink}
-                className="bg-blue-700 text-white hover:bg-blue-800 gap-2"
-              >
-                {sendingLink ? (
-                  <>
-                    <RotateCw className="w-4 h-4 animate-spin" />
-                    Enviando...
-                  </>
-                ) : (
-                  <>
-                    <Mail className="w-4 h-4" />
-                    Enviar Link do App para Todos
-                  </>
-                )}
-              </Button>
-
-              {linkResult && (
-                <div className="mt-6 p-4 border border-blue-300 rounded-lg bg-white">
-                  <p className="font-semibold text-gray-800 mb-1">
-                    📧 E-mails enviados: {linkResult.enviados} de {linkResult.total}
-                  </p>
-                  {linkResult.link && (
-                    <p className="text-xs text-gray-500 mb-2">Link compartilhado: {linkResult.link}</p>
-                  )}
-                  {linkResult.erros && linkResult.erros.length > 0 && (
-                    <div className="mt-2 text-sm text-red-700">
-                      <p className="font-medium mb-1">⚠️ Falhas de envio ({linkResult.erros.length}):</p>
-                      <ul className="list-disc list-inside space-y-1 text-xs max-h-40 overflow-y-auto">
-                        {linkResult.erros.map((e, i) => (
-                          <li key={i}>{e.email}: {e.erro}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
             {/* Boletim Semanal da Agenda — acionamento editorial pontual */}
             <BoletimSemanalAgendaPanel />
           </div>
