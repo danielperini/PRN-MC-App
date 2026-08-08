@@ -1,5 +1,6 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.41';
 import { invokeLLM } from '../_shared/gatewayIA.ts';
+import { analisarNotaFiscal } from '../_shared/lerNotaFiscalGPTCore.ts';
 
 /**
  * processarSalaDeEspera
@@ -28,10 +29,11 @@ import { invokeLLM } from '../_shared/gatewayIA.ts';
  */
 
 const ROOT_NOTAS_FOLDER_ID = '1LgC94VhIomQZBS7kfkQqgBX8MVzwQqzp';
-const BATCH_SIZE = 10;
+const BATCH_SIZE = 5; // menor lote: cada PDF usa 90s de deep reading GPT-4o
 const MAX_TENTATIVAS_IA = 1;
-const IA_TIMEOUT_MS = 35000;
-const DEADLINE_MS = 85000; // prazo global de execução segura
+const IA_TIMEOUT_MS = 90000; // 90s por NF — leitura profunda via GPT-4o (lerNotaFiscalGPT)
+const DEADLINE_MS = 290000; // ~5min global (suporta deep reading sequencial)
+const SCORE_AUTOAPROVACAO = 7; // confiança 0-10 (>=70%) p/ auto-aprovação c/ rubrica+centro_custo+valor+cnpj
 const MESES_PT = ['Janeiro','Fevereiro','Marco','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
 // ── Utilitários ──────────────────────────────────────────────────────────────
