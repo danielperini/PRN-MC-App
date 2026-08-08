@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import aiClient from '@/lib/aiClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -48,7 +49,7 @@ export default function InvoiceUploader({ prestacaoId }) {
       setExtracting(true);
 
       // Extrair dados da nota fiscal com IA
-      const extractRes = await base44.integrations.Core.InvokeLLM({
+      const extractRes = await aiClient.InvokeLLM({
         prompt: `Leia esta nota fiscal e extraia um JSON com: numero_nota, fornecedor_nome, fornecedor_cnpj, fornecedor_email, fornecedor_telefone, fornecedor_banco, fornecedor_agencia, fornecedor_conta, fornecedor_pix, valor_total (número), data_emissao (YYYY-MM-DD), categoria_servico. Se não encontrar, deixe nulo.`,
         file_urls: [uploadRes.file_url],
         response_json_schema: {

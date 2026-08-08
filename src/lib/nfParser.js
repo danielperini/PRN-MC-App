@@ -4,6 +4,7 @@
  */
 
 import { base44 } from '@/api/base44Client';
+import aiClient from '@/lib/aiClient';
 
 // ──────────────────────────────────────────────────────────
 // Detecção
@@ -153,7 +154,7 @@ export function parseXmlNF(xmlText) {
 
 export async function parsePdfNFWithAI(fileUrl) {
   try {
-    const result = await base44.integrations.Core.InvokeLLM({
+    const result = await aiClient.InvokeLLM({
       prompt: `Você é um leitor especializado em Notas Fiscais brasileiras (NF-e, NFS-e, RPS).
 Analise o PDF e extraia EXATAMENTE os campos abaixo. Se não encontrar, retorne null.
 Retorne SOMENTE o JSON, sem texto adicional.

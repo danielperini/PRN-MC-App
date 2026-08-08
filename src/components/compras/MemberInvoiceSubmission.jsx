@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import aiClient from '@/lib/aiClient';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -104,7 +105,7 @@ export default function MemberInvoiceSubmission() {
       setXmlUrl(xmlRes.file_url);
 
       toast.info('Analisando nota fiscal com IA...');
-      const extracted = await base44.integrations.Core.InvokeLLM({
+      const extracted = await aiClient.InvokeLLM({
         model: 'gpt_5',
         prompt: `Analise esta nota fiscal (PDF e XML) e extraia os dados bancários e fiscais. Retorne JSON:
 {

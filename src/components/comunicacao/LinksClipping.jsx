@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ExternalLink, Plus, Loader2, Trash2, Link2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
+import aiClient from '@/lib/aiClient';
 
 const STORAGE_KEY = 'comunicacao_links_v1';
 
@@ -68,7 +69,7 @@ Retorne JSON com:
       let data = null;
 
       try {
-        const res = await base44.integrations.Core.InvokeLLM({
+        const res = await aiClient.InvokeLLM({
           prompt,
           add_context_from_internet: true,
           response_json_schema: {

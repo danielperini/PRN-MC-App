@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import aiClient from '@/lib/aiClient';
 
 const HelpContext = createContext(null);
 
 async function generateWithClaude(label, componentType, contextDescription) {
   try {
-    const response = await base44.integrations.Core.InvokeLLM({
+    const response = await aiClient.InvokeLLM({
       prompt: `Você é um especialista em ajuda contextual de interface. Gere um texto curto e útil para esta funcionalidade:
 
 Tipo: ${componentType}

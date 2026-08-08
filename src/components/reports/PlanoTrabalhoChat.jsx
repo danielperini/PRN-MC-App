@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import aiClient from '@/lib/aiClient';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { BookOpen, Send, Loader2, X, ChevronDown, ChevronUp, Bot, User } from 'lucide-react';
@@ -217,7 +218,7 @@ ${contextoCompleto}
 
 PERGUNTA DO USUÁRIO: ${question}`;
 
-    const reply = await base44.integrations.Core.InvokeLLM({ prompt });
+    const reply = await aiClient.InvokeLLM({ prompt });
     setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
     setLoading(false);
   };

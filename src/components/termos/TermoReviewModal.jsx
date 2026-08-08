@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { CheckCircle, Edit2, Download, X, Sparkles, AlertTriangle, RefreshCw } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
+import aiClient from '@/lib/aiClient';
 
 export default function TermoReviewModal({ formData, numeroTC, projetoAtual, onConfirm, onEdit, onClose, isGenerating }) {
   const [iaRevisao, setIaRevisao] = useState(null);
@@ -47,7 +48,7 @@ Testemunha 1: ${formData.testemunha1_nome || ''} - CPF: ${formData.testemunha1_c
 Testemunha 2: ${formData.testemunha2_nome || ''} - CPF: ${formData.testemunha2_cpf || ''}
       `.trim();
 
-      const res = await base44.integrations.Core.InvokeLLM({
+      const res = await aiClient.InvokeLLM({
         prompt: `Você é Dr. Lex, especialista sênior em Direito dos Contratos Culturais brasileiros, com profundo conhecimento em:
 - Lei 13.019/2014 (Marco Regulatório das OSCs) e suas alterações
 - Termo de Colaboração, Termo de Fomento e Acordos de Cooperação

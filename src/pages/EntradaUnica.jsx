@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
+import aiClient from '@/lib/aiClient';
 import { toast } from 'sonner';
 import LoadingPage from '@/components/common/LoadingPage';
 import DocumentUploadZone from '@/components/entrada/DocumentUploadZone';
@@ -830,7 +831,7 @@ export default function EntradaUnica() {
       });
 
       const tipagemRapida = await Promise.race([
-      base44.integrations.Core.InvokeLLM({
+      aiClient.InvokeLLM({
         prompt: `Este documento é um CONTRATO (contrato de prestação de serviços, contrato de trabalho, termo de prestação), um ORCAMENTO (proposta comercial, cotação, orçamento sem número de NF) ou uma NOTA FISCAL / RECIBO / OUTRO?
 Responda apenas com uma palavra: CONTRATO ou ORCAMENTO ou NOTA_FISCAL ou OUTRO.`,
         file_urls: [fileUrl],
@@ -965,7 +966,7 @@ IMPORTANTE — CLASSIFICAÇÃO DO TIPO DE DOCUMENTO:
 ${orientacoes ? `\nOrientações do usuário: ${orientacoes}` : ''}
 Retorne apenas o JSON válido, sem explicações adicionais.`;
 
-      const resultado = await base44.integrations.Core.InvokeLLM({
+      const resultado = await aiClient.InvokeLLM({
         prompt,
         file_urls: [fileUrl],
         model: 'claude_sonnet_4_6',

@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { base44 } from "@/api/base44Client";
+import aiClient from "@/lib/aiClient";
 import { toast } from "sonner";
 import QuickParticipantForm from "@/components/presenca/QuickParticipantForm";
 import QuickActivityForm from "@/components/presenca/QuickActivityForm";
@@ -133,8 +134,8 @@ async function parseDocFallback(file) {
 }
 
 async function readAttendanceListWithAI(fileUrl) {
-  if (!base44.integrations?.Core?.InvokeLLM || !fileUrl) return null;
-  const result = await base44.integrations.Core.InvokeLLM({
+  if (!fileUrl) return null;
+  const result = await aiClient.InvokeLLM({
     model: "gpt_5",
     prompt: `Leia esta lista de presença do projeto Museus Centro / Viaduto das Artes.
 Extraia somente dados que existirem no documento.
@@ -349,7 +350,7 @@ export default function GeradorListaPresenca() {
       const lower = file.name.toLowerCase();
       let nomes = [];
 
-      if (base44.integrations?.Core?.UploadFile && base44.integrations?.Core?.InvokeLLM) {
+      if (base44.integrations?.Core?.UploadFile) {
         try {
           setStatus("Enviando lista para leitura por IA...");
           const uploaded = await base44.integrations.Core.UploadFile({ file });

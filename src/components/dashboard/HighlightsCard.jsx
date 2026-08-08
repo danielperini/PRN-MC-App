@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import aiClient from '@/lib/aiClient';
 import { Sparkles, ChevronRight, Loader2, Quote, ChevronLeft, Image } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -114,7 +115,7 @@ INSTRUÇÕES:
 Redija apenas o texto, sem prefácios ou explicações.`;
 
     try {
-      const result = await base44.integrations.Core.InvokeLLM({ prompt });
+      const result = await aiClient.InvokeLLM({ prompt });
       setRedactedText(result);
       toast.success('Texto gerado com sucesso!');
     } catch (error) {
@@ -146,7 +147,7 @@ Retorne em JSON com a seguinte estrutura:
 
 Máximo 10 resultados, ordenados por relevância e recência.`;
 
-      const result = await base44.integrations.Core.InvokeLLM({
+      const result = await aiClient.InvokeLLM({
         prompt,
         add_context_from_internet: true,
         response_json_schema: {

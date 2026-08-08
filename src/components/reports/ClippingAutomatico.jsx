@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import aiClient from '@/lib/aiClient';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Search, ExternalLink, Copy, Check } from 'lucide-react';
@@ -18,7 +19,7 @@ export default function ClippingAutomatico({ atividade, onUpdate }) {
 
     setLoading(true);
     try {
-      const result = await base44.integrations.Core.InvokeLLM({
+      const result = await aiClient.InvokeLLM({
         prompt: `Procure por notícias, posts em redes sociais e matérias em jornais relacionadas a: "${atividade.nome}"${atividade.museu ? ` no ${atividade.museu}` : ''}. Forneça os 3 melhores resultados encontrados com título, resumo (máx 100 caracteres) e URL.`,
         add_context_from_internet: true,
         response_json_schema: {

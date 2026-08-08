@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import aiClient from '@/lib/aiClient';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -316,7 +317,7 @@ export default function TeamMemberForm({ isOpen, onClose, onSuccess, editingMemb
 
       toast.info('IA lendo contrato e extraindo dados completos...');
 
-      const result = await base44.integrations.Core.InvokeLLM({
+      const result = await aiClient.InvokeLLM({
         prompt: `Você é um especialista em contratos de prestação de serviços culturais (Projeto Museus Centro, BH).
 Leia o contrato PDF anexado e extraia TODOS os campos abaixo com máxima precisão.
 Se um campo não existir, retorne null ou string vazia.
@@ -468,7 +469,7 @@ rubrica_id_sugerida: ID da rubrica mais adequada`,
       if (!docs.length) { toast.error('Nenhum Plano de Trabalho encontrado.'); return; }
       const conteudo = docs.map(d => d.conteudo_extraido || d.descricao || d.titulo).filter(Boolean).join('\n\n---\n\n');
       const cargo = form.funcao || 'profissional';
-      const result = await base44.integrations.Core.InvokeLLM({
+      const result = await aiClient.InvokeLLM({
         prompt: `Com base no Plano de Trabalho abaixo, extraia o número de parcelas e o valor de cada parcela para o cargo "${cargo}".
 PLANO DE TRABALHO:
 ${conteudo}

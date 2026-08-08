@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
+import aiClient from '@/lib/aiClient';
 import RequireAuth from '../components/auth/RequireAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -152,7 +153,7 @@ ${pergunta}
 `;
 
       const resposta = await withTimeout(
-        base44.integrations.Core.InvokeLLM({
+        aiClient.InvokeLLM({
           prompt,
           add_context_from_internet: false,
         }),

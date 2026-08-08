@@ -12,6 +12,7 @@ import {
   Sparkles, Link2, Send, FileX, Eraser,
 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
+import aiClient from '@/lib/aiClient';
 import { toast } from 'sonner';
 import { enviarIntakeParaAprovacao, parseValorBR } from '@/lib/enviarIntakeParaAprovacao';
 
@@ -173,7 +174,7 @@ export default function ReprocessarFilaModal({ open, intakes, onClose, onConclui
 
   async function parseXmlViaLLM(xml) {
     try {
-      const res = await base44.integrations.Core.InvokeLLM({
+      const res = await aiClient.InvokeLLM({
         prompt:
           'Extraia do XML fiscal anexado os seguintes campos do EMITENTE/PRESTADOR: nf_numero (somente dígitos), nf_emitente_cpf_cnpj (CNPJ ou CPF do emitente, somente dígitos), nf_valor_total (número decimal). Retorne apenas JSON válido.',
         file_urls: [xml.arquivo_original_url],
