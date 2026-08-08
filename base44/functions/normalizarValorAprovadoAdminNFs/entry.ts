@@ -80,6 +80,10 @@ Deno.serve(async (req) => {
       has_more: false,
     };
 
+    // Todas as rubricas com NF aprovada no lote — recalcula valor_utilizado
+    // mesmo quando nenhuma NF precisou de correção (campo já preenchido).
+    const rubricasParaRecalcular = new Set<string>();
+
     if (!purchases || !purchases.length) {
       return Response.json({ ...stats, concluido: true, rubricas_recalculadas: 0 });
     }
@@ -91,6 +95,10 @@ Deno.serve(async (req) => {
         stats.puladas_status++;
         continue;
       }
+
+      // Coleta rubrica de TODA NF aprovada — para recálculo do valor_utilizado.
+      if (p.rubrica_id) rubricasParaRecalcular.add(p.rubrica_id);
+
       if (toNumber(p.valor_aprovado_admin) > 0) {
         stats.puladas_ja_preenchidas++;
         continue;
@@ -115,9 +123,10 @@ Deno.serve(async (req) => {
 
     stats.has_more = purchases.length === limite;
 
-    // Recalcular valor_utilizado das rubricas afetadas (inline).
+    // Recalcular valor_utilizado de TODAS as rubricas com NF aprovada no lote,
+    // lendo diretamente os valores das NFs aprovadas (cadeia purchaseValue).
     let rubricas_recalculadas = 0;
-    for (const rubricaId of stats.rubricas_afetadas) {
+    for (const rubricaId of rubricasParaRecalcular) {
       try {
         const [rubrica, relacionados] = await Promise.all([
           svc.entities.Rubrica.get(rubricaId).catch(() => null),
