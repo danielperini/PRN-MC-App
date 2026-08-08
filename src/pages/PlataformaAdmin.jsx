@@ -70,6 +70,8 @@ function PlataformaAdminInner() {
   const [organizacaoNFsIAResult, setOrganizacaoNFsIAResult] = useState(null);
   const [normalizandoValores, setNormalizandoValores] = useState(false);
   const [normalizacaoValoresResult, setNormalizacaoValoresResult] = useState(null);
+  const [sincronizandoRubricas, setSincronizandoRubricas] = useState(false);
+  const [sincronizacaoRubricasResult, setSincronizacaoRubricasResult] = useState(null);
 
   const { data: users = [] } = useQuery({
     queryKey: ['users'],
@@ -231,6 +233,41 @@ function PlataformaAdminInner() {
       setNormalizacaoValoresResult({ ...acumulado, erro: String(error?.message || error) });
     } finally {
       setNormalizandoValores(false);
+    }
+  };
+
+  const handleSincronizarValorUtilizadoRubricas = async () => {
+    setSincronizandoRubricas(true);
+    setSincronizacaoRubricasResult(null);
+    let pular = 0;
+    let acumulado = { total_rubricas: 0, atualizadas: 0, sem_nfs_aprovadas: 0, sem_valor: 0, erros: 0, lotes: 0 };
+    try {
+      // Loop automático até concluir (ou até 20 lotes de segurança).
+      for (let i = 0; i < 20; i++) {
+        const res = await base44.functions.invoke('sincronizarValorUtilizadoRubricas', { limite: 100, pular });
+        const data = res?.data || res;
+        acumulado.total_rubricas += data?.total_rubricas || 0;
+        acumulado.atualizadas += data?.atualizadas || 0;
+        acumulado.sem_nfs_aprovadas += data?.sem_nfs_aprovadas || 0;
+        acumulado.sem_valor += data?.sem_valor || 0;
+        acumulado.erros += data?.erros || 0;
+        acumulado.lotes += 1;
+        if (data?.has_more) {
+          pular = data?.proximo_pular || 0;
+        } else {
+          break;
+        }
+      }
+      setSincronizacaoRubricasResult(acumulado);
+      toast.success(
+        `${acumulado.atualizadas} rubricas sincronizadas (${acumulado.total_rubricas} verificadas).`
+      );
+      await queryClient.invalidateQueries({ queryKey: ['rubricas'] });
+    } catch (error) {
+      toastMessages.error(error?.message || 'Erro ao sincronizar valor_utilizado das rubricas');
+      setSincronizacaoRubricasResult({ ...acumulado, erro: String(error?.message || error) });
+    } finally {
+      setSincronizandoRubricas(false);
     }
   };
 
@@ -433,6 +470,64 @@ function PlataformaAdminInner() {
               {normalizacaoValoresResult?.erro && (
                 <div className="mt-6 p-4 border border-red-300 rounded-lg bg-white text-red-700 text-sm">
                   ❌ {normalizacaoValoresResult.erro}
+                </div>
+              )}
+            </div>
+
+            {/* Sincronização DEFINITIVA do valor_utilizado das rubricas */}
+            <div className="border-2 border-cyan-600 rounded-lg p-6 bg-cyan-50">
+              <h2 className="text-lg font-bold text-cyan-900 mb-1 flex items-center gap-2">
+                <Database className="w-5 h-5" />
+                Sincronizar valor_utilizado das Rubricas (definitivo)
+              </h2>
+              <p className="text-sm text-cyan-800 mb-4">
+                Recalcula o <code className="bg-cyan-100 px-1 rounded">valor_utilizado</code> de
+                <strong> TODAS as rubricas</strong> lendo diretamente o total real das NFs aprovadas/pagas
+                vinculadas (cadeia <code>valor_pago</code> &rarr; <code>valor_aprovado_admin</code> &rarr;
+                <code>nf_valor_total</code> &rarr; <code>valor_total</code> &rarr; <code>valor_aprovado</code> &rarr;
+                <code>valor_solicitado</code>). Garante que o painel de metas reflita os números reais —
+                executa em loop automático até percorrer todas as rubricas. Idempotente: só escreve
+                quando o valor muda.
+              </p>
+
+              <Button
+                onClick={handleSincronizarValorUtilizadoRubricas}
+                disabled={sincronizandoRubricas}
+                className="bg-cyan-700 text-white hover:bg-cyan-800 gap-2"
+              >
+                {sincronizandoRubricas ? (
+                  <>
+                    <RotateCw className="w-4 h-4 animate-spin" />
+                    Sincronizando...
+                  </>
+                ) : (
+                  <>
+                    <Database className="w-4 h-4" />
+                    Sincronizar agora
+                  </>
+                )}
+              </Button>
+
+              {sincronizacaoRubricasResult && !sincronizacaoRubricasResult.erro && (
+                <div className="mt-6 p-4 border border-cyan-300 rounded-lg bg-white">
+                  <p className="font-semibold text-gray-800 mb-3">
+                    ✅ Sincronização concluída ({sincronizacaoRubricasResult.lotes || 0} lotes)
+                  </p>
+                  <ul className="text-sm text-gray-700 space-y-1">
+                    <li>🔎 Rubricas verificadas: {sincronizacaoRubricasResult.total_rubricas || 0}</li>
+                    <li>🔁 Rubricas atualizadas: <strong>{sincronizacaoRubricasResult.atualizadas || 0}</strong></li>
+                    <li>⏭️ Sem NFs aprovadas: {sincronizacaoRubricasResult.sem_nfs_aprovadas || 0}</li>
+                    <li>⏭️ Sem valor nas NFs: {sincronizacaoRubricasResult.sem_valor || 0}</li>
+                    {sincronizacaoRubricasResult.erros > 0 && (
+                      <li className="text-red-700">❌ Erros pontuais: {sincronizacaoRubricasResult.erros}</li>
+                    )}
+                  </ul>
+                </div>
+              )}
+
+              {sincronizacaoRubricasResult?.erro && (
+                <div className="mt-6 p-4 border border-red-300 rounded-lg bg-white text-red-700 text-sm">
+                  ❌ {sincronizacaoRubricasResult.erro}
                 </div>
               )}
             </div>
