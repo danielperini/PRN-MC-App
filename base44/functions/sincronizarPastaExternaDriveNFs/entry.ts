@@ -93,17 +93,25 @@ async function downloadBytes(token: string, fileId: string): Promise<Uint8Array>
 
 // ── XML determinístico ─────────────────────────────────────────────────────────
 function parseXmlNF(xml: string) {
-  const emitBlock = xml.match(/<emit>[\s\S]*?<\/emit>/);
+  const emitBlock = xml.match(/<emit>[\s\S]*?<\/emit>/i);
   const block = emitBlock ? emitBlock[0] : xml;
-  const mCnpj = block.match(/<CNPJ[^>]*>(\d{8,14})<\/CNPJ>/);
+  const mCnpj = block.match(/<CNPJ[^>]*>(\d{8,14})<\/CNPJ>/i);
   const emitCnpj = mCnpj ? mCnpj[1] : null;
-  const mNf = xml.match(/<nNF[^>]*>(\d+)<\/nNF>/) || xml.match(/<NumeroNf[^>]*>(\d+)<\/NumeroNf>/) || xml.match(/<numeroNf[^>]*>(\d+)<\/numeroNf>/);
+  // NFS-e usa <nNFSe> (mixed case) — case-insensitive + inclui variantes
+  const mNf = xml.match(/<nNFS[eE][^>]*>(\d+)<\/nNFS[eE][^>]*>/i)
+    || xml.match(/<nNF[^>]*>(\d+)<\/nNF[^>]*>/i)
+    || xml.match(/<NumeroNf[^>]*>(\d+)<\/NumeroNf[^>]*>/i)
+    || xml.match(/<numeroNf[^>]*>(\d+)<\/numeroNf[^>]*>/i)
+    || xml.match(/<nNfse[^>]*>(\d+)<\/nNfse[^>]*>/i)
+    || xml.match(/<NumeroNFS[^>]*>(\d+)<\/NumeroNFS[^>]*>/i)
+    || xml.match(/<Numero[^>]*>(\d+)<\/Numero[^>]*>/i);
   const nfNumero = mNf ? mNf[1].replace(/^0+/, '') : null;
-  const mValor = xml.match(/<vNF[^>]*>([\d.,]+)<\/vNF>/);
+  // Valor: vNF (NF-e comum) ou vLiq (NFS-e SPED)
+  const mValor = xml.match(/<vNF[^>]*>([\d.,]+)<\/vNF>/i) || xml.match(/<vLiq[^>]*>([\d.,]+)<\/vLiq>/i) || xml.match(/<vServ[^>]*>([\d.,]+)<\/vServ>/i);
   const valor = mValor ? Number(mValor[1].replace(/\./g, '').replace(',', '.')) : null;
-  const mDt = xml.match(/<dhEmi[^>]*>(\d{4})-(\d{2})-(\d{2})/) || xml.match(/<dEmi[^>]*>(\d{4})-(\d{2})-(\d{2})/);
+  const mDt = xml.match(/<dhEmi[^>]*>(\d{4})-(\d{2})-(\d{2})/) || xml.match(/<dEmi[^>]*>(\d{4})-(\d{2})-(\d{2})/) || xml.match(/<dCompet[^>]*>(\d{4})-(\d{2})-(\d{2})/);
   const data = mDt ? `${mDt[1]}-${mDt[2]}-${mDt[3]}` : null;
-  const mNome = block.match(/<xNome[^>]*>([\s\S]*?)<\/xNome>/);
+  const mNome = block.match(/<xNome[^>]*>([\s\S]*?)<\/xNome>/i);
   const nome = mNome ? mNome[1].trim() : null;
   return { emitCnpj, nfNumero, valor, data, nome };
 }
