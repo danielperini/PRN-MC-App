@@ -19,6 +19,7 @@
  * Função backend acionada manualmente — sem interface.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.41';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 const CONFIANCA_MINIMA_DEFAULT = 95;
 const MAXIMO_TENTATIVAS_DEFAULT = 3;
@@ -147,7 +148,7 @@ async function extrairViaIA(
   while (tentativa < maxTentativas) {
     tentativa++;
     try {
-      const resp: any = await base44.integrations.Core.InvokeLLM({
+      const resp: any = await invokeLLM(base44,{
         prompt: montarPrompt(tentativa),
         file_urls: [pdfUrl],
         add_context_from_internet: false,
@@ -297,7 +298,7 @@ async function reanalisarCentroCusto(
         model: 'gpt_5_mini',
       };
       if (fileUrl) payload.file_urls = [fileUrl];
-      const resp: any = await base44.integrations.Core.InvokeLLM(payload);
+      const resp: any = await invokeLLM(base44,payload);
       const dados = resp || {};
       const confianca = Number(dados.confianca || 0);
       // Validação: campo deve ser um dos válidos

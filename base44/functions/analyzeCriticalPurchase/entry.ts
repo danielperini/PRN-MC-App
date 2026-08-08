@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 const HIGH_VALUE_THRESHOLD = 3000; // R$ 3.000
 const LOW_BUDGET_PCT = 25; // menos de 25% do saldo disponível
@@ -46,7 +47,7 @@ Deno.serve(async (req) => {
     const isCritical = (isHighValue && valorSolicitado >= HIGH_VALUE_THRESHOLD * 2) || (pctRestante !== null && pctRestante <= 10);
 
     // Use AI to generate a personalized, contextualized alert
-    const aiAnalysis = await base44.asServiceRole.integrations.Core.InvokeLLM({
+    const aiAnalysis = await invokeLLM(base44.asServiceRole,{
       prompt: `Você é um assistente financeiro especializado em gestão de projetos culturais.
 
 Analise esta solicitação de compra e gere um alerta personalizado para os coordenadores:

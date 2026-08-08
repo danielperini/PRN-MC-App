@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 function shuffleArray(arr) {
   const a = [...arr];
@@ -73,7 +74,7 @@ Deno.serve(async (req) => {
     } else {
       selectedNoticias = [...prioritized];
 
-      const aiResult = await base44.integrations.Core.InvokeLLM({
+      const aiResult = await invokeLLM(base44,{
         prompt: `Hoje é ${today} (${month} de ${year}). Você é especialista em CULTURA, HISTÓRIA, CINEMA MINEIRO e MODA de Belo Horizonte.
     Sugira 8 termos de busca VARIADOS e CRIATIVOS em português brasileiro para encontrar notícias sobre:
     - CULTURA: Viaduto das Artes BH, Projeto Museus Centro, eventos culturais, programação
@@ -107,7 +108,7 @@ Deno.serve(async (req) => {
       for (const term of searchTerms.slice(0, 4)) {
         if (selectedNoticias.length >= 5) break;
 
-        const result = await base44.integrations.Core.InvokeLLM({
+        const result = await invokeLLM(base44,{
           prompt: `Pesquise notícias recentes sobre: "${term}"
 
         FOCO: Cultura, História, Cinema Mineiro, Moda em Belo Horizonte
@@ -225,7 +226,7 @@ Deno.serve(async (req) => {
     // === PARTE 3: 5 ARTIGOS DE REVISTAS SOBRE MUSEOLOGIA/ARTE/CULTURA/CINEMA ===
      const threeMonthsAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
 
-     const aiArticles = await base44.integrations.Core.InvokeLLM({
+     const aiArticles = await invokeLLM(base44,{
        model: 'claude_sonnet_4_6',
        prompt: `Você é especialista em revistas especializadas em: museologia, arte, cultura, história de Belo Horizonte, moda mineira e cinema mineiro.
 
@@ -279,7 +280,7 @@ Deno.serve(async (req) => {
 
        // Verificar se o artigo existe e tem conteúdo válido
        try {
-         const contentCheck = await base44.integrations.Core.InvokeLLM({
+         const contentCheck = await invokeLLM(base44,{
            model: 'claude_sonnet_4_6',
            prompt: `Verifique rapidamente este artigo: "${article.titulo}"
            Link: ${article.link}

@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -209,7 +210,7 @@ Priorize: coletivos de base comunitária, organizações sociais de juventude, e
 
     const prompt = promptsPorMuseu[museu_sigla] || promptsPorMuseu['MHAB'];
 
-    const llmResponse = await base44.asServiceRole.integrations.Core.InvokeLLM({
+    const llmResponse = await invokeLLM(base44.asServiceRole,{
       model: 'claude_sonnet_4_6',
       prompt: prompt + `
 

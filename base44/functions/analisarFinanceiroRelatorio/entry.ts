@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -64,7 +65,7 @@ NÃO use jargão técnico excessivo. Foque em narrativa clara e profissional.
 
 Redija 2-3 parágrafos de análise financeira.`;
 
-    const analiseIA = await base44.integrations.Core.InvokeLLM({
+    const analiseIA = await invokeLLM(base44,{
       prompt,
       model: 'automatic'
     });

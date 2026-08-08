@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -39,7 +40,7 @@ Deno.serve(async (req) => {
     const searchPrompt = `Considerando o museu ${museu_sigla}, que trabalha com temas de patrimônio, moda, fotografia e audiovisual, quais são os principais grupos sociais e atividades culturais que podem ser alcançados? Cite atividades de artes, educação, e mobilização cultural.`;
 
     // Chamar Claude com web search para detectar atividades
-    const claudeAnalysis = await base44.integrations.Core.InvokeLLM({
+    const claudeAnalysis = await invokeLLM(base44,{
       prompt: `Você é um especialista em mobilização cultural e alcance de públicos em museus.
 
 OPORTUNIDADES MAPEADAS:
@@ -88,14 +89,14 @@ Seja objetivo, específico e instigante. Máximo 800 caracteres. NÃO inclua "A�
     
     const monthlyEventsPrompt = `Quais são os principais eventos, datas comemorativas e campanhas do mês de ${currentDate.toLocaleDateString('pt-BR', { month: 'long' })} de ${currentYear} no Brasil? Include: Dia das Crianças, Dia das Mulheres, Dia do Meio Ambiente, semanas temáticas, eventos culturais, etc.`;
     
-    const eventsContext = await base44.integrations.Core.InvokeLLM({
+    const eventsContext = await invokeLLM(base44,{
       prompt: monthlyEventsPrompt,
       add_context_from_internet: true,
       model: 'gemini_3_flash',
     });
 
     // Sugerir programação dinâmica com análise de Claude
-    const programSuggestion = await base44.integrations.Core.InvokeLLM({
+    const programSuggestion = await invokeLLM(base44,{
       prompt: `Você é um curador de programação cultural especializado em museus de patrimônio, moda, fotografia e audiovisual.
 
 MÊS ATUAL: ${currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}

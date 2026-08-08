@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 function safeStr(v: unknown) {
   return String(v || '').trim();
@@ -294,7 +295,7 @@ Deno.serve(async (req) => {
 
     if (tipoDetectado === 'FOTO_ATIVIDADE') {
       try {
-        const iaResp = await base44.asServiceRole.integrations.Core.InvokeLLM({
+        const iaResp = await invokeLLM(base44.asServiceRole,{
           prompt: `Analise esta imagem de uma atividade cultural em museu e sugira:
 1. Uma legenda curta (máx 100 caracteres)
 2. Uma descrição mais longa (máx 300 caracteres)
@@ -341,7 +342,7 @@ Responda SOMENTE em JSON válido:
 
     if (tipoDetectado === 'NOTA_FISCAL_XML') {
       try {
-        const xmlResp = await base44.asServiceRole.integrations.Core.InvokeLLM({
+        const xmlResp = await invokeLLM(base44.asServiceRole,{
           prompt: `Leia INTEGRALMENTE este arquivo XML de nota fiscal eletrônica (NF-e ou NFS-e) e extraia TODOS os dados fiscais disponíveis. Não omita nenhum campo presente no XML.
 
 Responda SOMENTE em JSON válido:
@@ -475,7 +476,7 @@ Responda SOMENTE em JSON válido:
       try {
         const hoje = new Date().toISOString().slice(0, 10);
 
-        const iaResp = await base44.asServiceRole.integrations.Core.InvokeLLM({
+        const iaResp = await invokeLLM(base44.asServiceRole,{
           prompt: `Leia INTEGRALMENTE este documento PDF e classifique-o com precisão. Analise CADA PÁGINA sem pular nenhuma.
 
           Tipos possíveis:
@@ -703,7 +704,7 @@ Responda SOMENTE em JSON válido:
           }
 
           try {
-            const infoAdicionais = await base44.asServiceRole.integrations.Core.InvokeLLM({
+            const infoAdicionais = await invokeLLM(base44.asServiceRole,{
               prompt: `Baseado nestes dados de nota fiscal, sugira informações complementares para classificação:
 
 Fornecedor: ${resultadoIa.nf_emitente_nome}
@@ -750,7 +751,7 @@ Responda em JSON:
             const xmlAttachment = await findGroupXmlAttachment(base44, intake);
             const temXMLCorrespondente = !!xmlAttachment;
 
-            const validacaoIA = await base44.asServiceRole.integrations.Core.InvokeLLM({
+            const validacaoIA = await invokeLLM(base44.asServiceRole,{
               prompt: `Analise este PDF de nota fiscal e identifique problemas críticos. Responda em JSON:
 {
   "requer_xml_obrigatorio": boolean,
@@ -891,7 +892,7 @@ Procure por:
       try {
         const hoje = new Date().toISOString().slice(0, 10);
 
-        const iaResp = await base44.asServiceRole.integrations.Core.InvokeLLM({
+        const iaResp = await invokeLLM(base44.asServiceRole,{
           prompt: `Analise este documento Word (.docx) e determine seu tipo e conteúdo principal.
 Pode ser: contrato, termo, proposta, relatório, ata, ofício, declaração, currículo, memorial descritivo ou outro.
 Extraia as informações principais.${orientacoesUsuario ? `\n\nOrientações do usuário: ${orientacoesUsuario}` : ''}

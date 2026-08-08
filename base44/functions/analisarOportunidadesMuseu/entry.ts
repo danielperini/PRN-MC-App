@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 const MUSEUM_THEMES = {
   'MHAB': 'história, patrimônio, documentação, preservação, memória coletiva',
@@ -76,7 +77,7 @@ Considere:
 - Potencial de engajamento de público
 - Viabilidade de parcerias duradouras`;
 
-    const resultado = await base44.integrations.Core.InvokeLLM({
+    const resultado = await invokeLLM(base44,{
       prompt,
       model: 'claude_sonnet_4_6',
       response_json_schema: {

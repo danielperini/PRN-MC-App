@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -30,7 +31,7 @@ Responda em JSON com a seguinte estrutura:
   "motivo": "explicação breve da sugestão"
 }`;
 
-    const response = await base44.integrations.Core.InvokeLLM({
+    const response = await invokeLLM(base44,{
       prompt,
       model: 'claude_sonnet_4_6',
       response_json_schema: {

@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -60,7 +61,7 @@ Seja objetivo, específico e use linguagem simples para um coordenador de projet
 
   let resultado;
   try {
-    resultado = await base44.asServiceRole.integrations.Core.InvokeLLM({
+    resultado = await invokeLLM(base44.asServiceRole,{
       prompt,
       file_urls: [file_url],
       response_json_schema: {

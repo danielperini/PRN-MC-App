@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 const AUDIT_VERSION = '2026-07-cascata-v1';
 const STATUS_APROVADOS = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
@@ -90,7 +91,7 @@ Deno.serve(async (req) => {
     for (const item of lote) {
       try {
         const url = pdfUrl(item);
-        const extraido = await base44.asServiceRole.integrations.Core.InvokeLLM({
+        const extraido = await invokeLLM(base44.asServiceRole,{
           model: 'claude_sonnet_4_6',
           prompt: `Leia esta NFS-e brasileira com precisão contábil e fiscal. Não aprove, não rejeite e não altere status.
 

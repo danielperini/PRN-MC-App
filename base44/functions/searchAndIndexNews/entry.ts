@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { invokeLLM } from '../_shared/gatewayIA.ts';
 
 function shuffleArray(items) {
   const arr = Array.isArray(items) ? [...items] : [];
@@ -53,7 +54,7 @@ function dedupeByLink(items) {
 }
 
 async function fetchPortalMuseusCentro(base44) {
-  const result = await base44.integrations.Core.InvokeLLM({
+  const result = await invokeLLM(base44,{
     model: 'gemini_3_flash',
     prompt: `Acesse e analise prioritariamente esta página:
 https://portalbelohorizonte.com.br/museuscentro/2025/noticias
@@ -103,7 +104,7 @@ Retorne JSON no formato:
 }
 
 async function fetchCulturadoriaMuseus(base44) {
-  const result = await base44.integrations.Core.InvokeLLM({
+  const result = await invokeLLM(base44,{
     model: 'gemini_3_flash',
     prompt: `Acesse e analise prioritariamente estas páginas:
 https://culturadoria.com.br/
@@ -291,7 +292,7 @@ Deno.serve(async (req) => {
 
       const groupedTermsText = group.map((term) => '- ' + term).join('\n');
 
-       const searchResult = await base44.integrations.Core.InvokeLLM({
+       const searchResult = await invokeLLM(base44,{
         model: 'gemini_3_flash',
         prompt: `Pesquise notícias recentes e relevantes em Belo Horizonte relacionadas aos seguintes termos:
       ${groupedTermsText}
@@ -379,7 +380,7 @@ Retorne apenas JSON no formato solicitado.`,
       Responda com JSON: {"classificacoes": [{"indice": 1, "museu": "museu_centro"}, ...]}`;
 
       try {
-        const result = await base44.integrations.Core.InvokeLLM({
+        const result = await invokeLLM(base44,{
           model: 'automatic',
           prompt,
           response_json_schema: {
