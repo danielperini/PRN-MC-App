@@ -38,6 +38,15 @@ const MESES_PT = ['Janeiro','Fevereiro','Marco','Abril','Maio','Junho','Julho','
 function safeStr(v) { return String(v || '').trim(); }
 function safeNum(v) { const n = Number(v); return isNaN(n) ? null : n; }
 
+// Verificação obrigatória: TODA nota fiscal do projeto deve mencionar a contratante
+// ("Museu Centro" / "Museus Centro" / "Viaduto das Artes") na descrição do serviço.
+// NFs sem essa menção são REJEITADAS — proteção contra NFs não relacionadas ao projeto.
+function descricaoContemMuseuCentro(intake) {
+  const desc = safeStr(intake?.descricao_nota).toLowerCase();
+  if (!desc) return false;
+  return /(museu\s*centro|museus\s*centro|viaduto\s*das\s*artes)/.test(desc);
+}
+
 function parseDataEmissao(raw) {
   if (!raw) return null;
   let d = null;
@@ -67,6 +76,7 @@ function camposObrigatorios(intake) {
     if (!safeStr(intake.centro_custo)) faltando.push('centro_custo');
     if (!safeStr(intake.fornecedor_nome)) faltando.push('fornecedor_nome');
     if (!safeStr(intake.municipio)) faltando.push('municipio');
+    if (!descricaoContemMuseuCentro(intake)) faltando.push('descricao_nota');
     return { ok: faltando.length === 0, faltando };
   }
 
@@ -443,6 +453,10 @@ REGRAS CRÍTICAS:
 - CNPJ/CPF: apenas dígitos (14 ou 11).
 - Valor total: valor NUMÉRICO da nota (sem R$, sem texto). Use ponto decimal.
 - Centro de custo: um dos: MUMO, MIS, MHAB, Noturno nos Museus 2026, Noturno 2026, Noturno Pampulha, Publicações, Geral.
+- descricao_nota: discriminação do serviço/produto em 1-3 frases (concisa, factual, sem interpretar).
+  CRÍTICO: para ser válida, a descricao_nota DEVE mencionar a contratante do projeto:
+  "Museu Centro" OU "Museus Centro" OU "Viaduto das Artes" (em qualquer lugar do texto).
+  Se o documento não mencionar nenhuma dessas três expressões, retorne null em descricao_nota.
 
 Retorne JSON com APENAS os campos solicitados: ${camposPedidos}
 Se um campo não existir no documento, retorne null para ele.`;
@@ -458,6 +472,7 @@ Se um campo não existir no documento, retorne null para ele.`;
       centro_custo: { type: 'string' },
       fornecedor_nome: { type: 'string' },
       municipio: { type: 'string' },
+      descricao_nota: { type: 'string' },
     },
   };
 
@@ -506,6 +521,15 @@ Se um campo não existir no documento, retorne null para ele.`;
     if (ia?.centro_custo) updates.centro_custo = safeStr(ia.centro_custo);
     if (ia?.fornecedor_nome) updates.fornecedor_nome = safeStr(ia.fornecedor_nome);
     if (ia?.municipio) updates.municipio = safeStr(ia.municipio);
+    if (ia?.descricao_nota) {
+      const desc = safeStr(ia.descricao_nota);
+      // Só aceita descricao_nota que mencione a contratante do projeto
+      if (/(museu\s*centro|museus\s*centro|viaduto\s*das\s*artes)/i.test(desc)) {
+        updates.descricao_nota = desc;
+      } else {
+        console.warn('[SalaEspera] descricao_nota sem menção à contratante do projeto — descartada');
+      }
+    }
 
     if (Object.keys(updates).length === 0) return { ok: false, motivo: 'ia_vazia' };
 
