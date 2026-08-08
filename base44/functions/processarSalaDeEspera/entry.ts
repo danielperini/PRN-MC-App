@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.41';
 
+// Redeploy touch — 2026-08-08
 // invokeLLM inlined (evita import de _shared/gatewayIA —_HISTORY_DEPLOY_BREAKER)
 async function invokeLLM(client, payload) {
   const res = await client.functions.invoke('invokeGpt', { operation: 'InvokeLLM', payload });
