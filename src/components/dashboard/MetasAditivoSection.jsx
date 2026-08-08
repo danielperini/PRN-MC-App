@@ -9,6 +9,7 @@ import { getRubricaBudget, getRubricaUsed } from '@/utils/auditoria/reconcileFin
 import { normalizeText } from '@/utils/constants';
 import { resolveMetaPercentual } from '@/utils/finance/resolveMetaPercentual';
 import { MESES_PT, isRelatorioNoPeriodo } from '@/hooks/useMetasPeriodoFiltro';
+import { useDashboardCriterios, classificarComCriterios } from '@/hooks/useDashboardCriterios';
 
 // Metas com quantitativos físicos definidos no Plano de Trabalho
 const METAS_FISICAS_QUANTITATIVAS = {
@@ -47,15 +48,35 @@ function getMuseuFromActivity(a) {
   return null;
 }
 
+// Função robusta: extrai número da meta de activity mesmo em formatos como "MC3A-20"
 function getMetaNumeroFromActivity(a) {
-  const cod = (a.meta_codigo || a.meta_id || '').toLowerCase();
-  const num = (cod.match(/\d+/) || [])[0] || '';
-  if (num === '16') return '16';
-  if (num === '19') return '19';
-  if (num === '10') return '10';
-  if (cod.includes('11b')) return '11B';
-  if (num === '11') return '11';
-  if (num === '20' || num === '5' || num === '6') return '20';
+  const codRaw = String(a.meta_codigo || '').toLowerCase().trim();
+  const midRaw = String(a.meta_id || '').toLowerCase().trim();
+  const KNOWN = new Set(['16', '19', '10', '11', '20', '5', '6']);
+  const test = (n) => {
+    if (!n) return null;
+    const up = String(n).toUpperCase();
+    if (up === '11B') return '11B';
+    if (KNOWN.has(up)) return (up === '5' || up === '6' ? '20' : up);
+    return null;
+  };
+  if (codRaw) {
+    if (codRaw.includes('11b')) return '11B';
+    const direct = codRaw.match(/^(\d+[a-z]?)/);
+    if (direct) { const r = test(direct[1]); if (r) return r; }
+    const parts = codRaw.match(/[-\s](\d+[a-z]?)\b/g);
+    if (parts) {
+      const last = parts[parts.length - 1].replace(/^[-\s]/, '');
+      const r = test(last); if (r) return r;
+    }
+  }
+  if (midRaw) {
+    if (midRaw.includes('11b')) return '11B';
+    const parts = midRaw.match(/[-\s](\d+[a-z]?)\b/g);
+    if (parts) { const r = test(parts[parts.length - 1].replace(/^[-\s]/, '')); if (r) return r; }
+    const direct = midRaw.match(/^(\d+[a-z]?)/);
+    if (direct) { const r = test(direct[1]); if (r) return r; }
+  }
   return null;
 }
 
@@ -448,6 +469,9 @@ function FiltroControles({ aditivo, setAditivo, dataInicio, setDataInicio, dataF
 export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRefresh, filtro, museuFiltro }) {
   const [selectedMeta, setSelectedMeta] = useState(null);
   const [showLoteModal, setShowLoteModal] = useState(false);
+  // Critérios dinamicos persistidos (Mesma fonte de verdade do CumprimentoMetasFisicas)
+  const { criterios: criteriosMeta20 } = useDashboardCriterios('dashboard_criterios_meta_20');
+  const { criterios: criteriosNoturno } = useDashboardCriterios('dashboard_criterios_noturno');
   const [rubricas, setRubricas] = useState(rubricasProp || []);
   const [loadingRubricas, setLoadingRubricas] = useState(false);
   const queryClient = useQueryClient();
@@ -560,7 +584,11 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRef
   const atividadesPorMetaEMuseu = useMemo(() => {
     const result = {};
     for (const a of todasAtividades) {
-      const metaNum = getMetaNumeroFromActivity(a);
+      // 1. Tenta critérios dinâmicos (Meta 20 / Noturno 11) para consistência total com CumprimentoMetasFisicas
+      let metaNum = null;
+      if (criteriosMeta20 && classificarComCriterios(a, criteriosMeta20)) metaNum = '20';
+      else if (criteriosNoturno && classificarComCriterios(a, criteriosNoturno)) metaNum = '11';
+      else metaNum = getMetaNumeroFromActivity(a);
       if (!metaNum) continue;
       if (!result[metaNum]) result[metaNum] = {};
       const museu = getMuseuFromActivity(a);
@@ -568,7 +596,7 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRef
       result[metaNum][museu] = (result[metaNum][museu] || 0) + 1;
     }
     return result;
-  }, [todasAtividades]);
+  }, [todasAtividades, criteriosMeta20, criteriosNoturno]);
 
   // Mapa: rubricaId → valor total NFs aprovadas/pagas
   const nfsPorRubrica = useMemo(() => {
