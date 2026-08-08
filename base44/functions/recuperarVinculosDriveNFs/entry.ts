@@ -121,6 +121,102 @@ async function verificarArquivo(token, fileId) {
 
 // Busca arquivo por nome no Drive (todos os drives, opcionalmente incluindo lixo).
 // Estratégia: 1) match exato (name = '...'); 2) contains com substring única + filtro JS
+function extrairNfToken(nomeArquivo) {
+  // "NF 13" / "XML 42" / "NFS-e 14595" — case-insensitive
+  const nfMatch = String(nomeArquivo || '').match(/\b(NF|XML|NFS-e|NFSe|NFS|nNfse)\s*#?\s*(\d{1,8})\b/i);
+  if (!nfMatch) return null;
+  return `${nfMatch[1].toUpperCase()} ${nfMatch[2]}`;
+}
+
+function normalizarValorBRL(s) {
+  // "R$ 4.200,00" | "R$ 4200,00" | "R$ 1.372,27" → chave canônica numérica "4200|00" / "1372|27"
+  const m = String(s || '').match(/R\$\s*([\d.,]+)/i);
+  if (!m) return null;
+  const raw = m[1]; // ex: "4.200,00" | "4200,00" | "1.372,27"
+  // Remove separador de milhar (.) e marca o decimal com | (, → |)
+  const semMilhar = raw.replace(/\.(\d{3}(?!\d))/g, '$1'); // "4200,00" // remove . entre milhares
+  // Para casos onde há . ex: "4.200,00" → remove o .
+  const r2 = raw.replace(/\./g, '').replace(/,/, '|'); // "4200|00"
+  return r2;
+}
+
+function extrairFornecedor(nomeArquivo) {
+  const s = String(nomeArquivo || '');
+  const parts = s.split(' - ');
+  for (let i = 0; i < parts.length; i++) {
+    const up = parts[i].toUpperCase();
+    if ((up.includes('MUSEUS CENTRO') || up.startsWith('MUSEUS CEN')) && i > 0) {
+      return parts[i - 1].trim();
+    }
+  }
+  if (parts.length >= 3) return parts[Math.floor((parts.length - 1) / 2)].trim();
+  return '';
+}
+
+async function _driveQuery(token, q) {
+  const params = new URLSearchParams({
+    q,
+    fields: 'files(id,name,parents,trashed)',
+    pageSize: '100',
+    supportsAllDrives: 'true',
+    includeItemsFromAllDrives: 'true',
+    corpora: 'allDrives',
+  });
+  try {
+    const r = await fetch(`${DRIVE_API}/files?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (r.ok) return (await r.json()).files || [];
+    const params2 = new URLSearchParams({
+      q,
+      fields: 'files(id,name,parents,trashed)',
+      pageSize: '100',
+      supportsAllDrives: 'true',
+      includeItemsFromAllDrives: 'true',
+    });
+    const r2 = await fetch(`${DRIVE_API}/files?${params2.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!r2.ok) return [];
+    return (await r2.json()).files || [];
+  } catch {
+    return [];
+  }
+}
+
+async function buscarPorTokensUnicos(token, nomeArquivo, incluirLixo) {
+  const nfTok = extrairNfToken(nomeArquivo);
+  const valNorm = normalizarValorBRL(nomeArquivo);
+  const fornec = extrairFornecedor(nomeArquivo);
+  const trashedClause = incluirLixo ? '' : ' and trashed = false';
+  const esc = (str) => String(str || '').replace(/'/g, "\\'");
+
+  // Estratégia 1: NF número com prefixos "NF <n>" e "XML <n>" (canonical renomeia p/ um dos dois)
+  let files = [];
+  if (nfTok) {
+    const m = nfTok.match(/\d{1,8}/);
+    if (m) {
+      const num = m[0];
+      const [pdfSugg, xmlSugg] = await Promise.all([
+        _driveQuery(token, `name contains '${esc('NF ' + num)}'${trashedClause}`),
+        _driveQuery(token, `name contains '${esc('XML ' + num)}'${trashedClause}`),
+      ]);
+      const seen = new Set();
+      for (const f of pdfSugg) if (!seen.has(f.id)) { seen.add(f.id); files.push(f); }
+      for (const f of xmlSugg) if (!seen.has(f.id)) { seen.add(f.id); files.push(f); }
+    }
+  }
+
+  // Estratégia 2: FORNECEDOR (sobrevive ao rename canônico — só supplier + desc mudam de ordem)
+  if (!files.length && fornec && fornec.length >= 4) {
+    files = await _driveQuery(token, `name contains '${esc(fornec)}'${trashedClause}`);
+  }
+
+  // Filtra pelo valor BRL normalizado (forma com/sem separador de milhar)
+  if (!valNorm) return files.filter((f) => !f.trashed);
+  return files.filter((f) => !f.trashed && normalizarValorBRL(f.name) === valNorm);
+}
+
 async function buscarPorNome(token, nomeArquivo, incluirLixo) {
   if (!nomeArquivo) return [];
   const nomeEsc = nomeArquivo.replace(/'/g, "\\'");
@@ -146,7 +242,6 @@ async function buscarPorNome(token, nomeArquivo, incluirLixo) {
   } catch { /* fallback p/ contains */ }
 
   // 2. Contains — substring do nome que ainda é único o suficiente (40 chars)
-  // Usa substring do MUSEUS CENTRO + parte do fornecedor p/ máxima seletividade.
   const substr = nomeArquivo.length > 40 ? nomeArquivo.substring(0, 40) : nomeArquivo;
   const substrEsc = substr.replace(/'/g, "\\'");
   const paramsContains = new URLSearchParams({
@@ -162,7 +257,6 @@ async function buscarPorNome(token, nomeArquivo, incluirLixo) {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!r2.ok) {
-      // fallback corpora=user
       const params2 = new URLSearchParams({
         q: `name contains '${substrEsc}'${trashedClause}`,
         fields: 'files(id,name,parents,trashed)',
@@ -175,7 +269,6 @@ async function buscarPorNome(token, nomeArquivo, incluirLixo) {
       });
       if (!r3.ok) return [];
       const d3 = await r3.json();
-      // Filtra: nome DEVE ser igual ao buscado (substring pode trazer aproximações)
       return (d3.files || []).filter((f) => f.name === nomeArquivo);
     }
     const d2 = await r2.json();
@@ -257,6 +350,19 @@ async function processarLote(base44, token, limite, apenasQuebrados) {
       }
     }
 
+    // NOVO (canonical rename survival): se ainda não encontrado, busca por tokens
+    // únicos (NF <num> + R$ <valor>) — sobrevive a renomeação p/ padrão oficial.
+    // Mesmo tipo de arquivo (.xml/.pdf) p/ não confundir XML com PDF de mesma NF.
+    if (!candidatos.length) {
+      const extEsperada = /(\.xml|\.pdf)$/i.test(nomeBusca) ? nomeBusca.toLowerCase().match(/(\.xml|\.pdf)$/)[1] : '';
+      const porTokens = await buscarPorTokensUnicos(token, nomeBusca, false);
+      if (porTokens.length) {
+        candidatos = extEsperada
+          ? porTokens.filter((f) => !f.trashed && String(f.name || '').toLowerCase().endsWith(extEsperada))
+          : porTokens.filter((f) => !f.trashed);
+      }
+    }
+
     if (!candidatos.length) {
       stats.nao_encontrados++;
       naoEncontrados.push({
@@ -275,11 +381,15 @@ async function processarLote(base44, token, limite, apenasQuebrados) {
 
     const novaUrl = `https://drive.google.com/file/d/${novo.id}/view`;
     const updates = {};
-    if (intake.tipo_detectado === 'NOTA_FISCAL_PDF') {
-      updates.nf_pdf_url = novaUrl;
-    } else if (intake.tipo_detectado === 'NOTA_FISCAL_XML') {
-      updates.nf_xml_url = novaUrl;
-    }
+    const oldUrlPattern = String(url || '');
+    // Identifica se nf_pdf_url / nf_xml_url carregam o MESMO fileId quebrado.
+    // Se sim, sobrescreve AMBOS — evita loop onde a próxima execução pega o
+    // link quebrado remanescente (ver linha que monta `url`).
+    const pdfBroken = extrairDriveId(intake.nf_pdf_url) === fileId;
+    const xmlBroken = extrairDriveId(intake.nf_xml_url) === fileId;
+    const origBroken = extrairDriveId(intake.arquivo_original_url) === fileId;
+    if (intake.tipo_detectado === 'NOTA_FISCAL_PDF' || pdfBroken) updates.nf_pdf_url = novaUrl;
+    if (intake.tipo_detectado === 'NOTA_FISCAL_XML' || xmlBroken) updates.nf_xml_url = novaUrl;
     updates.arquivo_original_url = novaUrl;
     if (!safeStr(intake.file_name_final) && novo.name) {
       updates.file_name_final = novo.name;
