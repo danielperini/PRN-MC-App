@@ -10,6 +10,7 @@ import MuseuManager from '../components/admin/MuseuManager';
 import EquipeManager from '../components/admin/EquipeManager';
 import UserPermissionsManager from '../components/admin/UserPermissionsManager';
 import AuditSystemPanel from '../components/admin/AuditSystemPanel';
+import Auditoria360DiariaPanel from '../components/admin/Auditoria360DiariaPanel';
 import HardeningPanel from '../components/admin/HardeningPanel';
 import ComunicadosPanel from '../components/admin/ComunicadosPanel';
 import BoletimSemanalAgendaPanel from '../components/admin/BoletimSemanalAgendaPanel';
@@ -332,7 +333,10 @@ function PlataformaAdminInner() {
         </TabsContent>
 
         <TabsContent value="auditoria">
-          <AuditSystemPanel />
+          <div className="space-y-6">
+            <Auditoria360DiariaPanel />
+            <AuditSystemPanel />
+          </div>
         </TabsContent>
 
         <TabsContent value="hardening">
