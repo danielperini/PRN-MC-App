@@ -541,7 +541,17 @@ Se um campo não existir no documento, retorne null para ele.`;
       const d = parseDataEmissao(ia.nf_data_emissao);
       if (d && d.ano >= 2026) updates.nf_data_emissao = ia.nf_data_emissao;
     }
-    if (ia?.centro_custo) updates.centro_custo = safeStr(ia.centro_custo);
+    // Centro de custo: IA localiza via descrição; se vazio ou variante Noturno → default "Geral" (transversal)
+    {
+      const cc = ia?.centro_custo ? safeStr(ia.centro_custo) : '';
+      const noturnoVariants = ['Noturno nos Museus 2026', 'Noturno 2026', 'Noturno Pampulha', 'Noturno nos Museus BH'];
+      const ehNoturno = noturnoVariants.some((n) => cc.toLowerCase().includes(n.toLowerCase()));
+      if (!cc || ehNoturno) {
+        updates.centro_custo = 'Geral';
+      } else {
+        updates.centro_custo = cc;
+      }
+    }
     if (ia?.fornecedor_nome) updates.fornecedor_nome = safeStr(ia.fornecedor_nome);
     if (ia?.municipio) updates.municipio = safeStr(ia.municipio);
     if (ia?.descricao_nota) {
