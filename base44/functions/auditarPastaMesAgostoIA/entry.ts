@@ -135,7 +135,7 @@ async function listFolder(token, folderId) {
   let pt = null;
   do {
     const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
-    let url = `https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=name&fields=files(id,name,mimeType)&pageSize=1000&supportsAllDrives=true`;
+    let url = `https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=name&fields=files(id,name,mimeType,appProperties)&pageSize=1000&supportsAllDrives=true`;
     if (pt) url += `&pageToken=${encodeURIComponent(pt)}`;
     const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     if (!r.ok) {
@@ -217,6 +217,15 @@ async function renameFile(token, fileId, newName) {
     method: 'PATCH',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: newName }),
+  });
+  return r.ok;
+}
+
+async function setFileAppProperties(token, fileId, props) {
+  const r = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=id&supportsAllDrives=true`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ appProperties: props }),
   });
   return r.ok;
 }
@@ -386,8 +395,11 @@ Deno.serve(async (req) => {
     if (!folderMeta) return Response.json({ ok: false, error: 'Pasta de agosto não encontrada', folderId }, { status: 404 });
 
     const allFiles = await listFolder(token, folderId);
+    // Pré-filtra arquivos já resolvidos (appProperties ou nome canônico com data de agosto) antes do slice
     const candidateFiles = allFiles.filter(f =>
-      f.mimeType !== 'application/vnd.google-apps.folder' && /\.(pdf|xml)$/i.test(f.name)
+      f.mimeType !== 'application/vnd.google-apps.folder' &&
+      /\.(pdf|xml)$/i.test(f.name) &&
+      f.appProperties?.auditoria_agosto !== 'ok'
     ).slice(0, limite);
 
     const stats = {
@@ -438,7 +450,12 @@ Deno.serve(async (req) => {
         stats.erros_irrecuperaveis.push({ nome: file.name, motivo: 'intake já marcado ERRO_PROCESSAMENTO (pulando)' });
         continue;
       }
-      // Pula arquivos já confirmados em agosto/2026 (já estão corretos, não precisa reprocessar IA)
+      // Pula arquivos já confirmados em agosto/2026 via appProperties do Drive (sem intake)
+      if (file.appProperties?.auditoria_agosto === 'ok') {
+        stats.ja_agosto_correto++;
+        continue;
+      }
+      // Pula arquivos já confirmados em agosto/2026 (intake com nf_data_emissao)
       if (preIntake && preIntake.nf_data_emissao) {
         const di = parseDataEmissao(preIntake.nf_data_emissao);
         if (di && di.mes === AGOSTO_ESPERADO.mes && di.ano === AGOSTO_ESPERADO.ano) {
@@ -605,6 +622,10 @@ Deno.serve(async (req) => {
           if (valor) patch.nf_valor_total = valor;
           patch.file_name_final = novoNome;
           try { await base44.asServiceRole.entities.DocumentIntake.update(intake.id, patch); } catch (e) { /* ignore */ }
+        }
+        // Marca no Drive (appProperties) que o arquivo foi auditado — evita re-leitura IA em próximas execuções
+        if (origem === 'ia' || origem === 'xml' || origem === 'intake') {
+          try { await setFileAppProperties(token, file.id, { auditoria_agosto: 'ok', mes_ano: `${dataInfo.ano}-${String(dataInfo.mes).padStart(2, '0')}` }); } catch (e) { /* ignore */ }
         }
       } else {
         if (file.name !== novoNome) stats.renomeados++;
