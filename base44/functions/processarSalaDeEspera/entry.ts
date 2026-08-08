@@ -879,27 +879,65 @@ async function processarIntake(base44, token, intake, folderCache, tentativasMap
   }
 
   // 5. 100% preenchido → LIBERAR (encaminhar, não acumular)
+  //     Antes de remover da fila: confirmar backup no Drive (rename + move p/ pasta mensal)
   const updates = {
     status_processamento: 'APROVADO',
     revisado_pelo_usuario: true,
-    ocultar_entrada_unica: true,
+    ocultar_entrada_unica: false, // só vira true após verificar backup
   };
 
-  // 6. NOVO Stage: NF aprovada → renomear arquivo para padrão oficial + mover para pasta mensal (backup organizado)
+  let backupConfirmado = true; // default p/ não-NF (foto/contrato: upload já é o backup)
+
+  // 6. NF (PDF/XML) → renomear + mover p/ pasta mensal de backup no Drive
   if (intake.tipo_detectado === 'NOTA_FISCAL_PDF' || intake.tipo_detectado === 'NOTA_FISCAL_XML') {
     try {
       const backupResult = await renomearEMoverParaBackup(token, base44, intake, folderCache);
       log.detalhes.push(`Backup: ${backupResult.motivo}${backupResult.nome ? ' → ' + backupResult.nome : ''}`);
       if (backupResult.nome) intake.file_name_final = backupResult.nome;
+
+      // 6b. Verificação explícita: confirmar que o arquivo está na pasta mensal de backup no Drive
+      backupConfirmado = false;
+      try {
+        const DriveApi = 'https://www.googleapis.com/drive/v3/files/';
+        const verifyUrl = `${DriveApi}${encodeURIComponent(intake.arquivo_original_url.split('id=').pop() || '')}?fields=parents,name,id&supportsAllDrives=true`;
+        const vResp = await fetch(verifyUrl, {
+          method: 'GET',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (vResp.ok) {
+          const vData = await vResp.json();
+          const destFolderId = await resolverPastaNotasMensal(token, intake.nf_data_emissao || new Date().toISOString());
+          const parents = vData?.parents || [];
+          if (Array.isArray(parents) && parents.includes(destFolderId)) {
+            backupConfirmado = true;
+            log.detalhes.push('Backup Drive confirmado (file em pasta mensal)');
+          } else {
+            log.detalhes.push(`Backup Drive NÃO confirmado — parents esperados não incluem pasta mensal ${destFolderId}`);
+          }
+        }
+      } catch (eVerify) {
+        log.detalhes.push(`Verificação backup falhou: ${eVerify.message}`);
+      }
     } catch (e) {
       log.detalhes.push(`AVISO backup rename/move: ${e.message}`);
+      backupConfirmado = false;
     }
+  }
+
+  if (backupConfirmado) {
+    updates.ocultar_entrada_unica = true;
+  } else {
+    // Backup não confirmado → mantém visível na fila p/ reprocessamento/revisão
+    updates.status_processamento = 'AGUARDANDO_REVISAO';
+    log.detalhes.push('NF mantida na fila (backup Drive não confirmado antes de remover)');
   }
 
   try {
     await base44.asServiceRole.entities.DocumentIntake.update(intake.id, updates);
-    log.status = 'liberado';
-    log.detalhes.push('100% campos preenchidos → APROVADO + ocultar_entrada_unica');
+    log.status = backupConfirmado ? 'liberado' : 'pendente_backup';
+    log.detalhes.push(backupConfirmado
+      ? '100% campos preenchidos → APROVADO + backup Drive OK → removido da fila'
+      : 'Backup Drive pendente → NF permanece visível na fila de entrada');
   } catch (e) {
     log.status = 'erro_update';
     log.detalhes.push(`Erro ao liberar: ${e.message}`);
@@ -1007,7 +1045,7 @@ Deno.serve(async (req) => {
 
     // 3. Processar em lotes (interrompe antes do prazo global p/ não estourar execução)
     //    PRIORIZA XMLs (processamento determinístico instantâneo) antes dos PDFs (IA lenta)
-    const resultados = { liberado: 0, duplicata_rejeitada: 0, pendente_dados: 0, rejeitado_dados_incompletos: 0, erro_update: 0, erro: 0 };
+    const resultados = { liberado: 0, duplicata_rejeitada: 0, pendente_dados: 0, pendente_backup: 0, rejeitado_dados_incompletos: 0, erro_update: 0, erro: 0 };
     const logs = [];
     const todos = (pendentes || []).slice(0, limite);
     const intakesParaProcessar = [
@@ -1042,7 +1080,7 @@ Deno.serve(async (req) => {
       error_message: resultados.erro > 0 ? `${resultados.erro} erros` : '',
       execution_time_ms: Date.now() - startTime,
       triggered_by: isCron ? 'scheduled' : 'manual',
-      details: `Sala de Espera: ${resultados.liberado} liberados (100% preenchidos), ${resultados.duplicata_rejeitada || 0} duplicatas rejeitadas, ${linkResult.pares} XML+PDF linkados, ${resultados.pendente_dados || 0} pendentes IA, ${resultados.rejeitado_dados_incompletos || 0} rejeitados dados, ${paradosPorDeadline} adiados (deadline)`,
+      details: `Sala de Espera: ${resultados.liberado} liberados (100% preenchidos + backup Drive OK), ${resultados.duplicata_rejeitada || 0} duplicatas rejeitadas, ${linkResult.pares} XML+PDF linkados, ${resultados.pendente_dados || 0} pendentes IA, ${resultados.pendente_backup || 0} pendentes backup Drive, ${resultados.rejeitado_dados_incompletos || 0} rejeitados dados, ${paradosPorDeadline} adiados (deadline)`,
     }).catch(() => null);
 
     return Response.json({
