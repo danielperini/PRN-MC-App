@@ -109,18 +109,22 @@ Deno.serve(async (req) => {
     const bancosPreenchidos = Object.values(bancoDados).filter(v => v?.trim()).length;
     if (bancosPreenchidos < 2 && teamMember?.contrato_url) {
       // Fallback: ler do contrato
-      const extractedFromContract = await base44.asServiceRole.integrations.Core.ExtractDataFromUploadedFile({
-        file_url: teamMember.contrato_url,
-        json_schema: {
-          type: 'object',
-          properties: {
-            contratado_banco: { type: 'string' },
-            contratado_agencia: { type: 'string' },
-            contratado_conta: { type: 'string' },
-            pix_key: { type: 'string' },
+      const _extResp = await base44.asServiceRole.functions.invoke('invokeGpt', {
+        operation: 'ExtractDataFromUploadedFile',
+        payload: {
+          file_url: teamMember.contrato_url,
+          json_schema: {
+            type: 'object',
+            properties: {
+              contratado_banco: { type: 'string' },
+              contratado_agencia: { type: 'string' },
+              contratado_conta: { type: 'string' },
+              pix_key: { type: 'string' },
+            }
           }
         }
-      }).catch(() => ({ status: 'error' }));
+      }).catch(() => null);
+      const extractedFromContract = _extResp?.data?.result || { status: 'error' };
 
       if (extractedFromContract.status === 'success' && extractedFromContract.output) {
         const output = extractedFromContract.output;

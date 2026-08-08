@@ -54,20 +54,24 @@ Responda em JSON com:
 - confianca (0-100, seu nível de confiança na classificação)
 - motivo (breve explicação)`;
 
-        const aiResponse = await base44.integrations.Core.InvokeLLM({
-          prompt,
-          response_json_schema: {
-            type: 'object',
-            properties: {
-              rubrica_id: { type: 'string' },
-              museu_id: { type: ['string', 'null'] },
-              tipo_pagamento: { type: 'string' },
-              confianca: { type: 'number' },
-              motivo: { type: 'string' }
-            },
-            required: ['rubrica_id', 'confianca', 'motivo']
+        const _aiResp = await base44.functions.invoke('invokeGpt', {
+          operation: 'InvokeLLM',
+          payload: {
+            prompt,
+            response_json_schema: {
+              type: 'object',
+              properties: {
+                rubrica_id: { type: 'string' },
+                museu_id: { type: ['string', 'null'] },
+                tipo_pagamento: { type: 'string' },
+                confianca: { type: 'number' },
+                motivo: { type: 'string' }
+              },
+              required: ['rubrica_id', 'confianca', 'motivo']
+            }
           }
         });
+        const aiResponse = _aiResp?.data?.result;
 
         // Se confiança > 70%, atualizar
         if (aiResponse.confianca >= 70) {
