@@ -143,7 +143,7 @@ Deno.serve(async (req) => {
   if (!isCron) {
     const user = await base44.auth.me().catch(() => null);
     if (!user) return Response.json({ ok: false, error: 'Não autenticado' }, { status: 401 });
-    if (user.role !== 'admin') {
+    if (String(user.role || '').toLowerCase() !== 'admin') {
       return Response.json({ ok: false, error: 'Acesso restrito à coordenação geral' }, { status: 403 });
     }
   }
