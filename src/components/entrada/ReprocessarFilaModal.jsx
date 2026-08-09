@@ -9,7 +9,7 @@ import {
 import { Button } from '@/components/ui/button';
 import {
   Loader2, RefreshCw, AlertTriangle, CheckCircle2, X,
-  Sparkles, Link2, Send, FileX, Eraser,
+  Sparkles, Link2, Send, FileX, Eraser, Files,
 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import aiClient from '@/lib/aiClient';
@@ -19,6 +19,7 @@ import { enviarIntakeParaAprovacao, parseValorBR } from '@/lib/enviarIntakeParaA
 const FASES = [
   { key: 'limpeza', label: 'Limpeza dos dados cruzados', icon: Eraser, color: 'text-amber-600' },
   { key: 'reanalise', label: 'Leitura Profunda (lerNotaFiscalGPT)', icon: Sparkles, color: 'text-violet-600' },
+  { key: 'duplicados', label: 'Busca de duplicados (triplo critério)', icon: Files, color: 'text-rose-600' },
   { key: 'revinculacao', label: 'Revinculação XML (critérios triplos)', icon: Link2, color: 'text-blue-600' },
   { key: 'auto_envio', label: 'Auto-envio para aprovação', icon: Send, color: 'text-emerald-600' },
   { key: 'orfaos', label: 'Arquivamento de XMLs órfãos', icon: FileX, color: 'text-slate-600' },
@@ -226,6 +227,8 @@ export default function ReprocessarFilaModal({ open, intakes, onClose, onConclui
       limpos: 0,
       xmls_desvinculados: 0,
       reanalisados: 0,
+      duplicados_encontrados: 0,
+      duplicados_bloqueados: 0,
       xmls_parseados: 0,
       revinculados: 0,
       enviados: 0,
@@ -346,6 +349,72 @@ export default function ReprocessarFilaModal({ open, intakes, onClose, onConclui
       // Recarrega PDFs reanalisados
       const pdfsReanalisados = await recarregarPorIds(pdfsParaReprocessar.map((p) => p.id));
 
+      // === (NOVO) FASE: BUSCA DE DUPLICADOS (NF + CNPJ + valor) ===
+      // Para cada PDF reanalisado com identidade fiscal (número + CNPJ + valor),
+      // busca em DocumentIntake e PurchaseRequest por outros registros com o
+      // MESMO triplo. Quando encontra, marca resultado_ia.duplicado_de e adiciona
+      // alerta em erros_validacao, evitando auto-envio.
+      setFaseKey('duplicados');
+      setProgresso({ atual: 0, total: pdfsReanalisados.length });
+      for (let i = 0; i < pdfsReanalisados.length; i++) {
+        const intake = pdfsReanalisados[i];
+        const ia = intake.resultado_ia || {};
+        const nfNum = onlyDigits(ia.nf_numero || intake.nf_numero || '');
+        const cnpj = onlyDigits(
+          ia.nf_emitente_cpf_cnpj || intake.nf_emitente_cpf_cnpj || intake.fornecedor_cpf_cnpj || ''
+        );
+        const valor = parseValorBR(ia.nf_valor_total || ia.valor || intake.nf_valor_total || 0);
+
+        try {
+          let dupsIntake = [];
+          let dupsPurchase = [];
+          if (nfNum && cnpj) {
+            dupsIntake = await base44.entities.DocumentIntake.filter({
+              nf_numero: nfNum,
+              nf_emitente_cpf_cnpj: cnpj,
+            }).catch(() => []);
+            dupsPurchase = await base44.entities.PurchaseRequest.filter({
+              nf_numero: nfNum,
+              fornecedor_cnpj: cnpj,
+            }).catch(() => []);
+          }
+
+          // Exclui o próprio intake e aplica critério de valor (delta ≤ R$0,02)
+          const dupsIntakeFiltrados = (dupsIntake || [])
+            .filter((d) => d.id !== intake.id)
+            .filter((d) => {
+              const v = parseValorBR(d.nf_valor_total || d.resultado_ia?.nf_valor_total || 0);
+              return valor > 0 && v > 0 && Math.abs(v - valor) < 0.02;
+            });
+          const dupsPurchaseFiltrados = (dupsPurchase || []).filter((p) => {
+            const v = parseValorBR(
+              p.valor_solicitado || p.valor_total || p.nf_valor_total || 0
+            );
+            return valor > 0 && v > 0 && Math.abs(v - valor) < 0.02;
+          });
+
+          const totalDups = dupsIntakeFiltrados.length + dupsPurchaseFiltrados.length;
+          if (totalDups > 0) {
+            const origem =
+              (dupsIntakeFiltrados[0] && dupsIntakeFiltrados[0].id) ||
+              (dupsPurchaseFiltrados[0] && dupsPurchaseFiltrados[0].id) ||
+              null;
+            const msg =
+              `Possível duplicado: ${dupsIntakeFiltrados.length} intake(s) + ${dupsPurchaseFiltrados.length} compra(s) com mesma NF ${nfNum}/CNPJ/R$ ${valor.toFixed(2)}`;
+            const errosAtual = Array.isArray(intake.erros_validacao) ? intake.erros_validacao : [];
+            await base44.entities.DocumentIntake.update(intake.id, {
+              erros_validacao: [...errosAtual, ...(!errosAtual.includes(msg) ? [msg] : [])],
+              resultado_ia: { ...ia, duplicado_de: origem, duplicado_msg: msg },
+            });
+            totals.duplicados_encontrados++;
+            totals.duplicados_bloqueados++;
+          }
+        } catch (e) {
+          totals.erros.push(`Busca duplicados ${intake.file_name_original || intake.id}: ${e?.message || e}`);
+        }
+        setProgresso({ atual: i + 1, total: pdfsReanalisados.length });
+      }
+
       // === FASE 3: REVINCULAÇÃO (critérios triplos) ===
       setFaseKey('revinculacao');
       const pdfsParaVincular = pdfsReanalisados.filter((p) => !p.nf_xml_intake_id);
@@ -413,6 +482,8 @@ export default function ReprocessarFilaModal({ open, intakes, onClose, onConclui
         const statusRevisao = String(ia.status_revisao || '').toUpperCase();
         if (!rubrica_id || !centro_custo || valor <= 0 || cnpj.length < 11) return false;
         if (statusRevisao === 'BLOQUEADO' || ia.nota_cancelada === true) return false;
+        // Duplicado detectado pela fase "Buscar duplicados": NÃO envia para aprovação
+        if (ia.duplicado_de) return false;
         const scoreCC = calcularConfiancaNF(p);
         const iaScore = Number(ia.ia_historico_score || 0);
         const scoreRevisaoNum = Number(ia.score || 0);
@@ -495,10 +566,12 @@ export default function ReprocessarFilaModal({ open, intakes, onClose, onConclui
           </DialogTitle>
           <DialogDescription>
             Limpa os dados IA contaminados, realiza <strong>leitura profunda</strong> de cada NF via
-            GPT-4o (lerNotaFiscalGPT, sequencial com timeout de 90s por documento), revincula XMLs
-            com critérios triplos (número, CNPJ, valor) e envia automaticamente para aprovação as
-            NFs com rubrica + centro de custo + valor + CNPJ e confiança ≥70. XMLs órfãos são
-            arquivados.
+            GPT-4o (lerNotaFiscalGPT, sequencial com timeout de 90s por documento), <strong>busca
+            duplicados</strong> em DocumentIntake e PurchaseRequest (triplo critério: NF + CNPJ +
+            valor), revincula XMLs com critérios triplos (número, CNPJ, valor) e envia
+            automaticamente para aprovação as NFs com rubrica + centro de custo + valor + CNPJ e
+            confiança ≥70. XMLs órfãos são arquivados e duplicados detectados são bloqueados para
+            auto-envio.
           </DialogDescription>
         </DialogHeader>
 
@@ -572,6 +645,8 @@ export default function ReprocessarFilaModal({ open, intakes, onClose, onConclui
               <ResumeItem label="NFs limpas" value={resumo.limpos} color="text-amber-700" />
               <ResumeItem label="XMLs desvinculados" value={resumo.xmls_desvinculados} color="text-amber-700" />
               <ResumeItem label="NFs com leitura profunda" value={resumo.reanalisados} color="text-violet-700" />
+              <ResumeItem label="Duplicados encontrados" value={resumo.duplicados_encontrados} color="text-rose-700" />
+              <ResumeItem label="Envios bloqueados (duplicados)" value={resumo.duplicados_bloqueados} color="text-rose-700" />
               <ResumeItem label="XMLs parseados" value={resumo.xmls_parseados} color="text-violet-700" />
               <ResumeItem label="Vínculos criados (≥85%)" value={resumo.revinculados} color="text-blue-700" />
               <ResumeItem label="Enviados p/ aprovação (auto)" value={resumo.enviados} color="text-emerald-700" />
