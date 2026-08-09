@@ -232,13 +232,14 @@ export function getFinanciallyValidPurchases(purchases = []) {
   const duplicadasDiretas = [];
   const datasInvalidas = [];
 
+  // Exclusão por data fiscal anterior a 2026 só acontece quando o registro está
+  // explicitamente fora do somatório (incluir_no_somatorio=false) ou marcado como
+  // duplicada_financeira. Sem flag, o registro entra normalmente no somatório.
   for (const nf of ativas) {
-    if (hasInvalidFiscalDate(nf)) {
-      datasInvalidas.push(nf);
-      continue;
-    }
-    if (nf.duplicada_financeira === true || nf.incluir_no_somatorio === false) {
-      duplicadasDiretas.push(nf);
+    const excluida = nf.duplicada_financeira === true || nf.incluir_no_somatorio === false;
+    if (excluida) {
+      if (hasInvalidFiscalDate(nf)) datasInvalidas.push(nf);
+      else duplicadasDiretas.push(nf);
       continue;
     }
 
@@ -256,7 +257,6 @@ export function getFinanciallyValidPurchases(purchases = []) {
   const validas = Array.from(keyMap.values());
   const validasRefs = new Set(validas);
   const duplicadasDetectadas = ativas.filter((p) => {
-    if (hasInvalidFiscalDate(p)) return false;
     if (p.duplicada_financeira === true || p.incluir_no_somatorio === false) return false;
     return !validasRefs.has(p);
   });
