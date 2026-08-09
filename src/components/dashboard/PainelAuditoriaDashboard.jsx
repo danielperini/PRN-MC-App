@@ -48,36 +48,36 @@ export default function PainelAuditoriaDashboard() {
 
   return (
     <Card className="border-amber-200 bg-amber-50/50">
-      <CardHeader className="pb-3 hidden">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <ShieldCheck className="w-5 h-5 text-amber-600" />
-              Auditoria IA do Dashboard
-            </CardTitle>
-            <p className="text-xs text-muted-foreground mt-1">
-              Regras determinísticas + IA aplicadas a todos os cards: deduplica rubricas, corrige centro de custo,
-              atribui rubricas a compras e recalcula saldos.
-            </p>
-          </div>
-          <div className="flex gap-2 shrink-0">
-            <Button size="sm" variant="outline" onClick={() => run('diagnostico')} disabled={loading}>
-              {loading && mode === 'diagnostico' ?
-              <Loader2 className="w-3.5 h-3.5 animate-spin" /> :
+      
 
-              'Diagnosticar'
-              }
-            </Button>
-            <Button size="sm" onClick={() => run('completo')} disabled={loading}>
-              {loading && mode === 'completo' ?
-              <Loader2 className="w-3.5 h-3.5 animate-spin" /> :
 
-              'Auditar e Corrigir'
-              }
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      
       {error &&
       <CardContent className="pt-0">
           <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs">
