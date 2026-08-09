@@ -76,13 +76,18 @@ function getStatusPriority(p) {
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-    if (!user) return Response.json({ error: 'Não autorizado' }, { status: 401 });
+    const body = await req.json().catch(() => ({}));
+    const triggeredByScheduled =
+      body?.triggered_by === 'scheduled' || body?.scheduled === true || !!body?.automation_id;
 
-    const isAdmin = user.role === 'admin';
-    const isCoord = ['COORDENADOR', 'COORD_COMUNICACAO', 'COORD_ADMINISTRATIVA', 'COORD_PRODUCAO'].includes(user.role);
-    if (!isAdmin && !isCoord) {
-      return Response.json({ error: 'Apenas coordenadores podem executar esta ação.' }, { status: 403 });
+    const user = await base44.auth.me().catch(() => null);
+    if (!triggeredByScheduled) {
+      if (!user) return Response.json({ error: 'Não autorizado' }, { status: 401 });
+      const isAdmin = user.role === 'admin';
+      const isCoord = ['COORDENADOR', 'COORD_COMUNICACAO', 'COORD_ADMINISTRATIVA', 'COORD_PRODUCAO'].includes(user.role);
+      if (!isAdmin && !isCoord) {
+        return Response.json({ error: 'Apenas coordenadores podem executar esta ação.' }, { status: 403 });
+      }
     }
 
     // 1. Carregar todas as PurchaseRequests
