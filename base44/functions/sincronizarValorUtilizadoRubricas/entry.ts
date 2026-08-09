@@ -47,12 +47,19 @@ function purchaseValue(p: any): number {
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
+    const body = await req.json().catch(() => ({}));
+    const triggeredByScheduled =
+      body?.triggered_by === 'scheduled' || body?.scheduled === true || !!body?.automation_id;
+
     const user = await base44.auth.me().catch(() => null);
-    if (!user || String(user.role || '').toLowerCase() !== 'admin') {
-      return Response.json({ error: 'Apenas administradores.' }, { status: 403 });
+    // Invocações agendadas (sem usuário autenticado) são liberadas como
+    // service-role (rede de segurança diária); invocações manuais exigem admin.
+    if (!triggeredByScheduled) {
+      if (!user || String(user.role || '').toLowerCase() !== 'admin') {
+        return Response.json({ error: 'Apenas administradores.' }, { status: 403 });
+      }
     }
 
-    const body = await req.json().catch(() => ({}));
     const limite = Math.min(Number(body?.limite || 100), 300);
     const pular = Number(body?.pular || 0);
 
