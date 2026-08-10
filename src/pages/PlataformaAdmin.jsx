@@ -15,6 +15,8 @@ import AutomacoesManutencaoCard from '../components/admin/AutomacoesManutencaoCa
 import HardeningPanel from '../components/admin/HardeningPanel';
 import ComunicadosPanel from '../components/admin/ComunicadosPanel';
 import BoletimSemanalAgendaPanel from '../components/admin/BoletimSemanalAgendaPanel';
+import PainelRubricasAdmin from '../components/admin/PainelRubricasAdmin';
+import { Wallet } from 'lucide-react';
 import {
   Users, FileText, History, Settings,
   CheckCircle, ChevronRight,
@@ -341,6 +343,9 @@ function PlataformaAdminInner() {
               <DropdownMenuItem onClick={() => setAdminPanel('equipes')}>
                 <Users className="w-4 h-4 mr-2" /> Equipes
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setAdminPanel('rubricas')}>
+                <Wallet className="w-4 h-4 mr-2" /> Rubricas
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setAdminPanel('metadados')}>
                 <Database className="w-4 h-4 mr-2" /> Metadados
               </DropdownMenuItem>
@@ -417,6 +422,7 @@ function PlataformaAdminInner() {
           {adminPanel === 'permissoes' && <UserPermissionsManager />}
           {adminPanel === 'museus' && <MuseuManager />}
           {adminPanel === 'equipes' && <EquipeManager />}
+          {adminPanel === 'rubricas' && <PainelRubricasAdmin />}
           {adminPanel === 'metadados' && <MetadadosManager />}
           {adminPanel === 'auditoria' && (
             <>
