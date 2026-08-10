@@ -29,6 +29,7 @@ import {
   Bot,
   UsersRound,
   PlayCircle,
+  ArrowRightLeft,
 } from 'lucide-react';
 
 import { base44 } from '@/api/base44Client';
@@ -107,6 +108,7 @@ const NAV_GROUPS_BASE = [
       { path: 'Mensagens', label: 'Mensagens', icon: MessageSquare, roles: ['all'], hideForObservador: true },
       { path: 'UserManagement', label: 'Usuários', icon: Users, roles: ['coord', 'admin'], permission: 'canManageUsers' },
       { path: 'AuditoriaInstitucional', label: 'Auditoria', icon: ShieldCheck, roles: ['coord', 'admin'] },
+      { path: 'AuditoriaDebitosRubricas', label: 'Débitos por Rubrica', icon: ArrowRightLeft, roles: ['coord', 'admin'] },
       { path: 'PlataformaAdmin', label: 'Administração', icon: Settings, roles: ['admin'], permission: 'canManagePlatform' },
     ],
   },

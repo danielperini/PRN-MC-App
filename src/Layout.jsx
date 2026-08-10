@@ -64,6 +64,7 @@ const PAGE_TITLES = {
   RelatorioAtividadesHtml: 'Relatório de Atividades com Fotos',
   BancoRelatorios: 'Banco de Relatórios',
   AuditoriaInstitucional: 'Auditoria Institucional',
+  AuditoriaDebitosRubricas: 'Débitos por Rubrica',
   AcervoLinks: 'Acervo de Links',
   Movimentacoes: 'Movimentações Bancárias',
   AprovacaoNFs: 'Aprovação de Notas Fiscais',

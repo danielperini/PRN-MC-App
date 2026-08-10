@@ -365,6 +365,15 @@ function AuthenticatedApp() {
           }
         />
         <Route
+          path="/AuditoriaDebitosRubricas"
+          element={
+            <SafePage
+              Page={React.lazy(() => import('./pages/AuditoriaDebitosRubricas'))}
+              pageName="AuditoriaDebitosRubricas"
+            />
+          }
+        />
+        <Route
           path="/AcervoLinks"
           element={
             <SafePage

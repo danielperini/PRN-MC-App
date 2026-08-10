@@ -164,6 +164,7 @@ export const COORDENADOR_ONLY_PAGES = new Set([
   'RelatorioAtividadesFotos',
   'BancoRelatorios',
   'RelatorioExecucaoObjeto',
+  'AuditoriaDebitosRubricas',
 ]);
 
 const COORD_GERAL_ONLY_PAGES = new Set([
