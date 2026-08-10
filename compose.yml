@@ -1,0 +1,12 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_BASE44_APP_ID: "6a11dbeecf8f7a5977ffc750"
+        VITE_BASE44_APP_BASE_URL: "https://periniprojetos.com.br"
+    container_name: gestor-museus-web
+    restart: unless-stopped
+    ports:
+      - "8081:80"
