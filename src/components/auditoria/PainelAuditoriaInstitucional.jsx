@@ -8,7 +8,6 @@ import {
   Activity,
   Users,
   Receipt,
-  FileSignature,
   RefreshCw,
   ChevronDown,
   ChevronRight,
@@ -116,14 +115,13 @@ export default function PainelAuditoriaInstitucional() {
   async function load() {
     setLoading(true);
     try {
-      const [reports, activities, purchases, termos, teamPayments] = await Promise.all([
+      const [reports, activities, purchases, teamPayments] = await Promise.all([
         safeList('Report', '-created_date', 500),
         safeList('Activity', '-created_date', 2000),
         safeList('PurchaseRequest', '-created_date', 1000),
-        safeList('TermoCompromisso', '-created_date', 500),
         safeList('TeamPayment', '-created_date', 500),
       ]);
-      setRaw({ reports, activities, purchases, termos, teamPayments });
+      setRaw({ reports, activities, purchases, teamPayments });
     } finally {
       setLoading(false);
     }
@@ -133,7 +131,7 @@ export default function PainelAuditoriaInstitucional() {
 
   const audit = useMemo(() => {
     if (!raw) return null;
-    const { reports, activities, purchases, termos, teamPayments } = raw;
+    const { reports, activities, purchases, teamPayments } = raw;
 
     // ── RELATÓRIOS ──────────────────────────────────────────
     const relatoriosAprovados = reports.filter(r => r.status === 'APPROVED');
@@ -181,16 +179,6 @@ export default function PainelAuditoriaInstitucional() {
     const publicoDivergencia = publicoZerado.length;
     const publicoCritico = atividadesSemRelatorio.filter(a => (a.publico_total || 0) > 0).length;
 
-    // ── CONTRATOS / TERMOS ────────────────────────────────────
-    const termosAssinados = termos.filter(t => t.status === 'assinado' || t.status === 'finalizado');
-    const termosRascunho = termos.filter(t => t.status === 'rascunho');
-    const termosSemPDF = termos.filter(t => !t.pdf_url && !t.drive_backup_url);
-    const termosSemRubrica = termos.filter(t => !t.rubrica_vinculada);
-
-    const termosOk = termosAssinados.filter(t => t.pdf_url || t.drive_backup_url).length;
-    const termosDivergencia = termosSemRubrica.length + termosSemPDF.filter(t => t.status !== 'rascunho').length;
-    const termosCritico = termosRascunho.length;
-
     // ── ISSUES LIST ───────────────────────────────────────────
     const issues = [];
 
@@ -218,21 +206,11 @@ export default function PainelAuditoriaInstitucional() {
     if (nfsDuplicatas.length > 0)
       issues.push({ label: `${nfsDuplicatas.length} NF(s) marcada(s) como duplicata financeira (excluídas do total)`, status: 'divergencia', grupo: 'Notas Fiscais' });
 
-    if (termosSemPDF.filter(t => t.status !== 'rascunho').length > 0)
-      issues.push({ label: `${termosSemPDF.filter(t => t.status !== 'rascunho').length} termo(s) sem PDF gerado`, status: 'divergencia', grupo: 'Contratos' });
-
-    if (termosSemRubrica.length > 0)
-      issues.push({ label: `${termosSemRubrica.length} termo(s) sem rubrica vinculada`, status: 'divergencia', grupo: 'Contratos' });
-
-    if (termosRascunho.length > 0)
-      issues.push({ label: `${termosRascunho.length} termo(s) ainda em rascunho`, status: 'critico', grupo: 'Contratos' });
-
     return {
       relatorios: { total: reports.length, ok: relatoriosOk, divergencia: relatoriosDivergencia, critico: relatoriosCritico, aprovados: relatoriosAprovados.length, submetidos: relatoriosSubmetidos.length, semAtividades: relatoriosSemAtividades.length },
       atividades: { total: activities.length, ok: Math.max(0, atividadesOk), divergencia: atividadesDivergencia, critico: atividadesCritico, comPublico: atividadesComPublico.length, semClassificacao: atividadesSemClassificacao.length },
       publico: { total: totalPublico, ok: publicoOk, divergencia: publicoDivergencia, critico: publicoCritico, zerado: publicoZerado.length },
       nfs: { total: totalNFs, ok: nfsOk, divergencia: nfsDivergencia, critico: nfsCritico, aprovadas: nfsAprovadas.length, valor: valorTotal, semRubrica: nfsSemRubrica.length, semDoc: nfsSemDocumento.length, duplicatas: nfsDuplicatas.length },
-      termos: { total: termos.length, ok: termosOk, divergencia: termosDivergencia, critico: termosCritico, assinados: termosAssinados.length, rascunhos: termosRascunho.length },
       issues,
       totalIssues: issues.length,
       criticos: issues.filter(i => i.status === 'critico').length,
@@ -271,11 +249,11 @@ export default function PainelAuditoriaInstitucional() {
       {/* Summary strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-center">
-          <p className="text-2xl font-bold text-emerald-700">{fmtInt(audit.relatorios.aprovados + audit.atividades.ok + audit.nfs.ok + audit.termos.ok)}</p>
+          <p className="text-2xl font-bold text-emerald-700">{fmtInt(audit.relatorios.aprovados + audit.atividades.ok + audit.nfs.ok)}</p>
           <p className="text-xs text-slate-600 mt-1">Itens validados</p>
         </div>
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-center">
-          <p className="text-2xl font-bold text-amber-700">{fmtInt(audit.relatorios.divergencia + audit.atividades.divergencia + audit.nfs.divergencia + audit.termos.divergencia)}</p>
+          <p className="text-2xl font-bold text-amber-700">{fmtInt(audit.relatorios.divergencia + audit.atividades.divergencia + audit.nfs.divergencia)}</p>
           <p className="text-xs text-slate-600 mt-1">Divergências</p>
         </div>
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-center">
@@ -330,16 +308,6 @@ export default function PainelAuditoriaInstitucional() {
           extra={`${audit.nfs.aprovadas} aprovadas/pagas · ${audit.nfs.duplicatas} duplicatas removidas`}
           color="amber"
         />
-        <MetricCard
-          icon={FileSignature}
-          label="Termos de Compromisso"
-          total={audit.termos.total}
-          validado={audit.termos.ok}
-          divergencia={audit.termos.divergencia}
-          critico={audit.termos.critico}
-          extra={`${audit.termos.assinados} assinados · ${audit.termos.rascunhos} rascunhos`}
-          color="rose"
-        />
       </div>
 
       {/* Detalhamento por grupo */}
@@ -372,15 +340,6 @@ export default function PainelAuditoriaInstitucional() {
         </div>
       </Section>
 
-      <Section title="Contratos/Termos — detalhamento" icon={FileSignature} defaultOpen={audit.termos.critico > 0}>
-        <div className="space-y-1">
-          <IssueRow label={`${audit.termos.total} termos de compromisso`} status="ok" />
-          <IssueRow label={`${audit.termos.assinados} assinados/finalizados`} status={audit.termos.assinados > 0 ? 'ok' : 'divergencia'} />
-          <IssueRow label={`${audit.termos.rascunhos} ainda em rascunho`} status={audit.termos.rascunhos > 0 ? 'critico' : 'ok'} />
-          <IssueRow label={`${audit.termos.divergencia} com divergências (sem PDF ou rubrica)`} status={audit.termos.divergencia > 0 ? 'divergencia' : 'ok'} />
-        </div>
-      </Section>
-
       {/* Pendências consolidadas */}
       {audit.issues.length > 0 && (
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -389,7 +348,7 @@ export default function PainelAuditoriaInstitucional() {
             <h3 className="font-semibold text-slate-800">Todas as pendências ({audit.issues.length})</h3>
           </div>
           <div className="p-5 space-y-1">
-            {['Relatórios', 'Atividades', 'Público', 'Notas Fiscais', 'Contratos'].map(grupo => {
+            {['Relatórios', 'Atividades', 'Público', 'Notas Fiscais'].map(grupo => {
               const grupIssues = audit.issues.filter(i => i.grupo === grupo);
               if (grupIssues.length === 0) return null;
               return (
