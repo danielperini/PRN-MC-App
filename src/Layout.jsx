@@ -36,7 +36,6 @@ const PAGE_TITLES = {
   ActivityLog: 'Auditoria',
   PlataformaAdmin: 'Administração do Sistema',
   AssistentePlanejamento: 'Assistente de IA do MC',
-  Perfil: 'Perfil',
   BaseConhecimento: 'Base de Conhecimento',
   LeitorNoticias: 'Notícias',
   Manual: 'Ajuda',
