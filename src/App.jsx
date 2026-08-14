@@ -327,6 +327,7 @@ function AuthenticatedApp() {
             />
           }
         />
+        <Route path="/Perfil" element={<Navigate to="/MeusDados" replace />} />
         <Route path="/AprovacaoNFs" element={<Navigate to="/EntradaUnica" replace />} />
         <Route
           path="/RelatorioExecucaoDashboard"
