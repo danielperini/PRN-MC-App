@@ -8,7 +8,7 @@ import { base44 } from '@/api/base44Client';
  */
 export const DEFAULTS_CRITERIOS = {
   'dashboard_criterios_meta_20': {
-    meta_codigos_aceitos: ['20 -'],
+    meta_codigos_aceitos: ['20'],
     classificacoes_aceitas: [],
     palavras_chave_inclusao: [],
     palavras_chave_exclusao: [],
@@ -53,7 +53,7 @@ export function criteriosParaChave(chave) {
 export function classificarComCriterios(a, criterios) {
   if (!a || !criterios) return null;
 
-  const cod = String(a.meta_codigo || a.meta_id || '').toLowerCase();
+  const cod = String(a.meta_codigo || a.meta_id || a.meta || a.meta_titulo || '').toLowerCase();
   const nome = String(a.titulo || a.nome || a.descricao || '').toLowerCase();
   const tipo = (Array.isArray(a.tipo_acao_lista) ? a.tipo_acao_lista : [])
     .join(' ').toLowerCase();
