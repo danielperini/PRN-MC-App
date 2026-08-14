@@ -29,6 +29,7 @@ import DiariamenteNosMuseus from '../components/dashboard/DiariamenteNosMuseus';
 import { consumeDashboardPriorityRefresh } from '@/utils/dashboardRefresh';
 import SectionErrorBoundary from '@/components/common/SectionErrorBoundary';
 import WelcomeSplash from '@/components/dashboard/WelcomeSplash';
+import MigrationReconciliationAlert from '../components/dashboard/MigrationReconciliationAlert';
 
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import useMetasPeriodoFiltro from '@/hooks/useMetasPeriodoFiltro';
@@ -91,6 +92,7 @@ function DashboardCoordenadorView({
 }) {
   return (
     <div ref={containerRef} className="min-h-screen bg-background">
+      <MigrationReconciliationAlert />
       <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10 space-y-6">
         <div className="flex items-center justify-between mb-2 gap-4 flex-wrap">
           <div>
