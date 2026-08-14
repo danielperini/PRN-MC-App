@@ -9,7 +9,7 @@ const ROUTES = [
   { name: 'Relatórios', icon: FileText, path: 'Relatorios', label: 'Relatórios', root: '/Relatorios' },
   { name: 'Programação', icon: CalendarDays, path: 'ProgramacaoEspelho', label: 'Agenda', root: '/ProgramacaoEspelho' },
   { name: 'Compras', icon: ShoppingCart, path: 'Compras', label: 'Compras', root: '/Compras' },
-  { name: 'Perfil', icon: User, path: 'Perfil', label: 'Perfil', root: '/Perfil' },
+  { name: 'Meus Dados', icon: User, path: 'MeusDados', label: 'Dados', root: '/MeusDados' },
 ];
 
 export default function MobileBottomTab({ currentPageName }) {
