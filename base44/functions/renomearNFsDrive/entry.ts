@@ -20,21 +20,32 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
  */
 
 const ROOT_FOLDERS = [
+  '1qVwpSypPHyQ_IK_H2yTho46MVCzj0FrU',  // pasta mensal principal
   '1LgC94VhIomQZBS7kfkQqgBX8MVzwQqzp',  // pastas MM-YYYY
   '13Lkf42UMaHsyLb8T7Cd0TGUkM3_3YH2T',  // pastas "Mês YYYY"
   '10udE1viTbqEtoGdpMZVcRA97SkpcWNsn',   // pasta flat (julho 2026)
 ];
 
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
+const N4_VALIDOS = new Set(['1','2','3','04','12','13','15','17','18','22','23','24','41','42','46','53','99']);
 
 // ── Helpers de nome ───────────────────────────────────────────────────────────
 
 function sanitize(v: string, max = 50): string {
   return String(v || '')
+    .replace(/\bdespesa\b/gi, ' ')
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-zA-Z0-9\s\-\.]/g, ' ')
     .replace(/\s+/g, ' ').trim()
     .substring(0, max).trim();
+}
+
+function emissaoParaMes(v: any): string {
+  const s = String(v || '').trim();
+  let m = s.match(/^(\d{4})-(\d{2})-\d{2}/);
+  if (m) return `${m[2]}-${m[1]}`;
+  m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  return m ? `${m[2]}-${m[3]}` : '';
 }
 
 function parseValor(v: any): number {
@@ -52,16 +63,23 @@ function getProjeto(cc: string): string {
   return String(cc || '').toUpperCase().includes('NOTURNO') ? 'NOTURNO NOS MUSEUS 2026' : 'MUSEUS CENTRO';
 }
 
+function getN4(record: any): string {
+  const raw = sanitize(record?.n4 || record?.codigo_n4 || record?.rubrica_codigo_n4 || record?.codigo || record?.codigo_interno, 8);
+  const code = raw === '4' ? '04' : raw;
+  return N4_VALIDOS.has(code) ? code : '';
+}
+
 /** Monta o nome legível oficial a partir de dados de uma PurchaseRequest */
-function buildNameFromPR(pr: any, prefixo = 'NF'): string {
-  const num = sanitize(pr.nf_numero || pr.id?.substring(0, 8) || 'SN', 10);
-  const natureza = sanitize(pr.rubrica_nome || pr.natureza_despesa || pr.categoria || pr.descricao_item || 'Despesa', 40);
-  const fornecedor = sanitize(pr.fornecedor_nome || pr.nf_emitente_nome || 'FORNECEDOR', 50);
-  const projeto = getProjeto(pr.centro_custo || '');
+function buildNameFromPR(pr: any, ext = 'pdf'): string | null {
+  const num = sanitize(pr.nf_numero, 20);
+  const mes = emissaoParaMes(pr.nf_data_emissao || pr.data_emissao || pr.resultado_ia?.nf_data_emissao);
+  const fornecedor = sanitize(pr.fornecedor_nome || pr.nf_emitente_nome, 60);
+  const centroCusto = sanitize(pr.centro_custo || pr.projeto || getProjeto(pr.centro_custo || ''), 50);
+  // N4 é a fonte oficial informada pelo usuário. Não usar numero_natureza.
+  const n4 = getN4(pr) || getN4(pr.rubrica);
   const valor = fmtValor(pr.valor_pago || pr.valor_aprovado_admin || pr.nf_valor_total || pr.valor_solicitado || 0);
-  const ext = prefixo === 'XML' ? 'xml' : 'pdf';
-  const pref = prefixo === 'COMP' ? 'COMP NF' : prefixo;
-  return `${pref} ${num} ${natureza} - ${fornecedor} - ${projeto} - R$ ${valor}.${ext}`;
+  if (!num || !mes || !fornecedor || !centroCusto || !n4 || parseValor(valor) <= 0) return null;
+  return `NF ${num} - ${mes} - ${fornecedor} - ${centroCusto} - ${n4} - R$ ${valor}.${ext}`;
 }
 
 /**
@@ -86,6 +104,18 @@ function parseMachineName(nome: string): { nfNum: string; fornecedor: string; ti
   const fornecedor = rawFornecedor.replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
 
   return { nfNum, fornecedor, tipo, ext };
+}
+
+function parseAnyName(nome: string): { nfNum: string; fornecedor: string; tipo: string; ext: string } | null {
+  const machine = parseMachineName(nome);
+  if (machine) return machine;
+  if (!/\.(pdf|xml)$/i.test(nome) || !/^\s*(NF|NFS-e|DPS)\b/i.test(nome)) return null;
+  const nfNum = nome.match(/^\s*(?:NF|NFS-e|DPS)\s*[º°Nn.]?\s*[-_]?\s*(\d+)/i)?.[1] || '';
+  const ext = nome.toLowerCase().endsWith('.xml') ? 'xml' : 'pdf';
+  const parts = nome.replace(/\.[^.]+$/, '').split(/\s+-\s+/).map((p) => sanitize(p, 80)).filter(Boolean);
+  const dateIndex = parts.findIndex((p) => /^(0[1-9]|1[0-2])-20\d{2}$/.test(p));
+  const fornecedor = dateIndex >= 0 ? (parts[dateIndex + 1] || '') : (parts[1] || '');
+  return { nfNum, fornecedor, tipo: 'NF', ext };
 }
 
 /** Monta nome legível apenas com dados do arquivo (sem PurchaseRequest) */
@@ -156,6 +186,21 @@ async function findPR(base44: any, nfNum: string, fornecedorHint: string): Promi
   }
 }
 
+async function enrichPRWithRubrica(base44: any, pr: any): Promise<any> {
+  if (!pr || getN4(pr) || getN4(pr.rubrica)) return pr;
+  const id = pr.rubrica_id || pr.budget_line_id || pr.rubrica?.id;
+  let rubrica = null;
+  if (id) {
+    rubrica = await base44.asServiceRole.entities.Rubrica.get(id).catch(() => null)
+      || await base44.asServiceRole.entities.BudgetLine.get(id).catch(() => null);
+  }
+  if (!rubrica && pr.rubrica_nome) {
+    const rows = await base44.asServiceRole.entities.Rubrica.filter({ nome: pr.rubrica_nome }, '-updated_date', 5).catch(() => []);
+    if (rows.length === 1) rubrica = rows[0];
+  }
+  return rubrica ? { ...pr, rubrica, n4: getN4(rubrica) } : pr;
+}
+
 // ── Processar pasta (flat ou com subpastas) ───────────────────────────────────
 
 async function processarPasta(base44: any, token: string, folderId: string, dryRun: boolean, stats: any, logs: any[]) {
@@ -170,28 +215,36 @@ async function processarPasta(base44: any, token: string, folderId: string, dryR
 
     const nome = item.name;
 
-    // Só renomeia se estiver no padrão máquina
-    if (!/^\d{4}-\d{2}__/.test(nome)) {
+    // Processa tanto o padrão máquina quanto nomes legados iniciados por NF.
+    const parsed = parseAnyName(nome);
+    if (!parsed) {
       stats.ja_padrao++;
       continue;
     }
 
-    const parsed = parseMachineName(nome);
-    if (!parsed) {
+    if (!parsed.nfNum) {
       stats.nao_reconhecido++;
+      logs.push({ de: nome, status: 'revisao_manual', motivo: 'numero_nf_ausente' });
       continue;
     }
 
     // Tenta buscar dados completos no banco
-    const pr = await findPR(base44, parsed.nfNum, parsed.fornecedor);
-    let novoNome: string;
+    const foundPR = await findPR(base44, parsed.nfNum, parsed.fornecedor);
+    const pr = await enrichPRWithRubrica(base44, foundPR);
+    let novoNome: string | null;
 
     if (pr) {
-      const prefixo = parsed.tipo === 'XML' ? 'XML' : parsed.tipo === 'COMP' ? 'COMP' : 'NF';
-      novoNome = buildNameFromPR(pr, prefixo);
+      novoNome = buildNameFromPR(pr, parsed.ext);
     } else {
-      // Fallback: monta nome legível apenas com dados do arquivo
-      novoNome = buildNameFromFile(parsed);
+      // Não fabricar número, data ou rubrica. A sincronização com IA deve
+      // preencher a solicitação/DocumentIntake antes de uma nova rodada.
+      novoNome = null;
+    }
+
+    if (!novoNome) {
+      stats.nao_reconhecido++;
+      logs.push({ de: nome, status: 'revisao_manual', motivo: pr ? 'campos_obrigatorios_ausentes_numero_data_fornecedor_centro_n4_valor' : 'solicitacao_nao_localizada_para_analise_ia' });
+      continue;
     }
 
     // Garante extensão correta
