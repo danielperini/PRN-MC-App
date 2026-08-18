@@ -114,7 +114,6 @@ async function initDb() {
 app.get('/health', (_req,res) => res.json({ status:'ok', service:'appgestor-api' }));
 app.get('/db-health', async (_req,res) => { try { const r=await pool.query('SELECT NOW() AS now'); res.json({status:'ok',database:'connected',now:r.rows[0].now}); } catch(e) { res.status(500).json({status:'error',message:e.message}); } });
 
-// Base44-compatible entity GET: /api/apps/:appId/entities/:entityName
 app.get('/api/apps/:appId/entities/:entityName', requireSession, async (req,res) => {
   try {
     const table=entityTable(req.params.entityName);
@@ -157,15 +156,26 @@ app.delete('/api/apps/:appId/entities/:entityName/:id',requireSession,async(req,
   } catch(e) { console.error('ENTITY_DELETE_ERROR:',e); res.status(500).json({error:'entity_delete_failed',message:e.message}); }
 });
 
-app.post('/api/apps/:appId/integrations/Core/:operation', requireSession, (req,res) => {
-  const operation=String(req.params.operation||'').toLowerCase(); if(!['uploadfile','uploadprivatefile'].includes(operation)) return res.status(404).json({error:'integration_not_found'});
+// Base44 SDK uses this exact path for Core integrations.
+// Keep both spellings during migration so UploadFile/UploadPrivateFile work with old and new builds.
+function coreUploadHandler(req, res) {
+  const operation=String(req.params.operation||'').toLowerCase();
+  if(!['uploadfile','uploadprivatefile'].includes(operation)) return res.status(404).json({error:'integration_not_found'});
   upload.single('file')(req,res,async(err)=>{
     if(err instanceof multer.MulterError) return res.status(413).json({error:'upload_failed',message:err.code==='LIMIT_FILE_SIZE'?`Arquivo excede o limite de ${maxUploadMb} MB`:err.message,code:err.code});
-    if(err) return res.status(400).json({error:'upload_failed',message:err.message}); if(!req.file) return res.status(400).json({error:'upload_failed',message:'Nenhum arquivo recebido no campo file'});
-    try { res.json({file_url:fileUrl(req,req.file.filename),file_name:req.file.originalname,file_name_original:req.file.originalname,file_name_stored:req.file.filename,mime_type:req.file.mimetype||'application/octet-stream',size:req.file.size,operation:operation==='uploadprivatefile'?'UploadPrivateFile':'UploadFile'}); }
-    catch(e) { try{fs.unlinkSync(req.file.path);}catch{} res.status(500).json({error:'upload_failed',message:e.message}); }
+    if(err) return res.status(400).json({error:'upload_failed',message:err.message});
+    if(!req.file) return res.status(400).json({error:'upload_failed',message:'Nenhum arquivo recebido no campo file'});
+    try {
+      const response={file_url:fileUrl(req,req.file.filename),file_name:req.file.originalname,file_name_original:req.file.originalname,file_name_stored:req.file.filename,mime_type:req.file.mimetype||'application/octet-stream',size:req.file.size,operation:operation==='uploadprivatefile'?'UploadPrivateFile':'UploadFile'};
+      console.log('FILE_UPLOAD_OK',JSON.stringify({user_id:req.userId||null,original:req.file.originalname,stored:req.file.filename,mime:req.file.mimetype,size:req.file.size}));
+      res.status(200).json(response);
+    } catch(e) { try{fs.unlinkSync(req.file.path);}catch{} res.status(500).json({error:'upload_failed',message:e.message}); }
   });
-});
+}
+
+app.post('/api/apps/:appId/integrations/Core/:operation', requireSession, coreUploadHandler);
+app.post('/api/apps/:appId/integration-endpoints/Core/:operation', requireSession, coreUploadHandler);
+
 app.get('/api/files/:name',async(req,res)=>{ try { const name=path.basename(decodeURIComponent(req.params.name)); const target=path.join(uploadDir,name); if(!fs.existsSync(target)) return res.status(404).json({error:'file_not_found'}); res.sendFile(target); } catch { res.status(400).json({error:'invalid_file_name'}); } });
 
 app.get('/notifications',async(_req,res)=>{try{const r=await pool.query('SELECT * FROM notifications ORDER BY created_at DESC,id DESC');res.json(r.rows);}catch(e){res.status(500).json({error:e.message});}});
