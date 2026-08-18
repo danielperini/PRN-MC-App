@@ -69,6 +69,38 @@ const getPersistentParam = (paramName, { defaultValue = undefined, removeFromUrl
   return null;
 };
 
+const getCurrentOrigin = () => {
+  if (isNode || !window.location?.origin) return null;
+  return window.location.origin.replace(/\/$/, '');
+};
+
+const isLegacyBase44Host = (value) => {
+  if (!value) return false;
+
+  try {
+    const hostname = new URL(value).hostname.toLowerCase();
+    return (
+      hostname === 'periniprojetos.com.br' ||
+      hostname === 'www.periniprojetos.com.br' ||
+      hostname.endsWith('.base44.app')
+    );
+  } catch {
+    return false;
+  }
+};
+
+const resolveAppBaseUrl = () => {
+  const fromUrl = getUrlParam('app_base_url');
+  const configured = fromUrl || import.meta.env.VITE_BASE44_APP_BASE_URL || null;
+  const currentOrigin = getCurrentOrigin();
+
+  // Após a migração, o frontend deve falar com a própria instalação.
+  // Evita que um build antigo continue apontando para a infraestrutura Base44.
+  if (currentOrigin && isLegacyBase44Host(configured)) return currentOrigin;
+
+  return configured || currentOrigin;
+};
+
 const getAppParams = () => {
   if (getUrlParam('clear_access_token') === 'true') {
     removeStoredValue('base44_access_token');
@@ -76,21 +108,18 @@ const getAppParams = () => {
   }
 
   return {
-    // infraestrutura: sempre usar URL atual ou env atual, sem cache persistente
+    // infraestrutura: usar URL explícita somente quando ela pertence à instalação atual.
     appId: getVolatileParam('app_id', import.meta.env.VITE_BASE44_APP_ID),
     functionsVersion: getVolatileParam(
       'functions_version',
       import.meta.env.VITE_BASE44_FUNCTIONS_VERSION
     ),
-    appBaseUrl: getVolatileParam(
-      'app_base_url',
-      import.meta.env.VITE_BASE44_APP_BASE_URL
-    ),
+    appBaseUrl: resolveAppBaseUrl(),
 
     // token pode continuar persistente
     token: getPersistentParam('access_token', { removeFromUrl: true }),
 
-    fromUrl: getVolatileParam('from_url', window.location.href),
+    fromUrl: getVolatileParam('from_url', isNode ? null : window.location.href),
   };
 };
 
