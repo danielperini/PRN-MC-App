@@ -10,6 +10,9 @@ services:
     restart: unless-stopped
     ports:
       - "8081:80"
+    depends_on:
+      api:
+        condition: service_started
 
   db:
     image: postgres:16-alpine
@@ -26,6 +29,24 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  migrate:
+    image: postgres:16-alpine
+    container_name: appgestor-migrate
+    restart: "no"
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB}
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./migration/sql/004_finalize_relationships.sql:/migrations/004_finalize_relationships.sql:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-ec"]
+    command: "psql -v ON_ERROR_STOP=1 -f /migrations/004_finalize_relationships.sql"
 
   api:
     build:
@@ -48,6 +69,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     ports:
       - "127.0.0.1:3001:3000"
 
