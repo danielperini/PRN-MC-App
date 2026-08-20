@@ -5,3 +5,21 @@ dist
 *.log
 .env
 .env.production
+
+# Dados/runtime locais — nunca devem entrar no contexto da imagem web
+storage/
+backups/
+migration/
+
+# Artefatos de diagnóstico e backups locais
+core.*
+*.before-*
+*.backup
+*.bak
+*.off
+tmp-function-config-backup/
+"'\"$BACKUP\"'/"
+
+# Diretórios/arquivos temporários locais
+.tmp/
+tmp/
