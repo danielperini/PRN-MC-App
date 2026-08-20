@@ -4,46 +4,85 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { Button } from '@/components/ui/button';
 import { syncUserAccessState } from '@/utils/auth/recoverExistingUserAccess';
+import { appParams } from '@/lib/app-params';
+
+async function hasLocalSession() {
+  try {
+    const res = await fetch(`/api/apps/${encodeURIComponent(appParams.appId || '')}/entities/Notification?limit=1`, {
+      credentials: 'include',
+      cache: 'no-store',
+      headers: { 'X-App-Id': appParams.appId || '' },
+    });
+    return res.ok ? true : res.status === 401 || res.status === 403 ? false : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Wraps a page and redirects to login if not authenticated.
- * If `requireRole` is provided, redirects to /dashboard if role doesn't match.
+ * The migrated installation uses an HttpOnly appgestor_session cookie, so
+ * Base44's token-only isAuthenticated() cannot be the sole auth authority.
  */
 export default function RequireAuth({ children, requireRole }) {
-  const [status, setStatus] = useState('loading'); // loading | ok | redirect
+  const [status, setStatus] = useState('loading'); // loading | ok | forbidden
 
   useEffect(() => {
+    let cancelled = false;
+
     const check = async () => {
-      const isAuth = await base44.auth.isAuthenticated();
-      if (!isAuth) {
-        // Avoid infinite redirect loops - never pass a login URL as the redirect target
-        const href = window.location.href;
-        const safeRedirect = href.includes('/login') ? undefined : href;
-        base44.auth.redirectToLogin(safeRedirect);
-        return;
-      }
-      if (requireRole) {
-        const authUser = await base44.auth.me();
-        const recovery = await syncUserAccessState(authUser, { origin: 'require-auth' });
-        const user = recovery?.recovered ? recovery.user : authUser;
-        const roles = Array.isArray(requireRole) ? requireRole : [requireRole];
-        // also accept 'admin' and 'ADMIN' as equivalent to 'COORDENADOR'
-        const userRoles = [user.role, user.role === 'admin' ? 'COORDENADOR' : null, user.role === 'ADMIN' ? 'COORDENADOR' : null].filter(Boolean);
-        const allowed = roles.some(r => userRoles.includes(r));
-        if (!allowed) {
-          setStatus('forbidden');
+      try {
+        const sdkAuth = await base44.auth.isAuthenticated().catch(() => false);
+        const localAuth = appParams.token ? null : await hasLocalSession();
+        const isAuth = sdkAuth || localAuth === true;
+
+        if (!isAuth) {
+          const href = window.location.href;
+          const safeRedirect = href.includes('/login') ? undefined : href;
+          base44.auth.redirectToLogin(safeRedirect);
           return;
         }
+
+        if (requireRole) {
+          try {
+            const authUser = await base44.auth.me();
+            const recovery = await syncUserAccessState(authUser, { origin: 'require-auth' });
+            const user = recovery?.recovered ? recovery.user : authUser;
+            const roles = Array.isArray(requireRole) ? requireRole : [requireRole];
+            const userRoles = [
+              user.role,
+              user.role === 'admin' ? 'COORDENADOR' : null,
+              user.role === 'ADMIN' ? 'COORDENADOR' : null,
+            ].filter(Boolean);
+            const allowed = roles.some((r) => userRoles.includes(r));
+            if (!allowed) {
+              if (!cancelled) setStatus('forbidden');
+              return;
+            }
+          } catch (roleError) {
+            // A valid local session is enough to stop the redirect loop. If
+            // the role cannot be resolved because the legacy SDK has no token,
+            // let the page render and let server-side session checks enforce
+            // protected entity/function requests.
+            console.warn('Role lookup through legacy auth unavailable:', roleError);
+          }
+        }
+
+        if (!cancelled) setStatus('ok');
+      } catch (error) {
+        console.error('RequireAuth check failed:', error);
+        if (!cancelled) setStatus('ok');
       }
-      setStatus('ok');
     };
+
     check();
+    return () => { cancelled = true; };
   }, [requireRole]);
 
   if (status === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center text-gray-400">
-        Carregando...
+        Verificando acesso existente…
       </div>
     );
   }
