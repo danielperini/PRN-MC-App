@@ -6,13 +6,30 @@ import { trackUserLoginOnce } from '@/lib/userLoginMonitoring';
 
 const AuthContext = createContext();
 
+async function probeLocalSession() {
+  try {
+    const res = await fetch(`/api/apps/${encodeURIComponent(appParams.appId || '')}/entities/Notification?limit=1`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: { 'X-App-Id': appParams.appId || '' },
+      cache: 'no-store',
+    });
+    if (res.ok) return true;
+    if (res.status === 401 || res.status === 403) return false;
+    return null;
+  } catch (error) {
+    console.warn('Local session probe failed:', error);
+    return null;
+  }
+}
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(true);
   const [authError, setAuthError] = useState(null);
-  const [appPublicSettings, setAppPublicSettings] = useState(null); // Contains only { id, public_settings }
+  const [appPublicSettings, setAppPublicSettings] = useState(null);
 
   useEffect(() => {
     checkAppState();
@@ -27,7 +44,11 @@ export const AuthProvider = ({ children }) => {
         const headers = { 'X-App-Id': appParams.appId };
         if (appParams.token) headers['Authorization'] = `Bearer ${appParams.token}`;
 
-        const res = await fetch(`/api/apps/public/prod/public-settings/by-id/${appParams.appId}`, { headers });
+        const res = await fetch(`/api/apps/public/prod/public-settings/by-id/${appParams.appId}`, {
+          headers,
+          credentials: 'include',
+          cache: 'no-store',
+        });
 
         if (res.ok) {
           const publicSettings = await res.json();
@@ -36,8 +57,23 @@ export const AuthProvider = ({ children }) => {
           if (appParams.token) {
             await checkUserAuth();
           } else {
-            setIsLoadingAuth(false);
-            setIsAuthenticated(false);
+            // The migrated installation authenticates with the HttpOnly
+            // appgestor_session cookie, not a Base44 access_token. Do not
+            // mark the user as logged out merely because the token is null.
+            const localSession = await probeLocalSession();
+            if (localSession === true) {
+              setIsAuthenticated(true);
+              setIsLoadingAuth(false);
+            } else if (localSession === false) {
+              setIsAuthenticated(false);
+              setAuthError({ type: 'auth_required', message: 'Authentication required' });
+              setIsLoadingAuth(false);
+            } else {
+              // Keep the old behavior only when the local installation cannot
+              // be reached at all; this avoids an authentication redirect loop.
+              setIsAuthenticated(false);
+              setIsLoadingAuth(false);
+            }
           }
           setIsLoadingPublicSettings(false);
         } else {
@@ -46,7 +82,13 @@ export const AuthProvider = ({ children }) => {
 
           if (res.status === 403 && reason) {
             if (reason === 'auth_required') {
-              setAuthError({ type: 'auth_required', message: 'Authentication required' });
+              const localSession = await probeLocalSession();
+              if (localSession === true) {
+                setIsAuthenticated(true);
+                setAuthError(null);
+              } else {
+                setAuthError({ type: 'auth_required', message: 'Authentication required' });
+              }
             } else if (reason === 'user_not_registered') {
               const recovery = await recoverExistingUserAccess(null, { origin: 'public-settings-user-not-registered' });
               if (recovery.recovered) {
@@ -82,7 +124,6 @@ export const AuthProvider = ({ children }) => {
 
   const checkUserAuth = async () => {
     try {
-      // Now check if the user is authenticated
       setIsLoadingAuth(true);
       const currentUser = await base44.auth.me();
       const normalizedEmail = normalizeEmail(currentUser.email);
@@ -126,41 +167,38 @@ export const AuthProvider = ({ children }) => {
       trackUserLoginOnce(authenticatedUser);
     } catch (error) {
       console.error('User auth check failed:', error);
-      setIsLoadingAuth(false);
-      setIsAuthenticated(false);
-      
-      // If user auth fails, it might be an expired token
-      if (error.status === 401 || error.status === 403) {
-        setAuthError({
-          type: 'auth_required',
-          message: 'Authentication required'
-        });
+      const localSession = await probeLocalSession();
+      if (localSession === true) {
+        setAuthError(null);
+        setIsAuthenticated(true);
+      } else {
+        setIsAuthenticated(false);
+        if (error.status === 401 || error.status === 403) {
+          setAuthError({ type: 'auth_required', message: 'Authentication required' });
+        }
       }
+      setIsLoadingAuth(false);
     }
   };
 
   const logout = (shouldRedirect = true) => {
     setUser(null);
     setIsAuthenticated(false);
-    
     if (shouldRedirect) {
-      // Use the SDK's logout method which handles token cleanup and redirect
       base44.auth.logout(window.location.href);
     } else {
-      // Just remove the token without redirect
       base44.auth.logout();
     }
   };
 
   const navigateToLogin = () => {
-    // Use the SDK's redirectToLogin method
     base44.auth.redirectToLogin(window.location.href);
   };
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      isAuthenticated, 
+    <AuthContext.Provider value={{
+      user,
+      isAuthenticated,
       isLoadingAuth,
       isLoadingPublicSettings,
       authError,
