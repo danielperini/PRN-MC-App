@@ -1,3 +1,4 @@
+import { installSafeAuthRedirect } from '@/lib/sanitizeAuthRedirect';
 import { createClient } from '@base44/sdk';
 import { appParams } from '@/lib/app-params';
 import { filtrarMetas3e4Aditivos } from '@/utils/metasAditivosPermitidos';
@@ -378,3 +379,4 @@ if (functionsApi?.invoke) {
 // em vez de base44.integrations.Core.* — roteia para a função backend
 // `invokeGpt` (chave OPENAI_API_KEY). O objeto Core do SDK NÃO aceita
 // sobrescrita, por isso a troca é feita em cada componente.
+installSafeAuthRedirect(base44);
