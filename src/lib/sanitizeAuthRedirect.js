@@ -23,6 +23,12 @@ export function installAuthRedirectGuard(client = base44) {
   const auth = client?.auth;
   if (!auth || typeof auth.redirectToLogin !== 'function' || auth.__appgestorSafeRedirect) return;
 
+  // Preserve the SDK's real login redirect. The local /login route is only
+  // the safe landing page; it must not recursively replace itself.
+  if (typeof auth.__appgestorOriginalRedirectToLogin !== 'function') {
+    auth.__appgestorOriginalRedirectToLogin = auth.redirectToLogin.bind(auth);
+  }
+
   auth.__appgestorSafeRedirect = true;
   auth.redirectToLogin = (nextUrl) => {
     if (window.location.pathname === '/login') return;
