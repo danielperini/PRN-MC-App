@@ -9,6 +9,7 @@ import ErrorBoundary from './lib/ErrorBoundary';
 import AccessDenied from './lib/AccessDenied';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
+import Login from '@/pages/Login';
 import { PatrocinadorViewProvider } from '@/context/PatrocinadorViewContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { base44 } from '@/api/base44Client';
@@ -18,7 +19,7 @@ import { normalizeEmail } from '@/utils/auth/recoverExistingUserAccess';
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 const MainPage = mainPageKey ? Pages[mainPageKey] : null;
-const PUBLIC_ROUTES = new Set(['/Cadastro', '/Home']);
+const PUBLIC_ROUTES = new Set(['/Cadastro', '/Home', '/login']);
 const PERMISSION_TIMEOUT_MS = 2200;
 const PERMISSION_CACHE_TTL_MS = 10 * 60 * 1000;
 const PERMISSION_RATE_LIMIT_COOLDOWN_MS = 90 * 1000;
@@ -224,7 +225,9 @@ function AuthenticatedApp() {
   } = useAuth();
   const location = useLocation();
   const publicPageName = location.pathname.replace(/^\//, '') || 'Home';
-  const PublicPage = PUBLIC_ROUTES.has(location.pathname) ? Pages[publicPageName] : null;
+  const PublicPage = location.pathname === '/login'
+    ? Login
+    : (PUBLIC_ROUTES.has(location.pathname) ? Pages[publicPageName] : null);
 
   if (isLoadingPublicSettings || isLoadingAuth) return <LoadingScreen />;
 
@@ -254,6 +257,7 @@ function AuthenticatedApp() {
   return (
     <div key={location.pathname}>
       <Routes>
+        <Route path="/login" element={<Login />} />
         <Route path="/" element={<SafePage Page={MainPage} pageName={mainPageKey} />} />
 
         {Object.entries(Pages).map(([path, Page]) => (
@@ -438,9 +442,6 @@ function App() {
                 position="top-right"
                 richColors
                 expand={false}
-                visibleToasts={3}
-                duration={3000}
-                closeButton
               />
             </QueryClientProvider>
           </PatrocinadorViewProvider>
