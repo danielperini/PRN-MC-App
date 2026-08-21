@@ -30,6 +30,7 @@ import GestorArquivos from './pages/GestorArquivos';
 import HelpManagement from './pages/HelpManagement';
 import Home from './pages/Home';
 import LeitorNoticias from './pages/LeitorNoticias';
+import Login from './pages/Login';
 import Manual from './pages/Manual';
 import MeusDados from './pages/MeusDados';
 import MhaabMap from './pages/MhaabMap';
@@ -90,6 +91,7 @@ export const PAGES = {
   HelpManagement,
   Home,
   LeitorNoticias,
+  login: Login,
   Manual,
   MeusDados,
   MhaabMap,
