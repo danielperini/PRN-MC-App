@@ -23,6 +23,11 @@ async function probeLocalSession() {
   }
 }
 
+function navigateToLoginSafely() {
+  if (typeof window === 'undefined' || window.location.pathname === '/login') return;
+  window.location.assign('/login');
+}
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -39,6 +44,15 @@ export const AuthProvider = ({ children }) => {
     try {
       setIsLoadingPublicSettings(true);
       setAuthError(null);
+
+      // /login is a terminal public route. Never run authenticated-app probing
+      // from it, otherwise an auth failure can recursively append from_url.
+      if (typeof window !== 'undefined' && window.location.pathname === '/login') {
+        setIsAuthenticated(false);
+        setIsLoadingAuth(false);
+        setIsLoadingPublicSettings(false);
+        return;
+      }
 
       try {
         const headers = { 'X-App-Id': appParams.appId };
@@ -57,9 +71,6 @@ export const AuthProvider = ({ children }) => {
           if (appParams.token) {
             await checkUserAuth();
           } else {
-            // The migrated installation authenticates with the HttpOnly
-            // appgestor_session cookie, not a Base44 access_token. Do not
-            // mark the user as logged out merely because the token is null.
             const localSession = await probeLocalSession();
             if (localSession === true) {
               setIsAuthenticated(true);
@@ -69,8 +80,6 @@ export const AuthProvider = ({ children }) => {
               setAuthError({ type: 'auth_required', message: 'Authentication required' });
               setIsLoadingAuth(false);
             } else {
-              // Keep the old behavior only when the local installation cannot
-              // be reached at all; this avoids an authentication redirect loop.
               setIsAuthenticated(false);
               setIsLoadingAuth(false);
             }
@@ -185,18 +194,14 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     setIsAuthenticated(false);
     if (shouldRedirect) {
-      base44.auth.logout(window.location.href);
+      base44.auth.logout();
+      navigateToLoginSafely();
     } else {
       base44.auth.logout();
     }
   };
 
-  const navigateToLogin = () => {
-    if (typeof window === 'undefined' || window.location.pathname === '/login') return;
-    const relativeUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-    const params = new URLSearchParams({ from_url: relativeUrl });
-    window.location.assign(`/login?${params.toString()}`);
-  };
+  const navigateToLogin = navigateToLoginSafely;
 
   return (
     <AuthContext.Provider value={{
@@ -210,7 +215,7 @@ export const AuthProvider = ({ children }) => {
       navigateToLogin,
       checkAppState,
       checkUserAuth,
-      authChecked: !isLoadingAuth
+      authChecked: !isLoadingAuth,
     }}>
       {children}
     </AuthContext.Provider>
