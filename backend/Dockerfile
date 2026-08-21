@@ -5,7 +5,8 @@ WORKDIR /app
 RUN npm init -y && npm install express pg multer socket.io
 
 COPY server.mjs ./
+COPY auth-bootstrap.mjs ./
 
 EXPOSE 3000
 
-CMD ["node", "server.mjs"]
+CMD ["node", "--import", "./auth-bootstrap.mjs", "server.mjs"]
