@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import '@/lib/sanitizeAuthRedirect';
 import { appParams } from '@/lib/app-params';
 import { validateUserAccess, recoverExistingUserAccess, normalizeEmail } from '@/utils/auth/recoverExistingUserAccess';
 import { trackUserLoginOnce } from '@/lib/userLoginMonitoring';
@@ -45,8 +46,6 @@ export const AuthProvider = ({ children }) => {
       setIsLoadingPublicSettings(true);
       setAuthError(null);
 
-      // /login is a terminal public route. Never run authenticated-app probing
-      // from it, otherwise an auth failure can recursively append from_url.
       if (typeof window !== 'undefined' && window.location.pathname === '/login') {
         setIsAuthenticated(false);
         setIsLoadingAuth(false);
