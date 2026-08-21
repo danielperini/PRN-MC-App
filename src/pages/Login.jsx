@@ -5,8 +5,16 @@ import { base44 } from '@/api/base44Client';
 
 export default function Login() {
   const handleLogin = () => {
-    const nextUrl = `${window.location.origin}/`;
-    base44.auth.redirectToLogin(nextUrl);
+    const redirect = base44?.auth?.__appgestorOriginalRedirectToLogin;
+    const nextUrl = new URLSearchParams(window.location.search).get('from_url') || `${window.location.origin}/`;
+
+    if (typeof redirect === 'function') {
+      redirect(nextUrl);
+      return;
+    }
+
+    // Fallback only if the SDK did not expose its original redirect method.
+    window.location.assign('/login');
   };
 
   const handleCadastro = () => {
