@@ -1,3 +1,5 @@
+import { base44 } from '@/api/base44Client';
+
 const MAX_REDIRECT_LENGTH = 1200;
 
 function cleanReturnPath(value) {
@@ -5,8 +7,6 @@ function cleanReturnPath(value) {
 
   try {
     const target = new URL(value || '/', window.location.origin);
-    // Never allow the login URL itself (or an encoded copy of it) to become
-    // the nextUrl. That is what creates the recursive from_url chain.
     if (target.pathname === '/login') return '/';
 
     target.searchParams.delete('from_url');
@@ -18,15 +18,13 @@ function cleanReturnPath(value) {
   }
 }
 
-export function installAuthRedirectGuard(base44) {
+export function installAuthRedirectGuard(client = base44) {
   if (typeof window === 'undefined') return;
-  const auth = base44?.auth;
+  const auth = client?.auth;
   if (!auth || typeof auth.redirectToLogin !== 'function' || auth.__appgestorSafeRedirect) return;
 
   auth.__appgestorSafeRedirect = true;
   auth.redirectToLogin = (nextUrl) => {
-    // If the browser is already on login, doing another login redirect is
-    // always a loop. Stay put and let the login surface handle authentication.
     if (window.location.pathname === '/login') return;
 
     const returnPath = cleanReturnPath(nextUrl || window.location.href);
@@ -37,3 +35,5 @@ export function installAuthRedirectGuard(base44) {
     window.location.replace(loginUrl);
   };
 }
+
+installAuthRedirectGuard();
