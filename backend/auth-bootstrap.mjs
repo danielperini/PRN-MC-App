@@ -1,6 +1,7 @@
 import express from 'express';
 import pg from 'pg';
 import crypto from 'node:crypto';
+import bcrypt from 'bcryptjs';
 
 const { Pool } = pg;
 const pool = new Pool({
@@ -11,19 +12,29 @@ const pool = new Pool({
   password: process.env.POSTGRES_PASSWORD || '',
 });
 
-const APP_ID = process.env.APP_ID || '6a11dbeecf8f7a5977ffc750';
 const SESSION_DAYS = Number(process.env.SESSION_DAYS || 30);
-const cookieName = 'appgestor_session';
+const COOKIE = 'appgestor_session';
+const APP_ORIGIN = process.env.PUBLIC_BASE_URL || 'https://appgestor.periniprojetos.com.br';
 
-function token() { return crypto.randomBytes(32).toString('hex'); }
-function hash(value) { return crypto.createHash('sha256').update(String(value)).digest('hex'); }
-function safeUser(row) {
+const randomToken = () => crypto.randomBytes(32).toString('hex');
+const hashToken = (value) => crypto.createHash('sha256').update(String(value)).digest('hex');
+
+function cookies(req) {
+  const raw = String(req.headers.cookie || '');
+  return Object.fromEntries(raw.split(';').map(v => v.trim()).filter(Boolean).map(v => {
+    const i = v.indexOf('=');
+    return [i < 0 ? v : v.slice(0, i), i < 0 ? '' : decodeURIComponent(v.slice(i + 1))];
+  }));
+}
+
+function publicUser(row) {
   if (!row) return null;
   const out = { ...row };
-  delete out.password_hash;
   delete out.password;
+  delete out.password_hash;
   return out;
 }
+
 async function ensureAuthSchema() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS auth_sessions (
@@ -37,65 +48,55 @@ async function ensureAuthSchema() {
     CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id);
   `);
 }
-function setSession(res, userId) {
-  const raw = token();
-  const expires = new Date(Date.now() + SESSION_DAYS * 86400000);
-  return pool.query(
+
+async function createSession(res, userId) {
+  const accessToken = randomToken();
+  const expiresAt = new Date(Date.now() + SESSION_DAYS * 86400000);
+  await pool.query(
     `INSERT INTO auth_sessions(user_id, session_token_hash, expires_at) VALUES($1,$2,$3)`,
-    [String(userId), hash(raw), expires]
-  ).then(() => {
-    res.cookie = res.cookie || (() => {});
-    res.setHeader('Set-Cookie', `${cookieName}=${encodeURIComponent(raw)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_DAYS * 86400}`);
-    return raw;
-  });
-}
-function parseCookies(req) {
-  const raw = String(req.headers.cookie || '');
-  return Object.fromEntries(raw.split(';').map(x => x.trim()).filter(Boolean).map(x => {
-    const i = x.indexOf('=');
-    return [x.slice(0, i), i >= 0 ? decodeURIComponent(x.slice(i + 1)) : ''];
-  }));
+    [String(userId), hashToken(accessToken), expiresAt]
+  );
+  res.setHeader('Set-Cookie', `${COOKIE}=${encodeURIComponent(accessToken)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_DAYS * 86400}`);
+  return accessToken;
 }
 
-function installAuth(app) {
+async function installAuth(app) {
+  await ensureAuthSchema().catch(e => console.error('AUTH_SCHEMA_INIT_ERROR', e));
+
   app.use(async (req, res, next) => {
-    if (req.path === `/api/apps/${APP_ID}/entities/User/me` && req.method === 'GET') {
-      try {
-        await ensureAuthSchema();
-        const raw = parseCookies(req)[cookieName];
-        if (!raw) return res.status(401).json({ error: 'unauthorized' });
-        const s = await pool.query(`SELECT user_id FROM auth_sessions WHERE session_token_hash=$1 AND expires_at>NOW() LIMIT 1`, [hash(raw)]);
-        if (!s.rowCount) return res.status(401).json({ error: 'session_invalid' });
-        const user = await pool.query(`SELECT * FROM users WHERE id=$1 LIMIT 1`, [s.rows[0].user_id]);
-        if (!user.rowCount) return res.status(401).json({ error: 'user_not_found' });
-        return res.json(safeUser(user.rows[0]));
-      } catch (e) {
-        console.error('AUTH_ME_ERROR', e);
-        return res.status(500).json({ error: 'authentication_error', message: e.message });
-      }
+    if (req.method !== 'GET' || !/^\/api\/apps\/[^/]+\/entities\/User\/me$/.test(req.path)) return next();
+    try {
+      const raw = cookies(req)[COOKIE];
+      if (!raw) return res.status(401).json({ error: 'unauthorized' });
+      const session = await pool.query(
+        `SELECT user_id FROM auth_sessions WHERE session_token_hash=$1 AND expires_at>NOW() LIMIT 1`,
+        [hashToken(raw)]
+      );
+      if (!session.rowCount) return res.status(401).json({ error: 'session_invalid' });
+      const user = await pool.query(`SELECT * FROM users WHERE id=$1 LIMIT 1`, [session.rows[0].user_id]);
+      if (!user.rowCount) return res.status(401).json({ error: 'user_not_found' });
+      return res.json(publicUser(user.rows[0]));
+    } catch (e) {
+      console.error('AUTH_ME_ERROR', e);
+      return res.status(500).json({ error: 'authentication_error', message: e.message });
     }
-    next();
   });
 
-  app.post(`/api/apps/${APP_ID}/auth/login`, async (req, res) => {
+  app.post(/^\/api\/apps\/[^/]+\/auth\/login$/, async (req, res) => {
     try {
-      await ensureAuthSchema();
       const email = String(req.body?.email || '').trim().toLowerCase();
       const password = String(req.body?.password || '');
       if (!email || !password) return res.status(400).json({ error: 'email_and_password_required' });
       const result = await pool.query(`SELECT * FROM users WHERE lower(email)=lower($1) LIMIT 1`, [email]);
       if (!result.rowCount) return res.status(401).json({ error: 'invalid_credentials' });
       const user = result.rows[0];
-      const stored = String(user.password_hash || user.password || '');
+      const stored = String(user.password_hash || '');
       let valid = false;
-      if (stored.startsWith('sha256:')) valid = hash(password) === stored.slice(7);
-      else if (stored) valid = stored === password;
+      if (stored.startsWith('$2a$') || stored.startsWith('$2b$') || stored.startsWith('$2y$')) valid = await bcrypt.compare(password, stored);
+      else if (stored.startsWith('sha256:')) valid = crypto.createHash('sha256').update(password).digest('hex') === stored.slice(7);
       if (!valid) return res.status(401).json({ error: 'invalid_credentials' });
-      const accessToken = token();
-      const expires = new Date(Date.now() + SESSION_DAYS * 86400000);
-      await pool.query(`INSERT INTO auth_sessions(user_id, session_token_hash, expires_at) VALUES($1,$2,$3)`, [String(user.id), hash(accessToken), expires]);
-      res.setHeader('Set-Cookie', `${cookieName}=${encodeURIComponent(accessToken)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_DAYS * 86400}`);
-      return res.json({ access_token: accessToken, user: safeUser(user) });
+      const accessToken = await createSession(res, user.id);
+      return res.json({ access_token: accessToken, user: publicUser(user) });
     } catch (e) {
       console.error('AUTH_LOGIN_ERROR', e);
       return res.status(500).json({ error: 'authentication_error', message: e.message });
@@ -104,15 +105,16 @@ function installAuth(app) {
 
   app.get('/api/apps/auth/logout', async (req, res) => {
     try {
-      await ensureAuthSchema();
-      const raw = parseCookies(req)[cookieName];
-      if (raw) await pool.query(`DELETE FROM auth_sessions WHERE session_token_hash=$1`, [hash(raw)]);
+      const raw = cookies(req)[COOKIE];
+      if (raw) await pool.query(`DELETE FROM auth_sessions WHERE session_token_hash=$1`, [hashToken(raw)]);
     } catch (e) { console.error('AUTH_LOGOUT_ERROR', e); }
-    res.setHeader('Set-Cookie', `${cookieName}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`);
-    const from = String(req.query?.from_url || '/');
-    const target = /^https:\/\/appgestor\.periniprojetos\.com\.br(\/|$)/.test(from) ? from : '/login';
-    res.redirect(target);
+    res.setHeader('Set-Cookie', `${COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`);
+    const from = String(req.query?.from_url || '/login');
+    const safe = from.startsWith(APP_ORIGIN) ? from : '/login';
+    res.redirect(safe);
   });
+
+  console.log('Local auth compatibility installed');
 }
 
 const originalGet = express.application.get;
@@ -121,8 +123,7 @@ express.application.get = function patchedGet(path, ...handlers) {
   const result = originalGet.call(this, path, ...handlers);
   if (!installed && path === '/health') {
     installed = true;
-    installAuth(this);
-    console.log('Local auth compatibility installed');
+    void installAuth(this);
   }
   return result;
 };
