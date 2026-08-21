@@ -19,6 +19,19 @@ async function hasLocalSession() {
   }
 }
 
+function redirectToLocalLogin() {
+  if (typeof window === 'undefined') return;
+
+  // Never redirect the login page to itself. The old SDK helper could use
+  // window.location.href as its fallback and recursively wrap /login in
+  // from_url, eventually producing a 414 Request-URI Too Large.
+  if (window.location.pathname === '/login') return;
+
+  const relativeUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  const params = new URLSearchParams({ from_url: relativeUrl });
+  window.location.assign(`/login?${params.toString()}`);
+}
+
 /**
  * Wraps a page and redirects to login if not authenticated.
  * The migrated installation uses an HttpOnly appgestor_session cookie, so
@@ -37,9 +50,7 @@ export default function RequireAuth({ children, requireRole }) {
         const isAuth = sdkAuth || localAuth === true;
 
         if (!isAuth) {
-          const href = window.location.href;
-          const safeRedirect = href.includes('/login') ? undefined : href;
-          base44.auth.redirectToLogin(safeRedirect);
+          redirectToLocalLogin();
           return;
         }
 
