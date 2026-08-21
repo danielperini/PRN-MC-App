@@ -192,7 +192,10 @@ export const AuthProvider = ({ children }) => {
   };
 
   const navigateToLogin = () => {
-    base44.auth.redirectToLogin(window.location.href);
+    if (typeof window === 'undefined' || window.location.pathname === '/login') return;
+    const relativeUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    const params = new URLSearchParams({ from_url: relativeUrl });
+    window.location.assign(`/login?${params.toString()}`);
   };
 
   return (
