@@ -6,6 +6,7 @@ import { validateUserAccess, recoverExistingUserAccess, normalizeEmail } from '@
 import { trackUserLoginOnce } from '@/lib/userLoginMonitoring';
 
 const AuthContext = createContext();
+const hasLocalUser = (value) => Boolean(value && typeof value === 'object' && !Array.isArray(value));
 
 async function probeLocalSession() {
   try {
@@ -67,11 +68,13 @@ export const AuthProvider = ({ children }) => {
           if (appParams.token) {
             await checkUserAuth();
           } else {
-            const localSession = await probeLocalSession();
-            if (localSession && localSession !== false) {
+            const localUser = await probeLocalSession();
+            if (hasLocalUser(localUser)) {
+              setUser(localUser);
               setIsAuthenticated(true);
+              setAuthError(null);
               setIsLoadingAuth(false);
-            } else if (localSession === false) {
+            } else if (localUser === false) {
               setIsAuthenticated(false);
               setAuthError({ type: 'auth_required', message: 'Authentication required' });
               setIsLoadingAuth(false);
@@ -87,8 +90,9 @@ export const AuthProvider = ({ children }) => {
 
           if (res.status === 403 && reason) {
             if (reason === 'auth_required') {
-              const localSession = await probeLocalSession();
-              if (localSession === true) {
+              const localUser = await probeLocalSession();
+              if (hasLocalUser(localUser)) {
+                setUser(localUser);
                 setIsAuthenticated(true);
                 setAuthError(null);
               } else {
@@ -172,8 +176,9 @@ export const AuthProvider = ({ children }) => {
       trackUserLoginOnce(authenticatedUser);
     } catch (error) {
       console.error('User auth check failed:', error);
-      const localSession = await probeLocalSession();
-      if (localSession === true) {
+      const localUser = await probeLocalSession();
+      if (hasLocalUser(localUser)) {
+        setUser(localUser);
         setAuthError(null);
         setIsAuthenticated(true);
       } else {
