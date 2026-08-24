@@ -5,16 +5,8 @@ import { base44 } from '@/api/base44Client';
 
 export default function Login() {
   const handleLogin = () => {
-    const redirect = base44?.auth?.__appgestorOriginalRedirectToLogin;
     const nextUrl = new URLSearchParams(window.location.search).get('from_url') || `${window.location.origin}/`;
-
-    if (typeof redirect === 'function') {
-      redirect(nextUrl);
-      return;
-    }
-
-    // Fallback only if the SDK did not expose its original redirect method.
-    window.location.assign('/login');
+    window.location.assign(`/api/auth/google?return_to=${encodeURIComponent(nextUrl)}`);
   };
 
   const handleCadastro = () => {
@@ -32,13 +24,13 @@ export default function Login() {
           Use seu acesso Google, Microsoft ou e-mail para continuar.
         </p>
 
-        <Button
-          className="w-full mt-8 bg-black hover:bg-slate-800 text-white gap-2"
-          onClick={handleLogin}
+        <a
+          href="/api/auth/google?return_to=%2F"
+          className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
         >
           <LogIn className="w-4 h-4" />
-          Entrar
-        </Button>
+          Entrar com Google
+        </a>
 
         <Button
           variant="outline"

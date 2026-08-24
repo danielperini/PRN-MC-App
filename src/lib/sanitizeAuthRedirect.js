@@ -1,45 +1,60 @@
-import { base44 } from '@/api/base44Client';
+export function installSafeAuthRedirect(base44) {
+  const auth = base44?.auth;
 
-const MAX_REDIRECT_LENGTH = 1200;
-
-function cleanReturnPath(value) {
-  if (typeof window === 'undefined') return '/';
-
-  try {
-    const target = new URL(value || '/', window.location.origin);
-    if (target.pathname === '/login') return '/';
-
-    target.searchParams.delete('from_url');
-    const query = target.searchParams.toString();
-    const result = `${target.pathname}${query ? `?${query}` : ''}${target.hash || ''}`;
-    return result.length <= MAX_REDIRECT_LENGTH ? result : '/';
-  } catch {
-    return '/';
-  }
-}
-
-export function installAuthRedirectGuard(client = base44) {
-  if (typeof window === 'undefined') return;
-  const auth = client?.auth;
-  if (!auth || typeof auth.redirectToLogin !== 'function' || auth.__appgestorSafeRedirect) return;
-
-  // Preserve the SDK's real login redirect. The local /login route is only
-  // the safe landing page; it must not recursively replace itself.
-  if (typeof auth.__appgestorOriginalRedirectToLogin !== 'function') {
-    auth.__appgestorOriginalRedirectToLogin = auth.redirectToLogin.bind(auth);
+  if (
+    !auth ||
+    typeof auth.redirectToLogin !== 'function' ||
+    auth.__appgestorSafeRedirect
+  ) {
+    return;
   }
 
-  auth.__appgestorSafeRedirect = true;
+  const original = auth.redirectToLogin.bind(auth);
+
+  auth.__appgestorOriginalRedirectToLogin = original;
+
   auth.redirectToLogin = (nextUrl) => {
-    if (window.location.pathname === '/login') return;
+    if (typeof window === 'undefined') return;
 
-    const returnPath = cleanReturnPath(nextUrl || window.location.href);
-    const loginUrl = returnPath === '/'
-      ? '/login'
-      : `/login?from_url=${encodeURIComponent(`${window.location.origin}${returnPath}`)}`;
+    const pathname = window.location.pathname;
+
+    // Nunca interceptar o próprio login.
+    if (pathname === '/login') return;
+
+    // O OAuth Google deve ir diretamente para o backend.
+    if (
+      pathname === '/api/auth/google' ||
+      pathname === '/api/apps/auth/google'
+    ) {
+      return;
+    }
+
+    let target = String(nextUrl || '/');
+
+    try {
+      const url = new URL(target, window.location.origin);
+
+      if (url.pathname === '/login') {
+        target = '/';
+      } else if (url.origin === window.location.origin) {
+        url.searchParams.delete('from_url');
+        target = url.pathname + url.search + url.hash;
+      } else {
+        target = '/';
+      }
+    } catch {
+      target = '/';
+    }
+
+    const loginUrl =
+      target === '/'
+        ? '/login'
+        : `/login?from_url=${encodeURIComponent(
+            `${window.location.origin}${target}`
+          )}`;
 
     window.location.replace(loginUrl);
   };
-}
 
-installAuthRedirectGuard();
+  auth.__appgestorSafeRedirect = true;
+}

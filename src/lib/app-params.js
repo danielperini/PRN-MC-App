@@ -119,7 +119,12 @@ const getAppParams = () => {
     // token pode continuar persistente
     token: getPersistentParam('access_token', { removeFromUrl: true }),
 
-    fromUrl: getVolatileParam('from_url', isNode ? null : window.location.href),
+    fromUrl: getVolatileParam(
+      'from_url',
+      isNode || window.location.pathname === '/login'
+        ? null
+        : window.location.href
+    ),
   };
 };
 
