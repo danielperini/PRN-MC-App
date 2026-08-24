@@ -99,14 +99,22 @@ export const AuthProvider = ({ children }) => {
                 setAuthError({ type: 'auth_required', message: 'Authentication required' });
               }
             } else if (reason === 'user_not_registered') {
-              const recovery = await recoverExistingUserAccess(null, { origin: 'public-settings-user-not-registered' });
-              if (recovery.recovered) {
+              const localUser = await probeLocalSession();
+              if (hasLocalUser(localUser)) {
+                setUser(localUser);
+                setIsAuthenticated(true);
+                setAuthError(null);
+                trackUserLoginOnce(localUser);
+              } else {
+                const recovery = await recoverExistingUserAccess(null, { origin: 'public-settings-user-not-registered' });
+                if (recovery.recovered) {
                 setUser(recovery.user);
                 setIsAuthenticated(true);
                 setAuthError(null);
                 trackUserLoginOnce(recovery.user);
-              } else {
-                setAuthError({ type: 'user_not_registered', message: 'User not registered for this app' });
+                } else {
+                  setAuthError({ type: 'user_not_registered', message: 'User not registered for this app' });
+                }
               }
             } else {
               setAuthError({ type: reason, message: errorData.message || 'Access denied' });
