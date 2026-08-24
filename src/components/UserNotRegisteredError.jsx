@@ -4,7 +4,7 @@ import { Building2, LogIn, Send, CheckCircle, ChevronRight, Clock } from 'lucide
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { recoverExistingUserAccess, normalizeEmail } from '@/utils/auth/recoverExistingUserAccess';
+import { appParams } from '@/lib/app-params';
 
 const MUSEUS = ['MHAB', 'MIS', 'MUMO', 'Atuação Geral'];
 const ROLES = [
@@ -41,49 +41,35 @@ const UserNotRegisteredError = () => {
   const [recoveringAccess, setRecoveringAccess] = useState(true);
 
 
-  // Tentar pré-preencher com dados do usuário autenticado
   useEffect(() => {
-    base44.auth.me().then(async (u) => {
-      if (u?.email) {
-        const email = normalizeEmail(u.email);
-        setUserEmail(email);
-        setUserName(u.full_name || '');
-        setForm(prev => ({
-          ...prev,
-          email,
-          full_name: u.full_name || '',
-        }));
+    let active = true;
 
-        try {
-          const recovered = await recoverExistingUserAccess({ ...u, email }, { origin: 'user-not-registered-screen' });
-          if (recovered.recovered) {
-            setApprovedRegistration({ email, status: 'APROVADO', recovered: true });
-            setRecoveringAccess(false);
-            setTimeout(() => {
-              window.location.reload();
-            }, 1200);
-            return;
-          }
+    const checkLocalSession = async () => {
+      try {
+        const response = await fetch(`/api/apps/${encodeURIComponent(appParams.appId || '')}/entities/User/me`, {
+          method: 'GET',
+          credentials: 'include',
+          headers: { 'X-App-Id': appParams.appId || '' },
+          cache: 'no-store',
+        });
 
-          const registrations = await base44.entities.UserRegistration.filter({ email });
-
-          const approved = registrations.find(r => r.status === 'APROVADO');
-          const pending = registrations.find(r => r.status === 'PENDENTE');
-
-          if (approved) {
-            setApprovedRegistration(approved);
-            setTimeout(() => { window.location.reload(); }, 2500);
-          } else if (pending) {
-            setPendingRegistration(pending);
-          }
-        } catch (e) {
-          console.warn('Falha ao verificar aprovação:', e);
+        if (response.ok) {
+          window.location.replace('/');
+          return;
         }
-        setRecoveringAccess(false);
-      } else {
-        setRecoveringAccess(false);
+
+        if (response.status !== 401 && response.status !== 403) {
+          console.warn('Local session lookup failed with status:', response.status);
+        }
+      } catch (error) {
+        console.warn('Local session lookup failed:', error);
+      } finally {
+        if (active) setRecoveringAccess(false);
       }
-    }).catch(() => setRecoveringAccess(false));
+    };
+
+    checkLocalSession();
+    return () => { active = false; };
   }, []);
 
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
@@ -189,7 +175,7 @@ const UserNotRegisteredError = () => {
         </p>
 
         <Button
-          onClick={() => window.location.reload()}
+          onClick={() => window.location.replace('/')}
           className="mt-6 bg-black hover:bg-neutral-800"
         >
           Entrar no sistema
