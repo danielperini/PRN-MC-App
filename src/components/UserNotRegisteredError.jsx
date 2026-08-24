@@ -137,7 +137,7 @@ const UserNotRegisteredError = () => {
   };
 
   const handleLoginGoogle = () => {
-    base44.auth.redirectToLogin(window.location.href);
+    window.location.assign('/api/auth/google?return_to=%2F');
   };
 
   if (recoveringAccess) {

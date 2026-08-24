@@ -1,9 +1,11 @@
 import express from 'express';
+import { OAuth2Client } from 'google-auth-library';
 import pg from 'pg';
 import multer from 'multer';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import bcrypt from 'bcryptjs';
 import { createServer } from 'node:http';
 import { Server as SocketIOServer } from 'socket.io';
 
@@ -122,6 +124,239 @@ async function initDb() {
 
 app.get('/health', (_req,res) => res.json({ status:'ok', service:'appgestor-api' }));
 app.get('/db-health', async (_req,res) => { try { const r=await pool.query('SELECT NOW() AS now'); res.json({status:'ok',database:'connected',now:r.rows[0].now}); } catch(e) { res.status(500).json({status:'error',message:e.message}); } });
+
+// ===== LOCAL AUTH COMPATIBILITY =====
+
+const GOOGLE_CLIENT_ID = String(process.env.GOOGLE_CLIENT_ID || '');
+const GOOGLE_CLIENT_SECRET = String(process.env.GOOGLE_CLIENT_SECRET || '');
+const GOOGLE_REDIRECT_URI = String(process.env.GOOGLE_REDIRECT_URI || '');
+const GOOGLE_STATE_COOKIE = '__Host-appgestor_google_state';
+const googleOAuth = GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && GOOGLE_REDIRECT_URI ? new OAuth2Client(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI) : null;
+function oauthConfigured() { return Boolean(googleOAuth); }
+function appendSetCookie(res, cookie) { const current = res.getHeader('Set-Cookie'); res.setHeader('Set-Cookie', [...(Array.isArray(current) ? current : current ? [current] : []), cookie]); }
+function safeReturnPath(value) { try { const base = publicBaseUrl || 'https://appgestor.periniprojetos.com.br'; const url = new URL(String(value || '/'), base); if (url.origin !== new URL(base).origin || url.pathname === '/login') return '/'; return url.pathname + url.search + url.hash; } catch { return '/'; } }
+function oauthErrorRedirect(code) { return '/login?google_error=' + encodeURIComponent(code); }
+
+const SESSION_DAYS = Number(process.env.SESSION_DAYS || 30);
+const SESSION_COOKIE = 'appgestor_session';
+
+function authCookieValue(req) {
+  return parseCookies(req)[SESSION_COOKIE];
+}
+
+async function createAuthSession(res, userId) {
+  const token = crypto.randomBytes(32).toString('hex');
+  const tokenHash = hashToken(token);
+  const expiresAt = new Date(Date.now() + SESSION_DAYS * 86400000);
+
+  await pool.query(
+    `INSERT INTO auth_sessions
+       (user_id, session_token_hash, expires_at)
+     VALUES ($1,$2,$3)`,
+    [userId, tokenHash, expiresAt]
+  );
+
+  res.setHeader(
+    'Set-Cookie',
+    `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_DAYS * 86400}`
+  );
+
+  return token;
+}
+
+app.get('/api/auth/google', (req, res) => {
+  if (!oauthConfigured()) return res.status(503).json({ error: 'google_oauth_not_configured' });
+  const returnTo = safeReturnPath(req.query.return_to);
+  const state = crypto.randomBytes(32).toString('base64url');
+  const statePayload = state + '.' + Buffer.from(returnTo).toString('base64url');
+  res.setHeader('Set-Cookie', GOOGLE_STATE_COOKIE + '=' + encodeURIComponent(statePayload) + '; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=600');
+  return res.redirect(googleOAuth.generateAuthUrl({ access_type: 'online', prompt: 'select_account', scope: ['openid', 'email', 'profile'], state }));
+});
+app.get(['/api/auth/google/callback', '/api/apps/auth/google/callback'], async (req, res) => {
+  const saved = parseCookies(req)[GOOGLE_STATE_COOKIE] || '';
+  const [expectedState, encodedReturnTo] = saved.split('.', 2);
+  const receivedState = String(req.query.state || '');
+  appendSetCookie(res, GOOGLE_STATE_COOKIE + '=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0');
+  if (!oauthConfigured() || !expectedState || expectedState.length !== receivedState.length || !crypto.timingSafeEqual(Buffer.from(expectedState), Buffer.from(receivedState))) return res.redirect(oauthErrorRedirect('invalid_state'));
+  try {
+    const { tokens } = await googleOAuth.getToken(String(req.query.code || ''));
+    if (!tokens.id_token) return res.redirect(oauthErrorRedirect('missing_identity'));
+    const ticket = await googleOAuth.verifyIdToken({ idToken: tokens.id_token, audience: GOOGLE_CLIENT_ID });
+    const identity = ticket.getPayload();
+    const email = String(identity?.email || '').trim().toLowerCase();
+    if (!identity?.email_verified || !email) return res.redirect(oauthErrorRedirect('unverified_email'));
+    const found = await pool.query('SELECT * FROM users WHERE lower(email)=lower($1) LIMIT 1', [email]);
+    if (!found.rowCount) return res.redirect(oauthErrorRedirect('access_not_granted'));
+    const user = found.rows[0];
+    const disabled = user.disabled === true || String(user.raw_data?.disabled || '').toLowerCase() === 'true';
+    if (disabled || user.acesso_liberado === false) return res.redirect(oauthErrorRedirect('access_denied'));
+    await createAuthSession(res, user.id);
+    let returnTo = '/';
+    try { returnTo = safeReturnPath(Buffer.from(encodedReturnTo || '', 'base64url').toString()); } catch {}
+    return res.redirect(returnTo);
+  } catch (error) { console.error('GOOGLE_OAUTH_CALLBACK_ERROR', error); return res.redirect(oauthErrorRedirect('authentication_failed')); }
+});
+
+function publicAuthUser(user) {
+  if (!user) return null;
+  const out = { ...user };
+  delete out.password_hash;
+  delete out.password;
+  return out;
+}
+
+app.post('/api/apps/:appId/auth/login', async (req, res) => {
+  try {
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    const password = String(req.body?.password || '');
+
+    if (!email || !password) {
+      return res.status(400).json({
+        error: 'email_and_password_required'
+      });
+    }
+
+    const result = await pool.query(
+      `SELECT *
+         FROM users
+        WHERE lower(email)=lower($1)
+        LIMIT 1`,
+      [email]
+    );
+
+    if (!result.rowCount) {
+      return res.status(401).json({ error: 'invalid_credentials' });
+    }
+
+    const user = result.rows[0];
+
+    const disabled =
+      user.disabled === true ||
+      String(user.raw_data?.disabled || '').toLowerCase() === 'true';
+
+    if (disabled) {
+      return res.status(403).json({ error: 'user_disabled' });
+    }
+
+    if (user.acesso_liberado === false) {
+      return res.status(403).json({ error: 'access_denied' });
+    }
+
+    const storedHash = String(user.password_hash || '');
+
+    if (!storedHash) {
+      return res.status(401).json({ error: 'invalid_credentials' });
+    }
+
+    const valid = await bcrypt.compare(password, storedHash);
+
+    if (!valid) {
+      return res.status(401).json({ error: 'invalid_credentials' });
+    }
+
+    const accessToken = await createAuthSession(res, user.id);
+
+    return res.json({
+      access_token: accessToken,
+      user: publicAuthUser(user)
+    });
+  } catch (e) {
+    console.error('AUTH_LOGIN_ERROR', e);
+    return res.status(500).json({
+      error: 'authentication_error',
+      message: e.message
+    });
+  }
+});
+
+async function currentAuthUser(req) {
+  const token = authCookieValue(req);
+
+  if (!token) return null;
+
+  const session = await pool.query(
+    `SELECT user_id
+       FROM auth_sessions
+      WHERE session_token_hash=$1
+        AND expires_at>NOW()
+      LIMIT 1`,
+    [hashToken(token)]
+  );
+
+  if (!session.rowCount) return null;
+
+  const user = await pool.query(
+    `SELECT *
+       FROM users
+      WHERE id=$1
+      LIMIT 1`,
+    [session.rows[0].user_id]
+  );
+
+  return user.rowCount ? user.rows[0] : null;
+}
+
+app.get('/api/apps/:appId/auth/me', async (req, res) => {
+  try {
+    const user = await currentAuthUser(req);
+
+    if (!user) {
+      return res.status(401).json({ error: 'unauthorized' });
+    }
+
+    return res.json(publicAuthUser(user));
+  } catch (e) {
+    console.error('AUTH_ME_ERROR', e);
+    return res.status(500).json({
+      error: 'authentication_error',
+      message: e.message
+    });
+  }
+});
+
+app.get('/api/apps/:appId/entities/User/me', async (req, res) => {
+  try {
+    const user = await currentAuthUser(req);
+
+    if (!user) {
+      return res.status(401).json({ error: 'unauthorized' });
+    }
+
+    return res.json(publicAuthUser(user));
+  } catch (e) {
+    console.error('AUTH_USER_ME_ERROR', e);
+    return res.status(500).json({
+      error: 'authentication_error',
+      message: e.message
+    });
+  }
+});
+
+app.post('/api/apps/:appId/auth/logout', async (req, res) => {
+  try {
+    const token = authCookieValue(req);
+
+    if (token) {
+      await pool.query(
+        `DELETE FROM auth_sessions
+          WHERE session_token_hash=$1`,
+        [hashToken(token)]
+      );
+    }
+  } catch (e) {
+    console.error('AUTH_LOGOUT_ERROR', e);
+  }
+
+  res.setHeader(
+    'Set-Cookie',
+    `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`
+  );
+
+  return res.json({ ok: true });
+});
+
+console.log('Local auth compatibility installed');
+
 
 // Base44-compatible entity API.
 app.get('/api/apps/:appId/entities/:entityName', requireSession, async (req,res) => {

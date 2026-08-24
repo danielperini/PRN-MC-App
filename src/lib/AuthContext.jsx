@@ -9,17 +9,14 @@ const AuthContext = createContext();
 
 async function probeLocalSession() {
   try {
-    const res = await fetch(`/api/apps/${encodeURIComponent(appParams.appId || '')}/entities/Notification?limit=1`, {
-      method: 'GET',
-      credentials: 'include',
-      headers: { 'X-App-Id': appParams.appId || '' },
-      cache: 'no-store',
+    const res = await fetch('/api/apps/' + encodeURIComponent(appParams.appId || '') + '/entities/User/me', {
+      method: 'GET', credentials: 'include', headers: { 'X-App-Id': appParams.appId || '' }, cache: 'no-store',
     });
-    if (res.ok) return true;
+    if (res.ok) return await res.json();
     if (res.status === 401 || res.status === 403) return false;
     return null;
   } catch (error) {
-    console.warn('Local session probe failed:', error);
+    console.warn('Local session lookup failed:', error);
     return null;
   }
 }
@@ -71,7 +68,7 @@ export const AuthProvider = ({ children }) => {
             await checkUserAuth();
           } else {
             const localSession = await probeLocalSession();
-            if (localSession === true) {
+            if (localSession && localSession !== false) {
               setIsAuthenticated(true);
               setIsLoadingAuth(false);
             } else if (localSession === false) {

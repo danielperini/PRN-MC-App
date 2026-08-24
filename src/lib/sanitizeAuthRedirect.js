@@ -1,17 +1,11 @@
-const LOGIN_PATH = '/login';
-
-function isLoginUrl(value) {
-  try {
-    const url = new URL(String(value || ''), window.location.origin);
-    return url.pathname === LOGIN_PATH;
-  } catch {
-    return false;
-  }
-}
-
 export function installSafeAuthRedirect(base44) {
   const auth = base44?.auth;
-  if (!auth || typeof auth.redirectToLogin !== 'function' || auth.__appgestorSafeRedirect) {
+
+  if (
+    !auth ||
+    typeof auth.redirectToLogin !== 'function' ||
+    auth.__appgestorSafeRedirect
+  ) {
     return;
   }
 
@@ -20,16 +14,46 @@ export function installSafeAuthRedirect(base44) {
   auth.__appgestorOriginalRedirectToLogin = original;
 
   auth.redirectToLogin = (nextUrl) => {
-    const current = window.location.href;
+    if (typeof window === 'undefined') return;
 
-    // Nunca envie /login como from_url.
-    // Isso evita a recursão:
-    // /login -> /login?from_url=/login -> ...
-    if (isLoginUrl(current) || isLoginUrl(nextUrl)) {
-      return original('/');
+    const pathname = window.location.pathname;
+
+    // Nunca interceptar o próprio login.
+    if (pathname === '/login') return;
+
+    // O OAuth Google deve ir diretamente para o backend.
+    if (
+      pathname === '/api/auth/google' ||
+      pathname === '/api/apps/auth/google'
+    ) {
+      return;
     }
 
-    return original(nextUrl || current);
+    let target = String(nextUrl || '/');
+
+    try {
+      const url = new URL(target, window.location.origin);
+
+      if (url.pathname === '/login') {
+        target = '/';
+      } else if (url.origin === window.location.origin) {
+        url.searchParams.delete('from_url');
+        target = url.pathname + url.search + url.hash;
+      } else {
+        target = '/';
+      }
+    } catch {
+      target = '/';
+    }
+
+    const loginUrl =
+      target === '/'
+        ? '/login'
+        : `/login?from_url=${encodeURIComponent(
+            `${window.location.origin}${target}`
+          )}`;
+
+    window.location.replace(loginUrl);
   };
 
   auth.__appgestorSafeRedirect = true;

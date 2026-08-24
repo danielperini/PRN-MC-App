@@ -54,6 +54,8 @@ services:
       dockerfile: Dockerfile
     container_name: appgestor-api
     restart: unless-stopped
+    env_file:
+      - .env.oauth
     environment:
       DB_HOST: db
       DB_PORT: 5432
