@@ -2,7 +2,8 @@ name: Fix Entrada Unica approval buttons
 on:
   push:
     branches: [main]
-    paths: ['.github/workflows/fix-entrada-aprovacao-buttons.yml']
+    paths:
+      - .github/workflows/fix-entrada-aprovacao-buttons.yml
 permissions:
   contents: write
 jobs:
@@ -20,133 +21,46 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 <<'PY'
+          python3 - <<'PY'
           from pathlib import Path
-          p=Path('src/components/entrada/DocumentIntakeCard.jsx')
-          s=p.read_text()
+          p = Path('src/components/entrada/DocumentIntakeCard.jsx')
+          s = p.read_text()
 
-          replacements=[]
+          old = "  const hasError = intake.status_processamento === 'ERRO_PROCESSAMENTO';\n  const canReanalisar = hasError || canFallbackReview || isEnviadoTravado;\n  const canSendApproval = canReview && isPDF && !isProcessing;\n"
+          new = "  const hasError = intake.status_processamento === 'ERRO_PROCESSAMENTO';\n  // Reanalisar também quando a IA terminou incompleta e deixou a NF para revisão.\n  const canReanalisar = !!onReanalyse && isPDF && ['ERRO_PROCESSAMENTO', 'AGUARDANDO_REVISAO', 'ANALISANDO_IA', 'ENVIADO'].includes(statusKey);\n  // Aprovação manual explícita após conferência humana.\n  const canSendApproval = isPDF && ['AGUARDANDO_REVISAO', 'RASCUNHO'].includes(statusKey);\n"
+          if old not in s:
+              raise SystemExit('threshold block not found')
+          s = s.replace(old, new, 1)
 
-          old="""  const hasError = intake.status_processamento === 'ERRO_PROCESSAMENTO';
-  const canReanalisar = hasError || canFallbackReview || isEnviadoTravado;
-  const canSendApproval = canReview && isPDF && !isProcessing;
-"""
-          new="""  const hasError = intake.status_processamento === 'ERRO_PROCESSAMENTO';
-  // Reanálise deve estar disponível também quando a IA terminou incompleta e
-  // colocou o documento em AGUARDANDO_REVISAO.
-  const canReanalisar = !!onReanalyse && isPDF && [
-    'ERRO_PROCESSAMENTO', 'AGUARDANDO_REVISAO', 'ANALISANDO_IA', 'ENVIADO'
-  ].includes(statusKey);
-  // Aprovação manual é uma ação explícita da tela após conferência humana.
-  const canSendApproval = isPDF && ['AGUARDANDO_REVISAO', 'RASCUNHO'].includes(statusKey);
-"""
-          if old not in s: raise SystemExit('threshold block not found')
-          s=s.replace(old,new,1)
+          old = "    const valor = parseValorBR(ia.nf_valor_total || ia.valor || ia.valor_total || 0);\n\n    if (!rubrica_id || !centro_custo || !valor) {\n"
+          new = "    const valor = parseValorBR(ia.nf_valor_total || ia.valor || ia.valor_total || 0);\n\n    // Data de emissão obrigatória: PDF/IA primeiro; XML vinculado como fonte secundária.\n    let nfData = getNFDateIntake(intake);\n    if (!nfData && intake.nf_xml_intake_id) {\n      const xmlIntake = await base44.entities.DocumentIntake.get(intake.nf_xml_intake_id).catch(() => null);\n      const xmlIa = xmlIntake?.resultado_ia || {};\n      nfData = getNFDateIntake(xmlIntake) || String(xmlIa.dhEmi || xmlIa.dEmi || xmlIa.dataEmissao || xmlIa.data_emissao_nf || '').trim();\n      if (nfData) {\n        await base44.entities.DocumentIntake.update(intake.id, { nf_data_emissao: nfData, resultado_ia: { ...ia, nf_data_emissao: nfData } }).catch(() => null);\n      }\n    }\n    if (!nfData) {\n      toast.error('Aprovação bloqueada: a data de emissão da NF não foi identificada. Clique em \\\"Revisar\\\" e informe a data.');\n      if (onReview) onReview({ ...intake, resultado_ia: ia });\n      return;\n    }\n\n    if (!rubrica_id || !centro_custo || !valor) {\n"
+          if old not in s:
+              raise SystemExit('approval preamble not found')
+          s = s.replace(old, new, 1)
 
-          old="""    const valor = parseValorBR(ia.nf_valor_total || ia.valor || ia.valor_total || 0);
+          old = "    setSendingApproval(true);\n    try {\n      const rubrica = await base44.entities.Rubrica.get(rubrica_id).catch(() => null);\n"
+          new = "    setSendingApproval(true);\n    try {\n      // Idempotência: o mesmo intake nunca cria duas solicitações.\n      const existing = await base44.entities.PurchaseRequest.filter({ intake_id: intake.id }, '-created_date', 1).catch(() => []);\n      if (existing?.[0]?.id) {\n        await base44.entities.DocumentIntake.update(intake.id, { status_processamento: 'ENVIADO_APROVACAO', ocultar_entrada_unica: true, entidade_destino: 'PurchaseRequest', entidade_destino_id: existing[0].id }).catch(() => null);\n        toast.success('Esta NF já está em Compras. O vínculo foi restaurado.');\n        if (onSentToApproval) onSentToApproval(intake.id);\n        return;\n      }\n      const rubrica = await base44.entities.Rubrica.get(rubrica_id).catch(() => null);\n"
+          if old not in s:
+              raise SystemExit('approval try block not found')
+          s = s.replace(old, new, 1)
 
-    if (!rubrica_id || !centro_custo || !valor) {
-"""
-          new="""    const valor = parseValorBR(ia.nf_valor_total || ia.valor || ia.valor_total || 0);
+          s = s.replace("nf_data_emissao: ia.nf_data_emissao || ia.data_emissao || ''", "nf_data_emissao: nfData", 2)
 
-    // A data de emissão é obrigatória. Primeiro usa o PDF/IA; se estiver vazia,
-    // tenta o XML já vinculado. Nunca inventa uma data.
-    let nfData = getNFDateIntake(intake);
-    if (!nfData && intake.nf_xml_intake_id) {
-      const xmlIntake = await base44.entities.DocumentIntake.get(intake.nf_xml_intake_id).catch(() => null);
-      const xmlIa = xmlIntake?.resultado_ia || {};
-      nfData = getNFDateIntake(xmlIntake) || String(
-        xmlIa.dhEmi || xmlIa.dEmi || xmlIa.dataEmissao || xmlIa.data_emissao_nf || ''
-      ).trim();
-      if (nfData) {
-        await base44.entities.DocumentIntake.update(intake.id, {
-          nf_data_emissao: nfData,
-          resultado_ia: { ...ia, nf_data_emissao: nfData }
-        }).catch(() => null);
-      }
-    }
+          old = "          {/* PDF: o envio para coordenação agora é feito automaticamente pelo\n              pipeline \\\"Reprocessar Fila\\\" (admin). Nenhum botão de envio manual. */}\n"
+          new = "          {/* PDF: aprovação explícita para Compras após revisão humana. */}\n          {canSendApproval &&\n            <Button size=\\\"sm\\\" onClick={handleSendToApproval}\n              disabled={sendingApproval || loading || prDuplicatas.length > 0}\n              className=\\\"h-8 text-xs px-3 bg-emerald-600 hover:bg-emerald-700 text-white\\\"\n              title={prDuplicatas.length > 0 ? 'Verifique a possível duplicata antes de aprovar' : 'Aprovar e enviar para Compras'}>\n              {sendingApproval ? <Loader2 className=\\\"w-3 h-3 animate-spin mr-1\\\" /> : <CheckCircle2 className=\\\"w-3 h-3 mr-1\\\" />}\n              {sendingApproval ? 'Aprovando...' : 'Aprovar para Compras'}\n            </Button>\n          }\n"
+          if old not in s:
+              raise SystemExit('manual approval placeholder not found')
+          s = s.replace(old, new, 1)
 
-    if (!nfData) {
-      toast.error('Aprovação bloqueada: a data de emissão da NF não foi identificada. Clique em "Revisar" e informe a data.');
-      if (onReview) onReview({ ...intake, resultado_ia: ia });
-      return;
-    }
-
-    if (!rubrica_id || !centro_custo || !valor) {
-"""
-          if old not in s: raise SystemExit('approval preamble not found')
-          s=s.replace(old,new,1)
-
-          old="""    setSendingApproval(true);
-    try {
-      const rubrica = await base44.entities.Rubrica.get(rubrica_id).catch(() => null);
-"""
-          new="""    setSendingApproval(true);
-    try {
-      // Idempotência: um intake já convertido não pode criar uma segunda compra.
-      const existing = await base44.entities.PurchaseRequest.filter({ intake_id: intake.id }, '-created_date', 1).catch(() => []);
-      if (existing?.[0]?.id) {
-        await base44.entities.DocumentIntake.update(intake.id, {
-          status_processamento: 'ENVIADO_APROVACAO',
-          ocultar_entrada_unica: true,
-          entidade_destino: 'PurchaseRequest',
-          entidade_destino_id: existing[0].id,
-        }).catch(() => null);
-        toast.success('Esta NF já está em Compras. O vínculo foi restaurado.');
-        if (onSentToApproval) onSentToApproval(intake.id);
-        return;
-      }
-
-      const rubrica = await base44.entities.Rubrica.get(rubrica_id).catch(() => null);
-"""
-          if old not in s: raise SystemExit('approval try block not found')
-          s=s.replace(old,new,1)
-
-          s=s.replace("nf_data_emissao: ia.nf_data_emissao || ia.data_emissao || ''", "nf_data_emissao: nfData", 2)
-
-          old="""          {/* PDF: o envio para coordenação agora é feito automaticamente pelo
-              pipeline \"Reprocessar Fila\" (admin). Nenhum botão de envio manual. */}
-"""
-          new="""          {/* PDF: aprovação explícita para Compras após revisão humana. */}
-          {canSendApproval &&
-            <Button size=\"sm\" onClick={handleSendToApproval}
-              disabled={sendingApproval || loading || prDuplicatas.length > 0}
-              className=\"h-8 text-xs px-3 bg-emerald-600 hover:bg-emerald-700 text-white\"
-              title={prDuplicatas.length > 0 ? 'Verifique a possível duplicata antes de aprovar' : 'Aprovar e enviar para Compras'}>
-              {sendingApproval ? <Loader2 className=\"w-3 h-3 animate-spin mr-1\" /> : <CheckCircle2 className=\"w-3 h-3 mr-1\" />}
-              {sendingApproval ? 'Aprovando...' : 'Aprovar para Compras'}
-            </Button>
-          }
-"""
-          if old not in s: raise SystemExit('removed manual button comment not found')
-          s=s.replace(old,new,1)
-
-          # O caminho de confirmação "sem XML" também precisa exigir data antes
-          # de criar a PurchaseRequest.
-          old="""                  const valor2 = parseValorBR(ia2.nf_valor_total || ia2.valor || ia2.valor_total || 0);
-                  const fileName2 = intake.file_name_final || intake.file_name_original || 'Arquivo';
-"""
-          new="""                  const valor2 = parseValorBR(ia2.nf_valor_total || ia2.valor || ia2.valor_total || 0);
-                  let nfData2 = getNFDateIntake(intake);
-                  if (!nfData2 && intake.nf_xml_intake_id) {
-                    const xml2 = await base44.entities.DocumentIntake.get(intake.nf_xml_intake_id).catch(() => null);
-                    const xia2 = xml2?.resultado_ia || {};
-                    nfData2 = getNFDateIntake(xml2) || String(xia2.dhEmi || xia2.dEmi || xia2.dataEmissao || xia2.data_emissao_nf || '').trim();
-                  }
-                  if (!nfData2) {
-                    toast.error('Aprovação bloqueada: informe a data de emissão da NF em Revisar.');
-                    if (onReview) onReview({ ...intake });
-                    return;
-                  }
-                  const fileName2 = intake.file_name_final || intake.file_name_original || 'Arquivo';
-"""
-          if old not in s: raise SystemExit('confirm without XML block not found')
-          s=s.replace(old,new,1)
-          s=s.replace("nf_numero: ia2.nf_numero || '', nf_data_emissao: ia2.nf_data_emissao || ia2.data_emissao || ''", "nf_numero: ia2.nf_numero || '', nf_data_emissao: nfData2", 1)
+          old = "                  const valor2 = parseValorBR(ia2.nf_valor_total || ia2.valor || ia2.valor_total || 0);\n                  const fileName2 = intake.file_name_final || intake.file_name_original || 'Arquivo';\n"
+          new = "                  const valor2 = parseValorBR(ia2.nf_valor_total || ia2.valor || ia2.valor_total || 0);\n                  let nfData2 = getNFDateIntake(intake);\n                  if (!nfData2 && intake.nf_xml_intake_id) {\n                    const xml2 = await base44.entities.DocumentIntake.get(intake.nf_xml_intake_id).catch(() => null);\n                    const xia2 = xml2?.resultado_ia || {};\n                    nfData2 = getNFDateIntake(xml2) || String(xia2.dhEmi || xia2.dEmi || xia2.dataEmissao || xia2.data_emissao_nf || '').trim();\n                  }\n                  if (!nfData2) {\n                    toast.error('Aprovação bloqueada: informe a data de emissão da NF em Revisar.');\n                    if (onReview) onReview({ ...intake });\n                    return;\n                  }\n                  const fileName2 = intake.file_name_final || intake.file_name_original || 'Arquivo';\n"
+          if old not in s:
+              raise SystemExit('without XML approval block not found')
+          s = s.replace(old, new, 1)
+          s = s.replace("nf_numero: ia2.nf_numero || '', nf_data_emissao: ia2.nf_data_emissao || ia2.data_emissao || ''", "nf_numero: ia2.nf_numero || '', nf_data_emissao: nfData2", 1)
 
           p.write_text(s)
           PY
-
           npm ci
           npm run build
           git diff --check
