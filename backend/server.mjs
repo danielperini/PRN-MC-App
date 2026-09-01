@@ -85,7 +85,7 @@ const ENTITY_TABLES = Object.freeze({
   Attachment:'attachments', Notification:'notifications', Notificacao:'notifications', GastoRubrica:'gasto_rubricas',
   LancamentoRubrica:'lancamentos_rubrica', Meta:'metas', MetaActivity:'meta_activities', PurchaseRequest:'purchase_requests',
   PurchaseDocument:'purchase_documents', FinanceiroAuditLog:'financeiro_audit_logs', AuditLog:'audit_logs',
-  UserPermission:'user_permissions', Profile:'profiles', Museu:'museus', Equipe:'equipes', Fornecedor:'fornecedores'
+  UserPermission:'user_permissions', Profile:'profiles', Museu:'museus', Equipe:'equipes', Fornecedor:'fornecedores', DocumentIntake:'document_intakes'
 });
 function entityTable(name) { return ENTITY_TABLES[String(name || '')] || null; }
 function quoteIdentifier(value) { return `"${String(value).replaceAll('"', '""')}"`; }
@@ -332,6 +332,28 @@ app.get('/api/apps/:appId/entities/User/me', async (req, res) => {
   }
 });
 
+app.get('/api/apps/auth/session-debug', async (req, res) => {
+ try {
+  const cookies = parseCookies(req);
+  const user = await currentAuthUser(req);
+  return res.json({
+   hasHostSessionCookie: Boolean(cookies[SESSION_COOKIE]),
+   hasLegacySessionCookie: Boolean(cookies[LEGACY_SESSION_COOKIE]),
+   authenticated: Boolean(user),
+   userId: user?.id ?? null,
+   email: user?.email ?? null
+  });
+ } catch (e) {
+  console.error('AUTH_SESSION_DEBUG_ERROR', e.message);
+  return res.json({
+   hasHostSessionCookie: false,
+   hasLegacySessionCookie: false,
+   authenticated: false,
+   userId: null,
+   email: null
+  });
+ }
+});
 app.post('/api/apps/:appId/auth/logout', async (req, res) => {
   try {
     const token = authCookieValue(req);
