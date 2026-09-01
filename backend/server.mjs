@@ -425,8 +425,49 @@ app.delete('/api/apps/:appId/entities/:entityName/:id',requireSession,async(req,
 
 // Core file upload compatibility. Both spellings are supported because different
 // Base44 SDK builds use /integrations and /integration-endpoints.
+
+async function invokeLlmHandler(req, res) {
+  const apiKey = String(process.env.OPENAI_API_KEY || '');
+  if (!apiKey) return res.status(503).json({ error: 'ai_not_configured', message: 'OPENAI_API_KEY não configurada' });
+  const prompt = String(req.body?.prompt || '').trim();
+  if (!prompt) return res.status(400).json({ error: 'invalid_prompt' });
+  const schema = req.body?.response_json_schema;
+  const content = [{ type: 'input_text', text: prompt }];
+  try {
+    const sourceUrl = Array.isArray(req.body?.file_urls) ? req.body.file_urls[0] : null;
+    if (sourceUrl) {
+      const name = path.basename(new URL(sourceUrl, publicBaseUrl || 'http://localhost').pathname);
+      const source = path.join(uploadDir, name);
+      if (!fs.existsSync(source)) return res.status(404).json({ error: 'file_not_found' });
+      const bytes = fs.readFileSync(source);
+      const form = new FormData();
+      form.append('purpose', 'user_data');
+      form.append('file', new Blob([bytes], { type: 'application/octet-stream' }), name);
+      const uploadResponse = await fetch('https://api.openai.com/v1/files', { method: 'POST', headers: { Authorization: 'Bearer ' + apiKey }, body: form });
+      if (!uploadResponse.ok) throw new Error('Falha ao enviar arquivo para análise: ' + await uploadResponse.text());
+      const uploaded = await uploadResponse.json();
+      content.push({ type: 'input_file', file_id: uploaded.id });
+    }
+    const text = schema ? { format: { type: 'json_schema', name: 'document_analysis', strict: false, schema } } : undefined;
+    const response = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: process.env.OPENAI_MODEL || 'gpt-4.1-mini', input: [{ role: 'user', content }], ...(text ? { text } : {}) })
+    });
+    if (!response.ok) throw new Error('Falha na análise: ' + await response.text());
+    const result = await response.json();
+    const output = String(result.output_text || '').trim();
+    if (!output) throw new Error('A IA não retornou conteúdo');
+    try { return res.status(200).json(JSON.parse(output)); } catch { return res.status(200).json({ result: output }); }
+  } catch (error) {
+    console.error('AI_DOCUMENT_ANALYSIS_ERROR:', error.message);
+    return res.status(502).json({ error: 'ai_analysis_failed', message: error.message });
+  }
+}
+
 function coreUploadHandler(req, res) {
   const operation=String(req.params.operation||'').toLowerCase();
+ if(operation==='invokellm') return invokeLlmHandler(req,res);
   if(!['uploadfile','uploadprivatefile'].includes(operation)) return res.status(404).json({error:'integration_not_found'});
   upload.single('file')(req,res,async(err)=>{
     if(err instanceof multer.MulterError) return res.status(413).json({error:'upload_failed',message:err.code==='LIMIT_FILE_SIZE'?`Arquivo excede o limite de ${maxUploadMb} MB`:err.message,code:err.code});
@@ -450,7 +491,8 @@ app.get('/api/files/:name',async(req,res)=>{ try { const name=path.basename(deco
 app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,res) => {
   const name=String(req.params.functionName||'');
   try {
-    if (name === 'recalcularSaldosRubricas') {
+    if (name === 'processarNotaFiscalComClaude') return res.status(501).json({ error:'use_invoke_llm' });
+if (name === 'recalcularSaldosRubricas') {
       const table = entityTable('Rubrica');
       const exists = table && await tableExists(table);
       if (exists) {
