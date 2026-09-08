@@ -91,11 +91,34 @@ async function tableColumns(table) {
   const r = await pool.query(`SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1 ORDER BY ordinal_position`, [table]);
   return r.rows.map(x => x.column_name);
 }
+async function tableColumnTypes(table) {
+  const r = await pool.query(`SELECT column_name,data_type,udt_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1 ORDER BY ordinal_position`, [table]);
+  return new Map(r.rows.map(x => [x.column_name, { dataType:x.data_type, udtName:x.udt_name }]));
+}
 function parseJsonParam(value) {
   if (value == null || value === '') return null;
   if (typeof value === 'object') return value;
   try { return JSON.parse(value); } catch { return null; }
 }
+function normalizeJsonValue(value) {
+  if (value == null) return value;
+  if (typeof value === 'object') return value;
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  if (!trimmed) return value;
+  try { return JSON.parse(trimmed); } catch {}
+  const legacySetMatch = trimmed.match(/^\{\s*"([^"]+)"\s*\}$/);
+  if (legacySetMatch) return [legacySetMatch[1]];
+  return value;
+}
+function normalizeEntityEntriesForDb(entries, columnTypes) {
+  return entries.map(([key,value]) => {
+    const type = columnTypes.get(key);
+    const isJson = type && (type.dataType === 'json' || type.dataType === 'jsonb' || type.udtName === 'json' || type.udtName === 'jsonb');
+    return [key, isJson ? normalizeJsonValue(value) : value];
+  });
+}
+function entityLimit(req) { const n = Number(req.query.limit ?? 5000); return Number.isFinite(n) ? Math.min(Math.max(Math.trunc(n), 1), 5000) : 5000; }
 async function buildWhere(table, req) {
   const columns = await tableColumns(table);
   const filters = parseJsonParam(req.query.filter ?? req.query.filters ?? req.query.where) || {};
@@ -111,7 +134,6 @@ async function buildWhere(table, req) {
   }
   return { sql: clauses.length ? ` WHERE ${clauses.join(' AND ')}` : '', values };
 }
-function entityLimit(req) { const n = Number(req.query.limit ?? 5000); return Number.isFinite(n) ? Math.min(Math.max(Math.trunc(n), 1), 5000) : 5000; }
 
 async function initDb() {
   await pool.query(`CREATE TABLE IF NOT EXISTS notifications (
@@ -123,7 +145,6 @@ async function initDb() {
 app.get('/health', (_req,res) => res.json({ status:'ok', service:'appgestor-api' }));
 app.get('/db-health', async (_req,res) => { try { const r=await pool.query('SELECT NOW() AS now'); res.json({status:'ok',database:'connected',now:r.rows[0].now}); } catch(e) { res.status(500).json({status:'error',message:e.message}); } });
 
-// Base44-compatible entity API.
 app.get('/api/apps/:appId/entities/:entityName', requireSession, async (req,res) => {
   try {
     const table=entityTable(req.params.entityName);
@@ -138,7 +159,9 @@ app.post('/api/apps/:appId/entities/:entityName', requireSession, async (req,res
   try {
     const table=entityTable(req.params.entityName); if(!table) return res.status(404).json({error:'entity_not_migrated'});
     if(!(await tableExists(table))) return res.status(404).json({error:'table_not_found',table});
-    const columns=await tableColumns(table); const entries=Object.entries(req.body||{}).filter(([k,v])=>columns.includes(k)&&v!==undefined);
+    const columns=await tableColumns(table); const columnTypes=await tableColumnTypes(table);
+    let entries=Object.entries(req.body||{}).filter(([k,v])=>columns.includes(k)&&v!==undefined);
+    entries=normalizeEntityEntriesForDb(entries,columnTypes);
     if(!entries.length) return res.status(400).json({error:'empty_entity'});
     const names=entries.map(([k])=>quoteIdentifier(k)).join(','); const vals=entries.map(([,v])=>v);
     const r=await pool.query(`INSERT INTO ${quoteIdentifier(table)} (${names}) VALUES (${vals.map((_,i)=>`$${i+1}`).join(',')}) RETURNING *`,vals);
@@ -151,12 +174,19 @@ async function updateEntity(req,res) {
     const table=entityTable(req.params.entityName); if(!table) return res.status(404).json({error:'entity_not_migrated'});
     if(!(await tableExists(table))) return res.status(404).json({error:'table_not_found',table});
     const columns=await tableColumns(table); if(!columns.includes('id')) return res.status(400).json({error:'entity_has_no_id_column'});
-    const entries=Object.entries(req.body||{}).filter(([k,v])=>columns.includes(k)&&k!=='id'&&v!==undefined); if(!entries.length) return res.status(400).json({error:'empty_entity_update'});
+    const columnTypes=await tableColumnTypes(table);
+    let entries=Object.entries(req.body||{}).filter(([k,v])=>columns.includes(k)&&k!=='id'&&v!==undefined);
+    entries=normalizeEntityEntriesForDb(entries,columnTypes);
+    if(!entries.length) return res.status(400).json({error:'empty_entity_update'});
     const vals=entries.map(([,v])=>v); vals.push(req.params.id);
     const sets=entries.map(([k],i)=>`${quoteIdentifier(k)}=$${i+1}`).join(',');
     const r=await pool.query(`UPDATE ${quoteIdentifier(table)} SET ${sets} WHERE "id"=$${vals.length} RETURNING *`,vals);
     if(!r.rowCount) return res.status(404).json({error:'entity_not_found'}); res.json(r.rows[0]);
-  } catch(e) { console.error('ENTITY_UPDATE_ERROR:',e); res.status(500).json({error:'entity_update_failed',message:e.message}); }
+  } catch(e) {
+    const bodyKeys=Object.keys(req.body||{});
+    console.error('ENTITY_UPDATE_ERROR:', { entity:req.params.entityName, id:req.params.id, fields:bodyKeys, code:e.code, message:e.message, detail:e.detail });
+    res.status(500).json({error:'entity_update_failed',message:e.message});
+  }
 }
 app.patch('/api/apps/:appId/entities/:entityName/:id',requireSession,updateEntity);
 app.put('/api/apps/:appId/entities/:entityName/:id',requireSession,updateEntity);
@@ -166,8 +196,6 @@ app.delete('/api/apps/:appId/entities/:entityName/:id',requireSession,async(req,
   } catch(e) { console.error('ENTITY_DELETE_ERROR:',e); res.status(500).json({error:'entity_delete_failed',message:e.message}); }
 });
 
-// Core file upload compatibility. Both spellings are supported because different
-// Base44 SDK builds use /integrations and /integration-endpoints.
 function coreUploadHandler(req, res) {
   const operation=String(req.params.operation||'').toLowerCase();
   if(!['uploadfile','uploadprivatefile'].includes(operation)) return res.status(404).json({error:'integration_not_found'});
@@ -186,10 +214,6 @@ app.post('/api/apps/:appId/integrations/Core/:operation', requireSession, coreUp
 app.post('/api/apps/:appId/integration-endpoints/Core/:operation', requireSession, coreUploadHandler);
 app.get('/api/files/:name',async(req,res)=>{ try { const name=path.basename(decodeURIComponent(req.params.name)); const target=path.join(uploadDir,name); if(!fs.existsSync(target)) return res.status(404).json({error:'file_not_found'}); res.sendFile(target); } catch { res.status(400).json({error:'invalid_file_name'}); } });
 
-// Base44 function compatibility. The migrated app calls functions through this
-// endpoint. Known financial recalculation is implemented as a safe idempotent
-// operation; unknown functions return a successful compatibility envelope so
-// legacy SDK code does not break the UI during migration.
 app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,res) => {
   const name=String(req.params.functionName||'');
   try {
@@ -213,18 +237,12 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
   }
 });
 
-// Analytics compatibility: the frontend can continue batching events without
-// failing requests after migration. Events are intentionally accepted without
-// coupling the application to a third-party analytics service.
 app.post('/api/apps/:appId/analytics/track/batch', requireSession, async (req,res) => {
   const events = Array.isArray(req.body) ? req.body : Array.isArray(req.body?.events) ? req.body.events : [];
   console.log('ANALYTICS_BATCH', JSON.stringify({ user_id:req.userId||null, count:events.length }));
   res.status(200).json({ success:true, accepted:events.length });
 });
 
-// Socket.IO / Engine.IO compatibility endpoint used by the migrated Base44
-// client. The app uses the app_id as a room so future server events can be
-// broadcast without changing the client contract.
 io.on('connection', (socket) => {
   const appId = String(socket.handshake.query?.app_id || '');
   const anonymousId = String(socket.handshake.query?.anonymous_id || '');
