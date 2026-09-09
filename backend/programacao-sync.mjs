@@ -1,5 +1,6 @@
 import pg from 'pg';
 import * as XLSX from 'xlsx';
+import crypto from 'node:crypto';
 
 const { Pool } = pg;
 const SHEET_ID = '1I8Tbj5URR7gEX_zZEAFVIkAAfBCs58LC';
@@ -203,6 +204,10 @@ function dbValue(type,v){
   }
   return v;
 }
+function stableLocalId(sourceKey){
+  const hex=crypto.createHash('sha256').update(String(sourceKey)).digest('hex');
+  return `${hex.slice(0,8)}-${hex.slice(8,12)}-5${hex.slice(13,16)}-a${hex.slice(17,20)}-${hex.slice(20,32)}`;
+}
 async function save(item,cols){
   const data=Object.fromEntries(Object.entries(item).filter(([k,v])=>cols.has(k)&&v!==undefined));
   if(cols.has('updated_at'))data.updated_at=new Date().toISOString();
@@ -221,14 +226,16 @@ async function save(item,cols){
     existing=r.rows[0];
   }
 
-  const entries=Object.entries(data).filter(([k])=>k!=='id');
   if(existing){
+    const entries=Object.entries(data).filter(([k])=>k!=='id');
     const vals=entries.map(([k,v])=>dbValue(cols.get(k),(k==='data'&&/date|timestamp/.test(cols.get(k)))?item.data_inicio:v));
     vals.push(existing.id);
     await pool.query(`UPDATE programacoes SET ${entries.map(([k],i)=>`${q(k)}=$${i+1}`).join(',')} WHERE id=$${vals.length}`,vals);
     return 'updated';
   }
 
+  if(cols.has('id'))data.id=stableLocalId(item.source_key);
+  const entries=Object.entries(data);
   const names=entries.map(([k])=>q(k));
   const vals=entries.map(([k,v])=>dbValue(cols.get(k),(k==='data'&&/date|timestamp/.test(cols.get(k)))?item.data_inicio:v));
   await pool.query(`INSERT INTO programacoes (${names.join(',')}) VALUES (${vals.map((_,i)=>`$${i+1}`).join(',')})`,vals);
