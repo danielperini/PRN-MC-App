@@ -187,13 +187,31 @@ async function ensureProgramacaoSchema(){
     tipo_atividade:'TEXT',formato:'TEXT',data:'TEXT',data_inicio:'TIMESTAMPTZ',horario:'TEXT',
     publico_alvo:'TEXT',acessibilidade:'TEXT',classificacao_indicativa:'TEXT',vagas:'TEXT',
     inscricao:'TEXT',local:'TEXT',endereco_completo:'TEXT',status:'TEXT',link_imagens:'TEXT',
-    minibios:'TEXT',material_de_divulgacao:'TEXT',observacoes:'TEXT',month_key:'TEXT'
+    minibios:'TEXT',material_de_divulgacao:'TEXT',observacoes:'TEXT',month_key:'TEXT',
+    source_active:'BOOLEAN',source_hash:'TEXT'
   };
   for(const [name,type] of Object.entries(definitions)){
     await pool.query(`ALTER TABLE programacoes ADD COLUMN IF NOT EXISTS ${q(name)} ${type}`);
   }
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_programacoes_source_key ON programacoes(source_key)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_programacoes_month_key ON programacoes(month_key)`);
+}
+
+async function ensureMirrorSchema(){
+  await pool.query(`CREATE TABLE IF NOT EXISTS programacao_planilha_espelho (
+    source_key TEXT PRIMARY KEY,
+    source_sheet TEXT NOT NULL,
+    source_row INTEGER NOT NULL,
+    month_key TEXT,
+    museu TEXT,
+    titulo TEXT,
+    data_inicio TIMESTAMPTZ,
+    source_hash TEXT NOT NULL,
+    payload JSONB NOT NULL,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_programacao_espelho_month_active ON programacao_planilha_espelho(month_key,active)`);
 }
 function dbValue(type,v){
   if(v===undefined)return null;
@@ -208,7 +226,61 @@ function stableLocalId(sourceKey){
   const hex=crypto.createHash('sha256').update(String(sourceKey)).digest('hex');
   return `${hex.slice(0,8)}-${hex.slice(8,12)}-5${hex.slice(13,16)}-a${hex.slice(17,20)}-${hex.slice(20,32)}`;
 }
+function sourceHash(item){
+  return crypto.createHash('sha256').update(JSON.stringify(item)).digest('hex');
+}
+async function enrichMissingFieldsWithAI(items){
+  const apiKey=String(process.env.OPENAI_API_KEY||'').trim();
+  const pending=items.filter(item=>!item.tipo_atividade||!item.publico_alvo||item.museu==='Externo');
+  if(!apiKey||!pending.length)return items;
+  try{
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),60000);
+    const response=await fetch('https://api.openai.com/v1/responses',{
+      method:'POST',signal:controller.signal,
+      headers:{Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:process.env.OPENAI_PROGRAMACAO_MODEL||'gpt-4.1-mini',
+        input:[
+          {role:'system',content:[{type:'input_text',text:'Você faz curadoria da programação do Museus Centro. Responda somente JSON válido, sem markdown. Não invente datas, nomes ou locais. Preserve evidências da planilha.'}]},
+          {role:'user',content:[{type:'input_text',text:JSON.stringify({tarefa:'Complete somente campos ausentes. museu deve ser MHAB, MIS, MUMO ou Externo. Retorne um array de objetos com source_key, museu, tipo_atividade e publico_alvo.',registros:pending.map(({source_key,equipamento,titulo,sinopse,local,museu,tipo_atividade,publico_alvo})=>({source_key,equipamento,titulo,sinopse,local,museu,tipo_atividade,publico_alvo}))})}]}
+        ]
+      })
+    });
+    clearTimeout(timer);
+    if(!response.ok)throw new Error(`OpenAI ${response.status}`);
+    const body=await response.json();
+    const text=body.output?.flatMap(item=>item.content||[]).find(content=>content.type==='output_text')?.text||'';
+    const suggestions=JSON.parse(text);
+    const byKey=new Map((Array.isArray(suggestions)?suggestions:[]).map(value=>[value.source_key,value]));
+    for(const item of items){
+      const suggestion=byKey.get(item.source_key);
+      if(!suggestion)continue;
+      if(item.museu==='Externo'&&['MHAB','MIS','MUMO','Externo'].includes(suggestion.museu))item.museu=suggestion.museu;
+      if(!item.tipo_atividade)item.tipo_atividade=clean(suggestion.tipo_atividade);
+      if(!item.publico_alvo)item.publico_alvo=clean(suggestion.publico_alvo);
+    }
+    console.log('PROGRAMACAO_AI_OK',JSON.stringify({analyzed:pending.length}));
+  }catch(error){
+    console.error('PROGRAMACAO_AI_SKIPPED',error.message);
+  }
+  return items;
+}
+async function saveMirror(item){
+  const hash=sourceHash(item);
+  await pool.query(`INSERT INTO programacao_planilha_espelho
+    (source_key,source_sheet,source_row,month_key,museu,titulo,data_inicio,source_hash,payload,active,synced_at)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,TRUE,NOW())
+    ON CONFLICT (source_key) DO UPDATE SET
+      source_sheet=EXCLUDED.source_sheet,source_row=EXCLUDED.source_row,month_key=EXCLUDED.month_key,
+      museu=EXCLUDED.museu,titulo=EXCLUDED.titulo,data_inicio=EXCLUDED.data_inicio,
+      source_hash=EXCLUDED.source_hash,payload=EXCLUDED.payload,active=TRUE,synced_at=NOW()`,
+    [item.source_key,item.source_sheet,item.source_row,item.month_key,item.museu,item.titulo,item.data_inicio,hash,JSON.stringify(item)]);
+  return hash;
+}
 async function save(item,cols){
+  item.source_active=true;
+  item.source_hash=sourceHash(item);
   const data=Object.fromEntries(Object.entries(item).filter(([k,v])=>cols.has(k)&&v!==undefined));
   if(cols.has('updated_at'))data.updated_at=new Date().toISOString();
   let existing=null;
@@ -251,8 +323,10 @@ export async function syncProgramacao(){
     const target=wb.SheetNames.filter(n=>/(setembro|outubro|novembro)\s*2026/i.test(norm(n)));
     let items=[];
     for(const name of target)items.push(...rowsFromSheet(wb.Sheets[name],name));
+    items=await enrichMissingFieldsWithAI(items);
 
     await ensureProgramacaoSchema();
+    await ensureMirrorSchema();
     const cols=await columns();
     if(!cols.size)throw new Error('tabela programacoes ausente');
 
@@ -261,11 +335,21 @@ export async function syncProgramacao(){
     for(const item of items){
       byMonth[item.month_key]=(byMonth[item.month_key]||0)+1;
       try{
+        await saveMirror(item);
         const s=await save(item,cols);
         s==='created'?created++:updated++;
       }catch(e){
         failed++;
         console.error('PROGRAMACAO_SYNC_ROW_ERROR',item.source_key,e.message);
+      }
+    }
+    const sourceKeys=items.map(item=>item.source_key);
+    if(sourceKeys.length){
+      await pool.query(`UPDATE programacao_planilha_espelho SET active=FALSE,synced_at=NOW()
+        WHERE source_sheet=ANY($1::text[]) AND NOT (source_key=ANY($2::text[]))`,[target,sourceKeys]);
+      if(cols.has('source_active')){
+        await pool.query(`UPDATE programacoes SET source_active=FALSE,updated_at=NOW()
+          WHERE source_sheet=ANY($1::text[]) AND NOT (source_key=ANY($2::text[]))`,[target,sourceKeys]);
       }
     }
     const persistedResult=await pool.query(`SELECT month_key,COUNT(*)::int AS total FROM programacoes WHERE month_key=ANY($1::text[]) GROUP BY month_key ORDER BY month_key`,[Object.keys(byMonth)]);

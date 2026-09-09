@@ -165,7 +165,11 @@ app.get('/api/apps/:appId/entities/:entityName', requireSession, async (req,res)
     const table=entityTable(req.params.entityName);
     if (!table || !(await tableExists(table))) return res.json([]);
     const {sql,values}=await buildWhere(table,req);
-    const r=await pool.query(`SELECT * FROM ${quoteIdentifier(table)}${sql} LIMIT ${entityLimit(req)}`,values);
+    const columns=await tableColumns(table);
+    const activeClause=table==='programacoes'&&columns.includes('source_active')
+      ? `${sql?' AND':' WHERE'} source_active IS DISTINCT FROM FALSE`
+      : '';
+    const r=await pool.query(`SELECT * FROM ${quoteIdentifier(table)}${sql}${activeClause} LIMIT ${entityLimit(req)}`,values);
     res.json(r.rows);
   } catch(e) { console.error('ENTITY_GET_ERROR:',e); res.status(500).json({error:'entity_query_failed',message:e.message}); }
 });
