@@ -41,6 +41,10 @@ const MESES = [
   'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
 ];
+const MESES_CALENDARIO = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+];
 
 const MUSEUS_LISTA = ['MHAB', 'MIS', 'MUMO', 'Geral'];
 
@@ -96,6 +100,8 @@ function formatarNumeroResumo(n) {
 
 function createEmptyReportPayload(user, mesAtual, anoAtual) {
   return {
+    created_by: user?.email || '',
+    author_email: user?.email || '',
     author_name: user?.full_name || '',
     author_role: user?.role === 'admin' ? 'ADMIN' : user?.role === 'COORDENADOR' ? 'COORDENADOR' : 'PROFISSIONAL',
     funcao: user?.funcao || '',
@@ -118,7 +124,8 @@ function createEmptyReportPayload(user, mesAtual, anoAtual) {
 }
 
 function getMesAtual() {
-  return MESES[new Date().getMonth()];
+  const nome = MESES_CALENDARIO[new Date().getMonth()];
+  return MESES.includes(nome) ? nome : MESES[0];
 }
 
 function getAnoAtual() {
@@ -213,7 +220,7 @@ export default function ReportEditor() {
 
         clearReportState();
         setLoadingError(true);
-        toast.error('RelatÃ³rio nÃ£o encontrado.');
+        toast.error('Relatório não encontrado.');
         return;
       }
 
@@ -222,12 +229,21 @@ export default function ReportEditor() {
         return;
       }
 
-      const existingDrafts = await base44.entities.Report.filter({
+      let existingDrafts = await base44.entities.Report.filter({
         created_by: currentUser.email,
         mes_referencia: mesAtual,
         ano: anoAtual,
         status: 'DRAFT',
       });
+
+      if (!existingDrafts?.length) {
+        existingDrafts = await base44.entities.Report.filter({
+          author_email: currentUser.email,
+          mes_referencia: mesAtual,
+          ano: anoAtual,
+          status: 'DRAFT',
+        });
+      }
 
       if (existingDrafts && existingDrafts.length > 0) {
         applyReport(existingDrafts[0]);
@@ -387,6 +403,8 @@ export default function ReportEditor() {
     try {
       const payload = {
         ...formData,
+        created_by: report.created_by || currentUser?.email || '',
+        author_email: report.author_email || currentUser?.email || '',
         status: 'SUBMITTED',
         submitted_at: new Date().toISOString(),
         atividades,
@@ -411,12 +429,11 @@ export default function ReportEditor() {
         console.warn('Falha ao notificar envio de relatório:', error);
       });
 
-      // Se estava RETURNED, resolver notificações de devolução
       if (report?.status === 'RETURNED') {
         base44.entities.Notification.filter({
           entity_id: report.id,
           type: 'REPORT_RETURNED',
-          read: false,
+          is_read: false,
         }).then(notifs => {
           (notifs || []).forEach(n => base44.entities.Notification.update(n.id, { resolved: true }).catch(() => {}));
         }).catch(() => {});
@@ -452,7 +469,7 @@ export default function ReportEditor() {
       } else if (response.data?.error) {
         toast.error('Erro ao gerar PDF: ' + response.data.error);
       } else {
-        toast.success('📄 PDF gerado! Verifique sua pasta de downloads.');
+        toast.error('A geração de PDF pelo servidor ainda não está disponível. Use o botão de exportação do relatório mensal.');
       }
     } catch (err) {
       console.error(err);
@@ -516,18 +533,18 @@ export default function ReportEditor() {
       <div className="max-w-3xl mx-auto px-4 py-16">
         <Card className="p-8 text-center rounded-3xl border border-gray-200 bg-white">
           <h1 className="text-2xl font-semibold text-gray-900">
-            Nenhum relatÃ³rio selecionado.
+            Nenhum relatório selecionado.
           </h1>
           <p className="mt-3 text-sm leading-relaxed text-gray-500">
-            Abra um relatÃ³rio existente pela lista ou crie um novo relatÃ³rio por aÃ§Ã£o explÃ­cita.
-            O editor nÃ£o gera rascunhos automaticamente ao carregar a pÃ¡gina.
+            Abra um relatório existente pela lista ou crie um novo relatório por ação explícita.
+            O editor não gera rascunhos automaticamente ao carregar a página.
           </p>
           <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Button variant="outline" onClick={() => { window.location.href = '/Relatorios'; }}>
-              Voltar para RelatÃ³rios
+              Voltar para Relatórios
             </Button>
             <Button onClick={() => { window.location.href = '/ReportEditor?novo=1'; }}>
-              Criar novo relatÃ³rio
+              Criar novo relatório
             </Button>
           </div>
         </Card>
