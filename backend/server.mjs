@@ -100,22 +100,36 @@ function parseJsonParam(value) {
   if (typeof value === 'object') return value;
   try { return JSON.parse(value); } catch { return null; }
 }
-function normalizeJsonValue(value) {
+const JSON_ID_LIST_FIELDS = new Set(['meta_manual_ids']);
+function normalizeJsonValue(field, value) {
   if (value == null) return value;
-  if (typeof value === 'object') return value;
-  if (typeof value !== 'string') return value;
+  if (Array.isArray(value) || typeof value === 'object') return value;
+  if (typeof value !== 'string') throw new TypeError(`Campo JSON ${field} recebeu ${typeof value}`);
   const trimmed = value.trim();
-  if (!trimmed) return value;
-  try { return JSON.parse(trimmed); } catch {}
-  const legacySetMatch = trimmed.match(/^\{\s*"([^"]+)"\s*\}$/);
-  if (legacySetMatch) return [legacySetMatch[1]];
-  return value;
+  if (!trimmed) return JSON_ID_LIST_FIELDS.has(field) ? [] : null;
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (Array.isArray(parsed) || (parsed && typeof parsed === 'object')) return parsed;
+    if (JSON_ID_LIST_FIELDS.has(field)) return [String(parsed)];
+    throw new TypeError(`Campo JSON ${field} deve ser array ou objeto`);
+  } catch (error) {
+    if (error instanceof TypeError) throw error;
+    if (JSON_ID_LIST_FIELDS.has(field)) {
+      const legacySet = trimmed.match(/^\{\s*"([^"]+)"\s*(?:,\s*"([^"]+)"\s*)*\}$/);
+      if (legacySet) return [...trimmed.matchAll(/"([^"]+)"/g)].map(match => match[1]);
+      if (/^[A-Za-z0-9_.:-]+$/.test(trimmed)) return [trimmed];
+    }
+    throw new TypeError(`JSON inválido no campo ${field}`);
+  }
 }
 function normalizeEntityEntriesForDb(entries, columnTypes) {
   return entries.map(([key,value]) => {
     const type = columnTypes.get(key);
     const isJson = type && (type.dataType === 'json' || type.dataType === 'jsonb' || type.udtName === 'json' || type.udtName === 'jsonb');
-    return [key, isJson ? normalizeJsonValue(value) : value];
+    if (!isJson) return [key, value];
+    // node-postgres converte arrays JS em literais PostgreSQL ({"23"}).
+    // Uma string JSON explícita preserva o contrato das colunas JSON/JSONB.
+    return [key, JSON.stringify(normalizeJsonValue(key, value))];
   });
 }
 function entityLimit(req) { const n = Number(req.query.limit ?? 5000); return Number.isFinite(n) ? Math.min(Math.max(Math.trunc(n), 1), 5000) : 5000; }
@@ -170,12 +184,14 @@ app.post('/api/apps/:appId/entities/:entityName', requireSession, async (req,res
 });
 
 async function updateEntity(req,res) {
+  let table=null, entries=[], currentField=null;
   try {
-    const table=entityTable(req.params.entityName); if(!table) return res.status(404).json({error:'entity_not_migrated'});
+    table=entityTable(req.params.entityName); if(!table) return res.status(404).json({error:'entity_not_migrated'});
     if(!(await tableExists(table))) return res.status(404).json({error:'table_not_found',table});
     const columns=await tableColumns(table); if(!columns.includes('id')) return res.status(400).json({error:'entity_has_no_id_column'});
     const columnTypes=await tableColumnTypes(table);
-    let entries=Object.entries(req.body||{}).filter(([k,v])=>columns.includes(k)&&k!=='id'&&v!==undefined);
+    entries=Object.entries(req.body||{}).filter(([k,v])=>columns.includes(k)&&k!=='id'&&v!==undefined);
+    currentField=entries[0]?.[0]||null;
     entries=normalizeEntityEntriesForDb(entries,columnTypes);
     if(!entries.length) return res.status(400).json({error:'empty_entity_update'});
     const vals=entries.map(([,v])=>v); vals.push(req.params.id);
@@ -184,8 +200,16 @@ async function updateEntity(req,res) {
     if(!r.rowCount) return res.status(404).json({error:'entity_not_found'}); res.json(r.rows[0]);
   } catch(e) {
     const bodyKeys=Object.keys(req.body||{});
-    console.error('ENTITY_UPDATE_ERROR:', { entity:req.params.entityName, id:req.params.id, fields:bodyKeys, code:e.code, message:e.message, detail:e.detail });
-    res.status(500).json({error:'entity_update_failed',message:e.message});
+    const parameter=String(e.where||'').match(/parameter \$(\d+)/i);
+    const failedField=parameter ? entries[Number(parameter[1])-1]?.[0] : currentField;
+    const received=req.body?.[failedField];
+    console.error('ENTITY_UPDATE_ERROR:', {
+      entity:req.params.entityName, table, id:req.params.id, fields:bodyKeys,
+      failedField:failedField||null, receivedType:Array.isArray(received)?'array':typeof received,
+      receivedShape:Array.isArray(received)?{length:received.length}:received&&typeof received==='object'?{keys:Object.keys(received).slice(0,20)}:null,
+      code:e.code, message:e.message, detail:e.detail
+    });
+    res.status(400).json({error:'entity_update_failed',field:failedField||null,message:e.message});
   }
 }
 app.patch('/api/apps/:appId/entities/:entityName/:id',requireSession,updateEntity);
