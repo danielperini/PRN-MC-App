@@ -14,7 +14,7 @@ export default function ResendNotificationBatch({ batchSlot = 'manha', onSuccess
   const [reenviando, setReenviando] = useState(false);
 
   async function handleReenviar() {
-    if (!window.confirm(`Reenviar o último lote de ${batchSlot === 'manha' ? 'manhã' : 'tarde'}? Isso criará novos registros na fila para o próximo horário disponível.`)) {
+    if (!window.confirm(`Reenviar o último lote de ${batchSlot === 'agora' ? 'agora' : (batchSlot === 'manha' ? 'manhã' : 'tarde')}? Isso criará novos registros na fila para o próximo horário disponível.`)) {
       return;
     }
 
@@ -49,7 +49,7 @@ export default function ResendNotificationBatch({ batchSlot = 'manha', onSuccess
       className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50"
     >
       <RotateCw className={`h-4 w-4 ${reenviando ? 'animate-spin' : ''}`} />
-      {reenviando ? 'Reenviando...' : `Reenviar Lote ${batchSlot === 'manha' ? 'Manhã' : 'Tarde'}`}
+      {reenviando ? 'Reenviando...' : `Reenviar Lote ${batchSlot === 'agora' ? 'Agora' : (batchSlot === 'manha' ? 'Manhã' : 'Tarde')}`}
     </Button>
   );
 }

@@ -5,6 +5,7 @@ import { Pencil, Trash2, CheckCircle2, RotateCcw, XCircle, Bell, Loader2, LinkIc
 import { normalizeStatus } from '@/lib/normalizeStatus';
 import { isFinanciallyActiveStatus } from '@/utils/finance/financeiroUtils';
 import RubricaIaBadge from './RubricaIaBadge';
+import InvoiceLinks from './InvoiceLinks';
 
 const STATUS_CONFIG = {
   RASCUNHO: { label: 'Rascunho', color: 'bg-gray-100 text-gray-700' },
@@ -135,57 +136,7 @@ function SortIcon({ field, sortField, sortDir }) {
 }
 
 function FilesCell({ p }) {
-  // Drive backup
-  const driveUrl = p.drive_backup_folder_url || p.drive_backup_nf_pdf_link || null;
-  const hasBackup = p.drive_backup_status === 'concluido' || !!driveUrl;
-
-  // PDF: prioridade backup drive, depois url armazenada
-  const pdfUrl = p.drive_backup_nf_pdf_link || p.nota_fiscal_pdf_url || p.nota_fiscal_url || p.nf_pdf_url || null;
-
-  // XML
-  const xmlUrl = p.drive_backup_nf_xml_link || p.nota_fiscal_xml_url || p.xml_url || p.nf_xml_url || null;
-
-  return (
-    <div className="flex flex-col gap-1 text-xs">
-      {/* Backup badge */}
-      {hasBackup ? (
-        <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-1.5 py-0.5 text-[10px] font-medium text-green-700">
-          ✔ Backup
-        </span>
-      ) : (
-        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">
-          ⚠ Sem backup
-        </span>
-      )}
-
-      {/* Drive */}
-      {driveUrl ? (
-        <a href={driveUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-indigo-700 underline underline-offset-1 hover:text-indigo-900">
-          <HardDrive className="h-3 w-3" />Drive
-        </a>
-      ) : (
-        <span className="text-gray-400 flex items-center gap-1"><HardDrive className="h-3 w-3" />—</span>
-      )}
-
-      {/* PDF */}
-      {pdfUrl ? (
-        <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-blue-700 underline underline-offset-1 hover:text-blue-900">
-          <FileText className="h-3 w-3" />PDF
-        </a>
-      ) : (
-        <span className="text-gray-400 flex items-center gap-1"><FileText className="h-3 w-3" />—</span>
-      )}
-
-      {/* XML */}
-      {xmlUrl ? (
-        <a href={xmlUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-green-700 underline underline-offset-1 hover:text-green-900">
-          <FileCode2 className="h-3 w-3" />XML
-        </a>
-      ) : (
-        <span className="text-gray-400 flex items-center gap-1"><FileCode2 className="h-3 w-3" />—</span>
-      )}
-    </div>
-  );
+  return <InvoiceLinks purchase={p} />;
 }
 
 const SORTABLE_COLS = ['natureza', 'fornecedor', 'rubrica', 'centro', 'status', 'valor', 'data_nf'];
@@ -565,7 +516,7 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
                     </button>
                   )}
                   {podeMarcarPago && (
-                    <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onMarkPaid?.(p); }} className={`inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${pago ? 'text-emerald-600 hover:bg-emerald-50' : 'text-gray-500 hover:bg-emerald-50 hover:text-emerald-700'}`} title={pago ? 'Comprovante' : 'Marcar pago'}>
+                    <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onMarkPaid?.(p); }} className={`inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${pago ? 'text-emerald-600 hover:bg-emerald-50' : 'text-gray-500 hover:bg-emerald-50 hover:text-emerald-700'}`} title={pago ? 'Retornar para aguardando pagamento' : 'Marcar pago'}>
                       <CheckCircle2 className="h-3.5 w-3.5" />
                     </button>
                   )}

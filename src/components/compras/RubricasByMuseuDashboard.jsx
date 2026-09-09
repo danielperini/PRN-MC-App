@@ -81,6 +81,8 @@ function classificarRubrica(rubrica) {
   // 1. centro_custo — se for museu físico ou noturno, usar direto
   const cc = normalizarCentro(rubrica.centro_custo);
   if (cc && ['MHAB', 'MIS', 'MUMO', 'Noturno 2026', 'Noturno Pampulha'].includes(cc)) return cc;
+  const codigoMuseu = normalizarCentro(rubrica.museu_codigo);
+  if (['MHAB', 'MIS', 'MUMO'].includes(codigoMuseu)) return codigoMuseu;
 
   // 2. Nome da rubrica
   const nome = normalizeText(rubrica.rubrica || rubrica.nome || '');

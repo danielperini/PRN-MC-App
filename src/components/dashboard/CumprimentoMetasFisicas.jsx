@@ -33,14 +33,17 @@ function barColor(pct) {
   return 'bg-red-400';
 }
 
+const META20_ID = '6a32aead6201158ef021b371';
 function classifyActivity(a, criterios) {
+  if (String(a?.meta_id || '') === META20_ID) return '20';
+  if (/^20(?:\s|\-|$)/i.test(String(a?.meta_codigo || ''))) return '20';
   return classificarComCriterios(a, criterios) ? '20' : null;
 }
 
 function getMuseu(a) {
   const lista = Array.isArray(a.museu_lista) ? a.museu_lista : [];
   if (lista.length > 0) return lista[0];
-  return a.museu || 'Geral';
+  return a.museu || null;
 }
 
 export default function CumprimentoMetasFisicas({ dataInicio, dataFim }) {
@@ -60,6 +63,24 @@ export default function CumprimentoMetasFisicas({ dataInicio, dataFim }) {
     staleTime: 60000,
   });
 
+  const { data: activities = [] } = useQuery({
+    queryKey: ['activities-para-metas-fisicas'],
+    queryFn: () => base44.entities.Activity.list('-created_date', 2000),
+    staleTime: 0,
+  });
+
+  const { data: purchases = [] } = useQuery({
+    queryKey: ['purchases-acoes-educativas-meta20'],
+    queryFn: () => base44.entities.PurchaseRequest.list('-created_date', 5000),
+    staleTime: 0,
+  });
+
+  const { data: rubricas = [] } = useQuery({
+    queryKey: ['rubricas-acoes-educativas-meta20'],
+    queryFn: () => base44.entities.Rubrica.list('rubrica', 1000),
+    staleTime: 0,
+  });
+
   const relatoriosFiltrados = useMemo(() => {
     if (!dataInicio || !dataFim) return relatorios;
     return relatorios.filter(r => isRelatorioNoPeriodo(r.mes_referencia, r.ano, dataInicio, dataFim));
@@ -67,51 +88,42 @@ export default function CumprimentoMetasFisicas({ dataInicio, dataFim }) {
 
   const todasAtividades = useMemo(() => {
     const arr = [];
+    const relatorioPorId = new Map();
     for (const r of relatoriosFiltrados) {
-      for (const a of (r.atividades || [])) {
-        arr.push({ ...a, _museu: getMuseu(a), _relatorio: r });
-      }
+      for (const id of [r.id, r.base44_id]) if (id) relatorioPorId.set(String(id), r);
+      for (const a of (r.atividades || [])) arr.push({ ...a, _museu: getMuseu(a), _relatorio: r });
+    }
+    const vistos = new Set(arr.map((a) => String(a.id || a.base44_id || '')));
+    for (const a of activities) {
+      const aid = String(a.id || a.base44_id || '');
+      if (aid && vistos.has(aid)) continue;
+      const r = relatorioPorId.get(String(a.report_id || ''));
+      if (!r) continue;
+      arr.push({ ...a, _museu: getMuseu(a) || r.museu || 'Geral', _relatorio: r });
     }
     return arr;
-  }, [relatoriosFiltrados]);
+  }, [relatoriosFiltrados, activities]);
 
-  const stats = useMemo(() => {
-    const counts = {};
-    for (const meta of METAS_FISICAS) {
-      counts[meta.numero] = { total: 0, porMuseu: {} };
-      for (const m of MUSEUS_ORDEM) counts[meta.numero].porMuseu[m] = 0;
-    }
-    for (const a of todasAtividades) {
-      const key = classifyActivity(a, criteriosMeta20);
-      if (!key || !counts[key]) continue;
-      counts[key].total += 1;
-      const museu = MUSEUS_ORDEM.includes(a._museu) ? a._museu : 'Geral';
-      counts[key].porMuseu[museu] = (counts[key].porMuseu[museu] || 0) + 1;
-    }
-    return counts;
-  }, [todasAtividades, criteriosMeta20]);
-
-  // Auxiliar: o card 'Geral' usa modo consolidado (soma de todos museus + sem-museu) ou apenas museu=Geral
-  const geralConsolidado = criteriosMeta20?.geral_mode === 'consolidado';
+  // Regra oficial da Meta 20: uma NF aprovada/paga na rubrica de ações educativo-culturais = uma ação.
+  // Mesma fonte do card META 20: atividades vinculadas oficialmente à Meta 20.
+  const atividadesMeta20 = useMemo(
+    () => todasAtividades.filter((a) => String(a.meta_id || '') === '6a32aead6201158ef021b371'),
+    [todasAtividades]
+  );
 
   const acoesPorMuseu = useMemo(() => {
-    const tot = {};
-    for (const m of MUSEUS_ORDEM) tot[m] = 0;
-    if (stats['20']) {
-      if (geralConsolidado) {
-        // 'Geral' exibe o total (consolidado) — soma de todos museus + sem museu específico
-        tot['Geral'] = stats['20'].total;
-        for (const m of ['MHAB', 'MIS', 'MUMO']) {
-          tot[m] += (stats['20'].porMuseu[m] || 0);
-        }
-      } else {
-        for (const m of MUSEUS_ORDEM) {
-          tot[m] += (stats['20'].porMuseu[m] || 0);
-        }
-      }
+    const totals = { MHAB: 0, MIS: 0, MUMO: 0, Geral: 0 };
+    for (const a of atividadesMeta20) {
+      const rawMuseu = String(a._museu || a.equipe_responsavel || a.museu || '').toLowerCase();
+      const museu = rawMuseu.includes('mhab') || rawMuseu.includes('mab') || rawMuseu.includes('abilio') ? 'MHAB' : rawMuseu.includes('mis') || rawMuseu.includes('imagem') ? 'MIS' : rawMuseu.includes('mumo') || rawMuseu.includes('moda') ? 'MUMO' : null;
+      const quantidade = Math.max(1, Number(a.quantas_repeticoes || a.quantas_vezes_ocorreu || 1));
+      if (museu === 'MHAB' || museu === 'MIS' || museu === 'MUMO') totals[museu] += quantidade;
+      totals.Geral += quantidade;
     }
-    return tot;
-  }, [stats, geralConsolidado]);
+    return totals;
+  }, [atividadesMeta20]);
+
+  const stats = useMemo(() => ({ '20': { total: acoesPorMuseu.Geral, porMuseu: acoesPorMuseu } }), [acoesPorMuseu]);
 
   // Resumo por relatório para drill-down
   const resumoRelatoriosPorMeta = useMemo(() => {
@@ -132,7 +144,7 @@ export default function CumprimentoMetasFisicas({ dataInicio, dataFim }) {
           contagens: {},
         };
       }
-      map[rid].contagens[key] = (map[rid].contagens[key] || 0) + 1;
+      map[rid].contagens[key] = (map[rid].contagens[key] || 0) + Math.max(1, Number(a.quantas_repeticoes || a.quantas_vezes_ocorreu || 1));
     }
     return map;
   }, [todasAtividades, criteriosMeta20]);

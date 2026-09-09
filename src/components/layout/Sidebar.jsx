@@ -48,11 +48,24 @@ import { requestDashboardPriorityRefresh } from '@/utils/dashboardRefresh';
 import SidebarTooltip from './SidebarTooltip';
 import { artigoSala } from '@/utils/generoUtils';
 
+
+const PainelBrandIcon = ({ className = "" }) => (
+  <span className={"inline-flex shrink-0 items-center justify-center overflow-hidden rounded-sm bg-black " + className} aria-hidden="true">
+    <svg viewBox="0 0 32 32" className="h-full w-full" focusable="false">
+      <text x="3" y="18" fill="white" fontSize="10" fontWeight="700">M</text>
+      <rect x="15" y="3" width="4" height="10" fill="#6962b8" />
+      <path d="M14 13h5l2 9h-5z" fill="#c77a56" />
+      <path d="M18 22h5l-2 8h-5z" fill="#b6a99c" />
+      <text x="24" y="26" fill="white" fontSize="10" fontWeight="700">C</text>
+    </svg>
+  </span>
+);
+
 const NAV_GROUPS_BASE = [
   {
     label: '',
     items: [
-      { path: 'Dashboard', label: 'Painel', icon: LayoutDashboard, roles: ['all'] },
+      { path: 'Dashboard', label: 'Painel', icon: PainelBrandIcon, roles: ['all'] },
     ],
   },
   {

@@ -216,16 +216,24 @@ export function calcularTotaisPorAditivo(rubricas = [], compras = []) {
   // 4º Aditivo: calcular via compras com centro_custo "Noturno Pampulha"
   // pois as compras deste aditivo estão vinculadas a rubricas do pool do Noturno,
   // não às 4 rubricas criadas especificamente para o 4º Aditivo.
-  const utilizado4 = (Array.isArray(compras) ? compras : [])
-    .filter((c) => {
+    // A rubrica vinculada tem precedência; Pampulha só vale para compras antigas sem rubrica.
+    const rubricaPorId = new Map(ativas.map((r) => [String(r.id), r]));
+    const aditivoDaRubrica = (compra) => {
+      const rubrica = rubricaPorId.get(String(compra?.rubrica_id || compra?.budgetline_id || ''));
+      const origem = String(rubrica?.origem_recurso || '').trim().toUpperCase();
+      if (origem.includes('5º') || origem.includes('5O')) return 5;
+      if (origem.includes('4º') || origem.includes('4O')) return 4;
+      if (origem.includes('3º') || origem.includes('3O')) return 3;
+      return null;
+    };
+    const utilizado4 = (Array.isArray(compras) ? compras : []).filter((c) => {
       const status = String(c?.status || '').toUpperCase();
-      const cc = (c?.centro_custo || '').toLowerCase();
-      return STATUS_FINANCEIROS.has(status) &&
-        (cc.includes('pampulha') || cc === 'noturno pampulha') &&
-        c?.duplicada_financeira !== true &&
-        c?.incluir_no_somatorio !== false;
-    })
-    .reduce((s, c) => s + getPurchaseValueLocal(c), 0);
+      if (!STATUS_FINANCEIROS.has(status) || c?.duplicada_financeira === true || c?.incluir_no_somatorio === false) return false;
+      const aditivoVinculado = aditivoDaRubrica(c);
+      if (aditivoVinculado !== null) return aditivoVinculado === 4;
+      const cc = String(c?.centro_custo || '').toLowerCase();
+      return cc.includes('pampulha') || cc === 'noturno pampulha';
+    }).reduce((s,c)=>s+getPurchaseValueLocal(c),0);
 
   const mkBloco = (previsto, utilizado, rubricas) => ({
     previsto,

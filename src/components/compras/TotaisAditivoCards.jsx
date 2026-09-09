@@ -21,19 +21,26 @@ function fmtBRL(v) {
  *  - 3º e 5º: NFs aprovadas/pagas vinculadas a rubricas do aditivo (mesma origem_recurso)
  *  - 4º: NFs aprovadas/pagas com centro_custo contendo "pampulha"
  */
-function nfsAtivasPorAditivo(tipoAditivo, rubricasDoAditivo, compras) {
+function nfsAtivasPorAditivo(tipoAditivo, rubricasDoAditivo, todasRubricas, compras) {
   const rubricaIds = new Set((rubricasDoAditivo || []).map((r) => r.id).filter(Boolean));
+  const rubricaPorId = new Map((todasRubricas || []).map((r) => [String(r.id), r]));
+  const aditivoDaRubrica = (compra) => {
+    const rubrica = rubricaPorId.get(String(compra?.rubrica_id || compra?.budgetline_id || ''));
+    const origem = String(rubrica?.origem_recurso || '').trim().toUpperCase();
+    if (origem.includes('5º') || origem.includes('5O')) return 5;
+    if (origem.includes('4º') || origem.includes('4O')) return 4;
+    if (origem.includes('3º') || origem.includes('3O')) return 3;
+    return null;
+  };
   return (Array.isArray(compras) ? compras : []).filter((c) => {
     const status = String(c?.status || '').toUpperCase();
-    if (!isFinanciallyActiveStatus(status)) return false;
-    if (c?.duplicada_financeira === true || c?.incluir_no_somatorio === false) return false;
-    if (tipoAditivo === 4) {
-      return String(c?.centro_custo || '').toLowerCase().includes('pampulha');
-    }
-    return rubricaIds.size > 0 && c?.rubrica_id && rubricaIds.has(c.rubrica_id);
+    if (!isFinanciallyActiveStatus(status) || c?.duplicada_financeira === true || c?.incluir_no_somatorio === false) return false;
+    const aditivoVinculado = aditivoDaRubrica(c);
+    if (aditivoVinculado !== null) return aditivoVinculado === tipoAditivo;
+    if (tipoAditivo === 4) return String(c?.centro_custo || '').toLowerCase().includes('pampulha');
+    return rubricaIds.size > 0 && Boolean(c?.rubrica_id) && rubricaIds.has(c.rubrica_id);
   });
 }
-
 function AditivoBlock({ titulo, badge, badgeColor, totalPrevisto, totalUtilizado, saldo, rubricasList, qtdNFs, qtdDuplicatas, nfsAtivas, onRefresh, onRubricasRefresh }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const pct = totalPrevisto > 0 ? ((totalUtilizado / totalPrevisto) * 100) : 0;
@@ -165,9 +172,9 @@ export default function TotaisAditivoCards({ rubricas = [], compras = [], onRefr
       auditoria,
       duplicadas: auditoria.duplicadas_ignoradas,
       datasInvalidas: auditoria.datas_invalidas_ignoradas,
-      nfsTerceiro: nfsAtivasPorAditivo(3, r3, compras),
-      nfsQuarto: nfsAtivasPorAditivo(4, r4, compras),
-      nfsQuinto: nfsAtivasPorAditivo(5, r5, compras),
+      nfsTerceiro: nfsAtivasPorAditivo(3, r3, ativas, compras),
+      nfsQuarto: nfsAtivasPorAditivo(4, r4, ativas, compras),
+      nfsQuinto: nfsAtivasPorAditivo(5, r5, ativas, compras),
       rubricas3: r3,
       rubricas4: r4,
       rubricas5: r5,

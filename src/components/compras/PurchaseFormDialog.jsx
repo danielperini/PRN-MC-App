@@ -1956,7 +1956,7 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,.xml,.doc,.docx,.png,.jpg,.jpeg"
+                accept="application/pdf,application/xml,text/xml,.pdf,.xml,.doc,.docx"
                 className="hidden"
                 onChange={handleFileUpload}
               />

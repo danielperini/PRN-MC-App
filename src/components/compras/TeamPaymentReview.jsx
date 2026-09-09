@@ -103,7 +103,7 @@ export default function DocumentIntakeCard({
     intake.status_processamento === 'ERRO_PROCESSAMENTO';
 
   const canSendApproval =
-    canReview && isPDF;
+    isPDF && !['ENVIADO_APROVACAO', 'APROVADO'].includes(intake.status_processamento);
 
   const canLinkXml =
     isXML &&
@@ -301,7 +301,12 @@ export default function DocumentIntakeCard({
         intake.nf_data_emissao ||
         '';
 
-      const novaPurchase =
+      if (!nfData) {
+    toast.error('Informe a data de emissão da nota antes de enviar para Compras.');
+    return;
+  }
+
+  const novaPurchase =
         await base44.entities.PurchaseRequest.create({
 
           descricao_item: descricao,
@@ -679,7 +684,7 @@ export default function DocumentIntakeCard({
                 {
                   sendingApproval
                     ? 'Enviando...'
-                    : 'Enviar'
+                    : 'Aprovar para Compras'
                 }
               </Button>
             )

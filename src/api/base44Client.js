@@ -4,12 +4,13 @@ import { appParams } from '@/lib/app-params';
 import { filtrarMetas3e4Aditivos } from '@/utils/metasAditivosPermitidos';
 
 const { appId, token, functionsVersion, appBaseUrl } = appParams;
+const validToken = token && !['null', 'undefined'].includes(String(token).trim().toLowerCase()) ? token : undefined;
 
 if (!appId) console.error('VITE_BASE44_APP_ID não configurado.');
 
 export const base44 = createClient({
   appId,
-  token: token || undefined,
+  ...(validToken ? { token: validToken } : {}),
   functionsVersion,
   serverUrl: '',
   requiresAuth: true,

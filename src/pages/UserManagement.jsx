@@ -94,7 +94,7 @@ function EditDialog({ user, onClose }) {
         ...form,
         ...(form.role === 'OBSERVADOR' || form.role === 'PATROCINADOR' ? { funcao: 'Observador', equipe: 'Observador' } : {}),
       };
-      const res = await base44.functions.invoke('adminUpdateUser', { userId: user.id, data });
+      const res = await base44.entities.User.update(user.id, data);
       if (res?.data?.success === false || res?.success === false) throw new Error(res?.data?.error || res?.error || 'Erro ao salvar');
       toast.success('Usuário atualizado!');
       queryClient.invalidateQueries(['user-management']);
@@ -208,13 +208,7 @@ function PermissionsDialog({ user, permissions, onClose }) {
       } else {
         await base44.entities.UserPermission.create(data);
       }
-      await base44.functions.invoke('adminUpdateUser', {
-        userId: user.id,
-        data: {
-          role,
-          ...(role === 'OBSERVADOR' || role === 'PATROCINADOR' ? { funcao: 'Observador', equipe: 'Observador' } : {}),
-        },
-      });
+      if (user.id) await base44.entities.User.update(user.id, data);
       toast.success('Permissões salvas!');
       queryClient.invalidateQueries(['user-management']);
       queryClient.invalidateQueries(['user-management-pending-registrations']);
@@ -604,7 +598,7 @@ export default function UserManagement() {
         role: newRole,
         ...(newRole === 'OBSERVADOR' || newRole === 'PATROCINADOR' ? { funcao: 'Observador', equipe: 'Observador' } : {}),
       };
-      await base44.functions.invoke('adminUpdateUser', { userId: user.id, data: userData });
+      if (user.id) await base44.entities.User.update(user.id, userData);
       toast.success(`Papel alterado para ${newRole}`);
       queryClient.invalidateQueries(['user-management']);
     } catch (e) { toast.error('Erro: ' + e.message); }

@@ -274,6 +274,13 @@ function ComprasInner() {
   const [vinculandoNatureza, setVinculandoNatureza] = useState(false);
   const [dashboardIAOpen, setDashboardIAOpen] = useState(false);
   const [filters, setFilters] = useState({ status: 'all', meta_id: 'all', search: '', rubrica_id: 'all', inconsistencias: 'all', centro_custo: 'all', data_inicio: '', data_fim: '' });
+  // Links de e-mail podem abrir diretamente a fila de pendências.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('filtro') !== 'pendentes') return;
+    setTab('lista');
+    setFilters((f) => ({ ...f, status: 'all', data_inicio: '2026-02-01', data_fim: '', _pendentes_fev: true }));
+  }, []);
+
   const queryClient = useQueryClient();
   const autoRecalcRan = React.useRef(false);
   // Trava de campo centro_custo: Map<purchaseId, { value: string, expiresAt: number }>
@@ -1384,7 +1391,17 @@ function ComprasInner() {
             onApprove={handleApprovePurchase}
             onReturn={handleReturnPurchase}
             onUnapprove={handleUnapprovePurchase}
-            onMarkPaid={(purchase) => setPaymentPurchase(purchase)}
+            onMarkPaid={async (purchase) => {
+              if (String(purchase?.status || '').toUpperCase() !== 'PAGO' && !purchase?.pago) { setPaymentPurchase(purchase); return; }
+              if (!window.confirm('Retornar esta solicitação para aguardando pagamento? A nota fiscal e os documentos serão preservados.')) return;
+              try {
+                const response = await fetch(`/api/purchase-requests/${encodeURIComponent(purchase.id)}/return-to-awaiting-payment`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ motivo: 'Retorno solicitado na Gestão de Compras' }) });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(data.error || 'Falha ao retornar solicitação');
+                toast.success('Solicitação retornada para aguardando pagamento.');
+                window.location.reload();
+              } catch (error) { toast.error(error.message || 'Falha ao retornar solicitação'); }
+            }}
             onAccess={(purchase) => {
               setEditingPurchase({ ...purchase });
               setShowForm(true);
@@ -1715,6 +1732,7 @@ function ComprasInner() {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-900">Gerenciar Lotes de Notificações</h3>
                 <div className="flex gap-2">
+              <ResendNotificationBatch batchSlot="agora" onSuccess={refreshFinanceiroCompleto} />
                   <ResendNotificationBatch batchSlot="manha" onSuccess={refreshFinanceiroCompleto} />
                   <ResendNotificationBatch batchSlot="tarde" onSuccess={refreshFinanceiroCompleto} />
                 </div>

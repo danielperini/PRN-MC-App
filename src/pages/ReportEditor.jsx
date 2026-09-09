@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
+import { gerarPdfRelatorioLocal } from '@/utils/reportPdfLocalExport';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -441,19 +442,15 @@ export default function ReportEditor() {
     try {
       await handleSave();
 
-      const response = await base44.functions.invoke('generateReportPDF', {
-        reportId: report.id,
-        secoes: secoesPdf.length > 0 ? secoesPdf : undefined,
+      const pdfBlob = await gerarPdfRelatorioLocal({
+        report,
+        formData,
+        atividades,
+        fotos,
+        secoes: secoesPdf,
       });
-
-      if (response.data?.pdf_url) {
-        window.open(response.data.pdf_url, '_blank');
-        toast.success('📄 PDF gerado com sucesso!');
-      } else if (response.data?.error) {
-        toast.error('Erro ao gerar PDF: ' + response.data.error);
-      } else {
-        toast.success('📄 PDF gerado! Verifique sua pasta de downloads.');
-      }
+      await baixarPdf(pdfBlob, nomeArquivoPdf({ ...report, ...formData }));
+      toast.success('PDF gerado e baixado com sucesso.');
     } catch (err) {
       console.error(err);
       toast.error('❌ Erro ao exportar PDF: ' + (err?.message || 'tente novamente'));

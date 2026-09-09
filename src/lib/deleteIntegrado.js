@@ -133,6 +133,16 @@ export async function deletePurchaseRequest(pr) {
     console.warn('Erro ao buscar attachments:', e.message);
   }
 
+  // 3. Deletar documentos de compra antes da solicitação (chave estrangeira).
+  try {
+    const purchaseDocuments = await base44.entities.PurchaseDocument.filter({ purchase_request_id: pr.id }, '-created_date', 100);
+    for (const doc of purchaseDocuments || []) {
+      await base44.entities.PurchaseDocument.delete(doc.id);
+    }
+  } catch (e) {
+    console.warn('Erro ao deletar documentos da compra:', e.message);
+  }
+
   // 3. Localizar e deletar DocumentIntake vinculado
   try {
     const intakes = await base44.entities.DocumentIntake.filter(

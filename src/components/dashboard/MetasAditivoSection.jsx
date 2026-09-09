@@ -80,6 +80,25 @@ function getMetaNumeroFromActivity(a) {
   return null;
 }
 
+// IDs oficiais das metas no PostgreSQL. Evita inferência textual e mantém a memória de cálculo determinística.
+const META_NUMERO_POR_ID = Object.freeze({
+  '6a32aead6201158ef021b368': '1',
+  '6a32aead6201158ef021b369': '3',
+  '6a32aead6201158ef021b36e': '16',
+  '6a32aead6201158ef021b370': '18',
+  '6a32aead6201158ef021b371': '20',
+  '6a32aead6201158ef021b372': '21',
+  '6a32aead6201158ef021b373': '22',
+  '6a3b2138c4f755b4bd2dbfbb': '6',
+  '6a3b2138ef98002fd208a1a3': '2',
+  '6a3c0b9bfa079f5914d83253': '11',
+  '6a3c0b9bfa079f5914d83254': '11B',
+});
+
+function metaNumeroPorRegistro(registro) {
+  return META_NUMERO_POR_ID[String(registro?.meta_id || '')] || getMetaNumeroFromActivity(registro);
+}
+
 function barColorFromPct(pct) {
   if (pct >= 100) return 'bg-green-500';
   if (pct >= 60)  return 'bg-blue-500';
@@ -499,9 +518,7 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRef
 
   const { data: activities = [] } = useQuery({
     queryKey: ['activities-metas-fisicas-aditivosection'],
-    queryFn: () => base44.entities.Activity.filter(
-      { classificacao: 'META' }, '-created_date', 1000
-    ),
+    queryFn: () => base44.entities.Activity.list('-created_date', 2000),
     staleTime: 0,
   });
 
@@ -564,8 +581,15 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRef
         arr.push({ ...a, _museu: a.museu || r.museu || '' });
       }
     }
-    // Activities da entidade: filtrar por relatório (via report_id) ou pela data da atividade
+    // Activities da entidade: somente relatórios submetidos/aprovados do período.
+    const relatorioIds = new Set(relatoriosFiltrados.flatMap((r) => [String(r.id || ''), String(r.base44_id || '')]).filter(Boolean));
+    const relatorioPorId = new Map();
+    for (const r of relatoriosFiltrados) for (const id of [r.id, r.base44_id]) if (id) relatorioPorId.set(String(id), r);
+    const vistos = new Set(arr.map((a) => String(a.id || a.base44_id || '')));
     for (const a of activities) {
+      const aid = String(a.id || a.base44_id || '');
+      if (aid && vistos.has(aid)) continue;
+      if (a.report_id && !relatorioIds.has(String(a.report_id))) continue;
       // Se tiver data_realizacao, usar para filtrar
       if (a.data_realizacao) {
         const dt = new Date(a.data_realizacao);
@@ -575,7 +599,8 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRef
           if (!isRelatorioNoPeriodo(mesNome, dt.getFullYear(), dataInicio, dataFim)) continue;
         }
       }
-      arr.push({ ...a, _museu: a.museu || '' });
+      const relatorio = relatorioPorId.get(String(a.report_id || ''));
+      arr.push({ ...a, _museu: a.museu || relatorio?.museu || relatorio?.centro_custo || 'Geral' });
     }
     return arr;
   }, [relatoriosFiltrados, activities, dataInicio, dataFim]);
@@ -585,15 +610,15 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRef
     const result = {};
     for (const a of todasAtividades) {
       // 1. Tenta critérios dinâmicos (Meta 20 / Noturno 11) para consistência total com CumprimentoMetasFisicas
-      let metaNum = null;
-      if (criteriosMeta20 && classificarComCriterios(a, criteriosMeta20)) metaNum = '20';
-      else if (criteriosNoturno && classificarComCriterios(a, criteriosNoturno)) metaNum = '11';
-      else metaNum = getMetaNumeroFromActivity(a);
+      let metaNum = metaNumeroPorRegistro(a);
+      // Critérios de IA são fallback somente quando o registro não possui uma meta oficial.
+      if (!metaNum && criteriosMeta20 && classificarComCriterios(a, criteriosMeta20)) metaNum = '20';
+      else if (!metaNum && criteriosNoturno && classificarComCriterios(a, criteriosNoturno)) metaNum = '11';
       if (!metaNum) continue;
       if (!result[metaNum]) result[metaNum] = {};
-      const museu = getMuseuFromActivity(a);
-      if (!museu) continue;
-      result[metaNum][museu] = (result[metaNum][museu] || 0) + 1;
+      const museu = getMuseuFromActivity(a) || a._museu || 'Geral';
+      const quantidade = Math.max(1, Number(a.quantas_repeticoes || a.quantas_vezes_ocorreu || 1));
+      result[metaNum][museu] = (result[metaNum][museu] || 0) + quantidade;
     }
     return result;
   }, [todasAtividades, criteriosMeta20, criteriosNoturno]);
@@ -618,19 +643,29 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRef
     return map;
   }, [purchases]);
 
-  // Mapa: metaNum → total NFs aprovadas cruzando rubricas vinculadas
-  const nfsPorMeta = useMemo(() => {
-    const map = {};
-    for (const r of rubricas) {
-      if (!Array.isArray(r.meta_manual_ids) || r.meta_manual_ids.length === 0) continue;
-      const valorNF = nfsPorRubrica[r.id] || 0;
-      if (valorNF === 0) continue;
-      for (const metaNum of r.meta_manual_ids) {
-        map[metaNum] = (map[metaNum] || 0) + valorNF;
+  // Memória financeira: cada solicitação entra uma única vez na meta cadastrada na própria compra.
+  // A rubrica é fallback apenas quando aponta inequivocamente para uma única meta.
+  const { nfsPorMeta, nfsCountPorMeta } = useMemo(() => {
+    const valores = {};
+    const contagens = {};
+    const rubricaPorId = new Map(rubricas.map((r) => [String(r.id), r]));
+    const STATUS_OK = new Set(['APROVADO_ADMIN', 'APROVADO_COORD', 'PAGO']);
+    for (const p of purchases) {
+      if (!STATUS_OK.has(String(p.status || '').toUpperCase())) continue;
+      if (p.incluir_no_somatorio === false || p.duplicada_financeira === true) continue;
+      let metaNum = META_NUMERO_POR_ID[String(p.meta_id || '')] || null;
+      if (!metaNum) {
+        const metasRubrica = rubricaPorId.get(String(p.rubrica_id || ''))?.meta_manual_ids;
+        if (Array.isArray(metasRubrica) && metasRubrica.length === 1) metaNum = String(metasRubrica[0]);
       }
+      if (!metaNum) continue;
+      const valor = Number(p.nf_valor_total || p.valor_total || p.valor_aprovado || p.valor_solicitado || 0);
+      if (!Number.isFinite(valor) || valor <= 0) continue;
+      valores[metaNum] = (valores[metaNum] || 0) + valor;
+      contagens[metaNum] = (contagens[metaNum] || 0) + 1;
     }
-    return map;
-  }, [rubricas, nfsPorRubrica]);
+    return { nfsPorMeta: valores, nfsCountPorMeta: contagens };
+  }, [rubricas, purchases]);
 
   const metasCalculadas = useMemo(() => {
     const metrics = calculateMetaFinancialMetrics(rubricasFiltradas);
@@ -704,6 +739,7 @@ export default function MetasAditivoSection({ rubricas: rubricasProp = [], onRef
               onOpen={setSelectedMeta}
               atividadesPorMuseu={atividadesPorMetaEMuseu[meta._numero] || {}}
               nfsAprovadas={nfsPorMeta[meta._numero] || 0}
+          nfsCount={nfsCountPorMeta[meta._numero] || 0}
             />
           ))}
       </div>
