@@ -249,10 +249,10 @@ function MetaRubricasModal({ meta, rubricas, onClose, onUpdated }) {
   // Re-inicializa seleção sempre que a meta ou a lista de rubricas muda
   useEffect(() => {
     if (!meta) { setSelectedIds(new Set()); setDirty(false); return; }
-    const metaNum = meta._numero || meta.numero;
+    const metaNum = String(meta._numero || meta.numero);
     setSelectedIds(new Set(
       (rubricas || [])
-        .filter(r => Array.isArray(r.meta_manual_ids) && r.meta_manual_ids.includes(metaNum))
+        .filter(r => Array.isArray(r.meta_manual_ids) && r.meta_manual_ids.map(String).includes(metaNum))
         .map(r => r.id)
     ));
     setDirty(false);
@@ -288,16 +288,16 @@ function MetaRubricasModal({ meta, rubricas, onClose, onUpdated }) {
 
   async function handleSalvar() {
     setSaving(true);
-    const metaNum = meta._numero || meta.numero;
+    const metaNum = String(meta._numero || meta.numero);
     const metaLabel = meta.numeroFormatado || meta.numero;
     const metaTitulo = meta.titulo;
     try {
       // Para cada rubrica, atualiza meta_manual_ids de acordo com a seleção
       const promises = (rubricas || []).map(async (rubrica) => {
-        const eraVinculada = Array.isArray(rubrica.meta_manual_ids) && rubrica.meta_manual_ids.includes(metaNum);
+        const current = Array.isArray(rubrica.meta_manual_ids) ? rubrica.meta_manual_ids.map(String) : [];
+        const eraVinculada = current.includes(metaNum);
         const deveVincular = selectedIds.has(rubrica.id);
         if (eraVinculada === deveVincular) return; // sem mudança
-        const current = Array.isArray(rubrica.meta_manual_ids) ? [...rubrica.meta_manual_ids] : [];
         const next = deveVincular
           ? [...new Set([...current, metaNum])]
           : current.filter(m => m !== metaNum);
