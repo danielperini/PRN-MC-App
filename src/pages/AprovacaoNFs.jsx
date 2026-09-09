@@ -8,12 +8,12 @@ import { Button } from '@/components/ui/button';
 // Status de intakes que devem ser OCULTADOS da fila (já resolvidos)
 const STATUS_OCULTAR_INTAKE = new Set([
   'APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO', 'APROVADO_FINANCEIRO',
-  'REJEITADO', 'CANCELADO', 'DELETADO', 'ENVIADO_APROVACAO'
+  'REJEITADO', 'CANCELADO', 'DELETADO'
 ]);
 // Status de compras já tratadas (para cruzamento por chave fiscal)
 const STATUS_COMPRAS_JA_TRATADAS = new Set(['APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO', 'RECUSADO', 'CANCELADO']);
-// Status que ainda precisam de atenção — excluímos da query diretamente os já resolvidos
-const STATUS_PENDENTES = ['AGUARDANDO_REVISAO', 'ANALISANDO_IA', 'RASCUNHO', 'ENVIADO'];
+// Status que ainda precisam de atenção — inclui explicitamente o estágio criado pela Entrada Única ao enviar para aprovação
+const STATUS_PENDENTES = ['ENVIADO_APROVACAO', 'AGUARDANDO_REVISAO', 'ANALISANDO_IA', 'RASCUNHO', 'ENVIADO'];
 // Status de PurchaseRequest que indicam item já pago/aprovado definitivamente
 const STATUS_PR_RESOLVIDOS = new Set(['APROVADO_ADMIN', 'PAGO', 'RECUSADO', 'CANCELADO']);
 
@@ -161,7 +161,6 @@ export default function AprovacaoNFs() {
     staleTime: 60000,
   });
 
-  // PurchaseRequests diretamente marcadas como pagas ou aprovadas definitivamente
   const { data: prResolvidas = [] } = useQuery({
     queryKey: ['pr-resolvidas-fila-nf'],
     queryFn: async () => {
@@ -178,7 +177,6 @@ export default function AprovacaoNFs() {
   const chavesAprovadas = useMemo(() => {
     const set = new Set(aprovadosIntake.map(chaveFiscal));
     compras.filter(p => STATUS_COMPRAS_JA_TRATADAS.has(String(p.status || '').toUpperCase())).forEach(p => set.add(chaveFiscal(p)));
-    // Também excluir por ID direto de PurchaseRequests já resolvidas
     prResolvidas.forEach(p => {
       set.add(chaveFiscal(p));
       if (p.nf_chave_acesso) set.add(`chave:${digitos(p.nf_chave_acesso)}`);
@@ -186,7 +184,6 @@ export default function AprovacaoNFs() {
     return set;
   }, [aprovadosIntake, compras, prResolvidas]);
 
-  // Mapa de IDs de PurchaseRequests já resolvidas para lookup O(1)
   const prResolvidasIds = useMemo(() => new Set(prResolvidas.map(p => p.id)), [prResolvidas]);
 
   const intakes = useMemo(() => {
@@ -194,11 +191,8 @@ export default function AprovacaoNFs() {
     return dedup.filter(i => {
       const d = dados(i);
       const status = String(d.status_processamento || i.status_processamento || '').toUpperCase();
-      // 1. Status do próprio intake já resolvido
       if (STATUS_OCULTAR_INTAKE.has(status)) return false;
-      // 2. Chave fiscal já consta em intake aprovado ou compra tratada
       if (chavesAprovadas.has(chaveFiscal(i))) return false;
-      // 3. PR vinculado diretamente já está pago/aprovado definitivamente
       const prId = d.entidade_destino_id || i.entidade_destino_id;
       if (prId && prResolvidasIds.has(prId)) return false;
       return true;
@@ -215,7 +209,6 @@ export default function AprovacaoNFs() {
   const comXml = intakes.filter(i => !!xmlUrl(i)).length;
   const semXml = intakes.length - comXml;
   const ocultadas = Math.max(0, intakesBrutos.length - intakes.length);
-  // Contagem de intakes ocultos por já estarem aprovados/pagos via PR vinculado
   const ocultadasPorPR = useMemo(() =>
     deduplicar(intakesBrutos).filter(i => {
       const d = dados(i);
@@ -229,15 +222,10 @@ export default function AprovacaoNFs() {
   async function limparFila() {
     setLimpando(true);
     try {
-      // 1. Buscar XMLs faltantes no Drive e vincular
       const buscaXml = await base44.functions.invoke('buscarXmlsFaltantesNFs', {});
-      // 2. Limpar fila (aprovados, duplicados, não fiscais)
       const limpeza = await base44.functions.invoke('limparFilaAprovacaoNFs', {});
-
-      // 3. Após vincular XMLs, recarregar para ver quem ainda está sem XML
       await atualizarTudo();
 
-      // 4. Retirar da fila as NFs que continuam sem XML (ocultar silenciosamente)
       const semXmlAinda = intakesBrutos.filter(i => ehNotaFiscal(i) && !xmlUrl(i));
       let retiradosSemXml = 0;
       if (semXmlAinda.length > 0) {
