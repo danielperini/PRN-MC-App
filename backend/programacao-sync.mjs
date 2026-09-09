@@ -173,10 +173,34 @@ async function columns(){
   const r=await pool.query(`SELECT column_name,data_type FROM information_schema.columns WHERE table_schema='public' AND table_name='programacoes'`);
   return new Map(r.rows.map(x=>[x.column_name,x.data_type]));
 }
+
+async function ensureProgramacaoSchema(){
+  await pool.query(`CREATE TABLE IF NOT EXISTS programacoes (
+    id BIGSERIAL PRIMARY KEY,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`);
+  const definitions={
+    base44_id:'TEXT',source_key:'TEXT',source_sheet:'TEXT',source_row:'INTEGER',source_url:'TEXT',
+    equipamento:'TEXT',museu:'TEXT',titulo:'TEXT',nome_acao:'TEXT',sinopse:'TEXT',descricao:'TEXT',
+    tipo_atividade:'TEXT',formato:'TEXT',data:'TEXT',data_inicio:'TIMESTAMPTZ',horario:'TEXT',
+    publico_alvo:'TEXT',acessibilidade:'TEXT',classificacao_indicativa:'TEXT',vagas:'TEXT',
+    inscricao:'TEXT',local:'TEXT',endereco_completo:'TEXT',status:'TEXT',link_imagens:'TEXT',
+    minibios:'TEXT',material_de_divulgacao:'TEXT',observacoes:'TEXT',month_key:'TEXT'
+  };
+  for(const [name,type] of Object.entries(definitions)){
+    await pool.query(`ALTER TABLE programacoes ADD COLUMN IF NOT EXISTS ${q(name)} ${type}`);
+  }
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_programacoes_source_key ON programacoes(source_key)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_programacoes_month_key ON programacoes(month_key)`);
+}
 function dbValue(type,v){
   if(v===undefined)return null;
   if(type==='json'||type==='jsonb')return JSON.stringify(v);
-  if(type==='integer'||type==='bigint')return v===''?null:Number(v);
+  if(type==='integer'||type==='bigint'){
+    const n=Number(v);
+    return v===''||!Number.isFinite(n)?null:n;
+  }
   return v;
 }
 async function save(item,cols){
@@ -199,14 +223,14 @@ async function save(item,cols){
 
   const entries=Object.entries(data).filter(([k])=>k!=='id');
   if(existing){
-    const vals=entries.map(([k,v])=>dbValue(cols.get(k),v));
+    const vals=entries.map(([k,v])=>dbValue(cols.get(k),(k==='data'&&/date|timestamp/.test(cols.get(k)))?item.data_inicio:v));
     vals.push(existing.id);
     await pool.query(`UPDATE programacoes SET ${entries.map(([k],i)=>`${q(k)}=$${i+1}`).join(',')} WHERE id=$${vals.length}`,vals);
     return 'updated';
   }
 
   const names=entries.map(([k])=>q(k));
-  const vals=entries.map(([k,v])=>dbValue(cols.get(k),v));
+  const vals=entries.map(([k,v])=>dbValue(cols.get(k),(k==='data'&&/date|timestamp/.test(cols.get(k)))?item.data_inicio:v));
   await pool.query(`INSERT INTO programacoes (${names.join(',')}) VALUES (${vals.map((_,i)=>`$${i+1}`).join(',')})`,vals);
   return 'created';
 }
@@ -221,6 +245,7 @@ export async function syncProgramacao(){
     let items=[];
     for(const name of target)items.push(...rowsFromSheet(wb.Sheets[name],name));
 
+    await ensureProgramacaoSchema();
     const cols=await columns();
     if(!cols.size)throw new Error('tabela programacoes ausente');
 
@@ -236,8 +261,10 @@ export async function syncProgramacao(){
         console.error('PROGRAMACAO_SYNC_ROW_ERROR',item.source_key,e.message);
       }
     }
-    console.log('PROGRAMACAO_SYNC_OK',JSON.stringify({sheets:target,found:items.length,byMonth,created,updated,failed,started:started.toISOString()}));
-    return{found:items.length,byMonth,created,updated,failed};
+    const persistedResult=await pool.query(`SELECT month_key,COUNT(*)::int AS total FROM programacoes WHERE month_key=ANY($1::text[]) GROUP BY month_key ORDER BY month_key`,[Object.keys(byMonth)]);
+    const persisted=Object.fromEntries(persistedResult.rows.map(row=>[row.month_key,row.total]));
+    console.log('PROGRAMACAO_SYNC_OK',JSON.stringify({sheets:target,found:items.length,byMonth,persisted,created,updated,failed,started:started.toISOString()}));
+    return{found:items.length,byMonth,persisted,created,updated,failed};
   }catch(e){
     console.error('PROGRAMACAO_SYNC_ERROR',e);
     return{error:e.message};
