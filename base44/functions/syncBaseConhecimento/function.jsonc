@@ -4,15 +4,16 @@
   "automations": [
     {
       "type": "scheduled",
-      "name": "sync_base_conhecimento_diario_2359_brasilia",
-      "description": "Atualiza a Biblioteca de Conhecimento IA todos os dias às 23:59 no horário de Brasília.",
+      "name": "sync_programacao_horaria",
+      "description": "Atualiza automaticamente a programação dos Museus Centro a cada hora, incluindo alterações dos meses atual e seguinte.",
       "function_args": {
-        "mode": "daily_automation"
+        "mode": "hourly_programacao_sync",
+        "force_programacao_sync": true
       },
       "is_active": true,
       "schedule_mode": "recurring",
       "schedule_type": "cron",
-      "cron_expression": "59 2 * * *"
+      "cron_expression": "7 * * * *"
     }
   ]
 }
