@@ -6,6 +6,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { createServer } from 'node:http';
 import { Server as SocketIOServer } from 'socket.io';
+import { syncProgramacao } from './programacao-sync.mjs';
 
 const { Pool } = pg;
 const app = express();
@@ -241,6 +242,13 @@ app.get('/api/files/:name',async(req,res)=>{ try { const name=path.basename(deco
 app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,res) => {
   const name=String(req.params.functionName||'');
   try {
+    if (name === 'syncBaseConhecimento' && req.body?.force_programacao_sync) {
+      const result = await syncProgramacao();
+      if (result?.error) {
+        return res.status(502).json({ success:false, function:name, error:'programacao_sync_failed', message:result.error });
+      }
+      return res.status(200).json({ success:true, function:name, programacao_sync:result });
+    }
     if (name === 'recalcularSaldosRubricas') {
       const table = entityTable('Rubrica');
       const exists = table && await tableExists(table);

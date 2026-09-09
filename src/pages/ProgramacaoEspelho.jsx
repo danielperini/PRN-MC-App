@@ -14,7 +14,7 @@ const MESES = [
 
 const MUSEUS = ['MHAB', 'MIS', 'MUMO', 'Externo'];
 const ALL_VALUE = '__ALL__';
-const SYNC_TIMEOUT_MS = 6000;
+const SYNC_TIMEOUT_MS = 60000;
 
 const DATA_CORRECAO_NOTURNO_2024 = '06/12/2024';
 const DATA_ISO_CORRECAO_NOTURNO_2024 = '2024-12-06';
@@ -239,16 +239,21 @@ function sortProgramacoes(a, b) {
 
 async function syncProgramacaoFromFonte() {
   try {
-    await Promise.race([
+    const response = await Promise.race([
       base44.functions.invoke('syncBaseConhecimento', {
         mode: 'programacao-page',
         origem: 'ProgramacaoEspelho',
         force_programacao_sync: true,
       }),
-      new Promise((resolve) => setTimeout(resolve, SYNC_TIMEOUT_MS)),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Tempo limite da sincronização excedido')), SYNC_TIMEOUT_MS)),
     ]);
+    if (response?.data?.success === false || response?.success === false) {
+      throw new Error(response?.data?.message || response?.message || 'Falha ao sincronizar programação');
+    }
+    return response?.data?.programacao_sync || response?.programacao_sync || null;
   } catch (error) {
     console.warn('Sincronização da programação indisponível. Carregando dados locais.', error);
+    throw error;
   }
 }
 
