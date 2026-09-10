@@ -678,7 +678,7 @@ Equipe Museus Centro`;
         file_url: intake.arquivo_original_url,
         orientacoes_usuario: '',
       });
-      const dados = res?.data?.resultado_ia || res?.data || {};
+      const dados = res?.data?.resultado_ia || res?.resultado_ia || res?.data || res || {};
       if (!dados.nf_emitente_nome && !dados.nf_valor_total) {
         toast({ title: 'IA não retornou dados suficientes.', variant: 'destructive', duration: 3000 });
         return;
@@ -704,7 +704,7 @@ Equipe Museus Centro`;
         nf_horario_emissao: iaAtualizado.nf_horario_emissao || f.nf_horario_emissao,
         centro_custo: iaAtualizado.centro_custo_sugerido || f.centro_custo,
         rubrica_id: iaAtualizado.rubrica_id || updated?.rubrica_id_sugerida || f.rubrica_id,
-        meta_id: iaAtualizado.meta_id || iaAtualizado.meta_sugerida || f.meta_id,
+        meta_id: iaAtualizado.meta_id || rubricas.find((r) => String(r.id) === String(iaAtualizado.rubrica_id || updated?.rubrica_id_sugerida || f.rubrica_id))?.meta_id || f.meta_id,
       }));
       toast({ title: '✅ Campos preenchidos com IA.', duration: 3000 });
     } catch (e) {
