@@ -2,11 +2,12 @@ FROM node:22-alpine
 
 WORKDIR /app
 
-RUN npm init -y && npm install express pg multer socket.io bcryptjs xlsx nodemailer
+RUN npm init -y && npm install express pg multer socket.io bcryptjs xlsx nodemailer googleapis
 
 COPY server.mjs ./
 COPY auth-bootstrap.mjs ./
 COPY programacao-sync.mjs ./
+COPY drive-reconcile-intake.mjs ./
 
 EXPOSE 3000
 
