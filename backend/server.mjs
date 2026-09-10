@@ -173,12 +173,25 @@ app.get('/api/apps/:appId/entities/:entityName', requireSession, async (req,res)
   } catch(e) { console.error('ENTITY_GET_ERROR:',e); res.status(500).json({error:'entity_query_failed',message:e.message}); }
 });
 
+function normalizePurchaseFiscalPayload(entityName, body = {}) {
+  if (entityName !== 'PurchaseRequest') return body;
+  const next = { ...body };
+  const first = (...values) => values.find((value) => value !== undefined && value !== null && String(value).trim() !== '');
+  next.nf_data_emissao = first(next.nf_data_emissao,next.data_emissao,next.data_emissao_nf,next.emission_date);
+  next.nf_numero = first(next.nf_numero,next.numero_nf,next.numero_nota,next.nota_numero);
+  next.nf_emitente_nome = first(next.nf_emitente_nome,next.fornecedor_nome,next.emitente_nome);
+  next.fornecedor_nome = first(next.fornecedor_nome,next.nf_emitente_nome,next.emitente_nome);
+  next.nf_emitente_cpf_cnpj = first(next.nf_emitente_cpf_cnpj,next.fornecedor_cnpj,next.fornecedor_cpf_cnpj,next.cnpj,next.cpf_cnpj);
+  return next;
+}
+
 app.post('/api/apps/:appId/entities/:entityName', requireSession, async (req,res) => {
   try {
     const table=entityTable(req.params.entityName); if(!table) return res.status(404).json({error:'entity_not_migrated'});
     if(!(await tableExists(table))) return res.status(404).json({error:'table_not_found',table});
     const columns=await tableColumns(table); const columnTypes=await tableColumnTypes(table);
-    let entries=Object.entries(req.body||{}).filter(([k,v])=>columns.includes(k)&&v!==undefined);
+    const normalizedBody=normalizePurchaseFiscalPayload(req.params.entityName,req.body||{});
+    let entries=Object.entries(normalizedBody).filter(([k,v])=>columns.includes(k)&&v!==undefined);
     if (columns.includes('id') && !entries.some(([key]) => key === 'id')) {
       const idMeta = await pool.query(`SELECT data_type,column_default,is_identity FROM information_schema.columns WHERE table_schema='public' AND table_name=$1 AND column_name='id' LIMIT 1`,[table]);
       const idColumn = idMeta.rows[0];
@@ -201,7 +214,8 @@ async function updateEntity(req,res) {
     if(!(await tableExists(table))) return res.status(404).json({error:'table_not_found',table});
     const columns=await tableColumns(table); if(!columns.includes('id')) return res.status(400).json({error:'entity_has_no_id_column'});
     const columnTypes=await tableColumnTypes(table);
-    entries=Object.entries(req.body||{}).filter(([k,v])=>columns.includes(k)&&k!=='id'&&v!==undefined);
+    const normalizedBody=normalizePurchaseFiscalPayload(req.params.entityName,req.body||{});
+    entries=Object.entries(normalizedBody).filter(([k,v])=>columns.includes(k)&&k!=='id'&&v!==undefined);
     currentField=entries[0]?.[0]||null;
     entries=normalizeEntityEntriesForDb(entries,columnTypes);
     if(!entries.length) return res.status(400).json({error:'empty_entity_update'});
