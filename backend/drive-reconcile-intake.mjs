@@ -179,6 +179,20 @@ async function prepareXmlStaging(sourceEntries,targetEntries,runId) {
   const summary=await pool.query(`SELECT source_scope,is_duplicate,count(*)::int total FROM drive_reconcile_xml_staging WHERE run_id=$1 GROUP BY 1,2 ORDER BY 1,2`,[runId]);
   console.log('DRIVE_RECONCILE_XML_STAGING',JSON.stringify({ run_id:runId,rows:summary.rows }));
 }
+async function initRunStatus(runId,inventory) {
+  await pool.query(`CREATE UNLOGGED TABLE IF NOT EXISTS drive_reconcile_runs (
+    run_id text PRIMARY KEY,month text,status text,stage text,source_files integer DEFAULT 0,
+    source_xml integer DEFAULT 0,source_pdf integer DEFAULT 0,processed_files integer DEFAULT 0,
+    imported integer DEFAULT 0,duplicates integer DEFAULT 0,ignored integer DEFAULT 0,errors integer DEFAULT 0,
+    started_at timestamptz DEFAULT NOW(),updated_at timestamptz DEFAULT NOW(),finished_at timestamptz)`);
+  await pool.query(`INSERT INTO drive_reconcile_runs(run_id,month,status,stage,source_files,source_xml,source_pdf)
+    VALUES($1,$2,'RUNNING','INDEXANDO_XML',$3,$4,$5) ON CONFLICT(run_id) DO NOTHING`,
+    [runId,ONLY_MONTH||'todos',inventory.source_files,inventory.source_xml,inventory.source_pdf]);
+}
+async function updateRunStatus(runId,data) {
+  const keys=Object.keys(data); if(!keys.length) return;
+  await pool.query(`UPDATE drive_reconcile_runs SET ${keys.map((k,i)=>`${k}=$${i+2}`).join(',')},updated_at=NOW() WHERE run_id=$1`,[runId,...keys.map(k=>data[k])]);
+}
 async function run() {
   fs.mkdirSync(uploadDir,{ recursive:true }); const drive=await driveClient();
   const analysisCache=loadAnalysisCache();
@@ -187,6 +201,7 @@ async function run() {
   const source=Array.from(new Map(sourceCandidates.map(f=>[f.md5Checksum || f.id,f])).values());
   console.log('DRIVE_RECONCILE_INVENTORY',JSON.stringify({ source_total:sourceAll.length,source_candidates:source.length,source_xml:source.filter(f=>/\.xml$/i.test(f.name)).length,source_pdf:source.filter(f=>/\.pdf$/i.test(f.name)).length,target_total:targetAll.length }));
   const runId=`${ONLY_MONTH||'all'}-${Date.now()}`; const xmlCache=new Map(); const sourceXmlEntries=[]; let xmlIndex=[];
+  await initRunStatus(runId,{ source_files:source.length,source_xml:source.filter(f=>/\.xml$/i.test(f.name)).length,source_pdf:source.filter(f=>/\.pdf$/i.test(f.name)).length });
   const indexedSourceXml=await mapLimit(source.filter(f=>/\.xml$/i.test(f.name)),8,async file=>{
     try { const buffer=await bytes(drive,file.id); const meta=xmlMeta(buffer.toString('utf8')); xmlCache.set(file.id,buffer); return meta.numero && meta.valor && meta.data ? { file,meta } : null; }
     catch(e) { console.error('DRIVE_RECONCILE_XML_INDEX_ERROR',file.path,e.message); return null; }
@@ -197,13 +212,14 @@ async function run() {
   const targetXml=target.filter(x=>/\.xml$/i.test(x.name) && (!ONLY_MONTH || x.path.includes(ONLY_MONTH)));
   const targetXmlEntries=(await mapLimit(targetXml,8,async f=>{ try { const m=xmlMeta((await bytes(drive,f.id)).toString('utf8')); if(m.numero){ knownKeys.add(fiscalKey(m)); return { file:f,meta:m }; } } catch {} return null; })).filter(Boolean);
   await prepareXmlStaging(sourceXmlEntries,targetXmlEntries,runId);
+  await updateRunStatus(runId,{ stage:'PROCESSANDO_ARQUIVOS' });
   const uniqueXmlRows=await pool.query(`SELECT drive_file_id FROM drive_reconcile_xml_staging WHERE run_id=$1 AND source_scope='SOURCE' AND is_duplicate=false`,[runId]);
   const uniqueXmlIds=new Set(uniqueXmlRows.rows.map(x=>String(x.drive_file_id)));
   xmlIndex=sourceXmlEntries.filter(x=>uniqueXmlIds.has(String(x.file.id)));
   const existing=await pool.query(`SELECT id,file_name_original,file_name_final,resultado_ia,status_processamento FROM document_intakes WHERE COALESCE(status_registro,'')<>'DELETADO'`);
   const knownSourceIds=new Set(); const invoicesByPartyValue=new Map();
   for (const row of existing.rows) { const a=row.resultado_ia || {}; if(a.source_drive_file_id) knownSourceIds.add(String(a.source_drive_file_id)); const k=fiscalKey({ cnpj:a.nf_emitente_cpf_cnpj,numero:a.nf_numero,valor:a.nf_valor_total,data:a.nf_data_emissao }); if (a.nf_numero) { knownKeys.add(k); const pv=`${digits(a.nf_emitente_cpf_cnpj)}|${Number(a.nf_valor_total||0).toFixed(2)}`; const list=invoicesByPartyValue.get(pv)||[]; list.push({ ...row,key:k,data:a.nf_data_emissao }); invoicesByPartyValue.set(pv,list); } }
-  let imported=0,duplicates=0,errors=0; const importedByFolder=new Map();
+  let imported=0,duplicates=0,ignored=0,errors=0,processed=0; const importedByFolder=new Map();
   for (const f of source.sort((a,b)=>/\.xml$/i.test(a.name)?-1:1)) {
     try {
       if (knownSourceIds.has(String(f.id))) { duplicates++; continue; }
@@ -219,6 +235,7 @@ async function run() {
         } else {
           if (!shouldAnalyzeUnmatchedPdf(f)) {
             console.log('DRIVE_RECONCILE_IGNORED_NON_FISCAL',f.path);
+            ignored++;
             continue;
           }
           const cacheKey=f.md5Checksum || f.id;
@@ -230,10 +247,11 @@ async function run() {
           }
         }
       }
-      if (!/\.xml$/i.test(f.name) && meta.tipo_documento==='OUTRO') continue;
+      if (!/\.xml$/i.test(f.name) && meta.tipo_documento==='OUTRO') { ignored++; continue; }
       const mapped={ cnpj:meta.cnpj || meta.nf_emitente_cpf_cnpj,cpf:meta.cpf,numero:meta.numero || meta.nf_numero,valor:meta.valor || meta.nf_valor_total,data:meta.data || meta.nf_data_emissao };
       if (/\.xml$/i.test(f.name) && (!mapped.numero || !Number(mapped.valor) || !mapped.data)) {
         console.log('DRIVE_RECONCILE_IGNORED_NON_FISCAL_XML',f.path);
+        ignored++;
         continue;
       }
       const isProof=meta.tipo_documento==='COMPROVANTE_PAGAMENTO'; let parent=null;
@@ -250,9 +268,11 @@ async function run() {
       if (!duplicate && key) knownKeys.add(key); if (duplicate) duplicates++; else imported++;
       const folder=f.path.split('/').slice(0,-1).join('/'); const list=importedByFolder.get(folder)||[]; list.push({ id:ins.rows[0].id,type:/\.xml$/i.test(f.name)?'XML':'PDF',key,url:`/api/files/${encodeURIComponent(disk)}` }); importedByFolder.set(folder,list);
     } catch (e) { errors++; console.error('DRIVE_RECONCILE_FILE_ERROR',f.path,e.message); }
+    finally { processed++; if(processed%10===0 || processed===source.length) await updateRunStatus(runId,{ processed_files:processed,imported,duplicates,ignored,errors }); }
   }
   for (const list of importedByFolder.values()) for (const pdf of list.filter(x=>x.type==='PDF'&&x.key)) { const xml=list.find(x=>x.type==='XML'&&x.key===pdf.key); if (!xml) continue; await pool.query(`UPDATE document_intakes SET nf_xml_intake_id=$1,nf_xml_url=$2,grupo_status='COMPLETO' WHERE id=$3`,[xml.id,xml.url,pdf.id]); await pool.query(`UPDATE document_intakes SET nf_pdf_intake_id=$1,nf_pdf_url=$2,grupo_status='COMPLETO',ocultar_entrada_unica=TRUE WHERE id=$3`,[pdf.id,pdf.url,xml.id]); }
   const duplicateRowsRemoved=await removeExactDuplicates();
+  await updateRunStatus(runId,{ status:errors?'COMPLETED_WITH_ERRORS':'COMPLETED',stage:'CONCLUIDO',processed_files:processed,imported,duplicates,ignored,errors,finished_at:new Date() });
   console.log('DRIVE_RECONCILE_DONE',JSON.stringify({ source_files:source.length,target_files:target.length,imported,duplicates,duplicate_rows_removed:duplicateRowsRemoved,errors }));
 }
 run().finally(()=>pool.end());

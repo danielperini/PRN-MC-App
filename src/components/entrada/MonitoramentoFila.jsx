@@ -103,6 +103,15 @@ export default function MonitoramentoFila({ intakes = [], processados = [], onRe
   const [buscandoXmls, setBuscandoXmls] = useState(false);
   const [atualizando, setAtualizando] = useState(false);
   const [corrigindoComprovantes, setCorrigindoComprovantes] = useState(false);
+  const [reconcileStatus, setReconcileStatus] = useState(null);
+
+  useEffect(() => {
+    if (!expandido) return undefined;
+    let active=true;
+    const load=async()=>{ try { const r=await fetch('/api/drive-reconcile/status',{ credentials:'include' }); if(r.ok&&active) setReconcileStatus(await r.json()); } catch {} };
+    load(); const timer=setInterval(load,10000);
+    return ()=>{ active=false; clearInterval(timer); };
+  },[expandido]);
 
   // Lista combinada: intakes (pendentes) + processados, para calcular o funil completo
   const todosIntakes = useMemo(() => [...intakes, ...processados], [intakes, processados]);
@@ -310,6 +319,25 @@ export default function MonitoramentoFila({ intakes = [], processados = [], onRe
       {/* Conteúdo expandido */}
       {expandido && (
         <div className="border-t border-gray-100 p-4 md:p-5 bg-gray-50/50">
+          {reconcileStatus?.run && (
+            <div className="mb-4 rounded-2xl border border-blue-200 bg-blue-50 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold text-blue-950">Conciliação Drive · {reconcileStatus.run.month}</p>
+                  <p className="text-xs text-blue-700">{reconcileStatus.run.stage} · {reconcileStatus.active ? 'Em execução' : 'Finalizada'}</p>
+                </div>
+                <span className="text-xl font-bold text-blue-950">{Number(reconcileStatus.run.progress_percent||0).toLocaleString('pt-BR')}%</span>
+              </div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-blue-100"><div className="h-full bg-blue-600 transition-all" style={{width:`${Math.min(100,Number(reconcileStatus.run.progress_percent||0))}%`}} /></div>
+              <div className="mt-3 grid grid-cols-3 gap-2 text-center md:grid-cols-7">
+                {[
+                  ['Total',reconcileStatus.run.source_files],['XML',reconcileStatus.run.source_xml],['PDF',reconcileStatus.run.source_pdf],
+                  ['Analisados',reconcileStatus.run.processed_files],['Importados',reconcileStatus.run.imported],['Repetidos',reconcileStatus.run.duplicates],['Ignorados',reconcileStatus.run.ignored]
+                ].map(([label,value])=><div key={label}><p className="text-base font-bold text-blue-950">{value||0}</p><p className="text-[10px] font-semibold uppercase text-blue-600">{label}</p></div>)}
+              </div>
+              {Number(reconcileStatus.run.errors)>0 && <p className="mt-2 text-xs font-semibold text-red-700">Erros pendentes: {reconcileStatus.run.errors}</p>}
+            </div>
+          )}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* Bloco 1 — Status XML/PDF */}
             <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">

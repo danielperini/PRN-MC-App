@@ -159,6 +159,17 @@ async function initDb() {
 app.get('/health', (_req,res) => res.json({ status:'ok', service:'appgestor-api' }));
 app.get('/db-health', async (_req,res) => { try { const r=await pool.query('SELECT NOW() AS now'); res.json({status:'ok',database:'connected',now:r.rows[0].now}); } catch(e) { res.status(500).json({status:'error',message:e.message}); } });
 
+app.get('/api/drive-reconcile/status',requireSession,async(req,res)=>{
+  try {
+    const user=(await pool.query('SELECT role FROM users WHERE id=$1 LIMIT 1',[req.userId])).rows[0];
+    if(!['admin','ADMIN'].includes(user?.role)) return res.status(403).json({error:'admin_required'});
+    if(!(await tableExists('drive_reconcile_runs'))) return res.json({active:false,run:null});
+    const run=(await pool.query(`SELECT *,CASE WHEN source_files>0 THEN round(processed_files*100.0/source_files,1) ELSE 0 END progress_percent FROM drive_reconcile_runs ORDER BY started_at DESC LIMIT 1`)).rows[0]||null;
+    const xml=run && await tableExists('drive_reconcile_xml_staging') ? (await pool.query(`SELECT source_scope,is_duplicate,count(*)::int total FROM drive_reconcile_xml_staging WHERE run_id=$1 GROUP BY 1,2 ORDER BY 1,2`,[run.run_id])).rows : [];
+    res.json({active:run?.status==='RUNNING',run,xml});
+  }catch(e){res.status(500).json({error:'drive_reconcile_status_failed',message:e.message});}
+});
+
 app.get('/api/apps/:appId/entities/:entityName', requireSession, async (req,res) => {
   try {
     const table=entityTable(req.params.entityName);
