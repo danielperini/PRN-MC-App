@@ -197,7 +197,9 @@ async function run() {
   fs.mkdirSync(uploadDir,{ recursive:true }); const drive=await driveClient();
   const analysisCache=loadAnalysisCache();
   const [sourceAll,targetAll]=await Promise.all([tree(drive,SOURCE_ROOT),tree(drive,TARGET_ROOT)]);
-  const sourceCandidates=sourceAll.filter(f=>/\.(pdf|xml)$/i.test(f.name) && (SOURCE_MONTH_ONLY ? monthAllowed(f.path) : (ONLY_MONTH || monthAllowed(f.path))));
+  // Sempre respeita o recorte mensal. Antes, ONLY_MONTH era usado como valor
+  // booleano e qualquer mês preenchido liberava toda a árvore de origem.
+  const sourceCandidates=sourceAll.filter(f=>/\.(pdf|xml)$/i.test(f.name) && monthAllowed(f.path));
   const source=Array.from(new Map(sourceCandidates.map(f=>[f.md5Checksum || f.id,f])).values());
   console.log('DRIVE_RECONCILE_INVENTORY',JSON.stringify({ source_total:sourceAll.length,source_candidates:source.length,source_xml:source.filter(f=>/\.xml$/i.test(f.name)).length,source_pdf:source.filter(f=>/\.pdf$/i.test(f.name)).length,target_total:targetAll.length }));
   const runId=`${ONLY_MONTH||'all'}-${Date.now()}`; const xmlCache=new Map(); const sourceXmlEntries=[]; let xmlIndex=[];
