@@ -741,7 +741,7 @@ Equipe Museus Centro`;
     }
   }
 
-  async function handleProcessarNota(aprovarDireto = false, ignoreDup = false) {
+  async function handleProcessarNota(aprovarDireto = false, ignoreDup = false, marcarPago = false) {
     if (sending || approvingDirect) return;
 
     if (!form.rubrica_id) {
@@ -829,7 +829,13 @@ Equipe Museus Centro`;
         rubrica_nome: rubricaNome,
         budgetline_id: form.rubrica_id,
 
-        status: aprovarDireto ? 'APROVADO_COORD' : 'SOLICITADO',
+        status: marcarPago ? 'PAGO' : (aprovarDireto ? 'APROVADO_COORD' : 'SOLICITADO'),
+        status_pagamento: marcarPago ? 'pago' : (aprovarDireto ? 'AGUARDANDO_PAGAMENTO' : undefined),
+        pago: marcarPago,
+        quitada: marcarPago,
+        pago_em: marcarPago ? new Date().toISOString() : undefined,
+        data_pagamento: marcarPago ? new Date().toISOString() : undefined,
+        notificacao_pagamento_suprimida: marcarPago || undefined,
 
         origem: 'EntradaUnica',
         intake_id: intake.id,
@@ -874,7 +880,7 @@ Equipe Museus Centro`;
         return null;
       });
 
-      if (aprovarDireto) {
+      if (aprovarDireto || marcarPago) {
         if (dividirEntreMuseus && rateioPayload && rateioPayload.length > 0) {
           await debitarRubricas(rateioPayload);
         } else {
@@ -883,7 +889,7 @@ Equipe Museus Centro`;
       }
 
       await base44.entities.DocumentIntake.update(intake.id, {
-        status_processamento: aprovarDireto ? 'APROVADO' : 'ENVIADO_APROVACAO',
+        status_processamento: (aprovarDireto || marcarPago) ? 'APROVADO' : 'ENVIADO_APROVACAO',
         ocultar_entrada_unica: true,
 
         entidade_destino: 'PurchaseRequest',
@@ -919,7 +925,9 @@ Equipe Museus Centro`;
       });
 
       toast({
-        title: aprovarDireto
+        title: marcarPago
+          ? '✅ Nota marcada como paga e debitada, sem notificação.'
+          : aprovarDireto
           ? '✅ Nota aprovada e debitada.'
           : 'Enviado para aprovação. Solicitação criada em Compras.',
         duration: 3000,
@@ -1572,6 +1580,17 @@ Equipe Museus Centro`;
               >
                 {sending || approvingDirect ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
                 Aprovar Direto
+              </Button>
+            )}
+
+            {isCoordenador && (
+              <Button
+                onClick={() => handleProcessarNota(true, false, true)}
+                disabled={sending || approvingDirect || !form.rubrica_id || reanaliseAtiva}
+                className="bg-emerald-700 hover:bg-emerald-800"
+              >
+                {sending || approvingDirect ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+                Marcar como pago
               </Button>
             )}
 
