@@ -616,7 +616,15 @@ export default function TabelaSolicitacoes({ purchases, rubricas, attachmentByPu
     if (!window.confirm(texto)) return;
     setSendingNotif((s) => ({ ...s, [p.id]: true }));
     try {
-      await base44.functions.invoke('notifyPurchaseApprovedToFinanceiro', { purchaseId: p.id, action: 'send_approval', recipients: ['danielperini.mc@viadutodasartes.org.br', 'daniel@periniprojetos.com.br'] });
+      await base44.functions.invoke('notifyPurchaseApprovedToFinanceiro', {
+        purchaseId: p.id,
+        action: 'send_approval',
+        recipients: [
+          'danielperini.mc@viadutodasartes.org.br',
+          'josianeamancio@viadutodasartes.org.br',
+          'daniel@periniprojetos.com.br',
+        ],
+      });
       toast.success('Notificação enviada com sucesso.');
     } catch (e) {
       toast.error('Erro ao enviar notificação: ' + (e?.message || 'desconhecido'));

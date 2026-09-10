@@ -5,7 +5,7 @@ export const CRITICAL_COORDINATORS = [
   },
   {
     name: 'Josiane Amâncio',
-    email: 'josiane@periniprojetos.com.br',
+    email: 'josianeamancio@viadutodasartes.org.br',
   },
 ];
 
