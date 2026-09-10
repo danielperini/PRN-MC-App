@@ -31,7 +31,7 @@ function xmlMeta(xml) {
   return {
     numero:tag(xml,'nNF') || tag(xml,'NumeroNfse') || tag(xml,'Numero'),
     valor:tag(xml,'vNF') || tag(xml,'ValorLiquidoNfse') || tag(xml,'ValorServicos') || tag(xml,'ValorNota'),
-    data:tag(xml,'dhEmi') || tag(xml,'dEmi') || tag(xml,'DataEmissao') || tag(xml,'DataEmissaoNfse'),
+    data:tag(xml,'dhEmi') || tag(xml,'dEmi') || tag(xml,'DataEmissao') || tag(xml,'DataEmissaoNfse') || xml.match(/\b(20\d{2}-[01]\d-[0-3]\d)(?:T|\b)/)?.[1] || '',
     fornecedor:tag(provider,'xNome') || tag(provider,'RazaoSocial') || tag(provider,'NomeRazaoSocial'),
     cnpj:tag(provider,'CNPJ') || tag(provider,'Cnpj'), cpf:tag(provider,'CPF') || tag(provider,'Cpf')
   };
@@ -99,7 +99,8 @@ async function removeExactDuplicates() {
 async function run() {
   fs.mkdirSync(uploadDir,{ recursive:true }); const drive=await driveClient();
   const [sourceAll,targetAll]=await Promise.all([tree(drive,SOURCE_ROOT),tree(drive,TARGET_ROOT)]);
-  const source=sourceAll.filter(f=>/\.(pdf|xml)$/i.test(f.name) && (ONLY_MONTH || monthAllowed(f.path)));
+  const sourceCandidates=sourceAll.filter(f=>/\.(pdf|xml)$/i.test(f.name) && (ONLY_MONTH || monthAllowed(f.path)));
+  const source=Array.from(new Map(sourceCandidates.map(f=>[f.md5Checksum || f.id,f])).values());
   const target=targetAll.filter(f=>/\.(pdf|xml)$/i.test(f.name)); const targetHashes=new Set(target.map(f=>f.md5Checksum).filter(Boolean));
   const knownKeys=new Set();
   for (const f of target.filter(x=>/\.xml$/i.test(x.name))) { try { const m=xmlMeta((await bytes(drive,f.id)).toString('utf8')); if (m.numero) knownKeys.add(fiscalKey(m)); } catch {} }
