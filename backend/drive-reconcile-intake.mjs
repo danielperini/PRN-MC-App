@@ -14,6 +14,7 @@ const pool = new pg.Pool(process.env.DATABASE_URL ? { connectionString:process.e
   password:process.env.POSTGRES_PASSWORD || ''
 });
 const clean = (v) => String(v || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._ -]/g, '_').replace(/\s+/g, ' ').trim();
+const comparable = (v) => clean(v).toUpperCase().replace(/\b(MUSEUS?|CENTRO|NOTA|FISCAL|NF|PDF|XML|LTDA|ME|EPP)\b/g,' ').replace(/[^A-Z0-9]/g,'');
 const digits = (v) => String(v || '').replace(/\D/g, '');
 const tag = (xml, name) => (xml.match(new RegExp(`<(?:\\w+:)?${name}(?:\\s[^>]*)?>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?</(?:\\w+:)?${name}>`, 'i'))?.[1] || '').trim();
 const fiscalKey = (m) => [digits(m.cnpj || m.cpf), String(m.numero || '').replace(/^0+/, ''), String(Number(m.valor || 0).toFixed(2)), String(m.data || '').slice(0, 10)].join('|');
@@ -51,6 +52,23 @@ function xmlMeta(xml) {
     fornecedor:tag(provider,'xNome') || tag(provider,'RazaoSocial') || tag(provider,'NomeRazaoSocial'),
     cnpj:tag(provider,'CNPJ') || tag(provider,'Cnpj'), cpf:tag(provider,'CPF') || tag(provider,'Cpf')
   };
+}
+function xmlPdfConfidence(pdf, xmlEntry) {
+  const hay=comparable(`${pdf.name} ${pdf.path}`); const meta=xmlEntry.meta;
+  const number=String(meta.numero||'').replace(/^0+/,'');
+  const supplier=comparable(meta.fornecedor||'');
+  const supplierTokens=clean(meta.fornecedor||'').toUpperCase().split(/\s+/).filter(x=>x.length>=4 && !['LTDA','EIRELI'].includes(x));
+  const value=Number(meta.valor||0); const valueDigits=String(value.toFixed(2)).replace(/\D/g,'');
+  let score=0;
+  if (number && new RegExp(`(?:^|\\D)0*${number}(?:\\D|$)`).test(`${pdf.name} ${pdf.path}`)) score+=0.35;
+  if (supplier && hay.includes(supplier)) score+=0.25;
+  else if (supplierTokens.length && supplierTokens.filter(t=>hay.includes(comparable(t))).length/supplierTokens.length>=0.6) score+=0.25;
+  if (value>0 && (hay.includes(valueDigits) || hay.includes(String(Math.trunc(value))))) score+=0.25;
+  const pdfFolder=pdf.path.split('/').slice(0,-1).join('/'); const xmlFolder=xmlEntry.file.path.split('/').slice(0,-1).join('/');
+  if (pdfFolder===xmlFolder) score+=0.15;
+  const pdfStem=comparable(pdf.name.replace(/\.pdf$/i,'')); const xmlStem=comparable(xmlEntry.file.name.replace(/\.xml$/i,''));
+  if (pdfStem && xmlStem && (pdfStem===xmlStem || pdfStem.includes(xmlStem) || xmlStem.includes(pdfStem))) score=1;
+  return Math.min(1,score);
 }
 function monthAllowed(p) {
   const m = String(p).match(/(?:^|\/)(0?[1-9]|1[0-2])[-_/](20\d{2})(?:\/|$)/);
@@ -117,6 +135,11 @@ async function run() {
   const [sourceAll,targetAll]=await Promise.all([tree(drive,SOURCE_ROOT),tree(drive,TARGET_ROOT)]);
   const sourceCandidates=sourceAll.filter(f=>/\.(pdf|xml)$/i.test(f.name) && (ONLY_MONTH || monthAllowed(f.path)));
   const source=Array.from(new Map(sourceCandidates.map(f=>[f.md5Checksum || f.id,f])).values());
+  const xmlCache=new Map(); const xmlIndex=[];
+  for (const file of source.filter(f=>/\.xml$/i.test(f.name))) {
+    try { const buffer=await bytes(drive,file.id); const meta=xmlMeta(buffer.toString('utf8')); xmlCache.set(file.id,buffer); if(meta.numero && meta.valor && meta.data) xmlIndex.push({ file,meta }); }
+    catch(e) { console.error('DRIVE_RECONCILE_XML_INDEX_ERROR',file.path,e.message); }
+  }
   const target=targetAll.filter(f=>/\.(pdf|xml)$/i.test(f.name)); const targetHashes=new Set(target.map(f=>f.md5Checksum).filter(Boolean));
   const knownKeys=new Set();
   const targetXml=target.filter(x=>/\.xml$/i.test(x.name) && (!ONLY_MONTH || x.path.includes(ONLY_MONTH)));
@@ -128,9 +151,17 @@ async function run() {
   for (const f of source.sort((a,b)=>/\.xml$/i.test(a.name)?-1:1)) {
     try {
       if (knownSourceIds.has(String(f.id))) { duplicates++; continue; }
-      const buffer=await bytes(drive,f.id); const hash=f.md5Checksum || crypto.createHash('md5').update(buffer).digest('hex');
+      const buffer=xmlCache.get(f.id) || await bytes(drive,f.id); const hash=f.md5Checksum || crypto.createHash('md5').update(buffer).digest('hex');
       if (targetHashes.has(hash)) { duplicates++; continue; }
-      let meta={}; if (/\.xml$/i.test(f.name)) meta=xmlMeta(buffer.toString('utf8')); else meta=await analyzePdf(buffer,f.name);
+      let meta={};
+      if (/\.xml$/i.test(f.name)) meta=xmlMeta(buffer.toString('utf8'));
+      else {
+        const matches=xmlIndex.map(x=>({ ...x,confidence:xmlPdfConfidence(f,x) })).filter(x=>x.confidence>=0.95).sort((a,b)=>b.confidence-a.confidence);
+        if (matches.length===1 || (matches[0] && matches[0].confidence>matches[1]?.confidence)) {
+          const x=matches[0]; meta={ ...x.meta,tipo_documento:'NOTA_FISCAL',nf_numero:x.meta.numero,nf_valor_total:Number(x.meta.valor),nf_data_emissao:x.meta.data,nf_emitente_nome:x.meta.fornecedor,nf_emitente_cpf_cnpj:x.meta.cnpj||x.meta.cpf,provedor_ia:'xml_correspondente',xml_source_drive_file_id:x.file.id,xml_match_confidence:x.confidence };
+          console.log('DRIVE_RECONCILE_PDF_FROM_XML',f.path,x.file.path,x.confidence);
+        } else meta=await analyzePdf(buffer,f.name);
+      }
       if (!/\.xml$/i.test(f.name) && meta.tipo_documento==='OUTRO') continue;
       const mapped={ cnpj:meta.cnpj || meta.nf_emitente_cpf_cnpj,cpf:meta.cpf,numero:meta.numero || meta.nf_numero,valor:meta.valor || meta.nf_valor_total,data:meta.data || meta.nf_data_emissao };
       const isProof=meta.tipo_documento==='COMPROVANTE_PAGAMENTO'; let parent=null;
@@ -141,7 +172,7 @@ async function run() {
       const invoiceName=parent?.file_name_final || parent?.file_name_original || ''; const finalName=isProof&&invoiceName ? `${invoiceName.replace(/\.(pdf|xml)$/i,'')} - COMP.pdf` : standardName({ ...meta,...mapped },f.name); const disk=`${Date.now()}-${f.id}-${finalName}`; fs.writeFileSync(path.join(uploadDir,disk),buffer);
       let backup=null; const folderId=!duplicate ? await monthFolder(drive,mapped.data) : null;
       if (folderId) backup=(await drive.files.copy({ fileId:f.id,requestBody:{ name:finalName,parents:[folderId] },fields:'id,webViewLink',supportsAllDrives:true })).data;
-      const ai={ ...meta, nf_numero:mapped.numero || '',nf_valor_total:Number(mapped.valor || 0),nf_data_emissao:String(mapped.data || '').slice(0,10),nf_emitente_nome:meta.fornecedor || meta.nf_emitente_nome || '',nf_emitente_cpf_cnpj:mapped.cnpj || mapped.cpf || '',source_drive_file_id:f.id,source_drive_path:f.path,source_md5:hash,drive_backup_file_id:backup?.id || null,drive_backup_url:backup?.webViewLink || null,duplicate_detected:Boolean(duplicate),duplicate_key:key || null,analisado_em:new Date().toISOString(),provedor_ia:/\.xml$/i.test(f.name)?'xml':'openai' };
+      const ai={ ...meta, nf_numero:mapped.numero || '',nf_valor_total:Number(mapped.valor || 0),nf_data_emissao:String(mapped.data || '').slice(0,10),nf_emitente_nome:meta.fornecedor || meta.nf_emitente_nome || '',nf_emitente_cpf_cnpj:mapped.cnpj || mapped.cpf || '',source_drive_file_id:f.id,source_drive_path:f.path,source_md5:hash,drive_backup_file_id:backup?.id || null,drive_backup_url:backup?.webViewLink || null,duplicate_detected:Boolean(duplicate),duplicate_key:key || null,analisado_em:new Date().toISOString(),provedor_ia:/\.xml$/i.test(f.name)?'xml':(meta.provedor_ia||'openai') };
       const detected=isProof?'COMPROVANTE_PAGAMENTO':/\.xml$/i.test(f.name)?'NOTA_FISCAL_XML':'NOTA_FISCAL_PDF';
       const ins=await pool.query(`INSERT INTO document_intakes (arquivo_original_url,file_name_original,file_name_final,mime_type,status_processamento,status_registro,tipo_detectado,resultado_ia,nf_pdf_intake_id,grupo_status,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,'ATIVO',$6,$7::jsonb,$8,$9,NOW(),NOW()) RETURNING id`,[`/api/files/${encodeURIComponent(disk)}`,f.name,finalName,/\.xml$/i.test(f.name)?'application/xml':'application/pdf',duplicate?'DUPLICADO':'AGUARDANDO_REVISAO',detected,JSON.stringify(ai),parent?.id||null,parent?'COMPLETO':null]);
       if (!duplicate && key) knownKeys.add(key); if (duplicate) duplicates++; else imported++;
