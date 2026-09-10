@@ -53,6 +53,13 @@ async function tree(drive, root) {
   return out;
 }
 async function bytes(drive, id) { const r=await drive.files.get({ fileId:id, alt:'media', supportsAllDrives:true }, { responseType:'arraybuffer' }); return Buffer.from(r.data); }
+async function monthFolder(drive, emissionDate) {
+  const date=String(emissionDate || '').slice(0,10); const m=date.match(/^(\d{4})-(\d{2})-\d{2}$/); if (!m) return null;
+  const name=`${m[2]}-${m[1]}`; const q=`'${TARGET_ROOT}' in parents and name='${name}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+  const found=await drive.files.list({ q,fields:'files(id)',pageSize:1,supportsAllDrives:true,includeItemsFromAllDrives:true });
+  if (found.data.files?.[0]?.id) return found.data.files[0].id;
+  return (await drive.files.create({ requestBody:{ name,mimeType:'application/vnd.google-apps.folder',parents:[TARGET_ROOT] },fields:'id',supportsAllDrives:true })).data.id;
+}
 async function analyzePdf(buffer, filename) {
   if (!process.env.OPENAI_API_KEY) return {};
   const form=new FormData(); form.append('purpose','user_data'); form.append('file',new Blob([buffer],{ type:'application/pdf' }),filename);
@@ -82,7 +89,9 @@ async function run() {
       const mapped={ cnpj:meta.cnpj || meta.nf_emitente_cpf_cnpj,cpf:meta.cpf,numero:meta.numero || meta.nf_numero,valor:meta.valor || meta.nf_valor_total,data:meta.data || meta.nf_data_emissao };
       const key=mapped.numero ? fiscalKey(mapped) : ''; const duplicate=key && knownKeys.has(key);
       const finalName=standardName({ ...meta,...mapped },f.name); const disk=`${Date.now()}-${f.id}-${finalName}`; fs.writeFileSync(path.join(uploadDir,disk),buffer);
-      const ai={ ...meta, nf_numero:mapped.numero || '',nf_valor_total:Number(mapped.valor || 0),nf_data_emissao:String(mapped.data || '').slice(0,10),nf_emitente_nome:meta.fornecedor || meta.nf_emitente_nome || '',nf_emitente_cpf_cnpj:mapped.cnpj || mapped.cpf || '',source_drive_file_id:f.id,source_drive_path:f.path,source_md5:hash,duplicate_detected:Boolean(duplicate),duplicate_key:key || null,analisado_em:new Date().toISOString(),provedor_ia:/\.xml$/i.test(f.name)?'xml':'openai' };
+      let backup=null; const folderId=!duplicate ? await monthFolder(drive,mapped.data) : null;
+      if (folderId) backup=(await drive.files.copy({ fileId:f.id,requestBody:{ name:finalName,parents:[folderId] },fields:'id,webViewLink',supportsAllDrives:true })).data;
+      const ai={ ...meta, nf_numero:mapped.numero || '',nf_valor_total:Number(mapped.valor || 0),nf_data_emissao:String(mapped.data || '').slice(0,10),nf_emitente_nome:meta.fornecedor || meta.nf_emitente_nome || '',nf_emitente_cpf_cnpj:mapped.cnpj || mapped.cpf || '',source_drive_file_id:f.id,source_drive_path:f.path,source_md5:hash,drive_backup_file_id:backup?.id || null,drive_backup_url:backup?.webViewLink || null,duplicate_detected:Boolean(duplicate),duplicate_key:key || null,analisado_em:new Date().toISOString(),provedor_ia:/\.xml$/i.test(f.name)?'xml':'openai' };
       const ins=await pool.query(`INSERT INTO document_intakes (arquivo_original_url,file_name_original,file_name_final,mime_type,status_processamento,status_registro,tipo_detectado,resultado_ia,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,'ATIVO',$6,$7::jsonb,NOW(),NOW()) RETURNING id`,[`/api/files/${encodeURIComponent(disk)}`,f.name,finalName,/\.xml$/i.test(f.name)?'application/xml':'application/pdf',duplicate?'DUPLICADO':'AGUARDANDO_REVISAO',/\.xml$/i.test(f.name)?'NOTA_FISCAL_XML':'NOTA_FISCAL_PDF',JSON.stringify(ai)]);
       if (!duplicate && key) knownKeys.add(key); if (duplicate) duplicates++; else imported++;
       const folder=f.path.split('/').slice(0,-1).join('/'); const list=importedByFolder.get(folder)||[]; list.push({ id:ins.rows[0].id,type:/\.xml$/i.test(f.name)?'XML':'PDF',key,url:`/api/files/${encodeURIComponent(disk)}` }); importedByFolder.set(folder,list);
