@@ -26,7 +26,14 @@ function standardName(meta, original) {
 
 function xmlMeta(xml) {
   const emit = xml.match(/<(?:\w+:)?emit(?:\s[^>]*)?>([\s\S]*?)<\/(?:\w+:)?emit>/i)?.[1] || '';
-  return { numero:tag(xml, 'nNF'), valor:tag(xml, 'vNF'), data:tag(xml, 'dhEmi') || tag(xml, 'dEmi'), fornecedor:tag(emit, 'xNome'), cnpj:tag(emit, 'CNPJ'), cpf:tag(emit, 'CPF') };
+  const provider=emit || xml.match(/<(?:\w+:)?(?:PrestadorServico|Prestador)(?:\s[^>]*)?>([\s\S]*?)<\/(?:\w+:)?(?:PrestadorServico|Prestador)>/i)?.[1] || xml;
+  return {
+    numero:tag(xml,'nNF') || tag(xml,'NumeroNfse') || tag(xml,'Numero'),
+    valor:tag(xml,'vNF') || tag(xml,'ValorLiquidoNfse') || tag(xml,'ValorServicos') || tag(xml,'ValorNota'),
+    data:tag(xml,'dhEmi') || tag(xml,'dEmi') || tag(xml,'DataEmissao') || tag(xml,'DataEmissaoNfse'),
+    fornecedor:tag(provider,'xNome') || tag(provider,'RazaoSocial') || tag(provider,'NomeRazaoSocial'),
+    cnpj:tag(provider,'CNPJ') || tag(provider,'Cnpj'), cpf:tag(provider,'CPF') || tag(provider,'Cpf')
+  };
 }
 function monthAllowed(p) {
   const m = String(p).match(/(?:^|\/)(0?[1-9]|1[0-2])[-_/](20\d{2})(?:\/|$)/);
