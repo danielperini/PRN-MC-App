@@ -66,9 +66,15 @@ async function analyzePdf(buffer, filename) {
   const up=await fetch('https://api.openai.com/v1/files',{ method:'POST',headers:{ Authorization:`Bearer ${process.env.OPENAI_API_KEY}` },body:form });
   if (!up.ok) throw new Error(`OpenAI upload ${up.status}`); const file=await up.json();
   try {
-    const prompt='Leia integralmente a nota fiscal. Retorne somente JSON: {"nf_numero":"","nf_valor_total":0,"nf_data_emissao":"YYYY-MM-DD","nf_emitente_nome":"","nf_emitente_cpf_cnpj":"","descricao_servico":""}. Use o conteúdo, não o nome do arquivo.';
-    const rr=await fetch('https://api.openai.com/v1/responses',{ method:'POST',headers:{ Authorization:`Bearer ${process.env.OPENAI_API_KEY}`,'Content-Type':'application/json' },body:JSON.stringify({ model:process.env.OPENAI_INVOICE_MODEL || 'gpt-4.1-mini', input:[{ role:'user',content:[{ type:'input_text',text:prompt },{ type:'input_file',file_id:file.id }] }], text:{ format:{ type:'json_object' } } }) });
-    if (!rr.ok) throw new Error(`OpenAI response ${rr.status}`); const env=await rr.json(); const text=env.output_text || env.output?.flatMap(x=>x.content||[]).find(x=>x.type==='output_text')?.text || '{}'; return JSON.parse(text);
+    let result={};
+    for (let attempt=1;attempt<=3;attempt++) {
+      const prompt=`Faça OCR integral da nota fiscal, inclusive cabeçalho, rodapé e QR code. A DATA DE EMISSÃO é obrigatória: procure também por "emitida em", "data/hora da emissão" e "competência". Tentativa ${attempt}/3. Retorne somente JSON: {"nf_numero":"","nf_valor_total":0,"nf_data_emissao":"YYYY-MM-DD","nf_emitente_nome":"","nf_emitente_cpf_cnpj":"","descricao_servico":""}. Use o conteúdo, nunca o nome do arquivo.`;
+      const rr=await fetch('https://api.openai.com/v1/responses',{ method:'POST',headers:{ Authorization:`Bearer ${process.env.OPENAI_API_KEY}`,'Content-Type':'application/json' },body:JSON.stringify({ model:process.env.OPENAI_INVOICE_MODEL || 'gpt-4.1-mini', input:[{ role:'user',content:[{ type:'input_text',text:prompt },{ type:'input_file',file_id:file.id }] }], text:{ format:{ type:'json_object' } } }) });
+      if (!rr.ok) throw new Error(`OpenAI response ${rr.status}`); const env=await rr.json(); const text=env.output_text || env.output?.flatMap(x=>x.content||[]).find(x=>x.type==='output_text')?.text || '{}'; result={ ...result,...JSON.parse(text) };
+      if (result.nf_data_emissao && result.nf_numero && Number(result.nf_valor_total)>0 && result.nf_emitente_cpf_cnpj) return result;
+    }
+    if (!result.nf_data_emissao) throw new Error('Data de emissão não localizada após 3 leituras OCR');
+    return result;
   } finally { await fetch(`https://api.openai.com/v1/files/${file.id}`,{ method:'DELETE',headers:{ Authorization:`Bearer ${process.env.OPENAI_API_KEY}` } }).catch(()=>{}); }
 }
 async function run() {
@@ -87,6 +93,7 @@ async function run() {
       if (targetHashes.has(hash)) { duplicates++; continue; }
       let meta={}; if (/\.xml$/i.test(f.name)) meta=xmlMeta(buffer.toString('utf8')); else meta=await analyzePdf(buffer,f.name);
       const mapped={ cnpj:meta.cnpj || meta.nf_emitente_cpf_cnpj,cpf:meta.cpf,numero:meta.numero || meta.nf_numero,valor:meta.valor || meta.nf_valor_total,data:meta.data || meta.nf_data_emissao };
+      if (!mapped.data) throw new Error('Data de emissão fiscal ausente após leitura integral');
       const key=mapped.numero ? fiscalKey(mapped) : ''; const duplicate=key && knownKeys.has(key);
       const finalName=standardName({ ...meta,...mapped },f.name); const disk=`${Date.now()}-${f.id}-${finalName}`; fs.writeFileSync(path.join(uploadDir,disk),buffer);
       let backup=null; const folderId=!duplicate ? await monthFolder(drive,mapped.data) : null;
