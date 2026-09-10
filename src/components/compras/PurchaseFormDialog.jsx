@@ -18,7 +18,6 @@ import useDocumentAnalysis from '@/hooks/useDocumentAnalysis'
 import { notifyPurchaseApproved, notifyPurchaseCreated, notifyPurchaseReturned } from '@/services/notifications/purchaseNotifications'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 import { METAS_PROJETO_FALLBACK } from '@/lib/metasProjeto'
-import { metaOcultaNoTerceiroAditivo } from '@/utils/metasAditivosPermitidos'
 
 // Valores EXATOS do enum PurchaseRequest.centro_custo no banco
 const CENTROS = ['MUMO','MIS','MHAB','Noturno nos Museus 2026','Noturno Pampulha','Publicações','Geral']
@@ -280,7 +279,8 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
 
     base44.entities.ProjectMeta.list('ordem', 500)
       .then((d) => {
-        const ativos = (d || []).filter((m) => m?.ativo !== false && !metaOcultaNoTerceiroAditivo(m))
+        // O formulário de edição deve permitir selecionar toda meta ativa cadastrada.
+        const ativos = (d || []).filter((m) => m?.ativo !== false && m?.id)
         // Garante que 11B - Noturno Pampulha está na lista mesmo que não venha do banco
         const ids = new Set(ativos.map(m => m.id))
         const fallbackExtras = METAS_PROJETO_FALLBACK.filter(m => !ids.has(m.id)).map(m => ({ id: m.id, nome: m.label }))
@@ -827,11 +827,6 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
         smartToast.error('Selecione uma meta orçamentária antes de salvar.')
         return
       }
-      if (metaOcultaNoTerceiroAditivo({ id: form.meta_id, nome: form.meta_id })) {
-        smartToast.error('A meta selecionada não está disponível no sistema.')
-        return
-      }
-
       if (!form.fornecedor_nome?.trim() || form.fornecedor_nome === 'Fornecedor não informado') {
         smartToast.error('Informe o nome do fornecedor antes de salvar.')
         return
@@ -1014,11 +1009,6 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
       smartToast.error('Selecione uma meta orçamentária antes de aprovar.')
       return
     }
-    if (metaOcultaNoTerceiroAditivo({ id: metaId, nome: metaId })) {
-      smartToast.error('A meta selecionada não está disponível no sistema.')
-      return
-    }
-
     // Verificar duplicidade de NF antes de aprovar (se ainda não foi bypass)
     if (!nfDuplicateBypass) {
       setCheckingNfDuplicate(true)
