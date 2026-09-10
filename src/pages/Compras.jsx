@@ -312,6 +312,7 @@ function ComprasInner() {
   }, []);
 
   const isCoordenador = ['admin', 'ADMIN', 'COORDENADOR', 'COORD_COMUNICACAO', 'COORD_ADMINISTRATIVA', 'COORD_PRODUCAO'].includes(currentUser?.role);
+  const isAdmin = ['admin', 'ADMIN'].includes(currentUser?.role);
 
   // Buscar museu vinculado do usuário (TeamMember) — usado para filtrar solicitações de não-coordenadores
   const { data: userTeamMember } = useQuery({
@@ -1104,10 +1105,10 @@ function ComprasInner() {
           ...(podeGerenciarRubricas ? [{ id: 'rubricas', label: 'Rubricas' }] : []),
           { id: 'documentos', label: 'Documentos' },
           { id: 'meus_pagamentos', label: 'Meus Pagamentos' },
-          ...(isCoordenador ? [{ id: 'backup_drive', label: '🗄️ Backup Drive' }] : []),
-          ...(isCoordGeral(currentUser) ? [{ id: 'sinc_drive', label: '📂 Sinc. Drive NFs' }] : []),
-          ...(isCoordenador ? [{ id: 'auditoria_valores', label: '👁️ Divergência de Valores' }] : []),
-          ...(isCoordenador ? [{ id: 'verificacao', label: '🔍 Verificação' }] : [])].
+          ...(isAdmin ? [{ id: 'backup_drive', label: '🗄️ Backup Drive' }] : []),
+          ...(isAdmin ? [{ id: 'sinc_drive', label: '📂 Sinc. Drive NFs' }] : []),
+          ...(isAdmin ? [{ id: 'auditoria_valores', label: '👁️ Divergência de Valores' }] : []),
+          ...(isAdmin ? [{ id: 'verificacao', label: '🔍 Verificação' }] : [])].
           map((t) =>
           <button
             key={t.id}
@@ -1643,13 +1644,13 @@ function ComprasInner() {
           </div>
         }
 
-        {tab === 'auditoria_valores' && isCoordenador &&
+        {tab === 'auditoria_valores' && isAdmin &&
         <div className="space-y-4">
           <PainelAuditoriaValoresNF purchases={purchases} />
         </div>
         }
 
-        {tab === 'verificacao' && isCoordenador &&
+        {tab === 'verificacao' && isAdmin &&
         <div className="space-y-6">
             <div className="flex items-start gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
               <Clock className="h-4 w-4 mt-0.5 text-gray-400 flex-shrink-0" />
@@ -1679,11 +1680,11 @@ function ComprasInner() {
 
         }
 
-        {tab === 'sinc_drive' && isCoordGeral(currentUser) &&
+        {tab === 'sinc_drive' && isAdmin &&
         <PainelSincronizacaoDriveNFs />
         }
 
-        {tab === 'backup_drive' && isCoordenador &&
+        {tab === 'backup_drive' && isAdmin &&
         <div className="space-y-4">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Status de Backup no Google Drive</h2>
