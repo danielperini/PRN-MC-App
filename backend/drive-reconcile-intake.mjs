@@ -86,6 +86,14 @@ async function analyzePdf(buffer, filename) {
     return result;
   } finally { await fetch(`https://api.openai.com/v1/files/${file.id}`,{ method:'DELETE',headers:{ Authorization:`Bearer ${process.env.OPENAI_API_KEY}` } }).catch(()=>{}); }
 }
+async function removeExactDuplicates() {
+  const r=await pool.query(`SELECT id,tipo_detectado,resultado_ia,entidade_destino_id,attachment_id,revisado_pelo_usuario,created_at FROM document_intakes WHERE COALESCE(status_registro,'')<>'DELETADO'`);
+  const groups=new Map();
+  for(const row of r.rows){ const a=row.resultado_ia||{}; if(!a.nf_numero||!a.nf_emitente_cpf_cnpj||!a.nf_data_emissao||!Number(a.nf_valor_total)) continue; const k=`${row.tipo_detectado}|${fiscalKey({cnpj:a.nf_emitente_cpf_cnpj,numero:a.nf_numero,valor:a.nf_valor_total,data:a.nf_data_emissao})}`; const list=groups.get(k)||[]; list.push(row); groups.set(k,list); }
+  let removed=0;
+  for(const list of groups.values()){ if(list.length<2) continue; list.sort((a,b)=>((b.entidade_destino_id?100:0)+(b.attachment_id?50:0)+(b.revisado_pelo_usuario?20:0))-((a.entidade_destino_id?100:0)+(a.attachment_id?50:0)+(a.revisado_pelo_usuario?20:0)) || Number(a.id)-Number(b.id)); const discard=list.slice(1).map(x=>x.id); if(discard.length){ await pool.query(`UPDATE document_intakes SET status_registro='DELETADO',status_processamento='DUPLICADO_REMOVIDO',updated_at=NOW() WHERE id=ANY($1::bigint[])`,[discard]); removed+=discard.length; } }
+  return removed;
+}
 async function run() {
   fs.mkdirSync(uploadDir,{ recursive:true }); const drive=await driveClient();
   const [sourceAll,targetAll]=await Promise.all([tree(drive,SOURCE_ROOT),tree(drive,TARGET_ROOT)]);
@@ -120,6 +128,7 @@ async function run() {
     } catch (e) { errors++; console.error('DRIVE_RECONCILE_FILE_ERROR',f.path,e.message); }
   }
   for (const list of importedByFolder.values()) for (const pdf of list.filter(x=>x.type==='PDF'&&x.key)) { const xml=list.find(x=>x.type==='XML'&&x.key===pdf.key); if (!xml) continue; await pool.query(`UPDATE document_intakes SET nf_xml_intake_id=$1,nf_xml_url=$2,grupo_status='COMPLETO' WHERE id=$3`,[xml.id,xml.url,pdf.id]); await pool.query(`UPDATE document_intakes SET nf_pdf_intake_id=$1,nf_pdf_url=$2,grupo_status='COMPLETO',ocultar_entrada_unica=TRUE WHERE id=$3`,[pdf.id,pdf.url,xml.id]); }
-  console.log('DRIVE_RECONCILE_DONE',JSON.stringify({ source_files:source.length,target_files:target.length,imported,duplicates,errors }));
+  const duplicateRowsRemoved=await removeExactDuplicates();
+  console.log('DRIVE_RECONCILE_DONE',JSON.stringify({ source_files:source.length,target_files:target.length,imported,duplicates,duplicate_rows_removed:duplicateRowsRemoved,errors }));
 }
 run().finally(()=>pool.end());
