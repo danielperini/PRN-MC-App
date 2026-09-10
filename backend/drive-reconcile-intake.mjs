@@ -22,6 +22,12 @@ const tag = (xml, name) => (xml.match(new RegExp(`<(?:\\w+:)?${name}(?:\\s[^>]*)
 const fiscalKey = (m) => [digits(m.cnpj || m.cpf), String(m.numero || '').replace(/^0+/, ''), String(Number(m.valor || 0).toFixed(2)), String(m.data || '').slice(0, 10)].join('|');
 const brl = (v) => Number(v || 0).toLocaleString('pt-BR',{ minimumFractionDigits:2,maximumFractionDigits:2 });
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+async function mapLimit(items,limit,worker) {
+  const results=new Array(items.length); let cursor=0;
+  async function next(){ while(true){ const index=cursor++; if(index>=items.length) return; results[index]=await worker(items[index],index); } }
+  await Promise.all(Array.from({ length:Math.min(limit,items.length) },()=>next()));
+  return results;
+}
 async function fetchWithRetry(url, options, label, maxAttempts=8) {
   let response;
   for (let attempt=1; attempt<=maxAttempts; attempt++) {
@@ -173,16 +179,17 @@ async function run() {
   const [sourceAll,targetAll]=await Promise.all([tree(drive,SOURCE_ROOT),tree(drive,TARGET_ROOT)]);
   const sourceCandidates=sourceAll.filter(f=>/\.(pdf|xml)$/i.test(f.name) && (SOURCE_MONTH_ONLY ? monthAllowed(f.path) : (ONLY_MONTH || monthAllowed(f.path))));
   const source=Array.from(new Map(sourceCandidates.map(f=>[f.md5Checksum || f.id,f])).values());
+  console.log('DRIVE_RECONCILE_INVENTORY',JSON.stringify({ source_total:sourceAll.length,source_candidates:source.length,source_xml:source.filter(f=>/\.xml$/i.test(f.name)).length,source_pdf:source.filter(f=>/\.pdf$/i.test(f.name)).length,target_total:targetAll.length }));
   const runId=`${ONLY_MONTH||'all'}-${Date.now()}`; const xmlCache=new Map(); const sourceXmlEntries=[]; let xmlIndex=[];
-  for (const file of source.filter(f=>/\.xml$/i.test(f.name))) {
-    try { const buffer=await bytes(drive,file.id); const meta=xmlMeta(buffer.toString('utf8')); xmlCache.set(file.id,buffer); if(meta.numero && meta.valor && meta.data) sourceXmlEntries.push({ file,meta }); }
-    catch(e) { console.error('DRIVE_RECONCILE_XML_INDEX_ERROR',file.path,e.message); }
-  }
+  const indexedSourceXml=await mapLimit(source.filter(f=>/\.xml$/i.test(f.name)),8,async file=>{
+    try { const buffer=await bytes(drive,file.id); const meta=xmlMeta(buffer.toString('utf8')); xmlCache.set(file.id,buffer); return meta.numero && meta.valor && meta.data ? { file,meta } : null; }
+    catch(e) { console.error('DRIVE_RECONCILE_XML_INDEX_ERROR',file.path,e.message); return null; }
+  });
+  sourceXmlEntries.push(...indexedSourceXml.filter(Boolean));
   const target=targetAll.filter(f=>/\.(pdf|xml)$/i.test(f.name)); const targetHashes=new Set(target.map(f=>f.md5Checksum).filter(Boolean));
   const knownKeys=new Set();
   const targetXml=target.filter(x=>/\.xml$/i.test(x.name) && (!ONLY_MONTH || x.path.includes(ONLY_MONTH)));
-  const targetXmlEntries=[];
-  for (const f of targetXml) { try { const m=xmlMeta((await bytes(drive,f.id)).toString('utf8')); if (m.numero) { knownKeys.add(fiscalKey(m)); targetXmlEntries.push({ file:f,meta:m }); } } catch {} }
+  const targetXmlEntries=(await mapLimit(targetXml,8,async f=>{ try { const m=xmlMeta((await bytes(drive,f.id)).toString('utf8')); if(m.numero){ knownKeys.add(fiscalKey(m)); return { file:f,meta:m }; } } catch {} return null; })).filter(Boolean);
   await prepareXmlStaging(sourceXmlEntries,targetXmlEntries,runId);
   const uniqueXmlRows=await pool.query(`SELECT drive_file_id FROM drive_reconcile_xml_staging WHERE run_id=$1 AND source_scope='SOURCE' AND is_duplicate=false`,[runId]);
   const uniqueXmlIds=new Set(uniqueXmlRows.rows.map(x=>String(x.drive_file_id)));
