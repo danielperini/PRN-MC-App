@@ -251,6 +251,58 @@ app.get('/api/files/:name',async(req,res)=>{ try { const name=path.basename(deco
 app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,res) => {
   const name=String(req.params.functionName||'');
   try {
+    if (name === 'purchaseActions') {
+      const purchaseId = String(req.body?.purchaseId || req.body?.purchase_id || '').trim();
+      const action = String(req.body?.action || '').trim().toLowerCase();
+      if (!purchaseId || !action) return res.status(400).json({ success:false, error:'purchase_action_invalid' });
+
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const currentResult = await client.query('SELECT * FROM purchase_requests WHERE id=$1 FOR UPDATE',[purchaseId]);
+        if (!currentResult.rowCount) {
+          await client.query('ROLLBACK');
+          return res.status(404).json({ success:false, error:'purchase_not_found' });
+        }
+
+        const current = currentResult.rows[0];
+        const columns = await tableColumns('purchase_requests');
+        const updates = {};
+        if (action === 'aprovar') {
+          updates.status = 'APROVADO_COORD';
+          if (columns.includes('status_pagamento')) updates.status_pagamento = 'AGUARDANDO_PAGAMENTO';
+          if (columns.includes('pago')) updates.pago = false;
+          if (columns.includes('aprov_coord_data')) updates.aprov_coord_data = new Date();
+          if (columns.includes('aprov_coord_nome')) {
+            const user = (await client.query('SELECT email FROM users WHERE id=$1 LIMIT 1',[req.userId])).rows[0];
+            updates.aprov_coord_nome = user?.email || String(req.userId || 'Sistema');
+          }
+          if (columns.includes('rubrica_debitada_em') && !current.rubrica_debitada_em) updates.rubrica_debitada_em = new Date();
+          if (columns.includes('financeiro_lancado_em') && !current.financeiro_lancado_em) updates.financeiro_lancado_em = new Date();
+        } else if (action === 'devolver' || action === 'rejeitar') {
+          updates.status = 'DEVOLVIDO';
+          if (columns.includes('comentario_devolucao')) updates.comentario_devolucao = req.body?.comentario || null;
+        } else {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ success:false, error:'purchase_action_unsupported', action });
+        }
+
+        if (columns.includes('updated_at')) updates.updated_at = new Date();
+        const entries = Object.entries(updates).filter(([field]) => columns.includes(field));
+        const values = entries.map(([,value]) => value);
+        values.push(purchaseId);
+        const setSql = entries.map(([field],index) => `${quoteIdentifier(field)}=$${index + 1}`).join(',');
+        const updatedResult = await client.query(`UPDATE purchase_requests SET ${setSql} WHERE id=$${values.length} RETURNING *`,values);
+        await client.query('COMMIT');
+        console.log('PURCHASE_ACTION_OK',JSON.stringify({ purchase_id:purchaseId, action, status:updatedResult.rows[0]?.status }));
+        return res.status(200).json({ success:true, purchase:updatedResult.rows[0] });
+      } catch (error) {
+        await client.query('ROLLBACK').catch(()=>{});
+        throw error;
+      } finally {
+        client.release();
+      }
+    }
     if (name === 'processarNotaFiscalComClaude') {
       const intakeId = String(req.body?.intake_id || '').trim();
       const fileUrl = String(req.body?.file_url || '').trim();
