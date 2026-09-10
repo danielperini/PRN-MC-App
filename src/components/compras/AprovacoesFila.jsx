@@ -250,7 +250,10 @@ export default function AprovacoesFila({
     try {
       await base44.functions.invoke('notifyPurchaseApprovedToFinanceiro', {
         purchaseId: purchase.id,
-        recipients: ['danielperini.mc@viadutodasartes.org.br'],
+        recipients: [
+          'danielperini.mc@viadutodasartes.org.br',
+          'josianeamancio@viadutodasartes.org.br',
+        ],
       });
       toast.success('Notificação enviada com sucesso.', { duration: 3000 });
     } catch (e) {

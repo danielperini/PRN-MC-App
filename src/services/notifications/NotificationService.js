@@ -50,6 +50,7 @@ const FIXED_PURCHASE_RECIPIENTS = [
   'adm@viadutodasartes.org.br',
   'notasfiscais@viadutodasartes.org.br',
   'danielperini.mc@viadutodasartes.org.br',
+  'josianeamancio@viadutodasartes.org.br',
   'daniel@periniprojetos.com.br',
 ];
 
