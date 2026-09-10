@@ -7,7 +7,11 @@ import { google } from 'googleapis';
 const SOURCE_ROOT = process.env.DRIVE_RECONCILE_SOURCE_ROOT || '1LgC94VhIomQZBS7kfkQqgBX8MVzwQqzp';
 const TARGET_ROOT = process.env.GOOGLE_DRIVE_FOLDER_ID || '1qVwpSypPHyQ_IK_H2yTho46MVCzj0FrU';
 const uploadDir = process.env.UPLOAD_DIR || '/app/uploads';
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+const pool = new pg.Pool(process.env.DATABASE_URL ? { connectionString:process.env.DATABASE_URL } : {
+  host:process.env.DB_HOST || 'db', port:Number(process.env.DB_PORT || 5432),
+  database:process.env.POSTGRES_DB || 'appgestor', user:process.env.POSTGRES_USER || 'appgestor',
+  password:process.env.POSTGRES_PASSWORD || ''
+});
 const clean = (v) => String(v || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._ -]/g, '_').replace(/\s+/g, ' ').trim();
 const digits = (v) => String(v || '').replace(/\D/g, '');
 const tag = (xml, name) => (xml.match(new RegExp(`<(?:\\w+:)?${name}(?:\\s[^>]*)?>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?</(?:\\w+:)?${name}>`, 'i'))?.[1] || '').trim();
