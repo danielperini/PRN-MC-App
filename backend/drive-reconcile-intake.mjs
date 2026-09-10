@@ -92,6 +92,17 @@ function monthAllowed(p) {
   const now = new Date(); const max = now.getFullYear() * 100 + now.getMonth() + 1;
   return n >= 202602 && n <= max;
 }
+function sourcePeriodAllowed(p) {
+  const m = String(p).match(/(?:^|\/)(0?[1-9]|1[0-2])[-_/](20\d{2})(?:\/|$)/);
+  if (!m) return false;
+  const n = Number(m[2]) * 100 + Number(m[1]);
+  const now = new Date(); const max = now.getFullYear() * 100 + now.getMonth() + 1;
+  return n >= 202602 && n <= max;
+}
+function fiscalMonth(value) {
+  const m=String(value||'').slice(0,10).match(/^(20\d{2})-(\d{2})/);
+  return m ? `${m[2]}-${m[1]}` : '';
+}
 async function driveClient() {
   const auth = new google.auth.OAuth2(process.env.GOOGLE_DRIVE_CLIENT_ID, process.env.GOOGLE_DRIVE_CLIENT_SECRET);
   auth.setCredentials({ refresh_token:process.env.GOOGLE_DRIVE_REFRESH_TOKEN });
@@ -113,6 +124,7 @@ async function bytes(drive, id) { const r=await drive.files.get({ fileId:id, alt
 async function monthFolder(drive, emissionDate) {
   const date=String(emissionDate || '').slice(0,10); const m=date.match(/^(\d{4})-(\d{2})-\d{2}$/); if (!m) return null;
   const name=`${m[2]}-${m[1]}`; const q=`'${TARGET_ROOT}' in parents and name='${name}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+  if (ONLY_MONTH && name !== ONLY_MONTH) throw new Error(`Bloqueado destino ${name}: execução canônica de ${ONLY_MONTH}`);
   const found=await drive.files.list({ q,fields:'files(id)',pageSize:1,supportsAllDrives:true,includeItemsFromAllDrives:true });
   if (found.data.files?.[0]?.id) return found.data.files[0].id;
   return (await drive.files.create({ requestBody:{ name,mimeType:'application/vnd.google-apps.folder',parents:[TARGET_ROOT] },fields:'id',supportsAllDrives:true })).data.id;
@@ -197,9 +209,9 @@ async function run() {
   fs.mkdirSync(uploadDir,{ recursive:true }); const drive=await driveClient();
   const analysisCache=loadAnalysisCache();
   const [sourceAll,targetAll]=await Promise.all([tree(drive,SOURCE_ROOT),tree(drive,TARGET_ROOT)]);
-  // Sempre respeita o recorte mensal. Antes, ONLY_MONTH era usado como valor
-  // booleano e qualquer mês preenchido liberava toda a árvore de origem.
-  const sourceCandidates=sourceAll.filter(f=>/\.(pdf|xml)$/i.test(f.name) && monthAllowed(f.path));
+  // A origem pode estar desorganizada: pesquisa todas as pastas do período.
+  // A data fiscal lida do XML/PDF decide o mês; nunca o caminho de origem.
+  const sourceCandidates=sourceAll.filter(f=>/\.(pdf|xml)$/i.test(f.name) && sourcePeriodAllowed(f.path));
   const source=Array.from(new Map(sourceCandidates.map(f=>[f.md5Checksum || f.id,f])).values());
   console.log('DRIVE_RECONCILE_INVENTORY',JSON.stringify({ source_total:sourceAll.length,source_candidates:source.length,source_xml:source.filter(f=>/\.xml$/i.test(f.name)).length,source_pdf:source.filter(f=>/\.pdf$/i.test(f.name)).length,target_total:targetAll.length }));
   const runId=`${ONLY_MONTH||'all'}-${Date.now()}`; const xmlCache=new Map(); const sourceXmlEntries=[]; let xmlIndex=[];
@@ -208,11 +220,11 @@ async function run() {
     try { const buffer=await bytes(drive,file.id); const meta=xmlMeta(buffer.toString('utf8')); xmlCache.set(file.id,buffer); return meta.numero && meta.valor && meta.data ? { file,meta } : null; }
     catch(e) { console.error('DRIVE_RECONCILE_XML_INDEX_ERROR',file.path,e.message); return null; }
   });
-  sourceXmlEntries.push(...indexedSourceXml.filter(Boolean));
+  sourceXmlEntries.push(...indexedSourceXml.filter(Boolean).filter(x=>!ONLY_MONTH || fiscalMonth(x.meta.data)===ONLY_MONTH));
   const target=targetAll.filter(f=>/\.(pdf|xml)$/i.test(f.name)); const targetHashes=new Set(target.map(f=>f.md5Checksum).filter(Boolean));
   const knownKeys=new Set();
-  const targetXml=target.filter(x=>/\.xml$/i.test(x.name) && (!ONLY_MONTH || x.path.includes(ONLY_MONTH)));
-  const targetXmlEntries=(await mapLimit(targetXml,8,async f=>{ try { const m=xmlMeta((await bytes(drive,f.id)).toString('utf8')); if(m.numero){ knownKeys.add(fiscalKey(m)); return { file:f,meta:m }; } } catch {} return null; })).filter(Boolean);
+  const targetXml=target.filter(x=>/\.xml$/i.test(x.name));
+  const targetXmlEntries=(await mapLimit(targetXml,8,async f=>{ try { const m=xmlMeta((await bytes(drive,f.id)).toString('utf8')); if(m.numero && (!ONLY_MONTH || fiscalMonth(m.data)===ONLY_MONTH)){ knownKeys.add(fiscalKey(m)); return { file:f,meta:m }; } } catch {} return null; })).filter(Boolean);
   await prepareXmlStaging(sourceXmlEntries,targetXmlEntries,runId);
   await updateRunStatus(runId,{ stage:'PROCESSANDO_ARQUIVOS' });
   const uniqueXmlRows=await pool.query(`SELECT drive_file_id FROM drive_reconcile_xml_staging WHERE run_id=$1 AND source_scope='SOURCE' AND is_duplicate=false`,[runId]);
