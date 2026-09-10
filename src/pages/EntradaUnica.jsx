@@ -719,6 +719,11 @@ export default function EntradaUnica() {
         const isXML = tipo === 'NOTA_FISCAL_XML';
         const isRecibo = tipo === 'RECIBO_PDF' || isReciboLike(i);
 
+        // XML nunca e uma unidade revisavel: fica preservado como documento
+        // auxiliar e so volta a interface por meio do card do PDF conciliado.
+        // Isso impede uma fila sem acao possivel e evita aprovar XML isolado.
+        if (isXML) return false;
+
         if (
         (isXML || isRecibo) && (
         i.grupo_status === 'COMPLETO' || i.nf_pdf_intake_id || i.entidade_destino_id))
