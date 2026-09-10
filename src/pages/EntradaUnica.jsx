@@ -676,14 +676,12 @@ export default function EntradaUnica() {
       // Tenta filter com timeout de 15s — em vez de rejeitar, resolve null e cai no fallback
       let list = null;
       try {
-        const query = { status_registro: 'ATIVO' };
+        const query = {};
         if (!canSeeAll) query.user_email = user.email;
         list = await Promise.race([
-        base44.entities.DocumentIntake.filter(
-          query,
-          '-created_date',
-          200
-        ),
+        canSeeAll
+          ? base44.entities.DocumentIntake.list('-created_date', 5000)
+          : base44.entities.DocumentIntake.filter(query, '-created_date', 1000),
         new Promise((resolve) => setTimeout(() => resolve(null), 15000))]
         );
       } catch (filterErr) {
@@ -693,15 +691,17 @@ export default function EntradaUnica() {
 
       // Fallback: só quando o filter realmente falhou (lista vazia é resultado válido)
       if (!list) {
-        const all = await base44.entities.DocumentIntake.list('-created_date', 200);
+        const all = await base44.entities.DocumentIntake.list('-created_date', canSeeAll ? 5000 : 1000);
         list = (all || []).filter(
           (d) => {
             if (d.status_registro === 'REMOVIDO') return false;
             if (!canSeeAll && d.user_email !== user.email) return false;
             return true;
           }
-        ).slice(0, 200);
+        ).slice(0, canSeeAll ? 5000 : 1000);
       }
+
+      list = (list || []).filter((d) => !['REMOVIDO', 'DELETADO'].includes(String(d.status_registro || '').toUpperCase()));
 
       // Correções em background (leves). Vinculação automática roda apenas sob
       // ação do administrador, para não estourar o limite de requisições.
@@ -2080,7 +2080,7 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
                   </div>
                   </div>
 
-                  {(user?.role === 'admin' || isCoordenador(user)) && (
+                  {user?.role === 'admin' && (
                     <div className="px-5 md:px-6 pb-2">
                       <MonitoramentoFila
                         intakes={intakes}
@@ -2090,7 +2090,7 @@ Retorne apenas o JSON válido, sem explicações adicionais.`;
                     </div>
                   )}
 
-                  {(user?.role === 'admin' || isCoordenador(user)) && (
+                  {user?.role === 'admin' && (
                     <div className="px-5 md:px-6 pb-2">
                       <PainelConciliacaoComprovantes currentUser={user} isCoordenador={user?.role === 'admin' || isCoordenador(user)} />
                     </div>

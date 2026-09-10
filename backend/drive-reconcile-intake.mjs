@@ -78,6 +78,12 @@ function xmlPdfConfidence(pdf, xmlEntry) {
   if (pdfStem && xmlStem && (pdfStem===xmlStem || pdfStem.includes(xmlStem) || xmlStem.includes(pdfStem))) score=1;
   return Math.min(1,score);
 }
+function shouldAnalyzeUnmatchedPdf(file) {
+  const name=clean(file.name||'').toUpperCase();
+  const fiscalOrPayment=/\b(NF|NFS|NFSE|DANFE|NOTA FISCAL|RECIBO|COMPROVANTE|PAGAMENTO|PIX|TED|TRANSFERENCIA)\b/.test(name) || /^\s*(?:SEM-NUM|\d{1,12})\s*-/.test(name);
+  const administrative=/\b(CONTRATO|RELATORIO|TERMO|ADITIVO|ATA|ORCAMENTO|PROPOSTA|CURRICULO|PLANO DE TRABALHO|FOTO|IMAGEM|ATIVIDADE)\b/.test(name);
+  return fiscalOrPayment && !administrative;
+}
 function monthAllowed(p) {
   const m = String(p).match(/(?:^|\/)(0?[1-9]|1[0-2])[-_/](20\d{2})(?:\/|$)/);
   if (!m) return false;
@@ -211,6 +217,10 @@ async function run() {
           const x=matches[0]; meta={ ...x.meta,tipo_documento:'NOTA_FISCAL',nf_numero:x.meta.numero,nf_valor_total:Number(x.meta.valor),nf_data_emissao:x.meta.data,nf_emitente_nome:x.meta.fornecedor,nf_emitente_cpf_cnpj:x.meta.cnpj||x.meta.cpf,provedor_ia:'xml_correspondente',xml_source_drive_file_id:x.file.id,xml_match_confidence:x.confidence };
           console.log('DRIVE_RECONCILE_PDF_FROM_XML',f.path,x.file.path,x.confidence);
         } else {
+          if (!shouldAnalyzeUnmatchedPdf(f)) {
+            console.log('DRIVE_RECONCILE_IGNORED_NON_FISCAL',f.path);
+            continue;
+          }
           const cacheKey=f.md5Checksum || f.id;
           if (analysisCache[cacheKey]) meta={ ...analysisCache[cacheKey],provedor_ia:'cache_ocr' };
           else {
@@ -222,6 +232,10 @@ async function run() {
       }
       if (!/\.xml$/i.test(f.name) && meta.tipo_documento==='OUTRO') continue;
       const mapped={ cnpj:meta.cnpj || meta.nf_emitente_cpf_cnpj,cpf:meta.cpf,numero:meta.numero || meta.nf_numero,valor:meta.valor || meta.nf_valor_total,data:meta.data || meta.nf_data_emissao };
+      if (/\.xml$/i.test(f.name) && (!mapped.numero || !Number(mapped.valor) || !mapped.data)) {
+        console.log('DRIVE_RECONCILE_IGNORED_NON_FISCAL_XML',f.path);
+        continue;
+      }
       const isProof=meta.tipo_documento==='COMPROVANTE_PAGAMENTO'; let parent=null;
       if (isProof) { const candidates=invoicesByPartyValue.get(`${digits(mapped.cnpj||mapped.cpf)}|${Number(mapped.valor||0).toFixed(2)}`)||[]; if(candidates.length===1){ parent=candidates[0]; mapped.data=parent.data; mapped.numero=(parent.resultado_ia||{}).nf_numero; } }
       if (!mapped.data) throw new Error(isProof?'Comprovante sem NF correspondente única':'Data de emissão fiscal ausente após leitura integral');
