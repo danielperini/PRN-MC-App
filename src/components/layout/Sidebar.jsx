@@ -59,7 +59,6 @@ const NAV_GROUPS_BASE = [
     label: 'Meu Trabalho',
     items: [
       { path: 'MeusDados', label: 'Meus Dados', icon: User, roles: ['all'] },
-      { path: 'Perfil', label: 'Perfil', icon: User, roles: ['all'] },
       { path: 'Manual', label: 'Ajuda', icon: HelpCircle, roles: ['all'] },
       { path: 'Tutoriais', label: 'Tutoriais', icon: PlayCircle, roles: ['all'] },
       { path: 'Aparencia', label: 'Aparência', icon: Palette, roles: ['all'] },
