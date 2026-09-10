@@ -35,8 +35,20 @@ function tipo(d) {
 }
 
 function isImg(d) { return String(d?.file_type || d?.mime_type || '').toLowerCase().startsWith('image/') || IMG.includes(ext(d)); }
-function fornecedor(d) { return d?.nf_emitente_nome || d?.fornecedor_nome || d?.resultado_ia?.nf_emitente_nome || d?.resultado_ia?.fornecedor_nome || d?.description || 'Fornecedor não identificado'; }
-function nfNumero(d) { return d?.nf_numero || d?.resultado_ia?.nf_numero || d?.numero_nf || d?.nota_numero || ''; }
+function fornecedor(d) {
+  const explicit = d?.nf_emitente_nome || d?.fornecedor_nome || d?.resultado_ia?.nf_emitente_nome || d?.resultado_ia?.fornecedor_nome || d?.description;
+  if (explicit) return explicit;
+  const stem = name(d).replace(/\.[^.]+$/i, '');
+  const match = stem.match(/^(?:SEM-NUM|NF\s*)?\s*\d*\s*-\s*(.+?)\s*-\s*MUSEUS CENTRO\b/i);
+  return match?.[1]?.trim() || 'Fornecedor não identificado';
+}
+function nfNumero(d) {
+  const explicit = d?.nf_numero || d?.resultado_ia?.nf_numero || d?.numero_nf || d?.nota_numero;
+  if (explicit) return String(explicit).trim();
+  const stem = name(d).replace(/\.[^.]+$/i, '').trim();
+  const match = stem.match(/^(?:NF\s*)?(\d{1,12})(?:\s|-|_)/i);
+  return match?.[1] || '';
+}
 function valorDoc(d) { return d?.nf_valor_total || d?.resultado_ia?.nf_valor_total || d?.valor_total || d?.valor || ''; }
 function dataDoc(d) { return d?.nf_data_emissao || d?.resultado_ia?.nf_data_emissao || d?.resultado_ia?.data_emissao || d?.competencia || d?.created_date || d?.updated_date || ''; }
 function dataFmt(v) { const d = new Date(v); return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' }); }
@@ -72,6 +84,24 @@ function pairStatus(d, byPairId = new Map()) {
 
 function docKey(d) { return `${tipo(d)}:${nfNumero(d)}:${fornecedor(d)}:${valorDoc(d)}:${name(d)}`.toLowerCase().replace(/[^a-z0-9]/g, ''); }
 function countDup(raw) { const m = new Map(); (raw || []).filter((d) => d?.id && d?.status_registro !== 'DELETADO' && !isImg(d)).forEach((d) => { const k = docKey(d); m.set(k, (m.get(k) || 0) + 1); }); return Array.from(m.values()).reduce((a, n) => a + Math.max(0, n - 1), 0); }
+
+function canonicalKey(d) {
+  const directUrl = norm(url(d)).replace(/[?#].*$/, '');
+  if (directUrl) return `${tipo(d)}:url:${directUrl}`;
+  return `${tipo(d)}:file:${key(name(d))}:${key(valorDoc(d))}`;
+}
+function richness(d) {
+  return (isLinked(d) ? 100 : 0) + (getPairId(d) ? 50 : 0) + (nfNumero(d) ? 20 : 0)
+    + (fornecedor(d) !== 'Fornecedor não identificado' ? 10 : 0) + (source(d) === 'DocumentIntake' ? 5 : 0);
+}
+function collapseDuplicates(raw) {
+  const chosen = new Map();
+  for (const doc of raw || []) {
+    const k = canonicalKey(doc); const current = chosen.get(k);
+    if (!current || richness(doc) > richness(current)) chosen.set(k, doc);
+  }
+  return Array.from(chosen.values());
+}
 
 function DocTypeBadge({ doc }) { const t = tipo(doc); const cfg = TYPE[t] || TYPE.DOC; const Icon = cfg.Icon; return <span className={`inline-flex items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold ${cfg.cls}`}><Icon className="h-3 w-3" />{t}</span>; }
 function optionLabel(doc) { const origem = source(doc) === 'DocumentIntake' ? ' — Entrada Única' : ' — Anexo'; const nf = nfNumero(doc) ? ` — NF ${nfNumero(doc)}` : ''; const vinculado = isLinked(doc) ? ' — já vinculado' : ''; return `${tipo(doc)}${nf} — ${name(doc)}${origem}${vinculado}`; }
@@ -127,12 +157,13 @@ export default function GestaoDocumentalDedupe() {
 
   const { data = [], isLoading } = useQuery({ queryKey: ['gestao-documental'], queryFn: async () => { const [attachments, intakes] = await Promise.all([base44.entities.Attachment.list('-created_date', 5000).catch(() => []), base44.entities.DocumentIntake.list('-created_date', 5000).catch(() => [])]); const docs = [...(attachments || []).map((doc) => ({ ...doc, __source: 'Attachment' })), ...(intakes || []).map(normalizeIntake)]; return autoParearPdfXmlPorNome(docs); } });
 
-  const valid = useMemo(() => (data || []).filter((d) => d?.id && d?.status_registro !== 'DELETADO' && !isImg(d)).sort((a, b) => new Date(dataDoc(b) || b.created_date || 0) - new Date(dataDoc(a) || a.created_date || 0)), [data]);
+  const allValid = useMemo(() => (data || []).filter((d) => d?.id && d?.status_registro !== 'DELETADO' && !isImg(d)), [data]);
+  const valid = useMemo(() => collapseDuplicates(allValid).sort((a, b) => new Date(dataDoc(b) || b.created_date || 0) - new Date(dataDoc(a) || a.created_date || 0)), [allValid]);
   const byPairId = useMemo(() => { const map = new Map(); valid.forEach((doc) => { const p = getPairId(doc); if (!p) return; if (!map.has(p)) map.set(p, []); map.get(p).push(doc); }); return map; }, [valid]);
   const docsById = useMemo(() => new Map(valid.map((doc) => [uid(doc), doc])), [valid]);
   const dupIds = useMemo(() => { const m = new Map(); valid.forEach((d) => { const k = docKey(d); if (!m.has(k)) m.set(k, []); m.get(k).push(uid(d)); }); return new Set(Array.from(m.values()).filter((items) => items.length > 1).flat()); }, [valid]);
   const filtered = useMemo(() => { const q = norm(search); const sourceDocs = onlyDup ? valid.filter((d) => dupIds.has(uid(d))) : valid; if (!q) return sourceDocs; return sourceDocs.filter((d) => norm([name(d), fornecedor(d), nfNumero(d), tipo(d), pairStatus(d, byPairId), d?.numero_solicitacao, d?.solicitacao_sequencial, d?.description].filter(Boolean).join(' ')).includes(q)); }, [valid, dupIds, search, onlyDup, byPairId]);
-  const dupCount = useMemo(() => countDup(valid), [valid]);
+  const dupCount = useMemo(() => countDup(allValid), [allValid]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const start = (safePage - 1) * pageSize;
