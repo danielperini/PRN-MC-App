@@ -93,6 +93,15 @@ function firstFilled(...values) {
   return ''
 }
 
+function normalizeDateInput(value) {
+  if (!value) return ''
+  const text = String(value).trim()
+  const iso = text.match(/^(\d{4}-\d{2}-\d{2})/)
+  if (iso) return iso[1]
+  const br = text.match(/^(\d{2})\/(\d{2})\/(\d{4})/)
+  return br ? `${br[3]}-${br[2]}-${br[1]}` : ''
+}
+
 function getFileExtension(fileName = '') {
   const parts = String(fileName || '').split('.')
   return parts.length > 1 ? parts.pop().toLowerCase() : ''
@@ -330,8 +339,14 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
           fornecedorNome
         )
 
-      const nfNumero = firstFilled(prefill.nf_numero, ia.nf_numero)
-      const nfData = firstFilled(prefill.nf_data_emissao, ia.nf_data_emissao, ia.data_emissao)
+      const nfNumero = firstFilled(prefill.nf_numero, prefill.numero_nf, prefill.numero_nota, ia.nf_numero, ia.numero_nf)
+      const nfData = normalizeDateInput(firstFilled(
+        prefill.nf_data_emissao,
+        prefill.data_emissao,
+        prefill.data_emissao_nf,
+        ia.nf_data_emissao,
+        ia.data_emissao
+      ))
 
       const arquivoNome =
         firstFilled(
