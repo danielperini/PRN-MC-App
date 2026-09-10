@@ -7,6 +7,7 @@ import crypto from 'node:crypto';
 import { createServer } from 'node:http';
 import { Server as SocketIOServer } from 'socket.io';
 import { syncProgramacao } from './programacao-sync.mjs';
+import nodemailer from 'nodemailer';
 
 const { Pool } = pg;
 const app = express();
@@ -251,6 +252,30 @@ app.get('/api/files/:name',async(req,res)=>{ try { const name=path.basename(deco
 app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,res) => {
   const name=String(req.params.functionName||'');
   try {
+    if (['sendContextualEmailNotification','sendEmailNotification','sendNotificationEmail'].includes(name)) {
+      const to = String(req.body?.to || req.body?.recipientEmail || '').trim();
+      if (!to || !process.env.SMTP_HOST || !process.env.SMTP_USER) {
+        return res.status(503).json({ success:false, error:'smtp_not_configured' });
+      }
+      const escapeHtml = (value) => String(value || '').replace(/[&<>"']/g,(char)=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[char]);
+      const actionUrl = String(req.body?.action_url || '');
+      const buttonLabel = req.body?.event_type === 'purchase.paid' ? 'Solicitar comprovante de depósito' : 'Abrir no Gestor Museus';
+      const password = process.env.SMTP_PASS_B64 ? Buffer.from(process.env.SMTP_PASS_B64,'base64').toString('utf8') : process.env.SMTP_PASS;
+      const transport = nodemailer.createTransport({
+        host:process.env.SMTP_HOST,
+        port:Number(process.env.SMTP_PORT || 465),
+        secure:String(process.env.SMTP_SECURE).toLowerCase() === 'true',
+        auth:{ user:process.env.SMTP_USER, pass:password }
+      });
+      await transport.sendMail({
+        from:`Gestor Museus Centro <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
+        to,
+        subject:String(req.body?.subject || req.body?.title || 'Gestor Museus Centro'),
+        text:`${String(req.body?.message || '')}${actionUrl ? `\n\n${buttonLabel}: ${actionUrl}` : ''}`,
+        html:`<div style="font-family:Arial,sans-serif;line-height:1.55;color:#172033"><h2>${escapeHtml(req.body?.title || req.body?.subject)}</h2><p>${escapeHtml(req.body?.message)}</p>${actionUrl ? `<p><a href="${escapeHtml(actionUrl)}" style="display:inline-block;padding:12px 18px;background:#111827;color:#fff;text-decoration:none;border-radius:8px;font-weight:700">${escapeHtml(buttonLabel)}</a></p>` : ''}</div>`
+      });
+      return res.status(200).json({ success:true });
+    }
     if (name === 'purchaseActions') {
       const purchaseId = String(req.body?.purchaseId || req.body?.purchase_id || '').trim();
       const action = String(req.body?.action || '').trim().toLowerCase();

@@ -202,11 +202,12 @@ export default function PainelPendentesPagamento({ currentUser: propUser }) {
   const { data: purchases = [], isLoading } = useQuery({
     queryKey: ['purchases_pendentes_pagamento', propUser?.email],
     queryFn: async () => {
-      const all = await base44.entities.PurchaseRequest.filter({ status: 'APROVADO_ADMIN' }, '-created_date', 500);
+      const all = await base44.entities.PurchaseRequest.list('-created_date', 500);
       // Apenas pendentes de pagamento (não pagos, não quitados)
       return all.filter((p) => {
-        const jaPago = p.pago === true || p.quitada === true || p.status_pagamento === 'pago';
-        return !jaPago;
+        const status = String(p.status || '').toUpperCase();
+        const jaPago = status === 'PAGO' || p.pago === true || p.quitada === true || String(p.status_pagamento || '').toLowerCase() === 'pago';
+        return ['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN'].includes(status) && !jaPago;
       });
     },
     enabled: !!propUser,
