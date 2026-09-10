@@ -7,6 +7,7 @@ import { google } from 'googleapis';
 const SOURCE_ROOT = process.env.DRIVE_RECONCILE_SOURCE_ROOT || '1LgC94VhIomQZBS7kfkQqgBX8MVzwQqzp';
 const TARGET_ROOT = process.env.GOOGLE_DRIVE_FOLDER_ID || '1qVwpSypPHyQ_IK_H2yTho46MVCzj0FrU';
 const ONLY_MONTH = String(process.env.DRIVE_RECONCILE_MONTH || '').trim();
+const SOURCE_MONTH_ONLY = String(process.env.DRIVE_RECONCILE_SOURCE_MONTH_ONLY || '') === '1';
 const uploadDir = process.env.UPLOAD_DIR || '/app/uploads';
 const pool = new pg.Pool(process.env.DATABASE_URL ? { connectionString:process.env.DATABASE_URL } : {
   host:process.env.DB_HOST || 'db', port:Number(process.env.DB_PORT || 5432),
@@ -133,7 +134,7 @@ async function removeExactDuplicates() {
 async function run() {
   fs.mkdirSync(uploadDir,{ recursive:true }); const drive=await driveClient();
   const [sourceAll,targetAll]=await Promise.all([tree(drive,SOURCE_ROOT),tree(drive,TARGET_ROOT)]);
-  const sourceCandidates=sourceAll.filter(f=>/\.(pdf|xml)$/i.test(f.name) && (ONLY_MONTH || monthAllowed(f.path)));
+  const sourceCandidates=sourceAll.filter(f=>/\.(pdf|xml)$/i.test(f.name) && (SOURCE_MONTH_ONLY ? monthAllowed(f.path) : (ONLY_MONTH || monthAllowed(f.path))));
   const source=Array.from(new Map(sourceCandidates.map(f=>[f.md5Checksum || f.id,f])).values());
   const xmlCache=new Map(); const xmlIndex=[];
   for (const file of source.filter(f=>/\.xml$/i.test(f.name))) {

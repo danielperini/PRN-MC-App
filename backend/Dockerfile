@@ -9,6 +9,7 @@ COPY auth-bootstrap.mjs ./
 COPY programacao-sync.mjs ./
 COPY drive-reconcile-intake.mjs ./
 COPY drive-reconcile-sequence.mjs ./
+COPY drive-reconcile-current-month.mjs ./
 
 EXPOSE 3000
 
