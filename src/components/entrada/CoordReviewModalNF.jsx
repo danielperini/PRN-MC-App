@@ -808,6 +808,7 @@ Equipe Museus Centro`;
     try {
       const rateioPayload = getRateioPayload();
       const rubricaNome = getRubricaNome(form.rubrica_id);
+      const rubricaSelecionada = rubricas.find((item) => String(item.id) === String(form.rubrica_id));
       const centroCustoFinal = dividirEntreMuseus ? 'Rateado' : form.centro_custo;
 
       const pr = await base44.entities.PurchaseRequest.create({
@@ -821,13 +822,20 @@ Equipe Museus Centro`;
         valor: valorTotal,
 
         meta_id: (form.meta_id && form.meta_id !== '__none__') ? form.meta_id : undefined,
+        categoria: 'Nota Fiscal',
         tipo_gasto: form.tipo_gasto || 'Serviço',
+        descricao_servico: form.descricao_servico,
+        competencia: form.competencia,
+        municipio: form.municipio,
 
         centro_custo: centroCustoFinal,
 
         rubrica_id: form.rubrica_id,
         rubrica_nome: rubricaNome,
         budgetline_id: form.rubrica_id,
+        natureza_despesa: rubricaSelecionada?.natureza_despesa || rubricaSelecionada?.natureza_codigo || '',
+        natureza_codigo: rubricaSelecionada?.natureza_codigo || rubricaSelecionada?.natureza_despesa || '',
+        nome_natureza: rubricaSelecionada?.nome_natureza || rubricaSelecionada?.natureza_nome || '',
 
         status: marcarPago ? 'PAGO' : (aprovarDireto ? 'APROVADO_COORD' : 'SOLICITADO'),
         status_pagamento: marcarPago ? 'pago' : (aprovarDireto ? 'AGUARDANDO_PAGAMENTO' : undefined),
@@ -840,12 +848,19 @@ Equipe Museus Centro`;
         origem: 'EntradaUnica',
         intake_id: intake.id,
         documento_intake_id: intake.id,
+        user_email: intake.user_email || intake.created_by || '',
+        solicitante_email: intake.user_email || intake.created_by || '',
 
         nota_fiscal_url: intake.arquivo_original_url || '',
+        nf_pdf_url: intake.arquivo_original_url || '',
+        nf_xml_url: intake.nf_xml_url || ia.nf_xml_url || '',
         arquivo_url: intake.arquivo_original_url || '',
 
         nf_numero: form.nf_numero,
         nf_data_emissao: form.nf_data_emissao,
+        data_emissao: form.nf_data_emissao,
+        nf_horario_emissao: form.nf_horario_emissao,
+        nf_valor_total: valorTotal,
 
         observacoes: `NF ${form.nf_numero || 'sem número'} - ${form.nf_emitente_nome || 'Fornecedor não informado'}`,
       });
