@@ -9,10 +9,18 @@ export function notifyPaymentCompleted(purchase, actor) {
     `Solicitação: https://appgestor.periniprojetos.com.br/Compras?id=${purchaseId}`
   );
   const proofRequestUrl = `mailto:notasfiscais@viadutodasartes.org.br,danielperini.mc@viadutodasartes.org.br,adm@viadutodasartes.org.br?subject=${subject}&body=${body}`;
+  const receiptUrl = purchase?.comprovante_pagamento_url || purchase?.comprovante_url || purchase?.payment_receipt_url || purchase?.comprovante_drive_url || '';
+  const receiptName = purchase?.comprovante_pagamento_nome || 'comprovante-de-pagamento.pdf';
   return dispatchContextualNotification({
     eventType: NOTIFICATION_EVENTS.PURCHASE_PAID,
     entityType: 'PurchaseRequest',
-    entity: { ...purchase, action_url: proofRequestUrl },
+    entity: {
+      ...purchase,
+      action_url: receiptUrl ? `https://appgestor.periniprojetos.com.br/Compras?id=${purchaseId}` : proofRequestUrl,
+      notification_attachment_url: receiptUrl,
+      notification_attachment_name: receiptName,
+      comprovante_anexado: Boolean(receiptUrl),
+    },
     actor,
     actionPath: '/Compras',
   });

@@ -46,7 +46,9 @@ export function getNotificationTemplate(eventType, entity = {}, recipient = {}) 
     },
     [NOTIFICATION_EVENTS.PURCHASE_PAID]: {
       title: 'Pagamento realizado',
-      message: `O pagamento de "${purchaseTitle(entity)}" foi registrado no valor de ${fmtBRL(purchaseValue(entity))}. Se necessário, use o botão “Solicitar comprovante de depósito”.`,
+      message: entity.comprovante_anexado
+        ? `O pagamento de "${purchaseTitle(entity)}" foi registrado no valor de ${fmtBRL(purchaseValue(entity))}. O comprovante segue anexado a este e-mail.`
+        : `O pagamento de "${purchaseTitle(entity)}" foi registrado no valor de ${fmtBRL(purchaseValue(entity))}. Se necessário, use o botão “Solicitar comprovante de depósito”.`,
     },
     [NOTIFICATION_EVENTS.PAYMENT_PROOF_ATTACHED]: {
       title: 'Comprovante de pagamento anexado',
