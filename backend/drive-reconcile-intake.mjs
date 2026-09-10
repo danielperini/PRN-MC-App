@@ -6,6 +6,7 @@ import { google } from 'googleapis';
 
 const SOURCE_ROOT = process.env.DRIVE_RECONCILE_SOURCE_ROOT || '1LgC94VhIomQZBS7kfkQqgBX8MVzwQqzp';
 const TARGET_ROOT = process.env.GOOGLE_DRIVE_FOLDER_ID || '1qVwpSypPHyQ_IK_H2yTho46MVCzj0FrU';
+const ONLY_MONTH = String(process.env.DRIVE_RECONCILE_MONTH || '').trim();
 const uploadDir = process.env.UPLOAD_DIR || '/app/uploads';
 const pool = new pg.Pool(process.env.DATABASE_URL ? { connectionString:process.env.DATABASE_URL } : {
   host:process.env.DB_HOST || 'db', port:Number(process.env.DB_PORT || 5432),
@@ -38,6 +39,7 @@ function xmlMeta(xml) {
 function monthAllowed(p) {
   const m = String(p).match(/(?:^|\/)(0?[1-9]|1[0-2])[-_/](20\d{2})(?:\/|$)/);
   if (!m) return false;
+  if (ONLY_MONTH && `${String(Number(m[1])).padStart(2,'0')}-${m[2]}` !== ONLY_MONTH) return false;
   const n = Number(m[2]) * 100 + Number(m[1]);
   const now = new Date(); const max = now.getFullYear() * 100 + now.getMonth() + 1;
   return n >= 202602 && n <= max;
