@@ -18,6 +18,22 @@ const digits = (v) => String(v || '').replace(/\D/g, '');
 const tag = (xml, name) => (xml.match(new RegExp(`<(?:\\w+:)?${name}(?:\\s[^>]*)?>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?</(?:\\w+:)?${name}>`, 'i'))?.[1] || '').trim();
 const fiscalKey = (m) => [digits(m.cnpj || m.cpf), String(m.numero || '').replace(/^0+/, ''), String(Number(m.valor || 0).toFixed(2)), String(m.data || '').slice(0, 10)].join('|');
 const brl = (v) => Number(v || 0).toLocaleString('pt-BR',{ minimumFractionDigits:2,maximumFractionDigits:2 });
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+async function fetchWithRetry(url, options, label, maxAttempts=8) {
+  let response;
+  for (let attempt=1; attempt<=maxAttempts; attempt++) {
+    response=await fetch(url,options);
+    if (response.ok || ![429,500,502,503,504].includes(response.status)) return response;
+    if (attempt===maxAttempts) return response;
+    const retryAfter=Number(response.headers.get('retry-after'));
+    const waitMs=Number.isFinite(retryAfter) && retryAfter>0
+      ? retryAfter*1000
+      : Math.min(180000, 20000*(2**(attempt-1))) + Math.floor(Math.random()*3000);
+    console.warn(`DRIVE_RECONCILE_RETRY ${label} status=${response.status} attempt=${attempt}/${maxAttempts} wait_ms=${waitMs}`);
+    await sleep(waitMs);
+  }
+  return response;
+}
 function standardName(meta, original) {
   const extension=/\.xml$/i.test(original)?'.xml':'.pdf';
   const number=clean(meta.numero || meta.nf_numero || 'SEM-NUM');
@@ -72,13 +88,13 @@ async function monthFolder(drive, emissionDate) {
 async function analyzePdf(buffer, filename) {
   if (!process.env.OPENAI_API_KEY) return {};
   const form=new FormData(); form.append('purpose','user_data'); form.append('file',new Blob([buffer],{ type:'application/pdf' }),filename);
-  const up=await fetch('https://api.openai.com/v1/files',{ method:'POST',headers:{ Authorization:`Bearer ${process.env.OPENAI_API_KEY}` },body:form });
+  const up=await fetchWithRetry('https://api.openai.com/v1/files',{ method:'POST',headers:{ Authorization:`Bearer ${process.env.OPENAI_API_KEY}` },body:form },'openai_upload');
   if (!up.ok) throw new Error(`OpenAI upload ${up.status}`); const file=await up.json();
   try {
     let result={};
     for (let attempt=1;attempt<=3;attempt++) {
       const prompt=`Faça OCR integral do documento, inclusive cabeçalho, rodapé e QR code. Classifique tipo_documento estritamente como NOTA_FISCAL, COMPROVANTE_PAGAMENTO ou OUTRO. Contratos, relatórios, fotos e recibos que não comprovem pagamento são OUTRO. A data fiscal é obrigatória para nota. Em comprovante, extraia favorecido e valor pago. Tentativa ${attempt}/3. Retorne somente JSON: {"tipo_documento":"","nf_numero":"","nf_valor_total":0,"nf_data_emissao":"YYYY-MM-DD","nf_emitente_nome":"","nf_emitente_cpf_cnpj":"","descricao_servico":""}. Use o conteúdo, nunca o nome do arquivo.`;
-      const rr=await fetch('https://api.openai.com/v1/responses',{ method:'POST',headers:{ Authorization:`Bearer ${process.env.OPENAI_API_KEY}`,'Content-Type':'application/json' },body:JSON.stringify({ model:process.env.OPENAI_INVOICE_MODEL || 'gpt-4.1-mini', input:[{ role:'user',content:[{ type:'input_text',text:prompt },{ type:'input_file',file_id:file.id }] }], text:{ format:{ type:'json_object' } } }) });
+      const rr=await fetchWithRetry('https://api.openai.com/v1/responses',{ method:'POST',headers:{ Authorization:`Bearer ${process.env.OPENAI_API_KEY}`,'Content-Type':'application/json' },body:JSON.stringify({ model:process.env.OPENAI_INVOICE_MODEL || 'gpt-4.1-mini', input:[{ role:'user',content:[{ type:'input_text',text:prompt },{ type:'input_file',file_id:file.id }] }], text:{ format:{ type:'json_object' } } }) },'openai_analysis');
       if (!rr.ok) throw new Error(`OpenAI response ${rr.status}`); const env=await rr.json(); const text=env.output_text || env.output?.flatMap(x=>x.content||[]).find(x=>x.type==='output_text')?.text || '{}'; result={ ...result,...JSON.parse(text) };
       if (result.tipo_documento==='COMPROVANTE_PAGAMENTO' && Number(result.nf_valor_total)>0 && result.nf_emitente_cpf_cnpj) return result;
       if (result.tipo_documento==='OUTRO') return result;
