@@ -216,9 +216,27 @@ async function run() {
   const uniqueXmlRows=await pool.query(`SELECT drive_file_id FROM drive_reconcile_xml_staging WHERE run_id=$1 AND source_scope='SOURCE' AND is_duplicate=false`,[runId]);
   const uniqueXmlIds=new Set(uniqueXmlRows.rows.map(x=>String(x.drive_file_id)));
   xmlIndex=sourceXmlEntries.filter(x=>uniqueXmlIds.has(String(x.file.id)));
-  const existing=await pool.query(`SELECT id,file_name_original,file_name_final,tipo_detectado,arquivo_original_url,resultado_ia,status_processamento FROM document_intakes WHERE COALESCE(status_registro,'')<>'DELETADO'`);
-  const knownSourceIds=new Set(); const invoicesByPartyValue=new Map(); const knownPdfKeys=new Set(); const existingXmlByKey=new Map();
-  for (const row of existing.rows) { const a=row.resultado_ia || {}; if(a.source_drive_file_id) knownSourceIds.add(String(a.source_drive_file_id)); const k=fiscalKey({ cnpj:a.nf_emitente_cpf_cnpj,numero:a.nf_numero,valor:a.nf_valor_total,data:a.nf_data_emissao }); if (a.nf_numero) { knownKeys.add(k); if(String(row.tipo_detectado||'').includes('PDF')) knownPdfKeys.add(k); if(String(row.tipo_detectado||'').includes('XML')&&!existingXmlByKey.has(k)) existingXmlByKey.set(k,row); const pv=`${digits(a.nf_emitente_cpf_cnpj)}|${Number(a.nf_valor_total||0).toFixed(2)}`; const list=invoicesByPartyValue.get(pv)||[]; list.push({ ...row,key:k,data:a.nf_data_emissao }); invoicesByPartyValue.set(pv,list); } }
+  const existing=await pool.query(`SELECT id,file_name_original,file_name_final,tipo_detectado,arquivo_original_url,resultado_ia,status_processamento,nf_xml_intake_id,nf_xml_url,grupo_status FROM document_intakes WHERE COALESCE(status_registro,'')<>'DELETADO'`);
+  const knownSourceIds=new Set(); const invoicesByPartyValue=new Map(); const knownPdfKeys=new Set(); const existingXmlByKey=new Map(); const existingPdfs=[];
+  for (const row of existing.rows) { const a=row.resultado_ia || {}; if(a.source_drive_file_id) knownSourceIds.add(String(a.source_drive_file_id)); const k=fiscalKey({ cnpj:a.nf_emitente_cpf_cnpj,numero:a.nf_numero,valor:a.nf_valor_total,data:a.nf_data_emissao }); if(String(row.tipo_detectado||'').includes('PDF')) existingPdfs.push(row); if (a.nf_numero) { knownKeys.add(k); if(String(row.tipo_detectado||'').includes('PDF')) knownPdfKeys.add(k); if(String(row.tipo_detectado||'').includes('XML')&&!existingXmlByKey.has(k)) existingXmlByKey.set(k,row); const pv=`${digits(a.nf_emitente_cpf_cnpj)}|${Number(a.nf_valor_total||0).toFixed(2)}`; const list=invoicesByPartyValue.get(pv)||[]; list.push({ ...row,key:k,data:a.nf_data_emissao }); invoicesByPartyValue.set(pv,list); } }
+  let orphanLinks=0;
+  for(const pdf of existingPdfs.filter(x=>!x.nf_xml_intake_id&&x.grupo_status!=='COMPLETO')) {
+    const probe={name:pdf.file_name_final||pdf.file_name_original||'',path:pdf.file_name_original||''};
+    const matches=xmlIndex.map(x=>({...x,confidence:xmlPdfConfidence(probe,x)})).filter(x=>x.confidence>=0.95).sort((a,b)=>b.confidence-a.confidence);
+    if(!(matches.length===1||(matches[0]&&matches[0].confidence>matches[1]?.confidence))) continue;
+    const match=matches[0]; const key=fiscalKey(match.meta); let xmlRow=existingXmlByKey.get(key);
+    if(!xmlRow){
+      const xb=xmlCache.get(match.file.id)||await bytes(drive,match.file.id); const xhash=match.file.md5Checksum||crypto.createHash('md5').update(xb).digest('hex'); const xname=standardName(match.meta,match.file.name); const xdisk=`${Date.now()}-${match.file.id}-${xname}`; fs.writeFileSync(path.join(uploadDir,xdisk),xb);
+      const folderId=await monthFolder(drive,match.meta.data); let backup=null; if(folderId&&!targetHashes.has(xhash)) backup=(await drive.files.copy({fileId:match.file.id,requestBody:{name:xname,parents:[folderId]},fields:'id,webViewLink',supportsAllDrives:true})).data;
+      const xai={nf_numero:match.meta.numero,nf_valor_total:Number(match.meta.valor),nf_data_emissao:String(match.meta.data).slice(0,10),nf_emitente_nome:match.meta.fornecedor||'',nf_emitente_cpf_cnpj:match.meta.cnpj||match.meta.cpf||'',source_drive_file_id:match.file.id,source_drive_path:match.file.path,source_md5:xhash,drive_backup_file_id:backup?.id||null,drive_backup_url:backup?.webViewLink||null,provedor_ia:'xml'};
+      const xi=await pool.query(`INSERT INTO document_intakes(arquivo_original_url,file_name_original,file_name_final,mime_type,status_processamento,status_registro,tipo_detectado,resultado_ia,nf_pdf_intake_id,nf_pdf_url,grupo_status,ocultar_entrada_unica,created_at,updated_at) VALUES($1,$2,$3,'application/xml','VINCULADO','ATIVO','NOTA_FISCAL_XML',$4::jsonb,$5,$6,'COMPLETO',TRUE,NOW(),NOW()) RETURNING id`,[`/api/files/${encodeURIComponent(xdisk)}`,match.file.name,xname,JSON.stringify(xai),pdf.id,pdf.arquivo_original_url]);
+      xmlRow={id:xi.rows[0].id,arquivo_original_url:`/api/files/${encodeURIComponent(xdisk)}`}; existingXmlByKey.set(key,xmlRow);
+    }
+    const merged={...(pdf.resultado_ia||{}),nf_numero:match.meta.numero,nf_valor_total:Number(match.meta.valor),nf_data_emissao:String(match.meta.data).slice(0,10),nf_emitente_nome:match.meta.fornecedor||'',nf_emitente_cpf_cnpj:match.meta.cnpj||match.meta.cpf||'',provedor_ia:'xml_correspondente',xml_match_confidence:match.confidence};
+    await pool.query(`UPDATE document_intakes SET nf_xml_intake_id=$1,nf_xml_url=$2,grupo_status='COMPLETO',resultado_ia=$3::jsonb,updated_at=NOW() WHERE id=$4`,[xmlRow.id,xmlRow.arquivo_original_url,JSON.stringify(merged),pdf.id]);
+    orphanLinks++;
+  }
+  console.log('DRIVE_RECONCILE_ORPHAN_PDFS_LINKED',orphanLinks);
   let imported=0,duplicates=0,ignored=0,errors=0,processed=source.filter(f=>/\.xml$/i.test(f.name)).length; const importedByFolder=new Map();
   for (const f of source.filter(f=>!/\.xml$/i.test(f.name))) {
     try {
