@@ -59,6 +59,11 @@ function getDataEmissaoFromIA(ia) {
   );
 }
 
+function isGenericIssuer(value) {
+  const normalized = String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim();
+  return !normalized || ['VIADUTO DAS ARTES','MUSEUS CENTRO','FORNECEDOR','NAO INFORMADO'].includes(normalized);
+}
+
 // Extrai dados básicos do nome do arquivo como fallback quando IA não retornou dados suficientes
 function extrairDadosDoNomeArquivo(fileName) {
   if (!fileName) return {};
@@ -215,9 +220,13 @@ export default function ReviewModalNF({ intake, onClose, onSaved, painelDadosIde
     ? dataEmissaoNormalizada
     : (fallbackArquivo.nf_data_emissao_fallback || '');
 
+  const iaValue = parseValorBR(ia.nf_valor_total);
+  const fileValue = parseValorBR(fallbackArquivo.nf_valor_total);
+  const reconciledValue = fileValue > 0 && iaValue === fileValue * 100 ? fileValue : (ia.nf_valor_total || fallbackArquivo.nf_valor_total || '');
+
   const [form, setForm] = useState({
     nf_numero: ia.nf_numero || fallbackArquivo.nf_numero || '',
-    nf_valor_total: ia.nf_valor_total || fallbackArquivo.nf_valor_total || '',
+    nf_valor_total: reconciledValue,
     nf_data_emissao: dataEmissaoFinal,
     nf_horario_emissao: ia.nf_horario_emissao || ia.horario_emissao || '',
     nf_emitente_nome: ia.nf_emitente_nome || fallbackArquivo.nf_emitente_nome_fallback || '',
@@ -506,7 +515,8 @@ Equipe Museus Centro`;
   }
 
   async function handleVincularXML() {
-    if (!selectedXmlId || !intake.entidade_destino_id) {
+    const pdfAttachmentId = intake.attachment_id || intake.entidade_destino_id;
+    if (!selectedXmlId || !pdfAttachmentId) {
       toast({
         title: 'Não foi possível vincular XML',
         description: 'O PDF ainda não possui Attachment associado.',
@@ -521,28 +531,45 @@ Equipe Museus Centro`;
     try {
       const xml = await base44.entities.Attachment.get(selectedXmlId);
 
-      await base44.entities.Attachment.update(intake.entidade_destino_id, {
+      const xmlValue = parseValorBR(xml.nf_valor_total);
+      const currentValue = parseValorBR(form.nf_valor_total);
+      const resolvedValue = xmlValue > 0 && (currentValue <= 0 || currentValue === xmlValue * 100) ? xmlValue : currentValue;
+      const resolvedIssuer = isGenericIssuer(form.nf_emitente_nome) && !isGenericIssuer(xml.nf_emitente_nome)
+        ? xml.nf_emitente_nome
+        : form.nf_emitente_nome;
+      const resolvedDocument = form.nf_emitente_cpf_cnpj || xml.nf_emitente_cpf_cnpj || '';
+      const resolvedDate = form.nf_data_emissao || normalizeDateToInput(xml.nf_data_emissao) || '';
+
+      setForm((current) => ({
+        ...current,
+        nf_valor_total: resolvedValue || current.nf_valor_total,
+        nf_emitente_nome: resolvedIssuer || current.nf_emitente_nome,
+        nf_emitente_cpf_cnpj: resolvedDocument,
+        nf_data_emissao: resolvedDate,
+      }));
+
+      await base44.entities.Attachment.update(pdfAttachmentId, {
         nf_xml_attachment_id: xml.id,
         nf_revisado: true,
         nf_categoria: 'nota_fiscal',
         nf_numero: form.nf_numero,
-        nf_valor_total: valorTotal,
-        nf_data_emissao: form.nf_data_emissao,
-        nf_emitente_nome: form.nf_emitente_nome,
-        nf_emitente_cpf_cnpj: form.nf_emitente_cpf_cnpj,
+        nf_valor_total: resolvedValue,
+        nf_data_emissao: resolvedDate,
+        nf_emitente_nome: resolvedIssuer,
+        nf_emitente_cpf_cnpj: resolvedDocument,
         nf_tipo_documento: 'pdf_nf',
         nf_nome_renomeado: form.file_name_final,
       });
 
       await base44.entities.Attachment.update(xml.id, {
-        nf_pdf_attachment_id: intake.entidade_destino_id,
+        nf_pdf_attachment_id: pdfAttachmentId,
         nf_revisado: true,
         nf_categoria: 'nota_fiscal',
         nf_numero: form.nf_numero,
-        nf_valor_total: valorTotal,
-        nf_data_emissao: form.nf_data_emissao,
-        nf_emitente_nome: form.nf_emitente_nome,
-        nf_emitente_cpf_cnpj: form.nf_emitente_cpf_cnpj,
+        nf_valor_total: resolvedValue,
+        nf_data_emissao: resolvedDate,
+        nf_emitente_nome: resolvedIssuer,
+        nf_emitente_cpf_cnpj: resolvedDocument,
       });
 
       toast({
