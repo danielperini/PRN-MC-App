@@ -631,7 +631,7 @@ export default function TabelaSolicitacoes({ purchases, rubricas, attachmentByPu
   const toggleAll = (rows, checked) => setSelectedIds((current) => { const next = new Set(current); rows.forEach((p) => checked ? next.add(p.id) : next.delete(p.id)); return next; });
   async function runBulk(action) {
     if (!selected.length || bulkBusy) return;
-    const labels = { approve: 'aprovar', paid: 'marcar como pagas', return: 'devolver', unapprove: 'desaprovar' };
+    const labels = { approve: 'aprovar', paid: 'marcar como pago', return: 'devolver', unapprove: 'desaprovar' };
     if (!window.confirm(`Deseja ${labels[action]} ${selected.length} solicitação(ões)?`)) return;
     setBulkBusy(true);
     try {
@@ -649,7 +649,7 @@ export default function TabelaSolicitacoes({ purchases, rubricas, attachmentByPu
         <div className="sticky top-2 z-40 flex flex-wrap items-center gap-2 rounded-xl border border-blue-200 bg-white p-3 shadow-lg">
           <span className="mr-2 text-sm font-semibold text-blue-900">{selected.length} selecionada(s)</span>
           <button type="button" disabled={bulkBusy} onClick={() => runBulk('approve')} className="rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Aprovar</button>
-          <button type="button" disabled={bulkBusy} onClick={() => runBulk('paid')} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Marcar como pagas</button>
+          <button type="button" disabled={bulkBusy} onClick={() => runBulk('paid')} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Marcar como pago</button>
           <button type="button" disabled={bulkBusy} onClick={() => runBulk('return')} className="rounded-lg bg-amber-500 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Devolver</button>
           <button type="button" disabled={bulkBusy} onClick={() => runBulk('unapprove')} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Desaprovar</button>
           <button type="button" disabled={bulkBusy} onClick={() => setSelectedIds(new Set())} className="ml-auto rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 disabled:opacity-50">Limpar seleção</button>
