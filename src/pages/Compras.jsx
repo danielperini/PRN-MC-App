@@ -318,8 +318,8 @@ function ComprasInner() {
     return () => {mounted = false;};
   }, []);
 
-  const isCoordenador = ['admin', 'ADMIN', 'COORDENADOR', 'COORD_COMUNICACAO', 'COORD_ADMINISTRATIVA', 'COORD_PRODUCAO'].includes(currentUser?.role);
-  const isAdmin = ['admin', 'ADMIN'].includes(currentUser?.role);
+  const isCoordenador = ['admin', 'ADMIN', 'Administrador', 'ADMINISTRADOR', 'COORDENADOR', 'COORD_COMUNICACAO', 'COORD_ADMINISTRATIVA', 'COORD_PRODUCAO'].includes(currentUser?.role);
+  const isAdmin = ['admin', 'ADMIN', 'Administrador', 'ADMINISTRADOR'].includes(currentUser?.role);
 
   // Buscar museu vinculado do usuário (TeamMember) — usado para filtrar solicitações de não-coordenadores
   const { data: userTeamMember } = useQuery({
