@@ -10,8 +10,9 @@ COPY purchase-production-routes.mjs ./
 COPY google-drive-backup.mjs ./
 COPY auth-bootstrap.mjs ./
 COPY daily-approved-purchases.mjs ./
-
 COPY drive-reconcile-intake.mjs ./
+COPY drive-reconcile-sequence.mjs ./
+
 EXPOSE 3000
 
 CMD ["node", "--import", "./auth-bootstrap.mjs", "--import", "./programacao-sync.mjs", "server.mjs"]
