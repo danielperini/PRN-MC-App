@@ -99,7 +99,7 @@ async function removeExactDuplicates() {
 async function run() {
   fs.mkdirSync(uploadDir,{ recursive:true }); const drive=await driveClient();
   const [sourceAll,targetAll]=await Promise.all([tree(drive,SOURCE_ROOT),tree(drive,TARGET_ROOT)]);
-  const source=sourceAll.filter(f=>monthAllowed(f.path) && /\.(pdf|xml)$/i.test(f.name));
+  const source=sourceAll.filter(f=>/\.(pdf|xml)$/i.test(f.name) && (ONLY_MONTH || monthAllowed(f.path)));
   const target=targetAll.filter(f=>/\.(pdf|xml)$/i.test(f.name)); const targetHashes=new Set(target.map(f=>f.md5Checksum).filter(Boolean));
   const knownKeys=new Set();
   for (const f of target.filter(x=>/\.xml$/i.test(x.name))) { try { const m=xmlMeta((await bytes(drive,f.id)).toString('utf8')); if (m.numero) knownKeys.add(fiscalKey(m)); } catch {} }
@@ -118,6 +118,7 @@ async function run() {
       const isProof=meta.tipo_documento==='COMPROVANTE_PAGAMENTO'; let parent=null;
       if (isProof) { const candidates=invoicesByPartyValue.get(`${digits(mapped.cnpj||mapped.cpf)}|${Number(mapped.valor||0).toFixed(2)}`)||[]; if(candidates.length===1){ parent=candidates[0]; mapped.data=parent.data; mapped.numero=(parent.resultado_ia||{}).nf_numero; } }
       if (!mapped.data) throw new Error(isProof?'Comprovante sem NF correspondente única':'Data de emissão fiscal ausente após leitura integral');
+      if (ONLY_MONTH) { const m=String(mapped.data).slice(0,7).match(/^(\d{4})-(\d{2})$/); if(!m || `${m[2]}-${m[1]}`!==ONLY_MONTH) continue; }
       const key=mapped.numero ? fiscalKey(mapped) : ''; const duplicate=!isProof && key && knownKeys.has(key);
       const invoiceName=parent?.file_name_final || parent?.file_name_original || ''; const finalName=isProof&&invoiceName ? `${invoiceName.replace(/\.(pdf|xml)$/i,'')} - COMP.pdf` : standardName({ ...meta,...mapped },f.name); const disk=`${Date.now()}-${f.id}-${finalName}`; fs.writeFileSync(path.join(uploadDir,disk),buffer);
       let backup=null; const folderId=!duplicate ? await monthFolder(drive,mapped.data) : null;
