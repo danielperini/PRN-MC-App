@@ -89,6 +89,16 @@ const STATUS_CONFIG = {
 
 const STATUS_APROVADOS = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
 const STATUS_ELEGIVEIS_PAGAMENTO = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
+const STATUS_FILTER_OPTIONS = [
+  { value: 'all', label: 'Todos os status' },
+  { value: 'AGUARDANDO_APROVACAO', label: 'Aguardando aprovação' },
+  { value: 'AGUARDANDO_PAGAMENTO', label: 'Aguardando pagamento' },
+  { value: 'RASCUNHO', label: 'Rascunho' },
+  { value: 'DEVOLVIDO', label: 'Devolvido' },
+  { value: 'RECUSADO', label: 'Reprovado' },
+  { value: 'CANCELADO', label: 'Cancelado' },
+  { value: 'PAGO', label: 'Pago' }
+];
 
 function toNumber(value) {
   const n = Number(value ?? 0);
@@ -531,8 +541,11 @@ function ComprasInner() {
       if (!STATUS_PENDENTES.has(st)) return false;
     }
 
-    const matchStatus =
-    filters.status === 'all' || normalizeStatus(p.status) === filters.status;
+    const normalizedStatus = normalizeStatus(p.status);
+    const matchStatus = filters.status === 'all' ||
+      (filters.status === 'AGUARDANDO_APROVACAO' && normalizedStatus === 'SOLICITADO') ||
+      (filters.status === 'AGUARDANDO_PAGAMENTO' && STATUS_APROVADOS.has(normalizedStatus) && normalizedStatus !== 'PAGO') ||
+      normalizedStatus === filters.status;
 
     let matchMeta = filters.meta_id === 'all';
 
@@ -1160,63 +1173,6 @@ function ComprasInner() {
 
         {tab === 'lista' &&
         <div>
-            {/* Atalho rápido: pendentes desde fevereiro */}
-            <div className="mb-3 flex flex-wrap gap-2 items-center">
-              <button
-                type="button"
-                onClick={() => setFilters(f => ({
-                  ...f,
-                  status: 'all',
-                  data_inicio: '2026-02-01',
-                  data_fim: '',
-                  _pendentes_fev: true,
-                }))}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${
-                  filters._pendentes_fev
-                    ? 'border-amber-500 bg-amber-500 text-white shadow'
-                    : 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100'
-                }`}
-              >
-                <AlertTriangle className="h-3.5 w-3.5" />
-                Pendentes
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilters(f => ({
-                  ...f,
-                  status: 'SOLICITADO',
-                  data_inicio: '2026-02-01',
-                  data_fim: '',
-                  _pendentes_fev: false,
-                }))}
-                className="inline-flex items-center gap-1.5 rounded-full border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-800 hover:bg-blue-100 transition-all"
-              >
-                🕐 Aguardando aprovação
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilters(f => ({
-                  ...f,
-                  status: 'APROVADO_COORD',
-                  data_inicio: '2026-02-01',
-                  data_fim: '',
-                  _pendentes_fev: false,
-                }))}
-                className="inline-flex items-center gap-1.5 rounded-full border border-green-300 bg-green-50 px-3 py-1.5 text-xs font-medium text-green-800 hover:bg-green-100 transition-all"
-              >
-                💳 Aprovados sem pagamento
-              </button>
-              {(filters.data_inicio || filters._pendentes_fev) && (
-                <button
-                  type="button"
-                  onClick={() => setFilters(f => ({ ...f, status: 'all', data_inicio: '', data_fim: '', _pendentes_fev: false }))}
-                  className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-red-500 transition-colors"
-                >
-                  <X className="h-3.5 w-3.5" /> Limpar filtros rápidos
-                </button>
-              )}
-            </div>
-
             <div className="mb-4 flex flex-wrap gap-2">
               <div className="relative min-w-48 flex-1">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
@@ -1278,13 +1234,7 @@ function ComprasInner() {
                 setFilters((f) => ({ ...f, status: v }))
                 }
                 placeholder="Status"
-                items={[
-                { value: 'all', label: 'Todos os status' },
-                ...Object.entries(STATUS_CONFIG).map(([k, v]) => ({
-                  value: k,
-                  label: v.label
-                }))]
-                } />
+                items={STATUS_FILTER_OPTIONS} />
               
 
                   <NativeSelect
@@ -1347,10 +1297,9 @@ function ComprasInner() {
                     </SelectTrigger>
 
                     <SelectContent>
-                      <SelectItem value="all">Todos os status</SelectItem>
-                      {Object.entries(STATUS_CONFIG).map(([k, v]) =>
-                  <SelectItem key={k} value={k}>
-                          {v.label}
+                      {STATUS_FILTER_OPTIONS.map((option) =>
+                  <SelectItem key={option.value} value={option.value}>
+                          {option.label}
                         </SelectItem>
                   )}
                     </SelectContent>
