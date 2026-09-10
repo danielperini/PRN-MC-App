@@ -460,12 +460,17 @@ Equipe Museus Centro`;
 
         for (const item of list || []) {
           if (!item?.id || seen.has(item.id)) continue;
+          const filename = String(item.file_name || item.nf_nome_original || '').toLowerCase();
+          const mime = String(item.mime_type || item.file_type || '').toLowerCase();
+          const isXml = /\.xml$/.test(filename) || /^(application|text)\/xml$/.test(mime);
+          const sameNumber = String(item.nf_numero || '').replace(/^0+/, '') === String(form.nf_numero).replace(/^0+/, '');
+          if (!isXml || !sameNumber) continue;
           seen.add(item.id);
           unique.push(item);
         }
 
         setXmlCandidates(unique);
-        setSelectedXmlId(unique[0]?.id || '');
+        setSelectedXmlId('');
       } catch (e) {
         console.error('Erro ao buscar XML:', e);
       } finally {
@@ -698,6 +703,8 @@ Equipe Museus Centro`;
         competencia: iaAtualizado.competencia || f.competencia,
         nf_horario_emissao: iaAtualizado.nf_horario_emissao || f.nf_horario_emissao,
         centro_custo: iaAtualizado.centro_custo_sugerido || f.centro_custo,
+        rubrica_id: iaAtualizado.rubrica_id || updated?.rubrica_id_sugerida || f.rubrica_id,
+        meta_id: iaAtualizado.meta_id || iaAtualizado.meta_sugerida || f.meta_id,
       }));
       toast({ title: '✅ Campos preenchidos com IA.', duration: 3000 });
     } catch (e) {
@@ -1487,7 +1494,7 @@ Equipe Museus Centro`;
           </div>
 
           <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
-            ⚡ Ao enviar, o valor será debitado imediatamente da(s) rubrica(s) correspondente(s), atualizando o valor realizado e o saldo disponível.
+            Ao enviar, a nota seguirá para aprovação. O valor será contabilizado na rubrica após a aprovação.
           </div>
 
           {errosFiltrados.length > 0 && (
