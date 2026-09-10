@@ -178,6 +178,13 @@ app.post('/api/apps/:appId/entities/:entityName', requireSession, async (req,res
     if(!(await tableExists(table))) return res.status(404).json({error:'table_not_found',table});
     const columns=await tableColumns(table); const columnTypes=await tableColumnTypes(table);
     let entries=Object.entries(req.body||{}).filter(([k,v])=>columns.includes(k)&&v!==undefined);
+    if (columns.includes('id') && !entries.some(([key]) => key === 'id')) {
+      const idMeta = await pool.query(`SELECT data_type,column_default,is_identity FROM information_schema.columns WHERE table_schema='public' AND table_name=$1 AND column_name='id' LIMIT 1`,[table]);
+      const idColumn = idMeta.rows[0];
+      if (idColumn && !idColumn.column_default && idColumn.is_identity !== 'YES' && ['text','character varying','uuid'].includes(idColumn.data_type)) {
+        entries.unshift(['id', crypto.randomUUID()]);
+      }
+    }
     entries=normalizeEntityEntriesForDb(entries,columnTypes);
     if(!entries.length) return res.status(400).json({error:'empty_entity'});
     const names=entries.map(([k])=>quoteIdentifier(k)).join(','); const vals=entries.map(([,v])=>v);
