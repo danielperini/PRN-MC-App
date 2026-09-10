@@ -9,6 +9,7 @@ const TARGET_ROOT = process.env.GOOGLE_DRIVE_FOLDER_ID || '1qVwpSypPHyQ_IK_H2yTh
 const ONLY_MONTH = String(process.env.DRIVE_RECONCILE_MONTH || '').trim();
 const SOURCE_MONTH_ONLY = String(process.env.DRIVE_RECONCILE_SOURCE_MONTH_ONLY || '') === '1';
 const uploadDir = process.env.UPLOAD_DIR || '/app/uploads';
+const analysisCacheFile=path.join(uploadDir,'.drive-reconcile-analysis-cache.json');
 const pool = new pg.Pool(process.env.DATABASE_URL ? { connectionString:process.env.DATABASE_URL } : {
   host:process.env.DB_HOST || 'db', port:Number(process.env.DB_PORT || 5432),
   database:process.env.POSTGRES_DB || 'appgestor', user:process.env.POSTGRES_USER || 'appgestor',
@@ -123,6 +124,12 @@ async function analyzePdf(buffer, filename) {
     return result;
   } finally { await fetch(`https://api.openai.com/v1/files/${file.id}`,{ method:'DELETE',headers:{ Authorization:`Bearer ${process.env.OPENAI_API_KEY}` } }).catch(()=>{}); }
 }
+function loadAnalysisCache() {
+  try { return JSON.parse(fs.readFileSync(analysisCacheFile,'utf8')); } catch { return {}; }
+}
+function saveAnalysisCache(cache) {
+  const tmp=`${analysisCacheFile}.tmp`; fs.writeFileSync(tmp,JSON.stringify(cache)); fs.renameSync(tmp,analysisCacheFile);
+}
 async function removeExactDuplicates() {
   const r=await pool.query(`SELECT id,tipo_detectado,resultado_ia,entidade_destino_id,attachment_id,revisado_pelo_usuario,created_at FROM document_intakes WHERE COALESCE(status_registro,'')<>'DELETADO'`);
   const groups=new Map();
@@ -133,6 +140,7 @@ async function removeExactDuplicates() {
 }
 async function run() {
   fs.mkdirSync(uploadDir,{ recursive:true }); const drive=await driveClient();
+  const analysisCache=loadAnalysisCache();
   const [sourceAll,targetAll]=await Promise.all([tree(drive,SOURCE_ROOT),tree(drive,TARGET_ROOT)]);
   const sourceCandidates=sourceAll.filter(f=>/\.(pdf|xml)$/i.test(f.name) && (SOURCE_MONTH_ONLY ? monthAllowed(f.path) : (ONLY_MONTH || monthAllowed(f.path))));
   const source=Array.from(new Map(sourceCandidates.map(f=>[f.md5Checksum || f.id,f])).values());
@@ -161,7 +169,15 @@ async function run() {
         if (matches.length===1 || (matches[0] && matches[0].confidence>matches[1]?.confidence)) {
           const x=matches[0]; meta={ ...x.meta,tipo_documento:'NOTA_FISCAL',nf_numero:x.meta.numero,nf_valor_total:Number(x.meta.valor),nf_data_emissao:x.meta.data,nf_emitente_nome:x.meta.fornecedor,nf_emitente_cpf_cnpj:x.meta.cnpj||x.meta.cpf,provedor_ia:'xml_correspondente',xml_source_drive_file_id:x.file.id,xml_match_confidence:x.confidence };
           console.log('DRIVE_RECONCILE_PDF_FROM_XML',f.path,x.file.path,x.confidence);
-        } else meta=await analyzePdf(buffer,f.name);
+        } else {
+          const cacheKey=f.md5Checksum || f.id;
+          if (analysisCache[cacheKey]) meta={ ...analysisCache[cacheKey],provedor_ia:'cache_ocr' };
+          else {
+            meta=await analyzePdf(buffer,f.name);
+            analysisCache[cacheKey]=meta;
+            saveAnalysisCache(analysisCache);
+          }
+        }
       }
       if (!/\.xml$/i.test(f.name) && meta.tipo_documento==='OUTRO') continue;
       const mapped={ cnpj:meta.cnpj || meta.nf_emitente_cpf_cnpj,cpf:meta.cpf,numero:meta.numero || meta.nf_numero,valor:meta.valor || meta.nf_valor_total,data:meta.data || meta.nf_data_emissao };
