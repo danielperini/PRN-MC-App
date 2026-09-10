@@ -466,20 +466,8 @@ export default function ReportEditor() {
         fotos,
         secoes: secoesPdf,
       });
-<<<<<<< HEAD
       await baixarPdf(pdfBlob, nomeArquivoPdf({ ...report, ...formData }));
       toast.success('PDF gerado e baixado com sucesso.');
-=======
-
-      if (response.data?.pdf_url) {
-        window.open(response.data.pdf_url, '_blank');
-        toast.success('📄 PDF gerado com sucesso!');
-      } else if (response.data?.error) {
-        toast.error('Erro ao gerar PDF: ' + response.data.error);
-      } else {
-        toast.error('A geração de PDF pelo servidor ainda não está disponível. Use o botão de exportação do relatório mensal.');
-      }
->>>>>>> origin/main
     } catch (err) {
       console.error(err);
       toast.error('❌ Erro ao exportar PDF: ' + (err?.message || 'tente novamente'));
