@@ -261,7 +261,16 @@ function ComprasInner() {
     return () => {mounted = false;};
   }, []);
 
-  const isCoordenador = ['admin', 'ADMIN', 'COORDENADOR', 'COORD_COMUNICACAO', 'COORD_ADMINISTRATIVA', 'COORD_PRODUCAO'].includes(currentUser?.role);
+  const normalizedUserRole = String(currentUser?.role || '').trim().toUpperCase();
+  const isCoordenador = [
+    'ADMIN',
+    'ADMINISTRADOR',
+    'COORDENADOR',
+    'COORDENACAO',
+    'COORD_COMUNICACAO',
+    'COORD_ADMINISTRATIVA',
+    'COORD_PRODUCAO'
+  ].includes(normalizedUserRole);
 
   const invalidateComprasQueries = useCallback(async () => {
     await Promise.all([
