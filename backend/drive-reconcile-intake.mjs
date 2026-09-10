@@ -216,21 +216,20 @@ async function run() {
   const uniqueXmlRows=await pool.query(`SELECT drive_file_id FROM drive_reconcile_xml_staging WHERE run_id=$1 AND source_scope='SOURCE' AND is_duplicate=false`,[runId]);
   const uniqueXmlIds=new Set(uniqueXmlRows.rows.map(x=>String(x.drive_file_id)));
   xmlIndex=sourceXmlEntries.filter(x=>uniqueXmlIds.has(String(x.file.id)));
-  const existing=await pool.query(`SELECT id,file_name_original,file_name_final,resultado_ia,status_processamento FROM document_intakes WHERE COALESCE(status_registro,'')<>'DELETADO'`);
-  const knownSourceIds=new Set(); const invoicesByPartyValue=new Map();
-  for (const row of existing.rows) { const a=row.resultado_ia || {}; if(a.source_drive_file_id) knownSourceIds.add(String(a.source_drive_file_id)); const k=fiscalKey({ cnpj:a.nf_emitente_cpf_cnpj,numero:a.nf_numero,valor:a.nf_valor_total,data:a.nf_data_emissao }); if (a.nf_numero) { knownKeys.add(k); const pv=`${digits(a.nf_emitente_cpf_cnpj)}|${Number(a.nf_valor_total||0).toFixed(2)}`; const list=invoicesByPartyValue.get(pv)||[]; list.push({ ...row,key:k,data:a.nf_data_emissao }); invoicesByPartyValue.set(pv,list); } }
-  let imported=0,duplicates=0,ignored=0,errors=0,processed=0; const importedByFolder=new Map();
-  for (const f of source.sort((a,b)=>/\.xml$/i.test(a.name)?-1:1)) {
+  const existing=await pool.query(`SELECT id,file_name_original,file_name_final,tipo_detectado,arquivo_original_url,resultado_ia,status_processamento FROM document_intakes WHERE COALESCE(status_registro,'')<>'DELETADO'`);
+  const knownSourceIds=new Set(); const invoicesByPartyValue=new Map(); const knownPdfKeys=new Set(); const existingXmlByKey=new Map();
+  for (const row of existing.rows) { const a=row.resultado_ia || {}; if(a.source_drive_file_id) knownSourceIds.add(String(a.source_drive_file_id)); const k=fiscalKey({ cnpj:a.nf_emitente_cpf_cnpj,numero:a.nf_numero,valor:a.nf_valor_total,data:a.nf_data_emissao }); if (a.nf_numero) { knownKeys.add(k); if(String(row.tipo_detectado||'').includes('PDF')) knownPdfKeys.add(k); if(String(row.tipo_detectado||'').includes('XML')&&!existingXmlByKey.has(k)) existingXmlByKey.set(k,row); const pv=`${digits(a.nf_emitente_cpf_cnpj)}|${Number(a.nf_valor_total||0).toFixed(2)}`; const list=invoicesByPartyValue.get(pv)||[]; list.push({ ...row,key:k,data:a.nf_data_emissao }); invoicesByPartyValue.set(pv,list); } }
+  let imported=0,duplicates=0,ignored=0,errors=0,processed=source.filter(f=>/\.xml$/i.test(f.name)).length; const importedByFolder=new Map();
+  for (const f of source.filter(f=>!/\.xml$/i.test(f.name))) {
     try {
       if (knownSourceIds.has(String(f.id))) { duplicates++; continue; }
       const buffer=xmlCache.get(f.id) || await bytes(drive,f.id); const hash=f.md5Checksum || crypto.createHash('md5').update(buffer).digest('hex');
       if (targetHashes.has(hash)) { duplicates++; continue; }
-      let meta={};
-      if (/\.xml$/i.test(f.name)) meta=xmlMeta(buffer.toString('utf8'));
-      else {
+      let meta={}; let matchedXml=null;
+      {
         const matches=xmlIndex.map(x=>({ ...x,confidence:xmlPdfConfidence(f,x) })).filter(x=>x.confidence>=0.95).sort((a,b)=>b.confidence-a.confidence);
         if (matches.length===1 || (matches[0] && matches[0].confidence>matches[1]?.confidence)) {
-          const x=matches[0]; meta={ ...x.meta,tipo_documento:'NOTA_FISCAL',nf_numero:x.meta.numero,nf_valor_total:Number(x.meta.valor),nf_data_emissao:x.meta.data,nf_emitente_nome:x.meta.fornecedor,nf_emitente_cpf_cnpj:x.meta.cnpj||x.meta.cpf,provedor_ia:'xml_correspondente',xml_source_drive_file_id:x.file.id,xml_match_confidence:x.confidence };
+          const x=matches[0]; matchedXml=x; meta={ ...x.meta,tipo_documento:'NOTA_FISCAL',nf_numero:x.meta.numero,nf_valor_total:Number(x.meta.valor),nf_data_emissao:x.meta.data,nf_emitente_nome:x.meta.fornecedor,nf_emitente_cpf_cnpj:x.meta.cnpj||x.meta.cpf,provedor_ia:'xml_correspondente',xml_source_drive_file_id:x.file.id,xml_match_confidence:x.confidence };
           console.log('DRIVE_RECONCILE_PDF_FROM_XML',f.path,x.file.path,x.confidence);
         } else {
           if (!shouldAnalyzeUnmatchedPdf(f)) {
@@ -247,25 +246,37 @@ async function run() {
           }
         }
       }
-      if (!/\.xml$/i.test(f.name) && meta.tipo_documento==='OUTRO') { ignored++; continue; }
+      if (meta.tipo_documento==='OUTRO') { ignored++; continue; }
       const mapped={ cnpj:meta.cnpj || meta.nf_emitente_cpf_cnpj,cpf:meta.cpf,numero:meta.numero || meta.nf_numero,valor:meta.valor || meta.nf_valor_total,data:meta.data || meta.nf_data_emissao };
-      if (/\.xml$/i.test(f.name) && (!mapped.numero || !Number(mapped.valor) || !mapped.data)) {
-        console.log('DRIVE_RECONCILE_IGNORED_NON_FISCAL_XML',f.path);
-        ignored++;
-        continue;
-      }
       const isProof=meta.tipo_documento==='COMPROVANTE_PAGAMENTO'; let parent=null;
       if (isProof) { const candidates=invoicesByPartyValue.get(`${digits(mapped.cnpj||mapped.cpf)}|${Number(mapped.valor||0).toFixed(2)}`)||[]; if(candidates.length===1){ parent=candidates[0]; mapped.data=parent.data; mapped.numero=(parent.resultado_ia||{}).nf_numero; } }
       if (!mapped.data) throw new Error(isProof?'Comprovante sem NF correspondente única':'Data de emissão fiscal ausente após leitura integral');
       if (ONLY_MONTH) { const m=String(mapped.data).slice(0,7).match(/^(\d{4})-(\d{2})$/); if(!m || `${m[2]}-${m[1]}`!==ONLY_MONTH) continue; }
-      const key=mapped.numero ? fiscalKey(mapped) : ''; const duplicate=!isProof && key && knownKeys.has(key);
+      const key=mapped.numero ? fiscalKey(mapped) : ''; const duplicate=!isProof && key && knownPdfKeys.has(key);
       const invoiceName=parent?.file_name_final || parent?.file_name_original || ''; const finalName=isProof&&invoiceName ? `${invoiceName.replace(/\.(pdf|xml)$/i,'')} - COMP.pdf` : standardName({ ...meta,...mapped },f.name); const disk=`${Date.now()}-${f.id}-${finalName}`; fs.writeFileSync(path.join(uploadDir,disk),buffer);
       let backup=null; const folderId=!duplicate ? await monthFolder(drive,mapped.data) : null;
       if (folderId) backup=(await drive.files.copy({ fileId:f.id,requestBody:{ name:finalName,parents:[folderId] },fields:'id,webViewLink',supportsAllDrives:true })).data;
       const ai={ ...meta, nf_numero:mapped.numero || '',nf_valor_total:Number(mapped.valor || 0),nf_data_emissao:String(mapped.data || '').slice(0,10),nf_emitente_nome:meta.fornecedor || meta.nf_emitente_nome || '',nf_emitente_cpf_cnpj:mapped.cnpj || mapped.cpf || '',source_drive_file_id:f.id,source_drive_path:f.path,source_md5:hash,drive_backup_file_id:backup?.id || null,drive_backup_url:backup?.webViewLink || null,duplicate_detected:Boolean(duplicate),duplicate_key:key || null,analisado_em:new Date().toISOString(),provedor_ia:/\.xml$/i.test(f.name)?'xml':(meta.provedor_ia||'openai') };
-      const detected=isProof?'COMPROVANTE_PAGAMENTO':/\.xml$/i.test(f.name)?'NOTA_FISCAL_XML':'NOTA_FISCAL_PDF';
+      const detected=isProof?'COMPROVANTE_PAGAMENTO':'NOTA_FISCAL_PDF';
       const ins=await pool.query(`INSERT INTO document_intakes (arquivo_original_url,file_name_original,file_name_final,mime_type,status_processamento,status_registro,tipo_detectado,resultado_ia,nf_pdf_intake_id,grupo_status,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,'ATIVO',$6,$7::jsonb,$8,$9,NOW(),NOW()) RETURNING id`,[`/api/files/${encodeURIComponent(disk)}`,f.name,finalName,/\.xml$/i.test(f.name)?'application/xml':'application/pdf',duplicate?'DUPLICADO':'AGUARDANDO_REVISAO',detected,JSON.stringify(ai),parent?.id||null,parent?'COMPLETO':null]);
-      if (!duplicate && key) knownKeys.add(key); if (duplicate) duplicates++; else imported++;
+      if (!duplicate && key) { knownKeys.add(key); knownPdfKeys.add(key); } if (duplicate) duplicates++; else imported++;
+      const pdfId=ins.rows[0].id; const pdfUrl=`/api/files/${encodeURIComponent(disk)}`;
+      if (!duplicate && matchedXml && key) {
+        const existingXml=existingXmlByKey.get(key); const targetXmlMatch=targetXmlEntries.find(x=>fiscalKey(x.meta)===key);
+        if (existingXml || targetXmlMatch) {
+          const xmlUrl=existingXml?.arquivo_original_url || `https://drive.google.com/file/d/${targetXmlMatch.file.id}/view`;
+          await pool.query(`UPDATE document_intakes SET nf_xml_intake_id=$1,nf_xml_url=$2,grupo_status='COMPLETO' WHERE id=$3`,[existingXml?.id||null,xmlUrl,pdfId]);
+          if(existingXml?.id) await pool.query(`UPDATE document_intakes SET nf_pdf_intake_id=$1,nf_pdf_url=$2,grupo_status='COMPLETO',ocultar_entrada_unica=TRUE WHERE id=$3`,[pdfId,pdfUrl,existingXml.id]);
+        } else {
+          const xb=xmlCache.get(matchedXml.file.id) || await bytes(drive,matchedXml.file.id); const xhash=matchedXml.file.md5Checksum || crypto.createHash('md5').update(xb).digest('hex');
+          const xname=standardName(matchedXml.meta,matchedXml.file.name); const xdisk=`${Date.now()}-${matchedXml.file.id}-${xname}`; fs.writeFileSync(path.join(uploadDir,xdisk),xb);
+          let xbackup=null; if(folderId&&!targetHashes.has(xhash)) xbackup=(await drive.files.copy({fileId:matchedXml.file.id,requestBody:{name:xname,parents:[folderId]},fields:'id,webViewLink',supportsAllDrives:true})).data;
+          const xai={...matchedXml.meta,nf_numero:mapped.numero,nf_valor_total:Number(mapped.valor),nf_data_emissao:String(mapped.data).slice(0,10),nf_emitente_nome:matchedXml.meta.fornecedor||'',nf_emitente_cpf_cnpj:mapped.cnpj||mapped.cpf||'',source_drive_file_id:matchedXml.file.id,source_drive_path:matchedXml.file.path,source_md5:xhash,drive_backup_file_id:xbackup?.id||null,drive_backup_url:xbackup?.webViewLink||null,provedor_ia:'xml'};
+          const xi=await pool.query(`INSERT INTO document_intakes(arquivo_original_url,file_name_original,file_name_final,mime_type,status_processamento,status_registro,tipo_detectado,resultado_ia,nf_pdf_intake_id,nf_pdf_url,grupo_status,ocultar_entrada_unica,created_at,updated_at) VALUES($1,$2,$3,'application/xml','VINCULADO','ATIVO','NOTA_FISCAL_XML',$4::jsonb,$5,$6,'COMPLETO',TRUE,NOW(),NOW()) RETURNING id`,[`/api/files/${encodeURIComponent(xdisk)}`,matchedXml.file.name,xname,JSON.stringify(xai),pdfId,pdfUrl]);
+          await pool.query(`UPDATE document_intakes SET nf_xml_intake_id=$1,nf_xml_url=$2,grupo_status='COMPLETO' WHERE id=$3`,[xi.rows[0].id,`/api/files/${encodeURIComponent(xdisk)}`,pdfId]);
+          existingXmlByKey.set(key,{id:xi.rows[0].id,arquivo_original_url:`/api/files/${encodeURIComponent(xdisk)}`});
+        }
+      }
       const folder=f.path.split('/').slice(0,-1).join('/'); const list=importedByFolder.get(folder)||[]; list.push({ id:ins.rows[0].id,type:/\.xml$/i.test(f.name)?'XML':'PDF',key,url:`/api/files/${encodeURIComponent(disk)}` }); importedByFolder.set(folder,list);
     } catch (e) { errors++; console.error('DRIVE_RECONCILE_FILE_ERROR',f.path,e.message); }
     finally { processed++; if(processed%10===0 || processed===source.length) await updateRunStatus(runId,{ processed_files:processed,imported,duplicates,ignored,errors }); }
