@@ -304,7 +304,19 @@ async function run() {
       if (!duplicate && key) { knownKeys.add(key); knownPdfKeys.add(key); } if (duplicate) duplicates++; else imported++;
       const pdfId=ins.rows[0].id; const pdfUrl=`/api/files/${encodeURIComponent(disk)}`;
       if (!duplicate && matchedXml && key) {
-        const existingXml=existingXmlByKey.get(key); const targetXmlMatch=targetXmlEntries.find(x=>fiscalKey(x.meta)===key);
+        const existingXml=existingXmlByKey.get(key); let targetXmlMatch=targetXmlEntries.find(x=>fiscalKey(x.meta)===key);
+        // PDF e XML formam um par fiscal, mas são arquivos distintos. Garante
+        // backup do XML mesmo quando ele já existia localmente no aplicativo.
+        if (!targetXmlMatch && folderId) {
+          const xb=xmlCache.get(matchedXml.file.id) || await bytes(drive,matchedXml.file.id);
+          const xhash=matchedXml.file.md5Checksum || crypto.createHash('md5').update(xb).digest('hex');
+          const xname=standardName(matchedXml.meta,matchedXml.file.name);
+          if (!targetHashes.has(xhash)) {
+            const copied=(await drive.files.copy({fileId:matchedXml.file.id,requestBody:{name:xname,parents:[folderId]},fields:'id,webViewLink,md5Checksum',supportsAllDrives:true})).data;
+            targetHashes.add(xhash); targetXmlMatch={file:{...copied,name:xname},meta:matchedXml.meta}; targetXmlEntries.push(targetXmlMatch);
+            if (existingXml?.id) await pool.query(`UPDATE document_intakes SET resultado_ia=COALESCE(resultado_ia,'{}'::jsonb)||$1::jsonb,updated_at=NOW() WHERE id=$2`,[JSON.stringify({drive_backup_file_id:copied.id,drive_backup_url:copied.webViewLink}),existingXml.id]);
+          }
+        }
         if (existingXml || targetXmlMatch) {
           const xmlUrl=existingXml?.arquivo_original_url || `https://drive.google.com/file/d/${targetXmlMatch.file.id}/view`;
           await pool.query(`UPDATE document_intakes SET nf_xml_intake_id=$1,nf_xml_url=$2,grupo_status='COMPLETO' WHERE id=$3`,[existingXml?.id||null,xmlUrl,pdfId]);
