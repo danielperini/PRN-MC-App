@@ -279,6 +279,20 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
           }
           if (columns.includes('rubrica_debitada_em') && !current.rubrica_debitada_em) updates.rubrica_debitada_em = new Date();
           if (columns.includes('financeiro_lancado_em') && !current.financeiro_lancado_em) updates.financeiro_lancado_em = new Date();
+        } else if (action === 'marcar_pago' || action === 'pagar') {
+          const paidAt = new Date();
+          updates.status = 'PAGO';
+          if (columns.includes('status_pagamento')) updates.status_pagamento = 'pago';
+          if (columns.includes('pago')) updates.pago = true;
+          if (columns.includes('quitada')) updates.quitada = true;
+          if (columns.includes('pago_em')) updates.pago_em = paidAt;
+          if (columns.includes('data_pagamento')) updates.data_pagamento = paidAt;
+          if (columns.includes('payment_marked_by') || columns.includes('pago_por')) {
+            const user = (await client.query('SELECT email FROM users WHERE id=$1 LIMIT 1',[req.userId])).rows[0];
+            const actor = user?.email || String(req.userId || 'Sistema');
+            if (columns.includes('payment_marked_by')) updates.payment_marked_by = actor;
+            if (columns.includes('pago_por')) updates.pago_por = actor;
+          }
         } else if (action === 'devolver' || action === 'rejeitar') {
           updates.status = 'DEVOLVIDO';
           if (columns.includes('comentario_devolucao')) updates.comentario_devolucao = req.body?.comentario || null;
