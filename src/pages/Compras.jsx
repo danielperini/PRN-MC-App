@@ -71,7 +71,6 @@ import BackupDriveTab from '@/components/compras/BackupDriveTab';
 import DashboardCompletoIA from '@/components/compras/DashboardCompletoIA';
 import PainelAuditoriaIASolicitacoes from '@/components/compras/PainelAuditoriaIASolicitacoes';
 import PainelSincronizacaoDriveNFs from '@/components/compras/PainelSincronizacaoDriveNFs';
-import TratarSolicitacoesButton from '@/components/compras/TratarSolicitacoesButton';
 import CorrigirCentroCustoIAButton from '@/components/compras/CorrigirCentroCustoIAButton';
 import PainelAuditoriaValoresNF from '@/components/compras/PainelAuditoriaValoresNF';
 import { isCoordGeral } from '@/components/auth/permissions';
@@ -1231,6 +1230,17 @@ function ComprasInner() {
               
               </div>
 
+              <button
+                type="button"
+                onClick={() => {
+                  setFilters((current) => ({ ...current }));
+                  toast.success('Filtros aplicados.');
+                }}
+                className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-black"
+              >
+                Aplicar filtros
+              </button>
+
               {!isMobile &&
             <>
                   <Input
@@ -1393,9 +1403,6 @@ function ComprasInner() {
                   <Sparkles className="h-3.5 w-3.5" />
                   Dashboard Completo (IA)
                 </button>
-              )}
-              {isCoordGeral(currentUser) && (
-                <TratarSolicitacoesButton onDone={refreshFinanceiroCompleto} />
               )}
             </div>
 
