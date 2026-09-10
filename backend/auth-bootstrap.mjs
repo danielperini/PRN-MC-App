@@ -2,6 +2,7 @@ import express from 'express';
 import pg from 'pg';
 import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
+import nodemailer from 'nodemailer';
 
 const { Pool } = pg;
 const pool = new Pool({
@@ -15,6 +16,40 @@ const pool = new Pool({
 const SESSION_DAYS = Number(process.env.SESSION_DAYS || 30);
 const COOKIE = 'appgestor_session';
 const APP_ORIGIN = process.env.PUBLIC_BASE_URL || 'https://appgestor.periniprojetos.com.br';
+
+async function sendPendingWorkReminder(user) {
+  const email = String(user?.email || '').trim().toLowerCase();
+  if (!email || !process.env.SMTP_HOST || !process.env.SMTP_USER) return;
+  const [notes, reports, sent] = await Promise.all([
+    pool.query(`SELECT COUNT(*)::int count FROM document_intakes WHERE lower(COALESCE(created_by,''))=$1 AND status_processamento IN ('ENVIADO','ANALISANDO_IA','AGUARDANDO_REVISAO','RASCUNHO','ERRO_PROCESSAMENTO')`, [email]).catch(() => ({ rows:[{ count:0 }] })),
+    pool.query(`SELECT COUNT(*)::int count FROM reports WHERE lower(COALESCE(created_by,''))=$1 AND upper(COALESCE(status,'')) IN ('DRAFT','RASCUNHO','DEVOLVIDO')`, [email]).catch(() => ({ rows:[{ count:0 }] })),
+    pool.query(`SELECT 1 FROM notifications WHERE lower(COALESCE(user_email,''))=$1 AND type='PENDING_WORK_EMAIL' AND created_at >= CURRENT_DATE LIMIT 1`, [email]).catch(() => ({ rowCount:0 }))
+  ]);
+  const noteCount = Number(notes.rows[0]?.count || 0);
+  const reportCount = Number(reports.rows[0]?.count || 0);
+  if ((!noteCount && !reportCount) || sent.rowCount) return;
+  const firstName = String(user?.full_name || user?.name || email.split('@')[0]).trim().split(/\s+/)[0];
+  const items = [
+    noteCount ? `${noteCount} nota(s) fiscal(is) aguardando conclusão do envio` : '',
+    reportCount ? `${reportCount} relatório(s) mensal(is) em rascunho` : ''
+  ].filter(Boolean);
+  const password = process.env.SMTP_PASS_B64 ? Buffer.from(process.env.SMTP_PASS_B64, 'base64').toString('utf8') : process.env.SMTP_PASS;
+  const transport = nodemailer.createTransport({
+    host:process.env.SMTP_HOST,
+    port:Number(process.env.SMTP_PORT || 465),
+    secure:String(process.env.SMTP_SECURE).toLowerCase() === 'true',
+    auth:{ user:process.env.SMTP_USER, pass:password }
+  });
+  const text = `${firstName}, você deixou ${items.join(' e ')} no Gestor Museus Centro. Acesse ${APP_ORIGIN} e conclua o preenchimento e o envio para aprovação.`;
+  await transport.sendMail({
+    from:`Gestor Museus Centro <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
+    to:email,
+    subject:'Pendência no Gestor Museus Centro',
+    text,
+    html:`<p>Olá, ${firstName}.</p><p>Você deixou <strong>${items.join(' e ')}</strong>.</p><p>Conclua o preenchimento e envie para aprovação.</p><p><a href="${APP_ORIGIN}">Acessar o Gestor Museus Centro</a></p>`
+  });
+  await pool.query(`INSERT INTO notifications (user_email,type,title,message,action_url,is_read,resolved,email_sent) VALUES ($1,'PENDING_WORK_EMAIL','Pendência de preenchimento',$2,$3,FALSE,FALSE,TRUE)`, [email,text,APP_ORIGIN]).catch(() => {});
+}
 
 const randomToken = () => crypto.randomBytes(32).toString('hex');
 const hashToken = (value) => crypto.createHash('sha256').update(String(value)).digest('hex');
@@ -106,7 +141,11 @@ async function installAuth(app) {
   app.get('/api/apps/auth/logout', async (req, res) => {
     try {
       const raw = cookies(req)[COOKIE];
-      if (raw) await pool.query(`DELETE FROM auth_sessions WHERE session_token_hash=$1`, [hashToken(raw)]);
+      if (raw) {
+        const session = await pool.query(`SELECT u.* FROM auth_sessions s JOIN users u ON u.id=s.user_id WHERE s.session_token_hash=$1 LIMIT 1`, [hashToken(raw)]);
+        if (session.rowCount) await sendPendingWorkReminder(session.rows[0]).catch(e => console.error('PENDING_WORK_EMAIL_ERROR', e.message));
+        await pool.query(`DELETE FROM auth_sessions WHERE session_token_hash=$1`, [hashToken(raw)]);
+      }
     } catch (e) { console.error('AUTH_LOGOUT_ERROR', e); }
     res.setHeader('Set-Cookie', `${COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`);
     const from = String(req.query?.from_url || '/login');
