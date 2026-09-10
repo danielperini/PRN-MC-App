@@ -26,7 +26,7 @@ SET nota_fiscal_url=COALESCE(NULLIF(p.nota_fiscal_url,''),NULLIF(f.nf_pdf_url,''
 FROM fiscal f WHERE p.id::text=f.purchase_request_id;
 
 INSERT INTO attachments (id,purchase_request_id,document_intake_id,file_name,file_url,file_type,description,nf_tipo_documento,nf_nome_original,nf_revisado,created_date)
-SELECT gen_random_uuid()::text,di.entidade_destino_id,di.id::text,
+SELECT (SELECT COALESCE(MAX(id),0) FROM attachments) + ROW_NUMBER() OVER (),di.entidade_destino_id,di.id::text,
        COALESCE(NULLIF(di.file_name_final,''),di.file_name_original),di.arquivo_original_url,di.mime_type,
        'Entrada Única - Nota Fiscal',
        CASE WHEN di.mime_type ILIKE '%xml%' OR di.tipo_detectado ILIKE '%XML%' THEN 'xml_nf' ELSE 'pdf_nf' END,
