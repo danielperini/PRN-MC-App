@@ -259,7 +259,7 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
       }
       const escapeHtml = (value) => String(value || '').replace(/[&<>"']/g,(char)=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[char]);
       const actionUrl = String(req.body?.action_url || '');
-      const buttonLabel = req.body?.event_type === 'purchase.paid' ? 'Solicitar comprovante de depósito' : 'Abrir no Gestor Museus';
+      const buttonLabel = req.body?.event_type === 'purchase.paid' && !req.body?.has_payment_proof ? 'Solicitar comprovante de depósito' : 'Abrir no Gestor Museus';
       const password = process.env.SMTP_PASS_B64 ? Buffer.from(process.env.SMTP_PASS_B64,'base64').toString('utf8') : process.env.SMTP_PASS;
       const transport = nodemailer.createTransport({
         host:process.env.SMTP_HOST,
@@ -267,12 +267,27 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
         secure:String(process.env.SMTP_SECURE).toLowerCase() === 'true',
         auth:{ user:process.env.SMTP_USER, pass:password }
       });
+      const attachments = [];
+      if (req.body?.attachment_url) {
+        try {
+          const rawUrl = String(req.body.attachment_url);
+          const attachmentUrl = /^https?:\/\//i.test(rawUrl) ? rawUrl : `${req.protocol}://${req.get('host')}${rawUrl.startsWith('/') ? '' : '/'}${rawUrl}`;
+          const attachmentResponse = await fetch(attachmentUrl,{ signal:AbortSignal.timeout(30000) });
+          if (!attachmentResponse.ok) throw new Error(`HTTP ${attachmentResponse.status}`);
+          const content = Buffer.from(await attachmentResponse.arrayBuffer());
+          if (content.length > 30 * 1024 * 1024) throw new Error('comprovante excede 30 MB');
+          attachments.push({ filename:String(req.body.attachment_name || 'comprovante-de-pagamento.pdf'), content });
+        } catch (error) {
+          console.warn('PAYMENT_EMAIL_ATTACHMENT_FAILED',error.message);
+        }
+      }
       await transport.sendMail({
         from:`Gestor Museus Centro <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
         to,
         subject:String(req.body?.subject || req.body?.title || 'Gestor Museus Centro'),
         text:`${String(req.body?.message || '')}${actionUrl ? `\n\n${buttonLabel}: ${actionUrl}` : ''}`,
-        html:`<div style="font-family:Arial,sans-serif;line-height:1.55;color:#172033"><h2>${escapeHtml(req.body?.title || req.body?.subject)}</h2><p>${escapeHtml(req.body?.message)}</p>${actionUrl ? `<p><a href="${escapeHtml(actionUrl)}" style="display:inline-block;padding:12px 18px;background:#111827;color:#fff;text-decoration:none;border-radius:8px;font-weight:700">${escapeHtml(buttonLabel)}</a></p>` : ''}</div>`
+        html:`<div style="font-family:Arial,sans-serif;line-height:1.55;color:#172033"><h2>${escapeHtml(req.body?.title || req.body?.subject)}</h2><p>${escapeHtml(req.body?.message)}</p>${actionUrl ? `<p><a href="${escapeHtml(actionUrl)}" style="display:inline-block;padding:12px 18px;background:#111827;color:#fff;text-decoration:none;border-radius:8px;font-weight:700">${escapeHtml(buttonLabel)}</a></p>` : ''}</div>`,
+        attachments
       });
       return res.status(200).json({ success:true });
     }

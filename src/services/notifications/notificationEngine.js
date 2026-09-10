@@ -58,6 +58,9 @@ async function requestEmailDelivery({ recipient, eventType, entityType, entity, 
     event_type: eventType,
     entity_type: entityType,
     entity_id: entity?.id || entity?._id || '',
+    attachment_url: entity?.notification_attachment_url || '',
+    attachment_name: entity?.notification_attachment_name || '',
+    has_payment_proof: entity?.comprovante_anexado === true,
   };
 
   const functionNames = ['sendContextualEmailNotification', 'sendEmailNotification', 'sendNotificationEmail'];
