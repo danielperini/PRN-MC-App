@@ -230,7 +230,7 @@ async function run() {
   const uniqueXmlRows=await pool.query(`SELECT drive_file_id FROM drive_reconcile_xml_staging WHERE run_id=$1 AND source_scope='SOURCE' AND is_duplicate=false`,[runId]);
   const uniqueXmlIds=new Set(uniqueXmlRows.rows.map(x=>String(x.drive_file_id)));
   xmlIndex=sourceXmlEntries.filter(x=>uniqueXmlIds.has(String(x.file.id)));
-  const existing=await pool.query(`SELECT id,file_name_original,file_name_final,tipo_detectado,arquivo_original_url,resultado_ia,status_processamento,nf_xml_intake_id,nf_xml_url,grupo_status FROM document_intakes WHERE COALESCE(status_registro,'')<>'DELETADO'`);
+  const existing=await pool.query(`SELECT id,file_name_original,file_name_final,tipo_detectado,arquivo_original_url,resultado_ia,status_processamento,nf_xml_intake_id,nf_xml_url,grupo_status,entidade_destino_id FROM document_intakes WHERE COALESCE(status_registro,'')<>'DELETADO'`);
   const knownSourceIds=new Set(); const invoicesByPartyValue=new Map(); const knownPdfKeys=new Set(); const existingXmlByKey=new Map(); const existingPdfs=[];
   for (const row of existing.rows) { const a=row.resultado_ia || {}; if(a.source_drive_file_id) knownSourceIds.add(String(a.source_drive_file_id)); const k=fiscalKey({ cnpj:a.nf_emitente_cpf_cnpj,numero:a.nf_numero,valor:a.nf_valor_total,data:a.nf_data_emissao }); if(String(row.tipo_detectado||'').includes('PDF')) existingPdfs.push(row); if (a.nf_numero) { knownKeys.add(k); if(String(row.tipo_detectado||'').includes('PDF')) knownPdfKeys.add(k); if(String(row.tipo_detectado||'').includes('XML')&&!existingXmlByKey.has(k)) existingXmlByKey.set(k,row); const pv=`${digits(a.nf_emitente_cpf_cnpj)}|${Number(a.nf_valor_total||0).toFixed(2)}`; const list=invoicesByPartyValue.get(pv)||[]; list.push({ ...row,key:k,data:a.nf_data_emissao }); invoicesByPartyValue.set(pv,list); } }
   let orphanLinks=0;
@@ -248,6 +248,16 @@ async function run() {
     }
     const merged={...(pdf.resultado_ia||{}),nf_numero:match.meta.numero,nf_valor_total:Number(match.meta.valor),nf_data_emissao:String(match.meta.data).slice(0,10),nf_emitente_nome:match.meta.fornecedor||'',nf_emitente_cpf_cnpj:match.meta.cnpj||match.meta.cpf||'',provedor_ia:'xml_correspondente',xml_match_confidence:match.confidence};
     await pool.query(`UPDATE document_intakes SET nf_xml_intake_id=$1,nf_xml_url=$2,grupo_status='COMPLETO',resultado_ia=$3::jsonb,updated_at=NOW() WHERE id=$4`,[xmlRow.id,xmlRow.arquivo_original_url,JSON.stringify(merged),pdf.id]);
+    if (pdf.entidade_destino_id) {
+      await pool.query(`UPDATE purchase_requests SET
+        nf_numero=COALESCE(NULLIF(nf_numero,''),$1),
+        nf_valor_total=CASE WHEN COALESCE(nf_valor_total,0)=0 THEN $2 ELSE nf_valor_total END,
+        nf_data_emissao=COALESCE(nf_data_emissao,$3::timestamp),
+        nf_emitente_nome=COALESCE(NULLIF(nf_emitente_nome,''),$4),
+        nf_emitente_cpf_cnpj=COALESCE(NULLIF(nf_emitente_cpf_cnpj,''),$5),
+        nf_xml_url=COALESCE(NULLIF(nf_xml_url,''),$6),updated_at=NOW(),updated_date=NOW()
+        WHERE id::text=$7`,[match.meta.numero,Number(match.meta.valor),String(match.meta.data).slice(0,10),match.meta.fornecedor||'',match.meta.cnpj||match.meta.cpf||'',xmlRow.arquivo_original_url,String(pdf.entidade_destino_id)]);
+    }
     orphanLinks++;
   }
   console.log('DRIVE_RECONCILE_ORPHAN_PDFS_LINKED',orphanLinks);
