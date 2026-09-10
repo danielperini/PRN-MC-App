@@ -138,21 +138,55 @@ async function removeExactDuplicates() {
   for(const list of groups.values()){ if(list.length<2) continue; list.sort((a,b)=>((b.entidade_destino_id?100:0)+(b.attachment_id?50:0)+(b.revisado_pelo_usuario?20:0))-((a.entidade_destino_id?100:0)+(a.attachment_id?50:0)+(a.revisado_pelo_usuario?20:0)) || Number(a.id)-Number(b.id)); const discard=list.slice(1).map(x=>x.id); if(discard.length){ await pool.query(`UPDATE document_intakes SET status_registro='DELETADO',status_processamento='DUPLICADO_REMOVIDO',updated_at=NOW() WHERE id=ANY($1::bigint[])`,[discard]); removed+=discard.length; } }
   return removed;
 }
+async function prepareXmlStaging(sourceEntries,targetEntries,runId) {
+  await pool.query(`CREATE UNLOGGED TABLE IF NOT EXISTS drive_reconcile_xml_staging (
+    run_id text NOT NULL, source_scope text NOT NULL, drive_file_id text NOT NULL,
+    file_name text, drive_path text, emission_date date, amount numeric(16,2), tax_id text,
+    invoice_number text, fiscal_key text, is_duplicate boolean DEFAULT false,
+    matched_scope text, created_at timestamptz DEFAULT NOW(),
+    PRIMARY KEY (run_id,source_scope,drive_file_id)
+  )`);
+  await pool.query(`DELETE FROM drive_reconcile_xml_staging WHERE run_id=$1`,[runId]);
+  for (const entry of [...sourceEntries.map(x=>({ ...x,scope:'SOURCE' })),...targetEntries.map(x=>({ ...x,scope:'TARGET' }))]) {
+    const m=entry.meta; const key=m.numero ? fiscalKey(m) : null;
+    await pool.query(`INSERT INTO drive_reconcile_xml_staging
+      (run_id,source_scope,drive_file_id,file_name,drive_path,emission_date,amount,tax_id,invoice_number,fiscal_key)
+      VALUES ($1,$2,$3,$4,$5,NULLIF($6,'')::date,$7,$8,$9,$10)
+      ON CONFLICT (run_id,source_scope,drive_file_id) DO UPDATE SET
+      file_name=EXCLUDED.file_name,drive_path=EXCLUDED.drive_path,emission_date=EXCLUDED.emission_date,
+      amount=EXCLUDED.amount,tax_id=EXCLUDED.tax_id,invoice_number=EXCLUDED.invoice_number,fiscal_key=EXCLUDED.fiscal_key`,
+      [runId,entry.scope,entry.file.id,entry.file.name,entry.file.path,String(m.data||'').slice(0,10),Number(m.valor||0),digits(m.cnpj||m.cpf),m.numero||'',key]);
+  }
+  await pool.query(`UPDATE drive_reconcile_xml_staging s SET is_duplicate=true,matched_scope='TARGET'
+    WHERE s.run_id=$1 AND s.source_scope='SOURCE' AND s.fiscal_key IS NOT NULL AND EXISTS
+    (SELECT 1 FROM drive_reconcile_xml_staging t WHERE t.run_id=s.run_id AND t.source_scope='TARGET' AND t.fiscal_key=s.fiscal_key)`,[runId]);
+  await pool.query(`WITH ranked AS (SELECT ctid,row_number() OVER(PARTITION BY fiscal_key ORDER BY drive_path,drive_file_id) rn
+    FROM drive_reconcile_xml_staging WHERE run_id=$1 AND source_scope='SOURCE' AND fiscal_key IS NOT NULL)
+    UPDATE drive_reconcile_xml_staging s SET is_duplicate=true,matched_scope=COALESCE(matched_scope,'SOURCE')
+    FROM ranked r WHERE s.ctid=r.ctid AND r.rn>1`,[runId]);
+  const summary=await pool.query(`SELECT source_scope,is_duplicate,count(*)::int total FROM drive_reconcile_xml_staging WHERE run_id=$1 GROUP BY 1,2 ORDER BY 1,2`,[runId]);
+  console.log('DRIVE_RECONCILE_XML_STAGING',JSON.stringify({ run_id:runId,rows:summary.rows }));
+}
 async function run() {
   fs.mkdirSync(uploadDir,{ recursive:true }); const drive=await driveClient();
   const analysisCache=loadAnalysisCache();
   const [sourceAll,targetAll]=await Promise.all([tree(drive,SOURCE_ROOT),tree(drive,TARGET_ROOT)]);
   const sourceCandidates=sourceAll.filter(f=>/\.(pdf|xml)$/i.test(f.name) && (SOURCE_MONTH_ONLY ? monthAllowed(f.path) : (ONLY_MONTH || monthAllowed(f.path))));
   const source=Array.from(new Map(sourceCandidates.map(f=>[f.md5Checksum || f.id,f])).values());
-  const xmlCache=new Map(); const xmlIndex=[];
+  const runId=`${ONLY_MONTH||'all'}-${Date.now()}`; const xmlCache=new Map(); const sourceXmlEntries=[]; let xmlIndex=[];
   for (const file of source.filter(f=>/\.xml$/i.test(f.name))) {
-    try { const buffer=await bytes(drive,file.id); const meta=xmlMeta(buffer.toString('utf8')); xmlCache.set(file.id,buffer); if(meta.numero && meta.valor && meta.data) xmlIndex.push({ file,meta }); }
+    try { const buffer=await bytes(drive,file.id); const meta=xmlMeta(buffer.toString('utf8')); xmlCache.set(file.id,buffer); if(meta.numero && meta.valor && meta.data) sourceXmlEntries.push({ file,meta }); }
     catch(e) { console.error('DRIVE_RECONCILE_XML_INDEX_ERROR',file.path,e.message); }
   }
   const target=targetAll.filter(f=>/\.(pdf|xml)$/i.test(f.name)); const targetHashes=new Set(target.map(f=>f.md5Checksum).filter(Boolean));
   const knownKeys=new Set();
   const targetXml=target.filter(x=>/\.xml$/i.test(x.name) && (!ONLY_MONTH || x.path.includes(ONLY_MONTH)));
-  for (const f of targetXml) { try { const m=xmlMeta((await bytes(drive,f.id)).toString('utf8')); if (m.numero) knownKeys.add(fiscalKey(m)); } catch {} }
+  const targetXmlEntries=[];
+  for (const f of targetXml) { try { const m=xmlMeta((await bytes(drive,f.id)).toString('utf8')); if (m.numero) { knownKeys.add(fiscalKey(m)); targetXmlEntries.push({ file:f,meta:m }); } } catch {} }
+  await prepareXmlStaging(sourceXmlEntries,targetXmlEntries,runId);
+  const uniqueXmlRows=await pool.query(`SELECT drive_file_id FROM drive_reconcile_xml_staging WHERE run_id=$1 AND source_scope='SOURCE' AND is_duplicate=false`,[runId]);
+  const uniqueXmlIds=new Set(uniqueXmlRows.rows.map(x=>String(x.drive_file_id)));
+  xmlIndex=sourceXmlEntries.filter(x=>uniqueXmlIds.has(String(x.file.id)));
   const existing=await pool.query(`SELECT id,file_name_original,file_name_final,resultado_ia,status_processamento FROM document_intakes WHERE COALESCE(status_registro,'')<>'DELETADO'`);
   const knownSourceIds=new Set(); const invoicesByPartyValue=new Map();
   for (const row of existing.rows) { const a=row.resultado_ia || {}; if(a.source_drive_file_id) knownSourceIds.add(String(a.source_drive_file_id)); const k=fiscalKey({ cnpj:a.nf_emitente_cpf_cnpj,numero:a.nf_numero,valor:a.nf_valor_total,data:a.nf_data_emissao }); if (a.nf_numero) { knownKeys.add(k); const pv=`${digits(a.nf_emitente_cpf_cnpj)}|${Number(a.nf_valor_total||0).toFixed(2)}`; const list=invoicesByPartyValue.get(pv)||[]; list.push({ ...row,key:k,data:a.nf_data_emissao }); invoicesByPartyValue.set(pv,list); } }
