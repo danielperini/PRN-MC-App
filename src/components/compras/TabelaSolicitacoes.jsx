@@ -178,7 +178,7 @@ function formatDateBR(value) {
   return value;
 }
 
-function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentUser, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onAccess, sendingNotif, handleSendNotification, menuOpenId, setMenuOpenId }) {
+function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentUser, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onAccess, sendingNotif, handleSendNotification, menuOpenId, setMenuOpenId, selectedIds, onToggleSelected, onToggleAll }) {
   const [sortField, setSortField] = useState(null);
   const [sortDir, setSortDir] = useState('asc');
   const [editingDataNF, setEditingDataNF] = useState(null); // id da linha em edição
@@ -244,6 +244,18 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
     <table className="w-full border-collapse text-sm">
       <thead>
         <tr className="border-b border-gray-200 bg-gray-50 text-left">
+          {podeAprovar && (
+            <th className="w-10 px-3 py-3 text-center">
+              <input
+                type="checkbox"
+                aria-label="Selecionar todas as solicitações desta seção"
+                checked={items.length > 0 && items.every((p) => selectedIds.has(p.id))}
+                ref={(node) => { if (node) node.indeterminate = items.some((p) => selectedIds.has(p.id)) && !items.every((p) => selectedIds.has(p.id)); }}
+                onChange={(e) => onToggleAll(items, e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-blue-600"
+              />
+            </th>
+          )}
           <ThSortable field="descricao" className="w-[18%]">Descrição</ThSortable>
           <ThSortable field="natureza" className="w-[12%]">Natureza</ThSortable>
           <ThSortable field="fornecedor" className="w-[13%]">Fornecedor</ThSortable>
@@ -300,6 +312,18 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
                 ? 'border-orange-200 bg-orange-50/40 hover:bg-orange-50'
                 : `border-gray-100 hover:bg-gray-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'}`
             }`}>
+
+              {podeAprovar && (
+                <td className="px-3 py-2.5 text-center">
+                  <input
+                    type="checkbox"
+                    aria-label={`Selecionar solicitação ${p.nf_numero || p.id}`}
+                    checked={selectedIds.has(p.id)}
+                    onChange={(e) => onToggleSelected(p.id, e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                  />
+                </td>
+              )}
 
               {/* Descrição — até 3 linhas com tooltip */}
               <td className="px-3 py-2.5" style={tdStyle}>
@@ -470,9 +494,11 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
   );
 }
 
-export default function TabelaSolicitacoes({ purchases, rubricas, attachmentByPurchaseId, isCoordenador, currentUser, podeAprovarSolicitacoes, hasGestaoCompras, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onAccess, userPermission }) {
+export default function TabelaSolicitacoes({ purchases, rubricas, attachmentByPurchaseId, isCoordenador, currentUser, podeAprovarSolicitacoes, hasGestaoCompras, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onBulkMarkPaid, onAccess, userPermission }) {
   const [menuOpenId, setMenuOpenId] = useState(null);
   const [sendingNotif, setSendingNotif] = useState({});
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   async function handleSendNotification(p) {
     const valor = getPurchaseValue(p);
@@ -518,10 +544,51 @@ export default function TabelaSolicitacoes({ purchases, rubricas, attachmentByPu
     { key: 'noturnoPampulha', label: 'Noturno Pampulha', visible: true }
   ].filter((cat) => cat.visible && categories[cat.key].length > 0);
 
-  const sharedProps = { rubricaById, isCoordenador, podeAprovar, currentUser, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onAccess, sendingNotif, handleSendNotification, menuOpenId, setMenuOpenId };
+  const selected = purchases.filter((p) => selectedIds.has(p.id));
+  const toggleSelected = (id, checked) => setSelectedIds((current) => {
+    const next = new Set(current);
+    if (checked) next.add(id); else next.delete(id);
+    return next;
+  });
+  const toggleAll = (rows, checked) => setSelectedIds((current) => {
+    const next = new Set(current);
+    rows.forEach((p) => checked ? next.add(p.id) : next.delete(p.id));
+    return next;
+  });
+  async function runBulk(action) {
+    if (!selected.length || bulkBusy) return;
+    const labels = { approve: 'aprovar', paid: 'marcar como pagas', return: 'devolver', unapprove: 'desaprovar' };
+    if (!window.confirm(`Deseja ${labels[action]} ${selected.length} solicitação(ões)?`)) return;
+    setBulkBusy(true);
+    try {
+      if (action === 'paid') await onBulkMarkPaid?.(selected);
+      else {
+        const handler = action === 'approve' ? onApprove : action === 'return' ? onReturn : onUnapprove;
+        for (const purchase of selected) await handler?.(purchase);
+      }
+      setSelectedIds(new Set());
+      toast.success(`${selected.length} solicitação(ões) processada(s).`);
+    } catch (error) {
+      toast.error(error?.message || 'Não foi possível concluir a alteração em lote.');
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  const sharedProps = { rubricaById, isCoordenador, podeAprovar, currentUser, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onAccess, sendingNotif, handleSendNotification, menuOpenId, setMenuOpenId, selectedIds, onToggleSelected: toggleSelected, onToggleAll: toggleAll };
 
   return (
     <div className="space-y-8">
+      {podeAprovar && selected.length > 0 && (
+        <div className="sticky top-2 z-40 flex flex-wrap items-center gap-2 rounded-xl border border-blue-200 bg-white p-3 shadow-lg">
+          <span className="mr-2 text-sm font-semibold text-blue-900">{selected.length} selecionada(s)</span>
+          <button type="button" disabled={bulkBusy} onClick={() => runBulk('approve')} className="rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Aprovar</button>
+          <button type="button" disabled={bulkBusy} onClick={() => runBulk('paid')} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Marcar como pagas</button>
+          <button type="button" disabled={bulkBusy} onClick={() => runBulk('return')} className="rounded-lg bg-amber-500 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Devolver</button>
+          <button type="button" disabled={bulkBusy} onClick={() => runBulk('unapprove')} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Desaprovar</button>
+          <button type="button" disabled={bulkBusy} onClick={() => setSelectedIds(new Set())} className="ml-auto rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 disabled:opacity-50">Limpar seleção</button>
+        </div>
+      )}
       {museusCentroCategories.map((cat) => (
         <div key={cat.key}>
           <div className="mb-3 flex items-center gap-2">

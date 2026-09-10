@@ -767,6 +767,34 @@ function ComprasInner() {
     }
   }
 
+  async function handleBulkMarkPaid(selectedPurchases) {
+    const eligible = (selectedPurchases || []).filter((purchase) =>
+      STATUS_ELEGIVEIS_PAGAMENTO.has(normalizeStatus(purchase.status))
+    );
+    if (!eligible.length) {
+      throw new Error('Nenhuma solicitação selecionada está apta para pagamento.');
+    }
+
+    const failures = [];
+    for (const purchase of eligible) {
+      try {
+        const response = await base44.functions.invoke('purchaseActions', {
+          purchaseId: purchase.id,
+          action: 'marcar_pago'
+        });
+        const result = response?.data || response;
+        if (result?.success === false) throw new Error(result.error || 'Falha ao marcar como paga.');
+      } catch (error) {
+        failures.push(`${purchase.nf_numero || purchase.id}: ${error?.message || 'erro'}`);
+      }
+    }
+
+    await refreshFinanceiroCompleto();
+    if (failures.length) {
+      throw new Error(`${eligible.length - failures.length} concluída(s); ${failures.length} falharam. ${failures.slice(0, 3).join(' | ')}`);
+    }
+  }
+
   async function handleDeletePurchase(purchaseId) {
     try {
       const pr = await base44.entities.PurchaseRequest.get(purchaseId).catch(
@@ -1307,6 +1335,7 @@ function ComprasInner() {
             onReturn={handleReturnPurchase}
             onUnapprove={handleUnapprovePurchase}
             onMarkPaid={(purchase) => setPaymentPurchase(purchase)}
+            onBulkMarkPaid={handleBulkMarkPaid}
             onAccess={(purchase) => {
               setEditingPurchase({ ...purchase });
               setShowForm(true);
