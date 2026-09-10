@@ -244,6 +244,36 @@ app.get('/api/files/:name',async(req,res)=>{ try { const name=path.basename(deco
 app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,res) => {
   const name=String(req.params.functionName||'');
   try {
+    if (name === 'processarNotaFiscalComClaude') {
+      const intakeId = String(req.body?.intake_id || '').trim();
+      const fileUrl = String(req.body?.file_url || '').trim();
+      const apiKey = String(process.env.OPENAI_API_KEY || '').trim();
+      if (!intakeId || !fileUrl) return res.status(400).json({ error:'invalid_invoice_input', message:'intake_id e file_url são obrigatórios' });
+      if (!apiKey) return res.status(503).json({ error:'openai_not_configured', message:'OPENAI_API_KEY não configurada' });
+      const absoluteFileUrl = /^https?:\/\//i.test(fileUrl) ? fileUrl : `${req.protocol}://${req.get('host')}${fileUrl.startsWith('/') ? '' : '/'}${fileUrl}`;
+      const prompt = `Leia integralmente esta nota fiscal. Retorne somente JSON com: nf_numero, nf_valor_total (número), nf_data_emissao (YYYY-MM-DD), nf_horario_emissao (HH:MM:SS ou vazio), competencia, nf_emitente_nome, nf_emitente_cpf_cnpj, municipio, descricao_servico, centro_custo_sugerido (somente GERAL, MHAB, MIS ou MUMO), rubrica_nome_sugerida e meta_sugerida. Não use o nome do arquivo como substituto para valor ou data; extraia do conteúdo fiscal.`;
+      const aiResponse = await fetch('https://api.openai.com/v1/responses', {
+        method:'POST',
+        headers:{ Authorization:`Bearer ${apiKey}`, 'Content-Type':'application/json' },
+        body:JSON.stringify({
+          model:process.env.OPENAI_INVOICE_MODEL || 'gpt-4.1-mini',
+          input:[{ role:'user', content:[{ type:'input_text', text:prompt }, { type:'input_file', file_url:absoluteFileUrl }] }],
+          text:{ format:{ type:'json_object' } }
+        }),
+        signal:AbortSignal.timeout(120000)
+      });
+      const raw = await aiResponse.text();
+      if (!aiResponse.ok) throw new Error(`OpenAI ${aiResponse.status}: ${raw.slice(0,500)}`);
+      const envelope = JSON.parse(raw);
+      const outputText = envelope.output_text || envelope.output?.flatMap(item => item.content || []).find(item => item.type === 'output_text')?.text || '';
+      const result = JSON.parse(outputText);
+      const current = await pool.query('SELECT resultado_ia FROM document_intakes WHERE id=$1 LIMIT 1',[intakeId]);
+      if (!current.rowCount) return res.status(404).json({ error:'intake_not_found' });
+      const merged = { ...(current.rows[0].resultado_ia || {}), ...result, analisado_em:new Date().toISOString(), provedor_ia:'openai' };
+      await pool.query(`UPDATE document_intakes SET resultado_ia=$1::jsonb, centro_custo=COALESCE(NULLIF($2,''),centro_custo), updated_at=NOW() WHERE id=$3`,[JSON.stringify(merged), result.centro_custo_sugerido || '', intakeId]);
+      console.log('INVOICE_AI_OK',JSON.stringify({ intake_id:intakeId, nf_numero:result.nf_numero || null, has_value:Number(result.nf_valor_total)>0, has_date:!!result.nf_data_emissao }));
+      return res.status(200).json({ success:true, resultado_ia:merged });
+    }
     if (name === 'syncBaseConhecimento' && req.body?.force_programacao_sync) {
       const result = await syncProgramacao();
       if (result?.error) {
