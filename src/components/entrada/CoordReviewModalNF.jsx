@@ -22,6 +22,28 @@ const COORD_EMAILS = [
   'danie@periniprojetos.com.br',
 ];
 
+function isRubricaEntradaUnica(rubrica) {
+  if (!rubrica || rubrica.ativo === false) return false;
+
+  const origem = String(rubrica.origem_recurso || rubrica.aditivo || rubrica.termo_aditivo || '');
+  const contexto = [
+    rubrica.centro_custo,
+    rubrica.grupo,
+    rubrica.rubrica,
+    rubrica.nome,
+    rubrica.descricao,
+    rubrica.meta,
+    rubrica.meta_nome,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+  return /(^|\D)(3|4)(\D|$)/.test(origem) || contexto.includes('noturno pampulha');
+}
+
 function normalizeDateToInput(value) {
   if (!value) return '';
 
@@ -370,13 +392,7 @@ Equipe Museus Centro`;
       try {
         // Busca rubricas do banco e filtra as do 3º e 4º Aditivo ativas
         const list = await base44.entities.Rubrica.list('', 2000);
-        const rubricasValidas = (list || []).filter(
-          (r) => r?.ativo !== false && (
-            String(r?.origem_recurso || '').includes('3') ||
-            String(r?.origem_recurso || '').includes('4') ||
-            String(r?.centro_custo || '').toLowerCase().includes('pampulha')
-          )
-        );
+        const rubricasValidas = (list || []).filter(isRubricaEntradaUnica);
 
         const rubricasFinal = rubricasValidas.length > 0 ? rubricasValidas : [];
         setRubricas(rubricasFinal);
@@ -751,11 +767,7 @@ Equipe Museus Centro`;
 
     // Bloqueia se a rubrica selecionada não pertencer ao 3º ou 4º Aditivo
     const rubricaSel = rubricas.find((r) => r.id === form.rubrica_id);
-    const origemValida = rubricaSel && (
-      String(rubricaSel.origem_recurso || '').includes('3') ||
-      String(rubricaSel.origem_recurso || '').includes('4') ||
-      String(rubricaSel.centro_custo || '').toLowerCase().includes('pampulha')
-    );
+    const origemValida = isRubricaEntradaUnica(rubricaSel);
     if (rubricaSel && !origemValida) {
       toast({ title: 'Rubrica inválida', description: 'A rubrica selecionada não pertence ao 3º ou 4º Aditivo.', variant: 'destructive', duration: 4000 });
       return;
