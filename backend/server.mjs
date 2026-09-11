@@ -358,6 +358,28 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
             if (columns.includes('payment_marked_by')) updates.payment_marked_by = actor;
             if (columns.includes('pago_por')) updates.pago_por = actor;
           }
+        } else if (action === 'trocar_rubrica') {
+          const novaRubricaId = String(req.body?.novaRubricaId || req.body?.rubrica_id || '').trim();
+          if (!novaRubricaId) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ success:false, error:'nova_rubrica_obrigatoria' });
+          }
+          const rubricaExiste = await client.query('SELECT id FROM rubricas WHERE id::text=$1 LIMIT 1',[novaRubricaId]);
+          if (!rubricaExiste.rowCount) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ success:false, error:'rubrica_nao_encontrada' });
+          }
+          updates.rubrica_id = novaRubricaId;
+          if (columns.includes('budgetline_id')) updates.budgetline_id = novaRubricaId;
+          const novoCentroCusto = String(req.body?.novoCentroCusto || '').trim();
+          if (novoCentroCusto && columns.includes('centro_custo')) updates.centro_custo = novoCentroCusto;
+        } else if (action === 'updatecentrocusto' || action === 'atualizar_centro_custo') {
+          const novoCentroCusto = String(req.body?.novoCentroCusto || req.body?.centro_custo || '').trim();
+          if (!novoCentroCusto) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ success:false, error:'centro_custo_obrigatorio' });
+          }
+          if (columns.includes('centro_custo')) updates.centro_custo = novoCentroCusto;
         } else if (action === 'devolver' || action === 'rejeitar') {
           updates.status = 'DEVOLVIDO';
           if (columns.includes('comentario_devolucao')) updates.comentario_devolucao = req.body?.comentario || null;
