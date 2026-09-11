@@ -616,7 +616,7 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
   );
 }
 
-export default function TabelaSolicitacoes({ purchases, rubricas, attachmentByPurchaseId, isCoordenador, currentUser, podeAprovarSolicitacoes, hasGestaoCompras, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onBulkMarkPaid, onAccess, onCentroUpdated, onCentroCustoSaved, userPermission, canSeeEquipeSalarios }) {
+export default function TabelaSolicitacoes({ purchases, rubricas, attachmentByPurchaseId, isCoordenador, currentUser, podeAprovarSolicitacoes, hasGestaoCompras, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onBulkAction, onAccess, onCentroUpdated, onCentroCustoSaved, userPermission, canSeeEquipeSalarios }) {
   const [sendingNotif, setSendingNotif] = useState({});
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -694,8 +694,9 @@ export default function TabelaSolicitacoes({ purchases, rubricas, attachmentByPu
     if (!window.confirm(`Deseja ${labels[action]} ${selected.length} solicitação(ões)?`)) return;
     setBulkBusy(true);
     try {
-      if (action === 'paid') await onBulkMarkPaid?.(selected);
-      else {
+      if (action === 'approve' || action === 'paid') {
+        await onBulkAction?.(selected, action);
+      } else {
         const handler = action === 'approve' ? onApprove : action === 'return' ? onReturn : onUnapprove;
         for (const purchase of selected) await handler?.(purchase);
       }

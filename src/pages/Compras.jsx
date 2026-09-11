@@ -880,32 +880,50 @@ function ComprasInner() {
     }
   }
 
-  async function handleBulkMarkPaid(selectedPurchases) {
-    const eligible = (selectedPurchases || []).filter((purchase) =>
-      STATUS_ELEGIVEIS_PAGAMENTO.has(normalizeStatus(purchase.status))
-    );
-    if (!eligible.length) {
-      throw new Error('Nenhuma solicitação selecionada está apta para pagamento.');
-    }
-
+  async function handleBulkAction(selectedPurchases, action) {
+    const backendAction = action === 'approve' ? 'aprovar' : 'marcar_pago';
+    const expectedStatus = action === 'approve' ? 'APROVADO_COORD' : 'PAGO';
+    const selected = selectedPurchases || [];
+    if (!selected.length) throw new Error('Nenhuma solicitação selecionada.');
     const failures = [];
-    for (const purchase of eligible) {
+    const updatedPurchases = [];
+    for (const purchase of selected) {
       try {
+        if (action === 'paid' && !STATUS_ELEGIVEIS_PAGAMENTO.has(normalizeStatus(purchase.status))) {
+          throw new Error('status não permite marcar como paga');
+        }
+        if (action === 'approve' && (!purchase.meta_id || !purchase.rubrica_id)) {
+          throw new Error('meta ou rubrica não preenchida');
+        }
         const response = await base44.functions.invoke('purchaseActions', {
           purchaseId: purchase.id,
-          action: 'marcar_pago'
+          action: backendAction
         });
         const result = response?.data || response;
-        if (result?.success === false) throw new Error(result.error || 'Falha ao marcar como paga.');
+        if (!result?.success || !result?.purchase) {
+          throw new Error(result?.error || 'O servidor não confirmou a alteração.');
+        }
+        if (normalizeStatus(result.purchase.status) !== expectedStatus) {
+          throw new Error(`status retornado: ${result.purchase.status || 'vazio'}`);
+        }
+        updatedPurchases.push(result.purchase);
       } catch (error) {
         failures.push(`${purchase.nf_numero || purchase.id}: ${error?.message || 'erro'}`);
       }
     }
 
+    if (updatedPurchases.length) {
+      const updatedById = new Map(updatedPurchases.map((purchase) => [purchase.id, purchase]));
+      queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email, userMuseu], (old) => {
+        if (!Array.isArray(old)) return old;
+        return old.map((item) => updatedById.has(item.id) ? { ...item, ...updatedById.get(item.id) } : item);
+      });
+    }
     await refreshFinanceiroCompleto();
     if (failures.length) {
-      throw new Error(`${eligible.length - failures.length} concluída(s); ${failures.length} falharam. ${failures.slice(0, 3).join(' | ')}`);
+      throw new Error(`${updatedPurchases.length} concluída(s); ${failures.length} falharam. ${failures.slice(0, 3).join(' | ')}`);
     }
+    return { updated: updatedPurchases.length };
   }
 
   async function handleDeletePurchase(purchaseId) {
@@ -1414,7 +1432,7 @@ function ComprasInner() {
             onReturn={handleReturnPurchase}
             onUnapprove={handleUnapprovePurchase}
             onMarkPaid={(purchase) => setPaymentPurchase(purchase)}
-            onBulkMarkPaid={handleBulkMarkPaid}
+            onBulkAction={handleBulkAction}
             onAccess={(purchase) => {
               setEditingPurchase({ ...purchase });
               setShowForm(true);
