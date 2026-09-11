@@ -340,6 +340,7 @@ function ComprasInner() {
     // Isso preserva o cache otimista após saves.
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['purchases'], refetchType: 'none' }),
+      queryClient.invalidateQueries({ queryKey: ['purchases_pendentes_pagamento'], refetchType: 'none' }),
       queryClient.invalidateQueries({ queryKey: ['attachments-compras'], refetchType: 'none' }),
       queryClient.invalidateQueries({ queryKey: ['purchase-documents-all'], refetchType: 'none' }),
       queryClient.invalidateQueries({ queryKey: ['rubricas'], refetchType: 'none' }),
@@ -602,6 +603,7 @@ function ComprasInner() {
     await invalidateComprasQueries();
     // Força rebusca ativa das queries principais após ação financeira real
     await queryClient.refetchQueries({ queryKey: ['purchases'], type: 'active' });
+    await queryClient.refetchQueries({ queryKey: ['purchases_pendentes_pagamento'], type: 'active' });
     await queryClient.refetchQueries({ queryKey: ['rubricas'], type: 'active' });
   }, [invalidateComprasQueries, queryClient]);
 
@@ -684,6 +686,8 @@ function ComprasInner() {
 
         await base44.entities.PurchaseRequest.update(purchase.id, {
           status: 'APROVADO_COORD',
+          status_pagamento: 'AGUARDANDO_PAGAMENTO',
+          pago: false,
           rubrica_debitada_em:
           purchase.rubrica_debitada_em || new Date().toISOString(),
           rubrica_debitada_valor:
@@ -698,7 +702,7 @@ function ComprasInner() {
         if (!Array.isArray(old)) return old;
         return old.map((item) =>
         item.id === purchase.id ?
-        { ...item, status: 'APROVADO_COORD', aprov_coord_data: new Date().toISOString(), aprov_coord_nome: currentUser?.email } :
+        { ...item, status: 'APROVADO_COORD', status_pagamento: 'AGUARDANDO_PAGAMENTO', pago: false, aprov_coord_data: new Date().toISOString(), aprov_coord_nome: currentUser?.email } :
         item
         );
       });
