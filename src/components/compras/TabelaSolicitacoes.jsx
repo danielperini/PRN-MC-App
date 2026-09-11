@@ -5,7 +5,6 @@ import { Pencil, Trash2, CheckCircle2, RotateCcw, XCircle, Bell, Loader2, LinkIc
 import { normalizeStatus } from '@/lib/normalizeStatus';
 import { isFinanciallyActiveStatus } from '@/utils/finance/financeiroUtils';
 import RubricaIaBadge from './RubricaIaBadge';
-import InvoiceLinks from './InvoiceLinks';
 
 const STATUS_CONFIG = {
   RASCUNHO: { label: 'Rascunho', color: 'bg-gray-100 text-gray-700' },
@@ -136,7 +135,57 @@ function SortIcon({ field, sortField, sortDir }) {
 }
 
 function FilesCell({ p }) {
-  return <InvoiceLinks purchase={p} />;
+  // Drive backup
+  const driveUrl = p.drive_backup_folder_url || p.drive_backup_nf_pdf_link || null;
+  const hasBackup = p.drive_backup_status === 'concluido' || !!driveUrl;
+
+  // PDF: prioridade backup drive, depois url armazenada
+  const pdfUrl = p.drive_backup_nf_pdf_link || p.nota_fiscal_pdf_url || p.nota_fiscal_url || p.nf_pdf_url || null;
+
+  // XML
+  const xmlUrl = p.drive_backup_nf_xml_link || p.nota_fiscal_xml_url || p.xml_url || p.nf_xml_url || null;
+
+  return (
+    <div className="flex flex-col gap-1 text-xs">
+      {/* Backup badge */}
+      {hasBackup ? (
+        <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-1.5 py-0.5 text-[10px] font-medium text-green-700">
+          ✔ Backup
+        </span>
+      ) : (
+        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">
+          ⚠ Sem backup
+        </span>
+      )}
+
+      {/* Drive */}
+      {driveUrl ? (
+        <a href={driveUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-indigo-700 underline underline-offset-1 hover:text-indigo-900">
+          <HardDrive className="h-3 w-3" />Drive
+        </a>
+      ) : (
+        <span className="text-gray-400 flex items-center gap-1"><HardDrive className="h-3 w-3" />—</span>
+      )}
+
+      {/* PDF */}
+      {pdfUrl ? (
+        <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-blue-700 underline underline-offset-1 hover:text-blue-900">
+          <FileText className="h-3 w-3" />PDF
+        </a>
+      ) : (
+        <span className="text-gray-400 flex items-center gap-1"><FileText className="h-3 w-3" />—</span>
+      )}
+
+      {/* XML */}
+      {xmlUrl ? (
+        <a href={xmlUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-green-700 underline underline-offset-1 hover:text-green-900">
+          <FileCode2 className="h-3 w-3" />XML
+        </a>
+      ) : (
+        <span className="text-gray-400 flex items-center gap-1"><FileCode2 className="h-3 w-3" />—</span>
+      )}
+    </div>
+  );
 }
 
 const SORTABLE_COLS = ['natureza', 'fornecedor', 'rubrica', 'centro', 'status', 'valor', 'data_nf'];
@@ -274,7 +323,13 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
       <thead>
         <tr className="border-b border-gray-200 bg-gray-50 text-left">
           {podeAprovar && (
-            <th className="w-10 px-3 py-3 text-center"><input type="checkbox" aria-label="Selecionar todas as solicitações desta seção" checked={items.length > 0 && items.every((p) => selectedIds.has(p.id))} ref={(node) => { if (node) node.indeterminate = items.some((p) => selectedIds.has(p.id)) && !items.every((p) => selectedIds.has(p.id)); }} onChange={(e) => onToggleAll(items, e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-blue-600" /></th>
+            <th className="w-10 px-3 py-3 text-center">
+              <input type="checkbox" aria-label="Selecionar todas as solicitações desta seção"
+                checked={items.length > 0 && items.every((p) => selectedIds.has(p.id))}
+                ref={(node) => { if (node) node.indeterminate = items.some((p) => selectedIds.has(p.id)) && !items.every((p) => selectedIds.has(p.id)); }}
+                onChange={(e) => onToggleAll(items, e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-blue-600" />
+            </th>
           )}
           <ThSortable field="descricao" className="w-[18%]">Descrição</ThSortable>
           <ThSortable field="natureza" className="w-[12%]">Natureza</ThSortable>
@@ -336,13 +391,9 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
 
               {podeAprovar && (
                 <td className="px-3 py-2.5 text-center">
-                  <input
-                    type="checkbox"
-                    aria-label={`Selecionar solicitação ${p.nf_numero || p.id}`}
-                    checked={selectedIds.has(p.id)}
-                    onChange={(e) => onToggleSelected(p.id, e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300 text-blue-600"
-                  />
+                  <input type="checkbox" aria-label={`Selecionar solicitação ${p.nf_numero || p.id}`}
+                    checked={selectedIds.has(p.id)} onChange={(e) => onToggleSelected(p.id, e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600" />
                 </td>
               )}
 
@@ -531,7 +582,7 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
                     </button>
                   )}
                   {podeMarcarPago && (
-                    <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onMarkPaid?.(p); }} className={`inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${pago ? 'text-emerald-600 hover:bg-emerald-50' : 'text-gray-500 hover:bg-emerald-50 hover:text-emerald-700'}`} title={pago ? 'Retornar para aguardando pagamento' : 'Marcar pago'}>
+                    <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onMarkPaid?.(p); }} className={`inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${pago ? 'text-emerald-600 hover:bg-emerald-50' : 'text-gray-500 hover:bg-emerald-50 hover:text-emerald-700'}`} title={pago ? 'Comprovante' : 'Marcar pago'}>
                       <CheckCircle2 className="h-3.5 w-3.5" />
                     </button>
                   )}
@@ -565,7 +616,7 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
   );
 }
 
-export default function TabelaSolicitacoes({ purchases, rubricas, attachmentByPurchaseId, isCoordenador, currentUser, podeAprovarSolicitacoes, hasGestaoCompras, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onBulkMarkPaid, onAccess, onCentroUpdated, onCentroCustoSaved, userPermission, canSeeEquipeSalarios }) {
+export default function TabelaSolicitacoes({ purchases, rubricas, attachmentByPurchaseId, isCoordenador, currentUser, podeAprovarSolicitacoes, hasGestaoCompras, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onBulkAction, onAccess, onCentroUpdated, onCentroCustoSaved, userPermission, canSeeEquipeSalarios }) {
   const [sendingNotif, setSendingNotif] = useState({});
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -627,20 +678,37 @@ export default function TabelaSolicitacoes({ purchases, rubricas, attachmentByPu
   ].filter((cat) => cat.visible && categories[cat.key].length > 0);
 
   const selected = purchasesFiltered.filter((p) => selectedIds.has(p.id));
-  const toggleSelected = (id, checked) => setSelectedIds((current) => { const next = new Set(current); if (checked) next.add(id); else next.delete(id); return next; });
-  const toggleAll = (rows, checked) => setSelectedIds((current) => { const next = new Set(current); rows.forEach((p) => checked ? next.add(p.id) : next.delete(p.id)); return next; });
+  const toggleSelected = (id, checked) => setSelectedIds((current) => {
+    const next = new Set(current);
+    if (checked) next.add(id); else next.delete(id);
+    return next;
+  });
+  const toggleAll = (rows, checked) => setSelectedIds((current) => {
+    const next = new Set(current);
+    rows.forEach((p) => checked ? next.add(p.id) : next.delete(p.id));
+    return next;
+  });
   async function runBulk(action) {
     if (!selected.length || bulkBusy) return;
-    const labels = { approve: 'aprovar', paid: 'marcar como pago', return: 'devolver', unapprove: 'desaprovar' };
+    const labels = { approve: 'aprovar', paid: 'marcar como pagas', return: 'devolver', unapprove: 'desaprovar' };
     if (!window.confirm(`Deseja ${labels[action]} ${selected.length} solicitação(ões)?`)) return;
     setBulkBusy(true);
     try {
-      if (action === 'paid') await onBulkMarkPaid?.(selected);
-      else { const handler = action === 'approve' ? onApprove : action === 'return' ? onReturn : onUnapprove; for (const purchase of selected) await handler?.(purchase); }
-      setSelectedIds(new Set()); toast.success(`${selected.length} solicitação(ões) processada(s).`);
-    } catch (error) { toast.error(error?.message || 'Não foi possível concluir a alteração em lote.'); }
-    finally { setBulkBusy(false); }
+      if (action === 'approve' || action === 'paid') {
+        await onBulkAction?.(selected, action);
+      } else {
+        const handler = action === 'approve' ? onApprove : action === 'return' ? onReturn : onUnapprove;
+        for (const purchase of selected) await handler?.(purchase);
+      }
+      setSelectedIds(new Set());
+      toast.success(`${selected.length} solicitação(ões) atualizada(s).`);
+    } catch (error) {
+      toast.error(error?.message || 'Não foi possível concluir a alteração em bloco.');
+    } finally {
+      setBulkBusy(false);
+    }
   }
+
   const sharedProps = { rubricaById, isCoordenador, podeAprovar, currentUser, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onAccess, onCentroUpdated, onCentroCustoSaved, sendingNotif, handleSendNotification, selectedIds, onToggleSelected: toggleSelected, onToggleAll: toggleAll };
 
   return (
@@ -649,7 +717,7 @@ export default function TabelaSolicitacoes({ purchases, rubricas, attachmentByPu
         <div className="sticky top-2 z-40 flex flex-wrap items-center gap-2 rounded-xl border border-blue-200 bg-white p-3 shadow-lg">
           <span className="mr-2 text-sm font-semibold text-blue-900">{selected.length} selecionada(s)</span>
           <button type="button" disabled={bulkBusy} onClick={() => runBulk('approve')} className="rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Aprovar</button>
-          <button type="button" disabled={bulkBusy} onClick={() => runBulk('paid')} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Marcar como pago</button>
+          <button type="button" disabled={bulkBusy} onClick={() => runBulk('paid')} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Marcar como pagas</button>
           <button type="button" disabled={bulkBusy} onClick={() => runBulk('return')} className="rounded-lg bg-amber-500 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Devolver</button>
           <button type="button" disabled={bulkBusy} onClick={() => runBulk('unapprove')} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Desaprovar</button>
           <button type="button" disabled={bulkBusy} onClick={() => setSelectedIds(new Set())} className="ml-auto rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 disabled:opacity-50">Limpar seleção</button>

@@ -71,6 +71,7 @@ import BackupDriveTab from '@/components/compras/BackupDriveTab';
 import DashboardCompletoIA from '@/components/compras/DashboardCompletoIA';
 import PainelAuditoriaIASolicitacoes from '@/components/compras/PainelAuditoriaIASolicitacoes';
 import PainelSincronizacaoDriveNFs from '@/components/compras/PainelSincronizacaoDriveNFs';
+import TratarSolicitacoesButton from '@/components/compras/TratarSolicitacoesButton';
 import CorrigirCentroCustoIAButton from '@/components/compras/CorrigirCentroCustoIAButton';
 import PainelAuditoriaValoresNF from '@/components/compras/PainelAuditoriaValoresNF';
 import { isCoordGeral } from '@/components/auth/permissions';
@@ -89,16 +90,6 @@ const STATUS_CONFIG = {
 
 const STATUS_APROVADOS = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
 const STATUS_ELEGIVEIS_PAGAMENTO = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
-const STATUS_FILTER_OPTIONS = [
-  { value: 'all', label: 'Todos os status' },
-  { value: 'AGUARDANDO_APROVACAO', label: 'Aguardando aprovação' },
-  { value: 'AGUARDANDO_PAGAMENTO', label: 'Aguardando pagamento' },
-  { value: 'RASCUNHO', label: 'Rascunho' },
-  { value: 'DEVOLVIDO', label: 'Devolvido' },
-  { value: 'RECUSADO', label: 'Reprovado' },
-  { value: 'CANCELADO', label: 'Cancelado' },
-  { value: 'PAGO', label: 'Pago' }
-];
 
 function toNumber(value) {
   const n = Number(value ?? 0);
@@ -283,13 +274,6 @@ function ComprasInner() {
   const [vinculandoNatureza, setVinculandoNatureza] = useState(false);
   const [dashboardIAOpen, setDashboardIAOpen] = useState(false);
   const [filters, setFilters] = useState({ status: 'all', meta_id: 'all', search: '', rubrica_id: 'all', inconsistencias: 'all', centro_custo: 'all', data_inicio: '', data_fim: '' });
-  // Links de e-mail podem abrir diretamente a fila de pendências.
-  useEffect(() => {
-    if (new URLSearchParams(window.location.search).get('filtro') !== 'pendentes') return;
-    setTab('lista');
-    setFilters((f) => ({ ...f, status: 'all', data_inicio: '2026-02-01', data_fim: '', _pendentes_fev: true }));
-  }, []);
-
   const queryClient = useQueryClient();
   const autoRecalcRan = React.useRef(false);
   // Trava de campo centro_custo: Map<purchaseId, { value: string, expiresAt: number }>
@@ -327,8 +311,8 @@ function ComprasInner() {
     return () => {mounted = false;};
   }, []);
 
-  const isCoordenador = ['admin', 'ADMIN', 'Administrador', 'ADMINISTRADOR', 'COORDENADOR', 'COORD_COMUNICACAO', 'COORD_ADMINISTRATIVA', 'COORD_PRODUCAO'].includes(currentUser?.role);
-  const isAdmin = ['admin', 'ADMIN', 'Administrador', 'ADMINISTRADOR'].includes(currentUser?.role);
+  const isCoordenador = ['admin', 'ADMIN', 'COORDENADOR', 'COORD_COMUNICACAO', 'COORD_ADMINISTRATIVA', 'COORD_PRODUCAO'].includes(currentUser?.role);
+  const isAdmin = ['admin', 'ADMIN'].includes(currentUser?.role);
 
   // Buscar museu vinculado do usuário (TeamMember) — usado para filtrar solicitações de não-coordenadores
   const { data: userTeamMember } = useQuery({
@@ -541,11 +525,8 @@ function ComprasInner() {
       if (!STATUS_PENDENTES.has(st)) return false;
     }
 
-    const normalizedStatus = normalizeStatus(p.status);
-    const matchStatus = filters.status === 'all' ||
-      (filters.status === 'AGUARDANDO_APROVACAO' && normalizedStatus === 'SOLICITADO') ||
-      (filters.status === 'AGUARDANDO_PAGAMENTO' && STATUS_APROVADOS.has(normalizedStatus) && normalizedStatus !== 'PAGO') ||
-      normalizedStatus === filters.status;
+    const matchStatus =
+    filters.status === 'all' || normalizeStatus(p.status) === filters.status;
 
     let matchMeta = filters.meta_id === 'all';
 
@@ -899,32 +880,50 @@ function ComprasInner() {
     }
   }
 
-  async function handleBulkMarkPaid(selectedPurchases) {
-    const eligible = (selectedPurchases || []).filter((purchase) =>
-      STATUS_ELEGIVEIS_PAGAMENTO.has(normalizeStatus(purchase.status))
-    );
-    if (!eligible.length) {
-      throw new Error('Nenhuma solicitação selecionada está apta para pagamento.');
-    }
-
+  async function handleBulkAction(selectedPurchases, action) {
+    const backendAction = action === 'approve' ? 'aprovar' : 'marcar_pago';
+    const expectedStatus = action === 'approve' ? 'APROVADO_COORD' : 'PAGO';
+    const selected = selectedPurchases || [];
+    if (!selected.length) throw new Error('Nenhuma solicitação selecionada.');
     const failures = [];
-    for (const purchase of eligible) {
+    const updatedPurchases = [];
+    for (const purchase of selected) {
       try {
+        if (action === 'paid' && !STATUS_ELEGIVEIS_PAGAMENTO.has(normalizeStatus(purchase.status))) {
+          throw new Error('status não permite marcar como paga');
+        }
+        if (action === 'approve' && (!purchase.meta_id || !purchase.rubrica_id)) {
+          throw new Error('meta ou rubrica não preenchida');
+        }
         const response = await base44.functions.invoke('purchaseActions', {
           purchaseId: purchase.id,
-          action: 'marcar_pago'
+          action: backendAction
         });
         const result = response?.data || response;
-        if (result?.success === false) throw new Error(result.error || 'Falha ao marcar como paga.');
+        if (!result?.success || !result?.purchase) {
+          throw new Error(result?.error || 'O servidor não confirmou a alteração.');
+        }
+        if (normalizeStatus(result.purchase.status) !== expectedStatus) {
+          throw new Error(`status retornado: ${result.purchase.status || 'vazio'}`);
+        }
+        updatedPurchases.push(result.purchase);
       } catch (error) {
         failures.push(`${purchase.nf_numero || purchase.id}: ${error?.message || 'erro'}`);
       }
     }
 
+    if (updatedPurchases.length) {
+      const updatedById = new Map(updatedPurchases.map((purchase) => [purchase.id, purchase]));
+      queryClient.setQueryData(['purchases', isCoordenador, currentUser?.email, userMuseu], (old) => {
+        if (!Array.isArray(old)) return old;
+        return old.map((item) => updatedById.has(item.id) ? { ...item, ...updatedById.get(item.id) } : item);
+      });
+    }
     await refreshFinanceiroCompleto();
     if (failures.length) {
-      throw new Error(`${eligible.length - failures.length} concluída(s); ${failures.length} falharam. ${failures.slice(0, 3).join(' | ')}`);
+      throw new Error(`${updatedPurchases.length} concluída(s); ${failures.length} falharam. ${failures.slice(0, 3).join(' | ')}`);
     }
+    return { updated: updatedPurchases.length };
   }
 
   async function handleDeletePurchase(purchaseId) {
@@ -1173,6 +1172,63 @@ function ComprasInner() {
 
         {tab === 'lista' &&
         <div>
+            {/* Atalho rápido: pendentes desde fevereiro */}
+            <div className="mb-3 flex flex-wrap gap-2 items-center">
+              <button
+                type="button"
+                onClick={() => setFilters(f => ({
+                  ...f,
+                  status: 'all',
+                  data_inicio: '2026-02-01',
+                  data_fim: '',
+                  _pendentes_fev: true,
+                }))}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${
+                  filters._pendentes_fev
+                    ? 'border-amber-500 bg-amber-500 text-white shadow'
+                    : 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100'
+                }`}
+              >
+                <AlertTriangle className="h-3.5 w-3.5" />
+                Pendentes
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilters(f => ({
+                  ...f,
+                  status: 'SOLICITADO',
+                  data_inicio: '2026-02-01',
+                  data_fim: '',
+                  _pendentes_fev: false,
+                }))}
+                className="inline-flex items-center gap-1.5 rounded-full border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-800 hover:bg-blue-100 transition-all"
+              >
+                🕐 Aguardando aprovação
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilters(f => ({
+                  ...f,
+                  status: 'APROVADO_COORD',
+                  data_inicio: '2026-02-01',
+                  data_fim: '',
+                  _pendentes_fev: false,
+                }))}
+                className="inline-flex items-center gap-1.5 rounded-full border border-green-300 bg-green-50 px-3 py-1.5 text-xs font-medium text-green-800 hover:bg-green-100 transition-all"
+              >
+                💳 Aprovados sem pagamento
+              </button>
+              {(filters.data_inicio || filters._pendentes_fev) && (
+                <button
+                  type="button"
+                  onClick={() => setFilters(f => ({ ...f, status: 'all', data_inicio: '', data_fim: '', _pendentes_fev: false }))}
+                  className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-red-500 transition-colors"
+                >
+                  <X className="h-3.5 w-3.5" /> Limpar filtros rápidos
+                </button>
+              )}
+            </div>
+
             <div className="mb-4 flex flex-wrap gap-2">
               <div className="relative min-w-48 flex-1">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
@@ -1185,17 +1241,6 @@ function ComprasInner() {
                 } />
               
               </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setFilters((current) => ({ ...current }));
-                  toast.success('Filtros aplicados.');
-                }}
-                className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-black"
-              >
-                Aplicar filtros
-              </button>
 
               {!isMobile &&
             <>
@@ -1234,7 +1279,13 @@ function ComprasInner() {
                 setFilters((f) => ({ ...f, status: v }))
                 }
                 placeholder="Status"
-                items={STATUS_FILTER_OPTIONS} />
+                items={[
+                { value: 'all', label: 'Todos os status' },
+                ...Object.entries(STATUS_CONFIG).map(([k, v]) => ({
+                  value: k,
+                  label: v.label
+                }))]
+                } />
               
 
                   <NativeSelect
@@ -1297,9 +1348,10 @@ function ComprasInner() {
                     </SelectTrigger>
 
                     <SelectContent>
-                      {STATUS_FILTER_OPTIONS.map((option) =>
-                  <SelectItem key={option.value} value={option.value}>
-                          {option.label}
+                      <SelectItem value="all">Todos os status</SelectItem>
+                      {Object.entries(STATUS_CONFIG).map(([k, v]) =>
+                  <SelectItem key={k} value={k}>
+                          {v.label}
                         </SelectItem>
                   )}
                     </SelectContent>
@@ -1353,6 +1405,9 @@ function ComprasInner() {
                   Dashboard Completo (IA)
                 </button>
               )}
+              {isCoordGeral(currentUser) && (
+                <TratarSolicitacoesButton onDone={refreshFinanceiroCompleto} />
+              )}
             </div>
 
             {filtered.length === 0 ?
@@ -1376,18 +1431,8 @@ function ComprasInner() {
             onApprove={handleApprovePurchase}
             onReturn={handleReturnPurchase}
             onUnapprove={handleUnapprovePurchase}
-            onMarkPaid={async (purchase) => {
-              if (String(purchase?.status || '').toUpperCase() !== 'PAGO' && !purchase?.pago) { setPaymentPurchase(purchase); return; }
-              if (!window.confirm('Retornar esta solicitação para aguardando pagamento? A nota fiscal e os documentos serão preservados.')) return;
-              try {
-                const response = await fetch(`/api/purchase-requests/${encodeURIComponent(purchase.id)}/return-to-awaiting-payment`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ motivo: 'Retorno solicitado na Gestão de Compras' }) });
-                const data = await response.json().catch(() => ({}));
-                if (!response.ok) throw new Error(data.error || 'Falha ao retornar solicitação');
-                toast.success('Solicitação retornada para aguardando pagamento.');
-                window.location.reload();
-              } catch (error) { toast.error(error.message || 'Falha ao retornar solicitação'); }
-            }}
-            onBulkMarkPaid={handleBulkMarkPaid}
+            onMarkPaid={(purchase) => setPaymentPurchase(purchase)}
+            onBulkAction={handleBulkAction}
             onAccess={(purchase) => {
               setEditingPurchase({ ...purchase });
               setShowForm(true);
@@ -1718,7 +1763,6 @@ function ComprasInner() {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-900">Gerenciar Lotes de Notificações</h3>
                 <div className="flex gap-2">
-              <ResendNotificationBatch batchSlot="agora" onSuccess={refreshFinanceiroCompleto} />
                   <ResendNotificationBatch batchSlot="manha" onSuccess={refreshFinanceiroCompleto} />
                   <ResendNotificationBatch batchSlot="tarde" onSuccess={refreshFinanceiroCompleto} />
                 </div>
