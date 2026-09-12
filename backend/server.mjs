@@ -411,7 +411,7 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
       if (!intakeId || !fileUrl) return res.status(400).json({ error:'invalid_invoice_input', message:'intake_id e file_url são obrigatórios' });
       if (!apiKey) return res.status(503).json({ error:'openai_not_configured', message:'OPENAI_API_KEY não configurada' });
       const absoluteFileUrl = /^https?:\/\//i.test(fileUrl) ? fileUrl : `${req.protocol}://${req.get('host')}${fileUrl.startsWith('/') ? '' : '/'}${fileUrl}`;
-      const prompt = `Leia integralmente esta nota fiscal. Retorne somente JSON com: nf_numero, nf_valor_total (número), nf_data_emissao (YYYY-MM-DD), nf_horario_emissao (HH:MM:SS ou vazio), competencia, nf_emitente_nome, nf_emitente_cpf_cnpj, municipio, descricao_servico, centro_custo_sugerido (somente GERAL, MHAB, MIS ou MUMO), rubrica_nome_sugerida e meta_sugerida. Não use o nome do arquivo como substituto para valor ou data; extraia do conteúdo fiscal.`;
+      const prompt = `Leia integralmente esta nota fiscal. Retorne somente JSON com: nf_numero, nf_valor_total (número), nf_data_emissao (YYYY-MM-DD), nf_horario_emissao (HH:MM:SS ou vazio), competencia, nf_emitente_nome, nf_emitente_cpf_cnpj, municipio, descricao_servico, centro_custo_sugerido (somente Atuação Geral, MHAB, MIS, MUMO, Noturno 2026 ou Noturno Pampulha), rubrica_nome_sugerida e meta_sugerida. Regra obrigatória: qualquer despesa da 11ª edição do evento Noturno nos Museus de 2026 é Noturno 2026, salvo quando o texto mencionar expressamente Noturno Pampulha. Não use o nome do arquivo como substituto para valor ou data; extraia do conteúdo fiscal.`;
       const aiResponse = await fetch('https://api.openai.com/v1/responses', {
         method:'POST',
         headers:{ Authorization:`Bearer ${apiKey}`, 'Content-Type':'application/json' },
@@ -427,6 +427,10 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
       const envelope = JSON.parse(raw);
       const outputText = envelope.output_text || envelope.output?.flatMap(item => item.content || []).find(item => item.type === 'output_text')?.text || '';
       const result = JSON.parse(outputText);
+      const fiscalText = [result.descricao_servico, result.rubrica_nome_sugerida, outputText].filter(Boolean).join(' ').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toUpperCase();
+      if (/NOTURNO\s+(NOS\s+)?MUSEUS/.test(fiscalText) && /(2026|11A|11ª|11\s*EDICAO)/.test(fiscalText)) {
+        result.centro_custo_sugerido = /NOTURNO\s+PAMPULHA/.test(fiscalText) ? 'Noturno Pampulha' : 'Noturno 2026';
+      }
       const current = await pool.query('SELECT resultado_ia FROM document_intakes WHERE id=$1 LIMIT 1',[intakeId]);
       if (!current.rowCount) return res.status(404).json({ error:'intake_not_found' });
       const merged = { ...(current.rows[0].resultado_ia || {}), ...result, analisado_em:new Date().toISOString(), provedor_ia:'openai' };
