@@ -139,7 +139,7 @@ async function analyzePdf(buffer, filename) {
     for (let attempt=1;attempt<=3;attempt++) {
       const prompt=`Faça OCR integral do documento, inclusive cabeçalho, rodapé e QR code. Classifique tipo_documento estritamente como NOTA_FISCAL, COMPROVANTE_PAGAMENTO ou OUTRO. Contratos, relatórios, fotos e recibos que não comprovem pagamento são OUTRO. A data fiscal é obrigatória para nota. Em comprovante, extraia favorecido e valor pago. Tentativa ${attempt}/3. Retorne somente JSON: {"tipo_documento":"","nf_numero":"","nf_valor_total":0,"nf_data_emissao":"YYYY-MM-DD","nf_emitente_nome":"","nf_emitente_cpf_cnpj":"","descricao_servico":""}. Use o conteúdo, nunca o nome do arquivo.`;
       const rr=await fetchWithRetry('https://api.openai.com/v1/responses',{ method:'POST',headers:{ Authorization:`Bearer ${process.env.OPENAI_API_KEY}`,'Content-Type':'application/json' },body:JSON.stringify({ model:process.env.OPENAI_INVOICE_MODEL || 'gpt-4.1-mini', input:[{ role:'user',content:[{ type:'input_text',text:prompt },{ type:'input_file',file_id:file.id }] }], text:{ format:{ type:'json_object' } } }) },'openai_analysis');
-      if (!rr.ok) throw new Error(`OpenAI response ${rr.status}`); const env=await rr.json(); const text=env.output_text || env.output?.flatMap(x=>x.content||[]).find(x=>x.type==='output_text')?.text || '{}'; result={ ...result,...JSON.parse(text) };
+      if (!rr.ok) { const errorText=await rr.text(); if (rr.status===400 && /badly formatted|corrupted|invalid_file/i.test(errorText)) { console.warn('DRIVE_RECONCILE_IGNORED_INVALID_PDF', filename); return {tipo_documento:'OUTRO'}; } throw new Error(`OpenAI response ${rr.status}: ${errorText.slice(0, 600)}`); } const env=await rr.json(); const text=env.output_text || env.output?.flatMap(x=>x.content||[]).find(x=>x.type==='output_text')?.text || '{}'; result={ ...result,...JSON.parse(text) };
       if (result.tipo_documento==='COMPROVANTE_PAGAMENTO' && Number(result.nf_valor_total)>0 && result.nf_emitente_cpf_cnpj) return result;
       if (result.tipo_documento==='OUTRO') return result;
       if (result.nf_data_emissao && result.nf_numero && Number(result.nf_valor_total)>0 && result.nf_emitente_cpf_cnpj) return result;
@@ -290,9 +290,9 @@ async function run() {
       }
       if (meta.tipo_documento==='OUTRO') { ignored++; continue; }
       const mapped={ cnpj:meta.cnpj || meta.nf_emitente_cpf_cnpj,cpf:meta.cpf,numero:meta.numero || meta.nf_numero,valor:meta.valor || meta.nf_valor_total,data:meta.data || meta.nf_data_emissao };
-      const isProof=meta.tipo_documento==='COMPROVANTE_PAGAMENTO'; let parent=null;
+      const isProof=meta.tipo_documento==='COMPROVANTE_PAGAMENTO'||/\b(COMP|COMPROVANTE|PAGAMENTO|PIX|TED)\b/i.test(f.name); let parent=null;
       if (isProof) { const candidates=invoicesByPartyValue.get(`${digits(mapped.cnpj||mapped.cpf)}|${Number(mapped.valor||0).toFixed(2)}`)||[]; if(candidates.length===1){ parent=candidates[0]; mapped.data=parent.data; mapped.numero=(parent.resultado_ia||{}).nf_numero; } }
-      if (!mapped.data) throw new Error(isProof?'Comprovante sem NF correspondente única':'Data de emissão fiscal ausente após leitura integral');
+      if (!mapped.data) { if (isProof) { ignored++; console.warn('DRIVE_RECONCILE_IGNORED_PROOF_WITHOUT_UNIQUE_NF', f.path); continue; } throw new Error('Data de emissão fiscal ausente após 3 leituras OCR'); }
       if (ONLY_MONTH) { const m=String(mapped.data).slice(0,7).match(/^(\d{4})-(\d{2})$/); if(!m || `${m[2]}-${m[1]}`!==ONLY_MONTH) continue; }
       const key=mapped.numero ? fiscalKey(mapped) : ''; const duplicate=!isProof && key && knownPdfKeys.has(key);
       const invoiceName=parent?.file_name_final || parent?.file_name_original || ''; const finalName=isProof&&invoiceName ? `${invoiceName.replace(/\.(pdf|xml)$/i,'')} - COMP.pdf` : standardName({ ...meta,...mapped },f.name); const disk=`${Date.now()}-${f.id}-${finalName}`; fs.writeFileSync(path.join(uploadDir,disk),buffer);
