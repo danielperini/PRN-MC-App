@@ -161,7 +161,7 @@ export default function RecalcularTotaisButton({ onDone }) {
         nfsAtualizadas += lote.length;
       }
 
-      const principais = Array.from(keyMap.values()).filter((p) => p.incluir_no_somatorio !== false || p.duplicada_financeira === true);
+      const principais = Array.from(keyMap.values()).filter((p) => p.incluir_no_somatorio !== false p.incluir_no_somatorio !== false || p.duplicada_financeira === truep.incluir_no_somatorio !== false || p.duplicada_financeira === true p.duplicada_financeira !== true);
       const utilizadoPorRubrica = new Map();
       for (const purchase of principais) {
         const rubricaId = getRubricaId(purchase);
