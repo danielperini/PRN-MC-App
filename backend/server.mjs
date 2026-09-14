@@ -476,6 +476,13 @@ app.post('/api/apps/:appId/entities/:entityName', requireSession, async (req,res
   } catch(e) { console.error('ENTITY_POST_ERROR:',e); res.status(500).json({error:'entity_create_failed',message:e.message}); }
 });
 
+const FINANCIAL_PURCHASE_FIELDS = new Set(['status','status_pagamento','pago','rubrica_id','budgetline_id','valor_aprovado','nf_valor_total','valor_total','valor_solicitado']);
+
+async function recalculateRubricaBalances(db = pool) {
+  const result = await db.query("WITH totals AS (SELECT rubrica_id::text AS rubrica_id, ROUND(SUM(COALESCE(valor_aprovado,nf_valor_total,valor_total,valor_solicitado,0)::numeric),2) AS utilizado FROM purchase_requests WHERE rubrica_id IS NOT NULL AND UPPER(COALESCE(status,'')) IN ('APROVADO','APROVADO_COORD','APROVADO_ADMIN','PAGO') GROUP BY rubrica_id), calculated AS (SELECT r2.id,COALESCE(t.utilizado,0) AS utilizado,COALESCE(r2.valor_rubrica,r2.valor_total,0) AS previsto FROM rubricas r2 LEFT JOIN totals t ON t.rubrica_id=r2.id::text) UPDATE rubricas r SET valor_utilizado=c.utilizado,saldo=c.previsto-c.utilizado,saldo_real=c.previsto-c.utilizado,percentual_utilizado=CASE WHEN c.previsto>0 THEN ROUND((c.utilizado/c.previsto)*100,2) ELSE 0 END,updated_at=NOW() FROM calculated c WHERE r.id=c.id RETURNING r.id");
+  console.log('RUBRICA_BALANCES_RECALCULATED', JSON.stringify({updated:result.rowCount}));
+  return result.rowCount;
+}
 async function updateEntity(req,res) {
   let table=null, entries=[], currentField=null;
   try {
@@ -491,7 +498,8 @@ async function updateEntity(req,res) {
     const vals=entries.map(([,v])=>v); vals.push(req.params.id);
     const sets=entries.map(([k],i)=>`${quoteIdentifier(k)}=$${i+1}`).join(',');
     const r=await pool.query(`UPDATE ${quoteIdentifier(table)} SET ${sets} WHERE "id"=$${vals.length} RETURNING *`,vals);
-    if(!r.rowCount) return res.status(404).json({error:'entity_not_found'}); res.json(r.rows[0]);
+    if(!r.rowCount) return res.status(404).json({error:'entity_not_found'}); if(req.params.entityName==='PurchaseRequest' && entries.some(([field])=>FINANCIAL_PURCHASE_FIELDS.has(field))) await recalculateRubricaBalances();
+    res.json(r.rows[0]);
   } catch(e) {
     const bodyKeys=Object.keys(req.body||{});
     const parameter=String(e.where||'').match(/parameter \$(\d+)/i);
@@ -695,7 +703,8 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
         values.push(purchaseId);
         const setSql = entries.map(([field],index) => `${quoteIdentifier(field)}=$${index + 1}`).join(',');
         const updatedResult = await client.query(`UPDATE purchase_requests SET ${setSql} WHERE id=$${values.length} RETURNING *`,values);
-        await client.query('COMMIT');
+        await recalculateRubricaBalances(client);
+    await client.query('COMMIT');
         console.log('PURCHASE_ACTION_OK',JSON.stringify({ purchase_id:purchaseId, action, status:updatedResult.rows[0]?.status }));
         return res.status(200).json({ success:true, purchase:updatedResult.rows[0] });
       } catch (error) {
