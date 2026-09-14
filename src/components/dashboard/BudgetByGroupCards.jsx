@@ -135,7 +135,7 @@ function GrupoCell({ row, allGroups, onSave }) {
         <button
           type="button"
           onClick={handleEdit}
-          className="invisible shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground group-hover:visible"
+          className="shrink-0 rounded p-0.5 text-primary hover:bg-muted hover:text-foreground"
           title="Mover para outro grupo"
         >
           <Pencil className="h-3 w-3" />
@@ -329,7 +329,7 @@ function DrilldownModal({ open, onOpenChange, title, description, rows = [], tot
 
         <div className="text-xs text-muted-foreground">
           Fórmula: utilizado ÷ previsto × 100. Saldo = previsto − utilizado. Fonte: rubricas ativas do 3º Aditivo.
-          {isCoordenador && <span className="ml-2 text-primary">· Passe o mouse sobre o grupo para mover a rubrica.</span>}
+          {isCoordenador && <span className="ml-2 text-primary">· Use o ícone de edição ao lado de cada rubrica para vinculá-la a outro grupo.</span>}
         </div>
       </DialogContent>
     </Dialog>
