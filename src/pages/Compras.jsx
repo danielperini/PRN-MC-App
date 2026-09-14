@@ -1178,24 +1178,7 @@ function ComprasInner() {
         <div>
             {/* Atalho rápido: pendentes desde fevereiro */}
             <div className="mb-3 flex flex-wrap gap-2 items-center">
-              <button
-                type="button"
-                onClick={() => setFilters(f => ({
-                  ...f,
-                  status: 'all',
-                  data_inicio: '2026-02-01',
-                  data_fim: '',
-                  _pendentes_fev: true,
-                }))}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${
-                  filters._pendentes_fev
-                    ? 'border-amber-500 bg-amber-500 text-white shadow'
-                    : 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100'
-                }`}
-              >
-                <AlertTriangle className="h-3.5 w-3.5" />
-                Pendentes
-              </button>
+              
               <button
                 type="button"
                 onClick={() => setFilters(f => ({
@@ -1220,7 +1203,7 @@ function ComprasInner() {
                 }))}
                 className="inline-flex items-center gap-1.5 rounded-full border border-green-300 bg-green-50 px-3 py-1.5 text-xs font-medium text-green-800 hover:bg-green-100 transition-all"
               >
-                💳 Aprovados sem pagamento
+                💳 Aguardando confirma��o de pagamento
               </button>
               {(filters.data_inicio || filters._pendentes_fev) && (
                 <button
