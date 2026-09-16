@@ -20,6 +20,16 @@ const comparable = (v) => clean(v).toUpperCase().replace(/\b(MUSEUS?|CENTRO|NOTA
 const digits = (v) => String(v || '').replace(/\D/g, '');
 const tag = (xml, name) => (xml.match(new RegExp(`<(?:\\w+:)?${name}(?:\\s[^>]*)?>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?</(?:\\w+:)?${name}>`, 'i'))?.[1] || '').trim();
 const fiscalKey = (m) => [digits(m.cnpj || m.cpf), String(m.numero || '').replace(/^0+/, ''), String(Number(m.valor || 0).toFixed(2)), String(m.data || '').slice(0, 10)].join('|');
+// This is deliberately stricter than fiscalKey.  A partial OCR result must
+// never cause an automatic deletion: all four fiscal identifiers are required.
+function exactFiscalKey(m) {
+  const taxId=digits(m.cnpj || m.cpf);
+  const number=String(m.numero || '').replace(/^0+/, '').trim();
+  const amount=Number(m.valor || 0);
+  const date=String(m.data || '').slice(0,10);
+  if (!taxId || !number || !Number.isFinite(amount) || amount <= 0 || !/^20\d{2}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/.test(date)) return null;
+  return fiscalKey({ cnpj:taxId, numero:number, valor:amount, data:date });
+}
 const brl = (v) => Number(v || 0).toLocaleString('pt-BR',{ minimumFractionDigits:2,maximumFractionDigits:2 });
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 async function mapLimit(items,limit,worker) {
@@ -157,7 +167,15 @@ function saveAnalysisCache(cache) {
 async function removeExactDuplicates() {
   const r=await pool.query(`SELECT id,tipo_detectado,resultado_ia,entidade_destino_id,attachment_id,revisado_pelo_usuario,created_at FROM document_intakes WHERE COALESCE(status_registro,'')<>'DELETADO'`);
   const groups=new Map();
-  for(const row of r.rows){ const a=row.resultado_ia||{}; if(!a.nf_numero||!a.nf_emitente_cpf_cnpj||!a.nf_data_emissao||!Number(a.nf_valor_total)) continue; const k=`${row.tipo_detectado}|${fiscalKey({cnpj:a.nf_emitente_cpf_cnpj,numero:a.nf_numero,valor:a.nf_valor_total,data:a.nf_data_emissao})}`; const list=groups.get(k)||[]; list.push(row); groups.set(k,list); }
+  for(const row of r.rows){
+    const a=row.resultado_ia||{};
+    const identity=exactFiscalKey({cnpj:a.nf_emitente_cpf_cnpj,numero:a.nf_numero,valor:a.nf_valor_total,data:a.nf_data_emissao});
+    // PDF, XML and payment proof are separate originals.  Only equal types
+    // with an equal complete fiscal identity may be auto-removed.
+    if(!identity || !row.tipo_detectado) continue;
+    const k=`${row.tipo_detectado}|${identity}`;
+    const list=groups.get(k)||[]; list.push(row); groups.set(k,list);
+  }
   let removed=0;
   for(const list of groups.values()){ if(list.length<2) continue; list.sort((a,b)=>((b.entidade_destino_id?100:0)+(b.attachment_id?50:0)+(b.revisado_pelo_usuario?20:0))-((a.entidade_destino_id?100:0)+(a.attachment_id?50:0)+(a.revisado_pelo_usuario?20:0)) || Number(a.id)-Number(b.id)); const discard=list.slice(1).map(x=>x.id); if(discard.length){ await pool.query(`UPDATE document_intakes SET status_registro='DELETADO',status_processamento='DUPLICADO_REMOVIDO',updated_at=NOW() WHERE id=ANY($1::bigint[])`,[discard]); removed+=discard.length; } }
   return removed;
@@ -172,7 +190,7 @@ async function prepareXmlStaging(sourceEntries,targetEntries,runId) {
   )`);
   await pool.query(`DELETE FROM drive_reconcile_xml_staging WHERE run_id=$1`,[runId]);
   for (const entry of [...sourceEntries.map(x=>({ ...x,scope:'SOURCE' })),...targetEntries.map(x=>({ ...x,scope:'TARGET' }))]) {
-    const m=entry.meta; const key=m.numero ? fiscalKey(m) : null;
+    const m=entry.meta; const key=exactFiscalKey(m);
     await pool.query(`INSERT INTO drive_reconcile_xml_staging
       (run_id,source_scope,drive_file_id,file_name,drive_path,emission_date,amount,tax_id,invoice_number,fiscal_key)
       VALUES ($1,$2,$3,$4,$5,NULLIF($6,'')::date,$7,$8,$9,$10)
@@ -231,8 +249,21 @@ async function run() {
   const uniqueXmlIds=new Set(uniqueXmlRows.rows.map(x=>String(x.drive_file_id)));
   xmlIndex=sourceXmlEntries.filter(x=>uniqueXmlIds.has(String(x.file.id)));
   const existing=await pool.query(`SELECT id,file_name_original,file_name_final,tipo_detectado,arquivo_original_url,resultado_ia,status_processamento,nf_xml_intake_id,nf_xml_url,grupo_status,entidade_destino_id FROM document_intakes WHERE COALESCE(status_registro,'')<>'DELETADO'`);
-  const knownSourceIds=new Set(); const invoicesByPartyValue=new Map(); const knownPdfKeys=new Set(); const existingXmlByKey=new Map(); const existingPdfs=[];
-  for (const row of existing.rows) { const a=row.resultado_ia || {}; if(a.source_drive_file_id) knownSourceIds.add(String(a.source_drive_file_id)); const k=fiscalKey({ cnpj:a.nf_emitente_cpf_cnpj,numero:a.nf_numero,valor:a.nf_valor_total,data:a.nf_data_emissao }); if(String(row.tipo_detectado||'').includes('PDF')) existingPdfs.push(row); if (a.nf_numero) { knownKeys.add(k); if(String(row.tipo_detectado||'').includes('PDF')) knownPdfKeys.add(k); if(String(row.tipo_detectado||'').includes('XML')&&!existingXmlByKey.has(k)) existingXmlByKey.set(k,row); const pv=`${digits(a.nf_emitente_cpf_cnpj)}|${Number(a.nf_valor_total||0).toFixed(2)}`; const list=invoicesByPartyValue.get(pv)||[]; list.push({ ...row,key:k,data:a.nf_data_emissao }); invoicesByPartyValue.set(pv,list); } }
+  const knownSourceIds=new Set(); const invoicesByPartyValue=new Map(); const knownDocumentKeys=new Map(); const existingXmlByKey=new Map(); const existingPdfs=[];
+  for (const row of existing.rows) {
+    const a=row.resultado_ia || {};
+    if(a.source_drive_file_id) knownSourceIds.add(String(a.source_drive_file_id));
+    const k=exactFiscalKey({ cnpj:a.nf_emitente_cpf_cnpj,numero:a.nf_numero,valor:a.nf_valor_total,data:a.nf_data_emissao });
+    const type=String(row.tipo_detectado||'');
+    if(type.includes('PDF')) existingPdfs.push(row);
+    if (k) {
+      knownKeys.add(k);
+      const byType=knownDocumentKeys.get(type)||new Set(); byType.add(k); knownDocumentKeys.set(type,byType);
+      if(type.includes('XML')&&!existingXmlByKey.has(k)) existingXmlByKey.set(k,row);
+      const pv=`${digits(a.nf_emitente_cpf_cnpj)}|${Number(a.nf_valor_total||0).toFixed(2)}`;
+      const list=invoicesByPartyValue.get(pv)||[]; list.push({ ...row,key:k,data:a.nf_data_emissao }); invoicesByPartyValue.set(pv,list);
+    }
+  }
   let orphanLinks=0;
   for(const pdf of existingPdfs.filter(x=>!x.nf_xml_intake_id&&x.grupo_status!=='COMPLETO')) {
     const probe={name:pdf.file_name_final||pdf.file_name_original||'',path:pdf.file_name_original||''};
@@ -294,14 +325,21 @@ async function run() {
       if (isProof) { const candidates=invoicesByPartyValue.get(`${digits(mapped.cnpj||mapped.cpf)}|${Number(mapped.valor||0).toFixed(2)}`)||[]; if(candidates.length===1){ parent=candidates[0]; mapped.data=parent.data; mapped.numero=(parent.resultado_ia||{}).nf_numero; } }
       if (!mapped.data) throw new Error(isProof?'Comprovante sem NF correspondente única':'Data de emissão fiscal ausente após leitura integral');
       if (ONLY_MONTH) { const m=String(mapped.data).slice(0,7).match(/^(\d{4})-(\d{2})$/); if(!m || `${m[2]}-${m[1]}`!==ONLY_MONTH) continue; }
-      const key=mapped.numero ? fiscalKey(mapped) : ''; const duplicate=!isProof && key && knownPdfKeys.has(key);
+      const detected=isProof?'COMPROVANTE_PAGAMENTO':'NOTA_FISCAL_PDF';
+      const key=exactFiscalKey(mapped);
+      // Do not use name, folder, supplier similarity or a partial OCR result.
+      // A duplicate is only the same document kind and complete fiscal key.
+      const duplicate=Boolean(key && knownDocumentKeys.get(detected)?.has(key));
       const invoiceName=parent?.file_name_final || parent?.file_name_original || ''; const finalName=isProof&&invoiceName ? `${invoiceName.replace(/\.(pdf|xml)$/i,'')} - COMP.pdf` : standardName({ ...meta,...mapped },f.name); const disk=`${Date.now()}-${f.id}-${finalName}`; fs.writeFileSync(path.join(uploadDir,disk),buffer);
       let backup=null; const folderId=!duplicate ? await monthFolder(drive,mapped.data) : null;
       if (folderId) backup=(await drive.files.copy({ fileId:f.id,requestBody:{ name:finalName,parents:[folderId] },fields:'id,webViewLink',supportsAllDrives:true })).data;
       const ai={ ...meta, nf_numero:mapped.numero || '',nf_valor_total:Number(mapped.valor || 0),nf_data_emissao:String(mapped.data || '').slice(0,10),nf_emitente_nome:meta.fornecedor || meta.nf_emitente_nome || '',nf_emitente_cpf_cnpj:mapped.cnpj || mapped.cpf || '',source_drive_file_id:f.id,source_drive_path:f.path,source_md5:hash,drive_backup_file_id:backup?.id || null,drive_backup_url:backup?.webViewLink || null,duplicate_detected:Boolean(duplicate),duplicate_key:key || null,analisado_em:new Date().toISOString(),provedor_ia:/\.xml$/i.test(f.name)?'xml':(meta.provedor_ia||'openai') };
-      const detected=isProof?'COMPROVANTE_PAGAMENTO':'NOTA_FISCAL_PDF';
       const ins=await pool.query(`INSERT INTO document_intakes (arquivo_original_url,file_name_original,file_name_final,mime_type,status_processamento,status_registro,tipo_detectado,resultado_ia,nf_pdf_intake_id,grupo_status,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,'ATIVO',$6,$7::jsonb,$8,$9,NOW(),NOW()) RETURNING id`,[`/api/files/${encodeURIComponent(disk)}`,f.name,finalName,/\.xml$/i.test(f.name)?'application/xml':'application/pdf',duplicate?'DUPLICADO':'AGUARDANDO_REVISAO',detected,JSON.stringify(ai),parent?.id||null,parent?'COMPLETO':null]);
-      if (!duplicate && key) { knownKeys.add(key); knownPdfKeys.add(key); } if (duplicate) duplicates++; else imported++;
+      if (!duplicate && key) {
+        knownKeys.add(key);
+        const byType=knownDocumentKeys.get(detected)||new Set(); byType.add(key); knownDocumentKeys.set(detected,byType);
+      }
+      if (duplicate) duplicates++; else imported++;
       const pdfId=ins.rows[0].id; const pdfUrl=`/api/files/${encodeURIComponent(disk)}`;
       if (!duplicate && matchedXml && key) {
         const existingXml=existingXmlByKey.get(key); let targetXmlMatch=targetXmlEntries.find(x=>fiscalKey(x.meta)===key);

@@ -196,6 +196,40 @@ function normalizePurchaseFiscalPayload(entityName, body = {}) {
   return next;
 }
 
+function fiscalDuplicateKey(data = {}) {
+  const taxId=String(data.nf_emitente_cpf_cnpj || data.cnpj || data.cpf || '').replace(/\D/g,'');
+  const number=String(data.nf_numero || data.numero || '').replace(/^0+/,'').trim();
+  const amount=Number(data.nf_valor_total ?? data.valor ?? 0);
+  const date=String(data.nf_data_emissao || data.data || '').slice(0,10);
+  // Never decide from a merely similar supplier/name. CNPJ, number, amount and
+  // exact issue date are all mandatory before an intake can be suppressed.
+  if (!taxId || !number || !Number.isFinite(amount) || amount <= 0 || !/^20\d{2}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/.test(date)) return null;
+  return `${taxId}|${number}|${amount.toFixed(2)}|${date}`;
+}
+function intakePriority(row) {
+  return (row.entidade_destino_id ? 100 : 0) + (row.attachment_id ? 50 : 0) + (row.revisado_pelo_usuario ? 20 : 0) - Number(row.id || 0) / 1000000000000;
+}
+async function suppressExactDuplicateIntakes(intakeId) {
+  const rows=(await pool.query(`SELECT id,tipo_detectado,resultado_ia,entidade_destino_id,attachment_id,revisado_pelo_usuario
+    FROM document_intakes WHERE COALESCE(status_registro,'')<>'DELETADO'`)).rows;
+  const current=rows.find(row=>String(row.id)===String(intakeId));
+  if (!current) return { suppressed:false };
+  const identity=fiscalDuplicateKey(current.resultado_ia || {});
+  const type=String(current.tipo_detectado || '');
+  // An XML and its PDF are a pair, not duplicates. Proofs are likewise only
+  // compared to proofs, never to their fiscal invoice.
+  if (!identity || !type) return { suppressed:false };
+  const same=rows.filter(row=>String(row.tipo_detectado || '')===type && fiscalDuplicateKey(row.resultado_ia || {})===identity);
+  if (same.length < 2) return { suppressed:false };
+  same.sort((a,b)=>intakePriority(b)-intakePriority(a));
+  const keep=same[0];
+  const discard=same.slice(1).map(row=>row.id);
+  await pool.query(`UPDATE document_intakes SET status_registro='DELETADO',status_processamento='DUPLICADO_REMOVIDO',updated_at=NOW()
+    WHERE id=ANY($1::bigint[])`,[discard]);
+  console.log('INTAKE_EXACT_DUPLICATES_SUPPRESSED',JSON.stringify({ keep_id:keep.id, discarded_ids:discard, type, fiscal_key:identity }));
+  return { suppressed:discard.map(String).includes(String(intakeId)), keepId:keep.id };
+}
+
 app.post('/api/apps/:appId/entities/:entityName', requireSession, async (req,res) => {
   try {
     const table=entityTable(req.params.entityName); if(!table) return res.status(404).json({error:'entity_not_migrated'});
@@ -214,6 +248,7 @@ app.post('/api/apps/:appId/entities/:entityName', requireSession, async (req,res
     if(!entries.length) return res.status(400).json({error:'empty_entity'});
     const names=entries.map(([k])=>quoteIdentifier(k)).join(','); const vals=entries.map(([,v])=>v);
     const r=await pool.query(`INSERT INTO ${quoteIdentifier(table)} (${names}) VALUES (${vals.map((_,i)=>`$${i+1}`).join(',')}) RETURNING *`,vals);
+    if (table==='document_intakes') await suppressExactDuplicateIntakes(r.rows[0].id);
     res.status(201).json(r.rows[0]);
   } catch(e) { console.error('ENTITY_POST_ERROR:',e); res.status(500).json({error:'entity_create_failed',message:e.message}); }
 });
@@ -233,7 +268,9 @@ async function updateEntity(req,res) {
     const vals=entries.map(([,v])=>v); vals.push(req.params.id);
     const sets=entries.map(([k],i)=>`${quoteIdentifier(k)}=$${i+1}`).join(',');
     const r=await pool.query(`UPDATE ${quoteIdentifier(table)} SET ${sets} WHERE "id"=$${vals.length} RETURNING *`,vals);
-    if(!r.rowCount) return res.status(404).json({error:'entity_not_found'}); res.json(r.rows[0]);
+    if(!r.rowCount) return res.status(404).json({error:'entity_not_found'});
+    if (table==='document_intakes') await suppressExactDuplicateIntakes(r.rows[0].id);
+    res.json(r.rows[0]);
   } catch(e) {
     const bodyKeys=Object.keys(req.body||{});
     const parameter=String(e.where||'').match(/parameter \$(\d+)/i);
@@ -435,8 +472,9 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
       if (!current.rowCount) return res.status(404).json({ error:'intake_not_found' });
       const merged = { ...(current.rows[0].resultado_ia || {}), ...result, analisado_em:new Date().toISOString(), provedor_ia:'openai' };
       await pool.query(`UPDATE document_intakes SET resultado_ia=$1::jsonb, centro_custo=COALESCE(NULLIF($2,''),centro_custo), status_processamento='AGUARDANDO_REVISAO', updated_at=NOW() WHERE id=$3`,[JSON.stringify(merged), result.centro_custo_sugerido || '', intakeId]);
+      const duplicate=await suppressExactDuplicateIntakes(intakeId);
       console.log('INVOICE_AI_OK',JSON.stringify({ intake_id:intakeId, nf_numero:result.nf_numero || null, has_value:Number(result.nf_valor_total)>0, has_date:!!result.nf_data_emissao }));
-      return res.status(200).json({ success:true, resultado_ia:merged });
+      return res.status(200).json({ success:true, resultado_ia:merged, duplicate_suppressed:duplicate.suppressed });
     }
     if (name === 'syncBaseConhecimento' && req.body?.force_programacao_sync) {
       const result = await syncProgramacao();
