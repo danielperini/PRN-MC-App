@@ -180,6 +180,12 @@ function fallbackReviewMetadata(file, hash, error) {
   };
 }
 async function removeExactDuplicates() {
+  // A previous importer version persisted duplicate candidates as active
+  // intakes. They must not be visible in Entrada Única or counted again.
+  const flagged=await pool.query(`UPDATE document_intakes
+    SET status_registro='DELETADO',status_processamento='DUPLICADO_REMOVIDO',updated_at=NOW()
+    WHERE COALESCE(status_registro,'')<>'DELETADO'
+      AND (status_processamento='DUPLICADO' OR resultado_ia->>'duplicate_detected'='true')`);
   const r=await pool.query(`SELECT id,tipo_detectado,resultado_ia,entidade_destino_id,attachment_id,revisado_pelo_usuario,created_at FROM document_intakes WHERE COALESCE(status_registro,'')<>'DELETADO'`);
   const groups=new Map();
   for(const row of r.rows){
@@ -193,7 +199,7 @@ async function removeExactDuplicates() {
   }
   let removed=0;
   for(const list of groups.values()){ if(list.length<2) continue; list.sort((a,b)=>((b.entidade_destino_id?100:0)+(b.attachment_id?50:0)+(b.revisado_pelo_usuario?20:0))-((a.entidade_destino_id?100:0)+(a.attachment_id?50:0)+(a.revisado_pelo_usuario?20:0)) || Number(a.id)-Number(b.id)); const discard=list.slice(1).map(x=>x.id); if(discard.length){ await pool.query(`UPDATE document_intakes SET status_registro='DELETADO',status_processamento='DUPLICADO_REMOVIDO',updated_at=NOW() WHERE id=ANY($1::bigint[])`,[discard]); removed+=discard.length; } }
-  return removed;
+  return removed+flagged.rowCount;
 }
 async function prepareXmlStaging(sourceEntries,targetEntries,runId) {
   await pool.query(`CREATE UNLOGGED TABLE IF NOT EXISTS drive_reconcile_xml_staging (
@@ -362,18 +368,25 @@ async function run() {
       // Do not use name, folder, supplier similarity or a partial OCR result.
       // A duplicate is only the same document kind and complete fiscal key.
       const duplicate=Boolean(key && knownDocumentKeys.get(detected)?.has(key));
+      if (duplicate) {
+        // Do not create a second Entrada Única record or local upload for a
+        // document that is already canonical in the application.
+        duplicates++;
+        console.log('DRIVE_RECONCILE_SKIP_DUPLICATE',JSON.stringify({ path:f.path,type:detected,key }));
+        continue;
+      }
       const invoiceName=parent?.file_name_final || parent?.file_name_original || ''; const finalName=isProof&&invoiceName ? `${invoiceName.replace(/\.(pdf|xml)$/i,'')} - COMP.pdf` : standardName({ ...meta,...mapped },f.name); const disk=`${Date.now()}-${f.id}-${finalName}`; fs.writeFileSync(path.join(uploadDir,disk),buffer);
-      let backup=null; const folderId=!duplicate ? await monthFolder(drive,mapped.data) : null;
+      let backup=null; const folderId=await monthFolder(drive,mapped.data);
       if (folderId) backup=(await drive.files.copy({ fileId:f.id,requestBody:{ name:finalName,parents:[folderId] },fields:'id,webViewLink',supportsAllDrives:true })).data;
       const ai={ ...meta, nf_numero:mapped.numero || '',nf_valor_total:Number(mapped.valor || 0),nf_data_emissao:String(mapped.data || '').slice(0,10),nf_emitente_nome:meta.fornecedor || meta.nf_emitente_nome || '',nf_emitente_cpf_cnpj:mapped.cnpj || mapped.cpf || '',source_drive_file_id:f.id,source_drive_path:f.path,source_md5:hash,drive_backup_file_id:backup?.id || null,drive_backup_url:backup?.webViewLink || null,duplicate_detected:Boolean(duplicate),duplicate_key:key || null,analisado_em:new Date().toISOString(),provedor_ia:/\.xml$/i.test(f.name)?'xml':(meta.provedor_ia||'openai') };
-      const ins=await pool.query(`INSERT INTO document_intakes (arquivo_original_url,file_name_original,file_name_final,mime_type,status_processamento,status_registro,tipo_detectado,resultado_ia,nf_pdf_intake_id,grupo_status,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,'ATIVO',$6,$7::jsonb,$8,$9,NOW(),NOW()) RETURNING id`,[`/api/files/${encodeURIComponent(disk)}`,f.name,finalName,/\.xml$/i.test(f.name)?'application/xml':'application/pdf',duplicate?'DUPLICADO':'AGUARDANDO_REVISAO',detected,JSON.stringify(ai),parent?.id||null,parent?'COMPLETO':null]);
-      if (!duplicate && key) {
+      const ins=await pool.query(`INSERT INTO document_intakes (arquivo_original_url,file_name_original,file_name_final,mime_type,status_processamento,status_registro,tipo_detectado,resultado_ia,nf_pdf_intake_id,grupo_status,created_at,updated_at) VALUES ($1,$2,$3,$4,'AGUARDANDO_REVISAO','ATIVO',$5,$6::jsonb,$7,$8,NOW(),NOW()) RETURNING id`,[`/api/files/${encodeURIComponent(disk)}`,f.name,finalName,/\.xml$/i.test(f.name)?'application/xml':'application/pdf',detected,JSON.stringify(ai),parent?.id||null,parent?'COMPLETO':null]);
+      if (key) {
         knownKeys.add(key);
         const byType=knownDocumentKeys.get(detected)||new Set(); byType.add(key); knownDocumentKeys.set(detected,byType);
       }
-      if (duplicate) duplicates++; else imported++;
+      imported++;
       const pdfId=ins.rows[0].id; const pdfUrl=`/api/files/${encodeURIComponent(disk)}`;
-      if (!duplicate && matchedXml && key) {
+      if (matchedXml && key) {
         const existingXml=existingXmlByKey.get(key); let targetXmlMatch=targetXmlEntries.find(x=>fiscalKey(x.meta)===key);
         // PDF e XML formam um par fiscal, mas são arquivos distintos. Garante
         // backup do XML mesmo quando ele já existia localmente no aplicativo.
