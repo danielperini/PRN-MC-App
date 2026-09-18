@@ -278,6 +278,43 @@ export default function RelatorioMensalConsolidadoDialog({ isOpen, onClose }) {
     URL.revokeObjectURL(url);
   };
 
+  const exportarXLSX = async () => {
+    if (!data?.relatorio) return;
+    try {
+      const XLSX = await import('xlsx');
+      const linhas = [];
+      for (const centro of data.relatorio) {
+        for (const nat of (centro.naturezas || [])) {
+          for (const item of (nat.itens || [])) {
+            linhas.push({
+              'Centro de custo': centro.centro_custo || '',
+              'Natureza da despesa': nat.natureza || '',
+              'Número NF': item.nf_numero || '',
+              Fornecedor: item.fornecedor || '',
+              Descrição: item.descricao || '',
+              'Valor (R$)': Number(item.valor || 0),
+              Meta: item.meta || '',
+              Rubrica: item.rubrica || '',
+              'Data emissão': item.data_emissao || '',
+              PDF: item.nf_pdf_url || item.nota_fiscal_url || '',
+              XML: item.nf_xml_url || item.xml_url || '',
+              Comprovante: item.comprovante_url || '',
+              Drive: item.drive_folder_url || item.drive_pdf_url || '',
+            });
+          }
+        }
+      }
+      const ws = XLSX.utils.json_to_sheet(linhas);
+      ws['!cols'] = [18, 28, 16, 34, 52, 16, 30, 34, 16, 46, 46, 46, 46].map((wch) => ({ wch }));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Notas Fiscais');
+      XLSX.writeFile(wb, `Relatorio_NF_${mes}_${ano}.xlsx`);
+      toast.success('Excel gerado com sucesso!');
+    } catch (error) {
+      toast.error('Erro ao gerar Excel: ' + (error?.message || 'tente novamente'));
+    }
+  };
+
   const exportarPDF = async () => {
     if (!data) return;
     setGerandoPDF(true);
@@ -350,9 +387,9 @@ export default function RelatorioMensalConsolidadoDialog({ isOpen, onClose }) {
             {/* Botões de exportação */}
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap gap-2">
-                <Button variant="outline" onClick={exportarCSV} className="gap-2">
+                <Button variant="outline" onClick={exportarXLSX} className="gap-2">
                   <Download className="h-4 w-4" />
-                  Exportar CSV
+                  Baixar Excel
                 </Button>
                 <Button
                   variant="outline"
