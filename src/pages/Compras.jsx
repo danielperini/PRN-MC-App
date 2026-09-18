@@ -1145,6 +1145,12 @@ function ComprasInner() {
             {isCoordenador && (
               <RevincularRubricasOrfasButton onConcluido={refreshFinanceiroCompleto} />
             )}
+            {isCoordenador && (
+              <Button variant="outline" onClick={() => setShowRelatorioMensal(true)} className="gap-2">
+                <FileText className="h-4 w-4" />
+                Exportar relatório
+              </Button>
+            )}
             <Button
               className="bg-black text-white hover:bg-gray-800"
               onClick={() => {
