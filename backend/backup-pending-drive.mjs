@@ -7,7 +7,7 @@ const { Pool } = pg;
 const pool = new Pool({ host:process.env.DB_HOST || 'db', port:Number(process.env.DB_PORT || 5432), database:process.env.POSTGRES_DB || 'appgestor', user:process.env.POSTGRES_USER || 'appgestor', password:process.env.POSTGRES_PASSWORD || '' });
 const uploadDir=process.env.UPLOAD_DIR || '/app/uploads';
 const rootId=process.env.GOOGLE_DRIVE_FOLDER_ID || '1qVwpSypPHyQ_IK_H2yTho46MVCzj0FrU';
-const dateOf=value => /^20\d{2}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/.test(String(value||'').slice(0,10)) ? String(value).slice(0,10) : '';
+const dateOf=value => { const date=value instanceof Date && !Number.isNaN(value.getTime()) ? value.toISOString().slice(0,10) : String(value||'').slice(0,10); return /^20\d{2}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/.test(date) ? date : ''; };
 const clean=value => String(value||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[\\/:*?"<>|]+/g,' ').replace(/\s+/g,' ').trim();
 const sourceOf=p => p.nf_pdf_link || p.nota_fiscal_pdf_url || p.nota_fiscal_url || p.arquivo_url || '';
 const localOf=url => { const m=String(url||'').match(/\/api\/files\/([^/?#]+)/i); if(!m) return null; const file=path.join(uploadDir,path.basename(decodeURIComponent(m[1]))); return fs.existsSync(file) ? file : null; };

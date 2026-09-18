@@ -82,7 +82,7 @@ function fileUrl(req, storedName) {
 
 const DRIVE_ROOT_ID=process.env.GOOGLE_DRIVE_FOLDER_ID || '1qVwpSypPHyQ_IK_H2yTho46MVCzj0FrU';
 function fiscalDate(value) {
-  const date=String(value || '').slice(0,10);
+  const date=value instanceof Date && !Number.isNaN(value.getTime()) ? value.toISOString().slice(0,10) : String(value || '').slice(0,10);
   return /^20\d{2}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/.test(date) ? date : '';
 }
 function safeDriveName(value) {
