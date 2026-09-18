@@ -1,13 +1,12 @@
 import express from 'express';
-import { OAuth2Client } from 'google-auth-library';
 import pg from 'pg';
 import multer from 'multer';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import bcrypt from 'bcryptjs';
 import { createServer } from 'node:http';
 import { Server as SocketIOServer } from 'socket.io';
+import { google } from 'googleapis';
 import { syncProgramacao } from './programacao-sync.mjs';
 import nodemailer from 'nodemailer';
 
@@ -81,13 +80,71 @@ function fileUrl(req, storedName) {
   return `${proto}://${req.get('host')}/api/files/${encodeURIComponent(storedName)}`;
 }
 
+const DRIVE_ROOT_ID=process.env.GOOGLE_DRIVE_FOLDER_ID || '1qVwpSypPHyQ_IK_H2yTho46MVCzj0FrU';
+function fiscalDate(value) {
+  const date=String(value || '').slice(0,10);
+  return /^20\d{2}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/.test(date) ? date : '';
+}
+function safeDriveName(value) {
+  return String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[\\/:*?"<>|]+/g,' ').replace(/\s+/g,' ').trim();
+}
+function canonicalInvoiceName(purchase, url) {
+  const ext=path.extname(String(url || '')).toLowerCase() === '.xml' ? '.xml' : '.pdf';
+  const number=safeDriveName(purchase.nf_numero || 'SEM-NUM') || 'SEM-NUM';
+  const supplier=safeDriveName(purchase.nf_emitente_nome || purchase.fornecedor_nome || 'FORNECEDOR A REVISAR') || 'FORNECEDOR A REVISAR';
+  const value=Number(purchase.nf_valor_total || purchase.valor_total || purchase.valor_solicitado || 0);
+  const brl=Number.isFinite(value) ? value.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) : '0,00';
+  return `${number} - ${supplier} - MUSEUS CENTRO - R$ ${brl}${ext}`;
+}
+async function invoiceDriveClient() {
+  if (!process.env.GOOGLE_DRIVE_CLIENT_ID || !process.env.GOOGLE_DRIVE_CLIENT_SECRET || !process.env.GOOGLE_DRIVE_REFRESH_TOKEN) throw new Error('Google Drive não configurado');
+  const auth=new google.auth.OAuth2(process.env.GOOGLE_DRIVE_CLIENT_ID,process.env.GOOGLE_DRIVE_CLIENT_SECRET);
+  auth.setCredentials({refresh_token:process.env.GOOGLE_DRIVE_REFRESH_TOKEN});
+  return google.drive({version:'v3',auth});
+}
+async function driveMonthFolder(drive, issueDate) {
+  const date=fiscalDate(issueDate); if(!date) throw new Error('Data de emissão fiscal ausente');
+  const name=`${date.slice(5,7)}-${date.slice(0,4)}`;
+  const found=await drive.files.list({q:`'${DRIVE_ROOT_ID}' in parents and name='${name}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,fields:'files(id)',pageSize:1,supportsAllDrives:true,includeItemsFromAllDrives:true});
+  if(found.data.files?.[0]?.id) return found.data.files[0].id;
+  return (await drive.files.create({requestBody:{name,mimeType:'application/vnd.google-apps.folder',parents:[DRIVE_ROOT_ID]},fields:'id',supportsAllDrives:true})).data.id;
+}
+function localFileFromUrl(url) {
+  const match=String(url || '').match(/\/api\/files\/([^/?#]+)/i); if(!match) return null;
+  const name=path.basename(decodeURIComponent(match[1])); const file=path.join(uploadDir,name);
+  return fs.existsSync(file) ? file : null;
+}
+async function backupPurchaseImmediately(drive, purchase, columns) {
+  const issueDate=fiscalDate(purchase.nf_data_emissao || purchase.data_emissao);
+  const pdfUrl=purchase.nf_pdf_url || purchase.nota_fiscal_url || purchase.arquivo_url || purchase.file_url || purchase.documento_url;
+  const xmlUrl=purchase.nf_xml_url;
+  if (!issueDate || !pdfUrl) return {skipped:true,reason:!issueDate?'sem_data_emissao':'sem_pdf_local'};
+  const folderId=await driveMonthFolder(drive,issueDate);
+  const backed=[];
+  for (const url of [pdfUrl,xmlUrl].filter(Boolean)) {
+    const local=localFileFromUrl(url); if(!local) continue;
+    const name=canonicalInvoiceName(purchase,url);
+    const existing=await drive.files.list({q:`'${folderId}' in parents and name='${name.replace(/'/g,"\\'")}' and trashed=false`,fields:'files(id,webViewLink)',pageSize:1,supportsAllDrives:true,includeItemsFromAllDrives:true});
+    const remote=existing.data.files?.[0] || (await drive.files.create({requestBody:{name,parents:[folderId]},media:{mimeType:path.extname(local).toLowerCase()==='.xml'?'application/xml':'application/pdf',body:fs.createReadStream(local)},fields:'id,webViewLink',supportsAllDrives:true})).data;
+    backed.push(remote);
+  }
+  if (!backed.length) return {skipped:true,reason:'arquivo_local_indisponivel'};
+  const updates={};
+  if(columns.includes('drive_file_id')) updates.drive_file_id=backed[0].id;
+  if(columns.includes('drive_url')) updates.drive_url=backed[0].webViewLink || `https://drive.google.com/file/d/${backed[0].id}/view`;
+  if(columns.includes('backup_drive_status')) updates.backup_drive_status='CONCLUIDO';
+  if(columns.includes('backup_drive_error')) updates.backup_drive_error=null;
+  const entries=Object.entries(updates); if(entries.length){ const values=entries.map(([,v])=>v); values.push(purchase.id); await pool.query(`UPDATE purchase_requests SET ${entries.map(([field],i)=>`${quoteIdentifier(field)}=$${i+1}`).join(',')} WHERE id=$${values.length}`,values); }
+  return {backed:backed.length};
+}
+
 const ENTITY_TABLES = Object.freeze({
   User:'users', Rubrica:'rubricas', ProjectMeta:'project_metas', Activity:'activities', Atividade:'activities',
   Programacao:'programacoes', Report:'reports', ReportActivity:'report_activities', ReportPhoto:'report_photos',
   Attachment:'attachments', Notification:'notifications', Notificacao:'notifications', GastoRubrica:'gasto_rubricas',
   LancamentoRubrica:'lancamentos_rubrica', Meta:'metas', MetaActivity:'meta_activities', PurchaseRequest:'purchase_requests',
-  PurchaseDocument:'purchase_documents', FinanceiroAuditLog:'financeiro_audit_logs', AuditLog:'audit_logs',
-  UserPermission:'user_permissions', Profile:'profiles', Museu:'museus', Equipe:'equipes', Fornecedor:'fornecedores', DocumentIntake:'document_intakes'
+  PurchaseDocument:'purchase_documents', DocumentIntake:'document_intakes', FinanceiroAuditLog:'financeiro_audit_logs', AuditLog:'audit_logs',
+  UserPermission:'user_permissions', Profile:'profiles', Museu:'museus', Equipe:'equipes', Fornecedor:'fornecedores'
 });
 function entityTable(name) { return ENTITY_TABLES[String(name || '')] || null; }
 function quoteIdentifier(value) { return `"${String(value).replaceAll('"', '""')}"`; }
@@ -161,262 +218,6 @@ async function initDb() {
 app.get('/health', (_req,res) => res.json({ status:'ok', service:'appgestor-api' }));
 app.get('/db-health', async (_req,res) => { try { const r=await pool.query('SELECT NOW() AS now'); res.json({status:'ok',database:'connected',now:r.rows[0].now}); } catch(e) { res.status(500).json({status:'error',message:e.message}); } });
 
-// ===== LOCAL AUTH COMPATIBILITY =====
-
-const GOOGLE_CLIENT_ID = String(process.env.GOOGLE_CLIENT_ID || '');
-const GOOGLE_CLIENT_SECRET = String(process.env.GOOGLE_CLIENT_SECRET || '');
-const GOOGLE_REDIRECT_URI = String(process.env.GOOGLE_REDIRECT_URI || '');
-const GOOGLE_STATE_COOKIE = '__Host-appgestor_google_state';
-const googleOAuth = GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && GOOGLE_REDIRECT_URI ? new OAuth2Client(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI) : null;
-function oauthConfigured() { return Boolean(googleOAuth); }
-function appendSetCookie(res, cookie) { const current = res.getHeader('Set-Cookie'); res.setHeader('Set-Cookie', [...(Array.isArray(current) ? current : current ? [current] : []), cookie]); }
-function safeReturnPath(value) { try { const base = publicBaseUrl || 'https://appgestor.periniprojetos.com.br'; const url = new URL(String(value || '/'), base); if (url.origin !== new URL(base).origin || url.pathname === '/login') return '/'; return url.pathname + url.search + url.hash; } catch { return '/'; } }
-function oauthErrorRedirect(code) { return '/login?google_error=' + encodeURIComponent(code); }
-
-const SESSION_DAYS = Number(process.env.SESSION_DAYS || 30);
-const SESSION_COOKIE = 'appgestor_session';
-
-function authCookieValue(req) {
-  return parseCookies(req)[SESSION_COOKIE];
-}
-
-async function createAuthSession(res, userId) {
-  const token = crypto.randomBytes(32).toString('hex');
-  const tokenHash = hashToken(token);
-  const expiresAt = new Date(Date.now() + SESSION_DAYS * 86400000);
-
-  await pool.query(
-    `INSERT INTO auth_sessions
-       (user_id, session_token_hash, expires_at)
-     VALUES ($1,$2,$3)`,
-    [userId, tokenHash, expiresAt]
-  );
-
-  res.setHeader(
-    'Set-Cookie',
-    `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_DAYS * 86400}`
-  );
-
-  return token;
-}
-
-app.get('/api/auth/google', (req, res) => {
-  if (!oauthConfigured()) return res.status(503).json({ error: 'google_oauth_not_configured' });
-  const returnTo = safeReturnPath(req.query.return_to);
-  const state = crypto.randomBytes(32).toString('base64url');
-  const statePayload = state + '.' + Buffer.from(returnTo).toString('base64url');
-  res.setHeader('Set-Cookie', GOOGLE_STATE_COOKIE + '=' + encodeURIComponent(statePayload) + '; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=600');
-  return res.redirect(googleOAuth.generateAuthUrl({ access_type: 'online', prompt: 'select_account', scope: ['openid', 'email', 'profile'], state }));
-});
-app.get(['/api/auth/google/callback', '/api/apps/auth/google/callback'], async (req, res) => {
-  const saved = parseCookies(req)[GOOGLE_STATE_COOKIE] || '';
-  const [expectedState, encodedReturnTo] = saved.split('.', 2);
-  const receivedState = String(req.query.state || '');
-  appendSetCookie(res, GOOGLE_STATE_COOKIE + '=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0');
-  if (!oauthConfigured() || !expectedState || expectedState.length !== receivedState.length || !crypto.timingSafeEqual(Buffer.from(expectedState), Buffer.from(receivedState))) return res.redirect(oauthErrorRedirect('invalid_state'));
-  try {
-    const { tokens } = await googleOAuth.getToken(String(req.query.code || ''));
-    if (!tokens.id_token) return res.redirect(oauthErrorRedirect('missing_identity'));
-    const ticket = await googleOAuth.verifyIdToken({ idToken: tokens.id_token, audience: GOOGLE_CLIENT_ID });
-    const identity = ticket.getPayload();
-    const email = String(identity?.email || '').trim().toLowerCase();
-    if (!identity?.email_verified || !email) return res.redirect(oauthErrorRedirect('unverified_email'));
-    const found = await pool.query('SELECT * FROM users WHERE lower(email)=lower($1) LIMIT 1', [email]);
-    if (!found.rowCount) return res.redirect(oauthErrorRedirect('access_not_granted'));
-    const user = found.rows[0];
-    const disabled = user.disabled === true || String(user.raw_data?.disabled || '').toLowerCase() === 'true';
-    if (disabled || user.acesso_liberado === false) return res.redirect(oauthErrorRedirect('access_denied'));
-    await createAuthSession(res, user.id);
-    let returnTo = '/';
-    try { returnTo = safeReturnPath(Buffer.from(encodedReturnTo || '', 'base64url').toString()); } catch {}
-    return res.redirect(returnTo);
-  } catch (error) { console.error('GOOGLE_OAUTH_CALLBACK_ERROR', error); return res.redirect(oauthErrorRedirect('authentication_failed')); }
-});
-
-function publicAuthUser(user) {
-  if (!user) return null;
-  const out = { ...user };
-  delete out.password_hash;
-  delete out.password;
-  return out;
-}
-
-app.post('/api/apps/:appId/auth/login', async (req, res) => {
-  try {
-    const email = String(req.body?.email || '').trim().toLowerCase();
-    const password = String(req.body?.password || '');
-
-    if (!email || !password) {
-      return res.status(400).json({
-        error: 'email_and_password_required'
-      });
-    }
-
-    const result = await pool.query(
-      `SELECT *
-         FROM users
-        WHERE lower(email)=lower($1)
-        LIMIT 1`,
-      [email]
-    );
-
-    if (!result.rowCount) {
-      return res.status(401).json({ error: 'invalid_credentials' });
-    }
-
-    const user = result.rows[0];
-
-    const disabled =
-      user.disabled === true ||
-      String(user.raw_data?.disabled || '').toLowerCase() === 'true';
-
-    if (disabled) {
-      return res.status(403).json({ error: 'user_disabled' });
-    }
-
-    if (user.acesso_liberado === false) {
-      return res.status(403).json({ error: 'access_denied' });
-    }
-
-    const storedHash = String(user.password_hash || '');
-
-    if (!storedHash) {
-      return res.status(401).json({ error: 'invalid_credentials' });
-    }
-
-    const valid = await bcrypt.compare(password, storedHash);
-
-    if (!valid) {
-      return res.status(401).json({ error: 'invalid_credentials' });
-    }
-
-    const accessToken = await createAuthSession(res, user.id);
-
-    return res.json({
-      access_token: accessToken,
-      user: publicAuthUser(user)
-    });
-  } catch (e) {
-    console.error('AUTH_LOGIN_ERROR', e);
-    return res.status(500).json({
-      error: 'authentication_error',
-      message: e.message
-    });
-  }
-});
-
-async function currentAuthUser(req) {
-  const token = authCookieValue(req);
-
-  if (!token) return null;
-
-  const session = await pool.query(
-    `SELECT user_id
-       FROM auth_sessions
-      WHERE session_token_hash=$1
-        AND expires_at>NOW()
-      LIMIT 1`,
-    [hashToken(token)]
-  );
-
-  if (!session.rowCount) return null;
-
-  const user = await pool.query(
-    `SELECT *
-       FROM users
-      WHERE id=$1
-      LIMIT 1`,
-    [session.rows[0].user_id]
-  );
-
-  return user.rowCount ? user.rows[0] : null;
-}
-
-app.get('/api/apps/:appId/auth/me', async (req, res) => {
-  try {
-    const user = await currentAuthUser(req);
-
-    if (!user) {
-      return res.status(401).json({ error: 'unauthorized' });
-    }
-
-    return res.json(publicAuthUser(user));
-  } catch (e) {
-    console.error('AUTH_ME_ERROR', e);
-    return res.status(500).json({
-      error: 'authentication_error',
-      message: e.message
-    });
-  }
-});
-
-app.get('/api/apps/:appId/entities/User/me', async (req, res) => {
-  try {
-    const user = await currentAuthUser(req);
-
-    if (!user) {
-      return res.status(401).json({ error: 'unauthorized' });
-    }
-
-    return res.json(publicAuthUser(user));
-  } catch (e) {
-    console.error('AUTH_USER_ME_ERROR', e);
-    return res.status(500).json({
-      error: 'authentication_error',
-      message: e.message
-    });
-  }
-});
-
-app.get('/api/apps/auth/session-debug', async (req, res) => {
- try {
-  const cookies = parseCookies(req);
-  const user = await currentAuthUser(req);
-  return res.json({
-   hasHostSessionCookie: Boolean(cookies[SESSION_COOKIE]),
-   hasLegacySessionCookie: Boolean(cookies[LEGACY_SESSION_COOKIE]),
-   authenticated: Boolean(user),
-   userId: user?.id ?? null,
-   email: user?.email ?? null
-  });
- } catch (e) {
-  console.error('AUTH_SESSION_DEBUG_ERROR', e.message);
-  return res.json({
-   hasHostSessionCookie: false,
-   hasLegacySessionCookie: false,
-   authenticated: false,
-   userId: null,
-   email: null
-  });
- }
-});
-app.post('/api/apps/:appId/auth/logout', async (req, res) => {
-  try {
-    const token = authCookieValue(req);
-
-    if (token) {
-      await pool.query(
-        `DELETE FROM auth_sessions
-          WHERE session_token_hash=$1`,
-        [hashToken(token)]
-      );
-    }
-  } catch (e) {
-    console.error('AUTH_LOGOUT_ERROR', e);
-  }
-
-  res.setHeader(
-    'Set-Cookie',
-    `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`
-  );
-
-  return res.json({ ok: true });
-});
-
-console.log('Local auth compatibility installed');
-
-
-// Base44-compatible entity API.
 app.get('/api/drive-reconcile/status',requireSession,async(req,res)=>{
   try {
     const user=(await pool.query('SELECT role FROM users WHERE id=$1 LIMIT 1',[req.userId])).rows[0];
@@ -454,6 +255,40 @@ function normalizePurchaseFiscalPayload(entityName, body = {}) {
   return next;
 }
 
+function fiscalDuplicateKey(data = {}) {
+  const taxId=String(data.nf_emitente_cpf_cnpj || data.cnpj || data.cpf || '').replace(/\D/g,'');
+  const number=String(data.nf_numero || data.numero || '').replace(/^0+/,'').trim();
+  const amount=Number(data.nf_valor_total ?? data.valor ?? 0);
+  const date=String(data.nf_data_emissao || data.data || '').slice(0,10);
+  // Never decide from a merely similar supplier/name. CNPJ, number, amount and
+  // exact issue date are all mandatory before an intake can be suppressed.
+  if (!taxId || !number || !Number.isFinite(amount) || amount <= 0 || !/^20\d{2}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/.test(date)) return null;
+  return `${taxId}|${number}|${amount.toFixed(2)}|${date}`;
+}
+function intakePriority(row) {
+  return (row.entidade_destino_id ? 100 : 0) + (row.attachment_id ? 50 : 0) + (row.revisado_pelo_usuario ? 20 : 0) - Number(row.id || 0) / 1000000000000;
+}
+async function suppressExactDuplicateIntakes(intakeId) {
+  const rows=(await pool.query(`SELECT id,tipo_detectado,resultado_ia,entidade_destino_id,attachment_id,revisado_pelo_usuario
+    FROM document_intakes WHERE COALESCE(status_registro,'')<>'DELETADO'`)).rows;
+  const current=rows.find(row=>String(row.id)===String(intakeId));
+  if (!current) return { suppressed:false };
+  const identity=fiscalDuplicateKey(current.resultado_ia || {});
+  const type=String(current.tipo_detectado || '');
+  // An XML and its PDF are a pair, not duplicates. Proofs are likewise only
+  // compared to proofs, never to their fiscal invoice.
+  if (!identity || !type) return { suppressed:false };
+  const same=rows.filter(row=>String(row.tipo_detectado || '')===type && fiscalDuplicateKey(row.resultado_ia || {})===identity);
+  if (same.length < 2) return { suppressed:false };
+  same.sort((a,b)=>intakePriority(b)-intakePriority(a));
+  const keep=same[0];
+  const discard=same.slice(1).map(row=>row.id);
+  await pool.query(`UPDATE document_intakes SET status_registro='DELETADO',status_processamento='DUPLICADO_REMOVIDO',updated_at=NOW()
+    WHERE id=ANY($1::bigint[])`,[discard]);
+  console.log('INTAKE_EXACT_DUPLICATES_SUPPRESSED',JSON.stringify({ keep_id:keep.id, discarded_ids:discard, type, fiscal_key:identity }));
+  return { suppressed:discard.map(String).includes(String(intakeId)), keepId:keep.id };
+}
+
 app.post('/api/apps/:appId/entities/:entityName', requireSession, async (req,res) => {
   try {
     const table=entityTable(req.params.entityName); if(!table) return res.status(404).json({error:'entity_not_migrated'});
@@ -472,17 +307,11 @@ app.post('/api/apps/:appId/entities/:entityName', requireSession, async (req,res
     if(!entries.length) return res.status(400).json({error:'empty_entity'});
     const names=entries.map(([k])=>quoteIdentifier(k)).join(','); const vals=entries.map(([,v])=>v);
     const r=await pool.query(`INSERT INTO ${quoteIdentifier(table)} (${names}) VALUES (${vals.map((_,i)=>`$${i+1}`).join(',')}) RETURNING *`,vals);
+    if (table==='document_intakes') await suppressExactDuplicateIntakes(r.rows[0].id);
     res.status(201).json(r.rows[0]);
   } catch(e) { console.error('ENTITY_POST_ERROR:',e); res.status(500).json({error:'entity_create_failed',message:e.message}); }
 });
 
-const FINANCIAL_PURCHASE_FIELDS = new Set(['status','status_pagamento','pago','rubrica_id','budgetline_id','valor_aprovado','nf_valor_total','valor_total','valor_solicitado']);
-
-async function recalculateRubricaBalances(db = pool) {
-  const result = await db.query("WITH totals AS (SELECT rubrica_id::text AS rubrica_id, ROUND(SUM(COALESCE(valor_aprovado,nf_valor_total,valor_total,valor_solicitado,0)::numeric),2) AS utilizado FROM purchase_requests WHERE rubrica_id IS NOT NULL AND UPPER(COALESCE(status,'')) IN ('APROVADO','APROVADO_COORD','APROVADO_ADMIN','PAGO') GROUP BY rubrica_id), calculated AS (SELECT r2.id,COALESCE(t.utilizado,0) AS utilizado,COALESCE(r2.valor_rubrica,r2.valor_total,0) AS previsto FROM rubricas r2 LEFT JOIN totals t ON t.rubrica_id=r2.id::text) UPDATE rubricas r SET valor_utilizado=c.utilizado,saldo=c.previsto-c.utilizado,saldo_real=c.previsto-c.utilizado,percentual_utilizado=CASE WHEN c.previsto>0 THEN ROUND((c.utilizado/c.previsto)*100,2) ELSE 0 END,updated_at=NOW() FROM calculated c WHERE r.id=c.id RETURNING r.id");
-  console.log('RUBRICA_BALANCES_RECALCULATED', JSON.stringify({updated:result.rowCount}));
-  return result.rowCount;
-}
 async function updateEntity(req,res) {
   let table=null, entries=[], currentField=null;
   try {
@@ -498,7 +327,8 @@ async function updateEntity(req,res) {
     const vals=entries.map(([,v])=>v); vals.push(req.params.id);
     const sets=entries.map(([k],i)=>`${quoteIdentifier(k)}=$${i+1}`).join(',');
     const r=await pool.query(`UPDATE ${quoteIdentifier(table)} SET ${sets} WHERE "id"=$${vals.length} RETURNING *`,vals);
-    if(!r.rowCount) return res.status(404).json({error:'entity_not_found'}); if(req.params.entityName==='PurchaseRequest' && entries.some(([field])=>FINANCIAL_PURCHASE_FIELDS.has(field))) await recalculateRubricaBalances();
+    if(!r.rowCount) return res.status(404).json({error:'entity_not_found'});
+    if (table==='document_intakes') await suppressExactDuplicateIntakes(r.rows[0].id);
     res.json(r.rows[0]);
   } catch(e) {
     const bodyKeys=Object.keys(req.body||{});
@@ -522,51 +352,8 @@ app.delete('/api/apps/:appId/entities/:entityName/:id',requireSession,async(req,
   } catch(e) { console.error('ENTITY_DELETE_ERROR:',e); res.status(500).json({error:'entity_delete_failed',message:e.message}); }
 });
 
-// Core file upload compatibility. Both spellings are supported because different
-// Base44 SDK builds use /integrations and /integration-endpoints.
-
-async function invokeLlmHandler(req, res) {
-  const apiKey = String(process.env.OPENAI_API_KEY || '');
-  if (!apiKey) return res.status(503).json({ error: 'ai_not_configured', message: 'OPENAI_API_KEY não configurada' });
-  const prompt = String(req.body?.prompt || '').trim();
-  if (!prompt) return res.status(400).json({ error: 'invalid_prompt' });
-  const schema = req.body?.response_json_schema;
-  const content = [{ type: 'input_text', text: prompt }];
-  try {
-    const sourceUrl = Array.isArray(req.body?.file_urls) ? req.body.file_urls[0] : null;
-    if (sourceUrl) {
-      const name = path.basename(new URL(sourceUrl, publicBaseUrl || 'http://localhost').pathname);
-      const source = path.join(uploadDir, name);
-      if (!fs.existsSync(source)) return res.status(404).json({ error: 'file_not_found' });
-      const bytes = fs.readFileSync(source);
-      const form = new FormData();
-      form.append('purpose', 'user_data');
-      form.append('file', new Blob([bytes], { type: 'application/octet-stream' }), name);
-      const uploadResponse = await fetch('https://api.openai.com/v1/files', { method: 'POST', headers: { Authorization: 'Bearer ' + apiKey }, body: form });
-      if (!uploadResponse.ok) throw new Error('Falha ao enviar arquivo para análise: ' + await uploadResponse.text());
-      const uploaded = await uploadResponse.json();
-      content.push({ type: 'input_file', file_id: uploaded.id });
-    }
-    const text = schema ? { format: { type: 'json_schema', name: 'document_analysis', strict: false, schema } } : undefined;
-    const response = await fetch('https://api.openai.com/v1/responses', {
-      method: 'POST',
-      headers: { Authorization: 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: process.env.OPENAI_MODEL || 'gpt-4.1-mini', input: [{ role: 'user', content }], ...(text ? { text } : {}) })
-    });
-    if (!response.ok) throw new Error('Falha na análise: ' + await response.text());
-    const result = await response.json();
-    const output = String(result.output_text || '').trim();
-    if (!output) throw new Error('A IA não retornou conteúdo');
-    try { return res.status(200).json(JSON.parse(output)); } catch { return res.status(200).json({ result: output }); }
-  } catch (error) {
-    console.error('AI_DOCUMENT_ANALYSIS_ERROR:', error.message);
-    return res.status(502).json({ error: 'ai_analysis_failed', message: error.message });
-  }
-}
-
 function coreUploadHandler(req, res) {
   const operation=String(req.params.operation||'').toLowerCase();
- if(operation==='invokellm') return invokeLlmHandler(req,res);
   if(!['uploadfile','uploadprivatefile'].includes(operation)) return res.status(404).json({error:'integration_not_found'});
   upload.single('file')(req,res,async(err)=>{
     if(err instanceof multer.MulterError) return res.status(413).json({error:'upload_failed',message:err.code==='LIMIT_FILE_SIZE'?`Arquivo excede o limite de ${maxUploadMb} MB`:err.message,code:err.code});
@@ -624,6 +411,60 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
         attachments
       });
       return res.status(200).json({ success:true });
+    }
+    if (name === 'tratarSolicitacoesLote') {
+      const dryRun=Boolean(req.body?.dry_run);
+      const cutoff='2026-07-14';
+      const columns=await tableColumns('purchase_requests');
+      const purchases=(await pool.query('SELECT * FROM purchase_requests')).rows;
+      const exactKey=(p) => {
+        const tax=String(p.nf_emitente_cpf_cnpj || p.fornecedor_cpf_cnpj || p.fornecedor_cnpj || '').replace(/\D/g,'');
+        const number=String(p.nf_numero || '').replace(/^0+/,'').trim();
+        const amount=Number(p.nf_valor_total || p.valor_aprovado || p.valor_total || p.valor_solicitado || 0);
+        const date=fiscalDate(p.nf_data_emissao || p.data_emissao);
+        return tax && number && amount>0 && date ? `${tax}|${number}|${amount.toFixed(2)}|${date}` : null;
+      };
+      const groups=new Map(); const history=new Map();
+      for (const p of purchases) {
+        const key=exactKey(p); if(key) { const list=groups.get(key)||[]; list.push(p); groups.set(key,list); }
+        const supplier=String(p.nf_emitente_cpf_cnpj || p.fornecedor_cpf_cnpj || p.fornecedor_cnpj || p.fornecedor_nome || '').replace(/\W/g,'').toUpperCase();
+        if(supplier && p.rubrica_id && p.centro_custo) history.set(supplier,{rubrica_id:p.rubrica_id,centro_custo:p.centro_custo,meta_id:p.meta_id || null});
+      }
+      const duplicates=new Set();
+      for (const list of groups.values()) if(list.length>1) {
+        list.sort((a,b)=>(Number(Boolean(b.comprovante_url))+Number(Boolean(b.nota_fiscal_url))+Number(Boolean(b.rubrica_id)))-(Number(Boolean(a.comprovante_url))+Number(Boolean(a.nota_fiscal_url))+Number(Boolean(a.rubrica_id))) || Number(a.id)-Number(b.id));
+        list.slice(1).forEach(p=>duplicates.add(String(p.id)));
+      }
+      let rubricas=0,approved=0,paid=0,backed=0; const errors=[];
+      const drive=!dryRun ? await invoiceDriveClient().catch(error=>{errors.push(error.message); return null;}) : null;
+      for (const p of purchases) {
+        const id=String(p.id); const update={};
+        if(duplicates.has(id) && columns.includes('fora_do_somatorio')) update.fora_do_somatorio=true;
+        const supplier=String(p.nf_emitente_cpf_cnpj || p.fornecedor_cpf_cnpj || p.fornecedor_cnpj || p.fornecedor_nome || '').replace(/\W/g,'').toUpperCase();
+        const inferred=history.get(supplier);
+        if(inferred) {
+          if(!p.rubrica_id && columns.includes('rubrica_id')) { update.rubrica_id=inferred.rubrica_id; rubricas++; }
+          if(!p.centro_custo && columns.includes('centro_custo')) update.centro_custo=inferred.centro_custo;
+          if(!p.meta_id && inferred.meta_id && columns.includes('meta_id')) update.meta_id=inferred.meta_id;
+        }
+        const date=fiscalDate(p.nf_data_emissao || p.data_emissao);
+        const effectiveRubrica=update.rubrica_id || p.rubrica_id;
+        const status=String(p.status || '').toUpperCase();
+        if(!duplicates.has(id) && date && date<cutoff && effectiveRubrica) {
+          if(['SOLICITADO','RASCUNHO','DEVOLVIDO'].includes(status)) { update.status='APROVADO_COORD'; if(columns.includes('status_pagamento')) update.status_pagamento='AGUARDANDO_PAGAMENTO'; approved++; }
+          else if(['APROVADO','APROVADO_COORD','APROVADO_ADMIN'].includes(status)) { update.status='PAGO'; if(columns.includes('status_pagamento')) update.status_pagamento='PAGO'; if(columns.includes('pago')) update.pago=true; paid++; }
+        }
+        if(!dryRun && Object.keys(update).length) {
+          if(columns.includes('updated_at')) update.updated_at=new Date();
+          const entries=Object.entries(update); const values=entries.map(([,v])=>v); values.push(p.id);
+          await pool.query(`UPDATE purchase_requests SET ${entries.map(([field],i)=>`${quoteIdentifier(field)}=$${i+1}`).join(',')} WHERE id=$${values.length}`,values);
+        }
+        if(!dryRun && drive && !duplicates.has(id)) {
+          try { const result=await backupPurchaseImmediately(drive,{...p,...update},columns); if(result.backed) backed+=result.backed; }
+          catch(error) { errors.push(`NF ${p.nf_numero || p.id}: ${error.message}`); }
+        }
+      }
+      return res.status(200).json({ok:true,dry_run:dryRun,total_analisadas:purchases.length,duplicatas_marcadas:duplicates.size,rubricas_inferidas:rubricas,aprovados_direto:approved,marcados_pago:paid,backup_disparado:!dryRun && Boolean(drive),arquivos_backup:backed,erros:errors.slice(0,30)});
     }
     if (name === 'purchaseActions') {
       const purchaseId = String(req.body?.purchaseId || req.body?.purchase_id || '').trim();
@@ -703,8 +544,7 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
         values.push(purchaseId);
         const setSql = entries.map(([field],index) => `${quoteIdentifier(field)}=$${index + 1}`).join(',');
         const updatedResult = await client.query(`UPDATE purchase_requests SET ${setSql} WHERE id=$${values.length} RETURNING *`,values);
-        await recalculateRubricaBalances(client);
-    await client.query('COMMIT');
+        await client.query('COMMIT');
         console.log('PURCHASE_ACTION_OK',JSON.stringify({ purchase_id:purchaseId, action, status:updatedResult.rows[0]?.status }));
         return res.status(200).json({ success:true, purchase:updatedResult.rows[0] });
       } catch (error) {
@@ -721,7 +561,7 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
       if (!intakeId || !fileUrl) return res.status(400).json({ error:'invalid_invoice_input', message:'intake_id e file_url são obrigatórios' });
       if (!apiKey) return res.status(503).json({ error:'openai_not_configured', message:'OPENAI_API_KEY não configurada' });
       const absoluteFileUrl = /^https?:\/\//i.test(fileUrl) ? fileUrl : `${req.protocol}://${req.get('host')}${fileUrl.startsWith('/') ? '' : '/'}${fileUrl}`;
-      const prompt = `Leia integralmente esta nota fiscal. Retorne somente JSON com: nf_numero, nf_valor_total (número), nf_data_emissao (YYYY-MM-DD), nf_horario_emissao (HH:MM:SS ou vazio), competencia, nf_emitente_nome, nf_emitente_cpf_cnpj, municipio, descricao_servico, centro_custo_sugerido (somente GERAL, MHAB, MIS ou MUMO), rubrica_nome_sugerida e meta_sugerida. Não use o nome do arquivo como substituto para valor ou data; extraia do conteúdo fiscal.`;
+      const prompt = `Leia integralmente esta nota fiscal. Retorne somente JSON com: nf_numero, nf_valor_total (número), nf_data_emissao (YYYY-MM-DD), nf_horario_emissao (HH:MM:SS ou vazio), competencia, nf_emitente_nome, nf_emitente_cpf_cnpj, municipio, descricao_servico, centro_custo_sugerido (somente Atuação Geral, MHAB, MIS, MUMO, Noturno 2026 ou Noturno Pampulha), rubrica_nome_sugerida e meta_sugerida. Regra obrigatória: qualquer despesa da 11ª edição do evento Noturno nos Museus de 2026 é Noturno 2026, salvo quando o texto mencionar expressamente Noturno Pampulha. Não use o nome do arquivo como substituto para valor ou data; extraia do conteúdo fiscal.`;
       const aiResponse = await fetch('https://api.openai.com/v1/responses', {
         method:'POST',
         headers:{ Authorization:`Bearer ${apiKey}`, 'Content-Type':'application/json' },
@@ -737,20 +577,26 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
       const envelope = JSON.parse(raw);
       const outputText = envelope.output_text || envelope.output?.flatMap(item => item.content || []).find(item => item.type === 'output_text')?.text || '';
       const result = JSON.parse(outputText);
+      const fiscalText = [result.descricao_servico, result.rubrica_nome_sugerida, outputText].filter(Boolean).join(' ').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toUpperCase();
+      if (/NOTURNO\s+(NOS\s+)?MUSEUS/.test(fiscalText) && /(2026|11A|11ª|11\s*EDICAO)/.test(fiscalText)) {
+        result.centro_custo_sugerido = /NOTURNO\s+PAMPULHA/.test(fiscalText) ? 'Noturno Pampulha' : 'Noturno 2026';
+      }
       const current = await pool.query('SELECT resultado_ia FROM document_intakes WHERE id=$1 LIMIT 1',[intakeId]);
       if (!current.rowCount) return res.status(404).json({ error:'intake_not_found' });
       const merged = { ...(current.rows[0].resultado_ia || {}), ...result, analisado_em:new Date().toISOString(), provedor_ia:'openai' };
       await pool.query(`UPDATE document_intakes SET resultado_ia=$1::jsonb, centro_custo=COALESCE(NULLIF($2,''),centro_custo), status_processamento='AGUARDANDO_REVISAO', updated_at=NOW() WHERE id=$3`,[JSON.stringify(merged), result.centro_custo_sugerido || '', intakeId]);
+      const duplicate=await suppressExactDuplicateIntakes(intakeId);
       console.log('INVOICE_AI_OK',JSON.stringify({ intake_id:intakeId, nf_numero:result.nf_numero || null, has_value:Number(result.nf_valor_total)>0, has_date:!!result.nf_data_emissao }));
-      return res.status(200).json({ success:true, resultado_ia:merged });
+      return res.status(200).json({ success:true, resultado_ia:merged, duplicate_suppressed:duplicate.suppressed });
     }
     if (name === 'syncBaseConhecimento' && req.body?.force_programacao_sync) {
       const result = await syncProgramacao();
-      if (result?.error) return res.status(502).json({ success:false, function:name, error:'programacao_sync_failed', message:result.error });
+      if (result?.error) {
+        return res.status(502).json({ success:false, function:name, error:'programacao_sync_failed', message:result.error });
+      }
       return res.status(200).json({ success:true, function:name, programacao_sync:result });
     }
-    if (name === 'processarNotaFiscalComClaude') return res.status(501).json({ error:'use_invoke_llm' });
-if (name === 'recalcularSaldosRubricas') {
+    if (name === 'recalcularSaldosRubricas') {
       const table = entityTable('Rubrica');
       const exists = table && await tableExists(table);
       if (exists) {
