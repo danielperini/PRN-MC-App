@@ -96,7 +96,8 @@ function shouldAnalyzeUnmatchedPdf(file) {
 }
 function isLikelyPaymentProof(file) {
   const name=clean(file.name||'').toUpperCase();
-  return /\b(COMP(?:ROVANTE)?|PAGAMENTO|PAGO|PIX|TED|TRANSFERENCIA|DEP[OÓ]SITO|BOLETO|\bBOL\b)\b/.test(name);
+  // Drive contains common manual variants: COP, COMMP and CCOMP.
+  return /\b(C{1,2}O?M{0,2}P(?:ROVANTE)?|PAGAMENTO|PAGO|PIX|TED|TRANSFERENCIA|DEP[OÓ]SITO|BOLETO|BOL)\b/.test(name);
 }
 function monthAllowed(p) {
   const m = String(p).match(/(?:^|\/)(0?[1-9]|1[0-2])[-_/](20\d{2})(?:\/|$)/);
@@ -198,7 +199,7 @@ async function removeExactDuplicates() {
     WHERE COALESCE(status_registro,'')<>'DELETADO'
       AND tipo_detectado='NOTA_FISCAL_PDF'
       AND entidade_destino_id IS NULL
-      AND (file_name_original ~* '(^|[^A-Z])(COMP|COMPROVANTE|PAGAMENTO|PIX|TED|TRANSFERENCIA|DEPOSITO|BOLETO|BOL)([^A-Z]|$)')`);
+      AND (file_name_original ~* '(^|[^A-Z])(C{1,2}O?M{0,2}P(ROVANTE)?|PAGAMENTO|PIX|TED|TRANSFERENCIA|DEPOSITO|BOLETO|BOL)([^A-Z]|$)')`);
   const r=await pool.query(`SELECT id,tipo_detectado,resultado_ia,entidade_destino_id,attachment_id,revisado_pelo_usuario,created_at FROM document_intakes WHERE COALESCE(status_registro,'')<>'DELETADO'`);
   const groups=new Map();
   for(const row of r.rows){
