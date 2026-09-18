@@ -17,10 +17,10 @@ function toNum(value) {
     return Number.isFinite(value) ? value : 0;
   }
 
-  const normalized = String(value)
-    .replace(/[^\d,.-]/g, '')
-    .replace(/\./g, '')
-    .replace(',', '.');
+  const raw = String(value).replace(/[^\d,.-]/g, '');
+  const normalized = raw.includes(',')
+    ? raw.replace(/\./g, '').replace(',', '.')
+    : raw;
 
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : 0;

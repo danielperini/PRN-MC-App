@@ -32,7 +32,8 @@ const DOCUMENT_TYPES = [
 
 function parseMoney(value) {
   if (value === null || value === undefined || value === '') return null;
-  const normalized = String(value).replace(/\./g, '').replace(',', '.').trim();
+  const raw = String(value).replace(/^R\$\s*/i, '').replace(/\s/g, '').trim();
+  const normalized = raw.includes(',') ? raw.replace(/\./g, '').replace(',', '.') : raw;
   const n = Number(normalized);
   return Number.isFinite(n) ? n : null;
 }
