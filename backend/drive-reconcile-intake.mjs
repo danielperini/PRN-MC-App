@@ -164,6 +164,21 @@ function loadAnalysisCache() {
 function saveAnalysisCache(cache) {
   const tmp=`${analysisCacheFile}.tmp`; fs.writeFileSync(tmp,JSON.stringify(cache)); fs.renameSync(tmp,analysisCacheFile);
 }
+function fallbackReviewMetadata(file, hash, error) {
+  // A failed OCR request must never make a valid, user-reviewable NF disappear
+  // from the intake flow.  Do not guess fiscal fields or a destination month:
+  // those are filled only by OCR/XML or by the reviewer.
+  return {
+    tipo_documento:'NOTA_FISCAL',
+    source_drive_file_id:file.id,
+    source_drive_path:file.path,
+    source_md5:hash,
+    analise_pendente:true,
+    analise_erro:String(error?.message || error || 'Falha na análise automática').slice(0,500),
+    provedor_ia:'falha_ocr_revisao_manual',
+    analisado_em:new Date().toISOString()
+  };
+}
 async function removeExactDuplicates() {
   const r=await pool.query(`SELECT id,tipo_detectado,resultado_ia,entidade_destino_id,attachment_id,revisado_pelo_usuario,created_at FROM document_intakes WHERE COALESCE(status_registro,'')<>'DELETADO'`);
   const groups=new Map();
@@ -313,9 +328,26 @@ async function run() {
           const cacheKey=f.md5Checksum || f.id;
           if (analysisCache[cacheKey]) meta={ ...analysisCache[cacheKey],provedor_ia:'cache_ocr' };
           else {
-            meta=await analyzePdf(buffer,f.name);
-            analysisCache[cacheKey]=meta;
-            saveAnalysisCache(analysisCache);
+            try {
+              meta=await analyzePdf(buffer,f.name);
+              analysisCache[cacheKey]=meta;
+              saveAnalysisCache(analysisCache);
+            } catch (analysisError) {
+              // Keep the original PDF available under Solicitações/Revisão.
+              // In particular, a 400 from the AI API is not evidence that the
+              // PDF is invalid and must not be retried for every monthly run.
+              const disk=`${Date.now()}-${f.id}-${clean(f.name)}`;
+              fs.writeFileSync(path.join(uploadDir,disk),buffer);
+              const fallback=fallbackReviewMetadata(f,hash,analysisError);
+              await pool.query(`INSERT INTO document_intakes
+                (arquivo_original_url,file_name_original,file_name_final,mime_type,status_processamento,status_registro,tipo_detectado,resultado_ia,grupo_status,created_at,updated_at)
+                VALUES ($1,$2,$3,'application/pdf','PENDENTE_REVISAO','ATIVO','NOTA_FISCAL_PDF',$4::jsonb,'PENDENTE_REVISAO',NOW(),NOW())`,
+                [`/api/files/${encodeURIComponent(disk)}`,f.name,f.name,JSON.stringify(fallback)]);
+              knownSourceIds.add(String(f.id));
+              imported++;
+              console.warn('DRIVE_RECONCILE_PDF_READY_FOR_REVIEW',JSON.stringify({ path:f.path, reason:fallback.analise_erro }));
+              continue;
+            }
           }
         }
       }
