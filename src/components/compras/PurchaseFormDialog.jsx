@@ -68,15 +68,15 @@ const STATUS_APROVADOS = new Set([
 function toNumber(v) {
   if (typeof v === 'number') return Number.isFinite(v) ? v : 0
 
-  const raw = String(v ?? '').trim()
+  const raw = String(v ?? '').trim().replace(/^R\$\s*/i, '').replace(/\s/g, '')
 
   if (!raw) return 0
 
-  const normalized = raw
-    .replace(/\s/g, '')
-    .replace(/^R\$/i, '')
-    .replace(/\./g, '')
-    .replace(',', '.')
+  // A API pode retornar números como "1372.27". Não trate o ponto
+  // decimal da API como separador de milhar brasileiro.
+  const normalized = raw.includes(',')
+    ? raw.replace(/\./g, '').replace(',', '.')
+    : raw
 
   const n = Number(normalized)
 
