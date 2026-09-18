@@ -24,7 +24,6 @@ import {
   User,
   FileText,
   Loader2,
-  Sparkles,
   Clock,
   Download } from
 'lucide-react';
@@ -70,10 +69,8 @@ import BackupDriveTab from '@/components/compras/BackupDriveTab';
 import DashboardCompletoIA from '@/components/compras/DashboardCompletoIA';
 import PainelAuditoriaIASolicitacoes from '@/components/compras/PainelAuditoriaIASolicitacoes';
 import PainelSincronizacaoDriveNFs from '@/components/compras/PainelSincronizacaoDriveNFs';
-import TratarSolicitacoesButton from '@/components/compras/TratarSolicitacoesButton';
 import CorrigirCentroCustoIAButton from '@/components/compras/CorrigirCentroCustoIAButton';
 import PainelAuditoriaValoresNF from '@/components/compras/PainelAuditoriaValoresNF';
-import { isCoordGeral } from '@/components/auth/permissions';
 import { exportFilteredPdf, exportFilteredXlsx } from '@/utils/exportFilteredData';
 
 const STATUS_CONFIG = {
@@ -274,7 +271,8 @@ function ComprasInner() {
   const [vinculandoNatureza, setVinculandoNatureza] = useState(false);
   const [dashboardIAOpen, setDashboardIAOpen] = useState(false);
   const [filters, setFilters] = useState({ status: 'all', meta_id: 'all', search: '', rubrica_id: 'all', inconsistencias: 'all', centro_custo: 'all', data_inicio: '', data_fim: '' });
-  const [dateDraft, setDateDraft] = useState({ inicio: '', fim: '' });
+  const [searchDraft, setSearchDraft] = useState('');
+  const [filterDraft, setFilterDraft] = useState({ inicio: '', fim: '', status: 'all', meta_id: 'all', rubrica_id: 'all', centro_custo: 'all' });
   const queryClient = useQueryClient();
   const autoRecalcRan = React.useRef(false);
   // Trava de campo centro_custo: Map<purchaseId, { value: string, expiresAt: number }>
@@ -1183,11 +1181,7 @@ function ComprasInner() {
           { id: 'lista', label: 'Solicitações' },
           ...(podeGerenciarRubricas ? [{ id: 'rubricas', label: 'Rubricas' }] : []),
           { id: 'documentos', label: 'Documentos' },
-          { id: 'meus_pagamentos', label: 'Meus Pagamentos' },
-          ...(isAdmin ? [{ id: 'backup_drive', label: '🗄️ Backup Drive' }] : []),
-          ...(isAdmin ? [{ id: 'sinc_drive', label: '📂 Sinc. Drive NFs' }] : []),
-          ...(isAdmin ? [{ id: 'auditoria_valores', label: '👁️ Divergência de Valores' }] : []),
-          ...(isAdmin ? [{ id: 'verificacao', label: '🔍 Verificação' }] : [])].
+          { id: 'meus_pagamentos', label: 'Meus Pagamentos' }].
           map((t) =>
           <button
             key={t.id}
@@ -1211,12 +1205,21 @@ function ComprasInner() {
                 <Input
                 placeholder="Buscar fornecedor, NF, valor..."
                 className="pl-9"
-                value={filters.search}
-                onChange={(e) =>
-                setFilters((f) => ({ ...f, search: e.target.value }))
-                } />
+                value={searchDraft}
+                onChange={(e) => setSearchDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') setFilters((f) => ({ ...f, search: searchDraft }));
+                }} />
               
               </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setFilters((f) => ({ ...f, search: searchDraft }))}
+              >
+                Buscar
+              </Button>
 
               {!isMobile &&
             <>
@@ -1226,8 +1229,8 @@ function ComprasInner() {
                     id="filtro-data-inicio"
                     type="date"
                     className="w-36"
-                    value={dateDraft.inicio}
-                    onChange={(e) => setDateDraft((f) => ({ ...f, inicio: e.target.value }))}
+                    value={filterDraft.inicio}
+                    onChange={(e) => setFilterDraft((f) => ({ ...f, inicio: e.target.value }))}
                   />
                 </label>
                 <label htmlFor="filtro-data-fim" className="flex items-center gap-1.5 text-sm font-medium text-gray-600">
@@ -1236,17 +1239,13 @@ function ComprasInner() {
                     id="filtro-data-fim"
                     type="date"
                     className="w-36"
-                    value={dateDraft.fim}
-                    onChange={(e) => setDateDraft((f) => ({ ...f, fim: e.target.value }))}
+                    value={filterDraft.fim}
+                    onChange={(e) => setFilterDraft((f) => ({ ...f, fim: e.target.value }))}
                   />
                 </label>
-              <Button type="button" variant="outline" size="sm" onClick={() => setFilters((f) => ({ ...f, data_inicio: dateDraft.inicio, data_fim: dateDraft.fim }))}>
-                Filtrar
-              </Button>
-              
                   <SearchableSelect
-                value={filters.meta_id}
-                onValueChange={(v) => setFilters((f) => ({ ...f, meta_id: v }))}
+                value={filterDraft.meta_id}
+                onValueChange={(v) => setFilterDraft((f) => ({ ...f, meta_id: v }))}
                 placeholder="Meta orçamentária"
                 className="w-56"
                 items={[
@@ -1260,9 +1259,9 @@ function ComprasInner() {
               {isMobile ?
             <>
                   <NativeSelect
-                value={filters.status}
+                value={filterDraft.status}
                 onValueChange={(v) =>
-                setFilters((f) => ({ ...f, status: v }))
+                setFilterDraft((f) => ({ ...f, status: v }))
                 }
                 placeholder="Status"
                 items={[
@@ -1275,9 +1274,9 @@ function ComprasInner() {
               
 
                   <NativeSelect
-                value={filters.rubrica_id}
+                value={filterDraft.rubrica_id}
                 onValueChange={(v) =>
-                setFilters((f) => ({ ...f, rubrica_id: v }))
+                setFilterDraft((f) => ({ ...f, rubrica_id: v }))
                 }
                 placeholder="Rubrica"
                 items={[
@@ -1292,9 +1291,9 @@ function ComprasInner() {
               
 
                   <NativeSelect
-                value={filters.meta_id}
+                value={filterDraft.meta_id}
                 onValueChange={(v) =>
-                setFilters((f) => ({ ...f, meta_id: v }))
+                setFilterDraft((f) => ({ ...f, meta_id: v }))
                 }
                 placeholder="Meta"
                 items={[
@@ -1307,9 +1306,9 @@ function ComprasInner() {
               
 
                   <NativeSelect
-                value={filters.centro_custo}
+                value={filterDraft.centro_custo}
                 onValueChange={(v) =>
-                setFilters((f) => ({ ...f, centro_custo: v }))
+                setFilterDraft((f) => ({ ...f, centro_custo: v }))
                 }
                 placeholder="Centro de custo"
                 items={[
@@ -1324,9 +1323,9 @@ function ComprasInner() {
 
             <>
                   <Select
-                value={filters.status}
+                value={filterDraft.status}
                 onValueChange={(v) =>
-                setFilters((f) => ({ ...f, status: v }))
+                setFilterDraft((f) => ({ ...f, status: v }))
                 }>
                 
                     <SelectTrigger className="w-44">
@@ -1344,8 +1343,8 @@ function ComprasInner() {
                   </Select>
 
                   <SearchableSelect
-                value={filters.rubrica_id}
-                onValueChange={(v) => setFilters((f) => ({ ...f, rubrica_id: v }))}
+                value={filterDraft.rubrica_id}
+                onValueChange={(v) => setFilterDraft((f) => ({ ...f, rubrica_id: v }))}
                 placeholder="Rubrica"
                 className="w-64"
                 items={[
@@ -1355,9 +1354,9 @@ function ComprasInner() {
               
 
                   <Select
-                value={filters.centro_custo}
+                value={filterDraft.centro_custo}
                 onValueChange={(v) =>
-                setFilters((f) => ({ ...f, centro_custo: v }))
+                setFilterDraft((f) => ({ ...f, centro_custo: v }))
                 }>
                 
                     <SelectTrigger className="w-44">
@@ -1375,6 +1374,22 @@ function ComprasInner() {
                   </Select>
                 </>
             }
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setFilters((f) => ({
+                ...f,
+                status: filterDraft.status,
+                meta_id: filterDraft.meta_id,
+                rubrica_id: filterDraft.rubrica_id,
+                centro_custo: filterDraft.centro_custo,
+                data_inicio: filterDraft.inicio,
+                data_fim: filterDraft.fim,
+              }))}
+            >
+              Filtrar
+            </Button>
             </div>
 
             <div className="mb-3 flex items-center justify-between gap-3 flex-wrap">
@@ -1388,19 +1403,6 @@ function ComprasInner() {
                 <Button variant="outline" size="sm" className="gap-1.5" onClick={() => exportPurchases('xlsx')} disabled={!filtered.length}>
                   <Download className="h-3.5 w-3.5" /> Exportar Excel
                 </Button>
-              {isCoordenador && (
-                <button
-                  onClick={() => setDashboardIAOpen(true)}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-black text-white px-3 py-1.5 text-xs font-semibold hover:bg-gray-800 transition-colors"
-                  title="Painel para preencher em lote via IA os itens 'Fora do somatório' com status SOLICITADO"
-                >
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Dashboard Completo (IA)
-                </button>
-              )}
-              {isCoordGeral(currentUser) && (
-                <TratarSolicitacoesButton onDone={refreshFinanceiroCompleto} />
-              )}
               </div>
             </div>
 
