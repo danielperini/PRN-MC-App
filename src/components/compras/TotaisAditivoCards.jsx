@@ -194,13 +194,6 @@ export default function TotaisAditivoCards({ rubricas = [], compras = [], onRefr
 
   return (
     <div className="mb-6 space-y-4">
-      {duplicadas.quantidade > 0 && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800 flex items-center gap-2">
-          <span className="font-semibold">⚠</span>
-          {duplicadas.quantidade} NF(s) duplicada(s) detectada(s) — ignoradas no somatório ({fmtBRL(duplicadas.total_valor)})
-        </div>
-      )}
-
       {datasInvalidas.quantidade > 0 && (
         <div className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-2 text-xs text-orange-800 flex items-center gap-2">
           <span className="font-semibold">⚠</span>
