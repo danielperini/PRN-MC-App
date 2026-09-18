@@ -3,6 +3,7 @@ import pg from 'pg';
 import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import nodemailer from 'nodemailer';
+import { google } from 'googleapis';
 
 const { Pool } = pg;
 const pool = new Pool({
@@ -15,6 +16,8 @@ const pool = new Pool({
 
 const SESSION_DAYS = Number(process.env.SESSION_DAYS || 30);
 const COOKIE = 'appgestor_session';
+const GOOGLE_STATE_COOKIE = 'appgestor_google_oauth_state';
+const GOOGLE_RETURN_COOKIE = 'appgestor_google_oauth_return';
 const APP_ORIGIN = process.env.PUBLIC_BASE_URL || 'https://appgestor.periniprojetos.com.br';
 
 async function sendPendingWorkReminder(user) {
@@ -62,6 +65,28 @@ function cookies(req) {
   }));
 }
 
+function safeReturnPath(value) {
+  const fallback = '/';
+  if (!value) return fallback;
+  try {
+    const url = new URL(String(value), APP_ORIGIN);
+    if (url.origin !== new URL(APP_ORIGIN).origin) return fallback;
+    return `${url.pathname}${url.search}${url.hash}`.startsWith('/')
+      ? `${url.pathname}${url.search}${url.hash}`
+      : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function oauthClient() {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${APP_ORIGIN}/api/auth/google/callback`;
+  if (!clientId || !clientSecret) return null;
+  return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+}
+
 function publicUser(row) {
   if (!row) return null;
   const out = { ...row };
@@ -97,6 +122,65 @@ async function createSession(res, userId) {
 
 async function installAuth(app) {
   await ensureAuthSchema().catch(e => console.error('AUTH_SCHEMA_INIT_ERROR', e));
+
+  // Google OAuth is the standard entry point for the project team.  The
+  // production frontend invokes this exact route through the Base44 client.
+  app.get('/api/auth/google', (req, res) => {
+    const client = oauthClient();
+    if (!client) return res.status(503).send('Login Google indisponível: OAuth não configurado.');
+
+    const state = randomToken();
+    const returnTo = safeReturnPath(req.query?.return_to || req.query?.from_url || '/');
+    res.setHeader('Set-Cookie', [
+      `${GOOGLE_STATE_COOKIE}=${state}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=600`,
+      `${GOOGLE_RETURN_COOKIE}=${encodeURIComponent(returnTo)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=600`,
+    ]);
+    res.redirect(client.generateAuthUrl({
+      access_type: 'online',
+      prompt: 'select_account',
+      scope: ['openid', 'email', 'profile'],
+      state,
+    }));
+  });
+
+  app.get('/api/auth/google/callback', async (req, res) => {
+    const returnTo = safeReturnPath(cookies(req)[GOOGLE_RETURN_COOKIE] || '/');
+    const clearOauthCookies = [
+      `${GOOGLE_STATE_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`,
+      `${GOOGLE_RETURN_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`,
+    ];
+    try {
+      const client = oauthClient();
+      const expectedState = cookies(req)[GOOGLE_STATE_COOKIE];
+      const actualState = String(req.query?.state || '');
+      const code = String(req.query?.code || '');
+      if (!client || !expectedState || !actualState || !code || expectedState.length !== actualState.length || !crypto.timingSafeEqual(Buffer.from(expectedState), Buffer.from(actualState))) {
+        res.setHeader('Set-Cookie', clearOauthCookies);
+        return res.redirect('/login?error=google_auth_invalid');
+      }
+
+      const { tokens } = await client.getToken(code);
+      client.setCredentials(tokens);
+      const profile = await google.oauth2({ version: 'v2', auth: client }).userinfo.get();
+      const email = String(profile.data.email || '').trim().toLowerCase();
+      const result = await pool.query(`SELECT * FROM users WHERE lower(email)=lower($1) LIMIT 1`, [email]);
+      const user = result.rows[0];
+      if (!user || user.acesso_liberado !== true || user.is_verified !== true) {
+        res.setHeader('Set-Cookie', clearOauthCookies);
+        return res.redirect('/login?error=access_not_authorized');
+      }
+
+      await createSession(res, user.id);
+      // createSession sets the session cookie; append the OAuth cleanup cookies.
+      const current = res.getHeader('Set-Cookie');
+      res.setHeader('Set-Cookie', [...(Array.isArray(current) ? current : [current]).filter(Boolean), ...clearOauthCookies]);
+      return res.redirect(returnTo);
+    } catch (error) {
+      console.error('GOOGLE_AUTH_CALLBACK_ERROR', { message: error?.message });
+      res.setHeader('Set-Cookie', clearOauthCookies);
+      return res.redirect('/login?error=google_auth_failed');
+    }
+  });
 
   app.use(async (req, res, next) => {
     if (req.method !== 'GET' || !/^\/api\/apps\/[^/]+\/entities\/User\/me$/.test(req.path)) return next();
