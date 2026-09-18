@@ -94,6 +94,10 @@ function shouldAnalyzeUnmatchedPdf(file) {
   const administrative=/\b(CONTRATO|RELATORIO|TERMO|ADITIVO|ATA|ORCAMENTO|PROPOSTA|CURRICULO|PLANO DE TRABALHO|FOTO|IMAGEM|ATIVIDADE)\b/.test(name);
   return fiscalOrPayment && !administrative;
 }
+function isLikelyPaymentProof(file) {
+  const name=clean(file.name||'').toUpperCase();
+  return /\b(COMP(?:ROVANTE)?|PAGAMENTO|PAGO|PIX|TED|TRANSFERENCIA|DEP[OÓ]SITO|BOLETO|\bBOL\b)\b/.test(name);
+}
 function monthAllowed(p) {
   const m = String(p).match(/(?:^|\/)(0?[1-9]|1[0-2])[-_/](20\d{2})(?:\/|$)/);
   if (!m) return false;
@@ -186,6 +190,15 @@ async function removeExactDuplicates() {
     SET status_registro='DELETADO',status_processamento='DUPLICADO_REMOVIDO',updated_at=NOW()
     WHERE COALESCE(status_registro,'')<>'DELETADO'
       AND (status_processamento='DUPLICADO' OR resultado_ia->>'duplicate_detected'='true')`);
+  // Comprovantes importados por versões antigas como se fossem NF não podem
+  // ir para a fila de revisão. Mantemos o arquivo, mas o ocultamos até que
+  // seja associado de forma inequívoca à NF correspondente.
+  const misclassifiedProof=await pool.query(`UPDATE document_intakes
+    SET status_registro='DELETADO',status_processamento='COMPROVANTE_SEM_NF',updated_at=NOW()
+    WHERE COALESCE(status_registro,'')<>'DELETADO'
+      AND tipo_detectado='NOTA_FISCAL_PDF'
+      AND entidade_destino_id IS NULL
+      AND (file_name_original ~* '(^|[^A-Z])(COMP|COMPROVANTE|PAGAMENTO|PIX|TED|TRANSFERENCIA|DEPOSITO|BOLETO|BOL)([^A-Z]|$)')`);
   const r=await pool.query(`SELECT id,tipo_detectado,resultado_ia,entidade_destino_id,attachment_id,revisado_pelo_usuario,created_at FROM document_intakes WHERE COALESCE(status_registro,'')<>'DELETADO'`);
   const groups=new Map();
   for(const row of r.rows){
@@ -199,7 +212,7 @@ async function removeExactDuplicates() {
   }
   let removed=0;
   for(const list of groups.values()){ if(list.length<2) continue; list.sort((a,b)=>((b.entidade_destino_id?100:0)+(b.attachment_id?50:0)+(b.revisado_pelo_usuario?20:0))-((a.entidade_destino_id?100:0)+(a.attachment_id?50:0)+(a.revisado_pelo_usuario?20:0)) || Number(a.id)-Number(b.id)); const discard=list.slice(1).map(x=>x.id); if(discard.length){ await pool.query(`UPDATE document_intakes SET status_registro='DELETADO',status_processamento='DUPLICADO_REMOVIDO',updated_at=NOW() WHERE id=ANY($1::bigint[])`,[discard]); removed+=discard.length; } }
-  return removed+flagged.rowCount;
+  return removed+flagged.rowCount+misclassifiedProof.rowCount;
 }
 async function prepareXmlStaging(sourceEntries,targetEntries,runId) {
   await pool.query(`CREATE UNLOGGED TABLE IF NOT EXISTS drive_reconcile_xml_staging (
@@ -319,9 +332,10 @@ async function run() {
       if (knownSourceIds.has(String(f.id))) { duplicates++; continue; }
       const buffer=xmlCache.get(f.id) || await bytes(drive,f.id); const hash=f.md5Checksum || crypto.createHash('md5').update(buffer).digest('hex');
       if (targetHashes.has(hash)) { duplicates++; continue; }
+      const likelyProof=isLikelyPaymentProof(f);
       let meta={}; let matchedXml=null;
       {
-        const matches=xmlIndex.map(x=>({ ...x,confidence:xmlPdfConfidence(f,x) })).filter(x=>x.confidence>=0.95).sort((a,b)=>b.confidence-a.confidence);
+        const matches=likelyProof ? [] : xmlIndex.map(x=>({ ...x,confidence:xmlPdfConfidence(f,x) })).filter(x=>x.confidence>=0.95).sort((a,b)=>b.confidence-a.confidence);
         if (matches.length===1 || (matches[0] && matches[0].confidence>matches[1]?.confidence)) {
           const x=matches[0]; matchedXml=x; meta={ ...x.meta,tipo_documento:'NOTA_FISCAL',nf_numero:x.meta.numero,nf_valor_total:Number(x.meta.valor),nf_data_emissao:x.meta.data,nf_emitente_nome:x.meta.fornecedor,nf_emitente_cpf_cnpj:x.meta.cnpj||x.meta.cpf,provedor_ia:'xml_correspondente',xml_source_drive_file_id:x.file.id,xml_match_confidence:x.confidence };
           console.log('DRIVE_RECONCILE_PDF_FROM_XML',f.path,x.file.path,x.confidence);
@@ -357,10 +371,19 @@ async function run() {
           }
         }
       }
+      if (likelyProof && meta.tipo_documento!=='COMPROVANTE_PAGAMENTO') {
+        console.log('DRIVE_RECONCILE_IGNORED_UNMATCHED_PROOF',f.path);
+        ignored++;
+        continue;
+      }
       if (meta.tipo_documento==='OUTRO') { ignored++; continue; }
       const mapped={ cnpj:meta.cnpj || meta.nf_emitente_cpf_cnpj,cpf:meta.cpf,numero:meta.numero || meta.nf_numero,valor:meta.valor || meta.nf_valor_total,data:meta.data || meta.nf_data_emissao };
       const isProof=meta.tipo_documento==='COMPROVANTE_PAGAMENTO'; let parent=null;
-      if (isProof) { const candidates=invoicesByPartyValue.get(`${digits(mapped.cnpj||mapped.cpf)}|${Number(mapped.valor||0).toFixed(2)}`)||[]; if(candidates.length===1){ parent=candidates[0]; mapped.data=parent.data; mapped.numero=(parent.resultado_ia||{}).nf_numero; } }
+      if (isProof) {
+        const candidates=invoicesByPartyValue.get(`${digits(mapped.cnpj||mapped.cpf)}|${Number(mapped.valor||0).toFixed(2)}`)||[];
+        if(candidates.length===1){ parent=candidates[0]; mapped.data=parent.data; mapped.numero=(parent.resultado_ia||{}).nf_numero; }
+        else { console.log('DRIVE_RECONCILE_IGNORED_UNMATCHED_PROOF',f.path); ignored++; continue; }
+      }
       if (!mapped.data) throw new Error(isProof?'Comprovante sem NF correspondente única':'Data de emissão fiscal ausente após leitura integral');
       if (ONLY_MONTH) { const m=String(mapped.data).slice(0,7).match(/^(\d{4})-(\d{2})$/); if(!m || `${m[2]}-${m[1]}`!==ONLY_MONTH) continue; }
       const detected=isProof?'COMPROVANTE_PAGAMENTO':'NOTA_FISCAL_PDF';
