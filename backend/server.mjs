@@ -611,12 +611,32 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
       if (!apiKey) return res.status(503).json({ error:'openai_not_configured', message:'OPENAI_API_KEY não configurada' });
       const absoluteFileUrl = /^https?:\/\//i.test(fileUrl) ? fileUrl : `${req.protocol}://${req.get('host')}${fileUrl.startsWith('/') ? '' : '/'}${fileUrl}`;
       const prompt = `Leia integralmente esta nota fiscal. Retorne somente JSON com: nf_numero, nf_valor_total (número), nf_data_emissao (YYYY-MM-DD), nf_horario_emissao (HH:MM:SS ou vazio), competencia, nf_emitente_nome, nf_emitente_cpf_cnpj, municipio, descricao_servico, centro_custo_sugerido (somente Atuação Geral, MHAB, MIS, MUMO, Noturno 2026 ou Noturno Pampulha), rubrica_nome_sugerida e meta_sugerida. Regra obrigatória: qualquer despesa da 11ª edição do evento Noturno nos Museus de 2026 é Noturno 2026, salvo quando o texto mencionar expressamente Noturno Pampulha. Não use o nome do arquivo como substituto para valor ou data; extraia do conteúdo fiscal.`;
+      // Responses accepts an OpenAI file id, not an arbitrary public URL.  The
+      // previous `input_file.file_url` form is rejected with HTTP 400 and left
+      // otherwise valid invoices permanently stuck in manual review.
+      const fileResponse = await fetch(absoluteFileUrl, { signal: AbortSignal.timeout(60000) });
+      if (!fileResponse.ok) throw new Error(`invoice_file_fetch_failed:${fileResponse.status}`);
+      const fileBytes = await fileResponse.arrayBuffer();
+      if (!fileBytes.byteLength) throw new Error('invoice_file_empty');
+      const uploadForm = new FormData();
+      uploadForm.append('purpose', 'user_data');
+      uploadForm.append('file', new Blob([fileBytes], { type:fileResponse.headers.get('content-type') || 'application/pdf' }), path.basename(new URL(absoluteFileUrl).pathname) || 'nota-fiscal.pdf');
+      const uploadResponse = await fetch('https://api.openai.com/v1/files', {
+        method:'POST',
+        headers:{ Authorization:`Bearer ${apiKey}` },
+        body:uploadForm,
+        signal:AbortSignal.timeout(120000)
+      });
+      const uploadRaw = await uploadResponse.text();
+      if (!uploadResponse.ok) throw new Error(`OpenAI file upload ${uploadResponse.status}: ${uploadRaw.slice(0,500)}`);
+      const uploadedFile = JSON.parse(uploadRaw);
+      if (!uploadedFile?.id) throw new Error('OpenAI file upload returned no id');
       const aiResponse = await fetch('https://api.openai.com/v1/responses', {
         method:'POST',
         headers:{ Authorization:`Bearer ${apiKey}`, 'Content-Type':'application/json' },
         body:JSON.stringify({
           model:process.env.OPENAI_INVOICE_MODEL || 'gpt-4.1-mini',
-          input:[{ role:'user', content:[{ type:'input_text', text:prompt }, { type:'input_file', file_url:absoluteFileUrl }] }],
+          input:[{ role:'user', content:[{ type:'input_text', text:prompt }, { type:'input_file', file_id:uploadedFile.id }] }],
           text:{ format:{ type:'json_object' } }
         }),
         signal:AbortSignal.timeout(120000)
