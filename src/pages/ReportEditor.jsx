@@ -898,6 +898,7 @@ export default function ReportEditor() {
                     updateField('resumo_executivo', editorial.resumoExecutivo);
                   }
                 }}
+                onDownload={handleExportPdf}
               />
 
               <ReleasePanelEditor

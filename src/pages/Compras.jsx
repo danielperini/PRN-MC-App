@@ -27,7 +27,8 @@ import {
   Loader2,
   X,
   Sparkles,
-  Clock } from
+  Clock,
+  Download } from
 'lucide-react';
 
 import RequireAuth from '@/components/auth/RequireAuth';
@@ -75,6 +76,7 @@ import TratarSolicitacoesButton from '@/components/compras/TratarSolicitacoesBut
 import CorrigirCentroCustoIAButton from '@/components/compras/CorrigirCentroCustoIAButton';
 import PainelAuditoriaValoresNF from '@/components/compras/PainelAuditoriaValoresNF';
 import { isCoordGeral } from '@/components/auth/permissions';
+import { exportFilteredPdf, exportFilteredXlsx } from '@/utils/exportFilteredData';
 
 const STATUS_CONFIG = {
   RASCUNHO: { label: 'Rascunho', color: 'bg-gray-100 text-gray-700' },
@@ -599,6 +601,35 @@ function ComprasInner() {
       matchPeriodo);
 
   });
+
+  const exportPurchases = async (format) => {
+    if (!filtered.length) {
+      toast.error('Não há solicitações nos filtros atuais para exportar.');
+      return;
+    }
+    const columns = [
+      { label: 'Status', value: (p) => getStatusLabel(normalizeStatus(p.status)), width: 22 },
+      { label: 'Emissão', value: (p) => p.nf_data_emissao || p.data_emissao || p.data_nf || p.data_emissao_nf || '', width: 14 },
+      { label: 'Número NF', value: (p) => p.nf_numero || '', width: 14 },
+      { label: 'Fornecedor', value: (p) => p.fornecedor_nome || p.nf_emitente_nome || '', width: 32 },
+      { label: 'CNPJ / CPF', value: (p) => p.fornecedor_cpf_cnpj || p.fornecedor_cnpj || p.nf_emitente_cpf_cnpj || '', width: 20 },
+      { label: 'Descrição', value: (p) => p.descricao_item || p.objeto || '', width: 48 },
+      { label: 'Meta', value: (p) => p.meta_nome || p.meta_extra_descricao || p.meta_id || '', width: 34 },
+      { label: 'Rubrica', value: (p) => rubricas.find((r) => r.id === p.rubrica_id)?.nome || p.rubrica_nome || p.rubrica_id || '', width: 34 },
+      { label: 'Centro de custo', value: (p) => p._centro_custo_normalizado || p.centro_custo || '', width: 18 },
+      { label: 'Valor (R$)', value: (p) => getPurchaseValue(p).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), width: 16 },
+    ];
+    const filtersLabel = [filters.search && `busca: ${filters.search}`, filters.data_inicio && `de: ${filters.data_inicio}`, filters.data_fim && `até: ${filters.data_fim}`, filters.status !== 'all' && `status: ${getStatusLabel(filters.status)}`, filters.centro_custo !== 'all' && `centro: ${filters.centro_custo}`].filter(Boolean).join(' · ');
+    try {
+      const options = { rows: filtered, columns, fileName: `solicitacoes_${new Date().toISOString().slice(0, 10)}` };
+      if (format === 'xlsx') await exportFilteredXlsx({ ...options, sheetName: 'Solicitações' });
+      else await exportFilteredPdf({ ...options, title: 'Solicitações de compras', filtersLabel });
+      toast.success(`Exportação ${format === 'xlsx' ? 'Excel' : 'PDF'} iniciada.`);
+    } catch (error) {
+      console.error('Erro ao exportar solicitações:', error);
+      toast.error('Não foi possível gerar o arquivo. Tente novamente.');
+    }
+  };
 
   // Rebusca dados financeiros explicitamente (para ações de aprovação, deleção, etc.)
   const refreshFinanceiroCompleto = useCallback(async () => {
@@ -1404,6 +1435,13 @@ function ComprasInner() {
               <p className="text-sm text-gray-500">
                 {filtered.length} solicitaç{filtered.length !== 1 ? 'ões' : 'ão'}
               </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => exportPurchases('pdf')} disabled={!filtered.length}>
+                  <Download className="h-3.5 w-3.5" /> Exportar PDF
+                </Button>
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => exportPurchases('xlsx')} disabled={!filtered.length}>
+                  <Download className="h-3.5 w-3.5" /> Exportar Excel
+                </Button>
               {isCoordenador && (
                 <button
                   onClick={() => setDashboardIAOpen(true)}
@@ -1417,6 +1455,7 @@ function ComprasInner() {
               {isCoordGeral(currentUser) && (
                 <TratarSolicitacoesButton onDone={refreshFinanceiroCompleto} />
               )}
+              </div>
             </div>
 
             {filtered.length === 0 ?

@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Loader2, AlertCircle, Sparkles } from 'lucide-react';
+import { Loader2, AlertCircle, Sparkles, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 
-export default function EditorialEnhancer({ reportId, mes, ano, museu, onEnhance }) {
+export default function EditorialEnhancer({ reportId, mes, ano, museu, onEnhance, onDownload }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [resultado, setResultado] = useState(null);
@@ -119,6 +119,11 @@ export default function EditorialEnhancer({ reportId, mes, ano, museu, onEnhance
         <div className="text-xs text-green-700 pt-2 border-t border-green-200">
           📊 {resultado.totalAtividades} atividades aprovadas • {resultado.totalProgramacoes} programações
         </div>
+        {onDownload && (
+          <Button type="button" variant="outline" size="sm" onClick={onDownload} className="gap-2 border-green-300 text-green-800 hover:bg-green-100">
+            <Download className="w-4 h-4" /> Baixar relatório em PDF
+          </Button>
+        )}
       </div>
     </Card>
   );

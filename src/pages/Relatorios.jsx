@@ -17,6 +17,7 @@ import {
   Search,
   X,
   Loader2,
+  Download,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -42,6 +43,7 @@ import LoadingPage from '@/components/common/LoadingPage';
 import RestaurarRelatoriosDrive from '@/components/entrada/RestaurarRelatoriosDrive';
 import { toastMessages } from '@/lib/toastMessages';
 import { notifyReportReturned } from '@/services/notifications/reportNotifications';
+import { exportFilteredPdf, exportFilteredXlsx } from '@/utils/exportFilteredData';
 
 const STATUS_CONFIG = {
   DRAFT: { label: 'Rascunho', color: 'bg-gray-100 text-gray-600', icon: Clock },
@@ -323,6 +325,29 @@ export default function Relatorios() {
     return localFiltered;
   }, [isDeepSearch, deepSearchResults, localFiltered, applyFilters]);
 
+  const exportReports = async (format) => {
+    if (!filtered.length) return;
+    const columns = [
+      { label: 'Status', value: (report) => STATUS_CONFIG[report.status]?.label || report.status || '', width: 18 },
+      { label: 'Protocolo', value: (report) => report.numero_protocolo || '', width: 18 },
+      { label: 'Profissional', value: (report) => report.author_name || report.created_by || '', width: 30 },
+      { label: 'Função', value: (report) => report.funcao || '', width: 26 },
+      { label: 'Museu', value: (report) => report.museu || '', width: 18 },
+      { label: 'Mês de referência', value: (report) => `${report.mes_referencia || ''}${report.ano ? `/${report.ano}` : ''}`, width: 20 },
+      { label: 'Equipe', value: (report) => report.equipe || '', width: 24 },
+      { label: 'Resumo', value: (report) => report.resumo_periodo || report.resumo_executivo || '', width: 48 },
+      { label: 'Comentários', value: (report) => report.comentarios_gerais || report.comentarios_coordenacao || '', width: 48 },
+    ];
+    const filtersLabel = [filterMuseu !== 'todos' && `museu: ${filterMuseu}`, filterMes !== 'todos' && `mês: ${filterMes}`, filterStatus !== 'todos' && `status: ${STATUS_CONFIG[filterStatus]?.label || filterStatus}`, searchTerm.trim() && `busca: ${searchTerm.trim()}`].filter(Boolean).join(' · ');
+    try {
+      const options = { rows: filtered, columns, fileName: `relatorios_${new Date().toISOString().slice(0, 10)}` };
+      if (format === 'xlsx') await exportFilteredXlsx({ ...options, sheetName: 'Relatórios' });
+      else await exportFilteredPdf({ ...options, title: 'Relatórios mensais', filtersLabel });
+    } catch (error) {
+      console.error('Erro ao exportar relatórios:', error);
+    }
+  };
+
   // Chips de museu com contagem
   const museuCounts = useMemo(() => {
     const counts = {};
@@ -392,6 +417,12 @@ export default function Relatorios() {
           </div>
 
           <div className="flex flex-wrap gap-2">
+            <Button variant="outline" className="gap-2" onClick={() => exportReports('pdf')} disabled={!filtered.length}>
+              <Download className="h-4 w-4" /> Exportar PDF
+            </Button>
+            <Button variant="outline" className="gap-2" onClick={() => exportReports('xlsx')} disabled={!filtered.length}>
+              <Download className="h-4 w-4" /> Exportar Excel
+            </Button>
             {isCoordenador ? <>
               <Link to="/CoordReview">
                 <Button variant="outline" className="gap-2">
