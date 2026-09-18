@@ -87,6 +87,18 @@ const STATUS_CONFIG = {
 
 const STATUS_APROVADOS = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
 const STATUS_ELEGIVEIS_PAGAMENTO = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
+// The filter is intentionally grouped by workflow stage.  Showing each legacy
+// internal approval status produced repeated "Aprovado" options to users.
+const STATUS_FILTER_OPTIONS = [
+  { value: 'all', label: 'Todos os status' },
+  { value: 'AGUARDANDO_APROVACAO', label: 'Aguardando aprovação' },
+  { value: 'AGUARDANDO_PAGAMENTO', label: 'Aguardando confirmação de pagamento' },
+  { value: 'PAGO', label: 'Pago' },
+  { value: 'DEVOLVIDO', label: 'Devolvido' },
+  { value: 'RASCUNHO', label: 'Rascunho' },
+  { value: 'RECUSADO', label: 'Reprovado' },
+  { value: 'CANCELADO', label: 'Cancelado' }
+];
 
 function toNumber(value) {
   const n = Number(value ?? 0);
@@ -517,8 +529,11 @@ function ComprasInner() {
   }, [purchasesWithFlags]);
 
   const filtered = purchasesWithFlags.filter((p) => {
-    const matchStatus =
-    filters.status === 'all' || normalizeStatus(p.status) === filters.status;
+    const normalizedStatus = normalizeStatus(p.status);
+    const matchStatus = filters.status === 'all'
+      || (filters.status === 'AGUARDANDO_APROVACAO' && normalizedStatus === 'SOLICITADO')
+      || (filters.status === 'AGUARDANDO_PAGAMENTO' && ['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN'].includes(normalizedStatus))
+      || normalizedStatus === filters.status;
 
     let matchMeta = filters.meta_id === 'all';
 
@@ -1265,11 +1280,7 @@ function ComprasInner() {
                 }
                 placeholder="Status"
                 items={[
-                { value: 'all', label: 'Todos os status' },
-                ...Object.entries(STATUS_CONFIG).map(([k, v]) => ({
-                  value: k,
-                  label: v.label
-                }))]
+                ...STATUS_FILTER_OPTIONS]
                 } />
               
 
@@ -1333,10 +1344,9 @@ function ComprasInner() {
                     </SelectTrigger>
 
                     <SelectContent>
-                      <SelectItem value="all">Todos os status</SelectItem>
-                      {Object.entries(STATUS_CONFIG).map(([k, v]) =>
-                  <SelectItem key={k} value={k}>
-                          {v.label}
+                      {STATUS_FILTER_OPTIONS.map(({ value, label }) =>
+                  <SelectItem key={value} value={value}>
+                          {label}
                         </SelectItem>
                   )}
                     </SelectContent>
