@@ -23,9 +23,7 @@ import {
   ShieldCheck,
   User,
   FileText,
-  AlertTriangle,
   Loader2,
-  X,
   Sparkles,
   Clock,
   Download } from
@@ -520,15 +518,7 @@ function ComprasInner() {
     return Array.from(centros).sort((a, b) => a.localeCompare(b, 'pt-BR'));
   }, [purchasesWithFlags]);
 
-  const STATUS_PENDENTES = new Set(['APROVADO_COORD', 'APROVADO_ADMIN', 'APROVADO']);
-
   const filtered = purchasesWithFlags.filter((p) => {
-    // Filtro rápido "pendentes": apenas aprovadas aguardando pagamento (exclui rascunho, solicitado, devolvido, pago, cancelado e recusado)
-    if (filters._pendentes_fev) {
-      const st = normalizeStatus(p.status);
-      if (!STATUS_PENDENTES.has(st)) return false;
-    }
-
     const matchStatus =
     filters.status === 'all' || normalizeStatus(p.status) === filters.status;
 
@@ -1215,63 +1205,6 @@ function ComprasInner() {
 
         {tab === 'lista' &&
         <div>
-            {/* Atalho rápido: pendentes desde fevereiro */}
-            <div className="mb-3 flex flex-wrap gap-2 items-center">
-              <button
-                type="button"
-                onClick={() => setFilters(f => ({
-                  ...f,
-                  status: 'all',
-                  data_inicio: '2026-02-01',
-                  data_fim: '',
-                  _pendentes_fev: true,
-                }))}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${
-                  filters._pendentes_fev
-                    ? 'border-amber-500 bg-amber-500 text-white shadow'
-                    : 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100'
-                }`}
-              >
-                <AlertTriangle className="h-3.5 w-3.5" />
-                Pendentes
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilters(f => ({
-                  ...f,
-                  status: 'SOLICITADO',
-                  data_inicio: '2026-02-01',
-                  data_fim: '',
-                  _pendentes_fev: false,
-                }))}
-                className="inline-flex items-center gap-1.5 rounded-full border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-800 hover:bg-blue-100 transition-all"
-              >
-                🕐 Aguardando aprovação
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilters(f => ({
-                  ...f,
-                  status: 'APROVADO_COORD',
-                  data_inicio: '2026-02-01',
-                  data_fim: '',
-                  _pendentes_fev: false,
-                }))}
-                className="inline-flex items-center gap-1.5 rounded-full border border-green-300 bg-green-50 px-3 py-1.5 text-xs font-medium text-green-800 hover:bg-green-100 transition-all"
-              >
-                💳 Aguardando confirmação de pagamento
-              </button>
-              {(filters.data_inicio || filters._pendentes_fev) && (
-                <button
-                  type="button"
-                  onClick={() => setFilters(f => ({ ...f, status: 'all', data_inicio: '', data_fim: '', _pendentes_fev: false }))}
-                  className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-red-500 transition-colors"
-                >
-                  <X className="h-3.5 w-3.5" /> Limpar filtros rápidos
-                </button>
-              )}
-            </div>
-
             <div className="mb-4 flex flex-wrap gap-2">
               <div className="relative min-w-48 flex-1">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
@@ -1287,19 +1220,26 @@ function ComprasInner() {
 
               {!isMobile &&
             <>
+                <label htmlFor="filtro-data-inicio" className="flex items-center gap-1.5 text-sm font-medium text-gray-600">
+                  Início
                   <Input
-                type="date"
-                className="w-36"
-                value={dateDraft.inicio}
-                onChange={(e) => setDateDraft((f) => ({ ...f, inicio: e.target.value }))}
-                placeholder="Data início" />
-              
+                    id="filtro-data-inicio"
+                    type="date"
+                    className="w-36"
+                    value={dateDraft.inicio}
+                    onChange={(e) => setDateDraft((f) => ({ ...f, inicio: e.target.value }))}
+                  />
+                </label>
+                <label htmlFor="filtro-data-fim" className="flex items-center gap-1.5 text-sm font-medium text-gray-600">
+                  Fim
                   <Input
-                type="date"
-                className="w-36"
-                value={dateDraft.fim}
-                onChange={(e) => setDateDraft((f) => ({ ...f, fim: e.target.value }))}
-                placeholder="Data fim" />
+                    id="filtro-data-fim"
+                    type="date"
+                    className="w-36"
+                    value={dateDraft.fim}
+                    onChange={(e) => setDateDraft((f) => ({ ...f, fim: e.target.value }))}
+                  />
+                </label>
               <Button type="button" variant="outline" size="sm" onClick={() => setFilters((f) => ({ ...f, data_inicio: dateDraft.inicio, data_fim: dateDraft.fim }))}>
                 Filtrar
               </Button>
