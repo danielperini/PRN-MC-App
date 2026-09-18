@@ -1205,7 +1205,7 @@ function ComprasInner() {
                 }))}
                 className="inline-flex items-center gap-1.5 rounded-full border border-green-300 bg-green-50 px-3 py-1.5 text-xs font-medium text-green-800 hover:bg-green-100 transition-all"
               >
-                💳 Aguardando confirma��o de pagamento
+                💳 Aguardando confirmação de pagamento
               </button>
               {(filters.data_inicio || filters._pendentes_fev) && (
                 <button
