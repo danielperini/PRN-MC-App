@@ -615,7 +615,15 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
       // previous `input_file.file_url` form is rejected with HTTP 400 and left
       // otherwise valid invoices permanently stuck in manual review.
       const localName = /^\/api\/files\//.test(fileUrl) ? path.basename(decodeURIComponent(fileUrl)) : '';
-      const localPath = localName ? path.join(uploadDir, localName) : '';
+      let localPath = localName ? path.join(uploadDir, localName) : '';
+      // Some legacy records have a visually ambiguous Drive id in their URL
+      // (uppercase I versus lowercase l).  The timestamp prefix is unique in
+      // the upload volume, so use it as a safe recovery key for that record.
+      if (localName && !fs.existsSync(localPath)) {
+        const timestampPrefix = `${localName.split('-')[0]}-`;
+        const recoveredName = fs.readdirSync(uploadDir).find(name => name.startsWith(timestampPrefix));
+        if (recoveredName) localPath = path.join(uploadDir, recoveredName);
+      }
       // This handler runs beside the upload volume. Reading it directly avoids
       // requesting the container's unpublished host port (which caused the
       // self-fetch failure and prevented OCR from ever starting).
