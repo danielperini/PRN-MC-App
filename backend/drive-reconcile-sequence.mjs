@@ -3,6 +3,10 @@ import { spawn } from 'node:child_process';
 const months=(process.env.DRIVE_RECONCILE_SEQUENCE || '03-2026,02-2026,04-2026,05-2026,06-2026,07-2026,08-2026,09-2026')
   .split(',').map(x=>x.trim()).filter(Boolean);
 const pauseMs=Number(process.env.DRIVE_RECONCILE_RETRY_DELAY_MS || 300000);
+// An unavailable source document cannot become available by retrying the
+// same monthly job forever.  The intake records the item for review and the
+// sequence continues with the next fiscal month after this bounded retry.
+const maxAttempts=Number(process.env.DRIVE_RECONCILE_MAX_ATTEMPTS || 2);
 const sleep=(ms)=>new Promise(resolve=>setTimeout(resolve,ms));
 
 function runMonth(month) {
@@ -32,6 +36,10 @@ for (const month of months) {
     const complete=result.code===0 && result.summary && Number(result.summary.errors||0)===0;
     console.log('DRIVE_RECONCILE_MONTH_RESULT',JSON.stringify({ month,attempt,complete,code:result.code,...(result.summary||{}) }));
     if (complete) break;
+    if (attempt >= maxAttempts) {
+      console.warn('DRIVE_RECONCILE_MONTH_ADVANCE_WITH_ERRORS',JSON.stringify({ month,attempt,errors:result.summary?.errors || null }));
+      break;
+    }
     console.warn('DRIVE_RECONCILE_MONTH_RETRY',JSON.stringify({ month,attempt,wait_ms:pauseMs }));
     await sleep(pauseMs);
   }
