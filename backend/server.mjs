@@ -614,13 +614,25 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
       // Responses accepts an OpenAI file id, not an arbitrary public URL.  The
       // previous `input_file.file_url` form is rejected with HTTP 400 and left
       // otherwise valid invoices permanently stuck in manual review.
-      const fileResponse = await fetch(absoluteFileUrl, { signal: AbortSignal.timeout(60000) });
-      if (!fileResponse.ok) throw new Error(`invoice_file_fetch_failed:${fileResponse.status}`);
-      const fileBytes = await fileResponse.arrayBuffer();
+      const localName = /^\/api\/files\//.test(fileUrl) ? path.basename(decodeURIComponent(fileUrl)) : '';
+      const localPath = localName ? path.join(uploadDir, localName) : '';
+      // This handler runs beside the upload volume. Reading it directly avoids
+      // requesting the container's unpublished host port (which caused the
+      // self-fetch failure and prevented OCR from ever starting).
+      let fileBytes;
+      let fileMime = 'application/pdf';
+      if (localPath && fs.existsSync(localPath)) {
+        fileBytes = fs.readFileSync(localPath);
+      } else {
+        const fileResponse = await fetch(absoluteFileUrl, { signal: AbortSignal.timeout(60000) });
+        if (!fileResponse.ok) throw new Error(`invoice_file_fetch_failed:${fileResponse.status}`);
+        fileBytes = await fileResponse.arrayBuffer();
+        fileMime = fileResponse.headers.get('content-type') || fileMime;
+      }
       if (!fileBytes.byteLength) throw new Error('invoice_file_empty');
       const uploadForm = new FormData();
       uploadForm.append('purpose', 'user_data');
-      uploadForm.append('file', new Blob([fileBytes], { type:fileResponse.headers.get('content-type') || 'application/pdf' }), path.basename(new URL(absoluteFileUrl).pathname) || 'nota-fiscal.pdf');
+      uploadForm.append('file', new Blob([fileBytes], { type:fileMime }), localName || path.basename(new URL(absoluteFileUrl).pathname) || 'nota-fiscal.pdf');
       const uploadResponse = await fetch('https://api.openai.com/v1/files', {
         method:'POST',
         headers:{ Authorization:`Bearer ${apiKey}` },
