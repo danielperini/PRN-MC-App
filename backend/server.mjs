@@ -156,6 +156,35 @@ async function tableColumns(table) {
   const r = await pool.query(`SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1 ORDER BY ordinal_position`, [table]);
   return r.rows.map(x => x.column_name);
 }
+
+// Recompute from fiscal data after every state-changing purchase action. Drafts
+// never consume the budget and the invoice amount wins over UI display fields.
+async function syncRubricaBalances() {
+  const r = await pool.query(`
+    WITH used AS (
+      SELECT rubrica_id, ROUND(SUM(CASE
+        WHEN nf_valor_total > 0 THEN nf_valor_total
+        WHEN valor_aprovado > 0 THEN valor_aprovado
+        WHEN valor_total > 0 THEN valor_total
+        ELSE COALESCE(valor_solicitado, 0)
+      END)::numeric, 2) AS amount
+      FROM purchase_requests
+      WHERE rubrica_id IS NOT NULL
+        AND UPPER(COALESCE(status,'')) IN ('APROVADO','APROVADO_COORD','APROVADO_ADMIN','PAGO')
+      GROUP BY rubrica_id
+    )
+    UPDATE rubricas r
+    SET valor_utilizado=COALESCE(u.amount,0),
+        saldo=COALESCE(r.valor_total,r.valor_rubrica,0)-COALESCE(u.amount,0),
+        saldo_real=COALESCE(r.valor_total,r.valor_rubrica,0)-COALESCE(u.amount,0),
+        percentual_utilizado=CASE WHEN COALESCE(r.valor_total,r.valor_rubrica,0)>0 THEN ROUND(COALESCE(u.amount,0)/COALESCE(r.valor_total,r.valor_rubrica,0)*100,2) ELSE 0 END,
+        updated_at=NOW()
+    FROM (SELECT id FROM rubricas) all_r
+    LEFT JOIN used u ON u.rubrica_id=all_r.id
+    WHERE r.id=all_r.id
+  `);
+  return r.rowCount || 0;
+}
 async function tableColumnTypes(table) {
   const r = await pool.query(`SELECT column_name,data_type,udt_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1 ORDER BY ordinal_position`, [table]);
   return new Map(r.rows.map(x => [x.column_name, { dataType:x.data_type, udtName:x.udt_name }]));
@@ -558,8 +587,15 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
         const setSql = entries.map(([field],index) => `${quoteIdentifier(field)}=$${index + 1}`).join(',');
         const updatedResult = await client.query(`UPDATE purchase_requests SET ${setSql} WHERE id=$${values.length} RETURNING *`,values);
         await client.query('COMMIT');
+        // A rubrica is derived from approved fiscal records, never incremented
+        // blindly. This makes approval, payment, correction and reassignment
+        // idempotent and prevents a second debit on payment.
+        const rubricasAtualizadas = await syncRubricaBalances().catch(error => {
+          console.error('RUBRICA_BALANCE_SYNC_ERROR', JSON.stringify({ purchase_id:purchaseId, action, message:error.message }));
+          return 0;
+        });
         console.log('PURCHASE_ACTION_OK',JSON.stringify({ purchase_id:purchaseId, action, status:updatedResult.rows[0]?.status }));
-        return res.status(200).json({ success:true, purchase:updatedResult.rows[0] });
+        return res.status(200).json({ success:true, purchase:updatedResult.rows[0], rubricas_atualizadas:rubricasAtualizadas });
       } catch (error) {
         await client.query('ROLLBACK').catch(()=>{});
         throw error;
