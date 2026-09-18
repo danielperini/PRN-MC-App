@@ -527,6 +527,12 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
           if (columns.includes('budgetline_id')) updates.budgetline_id = novaRubricaId;
           const novoCentroCusto = String(req.body?.novoCentroCusto || '').trim();
           if (novoCentroCusto && columns.includes('centro_custo')) updates.centro_custo = novoCentroCusto;
+          const novoValor = Number(req.body?.novoValor);
+          if (Number.isFinite(novoValor) && novoValor >= 0) {
+            for (const field of ['valor_solicitado','valor_total','nf_valor_total']) {
+              if (columns.includes(field)) updates[field] = novoValor;
+            }
+          }
         } else if (action === 'updatecentrocusto' || action === 'atualizar_centro_custo') {
           const novoCentroCusto = String(req.body?.novoCentroCusto || req.body?.centro_custo || '').trim();
           if (!novoCentroCusto) {
