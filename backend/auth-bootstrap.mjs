@@ -125,7 +125,7 @@ async function installAuth(app) {
 
   // Google OAuth is the standard entry point for the project team.  The
   // production frontend invokes this exact route through the Base44 client.
-  app.get('/api/auth/google', (req, res) => {
+  app.get(['/api/auth/google', '/api/apps/auth/google'], (req, res) => {
     const client = oauthClient();
     if (!client) return res.status(503).send('Login Google indisponível: OAuth não configurado.');
 
@@ -143,7 +143,7 @@ async function installAuth(app) {
     }));
   });
 
-  app.get('/api/auth/google/callback', async (req, res) => {
+  app.get(['/api/auth/google/callback', '/api/apps/auth/google/callback'], async (req, res) => {
     const returnTo = safeReturnPath(cookies(req)[GOOGLE_RETURN_COOKIE] || '/');
     const clearOauthCookies = [
       `${GOOGLE_STATE_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`,
