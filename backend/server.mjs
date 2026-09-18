@@ -529,7 +529,10 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
           if (novoCentroCusto && columns.includes('centro_custo')) updates.centro_custo = novoCentroCusto;
           const novoValor = Number(req.body?.novoValor);
           if (Number.isFinite(novoValor) && novoValor >= 0) {
-            for (const field of ['valor_solicitado','valor_total','nf_valor_total']) {
+            // Keep every persisted monetary representation aligned.  The cards
+            // prioritise valor_aprovado for an approved request, so leaving it
+            // behind would continue debiting the old value after a correction.
+            for (const field of ['valor_solicitado','valor_total','nf_valor_total','valor_aprovado']) {
               if (columns.includes(field)) updates[field] = novoValor;
             }
           }
@@ -612,9 +615,39 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
       if (exists) {
         const columns = await tableColumns(table);
         const balance = columns.includes('saldo') ? 'saldo' : columns.includes('saldo_atual') ? 'saldo_atual' : null;
-        if (balance) {
-          const r = await pool.query(`SELECT COUNT(*)::int AS count FROM ${quoteIdentifier(table)}`);
-          console.log('recalcularSaldosRubricas:', r.rows[0]?.count ?? 0, 'rubricas');
+        if (balance && columns.includes('valor_utilizado')) {
+          // The fiscal total is canonical whenever it exists.  This deliberately
+          // excludes requests that were not approved yet, so draft/solicitado
+          // records can never consume a budget line.
+          const r = await pool.query(`
+            WITH used AS (
+              SELECT rubrica_id,
+                ROUND(SUM(CASE
+                  WHEN nf_valor_total > 0 THEN nf_valor_total
+                  WHEN valor_aprovado > 0 THEN valor_aprovado
+                  WHEN valor_total > 0 THEN valor_total
+                  ELSE COALESCE(valor_solicitado, 0)
+                END)::numeric, 2) AS amount
+              FROM purchase_requests
+              WHERE rubrica_id IS NOT NULL
+                AND UPPER(COALESCE(status,'')) IN ('APROVADO','APROVADO_COORD','APROVADO_ADMIN','PAGO')
+              GROUP BY rubrica_id
+            )
+            UPDATE ${quoteIdentifier(table)} r
+            SET valor_utilizado = COALESCE(u.amount, 0),
+                ${quoteIdentifier(balance)} = COALESCE(r.valor_total, r.valor_rubrica, 0) - COALESCE(u.amount, 0),
+                saldo_real = COALESCE(r.valor_total, r.valor_rubrica, 0) - COALESCE(u.amount, 0),
+                percentual_utilizado = CASE
+                  WHEN COALESCE(r.valor_total, r.valor_rubrica, 0) > 0
+                  THEN ROUND((COALESCE(u.amount, 0) / COALESCE(r.valor_total, r.valor_rubrica, 0)) * 100, 2)
+                  ELSE 0
+                END,
+                updated_at = NOW()
+            FROM (SELECT id FROM ${quoteIdentifier(table)}) all_r
+            LEFT JOIN used u ON u.rubrica_id = all_r.id
+            WHERE r.id = all_r.id
+          `);
+          console.log('recalcularSaldosRubricas:', r.rowCount ?? 0, 'rubricas atualizadas');
         }
       }
       return res.status(200).json({ success:true, function:name, recalculated:true });
