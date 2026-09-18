@@ -116,8 +116,10 @@ function localFileFromUrl(url) {
 }
 async function backupPurchaseImmediately(drive, purchase, columns) {
   const issueDate=fiscalDate(purchase.nf_data_emissao || purchase.data_emissao);
-  const pdfUrl=purchase.nf_pdf_url || purchase.nota_fiscal_url || purchase.arquivo_url || purchase.file_url || purchase.documento_url;
-  const xmlUrl=purchase.nf_xml_url;
+  // These are the columns used by the production schema. Keep the legacy
+  // aliases last so a fiscal PDF is never replaced by a generic attachment.
+  const pdfUrl=purchase.nf_pdf_link || purchase.nota_fiscal_pdf_url || purchase.nota_fiscal_url || purchase.arquivo_url || purchase.nf_pdf_url || purchase.file_url || purchase.documento_url;
+  const xmlUrl=purchase.nf_xml_link || purchase.nota_fiscal_xml_url || purchase.xml_url || purchase.nf_xml_url;
   if (!issueDate || !pdfUrl) return {skipped:true,reason:!issueDate?'sem_data_emissao':'sem_pdf_local'};
   const folderId=await driveMonthFolder(drive,issueDate);
   const backed=[];
@@ -131,9 +133,11 @@ async function backupPurchaseImmediately(drive, purchase, columns) {
   if (!backed.length) return {skipped:true,reason:'arquivo_local_indisponivel'};
   const updates={};
   if(columns.includes('drive_file_id')) updates.drive_file_id=backed[0].id;
-  if(columns.includes('drive_url')) updates.drive_url=backed[0].webViewLink || `https://drive.google.com/file/d/${backed[0].id}/view`;
-  if(columns.includes('backup_drive_status')) updates.backup_drive_status='CONCLUIDO';
-  if(columns.includes('backup_drive_error')) updates.backup_drive_error=null;
+  const driveUrl=backed[0].webViewLink || `https://drive.google.com/file/d/${backed[0].id}/view`;
+  if(columns.includes('drive_file_url')) updates.drive_file_url=driveUrl;
+  if(columns.includes('drive_backup_nf_pdf_link')) updates.drive_backup_nf_pdf_link=driveUrl;
+  if(columns.includes('drive_backup_status')) updates.drive_backup_status='CONCLUIDO';
+  if(columns.includes('drive_backup_error')) updates.drive_backup_error=null;
   const entries=Object.entries(updates); if(entries.length){ const values=entries.map(([,v])=>v); values.push(purchase.id); await pool.query(`UPDATE purchase_requests SET ${entries.map(([field],i)=>`${quoteIdentifier(field)}=$${i+1}`).join(',')} WHERE id=$${values.length}`,values); }
   return {backed:backed.length};
 }
