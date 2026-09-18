@@ -879,7 +879,8 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
         // estornar o saldo dela antes de debitar na nova
         const rubricaMudou = form.rubrica_id && form.rubrica_id !== prefill?.rubrica_id
         const centroCustoMudou = payload.centro_custo && payload.centro_custo !== prefill?.centro_custo
-        if (isCoordenador && isApproved && form.rubrica_id && (rubricaMudou || centroCustoMudou)) {
+        const valorMudou = Math.abs(toNumber(form.valor_solicitado) - toNumber(prefill?.valor_solicitado)) >= 0.01
+        if (isCoordenador && isApproved && form.rubrica_id && (rubricaMudou || centroCustoMudou || valorMudou)) {
           const res = await base44.functions.invoke('purchaseActions', {
             action: 'trocar_rubrica',
             purchaseId: prefill.id,
