@@ -274,6 +274,7 @@ function ComprasInner() {
   const [vinculandoNatureza, setVinculandoNatureza] = useState(false);
   const [dashboardIAOpen, setDashboardIAOpen] = useState(false);
   const [filters, setFilters] = useState({ status: 'all', meta_id: 'all', search: '', rubrica_id: 'all', inconsistencias: 'all', centro_custo: 'all', data_inicio: '', data_fim: '' });
+  const [dateDraft, setDateDraft] = useState({ inicio: '', fim: '' });
   const queryClient = useQueryClient();
   const autoRecalcRan = React.useRef(false);
   // Trava de campo centro_custo: Map<purchaseId, { value: string, expiresAt: number }>
@@ -575,15 +576,16 @@ function ComprasInner() {
     fmtBRL(getPurchaseValue(p)).toLowerCase().includes(busca) ||
     String(p.nf_numero || '').toLowerCase().includes(busca);
 
-    // Filtro por período (data de criação)
+    // Data de emissão é a referência fiscal. Data de criação nunca deve
+    // alterar o resultado quando o usuário filtra notas por período.
     let matchPeriodo = true;
     if (filters.data_inicio || filters.data_fim) {
-      const dataCriacao = p.created_date ? new Date(p.created_date) : null;
-      if (!dataCriacao || isNaN(dataCriacao.getTime())) {
+      const dataEmissao=String(p.nf_data_emissao || p.data_emissao || p.data_nf || p.data_emissao_nf || '').slice(0,10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dataEmissao)) {
         matchPeriodo = false;
       } else {
-        if (filters.data_inicio && dataCriacao < new Date(filters.data_inicio + 'T00:00:00')) matchPeriodo = false;
-        if (filters.data_fim && dataCriacao > new Date(filters.data_fim + 'T23:59:59')) matchPeriodo = false;
+        if (filters.data_inicio && dataEmissao < filters.data_inicio) matchPeriodo = false;
+        if (filters.data_fim && dataEmissao > filters.data_fim) matchPeriodo = false;
       }
     }
 
@@ -1251,16 +1253,19 @@ function ComprasInner() {
                   <Input
                 type="date"
                 className="w-36"
-                value={filters.data_inicio}
-                onChange={(e) => setFilters((f) => ({ ...f, data_inicio: e.target.value }))}
+                value={dateDraft.inicio}
+                onChange={(e) => setDateDraft((f) => ({ ...f, inicio: e.target.value }))}
                 placeholder="Data início" />
               
                   <Input
                 type="date"
                 className="w-36"
-                value={filters.data_fim}
-                onChange={(e) => setFilters((f) => ({ ...f, data_fim: e.target.value }))}
+                value={dateDraft.fim}
+                onChange={(e) => setDateDraft((f) => ({ ...f, fim: e.target.value }))}
                 placeholder="Data fim" />
+              <Button type="button" variant="outline" size="sm" onClick={() => setFilters((f) => ({ ...f, data_inicio: dateDraft.inicio, data_fim: dateDraft.fim }))}>
+                Filtrar
+              </Button>
               
                   <SearchableSelect
                 value={filters.meta_id}

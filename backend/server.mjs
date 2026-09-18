@@ -6,6 +6,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { createServer } from 'node:http';
 import { Server as SocketIOServer } from 'socket.io';
+import { google } from 'googleapis';
 import { syncProgramacao } from './programacao-sync.mjs';
 import nodemailer from 'nodemailer';
 
@@ -77,6 +78,64 @@ function fileUrl(req, storedName) {
   if (publicBaseUrl) return `${publicBaseUrl}/api/files/${encodeURIComponent(storedName)}`;
   const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0];
   return `${proto}://${req.get('host')}/api/files/${encodeURIComponent(storedName)}`;
+}
+
+const DRIVE_ROOT_ID=process.env.GOOGLE_DRIVE_FOLDER_ID || '1qVwpSypPHyQ_IK_H2yTho46MVCzj0FrU';
+function fiscalDate(value) {
+  const date=String(value || '').slice(0,10);
+  return /^20\d{2}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/.test(date) ? date : '';
+}
+function safeDriveName(value) {
+  return String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[\\/:*?"<>|]+/g,' ').replace(/\s+/g,' ').trim();
+}
+function canonicalInvoiceName(purchase, url) {
+  const ext=path.extname(String(url || '')).toLowerCase() === '.xml' ? '.xml' : '.pdf';
+  const number=safeDriveName(purchase.nf_numero || 'SEM-NUM') || 'SEM-NUM';
+  const supplier=safeDriveName(purchase.nf_emitente_nome || purchase.fornecedor_nome || 'FORNECEDOR A REVISAR') || 'FORNECEDOR A REVISAR';
+  const value=Number(purchase.nf_valor_total || purchase.valor_total || purchase.valor_solicitado || 0);
+  const brl=Number.isFinite(value) ? value.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) : '0,00';
+  return `${number} - ${supplier} - MUSEUS CENTRO - R$ ${brl}${ext}`;
+}
+async function invoiceDriveClient() {
+  if (!process.env.GOOGLE_DRIVE_CLIENT_ID || !process.env.GOOGLE_DRIVE_CLIENT_SECRET || !process.env.GOOGLE_DRIVE_REFRESH_TOKEN) throw new Error('Google Drive não configurado');
+  const auth=new google.auth.OAuth2(process.env.GOOGLE_DRIVE_CLIENT_ID,process.env.GOOGLE_DRIVE_CLIENT_SECRET);
+  auth.setCredentials({refresh_token:process.env.GOOGLE_DRIVE_REFRESH_TOKEN});
+  return google.drive({version:'v3',auth});
+}
+async function driveMonthFolder(drive, issueDate) {
+  const date=fiscalDate(issueDate); if(!date) throw new Error('Data de emissão fiscal ausente');
+  const name=`${date.slice(5,7)}-${date.slice(0,4)}`;
+  const found=await drive.files.list({q:`'${DRIVE_ROOT_ID}' in parents and name='${name}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,fields:'files(id)',pageSize:1,supportsAllDrives:true,includeItemsFromAllDrives:true});
+  if(found.data.files?.[0]?.id) return found.data.files[0].id;
+  return (await drive.files.create({requestBody:{name,mimeType:'application/vnd.google-apps.folder',parents:[DRIVE_ROOT_ID]},fields:'id',supportsAllDrives:true})).data.id;
+}
+function localFileFromUrl(url) {
+  const match=String(url || '').match(/\/api\/files\/([^/?#]+)/i); if(!match) return null;
+  const name=path.basename(decodeURIComponent(match[1])); const file=path.join(uploadDir,name);
+  return fs.existsSync(file) ? file : null;
+}
+async function backupPurchaseImmediately(drive, purchase, columns) {
+  const issueDate=fiscalDate(purchase.nf_data_emissao || purchase.data_emissao);
+  const pdfUrl=purchase.nf_pdf_url || purchase.nota_fiscal_url || purchase.arquivo_url || purchase.file_url || purchase.documento_url;
+  const xmlUrl=purchase.nf_xml_url;
+  if (!issueDate || !pdfUrl) return {skipped:true,reason:!issueDate?'sem_data_emissao':'sem_pdf_local'};
+  const folderId=await driveMonthFolder(drive,issueDate);
+  const backed=[];
+  for (const url of [pdfUrl,xmlUrl].filter(Boolean)) {
+    const local=localFileFromUrl(url); if(!local) continue;
+    const name=canonicalInvoiceName(purchase,url);
+    const existing=await drive.files.list({q:`'${folderId}' in parents and name='${name.replace(/'/g,"\\'")}' and trashed=false`,fields:'files(id,webViewLink)',pageSize:1,supportsAllDrives:true,includeItemsFromAllDrives:true});
+    const remote=existing.data.files?.[0] || (await drive.files.create({requestBody:{name,parents:[folderId]},media:{mimeType:path.extname(local).toLowerCase()==='.xml'?'application/xml':'application/pdf',body:fs.createReadStream(local)},fields:'id,webViewLink',supportsAllDrives:true})).data;
+    backed.push(remote);
+  }
+  if (!backed.length) return {skipped:true,reason:'arquivo_local_indisponivel'};
+  const updates={};
+  if(columns.includes('drive_file_id')) updates.drive_file_id=backed[0].id;
+  if(columns.includes('drive_url')) updates.drive_url=backed[0].webViewLink || `https://drive.google.com/file/d/${backed[0].id}/view`;
+  if(columns.includes('backup_drive_status')) updates.backup_drive_status='CONCLUIDO';
+  if(columns.includes('backup_drive_error')) updates.backup_drive_error=null;
+  const entries=Object.entries(updates); if(entries.length){ const values=entries.map(([,v])=>v); values.push(purchase.id); await pool.query(`UPDATE purchase_requests SET ${entries.map(([field],i)=>`${quoteIdentifier(field)}=$${i+1}`).join(',')} WHERE id=$${values.length}`,values); }
+  return {backed:backed.length};
 }
 
 const ENTITY_TABLES = Object.freeze({
@@ -352,6 +411,60 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
         attachments
       });
       return res.status(200).json({ success:true });
+    }
+    if (name === 'tratarSolicitacoesLote') {
+      const dryRun=Boolean(req.body?.dry_run);
+      const cutoff='2026-07-14';
+      const columns=await tableColumns('purchase_requests');
+      const purchases=(await pool.query('SELECT * FROM purchase_requests')).rows;
+      const exactKey=(p) => {
+        const tax=String(p.nf_emitente_cpf_cnpj || p.fornecedor_cpf_cnpj || p.fornecedor_cnpj || '').replace(/\D/g,'');
+        const number=String(p.nf_numero || '').replace(/^0+/,'').trim();
+        const amount=Number(p.nf_valor_total || p.valor_aprovado || p.valor_total || p.valor_solicitado || 0);
+        const date=fiscalDate(p.nf_data_emissao || p.data_emissao);
+        return tax && number && amount>0 && date ? `${tax}|${number}|${amount.toFixed(2)}|${date}` : null;
+      };
+      const groups=new Map(); const history=new Map();
+      for (const p of purchases) {
+        const key=exactKey(p); if(key) { const list=groups.get(key)||[]; list.push(p); groups.set(key,list); }
+        const supplier=String(p.nf_emitente_cpf_cnpj || p.fornecedor_cpf_cnpj || p.fornecedor_cnpj || p.fornecedor_nome || '').replace(/\W/g,'').toUpperCase();
+        if(supplier && p.rubrica_id && p.centro_custo) history.set(supplier,{rubrica_id:p.rubrica_id,centro_custo:p.centro_custo,meta_id:p.meta_id || null});
+      }
+      const duplicates=new Set();
+      for (const list of groups.values()) if(list.length>1) {
+        list.sort((a,b)=>(Number(Boolean(b.comprovante_url))+Number(Boolean(b.nota_fiscal_url))+Number(Boolean(b.rubrica_id)))-(Number(Boolean(a.comprovante_url))+Number(Boolean(a.nota_fiscal_url))+Number(Boolean(a.rubrica_id))) || Number(a.id)-Number(b.id));
+        list.slice(1).forEach(p=>duplicates.add(String(p.id)));
+      }
+      let rubricas=0,approved=0,paid=0,backed=0; const errors=[];
+      const drive=!dryRun ? await invoiceDriveClient().catch(error=>{errors.push(error.message); return null;}) : null;
+      for (const p of purchases) {
+        const id=String(p.id); const update={};
+        if(duplicates.has(id) && columns.includes('fora_do_somatorio')) update.fora_do_somatorio=true;
+        const supplier=String(p.nf_emitente_cpf_cnpj || p.fornecedor_cpf_cnpj || p.fornecedor_cnpj || p.fornecedor_nome || '').replace(/\W/g,'').toUpperCase();
+        const inferred=history.get(supplier);
+        if(inferred) {
+          if(!p.rubrica_id && columns.includes('rubrica_id')) { update.rubrica_id=inferred.rubrica_id; rubricas++; }
+          if(!p.centro_custo && columns.includes('centro_custo')) update.centro_custo=inferred.centro_custo;
+          if(!p.meta_id && inferred.meta_id && columns.includes('meta_id')) update.meta_id=inferred.meta_id;
+        }
+        const date=fiscalDate(p.nf_data_emissao || p.data_emissao);
+        const effectiveRubrica=update.rubrica_id || p.rubrica_id;
+        const status=String(p.status || '').toUpperCase();
+        if(!duplicates.has(id) && date && date<cutoff && effectiveRubrica) {
+          if(['SOLICITADO','RASCUNHO','DEVOLVIDO'].includes(status)) { update.status='APROVADO_COORD'; if(columns.includes('status_pagamento')) update.status_pagamento='AGUARDANDO_PAGAMENTO'; approved++; }
+          else if(['APROVADO','APROVADO_COORD','APROVADO_ADMIN'].includes(status)) { update.status='PAGO'; if(columns.includes('status_pagamento')) update.status_pagamento='PAGO'; if(columns.includes('pago')) update.pago=true; paid++; }
+        }
+        if(!dryRun && Object.keys(update).length) {
+          if(columns.includes('updated_at')) update.updated_at=new Date();
+          const entries=Object.entries(update); const values=entries.map(([,v])=>v); values.push(p.id);
+          await pool.query(`UPDATE purchase_requests SET ${entries.map(([field],i)=>`${quoteIdentifier(field)}=$${i+1}`).join(',')} WHERE id=$${values.length}`,values);
+        }
+        if(!dryRun && drive && !duplicates.has(id)) {
+          try { const result=await backupPurchaseImmediately(drive,{...p,...update},columns); if(result.backed) backed+=result.backed; }
+          catch(error) { errors.push(`NF ${p.nf_numero || p.id}: ${error.message}`); }
+        }
+      }
+      return res.status(200).json({ok:true,dry_run:dryRun,total_analisadas:purchases.length,duplicatas_marcadas:duplicates.size,rubricas_inferidas:rubricas,aprovados_direto:approved,marcados_pago:paid,backup_disparado:!dryRun && Boolean(drive),arquivos_backup:backed,erros:errors.slice(0,30)});
     }
     if (name === 'purchaseActions') {
       const purchaseId = String(req.body?.purchaseId || req.body?.purchase_id || '').trim();
