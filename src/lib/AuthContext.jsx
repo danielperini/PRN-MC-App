@@ -2,27 +2,45 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import '@/lib/sanitizeAuthRedirect';
 import { appParams } from '@/lib/app-params';
-import { validateUserAccess, recoverExistingUserAccess, normalizeEmail } from '@/utils/auth/recoverExistingUserAccess';
+import { validateUserAccess, recoverExistingUserAccess, normalizeEmail, syncUserAccessState } from '@/utils/auth/recoverExistingUserAccess';
 import { trackUserLoginOnce } from '@/lib/userLoginMonitoring';
 
 const AuthContext = createContext();
-const hasLocalUser = (value) => Boolean(value && typeof value === 'object' && !Array.isArray(value));
 
 async function probeLocalSession() {
   try {
-    const res = await fetch('/api/apps/' + encodeURIComponent(appParams.appId || '') + '/entities/User/me', {
+    const res = await fetch(`/api/apps/${encodeURIComponent(appParams.appId || '')}/entities/Notification?limit=1`, {
       method: 'GET',
       credentials: 'include',
       headers: { 'X-App-Id': appParams.appId || '' },
       cache: 'no-store',
     });
-    if (res.ok) return await res.json();
+    if (res.ok) return true;
     if (res.status === 401 || res.status === 403) return false;
     return null;
   } catch (error) {
-    console.warn('Local session lookup failed:', error);
+    console.warn('Local session probe failed:', error);
     return null;
   }
+}
+
+// The application authenticates through the HttpOnly appgestor_session cookie.
+// Resolve the user from that same session instead of letting legacy SDK state
+// (which can belong to a previous browser login) choose the report author.
+async function getLocalSessionUser() {
+  const appId = encodeURIComponent(appParams.appId || '');
+  if (!appId) return null;
+
+  const res = await fetch(`/api/apps/${appId}/entities/User/me`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { 'X-App-Id': appParams.appId || '' },
+    cache: 'no-store',
+  });
+  if (!res.ok) return null;
+  const currentUser = await res.json();
+  const email = normalizeEmail(currentUser?.email);
+  return email ? { ...currentUser, email } : null;
 }
 
 function navigateToLoginSafely() {
@@ -42,33 +60,15 @@ export const AuthProvider = ({ children }) => {
     checkAppState();
   }, []);
 
-  const acceptLocalUser = (localUser) => {
-    setUser(localUser);
-    setIsAuthenticated(true);
-    setAuthError(null);
-    setIsLoadingAuth(false);
-    setIsLoadingPublicSettings(false);
-    trackUserLoginOnce(localUser);
-  };
-
   const checkAppState = async () => {
     try {
       setIsLoadingPublicSettings(true);
-      setIsLoadingAuth(true);
       setAuthError(null);
 
       if (typeof window !== 'undefined' && window.location.pathname === '/login') {
         setIsAuthenticated(false);
         setIsLoadingAuth(false);
         setIsLoadingPublicSettings(false);
-        return;
-      }
-
-      // Local Google OAuth is authoritative after migration. Resolve the
-      // HttpOnly appgestor session BEFORE consulting legacy Base44 app state.
-      const localUser = await probeLocalSession();
-      if (hasLocalUser(localUser)) {
-        acceptLocalUser(localUser);
         return;
       }
 
@@ -89,28 +89,50 @@ export const AuthProvider = ({ children }) => {
           if (appParams.token) {
             await checkUserAuth();
           } else {
-            setUser(null);
-            setIsAuthenticated(false);
-            if (localUser === false) {
+            const localSession = await probeLocalSession();
+            if (localSession === true) {
+              const localUser = await getLocalSessionUser();
+              if (localUser) {
+                const recovery = await syncUserAccessState(localUser, { origin: 'local-session' }).catch(() => null);
+                const authenticatedUser = recovery?.recovered ? recovery.user : localUser;
+                setUser(authenticatedUser);
+                trackUserLoginOnce(authenticatedUser);
+              }
+              setIsAuthenticated(Boolean(localUser));
+              setIsLoadingAuth(false);
+            } else if (localSession === false) {
+              setIsAuthenticated(false);
               setAuthError({ type: 'auth_required', message: 'Authentication required' });
+              setIsLoadingAuth(false);
+            } else {
+              setIsAuthenticated(false);
+              setIsLoadingAuth(false);
             }
-            setIsLoadingAuth(false);
           }
           setIsLoadingPublicSettings(false);
         } else {
           const errorData = await res.json().catch(() => ({}));
           const reason = errorData?.extra_data?.reason;
 
-          // Retry the local cookie once before honoring a legacy auth error.
-          const retryLocalUser = await probeLocalSession();
-          if (hasLocalUser(retryLocalUser)) {
-            acceptLocalUser(retryLocalUser);
-            return;
-          }
-
           if (res.status === 403 && reason) {
             if (reason === 'auth_required') {
-              setAuthError({ type: 'auth_required', message: 'Authentication required' });
+              const localSession = await probeLocalSession();
+              if (localSession === true) {
+                const localUser = await getLocalSessionUser();
+                if (localUser) {
+                  const recovery = await syncUserAccessState(localUser, { origin: 'local-session-public-settings' }).catch(() => null);
+                  const authenticatedUser = recovery?.recovered ? recovery.user : localUser;
+                  setUser(authenticatedUser);
+                  setIsAuthenticated(true);
+                  setAuthError(null);
+                  trackUserLoginOnce(authenticatedUser);
+                } else {
+                  setIsAuthenticated(false);
+                  setAuthError({ type: 'auth_required', message: 'Authentication required' });
+                }
+              } else {
+                setAuthError({ type: 'auth_required', message: 'Authentication required' });
+              }
             } else if (reason === 'user_not_registered') {
               const recovery = await recoverExistingUserAccess(null, { origin: 'public-settings-user-not-registered' });
               if (recovery.recovered) {
@@ -132,11 +154,6 @@ export const AuthProvider = ({ children }) => {
         }
       } catch (appError) {
         console.error('App state check failed:', appError);
-        const retryLocalUser = await probeLocalSession();
-        if (hasLocalUser(retryLocalUser)) {
-          acceptLocalUser(retryLocalUser);
-          return;
-        }
         setAuthError({ type: 'unknown', message: appError.message || 'Failed to load app' });
         setIsLoadingPublicSettings(false);
         setIsLoadingAuth(false);
@@ -152,14 +169,6 @@ export const AuthProvider = ({ children }) => {
   const checkUserAuth = async () => {
     try {
       setIsLoadingAuth(true);
-
-      // A valid migrated local session wins over the legacy SDK token path.
-      const localUser = await probeLocalSession();
-      if (hasLocalUser(localUser)) {
-        acceptLocalUser(localUser);
-        return;
-      }
-
       const currentUser = await base44.auth.me();
       const normalizedEmail = normalizeEmail(currentUser.email);
       const registrations = await base44.entities.UserRegistration
@@ -177,7 +186,6 @@ export const AuthProvider = ({ children }) => {
         const authenticatedUser = access.user || { ...currentUser, email: normalizedEmail };
         setUser(authenticatedUser);
         setIsAuthenticated(true);
-        setAuthError(null);
         setIsLoadingAuth(false);
         trackUserLoginOnce(authenticatedUser);
         return;
@@ -199,21 +207,31 @@ export const AuthProvider = ({ children }) => {
       const authenticatedUser = { ...currentUser, email: normalizedEmail };
       setUser(authenticatedUser);
       setIsAuthenticated(true);
-      setAuthError(null);
       setIsLoadingAuth(false);
       trackUserLoginOnce(authenticatedUser);
     } catch (error) {
       console.error('User auth check failed:', error);
-      const localUser = await probeLocalSession();
-      if (hasLocalUser(localUser)) {
-        acceptLocalUser(localUser);
+      const localSession = await probeLocalSession();
+      if (localSession === true) {
+        const localUser = await getLocalSessionUser();
+        if (localUser) {
+          const recovery = await syncUserAccessState(localUser, { origin: 'local-session-auth-fallback' }).catch(() => null);
+          const authenticatedUser = recovery?.recovered ? recovery.user : localUser;
+          setUser(authenticatedUser);
+          setAuthError(null);
+          setIsAuthenticated(true);
+          trackUserLoginOnce(authenticatedUser);
+        } else {
+          setIsAuthenticated(false);
+          setAuthError({ type: 'auth_required', message: 'Authentication required' });
+        }
       } else {
         setIsAuthenticated(false);
         if (error.status === 401 || error.status === 403) {
           setAuthError({ type: 'auth_required', message: 'Authentication required' });
         }
-        setIsLoadingAuth(false);
       }
+      setIsLoadingAuth(false);
     }
   };
 

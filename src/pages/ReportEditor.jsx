@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { gerarPdfRelatorioLocal } from '@/utils/reportPdfLocalExport';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/lib/AuthContext';
+import { isCoordenador } from '@/components/auth/permissions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -133,6 +135,16 @@ function getAnoAtual() {
   return new Date().getFullYear();
 }
 
+function normalizedEmail(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function isReportOwner(report, user) {
+  const email = normalizedEmail(user?.email);
+  return Boolean(email && report && [report.created_by, report.author_email, report.created_by_id]
+    .some((value) => normalizedEmail(value) === email));
+}
+
 function ReportSummaryStats({ atividades = [], fotos = [] }) {
   const totalAtividades = atividades.length;
   const totalPublico = atividades.reduce((sum, a) => sum + (Number(a.publico_total) || Number(a.publico_estimado) || 0), 0);
@@ -163,6 +175,7 @@ function ReportSummaryStats({ atividades = [], fotos = [] }) {
 
 export default function ReportEditor() {
   const queryClient = useQueryClient();
+  const { user: currentUser, isLoadingAuth, authError } = useAuth();
 
   const urlParams = new URLSearchParams(window.location.search);
   const reportIdParam = urlParams.get('id') || urlParams.get('reportId');
@@ -187,21 +200,16 @@ export default function ReportEditor() {
   const [loadingPagamentos, setLoadingPagamentos] = useState(false);
   const [publicoManual, setPublicoManual] = useState(false);
 
-  const {
-    data: currentUser,
-    isLoading: loadingCurrentUser,
-    isError: currentUserError,
-  } = useQuery({
-    queryKey: ['current-user'],
-    queryFn: () => base44.auth.me(),
-    staleTime: 300000,
-    refetchOnWindowFocus: false,
-  });
-
   useEffect(() => {
-    if (!currentUser) return;
+    if (isLoadingAuth) return;
+    if (!currentUser?.email) {
+      clearReportState();
+      setLoadingError(true);
+      setLoadingReport(false);
+      return;
+    }
     loadReportSafely();
-  }, [currentUser, reportIdParam, isNewReportIntent, mesParam, anoParam]);
+  }, [currentUser?.email, isLoadingAuth, reportIdParam, isNewReportIntent, mesParam, anoParam]);
 
   async function loadReportSafely() {
     setLoadingReport(true);
@@ -215,7 +223,14 @@ export default function ReportEditor() {
         const found = await base44.entities.Report.filter({ id: reportIdParam });
 
         if (found && found.length > 0) {
-          applyReport(found[0]);
+          const candidate = found[0];
+          if (!isCoordenador(currentUser) && !isReportOwner(candidate, currentUser)) {
+            clearReportState();
+            setLoadingError(true);
+            toast.error('Este relatório pertence a outro usuário.');
+            return;
+          }
+          applyReport(candidate);
           return;
         }
 
@@ -246,8 +261,12 @@ export default function ReportEditor() {
         });
       }
 
-      if (existingDrafts && existingDrafts.length > 0) {
-        applyReport(existingDrafts[0]);
+      const ownDrafts = (existingDrafts || [])
+        .filter((draft) => isReportOwner(draft, currentUser))
+        .sort((a, b) => String(b.updated_date || b.created_date || '').localeCompare(String(a.updated_date || a.created_date || '')));
+
+      if (ownDrafts.length > 0) {
+        applyReport(ownDrafts[0]);
         toast.info('Rascunho existente aberto.');
         return;
       }
@@ -459,15 +478,19 @@ export default function ReportEditor() {
     try {
       await handleSave();
 
-      const pdfBlob = await gerarPdfRelatorioLocal({
-        report,
-        formData,
-        atividades,
-        fotos,
-        secoes: secoesPdf,
+      const response = await base44.functions.invoke('generateReportPDF', {
+        reportId: report.id,
+        secoes: secoesPdf.length > 0 ? secoesPdf : undefined,
       });
-      await baixarPdf(pdfBlob, nomeArquivoPdf({ ...report, ...formData }));
-      toast.success('PDF gerado e baixado com sucesso.');
+
+      if (response.data?.pdf_url) {
+        window.open(response.data.pdf_url, '_blank');
+        toast.success('📄 PDF gerado com sucesso!');
+      } else if (response.data?.error) {
+        toast.error('Erro ao gerar PDF: ' + response.data.error);
+      } else {
+        toast.error('A geração de PDF pelo servidor ainda não está disponível. Use o botão de exportação do relatório mensal.');
+      }
     } catch (err) {
       console.error(err);
       toast.error('❌ Erro ao exportar PDF: ' + (err?.message || 'tente novamente'));
@@ -499,11 +522,12 @@ export default function ReportEditor() {
     setFotos((prev) => prev.filter((p) => p.id !== photoId));
   }, []);
 
-  const canEdit = !['SUBMITTED', 'IN_REVIEW', 'APPROVED', 'ARCHIVED'].includes(formData.status);
+  const canEdit = (isCoordenador(currentUser) || isReportOwner(report, currentUser))
+    && !['SUBMITTED', 'IN_REVIEW', 'APPROVED', 'ARCHIVED'].includes(formData.status);
   const statusInfo = STATUS_LABELS[formData.status] || STATUS_LABELS.DRAFT;
 
   const isInitialPageLoading =
-    loadingCurrentUser ||
+    isLoadingAuth ||
     loadingReport;
 
   if (isInitialPageLoading) {
@@ -515,7 +539,7 @@ export default function ReportEditor() {
     );
   }
 
-  if (currentUserError || loadingError) {
+  if (authError || loadingError) {
     return (
       <LoadingPage
         error
