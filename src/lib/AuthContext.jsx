@@ -72,6 +72,28 @@ export const AuthProvider = ({ children }) => {
         return;
       }
 
+      // Production uses the local HttpOnly session, not Base44's public-settings
+      // endpoint. That endpoint does not exist on the VPS and caused a redirect
+      // loop where the loading screen never completed.
+      if (!appParams.token) {
+        const localUser = await getLocalSessionUser();
+        if (localUser) {
+          const recovery = await syncUserAccessState(localUser, { origin: 'local-session-bootstrap' }).catch(() => null);
+          const authenticatedUser = recovery?.recovered ? recovery.user : localUser;
+          setUser(authenticatedUser);
+          setIsAuthenticated(true);
+          setAuthError(null);
+          trackUserLoginOnce(authenticatedUser);
+        } else {
+          setUser(null);
+          setIsAuthenticated(false);
+          setAuthError({ type: 'auth_required', message: 'Authentication required' });
+        }
+        setIsLoadingAuth(false);
+        setIsLoadingPublicSettings(false);
+        return;
+      }
+
       try {
         const headers = { 'X-App-Id': appParams.appId };
         if (appParams.token) headers['Authorization'] = `Bearer ${appParams.token}`;
