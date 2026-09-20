@@ -64,7 +64,10 @@ export async function runMonthlyReportReminders({ dryRun = false, now = new Date
 
   const [usersResult, reportsResult] = await Promise.all([
     pool.query('SELECT * FROM users'),
-    pool.query('SELECT created_by, author_email, mes_referencia, ano, status FROM reports'),
+    // Production databases created by earlier migrations do not all have the
+    // same optional author columns. Select the record and read supported
+    // fields below instead of failing the entire scheduled job.
+    pool.query('SELECT * FROM reports'),
   ]);
   const completedByEmail = new Map();
   for (const report of reportsResult.rows) {
