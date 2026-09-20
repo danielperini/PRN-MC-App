@@ -2,7 +2,7 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import '@/lib/sanitizeAuthRedirect';
 import { appParams } from '@/lib/app-params';
-import { validateUserAccess, recoverExistingUserAccess, normalizeEmail } from '@/utils/auth/recoverExistingUserAccess';
+import { validateUserAccess, recoverExistingUserAccess, normalizeEmail, syncUserAccessState } from '@/utils/auth/recoverExistingUserAccess';
 import { trackUserLoginOnce } from '@/lib/userLoginMonitoring';
 
 const AuthContext = createContext();
@@ -22,6 +22,25 @@ async function probeLocalSession() {
     console.warn('Local session probe failed:', error);
     return null;
   }
+}
+
+// The application authenticates through the HttpOnly appgestor_session cookie.
+// Resolve the user from that same session instead of letting legacy SDK state
+// (which can belong to a previous browser login) choose the report author.
+async function getLocalSessionUser() {
+  const appId = encodeURIComponent(appParams.appId || '');
+  if (!appId) return null;
+
+  const res = await fetch(`/api/apps/${appId}/entities/User/me`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { 'X-App-Id': appParams.appId || '' },
+    cache: 'no-store',
+  });
+  if (!res.ok) return null;
+  const currentUser = await res.json();
+  const email = normalizeEmail(currentUser?.email);
+  return email ? { ...currentUser, email } : null;
 }
 
 function navigateToLoginSafely() {
@@ -72,7 +91,14 @@ export const AuthProvider = ({ children }) => {
           } else {
             const localSession = await probeLocalSession();
             if (localSession === true) {
-              setIsAuthenticated(true);
+              const localUser = await getLocalSessionUser();
+              if (localUser) {
+                const recovery = await syncUserAccessState(localUser, { origin: 'local-session' }).catch(() => null);
+                const authenticatedUser = recovery?.recovered ? recovery.user : localUser;
+                setUser(authenticatedUser);
+                trackUserLoginOnce(authenticatedUser);
+              }
+              setIsAuthenticated(Boolean(localUser));
               setIsLoadingAuth(false);
             } else if (localSession === false) {
               setIsAuthenticated(false);
@@ -92,8 +118,18 @@ export const AuthProvider = ({ children }) => {
             if (reason === 'auth_required') {
               const localSession = await probeLocalSession();
               if (localSession === true) {
-                setIsAuthenticated(true);
-                setAuthError(null);
+                const localUser = await getLocalSessionUser();
+                if (localUser) {
+                  const recovery = await syncUserAccessState(localUser, { origin: 'local-session-public-settings' }).catch(() => null);
+                  const authenticatedUser = recovery?.recovered ? recovery.user : localUser;
+                  setUser(authenticatedUser);
+                  setIsAuthenticated(true);
+                  setAuthError(null);
+                  trackUserLoginOnce(authenticatedUser);
+                } else {
+                  setIsAuthenticated(false);
+                  setAuthError({ type: 'auth_required', message: 'Authentication required' });
+                }
               } else {
                 setAuthError({ type: 'auth_required', message: 'Authentication required' });
               }
@@ -177,8 +213,18 @@ export const AuthProvider = ({ children }) => {
       console.error('User auth check failed:', error);
       const localSession = await probeLocalSession();
       if (localSession === true) {
-        setAuthError(null);
-        setIsAuthenticated(true);
+        const localUser = await getLocalSessionUser();
+        if (localUser) {
+          const recovery = await syncUserAccessState(localUser, { origin: 'local-session-auth-fallback' }).catch(() => null);
+          const authenticatedUser = recovery?.recovered ? recovery.user : localUser;
+          setUser(authenticatedUser);
+          setAuthError(null);
+          setIsAuthenticated(true);
+          trackUserLoginOnce(authenticatedUser);
+        } else {
+          setIsAuthenticated(false);
+          setAuthError({ type: 'auth_required', message: 'Authentication required' });
+        }
       } else {
         setIsAuthenticated(false);
         if (error.status === 401 || error.status === 403) {
