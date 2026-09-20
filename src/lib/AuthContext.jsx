@@ -126,8 +126,6 @@ export const AuthProvider = ({ children }) => {
                 setIsAuthenticated(false);
                 setAuthError({ type: 'auth_required', message: 'Authentication required' });
               }
-                setAuthError({ type: 'auth_required', message: 'Authentication required' });
-              }
             } else if (reason === 'user_not_registered') {
               const recovery = await recoverExistingUserAccess(null, { origin: 'public-settings-user-not-registered' });
               if (recovery.recovered) {
