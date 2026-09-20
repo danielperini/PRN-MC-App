@@ -8,7 +8,7 @@ import { appParams } from '@/lib/app-params';
 
 async function hasLocalSession() {
   try {
-    const res = await fetch(`/api/apps/${encodeURIComponent(appParams.appId || '')}/entities/Notification?limit=1`, {
+    const res = await fetch(`/api/apps/${encodeURIComponent(appParams.appId || '')}/entities/User/me`, {
       credentials: 'include',
       cache: 'no-store',
       headers: { 'X-App-Id': appParams.appId || '' },
