@@ -11,7 +11,8 @@ COPY drive-reconcile-intake.mjs ./
 COPY drive-reconcile-sequence.mjs ./
 COPY drive-reconcile-current-month.mjs ./
 COPY backup-pending-drive.mjs ./
+COPY monthly-report-reminders.mjs ./
 
 EXPOSE 3000
 
-CMD ["node", "--import", "./programacao-sync.mjs", "--import", "./auth-bootstrap.mjs", "server.mjs"]
+CMD ["node", "--import", "./programacao-sync.mjs", "--import", "./auth-bootstrap.mjs", "--import", "./monthly-report-reminders.mjs", "server.mjs"]

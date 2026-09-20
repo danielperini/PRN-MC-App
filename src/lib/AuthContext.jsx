@@ -89,25 +89,22 @@ export const AuthProvider = ({ children }) => {
           if (appParams.token) {
             await checkUserAuth();
           } else {
-            const localSession = await probeLocalSession();
-            if (localSession === true) {
-              const localUser = await getLocalSessionUser();
-              if (localUser) {
-                const recovery = await syncUserAccessState(localUser, { origin: 'local-session' }).catch(() => null);
-                const authenticatedUser = recovery?.recovered ? recovery.user : localUser;
-                setUser(authenticatedUser);
-                trackUserLoginOnce(authenticatedUser);
-              }
-              setIsAuthenticated(Boolean(localUser));
-              setIsLoadingAuth(false);
-            } else if (localSession === false) {
+            // The session endpoint is authoritative. Do not probe another entity
+            // first: a temporarily unavailable entity query previously left the app
+            // in a loading/remount loop even though the cookie was valid.
+            const localUser = await getLocalSessionUser();
+            if (localUser) {
+              const recovery = await syncUserAccessState(localUser, { origin: 'local-session' }).catch(() => null);
+              const authenticatedUser = recovery?.recovered ? recovery.user : localUser;
+              setUser(authenticatedUser);
+              setIsAuthenticated(true);
+              trackUserLoginOnce(authenticatedUser);
+            } else {
+              setUser(null);
               setIsAuthenticated(false);
               setAuthError({ type: 'auth_required', message: 'Authentication required' });
-              setIsLoadingAuth(false);
-            } else {
-              setIsAuthenticated(false);
-              setIsLoadingAuth(false);
             }
+            setIsLoadingAuth(false);
           }
           setIsLoadingPublicSettings(false);
         } else {
@@ -116,21 +113,19 @@ export const AuthProvider = ({ children }) => {
 
           if (res.status === 403 && reason) {
             if (reason === 'auth_required') {
-              const localSession = await probeLocalSession();
-              if (localSession === true) {
-                const localUser = await getLocalSessionUser();
-                if (localUser) {
-                  const recovery = await syncUserAccessState(localUser, { origin: 'local-session-public-settings' }).catch(() => null);
-                  const authenticatedUser = recovery?.recovered ? recovery.user : localUser;
-                  setUser(authenticatedUser);
-                  setIsAuthenticated(true);
-                  setAuthError(null);
-                  trackUserLoginOnce(authenticatedUser);
-                } else {
-                  setIsAuthenticated(false);
-                  setAuthError({ type: 'auth_required', message: 'Authentication required' });
-                }
+              const localUser = await getLocalSessionUser();
+              if (localUser) {
+                const recovery = await syncUserAccessState(localUser, { origin: 'local-session-public-settings' }).catch(() => null);
+                const authenticatedUser = recovery?.recovered ? recovery.user : localUser;
+                setUser(authenticatedUser);
+                setIsAuthenticated(true);
+                setAuthError(null);
+                trackUserLoginOnce(authenticatedUser);
               } else {
+                setUser(null);
+                setIsAuthenticated(false);
+                setAuthError({ type: 'auth_required', message: 'Authentication required' });
+              }
                 setAuthError({ type: 'auth_required', message: 'Authentication required' });
               }
             } else if (reason === 'user_not_registered') {
@@ -211,21 +206,16 @@ export const AuthProvider = ({ children }) => {
       trackUserLoginOnce(authenticatedUser);
     } catch (error) {
       console.error('User auth check failed:', error);
-      const localSession = await probeLocalSession();
-      if (localSession === true) {
-        const localUser = await getLocalSessionUser();
-        if (localUser) {
-          const recovery = await syncUserAccessState(localUser, { origin: 'local-session-auth-fallback' }).catch(() => null);
-          const authenticatedUser = recovery?.recovered ? recovery.user : localUser;
-          setUser(authenticatedUser);
-          setAuthError(null);
-          setIsAuthenticated(true);
-          trackUserLoginOnce(authenticatedUser);
-        } else {
-          setIsAuthenticated(false);
-          setAuthError({ type: 'auth_required', message: 'Authentication required' });
-        }
+      const localUser = await getLocalSessionUser();
+      if (localUser) {
+        const recovery = await syncUserAccessState(localUser, { origin: 'local-session-auth-fallback' }).catch(() => null);
+        const authenticatedUser = recovery?.recovered ? recovery.user : localUser;
+        setUser(authenticatedUser);
+        setAuthError(null);
+        setIsAuthenticated(true);
+        trackUserLoginOnce(authenticatedUser);
       } else {
+        setUser(null);
         setIsAuthenticated(false);
         if (error.status === 401 || error.status === 403) {
           setAuthError({ type: 'auth_required', message: 'Authentication required' });
