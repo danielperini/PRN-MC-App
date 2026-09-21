@@ -6,6 +6,9 @@ import pg from 'pg';
 const { Pool } = pg;
 const APPLY = String(process.env.RECONCILE_APPLY || '') === '1';
 const USE_AI = String(process.env.RECONCILE_USE_AI || '1') !== '0';
+// Keep this deliberately small. It protects the paid OCR API while avoiding
+// a multi-hour serial queue when a historic month has incomplete PDFs.
+const AI_CONCURRENCY = Math.max(1, Math.min(2, Number(process.env.RECONCILE_AI_CONCURRENCY || 2)));
 const MONTHS = new Set(String(process.env.RECONCILE_MONTHS || '')
   .split(',').map(value => value.trim()).filter(Boolean));
 const uploadDir = process.env.UPLOAD_DIR || '/app/uploads';
@@ -41,6 +44,18 @@ const urlFile = value => {
 const present = value => value !== undefined && value !== null && String(value).trim() !== '';
 const pick = (...values) => values.find(present) || '';
 
+async function mapLimit(items, limit, worker) {
+  const result = new Array(items.length); let next = 0;
+  async function consume() {
+    while (next < items.length) {
+      const index = next++;
+      result[index] = await worker(items[index], index);
+    }
+  }
+  await Promise.all(Array.from({ length:Math.min(limit, items.length) }, consume));
+  return result;
+}
+
 function canonicalMeta(pdf) {
   const ai = pdf.resultado_ia || {};
   const xml = pdf.xml_resultado_ia || {};
@@ -70,7 +85,7 @@ async function analyzePdf(pdf) {
   form.append('file', new Blob([body], { type:'application/pdf' }), filename);
   const uploaded = await fetch('https://api.openai.com/v1/files', {
     method:'POST', headers:{ Authorization:`Bearer ${process.env.OPENAI_API_KEY}` }, body:form,
-    signal:AbortSignal.timeout(120000)
+    signal:AbortSignal.timeout(45000)
   });
   if (!uploaded.ok) throw new Error(`OpenAI upload ${uploaded.status}`);
   const upload = await uploaded.json();
@@ -82,7 +97,7 @@ async function analyzePdf(pdf) {
         model:process.env.OPENAI_INVOICE_MODEL || 'gpt-4.1-mini',
         input:[{ role:'user',content:[{ type:'input_text',text:prompt },{ type:'input_file',file_id:upload.id }] }],
         text:{ format:{ type:'json_object' } }
-      }), signal:AbortSignal.timeout(120000)
+      }), signal:AbortSignal.timeout(45000)
     });
     if (!response.ok) throw new Error(`OpenAI response ${response.status}`);
     const payload = await response.json();
@@ -202,21 +217,31 @@ async function run() {
     LEFT JOIN document_intakes x ON x.id=p.nf_xml_intake_id AND COALESCE(x.status_registro,'')<>'DELETADO'
     WHERE COALESCE(p.status_registro,'')<>'DELETADO' AND p.tipo_detectado='NOTA_FISCAL_PDF'
     ORDER BY p.id`)).rows;
-  const canonicalByKey = new Map();
-  const ready = [];
-  for (const pdf of rows) {
+  const inspected = await mapLimit(rows, AI_CONCURRENCY, async (pdf, index) => {
     let meta = canonicalMeta(pdf);
+    let ignored = false;
+    let aiRead = false;
+    let error = null;
     if (!fiscalKey(meta) && USE_AI) {
       try {
         const read = await analyzePdf(pdf);
-        if (read?.tipo_documento === 'OUTRO') { stats.ignored_non_invoice++; continue; }
+        if (read?.tipo_documento === 'OUTRO') ignored = true;
         if (read?.tipo_documento === 'NOTA_FISCAL') {
           meta = { ...meta, ...Object.fromEntries(Object.entries(read).filter(([,value]) => present(value) || typeof value === 'number')) };
-          stats.ai_read++;
+          aiRead = true;
           if (APPLY) await pool.query(`UPDATE document_intakes SET resultado_ia=COALESCE(resultado_ia,'{}'::jsonb)||$1::jsonb,status_processamento='AGUARDANDO_REVISAO',updated_at=NOW() WHERE id=$2`, [JSON.stringify({ ...read, provedor_ia:'openai_reconciliacao', analisado_em:new Date().toISOString() }),pdf.id]);
         }
-      } catch (error) { stats.errors++; console.error('INVOICE_RECONCILE_AI_ERROR',pdf.id,error.message); }
+      } catch (caught) { error = caught; console.error('INVOICE_RECONCILE_AI_ERROR',pdf.id,caught.message); }
     }
+    if ((index + 1) % 5 === 0 || index + 1 === rows.length) console.log('INVOICE_RECONCILE_ANALYSIS_PROGRESS',JSON.stringify({ analyzed:index + 1,total:rows.length }));
+    return { pdf,meta,ignored,aiRead,error };
+  });
+  const canonicalByKey = new Map();
+  const ready = [];
+  for (const { pdf,meta,ignored,aiRead,error } of inspected) {
+    if (ignored) { stats.ignored_non_invoice++; continue; }
+    if (aiRead) stats.ai_read++;
+    if (error) stats.errors++;
     const key = fiscalKey(meta);
     if (!key || !inScope(meta)) { stats.incomplete++; continue; }
     stats.invoices++;
