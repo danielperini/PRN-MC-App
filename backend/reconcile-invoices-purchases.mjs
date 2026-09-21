@@ -6,6 +6,9 @@ import pg from 'pg';
 const { Pool } = pg;
 const APPLY = String(process.env.RECONCILE_APPLY || '') === '1';
 const USE_AI = String(process.env.RECONCILE_USE_AI || '1') !== '0';
+// Historic invoices imported from the reconciled Drive can be posted directly
+// when the operator has explicitly confirmed they are paid.
+const MARK_PAGO = String(process.env.RECONCILE_MARK_PAGO || '') === '1';
 // Keep this deliberately small. It protects the paid OCR API while avoiding
 // a multi-hour serial queue when a historic month has incomplete PDFs.
 const AI_CONCURRENCY = Math.max(1, Math.min(2, Number(process.env.RECONCILE_AI_CONCURRENCY || 2)));
@@ -136,6 +139,10 @@ async function updatePurchaseFromFiscal(purchaseId, meta, pdf) {
   if (meta.descricao_servico) fields.descricao_item = cleanText(meta.descricao_servico);
   if (meta.centro_custo) fields.centro_custo = meta.centro_custo;
   if (meta.rubrica_id) fields.rubrica_id = meta.rubrica_id;
+  if (MARK_PAGO) Object.assign(fields, {
+    valor_aprovado: Number(meta.nf_valor_total),
+    status:'PAGO', pago:true, status_pagamento:'PAGO',
+  });
   const entries = Object.entries(fields).filter(([, value]) => present(value) || typeof value === 'number');
   const values = entries.map(([, value]) => value);
   values.push(String(purchaseId));
@@ -153,7 +160,7 @@ async function createPurchase(meta, pdf) {
     created_by,created_date,updated_date,created_at,updated_at
   ) VALUES (
     $1,$1,$2,NULLIF($3,''),NULLIF($4,''),NULLIF($5,''),'',
-    $6,$6,$7,'SOLICITADO',false,'AGUARDANDO_PAGAMENTO',
+    $6,$6,$7,$14,$15,$16,
     $8,$7,$9,$6,$10::date,
     $11,$11,NULLIF($12,''),$11,true,false,
     'sistema-conciliacao',$13,$13,$13,$13
@@ -161,7 +168,8 @@ async function createPurchase(meta, pdf) {
     id, cleanText(meta.descricao_servico) || `NF ${canonicalNumber(meta.nf_numero)} — ${cleanText(meta.nf_emitente_nome)}`,
     '', meta.rubrica_id || '', meta.centro_custo || '', Number(meta.nf_valor_total), cleanText(meta.nf_emitente_nome),
     canonicalNumber(meta.nf_numero), digits(meta.nf_emitente_cpf_cnpj), canonicalDate(meta.nf_data_emissao),
-    pdf.arquivo_original_url || '', pick(pdf.nf_xml_url, pdf.xml_arquivo_original_url), now
+    pdf.arquivo_original_url || '', pick(pdf.nf_xml_url, pdf.xml_arquivo_original_url), now,
+    MARK_PAGO ? 'PAGO' : 'SOLICITADO', MARK_PAGO, MARK_PAGO ? 'PAGO' : 'AGUARDANDO_PAGAMENTO'
   ]);
   return id;
 }
@@ -239,7 +247,19 @@ async function run() {
   const canonicalByKey = new Map();
   const ready = [];
   for (const { pdf,meta,ignored,aiRead,error } of inspected) {
-    if (ignored) { stats.ignored_non_invoice++; continue; }
+    if (ignored) {
+      stats.ignored_non_invoice++;
+      // Preserve the uploaded file for audit, but keep receipts, bank extracts and
+      // other non-fiscal PDFs out of the NF/review pipeline and out of purchases.
+      if (APPLY) await pool.query(`UPDATE document_intakes
+        SET tipo_detectado='OUTRO',
+            status_processamento='IGNORADO_NAO_FISCAL',
+            ocultar_entrada_unica=TRUE,
+            resultado_ia=COALESCE(resultado_ia,'{}'::jsonb)||$1::jsonb,
+            updated_at=NOW()
+        WHERE id=$2`, [JSON.stringify({ tipo_documento:'OUTRO', classificacao_reconciliacao:'nao_fiscal', analisado_em:new Date().toISOString() }), pdf.id]);
+      continue;
+    }
     if (aiRead) stats.ai_read++;
     if (error) stats.errors++;
     const key = fiscalKey(meta);
