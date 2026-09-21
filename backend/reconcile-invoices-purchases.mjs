@@ -82,6 +82,12 @@ async function analyzePdf(pdf) {
   if (!filePath) return null;
   const body = fs.readFileSync(filePath);
   if (!body.byteLength) return null;
+  // A number of historical "PDFs" are actually saved HTML error/login pages.
+  // They are not fiscal documents and must never be sent to OCR or create a
+  // purchase merely because their filename ends with .pdf.
+  if (body.subarray(0, 5).toString('utf8') !== '%PDF-') {
+    return { tipo_documento:'OUTRO', motivo:'arquivo_nao_pdf' };
+  }
   const filename = path.basename(filePath);
   const form = new FormData();
   form.append('purpose', 'user_data');
