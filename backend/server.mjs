@@ -257,6 +257,14 @@ async function initDb() {
       ADD COLUMN IF NOT EXISTS classificacao_item_confianca NUMERIC(5,4),
       ADD COLUMN IF NOT EXISTS classificacao_item_em TIMESTAMPTZ`);
   }
+  if (await tableExists('purchase_requests')) {
+    // These flags are consumed by every financial dashboard. They keep the
+    // canonical NF while preserving a suppressed duplicate for audit.
+    await pool.query(`ALTER TABLE purchase_requests
+      ADD COLUMN IF NOT EXISTS incluir_no_somatorio BOOLEAN DEFAULT TRUE,
+      ADD COLUMN IF NOT EXISTS duplicada_financeira BOOLEAN DEFAULT FALSE,
+      ADD COLUMN IF NOT EXISTS duplicata_de TEXT`);
+  }
 }
 
 app.get('/health', (_req,res) => res.json({ status:'ok', service:'appgestor-api' }));
@@ -810,6 +818,8 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
               FROM purchase_requests
               WHERE rubrica_id IS NOT NULL
                 AND UPPER(COALESCE(status,'')) IN ('APROVADO','APROVADO_COORD','APROVADO_ADMIN','PAGO')
+                AND COALESCE(incluir_no_somatorio,TRUE) IS DISTINCT FROM FALSE
+                AND COALESCE(duplicada_financeira,FALSE)=FALSE
               GROUP BY rubrica_id
             )
             UPDATE ${quoteIdentifier(table)} r
