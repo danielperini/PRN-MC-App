@@ -30,7 +30,7 @@ function runMonth(month) {
 function reconcileMonth(month) {
   return new Promise(resolve=>{
     const child=spawn(process.execPath,['reconcile-invoices-purchases.mjs'],{
-      cwd:process.cwd(), env:{ ...process.env,RECONCILE_APPLY:'1',RECONCILE_MONTHS:month },stdio:['ignore','pipe','pipe']
+      cwd:process.cwd(), env:{ ...process.env,RECONCILE_APPLY:'1',RECONCILE_MARK_PAGO:'1',RECONCILE_MONTHS:month },stdio:['ignore','pipe','pipe']
     });
     child.stdout.pipe(process.stdout); child.stderr.pipe(process.stderr);
     child.on('exit',code=>resolve(code));
