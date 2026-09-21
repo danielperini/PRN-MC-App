@@ -344,6 +344,10 @@ async function normalizeReportCreatePayload(req, entityName, body = {}) {
   // identifier.  Client requests do not reliably provide the latter, so the
   // server owns its generation just as it owns report authorship.
   next.base44_id = String(next.base44_id || '').trim() || crypto.randomUUID();
+  // The legacy reports table makes the raw payload mandatory. New reports
+  // created through the editor have no legacy payload, so persist an empty
+  // object instead of rejecting an otherwise valid professional draft.
+  next.raw_data = next.raw_data && typeof next.raw_data === 'object' ? next.raw_data : {};
   const authorName = String(user.full_name || user.name || user.nome || email.split('@')[0]).trim() || 'Profissional';
   const profileMuseum = String(user.museu || user.museu_principal || user.centro_custo || '').trim();
 
