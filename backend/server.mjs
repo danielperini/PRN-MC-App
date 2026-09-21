@@ -290,6 +290,20 @@ app.get('/api/drive-reconcile/status',requireSession,async(req,res)=>{
   }catch(e){res.status(500).json({error:'drive_reconcile_status_failed',message:e.message});}
 });
 
+// Resolve the signed-in user from the HttpOnly session. This route is placed
+// before the generic entity reader so the editor always receives the real
+// professional identity when creating or editing a monthly report.
+app.get('/api/apps/:appId/entities/User/me', requireSession, async (req,res) => {
+  try {
+    const user = (await pool.query('SELECT * FROM users WHERE id=$1 LIMIT 1', [req.userId])).rows[0];
+    if (!user) return res.status(401).json({ error:'session_user_not_found' });
+    return res.json(user);
+  } catch (error) {
+    console.error('CURRENT_USER_ERROR:', error);
+    return res.status(500).json({ error:'current_user_failed', message:error.message });
+  }
+});
+
 app.get('/api/apps/:appId/entities/:entityName', requireSession, async (req,res) => {
   try {
     const table=entityTable(req.params.entityName);
@@ -318,6 +332,12 @@ function normalizePurchaseFiscalPayload(entityName, body = {}) {
 
 function normalizedEmail(value) {
   return String(value || '').trim().toLowerCase();
+}
+
+function normalizedPersonName(value) {
+  return String(value || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, ' ');
 }
 
 function reportAuthorRole(role) {
@@ -368,7 +388,7 @@ async function normalizeReportCreatePayload(req, entityName, body = {}) {
 
 async function assertReportUpdateAccess(req, reportId) {
   const [userResult, reportResult] = await Promise.all([
-    pool.query('SELECT id,email,role FROM users WHERE id=$1 LIMIT 1', [req.userId]),
+    pool.query('SELECT * FROM users WHERE id=$1 LIMIT 1', [req.userId]),
     pool.query('SELECT * FROM reports WHERE id=$1 LIMIT 1', [reportId]),
   ]);
   const user = userResult.rows[0];
@@ -380,7 +400,25 @@ async function assertReportUpdateAccess(req, reportId) {
   const owns = normalizedEmail(report.created_by) === email
     || normalizedEmail(report.author_email) === email
     || String(report.created_by_id || '').trim() === String(user.id || '').trim();
-  return { allowed: owns, exists: true };
+  if (owns) return { allowed: true, exists: true };
+
+  // Imports legados usavam um e-mail técnico do Base44 e deixavam a autoria
+  // real apenas no nome. Recuperamos esse vínculo uma vez, sem tomar relatórios
+  // que já possuam e-mail de outro profissional.
+  const isLegacyEmail = (value) => {
+    const emailValue = normalizedEmail(value);
+    return !emailValue || emailValue.endsWith('@no-reply.base44.com');
+  };
+  const hasOnlyLegacyIdentity = isLegacyEmail(report.created_by) && isLegacyEmail(report.author_email)
+    && !String(report.created_by_id || '').trim();
+  const userName = normalizedPersonName(user.full_name || user.name || user.nome || '');
+  const reportName = normalizedPersonName(report.author_name || '');
+  if (hasOnlyLegacyIdentity && userName && reportName && userName === reportName) {
+    await pool.query(`UPDATE reports SET created_by=$1, created_by_id=$2, author_email=$1,
+      updated_at=NOW(), updated_date=NOW() WHERE id=$3`, [email, String(user.id), reportId]);
+    return { allowed: true, exists: true, ownershipRecovered: true };
+  }
+  return { allowed: false, exists: true };
 }
 
 function fiscalDuplicateKey(data = {}) {
