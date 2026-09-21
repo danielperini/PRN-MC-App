@@ -96,8 +96,10 @@ function shouldAnalyzeUnmatchedPdf(file) {
 }
 function isLikelyPaymentProof(file) {
   const name=clean(file.name||'').toUpperCase();
-  // Drive contains common manual variants: COP, COMMP and CCOMP.
-  return /\b(C{1,2}O?M{0,2}P(?:ROVANTE)?|PAGAMENTO|PAGO|PIX|TED|TRANSFERENCIA|DEP[OÓ]SITO|BOLETO|BOL)\b/.test(name);
+  // Drive contains common manual variants: COP, COMP, COMMP, CCOMP and BOL.
+  // A receipt must never enter the NF review queue merely because its file
+  // name also contains an invoice number (for example, "NF 33 ... COMP.pdf").
+  return /\b(C{1,2}O?M{0,2}P(?:ROVANTE)?|RECIBO|PAGAMENTO|PAGO|PIX|TED|TRANSFERENCIA|DEP[OÓ]SITO|BOLETO|BOL)\b/.test(name);
 }
 function monthAllowed(p) {
   const m = String(p).match(/(?:^|\/)(0?[1-9]|1[0-2])[-_/](20\d{2})(?:\/|$)/);
@@ -260,6 +262,11 @@ async function updateRunStatus(runId,data) {
 }
 async function run() {
   fs.mkdirSync(uploadDir,{ recursive:true }); const drive=await driveClient();
+  // Do this before the potentially long Drive scan.  A killed/expired run
+  // must not leave old, wrongly-classified proofs visible until another full
+  // reconciliation eventually finishes.
+  const preflightRowsRemoved=await removeExactDuplicates();
+  if (preflightRowsRemoved) console.log('DRIVE_RECONCILE_PREFLIGHT_CLEANUP',preflightRowsRemoved);
   const analysisCache=loadAnalysisCache();
   const [sourceAll,targetAll]=await Promise.all([tree(drive,SOURCE_ROOT),tree(drive,TARGET_ROOT)]);
   // A origem pode estar desorganizada: pesquisa todas as pastas do período.
@@ -354,6 +361,26 @@ async function run() {
               analysisCache[cacheKey]=meta;
               saveAnalysisCache(analysisCache);
             } catch (analysisError) {
+              if (likelyProof) {
+                // OpenAI rate limits must not turn a receipt into a fake
+                // invoice. Keep a cache marker so the next scan does not
+                // repeatedly call OCR for the same proof; it remains hidden
+                // until it can be associated safely with a real NF.
+                analysisCache[cacheKey]={
+                  tipo_documento:'COMPROVANTE_PAGAMENTO',
+                  source_drive_file_id:f.id,
+                  source_drive_path:f.path,
+                  source_md5:hash,
+                  analise_pendente:true,
+                  analise_erro:String(analysisError?.message || analysisError || 'Falha na análise automática').slice(0,500),
+                  provedor_ia:'falha_ocr_comprovante_oculto',
+                  analisado_em:new Date().toISOString()
+                };
+                saveAnalysisCache(analysisCache);
+                ignored++;
+                console.warn('DRIVE_RECONCILE_PROOF_HELD_OUT_OF_INTAKE',JSON.stringify({ path:f.path, reason:analysisCache[cacheKey].analise_erro }));
+                continue;
+              }
               // Keep the original PDF available under Solicitações/Revisão.
               // In particular, a 400 from the AI API is not evidence that the
               // PDF is invalid and must not be retried for every monthly run.
