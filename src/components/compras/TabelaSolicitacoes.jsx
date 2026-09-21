@@ -146,6 +146,10 @@ function SortIcon({ field, sortField, sortDir }) {
 
 function FilesCell({ p }) {
   const folderUrl = getPurchaseDriveFolderUrl(p);
+  // Legacy backups store the link of the fiscal file, rather than the link of
+  // its parent folder.  It is still a valid and useful Google Drive link and
+  // must be visible in every row that has a completed backup.
+  const driveUrl = p?.drive_file_url || p?.drive_backup_nf_pdf_link || folderUrl;
   const pdfUrl = getAuthenticatedDriveFileUrl(getPurchasePdfDriveFileId(p), getPurchasePdfUrl(p));
   const xmlUrl = getAuthenticatedDriveFileUrl(getPurchaseXmlDriveFileId(p), getPurchaseXmlUrl(p));
   const hasBackup = hasPurchaseBackup(p);
@@ -163,12 +167,12 @@ function FilesCell({ p }) {
         </span>
       )}
 
-      {/* A pasta é apenas uma navegação opcional. O PDF usa o proxy autenticado
-          do app, que funciona mesmo quando a conta Google do usuário não tem
-          permissão direta no Drive. */}
-      {folderUrl ? (
-        <a href={folderUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-indigo-700 underline underline-offset-1 hover:text-indigo-900">
-          <HardDrive className="h-3 w-3" />Pasta
+      {/* O link direto do Drive fica disponível para todo backup concluído.
+          O PDF continua usando o proxy autenticado do app, que funciona
+          mesmo quando a conta Google do usuário não tem permissão direta. */}
+      {driveUrl ? (
+        <a href={driveUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-indigo-700 underline underline-offset-1 hover:text-indigo-900">
+          <HardDrive className="h-3 w-3" />Drive
         </a>
       ) : (
         <span className="text-gray-400 flex items-center gap-1"><HardDrive className="h-3 w-3" />—</span>
