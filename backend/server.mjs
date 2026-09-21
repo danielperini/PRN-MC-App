@@ -414,6 +414,33 @@ app.post('/api/apps/:appId/integrations/Core/:operation', requireSession, coreUp
 app.post('/api/apps/:appId/integration-endpoints/Core/:operation', requireSession, coreUploadHandler);
 app.get('/api/files/:name',async(req,res)=>{ try { const name=path.basename(decodeURIComponent(req.params.name)); const target=path.join(uploadDir,name); if(!fs.existsSync(target)) return res.status(404).json({error:'file_not_found'}); res.sendFile(target); } catch { res.status(400).json({error:'invalid_file_name'}); } });
 
+// The Drive backup is created by the project's Google credential. Opening the
+// webViewLink directly therefore fails for a collaborator who is logged into a
+// different Google account. Serve it through the authenticated application
+// session instead, without relaxing sharing permissions in Google Drive.
+app.get('/api/drive-files/:fileId', requireSession, async (req, res) => {
+  const fileId = String(req.params.fileId || '').trim();
+  if (!/^[A-Za-z0-9_-]{5,200}$/.test(fileId)) return res.status(400).json({ error: 'invalid_drive_file_id' });
+  try {
+    const drive = await invoiceDriveClient();
+    const response = await drive.files.get({ fileId, alt: 'media', supportsAllDrives: true }, { responseType: 'stream' });
+    const headers = response.headers || {};
+    res.setHeader('Content-Type', headers['content-type'] || 'application/octet-stream');
+    res.setHeader('Content-Disposition', 'inline');
+    if (headers['content-length']) res.setHeader('Content-Length', headers['content-length']);
+    response.data.on('error', (error) => {
+      console.error('DRIVE_FILE_STREAM_ERROR', fileId, error.message);
+      if (!res.headersSent) res.status(502).json({ error: 'drive_file_stream_failed' });
+      else res.destroy(error);
+    });
+    response.data.pipe(res);
+  } catch (error) {
+    const status = Number(error?.code) === 404 ? 404 : 502;
+    console.error('DRIVE_FILE_OPEN_FAILED', JSON.stringify({ fileId, code: error?.code, message: error?.message }));
+    res.status(status).json({ error: status === 404 ? 'drive_file_not_found' : 'drive_file_unavailable' });
+  }
+});
+
 app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,res) => {
   const name=String(req.params.functionName||'');
   try {

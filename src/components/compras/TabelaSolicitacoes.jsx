@@ -5,6 +5,15 @@ import { Pencil, Trash2, CheckCircle2, RotateCcw, XCircle, Bell, Loader2, LinkIc
 import { normalizeStatus } from '@/lib/normalizeStatus';
 import { isFinanciallyActiveStatus } from '@/utils/finance/financeiroUtils';
 import { classificarItemDespesaPBH } from '@/lib/classificadorDespesaPBH';
+import {
+  getAuthenticatedDriveFileUrl,
+  getPurchaseDriveFolderUrl,
+  getPurchasePdfDriveFileId,
+  getPurchasePdfUrl,
+  getPurchaseXmlDriveFileId,
+  getPurchaseXmlUrl,
+  hasPurchaseBackup,
+} from '@/lib/driveLinks';
 import RubricaIaBadge from './RubricaIaBadge';
 
 const STATUS_CONFIG = {
@@ -136,15 +145,10 @@ function SortIcon({ field, sortField, sortDir }) {
 }
 
 function FilesCell({ p }) {
-  // Drive backup
-  const driveUrl = p.drive_backup_folder_url || p.drive_backup_nf_pdf_link || null;
-  const hasBackup = p.drive_backup_status === 'concluido' || !!driveUrl;
-
-  // PDF: prioridade backup drive, depois url armazenada
-  const pdfUrl = p.drive_backup_nf_pdf_link || p.nota_fiscal_pdf_url || p.nota_fiscal_url || p.nf_pdf_url || null;
-
-  // XML
-  const xmlUrl = p.drive_backup_nf_xml_link || p.nota_fiscal_xml_url || p.xml_url || p.nf_xml_url || null;
+  const folderUrl = getPurchaseDriveFolderUrl(p);
+  const pdfUrl = getAuthenticatedDriveFileUrl(getPurchasePdfDriveFileId(p), getPurchasePdfUrl(p));
+  const xmlUrl = getAuthenticatedDriveFileUrl(getPurchaseXmlDriveFileId(p), getPurchaseXmlUrl(p));
+  const hasBackup = hasPurchaseBackup(p);
 
   return (
     <div className="flex flex-col gap-1 text-xs">
@@ -159,10 +163,12 @@ function FilesCell({ p }) {
         </span>
       )}
 
-      {/* Drive */}
-      {driveUrl ? (
-        <a href={driveUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-indigo-700 underline underline-offset-1 hover:text-indigo-900">
-          <HardDrive className="h-3 w-3" />Drive
+      {/* A pasta é apenas uma navegação opcional. O PDF usa o proxy autenticado
+          do app, que funciona mesmo quando a conta Google do usuário não tem
+          permissão direta no Drive. */}
+      {folderUrl ? (
+        <a href={folderUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-indigo-700 underline underline-offset-1 hover:text-indigo-900">
+          <HardDrive className="h-3 w-3" />Pasta
         </a>
       ) : (
         <span className="text-gray-400 flex items-center gap-1"><HardDrive className="h-3 w-3" />—</span>

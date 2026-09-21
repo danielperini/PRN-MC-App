@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import { getAuthenticatedDriveFileUrl, getPurchasePdfDriveFileId, getPurchasePdfUrl, getPurchaseXmlDriveFileId, getPurchaseXmlUrl } from '@/lib/driveLinks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Upload, Loader2, ExternalLink, FileText, FileCode, Receipt, CloudUpload, CloudOff, CheckCircle2, AlertTriangle, FileX2, Sparkles, FilePenLine } from 'lucide-react';
+import { Upload, Loader2, FileText, FileCode, Receipt, CloudUpload, CloudOff, CheckCircle2, AlertTriangle, FileX2, Sparkles, FilePenLine } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import SincronizarXmlsPanel from '@/components/compras/SincronizarXmlsPanel';
@@ -516,12 +517,12 @@ export default function BackupDriveTab() {
                     <td className="hidden md:table-cell px-3 py-2">
                       <div className="flex items-center justify-center gap-1">
                         <LinkIcon
-                          url={p?.drive_backup_nf_pdf_link || p?.nota_fiscal_url || p?.nf_pdf_url}
+                          url={getAuthenticatedDriveFileUrl(getPurchasePdfDriveFileId(p), getPurchasePdfUrl(p))}
                           title="Abrir PDF no Drive"
                           Icon={FileText}
                         />
                         <LinkIcon
-                          url={p?.drive_backup_nf_xml_link || p?.nota_fiscal_xml_url || p?.xml_url}
+                          url={getAuthenticatedDriveFileUrl(getPurchaseXmlDriveFileId(p), getPurchaseXmlUrl(p))}
                           title="Abrir XML no Drive"
                           Icon={FileCode}
                         />
