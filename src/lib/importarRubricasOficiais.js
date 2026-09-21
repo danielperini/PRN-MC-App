@@ -14,6 +14,7 @@
 
 import { base44 } from '@/api/base44Client';
 import { getRubricasOficiais3Aditivo, TOTAL_OFICIAL_3_ADITIVO } from './rubricasOficiais3Aditivo';
+import { classificarItemDespesaPBH } from './classificadorDespesaPBH';
 
 function normalizeKey(str = '') {
   return String(str)
@@ -93,6 +94,21 @@ export async function importarRubricasOficiais({ onProgress } = {}) {
   for (const oficial of oficiais) {
     const chave = oficial._chave_oficial;
     const existente = mapaExistentes.get(chave);
+    // A classificação é calculada antes de gravar, sempre a partir da natureza
+    // e do item oficial do plano. Rubricas realmente ambíguas ficam pendentes
+    // para a ação de IA revisável na tela de Rubricas.
+    const classificacaoItem = classificarItemDespesaPBH(oficial);
+    const preservarClassificacaoManual = existente?.classificacao_item_origem === 'MANUAL';
+    const classificacaoSalva = preservarClassificacaoManual
+      ? {
+          codigo_item_pbh: existente.codigo_item_pbh,
+          item_pbh: existente.item_pbh,
+          descricao_item_pbh: existente.descricao_item_pbh,
+          classificacao_item_origem: existente.classificacao_item_origem,
+          classificacao_item_confianca: existente.classificacao_item_confianca,
+          classificacao_item_em: existente.classificacao_item_em,
+        }
+      : classificacaoItem;
 
     const payload = {
       rubrica: oficial.rubrica,
@@ -117,6 +133,14 @@ export async function importarRubricasOficiais({ onProgress } = {}) {
       escopo_orcamentario: oficial.escopo_orcamentario,
       ativo: true,
       _chave_oficial: chave,
+      codigo_item_pbh: classificacaoSalva?.codigo_item_pbh || null,
+      item_pbh: classificacaoSalva?.item_pbh || null,
+      descricao_item_pbh: classificacaoSalva?.descricao_item_pbh || null,
+      classificacao_item_origem: classificacaoSalva?.classificacao_item_origem || 'PENDENTE_IA',
+      classificacao_item_confianca: classificacaoSalva?.classificacao_item_confianca ?? 0,
+      classificacao_item_em: preservarClassificacaoManual
+        ? classificacaoSalva?.classificacao_item_em || null
+        : (classificacaoSalva ? new Date().toISOString() : null),
     };
 
     if (existente) {

@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
-import { AlertCircle } from 'lucide-react';
 import { Pencil, X, Save, Trash2 } from 'lucide-react';
+import { classificarItemDespesaPBH } from '@/lib/classificadorDespesaPBH';
 
 const CENTROS_CUSTO = [
   'MHAB',
@@ -201,7 +201,10 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
       const utilizado = toNumber(r?.valor_utilizado);
       const saldo = valor - utilizado;
       const perc = valor > 0 ? (utilizado / valor) * 100 : 0;
-      return { ...r, valor, utilizado, saldo, perc };
+      return { ...r, valor, utilizado, saldo, perc, classificacaoItem: r?.codigo_item_pbh ? {
+        codigo_item_pbh: r.codigo_item_pbh,
+        descricao_item_pbh: r.descricao_item_pbh,
+      } : classificarItemDespesaPBH(r) };
     });
   }, [filtradas]);
 
@@ -238,6 +241,7 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
               <th className="p-2 text-left">Rubrica</th>
               <th className="p-2 text-left">Centro de Custo</th>
               <th className="p-2 text-left">Natureza</th>
+              <th className="p-2 text-left">Item / conciliação</th>
               <th className="p-2 text-right">Valor</th>
               <th className="p-2 text-right">Utilizado</th>
               <th className="p-2 text-right">Saldo</th>
@@ -260,6 +264,13 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
                   <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full whitespace-nowrap">
                     {r?.natureza_despesa || r?.nome_natureza || '—'}
                   </span>
+                </td>
+                <td className="p-2">
+                  {r.classificacaoItem?.codigo_item_pbh ? (
+                    <span title={r.classificacaoItem.descricao_item_pbh || 'Classificação PBH'} className="text-xs font-mono bg-violet-100 text-violet-800 px-2 py-0.5 rounded-full whitespace-nowrap">
+                      {r.classificacaoItem.codigo_item_pbh}
+                    </span>
+                  ) : <span className="text-xs text-amber-600">Pendente de IA</span>}
                 </td>
                 <td className="p-2 text-right tabular-nums">R$ {moeda(r.valor)}</td>
                 <td className="p-2 text-right tabular-nums text-blue-700">R$ {moeda(r.utilizado)}</td>
@@ -292,7 +303,7 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
 
           <tfoot className="bg-gray-50 font-bold">
             <tr>
-              <td colSpan={4} className="p-2">TOTAL</td>
+              <td colSpan={5} className="p-2">TOTAL</td>
               <td className="p-2 text-right tabular-nums">R$ {moeda(totais.previsto)}</td>
               <td className="p-2 text-right tabular-nums">R$ {moeda(totais.utilizado)}</td>
               <td className="p-2 text-right tabular-nums">R$ {moeda(totais.saldo)}</td>

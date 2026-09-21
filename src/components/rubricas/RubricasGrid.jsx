@@ -21,6 +21,7 @@ import {
 import { toast } from 'sonner';
 import { calculateRubricaBalance, classifyRubricaBucket, isArchivedRubrica, isCreditRubrica } from '@/utils/finance/exceptionalRubricas';
 import { CENTROS_CUSTO } from '@/lib/centroCustoRubrica';
+import { classificarItemDespesaPBH } from '@/lib/classificadorDespesaPBH';
 
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return 0;
@@ -112,6 +113,7 @@ export default function RubricasGrid({
   const [savingId,     setSavingId]     = useState(null);
   const [deletingId,   setDeletingId]   = useState(null);
   const [recalculando, setRecalculando] = useState(false);
+  const [conciliandoItens, setConciliandoItens] = useState(false);
 
   const [editForm, setEditForm] = useState({
     grupo: '',
@@ -119,6 +121,7 @@ export default function RubricasGrid({
     numero_parcelas: '',
     valor_rubrica: '',
     centro_custo: 'Geral/Transversal',
+    codigo_item_pbh: '',
     ativo: true,
   });
 
@@ -155,6 +158,12 @@ export default function RubricasGrid({
           bucket:          classifyRubricaBucket(r),
           isCredit:        isCreditRubrica(r),
           semMeta:         !r?.meta && !r?.meta_id && !r?.meta_nome,
+          classificacaoItem: r?.codigo_item_pbh ? {
+            codigo_item_pbh: r.codigo_item_pbh,
+            item_pbh: r.item_pbh,
+            descricao_item_pbh: r.descricao_item_pbh,
+            classificacao_item_origem: r.classificacao_item_origem,
+          } : classificarItemDespesaPBH(r),
           raw:             r,
         };
       });
@@ -204,6 +213,7 @@ export default function RubricasGrid({
       numero_parcelas: rubrica.raw?.numero_parcelas || rubrica.raw?.parcelas || '',
       valor_rubrica:   String(toNumber(rubrica.raw?.valor_rubrica)),
       centro_custo:    rubrica.raw?.centro_custo    || 'Geral/Transversal',
+      codigo_item_pbh: rubrica.raw?.codigo_item_pbh || rubrica.classificacaoItem?.codigo_item_pbh || '',
       ativo:           rubrica.raw?.ativo !== false,
     });
   }
@@ -211,12 +221,13 @@ export default function RubricasGrid({
   function cancelarEdicao() {
     setEditingId(null);
     setSavingId(null);
-    setEditForm({ grupo: '', rubrica: '', numero_parcelas: '', valor_rubrica: '', centro_custo: 'Geral/Transversal', ativo: true });
+    setEditForm({ grupo: '', rubrica: '', numero_parcelas: '', valor_rubrica: '', centro_custo: 'Geral/Transversal', codigo_item_pbh: '', ativo: true });
   }
 
   async function salvarEdicao(id) {
     setSavingId(id);
     try {
+      const codigoItemPbh = editForm.codigo_item_pbh.trim() || null;
       await base44.entities.Rubrica.update(id, {
         grupo:           editForm.grupo,
         rubrica:         editForm.rubrica,
@@ -224,6 +235,11 @@ export default function RubricasGrid({
         valor_rubrica:   toNumber(editForm.valor_rubrica),
         valor_total:     toNumber(editForm.valor_rubrica),
         centro_custo:    editForm.centro_custo,
+        codigo_item_pbh: codigoItemPbh,
+        item_pbh: codigoItemPbh ? codigoItemPbh.split('.').pop() : null,
+        classificacao_item_origem: codigoItemPbh ? 'MANUAL' : null,
+        classificacao_item_confianca: codigoItemPbh ? 1 : 0,
+        classificacao_item_em: codigoItemPbh ? new Date().toISOString() : null,
         ativo:           editForm.ativo,
         data_ultima_alteracao: new Date().toISOString(),
       });
@@ -287,6 +303,32 @@ export default function RubricasGrid({
       toast.error(`Erro ao recalcular: ${error.message}`);
     } finally {
       setRecalculando(false);
+    }
+  }
+
+  async function conciliarItensPBH() {
+    setConciliandoItens(true);
+    try {
+      const atualizacoes = (rubricas || [])
+        .map((rubrica) => ({ rubrica, classificacao: classificarItemDespesaPBH(rubrica) }))
+        // Nunca substitui um código que já foi salvo manualmente.
+        .filter(({ rubrica, classificacao }) => classificacao && !rubrica.codigo_item_pbh);
+
+      for (let i = 0; i < atualizacoes.length; i += 15) {
+        await Promise.all(atualizacoes.slice(i, i + 15).map(({ rubrica, classificacao }) =>
+          base44.entities.Rubrica.update(rubrica.id, {
+            ...classificacao,
+            classificacao_item_em: new Date().toISOString(),
+          })
+        ));
+      }
+      const pendentes = (rubricas || []).filter((rubrica) => !classificarItemDespesaPBH(rubrica) && !rubrica.codigo_item_pbh).length;
+      toast.success(`${atualizacoes.length} código(s) PBH conciliado(s).${pendentes ? ` ${pendentes} aguardam classificação por IA.` : ''}`);
+      await onRefresh?.();
+    } catch (error) {
+      toast.error(`Erro ao conciliar itens PBH: ${error.message}`);
+    } finally {
+      setConciliandoItens(false);
     }
   }
 
@@ -383,27 +425,38 @@ export default function RubricasGrid({
           </Select>
         </div>
         {isCoordenador && (
-          <Button
-            onClick={recalcularRubricas}
-            disabled={recalculando}
-            className="bg-black hover:bg-gray-800 text-white"
-          >
-            <RefreshCw className={`w-4 h-4 mr-2 ${recalculando ? 'animate-spin' : ''}`} />
-            Recalcular rubricas
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              onClick={conciliarItensPBH}
+              disabled={conciliandoItens}
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${conciliandoItens ? 'animate-spin' : ''}`} />
+              Conciliar itens PBH
+            </Button>
+            <Button
+              onClick={recalcularRubricas}
+              disabled={recalculando}
+              className="bg-black hover:bg-gray-800 text-white"
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${recalculando ? 'animate-spin' : ''}`} />
+              Recalcular rubricas
+            </Button>
+          </div>
         )}
       </div>
 
       {/* Tabela */}
       <div className="rounded-2xl border border-gray-200 overflow-hidden">
         <div className="overflow-auto">
-          <table className="w-full min-w-[900px] text-sm">
+          <table className="w-full min-w-[1050px] text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="text-left px-4 py-3 font-semibold text-gray-700">Grupo</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-700">Rubrica</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-700">Centro de Custo</th>
                 <th className="text-center px-4 py-3 font-semibold text-gray-700">Nº Parcelas</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-700">Item / conciliação</th>
                 <th className="text-right px-4 py-3 font-semibold text-gray-700">Valor</th>
                 <th className="text-right px-4 py-3 font-semibold text-gray-700">Utilizado</th>
                 <th className="text-right px-4 py-3 font-semibold text-gray-700">Saldo</th>
@@ -414,7 +467,7 @@ export default function RubricasGrid({
             <tbody>
               {filtradas.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-10 text-center text-gray-400">
+                  <td colSpan={10} className="px-4 py-10 text-center text-gray-400">
                     Nenhuma rubrica encontrada
                   </td>
                 </tr>
@@ -468,6 +521,25 @@ export default function RubricasGrid({
                           <Input value={editForm.numero_parcelas} onChange={(e) => setEditForm((f) => ({ ...f, numero_parcelas: e.target.value }))} className="text-center" />
                         ) : (
                           <span className="text-gray-600">{rubrica.numero_parcelas || '—'}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        {emEdicao ? (
+                          <Input
+                            value={editForm.codigo_item_pbh}
+                            onChange={(e) => setEditForm((f) => ({ ...f, codigo_item_pbh: e.target.value }))}
+                            placeholder="3.3.90.39.12"
+                            className="min-w-36 font-mono text-xs"
+                          />
+                        ) : rubrica.classificacaoItem?.codigo_item_pbh ? (
+                          <div>
+                            <span title={rubrica.classificacaoItem.descricao_item_pbh || 'Classificação PBH'} className="inline-flex rounded bg-violet-100 px-2 py-0.5 font-mono text-xs text-violet-800">
+                              {rubrica.classificacaoItem.codigo_item_pbh}
+                            </span>
+                            <p className="mt-0.5 max-w-48 text-[10px] leading-tight text-gray-500">{rubrica.classificacaoItem.descricao_item_pbh || 'Código manual'}</p>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-amber-600">Pendente de IA</span>
                         )}
                       </td>
                       <td className="px-4 py-2.5 text-right">
@@ -531,7 +603,7 @@ export default function RubricasGrid({
             {filtradas.length > 0 && (
               <tfoot className="border-t-2 border-gray-300 bg-gray-50">
                 <tr>
-                  <td colSpan={4} className="px-4 py-3 font-semibold text-gray-700 text-sm">
+                  <td colSpan={5} className="px-4 py-3 font-semibold text-gray-700 text-sm">
                     TOTAL ({filtradas.length} rubrica{filtradas.length !== 1 ? 's' : ''})
                   </td>
                   <td className="px-4 py-3 text-right font-semibold tabular-nums">
@@ -546,7 +618,7 @@ export default function RubricasGrid({
                       return <span className={s < 0 ? 'text-red-700' : 'text-green-700'}>R$ {moeda(s)}</span>;
                     })()}
                   </td>
-                  <td colSpan={3} />
+                  <td colSpan={2} />
                 </tr>
               </tfoot>
             )}

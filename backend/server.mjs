@@ -246,6 +246,17 @@ async function initDb() {
     id BIGSERIAL PRIMARY KEY, base44_id TEXT UNIQUE, user_email TEXT, type TEXT, title TEXT, message TEXT,
     entity_type TEXT, entity_id TEXT, action_url TEXT, is_read BOOLEAN DEFAULT FALSE, resolved BOOLEAN DEFAULT FALSE,
     email_sent BOOLEAN DEFAULT FALSE, created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW())`);
+  // Classificação PBH por item: é separada do código interno do plano de
+  // trabalho e fica disponível para a conciliação de Compras/Rubricas.
+  if (await tableExists('rubricas')) {
+    await pool.query(`ALTER TABLE rubricas
+      ADD COLUMN IF NOT EXISTS codigo_item_pbh TEXT,
+      ADD COLUMN IF NOT EXISTS item_pbh TEXT,
+      ADD COLUMN IF NOT EXISTS descricao_item_pbh TEXT,
+      ADD COLUMN IF NOT EXISTS classificacao_item_origem TEXT,
+      ADD COLUMN IF NOT EXISTS classificacao_item_confianca NUMERIC(5,4),
+      ADD COLUMN IF NOT EXISTS classificacao_item_em TIMESTAMPTZ`);
+  }
 }
 
 app.get('/health', (_req,res) => res.json({ status:'ok', service:'appgestor-api' }));

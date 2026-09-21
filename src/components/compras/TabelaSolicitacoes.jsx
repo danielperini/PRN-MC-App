@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
-import { Pencil, Trash2, CheckCircle2, RotateCcw, XCircle, Bell, Loader2, LinkIcon, ExternalLink, FileText, FileCode2, HardDrive, ChevronUp, ChevronDown, AlertTriangle } from 'lucide-react';
+import { Pencil, Trash2, CheckCircle2, RotateCcw, XCircle, Bell, Loader2, LinkIcon, FileText, FileCode2, HardDrive, ChevronUp, ChevronDown, AlertTriangle } from 'lucide-react';
 import { normalizeStatus } from '@/lib/normalizeStatus';
 import { isFinanciallyActiveStatus } from '@/utils/finance/financeiroUtils';
+import { classificarItemDespesaPBH } from '@/lib/classificadorDespesaPBH';
 import RubricaIaBadge from './RubricaIaBadge';
 
 const STATUS_CONFIG = {
@@ -333,7 +334,7 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
           )}
           <ThSortable field="descricao" className="w-[18%]">Descrição</ThSortable>
           <ThSortable field="natureza" className="w-[12%]">Natureza</ThSortable>
-          <th className="px-3 py-3 font-medium text-gray-600 w-[5%] text-center">Cód.</th>
+          <th className="px-3 py-3 font-medium text-gray-600 w-[8%] text-center">Item / conciliação</th>
           <ThSortable field="fornecedor" className="w-[12%]">Fornecedor</ThSortable>
           <ThSortable field="centro" className="w-[7%]">Centro</ThSortable>
           <ThSortable field="rubrica" className="w-[14%]">Rubrica</ThSortable>
@@ -426,18 +427,26 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
                 </Tooltip>
               </td>
 
-              {/* Código Nº 4 do orçamento */}
-              <td className="px-3 py-2.5 text-center" style={tdStyle}>
-                {(() => {
-                  const codDisplay = rubrica?.codigo || null;
-                  if (codDisplay) {
-                    return (
-                      <span className="inline-block rounded px-1.5 py-0.5 font-mono text-xs bg-amber-100 text-amber-800">{codDisplay}</span>
-                    );
-                  }
-                  return <span className="text-gray-300 text-xs">—</span>;
-                })()}
-              </td>
+          {/* Item da natureza e código de conciliação PBH. O código interno
+              do plano segue preservado como "Plano" na segunda linha. */}
+          <td className="px-3 py-2.5 text-center" style={tdStyle}>
+            {(() => {
+              const classificacao = rubrica && classificarItemDespesaPBH(rubrica);
+              const codigoConciliacao = rubrica?.codigo_item_pbh || classificacao?.codigo_item_pbh || null;
+              const itemDescricao = rubrica?.descricao_item_pbh || classificacao?.descricao_item_pbh || '';
+              if (codigoConciliacao) {
+                return (
+                  <Tooltip content={itemDescricao || 'Código de conciliação PBH'}>
+                    <div className="inline-flex flex-col items-center gap-0.5">
+                      <span className="inline-block rounded px-1.5 py-0.5 font-mono text-[11px] bg-violet-100 text-violet-800">{codigoConciliacao}</span>
+                      {rubrica?.codigo && <span className="text-[10px] text-gray-400">Plano: {rubrica.codigo}</span>}
+                    </div>
+                  </Tooltip>
+                );
+              }
+              return <span className="text-amber-600 text-[11px]">Pendente de IA</span>;
+            })()}
+          </td>
 
               {/* Fornecedor */}
               <td className="px-3 py-2.5" style={tdStyle}>

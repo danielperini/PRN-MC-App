@@ -1,7 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, Search } from 'lucide-react';
+import { base44 } from '@/api/base44Client';
+import { toast } from 'sonner';
+import { classificarItemDespesaComIA, classificarItemDespesaPBH } from '@/lib/classificadorDespesaPBH';
 
 /* ─── helpers numéricos ─── */
 function toNumber(value) {
@@ -152,6 +155,27 @@ function detectarInconsistencias(rubrica) {
 function RubricaCard({ rubrica, canEdit = false }) {
   const [editingCodigo, setEditingCodigo] = React.useState(false);
   const [codigoValue, setCodigoValue] = React.useState(rubrica?.codigo || '');
+  const [classificandoItem, setClassificandoItem] = React.useState(false);
+  const classificacaoDeterministica = rubrica?.codigo_item_pbh ? null : classificarItemDespesaPBH(rubrica);
+  const [classificacaoItem, setClassificacaoItem] = React.useState(
+    () => classificacaoDeterministica || (rubrica?.codigo_item_pbh ? {
+      codigo_item_pbh: rubrica.codigo_item_pbh,
+      item_pbh: rubrica.item_pbh,
+      descricao_item_pbh: rubrica.descricao_item_pbh,
+      classificacao_item_origem: rubrica.classificacao_item_origem,
+      classificacao_item_confianca: rubrica.classificacao_item_confianca,
+    } : null)
+  );
+
+  useEffect(() => {
+    setClassificacaoItem((rubrica?.codigo_item_pbh ? {
+      codigo_item_pbh: rubrica.codigo_item_pbh,
+      item_pbh: rubrica.item_pbh,
+      descricao_item_pbh: rubrica.descricao_item_pbh,
+      classificacao_item_origem: rubrica.classificacao_item_origem,
+      classificacao_item_confianca: rubrica.classificacao_item_confianca,
+    } : classificarItemDespesaPBH(rubrica)));
+  }, [rubrica]);
 
   async function saveCodigo() {
     const val = codigoValue.trim();
@@ -163,6 +187,23 @@ function RubricaCard({ rubrica, canEdit = false }) {
       import('sonner').then(({ toast }) => toast.success('Código atualizado.'));
     } catch {
       import('sonner').then(({ toast }) => toast.error('Erro ao salvar código.'));
+    }
+  }
+
+  async function classificarItemComIA() {
+    setClassificandoItem(true);
+    try {
+      const resultado = await classificarItemDespesaComIA(rubrica);
+      await base44.entities.Rubrica.update(rubrica.id, {
+        ...resultado,
+        classificacao_item_em: new Date().toISOString(),
+      });
+      setClassificacaoItem(resultado);
+      toast.success(`Item PBH ${resultado.codigo_item_pbh} salvo para esta rubrica.`);
+    } catch (error) {
+      toast.error(error?.message || 'Não foi possível classificar o item com IA.');
+    } finally {
+      setClassificandoItem(false);
     }
   }
 
@@ -189,6 +230,24 @@ function RubricaCard({ rubrica, canEdit = false }) {
                   Natureza: {rubrica.natureza_despesa || rubrica.natureza}
                 </Badge>
               )}
+              {classificacaoItem?.codigo_item_pbh ? (
+                <Badge
+                  className="text-[11px] font-mono bg-violet-100 text-violet-800 hover:bg-violet-200 shrink-0"
+                  title={`${classificacaoItem.descricao_item_pbh || 'Item PBH'} · ${classificacaoItem.classificacao_item_origem || 'PBH'}`}
+                >
+                  Item PBH: {classificacaoItem.codigo_item_pbh}
+                </Badge>
+              ) : canEdit ? (
+                <button
+                  type="button"
+                  onClick={classificarItemComIA}
+                  disabled={classificandoItem}
+                  className="rounded border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 hover:bg-violet-100 disabled:opacity-60"
+                  title="A IA seleciona apenas entre os itens válidos da natureza econômica desta rubrica."
+                >
+                  {classificandoItem ? 'Classificando...' : 'Classificar item com IA'}
+                </button>
+              ) : null}
               {/* Badge código (Nº 4 do orçamento) */}
               {editingCodigo ? (
                 <span className="inline-flex items-center gap-1">
