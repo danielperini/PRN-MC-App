@@ -267,6 +267,13 @@ async function initDb() {
       ADD COLUMN IF NOT EXISTS duplicada_financeira BOOLEAN DEFAULT FALSE,
       ADD COLUMN IF NOT EXISTS duplicata_de TEXT`);
   }
+  if (await tableExists('reports')) {
+    // Legacy imports did not retain the author e-mail, but the editor uses it
+    // to show only the owner's draft and to keep the ownership check stable.
+    await pool.query(`ALTER TABLE reports
+      ADD COLUMN IF NOT EXISTS author_email TEXT,
+      ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMPTZ`);
+  }
 }
 
 app.get('/health', (_req,res) => res.json({ status:'ok', service:'appgestor-api' }));
@@ -333,6 +340,10 @@ async function normalizeReportCreatePayload(req, entityName, body = {}) {
   if (!email) throw new Error('report_author_not_found');
 
   const next = { ...body };
+  // Reports keep a numeric internal id and also require a Base44-compatible
+  // identifier.  Client requests do not reliably provide the latter, so the
+  // server owns its generation just as it owns report authorship.
+  next.base44_id = String(next.base44_id || '').trim() || crypto.randomUUID();
   const authorName = String(user.full_name || user.name || user.nome || email.split('@')[0]).trim() || 'Profissional';
   const profileMuseum = String(user.museu || user.museu_principal || user.centro_custo || '').trim();
 
