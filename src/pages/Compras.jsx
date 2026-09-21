@@ -1236,9 +1236,7 @@ function ComprasInner() {
                 Buscar
               </Button>
 
-              {!isMobile &&
-            <>
-                <label htmlFor="filtro-data-inicio" className="flex items-center gap-1.5 text-sm font-medium text-gray-600">
+              <label htmlFor="filtro-data-inicio" className="flex items-center gap-1.5 text-sm font-medium text-gray-600">
                   Início
                   <Input
                     id="filtro-data-inicio"
@@ -1247,8 +1245,8 @@ function ComprasInner() {
                     value={filterDraft.inicio}
                     onChange={(e) => setFilterDraft((f) => ({ ...f, inicio: e.target.value }))}
                   />
-                </label>
-                <label htmlFor="filtro-data-fim" className="flex items-center gap-1.5 text-sm font-medium text-gray-600">
+              </label>
+              <label htmlFor="filtro-data-fim" className="flex items-center gap-1.5 text-sm font-medium text-gray-600">
                   Fim
                   <Input
                     id="filtro-data-fim"
@@ -1257,7 +1255,10 @@ function ComprasInner() {
                     value={filterDraft.fim}
                     onChange={(e) => setFilterDraft((f) => ({ ...f, fim: e.target.value }))}
                   />
-                </label>
+              </label>
+
+              {!isMobile &&
+            <>
                   <SearchableSelect
                 value={filterDraft.meta_id}
                 onValueChange={(v) => setFilterDraft((f) => ({ ...f, meta_id: v }))}
