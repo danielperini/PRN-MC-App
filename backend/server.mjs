@@ -187,6 +187,140 @@ async function syncRubricaBalances() {
   `);
   return r.rowCount || 0;
 }
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Finance addresses already registered for the project. They remain included
+// even if a coordinator account is renamed or temporarily inactive.
+const PAYMENT_FINANCE_RECIPIENTS = Object.freeze([
+  'adm@viadutodasartes.org.br',
+  'notasfiscais@viadutodasartes.org.br',
+  'danielperini.mc@viadutodasartes.org.br',
+  'josianeamancio@viadutodasartes.org.br',
+  'daniel@periniprojetos.com.br',
+]);
+function normalizeEmailAddress(value) {
+  const email = String(value || '').trim().toLowerCase();
+  return EMAIL_PATTERN.test(email) ? email : '';
+}
+function uniqueEmails(values = []) {
+  return [...new Set(values.map(normalizeEmailAddress).filter(Boolean))];
+}
+function purchaseOwnerEmails(purchase = {}) {
+  return uniqueEmails([
+    purchase.user_email,
+    purchase.requester_email,
+    purchase.solicitante_email,
+    purchase.email_solicitante,
+    purchase.owner_email,
+    purchase.created_by,
+    purchase.report_author_email,
+  ]);
+}
+function paymentNotificationContent(purchase = {}) {
+  const number = String(purchase.nf_numero || purchase.id || 'sem número').trim();
+  const supplier = String(purchase.nf_emitente_nome || purchase.fornecedor_nome || 'fornecedor não informado').trim();
+  const value = Number(purchase.nf_valor_total || purchase.valor_aprovado || purchase.valor_total || purchase.valor_solicitado || 0);
+  const amount = Number.isFinite(value)
+    ? value.toLocaleString('pt-BR', { style:'currency', currency:'BRL' })
+    : 'valor não informado';
+  const title = `Pagamento realizado — NF ${number}`;
+  const message = `O pagamento da NF ${number}, de ${supplier}, no valor de ${amount}, foi registrado no Gestor Museus Centro.`;
+  return { title, message };
+}
+async function paymentNotificationRecipients(purchase = {}) {
+  // A payment is financial information.  It is deliberately sent only to the
+  // request owner and to registered administrators/coordinators, never to all
+  // professionals merely because they have an account in the application.
+  const managers = await pool.query(`
+    SELECT email
+    FROM users
+    WHERE email IS NOT NULL
+      AND BTRIM(email) <> ''
+      AND UPPER(COALESCE(base_role, role, '')) IN ('ADMIN','COORDENADOR')
+  `);
+  return uniqueEmails([
+    ...purchaseOwnerEmails(purchase),
+    ...PAYMENT_FINANCE_RECIPIENTS,
+    ...managers.rows.map((row) => row.email),
+  ]);
+}
+async function sendPaymentEmail({ to, title, message, actionUrl }) {
+  if (!process.env.SMTP_HOST || !process.env.SMTP_USER) {
+    return { sent:false, error:'smtp_not_configured' };
+  }
+  try {
+    const password = process.env.SMTP_PASS_B64
+      ? Buffer.from(process.env.SMTP_PASS_B64, 'base64').toString('utf8')
+      : process.env.SMTP_PASS;
+    const transport = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT || 465),
+      secure: String(process.env.SMTP_SECURE).toLowerCase() === 'true',
+      auth: { user: process.env.SMTP_USER, pass: password },
+    });
+    const safe = (text) => String(text || '').replace(/[&<>"']/g, (char) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[char]);
+    await transport.sendMail({
+      from: `Gestor Museus Centro <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
+      to,
+      subject: title,
+      text: `${message}\n\nAbrir no Gestor Museus: ${actionUrl}`,
+      html: `<div style="font-family:Arial,sans-serif;line-height:1.55;color:#172033"><h2>${safe(title)}</h2><p>${safe(message)}</p><p><a href="${safe(actionUrl)}" style="display:inline-block;padding:12px 18px;background:#111827;color:#fff;text-decoration:none;border-radius:8px;font-weight:700">Abrir no Gestor Museus</a></p></div>`,
+    });
+    return { sent:true };
+  } catch (error) {
+    console.error('PAYMENT_NOTIFICATION_EMAIL_FAILED', JSON.stringify({ to, message:error.message }));
+    return { sent:false, error:error.message };
+  }
+}
+async function queuePaymentNotifications(purchase = {}) {
+  const purchaseId = String(purchase.id || '').trim();
+  if (!purchaseId) return { recipients:0, queued:0, sent:0, skipped:'purchase_id_missing' };
+  const recipients = await paymentNotificationRecipients(purchase);
+  if (!recipients.length) return { recipients:0, queued:0, sent:0, skipped:'no_registered_recipient' };
+
+  const { title, message } = paymentNotificationContent(purchase);
+  const actionUrl = `${publicBaseUrl || 'https://appgestor.periniprojetos.com.br'}/Compras?id=${encodeURIComponent(purchaseId)}`;
+  const client = await pool.connect();
+  const queued = [];
+  try {
+    await client.query('BEGIN');
+    for (const email of recipients) {
+      const existing = await client.query(`
+        SELECT id, email_sent
+        FROM notifications
+        WHERE user_email=$1
+          AND type='purchase.paid'
+          AND entity_type='PurchaseRequest'
+          AND entity_id=$2
+        ORDER BY created_at DESC
+        LIMIT 1
+        FOR UPDATE
+      `, [email, purchaseId]);
+      if (existing.rowCount) continue;
+      const inserted = await client.query(`
+        INSERT INTO notifications (user_email,type,title,message,entity_type,entity_id,action_url,is_read,resolved,email_sent)
+        VALUES ($1,'purchase.paid',$2,$3,'PurchaseRequest',$4,$5,FALSE,FALSE,FALSE)
+        RETURNING id
+      `, [email, title, message, purchaseId, actionUrl]);
+      queued.push({ id:inserted.rows[0].id, email });
+    }
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  let sent = 0;
+  for (const notification of queued) {
+    const result = await sendPaymentEmail({ to:notification.email, title, message, actionUrl });
+    if (!result.sent) continue;
+    sent += 1;
+    await pool.query('UPDATE notifications SET email_sent=TRUE, updated_at=NOW() WHERE id=$1', [notification.id]);
+  }
+  return { recipients:recipients.length, queued:queued.length, sent, pending:queued.length - sent };
+}
 async function tableColumnTypes(table) {
   const r = await pool.query(`SELECT column_name,data_type,udt_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1 ORDER BY ordinal_position`, [table]);
   return new Map(r.rows.map(x => [x.column_name, { dataType:x.data_type, udtName:x.udt_name }]));
@@ -665,6 +799,18 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
       });
       return res.status(200).json({ success:true });
     }
+    if (name === 'notificarPagamento') {
+      const purchaseId = String(req.body?.purchaseId || req.body?.purchase_id || '').trim();
+      if (!purchaseId) return res.status(400).json({ success:false, error:'purchase_id_required' });
+      const purchaseResult = await pool.query('SELECT * FROM purchase_requests WHERE id=$1 LIMIT 1', [purchaseId]);
+      if (!purchaseResult.rowCount) return res.status(404).json({ success:false, error:'purchase_not_found' });
+      const purchase = purchaseResult.rows[0];
+      if (String(purchase.status || '').toUpperCase() !== 'PAGO' && purchase.pago !== true) {
+        return res.status(409).json({ success:false, error:'purchase_not_paid' });
+      }
+      const notification = await queuePaymentNotifications(purchase);
+      return res.status(200).json({ success:true, notification });
+    }
     if (name === 'tratarSolicitacoesLote') {
       const dryRun=Boolean(req.body?.dry_run);
       const cutoff='2026-07-14';
@@ -814,8 +960,15 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
           console.error('RUBRICA_BALANCE_SYNC_ERROR', JSON.stringify({ purchase_id:purchaseId, action, message:error.message }));
           return 0;
         });
+        let paymentNotifications = null;
+        if (action === 'marcar_pago' || action === 'pagar') {
+          paymentNotifications = await queuePaymentNotifications(updatedResult.rows[0]).catch(error => {
+            console.error('PAYMENT_NOTIFICATION_QUEUE_ERROR', JSON.stringify({ purchase_id:purchaseId, message:error.message }));
+            return { error:'payment_notification_queue_failed' };
+          });
+        }
         console.log('PURCHASE_ACTION_OK',JSON.stringify({ purchase_id:purchaseId, action, status:updatedResult.rows[0]?.status }));
-        return res.status(200).json({ success:true, purchase:updatedResult.rows[0], rubricas_atualizadas:rubricasAtualizadas });
+        return res.status(200).json({ success:true, purchase:updatedResult.rows[0], rubricas_atualizadas:rubricasAtualizadas, notificacoes_pagamento:paymentNotifications });
       } catch (error) {
         await client.query('ROLLBACK').catch(()=>{});
         throw error;
