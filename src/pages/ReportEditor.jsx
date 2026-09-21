@@ -14,7 +14,6 @@ import { notifyReportSubmitted } from '@/services/notifications/reportNotificati
 import {
   Save,
   Send,
-  FileDown,
   ArrowLeft,
   Loader2,
   CheckCircle2,
@@ -101,13 +100,22 @@ function formatarNumeroResumo(n) {
 }
 
 function createEmptyReportPayload(user, mesAtual, anoAtual) {
+  const email = normalizedEmail(user?.email);
+  // A criação do rascunho não pode depender de campos opcionais do perfil.
+  // O museu pode ser ajustado no editor antes do envio, mas a entidade exige
+  // um valor inicial válido para permitir que todo profissional crie o seu
+  // primeiro relatório.
+  const authorName = String(user?.full_name || user?.name || user?.nome || email.split('@')[0] || 'Profissional').trim();
+  const museu = String(user?.museu || user?.museu_principal || user?.centro_custo || 'Geral').trim() || 'Geral';
+
   return {
-    created_by: user?.email || '',
-    author_email: user?.email || '',
-    author_name: user?.full_name || '',
+    created_by: email,
+    created_by_id: user?.id || user?.user_id || '',
+    author_email: email,
+    author_name: authorName,
     author_role: user?.role === 'admin' ? 'ADMIN' : user?.role === 'COORDENADOR' ? 'COORDENADOR' : 'PROFISSIONAL',
     funcao: user?.funcao || '',
-    museu: user?.museu || '',
+    museu,
     equipe: user?.equipe || '',
     mes_referencia: mesAtual,
     ano: anoAtual,
@@ -140,8 +148,12 @@ function normalizedEmail(value) {
 
 function isReportOwner(report, user) {
   const email = normalizedEmail(user?.email);
-  return Boolean(email && report && [report.created_by, report.author_email, report.created_by_id]
-    .some((value) => normalizedEmail(value) === email));
+  const userId = String(user?.id || user?.user_id || '').trim();
+  if (!report || (!email && !userId)) return false;
+
+  return [report.created_by, report.author_email]
+    .some((value) => normalizedEmail(value) === email)
+    || Boolean(userId && String(report.created_by_id || '').trim() === userId);
 }
 
 function ReportSummaryStats({ atividades = [], fotos = [] }) {
@@ -180,7 +192,7 @@ export default function ReportEditor() {
   const reportIdParam = urlParams.get('id') || urlParams.get('reportId');
   const mesParam = urlParams.get('mes');
   const anoParam = urlParams.get('ano') ? parseInt(urlParams.get('ano'), 10) : null;
-  const isNewReportIntent = urlParams.get('novo') === '1';
+  const isNewReportIntent = ['1', 'true', 'sim', 'yes'].includes(String(urlParams.get('novo') || urlParams.get('new') || '').toLowerCase());
 
   const [currentTab, setCurrentTab] = useState('relatorio');
   const [report, setReport] = useState(null);
@@ -273,11 +285,15 @@ export default function ReportEditor() {
       const payload = createEmptyReportPayload(currentUser, mesAtual, anoAtual);
       const created = await base44.entities.Report.create(payload);
 
+      if (!created?.id) {
+        throw new Error('O servidor não retornou o identificador do novo relatório.');
+      }
+
       applyReport(created);
     } catch (err) {
       console.error('Erro ao carregar/criar relatório:', err);
       setLoadingError(true);
-      toast.error('Erro ao carregar relatório');
+      toast.error('Não foi possível criar ou abrir o relatório. Tente novamente.');
     } finally {
       setLoadingReport(false);
     }
@@ -540,11 +556,19 @@ export default function ReportEditor() {
 
   if (authError || loadingError) {
     return (
-      <LoadingPage
-        error
-        errorTitle="Não foi possível carregar o relatório"
-        errorDescription="Atualize a página ou tente novamente em alguns instantes."
-      />
+      <div className="mx-auto flex min-h-[60vh] max-w-xl items-center justify-center px-4 py-10">
+        <Card className="w-full p-8 text-center">
+          <AlertCircle className="mx-auto h-9 w-9 text-red-500" />
+          <h1 className="mt-4 text-xl font-semibold text-gray-900">Não foi possível abrir o relatório</h1>
+          <p className="mt-2 text-sm text-gray-600">
+            Confira a conexão e tente criar o relatório novamente. Nenhum dado foi perdido.
+          </p>
+          <div className="mt-6 flex justify-center gap-3">
+            <Button variant="outline" onClick={() => { window.location.href = '/Relatorios'; }}>Voltar</Button>
+            <Button onClick={() => { window.location.href = '/ReportEditor?novo=1'; }}>Tentar novamente</Button>
+          </div>
+        </Card>
+      </div>
     );
   }
 
