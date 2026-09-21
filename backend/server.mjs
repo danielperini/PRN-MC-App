@@ -299,6 +299,65 @@ function normalizePurchaseFiscalPayload(entityName, body = {}) {
   return next;
 }
 
+function normalizedEmail(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function reportAuthorRole(role) {
+  const value = String(role || '').trim().toUpperCase();
+  if (value === 'ADMIN') return 'ADMIN';
+  if (value === 'COORDENADOR' || value === 'COORDINATOR') return 'COORDENADOR';
+  return 'PROFISSIONAL';
+}
+
+// Report ownership must always come from the active app session, not from the
+// browser payload. This avoids a stale client profile creating a report in
+// somebody else's name and also supplies the required initial identity fields.
+async function normalizeReportCreatePayload(req, entityName, body = {}) {
+  if (entityName !== 'Report') return body;
+  if (!req.userId) throw new Error('authenticated_user_required');
+
+  const result = await pool.query('SELECT * FROM users WHERE id=$1 LIMIT 1', [req.userId]);
+  const user = result.rows[0];
+  const email = normalizedEmail(user?.email);
+  if (!email) throw new Error('report_author_not_found');
+
+  const next = { ...body };
+  const authorName = String(user.full_name || user.name || user.nome || email.split('@')[0]).trim() || 'Profissional';
+  const profileMuseum = String(user.museu || user.museu_principal || user.centro_custo || '').trim();
+
+  next.created_by = email;
+  next.created_by_id = String(user.id || req.userId);
+  next.author_email = email;
+  next.author_name = authorName;
+  next.author_role = reportAuthorRole(user.role);
+  next.funcao = next.funcao || user.funcao || '';
+  next.equipe = next.equipe || user.equipe || '';
+  // Required by the Report entity. The author can change it before submission.
+  next.museu = String(next.museu || profileMuseum || 'Geral').trim() || 'Geral';
+  next.status = 'DRAFT';
+  next.tipo = next.tipo || 'mensal';
+  next.ano_referencia = Number(next.ano_referencia || next.ano) || new Date().getFullYear();
+  return next;
+}
+
+async function assertReportUpdateAccess(req, reportId) {
+  const [userResult, reportResult] = await Promise.all([
+    pool.query('SELECT id,email,role FROM users WHERE id=$1 LIMIT 1', [req.userId]),
+    pool.query('SELECT * FROM reports WHERE id=$1 LIMIT 1', [reportId]),
+  ]);
+  const user = userResult.rows[0];
+  const report = reportResult.rows[0];
+  if (!user || !report) return { allowed: false, exists: Boolean(report) };
+  if (['ADMIN', 'COORDENADOR', 'COORDINATOR'].includes(String(user.role || '').toUpperCase())) return { allowed: true };
+
+  const email = normalizedEmail(user.email);
+  const owns = normalizedEmail(report.created_by) === email
+    || normalizedEmail(report.author_email) === email
+    || String(report.created_by_id || '').trim() === String(user.id || '').trim();
+  return { allowed: owns, exists: true };
+}
+
 function fiscalDuplicateKey(data = {}) {
   const taxId=String(data.nf_emitente_cpf_cnpj || data.cnpj || data.cpf || '').replace(/\D/g,'');
   const number=String(data.nf_numero || data.numero || '').replace(/^0+/,'').trim();
@@ -338,7 +397,8 @@ app.post('/api/apps/:appId/entities/:entityName', requireSession, async (req,res
     const table=entityTable(req.params.entityName); if(!table) return res.status(404).json({error:'entity_not_migrated'});
     if(!(await tableExists(table))) return res.status(404).json({error:'table_not_found',table});
     const columns=await tableColumns(table); const columnTypes=await tableColumnTypes(table);
-    const normalizedBody=normalizePurchaseFiscalPayload(req.params.entityName,req.body||{});
+    const fiscalBody=normalizePurchaseFiscalPayload(req.params.entityName,req.body||{});
+    const normalizedBody=await normalizeReportCreatePayload(req,req.params.entityName,fiscalBody);
     let entries=Object.entries(normalizedBody).filter(([k,v])=>columns.includes(k)&&v!==undefined);
     if (columns.includes('id') && !entries.some(([key]) => key === 'id')) {
       const idMeta = await pool.query(`SELECT data_type,column_default,is_identity FROM information_schema.columns WHERE table_schema='public' AND table_name=$1 AND column_name='id' LIMIT 1`,[table]);
@@ -361,6 +421,11 @@ async function updateEntity(req,res) {
   try {
     table=entityTable(req.params.entityName); if(!table) return res.status(404).json({error:'entity_not_migrated'});
     if(!(await tableExists(table))) return res.status(404).json({error:'table_not_found',table});
+    if (table === 'reports') {
+      const access = await assertReportUpdateAccess(req, req.params.id);
+      if (!access.exists) return res.status(404).json({error:'entity_not_found'});
+      if (!access.allowed) return res.status(403).json({error:'report_access_denied'});
+    }
     const columns=await tableColumns(table); if(!columns.includes('id')) return res.status(400).json({error:'entity_has_no_id_column'});
     const columnTypes=await tableColumnTypes(table);
     const normalizedBody=normalizePurchaseFiscalPayload(req.params.entityName,req.body||{});
@@ -413,6 +478,33 @@ function coreUploadHandler(req, res) {
 app.post('/api/apps/:appId/integrations/Core/:operation', requireSession, coreUploadHandler);
 app.post('/api/apps/:appId/integration-endpoints/Core/:operation', requireSession, coreUploadHandler);
 app.get('/api/files/:name',async(req,res)=>{ try { const name=path.basename(decodeURIComponent(req.params.name)); const target=path.join(uploadDir,name); if(!fs.existsSync(target)) return res.status(404).json({error:'file_not_found'}); res.sendFile(target); } catch { res.status(400).json({error:'invalid_file_name'}); } });
+
+// The Drive backup is created by the project's Google credential. Opening the
+// webViewLink directly therefore fails for a collaborator who is logged into a
+// different Google account. Serve it through the authenticated application
+// session instead, without relaxing sharing permissions in Google Drive.
+app.get('/api/drive-files/:fileId', requireSession, async (req, res) => {
+  const fileId = String(req.params.fileId || '').trim();
+  if (!/^[A-Za-z0-9_-]{5,200}$/.test(fileId)) return res.status(400).json({ error: 'invalid_drive_file_id' });
+  try {
+    const drive = await invoiceDriveClient();
+    const response = await drive.files.get({ fileId, alt: 'media', supportsAllDrives: true }, { responseType: 'stream' });
+    const headers = response.headers || {};
+    res.setHeader('Content-Type', headers['content-type'] || 'application/octet-stream');
+    res.setHeader('Content-Disposition', 'inline');
+    if (headers['content-length']) res.setHeader('Content-Length', headers['content-length']);
+    response.data.on('error', (error) => {
+      console.error('DRIVE_FILE_STREAM_ERROR', fileId, error.message);
+      if (!res.headersSent) res.status(502).json({ error: 'drive_file_stream_failed' });
+      else res.destroy(error);
+    });
+    response.data.pipe(res);
+  } catch (error) {
+    const status = Number(error?.code) === 404 ? 404 : 502;
+    console.error('DRIVE_FILE_OPEN_FAILED', JSON.stringify({ fileId, code: error?.code, message: error?.message }));
+    res.status(status).json({ error: status === 404 ? 'drive_file_not_found' : 'drive_file_unavailable' });
+  }
+});
 
 app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,res) => {
   const name=String(req.params.functionName||'');

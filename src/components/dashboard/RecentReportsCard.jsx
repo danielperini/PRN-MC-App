@@ -1,6 +1,5 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { createPageUrl } from '@/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { FileText, ChevronRight } from 'lucide-react';
@@ -21,7 +20,7 @@ export default function RecentReportsCard({ reports = [] }) {
         <FileText className="w-10 h-10 text-gray-300 mx-auto mb-3" />
         <p className="text-gray-500 font-medium">Nenhum relatório ainda</p>
         <p className="text-sm text-gray-400 mt-1">Comece criando seu primeiro relatório</p>
-        <Link to={createPageUrl('ReportEditor?novo=1')}>
+        <Link to="/ReportEditor?novo=1">
           <Button variant="outline" className="mt-4 border-black text-black hover:bg-black hover:text-white">
             Criar Relatório
           </Button>
@@ -42,7 +41,7 @@ export default function RecentReportsCard({ reports = [] }) {
         }, 0);
         
         return (
-          <Link key={report.id} to={createPageUrl(`ReportEditor?id=${report.id}`)} className="block group">
+          <Link key={report.id} to={`/ReportEditor?id=${report.id}`} className="block group">
             <div className="p-4 border border-gray-100 rounded-xl hover:border-gray-300 hover:shadow-md transition-all bg-white">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold text-black">
