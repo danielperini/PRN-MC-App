@@ -117,6 +117,72 @@ export async function runMonthlyReportReminders({ dryRun = false, now = new Date
   return result;
 }
 
+function parseTargetSpecs(value) {
+  return String(value || '').split(';').map((entry) => {
+    const [email, start] = entry.split('|').map((part) => String(part || '').trim());
+    const match = start?.match(/^(20\d{2})-(0[1-9]|1[0-2])$/);
+    return email && match ? { email: email.toLowerCase(), year: Number(match[1]), month: Number(match[2]) } : null;
+  }).filter(Boolean);
+}
+
+// Used for an explicitly requested, one-off reminder. Unlike the recurring
+// reminder, explicit recipients may include a registered administrator when
+// the request names that person directly.
+export async function runTargetedMonthlyReportReminders({ targets = [], dryRun = false, now = new Date() } = {}) {
+  const completedMonths = requiredMonths(now);
+  const [usersResult, reportsResult] = await Promise.all([
+    pool.query('SELECT * FROM users'),
+    pool.query('SELECT * FROM reports'),
+  ]);
+  const completedByEmail = new Map();
+  for (const report of reportsResult.rows) {
+    if (!COMPLETE_STATUSES.has(String(report.status || '').trim().toUpperCase())) continue;
+    const key = reportMonth(report);
+    if (!key) continue;
+    for (const email of [report.created_by, report.author_email].map((value) => String(value || '').trim().toLowerCase()).filter(Boolean)) {
+      if (!completedByEmail.has(email)) completedByEmail.set(email, new Set());
+      completedByEmail.get(email).add(key);
+    }
+  }
+
+  const transport = dryRun ? null : await mailTransport();
+  const runKey = `TARGETED_MONTHLY_REPORT_MISSING_EMAIL_${now.toISOString().slice(0, 10)}`;
+  const usersByEmail = new Map(usersResult.rows.map((user) => [emailOf(user), user]));
+  const result = { eligible: 0, sent: 0, skippedAlreadySent: 0, skippedSmtp: 0, skippedNotFound: [], recipients: [] };
+  for (const target of targets) {
+    const user = usersByEmail.get(target.email);
+    if (!user) { result.skippedNotFound.push(target.email); continue; }
+    const missing = completedMonths.filter(({ year, month }) => year > target.year || (year === target.year && month >= target.month))
+      .filter(({ year, month }) => !(completedByEmail.get(target.email) || new Set()).has(`${year}-${month}`));
+    if (!missing.length) continue;
+    result.eligible += 1;
+    result.recipients.push({ email: target.email, missing: missing.map((item) => item.label) });
+    if (dryRun) continue;
+    const previous = await pool.query(
+      `SELECT 1 FROM notifications WHERE lower(COALESCE(user_email,''))=$1 AND type=$2 LIMIT 1`,
+      [target.email, runKey],
+    );
+    if (previous.rowCount) { result.skippedAlreadySent += 1; continue; }
+    if (!transport) { result.skippedSmtp += 1; continue; }
+    const firstName = String(user.full_name || user.name || target.email.split('@')[0]).trim().split(/\s+/)[0];
+    const list = missing.map((item) => item.label).join(', ');
+    const message = `É necessário concluir imediatamente o(s) relatório(s) mensal(is) pendente(s): ${list}. Acesse o Gestor Museus Centro, complete o preenchimento e envie para aprovação.`;
+    await transport.sendMail({
+      from: `Gestor Museus Centro <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
+      to: target.email,
+      subject: 'Ação necessária: relatórios mensais pendentes',
+      text: `Olá, ${firstName}.\n\n${message}\n\n${APP_ORIGIN}/Relatorios`,
+      html: `<p>Olá, ${firstName}.</p><p>${message}</p><p><a href="${APP_ORIGIN}/Relatorios">Abrir relatórios no Gestor Museus Centro</a></p>`,
+    });
+    await pool.query(
+      `INSERT INTO notifications (user_email,type,title,message,action_url,is_read,resolved,email_sent) VALUES ($1,$2,$3,$4,$5,FALSE,FALSE,TRUE)`,
+      [target.email, runKey, 'Relatórios mensais pendentes', message, `${APP_ORIGIN}/Relatorios`],
+    ).catch(() => {});
+    result.sent += 1;
+  }
+  return result;
+}
+
 function shouldRunNow(now = new Date()) {
   return now.getDay() === 1 && now.getHours() === 6;
 }
@@ -132,7 +198,11 @@ async function scheduledRun() {
 
 if (process.argv[1]?.endsWith('monthly-report-reminders.mjs')) {
   const dryRun = process.argv.includes('--dry-run');
-  runMonthlyReportReminders({ dryRun }).then((result) => {
+  const targeted = process.argv.includes('--targeted');
+  const run = targeted
+    ? runTargetedMonthlyReportReminders({ dryRun, targets: parseTargetSpecs(process.env.REPORT_REMINDER_TARGETS) })
+    : runMonthlyReportReminders({ dryRun });
+  run.then((result) => {
     console.log(JSON.stringify(result));
     process.exit(0);
   }).catch((error) => { console.error(error); process.exit(1); });
