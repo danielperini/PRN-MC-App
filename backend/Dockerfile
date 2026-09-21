@@ -11,6 +11,7 @@ COPY drive-reconcile-intake.mjs ./
 COPY drive-reconcile-sequence.mjs ./
 COPY reconcile-invoices-purchases.mjs ./
 COPY reconcile-noturno-payments-2026.mjs ./
+COPY reconcile-noturno-classification-2026.mjs ./
 COPY drive-reconcile-current-month.mjs ./
 COPY backup-pending-drive.mjs ./
 COPY monthly-report-reminders.mjs ./
