@@ -27,14 +27,27 @@ function runMonth(month) {
   });
 }
 
+function reconcileMonth(month) {
+  return new Promise(resolve=>{
+    const child=spawn(process.execPath,['reconcile-invoices-purchases.mjs'],{
+      cwd:process.cwd(), env:{ ...process.env,RECONCILE_APPLY:'1',RECONCILE_MONTHS:month },stdio:['ignore','pipe','pipe']
+    });
+    child.stdout.pipe(process.stdout); child.stderr.pipe(process.stderr);
+    child.on('exit',code=>resolve(code));
+  });
+}
+
 for (const month of months) {
   let attempt=0;
   while (true) {
     attempt++;
     console.log('DRIVE_RECONCILE_MONTH_START',JSON.stringify({ month,attempt,started_at:new Date().toISOString() }));
     const result=await runMonth(month);
+    // The Drive importer owns files; this pass owns the one-PDF/one-purchase
+    // relationship. It is idempotent and uses only the complete fiscal key.
+    const reconcileCode=await reconcileMonth(month);
     const complete=result.code===0 && result.summary && Number(result.summary.errors||0)===0;
-    console.log('DRIVE_RECONCILE_MONTH_RESULT',JSON.stringify({ month,attempt,complete,code:result.code,...(result.summary||{}) }));
+    console.log('DRIVE_RECONCILE_MONTH_RESULT',JSON.stringify({ month,attempt,complete,code:result.code,reconcile_code:reconcileCode,...(result.summary||{}) }));
     if (complete) break;
     if (attempt >= maxAttempts) {
       console.warn('DRIVE_RECONCILE_MONTH_ADVANCE_WITH_ERRORS',JSON.stringify({ month,attempt,errors:result.summary?.errors || null }));
