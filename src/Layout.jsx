@@ -15,6 +15,7 @@ import AutoContratosDriveSync from '@/components/contratos/AutoContratosDriveSyn
 import { RotateCw } from 'lucide-react';
 import AppTour from '@/components/tour/AppTour';
 import WelcomeBanner from '@/components/tour/WelcomeBanner';
+import BugReportButton from '@/components/common/BugReportButton';
 
 const PAGE_TITLES = {
   Dashboard: 'Painel',
@@ -189,6 +190,7 @@ export default function Layout({ children, currentPageName }) {
           <MobileBottomTab currentPageName={currentPageName} />
         </div>
         <AssistantChat />
+        {currentUser && <BugReportButton currentUser={currentUser} />}
         {currentUser && <WelcomeBanner />}
         <AppTour
           active={tourActive}

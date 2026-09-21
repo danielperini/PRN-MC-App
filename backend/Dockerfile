@@ -15,6 +15,7 @@ COPY reconcile-noturno-classification-2026.mjs ./
 COPY drive-reconcile-current-month.mjs ./
 COPY backup-pending-drive.mjs ./
 COPY monthly-report-reminders.mjs ./
+COPY send-professional-access-check.mjs ./
 
 EXPOSE 3000
 
