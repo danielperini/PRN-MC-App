@@ -171,6 +171,8 @@ async function syncRubricaBalances() {
       FROM purchase_requests
       WHERE rubrica_id IS NOT NULL
         AND UPPER(COALESCE(status,'')) IN ('APROVADO','APROVADO_COORD','APROVADO_ADMIN','PAGO')
+        AND COALESCE(incluir_no_somatorio,TRUE) IS DISTINCT FROM FALSE
+        AND COALESCE(duplicada_financeira,FALSE)=FALSE
       GROUP BY rubrica_id
     )
     UPDATE rubricas r
