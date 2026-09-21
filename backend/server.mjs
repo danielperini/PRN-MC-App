@@ -619,6 +619,10 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
         } catch (error) { emailError=error.message; console.error('BUG_REPORT_EMAIL_FAILED',error.message); }
       }
       await pool.query('INSERT INTO notifications (user_email,type,title,message,entity_type,entity_id,action_url,is_read,resolved,email_sent) VALUES ($1,$2,$3,$4,$5,$6,$7,FALSE,FALSE,$8)',[user.email,'BUG_REPORT',`Bug reportado: ${analysis.categoria}`,message,'BugReport',entityId,page || '/',emailSent]);
+      // The SMTP provider can be temporarily unavailable. Persist a second,
+      // user-addressed notification so Daniel sees every report inside the app
+      // even when the external e-mail delivery must be retried later.
+      await pool.query('INSERT INTO notifications (user_email,type,title,message,entity_type,entity_id,action_url,is_read,resolved,email_sent) VALUES ($1,$2,$3,$4,$5,$6,$7,FALSE,FALSE,$8)',['danielperini.mc@viadutodasartes.org.br','BUG_REPORT_SUPPORT',`Novo bug: ${analysis.categoria}`,message,'BugReport',entityId,page || '/',emailSent]);
       console.log('BUG_REPORT_RECEIVED',JSON.stringify({entity_id:entityId,user_id:user.id,category:analysis.categoria,severity:analysis.gravidade,email_sent:emailSent}));
       return res.status(201).json({success:true,id:entityId,analise:analysis,email_enviado:emailSent,email_error:emailError || undefined});
     }
