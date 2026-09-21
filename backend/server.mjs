@@ -394,7 +394,7 @@ async function assertReportUpdateAccess(req, reportId) {
   const user = userResult.rows[0];
   const report = reportResult.rows[0];
   if (!user || !report) return { allowed: false, exists: Boolean(report) };
-  if (['ADMIN', 'COORDENADOR', 'COORDINATOR'].includes(String(user.role || '').toUpperCase())) return { allowed: true };
+  if (['ADMIN', 'COORDENADOR', 'COORDINATOR'].includes(String(user.role || '').toUpperCase())) return { allowed: true, exists: true };
 
   const email = normalizedEmail(user.email);
   const owns = normalizedEmail(report.created_by) === email
