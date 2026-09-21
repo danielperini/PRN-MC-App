@@ -119,9 +119,9 @@ export async function runMonthlyReportReminders({ dryRun = false, now = new Date
 
 function parseTargetSpecs(value) {
   return String(value || '').split(';').map((entry) => {
-    const [email, start] = entry.split('|').map((part) => String(part || '').trim());
+    const [email, start, fullName] = entry.split('|').map((part) => String(part || '').trim());
     const match = start?.match(/^(20\d{2})-(0[1-9]|1[0-2])$/);
-    return email && match ? { email: email.toLowerCase(), year: Number(match[1]), month: Number(match[2]) } : null;
+    return email && match ? { email: email.toLowerCase(), year: Number(match[1]), month: Number(match[2]), fullName } : null;
   }).filter(Boolean);
 }
 
@@ -151,7 +151,6 @@ export async function runTargetedMonthlyReportReminders({ targets = [], dryRun =
   const result = { eligible: 0, sent: 0, skippedAlreadySent: 0, skippedSmtp: 0, skippedNotFound: [], recipients: [] };
   for (const target of targets) {
     const user = usersByEmail.get(target.email);
-    if (!user) { result.skippedNotFound.push(target.email); continue; }
     const missing = completedMonths.filter(({ year, month }) => year > target.year || (year === target.year && month >= target.month))
       .filter(({ year, month }) => !(completedByEmail.get(target.email) || new Set()).has(`${year}-${month}`));
     if (!missing.length) continue;
@@ -164,7 +163,9 @@ export async function runTargetedMonthlyReportReminders({ targets = [], dryRun =
     );
     if (previous.rowCount) { result.skippedAlreadySent += 1; continue; }
     if (!transport) { result.skippedSmtp += 1; continue; }
-    const firstName = String(user.full_name || user.name || target.email.split('@')[0]).trim().split(/\s+/)[0];
+    // Some legacy report authors have a verified work email before their user
+    // account is created. A named, explicit reminder must still reach them.
+    const firstName = String(user?.full_name || user?.name || target.fullName || target.email.split('@')[0]).trim().split(/\s+/)[0];
     const list = missing.map((item) => item.label).join(', ');
     const message = `É necessário concluir imediatamente o(s) relatório(s) mensal(is) pendente(s): ${list}. Acesse o Gestor Museus Centro, complete o preenchimento e envie para aprovação.`;
     await transport.sendMail({
