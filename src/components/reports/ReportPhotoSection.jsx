@@ -91,7 +91,9 @@ export default function ReportPhotoSection({
     const encontrados = await base44.entities.Report.filter({ id: reportId });
     const relatorio = Array.isArray(encontrados) ? encontrados[0] : null;
     if (!relatorio) throw new Error('Relatório não encontrado após a gravação.');
-    return Array.isArray(relatorio.fotos) ? relatorio.fotos : [];
+    if (Array.isArray(relatorio.fotos)) return relatorio.fotos;
+    const raw = relatorio.raw_data && typeof relatorio.raw_data === 'object' ? relatorio.raw_data : {};
+    return Array.isArray(raw.fotos) ? raw.fotos : [];
   };
 
   const verificarPersistencia = async (esperadas = photos, mostrarToast = true) => {
