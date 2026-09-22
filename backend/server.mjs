@@ -331,7 +331,8 @@ const ENTITY_TABLES = Object.freeze({
   Attachment:'attachments', Notification:'notifications', Notificacao:'notifications', GastoRubrica:'gasto_rubricas',
   LancamentoRubrica:'lancamentos_rubrica', Meta:'metas', MetaActivity:'meta_activities', PurchaseRequest:'purchase_requests',
   PurchaseDocument:'purchase_documents', DocumentIntake:'document_intakes', FinanceiroAuditLog:'financeiro_audit_logs', AuditLog:'audit_logs',
-  UserPermission:'user_permissions', Profile:'profiles', Museu:'museus', Equipe:'equipes', Fornecedor:'fornecedores'
+  UserPermission:'user_permissions', Profile:'profiles', Museu:'museus', Equipe:'equipes', Fornecedor:'fornecedores',
+  ClientErrorLog:'client_error_logs'
 });
 function entityTable(name) { return ENTITY_TABLES[String(name || '')] || null; }
 function quoteIdentifier(value) { return `"${String(value).replaceAll('"', '""')}"`; }
@@ -565,6 +566,10 @@ async function initDb() {
     id BIGSERIAL PRIMARY KEY, base44_id TEXT UNIQUE, user_email TEXT, type TEXT, title TEXT, message TEXT,
     entity_type TEXT, entity_id TEXT, action_url TEXT, is_read BOOLEAN DEFAULT FALSE, resolved BOOLEAN DEFAULT FALSE,
     email_sent BOOLEAN DEFAULT FALSE, created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW())`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS client_error_logs (
+    id BIGSERIAL PRIMARY KEY, error_id TEXT UNIQUE NOT NULL, message TEXT, stack TEXT,
+    component_stack TEXT, url TEXT, user_email TEXT, user_agent TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW())`);
   // Classificação PBH por item: é separada do código interno do plano de
   // trabalho e fica disponível para a conciliação de Compras/Rubricas.
   if (await tableExists('rubricas')) {
@@ -891,6 +896,21 @@ async function normalizeReportCreatePayload(req, entityName, body = {}) {
   return next;
 }
 
+async function normalizeClientErrorPayload(req, entityName, body = {}) {
+  if (entityName !== 'ClientErrorLog') return body;
+  const user = (await pool.query('SELECT email FROM users WHERE id=$1 LIMIT 1', [req.userId])).rows[0];
+  return {
+    ...body,
+    user_email: String(user?.email || body.user_email || '').trim().toLowerCase(),
+    error_id: String(body.error_id || `ERR-SERVER-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`).slice(0, 120),
+    message: String(body.message || '').slice(0, 500),
+    stack: String(body.stack || '').slice(0, 3000),
+    component_stack: String(body.component_stack || '').slice(0, 3000),
+    url: String(body.url || '').slice(0, 2000),
+    user_agent: String(body.user_agent || '').slice(0, 1000),
+  };
+}
+
 async function assertReportUpdateAccess(req, reportId) {
   const [userResult, reportResult] = await Promise.all([
     pool.query('SELECT * FROM users WHERE id=$1 LIMIT 1', [req.userId]),
@@ -996,6 +1016,7 @@ app.post('/api/apps/:appId/entities/:entityName', requireSession, async (req,res
     const columns=await tableColumns(table); const columnTypes=await tableColumnTypes(table);
     const fiscalBody=normalizePurchaseFiscalPayload(req.params.entityName,req.body||{});
     let normalizedBody=await normalizeReportCreatePayload(req,req.params.entityName,fiscalBody);
+    normalizedBody=await normalizeClientErrorPayload(req,req.params.entityName,normalizedBody);
     normalizedBody=preserveReportEditorContent(normalizedBody);
     let entries=Object.entries(normalizedBody).filter(([k,v])=>columns.includes(k)&&v!==undefined);
     if (columns.includes('id') && !entries.some(([key]) => key === 'id')) {
@@ -1016,6 +1037,7 @@ app.post('/api/apps/:appId/entities/:entityName', requireSession, async (req,res
       await syncReportPhotosToGallery(r.rows[0], normalizedBody.fotos).catch((error) => console.error('REPORT_GALLERY_SYNC_ERROR', error));
     }
     if (table==='document_intakes') await suppressExactDuplicateIntakes(r.rows[0].id);
+    if (table==='client_error_logs') console.warn('CLIENT_ERROR_LOGGED', JSON.stringify({ error_id:r.rows[0].error_id, user_email:r.rows[0].user_email, url:r.rows[0].url }));
     res.status(201).json(r.rows[0]);
   } catch(e) { console.error('ENTITY_POST_ERROR:',e); res.status(500).json({error:'entity_create_failed',message:e.message}); }
 });
