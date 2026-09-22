@@ -518,6 +518,36 @@ function reportAuthorRole(role) {
   return 'PROFISSIONAL';
 }
 
+function parseReportRawData(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  return {};
+}
+
+// The main report form is stored in `reports`; activities and gallery entries
+// are also kept as compatible arrays in raw_data. Keeping them here prevents a
+// normal editor save from silently dropping the content of older reports.
+function preserveReportEditorContent(body = {}, previousRawData = null) {
+  const hasActivities = Array.isArray(body.atividades);
+  const hasPhotos = Array.isArray(body.fotos);
+  if (!hasActivities && !hasPhotos) return body;
+
+  const rawData = {
+    ...parseReportRawData(previousRawData),
+    ...parseReportRawData(body.raw_data),
+  };
+  if (hasActivities) rawData.atividades = body.atividades;
+  if (hasPhotos) rawData.fotos = body.fotos;
+  return { ...body, raw_data: rawData };
+}
+
 // Report ownership must always come from the active app session, not from the
 // browser payload. This avoids a stale client profile creating a report in
 // somebody else's name and also supplies the required initial identity fields.
@@ -564,14 +594,14 @@ async function assertReportUpdateAccess(req, reportId) {
   ]);
   const user = userResult.rows[0];
   const report = reportResult.rows[0];
-  if (!user || !report) return { allowed: false, exists: Boolean(report) };
-  if (['ADMIN', 'COORDENADOR', 'COORDINATOR'].includes(String(user.role || '').toUpperCase())) return { allowed: true, exists: true };
+  if (!user || !report) return { allowed: false, exists: Boolean(report), report: report || null };
+  if (['ADMIN', 'COORDENADOR', 'COORDINATOR'].includes(String(user.role || '').toUpperCase())) return { allowed: true, exists: true, report };
 
   const email = normalizedEmail(user.email);
   const owns = normalizedEmail(report.created_by) === email
     || normalizedEmail(report.author_email) === email
     || String(report.created_by_id || '').trim() === String(user.id || '').trim();
-  if (owns) return { allowed: true, exists: true };
+  if (owns) return { allowed: true, exists: true, report };
 
   // Imports legados usavam um e-mail técnico do Base44 e deixavam a autoria
   // real apenas no nome. Recuperamos esse vínculo uma vez, sem tomar relatórios
@@ -587,9 +617,9 @@ async function assertReportUpdateAccess(req, reportId) {
   if (hasOnlyLegacyIdentity && userName && reportName && userName === reportName) {
     await pool.query(`UPDATE reports SET created_by=$1, created_by_id=$2, author_email=$1,
       updated_at=NOW(), updated_date=NOW() WHERE id=$3`, [email, String(user.id), reportId]);
-    return { allowed: true, exists: true, ownershipRecovered: true };
+    return { allowed: true, exists: true, ownershipRecovered: true, report };
   }
-  return { allowed: false, exists: true };
+  return { allowed: false, exists: true, report };
 }
 
 // A professional can edit the content of their own report, but never its
@@ -661,7 +691,8 @@ app.post('/api/apps/:appId/entities/:entityName', requireSession, async (req,res
     if(!(await tableExists(table))) return res.status(404).json({error:'table_not_found',table});
     const columns=await tableColumns(table); const columnTypes=await tableColumnTypes(table);
     const fiscalBody=normalizePurchaseFiscalPayload(req.params.entityName,req.body||{});
-    const normalizedBody=await normalizeReportCreatePayload(req,req.params.entityName,fiscalBody);
+    let normalizedBody=await normalizeReportCreatePayload(req,req.params.entityName,fiscalBody);
+    normalizedBody=preserveReportEditorContent(normalizedBody);
     let entries=Object.entries(normalizedBody).filter(([k,v])=>columns.includes(k)&&v!==undefined);
     if (columns.includes('id') && !entries.some(([key]) => key === 'id')) {
       const idMeta = await pool.query(`SELECT data_type,column_default,is_identity FROM information_schema.columns WHERE table_schema='public' AND table_name=$1 AND column_name='id' LIMIT 1`,[table]);
@@ -684,15 +715,18 @@ async function updateEntity(req,res) {
   try {
     table=entityTable(req.params.entityName); if(!table) return res.status(404).json({error:'entity_not_migrated'});
     if(!(await tableExists(table))) return res.status(404).json({error:'table_not_found',table});
+    let reportAccess=null;
     if (table === 'reports') {
       const access = await assertReportUpdateAccess(req, req.params.id);
       if (!access.exists) return res.status(404).json({error:'entity_not_found'});
       if (!access.allowed) return res.status(403).json({error:'report_access_denied'});
+      reportAccess=access;
     }
     const columns=await tableColumns(table); if(!columns.includes('id')) return res.status(400).json({error:'entity_has_no_id_column'});
     const columnTypes=await tableColumnTypes(table);
     const fiscalBody=normalizePurchaseFiscalPayload(req.params.entityName,req.body||{});
-    const normalizedBody=await normalizeReportUpdatePayload(req,req.params.entityName,fiscalBody);
+    let normalizedBody=await normalizeReportUpdatePayload(req,req.params.entityName,fiscalBody);
+    normalizedBody=preserveReportEditorContent(normalizedBody,reportAccess?.report?.raw_data);
     entries=Object.entries(normalizedBody).filter(([k,v])=>columns.includes(k)&&k!=='id'&&v!==undefined);
     currentField=entries[0]?.[0]||null;
     entries=normalizeEntityEntriesForDb(entries,columnTypes);

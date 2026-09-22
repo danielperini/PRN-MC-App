@@ -92,6 +92,123 @@ function normalizeAtividades(raw) {
   }));
 }
 
+function asObject(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  return {};
+}
+
+function asArray(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string' && value.trim().startsWith('[')) {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function presentValue(...values) {
+  return values.find((value) => value !== undefined && value !== null && value !== '');
+}
+
+function activityFromDatabase(record) {
+  const legacy = asObject(record?.raw_data);
+  return {
+    ...legacy,
+    id: presentValue(record?.base44_activity_id, legacy.id, record?.id),
+    classificacao: presentValue(record?.classificacao, legacy.classificacao, ''),
+    nome: presentValue(record?.nome, legacy.nome, legacy.titulo, ''),
+    descricao: presentValue(record?.descricao, legacy.descricao, ''),
+    museu_lista: asArray(presentValue(record?.museu_lista, legacy.museu_lista, legacy.museu ? [legacy.museu] : [])),
+    tipo_acao_lista: asArray(presentValue(record?.tipo_acao_lista, legacy.tipo_acao_lista, legacy.tipo ? [legacy.tipo] : [])),
+    equipe_participante_ids: asArray(presentValue(record?.equipe_participante_ids, legacy.equipe_participante_ids, [])),
+    meta_vinculada_ids: asArray(presentValue(record?.meta_vinculada_ids, legacy.meta_vinculada_ids, [])),
+    quantas_vezes_ocorreu: presentValue(record?.quantas_vezes_ocorreu, legacy.quantas_vezes_ocorreu, 1),
+    publico_total: presentValue(legacy.publico_total, record?.publico_estimado, legacy.publico_estimado, 0),
+    publico_medio_sessao: presentValue(record?.publico_medio_sessao, legacy.publico_medio_sessao, 0),
+    publico_estimado: presentValue(record?.publico_estimado, legacy.publico_estimado, 0),
+    quantidade_produtos: presentValue(record?.quantidade_produtos, legacy.quantidade_produtos, 0),
+    total_produtos: presentValue(record?.total_produtos, legacy.total_produtos, 0),
+    fotos: asArray(presentValue(legacy.fotos, [])),
+    data_inicio: presentValue(record?.data_inicio, legacy.data_inicio, ''),
+    data_fim: presentValue(record?.data_fim, legacy.data_fim, ''),
+  };
+}
+
+function photoFromDatabase(record) {
+  const legacy = asObject(record?.raw_data);
+  const url = presentValue(record?.file_url, legacy.url, legacy.file_url, '');
+  return {
+    ...legacy,
+    id: presentValue(record?.base44_id, legacy.id, record?.id),
+    url,
+    file_url: url,
+    fileName: presentValue(record?.file_name, legacy.fileName, legacy.file_name, 'foto'),
+    file_name: presentValue(record?.file_name, legacy.fileName, legacy.file_name, 'foto'),
+    caption: presentValue(record?.caption, record?.legenda, legacy.caption, legacy.legenda, ''),
+    legenda: presentValue(record?.legenda, record?.caption, legacy.legenda, legacy.caption, ''),
+    author: presentValue(record?.author, legacy.author, record?.created_by, ''),
+    activityId: presentValue(record?.activity_id, legacy.activityId, legacy.activity_id, null),
+    activity_id: presentValue(record?.activity_id, legacy.activityId, legacy.activity_id, null),
+    museum: presentValue(record?.museu, legacy.museum, legacy.museu, ''),
+    museu: presentValue(record?.museu, legacy.museu, legacy.museum, ''),
+    drive_file_id: presentValue(record?.drive_file_id, legacy.drive_file_id, ''),
+  };
+}
+
+function mergeByIdentity(primary = [], secondary = [], getKey) {
+  const merged = new Map();
+  [...primary, ...secondary].forEach((item, index) => {
+    const key = String(getKey(item) || `item-${index}`).trim();
+    if (!merged.has(key)) merged.set(key, item);
+  });
+  return [...merged.values()];
+}
+
+async function loadReportRelations(report) {
+  const reportKeys = [report?.id, report?.base44_id]
+    .filter((value) => value !== undefined && value !== null && String(value).trim() !== '')
+    .map(String);
+
+  const [activityRows, photoGroups] = await Promise.all([
+    report?.base44_id
+      ? base44.entities.ReportActivity.filter({ report_base44_id: String(report.base44_id) }).catch(() => [])
+      : Promise.resolve([]),
+    Promise.all(reportKeys.map((reportId) =>
+      base44.entities.ReportPhoto.filter({ report_id: reportId }).catch(() => [])
+    )),
+  ]);
+
+  const persistedActivities = (activityRows || []).map(activityFromDatabase);
+  const persistedPhotos = photoGroups.flat().map(photoFromDatabase);
+  const legacy = asObject(report?.raw_data);
+
+  return {
+    ...report,
+    atividades: mergeByIdentity(
+      asArray(report?.atividades).length ? report.atividades : asArray(legacy.atividades),
+      persistedActivities,
+      (activity) => activity?.id || activity?.base44_activity_id,
+    ),
+    fotos: mergeByIdentity(
+      asArray(report?.fotos).length ? report.fotos : asArray(legacy.fotos),
+      persistedPhotos,
+      (photo) => photo?.drive_file_id || photo?.id || photo?.url || photo?.file_url,
+    ),
+  };
+}
+
 function formatarNumeroResumo(n) {
   if (!n && n !== 0) return '—';
   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
@@ -251,7 +368,7 @@ export default function ReportEditor() {
             toast.error('Este relatório pertence a outro usuário.');
             return;
           }
-          applyReport(candidate);
+          applyReport(await loadReportRelations(candidate));
           return;
         }
 
@@ -290,7 +407,7 @@ export default function ReportEditor() {
         .sort((a, b) => String(b.updated_date || b.created_date || '').localeCompare(String(a.updated_date || a.created_date || '')));
 
       if (ownDrafts.length > 0) {
-        applyReport(ownDrafts[0]);
+        applyReport(await loadReportRelations(ownDrafts[0]));
         toast.info('Rascunho existente aberto.');
         return;
       }
@@ -352,8 +469,9 @@ export default function ReportEditor() {
       publico_geral_declarado: r.publico_geral_declarado || 0,
     });
 
-    setAtividades(normalizeAtividades(r.atividades));
-    setFotos(Array.isArray(r.fotos) ? r.fotos : []);
+    const legacy = asObject(r.raw_data);
+    setAtividades(normalizeAtividades(Array.isArray(r.atividades) ? r.atividades : legacy.atividades));
+    setFotos(Array.isArray(r.fotos) ? r.fotos : asArray(legacy.fotos));
     setAttachments(Array.isArray(r.attachments) ? r.attachments : []);
     setDepoimentos(Array.isArray(r.depoimentos) ? r.depoimentos : []);
   }
@@ -427,7 +545,7 @@ export default function ReportEditor() {
 
       const updated = await base44.entities.Report.update(report.id, payload);
 
-      setReport(updated);
+      setReport({ ...updated, atividades, fotos, attachments, depoimentos });
       toast.success('✅ Relatório salvo com sucesso!');
       queryClient.invalidateQueries({ queryKey: ['reports'] });
       queryClient.invalidateQueries({ queryKey: ['relatorios-list'] });
@@ -469,7 +587,7 @@ export default function ReportEditor() {
 
       const updated = await base44.entities.Report.update(report.id, payload);
 
-      setReport(updated);
+      setReport({ ...updated, atividades, fotos, attachments, depoimentos });
       setFormData((prev) => ({ ...prev, status: 'SUBMITTED' }));
 
       await notifyReportSubmitted(
