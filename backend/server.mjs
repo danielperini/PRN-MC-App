@@ -22,7 +22,20 @@ const io = new SocketIOServer(httpServer, {
 
 const port = Number(process.env.PORT || 3000);
 const uploadDir = process.env.UPLOAD_DIR || '/app/uploads';
-const publicBaseUrl = String(process.env.PUBLIC_BASE_URL || '').replace(/\/$/, '');
+// E-mail notifications must always contain a usable absolute link. A malformed
+// reverse-proxy header/config used to turn an empty host into `http:///Compras`.
+// Accept only an HTTP(S) URL with a host and otherwise use the public domain.
+const DEFAULT_PUBLIC_APP_URL = 'https://appgestor.periniprojetos.com.br';
+function validPublicBaseUrl(value) {
+  try {
+    const parsed = new URL(String(value || '').trim());
+    if (!/^https?:$/.test(parsed.protocol) || !parsed.hostname) return '';
+    return parsed.origin;
+  } catch {
+    return '';
+  }
+}
+const publicBaseUrl = validPublicBaseUrl(process.env.PUBLIC_BASE_URL) || DEFAULT_PUBLIC_APP_URL;
 const maxUploadMb = Number(process.env.MAX_UPLOAD_MB || 100);
 fs.mkdirSync(uploadDir, { recursive: true });
 
@@ -433,7 +446,7 @@ async function queuePaymentNotifications(purchase = {}) {
   if (!recipients.length) return { recipients:0, queued:0, sent:0, skipped:'no_registered_recipient' };
 
   const { title, message } = paymentNotificationContent(purchase);
-  const actionUrl = `${publicBaseUrl || 'https://appgestor.periniprojetos.com.br'}/Compras?id=${encodeURIComponent(purchaseId)}`;
+  const actionUrl = `${publicBaseUrl}/Compras?id=${encodeURIComponent(purchaseId)}`;
   const client = await pool.connect();
   const queued = [];
   try {
