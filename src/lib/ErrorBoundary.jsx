@@ -3,6 +3,20 @@ import { AlertCircle, RefreshCw, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { base44 } from '@/api/base44Client';
 
+const STALE_ASSET_RELOAD_KEY = 'appgestor_stale_asset_reload';
+const STALE_ASSET_RELOAD_WINDOW_MS = 60_000;
+
+function isStaleAssetError(error) {
+  const detail = [error?.name, error?.message, error?.stack].filter(Boolean).join(' ').toLowerCase();
+  return [
+    'failed to fetch dynamically imported module',
+    'importing a module script failed',
+    'loading chunk',
+    'chunkloaderror',
+    "unexpected token '<'",
+  ].some((term) => detail.includes(term));
+}
+
 export class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -57,6 +71,22 @@ export class ErrorBoundary extends React.Component {
       });
     } catch (e) {
       // diagnóstico é opcional; nunca bloqueia a tela de erro
+    }
+
+    // When the VPS is updated, a tab that was already open can still request
+    // an old hashed Vite chunk. Reload the shell once so the user receives the
+    // current asset manifest instead of a generic error page. A short guard
+    // prevents a refresh loop when the exception is unrelated to deployment.
+    try {
+      const now = Date.now();
+      const previous = Number(sessionStorage.getItem(STALE_ASSET_RELOAD_KEY) || 0);
+      if (isStaleAssetError(error) && now - previous > STALE_ASSET_RELOAD_WINDOW_MS) {
+        sessionStorage.setItem(STALE_ASSET_RELOAD_KEY, String(now));
+        window.location.reload();
+        return;
+      }
+    } catch {
+      // sessionStorage is unavailable only in restrictive browser modes.
     }
 
     this.setState({
