@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { createServer } from 'node:http';
+import { Readable } from 'node:stream';
 import { Server as SocketIOServer } from 'socket.io';
 import { google } from 'googleapis';
 import { syncProgramacao } from './programacao-sync.mjs';
@@ -114,6 +115,29 @@ function localFileFromUrl(url) {
   const name=path.basename(decodeURIComponent(match[1])); const file=path.join(uploadDir,name);
   return fs.existsSync(file) ? file : null;
 }
+function appInvoiceSourceUrl(url) {
+  if (!publicBaseUrl) return null;
+  try {
+    const base=new URL(publicBaseUrl);
+    const target=new URL(String(url || ''),base);
+    // Never use the backup link itself, nor an arbitrary URL supplied in a
+    // request, as an upload source.  Only the application's original fiscal
+    // document endpoints may replenish a Drive backup.
+    if (target.origin!==base.origin || !/^\/(?:api\/files|documentos)\//i.test(target.pathname)) return null;
+    return target.toString();
+  } catch { return null; }
+}
+async function fiscalFileSource(url) {
+  const local=localFileFromUrl(url);
+  if (local) return { body:fs.createReadStream(local), mime:path.extname(local).toLowerCase()==='.xml'?'application/xml':'application/pdf' };
+  const remote=appInvoiceSourceUrl(url);
+  if (!remote) return null;
+  const response=await fetch(remote,{redirect:'follow'});
+  if (!response.ok || !response.body) return null;
+  const extension=path.extname(new URL(remote).pathname).toLowerCase();
+  const type=String(response.headers.get('content-type') || '').split(';')[0];
+  return { body:Readable.fromWeb(response.body), mime:type || (extension==='.xml'?'application/xml':'application/pdf') };
+}
 async function backupPurchaseImmediately(drive, purchase, columns) {
   const issueDate=fiscalDate(purchase.nf_data_emissao || purchase.data_emissao);
   // These are the columns used by the production schema. Keep the legacy
@@ -124,10 +148,10 @@ async function backupPurchaseImmediately(drive, purchase, columns) {
   const folderId=await driveMonthFolder(drive,issueDate);
   const backed=[];
   for (const url of [pdfUrl,xmlUrl].filter(Boolean)) {
-    const local=localFileFromUrl(url); if(!local) continue;
+    const source=await fiscalFileSource(url); if(!source) continue;
     const name=canonicalInvoiceName(purchase,url);
     const existing=await drive.files.list({q:`'${folderId}' in parents and name='${name.replace(/'/g,"\\'")}' and trashed=false`,fields:'files(id,webViewLink)',pageSize:1,supportsAllDrives:true,includeItemsFromAllDrives:true});
-    const remote=existing.data.files?.[0] || (await drive.files.create({requestBody:{name,parents:[folderId]},media:{mimeType:path.extname(local).toLowerCase()==='.xml'?'application/xml':'application/pdf',body:fs.createReadStream(local)},fields:'id,webViewLink',supportsAllDrives:true})).data;
+    const remote=existing.data.files?.[0] || (await drive.files.create({requestBody:{name,parents:[folderId]},media:{mimeType:source.mime,body:source.body},fields:'id,webViewLink',supportsAllDrives:true})).data;
     backed.push(remote);
   }
   if (!backed.length) return {skipped:true,reason:'arquivo_local_indisponivel'};
