@@ -97,6 +97,50 @@ function canonicalInvoiceName(purchase, url) {
   const brl=Number.isFinite(value) ? value.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) : '0,00';
   return `${number} - ${supplier} - MUSEUS CENTRO - R$ ${brl}${ext}`;
 }
+function purchaseRawData(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    try { const parsed=JSON.parse(value); return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}; }
+    catch { return {}; }
+  }
+  return {};
+}
+function canonicalPurchaseIdentity(purchase) {
+  const number=safeDriveName(purchase?.nf_numero || '');
+  const supplier=safeDriveName(purchase?.nf_emitente_nome || purchase?.fornecedor_nome || '');
+  const amount=Number(purchase?.nf_valor_total || purchase?.valor_total || purchase?.valor_solicitado || 0);
+  const issueDate=fiscalDate(purchase?.nf_data_emissao || purchase?.data_emissao);
+  return Boolean(number && supplier && Number.isFinite(amount) && amount > 0 && issueDate);
+}
+function canonicalPurchaseDescription(purchase) {
+  if (!canonicalPurchaseIdentity(purchase)) return '';
+  const raw=purchaseRawData(purchase.raw_data);
+  const fiscalDescription=String(
+    purchase.descricao_servico || raw.descricao_servico || raw.discriminacao_servico ||
+    raw.discriminacao || raw.descricao_fiscal || purchase.descricao_item || ''
+  ).replace(/\s+/g,' ').trim();
+  const number=safeDriveName(purchase.nf_numero);
+  const supplier=safeDriveName(purchase.nf_emitente_nome || purchase.fornecedor_nome);
+  const heading=`NF ${number} — ${supplier}`;
+  // An upload's technical filename must never become the approved request's
+  // description. Keep an actual fiscal/service description when available.
+  const technicalName=/\.(?:pdf|xml)$/i.test(fiscalDescription) || /^(?:nf|nfs-?e|danfe)\s*[#:-]?\s*\d+/i.test(fiscalDescription);
+  if (!fiscalDescription || technicalName || fiscalDescription.toLocaleUpperCase('pt-BR')===supplier.toLocaleUpperCase('pt-BR')) return heading;
+  return `${heading} — ${fiscalDescription}`.slice(0, 1800);
+}
+function canonicalApprovalMetadata(purchase) {
+  if (!canonicalPurchaseIdentity(purchase)) return null;
+  const raw=purchaseRawData(purchase.raw_data);
+  return {
+    descricao_item:canonicalPurchaseDescription(purchase),
+    raw_data:{
+      ...raw,
+      arquivo_nf_nome_canonico:canonicalInvoiceName(purchase,'.pdf'),
+      arquivo_xml_nome_canonico:canonicalInvoiceName(purchase,'.xml'),
+      identificacao_fiscal_confirmada_em:new Date().toISOString(),
+    },
+  };
+}
 function comparableDriveInvoiceName(value) {
   // Older backups sometimes replaced comma and currency separators with
   // underscores. Treat those variants as the same fiscal filename so a
@@ -164,7 +208,11 @@ async function backupPurchaseImmediately(drive, purchase, columns) {
     const source=await fiscalFileSource(url); if(!source) continue;
     const name=canonicalInvoiceName(purchase,url);
     const existing=await existingDriveInvoice(drive,folderId,name);
-    const remote=existing || (await drive.files.create({requestBody:{name,parents:[folderId]},media:{mimeType:source.mime,body:source.body},fields:'id,webViewLink',supportsAllDrives:true})).data;
+    // A legacy backup can differ only by punctuation/currency separators.
+    // Rename that same Drive object instead of uploading a duplicate copy.
+    const remote=existing
+      ? (existing.name===name ? existing : (await drive.files.update({fileId:existing.id,requestBody:{name},fields:'id,webViewLink,name',supportsAllDrives:true})).data)
+      : (await drive.files.create({requestBody:{name,parents:[folderId]},media:{mimeType:source.mime,body:source.body},fields:'id,webViewLink,name',supportsAllDrives:true})).data;
     backed.push(remote);
   }
   if (!backed.length) return {skipped:true,reason:'arquivo_local_indisponivel'};
@@ -177,6 +225,54 @@ async function backupPurchaseImmediately(drive, purchase, columns) {
   if(columns.includes('drive_backup_error')) updates.drive_backup_error=null;
   const entries=Object.entries(updates); if(entries.length){ const values=entries.map(([,v])=>v); values.push(purchase.id); await pool.query(`UPDATE purchase_requests SET ${entries.map(([field],i)=>`${quoteIdentifier(field)}=$${i+1}`).join(',')} WHERE id=$${values.length}`,values); }
   return {backed:backed.length};
+}
+
+// The original upload remains immutable for audit purposes.  The displayed
+// intake/attachment name and the Drive backup are canonicalised only after a
+// coordinator approves a fully identified fiscal document.
+async function canonicalizeApprovedPurchaseArtifacts(purchase) {
+  if (!canonicalPurchaseIdentity(purchase)) return { skipped:true, reason:'identificacao_fiscal_incompleta' };
+  const pdfName=canonicalInvoiceName(purchase,'.pdf');
+  const xmlName=canonicalInvoiceName(purchase,'.xml');
+  const purchaseId=String(purchase.id || '');
+  const intakeId=String(purchase.documento_intake_id || purchase.intake_id || '');
+  let intakes=0;
+  let attachments=0;
+
+  if (intakeId && await tableExists('document_intakes')) {
+    const columns=await tableColumns('document_intakes');
+    if (columns.includes('file_name_final')) {
+      const match=[];
+      const values=[pdfName,xmlName,intakeId,purchaseId];
+      if (columns.includes('id')) match.push('id::text=$3');
+      if (purchaseId && columns.includes('entidade_destino_id')) match.push('entidade_destino_id::text=$4');
+      if (match.length) {
+        const isXml=columns.includes('mime_type') && columns.includes('tipo_detectado')
+          ? "(COALESCE(mime_type,'') ILIKE '%xml%' OR COALESCE(tipo_detectado,'') ILIKE '%XML%')"
+          : columns.includes('mime_type') ? "COALESCE(mime_type,'') ILIKE '%xml%'" : 'FALSE';
+        const fields=[`file_name_final=CASE WHEN ${isXml} THEN $2 ELSE $1 END`];
+        if (columns.includes('updated_at')) fields.push('updated_at=NOW()');
+        const result=await pool.query(
+          `UPDATE document_intakes SET ${fields.join(',')} WHERE (${match.join(' OR ')})${columns.includes('status_registro') ? " AND COALESCE(status_registro,'')<>'DELETADO'" : ''}`,
+          values,
+        );
+        intakes=result.rowCount || 0;
+      }
+    }
+  }
+
+  if (purchaseId && await tableExists('attachments')) {
+    const columns=await tableColumns('attachments');
+    if (columns.includes('file_name') && columns.includes('purchase_request_id')) {
+      const isXml=columns.includes('file_type') ? "COALESCE(file_type,'') ILIKE '%xml%'" : 'FALSE';
+      const fields=[`file_name=CASE WHEN ${isXml} THEN $2 ELSE $1 END`];
+      if (columns.includes('updated_date')) fields.push('updated_date=NOW()');
+      if (columns.includes('updated_at')) fields.push('updated_at=NOW()');
+      const result=await pool.query(`UPDATE attachments SET ${fields.join(',')} WHERE purchase_request_id::text=$3`,[pdfName,xmlName,purchaseId]);
+      attachments=result.rowCount || 0;
+    }
+  }
+  return { intakes, attachments, pdf_name:pdfName, xml_name:xmlName };
 }
 
 const ENTITY_TABLES = Object.freeze({
@@ -554,7 +650,7 @@ function preserveReportEditorContent(body = {}, previousRawData = null) {
     : null;
   if (activities) rawData.atividades = activities;
   if (hasPhotos) rawData.fotos = body.fotos;
-  return { ...body, ...(activities ? { atividades } : {}), raw_data: rawData };
+  return { ...body, ...(activities ? { atividades: activities } : {}), raw_data: rawData };
 }
 
 function activityNumber(value, fallback = 0) {
@@ -1242,6 +1338,11 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
           }
           if (columns.includes('rubrica_debitada_em') && !current.rubrica_debitada_em) updates.rubrica_debitada_em = new Date();
           if (columns.includes('financeiro_lancado_em') && !current.financeiro_lancado_em) updates.financeiro_lancado_em = new Date();
+          const canonical=canonicalApprovalMetadata(current);
+          if (canonical) {
+            if (columns.includes('descricao_item')) updates.descricao_item=canonical.descricao_item;
+            if (columns.includes('raw_data')) updates.raw_data=canonical.raw_data;
+          }
         } else if (action === 'marcar_pago' || action === 'pagar') {
           const paidAt = new Date();
           updates.status = 'PAGO';
@@ -1309,6 +1410,23 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
           console.error('RUBRICA_BALANCE_SYNC_ERROR', JSON.stringify({ purchase_id:purchaseId, action, message:error.message }));
           return 0;
         });
+        let arquivosCanonicos = null;
+        if (action === 'aprovar') {
+          arquivosCanonicos = await canonicalizeApprovedPurchaseArtifacts(updatedResult.rows[0]).catch(error => {
+            console.error('PURCHASE_APPROVAL_ARTIFACT_RENAME_ERROR', JSON.stringify({ purchase_id:purchaseId, message:error.message }));
+            return { error:'falha_ao_renomear_anexos' };
+          });
+          if (canonicalPurchaseIdentity(updatedResult.rows[0])) {
+            try {
+              const drive=await invoiceDriveClient();
+              const backup=await backupPurchaseImmediately(drive,updatedResult.rows[0],columns);
+              arquivosCanonicos={ ...(arquivosCanonicos || {}), backup };
+            } catch (error) {
+              console.error('PURCHASE_APPROVAL_CANONICAL_BACKUP_ERROR', JSON.stringify({ purchase_id:purchaseId, message:error.message }));
+              arquivosCanonicos={ ...(arquivosCanonicos || {}), backup_error:error.message };
+            }
+          }
+        }
         let paymentNotifications = null;
         if (action === 'marcar_pago' || action === 'pagar') {
           paymentNotifications = await queuePaymentNotifications(updatedResult.rows[0]).catch(error => {
@@ -1317,7 +1435,7 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
           });
         }
         console.log('PURCHASE_ACTION_OK',JSON.stringify({ purchase_id:purchaseId, action, status:updatedResult.rows[0]?.status }));
-        return res.status(200).json({ success:true, purchase:updatedResult.rows[0], rubricas_atualizadas:rubricasAtualizadas, notificacoes_pagamento:paymentNotifications });
+        return res.status(200).json({ success:true, purchase:updatedResult.rows[0], rubricas_atualizadas:rubricasAtualizadas, arquivos_canonicos:arquivosCanonicos, notificacoes_pagamento:paymentNotifications });
       } catch (error) {
         await client.query('ROLLBACK').catch(()=>{});
         throw error;
