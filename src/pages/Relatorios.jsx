@@ -58,9 +58,16 @@ import { MESES, MUSEUS, CACHE_KEYS } from '@/utils/constants';
 
 const REPORTS_CACHE_KEY = CACHE_KEYS.RELATORIOS_LIST;
 
-function readReportsCache() {
+function reportCacheKey(email = '') {
+  const identity = String(email || '').trim().toLowerCase();
+  return identity ? `${REPORTS_CACHE_KEY}:${identity}` : null;
+}
+
+function readReportsCache(email) {
   try {
-    const raw = localStorage.getItem(REPORTS_CACHE_KEY);
+    const key = reportCacheKey(email);
+    if (!key) return [];
+    const raw = localStorage.getItem(key);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
@@ -69,9 +76,11 @@ function readReportsCache() {
   }
 }
 
-function saveReportsCache(reports = []) {
+function saveReportsCache(email, reports = []) {
   try {
-    localStorage.setItem(REPORTS_CACHE_KEY, JSON.stringify(Array.isArray(reports) ? reports : []));
+    const key = reportCacheKey(email);
+    if (!key) return;
+    localStorage.setItem(key, JSON.stringify(Array.isArray(reports) ? reports : []));
   } catch {
     // noop
   }
@@ -87,7 +96,7 @@ export default function Relatorios() {
   const [returnDialog, setReturnDialog] = useState({ open: false, report: null });
   const [deleteDialog, setDeleteDialog] = useState({ open: false, report: null });
   const [returnComment, setReturnComment] = useState('');
-  const [cachedReports, setCachedReports] = useState(() => readReportsCache());
+  const [cachedReports, setCachedReports] = useState([]);
   const [deepSearchResults, setDeepSearchResults] = useState(null); // null = not triggered
   const [deepSearchLoading, setDeepSearchLoading] = useState(false);
   const deepSearchTimeout = useRef(null);
@@ -216,11 +225,15 @@ export default function Relatorios() {
   });
 
   useEffect(() => {
+    setCachedReports(readReportsCache(user?.email));
+  }, [user?.email]);
+
+  useEffect(() => {
     if (Array.isArray(reports) && reports.length > 0) {
       setCachedReports(reports);
-      saveReportsCache(reports);
+      saveReportsCache(user?.email, reports);
     }
-  }, [reports]);
+  }, [reports, user?.email]);
 
   const effectiveReports = useMemo(() => {
     if (Array.isArray(reports) && reports.length > 0) return reports;

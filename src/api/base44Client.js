@@ -15,6 +15,71 @@ export const base44 = createClient({
   appBaseUrl,
 });
 
+// On the VPS the HttpOnly appgestor_session is the only authoritative login
+// state.  The legacy SDK can retain the previous Google user in browser
+// storage (for example, after another professional used the same device),
+// which made screens that call base44.auth.me() display the wrong name.
+// Resolve the server session first and never fall back to a stale SDK identity
+// on the local deployment.
+const sdkAuthMe = base44.auth?.me?.bind(base44.auth);
+const sdkIsAuthenticated = base44.auth?.isAuthenticated?.bind(base44.auth);
+
+function localSessionEndpoint() {
+  return `/api/apps/${encodeURIComponent(appId || '')}/entities/User/me`;
+}
+
+async function authoritativeLocalUser() {
+  if (typeof window === 'undefined' || !appId) return null;
+  const response = await fetch(localSessionEndpoint(), {
+    method: 'GET',
+    credentials: 'include',
+    headers: { 'X-App-Id': appId },
+    cache: 'no-store',
+  });
+  if (!response.ok) {
+    const error = new Error(response.status === 401 ? 'Authentication required' : 'Unable to resolve local session');
+    error.status = response.status;
+    throw error;
+  }
+  const user = await response.json();
+  if (!user?.email) throw new Error('Authenticated user has no e-mail');
+  return { ...user, email: String(user.email).trim().toLowerCase() };
+}
+
+if (sdkAuthMe) {
+  base44.auth.me = async () => {
+    // A tokenized hosted build may still use the provider implementation. The
+    // production VPS has no token and must never revive an old SDK user.
+    if (!token) return authoritativeLocalUser();
+    try {
+      return await authoritativeLocalUser();
+    } catch (error) {
+      if (error?.status && error.status !== 404) throw error;
+      return sdkAuthMe();
+    }
+  };
+}
+
+if (sdkIsAuthenticated) {
+  base44.auth.isAuthenticated = async () => {
+    if (!token) {
+      try {
+        await authoritativeLocalUser();
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    try {
+      await authoritativeLocalUser();
+      return true;
+    } catch (error) {
+      if (error?.status && error.status !== 404) return false;
+      return sdkIsAuthenticated();
+    }
+  };
+}
+
 const NF_DATE_FIELDS = ['nf_data_emissao', 'data_nf', 'data_emissao_nf', 'nota_fiscal_data_emissao', 'nf_emissao'];
 const PUBLIC_FIELDS = ['publico_total', 'total_publico', 'publico_realizado', 'publico_presente', 'quantidade_publico', 'participantes', 'visitantes', 'presentes', 'attendance_count', 'total_participantes'];
 const TEAM_STATUS = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
