@@ -894,6 +894,84 @@ app.get('/api/drive-files/:fileId', requireSession, async (req, res) => {
 app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,res) => {
   const name=String(req.params.functionName||'');
   try {
+    if (name === 'publicarFotosRelatorioAprovado') {
+      const reportId=String(req.body?.report_id || req.body?.reportId || '').trim();
+      if (!reportId) return res.status(400).json({ success:false, error:'report_id_required' });
+
+      const [actorResult, reportResult]=await Promise.all([
+        pool.query('SELECT id,email,role FROM users WHERE id=$1 LIMIT 1',[req.userId]),
+        pool.query('SELECT * FROM reports WHERE id=$1 LIMIT 1',[reportId]),
+      ]);
+      const actor=actorResult.rows[0];
+      const report=reportResult.rows[0];
+      if (!report) return res.status(404).json({ success:false, error:'report_not_found' });
+      const role=String(actor?.role || '').toUpperCase();
+      const owns=normalizedEmail(report.created_by)===normalizedEmail(actor?.email)
+        || normalizedEmail(report.author_email)===normalizedEmail(actor?.email)
+        || String(report.created_by_id || '')===String(actor?.id || '');
+      if (!['ADMIN','COORDENADOR','COORDINATOR'].includes(role) && !owns) {
+        return res.status(403).json({ success:false, error:'report_access_denied' });
+      }
+
+      const raw=parseReportRawData(report.raw_data);
+      const photos=Array.isArray(raw.fotos) ? raw.fotos : [];
+      const result=await syncReportPhotosToGallery(report,photos);
+      return res.status(200).json({ success:true, fotos_criadas:result.created, fotos_atualizadas:result.updated, fotos_ignoradas:result.skipped, erros:[] });
+    }
+    if (name === 'notifyReportApprovedEmail') {
+      const reportId=String(req.body?.report_id || req.body?.reportId || '').trim();
+      if (!reportId) return res.status(400).json({ success:false, error:'report_id_required' });
+
+      const [actorResult, reportResult]=await Promise.all([
+        pool.query('SELECT id,email,role,full_name FROM users WHERE id=$1 LIMIT 1',[req.userId]),
+        pool.query('SELECT * FROM reports WHERE id=$1 LIMIT 1',[reportId]),
+      ]);
+      const actor=actorResult.rows[0];
+      const report=reportResult.rows[0];
+      if (!report) return res.status(404).json({ success:false, error:'report_not_found' });
+      if (!['ADMIN','COORDENADOR','COORDINATOR'].includes(String(actor?.role || '').toUpperCase())) {
+        return res.status(403).json({ success:false, error:'report_approval_forbidden' });
+      }
+      if (String(report.status || '').toUpperCase()!=='APPROVED') {
+        return res.status(409).json({ success:false, error:'report_not_approved' });
+      }
+      const authorEmail=normalizedEmail(report.author_email || report.created_by);
+      if (!authorEmail) return res.status(422).json({ success:false, error:'report_author_email_missing' });
+      if (!process.env.SMTP_HOST || !process.env.SMTP_USER) {
+        return res.status(503).json({ success:false, error:'smtp_not_configured' });
+      }
+
+      const period=[report.mes_referencia,report.ano || report.ano_referencia].filter(Boolean).join(' / ') || 'mês informado';
+      const authorName=String(report.author_name || authorEmail).trim();
+      const reviewer=String(actor?.full_name || actor?.email || 'Coordenação').trim();
+      const subject=`Relatório aprovado — ${period}`;
+      const message=`Olá, ${authorName}.\n\nSeu relatório de ${period}${report.museu ? ` (${report.museu})` : ''} foi aprovado por ${reviewer}.\n\nAcesse o Gestor Museus Centro para consultar o registro.`;
+      const password=process.env.SMTP_PASS_B64 ? Buffer.from(process.env.SMTP_PASS_B64,'base64').toString('utf8') : process.env.SMTP_PASS;
+      const transport=nodemailer.createTransport({
+        host:process.env.SMTP_HOST,
+        port:Number(process.env.SMTP_PORT || 465),
+        secure:String(process.env.SMTP_SECURE).toLowerCase()==='true',
+        auth:{user:process.env.SMTP_USER,pass:password},
+      });
+      if (req.body?.dry_run === true) {
+        await transport.verify();
+        return res.status(200).json({ success:true, dry_run:true, recipient:authorEmail, subject });
+      }
+      const prior=await pool.query(`SELECT id FROM notifications
+        WHERE type='REPORT_APPROVED_EMAIL' AND entity_type='Report' AND entity_id=$1
+          AND user_email=$2 AND email_sent=TRUE LIMIT 1`,[reportId,authorEmail]);
+      if (prior.rowCount) return res.status(200).json({ success:true, duplicate:true, recipient:authorEmail });
+      await transport.sendMail({
+        from:`Gestor Museus Centro <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
+        to:authorEmail,
+        subject,
+        text:message,
+        html:`<div style="font-family:Arial,sans-serif;line-height:1.55;color:#172033"><p>${message.replace(/\n/g,'<br>')}</p></div>`,
+      });
+      await pool.query(`INSERT INTO notifications (user_email,type,title,message,entity_type,entity_id,action_url,is_read,resolved,email_sent)
+        VALUES ($1,'REPORT_APPROVED_EMAIL',$2,$3,'Report',$4,'/Relatorios',FALSE,FALSE,TRUE)`,[authorEmail,subject,message,reportId]);
+      return res.status(200).json({ success:true, recipient:authorEmail });
+    }
     if (name === 'reportarProblemaApp') {
       const description=String(req.body?.descricao || '').trim();
       const page=String(req.body?.pagina || '').trim().slice(0,300);
