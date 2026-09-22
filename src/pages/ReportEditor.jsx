@@ -100,13 +100,18 @@ function formatarNumeroResumo(n) {
   return String(n);
 }
 
+function profileAuthorName(user) {
+  const email = normalizedEmail(user?.email);
+  return String(user?.full_name || user?.name || user?.nome || email.split('@')[0] || 'Profissional').trim();
+}
+
 function createEmptyReportPayload(user, mesAtual, anoAtual) {
   const email = normalizedEmail(user?.email);
   // A criação do rascunho não pode depender de campos opcionais do perfil.
   // O museu pode ser ajustado no editor antes do envio, mas a entidade exige
   // um valor inicial válido para permitir que todo profissional crie o seu
   // primeiro relatório.
-  const authorName = String(user?.full_name || user?.name || user?.nome || email.split('@')[0] || 'Profissional').trim();
+  const authorName = profileAuthorName(user);
   const museu = String(user?.museu || user?.museu_principal || user?.centro_custo || 'Geral').trim() || 'Geral';
 
   return {
@@ -320,9 +325,15 @@ export default function ReportEditor() {
 
   function applyReport(r) {
     setReport(r);
+    // For professionals, the identity shown in the editor is always the
+    // authenticated account's identity. This prevents a stale report payload
+    // from displaying another professional's name before it is saved.
+    const authorName = isCoordenador(currentUser)
+      ? (r.author_name || '')
+      : profileAuthorName(currentUser);
 
     setFormData({
-      author_name: r.author_name || '',
+      author_name: authorName,
       author_role: r.author_role || 'PROFISSIONAL',
       funcao: r.funcao || '',
       museu: r.museu || '',
@@ -713,8 +724,11 @@ export default function ReportEditor() {
                   value={formData.author_name || ''}
                   onChange={(e) => updateField('author_name', e.target.value)}
                   placeholder="Nome completo"
-                  disabled={!canEdit}
+                  disabled={!canEdit || !isCoordenador(currentUser)}
                 />
+                {!isCoordenador(currentUser) && (
+                  <p className="text-xs text-gray-500">Preenchido automaticamente pela conta autenticada.</p>
+                )}
               </div>
 
               <div className="space-y-1">

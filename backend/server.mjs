@@ -555,6 +555,35 @@ async function assertReportUpdateAccess(req, reportId) {
   return { allowed: false, exists: true };
 }
 
+// A professional can edit the content of their own report, but never its
+// ownership or displayed author. Reassert the identity from the active
+// server-side session on every update so a stale browser tab cannot save a
+// report under another professional's name.
+async function normalizeReportUpdatePayload(req, entityName, body = {}) {
+  if (entityName !== 'Report') return body;
+  if (!req.userId) throw new Error('authenticated_user_required');
+
+  const result = await pool.query('SELECT * FROM users WHERE id=$1 LIMIT 1', [req.userId]);
+  const user = result.rows[0];
+  if (!user) throw new Error('report_author_not_found');
+  if (['ADMIN', 'COORDENADOR', 'COORDINATOR'].includes(String(user.role || '').toUpperCase())) {
+    return body;
+  }
+
+  const email = normalizedEmail(user.email);
+  if (!email) throw new Error('report_author_not_found');
+  const authorName = String(user.full_name || user.name || user.nome || email.split('@')[0]).trim() || 'Profissional';
+
+  return {
+    ...body,
+    created_by: email,
+    created_by_id: String(user.id || req.userId),
+    author_email: email,
+    author_name: authorName,
+    author_role: reportAuthorRole(user.role),
+  };
+}
+
 function fiscalDuplicateKey(data = {}) {
   const taxId=String(data.nf_emitente_cpf_cnpj || data.cnpj || data.cpf || '').replace(/\D/g,'');
   const number=String(data.nf_numero || data.numero || '').replace(/^0+/,'').trim();
@@ -625,7 +654,8 @@ async function updateEntity(req,res) {
     }
     const columns=await tableColumns(table); if(!columns.includes('id')) return res.status(400).json({error:'entity_has_no_id_column'});
     const columnTypes=await tableColumnTypes(table);
-    const normalizedBody=normalizePurchaseFiscalPayload(req.params.entityName,req.body||{});
+    const fiscalBody=normalizePurchaseFiscalPayload(req.params.entityName,req.body||{});
+    const normalizedBody=await normalizeReportUpdatePayload(req,req.params.entityName,fiscalBody);
     entries=Object.entries(normalizedBody).filter(([k,v])=>columns.includes(k)&&k!=='id'&&v!==undefined);
     currentField=entries[0]?.[0]||null;
     entries=normalizeEntityEntriesForDb(entries,columnTypes);
