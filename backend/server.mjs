@@ -543,9 +543,86 @@ function preserveReportEditorContent(body = {}, previousRawData = null) {
     ...parseReportRawData(previousRawData),
     ...parseReportRawData(body.raw_data),
   };
-  if (hasActivities) rawData.atividades = body.atividades;
+  // Activities need a stable identifier both for the report payload and for
+  // report_activities. Without it, an edited draft would be inserted again
+  // instead of updating the activity already linked to that report.
+  const activities = hasActivities
+    ? body.atividades.map((activity) => {
+      const value = activity && typeof activity === 'object' ? activity : {};
+      return { ...value, id: String(value.id || value.base44_activity_id || crypto.randomUUID()) };
+    })
+    : null;
+  if (activities) rawData.atividades = activities;
   if (hasPhotos) rawData.fotos = body.fotos;
-  return { ...body, raw_data: rawData };
+  return { ...body, ...(activities ? { atividades } : {}), raw_data: rawData };
+}
+
+function activityNumber(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.trunc(number) : fallback;
+}
+
+function activityDate(value) {
+  const text = String(value || '').slice(0, 10);
+  return /^20\d{2}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/.test(text) ? text : null;
+}
+
+function activityArray(value) {
+  if (Array.isArray(value)) return value;
+  return value === undefined || value === null || value === '' ? [] : [value];
+}
+
+// The editor uses raw_data for backwards compatibility, while the reports
+// gallery/dashboard reads report_activities. Mirror the same stable activity
+// into both locations so edits, removals and newly-created activities stay
+// visible everywhere after the report is reopened.
+async function syncReportActivities(report, activities) {
+  if (!report?.base44_id || !Array.isArray(activities) || !(await tableExists('report_activities'))) {
+    return { created: 0, updated: 0, removed: 0 };
+  }
+
+  const reportId = String(report.base44_id);
+  const existingResult = await pool.query(
+    'SELECT id,base44_activity_id FROM report_activities WHERE report_base44_id=$1',
+    [reportId],
+  );
+  const existingIds = new Set(existingResult.rows.map((row) => String(row.base44_activity_id)));
+  const currentIds = [];
+  let created = 0;
+  let updated = 0;
+
+  for (const original of activities) {
+    const activity = original && typeof original === 'object' ? original : {};
+    const activityId = String(activity.id || activity.base44_activity_id || crypto.randomUUID());
+    currentIds.push(activityId);
+    const museums = activityArray(activity.museu_lista || activity.museu || activity.museu_principal);
+    const types = activityArray(activity.tipo_acao_lista || activity.tipo || activity.tipo_acao);
+    const team = activityArray(activity.equipe_participante_ids);
+    const metas = activityArray(activity.meta_vinculada_ids || activity.meta_ids);
+    const rawData = { ...activity, id: activityId };
+
+    await pool.query(`INSERT INTO report_activities
+      (base44_activity_id,report_base44_id,classificacao,nome,descricao,museu_lista,tipo_acao_lista,equipe_participante_ids,meta_vinculada_ids,quantas_vezes_ocorreu,publico_medio_sessao,publico_estimado,quantidade_produtos,total_produtos,data_inicio,data_fim,raw_data)
+      VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8::jsonb,$9::jsonb,$10,$11,$12,$13,$14,$15,$16,$17::jsonb)
+      ON CONFLICT (report_base44_id,base44_activity_id) DO UPDATE SET
+        classificacao=EXCLUDED.classificacao,nome=EXCLUDED.nome,descricao=EXCLUDED.descricao,museu_lista=EXCLUDED.museu_lista,
+        tipo_acao_lista=EXCLUDED.tipo_acao_lista,equipe_participante_ids=EXCLUDED.equipe_participante_ids,meta_vinculada_ids=EXCLUDED.meta_vinculada_ids,
+        quantas_vezes_ocorreu=EXCLUDED.quantas_vezes_ocorreu,publico_medio_sessao=EXCLUDED.publico_medio_sessao,publico_estimado=EXCLUDED.publico_estimado,
+        quantidade_produtos=EXCLUDED.quantidade_produtos,total_produtos=EXCLUDED.total_produtos,data_inicio=EXCLUDED.data_inicio,data_fim=EXCLUDED.data_fim,raw_data=EXCLUDED.raw_data`, [
+      activityId, reportId, String(activity.classificacao || ''), String(activity.nome || activity.titulo || ''), String(activity.descricao || ''),
+      JSON.stringify(museums), JSON.stringify(types), JSON.stringify(team), JSON.stringify(metas),
+      activityNumber(activity.quantas_vezes_ocorreu, 1), activityNumber(activity.publico_medio_sessao),
+      activityNumber(activity.publico_total ?? activity.publico_estimado), activityNumber(activity.quantidade_produtos),
+      activityNumber(activity.total_produtos), activityDate(activity.data_inicio || activity.data), activityDate(activity.data_fim || activity.data), JSON.stringify(rawData),
+    ]);
+    if (existingIds.has(activityId)) updated += 1;
+    else created += 1;
+  }
+
+  const removedResult = currentIds.length
+    ? await pool.query('DELETE FROM report_activities WHERE report_base44_id=$1 AND NOT (base44_activity_id = ANY($2::text[]))', [reportId, currentIds])
+    : await pool.query('DELETE FROM report_activities WHERE report_base44_id=$1', [reportId]);
+  return { created, updated, removed: removedResult.rowCount || 0 };
 }
 
 function reportPhotoValue(photo, ...keys) {
@@ -786,6 +863,9 @@ app.post('/api/apps/:appId/entities/:entityName', requireSession, async (req,res
     if(!entries.length) return res.status(400).json({error:'empty_entity'});
     const names=entries.map(([k])=>quoteIdentifier(k)).join(','); const vals=entries.map(([,v])=>v);
     const r=await pool.query(`INSERT INTO ${quoteIdentifier(table)} (${names}) VALUES (${vals.map((_,i)=>`$${i+1}`).join(',')}) RETURNING *`,vals);
+    if (table==='reports' && Array.isArray(normalizedBody.atividades)) {
+      await syncReportActivities(r.rows[0], normalizedBody.atividades).catch((error) => console.error('REPORT_ACTIVITY_SYNC_ERROR', error));
+    }
     if (table==='reports' && Array.isArray(normalizedBody.fotos)) {
       await syncReportPhotosToGallery(r.rows[0], normalizedBody.fotos).catch((error) => console.error('REPORT_GALLERY_SYNC_ERROR', error));
     }
@@ -819,6 +899,9 @@ async function updateEntity(req,res) {
     const sets=entries.map(([k],i)=>`${quoteIdentifier(k)}=$${i+1}`).join(',');
     const r=await pool.query(`UPDATE ${quoteIdentifier(table)} SET ${sets} WHERE "id"=$${vals.length} RETURNING *`,vals);
     if(!r.rowCount) return res.status(404).json({error:'entity_not_found'});
+    if (table==='reports' && Array.isArray(normalizedBody.atividades)) {
+      await syncReportActivities(r.rows[0], normalizedBody.atividades).catch((error) => console.error('REPORT_ACTIVITY_SYNC_ERROR', error));
+    }
     if (table==='reports' && Array.isArray(normalizedBody.fotos)) {
       await syncReportPhotosToGallery(r.rows[0], normalizedBody.fotos).catch((error) => console.error('REPORT_GALLERY_SYNC_ERROR', error));
     }
