@@ -1,12 +1,12 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { FileText, Plus, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import ReportEditorCore from './ReportEditor';
 
-function shouldOpenEditor() {
-  const params = new URLSearchParams(window.location.search);
+function shouldOpenEditor(search) {
+  const params = new URLSearchParams(search);
   const hasId = Boolean(params.get('id') || params.get('reportId'));
   const novo = String(params.get('novo') || params.get('new') || '').toLowerCase();
   const explicitNew = ['1', 'true', 'sim', 'yes'].includes(novo);
@@ -14,7 +14,8 @@ function shouldOpenEditor() {
 }
 
 export default function ReportEditorGuard() {
-  if (shouldOpenEditor()) return <ReportEditorCore />;
+  const location = useLocation();
+  if (shouldOpenEditor(location.search)) return <ReportEditorCore />;
 
   return (
     <div className="mx-auto flex min-h-[70vh] max-w-3xl items-center justify-center px-4 py-10">

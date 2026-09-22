@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/AuthContext';
@@ -187,12 +188,16 @@ function ReportSummaryStats({ atividades = [], fotos = [] }) {
 export default function ReportEditor() {
   const queryClient = useQueryClient();
   const { user: currentUser, isLoadingAuth, authError } = useAuth();
+  const location = useLocation();
 
-  const urlParams = new URLSearchParams(window.location.search);
-  const reportIdParam = urlParams.get('id') || urlParams.get('reportId');
+  const urlParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const requestedReportId = urlParams.get('id') || urlParams.get('reportId');
   const mesParam = urlParams.get('mes');
   const anoParam = urlParams.get('ano') ? parseInt(urlParams.get('ano'), 10) : null;
   const isNewReportIntent = ['1', 'true', 'sim', 'yes'].includes(String(urlParams.get('novo') || urlParams.get('new') || '').toLowerCase());
+  // A new-report action always wins over stale IDs left by browser history or
+  // a reused route. This prevents reopening a closed monthly report.
+  const reportIdParam = isNewReportIntent ? null : requestedReportId;
 
   const [currentTab, setCurrentTab] = useState('relatorio');
   const [report, setReport] = useState(null);
@@ -220,7 +225,7 @@ export default function ReportEditor() {
       return;
     }
     loadReportSafely();
-  }, [currentUser?.email, isLoadingAuth, reportIdParam, isNewReportIntent, mesParam, anoParam]);
+  }, [currentUser?.email, isLoadingAuth, location.search, reportIdParam, isNewReportIntent, mesParam, anoParam]);
 
   async function loadReportSafely() {
     setLoadingReport(true);
@@ -273,7 +278,10 @@ export default function ReportEditor() {
       }
 
       const ownDrafts = (existingDrafts || [])
-        .filter((draft) => isReportOwner(draft, currentUser))
+        .filter((draft) => isReportOwner(draft, currentUser)
+          && String(draft.status || '').toUpperCase() === 'DRAFT'
+          && String(draft.mes_referencia || '') === String(mesAtual)
+          && Number(draft.ano) === Number(anoAtual))
         .sort((a, b) => String(b.updated_date || b.created_date || '').localeCompare(String(a.updated_date || a.created_date || '')));
 
       if (ownDrafts.length > 0) {
