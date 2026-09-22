@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import nodemailer from 'nodemailer';
 import { google } from 'googleapis';
+import { brandedEmailHtml, brandedEmailText, publicAppUrl, reportSubmissionSteps } from './email-layout.mjs';
 
 const { Pool } = pg;
 const pool = new Pool({
@@ -18,7 +19,7 @@ const SESSION_DAYS = Number(process.env.SESSION_DAYS || 30);
 const COOKIE = 'appgestor_session';
 const GOOGLE_STATE_COOKIE = 'appgestor_google_oauth_state';
 const GOOGLE_RETURN_COOKIE = 'appgestor_google_oauth_return';
-const APP_ORIGIN = process.env.PUBLIC_BASE_URL || 'https://appgestor.periniprojetos.com.br';
+const APP_ORIGIN = publicAppUrl(process.env.PUBLIC_BASE_URL);
 
 async function sendPendingWorkReminder(user) {
   const email = String(user?.email || '').trim().toLowerCase();
@@ -43,13 +44,14 @@ async function sendPendingWorkReminder(user) {
     secure:String(process.env.SMTP_SECURE).toLowerCase() === 'true',
     auth:{ user:process.env.SMTP_USER, pass:password }
   });
-  const text = `${firstName}, você deixou ${items.join(' e ')} no Gestor Museus Centro. Acesse ${APP_ORIGIN} e conclua o preenchimento e o envio para aprovação.`;
+  const message = `Você deixou ${items.join(' e ')} no Gestor Museus Centro. Conclua o preenchimento e envie para aprovação.`;
+  const text = brandedEmailText({ greeting:`Olá, ${firstName}`, message, steps:reportSubmissionSteps, ctaLabel:'Abrir pendências', ctaUrl:APP_ORIGIN, recipientEmail:email });
   await transport.sendMail({
     from:`Gestor Museus Centro <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
     to:email,
     subject:'Pendência no Gestor Museus Centro',
     text,
-    html:`<p>Olá, ${firstName}.</p><p>Você deixou <strong>${items.join(' e ')}</strong>.</p><p>Conclua o preenchimento e envie para aprovação.</p><p><a href="${APP_ORIGIN}">Acessar o Gestor Museus Centro</a></p>`
+    html:brandedEmailHtml({ appUrl:APP_ORIGIN, title:'Pendência de preenchimento', greeting:`Olá, ${firstName}`, message, steps:reportSubmissionSteps, ctaLabel:'Abrir pendências', ctaUrl:APP_ORIGIN, recipientEmail:email })
   });
   await pool.query(`INSERT INTO notifications (user_email,type,title,message,action_url,is_read,resolved,email_sent) VALUES ($1,'PENDING_WORK_EMAIL','Pendência de preenchimento',$2,$3,FALSE,FALSE,TRUE)`, [email,text,APP_ORIGIN]).catch(() => {});
 }
