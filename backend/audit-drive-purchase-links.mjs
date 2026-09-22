@@ -22,6 +22,7 @@ const dateOf=(value)=>{ const date=value instanceof Date&&!Number.isNaN(value.ge
 const monthOf=(value)=>{ const date=dateOf(value); return date?`${date.slice(5,7)}-${date.slice(0,4)}`:''; };
 const amountOf=(purchase)=>Number(purchase.nf_valor_total || purchase.valor_total || purchase.valor_solicitado || 0);
 const cleanName=(value)=>String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[\\/:*?"<>|]+/g,' ').replace(/\s+/g,' ').trim();
+const comparableDriveName=(value)=>norm(value).replace(/[^A-Z0-9]+/g,'');
 const fileIdFrom=(value)=>String(value || '').match(/(?:drive\.google\.com\/file\/d\/|[?&]id=)([A-Za-z0-9_-]{5,})/i)?.[1] || '';
 const directId=(purchase)=>String(purchase.drive_file_id || '').trim() || fileIdFrom(purchase.drive_file_url) || fileIdFrom(purchase.drive_backup_nf_pdf_link);
 const sourceOf=(purchase)=>purchase.nf_pdf_link || purchase.nota_fiscal_pdf_url || purchase.nota_fiscal_url || purchase.arquivo_url || purchase.nf_pdf_url || purchase.file_url || purchase.documento_url || '';
@@ -93,8 +94,10 @@ async function replaceWithCanonicalBackup(drive,purchase) {
   const folderName=monthOf(fiscalDate);
   const folderResult=await drive.files.list({q:`'${rootId}' in parents and name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,fields:'files(id)',pageSize:1,supportsAllDrives:true,includeItemsFromAllDrives:true});
   const folderId=folderResult.data.files?.[0]?.id || (await drive.files.create({requestBody:{name:folderName,mimeType:'application/vnd.google-apps.folder',parents:[rootId]},fields:'id',supportsAllDrives:true})).data.id;
-  const name=canonicalName(purchase); const existing=await drive.files.list({q:`'${folderId}' in parents and name='${name.replace(/'/g,"\\'")}' and trashed=false`,fields:'files(id,webViewLink)',pageSize:1,supportsAllDrives:true,includeItemsFromAllDrives:true});
-  return existing.data.files?.[0] || (await drive.files.create({requestBody:{name,parents:[folderId]},media:{mimeType:source.mime,body:source.body},fields:'id,webViewLink',supportsAllDrives:true})).data;
+  const name=canonicalName(purchase); const exact=await drive.files.list({q:`'${folderId}' in parents and name='${name.replace(/'/g,"\\'")}' and trashed=false`,fields:'files(id,webViewLink,name)',pageSize:1,supportsAllDrives:true,includeItemsFromAllDrives:true});
+  if(exact.data.files?.[0]) return exact.data.files[0];
+  const equivalent=(await drive.files.list({q:`'${folderId}' in parents and trashed=false`,fields:'files(id,webViewLink,name,mimeType)',pageSize:1000,supportsAllDrives:true,includeItemsFromAllDrives:true})).data.files?.find(file=>file.mimeType!=='application/vnd.google-apps.folder'&&comparableDriveName(file.name)===comparableDriveName(name));
+  return equivalent || (await drive.files.create({requestBody:{name,parents:[folderId]},media:{mimeType:source.mime,body:source.body},fields:'id,webViewLink',supportsAllDrives:true})).data;
 }
 async function main() {
   const drive=await driveClient(); const folders=new Map();

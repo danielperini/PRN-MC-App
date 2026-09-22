@@ -97,6 +97,12 @@ function canonicalInvoiceName(purchase, url) {
   const brl=Number.isFinite(value) ? value.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) : '0,00';
   return `${number} - ${supplier} - MUSEUS CENTRO - R$ ${brl}${ext}`;
 }
+function comparableDriveInvoiceName(value) {
+  // Older backups sometimes replaced comma and currency separators with
+  // underscores. Treat those variants as the same fiscal filename so a
+  // subsequent backup reuses the canonical file instead of creating a copy.
+  return String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,'');
+}
 async function invoiceDriveClient() {
   if (!process.env.GOOGLE_DRIVE_CLIENT_ID || !process.env.GOOGLE_DRIVE_CLIENT_SECRET || !process.env.GOOGLE_DRIVE_REFRESH_TOKEN) throw new Error('Google Drive não configurado');
   const auth=new google.auth.OAuth2(process.env.GOOGLE_DRIVE_CLIENT_ID,process.env.GOOGLE_DRIVE_CLIENT_SECRET);
@@ -109,6 +115,13 @@ async function driveMonthFolder(drive, issueDate) {
   const found=await drive.files.list({q:`'${DRIVE_ROOT_ID}' in parents and name='${name}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,fields:'files(id)',pageSize:1,supportsAllDrives:true,includeItemsFromAllDrives:true});
   if(found.data.files?.[0]?.id) return found.data.files[0].id;
   return (await drive.files.create({requestBody:{name,mimeType:'application/vnd.google-apps.folder',parents:[DRIVE_ROOT_ID]},fields:'id',supportsAllDrives:true})).data.id;
+}
+async function existingDriveInvoice(drive, folderId, name) {
+  const exact=await drive.files.list({q:`'${folderId}' in parents and name='${name.replace(/'/g,"\\'")}' and trashed=false`,fields:'files(id,webViewLink,name)',pageSize:1,supportsAllDrives:true,includeItemsFromAllDrives:true});
+  if(exact.data.files?.[0]) return exact.data.files[0];
+  const key=comparableDriveInvoiceName(name);
+  const candidates=await drive.files.list({q:`'${folderId}' in parents and trashed=false`,fields:'files(id,webViewLink,name,mimeType)',pageSize:1000,supportsAllDrives:true,includeItemsFromAllDrives:true});
+  return (candidates.data.files || []).find(file=>file.mimeType!=='application/vnd.google-apps.folder'&&comparableDriveInvoiceName(file.name)===key) || null;
 }
 function localFileFromUrl(url) {
   const match=String(url || '').match(/\/api\/files\/([^/?#]+)/i); if(!match) return null;
@@ -150,8 +163,8 @@ async function backupPurchaseImmediately(drive, purchase, columns) {
   for (const url of [pdfUrl,xmlUrl].filter(Boolean)) {
     const source=await fiscalFileSource(url); if(!source) continue;
     const name=canonicalInvoiceName(purchase,url);
-    const existing=await drive.files.list({q:`'${folderId}' in parents and name='${name.replace(/'/g,"\\'")}' and trashed=false`,fields:'files(id,webViewLink)',pageSize:1,supportsAllDrives:true,includeItemsFromAllDrives:true});
-    const remote=existing.data.files?.[0] || (await drive.files.create({requestBody:{name,parents:[folderId]},media:{mimeType:source.mime,body:source.body},fields:'id,webViewLink',supportsAllDrives:true})).data;
+    const existing=await existingDriveInvoice(drive,folderId,name);
+    const remote=existing || (await drive.files.create({requestBody:{name,parents:[folderId]},media:{mimeType:source.mime,body:source.body},fields:'id,webViewLink',supportsAllDrives:true})).data;
     backed.push(remote);
   }
   if (!backed.length) return {skipped:true,reason:'arquivo_local_indisponivel'};
