@@ -112,6 +112,27 @@ function canonicalPurchaseIdentity(purchase) {
   const issueDate=fiscalDate(purchase?.nf_data_emissao || purchase?.data_emissao);
   return Boolean(number && supplier && Number.isFinite(amount) && amount > 0 && issueDate);
 }
+function fiscalTextForAditivo(value) {
+  const raw=purchaseRawData(value?.raw_data);
+  return safeDriveName([
+    value?.descricao_item, value?.descricao_servico, value?.fornecedor_nome,
+    value?.nf_emitente_nome, value?.centro_custo, value?.rubrica_nome,
+    value?.aditivo, value?.termo_aditivo, JSON.stringify(raw),
+  ].filter(Boolean).join(' ')).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+}
+function hasFunempEvidence(value) {
+  return /\bFUNEMP\b/.test(fiscalTextForAditivo(value));
+}
+function normalizeNoturnoAditivo(value) {
+  const next={ ...value };
+  const text=fiscalTextForAditivo(next);
+  const isNoturno=/\bNOTURNO\b/.test(text) || /\bPAMPULHA\b/.test(text);
+  if (!isNoturno) return next;
+  // Regra contratual: somente documento com evidência FUNEMP pertence ao
+  // 4º Aditivo. Toda outra despesa do Noturno 2026 permanece no 3º Aditivo.
+  next.centro_custo=hasFunempEvidence(next) ? 'Noturno Pampulha' : 'Noturno 2026';
+  return next;
+}
 function canonicalPurchaseDescription(purchase) {
   if (!canonicalPurchaseIdentity(purchase)) return '';
   const raw=purchaseRawData(purchase.raw_data);
@@ -594,7 +615,7 @@ function normalizePurchaseFiscalPayload(entityName, body = {}) {
   next.nf_emitente_nome = first(next.nf_emitente_nome,next.fornecedor_nome,next.emitente_nome);
   next.fornecedor_nome = first(next.fornecedor_nome,next.nf_emitente_nome,next.emitente_nome);
   next.nf_emitente_cpf_cnpj = first(next.nf_emitente_cpf_cnpj,next.fornecedor_cnpj,next.fornecedor_cpf_cnpj,next.cnpj,next.cpf_cnpj);
-  return next;
+  return normalizeNoturnoAditivo(next);
 }
 
 function normalizedEmail(value) {
@@ -1450,7 +1471,7 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
       if (!intakeId || !fileUrl) return res.status(400).json({ error:'invalid_invoice_input', message:'intake_id e file_url são obrigatórios' });
       if (!apiKey) return res.status(503).json({ error:'openai_not_configured', message:'OPENAI_API_KEY não configurada' });
       const absoluteFileUrl = /^https?:\/\//i.test(fileUrl) ? fileUrl : `${req.protocol}://${req.get('host')}${fileUrl.startsWith('/') ? '' : '/'}${fileUrl}`;
-      const prompt = `Leia integralmente esta nota fiscal. Retorne somente JSON com: nf_numero, nf_valor_total (número), nf_data_emissao (YYYY-MM-DD), nf_horario_emissao (HH:MM:SS ou vazio), competencia, nf_emitente_nome, nf_emitente_cpf_cnpj, municipio, descricao_servico, centro_custo_sugerido (somente Atuação Geral, MHAB, MIS, MUMO, Noturno 2026 ou Noturno Pampulha), rubrica_nome_sugerida e meta_sugerida. Regra obrigatória: qualquer despesa da 11ª edição do evento Noturno nos Museus de 2026 é Noturno 2026, salvo quando o texto mencionar expressamente Noturno Pampulha. Não use o nome do arquivo como substituto para valor ou data; extraia do conteúdo fiscal.`;
+      const prompt = `Leia integralmente esta nota fiscal. Retorne somente JSON com: nf_numero, nf_valor_total (número), nf_data_emissao (YYYY-MM-DD), nf_horario_emissao (HH:MM:SS ou vazio), competencia, nf_emitente_nome, nf_emitente_cpf_cnpj, municipio, descricao_servico, centro_custo_sugerido (somente Atuação Geral, MHAB, MIS, MUMO, Noturno 2026 ou Noturno Pampulha), rubrica_nome_sugerida e meta_sugerida. Regra obrigatória e exclusiva: uma despesa só pertence ao 4º Aditivo / Noturno Pampulha quando o conteúdo fiscal mencionar FUNEMP. Toda outra despesa da 11ª edição do Noturno nos Museus de 2026 — mesmo que mencione Pampulha, Casa do Baile ou Casa Kubitschek — pertence ao Noturno 2026 do 3º Aditivo. Não use o nome do arquivo como substituto para valor ou data; extraia do conteúdo fiscal.`;
       // Responses accepts an OpenAI file id, not an arbitrary public URL.  The
       // previous `input_file.file_url` form is rejected with HTTP 400 and left
       // otherwise valid invoices permanently stuck in manual review.
@@ -1508,7 +1529,8 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
       const result = JSON.parse(outputText);
       const fiscalText = [result.descricao_servico, result.rubrica_nome_sugerida, outputText].filter(Boolean).join(' ').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toUpperCase();
       if (/NOTURNO\s+(NOS\s+)?MUSEUS/.test(fiscalText) && /(2026|11A|11ª|11\s*EDICAO)/.test(fiscalText)) {
-        result.centro_custo_sugerido = /NOTURNO\s+PAMPULHA/.test(fiscalText) ? 'Noturno Pampulha' : 'Noturno 2026';
+        result.centro_custo_sugerido = /\bFUNEMP\b/.test(fiscalText) ? 'Noturno Pampulha' : 'Noturno 2026';
+        result.aditivo_sugerido = /\bFUNEMP\b/.test(fiscalText) ? '4º Aditivo' : '3º Aditivo';
       }
       const current = await pool.query('SELECT resultado_ia FROM document_intakes WHERE id=$1 LIMIT 1',[intakeId]);
       if (!current.rowCount) return res.status(404).json({ error:'intake_not_found' });

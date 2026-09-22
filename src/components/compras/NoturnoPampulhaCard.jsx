@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { AlertTriangle, ExternalLink, Wand2, CheckCircle2, XCircle } from 'lucide-react';
 import RubricaEditRow from '@/components/rubricas/RubricaEditRow';
 import { toast } from 'sonner';
+import { isFourthAddendumPurchase } from '@/utils/finance/financeiroUtils';
 
 const DRIVE_PASTA_NFS = 'https://drive.google.com/drive/u/0/folders/1Ov9ci6Dwg297mm7QiqX1wfLIb92EZSGf';
 const TOTAL_PREVISTO_PAMPULHA = 81719.85;
@@ -34,11 +35,8 @@ function normalizeText(value) {
     .replace(/\s+/g, ' ');
 }
 
-function isPampulha(value) {
-  const texto = normalizeText(value);
-  return PAMPULHA_CENTROS_NORMALIZADOS.has(texto)
-    || (texto.includes('noturno') && texto.includes('pampulha'))
-    || (texto.includes('noturno') && texto.includes('4') && texto.includes('aditivo'));
+function isPampulha(compra) {
+  return isFourthAddendumPurchase(compra);
 }
 
 function valorCompra(compra) {
@@ -171,7 +169,7 @@ export default function NoturnoPampulhaCard({ isCoordenador = false }) {
       if (!c.rubrica_id) continue;
       const status = String(c.status || '').toUpperCase();
       if (!STATUS_APROVADOS.has(status)) continue;
-      if (!isPampulha(c?.centro_custo)) continue;
+      if (!isPampulha(c)) continue;
       const val = valorCompra(c);
       mapa[c.rubrica_id] = (mapa[c.rubrica_id] || 0) + val;
     }
@@ -185,7 +183,7 @@ export default function NoturnoPampulhaCard({ isCoordenador = false }) {
     (compras || []).forEach(compra => {
       const status = String(compra?.status || '').toUpperCase();
       if (!STATUS_CONTABILIZADOS.has(status)) return;
-      if (!isPampulha(compra?.centro_custo)) return;
+      if (!isPampulha(compra)) return;
       const key = chaveFiscal(compra);
       if (!key || comprasUnicas.has(key)) return;
       comprasUnicas.set(key, compra);

@@ -49,13 +49,30 @@ function normalizarTexto(value) {
     .trim();
 }
 
+// Regra contratual de 2026: o 4º Aditivo é exclusivamente o conjunto
+// FUNEMP. A simples palavra "Pampulha" não basta, pois ela aparece em
+// lançamentos pertencentes ao Noturno 2026 do 3º Aditivo.
+function textoFiscalCompleto(nf) {
+  const raw = nf?.raw_data && typeof nf.raw_data === 'object'
+    ? JSON.stringify(nf.raw_data)
+    : String(nf?.raw_data || '');
+  return normalizarTexto([
+    nf?.descricao_item, nf?.descricao_servico, nf?.fornecedor_nome,
+    nf?.nf_emitente_nome, nf?.centro_custo, nf?.rubrica_nome,
+    nf?.aditivo, nf?.termo_aditivo, raw,
+  ].filter(Boolean).join(' '));
+}
+
+export function isFourthAddendumPurchase(nf) {
+  return /\bfunemp\b/.test(textoFiscalCompleto(nf));
+}
+
 function aditivoExplicito(nf) {
   const raw = normalizarTexto(
     nf?.aditivo || nf?.termo_aditivo || nf?.aditivo_nome ||
     nf?.instrumento_aditivo || nf?.fonte_orcamentaria || ''
   );
   if (!raw) return '';
-  if (raw.includes('4') || raw.includes('quarto')) return '4º Aditivo Noturno 2026';
   if (raw.includes('3') || raw.includes('terceiro')) return '3º Aditivo';
   return '';
 }
@@ -63,19 +80,20 @@ function aditivoExplicito(nf) {
 export function normalizeCentroCusto(nf) {
   const raw = String(nf?.centro_custo || '').trim();
   const low = normalizarTexto(raw);
-  const explicito = aditivoExplicito(nf);
+  const quartoAditivo = isFourthAddendumPurchase(nf);
+  const explicito = quartoAditivo ? '4º Aditivo Noturno 2026' : '3º Aditivo';
 
-  if (low.includes('pampulha')) {
+  if (quartoAditivo) {
     return {
       centro_normalizado: 'Noturno Pampulha',
-      aditivo: explicito || '4º Aditivo Noturno 2026'
+      aditivo: '4º Aditivo Noturno 2026'
     };
   }
 
-  if (low.includes('noturno')) {
+  if (low.includes('noturno') || low.includes('pampulha')) {
     return {
       centro_normalizado: 'Noturno 2026',
-      aditivo: explicito || '3º Aditivo'
+      aditivo: '3º Aditivo'
     };
   }
 
