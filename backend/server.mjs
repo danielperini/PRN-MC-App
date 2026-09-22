@@ -548,6 +548,87 @@ function preserveReportEditorContent(body = {}, previousRawData = null) {
   return { ...body, raw_data: rawData };
 }
 
+function reportPhotoValue(photo, ...keys) {
+  for (const key of keys) {
+    const value = photo?.[key];
+    if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+  }
+  return '';
+}
+
+function reportPhotoIdentity(photo) {
+  return String(reportPhotoValue(photo, 'drive_file_id', 'id', 'base44_id', 'url', 'file_url')).trim();
+}
+
+// Every photo saved inside a monthly report must also exist in report_photos:
+// that table is the source of the central Gallery and of the Drive backup job.
+// The operation is an upsert keyed by the original photo id/Drive id/URL, so
+// repeated saves are safe and never create gallery duplicates.
+async function syncReportPhotosToGallery(report, photos) {
+  if (!report?.id || !Array.isArray(photos) || !(await tableExists('report_photos'))) return { created: 0, updated: 0, skipped: 0 };
+
+  const reportKeys = [String(report.id), String(report.base44_id || '')].filter(Boolean);
+  const existingResult = await pool.query(
+    'SELECT id,base44_id,drive_file_id,file_url FROM report_photos WHERE report_id::text = ANY($1::text[])',
+    [reportKeys],
+  );
+  const existingById = new Map();
+  const existingBySource = new Map();
+  for (const row of existingResult.rows) {
+    if (row.base44_id) existingById.set(String(row.base44_id), row);
+    if (row.drive_file_id) existingBySource.set(`drive:${row.drive_file_id}`, row);
+    if (row.file_url) existingBySource.set(`url:${row.file_url}`, row);
+  }
+
+  let created = 0;
+  let updated = 0;
+  let skipped = 0;
+  for (const [ordem, original] of photos.entries()) {
+    const photo = original && typeof original === 'object' ? original : {};
+    const fileUrl = String(reportPhotoValue(photo, 'url', 'file_url')).trim();
+    if (!fileUrl) {
+      skipped += 1;
+      continue;
+    }
+    const driveFileId = String(reportPhotoValue(photo, 'drive_file_id')).trim();
+    const originalId = reportPhotoIdentity(photo);
+    const existing = existingById.get(String(photo.id || photo.base44_id || ''))
+      || (driveFileId ? existingBySource.get(`drive:${driveFileId}`) : null)
+      || existingBySource.get(`url:${fileUrl}`);
+    const base44Id = String(existing?.base44_id || photo.base44_id || photo.id || crypto.randomUUID());
+    const fileName = String(reportPhotoValue(photo, 'fileName', 'file_name', 'name') || `foto-${ordem + 1}`).slice(0, 500);
+    const caption = String(reportPhotoValue(photo, 'caption', 'legenda')).slice(0, 4000);
+    const museum = String(reportPhotoValue(photo, 'museum', 'museu') || report.museu || '').slice(0, 300);
+    const activityId = String(reportPhotoValue(photo, 'activityId', 'activity_id') || '') || null;
+    const rawData = { ...photo, id: base44Id, url: fileUrl, fileName, caption, activityId, synced_from_report: String(report.id) };
+
+    await pool.query(`INSERT INTO report_photos
+      (base44_id,report_id,activity_id,drive_file_id,file_name,file_url,legenda,caption,author,museu,mes_referencia,ano,ordem,galeria_oculta,fonte_ia,drive_backup_status,raw_data,created_date,updated_date)
+      VALUES ($1,$2,$3,NULLIF($4,''),$5,$6,$7,$7,$8,$9,$10,$11,$12,$13,'upload_manual','pendente',$14::jsonb,NOW(),NOW())
+      ON CONFLICT (base44_id) DO UPDATE SET
+        report_id=EXCLUDED.report_id,activity_id=EXCLUDED.activity_id,file_name=EXCLUDED.file_name,file_url=EXCLUDED.file_url,
+        legenda=EXCLUDED.legenda,caption=EXCLUDED.caption,author=EXCLUDED.author,museu=EXCLUDED.museu,
+        mes_referencia=EXCLUDED.mes_referencia,ano=EXCLUDED.ano,ordem=EXCLUDED.ordem,galeria_oculta=EXCLUDED.galeria_oculta,
+        drive_file_id=COALESCE(NULLIF(EXCLUDED.drive_file_id,''),report_photos.drive_file_id),
+        drive_backup_status=CASE WHEN report_photos.drive_backup_status='concluido' THEN 'concluido' ELSE 'pendente' END,
+        raw_data=EXCLUDED.raw_data,updated_date=NOW()`, [
+      base44Id, String(report.id), activityId, driveFileId, fileName, fileUrl, caption,
+      String(reportPhotoValue(photo, 'author', 'created_by') || report.author_name || ''), museum,
+      String(report.mes_referencia || ''), Number(report.ano || report.ano_referencia || 0) || null,
+      Number.isFinite(Number(photo.ordem)) ? Number(photo.ordem) : ordem,
+      Boolean(photo.galeria_oculta), JSON.stringify(rawData),
+    ]);
+    if (existing) updated += 1;
+    else created += 1;
+    const saved = { base44_id: base44Id, drive_file_id: driveFileId, file_url: fileUrl };
+    existingById.set(base44Id, saved);
+    if (driveFileId) existingBySource.set(`drive:${driveFileId}`, saved);
+    existingBySource.set(`url:${fileUrl}`, saved);
+    void originalId;
+  }
+  return { created, updated, skipped };
+}
+
 // Report ownership must always come from the active app session, not from the
 // browser payload. This avoids a stale client profile creating a report in
 // somebody else's name and also supplies the required initial identity fields.
@@ -705,6 +786,9 @@ app.post('/api/apps/:appId/entities/:entityName', requireSession, async (req,res
     if(!entries.length) return res.status(400).json({error:'empty_entity'});
     const names=entries.map(([k])=>quoteIdentifier(k)).join(','); const vals=entries.map(([,v])=>v);
     const r=await pool.query(`INSERT INTO ${quoteIdentifier(table)} (${names}) VALUES (${vals.map((_,i)=>`$${i+1}`).join(',')}) RETURNING *`,vals);
+    if (table==='reports' && Array.isArray(normalizedBody.fotos)) {
+      await syncReportPhotosToGallery(r.rows[0], normalizedBody.fotos).catch((error) => console.error('REPORT_GALLERY_SYNC_ERROR', error));
+    }
     if (table==='document_intakes') await suppressExactDuplicateIntakes(r.rows[0].id);
     res.status(201).json(r.rows[0]);
   } catch(e) { console.error('ENTITY_POST_ERROR:',e); res.status(500).json({error:'entity_create_failed',message:e.message}); }
@@ -735,6 +819,9 @@ async function updateEntity(req,res) {
     const sets=entries.map(([k],i)=>`${quoteIdentifier(k)}=$${i+1}`).join(',');
     const r=await pool.query(`UPDATE ${quoteIdentifier(table)} SET ${sets} WHERE "id"=$${vals.length} RETURNING *`,vals);
     if(!r.rowCount) return res.status(404).json({error:'entity_not_found'});
+    if (table==='reports' && Array.isArray(normalizedBody.fotos)) {
+      await syncReportPhotosToGallery(r.rows[0], normalizedBody.fotos).catch((error) => console.error('REPORT_GALLERY_SYNC_ERROR', error));
+    }
     if (table==='document_intakes') await suppressExactDuplicateIntakes(r.rows[0].id);
     res.json(r.rows[0]);
   } catch(e) {

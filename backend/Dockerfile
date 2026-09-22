@@ -15,6 +15,7 @@ COPY reconcile-noturno-classification-2026.mjs ./
 COPY drive-reconcile-current-month.mjs ./
 COPY drive-daily-watchdog.mjs ./
 COPY backup-pending-drive.mjs ./
+COPY sync-report-gallery.mjs ./
 COPY audit-drive-purchase-links.mjs ./
 COPY monthly-report-reminders.mjs ./
 COPY send-professional-access-check.mjs ./
