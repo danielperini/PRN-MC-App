@@ -254,8 +254,11 @@ function AuthenticatedApp() {
     return <UserNotRegisteredError />;
   }
 
+  // Query parameters identify the report being edited. Re-mount the page
+  // when they change so "Novo Relatório" can never retain a previously
+  // opened, closed report from the same /ReportEditor route.
   return (
-    <div key={location.pathname}>
+    <div key={`${location.pathname}${location.search}`}>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<SafePage Page={MainPage} pageName={mainPageKey} />} />
