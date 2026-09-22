@@ -3,7 +3,6 @@ import { base44 } from '@/api/base44Client';
 import { useQueryClient } from '@tanstack/react-query';
 import Sidebar from '@/components/layout/Sidebar';
 import TopNav from '@/components/layout/TopNav';
-import AssistantChat from '@/components/chat/AssistantChat';
 import MobileBottomTab from '@/components/mobile/MobileBottomTab';
 import MobileHeader from '@/components/mobile/MobileHeader';
 import { HelpContextProvider } from '@/components/help/HelpContextProvider';
@@ -189,7 +188,8 @@ export default function Layout({ children, currentPageName }) {
           </main>
           <MobileBottomTab currentPageName={currentPageName} />
         </div>
-        <AssistantChat />
+        {/* O chat assistivo permanece desativado para não competir com o fluxo
+            operacional. O botão de reportar problema continua disponível. */}
         {currentUser && <BugReportButton currentUser={currentUser} />}
         {currentUser && <WelcomeBanner />}
         <AppTour

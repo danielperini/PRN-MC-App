@@ -26,7 +26,6 @@ import {
   ChevronUp,
   UserCog,
   LogOut,
-  Bot,
   UsersRound,
   PlayCircle,
   ArrowRightLeft,
@@ -74,7 +73,6 @@ const NAV_GROUPS_BASE = [
     label: 'Atividades e Programação',
     items: [
       { path: 'Agenda', label: 'Agenda', icon: CalendarDays, roles: ['all'] },
-      { path: 'AssistentePlanejamento', label: 'Assistente IA', icon: Bot, roles: ['all'] },
     ],
   },
   {
