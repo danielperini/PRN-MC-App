@@ -88,7 +88,7 @@ async function syncReport(report) {
 }
 
 try {
-  const reports = (await pool.query(`SELECT id,base44_id,author_name,museu,mes_referencia,ano,ano_referencia,raw_data
+  const reports = (await pool.query(`SELECT id,base44_id,author_name,museu,mes_referencia,ano,raw_data
     FROM reports WHERE jsonb_typeof(raw_data->'fotos')='array'`)).rows;
   const totals = { reports: reports.length, created: 0, updated: 0, skipped: 0, errors: 0 };
   for (const report of reports) {
