@@ -1,5 +1,6 @@
 import pg from 'pg';
 import nodemailer from 'nodemailer';
+import { brandedEmailHtml, brandedEmailText, publicAppUrl, reportSubmissionSteps } from './email-layout.mjs';
 
 const { Pool } = pg;
 const pool = new Pool({
@@ -10,7 +11,7 @@ const pool = new Pool({
   password: process.env.POSTGRES_PASSWORD || '',
 });
 
-const APP_ORIGIN = process.env.PUBLIC_BASE_URL || 'https://appgestor.periniprojetos.com.br';
+const APP_ORIGIN = publicAppUrl(process.env.PUBLIC_BASE_URL);
 const RUN_KEY = `ACCESS_AND_REPORTS_CHECK_${new Date().toISOString().slice(0, 10)}`;
 
 function isProfessional(user) {
@@ -49,7 +50,8 @@ async function main() {
     if (previous.rows[0]?.email_sent) { result.already_sent += 1; continue; }
 
     const firstName = String(user.full_name || user.name || email.split('@')[0]).trim().split(/\s+/)[0];
-    const text = `Olá, ${firstName}.\n\nCorrigimos o erro que impedia a criação e a edição de relatórios no Gestor Museus Centro. O fluxo foi validado para os usuários profissionais: agora você já consegue acessar o app, criar, editar, salvar e enviar seu relatório para aprovação.\n\nPor favor, acesse o app e confirme que consegue trabalhar normalmente. Se encontrar qualquer problema, use o botão “Reportar problema” no canto inferior direito. A IA organiza o relato e envia o aviso ao suporte técnico.\n\nReforçamos que os relatórios mensais devem ser preenchidos e enviados para aprovação.\n\nAcessar o app: ${APP_ORIGIN}`;
+    const message = 'Corrigimos o erro que impedia a criação e a edição de relatórios. O fluxo foi validado: você já consegue acessar, criar, editar, salvar e enviar seu relatório para aprovação. Se encontrar qualquer problema, use “Reportar problema” no canto inferior direito.';
+    const text = brandedEmailText({ greeting:`Olá, ${firstName}`, message, steps:reportSubmissionSteps, ctaLabel:'Abrir o Gestor Museus', ctaUrl:APP_ORIGIN, recipientEmail:email });
     if (!dryRun) {
       let notificationId = previous.rows[0]?.id || null;
       if (!notificationId) {
@@ -65,7 +67,7 @@ async function main() {
           to: email,
           subject: 'Acesso corrigido — confira o app e envie seus relatórios',
           text,
-          html: `<p>Olá, ${firstName}.</p><p><strong>Corrigimos o erro que impedia a criação e a edição de relatórios</strong> no Gestor Museus Centro. O fluxo foi validado para os usuários profissionais: agora você já consegue acessar o app, criar, editar, salvar e enviar seu relatório para aprovação.</p><p>Por favor, acesse o app e confirme que consegue trabalhar normalmente. Se encontrar qualquer problema, use o botão <strong>“Reportar problema”</strong> no canto inferior direito. A IA organiza o relato e envia o aviso ao suporte técnico.</p><p><strong>Reforçamos que os relatórios mensais devem ser preenchidos e enviados para aprovação.</strong></p><p><a href="${APP_ORIGIN}">Abrir Gestor Museus Centro</a></p>`,
+          html: brandedEmailHtml({ appUrl:APP_ORIGIN, title:'Acesso e relatórios disponíveis', greeting:`Olá, ${firstName}`, message, steps:reportSubmissionSteps, ctaLabel:'Abrir o Gestor Museus', ctaUrl:APP_ORIGIN, recipientEmail:email }),
         });
         if (notificationId) await pool.query('UPDATE notifications SET email_sent=TRUE,updated_at=NOW() WHERE id=$1',[notificationId]);
         result.sent += 1;

@@ -1,5 +1,6 @@
 import pg from 'pg';
 import nodemailer from 'nodemailer';
+import { brandedEmailHtml, brandedEmailText, publicAppUrl, reportSubmissionSteps } from './email-layout.mjs';
 
 const { Pool } = pg;
 const pool = new Pool({
@@ -10,7 +11,7 @@ const pool = new Pool({
   password: process.env.POSTGRES_PASSWORD || '',
 });
 
-const APP_ORIGIN = process.env.PUBLIC_BASE_URL || 'https://appgestor.periniprojetos.com.br';
+const APP_ORIGIN = publicAppUrl(process.env.PUBLIC_BASE_URL);
 const FIRST_REQUIRED_MONTH = { year: 2026, month: 3 };
 const COMPLETE_STATUSES = new Set(['SUBMITTED', 'IN_REVIEW', 'APPROVED']);
 const MONTH_NAMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
@@ -105,8 +106,8 @@ export async function runMonthlyReportReminders({ dryRun = false, now = new Date
       from: `Gestor Museus Centro <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
       to: email,
       subject: 'Relatórios mensais pendentes — Gestor Museus Centro',
-      text: `Olá, ${firstName}.\n\n${message}\n\n${APP_ORIGIN}/Relatorios`,
-      html: `<p>Olá, ${firstName}.</p><p>${message}</p><p><a href="${APP_ORIGIN}/Relatorios">Abrir relatórios no Gestor Museus Centro</a></p>`,
+      text: brandedEmailText({ greeting:`Olá, ${firstName}`, message, steps:reportSubmissionSteps, ctaLabel:'Abrir meus relatórios', ctaUrl:`${APP_ORIGIN}/Relatorios`, recipientEmail:email }),
+      html: brandedEmailHtml({ appUrl:APP_ORIGIN, title:'Relatórios mensais pendentes', greeting:`Olá, ${firstName}`, message, steps:reportSubmissionSteps, ctaLabel:'Abrir meus relatórios', ctaUrl:`${APP_ORIGIN}/Relatorios`, recipientEmail:email }),
     });
     await pool.query(
       `INSERT INTO notifications (user_email,type,title,message,action_url,is_read,resolved,email_sent) VALUES ($1,$2,$3,$4,$5,FALSE,FALSE,TRUE)`,
@@ -172,8 +173,8 @@ export async function runTargetedMonthlyReportReminders({ targets = [], dryRun =
       from: `Gestor Museus Centro <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
       to: target.email,
       subject: 'Ação necessária: relatórios mensais pendentes',
-      text: `Olá, ${firstName}.\n\n${message}\n\n${APP_ORIGIN}/Relatorios`,
-      html: `<p>Olá, ${firstName}.</p><p>${message}</p><p><a href="${APP_ORIGIN}/Relatorios">Abrir relatórios no Gestor Museus Centro</a></p>`,
+      text: brandedEmailText({ greeting:`Olá, ${firstName}`, message, steps:reportSubmissionSteps, ctaLabel:'Abrir meus relatórios', ctaUrl:`${APP_ORIGIN}/Relatorios`, recipientEmail:target.email }),
+      html: brandedEmailHtml({ appUrl:APP_ORIGIN, title:'Ação necessária: relatórios mensais pendentes', greeting:`Olá, ${firstName}`, message, steps:reportSubmissionSteps, ctaLabel:'Abrir meus relatórios', ctaUrl:`${APP_ORIGIN}/Relatorios`, recipientEmail:target.email }),
     });
     await pool.query(
       `INSERT INTO notifications (user_email,type,title,message,action_url,is_read,resolved,email_sent) VALUES ($1,$2,$3,$4,$5,FALSE,FALSE,TRUE)`,

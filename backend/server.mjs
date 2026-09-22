@@ -10,6 +10,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import { google } from 'googleapis';
 import { syncProgramacao } from './programacao-sync.mjs';
 import nodemailer from 'nodemailer';
+import { brandedEmailHtml, brandedEmailText, purchaseSubmissionSteps, reportSubmissionSteps } from './email-layout.mjs';
 
 const { Pool } = pg;
 const app = express();
@@ -36,6 +37,21 @@ function validPublicBaseUrl(value) {
   }
 }
 const publicBaseUrl = validPublicBaseUrl(process.env.PUBLIC_BASE_URL) || DEFAULT_PUBLIC_APP_URL;
+function appActionUrl(value, fallbackPath = '/') {
+  const raw = String(value || '').trim();
+  // `new URL('http:///Compras')` treats "Compras" as a hostname. Detect that
+  // exact malformed shape before parsing so legacy queue items are repaired.
+  const malformedRoute = raw.match(/^https?:\/\/\/+(.+)$/i)?.[1];
+  if (malformedRoute) return `${publicBaseUrl}/${malformedRoute.replace(/^\/+/, '')}`;
+  try {
+    const parsed = new URL(raw);
+    if (/^https?:$/.test(parsed.protocol) && parsed.hostname) return parsed.toString();
+  } catch {
+    // Continue with a route-only fallback below.
+  }
+  const route = raw.startsWith('/') ? raw : fallbackPath;
+  return `${publicBaseUrl}${route}`;
+}
 const maxUploadMb = Number(process.env.MAX_UPLOAD_MB || 100);
 fs.mkdirSync(uploadDir, { recursive: true });
 
@@ -425,13 +441,13 @@ async function sendPaymentEmail({ to, title, message, actionUrl }) {
       secure: String(process.env.SMTP_SECURE).toLowerCase() === 'true',
       auth: { user: process.env.SMTP_USER, pass: password },
     });
-    const safe = (text) => String(text || '').replace(/[&<>"']/g, (char) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[char]);
+    const url = appActionUrl(actionUrl, '/Compras');
     await transport.sendMail({
       from: `Gestor Museus Centro <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
       to,
       subject: title,
-      text: `${message}\n\nAbrir no Gestor Museus: ${actionUrl}`,
-      html: `<div style="font-family:Arial,sans-serif;line-height:1.55;color:#172033"><h2>${safe(title)}</h2><p>${safe(message)}</p><p><a href="${safe(actionUrl)}" style="display:inline-block;padding:12px 18px;background:#111827;color:#fff;text-decoration:none;border-radius:8px;font-weight:700">Abrir no Gestor Museus</a></p></div>`,
+      text: brandedEmailText({ greeting:'Olá', message, steps:purchaseSubmissionSteps, ctaLabel:'Abrir solicitação de compra', ctaUrl:url, recipientEmail:to }),
+      html: brandedEmailHtml({ appUrl:publicBaseUrl, title, greeting:'Olá', message, steps:purchaseSubmissionSteps, ctaLabel:'Abrir solicitação de compra', ctaUrl:url, recipientEmail:to }),
     });
     return { sent:true };
   } catch (error) {
@@ -1159,6 +1175,7 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
       const reviewer=String(actor?.full_name || actor?.email || 'Coordenação').trim();
       const subject=`Relatório aprovado — ${period}`;
       const message=`Olá, ${authorName}.\n\nSeu relatório de ${period}${report.museu ? ` (${report.museu})` : ''} foi aprovado por ${reviewer}.\n\nAcesse o Gestor Museus Centro para consultar o registro.`;
+      const reportUrl=appActionUrl('/Relatorios', '/Relatorios');
       const password=process.env.SMTP_PASS_B64 ? Buffer.from(process.env.SMTP_PASS_B64,'base64').toString('utf8') : process.env.SMTP_PASS;
       const transport=nodemailer.createTransport({
         host:process.env.SMTP_HOST,
@@ -1178,11 +1195,11 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
         from:`Gestor Museus Centro <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
         to:authorEmail,
         subject,
-        text:message,
-        html:`<div style="font-family:Arial,sans-serif;line-height:1.55;color:#172033"><p>${message.replace(/\n/g,'<br>')}</p></div>`,
+        text:brandedEmailText({ greeting:`Olá, ${authorName}`, message:`Seu relatório de ${period}${report.museu ? ` (${report.museu})` : ''} foi aprovado por ${reviewer}.`, ctaLabel:'Consultar relatórios', ctaUrl:reportUrl, recipientEmail:authorEmail }),
+        html:brandedEmailHtml({ appUrl:publicBaseUrl, title:'Relatório aprovado', greeting:`Olá, ${authorName}`, message:`Seu relatório de ${period}${report.museu ? ` (${report.museu})` : ''} foi aprovado por ${reviewer}.`, ctaLabel:'Consultar relatórios', ctaUrl:reportUrl, recipientEmail:authorEmail }),
       });
       await pool.query(`INSERT INTO notifications (user_email,type,title,message,entity_type,entity_id,action_url,is_read,resolved,email_sent)
-        VALUES ($1,'REPORT_APPROVED_EMAIL',$2,$3,'Report',$4,'/Relatorios',FALSE,FALSE,TRUE)`,[authorEmail,subject,message,reportId]);
+        VALUES ($1,'REPORT_APPROVED_EMAIL',$2,$3,'Report',$4,$5,FALSE,FALSE,TRUE)`,[authorEmail,subject,message,reportId,reportUrl]);
       return res.status(200).json({ success:true, recipient:authorEmail });
     }
     if (name === 'reportarProblemaApp') {
@@ -1244,9 +1261,10 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
       if (!to || !process.env.SMTP_HOST || !process.env.SMTP_USER) {
         return res.status(503).json({ success:false, error:'smtp_not_configured' });
       }
-      const escapeHtml = (value) => String(value || '').replace(/[&<>"']/g,(char)=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[char]);
-      const actionUrl = String(req.body?.action_url || '');
+      const actionUrl = appActionUrl(req.body?.action_url, req.body?.event_type === 'purchase.paid' ? '/Compras' : '/');
       const buttonLabel = req.body?.event_type === 'purchase.paid' && !req.body?.has_payment_proof ? 'Solicitar comprovante de depósito' : 'Abrir no Gestor Museus';
+      const isPurchaseEmail = String(req.body?.event_type || '').startsWith('purchase.');
+      const instructions = isPurchaseEmail ? purchaseSubmissionSteps : reportSubmissionSteps;
       const password = process.env.SMTP_PASS_B64 ? Buffer.from(process.env.SMTP_PASS_B64,'base64').toString('utf8') : process.env.SMTP_PASS;
       const transport = nodemailer.createTransport({
         host:process.env.SMTP_HOST,
@@ -1272,8 +1290,8 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
         from:`Gestor Museus Centro <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
         to,
         subject:String(req.body?.subject || req.body?.title || 'Gestor Museus Centro'),
-        text:`${String(req.body?.message || '')}${actionUrl ? `\n\n${buttonLabel}: ${actionUrl}` : ''}`,
-        html:`<div style="font-family:Arial,sans-serif;line-height:1.55;color:#172033"><h2>${escapeHtml(req.body?.title || req.body?.subject)}</h2><p>${escapeHtml(req.body?.message)}</p>${actionUrl ? `<p><a href="${escapeHtml(actionUrl)}" style="display:inline-block;padding:12px 18px;background:#111827;color:#fff;text-decoration:none;border-radius:8px;font-weight:700">${escapeHtml(buttonLabel)}</a></p>` : ''}</div>`,
+        text:brandedEmailText({ greeting:'Olá', message:String(req.body?.message || ''), steps:instructions, ctaLabel:buttonLabel, ctaUrl:actionUrl, recipientEmail:to }),
+        html:brandedEmailHtml({ appUrl:publicBaseUrl, title:String(req.body?.title || req.body?.subject || 'Gestor Museus Centro'), greeting:'Olá', message:String(req.body?.message || ''), steps:instructions, ctaLabel:buttonLabel, ctaUrl:actionUrl, recipientEmail:to }),
         attachments
       });
       return res.status(200).json({ success:true });
