@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { isCoordGeral as _isCoordGeral, isCoordenador as _isCoordenador } from './permissions';
 import { syncUserAccessState } from '@/utils/auth/recoverExistingUserAccess';
+import { useAuth } from '@/lib/AuthContext';
 
 let cachedUser = null;
 let fetchPromise = null;
@@ -12,15 +13,30 @@ let fetchPromise = null;
  * Returns { user, isLoading, isCoordenador, isCoordGeral }
  */
 export function useCurrentUser() {
+  const { user: sessionUser, isLoadingAuth } = useAuth();
   const [user, setUser] = useState(cachedUser);
-  const [isLoading, setIsLoading] = useState(!cachedUser);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (cachedUser) {
-      setUser(cachedUser);
+    // AuthContext already resolves /entities/User/me from the HttpOnly VPS
+    // session. Prefer it to the module cache so a user who changes Google
+    // accounts on a shared computer can never inherit another person's name.
+    if (sessionUser?.email) {
+      cachedUser = sessionUser;
+      setUser(sessionUser);
       setIsLoading(false);
       return;
     }
+
+    if (isLoadingAuth) return;
+
+    cachedUser = null;
+    setUser(null);
+    setIsLoading(false);
+  }, [sessionUser, isLoadingAuth]);
+
+  useEffect(() => {
+    if (sessionUser?.email || isLoadingAuth) return;
     if (!fetchPromise) {
       fetchPromise = base44.auth.me().then(u => {
         return syncUserAccessState(u, { origin: 'use-current-user' }).then((recovery) => {
@@ -33,7 +49,7 @@ export function useCurrentUser() {
       setUser(u);
       setIsLoading(false);
     });
-  }, []);
+  }, [sessionUser?.email, isLoadingAuth]);
 
   const isCoordenador = _isCoordenador(user);
   const coordGeral = _isCoordGeral(user);
