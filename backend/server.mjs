@@ -980,7 +980,9 @@ async function assertReportUpdateAccess(req, reportId) {
   const email = normalizedEmail(user.email);
   const owns = normalizedEmail(report.created_by) === email
     || normalizedEmail(report.author_email) === email
-    || String(report.created_by_id || '').trim() === String(user.id || '').trim();
+    || [String(user.id || '').trim(), String(user.base44_id || '').trim()]
+      .filter(Boolean)
+      .includes(String(report.created_by_id || '').trim());
   if (owns) return { allowed: true, exists: true, report };
 
   // Imports legados usavam um e-mail técnico do Base44 e deixavam a autoria
