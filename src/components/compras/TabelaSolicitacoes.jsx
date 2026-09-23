@@ -150,7 +150,14 @@ function FilesCell({ p }) {
   // its parent folder.  It is still a valid and useful Google Drive link and
   // must be visible in every row that has a completed backup.
   const driveUrl = p?.drive_file_url || p?.drive_backup_nf_pdf_link || folderUrl;
-  const pdfUrl = getAuthenticatedDriveFileUrl(getPurchasePdfDriveFileId(p), getPurchasePdfUrl(p));
+  // Para a nota fiscal, o URL canônico salvo pelo backup é a melhor opção:
+  // abre o próprio PDF no Drive e não depende de uma sessão/cookie no proxy
+  // `/api/drive-files/:id`.  O proxy fica como contingência para legados que
+  // só possuem o identificador do arquivo.
+  const directPdfUrl = getPurchasePdfUrl(p);
+  const pdfUrl = /^https?:\/\//i.test(directPdfUrl)
+    ? directPdfUrl
+    : getAuthenticatedDriveFileUrl(getPurchasePdfDriveFileId(p), directPdfUrl);
   const xmlUrl = getAuthenticatedDriveFileUrl(getPurchaseXmlDriveFileId(p), getPurchaseXmlUrl(p));
   const hasBackup = hasPurchaseBackup(p);
 
