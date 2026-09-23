@@ -1377,16 +1377,34 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
         const supplier=String(p.nf_emitente_cpf_cnpj || p.fornecedor_cpf_cnpj || p.fornecedor_cnpj || p.fornecedor_nome || '').replace(/\W/g,'').toUpperCase();
         if(supplier && p.rubrica_id && p.centro_custo) history.set(supplier,{rubrica_id:p.rubrica_id,centro_custo:p.centro_custo,meta_id:p.meta_id || null});
       }
-      const duplicates=new Set();
+      // A duplicate is fiscal, not descriptive: same issuer tax id, invoice
+      // number, issue date and exact fiscal value. Keep one canonical request
+      // and make the financial exclusion explicit on every other copy.
+      const duplicates=new Set(); const duplicateOf=new Map();
       for (const list of groups.values()) if(list.length>1) {
-        list.sort((a,b)=>(Number(Boolean(b.comprovante_url))+Number(Boolean(b.nota_fiscal_url))+Number(Boolean(b.rubrica_id)))-(Number(Boolean(a.comprovante_url))+Number(Boolean(a.nota_fiscal_url))+Number(Boolean(a.rubrica_id))) || Number(a.id)-Number(b.id));
-        list.slice(1).forEach(p=>duplicates.add(String(p.id)));
+        list.sort((a,b)=>(Number(Boolean(b.comprovante_url))+Number(Boolean(b.nota_fiscal_url))+Number(Boolean(b.rubrica_id)))-(Number(Boolean(a.comprovante_url))+Number(Boolean(a.nota_fiscal_url))+Number(Boolean(a.rubrica_id))) || String(a.id).localeCompare(String(b.id)));
+        const canonicalId=String(list[0].id);
+        list.slice(1).forEach((p)=>{
+          const duplicateId=String(p.id);
+          duplicates.add(duplicateId);
+          duplicateOf.set(duplicateId,canonicalId);
+        });
       }
       let rubricas=0,approved=0,paid=0,backed=0; const errors=[];
       const drive=!dryRun ? await invoiceDriveClient().catch(error=>{errors.push(error.message); return null;}) : null;
       for (const p of purchases) {
         const id=String(p.id); const update={};
-        if(duplicates.has(id) && columns.includes('fora_do_somatorio')) update.fora_do_somatorio=true;
+        if(duplicates.has(id)) {
+          if(columns.includes('duplicada_financeira')) update.duplicada_financeira=true;
+          if(columns.includes('incluir_no_somatorio')) update.incluir_no_somatorio=false;
+          if(columns.includes('duplicata_de')) update.duplicata_de=duplicateOf.get(id) || null;
+        } else if(p.duplicada_financeira===true) {
+          // A former duplicate that no longer matches the fiscal key becomes
+          // eligible again; preserve any unrelated manual exclusion.
+          if(columns.includes('duplicada_financeira')) update.duplicada_financeira=false;
+          if(columns.includes('duplicata_de')) update.duplicata_de=null;
+          if(columns.includes('incluir_no_somatorio') && p.incluir_no_somatorio===false) update.incluir_no_somatorio=true;
+        }
         const supplier=String(p.nf_emitente_cpf_cnpj || p.fornecedor_cpf_cnpj || p.fornecedor_cnpj || p.fornecedor_nome || '').replace(/\W/g,'').toUpperCase();
         const inferred=history.get(supplier);
         if(inferred) {
@@ -1411,7 +1429,8 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
           catch(error) { errors.push(`NF ${p.nf_numero || p.id}: ${error.message}`); }
         }
       }
-      return res.status(200).json({ok:true,dry_run:dryRun,total_analisadas:purchases.length,duplicatas_marcadas:duplicates.size,rubricas_inferidas:rubricas,aprovados_direto:approved,marcados_pago:paid,backup_disparado:!dryRun && Boolean(drive),arquivos_backup:backed,erros:errors.slice(0,30)});
+      const rubricasRecalculadas=!dryRun ? await syncRubricaBalances() : 0;
+      return res.status(200).json({ok:true,dry_run:dryRun,total_analisadas:purchases.length,duplicatas_marcadas:duplicates.size,rubricas_inferidas:rubricas,aprovados_direto:approved,marcados_pago:paid,rubricas_recalculadas:rubricasRecalculadas,backup_disparado:!dryRun && Boolean(drive),arquivos_backup:backed,erros:errors.slice(0,30)});
     }
     if (name === 'purchaseActions') {
       const purchaseId = String(req.body?.purchaseId || req.body?.purchase_id || '').trim();
