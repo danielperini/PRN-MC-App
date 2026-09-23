@@ -183,8 +183,9 @@ async function main() {
     for (const report of reports) {
       const currentEmail = normalized(report.author_email || report.created_by);
       const emailUser = usersByEmail.get(currentEmail);
-      const named = usersByName.get(normalized(report.author_name)) || [];
-      const nameUser = named.length === 1 ? named[0] : null;
+      const exactNamed = usersByName.get(normalized(report.author_name)) || [];
+      const compatibleNamed = exactNamed.length ? exactNamed : users.filter((candidate) => compatibleNames(report.author_name, candidate.full_name));
+      const nameUser = compatibleNamed.length === 1 ? compatibleNamed[0] : null;
       const user = emailUser || nameUser;
       if (!user) continue;
       const conflict = (emailUser && nameUser && String(emailUser.id) !== String(nameUser.id))
