@@ -6,6 +6,21 @@ import { brandedEmailHtml, brandedEmailText, paymentNotificationSteps, publicApp
 const { Pool } = pg;
 const appUrl = publicAppUrl(process.env.PUBLIC_APP_URL || process.env.APP_URL);
 const allPending = process.argv.includes('--all-pending');
+const paymentDigest = process.argv.includes('--payment-digest');
+const FINANCE_RECIPIENTS = Object.freeze([
+  'adm@viadutodasartes.org.br',
+  'notasfiscais@viadutodasartes.org.br',
+  'danielperini.mc@viadutodasartes.org.br',
+  'josianeamancio@viadutodasartes.org.br',
+  'daniel@periniprojetos.com.br',
+]);
+
+function money(value) {
+  const amount = Number(value || 0);
+  return Number.isFinite(amount)
+    ? amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+    : 'valor não informado';
+}
 
 function smtpTransport() {
   const password = process.env.SMTP_PASS_B64
@@ -29,6 +44,55 @@ async function main() {
     password: process.env.POSTGRES_PASSWORD || '',
   });
   try {
+    if (paymentDigest) {
+      const { rows } = await pool.query(`
+        SELECT id, nf_numero, nf_emitente_nome, descricao_item,
+          COALESCE(valor_aprovado_admin, valor_aprovado, valor_final, valor_solicitado, valor_total, valor, 0) AS valor,
+          status, status_pagamento, COALESCE(nf_data_emissao, data_nf) AS data_nf
+        FROM purchase_requests
+        WHERE UPPER(COALESCE(status, '')) IN ('APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'APROVADA')
+          AND UPPER(COALESCE(status_pagamento, 'AGUARDANDO_PAGAMENTO')) NOT IN ('PAGO', 'PAGAMENTO_CONFIRMADO', 'CONFIRMADO')
+        ORDER BY COALESCE(nf_data_emissao, data_nf) NULLS LAST, created_at ASC
+      `);
+      const lines = rows.map((purchase, index) => {
+        const supplier = String(purchase.nf_emitente_nome || 'Fornecedor a revisar').trim();
+        const invoice = String(purchase.nf_numero || 'sem NF').trim();
+        const description = String(purchase.descricao_item || '').trim();
+        const detail = [supplier, `NF ${invoice}`, money(purchase.valor), description].filter(Boolean).join(' — ');
+        return `${index + 1}. ${detail}\n   ${appUrl}/Compras?id=${encodeURIComponent(purchase.id)}`;
+      });
+      const title = rows.length
+        ? `${rows.length} solicitação(ões) aguardando pagamento`
+        : 'Nenhuma solicitação aguardando pagamento';
+      const message = rows.length
+        ? `Há solicitações aprovadas pendentes de pagamento. Cada item abaixo possui link direto para a respectiva solicitação:\n\n${lines.join('\n\n')}`
+        : 'Não há solicitações aprovadas aguardando pagamento neste momento.';
+      const transport = smtpTransport();
+      const failures = [];
+      let delivered = 0;
+      for (const email of FINANCE_RECIPIENTS) {
+        try {
+          await transport.sendMail({
+            from: `Gestor Museus Centro <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
+            to: email,
+            subject: title,
+            text: brandedEmailText({ greeting: 'Olá', message, steps: paymentNotificationSteps, ctaLabel: 'Abrir solicitações pendentes', ctaUrl: `${appUrl}/Compras`, recipientEmail: email }),
+            html: brandedEmailHtml({ appUrl, title, greeting: 'Olá', message, steps: paymentNotificationSteps, ctaLabel: 'Abrir solicitações pendentes', ctaUrl: `${appUrl}/Compras`, recipientEmail: email }),
+          });
+          delivered += 1;
+        } catch (error) {
+          failures.push(`${email}: ${error.message}`);
+        }
+      }
+      const status = failures.length ? (delivered ? 'PARTIAL' : 'FAILED') : 'SENT';
+      await pool.query(`INSERT INTO notification_logs (id,status,notification_type,recipients,sent_at,provider,error_message,batch_slot,item_count)
+        VALUES ($1,$2,'purchase.pending_digest',$3,NOW(),'smtp',$4,'morning',$5)`, [
+        crypto.randomUUID(), status, JSON.stringify(FINANCE_RECIPIENTS), failures.join(' | ') || null, rows.length,
+      ]);
+      console.log(JSON.stringify({ status, pending: rows.length, delivered, recipients: FINANCE_RECIPIENTS.length, failures }));
+      if (failures.length) process.exitCode = 1;
+      return;
+    }
     const since = allPending
       ? 'TRUE'
       : "created_at >= (date_trunc('day', NOW() AT TIME ZONE 'America/Sao_Paulo') AT TIME ZONE 'America/Sao_Paulo')";
