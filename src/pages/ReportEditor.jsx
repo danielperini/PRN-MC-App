@@ -538,10 +538,15 @@ export default function ReportEditor() {
       const payload = {
         ...formData,
         atividades,
-        fotos,
         attachments,
         depoimentos,
       };
+
+      // Fotos possuem uma coleção própria (ReportPhoto). Reenviar a galeria
+      // inteira a cada gravação do formulário faz relatórios antigos, como o
+      // da Silvia, ultrapassarem o limite HTTP e falharem com 413. O servidor
+      // mantém a galeria já persistida e esta atualização salva apenas os
+      // campos textuais, as atividades e os anexos do relatório.
 
       const updated = await base44.entities.Report.update(report.id, payload);
 
@@ -580,10 +585,13 @@ export default function ReportEditor() {
         status: 'SUBMITTED',
         submitted_at: new Date().toISOString(),
         atividades,
-        fotos,
         attachments,
         depoimentos,
       };
+
+      // A mudança de status não altera a galeria. Mantê-la fora deste PATCH
+      // evita enviar milhares de metadados de foto ao clicar em "Enviar para
+      // revisão", sem perder nenhuma foto já vinculada ao relatório.
 
       const updated = await base44.entities.Report.update(report.id, payload);
 

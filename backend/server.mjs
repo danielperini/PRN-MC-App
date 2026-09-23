@@ -53,6 +53,10 @@ function appActionUrl(value, fallbackPath = '/') {
   return `${publicBaseUrl}${route}`;
 }
 const maxUploadMb = Number(process.env.MAX_UPLOAD_MB || 100);
+// Relatórios legados podem conter listas extensas de atividades, anexos e
+// metadados de galeria. O editor atual evita reenviar fotos, mas um limite
+// compatível impede que uma atualização legítima de legado devolva 413.
+const maxJsonBodyMb = Math.min(100, Math.max(10, Number(process.env.MAX_JSON_BODY_MB || 50)));
 fs.mkdirSync(uploadDir, { recursive: true });
 
 const pool = new Pool({
@@ -62,7 +66,7 @@ const pool = new Pool({
   user: process.env.POSTGRES_USER || 'appgestor',
   password: process.env.POSTGRES_PASSWORD || '',
 });
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: `${maxJsonBodyMb}mb` }));
 
 const upload = multer({
   storage: multer.diskStorage({
