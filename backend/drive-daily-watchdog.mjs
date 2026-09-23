@@ -1,8 +1,8 @@
 import { spawn } from 'node:child_process';
 
-function run(script, extraEnv={}) {
+function run(script, args=[], extraEnv={}) {
   return new Promise(resolve=>{
-    const child=spawn(process.execPath,[script],{
+    const child=spawn(process.execPath,[script,...args],{
       cwd:process.cwd(),
       env:{ ...process.env,...extraEnv },
       stdio:'inherit'
@@ -20,11 +20,15 @@ console.log('DRIVE_DAILY_WATCHDOG_START',JSON.stringify({ started_at:startedAt }
 // its emission-month folder. Both child jobs are idempotent.
 const reconciliation=await run('drive-reconcile-current-month.mjs');
 const backup=await run('backup-pending-drive.mjs');
+// This pass changes only the display name of a Drive file whose fiscal
+// identity has already been verified. It never creates a second copy.
+const canonicalNames=await run('audit-drive-purchase-links.mjs',['--rename-only']);
 const result={
   reconciliation,
   backup,
+  canonical_names:canonicalNames,
   started_at:startedAt,
   finished_at:new Date().toISOString()
 };
 console.log('DRIVE_DAILY_WATCHDOG_DONE',JSON.stringify(result));
-if (reconciliation.code!==0 || backup.code!==0) process.exitCode=1;
+if (reconciliation.code!==0 || backup.code!==0 || canonicalNames.code!==0) process.exitCode=1;

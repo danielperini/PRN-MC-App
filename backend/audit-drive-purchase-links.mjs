@@ -10,6 +10,9 @@ import { google } from 'googleapis';
 // contradiction (different NF, amount, or fiscal month), and the original PDF
 // can be recovered from this application's own document endpoint.
 const applyFixes=process.argv.includes('--fix');
+// Safe mode: rename only files that are already proven to be the same fiscal
+// document.  It never uploads, copies, moves or deletes a Drive file.
+const renameOnly=process.argv.includes('--rename-only');
 const { Pool }=pg;
 const pool=new Pool({ host:process.env.DB_HOST || 'db',port:Number(process.env.DB_PORT || 5432),database:process.env.POSTGRES_DB || 'appgestor',user:process.env.POSTGRES_USER || 'appgestor',password:process.env.POSTGRES_PASSWORD || '' });
 const uploadDir=process.env.UPLOAD_DIR || '/app/uploads';
@@ -63,9 +66,9 @@ function monthMention(name) {
 function identityComplete(purchase) {
   return Boolean(digits(purchase.nf_emitente_cpf_cnpj || purchase.fornecedor_cpf_cnpj || purchase.fornecedor_cnpj) && String(purchase.nf_numero || '').trim() && amountOf(purchase)>0 && dateOf(purchase.nf_data_emissao || purchase.data_emissao));
 }
-function canonicalName(purchase) {
+function canonicalName(purchase, extension='.pdf') {
   const amount=amountOf(purchase);
-  return `${cleanName(purchase.nf_numero || 'SEM-NUM')} - ${cleanName(purchase.nf_emitente_nome || purchase.fornecedor_nome || 'FORNECEDOR A REVISAR')} - MUSEUS CENTRO - R$ ${amount.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}.pdf`;
+  return `${cleanName(purchase.nf_numero || 'SEM-NUM')} - ${cleanName(purchase.nf_emitente_nome || purchase.fornecedor_nome || 'FORNECEDOR A REVISAR')} - MUSEUS CENTRO - R$ ${amount.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}${extension}`;
 }
 function sourceUrl(url) {
   if(!publicBaseUrl) return null;
@@ -102,7 +105,7 @@ async function replaceWithCanonicalBackup(drive,purchase) {
 async function main() {
   const drive=await driveClient(); const folders=new Map();
   const rows=(await pool.query(`SELECT * FROM purchase_requests WHERE COALESCE(drive_file_id,'')<>'' OR COALESCE(drive_file_url,'')<>'' OR COALESCE(drive_backup_nf_pdf_link,'')<>'' ORDER BY id`)).rows;
-  const report={checked:rows.length,verified:0,wrong:0,repaired:0,cleared:0,unverifiable:0,unavailable:0,errors:0,examples:[]};
+  const report={checked:rows.length,verified:0,renamed:0,wrong:0,repaired:0,cleared:0,unverifiable:0,unavailable:0,errors:0,examples:[]};
   for(const purchase of rows) {
     const fileId=directId(purchase); if(!fileId) { report.unverifiable++; continue; }
     try {
@@ -122,10 +125,25 @@ async function main() {
       if(supplierEvidence===false&&(reasons.length>0||amounts.length>0)) reasons.push('fornecedor_divergente');
       const wrong=reasons.some(reason=>!reason.startsWith('fornecedor_'));
       const verified=identityComplete(purchase)&&!wrong&&Boolean(expectedNumber&&mentionedNumber===expectedNumber)&&Boolean(amounts.some(value=>Math.abs(value-expectedAmount)<0.005))&&supplierEvidence===true&&(!parentName||parentName===expectedMonth);
-      if(verified) { report.verified++; continue; }
+      if(verified) {
+        report.verified++;
+        if (applyFixes || renameOnly) {
+          const extension=/xml/i.test(String(file.mimeType || '')) || /\.xml$/i.test(String(file.name || '')) ? '.xml' : '.pdf';
+          const expectedName=canonicalName(purchase,extension);
+          if (file.name !== expectedName) {
+            const renamed=(await drive.files.update({fileId:file.id,requestBody:{name:expectedName},fields:'id,webViewLink,name',supportsAllDrives:true})).data;
+            const link=renamed.webViewLink || `https://drive.google.com/file/d/${renamed.id}/view`;
+            await pool.query(`UPDATE purchase_requests
+              SET drive_file_id=$1,drive_file_url=$2,drive_backup_nf_pdf_link=$2,drive_backup_status='CONCLUIDO'
+              WHERE id=$3`,[renamed.id,link,purchase.id]);
+            report.renamed++;
+          }
+        }
+        continue;
+      }
       if(!wrong || !identityComplete(purchase)) { report.unverifiable++; continue; }
       report.wrong++; if(report.examples.length<20) report.examples.push({id:purchase.id,nf:purchase.nf_numero,fornecedor:purchase.nf_emitente_nome || purchase.fornecedor_nome,esperado:expectedAmount,arquivo:file.name,motivos:reasons});
-      if(!applyFixes) continue;
+      if(!applyFixes || renameOnly) continue;
       const replacement=await replaceWithCanonicalBackup(drive,purchase);
       if(replacement) {
         const link=replacement.webViewLink || `https://drive.google.com/file/d/${replacement.id}/view`;
