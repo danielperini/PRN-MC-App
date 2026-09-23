@@ -10,7 +10,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import { google } from 'googleapis';
 import { syncProgramacao } from './programacao-sync.mjs';
 import nodemailer from 'nodemailer';
-import { brandedEmailHtml, brandedEmailText, purchaseSubmissionSteps, reportSubmissionSteps } from './email-layout.mjs';
+import { brandedEmailHtml, brandedEmailText, paymentNotificationSteps, purchaseSubmissionSteps, reportSubmissionSteps } from './email-layout.mjs';
 
 const { Pool } = pg;
 const app = express();
@@ -45,11 +45,18 @@ function appActionUrl(value, fallbackPath = '/') {
   if (malformedRoute) return `${publicBaseUrl}/${malformedRoute.replace(/^\/+/, '')}`;
   try {
     const parsed = new URL(raw);
-    if (/^https?:$/.test(parsed.protocol) && parsed.hostname) return parsed.toString();
+    // E-mail actions must remain inside the signed-in application.  This also
+    // prevents an old or malformed saved link from taking the recipient to an
+    // unrelated host after authenticating.
+    if (/^https?:$/.test(parsed.protocol) && parsed.origin === publicBaseUrl) return parsed.toString();
   } catch {
     // Continue with a route-only fallback below.
   }
-  const route = raw.startsWith('/') ? raw : fallbackPath;
+  // Old notifications sometimes saved `Compras?id=...` without the leading
+  // slash. Keep the record id instead of silently falling back to the list.
+  const route = raw
+    ? (raw.startsWith('/') ? raw : `/${raw}`)
+    : fallbackPath;
   return `${publicBaseUrl}${route}`;
 }
 const maxUploadMb = Number(process.env.MAX_UPLOAD_MB || 100);
@@ -412,7 +419,7 @@ function paymentNotificationContent(purchase = {}) {
     ? value.toLocaleString('pt-BR', { style:'currency', currency:'BRL' })
     : 'valor não informado';
   const title = `Pagamento realizado — NF ${number}`;
-  const message = `O pagamento da NF ${number}, de ${supplier}, no valor de ${amount}, foi registrado no Gestor Museus Centro.`;
+  const message = `O pagamento da NF ${number}, emitida por ${supplier}, no valor de ${amount}, foi registrado. Use o botão abaixo para abrir diretamente esta solicitação, consultar os documentos vinculados e conferir o status.`;
   return { title, message };
 }
 async function paymentNotificationRecipients(purchase = {}) {
@@ -451,8 +458,8 @@ async function sendPaymentEmail({ to, title, message, actionUrl }) {
       from: `Gestor Museus Centro <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
       to,
       subject: title,
-      text: brandedEmailText({ greeting:'Olá', message, steps:purchaseSubmissionSteps, ctaLabel:'Abrir solicitação de compra', ctaUrl:url, recipientEmail:to }),
-      html: brandedEmailHtml({ appUrl:publicBaseUrl, title, greeting:'Olá', message, steps:purchaseSubmissionSteps, ctaLabel:'Abrir solicitação de compra', ctaUrl:url, recipientEmail:to }),
+      text: brandedEmailText({ greeting:'Olá', message, steps:paymentNotificationSteps, ctaLabel:'Abrir esta solicitação', ctaUrl:url, recipientEmail:to }),
+      html: brandedEmailHtml({ appUrl:publicBaseUrl, title, greeting:'Olá', message, steps:paymentNotificationSteps, ctaLabel:'Abrir esta solicitação', ctaUrl:url, recipientEmail:to }),
     });
     return { sent:true };
   } catch (error) {
@@ -1354,9 +1361,13 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
         return res.status(503).json({ success:false, error:'smtp_not_configured' });
       }
       const actionUrl = appActionUrl(req.body?.action_url, req.body?.event_type === 'purchase.paid' ? '/Compras' : '/');
-      const buttonLabel = req.body?.event_type === 'purchase.paid' && !req.body?.has_payment_proof ? 'Solicitar comprovante de depósito' : 'Abrir no Gestor Museus';
+      const buttonLabel = req.body?.event_type === 'purchase.paid'
+        ? (req.body?.has_payment_proof ? 'Abrir esta solicitação' : 'Solicitar comprovante de depósito')
+        : 'Abrir no Gestor Museus';
       const isPurchaseEmail = String(req.body?.event_type || '').startsWith('purchase.');
-      const instructions = isPurchaseEmail ? purchaseSubmissionSteps : reportSubmissionSteps;
+      const instructions = req.body?.event_type === 'purchase.paid'
+        ? paymentNotificationSteps
+        : isPurchaseEmail ? purchaseSubmissionSteps : reportSubmissionSteps;
       const password = process.env.SMTP_PASS_B64 ? Buffer.from(process.env.SMTP_PASS_B64,'base64').toString('utf8') : process.env.SMTP_PASS;
       const transport = nodemailer.createTransport({
         host:process.env.SMTP_HOST,
