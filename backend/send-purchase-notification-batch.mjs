@@ -20,7 +20,13 @@ function smtpTransport() {
 
 async function main() {
   if (!process.env.SMTP_HOST || !process.env.SMTP_USER) throw new Error('smtp_not_configured');
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const pool = new Pool({
+    host: process.env.DB_HOST || 'db',
+    port: Number(process.env.DB_PORT || 5432),
+    database: process.env.POSTGRES_DB || 'appgestor',
+    user: process.env.POSTGRES_USER || 'appgestor',
+    password: process.env.POSTGRES_PASSWORD || '',
+  });
   try {
     const since = allPending
       ? 'TRUE'
