@@ -30,6 +30,13 @@ export const purchaseSubmissionSteps = [
   'Revise os dados e envie a solicitação para aprovação; acompanhe o status na tela.',
 ];
 
+export const paymentNotificationSteps = [
+  'Abra a solicitação pelo botão abaixo; ele leva diretamente ao registro desta nota.',
+  'Confira fornecedor, número da NF, valor e o status de pagamento.',
+  'Abra os arquivos vinculados para consultar a nota fiscal, XML e comprovante, quando disponível.',
+  'Se encontrar alguma divergência, registre o problema no aplicativo antes de realizar nova ação.',
+];
+
 export function brandedEmailHtml({
   appUrl,
   title,
