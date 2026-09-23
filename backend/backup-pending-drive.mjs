@@ -43,6 +43,10 @@ function escapeDrive(value) { return String(value).replace(/'/g,"\\'"); }
 function comparableName(value) { return String(value||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,''); }
 async function main() {
   if(!process.env.GOOGLE_DRIVE_CLIENT_ID || !process.env.GOOGLE_DRIVE_CLIENT_SECRET || !process.env.GOOGLE_DRIVE_REFRESH_TOKEN) throw new Error('Google Drive não configurado');
+  // Older installations had the PDF backup link but no dedicated XML link.
+  // Create the nullable field once so XML backup remains independently
+  // traceable without replacing the PDF's canonical Drive identifier.
+  await pool.query('ALTER TABLE purchase_requests ADD COLUMN IF NOT EXISTS drive_backup_nf_xml_link text');
   const auth=new google.auth.OAuth2(process.env.GOOGLE_DRIVE_CLIENT_ID,process.env.GOOGLE_DRIVE_CLIENT_SECRET); auth.setCredentials({refresh_token:process.env.GOOGLE_DRIVE_REFRESH_TOKEN});
   const drive=google.drive({version:'v3',auth}); const folderCache=new Map();
   async function folder(date) { const label=`${date.slice(5,7)}-${date.slice(0,4)}`; if(folderCache.has(label)) return folderCache.get(label); const found=await drive.files.list({q:`'${rootId}' in parents and name='${label}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,fields:'files(id)',pageSize:1,supportsAllDrives:true,includeItemsFromAllDrives:true}); const id=found.data.files?.[0]?.id || (await drive.files.create({requestBody:{name:label,mimeType:'application/vnd.google-apps.folder',parents:[rootId]},fields:'id',supportsAllDrives:true})).data.id; folderCache.set(label,id); return id; }
