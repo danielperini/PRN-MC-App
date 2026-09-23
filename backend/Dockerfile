@@ -23,6 +23,7 @@ COPY audit-drive-purchase-links.mjs ./
 COPY monthly-report-reminders.mjs ./
 COPY send-professional-access-check.mjs ./
 COPY send-purchase-notification-batch.mjs ./
+COPY reanalyze-purchase-fiscal-metadata.mjs ./
 
 EXPOSE 3000
 
