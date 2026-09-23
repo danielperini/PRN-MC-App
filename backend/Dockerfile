@@ -22,6 +22,7 @@ COPY reconcile-report-media-relations.mjs ./
 COPY audit-drive-purchase-links.mjs ./
 COPY monthly-report-reminders.mjs ./
 COPY send-professional-access-check.mjs ./
+COPY send-purchase-notification-batch.mjs ./
 
 EXPOSE 3000
 
