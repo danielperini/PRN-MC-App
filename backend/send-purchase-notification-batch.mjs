@@ -74,7 +74,7 @@ async function main() {
     await pool.query(`INSERT INTO notification_logs (status,notification_type,recipients,sent_at,provider,error_message,batch_slot,item_count)
       VALUES ($1,'purchase.ready', $2, NOW(), 'smtp', $3, 'afternoon', $4)`, [
       status,
-      [...groups.keys()].join(','),
+      JSON.stringify([...groups.keys()]),
       failures.join(' | ') || null,
       rows.length,
     ]);
