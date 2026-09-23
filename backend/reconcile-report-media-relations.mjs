@@ -8,6 +8,7 @@ import pg from 'pg';
 // Ambiguous gallery material is left untouched rather than being assigned to
 // the wrong professional report.
 const apply = process.argv.includes('--apply') || process.env.REPORT_MEDIA_REPAIR_APPLY === '1';
+const includeUnclassified = process.argv.includes('--include-unclassified');
 const { Pool } = pg;
 const pool = new Pool({
   host: process.env.DB_HOST || 'db',
@@ -111,7 +112,7 @@ async function main() {
     photoReportRecoveredByUniqueScope: 0, photosWithActivityLinked: 0,
     activitiesRestored: 0, reportAuthorsRepaired: 0,
     unresolvedPhotoReports: 0, unresolvedPhotoActivities: 0, ambiguousPhotoScopes: 0,
-    authorConflictsPreserved: 0,
+    authorConflictsPreserved: 0, photosLinkedToExplicitUnclassifiedActivity: 0,
   };
 
   try {
@@ -237,21 +238,23 @@ async function main() {
 
       if (!targetActivityId) {
         const source = sourceFromPhoto(photo);
-        if (source.title) {
+        const recoveredTitle = source.title || (includeUnclassified ? 'Registro fotográfico — atividade não identificada' : '');
+        if (recoveredTitle) {
           const existingByLabel = reportActivityByLabel.get(`${reportId}|${normalized(source.title)}`);
           if (existingByLabel) targetActivityId = String(existingByLabel.base44_activity_id);
           else {
-            const sourceId = stableActivityId(reportId, source.sourceToken, source.title,
+            const sourceId = stableActivityId(reportId, source.sourceToken, recoveredTitle,
               new Set([...idsOwnedByOtherReport, ...[...ownedActivityIds.entries()]
                 .filter(([, owner]) => owner !== reportId).map(([id]) => id)]));
             const activityKey = `${reportId}|${sourceId}`;
             targetActivityId = sourceId;
             if (!reportActivityById.has(activityKey) && !newActivities.has(activityKey)) {
-              newActivities.set(activityKey, { report, id: sourceId, title: source.title, sourceToken: source.sourceToken });
-              reportActivityById.set(activityKey, { base44_activity_id: sourceId, report_id: reportId, nome: source.title });
-              reportActivityByLabel.set(`${reportId}|${normalized(source.title)}`, { base44_activity_id: sourceId, report_id: reportId, nome: source.title });
+              newActivities.set(activityKey, { report, id: sourceId, title: recoveredTitle, sourceToken: source.sourceToken });
+              reportActivityById.set(activityKey, { base44_activity_id: sourceId, report_id: reportId, nome: recoveredTitle });
+              reportActivityByLabel.set(`${reportId}|${normalized(recoveredTitle)}`, { base44_activity_id: sourceId, report_id: reportId, nome: recoveredTitle });
               ownedActivityIds.set(sourceId, reportId);
             }
+            if (!source.title) totals.photosLinkedToExplicitUnclassifiedActivity += 1;
           }
         }
       }
