@@ -86,6 +86,16 @@ function saveReportsCache(email, reports = []) {
   }
 }
 
+function isReportOwner(report, user) {
+  const email = String(user?.email || '').trim().toLowerCase();
+  const ids = [user?.id, user?.user_id, user?.base44_id]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+  return Boolean(email && [report?.created_by, report?.author_email]
+    .some((value) => String(value || '').trim().toLowerCase() === email))
+    || ids.includes(String(report?.created_by_id || '').trim());
+}
+
 export default function Relatorios() {
   const queryClient = useQueryClient();
   const { user, isLoading: userLoading, isCoordenador } = useCurrentUser();
@@ -207,7 +217,7 @@ export default function Relatorios() {
     isFetching,
     error,
   } = useQuery({
-    queryKey: ['relatorios-list'],
+    queryKey: ['relatorios-list', user?.email || 'anonymous'],
     queryFn: async () => {
       const data = await base44.entities.Report.list('-created_date', 200);
       return Array.isArray(data) ? data : [];
@@ -244,11 +254,7 @@ export default function Relatorios() {
   const myReports = useMemo(() => {
     if (isAdmin) return effectiveReports;
     if (isCoordenador) return effectiveReports.filter((report) => report.status !== 'DRAFT');
-    const email = String(user?.email || '').toLowerCase();
-    return effectiveReports.filter((report) =>
-      String(report.created_by || '').toLowerCase() === email ||
-      String(report.author_email || '').toLowerCase() === email
-    );
+    return effectiveReports.filter((report) => isReportOwner(report, user));
   }, [effectiveReports, user, isAdmin, isCoordenador]);
 
   // Deep search: dispara quando busca local retorna 0 ou termo começa com 'MC-'
@@ -266,14 +272,17 @@ export default function Relatorios() {
         const byName = await base44.entities.Report.filter({ author_name: q });
         results = byName;
       }
-      setDeepSearchResults(Array.isArray(results) ? results : []);
+      const permitted = (Array.isArray(results) ? results : []).filter((report) =>
+        isAdmin || isCoordenador || isReportOwner(report, user)
+      );
+      setDeepSearchResults(permitted);
     } catch (e) {
       console.warn('Deep search failed:', e);
       setDeepSearchResults([]);
     } finally {
       setDeepSearchLoading(false);
     }
-  }, []);
+  }, [isAdmin, isCoordenador, user]);
 
   // Monitora mudança no searchTerm para disparar busca profunda quando necessário
   useEffect(() => {

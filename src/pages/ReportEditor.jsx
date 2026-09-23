@@ -355,11 +355,14 @@ export default function ReportEditor() {
       return;
     }
     loadReportSafely();
-  }, [currentUser?.email, isLoadingAuth, location.search, reportIdParam, isNewReportIntent, mesParam, anoParam]);
+  }, [currentUser?.email, currentUser?.id, isLoadingAuth, location.search, reportIdParam, isNewReportIntent, mesParam, anoParam]);
 
   async function loadReportSafely() {
     setLoadingReport(true);
     setLoadingError(false);
+    // A previous route/session may have left editor state in memory. Clear it
+    // before resolving the owner-scoped server request.
+    clearReportState();
 
     try {
       const mesAtual = mesParam || getMesAtual();
