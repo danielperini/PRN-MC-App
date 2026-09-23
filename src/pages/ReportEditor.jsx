@@ -181,17 +181,25 @@ async function loadReportRelations(report) {
   const reportKeys = [report?.id, report?.base44_id]
     .filter((value) => value !== undefined && value !== null && String(value).trim() !== '')
     .map(String);
+  const canonicalReportId = String(report?.id || '');
+  const legacyReportId = String(report?.base44_id || '');
 
   const [activityRows, photoGroups] = await Promise.all([
-    report?.base44_id
-      ? base44.entities.ReportActivity.filter({ report_base44_id: String(report.base44_id) }).catch(() => [])
-      : Promise.resolve([]),
+    // The API filter is not consistently serialized by older SDK sessions.
+    // Load the bounded relation set and apply the canonical report id locally
+    // so an editor never inherits activities from another monthly report.
+    canonicalReportId ? base44.entities.ReportActivity.list('-updated_date', 5000).catch(() => []) : Promise.resolve([]),
     Promise.all(reportKeys.map((reportId) =>
       base44.entities.ReportPhoto.filter({ report_id: reportId }).catch(() => [])
     )),
   ]);
 
-  const persistedActivities = (activityRows || []).map(activityFromDatabase);
+  const persistedActivities = (activityRows || [])
+    .filter((activity) => (
+      String(activity?.report_id || '') === canonicalReportId
+      || (!activity?.report_id && String(activity?.report_base44_id || '') === legacyReportId)
+    ))
+    .map(activityFromDatabase);
   const persistedPhotos = photoGroups.flat().map(photoFromDatabase);
   const legacy = asObject(report?.raw_data);
 
@@ -539,10 +547,15 @@ export default function ReportEditor() {
       const payload = {
         ...formData,
         atividades,
-        fotos,
         attachments,
         depoimentos,
       };
+
+      // Fotos possuem uma coleção própria (ReportPhoto). Reenviar a galeria
+      // inteira a cada gravação do formulário faz relatórios antigos, como o
+      // da Silvia, ultrapassarem o limite HTTP e falharem com 413. O servidor
+      // mantém a galeria já persistida e esta atualização salva apenas os
+      // campos textuais, as atividades e os anexos do relatório.
 
       const updated = await base44.entities.Report.update(report.id, payload);
 
@@ -581,10 +594,13 @@ export default function ReportEditor() {
         status: 'SUBMITTED',
         submitted_at: new Date().toISOString(),
         atividades,
-        fotos,
         attachments,
         depoimentos,
       };
+
+      // A mudança de status não altera a galeria. Mantê-la fora deste PATCH
+      // evita enviar milhares de metadados de foto ao clicar em "Enviar para
+      // revisão", sem perder nenhuma foto já vinculada ao relatório.
 
       const updated = await base44.entities.Report.update(report.id, payload);
 
