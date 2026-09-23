@@ -1182,6 +1182,27 @@ app.post('/api/apps/:appId/entities/:entityName', requireSession, async (req,res
     if(!entries.length) return res.status(400).json({error:'empty_entity'});
     const names=entries.map(([k])=>quoteIdentifier(k)).join(','); const vals=entries.map(([,v])=>v);
     const r=await pool.query(`INSERT INTO ${quoteIdentifier(table)} (${names}) VALUES (${vals.map((_,i)=>`$${i+1}`).join(',')}) RETURNING *`,vals);
+    // New purchase alerts are financial notices. The browser historically
+    // created them only for two users, which left the registered finance
+    // inboxes without an e-mail in the daily batch. Persist one queue item per
+    // registered finance recipient, keeping the original request id/link.
+    if (table === 'notifications'
+      && r.rows[0]?.entity_type === 'PurchaseRequest'
+      && r.rows[0]?.title === 'Solicitação pronta para pagamento') {
+      for (const email of PAYMENT_FINANCE_RECIPIENTS) {
+        if (normalizeEmailAddress(email) === normalizeEmailAddress(r.rows[0].user_email)) continue;
+        await pool.query(`
+          INSERT INTO notifications (user_email,type,title,message,entity_type,entity_id,action_url,is_read,resolved,email_sent)
+          SELECT $1,$2,$3,$4,$5,$6,$7,FALSE,FALSE,FALSE
+          WHERE NOT EXISTS (
+            SELECT 1 FROM notifications
+            WHERE user_email=$1 AND entity_type='PurchaseRequest' AND entity_id=$6
+              AND title='Solicitação pronta para pagamento'
+          )
+        `, [email, r.rows[0].type || 'purchase.ready', r.rows[0].title, r.rows[0].message,
+          r.rows[0].entity_type, r.rows[0].entity_id, r.rows[0].action_url]);
+      }
+    }
     if (table==='reports' && Array.isArray(normalizedBody.atividades)) {
       await syncReportActivities(r.rows[0], normalizedBody.atividades).catch((error) => console.error('REPORT_ACTIVITY_SYNC_ERROR', error));
     }
