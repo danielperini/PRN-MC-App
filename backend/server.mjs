@@ -996,7 +996,7 @@ async function assertReportUpdateAccess(req, reportId) {
   const reportName = normalizedPersonName(report.author_name || '');
   if (hasOnlyLegacyIdentity && userName && reportName && userName === reportName) {
     await pool.query(`UPDATE reports SET created_by=$1, created_by_id=$2, author_email=$1,
-      updated_at=NOW(), updated_date=NOW() WHERE id=$3`, [email, String(user.id), reportId]);
+      updated_date=NOW() WHERE id=$3`, [email, String(user.id), reportId]);
     return { allowed: true, exists: true, ownershipRecovered: true, report };
   }
   return { allowed: false, exists: true, report };
