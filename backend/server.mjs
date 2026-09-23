@@ -709,6 +709,19 @@ function isReportCoordinator(user) {
   return ['ADMIN','COORDENADOR','COORDINATOR'].includes(String(user?.role || '').trim().toUpperCase());
 }
 
+// Keep every report action on the same ownership rule.  A report may have been
+// created before the current numeric ids existed, so its legacy Base44 id is
+// also accepted when it matches the authenticated user.
+function isReportOwnedByUser(report, user) {
+  const email = normalizedEmail(user?.email);
+  const ownerIds = [String(user?.id || '').trim(), String(user?.base44_id || '').trim()]
+    .filter(Boolean);
+  return (Boolean(email) && (
+    normalizedEmail(report?.created_by) === email
+    || normalizedEmail(report?.author_email) === email
+  )) || ownerIds.includes(String(report?.created_by_id || '').trim());
+}
+
 function normalizedPersonName(value) {
   return String(value || '')
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -978,11 +991,7 @@ async function assertReportUpdateAccess(req, reportId) {
   if (isReportCoordinator(user)) return { allowed: true, exists: true, report };
 
   const email = normalizedEmail(user.email);
-  const owns = normalizedEmail(report.created_by) === email
-    || normalizedEmail(report.author_email) === email
-    || [String(user.id || '').trim(), String(user.base44_id || '').trim()]
-      .filter(Boolean)
-      .includes(String(report.created_by_id || '').trim());
+  const owns = isReportOwnedByUser(report, user);
   if (owns) return { allowed: true, exists: true, report };
 
   // Imports legados usavam um e-mail técnico do Base44 e deixavam a autoria
@@ -1213,16 +1222,14 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
       if (!reportId) return res.status(400).json({ success:false, error:'report_id_required' });
 
       const [actorResult, reportResult]=await Promise.all([
-        pool.query('SELECT id,email,role FROM users WHERE id=$1 LIMIT 1',[req.userId]),
+        pool.query('SELECT id,base44_id,email,role FROM users WHERE id=$1 LIMIT 1',[req.userId]),
         pool.query('SELECT * FROM reports WHERE id=$1 LIMIT 1',[reportId]),
       ]);
       const actor=actorResult.rows[0];
       const report=reportResult.rows[0];
       if (!report) return res.status(404).json({ success:false, error:'report_not_found' });
       const role=String(actor?.role || '').toUpperCase();
-      const owns=normalizedEmail(report.created_by)===normalizedEmail(actor?.email)
-        || normalizedEmail(report.author_email)===normalizedEmail(actor?.email)
-        || String(report.created_by_id || '')===String(actor?.id || '');
+      const owns=isReportOwnedByUser(report, actor);
       if (!['ADMIN','COORDENADOR','COORDINATOR'].includes(role) && !owns) {
         return res.status(403).json({ success:false, error:'report_access_denied' });
       }
