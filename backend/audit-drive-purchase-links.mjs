@@ -13,6 +13,10 @@ const applyFixes=process.argv.includes('--fix');
 // Safe mode: rename only files that are already proven to be the same fiscal
 // document.  It never uploads, copies, moves or deletes a Drive file.
 const renameOnly=process.argv.includes('--rename-only');
+// Fiscal folder normalization moves the verified *same* Drive object to its
+// emission-month folder. It is intentionally separate from --fix: it never
+// creates a replacement/copy and requires the full fiscal identity.
+const normalizeMonth=process.argv.includes('--normalize-month');
 const { Pool }=pg;
 const pool=new Pool({ host:process.env.DB_HOST || 'db',port:Number(process.env.DB_PORT || 5432),database:process.env.POSTGRES_DB || 'appgestor',user:process.env.POSTGRES_USER || 'appgestor',password:process.env.POSTGRES_PASSWORD || '' });
 const uploadDir=process.env.UPLOAD_DIR || '/app/uploads';
@@ -105,10 +109,21 @@ async function replaceWithCanonicalBackup(drive,purchase) {
   const equivalent=(await drive.files.list({q:`'${folderId}' in parents and trashed=false`,fields:'files(id,webViewLink,name,mimeType)',pageSize:1000,supportsAllDrives:true,includeItemsFromAllDrives:true})).data.files?.find(file=>file.mimeType!=='application/vnd.google-apps.folder'&&comparableDriveName(file.name)===comparableDriveName(name));
   return equivalent || (await drive.files.create({requestBody:{name,parents:[folderId]},media:{mimeType:source.mime,body:source.body},fields:'id,webViewLink',supportsAllDrives:true})).data;
 }
+async function fiscalFolderId(drive, folderName) {
+  const result=await drive.files.list({
+    q:`'${rootId}' in parents and name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+    fields:'files(id)',pageSize:1,supportsAllDrives:true,includeItemsFromAllDrives:true,
+  });
+  if(result.data.files?.[0]?.id) return result.data.files[0].id;
+  return (await drive.files.create({
+    requestBody:{name:folderName,mimeType:'application/vnd.google-apps.folder',parents:[rootId]},
+    fields:'id',supportsAllDrives:true,
+  })).data.id;
+}
 async function main() {
   const drive=await driveClient(); const folders=new Map();
   const rows=(await pool.query(`SELECT * FROM purchase_requests WHERE COALESCE(drive_file_id,'')<>'' OR COALESCE(drive_file_url,'')<>'' OR COALESCE(drive_backup_nf_pdf_link,'')<>'' ORDER BY id`)).rows;
-  const report={checked:rows.length,verified:0,renamed:0,wrong:0,repaired:0,cleared:0,unverifiable:0,unavailable:0,errors:0,examples:[]};
+  const report={checked:rows.length,verified:0,renamed:0,moved:0,wrong:0,repaired:0,cleared:0,unverifiable:0,unavailable:0,errors:0,examples:[]};
   for(const purchase of rows) {
     const fileId=directId(purchase); if(!fileId) { report.unverifiable++; continue; }
     try {
@@ -119,6 +134,27 @@ async function main() {
       if(parentId) { if(!folders.has(parentId)) folders.set(parentId,(await drive.files.get({fileId:parentId,fields:'name',supportsAllDrives:true})).data.name || ''); parentName=folders.get(parentId); }
       const expectedNumber=String(purchase.nf_numero || '').replace(/\D/g,'').replace(/^0+/,''); const expectedAmount=amountOf(purchase); const expectedMonth=monthOf(purchase.nf_data_emissao || purchase.data_emissao);
       const amounts=amountMentions(file.name); const mentionedNumber=numberMention(file.name); const namedMonth=monthMention(file.name); const supplierEvidence=hasSupplierEvidence(purchase.nf_emitente_nome || purchase.fornecedor_nome,file.name);
+      // Folder position may be repaired only after the PDF itself proves its
+      // full fiscal identity. This is a move of the same file ID, never a copy.
+      const fileIdentityVerified=identityComplete(purchase)
+        && Boolean(expectedNumber && mentionedNumber===expectedNumber)
+        && Boolean(amounts.some(value=>Math.abs(value-expectedAmount)<0.005))
+        && supplierEvidence===true;
+      if(normalizeMonth && fileIdentityVerified && expectedMonth && parentName!==expectedMonth) {
+        const targetFolderId=await fiscalFolderId(drive,expectedMonth);
+        const moved=await drive.files.update({
+          fileId:file.id,
+          addParents:targetFolderId,
+          ...(parentId ? { removeParents:parentId } : {}),
+          fields:'id,name,parents,webViewLink',supportsAllDrives:true,
+        });
+        file={...file,...moved.data};
+        parentName=expectedMonth;
+        folders.set(targetFolderId,expectedMonth);
+        const link=file.webViewLink || `https://drive.google.com/file/d/${file.id}/view`;
+        await pool.query(`UPDATE purchase_requests SET drive_file_id=$1,drive_file_url=$2,drive_backup_nf_pdf_link=$2,drive_backup_status='CONCLUIDO',updated_at=NOW(),updated_date=NOW() WHERE id=$3`,[file.id,link,purchase.id]);
+        report.moved++;
+      }
       const reasons=[];
       if(file.trashed) reasons.push('arquivo_do_drive_inexistente');
       if(expectedAmount>0&&amounts.length&&!amounts.some(value=>Math.abs(value-expectedAmount)<0.005)) reasons.push(`valor_divergente:${amounts.join(',')}`);
