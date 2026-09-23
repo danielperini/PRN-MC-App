@@ -600,6 +600,28 @@ async function initDb() {
       ADD COLUMN IF NOT EXISTS author_email TEXT,
       ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMPTZ`);
   }
+  // `reports.id` is the canonical monthly-report relationship. Earlier
+  // imports stored the external Base44 id in the activity foreign key, which
+  // made the editor load activities from the wrong report in some clients.
+  // Keep the external id for compatibility, but normalize all links to the
+  // database report id before serving the application.
+  if (await tableExists('report_activities')) {
+    await pool.query('ALTER TABLE report_activities ADD COLUMN IF NOT EXISTS report_id TEXT');
+    await pool.query(`UPDATE report_activities AS activity
+      SET report_id = report.id::text
+      FROM reports AS report
+      WHERE activity.report_base44_id = report.base44_id
+        AND activity.report_id IS DISTINCT FROM report.id::text`);
+    await pool.query('CREATE INDEX IF NOT EXISTS report_activities_report_id_idx ON report_activities(report_id)');
+  }
+  if (await tableExists('activities')) {
+    await pool.query(`UPDATE activities AS activity
+      SET report_id = report.id::text, updated_at = NOW()
+      FROM reports AS report
+      WHERE activity.report_id = report.base44_id
+        AND activity.report_id IS DISTINCT FROM report.id::text`);
+    await pool.query('CREATE INDEX IF NOT EXISTS activities_report_id_idx ON activities(report_id)');
+  }
 }
 
 app.get('/health', (_req,res) => res.json({ status:'ok', service:'appgestor-api' }));
@@ -732,14 +754,16 @@ function activityArray(value) {
 // into both locations so edits, removals and newly-created activities stay
 // visible everywhere after the report is reopened.
 async function syncReportActivities(report, activities) {
-  if (!report?.base44_id || !Array.isArray(activities) || !(await tableExists('report_activities'))) {
+  if (!report?.id || !Array.isArray(activities) || !(await tableExists('report_activities'))) {
     return { created: 0, updated: 0, removed: 0 };
   }
 
-  const reportId = String(report.base44_id);
+  const reportId = String(report.id);
+  const reportBase44Id = String(report.base44_id || report.id);
   const existingResult = await pool.query(
-    'SELECT id,base44_activity_id FROM report_activities WHERE report_base44_id=$1',
-    [reportId],
+    `SELECT id,base44_activity_id FROM report_activities
+      WHERE report_id=$1 OR (COALESCE(report_id,'')='' AND report_base44_id=$2)`,
+    [reportId, reportBase44Id],
   );
   const existingIds = new Set(existingResult.rows.map((row) => String(row.base44_activity_id)));
   const currentIds = [];
@@ -757,14 +781,15 @@ async function syncReportActivities(report, activities) {
     const rawData = { ...activity, id: activityId };
 
     await pool.query(`INSERT INTO report_activities
-      (base44_activity_id,report_base44_id,classificacao,nome,descricao,museu_lista,tipo_acao_lista,equipe_participante_ids,meta_vinculada_ids,quantas_vezes_ocorreu,publico_medio_sessao,publico_estimado,quantidade_produtos,total_produtos,data_inicio,data_fim,raw_data)
-      VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8::jsonb,$9::jsonb,$10,$11,$12,$13,$14,$15,$16,$17::jsonb)
+      (base44_activity_id,report_id,report_base44_id,classificacao,nome,descricao,museu_lista,tipo_acao_lista,equipe_participante_ids,meta_vinculada_ids,quantas_vezes_ocorreu,publico_medio_sessao,publico_estimado,quantidade_produtos,total_produtos,data_inicio,data_fim,raw_data)
+      VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9::jsonb,$10::jsonb,$11,$12,$13,$14,$15,$16,$17,$18::jsonb)
       ON CONFLICT (report_base44_id,base44_activity_id) DO UPDATE SET
+        report_id=EXCLUDED.report_id,
         classificacao=EXCLUDED.classificacao,nome=EXCLUDED.nome,descricao=EXCLUDED.descricao,museu_lista=EXCLUDED.museu_lista,
         tipo_acao_lista=EXCLUDED.tipo_acao_lista,equipe_participante_ids=EXCLUDED.equipe_participante_ids,meta_vinculada_ids=EXCLUDED.meta_vinculada_ids,
         quantas_vezes_ocorreu=EXCLUDED.quantas_vezes_ocorreu,publico_medio_sessao=EXCLUDED.publico_medio_sessao,publico_estimado=EXCLUDED.publico_estimado,
         quantidade_produtos=EXCLUDED.quantidade_produtos,total_produtos=EXCLUDED.total_produtos,data_inicio=EXCLUDED.data_inicio,data_fim=EXCLUDED.data_fim,raw_data=EXCLUDED.raw_data`, [
-      activityId, reportId, String(activity.classificacao || ''), String(activity.nome || activity.titulo || ''), String(activity.descricao || ''),
+      activityId, reportId, reportBase44Id, String(activity.classificacao || ''), String(activity.nome || activity.titulo || ''), String(activity.descricao || ''),
       JSON.stringify(museums), JSON.stringify(types), JSON.stringify(team), JSON.stringify(metas),
       activityNumber(activity.quantas_vezes_ocorreu, 1), activityNumber(activity.publico_medio_sessao),
       activityNumber(activity.publico_total ?? activity.publico_estimado), activityNumber(activity.quantidade_produtos),
@@ -775,8 +800,8 @@ async function syncReportActivities(report, activities) {
   }
 
   const removedResult = currentIds.length
-    ? await pool.query('DELETE FROM report_activities WHERE report_base44_id=$1 AND NOT (base44_activity_id = ANY($2::text[]))', [reportId, currentIds])
-    : await pool.query('DELETE FROM report_activities WHERE report_base44_id=$1', [reportId]);
+    ? await pool.query('DELETE FROM report_activities WHERE report_id=$1 AND NOT (base44_activity_id = ANY($2::text[]))', [reportId, currentIds])
+    : await pool.query('DELETE FROM report_activities WHERE report_id=$1', [reportId]);
   return { created, updated, removed: removedResult.rowCount || 0 };
 }
 
