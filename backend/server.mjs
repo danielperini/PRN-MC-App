@@ -606,6 +606,25 @@ async function initDb() {
     await pool.query(`ALTER TABLE reports
       ADD COLUMN IF NOT EXISTS author_email TEXT,
       ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMPTZ`);
+
+    // Make the account that owns a report its only displayed author too.  The
+    // initial migration protected writes, but older rows could still contain a
+    // correct e-mail paired with a name copied from another professional.  A
+    // report is repaired only when its stored e-mail/id already points to the
+    // same user; names alone never transfer ownership.
+    await pool.query(`UPDATE reports AS report
+      SET created_by=LOWER(user_row.email),
+          author_email=LOWER(user_row.email),
+          created_by_id=user_row.id::text,
+          author_name=COALESCE(NULLIF(BTRIM(user_row.full_name),''),LOWER(user_row.email)),
+          author_role=CASE WHEN UPPER(COALESCE(user_row.role,''))='ADMIN' THEN 'ADMIN'
+            WHEN UPPER(COALESCE(user_row.role,'')) IN ('COORDENADOR','COORDINATOR') THEN 'COORDENADOR'
+            ELSE 'PROFISSIONAL' END,
+          updated_date=NOW()
+      FROM users AS user_row
+      WHERE LOWER(COALESCE(report.created_by,''))=LOWER(user_row.email)
+         OR LOWER(COALESCE(report.author_email,''))=LOWER(user_row.email)
+         OR COALESCE(report.created_by_id,'')=user_row.id::text`);
   }
   // `reports.id` is the canonical monthly-report relationship. Earlier
   // imports stored the external Base44 id in the activity foreign key, which
@@ -628,6 +647,17 @@ async function initDb() {
       WHERE activity.report_id = report.base44_id
         AND activity.report_id IS DISTINCT FROM report.id::text`);
     await pool.query('CREATE INDEX IF NOT EXISTS activities_report_id_idx ON activities(report_id)');
+  }
+  if (await tableExists('report_photos')) {
+    // Photos imported before the canonical id migration can still reference
+    // `reports.base44_id`.  Convert that relationship once at startup so the
+    // gallery, monthly editor and backup all use the same report primary key.
+    await pool.query(`UPDATE report_photos AS photo
+      SET report_id=report.id::text, updated_date=NOW()
+      FROM reports AS report
+      WHERE photo.report_id::text=report.base44_id
+        AND photo.report_id::text IS DISTINCT FROM report.id::text`);
+    await pool.query('CREATE INDEX IF NOT EXISTS report_photos_report_id_idx ON report_photos(report_id)');
   }
 }
 
@@ -688,6 +718,17 @@ app.get('/api/apps/:appId/entities/:entityName', requireSession, async (req,res)
         sql=`${sql?' AND':' WHERE'} (${clauses.join(' OR ') || 'FALSE'})`;
       }
     }
+    // Activities and photos are children of a monthly report.  Apply the same
+    // ownership boundary to those tables; otherwise a stale client cache could
+    // list all children and accidentally attach them to the report being edited.
+    if (table==='report_activities' || table==='report_photos') {
+      const { actor, ids } = await canonicalOwnedReportIds(req.userId);
+      if (!actor) return res.status(401).json({error:'session_user_not_found'});
+      if (ids !== null) {
+        values.push(ids);
+        sql=`${sql?' AND':' WHERE'} report_id::text = ANY($${values.length}::text[])`;
+      }
+    }
     const activeClause=table==='programacoes'&&columns.includes('source_active')
       ? `${sql?' AND':' WHERE'} source_active IS DISTINCT FROM FALSE`
       : '';
@@ -727,6 +768,42 @@ function isReportOwnedByUser(report, user) {
     normalizedEmail(report?.created_by) === email
     || normalizedEmail(report?.author_email) === email
   )) || ownerIds.includes(String(report?.created_by_id || '').trim());
+}
+
+async function canonicalOwnedReportIds(userId) {
+  const actor = (await pool.query('SELECT id,base44_id,email,role FROM users WHERE id=$1 LIMIT 1', [userId])).rows[0];
+  if (!actor) return { actor:null, ids:[] };
+  if (isReportCoordinator(actor)) return { actor, ids:null };
+  const email = normalizedEmail(actor.email);
+  const ownerIds = [String(actor.id || ''), String(actor.base44_id || '')].filter(Boolean);
+  const reports = (await pool.query(`SELECT id FROM reports
+    WHERE LOWER(COALESCE(created_by,''))=$1
+       OR LOWER(COALESCE(author_email,''))=$1
+       OR COALESCE(created_by_id,'')=ANY($2::text[])`, [email, ownerIds])).rows;
+  return { actor, ids:reports.map((row) => String(row.id)) };
+}
+
+async function normalizeReportRelationPayload(req, entityName, body = {}) {
+  if (!['ReportActivity','ReportPhoto'].includes(entityName)) return body;
+  const relationId = String(body.report_id || '').trim();
+  if (!relationId) return body;
+  const { actor, ids } = await canonicalOwnedReportIds(req.userId);
+  if (!actor) throw new Error('session_user_not_found');
+  let canonicalId = relationId;
+  const report = (await pool.query('SELECT id,base44_id FROM reports WHERE id::text=$1 OR base44_id=$1 LIMIT 1', [relationId])).rows[0];
+  if (!report) throw new Error('report_relation_not_found');
+  canonicalId = String(report.id);
+  if (ids !== null && !ids.includes(canonicalId)) throw new Error('report_relation_access_denied');
+  return { ...body, report_id:canonicalId };
+}
+
+async function assertReportRelationAccess(req, table, relationId) {
+  if (!['report_activities','report_photos'].includes(table)) return { allowed:true, exists:true };
+  const row = (await pool.query(`SELECT id,report_id FROM ${quoteIdentifier(table)} WHERE id=$1 LIMIT 1`, [relationId])).rows[0];
+  if (!row) return { allowed:false, exists:false };
+  const { actor, ids } = await canonicalOwnedReportIds(req.userId);
+  if (!actor) return { allowed:false, exists:true };
+  return { allowed:ids === null || ids.includes(String(row.report_id)), exists:true };
 }
 
 function normalizedPersonName(value) {
@@ -1090,6 +1167,7 @@ app.post('/api/apps/:appId/entities/:entityName', requireSession, async (req,res
     const columns=await tableColumns(table); const columnTypes=await tableColumnTypes(table);
     const fiscalBody=normalizePurchaseFiscalPayload(req.params.entityName,req.body||{});
     let normalizedBody=await normalizeReportCreatePayload(req,req.params.entityName,fiscalBody);
+    normalizedBody=await normalizeReportRelationPayload(req,req.params.entityName,normalizedBody);
     normalizedBody=await normalizeClientErrorPayload(req,req.params.entityName,normalizedBody);
     normalizedBody=preserveReportEditorContent(normalizedBody);
     let entries=Object.entries(normalizedBody).filter(([k,v])=>columns.includes(k)&&v!==undefined);
@@ -1128,10 +1206,14 @@ async function updateEntity(req,res) {
       if (!access.allowed) return res.status(403).json({error:'report_access_denied'});
       reportAccess=access;
     }
+    const relationAccess=await assertReportRelationAccess(req,table,req.params.id);
+    if (!relationAccess.exists) return res.status(404).json({error:'entity_not_found'});
+    if (!relationAccess.allowed) return res.status(403).json({error:'report_relation_access_denied'});
     const columns=await tableColumns(table); if(!columns.includes('id')) return res.status(400).json({error:'entity_has_no_id_column'});
     const columnTypes=await tableColumnTypes(table);
     const fiscalBody=normalizePurchaseFiscalPayload(req.params.entityName,req.body||{});
     let normalizedBody=await normalizeReportUpdatePayload(req,req.params.entityName,fiscalBody);
+    normalizedBody=await normalizeReportRelationPayload(req,req.params.entityName,normalizedBody);
     normalizedBody=preserveReportEditorContent(normalizedBody,reportAccess?.report?.raw_data);
     entries=Object.entries(normalizedBody).filter(([k,v])=>columns.includes(k)&&k!=='id'&&v!==undefined);
     currentField=entries[0]?.[0]||null;
@@ -1172,6 +1254,9 @@ app.delete('/api/apps/:appId/entities/:entityName/:id',requireSession,async(req,
       if (!access.exists) return res.status(404).json({error:'entity_not_found'});
       if (!access.allowed) return res.status(403).json({error:'report_access_denied'});
     }
+    const relationAccess=await assertReportRelationAccess(req,table,req.params.id);
+    if (!relationAccess.exists) return res.status(404).json({error:'entity_not_found'});
+    if (!relationAccess.allowed) return res.status(403).json({error:'report_relation_access_denied'});
     const r=await pool.query(`DELETE FROM ${quoteIdentifier(table)} WHERE "id"=$1 RETURNING *`,[req.params.id]); if(!r.rowCount) return res.status(404).json({error:'entity_not_found'}); res.json(r.rows[0]);
   } catch(e) { console.error('ENTITY_DELETE_ERROR:',e); res.status(500).json({error:'entity_delete_failed',message:e.message}); }
 });
