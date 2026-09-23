@@ -51,9 +51,12 @@ function amountMentions(name) {
 }
 function numberMention(name) {
   const text=String(name || '');
-  const explicit=text.match(/\bNF(?:S[- ]?E)?\s*[-#]?\s*0*(\d{1,12})\b/i);
-  const first=text.match(/^\s*0*(\d{1,12})\s*[-_.]/);
-  return String(explicit?.[1] || first?.[1] || '').replace(/^0+/,'');
+  // Invoice numbers can contain punctuation (e.g. 14.595 or 050.986).
+  // Keep those digits together; extracting only the prefix turns a correctly
+  // named file into a false fiscal mismatch.
+  const explicit=text.match(/\bNF(?:S[- ]?E)?\s*[-#]?\s*(\d[\d._/-]{0,20})\b/i);
+  const first=text.match(/^\s*(\d[\d._/-]{0,20})\s+-/);
+  return String(explicit?.[1] || first?.[1] || '').replace(/\D/g,'').replace(/^0+/,'');
 }
 function monthMention(name) {
   const text=norm(name);
@@ -114,7 +117,7 @@ async function main() {
       catch(error) { if(Number(error?.code)===404) { file={id:fileId,name:'',parents:[],trashed:true}; } else throw error; }
       let parentName=''; const parentId=file.parents?.[0];
       if(parentId) { if(!folders.has(parentId)) folders.set(parentId,(await drive.files.get({fileId:parentId,fields:'name',supportsAllDrives:true})).data.name || ''); parentName=folders.get(parentId); }
-      const expectedNumber=String(purchase.nf_numero || '').replace(/^0+/,''); const expectedAmount=amountOf(purchase); const expectedMonth=monthOf(purchase.nf_data_emissao || purchase.data_emissao);
+      const expectedNumber=String(purchase.nf_numero || '').replace(/\D/g,'').replace(/^0+/,''); const expectedAmount=amountOf(purchase); const expectedMonth=monthOf(purchase.nf_data_emissao || purchase.data_emissao);
       const amounts=amountMentions(file.name); const mentionedNumber=numberMention(file.name); const namedMonth=monthMention(file.name); const supplierEvidence=hasSupplierEvidence(purchase.nf_emitente_nome || purchase.fornecedor_nome,file.name);
       const reasons=[];
       if(file.trashed) reasons.push('arquivo_do_drive_inexistente');
