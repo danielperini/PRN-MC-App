@@ -656,8 +656,31 @@ app.get('/api/apps/:appId/entities/:entityName', requireSession, async (req,res)
   try {
     const table=entityTable(req.params.entityName);
     if (!table || !(await tableExists(table))) return res.json([]);
-    const {sql,values}=await buildWhere(table,req);
+    let {sql,values}=await buildWhere(table,req);
     const columns=await tableColumns(table);
+    // The browser cache is never an authorization boundary. Professionals
+    // receive only their own reports from the API so an old link, search or
+    // cached list cannot display another professional's report.
+    if (table==='reports') {
+      const actor=(await pool.query('SELECT id,base44_id,email,role FROM users WHERE id=$1 LIMIT 1',[req.userId])).rows[0];
+      if (!actor) return res.status(401).json({error:'session_user_not_found'});
+      if (!isReportCoordinator(actor)) {
+        const email=normalizedEmail(actor.email);
+        const ownerIds=[String(actor.id || ''),String(actor.base44_id || '')].filter(Boolean);
+        if (!email && !ownerIds.length) return res.json([]);
+        const clauses=[];
+        if (email) {
+          values.push(email);
+          const placeholder=`$${values.length}`;
+          clauses.push(`LOWER(COALESCE(created_by,''))=${placeholder}`,`LOWER(COALESCE(author_email,''))=${placeholder}`);
+        }
+        if (ownerIds.length && columns.includes('created_by_id')) {
+          values.push(ownerIds);
+          clauses.push(`created_by_id = ANY($${values.length}::text[])`);
+        }
+        sql=`${sql?' AND':' WHERE'} (${clauses.join(' OR ') || 'FALSE'})`;
+      }
+    }
     const activeClause=table==='programacoes'&&columns.includes('source_active')
       ? `${sql?' AND':' WHERE'} source_active IS DISTINCT FROM FALSE`
       : '';
@@ -680,6 +703,10 @@ function normalizePurchaseFiscalPayload(entityName, body = {}) {
 
 function normalizedEmail(value) {
   return String(value || '').trim().toLowerCase();
+}
+
+function isReportCoordinator(user) {
+  return ['ADMIN','COORDENADOR','COORDINATOR'].includes(String(user?.role || '').trim().toUpperCase());
 }
 
 function normalizedPersonName(value) {
@@ -948,7 +975,7 @@ async function assertReportUpdateAccess(req, reportId) {
   const user = userResult.rows[0];
   const report = reportResult.rows[0];
   if (!user || !report) return { allowed: false, exists: Boolean(report), report: report || null };
-  if (['ADMIN', 'COORDENADOR', 'COORDINATOR'].includes(String(user.role || '').toUpperCase())) return { allowed: true, exists: true, report };
+  if (isReportCoordinator(user)) return { allowed: true, exists: true, report };
 
   const email = normalizedEmail(user.email);
   const owns = normalizedEmail(report.created_by) === email
@@ -986,7 +1013,7 @@ async function normalizeReportUpdatePayload(req, entityName, body = {}) {
   const result = await pool.query('SELECT * FROM users WHERE id=$1 LIMIT 1', [req.userId]);
   const user = result.rows[0];
   if (!user) throw new Error('report_author_not_found');
-  if (['ADMIN', 'COORDENADOR', 'COORDINATOR'].includes(String(user.role || '').toUpperCase())) {
+  if (isReportCoordinator(user)) {
     return body;
   }
 
@@ -1122,6 +1149,11 @@ app.patch('/api/apps/:appId/entities/:entityName/:id',requireSession,updateEntit
 app.put('/api/apps/:appId/entities/:entityName/:id',requireSession,updateEntity);
 app.delete('/api/apps/:appId/entities/:entityName/:id',requireSession,async(req,res)=>{
   try { const table=entityTable(req.params.entityName); if(!table) return res.status(404).json({error:'entity_not_migrated'}); if(!(await tableExists(table))) return res.status(404).json({error:'table_not_found',table});
+    if (table==='reports') {
+      const access=await assertReportUpdateAccess(req,req.params.id);
+      if (!access.exists) return res.status(404).json({error:'entity_not_found'});
+      if (!access.allowed) return res.status(403).json({error:'report_access_denied'});
+    }
     const r=await pool.query(`DELETE FROM ${quoteIdentifier(table)} WHERE "id"=$1 RETURNING *`,[req.params.id]); if(!r.rowCount) return res.status(404).json({error:'entity_not_found'}); res.json(r.rows[0]);
   } catch(e) { console.error('ENTITY_DELETE_ERROR:',e); res.status(500).json({error:'entity_delete_failed',message:e.message}); }
 });
