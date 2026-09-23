@@ -1,5 +1,6 @@
 import pg from 'pg';
 import nodemailer from 'nodemailer';
+import crypto from 'node:crypto';
 import { brandedEmailHtml, brandedEmailText, paymentNotificationSteps, publicAppUrl } from './email-layout.mjs';
 
 const { Pool } = pg;
@@ -71,8 +72,9 @@ async function main() {
       }
     }
     const status = failures.length ? (sent ? 'PARTIAL' : 'FAILED') : 'SENT';
-    await pool.query(`INSERT INTO notification_logs (status,notification_type,recipients,sent_at,provider,error_message,batch_slot,item_count)
-      VALUES ($1,'purchase.ready', $2, NOW(), 'smtp', $3, 'afternoon', $4)`, [
+    await pool.query(`INSERT INTO notification_logs (id,status,notification_type,recipients,sent_at,provider,error_message,batch_slot,item_count)
+      VALUES ($1,$2,'purchase.ready', $3, NOW(), 'smtp', $4, 'afternoon', $5)`, [
+      crypto.randomUUID(),
       status,
       JSON.stringify([...groups.keys()]),
       failures.join(' | ') || null,
