@@ -8,7 +8,10 @@ import pg from 'pg';
 // Ambiguous gallery material is left untouched rather than being assigned to
 // the wrong professional report.
 const apply = process.argv.includes('--apply') || process.env.REPORT_MEDIA_REPAIR_APPLY === '1';
-const includeUnclassified = process.argv.includes('--include-unclassified');
+// In apply mode an unmatched but safely scoped photo must not remain outside
+// the report editor.  It is placed in an explicitly labelled evidence-only
+// activity, never silently attributed to a real event.
+const includeUnclassified = process.argv.includes('--include-unclassified') || apply;
 const { Pool } = pg;
 const pool = new Pool({
   host: process.env.DB_HOST || 'db',
@@ -114,6 +117,7 @@ async function main() {
     activitiesRestored: 0, reportAuthorsRepaired: 0,
     unresolvedPhotoReports: 0, unresolvedPhotoActivities: 0, ambiguousPhotoScopes: 0,
     authorConflictsPreserved: 0, photosLinkedToExplicitUnclassifiedActivity: 0,
+    reportsRehydrated: 0, photosRestoredIntoReportEvidence: 0,
   };
 
   try {
@@ -334,6 +338,99 @@ async function main() {
           item.report.museu || item.photo.museu || '', item.report.mes_referencia || item.photo.mes_referencia || '',
           item.report.ano || item.photo.ano || null, JSON.stringify(nextRaw),
         ]);
+      }
+
+      // The monthly-report editor reads its activities and photos from
+      // reports.raw_data, whereas the gallery uses the normalized tables.
+      // Rebuild both editor projections from the canonical relations after
+      // repairing them so every report photo becomes evidence of exactly one
+      // activity and remains visible in that report's gallery.
+      const canonicalActivities = (await client.query(`SELECT report_id,base44_activity_id,nome,descricao,
+        museu_lista,tipo_acao_lista,equipe_participante_ids,meta_vinculada_ids,quantas_vezes_ocorreu,
+        publico_medio_sessao,publico_estimado,quantidade_produtos,total_produtos,data_inicio,data_fim,raw_data
+        FROM report_activities WHERE NULLIF(report_id,'') IS NOT NULL ORDER BY report_id,base44_activity_id`)).rows;
+      const canonicalPhotos = (await client.query(`SELECT base44_id,report_id,activity_id,drive_file_id,file_name,
+        file_url,caption,legenda,author,museu,mes_referencia,ano,ordem,raw_data
+        FROM report_photos WHERE NULLIF(report_id,'') IS NOT NULL ORDER BY report_id,ordem,id`)).rows;
+      const photosByActivity = new Map();
+      const photosByReport = new Map();
+      const photoForEditor = (photo) => {
+        const raw = asObject(photo.raw_data);
+        const id = String(photo.base44_id || raw.id || raw.base44_id || '');
+        return {
+          ...raw,
+          id,
+          base44_id: id,
+          drive_file_id: photo.drive_file_id || raw.drive_file_id || '',
+          url: photo.file_url || raw.url || raw.file_url || '',
+          file_url: photo.file_url || raw.file_url || raw.url || '',
+          fileName: photo.file_name || raw.fileName || raw.file_name || '',
+          file_name: photo.file_name || raw.file_name || raw.fileName || '',
+          caption: photo.caption || photo.legenda || raw.caption || raw.legenda || '',
+          legenda: photo.legenda || photo.caption || raw.legenda || raw.caption || '',
+          activityId: photo.activity_id || null,
+          activity_id: photo.activity_id || null,
+          author: photo.author || raw.author || '',
+          museu: photo.museu || raw.museu || '',
+          ordem: Number.isFinite(Number(photo.ordem)) ? Number(photo.ordem) : 0,
+        };
+      };
+      for (const photo of canonicalPhotos) {
+        const reportId = String(photo.report_id);
+        const editorPhoto = photoForEditor(photo);
+        const reportPhotos = photosByReport.get(reportId) || [];
+        reportPhotos.push(editorPhoto);
+        photosByReport.set(reportId, reportPhotos);
+        if (present(photo.activity_id)) {
+          const key = `${reportId}|${photo.activity_id}`;
+          const activityPhotos = photosByActivity.get(key) || [];
+          activityPhotos.push(editorPhoto);
+          photosByActivity.set(key, activityPhotos);
+          totals.photosRestoredIntoReportEvidence += 1;
+        }
+      }
+      const activitiesByReport = new Map();
+      for (const activity of canonicalActivities) {
+        const reportId = String(activity.report_id);
+        const raw = asObject(activity.raw_data);
+        const id = String(activity.base44_activity_id || raw.id || raw.base44_activity_id || '');
+        const editorActivity = {
+          ...raw,
+          id,
+          base44_activity_id: id,
+          nome: activity.nome || raw.nome || raw.titulo || '',
+          titulo: raw.titulo || activity.nome || raw.nome || '',
+          descricao: activity.descricao || raw.descricao || '',
+          museu_lista: Array.isArray(activity.museu_lista) ? activity.museu_lista : (raw.museu_lista || []),
+          tipo_acao_lista: Array.isArray(activity.tipo_acao_lista) ? activity.tipo_acao_lista : (raw.tipo_acao_lista || []),
+          equipe_participante_ids: Array.isArray(activity.equipe_participante_ids) ? activity.equipe_participante_ids : (raw.equipe_participante_ids || []),
+          meta_vinculada_ids: Array.isArray(activity.meta_vinculada_ids) ? activity.meta_vinculada_ids : (raw.meta_vinculada_ids || []),
+          quantas_vezes_ocorreu: Number(activity.quantas_vezes_ocorreu ?? raw.quantas_vezes_ocorreu ?? 1),
+          publico_medio_sessao: Number(activity.publico_medio_sessao ?? raw.publico_medio_sessao ?? 0),
+          publico_estimado: Number(activity.publico_estimado ?? raw.publico_estimado ?? 0),
+          quantidade_produtos: Number(activity.quantidade_produtos ?? raw.quantidade_produtos ?? 0),
+          total_produtos: Number(activity.total_produtos ?? raw.total_produtos ?? 0),
+          data_inicio: activity.data_inicio || raw.data_inicio || null,
+          data_fim: activity.data_fim || raw.data_fim || null,
+          fotos: photosByActivity.get(`${reportId}|${id}`) || [],
+        };
+        const reportActivities = activitiesByReport.get(reportId) || [];
+        reportActivities.push(editorActivity);
+        activitiesByReport.set(reportId, reportActivities);
+      }
+      for (const report of reports) {
+        const reportId = String(report.id);
+        const baseRaw = asObject(report.raw_data);
+        const nextRaw = {
+          ...baseRaw,
+          atividades: activitiesByReport.get(reportId) || [],
+          fotos: photosByReport.get(reportId) || [],
+          relacoes_midias_reconstruidas_em: new Date().toISOString(),
+        };
+        await client.query(`UPDATE reports SET raw_data=$2::jsonb,updated_date=NOW() WHERE id=$1`, [
+          reportId, JSON.stringify(nextRaw),
+        ]);
+        totals.reportsRehydrated += 1;
       }
       await client.query('COMMIT');
     }
