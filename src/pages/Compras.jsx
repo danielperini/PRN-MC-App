@@ -113,6 +113,7 @@ function normalizeCentro(value) {
   if (raw === 'mis' || raw === 'mis bh' || raw.includes('imagem e som')) return 'MIS';
   if (raw === 'mhab' || raw === 'mab' || raw.includes('abilio')) return 'MHAB';
   if (raw === 'mumo' || raw.includes('moda')) return 'MUMO';
+  if (raw.includes('simposio')) return 'Terceiro Simpósio do Patrimônio de BH';
   if (raw === 'geral' || raw === 'geral/transversal' || raw === 'atuacao geral') return 'Geral';
   if (raw === 'rateado') return 'Rateado';
   if (raw === 'publicacoes' || raw === 'publicações') return 'Publicações';
@@ -247,7 +248,7 @@ async function carregarSolicitacoes({ isCoordenador, currentUser }) {
 }
 
 function categorizeSolicitacoes(purchases) {
-  const categories = { geral: [], mhab: [], mis: [], mumo: [], noturno2026: [], noturnoPampulha: [], pessoas: [] };
+  const categories = { geral: [], mhab: [], mis: [], mumo: [], noturno2026: [], noturnoPampulha: [], simposio: [], pessoas: [] };
   purchases.forEach((p) => {
     if (isCompraEquipe(p)) {categories.pessoas.push(p);} else
     {
@@ -257,6 +258,7 @@ function categorizeSolicitacoes(purchases) {
       if (centro === 'MUMO') categories.mumo.push(p);else
       if (centro === 'Noturno nos Museus 2026') categories.noturno2026.push(p);else
       if (centro === 'Noturno Pampulha') categories.noturnoPampulha.push(p);else
+      if (centro === 'Terceiro Simpósio do Patrimônio de BH') categories.simposio.push(p);else
       categories.geral.push(p);
     }
   });
@@ -519,7 +521,7 @@ function ComprasInner() {
   }, [purchases]);
 
   const centrosDisponiveis = useMemo(() => {
-    const centros = new Set();
+    const centros = new Set(['Terceiro Simpósio do Patrimônio de BH']);
 
     purchasesWithFlags.forEach((p) => {
       if (p._centro_custo_normalizado) {

@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import SearchableSelect from '@/components/ui/searchable-select'
 import { base44 } from '@/api/base44Client'
-import { CheckCircle2, RotateCcw, Trash2, Paperclip, X, FileText, Upload, AlertTriangle, ShieldAlert, Sparkles, Mail } from 'lucide-react'
+import { CheckCircle2, RotateCcw, Trash2, Paperclip, X, FileText, Upload, AlertTriangle, Sparkles } from 'lucide-react'
 import { useSmartToast } from '@/lib/useSmartToast'
 import { toast } from 'sonner'
 import { deletePurchaseRequest } from '@/lib/deleteIntegrado'
@@ -20,7 +20,7 @@ import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 import { METAS_PROJETO_FALLBACK } from '@/lib/metasProjeto'
 
 // Valores EXATOS do enum PurchaseRequest.centro_custo no banco
-const CENTROS = ['MUMO','MIS','MHAB','Noturno nos Museus 2026','Noturno Pampulha','Publicações','Geral']
+const CENTROS = ['MUMO','MIS','MHAB','Noturno nos Museus 2026','Noturno Pampulha','Terceiro Simpósio do Patrimônio de BH','Publicações','Geral']
 
 // Mapeia qualquer variação legada para o valor canônico do enum do banco
 function normalizeCentroCusto(value) {
@@ -29,6 +29,7 @@ function normalizeCentroCusto(value) {
   // Já é canônico → retorna direto (evita transformações desnecessárias)
   if (CENTROS.includes(v)) return v
   const upper = v.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  if (upper.includes('SIMPOSIO')) return 'Terceiro Simpósio do Patrimônio de BH'
   if (upper === 'GERAL' || upper === 'GERAL/TRANSVERSAL' || upper === 'ATUACAO GERAL') return 'Geral'
   if (upper === 'MIS' || upper === 'MIS BH' || upper.includes('IMAGEM E SOM')) return 'MIS'
   if (upper === 'MUMO' || upper.includes('MODA')) return 'MUMO'
@@ -1288,8 +1289,11 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
 
     // Filtro por centro de custo
     const matchCentro = (r) => {
-      // Rubricas do 5º Aditivo (Simpósio) sempre aparecem, independente do centro selecionado
-      if (r.origem_recurso === '5º ADITIVO' || String(r.grupo || '').includes('Simpósio')) return true;
+      // Rubricas do Simpósio continuam localizáveis de qualquer centro;
+      // selecioná-las corrige o centro da solicitação para Simpósio.
+      const simposio = /simposio/i.test(String(r.grupo || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')) || /5[º°o]?\s*aditivo/i.test(String(r.origem_recurso || ''));
+      if (form.centro_custo === 'Terceiro Simpósio do Patrimônio de BH') return simposio;
+      if (simposio) return true;
       if (!form.centro_custo) return true;
       const cc = String(form.centro_custo).toUpperCase().replace('MAB', 'MHAB').trim();
       const rc = String(r.museu_codigo || '').toUpperCase().replace('MAB', 'MHAB').trim();
@@ -1304,7 +1308,7 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
     };
 
     let filtradas = ativas.filter(matchMeta).filter(matchCentro);
-    if (filtradas.length === 0) filtradas = ativas;
+    if (filtradas.length === 0 && form.centro_custo !== 'Terceiro Simpósio do Patrimônio de BH') filtradas = ativas;
 
     // Garante que a rubrica atual aparece mesmo fora dos filtros
     const atual = form.rubrica_id ? ativas.find((r) => r.id === form.rubrica_id) : null;
@@ -1502,6 +1506,16 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
                 value={form.meta_id}
                 onValueChange={(v) => {
                   setField('meta_id', v)
+                  const metaSelecionada = metas.find((m) => m.id === v)
+                  if (/simp[oó]sio/i.test(metaSelecionada?.nome || '')) {
+                    setField('centro_custo', 'Terceiro Simpósio do Patrimônio de BH')
+                    const rubricaAtual = rubricas.find((r) => r.id === form.rubrica_id)
+                    if (rubricaAtual && rubricaAtual.origem_recurso !== '5º ADITIVO' && !/simp[oó]sio/i.test(rubricaAtual.grupo || '')) {
+                      setField('rubrica_id', '')
+                      setField('rubrica_nome', '')
+                    }
+                  }
+                  else if (form.centro_custo === 'Terceiro Simpósio do Patrimônio de BH') setField('centro_custo', '')
                   if (v !== 'MC3A-EXTRA') {
                     setField('meta_extra_descricao', '')
                   }
@@ -1608,9 +1622,15 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
                   const r = rubricas.find((x) => x.id === v)
                   setField('rubrica_id', v)
                   setField('rubrica_nome', r?.rubrica || r?.nome || '')
+                  const rubricaSimposio = r?.origem_recurso === '5º ADITIVO' || /simp[oó]sio/i.test(r?.grupo || '')
+                  if (rubricaSimposio) {
+                    setField('centro_custo', 'Terceiro Simpósio do Patrimônio de BH')
+                    const metaSimposio = metas.find((m) => /simp[oó]sio/i.test(m.nome || ''))
+                    if (metaSimposio) setField('meta_id', metaSimposio.id)
+                  }
                   // Só sobrescreve centro_custo se o usuário NÃO o editou manualmente
                   const centroCustoManual = fieldStates['centro_custo']?.estado === 'manual'
-                  if (!centroCustoManual) {
+                  if (!rubricaSimposio && !centroCustoManual) {
                     if (r?.escopo_orcamentario === 'NOTURNO') {
                       const isPampulha = String(r.centro_custo || '').toUpperCase() === 'NOTURNO PAMPULHA';
                       setField('centro_custo', isPampulha ? 'Noturno Pampulha' : 'Noturno nos Museus 2026')

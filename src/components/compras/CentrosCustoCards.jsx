@@ -31,6 +31,7 @@ const CENTROS_TRANSVERSAIS = [
   'Consultorias',
   'Despesas Gerais',
   'Geral/Transversal',
+  'Terceiro Simpósio do Patrimônio de BH',
 ];
 
 export default function CentrosCustoCards({ isCoordenador = false }) {

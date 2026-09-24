@@ -42,6 +42,7 @@ export const CENTROS_CUSTO = [
   'MUMO',
   'Noturno 2026',
   'Noturno Pampulha',
+  'Terceiro Simpósio do Patrimônio de BH',
   'Publicações',
   'Geral'
 ];

@@ -13,6 +13,7 @@ export const CENTROS_CUSTO = [
   'Administrativo-financeiro',
   'Noturno 2026',
   'Noturno Pampulha',
+  'Terceiro Simpósio do Patrimônio de BH',
   'Noturno nos Museus',
   'Publicações',
   'Consultorias',
@@ -32,6 +33,7 @@ export function sugerirCentroCusto(nomeRubrica) {
 
   if (/\bmis\b/.test(n)) return 'MIS BH';
   if (/\bmumo\b/.test(n)) return 'MUMO';
+  if (/simposio|5[º°o]?\s*aditivo/.test(n)) return 'Terceiro Simpósio do Patrimônio de BH';
   if (/\bmhab\b/.test(n)) return 'MHAB';
 
   if (/coordenad|assistente|consultoria de programacao/.test(n)) return 'Coordenação';

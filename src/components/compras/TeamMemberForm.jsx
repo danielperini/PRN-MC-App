@@ -47,7 +47,7 @@ const CARGOS_FUNCOES = [
 
 const MUSEUS = ['MHAB', 'MIS', 'MUMO', 'Noturno nos Museus 2026', 'Noturno Pampulha', 'Publicações', 'Geral'];
 
-const CENTROS_CUSTO = ['MUMO', 'MIS', 'MHAB', 'Noturno nos Museus 2026', 'Noturno Pampulha', 'Publicações', 'Geral'];
+const CENTROS_CUSTO = ['MUMO', 'MIS', 'MHAB', 'Noturno nos Museus 2026', 'Noturno Pampulha', 'Terceiro Simpósio do Patrimônio de BH', 'Publicações', 'Geral'];
 
 function fmt(val) {
   const n = Number(val);

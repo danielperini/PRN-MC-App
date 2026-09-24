@@ -1,9 +1,9 @@
 const PUBLIC_PURCHASE_FIELDS = [
-  'id','base44_id','numero_solicitacao','nf_numero','descricao','descricao_servico','objeto',
+  'id','base44_id','numero_solicitacao','nf_numero','descricao','descricao_item','descricao_servico','objeto',
   'fornecedor_nome','nf_emitente_nome','fornecedor','solicitante_nome','user_email','created_by',
   'nf_data_emissao','data_solicitacao','created_at','created_date','centro_custo','meta_nome',
-  'meta_id','natureza_despesa','codigo_item_pbh','status','nf_pdf_url','nota_fiscal_url',
-  'arquivo_url','drive_file_url','purchase_document_id',
+  'meta_id','meta_nome_resolvido','natureza_despesa','codigo_item_pbh','status','nf_pdf_url','nota_fiscal_url',
+  'arquivo_url','drive_file_url','nota_fiscal_pdf_url','purchase_document_id',
 ];
 
 export function buildRubricaComposition(rubricas, rows) {

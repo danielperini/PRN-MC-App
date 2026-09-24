@@ -9,7 +9,7 @@ import { useEffect } from 'react';
 export function useRubricasSync() {
   const { data: rubricas = [] } = useQuery({
     queryKey: ['rubricas'],
-    queryFn: () => base44.entities.Rubrica.list('ordem_exibicao', 100),
+    queryFn: () => base44.entities.Rubrica.list('ordem_exibicao', 1000),
   });
 
   const { data: purchases = [] } = useQuery({
