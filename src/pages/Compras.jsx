@@ -60,7 +60,6 @@ import ConferenciaExtratosVsPagamentos from '@/components/compras/ConferenciaExt
 import { canManageRubricas } from '@/components/auth/permissions';
 import { normalizeStatus, getStatusLabel } from '@/lib/normalizeStatus';
 import DevolverNFDialog from '@/components/compras/DevolverNFDialog';
-import NotificarAditivoButton from '@/components/compras/NotificarAditivoButton';
 import RevincularRubricasOrfasButton from '@/components/financeiro/RevincularRubricasOrfasButton';
 import PainelConciliacaoComprovantes from '@/components/compras/PainelConciliacaoComprovantes';
 import BackupDriveTab from '@/components/compras/BackupDriveTab';
@@ -1507,23 +1506,6 @@ function ComprasInner() {
                   </button>
                 </div>
 
-                {podeGerenciarRubricas &&
-            <div className="flex justify-end gap-2">
-                    <NotificarAditivoButton />
-                    {/* REMOVIDO: 'Vincular Natureza de Despesa' — não é mais botão primário visível.
-                        Use o menu contextual de cada rubrica na RubricasGrid para vincular natureza individualmente,
-                        ou dispare 'vincularNaturezaDespesaRubricas' via backend quando necessário. */}
-                    <Button
-                type="button"
-                onClick={() => setShowNovaRubrica(true)}
-                className="gap-2 bg-black text-white hover:bg-gray-800">
-                
-                      <Plus className="h-4 w-4" />
-                      Nova Rubrica
-                    </Button>
-                  </div>
-            }
-
                 <RubricasGrid
               rubricas={rubricas}
               onSelectRubrica={setSelectedRubrica}
@@ -1649,19 +1631,6 @@ function ComprasInner() {
                 Detalhe
               </button>
             </div>
-
-            {!selectedRubrica && podeGerenciarRubricas &&
-          <div className="flex justify-end">
-                <Button
-              type="button"
-              onClick={() => setShowNovaRubrica(true)}
-              className="gap-2 bg-black text-white hover:bg-gray-800">
-              
-                  <Plus className="h-4 w-4" />
-                  Nova Rubrica
-                </Button>
-              </div>
-          }
 
             {selectedRubrica ?
           <RubricaDetail
