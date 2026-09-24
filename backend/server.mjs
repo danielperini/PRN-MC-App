@@ -9,6 +9,7 @@ import { Readable } from 'node:stream';
 import { Server as SocketIOServer } from 'socket.io';
 import { google } from 'googleapis';
 import { syncProgramacao } from './programacao-sync.mjs';
+import { buildRubricaComposition } from './rubrica-composition.mjs';
 import nodemailer from 'nodemailer';
 import { brandedEmailHtml, brandedEmailText, paymentNotificationSteps, purchaseSubmissionSteps, reportSubmissionSteps } from './email-layout.mjs';
 
@@ -434,30 +435,36 @@ const ENTITY_TABLES = Object.freeze({
 });
 function entityTable(name) { return ENTITY_TABLES[String(name || '')] || null; }
 function quoteIdentifier(value) { return `"${String(value).replaceAll('"', '""')}"`; }
+const CALCULATED_RUBRICA_FIELDS = new Set(['valor_utilizado','saldo','saldo_real','percentual_utilizado']);
 async function tableColumns(table) {
   const r = await pool.query(`SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1 ORDER BY ordinal_position`, [table]);
   return r.rows.map(x => x.column_name);
 }
+
+// A single fiscal valuation rule feeds both the persisted balance and its
+// auditable composition. Keep the status/duplicate filters identical too.
+const PURCHASE_UTILIZED_AMOUNT_SQL = `CASE
+  WHEN p.raw_data #>> '{official_balancete,eligible_cents}' ~ '^[0-9]+$'
+    THEN ((p.raw_data #>> '{official_balancete,eligible_cents}')::numeric / 100)
+  WHEN p.nf_valor_total > 0 THEN p.nf_valor_total
+  WHEN p.valor_aprovado > 0 THEN p.valor_aprovado
+  WHEN p.valor_total > 0 THEN p.valor_total
+  ELSE COALESCE(p.valor_solicitado, 0)
+END`;
+const PURCHASE_UTILIZED_WHERE_SQL = `p.rubrica_id IS NOT NULL
+  AND UPPER(COALESCE(p.status,'')) IN ('APROVADO','APROVADO_COORD','APROVADO_ADMIN','PAGO')
+  AND COALESCE(p.incluir_no_somatorio,TRUE) IS DISTINCT FROM FALSE
+  AND COALESCE(p.duplicada_financeira,FALSE)=FALSE`;
 
 // Recompute from fiscal data after every state-changing purchase action. Drafts
 // never consume the budget and the invoice amount wins over UI display fields.
 async function syncRubricaBalances() {
   const r = await pool.query(`
     WITH used AS (
-      SELECT rubrica_id, ROUND(SUM(CASE
-        WHEN raw_data #>> '{official_balancete,eligible_cents}' ~ '^[0-9]+$'
-          THEN ((raw_data #>> '{official_balancete,eligible_cents}')::numeric / 100)
-        WHEN nf_valor_total > 0 THEN nf_valor_total
-        WHEN valor_aprovado > 0 THEN valor_aprovado
-        WHEN valor_total > 0 THEN valor_total
-        ELSE COALESCE(valor_solicitado, 0)
-      END)::numeric, 2) AS amount
-      FROM purchase_requests
-      WHERE rubrica_id IS NOT NULL
-        AND UPPER(COALESCE(status,'')) IN ('APROVADO','APROVADO_COORD','APROVADO_ADMIN','PAGO')
-        AND COALESCE(incluir_no_somatorio,TRUE) IS DISTINCT FROM FALSE
-        AND COALESCE(duplicada_financeira,FALSE)=FALSE
-      GROUP BY rubrica_id
+      SELECT p.rubrica_id, ROUND(SUM(${PURCHASE_UTILIZED_AMOUNT_SQL})::numeric, 2) AS amount
+      FROM purchase_requests p
+      WHERE ${PURCHASE_UTILIZED_WHERE_SQL}
+      GROUP BY p.rubrica_id
     )
     UPDATE rubricas r
     SET valor_utilizado=COALESCE(u.amount,0),
@@ -471,6 +478,25 @@ async function syncRubricaBalances() {
   `);
   return r.rowCount || 0;
 }
+
+// One backend response supplies the amount shown in every row and the exact
+// request list behind it. Totals are summed in integer cents from those same
+// rows, so the modal footer cannot disagree with the displayed amount.
+app.get('/api/finance/rubrica-composition', requireSession, async (_req, res) => {
+  try {
+    const rubricas = (await pool.query('SELECT id, grupo, rubrica, centro_custo, COALESCE(valor_total,valor_rubrica,0) AS orcado FROM rubricas')).rows;
+    const rows = (await pool.query(`
+      SELECT p.rubrica_id::text AS rubrica_id, to_jsonb(p) AS purchase,
+        ROUND((${PURCHASE_UTILIZED_AMOUNT_SQL})::numeric * 100)::bigint AS amount_cents
+      FROM purchase_requests p
+      WHERE ${PURCHASE_UTILIZED_WHERE_SQL}
+    `)).rows;
+    return res.json({ rubricas: buildRubricaComposition(rubricas, rows) });
+  } catch (error) {
+    console.error('RUBRICA_COMPOSITION_ERROR:', error);
+    return res.status(500).json({ error: 'rubrica_composition_failed', message: error.message });
+  }
+});
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Finance addresses already registered for the project. They remain included
@@ -1437,7 +1463,8 @@ app.post('/api/apps/:appId/entities/:entityName', requireSession, async (req,res
     normalizedBody=await normalizeReportRelationPayload(req,req.params.entityName,normalizedBody);
     normalizedBody=await normalizeClientErrorPayload(req,req.params.entityName,normalizedBody);
     normalizedBody=preserveReportEditorContent(normalizedBody);
-    let entries=Object.entries(normalizedBody).filter(([k,v])=>columns.includes(k)&&v!==undefined);
+    let entries=Object.entries(normalizedBody).filter(([k,v])=>columns.includes(k)&&v!==undefined&&
+      (table!=='rubricas'||!CALCULATED_RUBRICA_FIELDS.has(k)));
     if (columns.includes('id') && !entries.some(([key]) => key === 'id')) {
       const idMeta = await pool.query(`SELECT data_type,column_default,is_identity FROM information_schema.columns WHERE table_schema='public' AND table_name=$1 AND column_name='id' LIMIT 1`,[table]);
       const idColumn = idMeta.rows[0];
@@ -1480,6 +1507,9 @@ app.post('/api/apps/:appId/entities/:entityName', requireSession, async (req,res
       await rehydrateReportMediaProjection(r.rows[0].report_id).catch((error) => console.error('REPORT_PHOTO_PROJECTION_SYNC_ERROR', error));
     }
     if (table==='document_intakes') await suppressExactDuplicateIntakes(r.rows[0].id);
+    if (table==='purchase_requests' && ['APROVADO','APROVADO_COORD','APROVADO_ADMIN','PAGO'].includes(String(r.rows[0]?.status||'').toUpperCase())) {
+      await syncRubricaBalances().catch(error => console.error('RUBRICA_BALANCE_SYNC_ERROR', error));
+    }
     if (table==='client_error_logs') console.warn('CLIENT_ERROR_LOGGED', JSON.stringify({ error_id:r.rows[0].error_id, user_email:r.rows[0].user_email, url:r.rows[0].url }));
     res.status(201).json(r.rows[0]);
   } catch(e) { console.error('ENTITY_POST_ERROR:',e); res.status(500).json({error:'entity_create_failed',message:e.message}); }
@@ -1506,10 +1536,17 @@ async function updateEntity(req,res) {
     let normalizedBody=await normalizeReportUpdatePayload(req,req.params.entityName,fiscalBody);
     normalizedBody=await normalizeReportRelationPayload(req,req.params.entityName,normalizedBody);
     normalizedBody=preserveReportEditorContent(normalizedBody,reportAccess?.report?.raw_data);
-    entries=Object.entries(normalizedBody).filter(([k,v])=>columns.includes(k)&&k!=='id'&&v!==undefined);
+    entries=Object.entries(normalizedBody).filter(([k,v])=>columns.includes(k)&&k!=='id'&&v!==undefined&&
+      (table!=='rubricas'||!CALCULATED_RUBRICA_FIELDS.has(k)));
     currentField=entries[0]?.[0]||null;
     entries=normalizeEntityEntriesForDb(entries,columnTypes);
-    if(!entries.length) return res.status(400).json({error:'empty_entity_update'});
+    if(!entries.length) {
+      if (table==='rubricas' && Object.keys(normalizedBody).some(key => CALCULATED_RUBRICA_FIELDS.has(key))) {
+        const existing=await pool.query('SELECT * FROM rubricas WHERE id::text=$1 LIMIT 1',[req.params.id]);
+        return existing.rows[0] ? res.json(existing.rows[0]) : res.status(404).json({error:'entity_not_found'});
+      }
+      return res.status(400).json({error:'empty_entity_update'});
+    }
     const vals=entries.map(([,v])=>v); vals.push(req.params.id);
     const sets=entries.map(([k],i)=>`${quoteIdentifier(k)}=$${i+1}`).join(',');
     const r=await pool.query(`UPDATE ${quoteIdentifier(table)} SET ${sets} WHERE "id"=$${vals.length} RETURNING *`,vals);
@@ -1524,6 +1561,7 @@ async function updateEntity(req,res) {
       await rehydrateReportMediaProjection(r.rows[0].report_id).catch((error) => console.error('REPORT_PHOTO_PROJECTION_SYNC_ERROR', error));
     }
     if (table==='document_intakes') await suppressExactDuplicateIntakes(r.rows[0].id);
+    if (table==='purchase_requests') await syncRubricaBalances().catch(error => console.error('RUBRICA_BALANCE_SYNC_ERROR', error));
     res.json(r.rows[0]);
   } catch(e) {
     const bodyKeys=Object.keys(req.body||{});

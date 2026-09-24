@@ -2,20 +2,8 @@ import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  AlertCircle,
-  AlertTriangle,
-  Download,
   Plus,
-  Search,
   RefreshCw,
 } from 'lucide-react';
 import { toastMessages } from '@/lib/toastMessages';
@@ -41,7 +29,7 @@ export default function RubricasPage() {
 
   const { data: rubricas = [], isLoading: loadingRubricas } = useQuery({
     queryKey: ['rubricas'],
-    queryFn: () => base44.entities.Rubrica.list('ordem_exibicao', 100),
+    queryFn: () => base44.entities.Rubrica.list('ordem_exibicao', 1000),
   });
 
   const handleInitialize = async () => {
@@ -101,14 +89,14 @@ export default function RubricasPage() {
           {/* Texto de apoio */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8">
             <p className="text-sm text-blue-900">
-              As rubricas serão utilizadas para gestão e execução do projeto. Os valores lançados, tanto automaticamente pela aba Compras quanto manualmente pelos usuários, serão acumulados no campo de utilização da rubrica. O saldo será calculado pela diferença entre o valor previsto e o valor utilizado, e o percentual utilizado permitirá o acompanhamento contínuo da execução financeira.
+              O valor utilizado é calculado a partir das solicitações aprovadas vinculadas à rubrica, sem digitação manual. Clique no valor de qualquer linha para conferir a composição, inclusive quando for zero. O saldo é a diferença entre o orçamento e o valor utilizado.
             </p>
           </div>
 
           {/* Relatório */}
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-8">
             <p className="text-sm text-gray-700">
-              <strong>📊 Relatório:</strong> Atualização das rubricas com valores utilizados: foram atualizados os valores utilizados das rubricas com base na lista de pagamentos informada, considerando que lançamentos repetidos dentro da mesma rubrica foram consolidados de forma acumulada no campo de valor utilizado. O saldo foi apurado pela diferença entre o valor total da rubrica e o montante já utilizado, e o percentual utilizado foi calculado proporcionalmente sobre o total de cada rubrica.
+              <strong>📊 Composição:</strong> A consulta usa a mesma regra fiscal do backend: solicitações aprovadas ou pagas, excluindo duplicatas e itens fora do somatório. O total exibido corresponde à soma das solicitações abertas no detalhamento.
             </p>
           </div>
 
