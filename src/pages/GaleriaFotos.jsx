@@ -1,10 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import RequireAuth from '@/components/auth/RequireAuth';
 import LoadingPage from '@/components/common/LoadingPage';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Images, MapPin, RefreshCw, X, CheckCircle2, Moon, ExternalLink, BookImage, ChevronDown, HardDriveDownload, TriangleAlert, FileDown, MoreVertical, Download, Layers, Sparkles, Search } from 'lucide-react';
+import { Images, MapPin, RefreshCw, X, CheckCircle2, Moon, ExternalLink, BookImage, ChevronDown, HardDriveDownload, TriangleAlert, FileDown, MoreVertical, Download, Layers, Search } from 'lucide-react';
 import SyncNovasFotosDriveButton from '@/components/gallery/SyncNovasFotosDriveButton';
 import { toast } from 'sonner';
 import {
@@ -17,7 +15,7 @@ import RestaurarFotosDrive from '@/components/gallery/RestaurarFotosDrive';
 import SincronizarInventarioDialog from '@/components/gallery/SincronizarInventarioDialog';
 import ExportarGaleriaPDFDialog from '@/components/gallery/ExportarGaleriaPDFDialog';
 import ExportarMuseuPDFDialog from '@/components/gallery/ExportarMuseuPDFDialog';
-import PainelAjustarVinculos from '@/components/gallery/PainelAjustarVinculos';
+import VincularFotosSemRelatorio from '@/components/gallery/VincularFotosSemRelatorio';
 import ModalExposicao from '@/components/gallery/ModalExposicao';
 import ConsolidarFotosDriveDialog from '@/components/gallery/ConsolidarFotosDriveDialog';
 import RelatorioExecutivoPDFDialog from '@/components/gallery/RelatorioExecutivoPDFDialog';
@@ -224,7 +222,7 @@ function GaleriaFotosInner() {
   const [editingAlbumKey, setEditingAlbumKey] = useState(null);
   const [albumLabels, setAlbumLabels] = useState({});
   const [editingAlbumValue, setEditingAlbumValue] = useState('');
-  const [showAjustarVinculos, setShowAjustarVinculos] = useState(false);
+  const [showVincularFotosSemRelatorio, setShowVincularFotosSemRelatorio] = useState(false);
   const [showConsolidarDrive, setShowConsolidarDrive] = useState(false);
   const [showRelatorioExecutivo, setShowRelatorioExecutivo] = useState(false);
   const [showRelatorioCompleto, setShowRelatorioCompleto] = useState(false);
@@ -637,6 +635,14 @@ function GaleriaFotosInner() {
                   </span>
                   <span className="text-xs text-gray-500 pl-5">Importa fotos de pastas avulsas, gera legendas por IA e organiza na galeria.</span>
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setShowVincularFotosSemRelatorio(true)}
+                  className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
+                  <span className="font-medium text-gray-900 flex items-center gap-1.5">
+                    <ImageOff className="h-3.5 w-3.5" /> Vincular fotos sem atividade
+                  </span>
+                  <span className="text-xs text-gray-500 pl-5">Escolha o relatório e a atividade; o vínculo é salvo na galeria e como evidência.</span>
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel className="text-xs text-amber-600 uppercase tracking-wide flex items-center gap-1">
                   <TriangleAlert className="h-3 w-3" /> Ação administrativa
@@ -965,6 +971,15 @@ function GaleriaFotosInner() {
         photos={emailingPhotos || []}
         open={!!emailingPhotos}
         onClose={() => setEmailingPhotos(null)} />
+
+      <VincularFotosSemRelatorio
+        open={showVincularFotosSemRelatorio}
+        onClose={() => setShowVincularFotosSemRelatorio(false)}
+        onSaved={() => {
+          clearGalleryCache();
+          queryClient.invalidateQueries(['galeria-fotos-stable-v7']);
+          refetch();
+        }} />
       
 
       <SincronizarInventarioDialog

@@ -957,6 +957,16 @@ async function normalizeReportRelationPayload(req, entityName, body = {}) {
   if (!report) throw new Error('report_relation_not_found');
   canonicalId = String(report.id);
   if (ids !== null && !ids.includes(canonicalId)) throw new Error('report_relation_access_denied');
+  if (entityName === 'ReportPhoto' && body.activity_id) {
+    const activityId = String(body.activity_id).trim();
+    const activity = (await pool.query(
+      `SELECT id,base44_activity_id FROM report_activities
+       WHERE report_id::text=$1 AND (id::text=$2 OR base44_activity_id=$2) LIMIT 1`,
+      [canonicalId, activityId],
+    )).rows[0];
+    if (!activity) throw new Error('photo_activity_not_in_report');
+    return { ...body, report_id:canonicalId, activity_id:String(activity.base44_activity_id || activity.id) };
+  }
   return { ...body, report_id:canonicalId };
 }
 
@@ -1196,6 +1206,75 @@ async function syncReportPhotosToGallery(report, photos) {
   return { created, updated, skipped };
 }
 
+function reportPhotoEditorValue(photo) {
+  const raw = parseReportRawData(photo.raw_data);
+  const id = String(photo.base44_id || raw.id || photo.id);
+  return {
+    ...raw,
+    id,
+    url: photo.file_url || raw.url || '',
+    fileName: photo.file_name || raw.fileName || raw.file_name || 'foto',
+    caption: photo.caption || photo.legenda || raw.caption || raw.legenda || '',
+    activityId: photo.activity_id ? String(photo.activity_id) : null,
+    drive_file_id: photo.drive_file_id || raw.drive_file_id || '',
+    author: photo.author || raw.author || '',
+    museum: photo.museu || raw.museum || raw.museu || '',
+    museu: photo.museu || raw.museu || raw.museum || '',
+  };
+}
+
+// ReportPhoto is the canonical table for the central gallery.  When a reviewer
+// assigns an orphan photo, mirror that decision back into the editor-compatible
+// report and activity JSON projections immediately.  This keeps the gallery,
+// activity evidence and monthly report in agreement without waiting for a
+// batch reconciliation.
+async function rehydrateReportMediaProjection(reportId) {
+  if (!reportId || !(await tableExists('reports')) || !(await tableExists('report_photos'))) return;
+  const reportResult = await pool.query('SELECT id,raw_data FROM reports WHERE id::text=$1 LIMIT 1', [String(reportId)]);
+  const report = reportResult.rows[0];
+  if (!report) return;
+
+  const photos = (await pool.query(
+    'SELECT id,base44_id,activity_id,drive_file_id,file_name,file_url,legenda,caption,author,museu,raw_data FROM report_photos WHERE report_id::text=$1 ORDER BY ordem NULLS LAST,created_date,id',
+    [String(report.id)],
+  )).rows;
+  const activityRows = await tableExists('report_activities')
+    ? (await pool.query('SELECT id,base44_activity_id,raw_data FROM report_activities WHERE report_id::text=$1 ORDER BY id', [String(report.id)])).rows
+    : [];
+  const raw = parseReportRawData(report.raw_data);
+  const byActivity = new Map();
+  for (const photo of photos) {
+    if (!photo.activity_id) continue;
+    const key = String(photo.activity_id);
+    const list = byActivity.get(key) || [];
+    list.push(reportPhotoEditorValue(photo));
+    byActivity.set(key, list);
+  }
+  const activityById = new Map(activityRows.map((row) => [String(row.base44_activity_id || row.id), row]));
+  const seen = new Set();
+  const rehydratedActivities = (Array.isArray(raw.atividades) ? raw.atividades : []).map((value) => {
+    const original = value && typeof value === 'object' ? value : {};
+    const id = String(original.id || original.base44_activity_id || '');
+    if (id) seen.add(id);
+    const row = activityById.get(id);
+    const source = row ? { ...parseReportRawData(row.raw_data), ...original, id } : { ...original, ...(id ? { id } : {}) };
+    return { ...source, fotos: byActivity.get(id) || [] };
+  });
+  for (const row of activityRows) {
+    const id = String(row.base44_activity_id || row.id);
+    if (seen.has(id)) continue;
+    rehydratedActivities.push({ ...parseReportRawData(row.raw_data), id, fotos: byActivity.get(id) || [] });
+  }
+
+  const rawData = { ...raw, atividades: rehydratedActivities, fotos: photos.map(reportPhotoEditorValue) };
+  await pool.query('UPDATE reports SET raw_data=$1::jsonb WHERE id=$2', [JSON.stringify(rawData), report.id]);
+  for (const row of activityRows) {
+    const id = String(row.base44_activity_id || row.id);
+    const activityRaw = { ...parseReportRawData(row.raw_data), id, fotos: byActivity.get(id) || [] };
+    await pool.query('UPDATE report_activities SET raw_data=$1::jsonb WHERE id=$2', [JSON.stringify(activityRaw), row.id]);
+  }
+}
+
 // Report ownership must always come from the active app session, not from the
 // browser payload. This avoids a stale client profile creating a report in
 // somebody else's name and also supplies the required initial identity fields.
@@ -1395,6 +1474,9 @@ app.post('/api/apps/:appId/entities/:entityName', requireSession, async (req,res
     if (table==='reports' && Array.isArray(normalizedBody.fotos)) {
       await syncReportPhotosToGallery(r.rows[0], normalizedBody.fotos).catch((error) => console.error('REPORT_GALLERY_SYNC_ERROR', error));
     }
+    if (table==='report_photos' && r.rows[0]?.report_id) {
+      await rehydrateReportMediaProjection(r.rows[0].report_id).catch((error) => console.error('REPORT_PHOTO_PROJECTION_SYNC_ERROR', error));
+    }
     if (table==='document_intakes') await suppressExactDuplicateIntakes(r.rows[0].id);
     if (table==='client_error_logs') console.warn('CLIENT_ERROR_LOGGED', JSON.stringify({ error_id:r.rows[0].error_id, user_email:r.rows[0].user_email, url:r.rows[0].url }));
     res.status(201).json(r.rows[0]);
@@ -1435,6 +1517,9 @@ async function updateEntity(req,res) {
     }
     if (table==='reports' && Array.isArray(normalizedBody.fotos)) {
       await syncReportPhotosToGallery(r.rows[0], normalizedBody.fotos).catch((error) => console.error('REPORT_GALLERY_SYNC_ERROR', error));
+    }
+    if (table==='report_photos' && r.rows[0]?.report_id) {
+      await rehydrateReportMediaProjection(r.rows[0].report_id).catch((error) => console.error('REPORT_PHOTO_PROJECTION_SYNC_ERROR', error));
     }
     if (table==='document_intakes') await suppressExactDuplicateIntakes(r.rows[0].id);
     res.json(r.rows[0]);
