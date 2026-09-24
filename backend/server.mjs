@@ -702,7 +702,11 @@ function normalizeEntityEntriesForDb(entries, columnTypes) {
 function entityLimit(req) { const n = Number(req.query.limit ?? 5000); return Number.isFinite(n) ? Math.min(Math.max(Math.trunc(n), 1), 5000) : 5000; }
 async function buildWhere(table, req) {
   const columns = await tableColumns(table);
-  const filters = parseJsonParam(req.query.filter ?? req.query.filters ?? req.query.where) || {};
+  // The Base44 SDK serializes Entity.filter({ id: '…' }) as `q=<json>`.
+  // Ignoring `q` turns every filtered request into an unfiltered list, which
+  // caused the monthly editor to open the first report returned (for example,
+  // Silvia's July report) regardless of the ID clicked in the URL.
+  const filters = parseJsonParam(req.query.q ?? req.query.filter ?? req.query.filters ?? req.query.where) || {};
   const clauses = [], values = [];
   for (const [key, value] of Object.entries(filters)) {
     if (!columns.includes(key)) continue;
