@@ -28,7 +28,7 @@ const STATUS_CONFIG = {
   APROVADO: { label: 'Aprovado', color: 'bg-green-100 text-green-700' }
 };
 
-const CENTROS = ['MUMO', 'MIS', 'MHAB', 'Noturno nos Museus 2026', 'Noturno Pampulha', 'Publicações', 'Geral'];
+const CENTROS = ['MUMO', 'MIS', 'MHAB', 'Noturno nos Museus 2026', 'Noturno Pampulha', 'Terceiro Simpósio do Patrimônio de BH', 'Publicações', 'Geral'];
 
 const STATUS_APROVADOS = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
 const STATUS_ELEGIVEIS_PAGAMENTO = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
@@ -67,6 +67,7 @@ function normalizeCentro(value) {
   if (raw === 'mis' || raw === 'mis bh' || raw.includes('imagem e som')) return 'MIS';
   if (raw === 'mhab' || raw === 'mab' || raw.includes('abilio')) return 'MHAB';
   if (raw === 'mumo' || raw.includes('moda')) return 'MUMO';
+  if (raw.includes('simposio')) return 'Terceiro Simpósio do Patrimônio de BH';
   if (raw === 'geral' || raw === 'geral/transversal' || raw === 'atuacao geral') return 'Geral';
   if (raw === 'rateado') return 'Rateado';
   if (raw === 'publicacoes' || raw === 'publicações') return 'Publicações';

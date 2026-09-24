@@ -486,9 +486,11 @@ app.get('/api/finance/rubrica-composition', requireSession, async (_req, res) =>
   try {
     const rubricas = (await pool.query('SELECT id, grupo, rubrica, centro_custo, COALESCE(valor_total,valor_rubrica,0) AS orcado FROM rubricas')).rows;
     const rows = (await pool.query(`
-      SELECT p.rubrica_id::text AS rubrica_id, to_jsonb(p) AS purchase,
+      SELECT p.rubrica_id::text AS rubrica_id,
+        to_jsonb(p) || jsonb_build_object('meta_nome_resolvido', pm.nome) AS purchase,
         ROUND((${PURCHASE_UTILIZED_AMOUNT_SQL})::numeric * 100)::bigint AS amount_cents
       FROM purchase_requests p
+      LEFT JOIN project_metas pm ON pm.id=p.meta_id
       WHERE ${PURCHASE_UTILIZED_WHERE_SQL}
     `)).rows;
     return res.json({ rubricas: buildRubricaComposition(rubricas, rows) });

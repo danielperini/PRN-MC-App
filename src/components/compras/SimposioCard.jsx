@@ -21,7 +21,8 @@ function fmtBRL(v) {
 }
 
 function valorCompra(compra) {
-  return toNumber(compra?.valor_pago)
+  return toNumber(compra?.valor_composicao)
+    || toNumber(compra?.valor_pago)
     || toNumber(compra?.valor_aprovado_admin)
     || toNumber(compra?.valor_aprovado)
     || toNumber(compra?.valor_solicitado)
@@ -39,21 +40,26 @@ export default function SimposioCard({ isCoordenador = false }) {
     refetchOnWindowFocus: true,
   });
 
-  const { data: todasCompras = [], isLoading: loadingCompras } = useQuery({
-    queryKey: ['compras-simposio'],
-    queryFn: () => base44.entities.PurchaseRequest.filter({
-      status: { $in: ['APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO'] }
-    }, '-created_date', 2000),
+  const { data: composition, isLoading: loadingCompras } = useQuery({
+    queryKey: ['rubrica-composition'],
+    queryFn: async () => {
+      const response = await fetch('/api/finance/rubrica-composition', { credentials: 'include', cache: 'no-store' });
+      if (!response.ok) throw new Error(`Falha na composição orçamentária (${response.status})`);
+      return response.json();
+    },
     staleTime: 0,
     gcTime: 0,
     refetchOnWindowFocus: true,
   });
 
   const isLoading = loadingRubricas || loadingCompras;
+  const todasCompras = useMemo(() => (rubricas || []).flatMap(r =>
+    (composition?.rubricas?.[String(r.id)]?.solicitacoes || []).map(p => ({ ...p, rubrica_id: r.id }))
+  ), [rubricas, composition]);
 
   // Mapa comprasUtilizadas por rubrica.id
   const comprasUtilizadas = useMemo(() => {
-    const STATUS_APROVADOS = new Set(['APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
+    const STATUS_APROVADOS = STATUS_CONTABILIZADOS;
     const mapa = {};
     for (const c of todasCompras) {
       if (!c.rubrica_id) continue;
@@ -68,7 +74,7 @@ export default function SimposioCard({ isCoordenador = false }) {
   const resumo = useMemo(() => {
     const rubricaIds = new Set((rubricas || []).map(r => String(r.id)));
 
-    const totalPrevisto = (rubricas || []).reduce((acc, r) => acc + toNumber(r.valor_rubrica || r.valor_total), 0);
+    const totalPrevisto = (rubricas || []).reduce((acc, r) => acc + toNumber(composition?.rubricas?.[String(r.id)]?.orcado ?? r.valor_total ?? r.valor_rubrica), 0);
 
     const comprasDoSimposio = (todasCompras || []).filter(c => {
       const status = String(c?.status || '').toUpperCase();
@@ -78,22 +84,25 @@ export default function SimposioCard({ isCoordenador = false }) {
     });
 
     let totalUtilizado = 0;
+    let totalExecutado = 0;
     let totalPago = 0;
 
     comprasDoSimposio.forEach(c => {
       const val = valorCompra(c);
       totalUtilizado += val;
+      if (c.nf_pdf_url || c.nota_fiscal_pdf_url || c.nota_fiscal_url || c.arquivo_url || c.drive_file_url) totalExecutado += val;
       if (String(c.status || '').toUpperCase() === 'PAGO') totalPago += val;
     });
 
     return {
       totalPrevisto: Number(totalPrevisto.toFixed(2)),
       totalUtilizado: Number(totalUtilizado.toFixed(2)),
+      totalExecutado: Number(totalExecutado.toFixed(2)),
       totalPago: Number(totalPago.toFixed(2)),
       saldo: Number((totalPrevisto - totalUtilizado).toFixed(2)),
       pct: totalPrevisto > 0 ? (totalUtilizado / totalPrevisto) * 100 : 0,
     };
-  }, [rubricas, todasCompras]);
+  }, [rubricas, todasCompras, composition]);
 
   const barColor = resumo.pct > 90 ? 'bg-red-500' : resumo.pct > 70 ? 'bg-amber-500' : 'bg-amber-600';
 
@@ -109,14 +118,18 @@ export default function SimposioCard({ isCoordenador = false }) {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-gray-100 border-b border-gray-100">
+      <div className="grid grid-cols-2 lg:grid-cols-5 divide-x divide-gray-100 border-b border-gray-100">
         <div className="px-4 py-4">
           <p className="text-[11px] uppercase tracking-wide font-semibold text-gray-500">Previsto</p>
           <p className="text-xl font-bold text-gray-900 mt-1 tabular-nums">{isLoading ? '...' : fmtBRL(resumo.totalPrevisto)}</p>
         </div>
         <div className="px-4 py-4">
-          <p className="text-[11px] uppercase tracking-wide font-semibold text-gray-500">Utilizado</p>
+          <p className="text-[11px] uppercase tracking-wide font-semibold text-gray-500">Comprometido</p>
           <p className="text-xl font-bold text-gray-900 mt-1 tabular-nums">{isLoading ? '...' : fmtBRL(resumo.totalUtilizado)}</p>
+        </div>
+        <div className="px-4 py-4">
+          <p className="text-[11px] uppercase tracking-wide font-semibold text-gray-500">Executado (com documento)</p>
+          <p className="text-xl font-bold text-gray-900 mt-1 tabular-nums">{isLoading ? '...' : fmtBRL(resumo.totalExecutado)}</p>
         </div>
         <div className="px-4 py-4">
           <p className="text-[11px] uppercase tracking-wide font-semibold text-gray-500">Pago</p>

@@ -24,6 +24,8 @@ const IDS_METAS_OCULTAS = new Set([
 ]);
 
 export function metaOcultaNoTerceiroAditivo(meta) {
+  const contexto = textoCompletoMeta(meta);
+  if (/simposio|5(?:o|º)?\s*aditivo|quinto aditivo/.test(contexto)) return false;
   const identificador = String(meta?.id || meta?.meta_id || meta?.project_meta_id || '').trim();
   if (IDS_METAS_OCULTAS.has(identificador)) return true;
   const ordem = String(meta?.ordem ?? meta?.numero ?? '').replace(/\D/g, '');
@@ -59,13 +61,16 @@ export function metaPertenceAo3ou4Aditivo(meta) {
   // Verificação por campo numérico explícito
   const numero = Number(meta?.numero_aditivo || meta?.aditivo_numero || meta?.aditivo);
   if (numero === 1 || numero === 2) return false; // excluir explicitamente 1º e 2º
-  if (numero === 3 || numero === 4) return true;
+  if (numero === 3 || numero === 4 || numero === 5) return true;
 
   const texto = textoCompletoMeta(meta);
 
   // Excluir se texto indica 1º ou 2º aditivo explicitamente
   const marcadores1e2 = ['1 aditivo', '1o aditivo', '1º aditivo', 'primeiro aditivo', '2 aditivo', '2o aditivo', '2º aditivo', 'segundo aditivo'];
   if (marcadores1e2.map(normalizarTextoMeta).some(m => texto.includes(m))) return false;
+
+  // O Simpósio pertence ao 5º aditivo e deve aparecer nos mesmos seletores.
+  if (/simposio.*patrimonio|5(?:o|º)?\s*aditivo|quinto aditivo/.test(texto)) return true;
 
   // Incluir se texto indica 3º ou 4º aditivo
   if ([...MARCADORES_3_ADITIVO, ...MARCADORES_4_ADITIVO].map(normalizarTextoMeta).some(m => texto.includes(m))) return true;

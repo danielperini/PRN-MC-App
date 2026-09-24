@@ -21,6 +21,7 @@ export const CENTROS_CUSTO_BASE = [
   'Administrativo-financeiro',
   'Noturno 2026',
   'Noturno Pampulha',
+  'Terceiro Simpósio do Patrimônio de BH',
   'Publicações',
   'Consultorias',
   'Despesas Gerais',
@@ -44,7 +45,7 @@ export function useCentrosCusto() {
   const todos = [...new Set([...CENTROS_CUSTO_BASE, ...ccDoBanco])];
   return todos.sort((a, b) => {
     // Mantém MHAB, MIS, MUMO no topo
-    const ordem = ['MHAB', 'MIS BH', 'MUMO', 'Noturno 2026', 'Noturno Pampulha'];
+    const ordem = ['MHAB', 'MIS BH', 'MUMO', 'Noturno 2026', 'Noturno Pampulha', 'Terceiro Simpósio do Patrimônio de BH'];
     const ia = ordem.indexOf(a);
     const ib = ordem.indexOf(b);
     if (ia !== -1 && ib !== -1) return ia - ib;

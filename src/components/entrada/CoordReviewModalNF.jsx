@@ -13,7 +13,7 @@ import { METAS_PROJETO } from '@/lib/metasProjeto';
 import { useReanaliseAutomaticaNF } from '@/hooks/useReanaliseAutomaticaNF';
 
 
-const CENTROS = ['MHAB', 'MIS', 'MUMO', 'Noturno 2026', 'Noturno Pampulha', 'Atuação Geral'];
+const CENTROS = ['MHAB', 'MIS', 'MUMO', 'Noturno 2026', 'Noturno Pampulha', 'Terceiro Simpósio do Patrimônio de BH', 'Atuação Geral'];
 const MUSEUS_RATEIO = ['MHAB', 'MIS', 'MUMO'];
 const DEFAULT_RATEIO = MUSEUS_RATEIO.map((m) => ({ museu: m, valor: '' }));
 
@@ -41,7 +41,7 @@ function isRubricaEntradaUnica(rubrica) {
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase();
 
-  return /(^|\D)(3|4)(\D|$)/.test(origem) || contexto.includes('noturno pampulha');
+  return /(^|\D)(3|4|5)(\D|$)/.test(origem) || contexto.includes('noturno pampulha') || contexto.includes('simposio');
 }
 
 function normalizeDateToInput(value) {
@@ -390,7 +390,7 @@ Equipe Museus Centro`;
   useEffect(() => {
     async function loadRubricas() {
       try {
-        // Busca rubricas do banco e filtra as do 3º e 4º Aditivo ativas
+        // Inclui as rubricas ativas do 5º aditivo (Simpósio).
         const list = await base44.entities.Rubrica.list('', 2000);
         const rubricasValidas = (list || []).filter(isRubricaEntradaUnica);
 
@@ -765,11 +765,11 @@ Equipe Museus Centro`;
       return;
     }
 
-    // Bloqueia se a rubrica selecionada não pertencer ao 3º ou 4º Aditivo
+    // Bloqueia rubricas fora dos aditivos ativos.
     const rubricaSel = rubricas.find((r) => r.id === form.rubrica_id);
     const origemValida = isRubricaEntradaUnica(rubricaSel);
     if (rubricaSel && !origemValida) {
-      toast({ title: 'Rubrica inválida', description: 'A rubrica selecionada não pertence ao 3º ou 4º Aditivo.', variant: 'destructive', duration: 4000 });
+      toast({ title: 'Rubrica inválida', description: 'A rubrica selecionada não pertence ao 3º, 4º ou 5º Aditivo.', variant: 'destructive', duration: 4000 });
       return;
     }
 

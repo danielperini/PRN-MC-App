@@ -98,6 +98,7 @@ export function normalizeCentroCusto(nf) {
   }
 
   if (!low) return { centro_normalizado: 'Geral', aditivo: explicito || '3º Aditivo' };
+  if (low.includes('simposio')) return { centro_normalizado: 'Terceiro Simpósio do Patrimônio de BH', aditivo: '5º Aditivo' };
   if (low === 'mis' || low === 'mis bh') return { centro_normalizado: 'MIS', aditivo: explicito || '3º Aditivo' };
   if (low === 'mhab' || low === 'mab') return { centro_normalizado: 'MHAB', aditivo: explicito || '3º Aditivo' };
   if (low === 'mumo' || low === 'mumu') return { centro_normalizado: 'MUMO', aditivo: explicito || '3º Aditivo' };

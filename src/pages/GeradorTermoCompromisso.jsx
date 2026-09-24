@@ -19,6 +19,7 @@ const CENTROS_CUSTO_TERMO = [
   { value: 'Atuacao Geral', label: 'Atuacao Geral' },
   { value: 'Noturno nos Museus Centro', label: 'Noturno nos Museus Centro' },
   { value: 'Noturno nos Museus Pampulha', label: 'Noturno nos Museus Pampulha' },
+  { value: 'Terceiro Simpósio do Patrimônio de BH', label: 'Terceiro Simpósio do Patrimônio de BH' },
 ];
 
 // Normaliza centros legados

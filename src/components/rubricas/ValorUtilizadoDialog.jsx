@@ -41,12 +41,12 @@ export default function ValorUtilizadoDialog({ rubrica, composition, onClose }) 
                 const documentUrl = item.nf_pdf_url || item.nota_fiscal_url || item.arquivo_url || item.drive_file_url;
                 return <tr key={id} className="border-t align-top">
                   <td className="p-2">{first(item.numero_solicitacao, item.nf_numero, id)}</td>
-                  <td className="p-2">{first(item.descricao, item.descricao_servico, item.objeto)}</td>
+                  <td className="p-2">{first(item.descricao_item, item.descricao, item.descricao_servico, item.objeto)}</td>
                   <td className="p-2">{first(item.fornecedor_nome, item.nf_emitente_nome, item.fornecedor)}</td>
                   <td className="p-2">{first(item.solicitante_nome, item.user_email, item.created_by)}</td>
                   <td className="p-2">{first(item.nf_data_emissao, item.data_solicitacao, item.created_at, item.created_date)}</td>
                   <td className="p-2">{first(item.centro_custo, composition?.centro_custo)}</td>
-                  <td className="p-2">{first(item.meta_nome, item.meta_id, composition?.grupo)}</td>
+                  <td className="p-2">{first(item.meta_nome_resolvido, item.meta_nome, composition?.grupo, item.meta_id)}</td>
                   <td className="p-2">{first(composition?.rubrica)}</td>
                   <td className="p-2">{first(item.natureza_despesa, rubrica.natureza_despesa)}</td>
                   <td className="p-2">{first(item.codigo_item_pbh, rubrica.codigo_item_pbh)}</td>

@@ -14,7 +14,7 @@ const CENTROS_CUSTO_OPTS = [
   'Noturno nos Museus', 'Noturno Pampulha',
   'Coordenação', 'Comunicação', 'Educação', 'Produção',
   'Administrativo-financeiro', 'Publicações', 'Consultorias',
-  'Despesas Gerais', 'Geral/Transversal',
+  'Despesas Gerais', 'Geral/Transversal', 'Terceiro Simpósio do Patrimônio de BH',
 ];
 
 /**

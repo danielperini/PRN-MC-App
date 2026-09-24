@@ -2,8 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Building2, TrendingUp, AlertCircle, Layers } from 'lucide-react';
+import { Building2, Layers } from 'lucide-react';
 import EditarRubricasEmLoteModal from '@/components/rubricas/EditarRubricasEmLoteModal';
 
 function toNumber(value) {
@@ -54,6 +53,7 @@ function normalizarCentro(cc) {
   if (up === 'MIS BH' || up === 'MIS') return 'MIS';
   if (up === 'MHAB' || up === 'MAB') return 'MHAB';
   if (up === 'MUMO' || up === 'MUMU') return 'MUMO';
+  if (up.includes('SIMPÓSIO') || up.includes('SIMPOSIO')) return 'Terceiro Simpósio do Patrimônio de BH';
 
   const low = raw.toLowerCase();
   if (low.includes('noturno') && (low.includes('pampulha') || low.includes('4'))) return 'Noturno Pampulha';
@@ -80,7 +80,7 @@ function normalizarCentro(cc) {
 function classificarRubrica(rubrica) {
   // 1. centro_custo — se for museu físico ou noturno, usar direto
   const cc = normalizarCentro(rubrica.centro_custo);
-  if (cc && ['MHAB', 'MIS', 'MUMO', 'Noturno 2026', 'Noturno Pampulha'].includes(cc)) return cc;
+  if (cc && ['MHAB', 'MIS', 'MUMO', 'Noturno 2026', 'Noturno Pampulha', 'Terceiro Simpósio do Patrimônio de BH'].includes(cc)) return cc;
 
   // 2. Nome da rubrica
   const nome = normalizeText(rubrica.rubrica || rubrica.nome || '');
@@ -99,6 +99,7 @@ function classificarRubrica(rubrica) {
   // Verificar tokens de museu no texto combinado
   if (isNoturnoPampulha(texto)) return 'Noturno Pampulha';
   if (isNoturno(texto)) return 'Noturno 2026';
+  if (texto.includes('simposio')) return 'Terceiro Simpósio do Patrimônio de BH';
   if (hasMuseuToken(texto, 'MHAB')) return 'MHAB';
   if (hasMuseuToken(texto, 'MIS')) return 'MIS';
   if (hasMuseuToken(texto, 'MUMO')) return 'MUMO';
@@ -116,6 +117,7 @@ const CENTROS_CUSTO = [
   'MUMO',
   'Noturno 2026',
   'Noturno Pampulha',
+  'Terceiro Simpósio do Patrimônio de BH',
   'Geral',
   'Coordenação',
   'Comunicação',

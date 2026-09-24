@@ -387,7 +387,7 @@ async function persistAuthoritativeReportData(originalPayload, context) {
   await base44.entities.RelatorioExecucaoObjeto.update(reportId, update);
 }
 
-// Regra canônica global: seletores e telas só recebem metas do 3º e 4º aditivos.
+// Regra canônica global: seletores incluem também a meta do Simpósio (5º aditivo).
 for (const entityName of ['ProjectMeta', 'MetaProjeto', 'Meta']) {
   const entity = base44.entities?.[entityName];
   if (!entity) continue;
