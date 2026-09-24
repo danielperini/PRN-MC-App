@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import {
-  Loader2, RefreshCw, AlertTriangle, CheckCircle2, X,
+  Loader2, RefreshCw, AlertTriangle, CheckCircle2,
   Sparkles, Link2, Send, FileX, Eraser, Files,
 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
@@ -137,7 +137,7 @@ function calcularScoreVinculoTriplo(pdfIa, xmlData) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-export default function ReprocessarFilaModal({ open, intakes, onClose, onConcluir, currentUserName }) {
+export default function ReprocessarFilaModal({ open, intakes, onClose, onConcluir, currentUserName: _currentUserName }) {
   const [running, setRunning] = useState(false);
   const [faseKey, setFaseKey] = useState(null);
   const [progresso, setProgresso] = useState({ atual: 0, total: 0 });
