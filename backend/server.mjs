@@ -126,6 +126,93 @@ function fiscalDate(value) {
   const date=value instanceof Date && !Number.isNaN(value.getTime()) ? value.toISOString().slice(0,10) : String(value || '').slice(0,10);
   return /^20\d{2}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/.test(date) ? date : '';
 }
+// XML is the fiscal source of truth.  Keep this parser deliberately
+// dependency-free because it also runs in the lean API container.  It does
+// not try to "guess" a value: an absent tag remains absent and sends the item
+// to review instead of silently producing a wrong purchase record.
+function decodeXmlText(value) {
+  return String(value || '')
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    .replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"').replace(/&#(?:x0*27|0*39);/gi, "'")
+    .replace(/\s+/g, ' ').trim();
+}
+function xmlTag(xml, names, scope = '') {
+  const source = scope || String(xml || '');
+  for (const name of names) {
+    const escaped = String(name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const match = source.match(new RegExp(`<\\s*(?:\\w+:)?${escaped}\\b[^>]*>([\\s\\S]*?)<\\s*\\/\\s*(?:\\w+:)?${escaped}\\s*>`, 'i'));
+    if (match) return decodeXmlText(match[1]);
+  }
+  return '';
+}
+function xmlSection(xml, names) {
+  for (const name of names) {
+    const escaped = String(name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const match = String(xml || '').match(new RegExp(`<\\s*(?:\\w+:)?${escaped}\\b[^>]*>([\\s\\S]*?)<\\s*\\/\\s*(?:\\w+:)?${escaped}\\s*>`, 'i'));
+    if (match) return match[1];
+  }
+  return '';
+}
+function normalizeXmlFiscalDate(value) {
+  const raw = String(value || '').trim();
+  const iso = raw.match(/^(20\d{2})-(\d{2})-(\d{2})/);
+  if (iso) return fiscalDate(`${iso[1]}-${iso[2]}-${iso[3]}`);
+  const br = raw.match(/^(\d{2})\/(\d{2})\/(20\d{2})/);
+  return br ? fiscalDate(`${br[3]}-${br[2]}-${br[1]}`) : '';
+}
+function xmlMoney(value) {
+  const normalized = String(value || '').trim().replace(/\./g, '').replace(',', '.');
+  const amount = Number(normalized);
+  return Number.isFinite(amount) && amount > 0 ? amount : 0;
+}
+function extractPaymentEvidence(text) {
+  const source = decodeXmlText(text);
+  if (!source) return {};
+  const pick = (patterns) => {
+    for (const pattern of patterns) {
+      const match = source.match(pattern);
+      if (match?.[1]) return String(match[1]).trim();
+    }
+    return '';
+  };
+  const fornecedor_pix = pick([/\b(?:chave\s*)?pix\s*[:\-]\s*([^|;\n]{3,180})/i]);
+  const fornecedor_banco = pick([/\bbanco\s*[:\-]\s*([^|;\n]{2,100})/i]);
+  const fornecedor_agencia = pick([/\bag[êe]ncia\s*[:\-]?\s*([\w.-]{2,30})/i]);
+  const fornecedor_conta = pick([/\bconta\s*(?:corrente)?\s*[:\-]?\s*([\w.-]{2,40})/i]);
+  return Object.fromEntries(Object.entries({ fornecedor_pix, fornecedor_banco, fornecedor_agencia, fornecedor_conta }).filter(([, value]) => value));
+}
+function parseFiscalXml(xmlText) {
+  const xml = String(xmlText || '');
+  const emitente = xmlSection(xml, ['emit', 'PrestadorServico', 'Prestador', 'DadosPrestador']);
+  const issuerScope = emitente || xml;
+  const number = xmlTag(xml, ['nNF', 'NumeroNfse', 'NumeroNFSe', 'Numero', 'numero']);
+  const date = normalizeXmlFiscalDate(xmlTag(xml, ['dhEmi', 'dEmi', 'DataEmissaoNfse', 'DataEmissao', 'dataEmissao']));
+  const amount = xmlMoney(xmlTag(xml, ['vNF', 'vLiquidoNfse', 'ValorLiquidoNfse', 'ValorServicos', 'ValorTotal', 'Valor']));
+  const supplier = xmlTag(issuerScope, ['xNome', 'RazaoSocial', 'RazaoSocialPrestador', 'NomeRazaoSocial', 'Nome']);
+  const taxId = xmlTag(issuerScope, ['CNPJ', 'CpfCnpj', 'CpfCnpjPrestador', 'CPF']).replace(/\D/g, '');
+  const descricao = xmlTag(xml, ['xServ', 'DiscriminacaoServicos', 'Discriminacao', 'DescricaoServico', 'Descricao']);
+  const municipio = xmlTag(issuerScope, ['xMun', 'Municipio', 'NomeMunicipio']);
+  const payment = extractPaymentEvidence(`${descricao}\n${xml}`);
+  return {
+    nf_numero: String(number || '').replace(/\D/g, ''),
+    nf_data_emissao: date,
+    nf_valor_total: amount,
+    nf_emitente_nome: supplier,
+    nf_emitente_cpf_cnpj: taxId,
+    descricao_servico: descricao,
+    municipio,
+    ...payment,
+  };
+}
+function requiredFiscalFieldsMissing(data = {}) {
+  const missing = [];
+  if (!String(data.nf_numero || '').replace(/\D/g, '')) missing.push('número da NF');
+  if (!fiscalDate(data.nf_data_emissao)) missing.push('data de emissão');
+  if (!(Number(data.nf_valor_total) > 0)) missing.push('valor total');
+  if (!String(data.nf_emitente_nome || '').trim()) missing.push('emitente');
+  return missing;
+}
 function safeDriveName(value) {
   return String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[\\/:*?"<>|]+/g,' ').replace(/\s+/g,' ').trim();
 }
@@ -422,6 +509,18 @@ function paymentNotificationContent(purchase = {}) {
   const message = `O pagamento da NF ${number}, emitida por ${supplier}, no valor de ${amount}, foi registrado. Use o botão abaixo para abrir diretamente esta solicitação, consultar os documentos vinculados e conferir o status.`;
   return { title, message };
 }
+function purchaseReadyNotificationContent(purchase = {}) {
+  const number = String(purchase.nf_numero || purchase.id || 'sem número').trim();
+  const supplier = String(purchase.nf_emitente_nome || purchase.fornecedor_nome || 'fornecedor não informado').trim();
+  const value = Number(purchase.nf_valor_total || purchase.valor_aprovado || purchase.valor_total || purchase.valor_solicitado || 0);
+  const amount = Number.isFinite(value)
+    ? value.toLocaleString('pt-BR', { style:'currency', currency:'BRL' })
+    : 'valor não informado';
+  return {
+    title:'Solicitação pronta para pagamento',
+    message:`A NF ${number}, emitida por ${supplier}, foi aprovada e aguarda pagamento no valor de ${amount}. Use o botão abaixo para abrir a solicitação, conferir a nota e registrar o comprovante após o pagamento.`,
+  };
+}
 async function paymentNotificationRecipients(purchase = {}) {
   // A payment is financial information.  It is deliberately sent only to the
   // request owner and to registered administrators/coordinators, never to all
@@ -491,13 +590,18 @@ async function queuePaymentNotifications(purchase = {}) {
         LIMIT 1
         FOR UPDATE
       `, [email, purchaseId]);
-      if (existing.rowCount) continue;
-      const inserted = await client.query(`
-        INSERT INTO notifications (user_email,type,title,message,entity_type,entity_id,action_url,is_read,resolved,email_sent)
-        VALUES ($1,'purchase.paid',$2,$3,'PurchaseRequest',$4,$5,FALSE,FALSE,FALSE)
-        RETURNING id
-      `, [email, title, message, purchaseId, actionUrl]);
-      queued.push({ id:inserted.rows[0].id, email });
+      if (existing.rowCount) {
+        // A previous SMTP outage leaves a durable queue row. Retry it on a
+        // later user action instead of treating the unsent row as delivered.
+        if (!existing.rows[0].email_sent) queued.push({ id:existing.rows[0].id, email });
+      } else {
+        const inserted = await client.query(`
+          INSERT INTO notifications (user_email,type,title,message,entity_type,entity_id,action_url,is_read,resolved,email_sent)
+          VALUES ($1,'purchase.paid',$2,$3,'PurchaseRequest',$4,$5,FALSE,FALSE,FALSE)
+          RETURNING id
+        `, [email, title, message, purchaseId, actionUrl]);
+        queued.push({ id:inserted.rows[0].id, email });
+      }
     }
     await client.query('COMMIT');
   } catch (error) {
@@ -515,6 +619,46 @@ async function queuePaymentNotifications(purchase = {}) {
     await pool.query('UPDATE notifications SET email_sent=TRUE, updated_at=NOW() WHERE id=$1', [notification.id]);
   }
   return { recipients:recipients.length, queued:queued.length, sent, pending:queued.length - sent };
+}
+async function queuePurchaseReadyNotifications(purchase = {}) {
+  const purchaseId = String(purchase.id || '').trim();
+  if (!purchaseId) return { recipients:0, queued:0, sent:0, skipped:'purchase_id_missing' };
+  const recipients = await paymentNotificationRecipients(purchase);
+  const { title, message } = purchaseReadyNotificationContent(purchase);
+  const actionUrl = `${publicBaseUrl}/Compras?id=${encodeURIComponent(purchaseId)}`;
+  const client = await pool.connect();
+  const queued = [];
+  try {
+    await client.query('BEGIN');
+    for (const email of recipients) {
+      const existing = await client.query(`SELECT id,email_sent FROM notifications
+        WHERE user_email=$1 AND type='purchase.ready' AND entity_type='PurchaseRequest' AND entity_id=$2
+        ORDER BY created_at DESC LIMIT 1 FOR UPDATE`, [email, purchaseId]);
+      if (existing.rowCount) {
+        if (!existing.rows[0].email_sent) queued.push({ id:existing.rows[0].id, email });
+        continue;
+      }
+      const inserted = await client.query(`INSERT INTO notifications
+        (user_email,type,title,message,entity_type,entity_id,action_url,is_read,resolved,email_sent)
+        VALUES ($1,'purchase.ready',$2,$3,'PurchaseRequest',$4,$5,FALSE,FALSE,FALSE) RETURNING id`,
+      [email, title, message, purchaseId, actionUrl]);
+      queued.push({ id:inserted.rows[0].id, email });
+    }
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+  let sent = 0;
+  for (const notification of queued) {
+    const result = await sendPaymentEmail({ to:notification.email, title, message, actionUrl });
+    if (!result.sent) continue;
+    sent += 1;
+    await pool.query('UPDATE notifications SET email_sent=TRUE,updated_at=NOW() WHERE id=$1',[notification.id]);
+  }
+  return { recipients:recipients.length, queued:queued.length, sent, pending:queued.length-sent };
 }
 async function tableColumnTypes(table) {
   const r = await pool.query(`SELECT column_name,data_type,udt_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1 ORDER BY ordinal_position`, [table]);
@@ -625,6 +769,18 @@ async function initDb() {
       WHERE LOWER(COALESCE(report.created_by,''))=LOWER(user_row.email)
          OR LOWER(COALESCE(report.author_email,''))=LOWER(user_row.email)
          OR COALESCE(report.created_by_id,'')=user_row.id::text`);
+
+    // A duplicated legacy Base44 id is dangerous: an old activity/photo that
+    // still points to that id can be joined to either monthly report. Keep the
+    // oldest mapping for backwards recovery and give every later duplicate a
+    // fresh compatibility id. Children already carrying the canonical report
+    // primary key are never moved by this repair.
+    await pool.query(`WITH ranked AS (
+        SELECT id,base44_id,ROW_NUMBER() OVER (PARTITION BY base44_id ORDER BY created_date NULLS LAST,id) AS position
+        FROM reports WHERE NULLIF(BTRIM(COALESCE(base44_id,'')),'') IS NOT NULL
+      )
+      UPDATE reports AS report SET base44_id='legacy-' || report.id::text || '-' || md5(random()::text || clock_timestamp()::text), updated_date=NOW()
+      FROM ranked WHERE ranked.id=report.id AND ranked.position>1`);
   }
   // `reports.id` is the canonical monthly-report relationship. Earlier
   // imports stored the external Base44 id in the activity foreign key, which
@@ -635,7 +791,8 @@ async function initDb() {
     await pool.query('ALTER TABLE report_activities ADD COLUMN IF NOT EXISTS report_id TEXT');
     await pool.query(`UPDATE report_activities AS activity
       SET report_id = report.id::text
-      FROM reports AS report
+      FROM (SELECT base44_id,MIN(id)::text AS id FROM reports
+            WHERE NULLIF(BTRIM(COALESCE(base44_id,'')),'') IS NOT NULL GROUP BY base44_id HAVING COUNT(*)=1) AS report
       WHERE activity.report_base44_id = report.base44_id
         AND activity.report_id IS DISTINCT FROM report.id::text`);
     await pool.query('CREATE INDEX IF NOT EXISTS report_activities_report_id_idx ON report_activities(report_id)');
@@ -643,7 +800,8 @@ async function initDb() {
   if (await tableExists('activities')) {
     await pool.query(`UPDATE activities AS activity
       SET report_id = report.id::text, updated_at = NOW()
-      FROM reports AS report
+      FROM (SELECT base44_id,MIN(id)::text AS id FROM reports
+            WHERE NULLIF(BTRIM(COALESCE(base44_id,'')),'') IS NOT NULL GROUP BY base44_id HAVING COUNT(*)=1) AS report
       WHERE activity.report_id = report.base44_id
         AND activity.report_id IS DISTINCT FROM report.id::text`);
     await pool.query('CREATE INDEX IF NOT EXISTS activities_report_id_idx ON activities(report_id)');
@@ -654,7 +812,8 @@ async function initDb() {
     // gallery, monthly editor and backup all use the same report primary key.
     await pool.query(`UPDATE report_photos AS photo
       SET report_id=report.id::text, updated_date=NOW()
-      FROM reports AS report
+      FROM (SELECT base44_id,MIN(id)::text AS id FROM reports
+            WHERE NULLIF(BTRIM(COALESCE(base44_id,'')),'') IS NOT NULL GROUP BY base44_id HAVING COUNT(*)=1) AS report
       WHERE photo.report_id::text=report.base44_id
         AND photo.report_id::text IS DISTINCT FROM report.id::text`);
     await pool.query('CREATE INDEX IF NOT EXISTS report_photos_report_id_idx ON report_photos(report_id)');
@@ -879,7 +1038,7 @@ function activityArray(value) {
 // visible everywhere after the report is reopened.
 async function syncReportActivities(report, activities) {
   if (!report?.id || !Array.isArray(activities) || !(await tableExists('report_activities'))) {
-    return { created: 0, updated: 0, removed: 0 };
+    return { created: 0, updated: 0, removed: 0, skipped: 0 };
   }
 
   const reportId = String(report.id);
@@ -893,10 +1052,19 @@ async function syncReportActivities(report, activities) {
   const currentIds = [];
   let created = 0;
   let updated = 0;
+  let skipped = 0;
 
   for (const original of activities) {
     const activity = original && typeof original === 'object' ? original : {};
     const activityId = String(activity.id || activity.base44_activity_id || crypto.randomUUID());
+    // Never let a cached activity id transfer a child record between monthly
+    // reports.  The user must deliberately copy/create it with a new id.
+    const foreign = (await pool.query('SELECT report_id FROM report_activities WHERE base44_activity_id=$1 AND report_id::text<>$2 LIMIT 1', [activityId, reportId])).rows[0];
+    if (foreign) {
+      skipped += 1;
+      console.warn('REPORT_ACTIVITY_FOREIGN_RELATION_BLOCKED', JSON.stringify({ target_report_id:reportId, existing_report_id:String(foreign.report_id), activity_id:activityId }));
+      continue;
+    }
     currentIds.push(activityId);
     const museums = activityArray(activity.museu_lista || activity.museu || activity.museu_principal);
     const types = activityArray(activity.tipo_acao_lista || activity.tipo || activity.tipo_acao);
@@ -926,7 +1094,7 @@ async function syncReportActivities(report, activities) {
   const removedResult = currentIds.length
     ? await pool.query('DELETE FROM report_activities WHERE report_id=$1 AND NOT (base44_activity_id = ANY($2::text[]))', [reportId, currentIds])
     : await pool.query('DELETE FROM report_activities WHERE report_id=$1', [reportId]);
-  return { created, updated, removed: removedResult.rowCount || 0 };
+  return { created, updated, removed: removedResult.rowCount || 0, skipped };
 }
 
 function reportPhotoValue(photo, ...keys) {
@@ -977,6 +1145,20 @@ async function syncReportPhotosToGallery(report, photos) {
       || (driveFileId ? existingBySource.get(`drive:${driveFileId}`) : null)
       || existingBySource.get(`url:${fileUrl}`);
     const base44Id = String(existing?.base44_id || photo.base44_id || photo.id || crypto.randomUUID());
+    // `base44_id` is globally unique in the historical schema.  A stale tab
+    // could send a photo id copied from another report; the old UPSERT then
+    // reassigned that photo and made galleries appear mixed.  Preserve the
+    // established source relation and reject only this unsafe child record.
+    const foreign = (await pool.query(`SELECT report_id FROM report_photos
+      WHERE (base44_id=$1 OR ($2<>'' AND drive_file_id=$2) OR ($3<>'' AND file_url=$3))
+        AND report_id::text<>$4 LIMIT 1`, [base44Id, driveFileId, fileUrl, String(report.id)])).rows[0];
+    if (foreign) {
+      skipped += 1;
+      console.warn('REPORT_PHOTO_FOREIGN_RELATION_BLOCKED', JSON.stringify({
+        target_report_id:String(report.id), existing_report_id:String(foreign.report_id), photo_identity:originalId || base44Id,
+      }));
+      continue;
+    }
     const fileName = String(reportPhotoValue(photo, 'fileName', 'file_name', 'name') || `foto-${ordem + 1}`).slice(0, 500);
     const caption = String(reportPhotoValue(photo, 'caption', 'legenda')).slice(0, 4000);
     const museum = String(reportPhotoValue(photo, 'museum', 'museu') || report.museu || '').slice(0, 300);
@@ -1708,7 +1890,12 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
           }
         }
         let paymentNotifications = null;
-        if (action === 'marcar_pago' || action === 'pagar') {
+        if (action === 'aprovar') {
+          paymentNotifications = await queuePurchaseReadyNotifications(updatedResult.rows[0]).catch(error => {
+            console.error('PURCHASE_READY_NOTIFICATION_QUEUE_ERROR', JSON.stringify({ purchase_id:purchaseId, message:error.message }));
+            return { error:'purchase_ready_notification_queue_failed' };
+          });
+        } else if (action === 'marcar_pago' || action === 'pagar') {
           paymentNotifications = await queuePaymentNotifications(updatedResult.rows[0]).catch(error => {
             console.error('PAYMENT_NOTIFICATION_QUEUE_ERROR', JSON.stringify({ purchase_id:purchaseId, message:error.message }));
             return { error:'payment_notification_queue_failed' };
@@ -1728,9 +1915,11 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
       const fileUrl = String(req.body?.file_url || '').trim();
       const apiKey = String(process.env.OPENAI_API_KEY || '').trim();
       if (!intakeId || !fileUrl) return res.status(400).json({ error:'invalid_invoice_input', message:'intake_id e file_url são obrigatórios' });
-      if (!apiKey) return res.status(503).json({ error:'openai_not_configured', message:'OPENAI_API_KEY não configurada' });
+      const current = await pool.query('SELECT * FROM document_intakes WHERE id=$1 LIMIT 1',[intakeId]);
+      if (!current.rowCount) return res.status(404).json({ error:'intake_not_found' });
+      const intake = current.rows[0];
       const absoluteFileUrl = /^https?:\/\//i.test(fileUrl) ? fileUrl : `${req.protocol}://${req.get('host')}${fileUrl.startsWith('/') ? '' : '/'}${fileUrl}`;
-      const prompt = `Leia integralmente esta nota fiscal. Retorne somente JSON com: nf_numero, nf_valor_total (número), nf_data_emissao (YYYY-MM-DD), nf_horario_emissao (HH:MM:SS ou vazio), competencia, nf_emitente_nome, nf_emitente_cpf_cnpj, municipio, descricao_servico, centro_custo_sugerido (somente Atuação Geral, MHAB, MIS, MUMO, Noturno 2026 ou Noturno Pampulha), rubrica_nome_sugerida e meta_sugerida. Regra obrigatória e exclusiva: uma despesa só pertence ao 4º Aditivo / Noturno Pampulha quando o conteúdo fiscal mencionar FUNEMP. Toda outra despesa da 11ª edição do Noturno nos Museus de 2026 — mesmo que mencione Pampulha, Casa do Baile ou Casa Kubitschek — pertence ao Noturno 2026 do 3º Aditivo. Não use o nome do arquivo como substituto para valor ou data; extraia do conteúdo fiscal.`;
+      const prompt = `Leia integralmente este PDF de nota fiscal e retorne somente JSON com: nf_numero, nf_valor_total (número), nf_data_emissao (YYYY-MM-DD), nf_horario_emissao (HH:MM:SS ou vazio), competencia, nf_emitente_nome, nf_emitente_cpf_cnpj, municipio, descricao_servico, centro_custo_sugerido (somente Atuação Geral, MHAB, MIS, MUMO, Noturno 2026 ou Noturno Pampulha), rubrica_nome_sugerida, meta_sugerida, fornecedor_pix, fornecedor_banco, fornecedor_agencia, fornecedor_conta. Dados bancários somente podem ser retornados se estiverem literalmente impressos no PDF; caso contrário, retorne string vazia. Não use o nome do arquivo como fonte fiscal. Regra obrigatória e exclusiva: uma despesa só pertence ao 4º Aditivo / Noturno Pampulha quando o conteúdo fiscal mencionar FUNEMP. Toda outra despesa da 11ª edição do Noturno nos Museus de 2026 — mesmo que mencione Pampulha, Casa do Baile ou Casa Kubitschek — pertence ao Noturno 2026 do 3º Aditivo.`;
       // Responses accepts an OpenAI file id, not an arbitrary public URL.  The
       // previous `input_file.file_url` form is rejected with HTTP 400 and left
       // otherwise valid invoices permanently stuck in manual review.
@@ -1747,20 +1936,62 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
       // This handler runs beside the upload volume. Reading it directly avoids
       // requesting the container's unpublished host port (which caused the
       // self-fetch failure and prevented OCR from ever starting).
+      const readStoredOrRemoteFile = async (url, timeout = 60000) => {
+        const storedName = /^\/api\/files\//.test(String(url || '')) ? path.basename(decodeURIComponent(url)) : '';
+        let storedPath = storedName ? path.join(uploadDir, storedName) : '';
+        if (storedName && !fs.existsSync(storedPath)) {
+          const timestampPrefix = `${storedName.split('-')[0]}-`;
+          const recoveredName = fs.readdirSync(uploadDir).find(name => name.startsWith(timestampPrefix));
+          if (recoveredName) storedPath = path.join(uploadDir, recoveredName);
+        }
+        if (storedPath && fs.existsSync(storedPath)) return { bytes:fs.readFileSync(storedPath), mime:'', name:path.basename(storedPath) };
+        const absoluteUrl = /^https?:\/\//i.test(url) ? url : `${req.protocol}://${req.get('host')}${String(url || '').startsWith('/') ? '' : '/'}${url}`;
+        const response = await fetch(absoluteUrl, { signal:AbortSignal.timeout(timeout) });
+        if (!response.ok) throw new Error(`invoice_file_fetch_failed:${response.status}`);
+        return { bytes:await response.arrayBuffer(), mime:response.headers.get('content-type') || '', name:path.basename(new URL(absoluteUrl).pathname) };
+      };
+
+      // Parse the already linked XML before touching the PDF.  XML values stay
+      // canonical even when OCR sees a visually similar but wrong number/date.
+      let xmlFiscal = {};
+      let xmlReadError = '';
+      const xmlUrl = String(intake.nf_xml_url || '').trim();
+      let linkedXmlUrl = xmlUrl;
+      if (!linkedXmlUrl && intake.nf_xml_intake_id) {
+        const linked = await pool.query('SELECT arquivo_original_url FROM document_intakes WHERE id=$1 LIMIT 1',[intake.nf_xml_intake_id]);
+        linkedXmlUrl = String(linked.rows[0]?.arquivo_original_url || '').trim();
+      }
+      if (linkedXmlUrl) {
+        try {
+          const xmlFile = await readStoredOrRemoteFile(linkedXmlUrl, 60000);
+          xmlFiscal = parseFiscalXml(Buffer.from(xmlFile.bytes).toString('utf8'));
+        } catch (error) {
+          xmlReadError = error.message || String(error);
+        }
+      }
+      const xmlMissing = linkedXmlUrl ? requiredFiscalFieldsMissing(xmlFiscal) : [];
+
       let fileBytes;
       let fileMime = 'application/pdf';
-      if (localPath && fs.existsSync(localPath)) {
-        fileBytes = fs.readFileSync(localPath);
-      } else {
-        const fileResponse = await fetch(absoluteFileUrl, { signal: AbortSignal.timeout(60000) });
-        if (!fileResponse.ok) throw new Error(`invoice_file_fetch_failed:${fileResponse.status}`);
-        fileBytes = await fileResponse.arrayBuffer();
-        fileMime = fileResponse.headers.get('content-type') || fileMime;
+      if (localPath && fs.existsSync(localPath)) fileBytes = fs.readFileSync(localPath);
+      else {
+        const pdfFile = await readStoredOrRemoteFile(fileUrl, 60000);
+        fileBytes = pdfFile.bytes;
+        fileMime = pdfFile.mime || fileMime;
       }
       if (!fileBytes.byteLength) throw new Error('invoice_file_empty');
+      if (!apiKey) {
+        const mergedWithoutPdf = { ...(intake.resultado_ia || {}), ...xmlFiscal, fonte_fiscal:linkedXmlUrl ? 'XML' : 'PENDENTE', validacao_pdf:{ status:'PENDENTE', motivo:'OPENAI_API_KEY não configurada' }, campos_fiscais_pendentes:requiredFiscalFieldsMissing(xmlFiscal), analisado_em:new Date().toISOString() };
+        await pool.query(`UPDATE document_intakes SET resultado_ia=$1::jsonb, status_processamento='AGUARDANDO_REVISAO', updated_at=NOW() WHERE id=$2`,[JSON.stringify(mergedWithoutPdf), intakeId]);
+        return res.status(200).json({ success:true, resultado_ia:mergedWithoutPdf, validation_pending:true });
+      }
       const uploadForm = new FormData();
       uploadForm.append('purpose', 'user_data');
       uploadForm.append('file', new Blob([fileBytes], { type:fileMime }), localName || path.basename(new URL(absoluteFileUrl).pathname) || 'nota-fiscal.pdf');
+      let uploadedFileId = '';
+      let result = {};
+      let pdfValidation = { status:'PENDENTE' };
+      try {
       const uploadResponse = await fetch('https://api.openai.com/v1/files', {
         method:'POST',
         headers:{ Authorization:`Bearer ${apiKey}` },
@@ -1771,6 +2002,7 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
       if (!uploadResponse.ok) throw new Error(`OpenAI file upload ${uploadResponse.status}: ${uploadRaw.slice(0,500)}`);
       const uploadedFile = JSON.parse(uploadRaw);
       if (!uploadedFile?.id) throw new Error('OpenAI file upload returned no id');
+      uploadedFileId = uploadedFile.id;
       const aiResponse = await fetch('https://api.openai.com/v1/responses', {
         method:'POST',
         headers:{ Authorization:`Bearer ${apiKey}`, 'Content-Type':'application/json' },
@@ -1785,18 +2017,44 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
       if (!aiResponse.ok) throw new Error(`OpenAI ${aiResponse.status}: ${raw.slice(0,500)}`);
       const envelope = JSON.parse(raw);
       const outputText = envelope.output_text || envelope.output?.flatMap(item => item.content || []).find(item => item.type === 'output_text')?.text || '';
-      const result = JSON.parse(outputText);
+      result = JSON.parse(outputText);
       const fiscalText = [result.descricao_servico, result.rubrica_nome_sugerida, outputText].filter(Boolean).join(' ').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toUpperCase();
       if (/NOTURNO\s+(NOS\s+)?MUSEUS/.test(fiscalText) && /(2026|11A|11ª|11\s*EDICAO)/.test(fiscalText)) {
         result.centro_custo_sugerido = /\bFUNEMP\b/.test(fiscalText) ? 'Noturno Pampulha' : 'Noturno 2026';
         result.aditivo_sugerido = /\bFUNEMP\b/.test(fiscalText) ? '4º Aditivo' : '3º Aditivo';
       }
-      const current = await pool.query('SELECT resultado_ia FROM document_intakes WHERE id=$1 LIMIT 1',[intakeId]);
-      if (!current.rowCount) return res.status(404).json({ error:'intake_not_found' });
-      const merged = { ...(current.rows[0].resultado_ia || {}), ...result, analisado_em:new Date().toISOString(), provedor_ia:'openai' };
-      await pool.query(`UPDATE document_intakes SET resultado_ia=$1::jsonb, centro_custo=COALESCE(NULLIF($2,''),centro_custo), status_processamento='AGUARDANDO_REVISAO', updated_at=NOW() WHERE id=$3`,[JSON.stringify(merged), result.centro_custo_sugerido || '', intakeId]);
+      const differences = [];
+      for (const field of ['nf_numero','nf_data_emissao','nf_valor_total','nf_emitente_nome','nf_emitente_cpf_cnpj']) {
+        const xmlValue = xmlFiscal[field];
+        const pdfValue = result[field];
+        if (!xmlValue || !pdfValue) continue;
+        const equal = field === 'nf_valor_total' ? Math.abs(Number(xmlValue) - Number(pdfValue)) < 0.02
+          : field === 'nf_emitente_nome' ? String(xmlValue).normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toUpperCase() === String(pdfValue).normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toUpperCase()
+          : String(xmlValue).replace(/\\D/g,'') === String(pdfValue).replace(/\\D/g,'');
+        if (!equal) differences.push(field);
+      }
+      pdfValidation = { status: differences.length ? 'DIVERGENCIA' : 'CONFIRMADO', campos_divergentes:differences, xml_lido:!!linkedXmlUrl, xml_erro:xmlReadError || undefined };
+      } catch (error) {
+        if (!linkedXmlUrl || xmlMissing.length) throw error;
+        pdfValidation = { status:'PENDENTE', motivo:`Validação PDF pendente: ${error.message || error}`, xml_lido:true };
+      } finally {
+        if (uploadedFileId) await fetch(`https://api.openai.com/v1/files/${uploadedFileId}`, { method:'DELETE', headers:{ Authorization:`Bearer ${apiKey}` }, signal:AbortSignal.timeout(30000) }).catch(()=>{});
+      }
+      // XML wins every time.  PDF is used to validate and only supplies fields
+      // that are absent in XML; it never overwrites fiscal identity from XML.
+      const merged = { ...(intake.resultado_ia || {}), ...result, ...xmlFiscal,
+        // Keep both legacy and NF review field names so a document-backed PIX
+        // or account detail appears in the purchase/review form immediately.
+        nf_emitente_banco: xmlFiscal.fornecedor_banco || result.fornecedor_banco || result.nf_emitente_banco || '',
+        nf_emitente_agencia: xmlFiscal.fornecedor_agencia || result.fornecedor_agencia || result.nf_emitente_agencia || '',
+        nf_emitente_conta: xmlFiscal.fornecedor_conta || result.fornecedor_conta || result.nf_emitente_conta || '',
+        nf_emitente_pix: xmlFiscal.fornecedor_pix || result.fornecedor_pix || result.nf_emitente_pix || '',
+        fonte_fiscal:linkedXmlUrl ? 'XML' : 'PDF', validacao_pdf:pdfValidation, campos_fiscais_pendentes:requiredFiscalFieldsMissing({ ...result, ...xmlFiscal }), analisado_em:new Date().toISOString(), provedor_ia:'openai' };
+      const missing = requiredFiscalFieldsMissing(merged);
+      const validationMessages = [...(missing.length ? [`Campos fiscais obrigatórios ausentes: ${missing.join(', ')}`] : []), ...(pdfValidation.status === 'DIVERGENCIA' ? [`Divergência entre XML e PDF: ${pdfValidation.campos_divergentes.join(', ')}`] : [])];
+      await pool.query(`UPDATE document_intakes SET resultado_ia=$1::jsonb, nf_numero=$2, nf_data_emissao=$3, nf_valor_total=$4, nf_emitente_nome=$5, nf_emitente_cpf_cnpj=$6, fornecedor_nome=$5, fornecedor_cpf_cnpj=$6, centro_custo=COALESCE(NULLIF($7,''),centro_custo), erros_validacao=$8::jsonb, status_processamento='AGUARDANDO_REVISAO', updated_at=NOW() WHERE id=$9`,[JSON.stringify(merged), merged.nf_numero || null, fiscalDate(merged.nf_data_emissao) || null, Number(merged.nf_valor_total) || null, merged.nf_emitente_nome || null, merged.nf_emitente_cpf_cnpj || null, result.centro_custo_sugerido || '', JSON.stringify(validationMessages), intakeId]);
       const duplicate=await suppressExactDuplicateIntakes(intakeId);
-      console.log('INVOICE_AI_OK',JSON.stringify({ intake_id:intakeId, nf_numero:result.nf_numero || null, has_value:Number(result.nf_valor_total)>0, has_date:!!result.nf_data_emissao }));
+      console.log('INVOICE_AI_OK',JSON.stringify({ intake_id:intakeId, source:merged.fonte_fiscal, nf_numero:merged.nf_numero || null, has_value:Number(merged.nf_valor_total)>0, has_date:!!merged.nf_data_emissao, pdf_validation:pdfValidation.status }));
       return res.status(200).json({ success:true, resultado_ia:merged, duplicate_suppressed:duplicate.suppressed });
     }
     if (name === 'syncBaseConhecimento' && req.body?.force_programacao_sync) {
