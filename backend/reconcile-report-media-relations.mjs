@@ -107,6 +107,7 @@ function activityPayload(id, report, title, sourceToken) {
 
 async function main() {
   const client = await pool.connect();
+  const runId = crypto.randomUUID();
   const totals = {
     mode: apply ? 'apply' : 'dry-run', photos: 0, photoReportCanonicalized: 0,
     photoReportRecoveredByUniqueScope: 0, photosWithActivityLinked: 0,
@@ -116,7 +117,20 @@ async function main() {
   };
 
   try {
-    if (apply) await client.query('BEGIN');
+    if (apply) {
+      await client.query('BEGIN');
+      // A repair must always be reversible.  Capture the exact source rows in
+      // the same transaction before any relation is changed or reconstructed.
+      await client.query(`CREATE TABLE IF NOT EXISTS report_relation_repair_snapshots (
+        run_id UUID NOT NULL, captured_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        source_table TEXT NOT NULL, source_id TEXT NOT NULL, row_data JSONB NOT NULL,
+        PRIMARY KEY (run_id,source_table,source_id)
+      )`);
+      for (const table of ['reports','report_activities','report_photos','activities']) {
+        await client.query(`INSERT INTO report_relation_repair_snapshots (run_id,source_table,source_id,row_data)
+          SELECT $1,$2,COALESCE(to_jsonb(source)->>'id',source.ctid::text),to_jsonb(source) FROM ${table} AS source`, [runId, table]);
+      }
+    }
 
     const reports = (await client.query(`SELECT id,base44_id,author_name,author_email,created_by,created_by_id,
       author_role,museu,mes_referencia,ano,raw_data FROM reports ORDER BY id`)).rows;
@@ -323,7 +337,7 @@ async function main() {
       }
       await client.query('COMMIT');
     }
-    console.log('REPORT_MEDIA_RELATION_RECONCILE', JSON.stringify(totals));
+    console.log('REPORT_MEDIA_RELATION_RECONCILE', JSON.stringify({ run_id:runId, ...totals }));
   } catch (error) {
     if (apply) await client.query('ROLLBACK').catch(() => {});
     console.error('REPORT_MEDIA_RELATION_RECONCILE_FAILED', error);
