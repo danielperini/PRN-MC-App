@@ -509,6 +509,18 @@ function paymentNotificationContent(purchase = {}) {
   const message = `O pagamento da NF ${number}, emitida por ${supplier}, no valor de ${amount}, foi registrado. Use o botão abaixo para abrir diretamente esta solicitação, consultar os documentos vinculados e conferir o status.`;
   return { title, message };
 }
+function purchaseReadyNotificationContent(purchase = {}) {
+  const number = String(purchase.nf_numero || purchase.id || 'sem número').trim();
+  const supplier = String(purchase.nf_emitente_nome || purchase.fornecedor_nome || 'fornecedor não informado').trim();
+  const value = Number(purchase.nf_valor_total || purchase.valor_aprovado || purchase.valor_total || purchase.valor_solicitado || 0);
+  const amount = Number.isFinite(value)
+    ? value.toLocaleString('pt-BR', { style:'currency', currency:'BRL' })
+    : 'valor não informado';
+  return {
+    title:'Solicitação pronta para pagamento',
+    message:`A NF ${number}, emitida por ${supplier}, foi aprovada e aguarda pagamento no valor de ${amount}. Use o botão abaixo para abrir a solicitação, conferir a nota e registrar o comprovante após o pagamento.`,
+  };
+}
 async function paymentNotificationRecipients(purchase = {}) {
   // A payment is financial information.  It is deliberately sent only to the
   // request owner and to registered administrators/coordinators, never to all
@@ -578,13 +590,18 @@ async function queuePaymentNotifications(purchase = {}) {
         LIMIT 1
         FOR UPDATE
       `, [email, purchaseId]);
-      if (existing.rowCount) continue;
-      const inserted = await client.query(`
-        INSERT INTO notifications (user_email,type,title,message,entity_type,entity_id,action_url,is_read,resolved,email_sent)
-        VALUES ($1,'purchase.paid',$2,$3,'PurchaseRequest',$4,$5,FALSE,FALSE,FALSE)
-        RETURNING id
-      `, [email, title, message, purchaseId, actionUrl]);
-      queued.push({ id:inserted.rows[0].id, email });
+      if (existing.rowCount) {
+        // A previous SMTP outage leaves a durable queue row. Retry it on a
+        // later user action instead of treating the unsent row as delivered.
+        if (!existing.rows[0].email_sent) queued.push({ id:existing.rows[0].id, email });
+      } else {
+        const inserted = await client.query(`
+          INSERT INTO notifications (user_email,type,title,message,entity_type,entity_id,action_url,is_read,resolved,email_sent)
+          VALUES ($1,'purchase.paid',$2,$3,'PurchaseRequest',$4,$5,FALSE,FALSE,FALSE)
+          RETURNING id
+        `, [email, title, message, purchaseId, actionUrl]);
+        queued.push({ id:inserted.rows[0].id, email });
+      }
     }
     await client.query('COMMIT');
   } catch (error) {
@@ -602,6 +619,46 @@ async function queuePaymentNotifications(purchase = {}) {
     await pool.query('UPDATE notifications SET email_sent=TRUE, updated_at=NOW() WHERE id=$1', [notification.id]);
   }
   return { recipients:recipients.length, queued:queued.length, sent, pending:queued.length - sent };
+}
+async function queuePurchaseReadyNotifications(purchase = {}) {
+  const purchaseId = String(purchase.id || '').trim();
+  if (!purchaseId) return { recipients:0, queued:0, sent:0, skipped:'purchase_id_missing' };
+  const recipients = await paymentNotificationRecipients(purchase);
+  const { title, message } = purchaseReadyNotificationContent(purchase);
+  const actionUrl = `${publicBaseUrl}/Compras?id=${encodeURIComponent(purchaseId)}`;
+  const client = await pool.connect();
+  const queued = [];
+  try {
+    await client.query('BEGIN');
+    for (const email of recipients) {
+      const existing = await client.query(`SELECT id,email_sent FROM notifications
+        WHERE user_email=$1 AND type='purchase.ready' AND entity_type='PurchaseRequest' AND entity_id=$2
+        ORDER BY created_at DESC LIMIT 1 FOR UPDATE`, [email, purchaseId]);
+      if (existing.rowCount) {
+        if (!existing.rows[0].email_sent) queued.push({ id:existing.rows[0].id, email });
+        continue;
+      }
+      const inserted = await client.query(`INSERT INTO notifications
+        (user_email,type,title,message,entity_type,entity_id,action_url,is_read,resolved,email_sent)
+        VALUES ($1,'purchase.ready',$2,$3,'PurchaseRequest',$4,$5,FALSE,FALSE,FALSE) RETURNING id`,
+      [email, title, message, purchaseId, actionUrl]);
+      queued.push({ id:inserted.rows[0].id, email });
+    }
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+  let sent = 0;
+  for (const notification of queued) {
+    const result = await sendPaymentEmail({ to:notification.email, title, message, actionUrl });
+    if (!result.sent) continue;
+    sent += 1;
+    await pool.query('UPDATE notifications SET email_sent=TRUE,updated_at=NOW() WHERE id=$1',[notification.id]);
+  }
+  return { recipients:recipients.length, queued:queued.length, sent, pending:queued.length-sent };
 }
 async function tableColumnTypes(table) {
   const r = await pool.query(`SELECT column_name,data_type,udt_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1 ORDER BY ordinal_position`, [table]);
@@ -1833,7 +1890,12 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
           }
         }
         let paymentNotifications = null;
-        if (action === 'marcar_pago' || action === 'pagar') {
+        if (action === 'aprovar') {
+          paymentNotifications = await queuePurchaseReadyNotifications(updatedResult.rows[0]).catch(error => {
+            console.error('PURCHASE_READY_NOTIFICATION_QUEUE_ERROR', JSON.stringify({ purchase_id:purchaseId, message:error.message }));
+            return { error:'purchase_ready_notification_queue_failed' };
+          });
+        } else if (action === 'marcar_pago' || action === 'pagar') {
           paymentNotifications = await queuePaymentNotifications(updatedResult.rows[0]).catch(error => {
             console.error('PAYMENT_NOTIFICATION_QUEUE_ERROR', JSON.stringify({ purchase_id:purchaseId, message:error.message }));
             return { error:'payment_notification_queue_failed' };
