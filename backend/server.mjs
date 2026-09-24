@@ -1942,7 +1942,14 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
       }
       // XML wins every time.  PDF is used to validate and only supplies fields
       // that are absent in XML; it never overwrites fiscal identity from XML.
-      const merged = { ...(intake.resultado_ia || {}), ...result, ...xmlFiscal, fonte_fiscal:linkedXmlUrl ? 'XML' : 'PDF', validacao_pdf:pdfValidation, campos_fiscais_pendentes:requiredFiscalFieldsMissing({ ...result, ...xmlFiscal }), analisado_em:new Date().toISOString(), provedor_ia:'openai' };
+      const merged = { ...(intake.resultado_ia || {}), ...result, ...xmlFiscal,
+        // Keep both legacy and NF review field names so a document-backed PIX
+        // or account detail appears in the purchase/review form immediately.
+        nf_emitente_banco: xmlFiscal.fornecedor_banco || result.fornecedor_banco || result.nf_emitente_banco || '',
+        nf_emitente_agencia: xmlFiscal.fornecedor_agencia || result.fornecedor_agencia || result.nf_emitente_agencia || '',
+        nf_emitente_conta: xmlFiscal.fornecedor_conta || result.fornecedor_conta || result.nf_emitente_conta || '',
+        nf_emitente_pix: xmlFiscal.fornecedor_pix || result.fornecedor_pix || result.nf_emitente_pix || '',
+        fonte_fiscal:linkedXmlUrl ? 'XML' : 'PDF', validacao_pdf:pdfValidation, campos_fiscais_pendentes:requiredFiscalFieldsMissing({ ...result, ...xmlFiscal }), analisado_em:new Date().toISOString(), provedor_ia:'openai' };
       const missing = requiredFiscalFieldsMissing(merged);
       const validationMessages = [...(missing.length ? [`Campos fiscais obrigatórios ausentes: ${missing.join(', ')}`] : []), ...(pdfValidation.status === 'DIVERGENCIA' ? [`Divergência entre XML e PDF: ${pdfValidation.campos_divergentes.join(', ')}`] : [])];
       await pool.query(`UPDATE document_intakes SET resultado_ia=$1::jsonb, nf_numero=$2, nf_data_emissao=$3, nf_valor_total=$4, nf_emitente_nome=$5, nf_emitente_cpf_cnpj=$6, fornecedor_nome=$5, fornecedor_cpf_cnpj=$6, centro_custo=COALESCE(NULLIF($7,''),centro_custo), erros_validacao=$8::jsonb, status_processamento='AGUARDANDO_REVISAO', updated_at=NOW() WHERE id=$9`,[JSON.stringify(merged), merged.nf_numero || null, fiscalDate(merged.nf_data_emissao) || null, Number(merged.nf_valor_total) || null, merged.nf_emitente_nome || null, merged.nf_emitente_cpf_cnpj || null, result.centro_custo_sugerido || '', JSON.stringify(validationMessages), intakeId]);
