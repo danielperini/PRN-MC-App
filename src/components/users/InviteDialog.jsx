@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Copy, Check, Link2, Mail, Send, UserCheck, Clock } from 'lucide-react';
+import { Copy, Check, Link2, Mail, Send, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { useMutation } from '@tanstack/react-query';
 
@@ -46,25 +46,13 @@ export default function InviteDialog({ open, onClose, cadastroUrl }) {
   const sendEmailMutation = useMutation({
     mutationFn: async () => {
       if (!emailForm.email) throw new Error('Informe o email do convidado');
-
-      // 🔴 REMOVIDO (Builder+)
-      // const res = await base44.functions.invoke('sendDirectInviteEmail', emailForm);
-
-      // ✅ SIMULAÇÃO LOCAL
-      return {
-        ok: true,
-      };
+      const response = await base44.functions.invoke('sendDirectInviteEmail', emailForm);
+      const result = response?.data || response;
+      if (!result?.success) throw new Error(result?.error || 'O servidor não confirmou o envio do convite.');
+      return result;
     },
-    onSuccess: () => {
-      toast.success(`Convite preparado para ${emailForm.email}`);
-
-      toast.message(
-        'Envio automático de email indisponível neste plano. Compartilhe o link manualmente.',
-        { duration: 5000 }
-      );
-
-      // opcional: já copia o link automaticamente
-      navigator.clipboard.writeText(cadastroUrl);
+    onSuccess: (result) => {
+      toast.success(`Convite enviado para ${result.recipient || emailForm.email}.`);
 
       setEmailForm({ email: '', full_name: '', role: 'PROFISSIONAL', message: '' });
       onClose();
@@ -125,11 +113,11 @@ export default function InviteDialog({ open, onClose, cadastroUrl }) {
 
           {/* EMAIL */}
           <TabsContent value="email" className="space-y-4 mt-4">
-            <div className="flex items-start gap-3 p-3 bg-red-50 border border-red-100 rounded-lg">
-              <Mail className="w-4 h-4 text-red-600 mt-0.5" />
-              <p className="text-xs text-red-700">
-                O envio automático de email está <strong>indisponível neste plano</strong>.
-                Use esta aba apenas para preparar o convite e compartilhar manualmente.
+            <div className="flex items-start gap-3 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+              <Mail className="w-4 h-4 text-blue-600 mt-0.5" />
+              <p className="text-xs text-blue-700">
+                O convite será enviado por e-mail com um link seguro para <strong>Cadastro</strong>.
+                O acesso permanece sujeito à validação da coordenação.
               </p>
             </div>
 
@@ -168,10 +156,10 @@ export default function InviteDialog({ open, onClose, cadastroUrl }) {
           {tab === 'email' && (
             <Button
               onClick={() => sendEmailMutation.mutate()}
-              disabled={!emailForm.email}
+              disabled={!emailForm.email || sendEmailMutation.isPending}
             >
               <Send className="w-4 h-4 mr-2" />
-              Preparar convite
+              {sendEmailMutation.isPending ? 'Enviando…' : 'Enviar convite'}
             </Button>
           )}
 

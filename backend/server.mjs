@@ -1601,6 +1601,51 @@ app.get('/api/drive-files/:fileId', requireSession, async (req, res) => {
 app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,res) => {
   const name=String(req.params.functionName||'');
   try {
+    if (name === 'sendDirectInviteEmail') {
+      const actorResult = await pool.query('SELECT id,email,full_name,role FROM users WHERE id=$1 LIMIT 1', [req.userId]);
+      const actor = actorResult.rows[0];
+      if (!isReportCoordinator(actor)) return res.status(403).json({ success:false, error:'invite_forbidden' });
+
+      const to = normalizeEmailAddress(req.body?.email);
+      const fullName = String(req.body?.full_name || '').trim().slice(0, 160);
+      const role = String(req.body?.role || 'PROFISSIONAL').trim().toUpperCase();
+      const customMessage = String(req.body?.message || '').trim().slice(0, 1500);
+      if (!to) return res.status(400).json({ success:false, error:'invalid_invite_email' });
+      if (!['COORDENADOR','PROFISSIONAL','OBSERVADOR'].includes(role)) return res.status(400).json({ success:false, error:'invalid_invite_role' });
+      if (!process.env.SMTP_HOST || !process.env.SMTP_USER) return res.status(503).json({ success:false, error:'smtp_not_configured' });
+
+      const inviteUrl = appActionUrl('/Cadastro', '/Cadastro');
+      const roleLabel = { COORDENADOR:'coordenador(a)', PROFISSIONAL:'profissional', OBSERVADOR:'observador(a)' }[role];
+      const greeting = fullName ? `Olá, ${fullName}` : 'Olá';
+      const message = [
+        `Você foi convidado(a) para acessar o Gestor Museus Centro como ${roleLabel}.`,
+        customMessage,
+        'Use o botão abaixo para preencher seu cadastro. Após a validação da coordenação, seu acesso será liberado.',
+      ].filter(Boolean).join('\n\n');
+      const password = process.env.SMTP_PASS_B64 ? Buffer.from(process.env.SMTP_PASS_B64, 'base64').toString('utf8') : process.env.SMTP_PASS;
+      const transport = nodemailer.createTransport({
+        host:process.env.SMTP_HOST,
+        port:Number(process.env.SMTP_PORT || 465),
+        secure:String(process.env.SMTP_SECURE).toLowerCase() === 'true',
+        auth:{ user:process.env.SMTP_USER, pass:password },
+      });
+      if (req.body?.dry_run === true) {
+        await transport.verify();
+        return res.status(200).json({ success:true, dry_run:true, recipient:to, invite_url:inviteUrl });
+      }
+      await transport.sendMail({
+        from:`Gestor Museus Centro <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
+        to,
+        subject:'Convite de acesso — Gestor Museus Centro',
+        text:brandedEmailText({ greeting, message, steps:['Preencha seu cadastro.', 'Aguarde a validação da coordenação.', 'Entre no Gestor Museus Centro e complete seus dados.'], ctaLabel:'Preencher cadastro', ctaUrl:inviteUrl, recipientEmail:to }),
+        html:brandedEmailHtml({ appUrl:publicBaseUrl, title:'Convite de acesso', greeting, message, steps:['Preencha seu cadastro.', 'Aguarde a validação da coordenação.', 'Entre no Gestor Museus Centro e complete seus dados.'], ctaLabel:'Preencher cadastro', ctaUrl:inviteUrl, recipientEmail:to }),
+      });
+      await pool.query(`INSERT INTO notifications (user_email,type,title,message,entity_type,entity_id,action_url,is_read,resolved,email_sent)
+        VALUES ($1,'USER_INVITE_EMAIL','Convite de acesso enviado',$2,'UserInvite',$3,$4,FALSE,FALSE,TRUE)`, [
+        to, message, `invite-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`, inviteUrl,
+      ]).catch((error) => console.warn('INVITE_NOTIFICATION_AUDIT_FAILED', error.message));
+      return res.status(200).json({ success:true, recipient:to, invite_url:inviteUrl });
+    }
     if (name === 'publicarFotosRelatorioAprovado') {
       const reportId=String(req.body?.report_id || req.body?.reportId || '').trim();
       if (!reportId) return res.status(400).json({ success:false, error:'report_id_required' });
