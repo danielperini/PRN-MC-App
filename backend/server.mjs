@@ -712,6 +712,18 @@ async function initDb() {
       WHERE LOWER(COALESCE(report.created_by,''))=LOWER(user_row.email)
          OR LOWER(COALESCE(report.author_email,''))=LOWER(user_row.email)
          OR COALESCE(report.created_by_id,'')=user_row.id::text`);
+
+    // A duplicated legacy Base44 id is dangerous: an old activity/photo that
+    // still points to that id can be joined to either monthly report. Keep the
+    // oldest mapping for backwards recovery and give every later duplicate a
+    // fresh compatibility id. Children already carrying the canonical report
+    // primary key are never moved by this repair.
+    await pool.query(`WITH ranked AS (
+        SELECT id,base44_id,ROW_NUMBER() OVER (PARTITION BY base44_id ORDER BY created_date NULLS LAST,id) AS position
+        FROM reports WHERE NULLIF(BTRIM(COALESCE(base44_id,'')),'') IS NOT NULL
+      )
+      UPDATE reports AS report SET base44_id='legacy-' || report.id::text || '-' || md5(random()::text || clock_timestamp()::text), updated_date=NOW()
+      FROM ranked WHERE ranked.id=report.id AND ranked.position>1`);
   }
   // `reports.id` is the canonical monthly-report relationship. Earlier
   // imports stored the external Base44 id in the activity foreign key, which
@@ -722,7 +734,8 @@ async function initDb() {
     await pool.query('ALTER TABLE report_activities ADD COLUMN IF NOT EXISTS report_id TEXT');
     await pool.query(`UPDATE report_activities AS activity
       SET report_id = report.id::text
-      FROM reports AS report
+      FROM (SELECT base44_id,MIN(id)::text AS id FROM reports
+            WHERE NULLIF(BTRIM(COALESCE(base44_id,'')),'') IS NOT NULL GROUP BY base44_id HAVING COUNT(*)=1) AS report
       WHERE activity.report_base44_id = report.base44_id
         AND activity.report_id IS DISTINCT FROM report.id::text`);
     await pool.query('CREATE INDEX IF NOT EXISTS report_activities_report_id_idx ON report_activities(report_id)');
@@ -730,7 +743,8 @@ async function initDb() {
   if (await tableExists('activities')) {
     await pool.query(`UPDATE activities AS activity
       SET report_id = report.id::text, updated_at = NOW()
-      FROM reports AS report
+      FROM (SELECT base44_id,MIN(id)::text AS id FROM reports
+            WHERE NULLIF(BTRIM(COALESCE(base44_id,'')),'') IS NOT NULL GROUP BY base44_id HAVING COUNT(*)=1) AS report
       WHERE activity.report_id = report.base44_id
         AND activity.report_id IS DISTINCT FROM report.id::text`);
     await pool.query('CREATE INDEX IF NOT EXISTS activities_report_id_idx ON activities(report_id)');
@@ -741,7 +755,8 @@ async function initDb() {
     // gallery, monthly editor and backup all use the same report primary key.
     await pool.query(`UPDATE report_photos AS photo
       SET report_id=report.id::text, updated_date=NOW()
-      FROM reports AS report
+      FROM (SELECT base44_id,MIN(id)::text AS id FROM reports
+            WHERE NULLIF(BTRIM(COALESCE(base44_id,'')),'') IS NOT NULL GROUP BY base44_id HAVING COUNT(*)=1) AS report
       WHERE photo.report_id::text=report.base44_id
         AND photo.report_id::text IS DISTINCT FROM report.id::text`);
     await pool.query('CREATE INDEX IF NOT EXISTS report_photos_report_id_idx ON report_photos(report_id)');
@@ -966,7 +981,7 @@ function activityArray(value) {
 // visible everywhere after the report is reopened.
 async function syncReportActivities(report, activities) {
   if (!report?.id || !Array.isArray(activities) || !(await tableExists('report_activities'))) {
-    return { created: 0, updated: 0, removed: 0 };
+    return { created: 0, updated: 0, removed: 0, skipped: 0 };
   }
 
   const reportId = String(report.id);
@@ -980,10 +995,19 @@ async function syncReportActivities(report, activities) {
   const currentIds = [];
   let created = 0;
   let updated = 0;
+  let skipped = 0;
 
   for (const original of activities) {
     const activity = original && typeof original === 'object' ? original : {};
     const activityId = String(activity.id || activity.base44_activity_id || crypto.randomUUID());
+    // Never let a cached activity id transfer a child record between monthly
+    // reports.  The user must deliberately copy/create it with a new id.
+    const foreign = (await pool.query('SELECT report_id FROM report_activities WHERE base44_activity_id=$1 AND report_id::text<>$2 LIMIT 1', [activityId, reportId])).rows[0];
+    if (foreign) {
+      skipped += 1;
+      console.warn('REPORT_ACTIVITY_FOREIGN_RELATION_BLOCKED', JSON.stringify({ target_report_id:reportId, existing_report_id:String(foreign.report_id), activity_id:activityId }));
+      continue;
+    }
     currentIds.push(activityId);
     const museums = activityArray(activity.museu_lista || activity.museu || activity.museu_principal);
     const types = activityArray(activity.tipo_acao_lista || activity.tipo || activity.tipo_acao);
@@ -1013,7 +1037,7 @@ async function syncReportActivities(report, activities) {
   const removedResult = currentIds.length
     ? await pool.query('DELETE FROM report_activities WHERE report_id=$1 AND NOT (base44_activity_id = ANY($2::text[]))', [reportId, currentIds])
     : await pool.query('DELETE FROM report_activities WHERE report_id=$1', [reportId]);
-  return { created, updated, removed: removedResult.rowCount || 0 };
+  return { created, updated, removed: removedResult.rowCount || 0, skipped };
 }
 
 function reportPhotoValue(photo, ...keys) {
@@ -1064,6 +1088,20 @@ async function syncReportPhotosToGallery(report, photos) {
       || (driveFileId ? existingBySource.get(`drive:${driveFileId}`) : null)
       || existingBySource.get(`url:${fileUrl}`);
     const base44Id = String(existing?.base44_id || photo.base44_id || photo.id || crypto.randomUUID());
+    // `base44_id` is globally unique in the historical schema.  A stale tab
+    // could send a photo id copied from another report; the old UPSERT then
+    // reassigned that photo and made galleries appear mixed.  Preserve the
+    // established source relation and reject only this unsafe child record.
+    const foreign = (await pool.query(`SELECT report_id FROM report_photos
+      WHERE (base44_id=$1 OR ($2<>'' AND drive_file_id=$2) OR ($3<>'' AND file_url=$3))
+        AND report_id::text<>$4 LIMIT 1`, [base44Id, driveFileId, fileUrl, String(report.id)])).rows[0];
+    if (foreign) {
+      skipped += 1;
+      console.warn('REPORT_PHOTO_FOREIGN_RELATION_BLOCKED', JSON.stringify({
+        target_report_id:String(report.id), existing_report_id:String(foreign.report_id), photo_identity:originalId || base44Id,
+      }));
+      continue;
+    }
     const fileName = String(reportPhotoValue(photo, 'fileName', 'file_name', 'name') || `foto-${ordem + 1}`).slice(0, 500);
     const caption = String(reportPhotoValue(photo, 'caption', 'legenda')).slice(0, 4000);
     const museum = String(reportPhotoValue(photo, 'museum', 'museu') || report.museu || '').slice(0, 300);
