@@ -157,17 +157,18 @@ export default function TotaisAditivoCards({ rubricas = [], compras = [], onRefr
       const o = (r.origem_recurso || '').trim();
       return o === '5º ADITIVO' || o === '5º Aditivo';
     });
+    const nfsQuinto = nfsAtivasPorAditivo(5, r5, compras);
 
     return {
       terceiro: { ...totais.terceiro, qtdNFs: auditoria.terceiro_aditivo.quantidade_nfs },
       quarto:   { ...totais.quarto,   qtdNFs: auditoria.noturno_2026.quantidade_nfs },
-      quinto:   { ...totais.quinto,   qtdNFs: totais.quinto.rubricas.length },
+      quinto:   { ...totais.quinto,   qtdNFs: nfsQuinto.length },
       auditoria,
       duplicadas: auditoria.duplicadas_ignoradas,
       datasInvalidas: auditoria.datas_invalidas_ignoradas,
       nfsTerceiro: nfsAtivasPorAditivo(3, r3, compras),
       nfsQuarto: nfsAtivasPorAditivo(4, r4, compras),
-      nfsQuinto: nfsAtivasPorAditivo(5, r5, compras),
+      nfsQuinto,
       rubricas3: r3,
       rubricas4: r4,
       rubricas5: r5,
