@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import RubricaEditRow from '@/components/rubricas/RubricaEditRow';
 
 const GRUPO_SIMPOSIO = 'Simpósio do Patrimônio Cultural de BH';
+const CENTRO_SIMPOSIO = 'Terceiro Simpósio do Patrimônio de BH';
 const STATUS_CONTABILIZADOS = new Set(['APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
 
 function toNumber(v) {
@@ -106,6 +107,42 @@ export default function SimposioCard({ isCoordenador = false }) {
 
   const barColor = resumo.pct > 90 ? 'bg-red-500' : resumo.pct > 70 ? 'bg-amber-500' : 'bg-amber-600';
 
+  const exportarRelatorio = () => {
+    const columns = ['Meta', 'Centro de custo', 'Origem do recurso', 'Rubrica', 'Natureza', 'Item', 'Fornecedor', 'Documento fiscal', 'Data', 'Valor previsto', 'Valor utilizado', 'Saldo', 'Status', 'Link do documento'];
+    const rows = [];
+    for (const rubrica of rubricas) {
+      const group = composition?.rubricas?.[String(rubrica.id)];
+      const purchases = group?.solicitacoes || [];
+      const entries = purchases.length ? purchases : [null];
+      entries.forEach((p, index) => rows.push([
+        'Meta 24 - Realizar o 3º Simpósio do Patrimônio Cultural de Belo Horizonte',
+        CENTRO_SIMPOSIO,
+        '5º Termo Aditivo',
+        rubrica.rubrica || rubrica.nome || '',
+        p?.natureza_despesa || rubrica.natureza_despesa || '',
+        p?.codigo_item_pbh || rubrica.codigo_item_pbh || '',
+        p?.fornecedor_nome || p?.nf_emitente_nome || p?.fornecedor || '',
+        p?.nf_numero || p?.purchase_document_id || '',
+        p?.nf_data_emissao || p?.data_solicitacao || p?.created_at || '',
+        index === 0 ? Number(group?.orcado ?? rubrica.valor_total ?? rubrica.valor_rubrica ?? 0).toFixed(2) : '',
+        p ? Number(p.valor_composicao || 0).toFixed(2) : '0.00',
+        index === 0 ? Number(group?.saldo ?? rubrica.valor_total ?? rubrica.valor_rubrica ?? 0).toFixed(2) : '',
+        p?.status || '',
+        p?.nf_pdf_url || p?.nota_fiscal_pdf_url || p?.nota_fiscal_url || p?.arquivo_url || p?.drive_file_url || '',
+      ]));
+    }
+    const quote = value => `"${String(value ?? '').replaceAll('"', '""')}"`;
+    const csv = '\uFEFF' + [columns, ...rows].map(row => row.map(quote).join(';')).join('\r\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'relatorio-centro-custo-terceiro-simposio.csv';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
   return (
     <div className="rounded-2xl border border-amber-200 bg-white shadow-sm overflow-hidden">
       {/* Header */}
@@ -115,6 +152,9 @@ export default function SimposioCard({ isCoordenador = false }) {
         </span>
         <h2 className="text-lg font-bold text-gray-900 leading-tight">Simpósio do Patrimônio Cultural de BH</h2>
         <p className="text-xs text-gray-500 mt-0.5">Custos previstos e realizados vinculados às rubricas do Simpósio.</p>
+        <button type="button" onClick={exportarRelatorio} disabled={isLoading || rubricas.length === 0} className="mt-3 rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-900 disabled:opacity-50">
+          Exportar relatório do centro de custo (CSV)
+        </button>
       </div>
 
       {/* KPIs */}
