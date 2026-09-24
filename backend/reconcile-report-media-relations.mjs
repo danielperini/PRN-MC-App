@@ -87,6 +87,29 @@ function sourceFromPhoto(photo) {
   return { sourceToken, title };
 }
 
+// Legacy imports sometimes preserved the parent report only inside raw_data.
+// These original IDs are evidence and are safer than guessing from a caption.
+function photoReportReferenceIds(photo) {
+  const raw = asObject(photo?.raw_data);
+  const metadata = asObject(raw.metadata);
+  return [...new Set([
+    photo?.report_id, raw.report_id, raw.reportId, raw.relatorio_id,
+    raw.relatorioId, raw.synced_from_report, raw.parent_report_id,
+    raw.parentReportId, metadata.report_id, metadata.reportId,
+    metadata.relatorio_id,
+  ].map(present).filter(Boolean))];
+}
+
+function photoAuthorKeys(photo) {
+  const raw = asObject(photo?.raw_data);
+  const metadata = asObject(raw.metadata);
+  return [...new Set([
+    photo?.author, raw.author, raw.author_name, raw.created_by,
+    raw.user_email, metadata.author, metadata.author_name,
+    metadata.created_by, metadata.user_email,
+  ].map(normalized).filter(Boolean))];
+}
+
 function stableActivityId(reportId, sourceToken, title, idsOwnedByOtherReport) {
   const candidate = sourceToken ? `ATI_${sourceToken}` : '';
   if (candidate && !idsOwnedByOtherReport.has(candidate)) return candidate;
@@ -113,7 +136,8 @@ async function main() {
   const runId = crypto.randomUUID();
   const totals = {
     mode: apply ? 'apply' : 'dry-run', photos: 0, photoReportCanonicalized: 0,
-    photoReportRecoveredByUniqueScope: 0, photosWithActivityLinked: 0,
+    photoReportRecoveredByUniqueScope: 0, photoReportRecoveredByEmbeddedReference: 0,
+    photoReportRecoveredByAuthorScope: 0, photosWithActivityLinked: 0,
     activitiesRestored: 0, reportAuthorsRepaired: 0,
     unresolvedPhotoReports: 0, unresolvedPhotoActivities: 0, ambiguousPhotoScopes: 0,
     authorConflictsPreserved: 0, photosLinkedToExplicitUnclassifiedActivity: 0,
@@ -142,12 +166,24 @@ async function main() {
     const reportById = new Map(reports.map((row) => [String(row.id), row]));
     const reportByBase44 = new Map(reports.filter((row) => present(row.base44_id)).map((row) => [String(row.base44_id), row]));
     const reportsByScope = new Map();
+    const reportsByAuthorScope = new Map();
+    const reportsByAuthorPeriod = new Map();
     for (const report of reports) {
       const key = `${normalized(report.museu)}|${monthKey(report.mes_referencia)}|${report.ano || ''}`;
       if (!normalized(report.museu) || !monthKey(report.mes_referencia) || !report.ano) continue;
       const current = reportsByScope.get(key) || [];
       current.push(report);
       reportsByScope.set(key, current);
+      for (const authorKey of [normalized(report.author_name), normalized(report.author_email), normalized(report.created_by)].filter(Boolean)) {
+        const authorScopeKey = `${authorKey}|${key}`;
+        const scoped = reportsByAuthorScope.get(authorScopeKey) || [];
+        scoped.push(report);
+        reportsByAuthorScope.set(authorScopeKey, scoped);
+        const authorPeriodKey = `${authorKey}|${monthKey(report.mes_referencia)}|${report.ano || ''}`;
+        const period = reportsByAuthorPeriod.get(authorPeriodKey) || [];
+        period.push(report);
+        reportsByAuthorPeriod.set(authorPeriodKey, period);
+      }
     }
 
     const activities = (await client.query('SELECT id,report_id,titulo,descricao FROM activities')).rows;
@@ -237,17 +273,47 @@ async function main() {
       const sourceReportId = present(photo.report_id);
       let report = reportById.get(sourceReportId) || reportByBase44.get(sourceReportId) || null;
       let recoveredByScope = false;
+      let recoveredByEmbeddedReference = false;
+      let recoveredByAuthorScope = false;
+      if (!report) {
+        for (const referenceId of photoReportReferenceIds(photo)) {
+          const found = reportById.get(referenceId) || reportByBase44.get(referenceId);
+          if (found) {
+            report = found;
+            recoveredByEmbeddedReference = true;
+            break;
+          }
+        }
+      }
       if (!report) {
         const scope = `${normalized(photo.museu)}|${monthKey(photo.mes_referencia)}|${photo.ano || ''}`;
         const candidates = reportsByScope.get(scope) || [];
         if (candidates.length === 1) {
           [report] = candidates;
           recoveredByScope = true;
-        } else {
-          totals.unresolvedPhotoReports += 1;
-          if (candidates.length > 1) totals.ambiguousPhotoScopes += 1;
-          continue;
         }
+      }
+      if (!report) {
+        const month = monthKey(photo.mes_referencia);
+        const year = photo.ano || '';
+        const museum = normalized(photo.museu);
+        for (const authorKey of photoAuthorKeys(photo)) {
+          const scoped = museum ? reportsByAuthorScope.get(`${authorKey}|${museum}|${month}|${year}`) || [] : [];
+          const period = reportsByAuthorPeriod.get(`${authorKey}|${month}|${year}`) || [];
+          const candidates = scoped.length === 1 ? scoped : (period.length === 1 ? period : []);
+          if (candidates.length === 1) {
+            [report] = candidates;
+            recoveredByAuthorScope = true;
+            break;
+          }
+        }
+      }
+      if (!report) {
+        const scope = `${normalized(photo.museu)}|${monthKey(photo.mes_referencia)}|${photo.ano || ''}`;
+        const candidates = reportsByScope.get(scope) || [];
+        totals.unresolvedPhotoReports += 1;
+        if (candidates.length > 1) totals.ambiguousPhotoScopes += 1;
+        continue;
       }
       const reportId = String(report.id);
       let canonicalized = sourceReportId !== reportId;
@@ -284,8 +350,10 @@ async function main() {
       }
       if (canonicalized) totals.photoReportCanonicalized += 1;
       if (recoveredByScope) totals.photoReportRecoveredByUniqueScope += 1;
+      if (recoveredByEmbeddedReference) totals.photoReportRecoveredByEmbeddedReference += 1;
+      if (recoveredByAuthorScope) totals.photoReportRecoveredByAuthorScope += 1;
       if (canonicalized || present(photo.activity_id) !== targetActivityId) {
-        photoUpdates.push({ photo, report, activityId: targetActivityId || null, recoveredByScope });
+        photoUpdates.push({ photo, report, activityId: targetActivityId || null, recoveredByScope, recoveredByEmbeddedReference, recoveredByAuthorScope });
       }
     }
 
@@ -330,7 +398,9 @@ async function main() {
           activity_id: item.activityId,
           activityId: item.activityId,
           recuperada_relacao: true,
-          estrategia_recuperacao: item.recoveredByScope ? 'escopo-unico-museu-mes' : 'identificador-original',
+          estrategia_recuperacao: item.recoveredByEmbeddedReference ? 'referencia-original-no-payload'
+            : item.recoveredByAuthorScope ? 'autor-e-periodo-unicos'
+              : item.recoveredByScope ? 'escopo-unico-museu-mes' : 'identificador-original',
         };
         await client.query(`UPDATE report_photos SET report_id=$2,activity_id=$3,author=$4,museu=$5,
           mes_referencia=$6,ano=$7,raw_data=$8::jsonb,updated_date=NOW() WHERE id=$1`, [
