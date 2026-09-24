@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { notifyPurchaseApproved, notifyPurchaseRejected, notifyPurchaseReturned } from '@/services/notifications/purchaseNotifications';
+import { notifyPurchaseApproved, notifyPurchaseRejected } from '@/services/notifications/purchaseNotifications';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSmartToast } from '@/lib/useSmartToast';
 import { Button } from '@/components/ui/button';
@@ -23,7 +23,6 @@ import {
   ShieldCheck,
   User,
   FileText,
-  Loader2,
   Clock,
   Download } from
 'lucide-react';
@@ -34,7 +33,6 @@ import { deletePurchaseRequest } from '@/lib/deleteIntegrado';
 import PurchaseFormDialog from '@/components/compras/PurchaseFormDialog';
 import OrcamentoDashboard from '@/components/compras/OrcamentoDashboard';
 import ImportarOrcamento from '@/components/compras/ImportarOrcamento';
-import TeamManager from '@/components/compras/TeamManager';
 import ContractActivityReportGenerator from '@/components/compras/ContractActivityReportGenerator';
 import RelatorioMensalConsolidadoDialog from '@/components/compras/RelatorioMensalConsolidadoDialog';
 import { useBudgetLines } from '@/components/compras/useBudgetLines';
@@ -60,7 +58,7 @@ import PainelVerificacaoFinanceira from '@/components/compras/PainelVerificacaoF
 import PainelAuditoriaMetas from '@/components/compras/PainelAuditoriaMetas';
 import ConferenciaExtratosVsPagamentos from '@/components/compras/ConferenciaExtratosVsPagamentos';
 import { canManageRubricas } from '@/components/auth/permissions';
-import { normalizeStatus, isStatusPendente, isStatusAprovado, getStatusLabel, getStatusColor } from '@/lib/normalizeStatus';
+import { normalizeStatus, getStatusLabel } from '@/lib/normalizeStatus';
 import DevolverNFDialog from '@/components/compras/DevolverNFDialog';
 import NotificarAditivoButton from '@/components/compras/NotificarAditivoButton';
 import RevincularRubricasOrfasButton from '@/components/financeiro/RevincularRubricasOrfasButton';
@@ -130,6 +128,11 @@ function normalizeText(value) {return String(value || '').normalize('NFD').repla
 
 function getPurchaseValue(p) {
   return toNumber(p?.valor_pago) || toNumber(p?.valor_aprovado_admin) || toNumber(p?.valor_aprovado) || toNumber(p?.valor_final) || toNumber(p?.valor_solicitado) || toNumber(p?.valor_total) || toNumber(p?.valor) || toNumber(p?.rubrica_debitada_valor) || 0;
+}
+
+function getPurchaseBudgetValue(p) {
+  const cents = p?.raw_data?.official_balancete?.eligible_cents;
+  return Number.isSafeInteger(cents) && cents >= 0 ? cents / 100 : getPurchaseValue(p);
 }
 
 function getChaveFiscal(p) {
@@ -464,7 +467,7 @@ function ComprasInner() {
         if (!p.rubrica_id) continue;
         if (!STATUS_CONTABILIZADOS.has(normalizeStatus(p.status))) continue;
         if (p.duplicada_financeira === true || p.incluir_no_somatorio === false) continue;
-        valorPorRubrica[p.rubrica_id] = (valorPorRubrica[p.rubrica_id] || 0) + getPurchaseValue(p);
+        valorPorRubrica[p.rubrica_id] = (valorPorRubrica[p.rubrica_id] || 0) + getPurchaseBudgetValue(p);
       }
       const updates = rubricas
         .filter(r => r.id && r.ativo !== false)
@@ -699,7 +702,7 @@ function ComprasInner() {
       } catch (_) {}
 
       if (!backendOk) {
-        const valor = getPurchaseValue(purchase);
+        const valor = getPurchaseBudgetValue(purchase);
 
         if (!jaDebitado && valor > 0) {
           const rubrica = await base44.entities.Rubrica.get(purchase.rubrica_id);
@@ -727,7 +730,7 @@ function ComprasInner() {
           rubrica_debitada_em:
           purchase.rubrica_debitada_em || new Date().toISOString(),
           rubrica_debitada_valor:
-          purchase.rubrica_debitada_valor || getPurchaseValue(purchase),
+          purchase.rubrica_debitada_valor || getPurchaseBudgetValue(purchase),
           financeiro_lancado_em:
           purchase.financeiro_lancado_em || new Date().toISOString()
         });
@@ -862,7 +865,7 @@ function ComprasInner() {
       smartToast.success('Solicitação desaprovada e valor estornado da rubrica.');
     } catch (error) {
       try {
-        const valor = getPurchaseValue(purchase);
+        const valor = getPurchaseBudgetValue(purchase);
 
         if (purchase.rubrica_id && valor > 0 && purchase.rubrica_debitada_em) {
           const rubrica = await base44.entities.Rubrica.get(purchase.rubrica_id);

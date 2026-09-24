@@ -24,6 +24,7 @@ COPY monthly-report-reminders.mjs ./
 COPY send-professional-access-check.mjs ./
 COPY send-purchase-notification-batch.mjs ./
 COPY reanalyze-purchase-fiscal-metadata.mjs ./
+COPY audit-official-balancetes-2026.mjs ./
 
 EXPOSE 3000
 

@@ -445,6 +445,8 @@ async function syncRubricaBalances() {
   const r = await pool.query(`
     WITH used AS (
       SELECT rubrica_id, ROUND(SUM(CASE
+        WHEN raw_data #>> '{official_balancete,eligible_cents}' ~ '^[0-9]+$'
+          THEN ((raw_data #>> '{official_balancete,eligible_cents}')::numeric / 100)
         WHEN nf_valor_total > 0 THEN nf_valor_total
         WHEN valor_aprovado > 0 THEN valor_aprovado
         WHEN valor_total > 0 THEN valor_total
@@ -1601,6 +1603,32 @@ app.get('/api/drive-files/:fileId', requireSession, async (req, res) => {
 app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,res) => {
   const name=String(req.params.functionName||'');
   try {
+    if (name === 'consultarBalancetesOficiais') {
+      const actorResult = await pool.query('SELECT id,email,full_name,role FROM users WHERE id=$1 LIMIT 1', [req.userId]);
+      if (!isReportCoordinator(actorResult.rows[0])) return res.status(403).json({ success:false, error:'financial_audit_forbidden' });
+      const exists = await pool.query("SELECT to_regclass('public.official_balancete_months') AS table_name");
+      if (!exists.rows[0]?.table_name) return res.json({ success:true, months:[], imported:false });
+      const result = await pool.query(`SELECT b.month,b.statement_status,b.previous_cents,b.transfer_cents,
+        b.yield_cents,b.reimbursement_cents,b.expenses_cents,b.balance_cents,b.undue_cents,
+        b.outstanding_cents,b.source_sha256,b.source_filename,
+        COALESCE(a.matched_rows,0)::int AS matched_rows,
+        COALESCE(a.matched_gross_cents,0)::bigint AS matched_gross_cents,
+        COALESCE(a.matched_eligible_cents,0)::bigint AS matched_eligible_cents,
+        jsonb_array_length(b.source_entries)::int AS official_rows
+      FROM official_balancete_months b
+      LEFT JOIN (
+        SELECT raw_data #>> '{official_balancete,month}' AS month,
+          COUNT(*) AS matched_rows,
+          SUM((raw_data #>> '{official_balancete,gross_cents}')::bigint) AS matched_gross_cents,
+          SUM((raw_data #>> '{official_balancete,eligible_cents}')::bigint) AS matched_eligible_cents
+        FROM purchase_requests
+        WHERE raw_data #>> '{official_balancete,month}' IS NOT NULL
+          AND raw_data #>> '{official_balancete,gross_cents}' ~ '^[0-9]+$'
+          AND raw_data #>> '{official_balancete,eligible_cents}' ~ '^[0-9]+$'
+        GROUP BY 1
+      ) a ON a.month=b.month WHERE b.partnership='01202431030012' ORDER BY b.month`);
+      return res.json({ success:true, months:result.rows, imported:true });
+    }
     if (name === 'sendDirectInviteEmail') {
       const actorResult = await pool.query('SELECT id,email,full_name,role FROM users WHERE id=$1 LIMIT 1', [req.userId]);
       const actor = actorResult.rows[0];
@@ -2212,6 +2240,8 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
             WITH used AS (
               SELECT rubrica_id,
                 ROUND(SUM(CASE
+                  WHEN raw_data #>> '{official_balancete,eligible_cents}' ~ '^[0-9]+$'
+                    THEN ((raw_data #>> '{official_balancete,eligible_cents}')::numeric / 100)
                   WHEN nf_valor_total > 0 THEN nf_valor_total
                   WHEN valor_aprovado > 0 THEN valor_aprovado
                   WHEN valor_total > 0 THEN valor_total

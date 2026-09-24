@@ -39,7 +39,7 @@ function amount(row) { return Number(row.nf_valor_total || row.valor_aprovado ||
 
 async function syncRubricaBalances() {
   await pool.query(`WITH used AS (
-    SELECT rubrica_id,ROUND(SUM(CASE WHEN nf_valor_total>0 THEN nf_valor_total WHEN valor_aprovado>0 THEN valor_aprovado WHEN valor_total>0 THEN valor_total ELSE COALESCE(valor_solicitado,0) END)::numeric,2) amount
+    SELECT rubrica_id,ROUND(SUM(CASE WHEN raw_data #>> '{official_balancete,eligible_cents}' ~ '^[0-9]+$' THEN ((raw_data #>> '{official_balancete,eligible_cents}')::numeric / 100) WHEN nf_valor_total>0 THEN nf_valor_total WHEN valor_aprovado>0 THEN valor_aprovado WHEN valor_total>0 THEN valor_total ELSE COALESCE(valor_solicitado,0) END)::numeric,2) amount
     FROM purchase_requests
     WHERE rubrica_id IS NOT NULL AND UPPER(COALESCE(status,'')) IN ('APROVADO','APROVADO_COORD','APROVADO_ADMIN','PAGO')
       AND COALESCE(incluir_no_somatorio,TRUE) IS DISTINCT FROM FALSE AND COALESCE(duplicada_financeira,FALSE)=FALSE
