@@ -37,7 +37,6 @@ export default function RubricaEditRow({
 }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [localValor, setLocalValor] = useState('');
   const [localMuseus, setLocalMuseus] = useState([]);
   const [localMetas, setLocalMetas] = useState([]);
   const queryClient = useQueryClient();
@@ -55,7 +54,6 @@ export default function RubricaEditRow({
   const borderColor = saldo < 0 ? 'border-l-red-500' : (borderColorMap[accentColor] || 'border-l-blue-500');
 
   function startEdit() {
-    setLocalValor(String(rubrica.valor_utilizado ?? ''));
     const ids = Array.isArray(rubrica.meta_manual_ids) ? rubrica.meta_manual_ids : [];
     setLocalMuseus(ids.filter(id => MUSEUS.includes(id)));
     setLocalMetas(ids.filter(id => METAS_MC3A.includes(id)));
@@ -65,10 +63,8 @@ export default function RubricaEditRow({
   async function saveEdit() {
     setSaving(true);
     try {
-      const novoUtilizado = localValor !== '' ? toNumber(localValor) : rubrica.valor_utilizado;
       const novasMetas = [...localMuseus, ...localMetas];
       await base44.entities.Rubrica.update(rubrica.id, {
-        valor_utilizado: novoUtilizado,
         meta_manual_ids: novasMetas,
       });
       for (const key of queryKeysToInvalidate) {
@@ -138,16 +134,7 @@ export default function RubricaEditRow({
 
       {editing && (
         <div className="border-t border-gray-100 px-3 pb-3 pt-2 space-y-3">
-          <div>
-            <label className="text-xs font-medium text-gray-600 block mb-1">Valor Utilizado (R$)</label>
-            <input
-              type="number"
-              step="0.01"
-              value={localValor}
-              onChange={e => setLocalValor(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+          <p className="text-xs text-gray-500">O valor utilizado é calculado pelas solicitações aprovadas; este formulário altera apenas os vínculos da rubrica.</p>
 
           <div>
             <label className="text-xs font-medium text-gray-600 block mb-1">Vincular a Museu (rateio)</label>

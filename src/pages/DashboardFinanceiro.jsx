@@ -3,11 +3,10 @@ import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import RequireAuth from '../components/auth/RequireAuth';
 import { useCurrentUser } from '../components/auth/useCurrentUser';
-import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { DollarSign, TrendingUp, AlertCircle, Filter, Plus, Wallet, FileSearch } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { toastMessages } from '@/lib/toastMessages';
 import NovaRubricaDialog from '@/components/rubricas/NovaRubricaDialog';
 import { canManageRubricas } from '@/components/auth/permissions';
 import PainelPrevistoVsUtilizado from '@/components/financeiro/PainelPrevistoVsUtilizado';
@@ -23,6 +22,17 @@ function DashboardFinanceiroInner() {
   const [showNovaRubrica, setShowNovaRubrica] = useState(false);
   const [showMemoria, setShowMemoria] = useState(false);
   const canManage = canManageRubricas(currentUser);
+
+  const { data: balancetesOficiais = [] } = useQuery({
+    queryKey: ['balancetes-oficiais-2026'],
+    enabled: canManage,
+    queryFn: async () => {
+      const response = await base44.functions.invoke('consultarBalancetesOficiais', {});
+      return (response?.data || response)?.months || [];
+    },
+    staleTime: 60_000,
+    retry: false,
+  });
 
   // Carregar dados financeiros
   const { data: termos = [] } = useQuery({
@@ -164,9 +174,7 @@ function DashboardFinanceiroInner() {
     const totalTermos = termos.reduce((sum, t) => sum + (t.valor_total || 0), 0);
     const totalPagamentos = pagamentos.reduce((sum, p) => sum + (p.valor_pago || 0), 0);
     const totalInvoices = invoices.reduce((sum, i) => sum + (i.valor_total || 0), 0);
-    const totalGasto = totalTermos + totalPagamentos + totalInvoices;
-    
-    return { totalTermos, totalPagamentos, totalInvoices, totalGasto };
+    return { totalTermos, totalPagamentos, totalInvoices };
   }, [termos, pagamentos, invoices]);
 
   // ── Auditoria automática silenciosa ao carregar (coordenadores) ──
@@ -179,7 +187,7 @@ function DashboardFinanceiroInner() {
       .catch(() => {/* silencioso */});
   }, [isCoordenador, auditoriaConcluida, rubricas.length]);
 
-  // ── Execução orçamentária oficial — ÚNICA FONTE DE VERDADE ──
+  // Orçamento por rubrica: inclui compromissos aprovados ainda não pagos.
   const execucaoOficial = useMemo(() => calcularExecucaoOrcamentariaOficial(rubricas), [rubricas]);
 
   // Rubricas oficiais para passar ao PainelPrevistoVsUtilizado
@@ -206,6 +214,8 @@ function DashboardFinanceiroInner() {
   }, [execucaoOficial]);
 
   const fmt = (v) => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const fmtCents = (v) => fmt(Number(v || 0) / 100);
+  const despesasBalancetes = balancetesOficiais.reduce((sum, month) => sum + Number(month.expenses_cents || 0), 0);
   const fmtPct = (v) => `${Number(v).toFixed(1)}%`;
 
   const COLORS = ['#000000', '#333333', '#666666', '#999999', '#cccccc'];
@@ -229,13 +239,41 @@ function DashboardFinanceiroInner() {
           )}
         </div>
 
+        {balancetesOficiais.length > 0 && (
+          <section className="mb-8 rounded-2xl border border-slate-200 bg-slate-50 p-5" aria-label="Balancetes oficiais Museus Centro">
+            <h2 className="text-lg font-semibold text-slate-900">Balancetes oficiais · Museus Centro</h2>
+            <p className="mt-1 text-sm text-slate-600">Saldo de caixa e despesas declarados à PBH. O orçamento por rubrica abaixo também inclui solicitações aprovadas ainda não pagas.</p>
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-[700px] text-sm">
+                <thead><tr className="border-b border-slate-300 text-left text-slate-600">
+                  <th className="py-2 pr-3">Mês</th><th className="py-2 pr-3 text-right">Despesas</th>
+                  <th className="py-2 pr-3 text-right">Conciliado no app</th><th className="py-2 pr-3 text-right">A conciliar</th>
+                  <th className="py-2 pr-3 text-right">Saldo de caixa</th><th className="py-2">Situação</th>
+                </tr></thead>
+                <tbody>{balancetesOficiais.map((month) => {
+                  const openCents = Number(month.expenses_cents) - Number(month.matched_gross_cents);
+                  return <tr key={month.month} className="border-b border-slate-200 last:border-0">
+                    <td className="py-2 pr-3 font-medium">{month.month}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums">{fmtCents(month.expenses_cents)}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums">{fmtCents(month.matched_gross_cents)} <span className="text-xs text-slate-500">({month.matched_rows}/{month.official_rows})</span></td>
+                    <td className={`py-2 pr-3 text-right tabular-nums ${openCents ? 'text-amber-700' : 'text-green-700'}`}>{fmtCents(openCents)}</td>
+                    <td className="py-2 pr-3 text-right font-semibold tabular-nums">{fmtCents(month.balance_cents)}</td>
+                    <td className="py-2">{month.statement_status === 'regular' ? 'Regular' : 'Em análise'}</td>
+                  </tr>;
+                })}</tbody>
+              </table>
+            </div>
+            <p className="mt-3 text-xs text-slate-500">Valores indevidos e devoluções permanecem identificados na auditoria. O campo “A conciliar” representa lançamentos do balancete sem correspondência fiscal confirmada no app.</p>
+          </section>
+        )}
+
         {/* KPI Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <div className="p-6 rounded-2xl bg-black text-white">
             <DollarSign className="w-6 h-6 mb-3 opacity-70" />
-            <p className="text-sm text-gray-300">Gasto Total</p>
+            <p className="text-sm text-gray-300">Despesas oficiais · 02 a 06/2026</p>
             <p className="text-3xl font-bold mt-2">
-              R$ {(stats.totalGasto / 1000).toFixed(1)}k
+              {balancetesOficiais.length ? fmtCents(despesasBalancetes) : 'Aguardando balancetes'}
             </p>
           </div>
           <div className="p-6 rounded-2xl border border-gray-200">

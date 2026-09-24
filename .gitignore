@@ -1,5 +1,9 @@
 #env
 .env
+tmp/
+backend/official-balancetes-2026.json
+scripts/build-official-balancetes-2026.py
+docs/auditoria-balancetes-museus-centro-2026.md
 .env.*
 
 # Logs

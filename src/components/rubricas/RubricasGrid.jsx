@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +23,7 @@ import { toast } from 'sonner';
 import { calculateRubricaBalance, classifyRubricaBucket, isArchivedRubrica, isCreditRubrica } from '@/utils/finance/exceptionalRubricas';
 import { CENTROS_CUSTO } from '@/lib/centroCustoRubrica';
 import { classificarItemDespesaPBH } from '@/lib/classificadorDespesaPBH';
+import ValorUtilizadoDialog from './ValorUtilizadoDialog';
 
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return 0;
@@ -67,19 +69,6 @@ function normalizarGrupo(value) {
   return mapa[texto] || String(value || 'Sem grupo').trim() || 'Sem grupo';
 }
 
-function getPurchaseValue(p) {
-  return (
-    toNumber(p?.valor_pago) ||
-    toNumber(p?.valor_aprovado_admin) ||
-    toNumber(p?.valor_aprovado) ||
-    toNumber(p?.valor_final) ||
-    toNumber(p?.valor_solicitado) ||
-    0
-  );
-}
-
-const STATUS_UTILIZADOS = new Set(['APROVADO_COORD', 'APROVADO_ADMIN', 'PAGO']);
-
 async function logRubricaAudit(payload) {
   try {
     if (base44.entities.RubricaAuditLog?.create) {
@@ -114,6 +103,17 @@ export default function RubricasGrid({
   const [deletingId,   setDeletingId]   = useState(null);
   const [recalculando, setRecalculando] = useState(false);
   const [conciliandoItens, setConciliandoItens] = useState(false);
+  const [compositionRubrica, setCompositionRubrica] = useState(null);
+  const { data: composition, isLoading: compositionLoading, isError: compositionError } = useQuery({
+    queryKey: ['rubrica-composition'],
+    queryFn: async () => {
+      const response = await fetch('/api/finance/rubrica-composition', { credentials: 'include', cache: 'no-store' });
+      if (!response.ok) throw new Error(`Falha ao consultar composição (${response.status})`);
+      return response.json();
+    },
+    refetchInterval: 60000,
+    refetchOnWindowFocus: true,
+  });
 
   const [editForm, setEditForm] = useState({
     grupo: '',
@@ -125,24 +125,12 @@ export default function RubricasGrid({
     ativo: true,
   });
 
-  const utilizadoPorRubrica = useMemo(() => {
-    const mapa = {};
-    for (const p of purchases) {
-      if (!STATUS_UTILIZADOS.has(p.status)) continue;
-      const rid = p.rubrica_id || p.budgetline_id || null;
-      if (!rid) continue;
-      mapa[rid] = (mapa[rid] || 0) + getPurchaseValue(p);
-    }
-    return mapa;
-  }, [purchases]);
-
   const rubricasNormalizadas = useMemo(() => {
     return (rubricas || [])
       .filter(Boolean)
       .map((r, index) => {
-        const purchaseUtilizado = toNumber(utilizadoPorRubrica[r?.id] || 0);
-        const valorRubrica = toNumber(r?.valor_rubrica ?? r?.valor_total);
-        const valorUtilizado = Math.max(purchaseUtilizado, toNumber(r?.valor_utilizado));
+        const valorRubrica = toNumber(composition?.rubricas?.[String(r?.id)]?.orcado ?? r?.valor_total ?? r?.valor_rubrica);
+        const valorUtilizado = toNumber(composition?.rubricas?.[String(r?.id)]?.utilizado);
         const balance = calculateRubricaBalance({ ...r, valor_rubrica: valorRubrica, valor_total: valorRubrica, valor_utilizado: valorUtilizado });
         return {
           id:              r?.id || `rubrica-${index}`,
@@ -167,7 +155,7 @@ export default function RubricasGrid({
           raw:             r,
         };
       });
-  }, [rubricas, utilizadoPorRubrica]);
+  }, [rubricas, composition]);
 
   const grupos = useMemo(() => {
     const unicos = new Set(rubricasNormalizadas.map((r) => r.grupo));
@@ -349,6 +337,7 @@ export default function RubricasGrid({
 
   return (
     <div className="space-y-6">
+      {compositionError && <p role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">Não foi possível consultar as solicitações aprovadas. Valores de execução não serão exibidos até a conexão voltar.</p>}
 
       {/* Cards resumo */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
@@ -363,19 +352,19 @@ export default function RubricasGrid({
         </div>
         <div className="rounded-2xl border border-gray-200 p-4">
           <p className="text-xs text-gray-500">Total Utilizado</p>
-          <p className="mt-1 break-words text-lg font-bold leading-tight text-blue-700 tabular-nums">R$ {moeda(resumo.totalUtilizado)}</p>
+          <p className="mt-1 break-words text-lg font-bold leading-tight text-blue-700 tabular-nums">{compositionLoading || compositionError ? '—' : `R$ ${moeda(resumo.totalUtilizado)}`}</p>
           <p className="text-xs text-gray-400 mt-0.5">Aprovado coord. + admin + pago</p>
         </div>
         <div className="rounded-2xl border border-gray-200 p-4">
           <p className="text-xs text-gray-500">Saldo Disponível</p>
           <p className={`mt-1 break-words text-lg font-bold leading-tight tabular-nums ${resumo.saldoTotal < 0 ? 'text-red-700' : 'text-green-700'}`}>
-            R$ {moeda(resumo.saldoTotal)}
+            {compositionLoading || compositionError ? '—' : `R$ ${moeda(resumo.saldoTotal)}`}
           </p>
           {resumo.creditos > 0 && <p className="text-xs text-green-700 mt-0.5">Inclui créditos: R$ {moeda(resumo.creditos)}</p>}
         </div>
         <div className="rounded-2xl border border-gray-200 p-4">
           <p className="text-xs text-gray-500">% Utilizado</p>
-          <p className="text-2xl font-bold text-black mt-1">{resumo.percentualGeral.toFixed(1)}%</p>
+          <p className="text-2xl font-bold text-black mt-1">{compositionLoading || compositionError ? '—' : `${resumo.percentualGeral.toFixed(1)}%`}</p>
           <div className="mt-2 h-1.5 bg-gray-200 rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full ${resumo.percentualGeral >= 80 ? 'bg-red-500' : 'bg-green-500'}`}
@@ -550,18 +539,22 @@ export default function RubricasGrid({
                         )}
                       </td>
                       <td className="px-4 py-2.5 text-right">
-                        <span className="text-blue-700 font-medium tabular-nums">R$ {moeda(rubrica.valor_utilizado)}</span>
-                        {rubrica.valor_utilizado === 0 && (
+                        <button type="button" onClick={() => setCompositionRubrica(rubrica)} disabled={compositionLoading || compositionError}
+                          className="text-blue-700 font-medium tabular-nums underline underline-offset-2 hover:text-blue-900 disabled:text-gray-500"
+                          aria-label={`Ver composição do valor utilizado da rubrica ${rubrica.rubrica}`}>
+                          {compositionError ? 'Indisponível' : compositionLoading ? 'Carregando…' : `R$ ${moeda(rubrica.valor_utilizado)}`}
+                        </button>
+                        {!compositionLoading && !compositionError && rubrica.valor_utilizado === 0 && (
                           <p className="text-xs text-gray-400 mt-0.5">sem compras aprovadas</p>
                         )}
                       </td>
                       <td className="px-4 py-2.5 text-right">
                         <span className={`font-medium tabular-nums ${saldoNeg ? 'text-red-700' : 'text-green-700'}`}>
-                          R$ {moeda(rubrica.saldo)}
+                          {compositionLoading || compositionError ? '—' : `R$ ${moeda(rubrica.saldo)}`}
                         </span>
                       </td>
                       <td className="px-4 py-2.5">
-                        <ProgressBar pct={rubrica.percentual} />
+                        {compositionLoading || compositionError ? '—' : <ProgressBar pct={rubrica.percentual} />}
                       </td>
                       <td className="px-4 py-2.5">
                         <div className="flex items-center justify-center gap-1.5">
@@ -610,12 +603,12 @@ export default function RubricasGrid({
                     R$ {moeda(filtradas.reduce((s, r) => s + r.valor_rubrica, 0))}
                   </td>
                   <td className="px-4 py-3 text-right font-semibold tabular-nums text-blue-700">
-                    R$ {moeda(filtradas.reduce((s, r) => s + r.valor_utilizado, 0))}
+                    {compositionLoading || compositionError ? '—' : `R$ ${moeda(filtradas.reduce((s, r) => s + r.valor_utilizado, 0))}`}
                   </td>
                   <td className="px-4 py-3 text-right font-semibold tabular-nums">
                     {(() => {
                       const s = filtradas.reduce((acc, r) => acc + r.saldo, 0);
-                      return <span className={s < 0 ? 'text-red-700' : 'text-green-700'}>R$ {moeda(s)}</span>;
+                      return <span className={s < 0 ? 'text-red-700' : 'text-green-700'}>{compositionLoading || compositionError ? '—' : `R$ ${moeda(s)}`}</span>;
                     })()}
                   </td>
                   <td colSpan={2} />
@@ -625,6 +618,11 @@ export default function RubricasGrid({
           </table>
         </div>
       </div>
+      {compositionRubrica && (
+        <ValorUtilizadoDialog rubrica={compositionRubrica.raw || compositionRubrica}
+          composition={composition?.rubricas?.[String(compositionRubrica.id)]}
+          onClose={() => setCompositionRubrica(null)} />
+      )}
     </div>
   );
 }

@@ -1,8 +1,10 @@
 import React, { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 import { Pencil, X, Save, Trash2 } from 'lucide-react';
 import { classificarItemDespesaPBH } from '@/lib/classificadorDespesaPBH';
+import ValorUtilizadoDialog from '@/components/rubricas/ValorUtilizadoDialog';
 
 const CENTROS_CUSTO = [
   'MHAB',
@@ -11,7 +13,8 @@ const CENTROS_CUSTO = [
   'Atuação Geral',
   'Atende a todos',
   'Noturno',
-  'Noturno Pampulha'
+  'Noturno Pampulha',
+  'Terceiro Simpósio do Patrimônio de BH'
 ];
 
 function toNumber(value) {
@@ -46,8 +49,7 @@ function EditModal({ rubrica, onClose, onSave }) {
     grupo: rubrica.grupo || '',
     rubrica: rubrica.rubrica || '',
     centro_custo: rubrica.centro_custo || '',
-    valor_rubrica: String(toNumber(rubrica.valor_rubrica || rubrica.valor_total)),
-    valor_utilizado: String(toNumber(rubrica.valor_utilizado))
+    valor_rubrica: String(toNumber(rubrica.valor_rubrica || rubrica.valor_total))
   });
   const [saving, setSaving] = useState(false);
 
@@ -60,15 +62,12 @@ function EditModal({ rubrica, onClose, onSave }) {
     setSaving(true);
     try {
       const valor_rubrica = parseMoneda(form.valor_rubrica);
-      const valor_utilizado = parseMoneda(form.valor_utilizado);
-
       const res = await base44.functions.invoke('salvarRubrica', {
         id: rubrica.id,
         grupo: form.grupo,
         rubrica: form.rubrica,
         centro_custo: form.centro_custo,
         valor_rubrica,
-        valor_utilizado,
       });
 
       if (res?.data?.error) throw new Error(res.data.error);
@@ -125,7 +124,7 @@ function EditModal({ rubrica, onClose, onSave }) {
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div>
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">Valor Previsto (R$)</label>
               <input
@@ -135,16 +134,8 @@ function EditModal({ rubrica, onClose, onSave }) {
                 placeholder="0,00"
               />
             </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600">Valor Utilizado (R$)</label>
-              <input
-                value={form.valor_utilizado}
-                onChange={e => handleChange('valor_utilizado', e.target.value)}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
-                placeholder="0,00"
-              />
-            </div>
           </div>
+          <p className="text-xs text-gray-500">O valor utilizado é calculado automaticamente a partir das solicitações aprovadas.</p>
 
           <div className="flex justify-end gap-2 pt-2">
             <button
@@ -173,6 +164,17 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
   const [search, setSearch] = useState('');
   const [editingRubrica, setEditingRubrica] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [compositionRubrica, setCompositionRubrica] = useState(null);
+  const { data: composition, isLoading: compositionLoading, isError: compositionError } = useQuery({
+    queryKey: ['rubrica-composition'],
+    queryFn: async () => {
+      const response = await fetch('/api/finance/rubrica-composition', { credentials: 'include', cache: 'no-store' });
+      if (!response.ok) throw new Error(`Falha ao consultar composição (${response.status})`);
+      return response.json();
+    },
+    refetchInterval: 60000,
+    refetchOnWindowFocus: true,
+  });
 
   async function handleDelete(r) {
     if (!window.confirm(`Deletar a rubrica "${r.rubrica || r.grupo}"?\n\nEsta ação é irreversível.`)) return;
@@ -197,8 +199,8 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
 
   const dadosProcessados = useMemo(() => {
     return filtradas.map((r) => {
-      const valor = toNumber(r?.valor_rubrica || r?.valor_total);
-      const utilizado = toNumber(r?.valor_utilizado);
+      const valor = toNumber(composition?.rubricas?.[String(r.id)]?.orcado ?? r?.valor_total ?? r?.valor_rubrica);
+      const utilizado = toNumber(composition?.rubricas?.[String(r.id)]?.utilizado);
       const saldo = valor - utilizado;
       const perc = valor > 0 ? (utilizado / valor) * 100 : 0;
       return { ...r, valor, utilizado, saldo, perc, classificacaoItem: r?.codigo_item_pbh ? {
@@ -206,7 +208,7 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
         descricao_item_pbh: r.descricao_item_pbh,
       } : classificarItemDespesaPBH(r) };
     });
-  }, [filtradas]);
+  }, [filtradas, composition]);
 
   // Totais contratuais oficiais fixos — não derivados da soma das rubricas
   const CONTRATO_3A = 1320000;
@@ -232,6 +234,7 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
         onChange={(e) => setSearch(e.target.value)}
         className="w-full border rounded p-2 text-sm"
       />
+      {compositionError && <p role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">Não foi possível consultar as solicitações aprovadas. Valores de execução não serão exibidos até a conexão voltar.</p>}
 
       <div className="overflow-auto border rounded">
         <table className="w-full text-sm">
@@ -273,11 +276,17 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
                   ) : <span className="text-xs text-amber-600">Pendente de IA</span>}
                 </td>
                 <td className="p-2 text-right tabular-nums">R$ {moeda(r.valor)}</td>
-                <td className="p-2 text-right tabular-nums text-blue-700">R$ {moeda(r.utilizado)}</td>
-                <td className={`p-2 text-right tabular-nums font-medium ${r.saldo < 0 ? 'text-red-600' : 'text-green-700'}`}>
-                  R$ {moeda(r.saldo)}
+                <td className="p-2 text-right tabular-nums">
+                  <button type="button" onClick={() => setCompositionRubrica(r)} disabled={compositionLoading || compositionError}
+                    className="font-medium text-blue-700 underline underline-offset-2 hover:text-blue-900 disabled:text-gray-500"
+                    aria-label={`Ver composição do valor utilizado da rubrica ${r.rubrica}`}>
+                    {compositionError ? 'Indisponível' : compositionLoading ? 'Carregando…' : `R$ ${moeda(r.utilizado)}`}
+                  </button>
                 </td>
-                <td className="p-2 text-center">{r.perc.toFixed(1)}%</td>
+                <td className={`p-2 text-right tabular-nums font-medium ${r.saldo < 0 ? 'text-red-600' : 'text-green-700'}`}>
+                  {compositionLoading || compositionError ? '—' : `R$ ${moeda(r.saldo)}`}
+                </td>
+                <td className="p-2 text-center">{compositionLoading || compositionError ? '—' : `${r.perc.toFixed(1)}%`}</td>
                 <td className="p-2 text-center">
                   <div className="flex items-center justify-center gap-1">
                     <button
@@ -305,8 +314,8 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
             <tr>
               <td colSpan={5} className="p-2">TOTAL</td>
               <td className="p-2 text-right tabular-nums">R$ {moeda(totais.previsto)}</td>
-              <td className="p-2 text-right tabular-nums">R$ {moeda(totais.utilizado)}</td>
-              <td className="p-2 text-right tabular-nums">R$ {moeda(totais.saldo)}</td>
+                  <td className="p-2 text-right tabular-nums">{compositionLoading || compositionError ? '—' : `R$ ${moeda(totais.utilizado)}`}</td>
+                  <td className="p-2 text-right tabular-nums">{compositionLoading || compositionError ? '—' : `R$ ${moeda(totais.saldo)}`}</td>
               <td></td>
               <td></td>
             </tr>
@@ -323,6 +332,10 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
             if (onRefresh) onRefresh();
           }}
         />
+      )}
+      {compositionRubrica && (
+        <ValorUtilizadoDialog rubrica={compositionRubrica} composition={composition?.rubricas?.[String(compositionRubrica.id)]}
+          onClose={() => setCompositionRubrica(null)} />
       )}
     </div>
   );

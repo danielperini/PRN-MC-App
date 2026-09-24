@@ -642,6 +642,60 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
   );
 }
 
+function isPurchasePaid(purchase) {
+  const status = normalizeStatus(purchase?.status);
+  const paymentStatus = String(purchase?.status_pagamento || '').trim().toUpperCase();
+  return status === 'PAGO' || paymentStatus === 'PAGO' || purchase?.pago === true || purchase?.quitada === true;
+}
+
+function PurchaseCategorySection({ label, purchases, sharedProps, tone = 'neutral' }) {
+  const [paidOpen, setPaidOpen] = useState(false);
+  const pending = useMemo(() => purchases.filter((purchase) => !isPurchasePaid(purchase)), [purchases]);
+  const paid = useMemo(() => purchases.filter(isPurchasePaid), [purchases]);
+  const paidTotal = useMemo(() => paid.reduce((total, purchase) => total + getPurchaseValue(purchase), 0), [paid]);
+  const accent = tone === 'noturno'
+    ? { heading: 'text-purple-900', badge: 'bg-purple-100 text-purple-700', border: 'border-purple-200', paid: 'border-purple-200 bg-purple-50/50 text-purple-800' }
+    : { heading: 'text-gray-900', badge: 'bg-gray-100 text-gray-600', border: 'border-gray-200', paid: 'border-emerald-200 bg-emerald-50/60 text-emerald-800' };
+
+  return (
+    <div>
+      <div className="mb-3 flex items-center gap-2">
+        <h3 className={`text-lg font-semibold ${accent.heading}`}>{label}</h3>
+        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${accent.badge}`}>{purchases.length}</span>
+      </div>
+
+      {pending.length > 0 && (
+        <div className={`overflow-x-auto rounded-xl border ${accent.border}`}>
+          <div className="border-b border-amber-100 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+            Pendências — aprovação, correção ou pagamento ({pending.length})
+          </div>
+          <RenderTabela items={pending} {...sharedProps} />
+        </div>
+      )}
+
+      {paid.length > 0 && (
+        <div className={pending.length ? 'mt-2' : ''}>
+          <button
+            type="button"
+            aria-expanded={paidOpen}
+            onClick={() => setPaidOpen((open) => !open)}
+            className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm font-medium transition-colors hover:brightness-95 ${accent.paid}`}
+          >
+            <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${paidOpen ? 'rotate-180' : ''}`} />
+            <span>Pagas ({paid.length})</span>
+            <span className="ml-auto tabular-nums text-xs font-semibold">{fmtBRL(paidTotal)}</span>
+          </button>
+          {paidOpen && (
+            <div className={`mt-1 overflow-x-auto rounded-xl border ${accent.border}`}>
+              <RenderTabela items={paid} {...sharedProps} />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TabelaSolicitacoes({ purchases, rubricas, attachmentByPurchaseId, isCoordenador, currentUser, podeAprovarSolicitacoes, hasGestaoCompras, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onBulkAction, onAccess, onCentroUpdated, onCentroCustoSaved, userPermission, canSeeEquipeSalarios }) {
   const [sendingNotif, setSendingNotif] = useState({});
   const [selectedIds, setSelectedIds] = useState(() => new Set());
@@ -750,15 +804,7 @@ export default function TabelaSolicitacoes({ purchases, rubricas, attachmentByPu
         </div>
       )}
       {museusCentroCategories.map((cat) => (
-        <div key={cat.key}>
-          <div className="mb-3 flex items-center gap-2">
-            <h3 className="text-lg font-semibold text-gray-900">{cat.label}</h3>
-            <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">{categories[cat.key].length}</span>
-          </div>
-          <div className="overflow-x-auto rounded-xl border border-gray-200">
-            <RenderTabela items={categories[cat.key]} {...sharedProps} />
-          </div>
-        </div>
+        <PurchaseCategorySection key={cat.key} label={cat.label} purchases={categories[cat.key]} sharedProps={sharedProps} />
       ))}
 
       {noturnoCategorias.length > 0 && (
@@ -769,15 +815,7 @@ export default function TabelaSolicitacoes({ purchases, rubricas, attachmentByPu
             <div className="h-px flex-1 bg-purple-200" />
           </div>
           {noturnoCategorias.map((cat) => (
-            <div key={cat.key}>
-              <div className="mb-3 flex items-center gap-2">
-                <h3 className="text-lg font-semibold text-purple-900">{cat.label}</h3>
-                <span className="inline-flex rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">{categories[cat.key].length}</span>
-              </div>
-              <div className="overflow-x-auto rounded-xl border border-purple-200">
-                <RenderTabela items={categories[cat.key]} {...sharedProps} />
-              </div>
-            </div>
+            <PurchaseCategorySection key={cat.key} label={cat.label} purchases={categories[cat.key]} sharedProps={sharedProps} tone="noturno" />
           ))}
         </>
       )}

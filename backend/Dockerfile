@@ -5,6 +5,7 @@ WORKDIR /app
 RUN npm init -y && npm install express pg multer socket.io bcryptjs xlsx nodemailer googleapis
 
 COPY server.mjs ./
+COPY rubrica-composition.mjs ./
 COPY email-layout.mjs ./
 COPY auth-bootstrap.mjs ./
 COPY programacao-sync.mjs ./
@@ -24,6 +25,7 @@ COPY monthly-report-reminders.mjs ./
 COPY send-professional-access-check.mjs ./
 COPY send-purchase-notification-batch.mjs ./
 COPY reanalyze-purchase-fiscal-metadata.mjs ./
+COPY audit-official-balancetes-2026.mjs ./
 
 EXPOSE 3000
 

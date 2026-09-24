@@ -9,6 +9,7 @@ import { Readable } from 'node:stream';
 import { Server as SocketIOServer } from 'socket.io';
 import { google } from 'googleapis';
 import { syncProgramacao } from './programacao-sync.mjs';
+import { buildRubricaComposition } from './rubrica-composition.mjs';
 import nodemailer from 'nodemailer';
 import { brandedEmailHtml, brandedEmailText, paymentNotificationSteps, purchaseSubmissionSteps, reportSubmissionSteps } from './email-layout.mjs';
 
@@ -434,28 +435,36 @@ const ENTITY_TABLES = Object.freeze({
 });
 function entityTable(name) { return ENTITY_TABLES[String(name || '')] || null; }
 function quoteIdentifier(value) { return `"${String(value).replaceAll('"', '""')}"`; }
+const CALCULATED_RUBRICA_FIELDS = new Set(['valor_utilizado','saldo','saldo_real','percentual_utilizado']);
 async function tableColumns(table) {
   const r = await pool.query(`SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1 ORDER BY ordinal_position`, [table]);
   return r.rows.map(x => x.column_name);
 }
+
+// A single fiscal valuation rule feeds both the persisted balance and its
+// auditable composition. Keep the status/duplicate filters identical too.
+const PURCHASE_UTILIZED_AMOUNT_SQL = `CASE
+  WHEN p.raw_data #>> '{official_balancete,eligible_cents}' ~ '^[0-9]+$'
+    THEN ((p.raw_data #>> '{official_balancete,eligible_cents}')::numeric / 100)
+  WHEN p.nf_valor_total > 0 THEN p.nf_valor_total
+  WHEN p.valor_aprovado > 0 THEN p.valor_aprovado
+  WHEN p.valor_total > 0 THEN p.valor_total
+  ELSE COALESCE(p.valor_solicitado, 0)
+END`;
+const PURCHASE_UTILIZED_WHERE_SQL = `p.rubrica_id IS NOT NULL
+  AND UPPER(COALESCE(p.status,'')) IN ('APROVADO','APROVADO_COORD','APROVADO_ADMIN','PAGO')
+  AND COALESCE(p.incluir_no_somatorio,TRUE) IS DISTINCT FROM FALSE
+  AND COALESCE(p.duplicada_financeira,FALSE)=FALSE`;
 
 // Recompute from fiscal data after every state-changing purchase action. Drafts
 // never consume the budget and the invoice amount wins over UI display fields.
 async function syncRubricaBalances() {
   const r = await pool.query(`
     WITH used AS (
-      SELECT rubrica_id, ROUND(SUM(CASE
-        WHEN nf_valor_total > 0 THEN nf_valor_total
-        WHEN valor_aprovado > 0 THEN valor_aprovado
-        WHEN valor_total > 0 THEN valor_total
-        ELSE COALESCE(valor_solicitado, 0)
-      END)::numeric, 2) AS amount
-      FROM purchase_requests
-      WHERE rubrica_id IS NOT NULL
-        AND UPPER(COALESCE(status,'')) IN ('APROVADO','APROVADO_COORD','APROVADO_ADMIN','PAGO')
-        AND COALESCE(incluir_no_somatorio,TRUE) IS DISTINCT FROM FALSE
-        AND COALESCE(duplicada_financeira,FALSE)=FALSE
-      GROUP BY rubrica_id
+      SELECT p.rubrica_id, ROUND(SUM(${PURCHASE_UTILIZED_AMOUNT_SQL})::numeric, 2) AS amount
+      FROM purchase_requests p
+      WHERE ${PURCHASE_UTILIZED_WHERE_SQL}
+      GROUP BY p.rubrica_id
     )
     UPDATE rubricas r
     SET valor_utilizado=COALESCE(u.amount,0),
@@ -469,6 +478,25 @@ async function syncRubricaBalances() {
   `);
   return r.rowCount || 0;
 }
+
+// One backend response supplies the amount shown in every row and the exact
+// request list behind it. Totals are summed in integer cents from those same
+// rows, so the modal footer cannot disagree with the displayed amount.
+app.get('/api/finance/rubrica-composition', requireSession, async (_req, res) => {
+  try {
+    const rubricas = (await pool.query('SELECT id, grupo, rubrica, centro_custo, COALESCE(valor_total,valor_rubrica,0) AS orcado FROM rubricas')).rows;
+    const rows = (await pool.query(`
+      SELECT p.rubrica_id::text AS rubrica_id, to_jsonb(p) AS purchase,
+        ROUND((${PURCHASE_UTILIZED_AMOUNT_SQL})::numeric * 100)::bigint AS amount_cents
+      FROM purchase_requests p
+      WHERE ${PURCHASE_UTILIZED_WHERE_SQL}
+    `)).rows;
+    return res.json({ rubricas: buildRubricaComposition(rubricas, rows) });
+  } catch (error) {
+    console.error('RUBRICA_COMPOSITION_ERROR:', error);
+    return res.status(500).json({ error: 'rubrica_composition_failed', message: error.message });
+  }
+});
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Finance addresses already registered for the project. They remain included
@@ -957,6 +985,16 @@ async function normalizeReportRelationPayload(req, entityName, body = {}) {
   if (!report) throw new Error('report_relation_not_found');
   canonicalId = String(report.id);
   if (ids !== null && !ids.includes(canonicalId)) throw new Error('report_relation_access_denied');
+  if (entityName === 'ReportPhoto' && body.activity_id) {
+    const activityId = String(body.activity_id).trim();
+    const activity = (await pool.query(
+      `SELECT id,base44_activity_id FROM report_activities
+       WHERE report_id::text=$1 AND (id::text=$2 OR base44_activity_id=$2) LIMIT 1`,
+      [canonicalId, activityId],
+    )).rows[0];
+    if (!activity) throw new Error('photo_activity_not_in_report');
+    return { ...body, report_id:canonicalId, activity_id:String(activity.base44_activity_id || activity.id) };
+  }
   return { ...body, report_id:canonicalId };
 }
 
@@ -1196,6 +1234,75 @@ async function syncReportPhotosToGallery(report, photos) {
   return { created, updated, skipped };
 }
 
+function reportPhotoEditorValue(photo) {
+  const raw = parseReportRawData(photo.raw_data);
+  const id = String(photo.base44_id || raw.id || photo.id);
+  return {
+    ...raw,
+    id,
+    url: photo.file_url || raw.url || '',
+    fileName: photo.file_name || raw.fileName || raw.file_name || 'foto',
+    caption: photo.caption || photo.legenda || raw.caption || raw.legenda || '',
+    activityId: photo.activity_id ? String(photo.activity_id) : null,
+    drive_file_id: photo.drive_file_id || raw.drive_file_id || '',
+    author: photo.author || raw.author || '',
+    museum: photo.museu || raw.museum || raw.museu || '',
+    museu: photo.museu || raw.museu || raw.museum || '',
+  };
+}
+
+// ReportPhoto is the canonical table for the central gallery.  When a reviewer
+// assigns an orphan photo, mirror that decision back into the editor-compatible
+// report and activity JSON projections immediately.  This keeps the gallery,
+// activity evidence and monthly report in agreement without waiting for a
+// batch reconciliation.
+async function rehydrateReportMediaProjection(reportId) {
+  if (!reportId || !(await tableExists('reports')) || !(await tableExists('report_photos'))) return;
+  const reportResult = await pool.query('SELECT id,raw_data FROM reports WHERE id::text=$1 LIMIT 1', [String(reportId)]);
+  const report = reportResult.rows[0];
+  if (!report) return;
+
+  const photos = (await pool.query(
+    'SELECT id,base44_id,activity_id,drive_file_id,file_name,file_url,legenda,caption,author,museu,raw_data FROM report_photos WHERE report_id::text=$1 ORDER BY ordem NULLS LAST,created_date,id',
+    [String(report.id)],
+  )).rows;
+  const activityRows = await tableExists('report_activities')
+    ? (await pool.query('SELECT id,base44_activity_id,raw_data FROM report_activities WHERE report_id::text=$1 ORDER BY id', [String(report.id)])).rows
+    : [];
+  const raw = parseReportRawData(report.raw_data);
+  const byActivity = new Map();
+  for (const photo of photos) {
+    if (!photo.activity_id) continue;
+    const key = String(photo.activity_id);
+    const list = byActivity.get(key) || [];
+    list.push(reportPhotoEditorValue(photo));
+    byActivity.set(key, list);
+  }
+  const activityById = new Map(activityRows.map((row) => [String(row.base44_activity_id || row.id), row]));
+  const seen = new Set();
+  const rehydratedActivities = (Array.isArray(raw.atividades) ? raw.atividades : []).map((value) => {
+    const original = value && typeof value === 'object' ? value : {};
+    const id = String(original.id || original.base44_activity_id || '');
+    if (id) seen.add(id);
+    const row = activityById.get(id);
+    const source = row ? { ...parseReportRawData(row.raw_data), ...original, id } : { ...original, ...(id ? { id } : {}) };
+    return { ...source, fotos: byActivity.get(id) || [] };
+  });
+  for (const row of activityRows) {
+    const id = String(row.base44_activity_id || row.id);
+    if (seen.has(id)) continue;
+    rehydratedActivities.push({ ...parseReportRawData(row.raw_data), id, fotos: byActivity.get(id) || [] });
+  }
+
+  const rawData = { ...raw, atividades: rehydratedActivities, fotos: photos.map(reportPhotoEditorValue) };
+  await pool.query('UPDATE reports SET raw_data=$1::jsonb WHERE id=$2', [JSON.stringify(rawData), report.id]);
+  for (const row of activityRows) {
+    const id = String(row.base44_activity_id || row.id);
+    const activityRaw = { ...parseReportRawData(row.raw_data), id, fotos: byActivity.get(id) || [] };
+    await pool.query('UPDATE report_activities SET raw_data=$1::jsonb WHERE id=$2', [JSON.stringify(activityRaw), row.id]);
+  }
+}
+
 // Report ownership must always come from the active app session, not from the
 // browser payload. This avoids a stale client profile creating a report in
 // somebody else's name and also supplies the required initial identity fields.
@@ -1356,7 +1463,8 @@ app.post('/api/apps/:appId/entities/:entityName', requireSession, async (req,res
     normalizedBody=await normalizeReportRelationPayload(req,req.params.entityName,normalizedBody);
     normalizedBody=await normalizeClientErrorPayload(req,req.params.entityName,normalizedBody);
     normalizedBody=preserveReportEditorContent(normalizedBody);
-    let entries=Object.entries(normalizedBody).filter(([k,v])=>columns.includes(k)&&v!==undefined);
+    let entries=Object.entries(normalizedBody).filter(([k,v])=>columns.includes(k)&&v!==undefined&&
+      (table!=='rubricas'||!CALCULATED_RUBRICA_FIELDS.has(k)));
     if (columns.includes('id') && !entries.some(([key]) => key === 'id')) {
       const idMeta = await pool.query(`SELECT data_type,column_default,is_identity FROM information_schema.columns WHERE table_schema='public' AND table_name=$1 AND column_name='id' LIMIT 1`,[table]);
       const idColumn = idMeta.rows[0];
@@ -1395,7 +1503,13 @@ app.post('/api/apps/:appId/entities/:entityName', requireSession, async (req,res
     if (table==='reports' && Array.isArray(normalizedBody.fotos)) {
       await syncReportPhotosToGallery(r.rows[0], normalizedBody.fotos).catch((error) => console.error('REPORT_GALLERY_SYNC_ERROR', error));
     }
+    if (table==='report_photos' && r.rows[0]?.report_id) {
+      await rehydrateReportMediaProjection(r.rows[0].report_id).catch((error) => console.error('REPORT_PHOTO_PROJECTION_SYNC_ERROR', error));
+    }
     if (table==='document_intakes') await suppressExactDuplicateIntakes(r.rows[0].id);
+    if (table==='purchase_requests' && ['APROVADO','APROVADO_COORD','APROVADO_ADMIN','PAGO'].includes(String(r.rows[0]?.status||'').toUpperCase())) {
+      await syncRubricaBalances().catch(error => console.error('RUBRICA_BALANCE_SYNC_ERROR', error));
+    }
     if (table==='client_error_logs') console.warn('CLIENT_ERROR_LOGGED', JSON.stringify({ error_id:r.rows[0].error_id, user_email:r.rows[0].user_email, url:r.rows[0].url }));
     res.status(201).json(r.rows[0]);
   } catch(e) { console.error('ENTITY_POST_ERROR:',e); res.status(500).json({error:'entity_create_failed',message:e.message}); }
@@ -1422,10 +1536,17 @@ async function updateEntity(req,res) {
     let normalizedBody=await normalizeReportUpdatePayload(req,req.params.entityName,fiscalBody);
     normalizedBody=await normalizeReportRelationPayload(req,req.params.entityName,normalizedBody);
     normalizedBody=preserveReportEditorContent(normalizedBody,reportAccess?.report?.raw_data);
-    entries=Object.entries(normalizedBody).filter(([k,v])=>columns.includes(k)&&k!=='id'&&v!==undefined);
+    entries=Object.entries(normalizedBody).filter(([k,v])=>columns.includes(k)&&k!=='id'&&v!==undefined&&
+      (table!=='rubricas'||!CALCULATED_RUBRICA_FIELDS.has(k)));
     currentField=entries[0]?.[0]||null;
     entries=normalizeEntityEntriesForDb(entries,columnTypes);
-    if(!entries.length) return res.status(400).json({error:'empty_entity_update'});
+    if(!entries.length) {
+      if (table==='rubricas' && Object.keys(normalizedBody).some(key => CALCULATED_RUBRICA_FIELDS.has(key))) {
+        const existing=await pool.query('SELECT * FROM rubricas WHERE id::text=$1 LIMIT 1',[req.params.id]);
+        return existing.rows[0] ? res.json(existing.rows[0]) : res.status(404).json({error:'entity_not_found'});
+      }
+      return res.status(400).json({error:'empty_entity_update'});
+    }
     const vals=entries.map(([,v])=>v); vals.push(req.params.id);
     const sets=entries.map(([k],i)=>`${quoteIdentifier(k)}=$${i+1}`).join(',');
     const r=await pool.query(`UPDATE ${quoteIdentifier(table)} SET ${sets} WHERE "id"=$${vals.length} RETURNING *`,vals);
@@ -1436,7 +1557,11 @@ async function updateEntity(req,res) {
     if (table==='reports' && Array.isArray(normalizedBody.fotos)) {
       await syncReportPhotosToGallery(r.rows[0], normalizedBody.fotos).catch((error) => console.error('REPORT_GALLERY_SYNC_ERROR', error));
     }
+    if (table==='report_photos' && r.rows[0]?.report_id) {
+      await rehydrateReportMediaProjection(r.rows[0].report_id).catch((error) => console.error('REPORT_PHOTO_PROJECTION_SYNC_ERROR', error));
+    }
     if (table==='document_intakes') await suppressExactDuplicateIntakes(r.rows[0].id);
+    if (table==='purchase_requests') await syncRubricaBalances().catch(error => console.error('RUBRICA_BALANCE_SYNC_ERROR', error));
     res.json(r.rows[0]);
   } catch(e) {
     const bodyKeys=Object.keys(req.body||{});
@@ -1516,6 +1641,77 @@ app.get('/api/drive-files/:fileId', requireSession, async (req, res) => {
 app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,res) => {
   const name=String(req.params.functionName||'');
   try {
+    if (name === 'consultarBalancetesOficiais') {
+      const actorResult = await pool.query('SELECT id,email,full_name,role FROM users WHERE id=$1 LIMIT 1', [req.userId]);
+      if (!isReportCoordinator(actorResult.rows[0])) return res.status(403).json({ success:false, error:'financial_audit_forbidden' });
+      const exists = await pool.query("SELECT to_regclass('public.official_balancete_months') AS table_name");
+      if (!exists.rows[0]?.table_name) return res.json({ success:true, months:[], imported:false });
+      const result = await pool.query(`SELECT b.month,b.statement_status,b.previous_cents,b.transfer_cents,
+        b.yield_cents,b.reimbursement_cents,b.expenses_cents,b.balance_cents,b.undue_cents,
+        b.outstanding_cents,b.source_sha256,b.source_filename,
+        COALESCE(a.matched_rows,0)::int AS matched_rows,
+        COALESCE(a.matched_gross_cents,0)::bigint AS matched_gross_cents,
+        COALESCE(a.matched_eligible_cents,0)::bigint AS matched_eligible_cents,
+        jsonb_array_length(b.source_entries)::int AS official_rows
+      FROM official_balancete_months b
+      LEFT JOIN (
+        SELECT raw_data #>> '{official_balancete,month}' AS month,
+          COUNT(*) AS matched_rows,
+          SUM((raw_data #>> '{official_balancete,gross_cents}')::bigint) AS matched_gross_cents,
+          SUM((raw_data #>> '{official_balancete,eligible_cents}')::bigint) AS matched_eligible_cents
+        FROM purchase_requests
+        WHERE raw_data #>> '{official_balancete,month}' IS NOT NULL
+          AND raw_data #>> '{official_balancete,gross_cents}' ~ '^[0-9]+$'
+          AND raw_data #>> '{official_balancete,eligible_cents}' ~ '^[0-9]+$'
+        GROUP BY 1
+      ) a ON a.month=b.month WHERE b.partnership='01202431030012' ORDER BY b.month`);
+      return res.json({ success:true, months:result.rows, imported:true });
+    }
+    if (name === 'sendDirectInviteEmail') {
+      const actorResult = await pool.query('SELECT id,email,full_name,role FROM users WHERE id=$1 LIMIT 1', [req.userId]);
+      const actor = actorResult.rows[0];
+      if (!isReportCoordinator(actor)) return res.status(403).json({ success:false, error:'invite_forbidden' });
+
+      const to = normalizeEmailAddress(req.body?.email);
+      const fullName = String(req.body?.full_name || '').trim().slice(0, 160);
+      const role = String(req.body?.role || 'PROFISSIONAL').trim().toUpperCase();
+      const customMessage = String(req.body?.message || '').trim().slice(0, 1500);
+      if (!to) return res.status(400).json({ success:false, error:'invalid_invite_email' });
+      if (!['COORDENADOR','PROFISSIONAL','OBSERVADOR'].includes(role)) return res.status(400).json({ success:false, error:'invalid_invite_role' });
+      if (!process.env.SMTP_HOST || !process.env.SMTP_USER) return res.status(503).json({ success:false, error:'smtp_not_configured' });
+
+      const inviteUrl = appActionUrl('/Cadastro', '/Cadastro');
+      const roleLabel = { COORDENADOR:'coordenador(a)', PROFISSIONAL:'profissional', OBSERVADOR:'observador(a)' }[role];
+      const greeting = fullName ? `Olá, ${fullName}` : 'Olá';
+      const message = [
+        `Você foi convidado(a) para acessar o Gestor Museus Centro como ${roleLabel}.`,
+        customMessage,
+        'Use o botão abaixo para preencher seu cadastro. Após a validação da coordenação, seu acesso será liberado.',
+      ].filter(Boolean).join('\n\n');
+      const password = process.env.SMTP_PASS_B64 ? Buffer.from(process.env.SMTP_PASS_B64, 'base64').toString('utf8') : process.env.SMTP_PASS;
+      const transport = nodemailer.createTransport({
+        host:process.env.SMTP_HOST,
+        port:Number(process.env.SMTP_PORT || 465),
+        secure:String(process.env.SMTP_SECURE).toLowerCase() === 'true',
+        auth:{ user:process.env.SMTP_USER, pass:password },
+      });
+      if (req.body?.dry_run === true) {
+        await transport.verify();
+        return res.status(200).json({ success:true, dry_run:true, recipient:to, invite_url:inviteUrl });
+      }
+      await transport.sendMail({
+        from:`Gestor Museus Centro <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
+        to,
+        subject:'Convite de acesso — Gestor Museus Centro',
+        text:brandedEmailText({ greeting, message, steps:['Preencha seu cadastro.', 'Aguarde a validação da coordenação.', 'Entre no Gestor Museus Centro e complete seus dados.'], ctaLabel:'Preencher cadastro', ctaUrl:inviteUrl, recipientEmail:to }),
+        html:brandedEmailHtml({ appUrl:publicBaseUrl, title:'Convite de acesso', greeting, message, steps:['Preencha seu cadastro.', 'Aguarde a validação da coordenação.', 'Entre no Gestor Museus Centro e complete seus dados.'], ctaLabel:'Preencher cadastro', ctaUrl:inviteUrl, recipientEmail:to }),
+      });
+      await pool.query(`INSERT INTO notifications (user_email,type,title,message,entity_type,entity_id,action_url,is_read,resolved,email_sent)
+        VALUES ($1,'USER_INVITE_EMAIL','Convite de acesso enviado',$2,'UserInvite',$3,$4,FALSE,FALSE,TRUE)`, [
+        to, message, `invite-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`, inviteUrl,
+      ]).catch((error) => console.warn('INVITE_NOTIFICATION_AUDIT_FAILED', error.message));
+      return res.status(200).json({ success:true, recipient:to, invite_url:inviteUrl });
+    }
     if (name === 'publicarFotosRelatorioAprovado') {
       const reportId=String(req.body?.report_id || req.body?.reportId || '').trim();
       if (!reportId) return res.status(400).json({ success:false, error:'report_id_required' });
@@ -2082,6 +2278,8 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
             WITH used AS (
               SELECT rubrica_id,
                 ROUND(SUM(CASE
+                  WHEN raw_data #>> '{official_balancete,eligible_cents}' ~ '^[0-9]+$'
+                    THEN ((raw_data #>> '{official_balancete,eligible_cents}')::numeric / 100)
                   WHEN nf_valor_total > 0 THEN nf_valor_total
                   WHEN valor_aprovado > 0 THEN valor_aprovado
                   WHEN valor_total > 0 THEN valor_total

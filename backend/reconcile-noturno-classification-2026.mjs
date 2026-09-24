@@ -48,6 +48,8 @@ async function syncRubricaBalances() {
   await pool.query(`
     WITH used AS (
       SELECT rubrica_id, ROUND(SUM(CASE
+        WHEN raw_data #>> '{official_balancete,eligible_cents}' ~ '^[0-9]+$'
+          THEN ((raw_data #>> '{official_balancete,eligible_cents}')::numeric / 100)
         WHEN nf_valor_total > 0 THEN nf_valor_total
         WHEN valor_aprovado > 0 THEN valor_aprovado
         WHEN valor_total > 0 THEN valor_total
@@ -123,7 +125,7 @@ async function run() {
 
   if (APPLY) await syncRubricaBalances();
   const totals = await pool.query(`SELECT r.id, r.nome, COUNT(p.id)::int AS notas,
-    COALESCE(ROUND(SUM(CASE WHEN p.nf_valor_total > 0 THEN p.nf_valor_total WHEN p.valor_aprovado > 0 THEN p.valor_aprovado ELSE COALESCE(p.valor_solicitado,p.valor_total,0) END)::numeric,2),0) AS utilizado
+    COALESCE(ROUND(SUM(CASE WHEN p.raw_data #>> '{official_balancete,eligible_cents}' ~ '^[0-9]+$' THEN ((p.raw_data #>> '{official_balancete,eligible_cents}')::numeric / 100) WHEN p.nf_valor_total > 0 THEN p.nf_valor_total WHEN p.valor_aprovado > 0 THEN p.valor_aprovado ELSE COALESCE(p.valor_solicitado,p.valor_total,0) END)::numeric,2),0) AS utilizado
     FROM rubricas r LEFT JOIN purchase_requests p ON p.rubrica_id=r.id
       AND UPPER(COALESCE(p.status,'')) IN ('APROVADO','APROVADO_COORD','APROVADO_ADMIN','PAGO')
       AND COALESCE(p.incluir_no_somatorio,TRUE) IS DISTINCT FROM FALSE
