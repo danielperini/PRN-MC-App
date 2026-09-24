@@ -126,6 +126,93 @@ function fiscalDate(value) {
   const date=value instanceof Date && !Number.isNaN(value.getTime()) ? value.toISOString().slice(0,10) : String(value || '').slice(0,10);
   return /^20\d{2}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/.test(date) ? date : '';
 }
+// XML is the fiscal source of truth.  Keep this parser deliberately
+// dependency-free because it also runs in the lean API container.  It does
+// not try to "guess" a value: an absent tag remains absent and sends the item
+// to review instead of silently producing a wrong purchase record.
+function decodeXmlText(value) {
+  return String(value || '')
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    .replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"').replace(/&#(?:x0*27|0*39);/gi, "'")
+    .replace(/\s+/g, ' ').trim();
+}
+function xmlTag(xml, names, scope = '') {
+  const source = scope || String(xml || '');
+  for (const name of names) {
+    const escaped = String(name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const match = source.match(new RegExp(`<\\s*(?:\\w+:)?${escaped}\\b[^>]*>([\\s\\S]*?)<\\s*\\/\\s*(?:\\w+:)?${escaped}\\s*>`, 'i'));
+    if (match) return decodeXmlText(match[1]);
+  }
+  return '';
+}
+function xmlSection(xml, names) {
+  for (const name of names) {
+    const escaped = String(name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const match = String(xml || '').match(new RegExp(`<\\s*(?:\\w+:)?${escaped}\\b[^>]*>([\\s\\S]*?)<\\s*\\/\\s*(?:\\w+:)?${escaped}\\s*>`, 'i'));
+    if (match) return match[1];
+  }
+  return '';
+}
+function normalizeXmlFiscalDate(value) {
+  const raw = String(value || '').trim();
+  const iso = raw.match(/^(20\d{2})-(\d{2})-(\d{2})/);
+  if (iso) return fiscalDate(`${iso[1]}-${iso[2]}-${iso[3]}`);
+  const br = raw.match(/^(\d{2})\/(\d{2})\/(20\d{2})/);
+  return br ? fiscalDate(`${br[3]}-${br[2]}-${br[1]}`) : '';
+}
+function xmlMoney(value) {
+  const normalized = String(value || '').trim().replace(/\./g, '').replace(',', '.');
+  const amount = Number(normalized);
+  return Number.isFinite(amount) && amount > 0 ? amount : 0;
+}
+function extractPaymentEvidence(text) {
+  const source = decodeXmlText(text);
+  if (!source) return {};
+  const pick = (patterns) => {
+    for (const pattern of patterns) {
+      const match = source.match(pattern);
+      if (match?.[1]) return String(match[1]).trim();
+    }
+    return '';
+  };
+  const fornecedor_pix = pick([/\b(?:chave\s*)?pix\s*[:\-]\s*([^|;\n]{3,180})/i]);
+  const fornecedor_banco = pick([/\bbanco\s*[:\-]\s*([^|;\n]{2,100})/i]);
+  const fornecedor_agencia = pick([/\bag[êe]ncia\s*[:\-]?\s*([\w.-]{2,30})/i]);
+  const fornecedor_conta = pick([/\bconta\s*(?:corrente)?\s*[:\-]?\s*([\w.-]{2,40})/i]);
+  return Object.fromEntries(Object.entries({ fornecedor_pix, fornecedor_banco, fornecedor_agencia, fornecedor_conta }).filter(([, value]) => value));
+}
+function parseFiscalXml(xmlText) {
+  const xml = String(xmlText || '');
+  const emitente = xmlSection(xml, ['emit', 'PrestadorServico', 'Prestador', 'DadosPrestador']);
+  const issuerScope = emitente || xml;
+  const number = xmlTag(xml, ['nNF', 'NumeroNfse', 'NumeroNFSe', 'Numero', 'numero']);
+  const date = normalizeXmlFiscalDate(xmlTag(xml, ['dhEmi', 'dEmi', 'DataEmissaoNfse', 'DataEmissao', 'dataEmissao']));
+  const amount = xmlMoney(xmlTag(xml, ['vNF', 'vLiquidoNfse', 'ValorLiquidoNfse', 'ValorServicos', 'ValorTotal', 'Valor']));
+  const supplier = xmlTag(issuerScope, ['xNome', 'RazaoSocial', 'RazaoSocialPrestador', 'NomeRazaoSocial', 'Nome']);
+  const taxId = xmlTag(issuerScope, ['CNPJ', 'CpfCnpj', 'CpfCnpjPrestador', 'CPF']).replace(/\D/g, '');
+  const descricao = xmlTag(xml, ['xServ', 'DiscriminacaoServicos', 'Discriminacao', 'DescricaoServico', 'Descricao']);
+  const municipio = xmlTag(issuerScope, ['xMun', 'Municipio', 'NomeMunicipio']);
+  const payment = extractPaymentEvidence(`${descricao}\n${xml}`);
+  return {
+    nf_numero: String(number || '').replace(/\D/g, ''),
+    nf_data_emissao: date,
+    nf_valor_total: amount,
+    nf_emitente_nome: supplier,
+    nf_emitente_cpf_cnpj: taxId,
+    descricao_servico: descricao,
+    municipio,
+    ...payment,
+  };
+}
+function requiredFiscalFieldsMissing(data = {}) {
+  const missing = [];
+  if (!String(data.nf_numero || '').replace(/\D/g, '')) missing.push('número da NF');
+  if (!fiscalDate(data.nf_data_emissao)) missing.push('data de emissão');
+  if (!(Number(data.nf_valor_total) > 0)) missing.push('valor total');
+  if (!String(data.nf_emitente_nome || '').trim()) missing.push('emitente');
+  return missing;
+}
 function safeDriveName(value) {
   return String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[\\/:*?"<>|]+/g,' ').replace(/\s+/g,' ').trim();
 }
@@ -1728,9 +1815,11 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
       const fileUrl = String(req.body?.file_url || '').trim();
       const apiKey = String(process.env.OPENAI_API_KEY || '').trim();
       if (!intakeId || !fileUrl) return res.status(400).json({ error:'invalid_invoice_input', message:'intake_id e file_url são obrigatórios' });
-      if (!apiKey) return res.status(503).json({ error:'openai_not_configured', message:'OPENAI_API_KEY não configurada' });
+      const current = await pool.query('SELECT * FROM document_intakes WHERE id=$1 LIMIT 1',[intakeId]);
+      if (!current.rowCount) return res.status(404).json({ error:'intake_not_found' });
+      const intake = current.rows[0];
       const absoluteFileUrl = /^https?:\/\//i.test(fileUrl) ? fileUrl : `${req.protocol}://${req.get('host')}${fileUrl.startsWith('/') ? '' : '/'}${fileUrl}`;
-      const prompt = `Leia integralmente esta nota fiscal. Retorne somente JSON com: nf_numero, nf_valor_total (número), nf_data_emissao (YYYY-MM-DD), nf_horario_emissao (HH:MM:SS ou vazio), competencia, nf_emitente_nome, nf_emitente_cpf_cnpj, municipio, descricao_servico, centro_custo_sugerido (somente Atuação Geral, MHAB, MIS, MUMO, Noturno 2026 ou Noturno Pampulha), rubrica_nome_sugerida e meta_sugerida. Regra obrigatória e exclusiva: uma despesa só pertence ao 4º Aditivo / Noturno Pampulha quando o conteúdo fiscal mencionar FUNEMP. Toda outra despesa da 11ª edição do Noturno nos Museus de 2026 — mesmo que mencione Pampulha, Casa do Baile ou Casa Kubitschek — pertence ao Noturno 2026 do 3º Aditivo. Não use o nome do arquivo como substituto para valor ou data; extraia do conteúdo fiscal.`;
+      const prompt = `Leia integralmente este PDF de nota fiscal e retorne somente JSON com: nf_numero, nf_valor_total (número), nf_data_emissao (YYYY-MM-DD), nf_horario_emissao (HH:MM:SS ou vazio), competencia, nf_emitente_nome, nf_emitente_cpf_cnpj, municipio, descricao_servico, centro_custo_sugerido (somente Atuação Geral, MHAB, MIS, MUMO, Noturno 2026 ou Noturno Pampulha), rubrica_nome_sugerida, meta_sugerida, fornecedor_pix, fornecedor_banco, fornecedor_agencia, fornecedor_conta. Dados bancários somente podem ser retornados se estiverem literalmente impressos no PDF; caso contrário, retorne string vazia. Não use o nome do arquivo como fonte fiscal. Regra obrigatória e exclusiva: uma despesa só pertence ao 4º Aditivo / Noturno Pampulha quando o conteúdo fiscal mencionar FUNEMP. Toda outra despesa da 11ª edição do Noturno nos Museus de 2026 — mesmo que mencione Pampulha, Casa do Baile ou Casa Kubitschek — pertence ao Noturno 2026 do 3º Aditivo.`;
       // Responses accepts an OpenAI file id, not an arbitrary public URL.  The
       // previous `input_file.file_url` form is rejected with HTTP 400 and left
       // otherwise valid invoices permanently stuck in manual review.
@@ -1747,20 +1836,62 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
       // This handler runs beside the upload volume. Reading it directly avoids
       // requesting the container's unpublished host port (which caused the
       // self-fetch failure and prevented OCR from ever starting).
+      const readStoredOrRemoteFile = async (url, timeout = 60000) => {
+        const storedName = /^\/api\/files\//.test(String(url || '')) ? path.basename(decodeURIComponent(url)) : '';
+        let storedPath = storedName ? path.join(uploadDir, storedName) : '';
+        if (storedName && !fs.existsSync(storedPath)) {
+          const timestampPrefix = `${storedName.split('-')[0]}-`;
+          const recoveredName = fs.readdirSync(uploadDir).find(name => name.startsWith(timestampPrefix));
+          if (recoveredName) storedPath = path.join(uploadDir, recoveredName);
+        }
+        if (storedPath && fs.existsSync(storedPath)) return { bytes:fs.readFileSync(storedPath), mime:'', name:path.basename(storedPath) };
+        const absoluteUrl = /^https?:\/\//i.test(url) ? url : `${req.protocol}://${req.get('host')}${String(url || '').startsWith('/') ? '' : '/'}${url}`;
+        const response = await fetch(absoluteUrl, { signal:AbortSignal.timeout(timeout) });
+        if (!response.ok) throw new Error(`invoice_file_fetch_failed:${response.status}`);
+        return { bytes:await response.arrayBuffer(), mime:response.headers.get('content-type') || '', name:path.basename(new URL(absoluteUrl).pathname) };
+      };
+
+      // Parse the already linked XML before touching the PDF.  XML values stay
+      // canonical even when OCR sees a visually similar but wrong number/date.
+      let xmlFiscal = {};
+      let xmlReadError = '';
+      const xmlUrl = String(intake.nf_xml_url || '').trim();
+      let linkedXmlUrl = xmlUrl;
+      if (!linkedXmlUrl && intake.nf_xml_intake_id) {
+        const linked = await pool.query('SELECT arquivo_original_url FROM document_intakes WHERE id=$1 LIMIT 1',[intake.nf_xml_intake_id]);
+        linkedXmlUrl = String(linked.rows[0]?.arquivo_original_url || '').trim();
+      }
+      if (linkedXmlUrl) {
+        try {
+          const xmlFile = await readStoredOrRemoteFile(linkedXmlUrl, 60000);
+          xmlFiscal = parseFiscalXml(Buffer.from(xmlFile.bytes).toString('utf8'));
+        } catch (error) {
+          xmlReadError = error.message || String(error);
+        }
+      }
+      const xmlMissing = linkedXmlUrl ? requiredFiscalFieldsMissing(xmlFiscal) : [];
+
       let fileBytes;
       let fileMime = 'application/pdf';
-      if (localPath && fs.existsSync(localPath)) {
-        fileBytes = fs.readFileSync(localPath);
-      } else {
-        const fileResponse = await fetch(absoluteFileUrl, { signal: AbortSignal.timeout(60000) });
-        if (!fileResponse.ok) throw new Error(`invoice_file_fetch_failed:${fileResponse.status}`);
-        fileBytes = await fileResponse.arrayBuffer();
-        fileMime = fileResponse.headers.get('content-type') || fileMime;
+      if (localPath && fs.existsSync(localPath)) fileBytes = fs.readFileSync(localPath);
+      else {
+        const pdfFile = await readStoredOrRemoteFile(fileUrl, 60000);
+        fileBytes = pdfFile.bytes;
+        fileMime = pdfFile.mime || fileMime;
       }
       if (!fileBytes.byteLength) throw new Error('invoice_file_empty');
+      if (!apiKey) {
+        const mergedWithoutPdf = { ...(intake.resultado_ia || {}), ...xmlFiscal, fonte_fiscal:linkedXmlUrl ? 'XML' : 'PENDENTE', validacao_pdf:{ status:'PENDENTE', motivo:'OPENAI_API_KEY não configurada' }, campos_fiscais_pendentes:requiredFiscalFieldsMissing(xmlFiscal), analisado_em:new Date().toISOString() };
+        await pool.query(`UPDATE document_intakes SET resultado_ia=$1::jsonb, status_processamento='AGUARDANDO_REVISAO', updated_at=NOW() WHERE id=$2`,[JSON.stringify(mergedWithoutPdf), intakeId]);
+        return res.status(200).json({ success:true, resultado_ia:mergedWithoutPdf, validation_pending:true });
+      }
       const uploadForm = new FormData();
       uploadForm.append('purpose', 'user_data');
       uploadForm.append('file', new Blob([fileBytes], { type:fileMime }), localName || path.basename(new URL(absoluteFileUrl).pathname) || 'nota-fiscal.pdf');
+      let uploadedFileId = '';
+      let result = {};
+      let pdfValidation = { status:'PENDENTE' };
+      try {
       const uploadResponse = await fetch('https://api.openai.com/v1/files', {
         method:'POST',
         headers:{ Authorization:`Bearer ${apiKey}` },
@@ -1771,6 +1902,7 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
       if (!uploadResponse.ok) throw new Error(`OpenAI file upload ${uploadResponse.status}: ${uploadRaw.slice(0,500)}`);
       const uploadedFile = JSON.parse(uploadRaw);
       if (!uploadedFile?.id) throw new Error('OpenAI file upload returned no id');
+      uploadedFileId = uploadedFile.id;
       const aiResponse = await fetch('https://api.openai.com/v1/responses', {
         method:'POST',
         headers:{ Authorization:`Bearer ${apiKey}`, 'Content-Type':'application/json' },
@@ -1785,18 +1917,37 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
       if (!aiResponse.ok) throw new Error(`OpenAI ${aiResponse.status}: ${raw.slice(0,500)}`);
       const envelope = JSON.parse(raw);
       const outputText = envelope.output_text || envelope.output?.flatMap(item => item.content || []).find(item => item.type === 'output_text')?.text || '';
-      const result = JSON.parse(outputText);
+      result = JSON.parse(outputText);
       const fiscalText = [result.descricao_servico, result.rubrica_nome_sugerida, outputText].filter(Boolean).join(' ').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toUpperCase();
       if (/NOTURNO\s+(NOS\s+)?MUSEUS/.test(fiscalText) && /(2026|11A|11ª|11\s*EDICAO)/.test(fiscalText)) {
         result.centro_custo_sugerido = /\bFUNEMP\b/.test(fiscalText) ? 'Noturno Pampulha' : 'Noturno 2026';
         result.aditivo_sugerido = /\bFUNEMP\b/.test(fiscalText) ? '4º Aditivo' : '3º Aditivo';
       }
-      const current = await pool.query('SELECT resultado_ia FROM document_intakes WHERE id=$1 LIMIT 1',[intakeId]);
-      if (!current.rowCount) return res.status(404).json({ error:'intake_not_found' });
-      const merged = { ...(current.rows[0].resultado_ia || {}), ...result, analisado_em:new Date().toISOString(), provedor_ia:'openai' };
-      await pool.query(`UPDATE document_intakes SET resultado_ia=$1::jsonb, centro_custo=COALESCE(NULLIF($2,''),centro_custo), status_processamento='AGUARDANDO_REVISAO', updated_at=NOW() WHERE id=$3`,[JSON.stringify(merged), result.centro_custo_sugerido || '', intakeId]);
+      const differences = [];
+      for (const field of ['nf_numero','nf_data_emissao','nf_valor_total','nf_emitente_nome','nf_emitente_cpf_cnpj']) {
+        const xmlValue = xmlFiscal[field];
+        const pdfValue = result[field];
+        if (!xmlValue || !pdfValue) continue;
+        const equal = field === 'nf_valor_total' ? Math.abs(Number(xmlValue) - Number(pdfValue)) < 0.02
+          : field === 'nf_emitente_nome' ? String(xmlValue).normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toUpperCase() === String(pdfValue).normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toUpperCase()
+          : String(xmlValue).replace(/\\D/g,'') === String(pdfValue).replace(/\\D/g,'');
+        if (!equal) differences.push(field);
+      }
+      pdfValidation = { status: differences.length ? 'DIVERGENCIA' : 'CONFIRMADO', campos_divergentes:differences, xml_lido:!!linkedXmlUrl, xml_erro:xmlReadError || undefined };
+      } catch (error) {
+        if (!linkedXmlUrl || xmlMissing.length) throw error;
+        pdfValidation = { status:'PENDENTE', motivo:`Validação PDF pendente: ${error.message || error}`, xml_lido:true };
+      } finally {
+        if (uploadedFileId) await fetch(`https://api.openai.com/v1/files/${uploadedFileId}`, { method:'DELETE', headers:{ Authorization:`Bearer ${apiKey}` }, signal:AbortSignal.timeout(30000) }).catch(()=>{});
+      }
+      // XML wins every time.  PDF is used to validate and only supplies fields
+      // that are absent in XML; it never overwrites fiscal identity from XML.
+      const merged = { ...(intake.resultado_ia || {}), ...result, ...xmlFiscal, fonte_fiscal:linkedXmlUrl ? 'XML' : 'PDF', validacao_pdf:pdfValidation, campos_fiscais_pendentes:requiredFiscalFieldsMissing({ ...result, ...xmlFiscal }), analisado_em:new Date().toISOString(), provedor_ia:'openai' };
+      const missing = requiredFiscalFieldsMissing(merged);
+      const validationMessages = [...(missing.length ? [`Campos fiscais obrigatórios ausentes: ${missing.join(', ')}`] : []), ...(pdfValidation.status === 'DIVERGENCIA' ? [`Divergência entre XML e PDF: ${pdfValidation.campos_divergentes.join(', ')}`] : [])];
+      await pool.query(`UPDATE document_intakes SET resultado_ia=$1::jsonb, nf_numero=$2, nf_data_emissao=$3, nf_valor_total=$4, nf_emitente_nome=$5, nf_emitente_cpf_cnpj=$6, fornecedor_nome=$5, fornecedor_cpf_cnpj=$6, centro_custo=COALESCE(NULLIF($7,''),centro_custo), erros_validacao=$8::jsonb, status_processamento='AGUARDANDO_REVISAO', updated_at=NOW() WHERE id=$9`,[JSON.stringify(merged), merged.nf_numero || null, fiscalDate(merged.nf_data_emissao) || null, Number(merged.nf_valor_total) || null, merged.nf_emitente_nome || null, merged.nf_emitente_cpf_cnpj || null, result.centro_custo_sugerido || '', JSON.stringify(validationMessages), intakeId]);
       const duplicate=await suppressExactDuplicateIntakes(intakeId);
-      console.log('INVOICE_AI_OK',JSON.stringify({ intake_id:intakeId, nf_numero:result.nf_numero || null, has_value:Number(result.nf_valor_total)>0, has_date:!!result.nf_data_emissao }));
+      console.log('INVOICE_AI_OK',JSON.stringify({ intake_id:intakeId, source:merged.fonte_fiscal, nf_numero:merged.nf_numero || null, has_value:Number(merged.nf_valor_total)>0, has_date:!!merged.nf_data_emissao, pdf_validation:pdfValidation.status }));
       return res.status(200).json({ success:true, resultado_ia:merged, duplicate_suppressed:duplicate.suppressed });
     }
     if (name === 'syncBaseConhecimento' && req.body?.force_programacao_sync) {

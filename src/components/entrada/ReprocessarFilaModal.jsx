@@ -18,45 +18,46 @@ import { enviarIntakeParaAprovacao, parseValorBR } from '@/lib/enviarIntakeParaA
 
 const FASES = [
   { key: 'limpeza', label: 'Limpeza dos dados cruzados', icon: Eraser, color: 'text-amber-600' },
-  { key: 'reanalise', label: 'Leitura Profunda (lerNotaFiscalGPT)', icon: Sparkles, color: 'text-violet-600' },
+  { key: 'reanalise', label: 'XML canônico + validação no PDF', icon: Sparkles, color: 'text-violet-600' },
   { key: 'duplicados', label: 'Busca de duplicados (triplo critério)', icon: Files, color: 'text-rose-600' },
   { key: 'revinculacao', label: 'Revinculação XML (critérios triplos)', icon: Link2, color: 'text-blue-600' },
   { key: 'auto_envio', label: 'Auto-envio para aprovação', icon: Send, color: 'text-emerald-600' },
   { key: 'orfaos', label: 'Arquivamento de XMLs órfãos', icon: FileX, color: 'text-slate-600' },
 ];
 
-const TIMEOUT_LEITURA_PROFUNDA_MS = 90000;
+const TIMEOUT_LEITURA_PROFUNDA_MS = 150000;
 
-// Helper: chama lerNotaFiscalGPT (leitura profunda GPT-4o estruturada) para um
-// DocumentIntake PDF. Sequencial, com timeout de 90s. Mapeia o resultado
-// validado para o formato esperado por calcularConfiancaNF e
-// enviarIntakeParaAprovacao, e persiste tudo no DocumentIntake.
+// The API reads a linked XML before it invokes PDF OCR.  It persists a stable
+// review state even if the PDF validation is temporarily unavailable, which
+// avoids leaving the queue spinning forever on a network/model timeout.
 // Retorna { ok, resultado, error }.
 async function chamarLeituraProfunda(intake) {
-  const acionar = base44.functions.invoke('lerNotaFiscalGPT', {
+  const acionar = base44.functions.invoke('processarNotaFiscalComClaude', {
     intake_id: intake.id,
     file_url: intake.arquivo_original_url,
   });
   const timeout = new Promise((_, rej) =>
-    setTimeout(() => rej(new Error('Timeout 90s na leitura profunda')), TIMEOUT_LEITURA_PROFUNDA_MS)
+    setTimeout(() => rej(new Error('Timeout 150s na validação fiscal')), TIMEOUT_LEITURA_PROFUNDA_MS)
   );
   const res = await Promise.race([acionar, timeout]).catch((e) => ({
     ok: false,
     error: e?.message || String(e),
   }));
-  if (!res || !res.ok || !res.resultado) {
+  const payload = res?.data || res || {};
+  const canonical = payload?.resultado_ia || payload?.resultado || null;
+  if (!payload?.success || !canonical) {
     return { ok: false, error: res?.error || 'sem resultado' };
   }
-  const r = res.resultado;
+  const r = canonical;
   const resultadoIa = {
     ...r,
-    nf_numero: String(r.numero_nota || '').replace(/\D/g, ''),
-    nf_emitente_nome: r.fornecedor_nome || '',
-    nf_emitente_cpf_cnpj: String(r.fornecedor_cnpj || r.fornecedor_cpf || '').replace(/\D/g, ''),
-    nf_valor_total: r.valor_total || 0,
-    nf_data_emissao: r.data_emissao || '',
-    valor: r.valor_total || 0,
-    valor_total: r.valor_total || 0,
+    nf_numero: String(r.nf_numero || r.numero_nota || '').replace(/\D/g, ''),
+    nf_emitente_nome: r.nf_emitente_nome || r.fornecedor_nome || '',
+    nf_emitente_cpf_cnpj: String(r.nf_emitente_cpf_cnpj || r.fornecedor_cnpj || r.fornecedor_cpf || '').replace(/\D/g, ''),
+    nf_valor_total: r.nf_valor_total || r.valor_total || 0,
+    nf_data_emissao: r.nf_data_emissao || r.data_emissao || '',
+    valor: r.nf_valor_total || r.valor_total || 0,
+    valor_total: r.nf_valor_total || r.valor_total || 0,
     rubrica_id: r.rubrica_id || null,
     rubrica_nome: r.rubrica_nome || '',
     centro_custo_sugerido: r.centro_custo || '',
@@ -67,7 +68,7 @@ async function chamarLeituraProfunda(intake) {
     alertas: r.alertas || [],
     status_revisao: r.status_revisao || '',
     nota_cancelada: r.nota_cancelada || false,
-    fonte: 'lerNotaFiscalGPT',
+    fonte: r.fonte_fiscal === 'XML' ? 'XML + validação PDF' : 'PDF',
     processado_em: new Date().toISOString(),
   };
 
@@ -79,13 +80,13 @@ async function chamarLeituraProfunda(intake) {
       rubrica_nome_sugerida: r.rubrica_nome || '',
       centro_custo: r.centro_custo || '',
       nf_numero: resultadoIa.nf_numero,
-      nf_emitente_nome: r.fornecedor_nome || '',
+      nf_emitente_nome: resultadoIa.nf_emitente_nome,
       nf_emitente_cpf_cnpj: resultadoIa.nf_emitente_cpf_cnpj,
-      nf_valor_total: r.valor_total || null,
-      nf_data_emissao: r.data_emissao || '',
-      fornecedor_nome: r.fornecedor_nome || '',
+      nf_valor_total: resultadoIa.nf_valor_total || null,
+      nf_data_emissao: resultadoIa.nf_data_emissao || '',
+      fornecedor_nome: resultadoIa.nf_emitente_nome,
       fornecedor_cpf_cnpj: resultadoIa.nf_emitente_cpf_cnpj,
-      erros_validacao: r.alertas || [],
+      erros_validacao: r.campos_fiscais_pendentes?.length ? [`Campos fiscais obrigatórios ausentes: ${r.campos_fiscais_pendentes.join(', ')}`] : (r.validacao_pdf?.status === 'DIVERGENCIA' ? [`Divergência XML/PDF: ${(r.validacao_pdf.campos_divergentes || []).join(', ')}`] : []),
     });
   } catch (e) {
     console.warn('[leituraProfunda] update falhou:', e?.message || e);
@@ -245,22 +246,10 @@ export default function ReprocessarFilaModal({ open, intakes, onClose, onConclui
       for (let i = 0; i < pdfsParaReprocessar.length; i++) {
         const intake = pdfsParaReprocessar[i];
         try {
-          // Desvincula o XML que estava associado (possivelmente incorreto)
-          if (intake.nf_xml_intake_id) {
-            await base44.entities.DocumentIntake.update(intake.nf_xml_intake_id, {
-              nf_pdf_intake_id: null,
-              nf_pdf_url: null,
-              grupo_status: 'INCOMPLETO',
-              ocultar_entrada_unica: false,
-            }).catch(() => {});
-            totals.xmls_desvinculados++;
-          }
-
+          // Keep the existing XML association.  It is the canonical fiscal
+          // evidence and the API will validate its identity against the PDF.
           await base44.entities.DocumentIntake.update(intake.id, {
             resultado_ia: {},
-            nf_xml_intake_id: null,
-            nf_xml_url: null,
-            nf_pdf_intake_id: null,
             fornecedor_nome: '',
             fornecedor_cpf_cnpj: '',
             nf_emitente_nome: '',
@@ -286,8 +275,8 @@ export default function ReprocessarFilaModal({ open, intakes, onClose, onConclui
         setProgresso({ atual: i + 1, total: pdfsParaReprocessar.length });
       }
 
-      // === FASE 2: LEITURA PROFUNDA (lerNotaFiscalGPT, sequencial 1-por-vez) ===
-      // Cada PDF é processado individualmente com timeout de 90s por documento
+      // === FASE 2: XML CANÔNICO + VALIDAÇÃO PDF ===
+      // Cada PDF é processado individualmente with a bounded timeout.
       // para evitar rate limit. Em caso de falha/timeout, mantém AGUARDANDO_REVISAO
       // com mensagem de erro no card.
       setFaseKey('reanalise');
@@ -308,23 +297,23 @@ export default function ReprocessarFilaModal({ open, intakes, onClose, onConclui
           } else {
             await base44.entities.DocumentIntake.update(intake.id, {
               status_processamento: 'AGUARDANDO_REVISAO',
-              erros_validacao: [`Leitura profunda falhou: ${out.error || 'resposta inválida'}`],
+            erros_validacao: [`Validação fiscal falhou: ${out.error || 'resposta inválida'}`],
             }).catch(() => {});
             totals.erros.push(
-              `Leitura profunda ${intake.file_name_original || intake.id}: ${out.error || 'sem resultado'}`
+              `Validação fiscal ${intake.file_name_original || intake.id}: ${out.error || 'sem resultado'}`
             );
           }
         } catch (e) {
           await base44.entities.DocumentIntake.update(intake.id, {
             status_processamento: 'AGUARDANDO_REVISAO',
-            erros_validacao: [`Leitura profunda: ${e?.message || e}`],
+            erros_validacao: [`Validação fiscal: ${e?.message || e}`],
           }).catch(() => {});
           totals.erros.push(
-            `Leitura profunda ${intake.file_name_original || intake.id}: ${e?.message || e}`
+            `Validação fiscal ${intake.file_name_original || intake.id}: ${e?.message || e}`
           );
         }
         setProgresso({ atual: i + 1, total: pdfsParaReprocessar.length });
-        // Delay curto entre documentos para evitar rate limit do GPT-4o
+        // Delay curto entre documentos para evitar rate limit do provedor.
         await sleep(250);
       }
 
@@ -467,10 +456,9 @@ export default function ReprocessarFilaModal({ open, intakes, onClose, onConclui
       // === FASE 4: AUTO-ENVIO ===
       setFaseKey('auto_envio');
       const pdfsFinais = await recarregarPorIds(pdfsReanalisados.map((p) => p.id));
-      // Critério de auto-envio (PRD): rubrica_id + centro_custo + valor > 0 +
-      // CNPJ preenchido + score ≥70 (ia_historico_score ou confiança combinada ou
-      // status_revisao PRE_APROVADO). Não exige XML vinculado. Exclui notas
-      // bloqueadas/canceladas.
+      // Only send records whose mandatory fiscal identity is complete.  A
+      // disagreement found while checking the PDF against XML always stays in
+      // manual review; it can never become an approved purchase by accident.
       const autoEnviaveis = pdfsFinais.filter((p) => {
         const ia = p.resultado_ia || {};
         const rubrica_id = p.rubrica_id_sugerida || p.rubrica_id || ia.rubrica_id;
@@ -479,9 +467,13 @@ export default function ReprocessarFilaModal({ open, intakes, onClose, onConclui
         const cnpj = onlyDigits(
           ia.nf_emitente_cpf_cnpj || p.nf_emitente_cpf_cnpj || p.fornecedor_cpf_cnpj || ''
         );
+        const numero = onlyDigits(ia.nf_numero || p.nf_numero || '');
+        const emissao = String(ia.nf_data_emissao || p.nf_data_emissao || '');
+        const emitente = String(ia.nf_emitente_nome || p.nf_emitente_nome || p.fornecedor_nome || '').trim();
         const statusRevisao = String(ia.status_revisao || '').toUpperCase();
-        if (!rubrica_id || !centro_custo || valor <= 0 || cnpj.length < 11) return false;
+        if (!rubrica_id || !centro_custo || valor <= 0 || cnpj.length < 11 || !numero || !emitente || !/^20\d{2}-\d{2}-\d{2}$/.test(emissao)) return false;
         if (statusRevisao === 'BLOQUEADO' || ia.nota_cancelada === true) return false;
+        if (ia.validacao_pdf?.status === 'DIVERGENCIA' || ia.campos_fiscais_pendentes?.length) return false;
         // Duplicado detectado pela fase "Buscar duplicados": NÃO envia para aprovação
         if (ia.duplicado_de) return false;
         const scoreCC = calcularConfiancaNF(p);
@@ -566,11 +558,11 @@ export default function ReprocessarFilaModal({ open, intakes, onClose, onConclui
           </DialogTitle>
           <DialogDescription>
             Limpa os dados IA contaminados, realiza <strong>leitura profunda</strong> de cada NF via
-            GPT-4o (lerNotaFiscalGPT, sequencial com timeout de 90s por documento), <strong>busca
+            XML como fonte fiscal canônica e validação no PDF (sequencial, com timeout de 150s por documento), <strong>busca
             duplicados</strong> em DocumentIntake e PurchaseRequest (triplo critério: NF + CNPJ +
             valor), revincula XMLs com critérios triplos (número, CNPJ, valor) e envia
-            automaticamente para aprovação as NFs com rubrica + centro de custo + valor + CNPJ e
-            confiança ≥70. XMLs órfãos são arquivados e duplicados detectados são bloqueados para
+            automaticamente para aprovação apenas as NFs com número, emissão, emitente, CNPJ, valor,
+            rubrica + centro de custo e sem divergência XML/PDF. XMLs órfãos são arquivados e duplicados detectados são bloqueados para
             auto-envio.
           </DialogDescription>
         </DialogHeader>
