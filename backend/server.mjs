@@ -908,7 +908,7 @@ app.get('/api/apps/:appId/entities/:entityName', requireSession, async (req,res)
           values.push(ownerIds);
           clauses.push(`created_by_id = ANY($${values.length}::text[])`);
         }
-        sql=`${sql?' AND':' WHERE'} (${clauses.join(' OR ') || 'FALSE'})`;
+        sql+=`${sql?' AND':' WHERE'} (${clauses.join(' OR ') || 'FALSE'})`;
       }
     }
     // Activities and photos are children of a monthly report.  Apply the same
@@ -919,7 +919,7 @@ app.get('/api/apps/:appId/entities/:entityName', requireSession, async (req,res)
       if (!actor) return res.status(401).json({error:'session_user_not_found'});
       if (ids !== null) {
         values.push(ids);
-        sql=`${sql?' AND':' WHERE'} report_id::text = ANY($${values.length}::text[])`;
+        sql+=`${sql?' AND':' WHERE'} report_id::text = ANY($${values.length}::text[])`;
       }
     }
     const activeClause=table==='programacoes'&&columns.includes('source_active')
