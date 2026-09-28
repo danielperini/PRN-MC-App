@@ -1,0 +1,46 @@
+{
+  "name": "Sync Drive Contratos \u2014 07h40 BRT di\u00e1rio",
+  "description": "Rotina di\u00e1ria \u00e0s 07h40 (BRT) que varre a pasta de Contratos no Google Drive, roteando contratos assinados novos para a Sala de Espera (DocumentIntake) e vinculando a TeamMembers. Notifica\u00e7\u00f5es de membro desligadas na rotina automatizada.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "40 10 * * *",
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "sync_drive_contratos_07h40_brt_di_rio",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "sincronizarContratosCompleto",
+            "args": {
+              "notify_member": false
+            }
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "sincronizarContratosCompleto"
+  }
+}

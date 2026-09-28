@@ -1,0 +1,44 @@
+{
+  "name": "Backup Di\u00e1rio NFs Drive \u2014 02h00",
+  "description": "Backup di\u00e1rio de notas fiscais aprovadas para o Google Drive. Organiza por Notas Fiscais/{ANO}/{MES}, renomeia no padr\u00e3o oficial, rean\u00e1lise datas anteriores a 2026.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 5 * * *",
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "backup_di_rio_nfs_drive_02h00",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "backupDiarioNFsDrive",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "backupDiarioNFsDrive"
+  }
+}

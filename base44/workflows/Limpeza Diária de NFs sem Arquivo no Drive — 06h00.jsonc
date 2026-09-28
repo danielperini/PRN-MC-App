@@ -1,0 +1,44 @@
+{
+  "name": "Limpeza Di\u00e1ria de NFs sem Arquivo no Drive \u2014 06h00",
+  "description": "Limpa NFs permanentemente ausentes no Drive \u2014 PRs sem ponteiro de arquivo s\u00e3o soft-cancelados; PRs PAGOS s\u00f3 recebem alerta; intakes NF em ERRO_PROCESSAMENTO sem URL s\u00e3o hard-deletados. Roda ap\u00f3s restaurarNFsBancoBackup (05h00) para garantir que a recupera\u00e7\u00e3o tenha sido tentada.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 9 * * *",
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "limpeza_di_ria_de_nfs_sem_arquivo_no_drive_06h00",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "limparNFsArquivosAusentes",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "limparNFsArquivosAusentes"
+  }
+}

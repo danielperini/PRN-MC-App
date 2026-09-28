@@ -1,0 +1,46 @@
+{
+  "name": "Sync Drive Documentos Admin \u2014 08h00 BRT di\u00e1rio",
+  "description": "Rotina di\u00e1ria \u00e0s 08h00 (BRT) que varre a pasta de Documentos Administrativos no Google Drive, agrupando PDF+XML de NFs e roteando contratos/recibos/docs administrativos novos para a Sala de Espera (DocumentIntake). Lote de 5 por execu\u00e7\u00e3o para respeitar o timeout do Deno.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 11 * * *",
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "sync_drive_documentos_admin_08h00_brt_di_rio",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "sincronizarDocumentosDrive",
+            "args": {
+              "maxPorLote": 5
+            }
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "sincronizarDocumentosDrive"
+  }
+}

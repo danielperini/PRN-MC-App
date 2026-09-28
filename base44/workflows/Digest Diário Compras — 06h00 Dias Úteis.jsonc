@@ -1,0 +1,44 @@
+{
+  "name": "Digest Di\u00e1rio Compras \u2014 06h00 Dias \u00dateis",
+  "description": "Envia resumo di\u00e1rio de compras aprovadas \u00e0s 06h00 BRT (09h00 UTC), somente dias \u00fateis seg\u2013sex. Ignora fins de semana e filas vazias.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 9 * * 1-5",
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "digest_di_rio_compras_06h00_dias_teis",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "sendPurchaseNotificationDigest",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "sendPurchaseNotificationDigest"
+  }
+}

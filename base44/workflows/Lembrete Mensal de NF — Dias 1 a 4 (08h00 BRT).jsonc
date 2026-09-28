@@ -1,0 +1,44 @@
+{
+  "name": "Lembrete Mensal de NF \u2014 Dias 1 a 4 (08h00 BRT)",
+  "description": "Dispara diariamente \u00e0s 08h00 BRT (11h00 UTC) a fun\u00e7\u00e3o notifyMonthlyInvoiceReminder, que envia lembrete por e-mail a profissionais e coordenadores aprovados para emitirem suas NFs at\u00e9 o dia 4. A pr\u00f3pria fun\u00e7\u00e3o controla a janela de dias 1-4 e a idempot\u00eancia via NotificationLog.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 11 * * *",
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "lembrete_mensal_de_nf_dias_1_a_4_08h00_brt",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "notifyMonthlyInvoiceReminder",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "notifyMonthlyInvoiceReminder"
+  }
+}

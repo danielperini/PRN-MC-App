@@ -1,0 +1,47 @@
+{
+  "name": "Backup NFs Gmail\u2192Drive \u2014 03h00",
+  "description": "Varre o Gmail conectado (danielperini.mc@viadutodasartes.org.br) em busca de e-mails com anexos PDF/XML de notas fiscais, baixa os anexos e salva diretamente na pasta de backup do Google Drive (1qVwpSypPHyQ_IK_H2yTho46MVCzj0FrU). Idempotente (dedupe por fingerprint do nome). Roda \u00e0s 03h00 diariamente, antes das sincroniza\u00e7\u00f5es Drive\u2192banco (sincronizarPastaExternaDriveNFs 04h00 e restaurarNFsBancoBackup 05h00).",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 6 * * *",
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "backup_nfs_gmail_drive_03h00",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "backupNFsGmailParaDrivePasta",
+            "args": {
+              "cron": true,
+              "maxResults": 10
+            }
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "backupNFsGmailParaDrivePasta"
+  }
+}

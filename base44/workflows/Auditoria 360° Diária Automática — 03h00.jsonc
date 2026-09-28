@@ -1,0 +1,46 @@
+{
+  "name": "Auditoria 360\u00b0 Di\u00e1ria Autom\u00e1tica \u2014 03h00",
+  "description": "Supervis\u00e3o ativa di\u00e1ria da IA: percorre cards de metas, totaliza\u00e7\u00f5es financeiras de rubricas e relat\u00f3rios mensais, aplicando corre\u00e7\u00f5es determin\u00edsticas e encaminhando amb\u00edguos \u00e0 Sala de Espera.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 6 * * *",
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "auditoria_360_di_ria_autom_tica_03h00",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "auditoria360Diaria",
+            "args": {
+              "triggeredBy": "scheduled"
+            }
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "auditoria360Diaria"
+  }
+}

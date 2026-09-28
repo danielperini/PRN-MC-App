@@ -1,0 +1,46 @@
+{
+  "name": "Digest Compras \u2014 13h00 Condicional Dias \u00dateis",
+  "description": "Disparo condicional das 13h00 BRT (16h00 UTC), dias \u00fateis. S\u00f3 envia se houver compras aprovadas novas desde as 06h; caso contr\u00e1rio retorna sem enviar e-mail.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 16 * * 1-5",
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "digest_compras_13h00_condicional_dias_teis",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "sendPurchaseNotificationDigest",
+            "args": {
+              "slot": "tarde"
+            }
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "sendPurchaseNotificationDigest"
+  }
+}

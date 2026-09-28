@@ -1,0 +1,44 @@
+{
+  "name": "Backup Mensal \u2014 Relat\u00f3rios HTML para Google Drive (\u00faltimo dia do m\u00eas)",
+  "description": "No \u00faltimo dia de cada m\u00eas \u00e0 01h UTC (22h Bras\u00edlia), exporta todos os relat\u00f3rios mensais do m\u00eas corrente como HTML para o Google Drive, organizados em MUSEU/MM-AAAA. Idempotente: atualiza arquivos existentes e pula os que j\u00e1 t\u00eam backup conclu\u00eddo.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 1 28 * *",
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "backup_mensal_relat_rios_html_para_google_drive_ltimo_dia_do_m_s",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "backupRelatoriosMensaisDrive",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "backupRelatoriosMensaisDrive"
+  }
+}

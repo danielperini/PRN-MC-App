@@ -1,0 +1,44 @@
+{
+  "name": "Backup Mensal \u2014 Relat\u00f3rios e NFs para Google Drive",
+  "description": "No \u00faltimo dia de cada m\u00eas \u00e0s 22h (Bras\u00edlia), envia todos os relat\u00f3rios gerados e arquivos renomeados do m\u00eas para a pasta estruturada no Google Drive (1Klyy1CKsbAzY-BJwGLrgdgbXbjn0hhjO), organizados por ano/m\u00eas/autor.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 1 L * *",
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "backup_mensal_relat_rios_e_nfs_para_google_drive",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "backupMonthlyReports",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "backupMonthlyReports"
+  }
+}

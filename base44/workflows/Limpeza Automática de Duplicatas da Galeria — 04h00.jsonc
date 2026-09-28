@@ -1,0 +1,44 @@
+{
+  "name": "Limpeza Autom\u00e1tica de Duplicatas da Galeria \u2014 04h00",
+  "description": "Varre todas as fotos da galeria diariamente e remove duplicatas por file_name, file_url base e drive_file_id, mantendo sempre a c\u00f3pia com mais metadados preenchidos (legenda, v\u00ednculo com atividade, museu, meta_id).",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 7 * * *",
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "limpeza_autom_tica_de_duplicatas_da_galeria_04h00",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "limparDuplicatasFotosGaleria",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "limparDuplicatasFotosGaleria"
+  }
+}

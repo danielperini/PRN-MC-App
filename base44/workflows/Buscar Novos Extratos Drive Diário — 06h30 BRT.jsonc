@@ -1,0 +1,47 @@
+{
+  "name": "Buscar Novos Extratos Drive Di\u00e1rio \u2014 06h30 BRT",
+  "description": "Varredura di\u00e1ria na pasta raiz do Drive (ID 1sI_XEZpUo3W5gcs2Nik3rGm1v6bAbKTh) \u00e0s 06h30 BRT (09h30 UTC) para identificar e processar novos PDFs de extrato banc\u00e1rio, criando registros de MovimentacaoBancaria. Lote m\u00e1ximo de 2 PDFs por execu\u00e7\u00e3o.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "30 9 * * *",
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "buscar_novos_extratos_drive_di_rio_06h30_brt",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "lerExtratosBancariosDrive",
+            "args": {
+              "folder_id": "1sI_XEZpUo3W5gcs2Nik3rGm1v6bAbKTh",
+              "batch_size": 2
+            }
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "lerExtratosBancariosDrive"
+  }
+}

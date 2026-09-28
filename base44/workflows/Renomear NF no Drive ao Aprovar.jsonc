@@ -1,0 +1,37 @@
+{
+  "name": "Renomear NF no Drive ao Aprovar",
+  "description": "Dispara renomea\u00e7\u00e3o autom\u00e1tica dos arquivos (NF/XML/Comprovante) no Google Drive para o padr\u00e3o oficial quando uma PurchaseRequest \u00e9 aprovada (APROVADO_COORD ou APROVADO_ADMIN).",
+  "trigger": {
+    "condition": "${ ((.trigger.changed_fields | index(\"status\") != null) and (.trigger.data.status == \"APROVADO_COORD\" or .trigger.data.status == \"APROVADO_ADMIN\")) }",
+    "config": {
+      "trigger_type": "entity",
+      "events": [
+        "update"
+      ],
+      "entity_name": "PurchaseRequest"
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "renomear_nf_no_drive_ao_aprovar",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "renomearNFPorId",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "renomearNFPorId"
+  }
+}
