@@ -2,7 +2,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import RequireAuth from '@/components/auth/RequireAuth';
 import LoadingPage from '@/components/common/LoadingPage';
-import { Images, MapPin, RefreshCw, X, CheckCircle2, Moon, ExternalLink, BookImage, ChevronDown, HardDriveDownload, TriangleAlert, FileDown, MoreVertical, Download, Layers, Search } from 'lucide-react';
+import { Images, ImageOff, MapPin, RefreshCw, X, CheckCircle2, Moon, ExternalLink, BookImage, ChevronDown, HardDriveDownload, TriangleAlert, FileDown, MoreVertical, Download, Layers, Search } from 'lucide-react';
 import SyncNovasFotosDriveButton from '@/components/gallery/SyncNovasFotosDriveButton';
 import { toast } from 'sonner';
 import {
