@@ -1,0 +1,44 @@
+{
+  "name": "Vincular Extratos \u00e0 Compras Pendentes Di\u00e1rio \u2014 06h45 BRT",
+  "description": "Percorre MovimentacaoBancaria recentes (60 dias), identifica d\u00e9bitos operacionais ainda n\u00e3o vinculados a PurchaseRequest PAGO/APROVADO_ADMIN sem comprovante, e vincula via pontua\u00e7\u00e3o por valor+data+fornecedor. Executa \u00e0s 06h45 BRT (09h45 UTC), 15 minutos ap\u00f3s a sincroniza\u00e7\u00e3o de novos extratos.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "45 9 * * *",
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "vincular_extratos_compras_pendentes_di_rio_06h45_brt",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "vincularExtratosComprasPendentes",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "vincularExtratosComprasPendentes"
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "name": "Corrigir & Sincronizar Metas + Rubricas \u2014 03h30 BRT di\u00e1rio",
+  "description": "Rotina di\u00e1ria \u00e0s 03h30 (BRT) que dispara a intelig\u00eancia da Sala de Espera sobre os cards de metas do Dashboard: normaliza valor_aprovado_admin das NFs aprovadas, recalcula valor_utilizado das rubricas, vincula rubricas \u00f3rf\u00e3s \u00e0s metas (determin\u00edstico + IA), corrige meta_codigo das atividades e cria itens na Sala de Espera. Substitui o bot\u00e3o manual 'Corrigir Metas do Dashboard via Sala de Espera'. Idempotente.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "30 6 * * *",
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "corrigir_sincronizar_metas_rubricas_03h30_brt_di_rio",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "corrigirMetasDashboardSalaEspera",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "corrigirMetasDashboardSalaEspera"
+  }
+}

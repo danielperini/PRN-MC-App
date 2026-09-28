@@ -1,0 +1,44 @@
+{
+  "name": "Processamento Autom\u00e1tico Entrada \u00danica (2h)",
+  "description": "Vincula XML\u2194PDF, preenche data/valor do nome do arquivo, e corrige centro de custo vazio \u2014 a cada 2 horas.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "interval",
+      "cron_expression": null,
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": 2,
+      "interval_unit": "hours",
+      "interval_anchor": "2026-08-05T14:44:06.170000",
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "processamento_autom_tico_entrada_nica_2h",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "processarEntradaUnicaLote",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "processarEntradaUnicaLote"
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "name": "Sincronizar Rubricas (NFs x Valor Utilizado) \u2014 a cada 4h",
+  "description": "Rede de seguran\u00e7a autom\u00e1tica: cruza todas as notas fiscais processadas (PurchaseRequest NFs) e pagamentos (TeamPayment) com as rubricas oficiais, recalculando valor_utilizado/saldo/percentual de cada uma. Idempotente \u2014 s\u00f3 atualiza se houver mudan\u00e7a real. Cadeia oficial: valor_pago -> valor_aprovado_admin -> nf_valor_total -> valor_total -> valor_aprovado -> valor_solicitado. Filtros: status APROVADO_ADMIN/APROVADO_COORD/PAGO, incluir_no_somatorio !== false, !duplicada_financeira.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "interval",
+      "cron_expression": null,
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": 4,
+      "interval_unit": "hours",
+      "interval_anchor": "2026-08-09T21:16:05.090000",
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "sincronizar_rubricas_nfs_x_valor_utilizado_a_cada_4h",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "sincronizarValorUtilizadoRubricas",
+            "args": {
+              "triggered_by": "scheduled",
+              "limite": 300,
+              "pular": 0
+            }
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "sincronizarValorUtilizadoRubricas"
+  }
+}

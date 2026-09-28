@@ -1,0 +1,44 @@
+{
+  "name": "Resumo Di\u00e1rio de Compras \u2014 06h00 (6a46757a113d822c14d377f0)",
+  "description": "Envia resumo di\u00e1rio de solicita\u00e7\u00f5es de compras das \u00faltimas 24h para notasfiscais@viadutodasartes.org.br com links diretos ao app e ao Drive. Executa todos os dias \u00e0s 06:00 (Bras\u00edlia).",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 9 * * *",
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "resumo_di_rio_de_compras_06h00_6a46757a113d822c14d377f0",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "sendPurchaseNotificationDigest",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "sendPurchaseNotificationDigest"
+  }
+}

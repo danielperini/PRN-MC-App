@@ -1,0 +1,46 @@
+{
+  "name": "Limpar C\u00f3pias NFs Drive \u2014 03h00",
+  "description": "Limpa arquivos com \"c\u00f3pia\" no nome na pasta de NFs do Drive e reconecta os links nos PurchaseRequests. Di\u00e1ria \u00e0s 03h00.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 6 * * *",
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "limpar_c_pias_nfs_drive_03h00",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "limparCopiasDriveNFs",
+            "args": {
+              "limite": 30
+            }
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "limparCopiasDriveNFs"
+  }
+}

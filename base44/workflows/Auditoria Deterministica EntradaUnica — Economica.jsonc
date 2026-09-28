@@ -1,0 +1,48 @@
+{
+  "name": "Auditoria Deterministica EntradaUnica \u2014 Economica",
+  "description": "Processa BackupLog da operacao ORD_EXTRAORD_08_2026_v1: XMLs via parser deterministico (sem IA), PDFs via OpenAI Files API direto (sem InvokeLLM/UploadFile \u2014 economiza creditos de integracao Base44). Move+renomeia arquivos validados. Lote de 5 PDFs a cada 20 min.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "interval",
+      "cron_expression": null,
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": 20,
+      "interval_unit": "minutes",
+      "interval_anchor": "2026-08-09T20:54:56.053000",
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "auditoria_deterministica_entradaunica_economica",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "auditarEntradaUnicaDeterministica",
+            "args": {
+              "batch_pdf": 5,
+              "dry_run": false,
+              "op_id": "ORD_EXTRAORD_08_2026_v1"
+            }
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "auditarEntradaUnicaDeterministica"
+  }
+}

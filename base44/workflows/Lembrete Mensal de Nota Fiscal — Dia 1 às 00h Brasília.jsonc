@@ -1,0 +1,44 @@
+{
+  "name": "Lembrete Mensal de Nota Fiscal \u2014 Dia 1 \u00e0s 00h Bras\u00edlia",
+  "description": "No dia 1\u00ba de cada m\u00eas \u00e0s 00h00 Bras\u00edlia (03h UTC), envia e-mail instrucional para todos os profissionais, coordenadores e admins ativos lembrando-os de enviar suas notas fiscais via Entrada de Documentos.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 3 1 * *",
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "lembrete_mensal_de_nota_fiscal_dia_1_s_00h_bras_lia",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "notifyMonthlyInvoiceReminder",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "notifyMonthlyInvoiceReminder"
+  }
+}

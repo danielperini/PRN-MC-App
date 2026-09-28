@@ -1,0 +1,49 @@
+{
+  "name": "Sync Drive NFs Hist\u00f3rico \u2014 09h00 BRT di\u00e1rio (6a736e14d770f1117f173ecb)",
+  "description": "Diariamente \u00e0s 09h00 (BRT) complementa a varredura do Drive desde mar\u00e7o 2026, evitando duplicatas por drive_file_id. M\u00e1x 50 arquivos.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 12 * * *",
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "sync_drive_nfs_hist_rico_09h00_brt_di_rio_6a736e14d770f1117f173ecb",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "syncDriveNotasFiscaisDesdeMarco2026",
+            "args": {
+              "dryRun": false,
+              "maxFiles": 50,
+              "triggeredBy": "scheduled",
+              "cron": true
+            }
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "syncDriveNotasFiscaisDesdeMarco2026"
+  }
+}

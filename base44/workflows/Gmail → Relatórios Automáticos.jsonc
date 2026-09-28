@@ -1,0 +1,38 @@
+{
+  "name": "Gmail \u2192 Relat\u00f3rios Autom\u00e1ticos",
+  "description": "Monitora novos e-mails com anexos, baixa os documentos, analisa com IA e preenche automaticamente os relat\u00f3rios no banco de dados.",
+  "trigger": {
+    "condition": "${ (.trigger.data.has_new_messages == true) }",
+    "config": {
+      "trigger_type": "connector",
+      "events": [
+        "mailbox"
+      ],
+      "integration_type": "gmail",
+      "resource_id": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "gmail_relat_rios_autom_ticos",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "webhookGmailRelatorios",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "webhookGmailRelatorios"
+  }
+}

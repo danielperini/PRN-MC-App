@@ -1,0 +1,37 @@
+{
+  "name": "Vincular Meta ao Criar ReportPhoto",
+  "description": "Ao importar uma nova foto do Drive, vincula automaticamente a meta correspondente via an\u00e1lise sem\u00e2ntica do nome do arquivo e metadados.",
+  "trigger": {
+    "condition": "${ (.trigger.data.meta_id == null) }",
+    "config": {
+      "trigger_type": "entity",
+      "events": [
+        "create"
+      ],
+      "entity_name": "ReportPhoto"
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "vincular_meta_ao_criar_reportphoto",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "vincularMetasReportPhotos",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "vincularMetasReportPhotos"
+  }
+}

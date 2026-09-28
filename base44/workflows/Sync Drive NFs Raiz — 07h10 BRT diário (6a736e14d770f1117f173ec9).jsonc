@@ -1,0 +1,48 @@
+{
+  "name": "Sync Drive NFs Raiz \u2014 07h10 BRT di\u00e1rio (6a736e14d770f1117f173ec9)",
+  "description": "Diariamente \u00e0s 07h00 (BRT) importa PDFs e XMLs da pasta raiz do Drive (n\u00edvel raiz + n\u00edvel 1) para a fila DocumentIntake, batch 80.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "10 10 * * *",
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "sync_drive_nfs_raiz_07h10_brt_di_rio_6a736e14d770f1117f173ec9",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "sincronizarNFsPastaRaizDrive",
+            "args": {
+              "batch_size": 80,
+              "cron": true,
+              "triggeredBy": "scheduled"
+            }
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "sincronizarNFsPastaRaizDrive"
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "name": "Sincronizar Extratos Banc\u00e1rios \u2014 Dia 13",
+  "description": "L\u00ea automaticamente os PDFs de extratos banc\u00e1rios e de rendimentos do Google Drive e popula a entidade MovimentacaoBancaria mensalmente.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 11 13 * *",
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "sincronizar_extratos_banc_rios_dia_13",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "lerExtratosBancariosDrive",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "lerExtratosBancariosDrive"
+  }
+}

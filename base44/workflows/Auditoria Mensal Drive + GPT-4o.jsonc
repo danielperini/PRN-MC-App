@@ -1,0 +1,44 @@
+{
+  "name": "Auditoria Mensal Drive + GPT-4o",
+  "description": "No dia 1 de cada mes as 09h00: varre as pastas mensais do Google Drive, valida padrao de nomenclatura, compara mes de emissao vs pasta (XML dhEmi ou GPT-4o vision em PDFs sem XML) e envia email consolidado de alerta para admins.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 12 1 * *",
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "auditoria_mensal_drive_gpt_4o",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "auditarMensalNovosDocumentosGPT",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "auditarMensalNovosDocumentosGPT"
+  }
+}

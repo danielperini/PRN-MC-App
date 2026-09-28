@@ -1,0 +1,47 @@
+{
+  "name": "Sincroniza\u00e7\u00e3o Di\u00e1ria NFs Pasta Origem",
+  "description": "Sincroniza arquivos de NF modificados nas \u00faltimas 25h da pasta de origem do Drive: copia para backup com nome padronizado e processa via Entrada de Documentos (XML\u2192aprova\u00e7\u00e3o auto, PDF\u2192revis\u00e3o humana).",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 5 * * *",
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "sincroniza_o_di_ria_nfs_pasta_origem",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "normalizarPastasDriveNFs",
+            "args": {
+              "mode": "incremental",
+              "cron": true
+            }
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "normalizarPastasDriveNFs"
+  }
+}

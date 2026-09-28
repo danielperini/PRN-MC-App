@@ -1,0 +1,44 @@
+{
+  "name": "Lembrete Mensal NF \u2014 Dia 1 \u00e0s 08h UTC",
+  "description": "Envia e-mail para todos os profissionais e coordenadores no dia 1\u00ba de cada m\u00eas lembrando de emitir e enviar a nota fiscal at\u00e9 o dia 4. Implementa idempot\u00eancia via NotificationLog.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 8 1 * *",
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "lembrete_mensal_nf_dia_1_s_08h_utc",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "notifyMonthlyInvoiceReminder",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "notifyMonthlyInvoiceReminder"
+  }
+}
