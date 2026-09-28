@@ -1,0 +1,11 @@
+[Unit]
+Description=Gestor Museus Centro - lembretes de relatórios mensais pendentes
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/gestor-museus
+ExecStart=/usr/bin/flock -n /tmp/gestor-monthly-report-reminders.lock /usr/bin/docker compose exec -T api env TZ=America/Sao_Paulo node monthly-report-reminders.mjs
+StandardOutput=append:/var/log/gestor-monthly-report-reminders.log
+StandardError=append:/var/log/gestor-monthly-report-reminders.log

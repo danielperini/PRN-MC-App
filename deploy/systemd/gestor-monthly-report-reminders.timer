@@ -1,0 +1,10 @@
+[Unit]
+Description=Segunda-feira as 06:00 de Brasilia - lembretes de relatorios mensais
+
+[Timer]
+OnCalendar=Mon *-*-* 06:00:00 America/Sao_Paulo
+Persistent=false
+Unit=gestor-monthly-report-reminders.service
+
+[Install]
+WantedBy=timers.target
