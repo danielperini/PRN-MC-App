@@ -1,0 +1,11 @@
+[Unit]
+Description=Verificar a main do GitHub a cada 10 minutos
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=10min
+Persistent=false
+Unit=gestor-github-deploy.service
+
+[Install]
+WantedBy=timers.target

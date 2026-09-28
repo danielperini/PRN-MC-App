@@ -1,0 +1,13 @@
+[Unit]
+Description=Gestor Museus Centro - deploy seguro da main no GitHub
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/gestor-museus
+ExecStart=/usr/bin/flock -n /tmp/gestor-github-deploy.lock /bin/bash /opt/gestor-museus/deploy/auto-deploy-github.sh
+TimeoutStartSec=20min
+StandardOutput=append:/var/log/gestor-github-deploy.log
+StandardError=append:/var/log/gestor-github-deploy.log
