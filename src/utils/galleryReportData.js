@@ -193,7 +193,10 @@ function mapPhoto(item, sourceEntity = 'Attachment') {
     coordinates: '',
   };
   const driveContext = parseDriveContext(item);
-  const timestamp = normalizeDate(firstValue(item, ['data_foto', 'photo_date', 'taken_at', 'captured_at', 'date_taken']) || driveContext.data_foto || item.created_at || item.created_date || item.updated_date);
+  let photoEvidence = {};
+  try { photoEvidence = typeof item.contexto_ia === 'string' ? JSON.parse(item.contexto_ia) : (item.contexto_ia || {}); } catch { /* metadados legados */ }
+  const captureDate = firstValue(item, ['data_foto', 'photo_date', 'taken_at', 'captured_at', 'date_taken']) || item.raw_data?.data_foto || driveContext.data_foto || '';
+  const timestamp = normalizeDate(captureDate || item.created_at || item.created_date || item.updated_date);
   const source = resolvePhotoSource(item);
   const fileName = item.file_name || item.filename || item.name || 'imagem';
   const activityTitulo = item.atividade_titulo || item.activity_title || driveContext.atividade_nome || '';
@@ -216,6 +219,7 @@ function mapPhoto(item, sourceEntity = 'Attachment') {
     legacyDriveUrl: source.legacyDriveUrl,
     fileName,
     legenda: legendaFinal,
+    originalCaption: item.legenda || item.caption || '',
     description: item.descricao || item.description || item.caption || '',
     museu: section.shortTitle,
     sectionKey,
@@ -224,6 +228,12 @@ function mapPhoto(item, sourceEntity = 'Attachment') {
     geoCoordinates: extractGeoCoordinates(item) || section.coordinates || '',
     timestamp,
     date: timestamp.split('T')[0],
+    captureDate: captureDate ? String(captureDate).slice(0, 10) : '',
+    photoEvidence,
+    originalMuseum: item.museu || '',
+    originalMonth: item.mes_referencia || '',
+    originalYear: item.ano || '',
+    reportId: item.report_id || '',
     reportLabel: sourceEntity,
     reportMes: item.mes_referencia ? `${item.mes_referencia}${item.ano ? `/${item.ano}` : ''}` : '',
     authorName: item.author || item.author_name || '',
@@ -384,10 +394,13 @@ export async function loadGalleryReportData({
   reportPhotos.forEach((rp) => {
     if (!rp?.file_url || !/^https?:/i.test(rp.file_url) || isMacResourceFork(rp)) return;
     if (rp.galeria_oculta) return;
-    if (seenUrls.has(rp.file_url)) return;
+    // A linha canônica tem ID editável. Substitua a projeção legada do relatório
+    // para que o lápis não abra um registro somente de leitura.
+    const projectedIndex = images.findIndex(image => image.originalFileUrl === rp.file_url && image.sourceEntity === 'Report');
+    if (seenUrls.has(rp.file_url) && projectedIndex < 0) return;
     seenUrls.add(rp.file_url);
     const ctx = reportCtxMap.get(rp.report_id) || {};
-    images.push(mapPhoto({
+    const mapped=mapPhoto({
       ...rp,
       museu: rp.museu || ctx.museu || '',
       mes_referencia: rp.mes_referencia || ctx.mes_referencia || '',
@@ -395,7 +408,9 @@ export async function loadGalleryReportData({
       author: rp.author || ctx.author_name || '',
       atividade_titulo: activityTituloById.get(rp.activity_id) || '',
       id: rp.id,
-    }, 'ReportPhoto'));
+    }, 'ReportPhoto');
+    if (projectedIndex >= 0) images[projectedIndex]=mapped;
+    else images.push(mapped);
   });
 
   // Fotos embutidas em Activity.fotos[]

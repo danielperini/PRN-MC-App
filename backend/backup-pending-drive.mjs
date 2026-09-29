@@ -17,6 +17,7 @@ const photosOnly=process.argv.includes('--photos-only');
 const photoLimitArg=process.argv.find(arg=>arg.startsWith('--photo-limit='));
 const photoLimit=photoLimitArg ? Math.min(200,Math.max(1,Number(photoLimitArg.split('=')[1]) || 1)) : 200;
 const targetedPhotoId=process.argv.find(arg=>arg.startsWith('--photo-id='))?.slice('--photo-id='.length) || '';
+const targetedPhotoMonth=process.argv.find(arg=>arg.startsWith('--photo-month='))?.slice('--photo-month='.length) || '';
 const dateOf=value => { const date=value instanceof Date && !Number.isNaN(value.getTime()) ? value.toISOString().slice(0,10) : String(value||'').slice(0,10); return /^20\d{2}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/.test(date) ? date : ''; };
 const clean=value => String(value||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[\\/:*?"<>|]+/g,' ').replace(/\s+/g,' ').trim();
 const sourceOf=p => p.nf_pdf_link || p.nota_fiscal_pdf_url || p.nota_fiscal_url || p.nf_pdf_url || p.arquivo_url || p.file_url || p.documento_url || p.drive_file_url || '';
@@ -139,7 +140,8 @@ async function main() {
       AND LOWER(COALESCE(p.mes_referencia,'')) IN
         ('janeiro','fevereiro','março','marco','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro')
       AND ($3::text='' OR p.id::text=$3)
-    ORDER BY p.updated_date NULLS FIRST,p.id LIMIT $2`,[photoRootId,photoLimit,targetedPhotoId])).rows;
+      AND ($4::text='' OR LOWER(p.mes_referencia)=LOWER($4))
+    ORDER BY p.updated_date NULLS FIRST,p.id LIMIT $2`,[photoRootId,photoLimit,targetedPhotoId,targetedPhotoMonth])).rows;
   // Index the designated photo backup once. The same bytes may already be in
   // another monthly folder; never create another copy just because its name
   // or folder changed.

@@ -531,17 +531,6 @@ function purchaseOwnerEmails(purchase = {}) {
     purchase.report_author_email,
   ]);
 }
-function paymentNotificationContent(purchase = {}) {
-  const number = String(purchase.nf_numero || purchase.id || 'sem número').trim();
-  const supplier = String(purchase.nf_emitente_nome || purchase.fornecedor_nome || 'fornecedor não informado').trim();
-  const value = Number(purchase.nf_valor_total || purchase.valor_aprovado || purchase.valor_total || purchase.valor_solicitado || 0);
-  const amount = Number.isFinite(value)
-    ? value.toLocaleString('pt-BR', { style:'currency', currency:'BRL' })
-    : 'valor não informado';
-  const title = `Pagamento realizado — NF ${number}`;
-  const message = `O pagamento da NF ${number}, emitida por ${supplier}, no valor de ${amount}, foi registrado. Use o botão abaixo para abrir diretamente esta solicitação, consultar os documentos vinculados e conferir o status.`;
-  return { title, message };
-}
 function purchaseReadyNotificationContent(purchase = {}) {
   const number = String(purchase.nf_numero || purchase.id || 'sem número').trim();
   const supplier = String(purchase.nf_emitente_nome || purchase.fornecedor_nome || 'fornecedor não informado').trim();
@@ -571,87 +560,10 @@ async function paymentNotificationRecipients(purchase = {}) {
     ...managers.rows.map((row) => row.email),
   ]);
 }
-async function sendPaymentEmail({ to, title, message, actionUrl }) {
-  if (!process.env.SMTP_HOST || !process.env.SMTP_USER) {
-    return { sent:false, error:'smtp_not_configured' };
-  }
-  try {
-    const password = process.env.SMTP_PASS_B64
-      ? Buffer.from(process.env.SMTP_PASS_B64, 'base64').toString('utf8')
-      : process.env.SMTP_PASS;
-    const transport = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT || 465),
-      secure: String(process.env.SMTP_SECURE).toLowerCase() === 'true',
-      auth: { user: process.env.SMTP_USER, pass: password },
-    });
-    const url = appActionUrl(actionUrl, '/Compras');
-    await transport.sendMail({
-      from: `Gestor Museus Centro <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
-      to,
-      subject: title,
-      text: brandedEmailText({ greeting:'Olá', message, steps:paymentNotificationSteps, ctaLabel:'Abrir esta solicitação', ctaUrl:url, recipientEmail:to }),
-      html: brandedEmailHtml({ appUrl:publicBaseUrl, title, greeting:'Olá', message, steps:paymentNotificationSteps, ctaLabel:'Abrir esta solicitação', ctaUrl:url, recipientEmail:to }),
-    });
-    return { sent:true };
-  } catch (error) {
-    console.error('PAYMENT_NOTIFICATION_EMAIL_FAILED', JSON.stringify({ to, message:error.message }));
-    return { sent:false, error:error.message };
-  }
-}
 async function queuePaymentNotifications(purchase = {}) {
-  const purchaseId = String(purchase.id || '').trim();
-  if (!purchaseId) return { recipients:0, queued:0, sent:0, skipped:'purchase_id_missing' };
-  const recipients = await paymentNotificationRecipients(purchase);
-  if (!recipients.length) return { recipients:0, queued:0, sent:0, skipped:'no_registered_recipient' };
-
-  const { title, message } = paymentNotificationContent(purchase);
-  const actionUrl = `${publicBaseUrl}/Compras?id=${encodeURIComponent(purchaseId)}`;
-  const client = await pool.connect();
-  const queued = [];
-  try {
-    await client.query('BEGIN');
-    for (const email of recipients) {
-      const existing = await client.query(`
-        SELECT id, email_sent
-        FROM notifications
-        WHERE user_email=$1
-          AND type='purchase.paid'
-          AND entity_type='PurchaseRequest'
-          AND entity_id=$2
-        ORDER BY created_at DESC
-        LIMIT 1
-        FOR UPDATE
-      `, [email, purchaseId]);
-      if (existing.rowCount) {
-        // A previous SMTP outage leaves a durable queue row. Retry it on a
-        // later user action instead of treating the unsent row as delivered.
-        if (!existing.rows[0].email_sent) queued.push({ id:existing.rows[0].id, email });
-      } else {
-        const inserted = await client.query(`
-          INSERT INTO notifications (user_email,type,title,message,entity_type,entity_id,action_url,is_read,resolved,email_sent)
-          VALUES ($1,'purchase.paid',$2,$3,'PurchaseRequest',$4,$5,FALSE,FALSE,FALSE)
-          RETURNING id
-        `, [email, title, message, purchaseId, actionUrl]);
-        queued.push({ id:inserted.rows[0].id, email });
-      }
-    }
-    await client.query('COMMIT');
-  } catch (error) {
-    await client.query('ROLLBACK').catch(() => {});
-    throw error;
-  } finally {
-    client.release();
-  }
-
-  let sent = 0;
-  for (const notification of queued) {
-    const result = await sendPaymentEmail({ to:notification.email, title, message, actionUrl });
-    if (!result.sent) continue;
-    sent += 1;
-    await pool.query('UPDATE notifications SET email_sent=TRUE, updated_at=NOW() WHERE id=$1', [notification.id]);
-  }
-  return { recipients:recipients.length, queued:queued.length, sent, pending:queued.length - sent };
+  // Por solicitação da coordenação, comunicar apenas compras aguardando
+  // pagamento. Registrar o pagamento não gera e-mail nem nova notificação.
+  return { recipients:0, queued:0, sent:0, skipped:'paid_notice_disabled', purchase_id:String(purchase.id || '') };
 }
 async function queuePurchaseReadyNotifications(purchase = {}) {
   const purchaseId = String(purchase.id || '').trim();
@@ -1654,6 +1566,42 @@ app.get('/api/drive-files/:fileId', requireSession, async (req, res) => {
 app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,res) => {
   const name=String(req.params.functionName||'');
   try {
+    if (name === 'updateGalleryPhotoMetadata') {
+      const photoId=String(req.body?.photoId || '').trim();
+      if (!/^\d+$/.test(photoId)) return res.status(400).json({success:false,error:'invalid_photo_id'});
+      const access=await assertReportRelationAccess(req,'report_photos',photoId);
+      if (!access.exists) return res.status(404).json({success:false,error:'photo_not_found'});
+      if (!access.allowed) return res.status(403).json({success:false,error:'photo_access_denied'});
+      const current=(await pool.query('SELECT * FROM report_photos WHERE id=$1',[photoId])).rows[0];
+      const monthNames=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+      const caption=String(req.body?.caption ?? '').trim().slice(0,2000);
+      const museum=String(req.body?.museu ?? '').trim().slice(0,120);
+      const captureDate=String(req.body?.data_foto ?? '').trim();
+      const month=String(req.body?.mes_referencia ?? '').trim();
+      const year=Number(req.body?.ano);
+      if (captureDate && !/^20\d{2}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/.test(captureDate))
+        return res.status(400).json({success:false,error:'invalid_capture_date'});
+      if (captureDate && new Date(`${captureDate}T12:00:00Z`).toISOString().slice(0,10)!==captureDate)
+        return res.status(400).json({success:false,error:'invalid_capture_date'});
+      if ((!monthNames.includes(month) && !(current.report_id && month===current.mes_referencia)) || !Number.isInteger(year) || year<2020 || year>2100)
+        return res.status(400).json({success:false,error:'invalid_period'});
+      if (!current.report_id && captureDate && (monthNames[Number(captureDate.slice(5,7))-1]!==month || Number(captureDate.slice(0,4))!==year))
+        return res.status(400).json({success:false,error:'capture_period_mismatch'});
+      if (current.report_id) {
+        const report=(await pool.query('SELECT museu,mes_referencia,ano FROM reports WHERE id::text=$1',[current.report_id])).rows[0];
+        if (report && (String(report.mes_referencia)!==month || Number(report.ano)!==year ||
+          (museum && String(report.museu||'').trim()!==museum)))
+          return res.status(409).json({success:false,error:'linked_report_scope_conflict',message:'O período e museu de uma foto vinculada devem corresponder ao relatório. Ajuste o vínculo antes de alterar esses campos.'});
+      }
+      const raw={...parseReportRawData(current.raw_data),data_foto:captureDate || null};
+      const context=(()=>{try{return JSON.parse(current.contexto_ia||'{}')}catch{return {}}})();
+      context.metadata_manual_edit={by:req.userId,at:new Date().toISOString(),previous:{caption:current.caption,museu:current.museu,mes_referencia:current.mes_referencia,ano:current.ano,data_foto:current.raw_data?.data_foto||null}};
+      const result=(await pool.query(`UPDATE report_photos SET legenda=$2,caption=$2,museu=$3,mes_referencia=$4,ano=$5,
+        raw_data=$6::jsonb,contexto_ia=$7,updated_date=NOW() WHERE id=$1 RETURNING *`,
+        [photoId,caption,museum||null,month,year,JSON.stringify(raw),JSON.stringify(context)])).rows[0];
+      if (result.report_id) await rehydrateReportMediaProjection(result.report_id);
+      return res.json({success:true,photo:result});
+    }
     if (name === 'backupPurchaseNow') {
       const actor=(await pool.query('SELECT id,role FROM users WHERE id=$1 LIMIT 1',[req.userId])).rows[0];
       if (!isReportCoordinator(actor)) return res.status(403).json({success:false,error:'backup_forbidden'});
@@ -1872,6 +1820,7 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
       return res.status(201).json({success:true,id:entityId,analise:analysis,email_enviado:emailSent,email_error:emailError || undefined});
     }
     if (['sendContextualEmailNotification','sendEmailNotification','sendNotificationEmail'].includes(name)) {
+      if (req.body?.event_type === 'purchase.paid') return res.status(409).json({success:false,error:'paid_notice_disabled'});
       const to = String(req.body?.to || req.body?.recipientEmail || '').trim();
       if (!to || !process.env.SMTP_HOST || !process.env.SMTP_USER) {
         return res.status(503).json({ success:false, error:'smtp_not_configured' });

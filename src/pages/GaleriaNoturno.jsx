@@ -3,9 +3,10 @@ import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import RequireAuth from '@/components/auth/RequireAuth';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { EditCaptionDialog } from '@/components/gallery/GalleryPhotoActions';
 import {
   Moon, MapPin, Camera, RefreshCw, Sparkles, X, ChevronDown,
-  ChevronRight, Search, Images, AlertCircle, ExternalLink,
+  ChevronRight, Search, Images, AlertCircle, ExternalLink, Pencil,
 } from 'lucide-react';
 
 // ─── Locais do evento ────────────────────────────────────────────────────────
@@ -136,7 +137,7 @@ function AlbumSection({ local, fotos, onFotoClick }) {
 }
 
 // ─── Modal de foto expandida ─────────────────────────────────────────────────
-function FotoModal({ foto, onClose }) {
+function FotoModal({ foto, onClose, onEdit }) {
   if (!foto) return null;
   const legenda = foto.legenda || foto.caption || foto.file_name || 'Foto';
   const autor = foto.author || foto.autor || 'Arquivo Viaduto das Artes';
@@ -199,6 +200,9 @@ function FotoModal({ foto, onClose }) {
               <ExternalLink className="h-3 w-3" /> Ver original no Google Drive
             </a>
           )}
+          <button type="button" onClick={() => onEdit(foto)} className="ml-3 inline-flex items-center gap-1.5 text-xs text-indigo-300 hover:text-white underline">
+            <Pencil className="h-3 w-3" /> Editar informações
+          </button>
         </div>
       </div>
     </DialogContent>
@@ -309,6 +313,7 @@ function GaleriaNoturnoInner() {
   const [search, setSearch] = useState('');
   const [localAtivo, setLocalAtivo] = useState('');
   const [selectedFoto, setSelectedFoto] = useState(null);
+  const [editingFoto, setEditingFoto] = useState(null);
   const [showPainel, setShowPainel] = useState(false);
 
   // Busca fotos do ReportPhoto vinculadas ao álbum Noturno
@@ -521,8 +526,19 @@ function GaleriaNoturnoInner() {
 
       {/* ── Modal de foto expandida ── */}
       <Dialog open={!!selectedFoto} onOpenChange={open => !open && setSelectedFoto(null)}>
-        <FotoModal foto={selectedFoto} onClose={() => setSelectedFoto(null)} />
+        <FotoModal foto={selectedFoto} onClose={() => setSelectedFoto(null)} onEdit={foto => { setSelectedFoto(null); setEditingFoto(foto); }} />
       </Dialog>
+      <EditCaptionDialog
+        photo={editingFoto && {
+          sourceEntity:'ReportPhoto',sourceId:editingFoto.id,fileUrl:editingFoto.file_url,
+          fileName:editingFoto.file_name,originalCaption:editingFoto.legenda || editingFoto.caption || '',
+          originalMuseum:editingFoto.museu || '',originalMonth:editingFoto.mes_referencia || '',
+          originalYear:editingFoto.ano || '',captureDate:editingFoto.raw_data?.data_foto || '',
+          reportId:editingFoto.report_id || '',
+          photoEvidence:(()=>{try{return JSON.parse(editingFoto.contexto_ia || '{}')}catch{return {}}})(),
+        }}
+        open={!!editingFoto} onClose={() => setEditingFoto(null)} onSave={() => refetch()}
+      />
     </div>
   );
 }

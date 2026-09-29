@@ -19,6 +19,7 @@ COPY drive-reconcile-current-month.mjs ./
 COPY drive-daily-watchdog.mjs ./
 COPY backup-pending-drive.mjs ./
 COPY sync-gallery-drive.mjs ./
+COPY audit-noturno-photo-dates.mjs ./
 COPY sync-report-gallery.mjs ./
 COPY reconcile-report-media-relations.mjs ./
 COPY audit-drive-purchase-links.mjs ./

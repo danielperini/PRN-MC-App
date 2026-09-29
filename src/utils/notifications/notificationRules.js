@@ -39,7 +39,7 @@ export const NOTIFICATION_EVENTS = {
   COMMENT_CREATED: 'comment.created',
 };
 
-export const EMAIL_ALLOWED_EVENTS = new Set(Object.values(NOTIFICATION_EVENTS));
+export const EMAIL_ALLOWED_EVENTS = new Set(Object.values(NOTIFICATION_EVENTS).filter(event => event !== NOTIFICATION_EVENTS.PURCHASE_PAID));
 
 export function normalizeEmail(value) {
   return String(value || '').trim().toLowerCase();

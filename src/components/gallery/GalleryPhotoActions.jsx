@@ -27,7 +27,7 @@ export function PhotoActionBar({ image, selected, onToggleSelect, onDelete, onEd
           type="button"
           onClick={(e) => { e.stopPropagation(); onEditCaption(image); }}
           className="flex items-center justify-center w-7 h-7 rounded-full bg-white/90 shadow-md border border-gray-200 text-gray-700 hover:bg-amber-50 hover:border-amber-400 hover:text-amber-700 transition-all"
-          title="Editar legenda"
+          title="Editar informações da foto"
         >
           <Pencil className="w-3.5 h-3.5" />
         </button>
@@ -105,13 +105,26 @@ export function BulkActionBar({ selectedPhotos, onDeselectAll, onDeleteSelected,
   );
 }
 
-// Modal para editar legenda de uma foto
+const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+// Metadados curatoriais; não altera o arquivo original nem inventa vínculo com atividades.
 export function EditCaptionDialog({ photo, open, onClose, onSave }) {
-  const [legenda, setLegenda] = useState(photo?.legenda || photo?.caption || '');
+  const [legenda, setLegenda] = useState('');
+  const [museu, setMuseu] = useState('');
+  const [mes, setMes] = useState('');
+  const [ano, setAno] = useState('');
+  const [dataFoto, setDataFoto] = useState('');
+  const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
   React.useEffect(() => {
-    if (photo) setLegenda(photo.legenda || photo.caption || '');
+    if (!photo) return;
+    setLegenda(photo.originalCaption || '');
+    setMuseu(photo.originalMuseum || photo.museu || '');
+    setMes(photo.originalMonth || '');
+    setAno(String(photo.originalYear || new Date().getFullYear()));
+    setDataFoto(photo.captureDate || '');
+    setError('');
   }, [photo]);
 
   async function handleSave() {
@@ -119,14 +132,19 @@ export function EditCaptionDialog({ photo, open, onClose, onSave }) {
     setSaving(true);
     try {
       if (photo.sourceEntity === 'ReportPhoto') {
-        await base44.entities.ReportPhoto.update(photo.sourceId, { legenda, caption: legenda });
+        const response = await base44.functions.invoke('updateGalleryPhotoMetadata', {
+          photoId: photo.sourceId, caption: legenda, museu, mes_referencia: mes,
+          ano: Number(ano), data_foto: dataFoto,
+        });
+        if (response?.data?.success === false) throw new Error(response.data.message || response.data.error);
       } else if (photo.sourceEntity === 'Attachment') {
         await base44.entities.Attachment.update(photo.sourceId, { description: legenda });
       }
       onSave({ ...photo, legenda, caption: legenda });
       onClose();
     } catch (e) {
-      console.error('Erro ao salvar legenda', e);
+      console.error('Erro ao salvar informações da foto', e);
+      setError(e?.response?.data?.message || e?.response?.data?.error || e.message || 'Não foi possível salvar.');
     } finally {
       setSaving(false);
     }
@@ -138,7 +156,7 @@ export function EditCaptionDialog({ photo, open, onClose, onSave }) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Pencil className="w-4 h-4 text-amber-500" />
-            Editar legenda
+            Editar informações da foto
           </DialogTitle>
         </DialogHeader>
         {photo && (
@@ -158,6 +176,33 @@ export function EditCaptionDialog({ photo, open, onClose, onSave }) {
                 autoFocus
               />
             </div>
+            {photo.sourceEntity === 'ReportPhoto' && <>
+              <div>
+                <Label className="mb-2 block text-sm font-medium">Museu</Label>
+                <select className="w-full rounded-md border px-3 py-2 text-sm" value={museu} onChange={e => setMuseu(e.target.value)}>
+                  {[museu, 'MHAB', 'MIS BH', 'MUMO', 'Noturno Pampulha', 'Noturno nos Museus', ''].filter((value, index, values) => values.indexOf(value) === index).map(value => <option key={value} value={value}>{value || 'Sem museu identificado'}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label className="mb-2 block text-sm font-medium">Mês de referência</Label>
+                  <select className="w-full rounded-md border px-3 py-2 text-sm" value={mes} onChange={e => setMes(e.target.value)}>
+                    <option value="">Selecione</option>
+                    {photo.originalMonth && !MONTHS.includes(photo.originalMonth) && <option value={photo.originalMonth}>{photo.originalMonth} (relatório legado)</option>}
+                    {MONTHS.map(value => <option key={value}>{value}</option>)}
+                  </select></div>
+                <div><Label className="mb-2 block text-sm font-medium">Ano</Label>
+                  <Input type="number" min="2020" max="2100" value={ano} onChange={e => setAno(e.target.value)} /></div>
+              </div>
+              <div><Label className="mb-2 block text-sm font-medium">Data de captura (metadados/EXIF)</Label>
+                <Input type="date" value={dataFoto} onChange={e => {
+                  const value = e.target.value; setDataFoto(value);
+                  if (value && !photo.reportId) { const d = new Date(`${value}T12:00:00Z`); setMes(MONTHS[d.getUTCMonth()]); setAno(String(d.getUTCFullYear())); }
+                }} />
+                <p className="mt-1 text-xs text-gray-500">Pasta: {photo.photoEvidence?.folder || 'não informada'} · EXIF: {photo.photoEvidence?.exif_month || 'não encontrado'}. Sem EXIF, confirme a data antes de salvá-la.</p>
+              </div>
+              {photo.reportId && <p className="text-xs text-amber-700">Foto vinculada a relatório: o mês e museu devem continuar iguais aos desse relatório. A data de captura pode ser diferente.</p>}
+            </>}
+            {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
             <p className="text-xs text-gray-500">
               Arquivo: {photo.fileName || '—'} · {photo.sourceEntity}
             </p>
@@ -165,8 +210,8 @@ export function EditCaptionDialog({ photo, open, onClose, onSave }) {
         )}
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={handleSave} disabled={saving} className="bg-amber-500 hover:bg-amber-600 text-white">
-            {saving ? 'Salvando...' : 'Salvar legenda'}
+          <Button onClick={handleSave} disabled={saving || (photo?.sourceEntity === 'ReportPhoto' && !mes)} className="bg-amber-500 hover:bg-amber-600 text-white">
+            {saving ? 'Salvando...' : 'Salvar informações'}
           </Button>
         </div>
       </DialogContent>

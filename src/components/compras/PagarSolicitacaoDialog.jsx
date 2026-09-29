@@ -336,15 +336,6 @@ export default function PagarSolicitacaoDialog({ purchase, currentUser, onClose,
         comprovanteUrl: withoutReceipt ? '' : comprovanteUrl
       });
 
-      // Deliver from the API rather than the browser. This covers every
-      // registered authorised recipient and still queues the in-app notice if
-      // the email provider is temporarily unavailable.
-      await base44.functions.invoke('notificarPagamento', {
-        purchaseId: updatedPurchase.id
-      }).catch((error) => {
-        console.warn('Falha ao enfileirar notificação de pagamento:', error);
-      });
-
       // Notificação financeira para pagamentos de equipe (TeamPayment)
       if (updatedPurchase.team_payment_id || String(updatedPurchase.tipo_origem || '').toLowerCase().includes('equipe')) {
         try {
