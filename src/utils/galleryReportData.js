@@ -4,7 +4,7 @@ import { deduplicateGalleryPhotos } from '@/utils/galleryDeduplication';
 import { isInventedCaption, isTechnicalFileName } from '@/utils/galleryNormalization';
 
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'avif', 'heic'];
-const DEFAULT_CACHE_KEY = 'museus_centro_galeria_fotos_cache_v19_three_sources';
+const DEFAULT_CACHE_KEY = 'museus_centro_galeria_fotos_cache_v20_full_gallery';
 
 // Limpar versões antigas do cache ao importar este módulo
 try {
@@ -281,7 +281,7 @@ async function safeEntityList(entityName, order, limit, { quietMissing = false }
 
 // Busca registros paginando de PAGE_SIZE em PAGE_SIZE, com limite máximo para evitar travamento
 const PAGE_SIZE = 200;
-const MAX_PAGES = 10; // máx 2000 registros por entidade
+const MAX_PAGES = 30; // até 6000 registros por entidade, sem truncar a galeria
 async function fetchAllPages(entityName, order, { quietMissing = false } = {}) {
   const entity = base44?.entities?.[entityName];
   if (!entity?.filter) {

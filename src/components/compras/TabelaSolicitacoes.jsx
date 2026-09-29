@@ -219,6 +219,7 @@ function formatDateBR(value) {
 
 function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentUser, onDelete, onApprove, onReturn, onUnapprove, onMarkPaid, onAccess, onCentroUpdated, onCentroCustoSaved, sendingNotif, handleSendNotification, selectedIds, onToggleSelected, onToggleAll }) {
   const [menuOpenId, setMenuOpenId] = useState(null);
+  const [backupBusyId, setBackupBusyId] = useState(null);
   const [sortField, setSortField] = useState(null);
   const [sortDir, setSortDir] = useState('asc');
   const [editingDataNF, setEditingDataNF] = useState(null); // id da linha em edição
@@ -226,6 +227,20 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
   const [editingCentroId, setEditingCentroId] = useState(null); // id da linha em edição
   const [centroValue, setCentroValue] = useState('');
   const [savingCentro, setSavingCentro] = useState(false);
+
+  async function handleBackupNow(purchase) {
+    setMenuOpenId(null);
+    setBackupBusyId(purchase.id);
+    try {
+      const response=await base44.functions.invoke('backupPurchaseNow',{purchaseId:purchase.id});
+      const result=response?.data || response;
+      if (result?.success !== true) throw new Error(result?.message || result?.error || 'Backup não confirmado');
+      if (result.purchase) onCentroUpdated?.(result.purchase);
+      toast.success('Backup da nota concluído no Drive.');
+    } catch (error) {
+      toast.error(`Não foi possível fazer o backup: ${error?.response?.data?.message || error?.message || 'erro desconhecido'}`);
+    } finally { setBackupBusyId(null); }
+  }
 
   async function handleSaveCentro(p, newValue) {
     setEditingCentroId(null);
@@ -627,6 +642,13 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
                         <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpenId(null); onUnapprove(p); }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-red-700 hover:bg-red-50"><XCircle className="h-3.5 w-3.5" />Desaprovar</button>
                       )}
                       <div className="my-1 h-px bg-gray-100" />
+                      {isCoordenador && (
+                        <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleBackupNow(p); }} disabled={backupBusyId===p.id}
+                          className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-50">
+                          {backupBusyId===p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <HardDrive className="h-3.5 w-3.5" />}
+                          Fazer backup agora
+                        </button>
+                      )}
                       <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpenId(null); handleSendNotification(p); }} disabled={sendingNotif[p.id]} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-50">
                         {sendingNotif[p.id] ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Bell className="h-3.5 w-3.5" />}
                         Enviar Notificação

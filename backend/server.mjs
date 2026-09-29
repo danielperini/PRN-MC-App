@@ -351,10 +351,13 @@ async function backupPurchaseImmediately(drive, purchase, columns) {
   const pdfUrl=purchase.nf_pdf_link || purchase.nota_fiscal_pdf_url || purchase.nota_fiscal_url || purchase.arquivo_url || purchase.nf_pdf_url || purchase.file_url || purchase.documento_url;
   const xmlUrl=purchase.nf_xml_link || purchase.nota_fiscal_xml_url || purchase.xml_url || purchase.nf_xml_url;
   if (!issueDate || !pdfUrl) return {skipped:true,reason:!issueDate?'sem_data_emissao':'sem_pdf_local'};
+  const pdfSource=await fiscalFileSource(pdfUrl);
+  if (!pdfSource) return {skipped:true,reason:'pdf_local_indisponivel'};
   const folderId=await driveMonthFolder(drive,issueDate);
   const backed=[];
   for (const url of [pdfUrl,xmlUrl].filter(Boolean)) {
-    const source=await fiscalFileSource(url); if(!source) continue;
+    const source=url===pdfUrl ? pdfSource : await fiscalFileSource(url);
+    if(!source) continue;
     const name=canonicalInvoiceName(purchase,url);
     const existing=await existingDriveInvoice(drive,folderId,name);
     // A legacy backup can differ only by punctuation/currency separators.
@@ -1651,6 +1654,21 @@ app.get('/api/drive-files/:fileId', requireSession, async (req, res) => {
 app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,res) => {
   const name=String(req.params.functionName||'');
   try {
+    if (name === 'backupPurchaseNow') {
+      const actor=(await pool.query('SELECT id,role FROM users WHERE id=$1 LIMIT 1',[req.userId])).rows[0];
+      if (!isReportCoordinator(actor)) return res.status(403).json({success:false,error:'backup_forbidden'});
+      const purchaseId=String(req.body?.purchaseId || '').trim();
+      if (!purchaseId) return res.status(400).json({success:false,error:'purchase_id_required'});
+      const purchase=(await pool.query('SELECT * FROM purchase_requests WHERE id::text=$1 LIMIT 1',[purchaseId])).rows[0];
+      if (!purchase) return res.status(404).json({success:false,error:'purchase_not_found'});
+      if (!canonicalPurchaseIdentity(purchase)) return res.status(422).json({success:false,error:'fiscal_identity_incomplete',
+        message:'Informe número da nota, emitente, valor e data de emissão antes do backup.'});
+      const drive=await invoiceDriveClient();
+      const result=await backupPurchaseImmediately(drive,purchase,await tableColumns('purchase_requests'));
+      if (result.skipped) return res.status(422).json({success:false,error:result.reason});
+      const updated=(await pool.query('SELECT * FROM purchase_requests WHERE id=$1',[purchase.id])).rows[0];
+      return res.json({success:true,files_backed:result.backed,purchase:updated});
+    }
     if (name === 'consultarBalancetesOficiais') {
       const actorResult = await pool.query('SELECT id,email,full_name,role FROM users WHERE id=$1 LIMIT 1', [req.userId]);
       if (!isReportCoordinator(actorResult.rows[0])) return res.status(403).json({ success:false, error:'financial_audit_forbidden' });

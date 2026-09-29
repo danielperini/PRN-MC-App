@@ -31,11 +31,11 @@ import { base44 } from '@/api/base44Client';
 import { normalizeMuseuKey, resolvePhotoCaption } from '@/utils/galleryNormalization';
 import CorrigirLegendasLoteItem from '@/components/gallery/CorrigirLegendasLoteItem';
 
-const INITIAL_VISIBLE_IMAGES = 20;
-const VISIBLE_IMAGES_STEP = 20;
+const INITIAL_VISIBLE_IMAGES = 100;
+const VISIBLE_IMAGES_STEP = 100;
 // Inclui data do dia na chave para invalidar o cache automaticamente a cada novo dia
 const TODAY = new Date().toISOString().slice(0, 10);
-const GALLERY_CACHE_KEY = `museus_centro_galeria_fotos_cache_v19_legendas_metadados_${TODAY}`;
+const GALLERY_CACHE_KEY = `museus_centro_galeria_fotos_cache_v20_todas_fotos_${TODAY}`;
 const GALLERY_CACHE_TTL_MS = 5 * 60 * 1000; // 5 min para pegar fotos novas mais rápido
 
 const SECTION_LABELS = {
@@ -336,22 +336,9 @@ function GaleriaFotosInner() {
     });
   }, [filteredImages, sortBy]);
 
-  // Aplica o limite de 2 fotos por atividade sobre o total de fotos ordenadas (sem paginação),
-  // depois fatia pelos visibleCount — assim o botão "Carregar mais" funciona corretamente.
-  const dedupedImages = useMemo(() => {
-    const seenActivity = new Map();
-    const result = [];
-    for (const img of sortedImages) {
-      const atKey = getAtividadeKey(img);
-      if (atKey && String(atKey).trim() && atKey !== 'sem_atividade') {
-        const count = seenActivity.get(atKey) || 0;
-        if (count >= 2) continue;
-        seenActivity.set(atKey, count + 1);
-      }
-      result.push(img);
-    }
-    return result;
-  }, [sortedImages]);
+  // Uma atividade pode ter muitas evidências; o limite anterior de duas fotos
+  // escondia material válido mesmo quando o banco e o Drive estavam corretos.
+  const dedupedImages = sortedImages;
 
   const visibleImages = dedupedImages.slice(0, visibleCount);
 
@@ -362,7 +349,9 @@ function GaleriaFotosInner() {
     visibleImages.forEach((image, renderIndex) => {
       const key = groupMode === 'periodo'
         ? (image.reportMes || 'SEM_PERIODO')
-        : (image.sectionKey || 'SEM_IDENTIFICACAO');
+        : image.sectionKey === 'SEM_IDENTIFICACAO'
+          ? `SEM_IDENTIFICACAO:${image.reportMes || 'Sem mês identificado'}`
+          : (image.sectionKey || 'SEM_IDENTIFICACAO');
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push({ image, renderIndex });
     });
@@ -906,7 +895,9 @@ function GaleriaFotosInner() {
 
         <div className="space-y-10">
             {groupedImages.map(({ key, items, allItems }) => {
-              const sectionLabel = SECTION_LABELS[key] || key;
+              const sectionLabel = key.startsWith('SEM_IDENTIFICACAO:')
+                ? `Sem museu identificado — ${key.slice('SEM_IDENTIFICACAO:'.length)}`
+                : (SECTION_LABELS[key] || key);
               const selAtividade = selectedAtividade[key];
               const filteredItems = selAtividade
                 ? items.filter((entry) => getAtividadeKey(entry.image) === selAtividade)
