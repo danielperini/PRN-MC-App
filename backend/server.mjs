@@ -730,6 +730,14 @@ function normalizeEntityEntriesForDb(entries, columnTypes) {
   });
 }
 function entityLimit(req) { const n = Number(req.query.limit ?? 5000); return Number.isFinite(n) ? Math.min(Math.max(Math.trunc(n), 1), 5000) : 5000; }
+function entityOffset(req) { const n = Number(req.query.skip ?? 0); return Number.isFinite(n) ? Math.min(Math.max(Math.trunc(n), 0), 100000) : 0; }
+function entityOrder(req, columns) {
+  const raw = String(req.query.sort || '').trim();
+  const descending = raw.startsWith('-');
+  const field = descending ? raw.slice(1) : raw;
+  if (!columns.includes(field)) return columns.includes('id') ? ' ORDER BY "id" ASC' : '';
+  return ` ORDER BY ${quoteIdentifier(field)} ${descending ? 'DESC' : 'ASC'}${field !== 'id' && columns.includes('id') ? ', "id" ASC' : ''}`;
+}
 async function buildWhere(table, req) {
   const columns = await tableColumns(table);
   // The Base44 SDK serializes Entity.filter({ id: '…' }) as `q=<json>`.
@@ -925,7 +933,7 @@ app.get('/api/apps/:appId/entities/:entityName', requireSession, async (req,res)
     const activeClause=table==='programacoes'&&columns.includes('source_active')
       ? `${sql?' AND':' WHERE'} source_active IS DISTINCT FROM FALSE`
       : '';
-    const r=await pool.query(`SELECT * FROM ${quoteIdentifier(table)}${sql}${activeClause} LIMIT ${entityLimit(req)}`,values);
+    const r=await pool.query(`SELECT * FROM ${quoteIdentifier(table)}${sql}${activeClause}${entityOrder(req,columns)} LIMIT ${entityLimit(req)} OFFSET ${entityOffset(req)}`,values);
     res.json(r.rows);
   } catch(e) { console.error('ENTITY_GET_ERROR:',e); res.status(500).json({error:'entity_query_failed',message:e.message}); }
 });

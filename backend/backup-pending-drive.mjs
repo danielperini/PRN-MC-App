@@ -2,12 +2,16 @@ import pg from 'pg';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Readable } from 'node:stream';
+import crypto from 'node:crypto';
 import { google } from 'googleapis';
 
 const { Pool } = pg;
 const pool = new Pool({ host:process.env.DB_HOST || 'db', port:Number(process.env.DB_PORT || 5432), database:process.env.POSTGRES_DB || 'appgestor', user:process.env.POSTGRES_USER || 'appgestor', password:process.env.POSTGRES_PASSWORD || '' });
 const uploadDir=process.env.UPLOAD_DIR || '/app/uploads';
 const rootId=process.env.GOOGLE_DRIVE_FOLDER_ID || '1qVwpSypPHyQ_IK_H2yTho46MVCzj0FrU';
+// This is the user-designated monthly backup tree. The older
+// GOOGLE_DRIVE_PHOTOS_FOLDER_ID points to a different museum-first tree.
+const photoRootId=process.env.GOOGLE_DRIVE_PHOTO_BACKUP_ROOT_ID || '1Lf3PB53WXV0ZwGgtr6etsrzp9Jyv465B';
 const dateOf=value => { const date=value instanceof Date && !Number.isNaN(value.getTime()) ? value.toISOString().slice(0,10) : String(value||'').slice(0,10); return /^20\d{2}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/.test(date) ? date : ''; };
 const clean=value => String(value||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[\\/:*?"<>|]+/g,' ').replace(/\s+/g,' ').trim();
 const sourceOf=p => p.nf_pdf_link || p.nota_fiscal_pdf_url || p.nota_fiscal_url || p.nf_pdf_url || p.arquivo_url || p.file_url || p.documento_url || p.drive_file_url || '';
@@ -29,6 +33,13 @@ function driveIdFromUrl(value) {
   return text.match(/\/d\/([A-Za-z0-9_-]{10,})/)?.[1]
     || text.match(/[?&]id=([A-Za-z0-9_-]{10,})/)?.[1]
     || '';
+}
+async function localPhotoHash(url) {
+  const file=localOf(url);
+  if(!file) return '';
+  const hash=crypto.createHash('md5');
+  for await (const chunk of fs.createReadStream(file)) hash.update(chunk);
+  return hash.digest('hex');
 }
 async function readPhotoSource(url, fileName) {
   const local=localOf(url);
@@ -61,14 +72,14 @@ async function main() {
     return months[text] || Number(text) || 0;
   };
   async function galleryFolder(photo) {
-    const year=Number(photo.ano)||new Date().getFullYear();
-    const month=String(monthNumber(photo.mes_referencia)||0).padStart(2,'0');
-    const museum=clean(photo.museu || 'Geral') || 'Geral';
-    const key=`${year}|${month}|${museum}`;
+    const year=Number(photo.ano);
+    const monthNumberValue=monthNumber(photo.mes_referencia);
+    if (!Number.isInteger(year) || year<2020 || year>2100 || monthNumberValue<1 || monthNumberValue>12) return null;
+    const month=String(monthNumberValue).padStart(2,'0');
+    const key=`${year}|${month}`;
     if(galleryFolderCache.has(key)) return galleryFolderCache.get(key);
-    const gallery=await ensureFolder(rootId,'Galeria de Fotos');
-    const yearFolder=await ensureFolder(gallery,String(year));
-    const monthFolder=await ensureFolder(yearFolder,`${month}-${museum}`);
+    const monthName=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][monthNumberValue-1];
+    const monthFolder=await ensureFolder(photoRootId,`${year}-${month} - ${monthName}`);
     galleryFolderCache.set(key,monthFolder);
     return monthFolder;
   }
@@ -108,24 +119,51 @@ async function main() {
   const photoRows=(await pool.query(`SELECT * FROM report_photos
     WHERE COALESCE(file_url,'')<>'' AND COALESCE(drive_backup_status,'pendente')<>'concluido'
     ORDER BY created_date,id LIMIT 500`)).rows;
+  // Index the designated photo backup once. The same bytes may already be in
+  // another monthly folder; never create another copy just because its name
+  // or folder changed.
+  const photoByHash=new Map();
+  const photoFolderIds=new Set();
+  if (photoRows.length) {
+    const folders=await drive.files.list({q:`'${photoRootId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,fields:'nextPageToken,files(id,name)',pageSize:1000,supportsAllDrives:true,includeItemsFromAllDrives:true});
+    for (const folderEntry of folders.data.files || []) {
+      photoFolderIds.add(folderEntry.id);
+      let pageToken;
+      do {
+        const page=await drive.files.list({q:`'${folderEntry.id}' in parents and trashed=false`,fields:'nextPageToken,files(id,name,md5Checksum,mimeType)',pageSize:1000,pageToken,supportsAllDrives:true,includeItemsFromAllDrives:true});
+        for (const file of page.data.files || []) if (file.md5Checksum && String(file.mimeType).startsWith('image/')) photoByHash.set(file.md5Checksum.toLowerCase(),file);
+        pageToken=page.data.nextPageToken;
+      } while (pageToken);
+    }
+  }
   let photoBacked=0, photoSkipped=0, photoFailed=0;
   for(const photo of photoRows) {
     try {
       const parent=await galleryFolder(photo);
+      if (!parent) { photoSkipped++; continue; }
       const stableId=clean(photo.base44_id || photo.id).slice(0,48) || String(photo.id);
       const name=`${stableId} - ${clean(photo.file_name || 'foto').slice(0,180) || 'foto'}`;
-      const found=await drive.files.list({q:`'${parent}' in parents and name='${escapeDrive(name)}' and trashed=false`,fields:'files(id,webViewLink)',pageSize:1,supportsAllDrives:true,includeItemsFromAllDrives:true});
-      let remote=found.data.files?.[0];
+      const photoHash=String(photo.md5 || await localPhotoHash(photo.file_url)).toLowerCase();
+      let remote=photoHash ? photoByHash.get(photoHash) : null;
+      if (!remote) {
+        const found=await drive.files.list({q:`'${parent}' in parents and name='${escapeDrive(name)}' and trashed=false`,fields:'files(id,webViewLink,md5Checksum)',pageSize:1,supportsAllDrives:true,includeItemsFromAllDrives:true});
+        const named=found.data.files?.[0];
+        remote=photoHash && named?.md5Checksum?.toLowerCase()===photoHash ? named : null;
+      }
       if(!remote) {
         const sourceDriveId=String(photo.drive_file_id || driveIdFromUrl(photo.file_url) || '').trim();
         if(sourceDriveId) {
-          remote=(await drive.files.copy({fileId:sourceDriveId,requestBody:{name,parents:[parent]},fields:'id,webViewLink',supportsAllDrives:true})).data;
+          const original=(await drive.files.get({fileId:sourceDriveId,fields:'id,parents,md5Checksum,webViewLink',supportsAllDrives:true})).data;
+          remote=(original.md5Checksum && photoByHash.get(original.md5Checksum.toLowerCase()))
+            || ((original.parents || []).some(id=>photoFolderIds.has(id)) ? original
+              : (await drive.files.copy({fileId:sourceDriveId,requestBody:{name,parents:[parent]},fields:'id,webViewLink,md5Checksum',supportsAllDrives:true})).data);
         } else {
           const source=await readPhotoSource(photo.file_url,photo.file_name);
           if(!source) { photoSkipped++; continue; }
-          remote=(await drive.files.create({requestBody:{name,parents:[parent]},media:{mimeType:source.mime,body:source.body},fields:'id,webViewLink',supportsAllDrives:true})).data;
+          remote=(await drive.files.create({requestBody:{name,parents:[parent]},media:{mimeType:source.mime,body:source.body},fields:'id,webViewLink,md5Checksum',supportsAllDrives:true})).data;
         }
       }
+      if (remote.md5Checksum) photoByHash.set(remote.md5Checksum.toLowerCase(),remote);
       await pool.query("UPDATE report_photos SET drive_file_id=$1,drive_backup_status='concluido',updated_date=NOW() WHERE id=$2",[remote.id,photo.id]);
       photoBacked++;
     } catch(error) {
