@@ -4,6 +4,7 @@ import { google } from 'googleapis';
 // Read-only by default. Only a capture timestamp supplied by Drive's image
 // metadata may change a photo's period; folder/upload dates are not capture dates.
 const apply = process.argv.includes('--apply');
+const useConfirmedEventMonth=process.argv.includes('--use-confirmed-event-month');
 const pool = new pg.Pool({
   host:process.env.DB_HOST || 'db', port:Number(process.env.DB_PORT || 5432),
   database:process.env.POSTGRES_DB || 'appgestor', user:process.env.POSTGRES_USER || 'appgestor',
@@ -15,7 +16,7 @@ auth.setCredentials({refresh_token:process.env.GOOGLE_DRIVE_REFRESH_TOKEN});
 const drive=google.drive({version:'v3',auth});
 const counters={mode:apply?'apply':'dry_run',scanned:0,capture_dates_found:0,period_corrections:0,
   exact_dates_saved:0,linked_period_conflicts:0,no_capture_metadata:0,existing_capture_metadata:0,
-  ai_captions_corrected:0,backup_files_moved:0,backup_move_errors:0,errors:0};
+  ai_captions_corrected:0,event_month_inferred:0,backup_files_moved:0,backup_move_errors:0,errors:0};
 const photoRootId=process.env.GOOGLE_DRIVE_PHOTO_BACKUP_ROOT_ID || '1Lf3PB53WXV0ZwGgtr6etsrzp9Jyv465B';
 const parseJson=value=>{try{return typeof value==='string' ? JSON.parse(value) : (value || {})}catch{return {}}};
 const exactDate=value=>{
@@ -29,6 +30,7 @@ try {
     caption,legenda,fonte_ia,raw_data,contexto_ia FROM report_photos WHERE
     (museu ILIKE '%noturno%' OR file_name ILIKE '%noturno%' OR legenda ILIKE '%noturno%' OR caption ILIKE '%noturno%') ORDER BY id`)).rows;
   const backupMoves=[];
+  const inferredSourceMoves=[];
   let cursor=0;
   await Promise.all(Array.from({length:5},async()=>{
     while(cursor<photos.length) {
@@ -45,7 +47,26 @@ try {
           date=exactDate(data.imageMediaMetadata?.time);
           source='drive_image_metadata';
         }
-        if (!date) { counters.no_capture_metadata++; continue; }
+        if (!date) {
+          // Esta coorte foi importada da pasta de julho, mas o nome contém a
+          // data de envio e a coordenação confirmou que o evento foi em junho.
+          // Corrige apenas o mês; nunca inventa um dia de captura.
+          const inferred=useConfirmedEventMonth && !photo.report_id && photo.ano===2026 &&
+            photo.mes_referencia==='Julho' && context.source==='Drive AllPictures' &&
+            context.folder_month==='2026-07' && /noturno_(?:de|nos)_museus/i.test(photo.file_name || '');
+          if (inferred) {
+            counters.event_month_inferred++;
+            if (apply) {
+              const raw={...(photo.raw_data && typeof photo.raw_data==='object' ? photo.raw_data : {}),
+                mes_referencia:'Junho',ano:2026};
+              context.month_inference='user_confirmed_noturno_event_2026-06_no_capture_date';
+              await pool.query(`UPDATE report_photos SET mes_referencia='Junho',ano=2026,raw_data=$2::jsonb,
+                contexto_ia=$3,updated_date=NOW() WHERE id=$1`,[photo.id,JSON.stringify(raw),JSON.stringify(context)]);
+              inferredSourceMoves.push({fileId:photo.drive_file_id,month:'2026-06',photoId:photo.id,markBackup:true});
+            }
+          } else counters.no_capture_metadata++;
+          continue;
+        }
         counters.capture_dates_found++;
         const month=months[Number(date.slice(5,7))-1], year=Number(date.slice(0,4));
         const changedPeriod=photo.mes_referencia!==month || Number(photo.ano)!==year;
@@ -73,12 +94,13 @@ try {
       } catch(error) { counters.errors++; console.error('NOTURNO_PHOTO_DATE_ERROR',photo.id,error.message); }
     }
   }));
-  if (apply && backupMoves.length) {
+  const allMoves=[...backupMoves,...inferredSourceMoves];
+  if (apply && allMoves.length) {
     const folders=(await drive.files.list({q:`'${photoRootId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
       fields:'files(id,name)',pageSize:1000,supportsAllDrives:true,includeItemsFromAllDrives:true})).data.files || [];
     const knownFolderIds=new Set(folders.map(folder=>folder.id));
     const targets=new Map();
-    for (const move of backupMoves) {
+    for (const move of allMoves) {
       if (targets.has(move.month)) continue;
       const label=`${move.month} - ${months[Number(move.month.slice(5,7))-1]}`;
       let folder=folders.find(item=>item.name===label);
@@ -86,7 +108,7 @@ try {
       targets.set(move.month,folder.id);
       knownFolderIds.add(folder.id);
     }
-    const unique=[...new Map(backupMoves.map(move=>[move.fileId,move])).values()];
+    const unique=[...new Map(allMoves.map(move=>[move.fileId,move])).values()];
     let cursor=0;
     await Promise.all(Array.from({length:5},async()=>{
       while(cursor<unique.length) {
@@ -95,11 +117,16 @@ try {
           const target=targets.get(move.month);
           const file=(await drive.files.get({fileId:move.fileId,fields:'id,parents',supportsAllDrives:true})).data;
           const parents=file.parents || [];
-          if (parents.includes(target)) continue;
-          const old=parents.find(id=>knownFolderIds.has(id));
-          if (!old) throw new Error('backup_not_in_monthly_photo_root');
-          await drive.files.update({fileId:move.fileId,addParents:target,removeParents:old,fields:'id,parents',supportsAllDrives:true});
-          counters.backup_files_moved++;
+          if (!parents.includes(target)) {
+            const old=parents.find(id=>knownFolderIds.has(id));
+            if (!old) throw new Error('backup_not_in_monthly_photo_root');
+            await drive.files.update({fileId:move.fileId,addParents:target,removeParents:old,fields:'id,parents',supportsAllDrives:true});
+            counters.backup_files_moved++;
+          }
+          if (move.markBackup) await pool.query(`UPDATE report_photos SET
+            raw_data=COALESCE(raw_data,'{}'::jsonb)||jsonb_build_object('monthly_backup_root',$2::text,
+              'monthly_backup_file_id',$3::text,'monthly_backup_at',NOW()),updated_date=NOW() WHERE id=$1`,
+          [move.photoId,photoRootId,move.fileId]);
         } catch(error) { counters.backup_move_errors++; console.error('NOTURNO_PHOTO_BACKUP_MOVE_ERROR',move.photoId,error.message); }
       }
     }));

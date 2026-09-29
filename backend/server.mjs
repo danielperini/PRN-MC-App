@@ -1571,8 +1571,9 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
       if (!/^\d+$/.test(photoId)) return res.status(400).json({success:false,error:'invalid_photo_id'});
       const access=await assertReportRelationAccess(req,'report_photos',photoId);
       if (!access.exists) return res.status(404).json({success:false,error:'photo_not_found'});
-      if (!access.allowed) return res.status(403).json({success:false,error:'photo_access_denied'});
       const current=(await pool.query('SELECT * FROM report_photos WHERE id=$1',[photoId])).rows[0];
+      if (!access.allowed && !(current && !current.report_id && String(current.created_by_id||'')===String(req.userId)))
+        return res.status(403).json({success:false,error:'photo_access_denied'});
       const monthNames=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
       const caption=String(req.body?.caption ?? '').trim().slice(0,2000);
       const museum=String(req.body?.museu ?? '').trim().slice(0,120);
