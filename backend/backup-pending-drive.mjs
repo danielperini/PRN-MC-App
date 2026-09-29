@@ -12,6 +12,7 @@ const rootId=process.env.GOOGLE_DRIVE_FOLDER_ID || '1qVwpSypPHyQ_IK_H2yTho46MVCz
 // This is the user-designated monthly backup tree. The older
 // GOOGLE_DRIVE_PHOTOS_FOLDER_ID points to a different museum-first tree.
 const photoRootId=process.env.GOOGLE_DRIVE_PHOTO_BACKUP_ROOT_ID || '1Lf3PB53WXV0ZwGgtr6etsrzp9Jyv465B';
+const targetedPurchaseId=process.argv.find(arg=>arg.startsWith('--purchase-id='))?.slice('--purchase-id='.length) || '';
 const dateOf=value => { const date=value instanceof Date && !Number.isNaN(value.getTime()) ? value.toISOString().slice(0,10) : String(value||'').slice(0,10); return /^20\d{2}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/.test(date) ? date : ''; };
 const clean=value => String(value||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[\\/:*?"<>|]+/g,' ').replace(/\s+/g,' ').trim();
 const sourceOf=p => p.nf_pdf_link || p.nota_fiscal_pdf_url || p.nota_fiscal_url || p.nf_pdf_url || p.arquivo_url || p.file_url || p.documento_url || p.drive_file_url || '';
@@ -83,7 +84,7 @@ async function main() {
     galleryFolderCache.set(key,monthFolder);
     return monthFolder;
   }
-  const rows=(await pool.query("SELECT * FROM purchase_requests WHERE (COALESCE(nota_fiscal_url,'')<>'' OR COALESCE(nota_fiscal_pdf_url,'')<>'' OR COALESCE(nf_pdf_url,'')<>'' OR COALESCE(arquivo_url,'')<>'' OR COALESCE(drive_file_url,'')<>'') AND COALESCE(drive_file_id,'')='' AND COALESCE(drive_backup_status,'')<>'CONCLUIDO'")).rows;
+  const rows=(await pool.query("SELECT * FROM purchase_requests WHERE (COALESCE(nota_fiscal_url,'')<>'' OR COALESCE(nota_fiscal_pdf_url,'')<>'' OR COALESCE(nf_pdf_url,'')<>'' OR COALESCE(arquivo_url,'')<>'' OR COALESCE(drive_file_url,'')<>'') AND COALESCE(drive_file_id,'')='' AND COALESCE(drive_backup_status,'')<>'CONCLUIDO'"+(targetedPurchaseId?' AND id::text=$1':''),targetedPurchaseId?[targetedPurchaseId]:[])).rows;
   let backed=0, skipped=0, failed=0;
   for(const p of rows) { try { const date=dateOf(p.nf_data_emissao || p.data_emissao); const url=sourceOf(p); const source=await readSource(url); if(!date || !source) { skipped++; continue; } const parent=await folder(date); const name=nameOf(p,url); const found=await drive.files.list({q:`'${parent}' in parents and name='${escapeDrive(name)}' and trashed=false`,fields:'files(id,webViewLink,name)',pageSize:1,supportsAllDrives:true,includeItemsFromAllDrives:true}); let remote=found.data.files?.[0]; if(!remote) { const candidates=await drive.files.list({q:`'${parent}' in parents and trashed=false`,fields:'files(id,webViewLink,name,mimeType)',pageSize:1000,supportsAllDrives:true,includeItemsFromAllDrives:true}); remote=(candidates.data.files||[]).find(file=>file.mimeType!=='application/vnd.google-apps.folder'&&comparableName(file.name)===comparableName(name)); } if(remote?.id && remote.name!==name) remote=(await drive.files.update({fileId:remote.id,requestBody:{name},fields:'id,webViewLink,name',supportsAllDrives:true})).data; if(!remote) remote=(await drive.files.create({requestBody:{name,parents:[parent]},media:{mimeType:source.mime,body:source.body},fields:'id,webViewLink,name',supportsAllDrives:true})).data; const link=remote.webViewLink || `https://drive.google.com/file/d/${remote.id}/view`; await pool.query('UPDATE purchase_requests SET drive_file_id=$1, drive_file_url=$2, drive_backup_nf_pdf_link=$2, drive_backup_status=$3 WHERE id=$4',[remote.id,link,'CONCLUIDO',p.id]); backed++; } catch(error) { failed++; console.error('BACKUP_PENDING_FAILED',p.id,error.message); } }
   // XML is backed up only when a corresponding fiscal PDF is already present.
@@ -93,7 +94,7 @@ async function main() {
     WHERE COALESCE(nf_xml_url,'')<>''
       AND COALESCE(drive_backup_nf_xml_link,'')=''
       AND (COALESCE(nota_fiscal_url,'')<>'' OR COALESCE(nota_fiscal_pdf_url,'')<>'' OR COALESCE(nf_pdf_url,'')<>'' OR COALESCE(arquivo_url,'')<>'' OR COALESCE(drive_file_id,'')<>'')
-    ORDER BY id`)).rows;
+      ${targetedPurchaseId?'AND id::text=$1':''} ORDER BY id`,targetedPurchaseId?[targetedPurchaseId]:[])).rows;
   let xmlBacked=0, xmlSkipped=0, xmlFailed=0;
   for(const p of xmlRows) {
     try {
@@ -116,7 +117,7 @@ async function main() {
       xmlBacked++;
     } catch(error) { xmlFailed++; console.error('BACKUP_XML_FAILED',p.id,error.message); }
   }
-  const photoRows=(await pool.query(`SELECT * FROM report_photos
+  const photoRows=targetedPurchaseId?[]:(await pool.query(`SELECT * FROM report_photos
     WHERE COALESCE(file_url,'')<>'' AND COALESCE(drive_backup_status,'pendente')<>'concluido'
     ORDER BY created_date,id LIMIT 500`)).rows;
   // Index the designated photo backup once. The same bytes may already be in
