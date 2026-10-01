@@ -2,7 +2,7 @@ FROM node:22-alpine
 
 WORKDIR /app
 
-RUN npm init -y && npm install express pg multer socket.io bcryptjs xlsx nodemailer googleapis
+RUN npm init -y && npm install express pg multer socket.io bcryptjs xlsx nodemailer googleapis pdfkit
 
 COPY server.mjs ./
 COPY rubrica-composition.mjs ./
@@ -28,6 +28,7 @@ COPY send-professional-access-check.mjs ./
 COPY send-purchase-notification-batch.mjs ./
 COPY reanalyze-purchase-fiscal-metadata.mjs ./
 COPY audit-official-balancetes-2026.mjs ./
+COPY backup-approved-reports.mjs ./
 
 EXPOSE 3000
 

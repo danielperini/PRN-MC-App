@@ -14,6 +14,7 @@ const rootId=process.env.GOOGLE_DRIVE_FOLDER_ID || '1qVwpSypPHyQ_IK_H2yTho46MVCz
 const photoRootId=process.env.GOOGLE_DRIVE_PHOTO_BACKUP_ROOT_ID || '1Lf3PB53WXV0ZwGgtr6etsrzp9Jyv465B';
 const targetedPurchaseId=process.argv.find(arg=>arg.startsWith('--purchase-id='))?.slice('--purchase-id='.length) || '';
 const photosOnly=process.argv.includes('--photos-only');
+const reportPhotosOnly=process.argv.includes('--report-photos-only');
 const photoLimitArg=process.argv.find(arg=>arg.startsWith('--photo-limit='));
 const photoLimit=photoLimitArg ? Math.min(200,Math.max(1,Number(photoLimitArg.split('=')[1]) || 1)) : 200;
 const targetedPhotoId=process.argv.find(arg=>arg.startsWith('--photo-id='))?.slice('--photo-id='.length) || '';
@@ -135,13 +136,14 @@ async function main() {
       r.mes_referencia AS report_mes,r.ano AS report_ano
     FROM report_photos p LEFT JOIN reports r ON r.id::text=p.report_id
     WHERE COALESCE(p.file_url,'')<>''
+      AND ($5::boolean=false OR p.report_id IS NOT NULL)
       AND COALESCE(p.raw_data->>'monthly_backup_root','')<>$1
       AND p.ano BETWEEN 2020 AND 2100
       AND LOWER(COALESCE(p.mes_referencia,'')) IN
         ('janeiro','fevereiro','março','marco','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro')
       AND ($3::text='' OR p.id::text=$3)
       AND ($4::text='' OR LOWER(p.mes_referencia)=LOWER($4))
-    ORDER BY p.updated_date NULLS FIRST,p.id LIMIT $2`,[photoRootId,photoLimit,targetedPhotoId,targetedPhotoMonth])).rows;
+    ORDER BY p.updated_date NULLS FIRST,p.id LIMIT $2`,[photoRootId,photoLimit,targetedPhotoId,targetedPhotoMonth,reportPhotosOnly])).rows;
   // Index the designated photo backup once. The same bytes may already be in
   // another monthly folder; never create another copy just because its name
   // or folder changed.
