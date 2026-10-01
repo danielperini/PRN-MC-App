@@ -178,14 +178,15 @@ async function linkPhotos(drive, photoFolder, report, photos) {
     try {
       const target = (await drive.files.get({ fileId: targetId, fields: 'id,mimeType,trashed', supportsAllDrives: true })).data;
       if (target.trashed || !String(target.mimeType || '').startsWith('image/')) throw new Error('Destino não é uma foto ativa');
+      if (same[0] && (same[0].mimeType !== 'application/vnd.google-apps.shortcut' || same[0].appProperties?.reportId !== String(report.id))) throw new Error(`Arquivo com mesmo nome não pertence a este relatório (${same[0].id})`);
+      // A shortcut target cannot be edited. Create and verify the replacement
+      // before trashing only our old shortcut; never touch the image itself.
+      const shortcut = (await drive.files.create({ requestBody: { name, mimeType: 'application/vnd.google-apps.shortcut', parents: [photoFolder], shortcutDetails: { targetId }, appProperties: { reportId: String(report.id), photoId: String(photo.id), targetId } }, fields: 'id,name,appProperties', supportsAllDrives: true })).data;
       if (same[0]) {
-        // Drive shortcut targets are immutable. A mismatch requires review;
-        // mutating the pointer would risk presenting another report's image.
-        throw new Error(`Atalho existente aponta para outra foto (${same[0].id})`);
-      } else {
-        const shortcut = (await drive.files.create({ requestBody: { name, mimeType: 'application/vnd.google-apps.shortcut', parents: [photoFolder], shortcutDetails: { targetId }, appProperties: { reportId: String(report.id), photoId: String(photo.id), targetId } }, fields: 'id,name,appProperties', supportsAllDrives: true })).data;
-        files.push(shortcut);
+        await drive.files.update({ fileId: same[0].id, requestBody: { trashed: true }, supportsAllDrives: true });
+        files.splice(files.indexOf(same[0]), 1);
       }
+      files.push(shortcut);
       linked++;
     } catch (error) {
       missing++;
