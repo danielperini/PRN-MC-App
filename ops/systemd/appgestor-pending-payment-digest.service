@@ -1,0 +1,9 @@
+[Unit]
+Description=One daily pending-payment digest for finance
+Wants=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/gestor-museus
+ExecStart=/usr/bin/docker compose exec -T api node /app/send-pending-payment-digest.mjs

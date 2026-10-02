@@ -27,6 +27,7 @@ COPY audit-drive-purchase-links.mjs ./
 COPY monthly-report-reminders.mjs ./
 COPY send-professional-access-check.mjs ./
 COPY send-purchase-notification-batch.mjs ./
+COPY send-pending-payment-digest.mjs ./
 COPY reanalyze-purchase-fiscal-metadata.mjs ./
 COPY audit-official-balancetes-2026.mjs ./
 COPY backup-approved-reports.mjs ./

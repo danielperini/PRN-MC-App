@@ -291,6 +291,7 @@ function ComprasInner() {
   const [filterDraft, setFilterDraft] = useState({ inicio: '', fim: '', status: 'all', meta_id: 'all', rubrica_id: 'all', centro_custo: 'all' });
   const queryClient = useQueryClient();
   const autoRecalcRan = React.useRef(false);
+  const openingEmailLink = React.useRef(null);
   // Trava de campo centro_custo: Map<purchaseId, { value: string, expiresAt: number }>
   // Impede que qualquer refetch do servidor sobrescreva o valor local por 60s após o save.
   const centroCustoLock = React.useRef(new Map());
@@ -400,26 +401,33 @@ function ComprasInner() {
     return applyLocksToList(rawPurchases);
   }, [rawPurchases, lockVersion]);
 
-  // Auto-abrir solicitação quando vier via ?id= (link de email de notificação)
-  // Limpa o parâmetro ANTES de abrir o modal para evitar re-abertura após fechamento
+  // O resumo financeiro pode incluir solicitações antigas fora das 500 linhas
+  // da lista inicial. Busque o ID diretamente antes de remover o link da URL.
   useEffect(() => {
-    if (!purchases || purchases.length === 0) return;
+    if (isLoading) return;
     const urlParams = new URLSearchParams(window.location.search);
     const targetId = urlParams.get('id');
-    if (!targetId) return;
-    // Remove o parâmetro da URL imediatamente para não re-acionar em refetches
-    try {
-      const url = new URL(window.location.href);
-      url.searchParams.delete('id');
-      window.history.replaceState({}, '', url.toString());
-    } catch { /* noop */ }
-    const found = purchases.find((p) => p._id === targetId || p.id === targetId);
-    if (found) {
-      setEditingPurchase({ ...found });
-      setShowForm(true);
-      setTab('lista');
-    }
-  }, [purchases]);
+    if (!targetId || openingEmailLink.current === targetId) return;
+    openingEmailLink.current = targetId;
+    let cancelled = false;
+    (async () => {
+      const found = purchases.find((p) => p._id === targetId || p.id === targetId)
+        || await base44.entities.PurchaseRequest.get(targetId).catch(() => null);
+      if (cancelled) return;
+      if (found) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('id');
+        window.history.replaceState({}, '', url.toString());
+        setEditingPurchase({ ...found });
+        setShowForm(true);
+        setTab('lista');
+      } else {
+        smartToast.error('Não foi possível abrir esta solicitação. Confirme o acesso da sua conta.');
+      }
+      openingEmailLink.current = null;
+    })();
+    return () => { cancelled = true; openingEmailLink.current = null; };
+  }, [purchases, isLoading]);
 
   const { data: anexosCompras = [], isLoading: loadingAnexos, isFetching: fetchingAnexos } = useQuery({
     queryKey: ['attachments-compras'],
