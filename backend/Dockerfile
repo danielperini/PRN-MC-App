@@ -9,6 +9,7 @@ COPY rubrica-composition.mjs ./
 COPY email-layout.mjs ./
 COPY auth-bootstrap.mjs ./
 COPY programacao-sync.mjs ./
+COPY programacao-date.mjs ./
 COPY drive-reconcile-intake.mjs ./
 COPY drive-reconcile-sequence.mjs ./
 COPY reconcile-invoices-purchases.mjs ./

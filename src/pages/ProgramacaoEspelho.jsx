@@ -120,9 +120,10 @@ function getDateFromItem(item) {
   const raw = item?.data_inicio || item?.data_realizacao || item?.data || item?.inicio;
   if (!raw) return null;
 
-  if (/^\d{4}-\d{2}-\d{2}/.test(String(raw))) {
-    const d = new Date(raw);
-    return Number.isNaN(d.getTime()) ? null : d;
+  const iso = String(raw).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) {
+    const d = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+    return d.getFullYear() === Number(iso[1]) && d.getMonth() + 1 === Number(iso[2]) && d.getDate() === Number(iso[3]) ? d : null;
   }
 
   const brFull = String(raw).match(/(\d{1,2})\/(\d{1,2})\/(20\d{2})/);
@@ -132,6 +133,15 @@ function getDateFromItem(item) {
   }
 
   return null;
+}
+
+function displayDateFromItem(item, options = { day: '2-digit', month: '2-digit', year: 'numeric' }) {
+  // A coluna Data preserva intervalos e qualificadores da planilha, como
+  // "06/10 à 9/10" e "a partir de 13/10".
+  const sourceDate = String(item?.data || '').trim();
+  if (sourceDate) return sourceDate;
+  const date = getDateFromItem(item);
+  return date ? date.toLocaleDateString('pt-BR', options) : '—';
 }
 
 function getYearFromContext(item) {
@@ -446,9 +456,7 @@ export default function ProgramacaoEspelho() {
       y += 9;
 
       itens.forEach((item, idx) => {
-        const dataStr = item.data_inicio
-          ? new Date(item.data_inicio).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
-          : item.data || '—';
+        const dataStr = displayDateFromItem(item, { day: '2-digit', month: '2-digit' });
         const titulo = getProgramacaoTitle(item) || '—';
         const sinopse = getProgramacaoSinopse(item) || '—';
 
@@ -604,9 +612,7 @@ export default function ProgramacaoEspelho() {
                       {itens.map((item, idx) => (
                         <tr key={item.id || idx} className="hover:bg-slate-50 transition-colors">
                           <td className="px-4 py-3 text-slate-500 whitespace-nowrap">
-                            {item.data_inicio
-                              ? new Date(item.data_inicio).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-                              : item.data || '—'}
+                            {displayDateFromItem(item)}
                           </td>
                           <td className="px-4 py-3 font-medium text-slate-800 max-w-xs">
                             {item.titulo || item.nome || item.atividade || item.nome_acao || '—'}

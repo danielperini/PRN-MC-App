@@ -1,6 +1,7 @@
 import pg from 'pg';
 import * as XLSX from 'xlsx';
 import crypto from 'node:crypto';
+import { clean, monthInfo, parseDate } from './programacao-date.mjs';
 
 const { Pool } = pg;
 const SHEET_ID = '1I8Tbj5URR7gEX_zZEAFVIkAAfBCs58LC';
@@ -15,48 +16,7 @@ const pool = new Pool({
 });
 
 const norm = v => String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
-const clean = v => v instanceof Date && !Number.isNaN(v.getTime())
-  ? `${String(v.getDate()).padStart(2,'0')}/${String(v.getMonth()+1).padStart(2,'0')}/${v.getFullYear()}`
-  : String(v ?? '').trim();
 const q = s => `"${String(s).replaceAll('"','""')}"`;
-
-function monthInfo(name='') {
-  const months={janeiro:1,fevereiro:2,marco:3,abril:4,maio:5,junho:6,julho:7,agosto:8,setembro:9,outubro:10,novembro:11,dezembro:12};
-  const n=norm(name);
-  let month=null;
-  for(const [k,v] of Object.entries(months)) if(n.includes(k)){month=v;break;}
-  const ym=n.match(/(20\d{2})/);
-  let year=ym?Number(ym[1]):null;
-  if(!year){const sm=n.match(/(?:^|\D)(\d{2})(?:\D|$)/); if(sm){year=2000+Number(sm[1]);}}
-  return {month,year};
-}
-
-function parseDate(v,sheet) {
-  if(v instanceof Date && !Number.isNaN(v.getTime())) return v;
-  if(typeof v==='number' && v>20000 && v<80000){
-    const d=XLSX.SSF.parse_date_code(v);
-    if(d?.y&&d?.m&&d?.d)return new Date(d.y,d.m-1,d.d);
-  }
-  const t=clean(v);
-  if(!t) return null;
-  const {month,year}=monthInfo(sheet);
-
-  let m=t.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);
-  if(m){let y=Number(m[3]);if(y<100)y+=2000;return new Date(y,Number(m[2])-1,Number(m[1]));}
-
-  // intervalos como "06/10 à 9/10" ou "06/10 a 09/10"
-  m=t.match(/(\d{1,2})[\/.\-](\d{1,2})/);
-  if(m) return new Date(year||2026,Number(m[2])-1,Number(m[1]));
-
-  // expressões como "a partir de 13/10"
-  m=t.match(/(?:a\s+partir\s+de\s+)?(\d{1,2})[\/.\-](\d{1,2})/i);
-  if(m) return new Date(year||2026,Number(m[2])-1,Number(m[1]));
-
-  m=t.match(/^(\d{1,2})$/);
-  if(m&&month&&year)return new Date(year,month-1,Number(m[1]));
-
-  return month&&year?new Date(year,month-1,1):null;
-}
 
 function museum(equipment,local='') {
   const t=norm(`${equipment} ${local}`);
@@ -131,7 +91,7 @@ function rowsFromSheet(ws,name){
     const rawDate=dataIndex>=0?row[dataIndex]:vals.data;
     const dt=parseDate(rawDate,name);
     const mk=dt
-      ? `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`
+      ? `${dt.getUTCFullYear()}-${String(dt.getUTCMonth()+1).padStart(2,'0')}`
       : (month&&year?`${year}-${String(month).padStart(2,'0')}`:'');
     const sourceKey=`sheet:${name}:${r+1}`;
 
@@ -193,7 +153,7 @@ async function ensureProgramacaoSchema(){
   for(const [name,type] of Object.entries(definitions)){
     await pool.query(`ALTER TABLE programacoes ADD COLUMN IF NOT EXISTS ${q(name)} ${type}`);
   }
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_programacoes_source_key ON programacoes(source_key)`);
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_programacoes_source_key_unique ON programacoes(source_key)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_programacoes_month_key ON programacoes(month_key)`);
 }
 
@@ -289,12 +249,12 @@ async function save(item,cols){
     existing=r.rows[0];
   }
   if(!existing&&cols.has('base44_id')){
-    const r=await pool.query(`SELECT id FROM programacoes WHERE base44_id=$1 LIMIT 1`,[item.base44_id]);
+    const r=await pool.query(`SELECT id FROM programacoes WHERE base44_id=$1 AND (source_key IS NULL OR source_key=$1) LIMIT 1`,[item.base44_id]);
     existing=r.rows[0];
   }
   if(!existing&&cols.has('month_key')&&cols.has('museu')&&(cols.has('titulo')||cols.has('nome_acao'))){
     const titleCol=cols.has('titulo')?'titulo':'nome_acao';
-    const r=await pool.query(`SELECT id FROM programacoes WHERE month_key=$1 AND museu=$2 AND ${q(titleCol)}=$3 LIMIT 1`,[item.month_key,item.museu,item.titulo]);
+    const r=await pool.query(`SELECT id FROM programacoes WHERE month_key=$1 AND museu=$2 AND ${q(titleCol)}=$3 AND source_key IS NULL LIMIT 1`,[item.month_key,item.museu,item.titulo]);
     existing=r.rows[0];
   }
 
@@ -306,17 +266,29 @@ async function save(item,cols){
     return 'updated';
   }
 
-  if(cols.has('id'))data.id=stableLocalId(item.source_key);
+  // A linha da planilha pode ter mudado de posição; o ID estável de uma linha
+  // antiga pode hoje pertencer a outra source_key. Não reutilize esse ID.
+  if(cols.has('id')){
+    const candidate=stableLocalId(item.source_key);
+    const occupied=await pool.query(`SELECT 1 FROM programacoes WHERE id=$1 LIMIT 1`,[candidate]);
+    data.id=occupied.rowCount?crypto.randomUUID():candidate;
+  }
   const entries=Object.entries(data);
   const names=entries.map(([k])=>q(k));
   const vals=entries.map(([k,v])=>dbValue(cols.get(k),(k==='data'&&/date|timestamp/.test(cols.get(k)))?item.data_inicio:v));
-  await pool.query(`INSERT INTO programacoes (${names.join(',')}) VALUES (${vals.map((_,i)=>`$${i+1}`).join(',')})`,vals);
+  const updates=entries.filter(([k])=>k!=='id').map(([k])=>`${q(k)}=EXCLUDED.${q(k)}`).join(',');
+  await pool.query(`INSERT INTO programacoes (${names.join(',')}) VALUES (${vals.map((_,i)=>`$${i+1}`).join(',')})
+    ON CONFLICT (source_key) DO UPDATE SET ${updates}`,vals);
   return 'created';
 }
 
 export async function syncProgramacao(){
   const started=new Date();
+  let lockClient;
   try{
+    lockClient=await pool.connect();
+    const lock=await lockClient.query(`SELECT pg_try_advisory_lock(2026,1002) AS acquired`);
+    if(!lock.rows[0]?.acquired)return {skipped:'already_running'};
     const response=await fetch(XLSX_URL);
     if(!response.ok)throw new Error(`download ${response.status}`);
     const wb=XLSX.read(await response.arrayBuffer(),{type:'array',cellDates:true});
@@ -359,6 +331,11 @@ export async function syncProgramacao(){
   }catch(e){
     console.error('PROGRAMACAO_SYNC_ERROR',e);
     return{error:e.message};
+  }finally{
+    if(lockClient){
+      try{await lockClient.query(`SELECT pg_advisory_unlock(2026,1002)`);}catch(error){console.error('PROGRAMACAO_SYNC_UNLOCK_ERROR',error.message);}
+      lockClient.release();
+    }
   }
 }
 
@@ -379,5 +356,7 @@ function schedule(){
   },msUntilSixBrasilia());
 }
 
-setTimeout(syncProgramacao,4000);
-schedule();
+if(process.env.PROGRAMACAO_SYNC_DISABLE_AUTOSTART!=='1'){
+  setTimeout(syncProgramacao,4000);
+  schedule();
+}
