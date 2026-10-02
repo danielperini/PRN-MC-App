@@ -2292,6 +2292,14 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
     return res.status(200).json({ success:true, function:name, result:null, migrated:true });
   } catch (e) {
     console.error('FUNCTION_ERROR:', name, e);
+    if (name === 'purchaseActions' && e?.code === 'P0001'
+        && /Saldo insuficiente no centro de custo do Simpósio/.test(e.message || '')) {
+      return res.status(422).json({
+        error:'budget_limit_exceeded',
+        function:name,
+        message:e.message,
+      });
+    }
     return res.status(500).json({ error:'function_failed', function:name, message:e.message });
   }
 });

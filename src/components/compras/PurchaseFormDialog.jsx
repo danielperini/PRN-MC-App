@@ -1083,11 +1083,14 @@ export default function PurchaseFormDialog({ currentUser, prefill, onClose, onSu
       smartToast.success(`✅ Solicitação aprovada!${rubricaInfo ? ` Valor debitado da rubrica "${rubricaInfo}".` : ''} Backup no Drive iniciado.`)
       onSuccess?.()
     } catch (err) {
+      const errorMessage = err?.response?.data?.message || err?.response?.data?.error || err?.message || 'Erro desconhecido.'
       // Checar se o erro é de duplicidade (409)
       if (err?.response?.status === 409 || String(err?.message || '').includes('bloqueada')) {
-        smartToast.error('Aprovação bloqueada: ' + (err?.message || 'nota fiscal possivelmente duplicada.'))
+        smartToast.error('Aprovação bloqueada: ' + errorMessage)
+      } else if (err?.response?.status === 422) {
+        smartToast.error('Aprovação bloqueada: ' + errorMessage)
       } else {
-        smartToast.error('Erro ao aprovar', err.message)
+        smartToast.error('Erro ao aprovar', errorMessage)
       }
       setApproving(false)
       return
