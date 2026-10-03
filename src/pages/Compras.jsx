@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { notifyPurchaseApproved, notifyPurchaseRejected } from '@/services/notifications/purchaseNotifications';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSmartToast } from '@/lib/useSmartToast';
+import { isTeamPaymentPurchase } from '@/lib/purchaseTeamClassification';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
@@ -162,27 +163,6 @@ function formatDateTimeBR(value) {
   return date.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-function isCompraEquipe(purchase) {
-  const raw = [purchase?.tipo_origem, purchase?.origem, purchase?.categoria, purchase?.tipo_solicitacao, purchase?.descricao_item, purchase?.observacoes].map((v) => String(v || '').toLowerCase()).join(' ');
-  return !!purchase?.team_payment_id || raw.includes('team') || raw.includes('equipe') || raw.includes('pagamento da equipe') || raw.includes('pagamento equipe');
-}
-
-// Detecção mais ampla — inclui monitores, educadores, coordenadoria
-function isCompraEquipeSalario(purchase) {
-  if (!purchase) return false;
-  if (!!purchase.team_payment_id) return true;
-  const raw = [purchase?.tipo_origem, purchase?.origem, purchase?.categoria, purchase?.tipo_solicitacao, purchase?.descricao_item, purchase?.observacoes].map((v) => String(v || '').toLowerCase()).join(' ');
-  return (
-    raw.includes('team') ||
-    raw.includes('equipe') ||
-    raw.includes('monitores') ||
-    raw.includes('educadores') ||
-    raw.includes('coordenadoria') ||
-    raw.includes('pagamento da equipe') ||
-    raw.includes('pagamento equipe')
-  );
-}
-
 function isEntradaUnicaAttachment(att) {
   const description = normalizeText(att?.description);
   const fileName = normalizeText(att?.file_name);
@@ -250,7 +230,7 @@ async function carregarSolicitacoes({ isCoordenador, currentUser }) {
 function categorizeSolicitacoes(purchases) {
   const categories = { geral: [], mhab: [], mis: [], mumo: [], noturno2026: [], noturnoPampulha: [], simposio: [], pessoas: [] };
   purchases.forEach((p) => {
-    if (isCompraEquipe(p)) {categories.pessoas.push(p);} else
+    if (isTeamPaymentPurchase(p)) {categories.pessoas.push(p);} else
     {
       const centro = normalizeCentro(p?.centro_custo);
       if (centro === 'MHAB') categories.mhab.push(p);else

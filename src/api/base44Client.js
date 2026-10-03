@@ -2,6 +2,7 @@ import { installSafeAuthRedirect } from '@/lib/sanitizeAuthRedirect';
 import { createClient } from '@base44/sdk';
 import { appParams } from '@/lib/app-params';
 import { filtrarMetas3e4Aditivos } from '@/utils/metasAditivosPermitidos';
+import { isTeamPaymentPurchase } from '@/lib/purchaseTeamClassification';
 
 const { appId, token, functionsVersion, appBaseUrl } = appParams;
 const validToken = token && !['null', 'undefined'].includes(String(token).trim().toLowerCase()) ? token : undefined;
@@ -247,11 +248,6 @@ async function loadAudience(payload, agenda) {
   return { total, por_museu: porMuseu, por_mes: porMes, fonte: source, registros: records.length };
 }
 
-function isTeamPurchase(item) {
-  const text = normalizeText([item?.tipo_origem, item?.origem, item?.categoria, item?.tipo_solicitacao, item?.descricao_item, item?.rubrica_nome, item?.meta_nome].filter(Boolean).join(' '));
-  return !!item?.team_payment_id || ['equipe', 'coorden', 'produtor', 'educador', 'designer', 'fotografo', 'assessor', 'analista', 'assistente', 'consultor'].some((term) => text.includes(term));
-}
-
 function teamName(item) {
   return item?.nome || item?.nome_completo || item?.profissional_nome || item?.colaborador_nome || item?.fornecedor_nome || item?.nf_emitente_nome || '';
 }
@@ -272,7 +268,7 @@ async function loadTeam(payload) {
     return name && normalizeText(teamRole(item)) !== 'user';
   });
 
-  const fromPurchases = purchases.filter((item) => TEAM_STATUS.has(String(item?.status || '').toUpperCase()) && isTeamPurchase(item) && inReportScope({ ...item, data: item?.nf_data_emissao || item?.data_nf || item?.created_date }, payload));
+  const fromPurchases = purchases.filter((item) => TEAM_STATUS.has(String(item?.status || '').toUpperCase()) && isTeamPaymentPurchase(item) && inReportScope({ ...item, data: item?.nf_data_emissao || item?.data_nf || item?.created_date }, payload));
 
   return unique([...fromMembers, ...fromPurchases].map((item) => ({
     nome: teamName(item),

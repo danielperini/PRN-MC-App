@@ -5,6 +5,7 @@ import { Pencil, Trash2, CheckCircle2, RotateCcw, XCircle, Bell, Loader2, LinkIc
 import { normalizeStatus } from '@/lib/normalizeStatus';
 import { isFinanciallyActiveStatus } from '@/utils/finance/financeiroUtils';
 import { classificarItemDespesaPBH } from '@/lib/classificadorDespesaPBH';
+import { isTeamPaymentPurchase } from '@/lib/purchaseTeamClassification';
 import {
   getAuthenticatedDriveFileUrl,
   getPurchaseDriveFolderUrl,
@@ -92,30 +93,10 @@ function formatDateTimeBR(value) {
   return date.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-function isCompraEquipe(purchase) {
-  const raw = [purchase?.tipo_origem, purchase?.origem, purchase?.categoria, purchase?.descricao_item].map((v) => String(v || '').toLowerCase()).join(' ');
-  return !!purchase?.team_payment_id || raw.includes('team') || raw.includes('equipe');
-}
-
-function isCompraEquipeSalario(purchase) {
-  if (!purchase) return false;
-  if (!!purchase.team_payment_id) return true;
-  const raw = [purchase?.tipo_origem, purchase?.origem, purchase?.categoria, purchase?.tipo_solicitacao, purchase?.descricao_item, purchase?.observacoes].map((v) => String(v || '').toLowerCase()).join(' ');
-  return (
-    raw.includes('team') ||
-    raw.includes('equipe') ||
-    raw.includes('monitores') ||
-    raw.includes('educadores') ||
-    raw.includes('coordenadoria') ||
-    raw.includes('pagamento da equipe') ||
-    raw.includes('pagamento equipe')
-  );
-}
-
 function categorizeSolicitacoes(purchases) {
   const categories = { geral: [], mhab: [], mis: [], mumo: [], noturno2026: [], noturnoPampulha: [], pessoas: [] };
   purchases.forEach((p) => {
-    if (isCompraEquipe(p)) { categories.pessoas.push(p); }
+    if (isTeamPaymentPurchase(p)) { categories.pessoas.push(p); }
     else {
       const centro = normalizeCentro(p?.centro_custo);
       if (centro === 'MHAB') categories.mhab.push(p);
@@ -404,7 +385,7 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
           const aguardandoPagamento = STATUS_AGUARDANDO_PAGAMENTO.has(statusKey) && !pago;
           const comprovantePendente = pago && !comprovantePagamentoUrl;
           const pagoEmFormatado = formatDateTimeBR(p.pago_em || p.data_pagamento);
-          const compraEquipe = isCompraEquipe(p);
+          const compraEquipe = isTeamPaymentPurchase(p);
           const menuAberto = menuOpenId === p.id;
           const podeEditarAprovada = isCoordenador && aprovado;
           const podeAcessar = !aprovado || podeEditarAprovada;
@@ -726,7 +707,7 @@ export default function TabelaSolicitacoes({ purchases, rubricas, attachmentByPu
   // Segunda camada de segurança: se canSeeEquipeSalarios for explicitamente false,
   // filtra qualquer compra de equipe/salário que tenha vazado até aqui
   const canSee = canSeeEquipeSalarios !== false ? true : isCoordenador;
-  const purchasesFiltered = canSee ? (purchases || []) : (purchases || []).filter(p => !isCompraEquipeSalario(p));
+  const purchasesFiltered = canSee ? (purchases || []) : (purchases || []).filter(p => !isTeamPaymentPurchase(p));
 
   async function handleSendNotification(p) {
     const valor = getPurchaseValue(p);
