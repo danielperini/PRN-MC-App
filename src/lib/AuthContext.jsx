@@ -78,8 +78,7 @@ export const AuthProvider = ({ children }) => {
       if (!appParams.token) {
         const localUser = await getLocalSessionUser();
         if (localUser) {
-          const recovery = await syncUserAccessState(localUser, { origin: 'local-session-bootstrap' }).catch(() => null);
-          const authenticatedUser = recovery?.recovered ? recovery.user : localUser;
+          const authenticatedUser = localUser;
           setUser(authenticatedUser);
           setIsAuthenticated(true);
           setAuthError(null);

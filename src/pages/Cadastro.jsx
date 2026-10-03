@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
 import { useMutation } from '@tanstack/react-query';
 import { Building2, CheckCircle, Send, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -30,8 +29,6 @@ const EMPTY = {
   role: 'PROFISSIONAL',
   funcao: '',
   equipe: '',
-  password: '',
-  confirm_password: '',
 };
 
 function normalizeEmail(email) {
@@ -83,7 +80,7 @@ export default function Cadastro() {
     }));
   };
 
-  const directPasswordFlow = isAllowedDirectPasswordDomain(form.email);
+  const validEmail = isAllowedDirectPasswordDomain(form.email);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -97,60 +94,26 @@ export default function Cadastro() {
         throw new Error('Informe um e-mail válido para criar acesso com senha.');
       }
 
-      if (directPasswordFlow) {
-        if (!form.password || !form.confirm_password) {
-          throw new Error('Preencha senha e confirmação de senha.');
-        }
+      if (validEmail) {
 
-        if (form.password.length < 8) {
-          throw new Error('A senha deve ter no mínimo 8 caracteres.');
-        }
-
-        if (form.password !== form.confirm_password) {
-          throw new Error('A confirmação de senha não confere.');
-        }
-
-        try {
-          await base44.functions.invoke('createUserWithPassword', {
+        const response = await fetch('/api/public/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
             email,
             full_name: form.full_name.trim(),
             museu: form.museu,
             funcao: form.funcao || '',
             equipe: form.equipe || '',
-            password: form.password,
             role: form.role || 'PROFISSIONAL',
-            base_role: form.role || 'PROFISSIONAL',
-            require_approval: true,
-            acesso_liberado: false,
-            status: 'PENDENTE',
-            login_provider: 'email_password',
-          });
-        } catch (error) {
-          console.warn('Cadastro com senha aguardará aprovação via UserRegistration:', error);
+          }),
+        });
+        if (!response.ok) {
+          if (response.status === 409) throw new Error('Este e-mail já possui conta. Use a tela de login.');
+          throw new Error('Não foi possível registrar sua solicitação. Tente novamente.');
         }
-
-        const existing = await base44.entities.UserRegistration.filter({ email });
-        const activeRequest = existing.find((item) => ['PENDENTE', 'APROVADO'].includes(item.status));
-        if (activeRequest?.status === 'APROVADO') {
-          throw new Error('Este e-mail já possui aprovação. Use a tela de login para entrar.');
-        }
-        if (activeRequest?.status === 'PENDENTE') {
-          return activeRequest;
-        }
+        return response.json();
       }
-
-      return base44.entities.UserRegistration.create({
-        full_name: form.full_name.trim(),
-        email,
-        museu: form.museu,
-        role: form.role || 'PROFISSIONAL',
-        base_role: form.role || 'PROFISSIONAL',
-        funcao: form.funcao || '',
-        equipe: form.equipe || '',
-        login_provider: 'email_password',
-        acesso_liberado: false,
-        status: 'PENDENTE',
-      });
     },
     onSuccess: () => {
       toastMessages.sent();
@@ -169,10 +132,14 @@ export default function Cadastro() {
         throw new Error('Preencha seu e-mail.');
       }
 
-      return base44.functions.invoke('recoverPassword', { email });
+      const response = await fetch('/api/auth/password/reset/request', {
+        method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email}),
+      });
+      if (!response.ok) throw new Error('Não foi possível solicitar a redefinição agora.');
+      return response.json();
     },
     onSuccess: () => {
-      toastMessages.info('Senha temporária enviada. Verifique seu e-mail.');
+      toastMessages.info('Se a conta estiver ativa, você receberá um link de redefinição por e-mail.');
       setRecoveryEmail('');
       setShowRecovery(false);
     },
@@ -212,13 +179,11 @@ export default function Cadastro() {
         <div className="w-full max-w-lg">
           <div className="mb-8">
             <h1 className="text-2xl font-semibold text-black tracking-tight">
-              {directPasswordFlow ? 'Criar acesso com e-mail e senha' : 'Solicitar acesso à plataforma'}
+              Solicitar acesso à plataforma
             </h1>
 
             <p className="text-gray-500 mt-1 text-sm">
-              {directPasswordFlow
-                ? 'Preencha seus dados e defina uma senha para acessar sem Google ou Microsoft.'
-                : 'Informe um e-mail válido para criar acesso com senha ou solicitar acesso.'}
+              Após a aprovação, você poderá entrar com Google ou definir uma senha por um link enviado ao seu e-mail.
             </p>
           </div>
 
@@ -301,33 +266,6 @@ export default function Cadastro() {
               </div>
             )}
 
-            {directPasswordFlow && (
-              <>
-                <div>
-                  <Label>
-                    Senha <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    type="password"
-                    placeholder="Mínimo de 8 caracteres"
-                    value={form.password}
-                    onChange={(e) => set('password', e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <Label>
-                    Confirmar senha <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    type="password"
-                    placeholder="Repita a senha"
-                    value={form.confirm_password}
-                    onChange={(e) => set('confirm_password', e.target.value)}
-                  />
-                </div>
-              </>
-            )}
           </div>
 
           <Button
@@ -336,22 +274,16 @@ export default function Cadastro() {
             disabled={mutation.isPending}
           >
             <Send className="w-4 h-4" />
-            {mutation.isPending
-              ? directPasswordFlow
-                ? 'Criando acesso...'
-                : 'Enviando...'
-              : directPasswordFlow
-                ? 'Criar acesso'
-                : 'Enviar solicitação'}
+            {mutation.isPending ? 'Enviando...' : 'Enviar solicitação'}
           </Button>
 
           <div className="mt-4 flex gap-2">
             <Button
               variant="outline"
               className="flex-1 gap-2 border-gray-300"
-              onClick={() => base44.auth.redirectToLogin()}
+              onClick={() => window.location.assign('/login')}
             >
-              Login Google, Microsoft ou e-mail
+              Voltar ao login
             </Button>
 
             <Button
@@ -371,7 +303,7 @@ export default function Cadastro() {
           <DialogHeader>
             <DialogTitle>Recuperar senha</DialogTitle>
             <DialogDescription>
-              Digite seu e-mail de cadastro. Enviaremos uma senha temporária para você.
+              Digite seu e-mail de cadastro. Se a conta estiver ativa, enviaremos um link de redefinição válido por 30 minutos.
             </DialogDescription>
           </DialogHeader>
 
@@ -388,7 +320,7 @@ export default function Cadastro() {
               onClick={() => recoveryMutation.mutate()}
               disabled={recoveryMutation.isPending}
             >
-              {recoveryMutation.isPending ? 'Enviando...' : 'Enviar senha temporária'}
+              {recoveryMutation.isPending ? 'Enviando...' : 'Enviar link de redefinição'}
             </Button>
           </div>
         </DialogContent>

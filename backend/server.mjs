@@ -104,10 +104,12 @@ async function tableExists(name) {
 }
 async function requireSession(req, res, next) {
   try {
-    if (!(await tableExists('auth_sessions'))) return next();
+    if (!(await tableExists('auth_sessions'))) return res.status(503).json({ error:'auth_unavailable' });
     const token = parseCookies(req).appgestor_session;
     if (!token) return res.status(401).json({ error: 'unauthorized' });
-    const r = await pool.query(`SELECT user_id FROM auth_sessions WHERE session_token_hash=$1 AND expires_at>NOW() LIMIT 1`, [hashToken(token)]);
+    const r = await pool.query(`SELECT s.user_id FROM auth_sessions s JOIN users u ON u.id=s.user_id
+      WHERE s.session_token_hash=$1 AND s.expires_at>NOW()
+        AND u.acesso_liberado IS TRUE AND u.is_verified IS TRUE LIMIT 1`, [hashToken(token)]);
     if (!r.rowCount) return res.status(401).json({ error: 'session_invalid' });
     req.userId = r.rows[0].user_id;
     next();
@@ -115,6 +117,26 @@ async function requireSession(req, res, next) {
     console.error('session auth error:', e);
     res.status(500).json({ error: 'authentication_error', message: e.message });
   }
+}
+async function canManageUsers(userId) {
+  const actor=(await pool.query('SELECT email,role FROM users WHERE id=$1 LIMIT 1',[userId])).rows[0];
+  if (!actor) return false;
+  if (['ADMIN','COORDENADOR'].includes(String(actor.role||'').toUpperCase())) return true;
+  if (!(await tableExists('user_permissions'))) return false;
+  const permission=await pool.query('SELECT can_manage_users FROM user_permissions WHERE lower(user_email)=lower($1) LIMIT 1',[actor.email]);
+  return permission.rows[0]?.can_manage_users===true;
+}
+async function canMutateAccountEntity(req,table,targetId=null) {
+  if (!['users','user_permissions','user_registrations'].includes(table)) return true;
+  if (await canManageUsers(req.userId)) return true;
+  if (table!=='users' || String(targetId)!==String(req.userId)) return false;
+  const safe=new Set(['full_name','funcao','equipe','museu']);
+  return Object.keys(req.body||{}).every(key=>safe.has(key));
+}
+function publicEntityRow(table,row) {
+  if (!row) return row;
+  if (table==='users') { const {password_hash,...safe}=row; return safe; }
+  return row;
 }
 function fileUrl(req, storedName) {
   if (publicBaseUrl) return `${publicBaseUrl}/api/files/${encodeURIComponent(storedName)}`;
@@ -433,7 +455,7 @@ const ENTITY_TABLES = Object.freeze({
   Attachment:'attachments', Notification:'notifications', Notificacao:'notifications', GastoRubrica:'gasto_rubricas',
   LancamentoRubrica:'lancamentos_rubrica', Meta:'metas', MetaActivity:'meta_activities', PurchaseRequest:'purchase_requests',
   PurchaseDocument:'purchase_documents', DocumentIntake:'document_intakes', FinanceiroAuditLog:'financeiro_audit_logs', AuditLog:'audit_logs',
-  UserPermission:'user_permissions', Profile:'profiles', Museu:'museus', Equipe:'equipes', Fornecedor:'fornecedores',
+  UserPermission:'user_permissions', UserRegistration:'user_registrations', Profile:'profiles', Museu:'museus', Equipe:'equipes', Fornecedor:'fornecedores',
   ClientErrorLog:'client_error_logs'
 });
 function entityTable(name) { return ENTITY_TABLES[String(name || '')] || null; }
@@ -798,17 +820,48 @@ app.get('/api/apps/:appId/entities/User/me', requireSession, async (req,res) => 
   try {
     const user = (await pool.query('SELECT * FROM users WHERE id=$1 LIMIT 1', [req.userId])).rows[0];
     if (!user) return res.status(401).json({ error:'session_user_not_found' });
-    return res.json(user);
+    return res.json(publicEntityRow('users',user));
   } catch (error) {
     console.error('CURRENT_USER_ERROR:', error);
     return res.status(500).json({ error:'current_user_failed', message:error.message });
   }
 });
 
+// Public dashboard copy is drawn only from approved reports. Return a slim,
+// immutable source projection rather than exposing the full report or photos
+// to professionals who do not own that report.
+app.get('/api/dashboard/daily-report-sources', requireSession, async (req,res) => {
+  try {
+    const actor=(await pool.query('SELECT email,role FROM users WHERE id=$1 LIMIT 1',[req.userId])).rows[0];
+    const result=await pool.query(`SELECT id,status,museu,museu_secundario,mes_referencia,ano,
+      author_name,author_email,created_by,updated_date,resumo_periodo,resumo_executivo,
+      comentarios_gerais,raw_data->'atividades' AS atividades,raw_data->'depoimentos' AS depoimentos
+      FROM reports WHERE UPPER(COALESCE(status,'')) IN
+      ('APPROVED','APROVADO','APROVADO_COORD','APROVADO_ADMIN','APROVADO ADMIN')
+      ORDER BY updated_date DESC NULLS LAST,id DESC LIMIT 5000`);
+    const allowedActivityFields=['responsavel','profissional','autor','depoimento_participantes',
+      'depoimento','feedback_publico','resultado_alcancado','descricao','observacoes','avaliacao','relato','impacto'];
+    const reports=result.rows.map(row=>{
+      const {author_email,created_by,atividades,depoimentos,...source}=row;
+      const role=String(actor?.role||'').toUpperCase();
+      return {
+        ...source,
+        can_open:['ADMIN','COORDENADOR'].includes(role) || [author_email,created_by].some(value=>String(value||'').toLowerCase()===String(actor?.email||'').toLowerCase()),
+        atividades:Array.isArray(atividades) ? atividades.map(item=>Object.fromEntries(allowedActivityFields.filter(key=>item?.[key]!=null).map(key=>[key,item[key]]))) : [],
+        depoimentos:Array.isArray(depoimentos) ? depoimentos.map(item=>({texto:item?.texto||item?.depoimento||item?.fala||'',autor:item?.autor||item?.nome||''})) : [],
+      };
+    });
+    const version=crypto.createHash('sha256').update(JSON.stringify(reports)).digest('hex');
+    res.setHeader('Cache-Control','private, no-store');
+    return res.json({version,reports});
+  } catch(error) {console.error('DAILY_REPORT_SOURCES_ERROR',error);return res.status(500).json({error:'daily_report_sources_failed'});}
+});
+
 app.get('/api/apps/:appId/entities/:entityName', requireSession, async (req,res) => {
   try {
     const table=entityTable(req.params.entityName);
     if (!table || !(await tableExists(table))) return res.json([]);
+    if (table==='user_registrations' && !(await canManageUsers(req.userId))) return res.status(403).json({error:'manage_users_required'});
     let {sql,values}=await buildWhere(table,req);
     const columns=await tableColumns(table);
     // The browser cache is never an authorization boundary. Professionals
@@ -849,7 +902,7 @@ app.get('/api/apps/:appId/entities/:entityName', requireSession, async (req,res)
       ? `${sql?' AND':' WHERE'} source_active IS DISTINCT FROM FALSE`
       : '';
     const r=await pool.query(`SELECT * FROM ${quoteIdentifier(table)}${sql}${activeClause}${entityOrder(req,columns)} LIMIT ${entityLimit(req)} OFFSET ${entityOffset(req)}`,values);
-    res.json(r.rows);
+    res.json(r.rows.map(row=>publicEntityRow(table,row)));
   } catch(e) { console.error('ENTITY_GET_ERROR:',e); res.status(500).json({error:'entity_query_failed',message:e.message}); }
 });
 
@@ -1382,6 +1435,7 @@ app.post('/api/apps/:appId/entities/:entityName', requireSession, async (req,res
   try {
     const table=entityTable(req.params.entityName); if(!table) return res.status(404).json({error:'entity_not_migrated'});
     if(!(await tableExists(table))) return res.status(404).json({error:'table_not_found',table});
+    if (!(await canMutateAccountEntity(req,table))) return res.status(403).json({error:'manage_users_required'});
     const columns=await tableColumns(table); const columnTypes=await tableColumnTypes(table);
     const fiscalBody=normalizePurchaseFiscalPayload(req.params.entityName,req.body||{});
     let normalizedBody=await normalizeReportCreatePayload(req,req.params.entityName,fiscalBody);
@@ -1436,7 +1490,7 @@ app.post('/api/apps/:appId/entities/:entityName', requireSession, async (req,res
       await syncRubricaBalances().catch(error => console.error('RUBRICA_BALANCE_SYNC_ERROR', error));
     }
     if (table==='client_error_logs') console.warn('CLIENT_ERROR_LOGGED', JSON.stringify({ error_id:r.rows[0].error_id, user_email:r.rows[0].user_email, url:r.rows[0].url }));
-    res.status(201).json(r.rows[0]);
+    res.status(201).json(publicEntityRow(table,r.rows[0]));
   } catch(e) { console.error('ENTITY_POST_ERROR:',e); res.status(500).json({error:'entity_create_failed',message:e.message}); }
 });
 
@@ -1445,6 +1499,7 @@ async function updateEntity(req,res) {
   try {
     table=entityTable(req.params.entityName); if(!table) return res.status(404).json({error:'entity_not_migrated'});
     if(!(await tableExists(table))) return res.status(404).json({error:'table_not_found',table});
+    if (!(await canMutateAccountEntity(req,table,req.params.id))) return res.status(403).json({error:'manage_users_required'});
     let reportAccess=null;
     if (table === 'reports') {
       const access = await assertReportUpdateAccess(req, req.params.id);
@@ -1487,7 +1542,7 @@ async function updateEntity(req,res) {
     }
     if (table==='document_intakes') await suppressExactDuplicateIntakes(r.rows[0].id);
     if (table==='purchase_requests') await syncRubricaBalances().catch(error => console.error('RUBRICA_BALANCE_SYNC_ERROR', error));
-    res.json(r.rows[0]);
+    res.json(publicEntityRow(table,r.rows[0]));
   } catch(e) {
     const bodyKeys=Object.keys(req.body||{});
     const parameter=String(e.where||'').match(/parameter \$(\d+)/i);
@@ -1506,6 +1561,7 @@ app.patch('/api/apps/:appId/entities/:entityName/:id',requireSession,updateEntit
 app.put('/api/apps/:appId/entities/:entityName/:id',requireSession,updateEntity);
 app.delete('/api/apps/:appId/entities/:entityName/:id',requireSession,async(req,res)=>{
   try { const table=entityTable(req.params.entityName); if(!table) return res.status(404).json({error:'entity_not_migrated'}); if(!(await tableExists(table))) return res.status(404).json({error:'table_not_found',table});
+    if (['users','user_permissions','user_registrations'].includes(table) && !(await canManageUsers(req.userId))) return res.status(403).json({error:'manage_users_required'});
     if (table==='reports') {
       const access=await assertReportUpdateAccess(req,req.params.id);
       if (!access.exists) return res.status(404).json({error:'entity_not_found'});

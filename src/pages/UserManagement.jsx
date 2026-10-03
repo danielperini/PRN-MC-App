@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +11,6 @@ import { Label } from '@/components/ui/label';
 import { Search, UserPlus, Save, Users, KeyRound, Pencil, Trash2, Clock3, LogIn, Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import InviteDialog from '@/components/users/InviteDialog';
-import { normalizeEmail, revokeUserAccess } from '@/utils/auth/recoverExistingUserAccess';
 import { useAuth } from '@/lib/AuthContext';
 import {
   canViewUserLoginMonitoring,
@@ -92,6 +91,7 @@ function EditDialog({ user, onClose }) {
     try {
       const data = {
         ...form,
+        base_role: form.role,
         ...(form.role === 'OBSERVADOR' || form.role === 'PATROCINADOR' ? { funcao: 'Observador', equipe: 'Observador' } : {}),
       };
       const res = await base44.entities.User.update(user.id, data);
@@ -171,15 +171,28 @@ function EditDialog({ user, onClose }) {
 }
 
 function PasswordDialog({ user, onClose }) {
+  const [sending,setSending]=useState(false);
+  async function sendReset() {
+    setSending(true);
+    try {
+      const response=await fetch('/api/auth/password/reset/request', {
+        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:user.email}),
+      });
+      if (!response.ok) throw new Error(`Falha (${response.status})`);
+      toast.success('Se a conta estiver ativa, o link de redefinição será enviado.');
+      onClose();
+    } catch(error) {toast.error('Não foi possível enviar o link: '+error.message);}
+    finally {setSending(false);}
+  }
   return (
     <Dialog open onOpenChange={() => onClose()}>
       <DialogContent className="max-w-sm">
         <DialogHeader><DialogTitle>Senha — {user.full_name || user.email}</DialogTitle></DialogHeader>
         <div className="py-3 space-y-3">
-          <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-            Alteração de senha automática requer plano Builder+. Oriente o usuário a usar o fluxo de redefinição de senha.
+          <p className="text-sm text-slate-700 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+            Envie um link de uso único para {user.email}. A senha será definida pela própria pessoa e não ficará visível à coordenação.
           </p>
-          <Input placeholder="Nova senha (indisponível neste plano)" disabled />
+          <Button onClick={sendReset} disabled={sending} className="w-full">{sending?'Enviando...':'Enviar link de redefinição'}</Button>
         </div>
         <Button variant="outline" onClick={onClose} className="w-full">Fechar</Button>
       </DialogContent>
@@ -208,7 +221,7 @@ function PermissionsDialog({ user, permissions, onClose }) {
       } else {
         await base44.entities.UserPermission.create(data);
       }
-      if (user.id) await base44.entities.User.update(user.id, data);
+      if (user.id) await base44.entities.User.update(user.id, { role, base_role: role });
       toast.success('Permissões salvas!');
       queryClient.invalidateQueries(['user-management']);
       queryClient.invalidateQueries(['user-management-pending-registrations']);
@@ -269,6 +282,7 @@ function UserCard({
   onPermissions,
   onRoleChange,
   onDelete,
+  onRevokeSessions,
   showLoginMonitoring,
   loginStats,
 }) {
@@ -302,8 +316,10 @@ function UserCard({
                 <Clock3 className="w-3 h-3" />
                 {formatLoginDate(loginStats?.ultimo_login_em)}
               </span>
+              <span>{Number(loginStats?.active_sessions || 0)} sessão(ões) ativa(s)</span>
             </div>
           )}
+          {user.acesso_liberado !== true && <Badge className="mt-1 bg-red-100 text-red-700">Acesso bloqueado</Badge>}
         </div>
       </div>
 
@@ -337,6 +353,9 @@ function UserCard({
         <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8" onClick={() => onPermissions(user)}>
           Permissões
         </Button>
+        {showLoginMonitoring && Number(loginStats?.active_sessions || 0) > 0 && (
+          <Button size="sm" variant="outline" className="text-xs h-8" onClick={() => onRevokeSessions(user)}>Encerrar sessões</Button>
+        )}
         <Button
           size="sm"
           variant="outline"
@@ -344,7 +363,7 @@ function UserCard({
           onClick={() => onDelete(user)}
         >
           <Trash2 className="w-3 h-3" />
-          Excluir
+          {user.acesso_liberado === true ? 'Bloquear' : 'Liberar'}
         </Button>
       </div>
     </div>
@@ -473,58 +492,13 @@ export default function UserManagement() {
       const requestedRole = (chosenRole || registration.role || registration.base_role || 'PROFISSIONAL') === 'PATROCINADOR'
         ? 'OBSERVADOR'
         : (chosenRole || registration.role || registration.base_role || 'PROFISSIONAL');
-      const roleDefaults = defaultsForRole(requestedRole);
-      const permissionData = {
-        ...roleDefaults,
-        user_email: email,
-        user_name: registration.full_name || '',
-        base_role: requestedRole,
-        can_review_reports: false,
-        can_manage_users: false,
-        can_manage_files: false,
-        can_manage_platform: false,
-        gestao_compras: false,
-        pode_aprovar_solicitacoes: false,
-        must_submit_monthly_reports: requestedRole === 'OBSERVADOR' ? false : true,
-      };
-
-      const permissions = await base44.entities.UserPermission.filter({ user_email: email });
-      if (permissions?.[0]?.id) {
-        await base44.entities.UserPermission.update(permissions[0].id, { ...permissions[0], ...permissionData });
-      } else {
-        await base44.entities.UserPermission.create(permissionData);
-      }
-
-      const users = await base44.entities.User.filter({ email }).catch(() => []);
-      if (users?.[0]?.id) {
-        await base44.entities.User.update(users[0].id, {
-          role: requestedRole,
-          full_name: registration.full_name || users[0].full_name,
-          museu: registration.museu || users[0].museu,
-          funcao: roleDefaults.funcao || registration.funcao || users[0].funcao,
-          equipe: roleDefaults.equipe || registration.equipe || users[0].equipe,
-        });
-      }
-
-      await base44.entities.UserRegistration.update(registration.id, {
-        status: 'APROVADO',
-        aprovado_em: new Date().toISOString(),
-        acesso_liberado: true,
-        base_role: requestedRole,
+      const response = await fetch(`/api/admin/user-registrations/${encodeURIComponent(registration.id)}/approve`, {
+        method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({role:requestedRole}),
       });
-
-      // Fire-and-forget
-      base44.functions.invoke('notifyUserRegistrationStatus', {
-        registration: {
-          full_name: registration.full_name,
-          email,
-          museu: registration.museu,
-          base_role: requestedRole,
-          status: 'APROVADO',
-        },
-      }).catch(e => console.warn('Notificação de aprovação:', e));
-
-      toast.success('Usuário aprovado e notificado.');
+      if (!response.ok) throw new Error(`A aprovação não foi concluída (${response.status}).`);
+      const result=await response.json();
+      toast.success(result.email_sent ? 'Usuário aprovado, conta criada e e-mail enviado.' : 'Usuário aprovado e conta criada. Confirme o envio do acesso por e-mail.');
       queryClient.invalidateQueries(['user-management']);
       queryClient.invalidateQueries(['user-management-pending-registrations']);
       queryClient.invalidateQueries({ queryKey: ['pending-users'] });
@@ -538,23 +512,10 @@ export default function UserManagement() {
   async function handleRejectRegistration(registration) {
     setBusyCardId(registration.id + '_reject');
     try {
-      await revokeUserAccess(registration.email, {
-        status: 'REJEITADO',
-        origin: 'user-management-reject',
-        reason: 'Solicitação negada pela coordenação',
-        full_name: registration.full_name,
+      const response = await fetch(`/api/admin/user-registrations/${encodeURIComponent(registration.id)}/reject`, {
+        method:'POST', credentials:'include',
       });
-
-      // Fire-and-forget
-      base44.functions.invoke('notifyUserRegistrationStatus', {
-        registration: {
-          full_name: registration.full_name,
-          email: String(registration.email || '').toLowerCase(),
-          museu: registration.museu,
-          base_role: registration.base_role || registration.role || 'PROFISSIONAL',
-          status: 'REJEITADO',
-        },
-      }).catch(e => console.warn('Notificação de rejeição:', e));
+      if (!response.ok) throw new Error(`A solicitação não foi negada (${response.status}).`);
 
       toast.success('Solicitação negada.');
       queryClient.invalidateQueries(['user-management-pending-registrations']);
@@ -567,21 +528,25 @@ export default function UserManagement() {
   }
 
   async function handleDelete(user) {
-    if (!window.confirm(`Tem certeza que deseja excluir o usuário "${user.full_name || user.email}"? Esta ação não pode ser desfeita.`)) return;
+    const willBlock = user.acesso_liberado === true;
+    if (!window.confirm(`${willBlock ? 'Bloquear' : 'Liberar'} o acesso de "${user.full_name || user.email}"? Os relatórios e o histórico serão preservados.`)) return;
     try {
-      const email = normalizeEmail(user.email);
-      await revokeUserAccess(email, {
-        status: 'EXCLUIDO',
-        origin: 'user-management-delete',
-        reason: 'Usuário excluído pela coordenação. Novo acesso exige nova aprovação.',
-        full_name: user.full_name,
-      });
-      if (user.id) await base44.entities.User.delete(user.id).catch(() => null);
-      toast.success('Usuário excluído. Para voltar ao app, precisará solicitar nova aprovação.');
+      await base44.entities.User.update(user.id, { acesso_liberado:!willBlock, is_verified:!willBlock });
+      toast.success(willBlock ? 'Acesso bloqueado. Relatórios e histórico preservados.' : 'Acesso liberado.');
       queryClient.invalidateQueries(['user-management']);
       queryClient.invalidateQueries(['user-management-pending-registrations']);
       queryClient.invalidateQueries({ queryKey: ['pending-users'] });
     } catch (e) { toast.error('Erro ao excluir: ' + e.message); }
+  }
+
+  async function handleRevokeSessions(user) {
+    if (!window.confirm(`Encerrar todas as sessões de ${user.full_name || user.email}?`)) return;
+    try {
+      const response=await fetch(`/api/admin/users/${encodeURIComponent(user.id)}/revoke-sessions`, {method:'POST',credentials:'include'});
+      if (!response.ok) throw new Error(`Falha (${response.status})`);
+      toast.success('Sessões encerradas. Um novo login será necessário.');
+      queryClient.invalidateQueries({queryKey:['user-login-monitoring-stats']});
+    } catch(error) { toast.error('Não foi possível encerrar as sessões: '+error.message); }
   }
 
   async function handleRoleChange(user, newRole) {
@@ -596,6 +561,7 @@ export default function UserManagement() {
       }
       const userData = {
         role: newRole,
+        base_role: newRole,
         ...(newRole === 'OBSERVADOR' || newRole === 'PATROCINADOR' ? { funcao: 'Observador', equipe: 'Observador' } : {}),
       };
       if (user.id) await base44.entities.User.update(user.id, userData);
@@ -616,6 +582,7 @@ export default function UserManagement() {
         ...user,
         loginStats: {
           total_logins: Math.max(userTotalLogins, auditTotalLogins),
+          active_sessions: Number(auditStats.active_sessions || 0),
           ultimo_login_em:
             auditStats.ultimo_login_em ||
             user.ultimo_login_em ||
@@ -767,6 +734,7 @@ export default function UserManagement() {
                 onPermissions={setPermissionsUser}
                 onRoleChange={handleRoleChange}
                 onDelete={handleDelete}
+                onRevokeSessions={handleRevokeSessions}
                 showLoginMonitoring={showLoginMonitoring}
                 loginStats={u.loginStats}
               />

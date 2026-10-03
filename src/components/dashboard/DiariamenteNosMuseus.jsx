@@ -1,11 +1,10 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { base44 } from '@/api/base44Client';
 import aiClient from '@/lib/aiClient';
 import { Quote, Calendar, RefreshCw, BookOpen, ChevronRight, Sparkles } from 'lucide-react';
 import { useCurrentUser } from '@/components/auth/useCurrentUser';
 
 const MUSEUS = ['Todos', 'MIS', 'MHAB', 'MUMO'];
-const FRASES_REFRESH_MS = 48 * 60 * 60 * 1000;
+const FRASES_REFRESH_MS = 24 * 60 * 60 * 1000;
 const AI_CANDIDATE_LIMIT = 80;
 const DISPLAY_COUNT = 3;
 
@@ -49,15 +48,16 @@ function deterministicRotate(items, count, seed, salt) {
   return Array.from({ length: count }, (_, i) => items[(start + i) % items.length]);
 }
 
-function cacheKey(museu) { return `museus_centro_diariamente_ai_v1_${museu}`; }
+function cacheKey(museu) { return `museus_centro_diariamente_ai_v2_${museu}`; }
 function readCache(museu) {
   try {
     const value = JSON.parse(localStorage.getItem(cacheKey(museu)) || 'null');
     return value && Array.isArray(value.frases) ? value : null;
   } catch { return null; }
 }
-function cacheFresh(value) {
-  return Boolean(value?.frases?.length && Date.now() - Number(value.savedAt || 0) < FRASES_REFRESH_MS);
+function cacheFresh(value, version) {
+  return Boolean(value?.frases?.length && value.version === version && value.day === dailySeed() &&
+    Date.now() - Number(value.savedAt || 0) < FRASES_REFRESH_MS);
 }
 
 function dateLabel(report) {
@@ -149,7 +149,7 @@ function candidateScore(item) {
 async function selectWithAI(candidates, museu) {
   const pool = candidates
     .map((item, index) => ({ ...item, _id: `C${index + 1}` }))
-    .sort((a, b) => candidateScore(b) - candidateScore(a))
+    .sort((a, b) => String(b.sourceUpdatedAt || '').localeCompare(String(a.sourceUpdatedAt || '')) || candidateScore(b) - candidateScore(a))
     .slice(0, AI_CANDIDATE_LIMIT);
 
   if (!pool.length) return [];
@@ -192,8 +192,7 @@ async function selectWithAI(candidates, museu) {
   return ids.map((id) => byId.get(id)).filter(Boolean).map(({ _id, ...item }) => item);
 }
 
-async function loadLocalFrases(museu) {
-  const reports = await base44.entities.Report.list('-updated_date', 5000);
+async function loadLocalFrases(museu, reports) {
   const approved = (Array.isArray(reports) ? reports : []).filter((report) => {
     const status = normalize(report?.status);
     return ['APPROVED', 'APROVADO', 'APROVADO_COORD', 'APROVADO_ADMIN', 'APROVADO ADMIN'].includes(status);
@@ -221,6 +220,8 @@ async function loadLocalFrases(museu) {
         autor: item.autor || report?.author_name || null,
         fonte: 'Relatório interno aprovado',
         report_id: report?.id || null,
+        can_open: report?.can_open === true,
+        sourceUpdatedAt: report?.updated_date || '',
       });
     }
   }
@@ -273,7 +274,7 @@ function FraseCard({ item, idx }) {
           </div>
           <div className="flex items-center justify-between">
             <span className="flex items-center gap-1 text-[10px] text-slate-400"><BookOpen className="w-3 h-3" />{item.fonte}</span>
-            {item.report_id && <a href={`/ReportEditor?id=${item.report_id}`} className="flex items-center gap-0.5 text-[10px] text-slate-600 hover:text-slate-900 font-semibold">Ver relatório <ChevronRight className="w-3 h-3" /></a>}
+            {item.report_id && item.can_open && <a href={`/ReportEditor?id=${item.report_id}`} className="flex items-center gap-0.5 text-[10px] text-slate-600 hover:text-slate-900 font-semibold">Ver relatório <ChevronRight className="w-3 h-3" /></a>}
           </div>
         </div>
       </div>
@@ -295,12 +296,15 @@ export default function DiariamenteNosMuseus() {
   const load = useCallback(async (museu, force = false) => {
     setLoading(true);
     const cached = readCache(museu);
-    if (!force && cacheFresh(cached)) { setFrases(cached.frases); setLoading(false); return; }
 
     try {
-      const all = await loadLocalFrases(museu);
+      const response = await fetch('/api/dashboard/daily-report-sources', {credentials:'include',cache:'no-store'});
+      if (!response.ok) throw new Error(`Falha ao carregar relatórios aprovados (${response.status})`);
+      const source = await response.json();
+      if (!force && cacheFresh(cached,source.version)) {setFrases(cached.frases);return;}
+      const all = await loadLocalFrases(museu,source.reports);
       setFrases(all);
-      try { localStorage.setItem(cacheKey(museu), JSON.stringify({ frases: all, savedAt: Date.now(), source: 'appgestor-local+ai' })); } catch {}
+      try { localStorage.setItem(cacheKey(museu), JSON.stringify({ frases: all, savedAt: Date.now(), day:dailySeed(), version:source.version, source: 'appgestor-approved+ai' })); } catch {}
     } catch (error) {
       console.error('DiariamenteNosMuseus:', error);
       if (cached?.frases?.length) setFrases(cached.frases); else setFrases([]);
@@ -311,6 +315,11 @@ export default function DiariamenteNosMuseus() {
     load(museuFilter, forceRefresh);
     if (forceRefresh) setForceRefresh(false);
   }, [museuFilter, forceRefresh, load]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => load(museuFilter),5 * 60 * 1000);
+    return () => window.clearInterval(timer);
+  }, [museuFilter,load]);
 
   const visibleFrases = useMemo(() => {
     if (frases.length <= DISPLAY_COUNT) return frases;
