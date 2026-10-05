@@ -25,6 +25,7 @@ COPY sync-report-gallery.mjs ./
 COPY reconcile-report-media-relations.mjs ./
 COPY audit-drive-purchase-links.mjs ./
 COPY monthly-report-reminders.mjs ./
+COPY monthly-report-reminder-rules.mjs ./
 COPY send-professional-access-check.mjs ./
 COPY send-purchase-notification-batch.mjs ./
 COPY send-pending-payment-digest.mjs ./

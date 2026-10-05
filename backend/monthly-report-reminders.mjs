@@ -1,6 +1,7 @@
 import pg from 'pg';
 import nodemailer from 'nodemailer';
 import { brandedEmailHtml, brandedEmailText, publicAppUrl, reportSubmissionSteps } from './email-layout.mjs';
+import { COMPLETE_STATUSES, emailOf, isProfessional, shouldSubmit, requiredMonths, reportMonths, localDateKey } from './monthly-report-reminder-rules.mjs';
 
 const { Pool } = pg;
 const pool = new Pool({
@@ -12,40 +13,6 @@ const pool = new Pool({
 });
 
 const APP_ORIGIN = publicAppUrl(process.env.PUBLIC_BASE_URL);
-const FIRST_REQUIRED_MONTH = { year: 2026, month: 3 };
-const COMPLETE_STATUSES = new Set(['SUBMITTED', 'IN_REVIEW', 'APPROVED']);
-const MONTH_NAMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-
-const emailOf = (row) => String(row?.email || row?.user_email || '').trim().toLowerCase();
-const isProfessional = (row) => {
-  const role = String(row?.role || row?.perfil || row?.user_role || '').trim().toUpperCase();
-  if (!role) return false;
-  if (['ADMIN', 'COORDENADOR', 'COORDINATOR', 'PATROCINADOR', 'OBSERVADOR'].includes(role)) return false;
-  return ['PROFISSIONAL', 'PROFESSIONAL', 'COLABORADOR', 'USUARIO', 'USER'].includes(role);
-};
-const shouldSubmit = (row) => row?.must_submit_monthly_reports !== false && row?.must_submit_monthly_report !== false;
-
-function requiredMonths(now = new Date()) {
-  // The current month remains open. The reminder covers completed months only,
-  // avoiding a false charge before the monthly period ends.
-  const last = new Date(now.getFullYear(), now.getMonth(), 0);
-  const result = [];
-  for (let year = FIRST_REQUIRED_MONTH.year, month = FIRST_REQUIRED_MONTH.month;
-    year < last.getFullYear() || (year === last.getFullYear() && month <= last.getMonth() + 1);) {
-    result.push({ year, month, label: `${MONTH_NAMES[month - 1]}/${year}` });
-    month += 1;
-    if (month === 13) { month = 1; year += 1; }
-  }
-  return result;
-}
-
-function reportMonth(record) {
-  const year = Number(record?.ano);
-  const raw = String(record?.mes_referencia || '').trim();
-  const month = MONTH_NAMES.findIndex((name) => name.toLowerCase() === raw.toLowerCase()) + 1;
-  return year && month ? `${year}-${month}` : null;
-}
-
 async function mailTransport() {
   if (!process.env.SMTP_HOST || !process.env.SMTP_USER) return null;
   const password = process.env.SMTP_PASS_B64
@@ -64,7 +31,8 @@ export async function runMonthlyReportReminders({ dryRun = false, now = new Date
   if (!months.length) return { skipped: 'no_completed_months', sent: 0 };
 
   const [usersResult, reportsResult] = await Promise.all([
-    pool.query('SELECT * FROM users'),
+    pool.query(`SELECT u.*,up.must_submit_monthly_reports AS permission_must_submit_monthly_reports
+      FROM users u LEFT JOIN user_permissions up ON lower(up.user_email)=lower(u.email)`),
     // Production databases created by earlier migrations do not all have the
     // same optional author columns. Select the record and read supported
     // fields below instead of failing the entire scheduled job.
@@ -73,16 +41,16 @@ export async function runMonthlyReportReminders({ dryRun = false, now = new Date
   const completedByEmail = new Map();
   for (const report of reportsResult.rows) {
     if (!COMPLETE_STATUSES.has(String(report.status || '').trim().toUpperCase())) continue;
-    const key = reportMonth(report);
-    if (!key) continue;
+    const keys = reportMonths(report);
+    if (!keys.length) continue;
     for (const email of [report.created_by, report.author_email].map((value) => String(value || '').trim().toLowerCase()).filter(Boolean)) {
       if (!completedByEmail.has(email)) completedByEmail.set(email, new Set());
-      completedByEmail.get(email).add(key);
+      for (const key of keys) completedByEmail.get(email).add(key);
     }
   }
 
   const transport = dryRun ? null : await mailTransport();
-  const runKey = `MONTHLY_REPORT_MISSING_EMAIL_${now.toISOString().slice(0, 10)}`;
+  const runKey = `MONTHLY_REPORT_MISSING_EMAIL_${localDateKey(now)}`;
   const result = { eligible: 0, sent: 0, skippedAlreadySent: 0, skippedSmtp: 0, recipients: [] };
   for (const user of usersResult.rows.filter((row) => isProfessional(row) && shouldSubmit(row))) {
     const email = emailOf(user);
@@ -138,16 +106,16 @@ export async function runTargetedMonthlyReportReminders({ targets = [], dryRun =
   const completedByEmail = new Map();
   for (const report of reportsResult.rows) {
     if (!COMPLETE_STATUSES.has(String(report.status || '').trim().toUpperCase())) continue;
-    const key = reportMonth(report);
-    if (!key) continue;
+    const keys = reportMonths(report);
+    if (!keys.length) continue;
     for (const email of [report.created_by, report.author_email].map((value) => String(value || '').trim().toLowerCase()).filter(Boolean)) {
       if (!completedByEmail.has(email)) completedByEmail.set(email, new Set());
-      completedByEmail.get(email).add(key);
+      for (const key of keys) completedByEmail.get(email).add(key);
     }
   }
 
   const transport = dryRun ? null : await mailTransport();
-  const runKey = `TARGETED_MONTHLY_REPORT_MISSING_EMAIL_${now.toISOString().slice(0, 10)}`;
+  const runKey = `TARGETED_MONTHLY_REPORT_MISSING_EMAIL_${localDateKey(now)}`;
   const usersByEmail = new Map(usersResult.rows.map((user) => [emailOf(user), user]));
   const result = { eligible: 0, sent: 0, skippedAlreadySent: 0, skippedSmtp: 0, skippedNotFound: [], recipients: [] };
   for (const target of targets) {
@@ -185,19 +153,6 @@ export async function runTargetedMonthlyReportReminders({ targets = [], dryRun =
   return result;
 }
 
-function shouldRunNow(now = new Date()) {
-  return now.getDay() === 1 && now.getHours() === 6;
-}
-
-async function scheduledRun() {
-  if (!shouldRunNow()) return;
-  try {
-    console.log('MONTHLY_REPORT_REMINDER_RESULT', JSON.stringify(await runMonthlyReportReminders()));
-  } catch (error) {
-    console.error('MONTHLY_REPORT_REMINDER_ERROR', error);
-  }
-}
-
 if (process.argv[1]?.endsWith('monthly-report-reminders.mjs')) {
   const dryRun = process.argv.includes('--dry-run');
   const targeted = process.argv.includes('--targeted');
@@ -208,7 +163,4 @@ if (process.argv[1]?.endsWith('monthly-report-reminders.mjs')) {
     console.log(JSON.stringify(result));
     process.exit(0);
   }).catch((error) => { console.error(error); process.exit(1); });
-} else {
-  scheduledRun();
-  setInterval(scheduledRun, 60_000);
 }
