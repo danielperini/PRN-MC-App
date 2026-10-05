@@ -18,6 +18,7 @@ const renameOnly=process.argv.includes('--rename-only');
 // creates a replacement/copy and requires the full fiscal identity.
 const normalizeMonth=process.argv.includes('--normalize-month');
 const purchaseIdFilter=process.argv.find(arg=>arg.startsWith('--purchase-id='))?.slice('--purchase-id='.length) || '';
+const searchName=process.argv.find(arg=>arg.startsWith('--search-name='))?.slice('--search-name='.length) || '';
 const { Pool }=pg;
 const pool=new Pool({ host:process.env.DB_HOST || 'db',port:Number(process.env.DB_PORT || 5432),database:process.env.POSTGRES_DB || 'appgestor',user:process.env.POSTGRES_USER || 'appgestor',password:process.env.POSTGRES_PASSWORD || '' });
 const uploadDir=process.env.UPLOAD_DIR || '/app/uploads';
@@ -123,6 +124,14 @@ async function fiscalFolderId(drive, folderName) {
 }
 async function main() {
   const drive=await driveClient(); const folders=new Map();
+  if(searchName) {
+    const safeName=searchName.replace(/'/g,"\\'");
+    const result=await drive.files.list({q:`name contains '${safeName}' and trashed=false`,
+      fields:'nextPageToken,files(id,name,mimeType,size,md5Checksum,parents,webViewLink)',
+      pageSize:1000,supportsAllDrives:true,includeItemsFromAllDrives:true});
+    console.log('DRIVE_NAME_SEARCH',JSON.stringify({query:searchName,files:result.data.files || [],more:Boolean(result.data.nextPageToken)}));
+    return;
+  }
   const rows=(await pool.query(`SELECT * FROM purchase_requests WHERE
     (COALESCE(drive_file_id,'')<>'' OR COALESCE(drive_file_url,'')<>'' OR COALESCE(drive_backup_nf_pdf_link,'')<>'')
     AND ($1::text='' OR id=$1) ORDER BY id`,[purchaseIdFilter])).rows;
