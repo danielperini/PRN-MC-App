@@ -17,6 +17,7 @@ const renameOnly=process.argv.includes('--rename-only');
 // emission-month folder. It is intentionally separate from --fix: it never
 // creates a replacement/copy and requires the full fiscal identity.
 const normalizeMonth=process.argv.includes('--normalize-month');
+const purchaseIdFilter=process.argv.find(arg=>arg.startsWith('--purchase-id='))?.slice('--purchase-id='.length) || '';
 const { Pool }=pg;
 const pool=new Pool({ host:process.env.DB_HOST || 'db',port:Number(process.env.DB_PORT || 5432),database:process.env.POSTGRES_DB || 'appgestor',user:process.env.POSTGRES_USER || 'appgestor',password:process.env.POSTGRES_PASSWORD || '' });
 const uploadDir=process.env.UPLOAD_DIR || '/app/uploads';
@@ -122,8 +123,10 @@ async function fiscalFolderId(drive, folderName) {
 }
 async function main() {
   const drive=await driveClient(); const folders=new Map();
-  const rows=(await pool.query(`SELECT * FROM purchase_requests WHERE COALESCE(drive_file_id,'')<>'' OR COALESCE(drive_file_url,'')<>'' OR COALESCE(drive_backup_nf_pdf_link,'')<>'' ORDER BY id`)).rows;
-  const report={checked:rows.length,verified:0,renamed:0,moved:0,wrong:0,repaired:0,cleared:0,unverifiable:0,unavailable:0,errors:0,examples:[]};
+  const rows=(await pool.query(`SELECT * FROM purchase_requests WHERE
+    (COALESCE(drive_file_id,'')<>'' OR COALESCE(drive_file_url,'')<>'' OR COALESCE(drive_backup_nf_pdf_link,'')<>'')
+    AND ($1::text='' OR id=$1) ORDER BY id`,[purchaseIdFilter])).rows;
+  const report={checked:rows.length,verified:0,renamed:0,moved:0,wrong:0,repaired:0,cleared:0,unverifiable:0,unavailable:0,errors:0,examples:[],inspected:[]};
   for(const purchase of rows) {
     const fileId=directId(purchase); if(!fileId) { report.unverifiable++; continue; }
     try {
@@ -132,6 +135,9 @@ async function main() {
       catch(error) { if(Number(error?.code)===404) { file={id:fileId,name:'',parents:[],trashed:true}; } else throw error; }
       let parentName=''; const parentId=file.parents?.[0];
       if(parentId) { if(!folders.has(parentId)) folders.set(parentId,(await drive.files.get({fileId:parentId,fields:'name',supportsAllDrives:true})).data.name || ''); parentName=folders.get(parentId); }
+      if(purchaseIdFilter) report.inspected.push({purchase_id:purchase.id,drive_file_id:fileId,drive_name:file.name,
+        drive_folder:parentName,trashed:Boolean(file.trashed),supplier:purchase.nf_emitente_nome,
+        invoice:purchase.nf_numero,amount:amountOf(purchase),issue_date:purchase.nf_data_emissao});
       const expectedNumber=String(purchase.nf_numero || '').replace(/\D/g,'').replace(/^0+/,''); const expectedAmount=amountOf(purchase); const expectedMonth=monthOf(purchase.nf_data_emissao || purchase.data_emissao);
       const amounts=amountMentions(file.name); const mentionedNumber=numberMention(file.name); const namedMonth=monthMention(file.name); const supplierEvidence=hasSupplierEvidence(purchase.nf_emitente_nome || purchase.fornecedor_nome,file.name);
       // Folder position may be repaired only after the PDF itself proves its
