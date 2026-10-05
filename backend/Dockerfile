@@ -35,6 +35,7 @@ COPY backup-approved-reports.mjs ./
 COPY restore-isabella-nf5-somatorio.mjs ./
 COPY reconcile-exact-financial-duplicates.mjs ./
 COPY reconcile-drive-purchase-duplicates.mjs ./
+COPY audit-ambiguous-invoice-hashes.mjs ./
 
 EXPOSE 3000
 
