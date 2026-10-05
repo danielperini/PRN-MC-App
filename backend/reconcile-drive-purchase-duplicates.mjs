@@ -61,15 +61,24 @@ async function main() {
           (SELECT COUNT(*) FROM report_photos WHERE drive_file_id=$1) AS report_photos,
           (SELECT COUNT(*) FROM document_intakes WHERE arquivo_original_url LIKE '%'||$1||'%' OR nf_pdf_url LIKE '%'||$1||'%' OR nf_xml_url LIKE '%'||$1||'%') AS intakes`,
           [duplicateId,duplicate.id])).rows[0];
-        if (Object.values(refs).some(value => Number(value) > 0)) {
-          const documents = (await db.query(`SELECT id,purchase_request_id,attachment_id,document_type,file_url,drive_file_url
-            FROM purchase_documents WHERE drive_file_id=$1`,[duplicateId])).rows;
-          const attachments = (await db.query(`SELECT id,purchase_request_id,report_id,activity_id,document_intake_id,file_url
-            FROM attachments WHERE drive_file_id=$1`,[duplicateId])).rows;
+        const documents = (await db.query(`SELECT id,purchase_request_id,attachment_id,document_type,file_url,drive_file_url
+          FROM purchase_documents WHERE drive_file_id=$1`,[duplicateId])).rows;
+        const attachments = (await db.query(`SELECT id,purchase_request_id,report_id,activity_id,document_intake_id,file_url
+          FROM attachments WHERE drive_file_id=$1`,[duplicateId])).rows;
+        const documentAttachmentIds = new Set(documents.map(row => String(row.attachment_id || '')).filter(Boolean));
+        const refsSafe = Number(refs.other_purchases) === 0 && Number(refs.report_photos) === 0
+          && Number(refs.intakes) === 0 && documents.length === Number(refs.purchase_documents)
+          && attachments.length === Number(refs.attachments)
+          && documents.every(row => row.purchase_request_id === duplicate.id)
+          && attachments.every(row => documentAttachmentIds.has(String(row.id))
+            && (!row.purchase_request_id || row.purchase_request_id === duplicate.id)
+            && !row.report_id && !row.activity_id && !row.document_intake_id);
+        if (!refsSafe) {
           summary.skipped.push({ ...label, reason:'other_app_references', references:refs,
             linked_documents:documents, linked_attachments:attachments }); continue;
         }
-        summary.eligible.push({ ...label, checksum:source.md5Checksum, folder:source.parents?.[0] || null });
+        summary.eligible.push({ ...label, checksum:source.md5Checksum, folder:source.parents?.[0] || null,
+          linked_documents:documents.length, linked_attachments:attachments.length });
         if (!APPLY) continue;
         const targetLink = target.webViewLink || `https://drive.google.com/file/d/${canonicalId}/view`;
         await db.query('BEGIN');
@@ -83,6 +92,23 @@ async function main() {
           raw_data=jsonb_set(COALESCE(raw_data,'{}'::jsonb),'{drive_dedupe_history}',
             COALESCE(CASE WHEN jsonb_typeof(raw_data->'drive_dedupe_history')='array' THEN raw_data->'drive_dedupe_history' ELSE '[]'::jsonb END,'[]'::jsonb)||$4::jsonb),
           updated_at=NOW(),updated_date=NOW() WHERE id=$1`,[duplicate.id,canonicalId,targetLink,JSON.stringify([audit])]);
+        if (documents.length) {
+          const updated = await db.query(`UPDATE purchase_documents SET drive_file_id=$2,drive_file_url=$3,
+            raw_data=jsonb_set(COALESCE(raw_data,'{}'::jsonb),'{drive_dedupe_history}',
+              COALESCE(CASE WHEN jsonb_typeof(raw_data->'drive_dedupe_history')='array' THEN raw_data->'drive_dedupe_history' ELSE '[]'::jsonb END,'[]'::jsonb)||$4::jsonb),
+            updated_at=NOW(),updated_date=NOW()
+            WHERE drive_file_id=$1 AND purchase_request_id=$5`,
+            [duplicateId,canonicalId,targetLink,JSON.stringify([audit]),duplicate.id]);
+          if (updated.rowCount !== documents.length) throw new Error('document_references_changed_retry');
+        }
+        if (attachments.length) {
+          const updated = await db.query(`UPDATE attachments SET drive_file_id=$2,
+            raw_data=jsonb_set(COALESCE(raw_data,'{}'::jsonb),'{drive_dedupe_history}',
+              COALESCE(CASE WHEN jsonb_typeof(raw_data->'drive_dedupe_history')='array' THEN raw_data->'drive_dedupe_history' ELSE '[]'::jsonb END,'[]'::jsonb)||$3::jsonb),
+            updated_date=NOW() WHERE drive_file_id=$1 AND id::text=ANY($4::text[])`,
+            [duplicateId,canonicalId,JSON.stringify([audit]),attachments.map(row => String(row.id))]);
+          if (updated.rowCount !== attachments.length) throw new Error('attachment_references_changed_retry');
+        }
         await db.query('COMMIT');
         await drive.files.update({ fileId:duplicateId, requestBody:{trashed:true}, fields:'id,trashed', supportsAllDrives:true });
         summary.trashed.push(duplicateId);
