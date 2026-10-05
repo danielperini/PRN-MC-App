@@ -414,9 +414,14 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
 
               {/* Descrição — até 3 linhas com tooltip */}
               <td className="px-3 py-2.5" style={tdStyle}>
-                {(p.duplicada_financeira === true || p.incluir_no_somatorio === false) && (
+                {p.duplicada_financeira === true && (
                   <div className="mb-1 rounded bg-red-50 px-2 py-0.5 text-[10px] text-red-700 font-medium border border-red-100">
                     ⚠ Duplicata financeira detectada. Este lançamento não entra no somatório.
+                  </div>
+                )}
+                {p.duplicada_financeira !== true && p.incluir_no_somatorio === false && (
+                  <div className="mb-1 rounded bg-amber-50 px-2 py-0.5 text-[10px] text-amber-800 font-medium border border-amber-100">
+                    Retirado do somatório por correção. A solicitação e os documentos foram preservados.
                   </div>
                 )}
                 <Tooltip content={descricaoCompleta}>
@@ -530,12 +535,12 @@ function RenderTabela({ items, rubricaById, isCoordenador, podeAprovar, currentU
                 )}
                 {/* Badges de auditoria financeira */}
                 <div className="mt-1 flex flex-col gap-0.5">
-                  {isFinanciallyActiveStatus(p.status) ? (
+                  {isFinanciallyActiveStatus(p.status) && p.duplicada_financeira !== true && p.incluir_no_somatorio !== false ? (
                     <span className="inline-flex items-center gap-0.5 rounded-full bg-green-50 px-1.5 py-0.5 text-[10px] font-medium text-green-700">✓ No somatório</span>
                   ) : (
                     <span className="inline-flex items-center gap-0.5 rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-400">Fora do somatório</span>
                   )}
-                  {(p.duplicada_financeira === true || p.incluir_no_somatorio === false) && (
+                  {p.duplicada_financeira === true && (
                     <span className="inline-flex items-center gap-0.5 rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700">
                       <AlertTriangle className="h-2.5 w-2.5" />Duplicata financeira
                     </span>

@@ -62,7 +62,12 @@ async function main() {
           (SELECT COUNT(*) FROM document_intakes WHERE arquivo_original_url LIKE '%'||$1||'%' OR nf_pdf_url LIKE '%'||$1||'%' OR nf_xml_url LIKE '%'||$1||'%') AS intakes`,
           [duplicateId,duplicate.id])).rows[0];
         if (Object.values(refs).some(value => Number(value) > 0)) {
-          summary.skipped.push({ ...label, reason:'other_app_references', references:refs }); continue;
+          const documents = (await db.query(`SELECT id,purchase_request_id,attachment_id,document_type,file_url,drive_file_url
+            FROM purchase_documents WHERE drive_file_id=$1`,[duplicateId])).rows;
+          const attachments = (await db.query(`SELECT id,purchase_request_id,report_id,activity_id,document_intake_id,file_url
+            FROM attachments WHERE drive_file_id=$1`,[duplicateId])).rows;
+          summary.skipped.push({ ...label, reason:'other_app_references', references:refs,
+            linked_documents:documents, linked_attachments:attachments }); continue;
         }
         summary.eligible.push({ ...label, checksum:source.md5Checksum, folder:source.parents?.[0] || null });
         if (!APPLY) continue;

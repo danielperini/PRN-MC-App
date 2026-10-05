@@ -211,12 +211,14 @@ async function reconcileDuplicates(linkedIds) {
   let marked = 0;
   for (const list of groups.values()) {
     if (list.length < 2) continue;
-    list.sort((a,b) => purchaseScore(b,linkedIds) - purchaseScore(a,linkedIds) || String(a.id).localeCompare(String(b.id)));
+    const referenced = new Set(list.map(row => String(row.duplicata_de || '')).filter(id => list.some(candidate => String(candidate.id) === id)));
+    list.sort((a,b) => Number(referenced.has(String(b.id))) - Number(referenced.has(String(a.id)))
+      || purchaseScore(b,linkedIds) - purchaseScore(a,linkedIds) || String(a.id).localeCompare(String(b.id)));
     const canonical = list[0];
     const duplicateIds = list.slice(1).map(row => String(row.id));
     if (!duplicateIds.length) continue;
     if (APPLY) await pool.query(`UPDATE purchase_requests
-      SET incluir_no_somatorio=false,duplicada_financeira=true,duplicata_de=$1,status='CANCELADO',updated_at=NOW(),updated_date=NOW()
+      SET incluir_no_somatorio=false,duplicada_financeira=true,duplicata_de=$1,updated_at=NOW(),updated_date=NOW()
       WHERE id=ANY($2::text[])`, [String(canonical.id), duplicateIds]);
     marked += duplicateIds.length;
   }

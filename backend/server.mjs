@@ -2095,7 +2095,10 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
       // and make the financial exclusion explicit on every other copy.
       const duplicates=new Set(); const duplicateOf=new Map();
       for (const list of groups.values()) if(list.length>1) {
-        list.sort((a,b)=>(Number(Boolean(b.comprovante_url))+Number(Boolean(b.nota_fiscal_url))+Number(Boolean(b.rubrica_id)))-(Number(Boolean(a.comprovante_url))+Number(Boolean(a.nota_fiscal_url))+Number(Boolean(a.rubrica_id))) || String(a.id).localeCompare(String(b.id)));
+        const referenced=new Set(list.map(p=>String(p.duplicata_de || '')).filter(id=>list.some(candidate=>String(candidate.id)===id)));
+        list.sort((a,b)=>Number(referenced.has(String(b.id)))-Number(referenced.has(String(a.id)))
+          || (Number(Boolean(b.comprovante_url))+Number(Boolean(b.nota_fiscal_url))+Number(Boolean(b.rubrica_id)))-(Number(Boolean(a.comprovante_url))+Number(Boolean(a.nota_fiscal_url))+Number(Boolean(a.rubrica_id)))
+          || String(a.id).localeCompare(String(b.id)));
         const canonicalId=String(list[0].id);
         list.slice(1).forEach((p)=>{
           const duplicateId=String(p.id);
