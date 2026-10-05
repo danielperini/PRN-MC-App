@@ -34,6 +34,7 @@ COPY audit-official-balancetes-2026.mjs ./
 COPY backup-approved-reports.mjs ./
 COPY restore-isabella-nf5-somatorio.mjs ./
 COPY reconcile-exact-financial-duplicates.mjs ./
+COPY reconcile-drive-purchase-duplicates.mjs ./
 
 EXPOSE 3000
 
