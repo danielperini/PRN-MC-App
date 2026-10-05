@@ -160,7 +160,7 @@ function EditModal({ rubrica, onClose, onSave }) {
   );
 }
 
-export default function RubricasGrid({ rubricas = [], onRefresh }) {
+export default function RubricasGrid({ rubricas = [], onRefresh, onEditPurchase, canEditPurchase = false }) {
   const [search, setSearch] = useState('');
   const [editingRubrica, setEditingRubrica] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
@@ -335,6 +335,8 @@ export default function RubricasGrid({ rubricas = [], onRefresh }) {
       )}
       {compositionRubrica && (
         <ValorUtilizadoDialog rubrica={compositionRubrica} composition={composition?.rubricas?.[String(compositionRubrica.id)]}
+          canEdit={canEditPurchase}
+          onEditPurchase={(purchase) => { setCompositionRubrica(null); onEditPurchase?.(purchase); }}
           onClose={() => setCompositionRubrica(null)} />
       )}
     </div>

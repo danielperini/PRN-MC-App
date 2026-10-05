@@ -91,6 +91,7 @@ export default function RubricasGrid({
   rubricas = [],
   purchases = [],
   onSelectRubrica,
+  onEditPurchase,
   onRefresh,
   isCoordenador = false,
   totalPrevisto = 1320000,
@@ -621,6 +622,8 @@ export default function RubricasGrid({
       {compositionRubrica && (
         <ValorUtilizadoDialog rubrica={compositionRubrica.raw || compositionRubrica}
           composition={composition?.rubricas?.[String(compositionRubrica.id)]}
+          canEdit={isCoordenador}
+          onEditPurchase={(purchase) => { setCompositionRubrica(null); onEditPurchase?.(purchase); }}
           onClose={() => setCompositionRubrica(null)} />
       )}
     </div>

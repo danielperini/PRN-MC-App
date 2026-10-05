@@ -16,11 +16,13 @@ import MapeamentoRubricasEditor from '@/components/rubricas/MapeamentoRubricasEd
 import RevincularRubricasOrfasButton from '@/components/financeiro/RevincularRubricasOrfasButton';
 import { useCurrentUser } from '@/components/auth/useCurrentUser';
 import { canManageRubricas } from '@/components/auth/permissions';
+import PurchaseFormDialog from '@/components/compras/PurchaseFormDialog';
 
 export default function RubricasPage() {
   const [selectedRubrica, setSelectedRubrica] = useState(null);
   const [showNewRubrica, setShowNewRubrica] = useState(false);
   const [showMapeamento, setShowMapeamento] = useState(false);
+  const [editingPurchase, setEditingPurchase] = useState(null);
   const queryClient = useQueryClient();
   const { user: currentUser } = useCurrentUser();
   const canManage = canManageRubricas(currentUser);
@@ -52,6 +54,19 @@ export default function RubricasPage() {
   const handleCloseDetail = () => {
     setSelectedRubrica(null);
     queryClient.invalidateQueries({ queryKey: ['rubricas'] });
+  };
+
+  const handleEditPurchase = async (purchase) => {
+    if (!canManage) return;
+    try {
+      const id = purchase?.id || purchase?.base44_id;
+      if (!id) throw new Error('Identificador da solicitação ausente.');
+      const full = await base44.entities.PurchaseRequest.get(id);
+      if (!full) throw new Error('Solicitação não encontrada.');
+      setEditingPurchase(full);
+    } catch (error) {
+      toastMessages.error(error?.message || 'Não foi possível abrir a solicitação.');
+    }
   };
 
   if (selectedRubrica) {
@@ -136,6 +151,7 @@ export default function RubricasPage() {
           {/* Grade de Rubricas */}
           <RubricasGrid
             rubricas={rubricas}
+            onEditPurchase={handleEditPurchase}
             onSelectRubrica={setSelectedRubrica}
             isCoordenador={canManage}
             onRefresh={() => queryClient.invalidateQueries({ queryKey: ['rubricas'] })}
@@ -143,6 +159,21 @@ export default function RubricasPage() {
         </div>
 
         {/* Diálogos */}
+        {editingPurchase && (
+          <PurchaseFormDialog
+            currentUser={currentUser}
+            prefill={editingPurchase}
+            onClose={() => setEditingPurchase(null)}
+            onSuccess={async () => {
+              setEditingPurchase(null);
+              await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ['rubrica-composition'] }),
+                queryClient.invalidateQueries({ queryKey: ['rubricas'] }),
+                queryClient.invalidateQueries({ queryKey: ['purchases'] }),
+              ]);
+            }}
+          />
+        )}
         {showNewRubrica && (
           <NovaRubricaDialog
             open={showNewRubrica}

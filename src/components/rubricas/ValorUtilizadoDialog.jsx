@@ -4,7 +4,7 @@ import { X } from 'lucide-react';
 const money = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value || 0));
 const first = (...values) => values.find(value => value !== null && value !== undefined && String(value).trim()) || '—';
 
-export default function ValorUtilizadoDialog({ rubrica, composition, onClose }) {
+export default function ValorUtilizadoDialog({ rubrica, composition, onClose, onEditPurchase, canEdit = false }) {
   if (!rubrica) return null;
   const orcado = Number(composition?.orcado ?? rubrica.valor_rubrica ?? rubrica.valor_total ?? 0);
   const utilizado = Number(composition?.utilizado || 0);
@@ -38,7 +38,8 @@ export default function ValorUtilizadoDialog({ rubrica, composition, onClose }) 
               <thead className="bg-gray-50"><tr>{['ID / número', 'Descrição', 'Fornecedor', 'Solicitante', 'Data', 'Centro de custo', 'Grupo / meta', 'Rubrica', 'Natureza', 'Item', 'Valor', 'Status', 'Documento', 'Ações'].map(label => <th key={label} className="p-2">{label}</th>)}</tr></thead>
               <tbody>{solicitacoes.map(item => {
                 const id = String(item.id || item.base44_id || '');
-                const documentUrl = item.nf_pdf_url || item.nota_fiscal_url || item.arquivo_url || item.drive_file_url;
+                const documentUrl = item.nf_pdf_url || item.nota_fiscal_pdf_url || item.nota_fiscal_url || item.arquivo_url;
+                const driveUrl = item.drive_backup_nf_pdf_link || item.drive_file_url || (item.drive_file_id ? `https://drive.google.com/file/d/${encodeURIComponent(item.drive_file_id)}/view` : '');
                 return <tr key={id} className="border-t align-top">
                   <td className="p-2">{first(item.numero_solicitacao, item.nf_numero, id)}</td>
                   <td className="p-2">{first(item.descricao_item, item.descricao, item.descricao_servico, item.objeto)}</td>
@@ -52,8 +53,15 @@ export default function ValorUtilizadoDialog({ rubrica, composition, onClose }) 
                   <td className="p-2">{first(item.codigo_item_pbh, rubrica.codigo_item_pbh)}</td>
                   <td className="p-2 whitespace-nowrap font-semibold">{money(item.valor_composicao)}</td>
                   <td className="p-2">{first(item.status)}</td>
-                  <td className="p-2">{documentUrl ? <a href={documentUrl} target="_blank" rel="noopener noreferrer" className="text-blue-700 underline">Abrir</a> : '—'}</td>
-                  <td className="p-2"><a href={`/Compras?id=${encodeURIComponent(id)}`} className="text-blue-700 underline">Ver solicitação</a></td>
+                  <td className="p-2 whitespace-nowrap">
+                    {documentUrl && <a href={documentUrl} target="_blank" rel="noopener noreferrer" className="mr-2 text-blue-700 underline">Nota fiscal</a>}
+                    {driveUrl && <a href={driveUrl} target="_blank" rel="noopener noreferrer" className="text-blue-700 underline">Drive</a>}
+                    {!documentUrl && !driveUrl && '—'}
+                  </td>
+                  <td className="p-2 whitespace-nowrap">
+                    {canEdit && onEditPurchase ? <button type="button" onClick={() => onEditPurchase(item)} className="mr-2 text-blue-700 underline">Editar solicitação</button> : null}
+                    <a href={`/Compras?id=${encodeURIComponent(id)}`} className="text-blue-700 underline">Ver em Compras</a>
+                  </td>
                 </tr>;
               })}</tbody>
             </table>

@@ -23,3 +23,20 @@ test('rubrica sem solicitação continua auditável e mostra zero', () => {
   assert.equal(result.r2.saldo, 21000);
   assert.deepEqual(result.r2.solicitacoes, []);
 });
+
+test('composição expõe links fiscais e ID para edição sem dados internos', () => {
+  const result = buildRubricaComposition(
+    [{ id: 'r3', orcado: 100 }],
+    [{ rubrica_id: 'r3', amount_cents: '5000', purchase: {
+      id: 'p3', nf_pdf_url: '/api/files/nf.pdf',
+      drive_backup_nf_pdf_link: 'https://drive.google.com/file/d/abc/view',
+      drive_file_id: 'abc', raw_data: { segredo: true },
+    } }],
+  );
+  const item = result.r3.solicitacoes[0];
+  assert.equal(item.id, 'p3');
+  assert.equal(item.nf_pdf_url, '/api/files/nf.pdf');
+  assert.equal(item.drive_backup_nf_pdf_link, 'https://drive.google.com/file/d/abc/view');
+  assert.equal(item.drive_file_id, 'abc');
+  assert.equal(item.raw_data, undefined);
+});

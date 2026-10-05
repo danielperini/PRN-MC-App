@@ -633,7 +633,22 @@ function ComprasInner() {
     await queryClient.refetchQueries({ queryKey: ['purchases'], type: 'active' });
     await queryClient.refetchQueries({ queryKey: ['purchases_pendentes_pagamento'], type: 'active' });
     await queryClient.refetchQueries({ queryKey: ['rubricas'], type: 'active' });
+    await queryClient.refetchQueries({ queryKey: ['rubrica-composition'], type: 'active' });
   }, [invalidateComprasQueries, queryClient]);
+
+  const openCompositionPurchase = async (purchase) => {
+    if (!isCoordenador) return;
+    try {
+      const id = purchase?.id || purchase?.base44_id;
+      if (!id) throw new Error('Identificador da solicitação ausente.');
+      const full = await base44.entities.PurchaseRequest.get(id);
+      if (!full) throw new Error('Solicitação não encontrada.');
+      setEditingPurchase(full);
+      setShowForm(true);
+    } catch (error) {
+      smartToast.error(error?.message || 'Não foi possível abrir a solicitação.');
+    }
+  };
 
   async function handleApprovePurchase(purchase) {
     if (!purchase?.id) return;
@@ -1498,6 +1513,8 @@ function ComprasInner() {
 
                 <RubricasGrid
               rubricas={rubricas}
+              onEditPurchase={openCompositionPurchase}
+              canEditPurchase={isCoordenador}
               onSelectRubrica={setSelectedRubrica}
               onRefresh={refreshFinanceiroCompleto}
               isCoordenador={isCoordenador}
@@ -1633,6 +1650,8 @@ function ComprasInner() {
 
           <RubricasGrid
             rubricas={rubricas}
+            onEditPurchase={openCompositionPurchase}
+            canEditPurchase={isCoordenador}
             onSelectRubrica={setSelectedRubrica}
             onRefresh={refreshFinanceiroCompleto}
             isCoordenador={isCoordenador}
@@ -1790,6 +1809,7 @@ function ComprasInner() {
 
           // Marca como stale sem rebuscar — próxima navegação/ação buscará do banco
           await invalidateComprasQueries();
+          await queryClient.invalidateQueries({ queryKey: ['rubrica-composition'] });
         }} />
 
       }
