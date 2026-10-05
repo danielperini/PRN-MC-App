@@ -802,6 +802,26 @@ async function initDb() {
 app.get('/health', (_req,res) => res.json({ status:'ok', service:'appgestor-api' }));
 app.get('/db-health', async (_req,res) => { try { const r=await pool.query('SELECT NOW() AS now'); res.json({status:'ok',database:'connected',now:r.rows[0].now}); } catch(e) { res.status(500).json({status:'error',message:e.message}); } });
 
+// Gallery viewing is shared among signed-in users; the generic ReportPhoto
+// entity reader remains owner-scoped to protect editing and report relations.
+app.get('/api/gallery/photos', requireSession, async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(Number.parseInt(req.query.limit,10) || 200,1),200);
+    const offset = Math.min(Math.max(Number.parseInt(req.query.offset,10) || 0,0),10000);
+    const rows = (await pool.query(`SELECT id,base44_id,report_id,activity_id,drive_file_id,file_name,file_url,
+      legenda,caption,author,museu,mes_referencia,ano,created_date,updated_date,
+      jsonb_build_object('data_foto',raw_data->>'data_foto') AS raw_data
+      FROM report_photos
+      WHERE galeria_oculta IS DISTINCT FROM TRUE AND NULLIF(BTRIM(file_url),'') IS NOT NULL
+      ORDER BY created_date DESC NULLS LAST,id DESC LIMIT $1 OFFSET $2`,[limit,offset])).rows;
+    res.setHeader('Cache-Control','private, no-store');
+    return res.json(rows);
+  } catch (error) {
+    console.error('GALLERY_PHOTOS_READ_ERROR',error);
+    return res.status(500).json({ error:'gallery_photos_unavailable' });
+  }
+});
+
 app.get('/api/drive-reconcile/status',requireSession,async(req,res)=>{
   try {
     const user=(await pool.query('SELECT role FROM users WHERE id=$1 LIMIT 1',[req.userId])).rows[0];

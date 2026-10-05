@@ -35,7 +35,7 @@ const INITIAL_VISIBLE_IMAGES = 100;
 const VISIBLE_IMAGES_STEP = 100;
 // Inclui data do dia na chave para invalidar o cache automaticamente a cada novo dia
 const TODAY = new Date().toISOString().slice(0, 10);
-const GALLERY_CACHE_KEY = `museus_centro_galeria_fotos_cache_v20_todas_fotos_${TODAY}`;
+const GALLERY_CACHE_KEY = `museus_centro_galeria_fotos_cache_v21_todos_usuarios_${TODAY}`;
 const GALLERY_CACHE_TTL_MS = 5 * 60 * 1000; // 5 min para pegar fotos novas mais rápido
 
 const SECTION_LABELS = {
@@ -118,7 +118,7 @@ function clearGalleryCache() {
 
 }
 
-function GalleryCard({ image, onClick, eager = false, selected, onToggleSelect, onDelete, onEditCaption, selectionMode }) {
+function GalleryCard({ image, onClick, eager = false, selected, onToggleSelect, onDelete, onEditCaption, selectionMode, canManage }) {
   const museuLabel = image.sectionKey !== 'SEM_IDENTIFICACAO' ?
   image.sectionTitle || image.museu || 'Museus Centro' :
   null;
@@ -136,6 +136,7 @@ function GalleryCard({ image, onClick, eager = false, selected, onToggleSelect, 
         onToggleSelect={onToggleSelect}
         onDelete={onDelete}
         onEditCaption={onEditCaption}
+        canManage={canManage}
         selectionMode={selectionMode} />
       
       <button
@@ -214,6 +215,7 @@ function GaleriaFotosInner() {
   const [showExportarPDF, setShowExportarPDF] = useState(false);
   const [showExportarMuseu, setShowExportarMuseu] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const canManageSharedGallery = ['ADMIN', 'COORDENADOR', 'COORDINATOR'].includes(String(currentUser?.role || '').trim().toUpperCase());
   const [selectedPhotos, setSelectedPhotos] = useState([]);
   const [editingPhoto, setEditingPhoto] = useState(null);
   const [deletingPhotos, setDeletingPhotos] = useState(null);
@@ -479,9 +481,9 @@ function GaleriaFotosInner() {
               </p>
             }
             {isFetching && !isAutoSyncing && <p className="mt-2 text-xs text-gray-400">Atualizando galeria...</p>}
-            <div className="mt-3">
+            {canManageSharedGallery && <div className="mt-3">
               <SyncNovasFotosDriveButton onSync={() => { clearGalleryCache(); refetch(); }} />
-            </div>
+            </div>}
             {isGeneratingCaptions &&
             <p className="mt-1 inline-flex items-center gap-1 text-xs text-emerald-600">
                 <RefreshCw className="h-3 w-3 animate-spin" />
@@ -602,6 +604,7 @@ function GaleriaFotosInner() {
                   </span>
                   <span className="text-xs text-gray-500 pl-5">Limpa o cache e recarrega todas as fotos.</span>
                 </DropdownMenuItem>
+                {canManageSharedGallery && <>
                 <DropdownMenuItem
                   onClick={() => setShowSincInventario(true)}
                   title="Sincronizar metadados — atualiza arquivos/links já existentes no Drive"
@@ -672,6 +675,7 @@ function GaleriaFotosInner() {
                   </span>
                   <span className="text-xs text-red-500 pl-5">⚠ Apaga TODA a galeria e reimporta do Drive — confirmação necessária antes de executar.</span>
                 </DropdownMenuItem>
+                </>}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -680,6 +684,7 @@ function GaleriaFotosInner() {
         {/* Barra de seleção em bloco */}
         <BulkActionBar
           selectedPhotos={selectedPhotos}
+          canManage={canManageSharedGallery}
           onDeselectAll={() => setSelectedPhotos([])}
           onDeleteSelected={() => setDeletingPhotos(selectedPhotos)}
           onEmailSelected={() => setEmailingPhotos(selectedPhotos)}
@@ -912,6 +917,7 @@ function GaleriaFotosInner() {
                     {filteredItems.map(({ image, renderIndex }) => (
                       <GalleryCard
                         key={image.id || renderIndex}
+                        canManage={canManageSharedGallery}
                         image={image}
                         eager={renderIndex < 10}
                         selected={isPhotoSelected(image)}

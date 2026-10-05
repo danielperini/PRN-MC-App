@@ -4,7 +4,7 @@ import { deduplicateGalleryPhotos } from '@/utils/galleryDeduplication';
 import { isInventedCaption, isTechnicalFileName } from '@/utils/galleryNormalization';
 
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'avif', 'heic'];
-const DEFAULT_CACHE_KEY = 'museus_centro_galeria_fotos_cache_v20_full_gallery';
+const DEFAULT_CACHE_KEY = 'museus_centro_galeria_fotos_cache_v21_shared_gallery';
 
 // Limpar versões antigas do cache ao importar este módulo
 try {
@@ -167,6 +167,7 @@ function resolvePhotoSource(item = {}) {
   if (driveFileId) {
     candidates.push(`https://drive.google.com/thumbnail?id=${encodeURIComponent(driveFileId)}&sz=w400`);
     candidates.push(`https://lh3.googleusercontent.com/d/${encodeURIComponent(driveFileId)}=w400`);
+    candidates.push(`/api/drive-files/${encodeURIComponent(driveFileId)}`);
   }
   if (thumbnail) candidates.push(thumbnail);
   if (rawUrl && !isDrivePageUrl(rawUrl)) candidates.push(rawUrl);
@@ -325,6 +326,20 @@ async function fetchAllPages(entityName, order, { quietMissing = false } = {}) {
   return all;
 }
 
+async function fetchSharedGalleryPhotos() {
+  const all = [];
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const params = new URLSearchParams({ limit:String(PAGE_SIZE), offset:String(page * PAGE_SIZE) });
+    const response = await withTimeout(fetch(`/api/gallery/photos?${params}`, { credentials:'include', cache:'no-store' }), `galeria p${page + 1}`, 20000);
+    if (!response.ok) throw new Error(`Galeria indisponível (${response.status})`);
+    const photos = await response.json();
+    if (!Array.isArray(photos)) throw new Error('Resposta inválida da galeria');
+    all.push(...photos);
+    if (photos.length < PAGE_SIZE) return all;
+  }
+  throw new Error('Limite de paginação da galeria atingido; não é seguro mostrar um acervo incompleto.');
+}
+
 export async function loadGalleryReportData({
   limitMedia = 0,
   limitAttachments = 0, // 0 = sem limite (paginação automática)
@@ -347,7 +362,7 @@ export async function loadGalleryReportData({
   const [reports, activities, reportPhotos] = await Promise.all([
     fetchAllPages('Report', '-updated_date', { quietMissing: true }).catch((e) => { console.warn('[Galeria] Report falhou:', e?.message); return []; }),
     fetchAllPages('Activity', '-updated_date', { quietMissing: true }).catch((e) => { console.warn('[Galeria] Activity falhou:', e?.message); return []; }),
-    fetchAllPages('ReportPhoto', '-created_date', { quietMissing: true }).catch((e) => { console.warn('[Galeria] ReportPhoto falhou:', e?.message); return []; }),
+    fetchSharedGalleryPhotos(),
   ]);
 
   // Mapa de contexto (museu/período/autor) por report_id para enriquecer fotos de atividades

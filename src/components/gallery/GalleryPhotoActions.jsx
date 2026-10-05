@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { base44 } from '@/api/base44Client';
 
 // Botões de ação individuais por card
-export function PhotoActionBar({ image, selected, onToggleSelect, onDelete, onEditCaption, selectionMode }) {
+export function PhotoActionBar({ image, selected, onToggleSelect, onDelete, onEditCaption, selectionMode, canManage = false }) {
   return (
     <div className="absolute top-2 left-2 right-2 flex items-center justify-between gap-1 z-10">
       {/* Checkbox de seleção */}
@@ -22,7 +22,7 @@ export function PhotoActionBar({ image, selected, onToggleSelect, onDelete, onEd
       </button>
 
       {/* Ações rápidas — sempre visíveis (exceto em modo seleção) */}
-      <div className={`flex gap-1 ${selectionMode ? 'opacity-0 pointer-events-none' : 'opacity-100'} transition-opacity`}>
+      {canManage && <div className={`flex gap-1 ${selectionMode ? 'opacity-0 pointer-events-none' : 'opacity-100'} transition-opacity`}>
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onEditCaption(image); }}
@@ -39,13 +39,13 @@ export function PhotoActionBar({ image, selected, onToggleSelect, onDelete, onEd
         >
           <Trash2 className="w-3.5 h-3.5" />
         </button>
-      </div>
+      </div>}
     </div>
   );
 }
 
 // Barra de ações em bloco (aparece quando há fotos selecionadas)
-export function BulkActionBar({ selectedPhotos, onDeselectAll, onDeleteSelected, onEmailSelected, onCopyLinks, onDownloadBatch }) {
+export function BulkActionBar({ selectedPhotos, onDeselectAll, onDeleteSelected, onEmailSelected, onCopyLinks, onDownloadBatch, canManage = false }) {
   const count = selectedPhotos.length;
   if (count === 0) return null;
 
@@ -84,14 +84,14 @@ export function BulkActionBar({ selectedPhotos, onDeselectAll, onDeleteSelected,
           <Mail className="w-3.5 h-3.5" />
           Enviar por e-mail
         </button>
-        <button
+        {canManage && <button
           type="button"
           onClick={onDeleteSelected}
           className="inline-flex items-center gap-1.5 rounded-lg border border-red-300/50 bg-red-500/30 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-500/50 transition-colors"
         >
           <Trash2 className="w-3.5 h-3.5" />
           Excluir selecionadas
-        </button>
+        </button>}
         <button
           type="button"
           onClick={onDeselectAll}
