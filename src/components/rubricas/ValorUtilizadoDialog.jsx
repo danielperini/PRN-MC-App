@@ -11,6 +11,7 @@ export default function ValorUtilizadoDialog({ rubrica, composition, onClose, on
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
   const [correcting, setCorrecting] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
   const [error, setError] = useState('');
   if (!rubrica) return null;
   const orcado = Number(composition?.orcado ?? rubrica.valor_rubrica ?? rubrica.valor_total ?? 0);
@@ -18,6 +19,8 @@ export default function ValorUtilizadoDialog({ rubrica, composition, onClose, on
   const solicitacoes = composition?.solicitacoes || [];
   const somaCentavos = solicitacoes.reduce((sum, item) => sum + Math.round(Number(item.valor_composicao || 0) * 100), 0);
   const confere = somaCentavos === Number(composition?.total_cents || 0);
+  const activeIds = solicitacoes.map(item => String(item.id || item.base44_id || '')).filter(Boolean);
+  const selectedActiveIds = selectedIds.filter(id => activeIds.includes(id));
 
   async function searchPurchases(event) {
     event.preventDefault();
@@ -54,6 +57,29 @@ export default function ValorUtilizadoDialog({ rubrica, composition, onClose, on
       if (action === 'include') setCandidates(previous => previous.filter(item => item.id !== purchase.id));
       await onCompositionChanged?.();
     } catch (cause) { setError(`Não foi possível corrigir a composição: ${cause.message}`); }
+    finally { setCorrecting(null); }
+  }
+
+  async function excludeSelected() {
+    if (!selectedActiveIds.length) return;
+    const selected = solicitacoes.filter(item => selectedActiveIds.includes(String(item.id || item.base44_id || '')));
+    const total = selected.reduce((sum, item) => sum + Math.round(Number(item.valor_composicao || 0) * 100), 0) / 100;
+    if (!window.confirm(`Estornar ${selected.length} solicitação(ões), totalizando ${money(total)}, do valor utilizado desta rubrica? Os registros, notas e pagamentos serão preservados.`)) return;
+    const reason = window.prompt('Justificativa obrigatória para o estorno em lote (mínimo de 8 caracteres):');
+    if (reason === null) return;
+    if (reason.trim().length < 8) { setError('A justificativa precisa ter pelo menos 8 caracteres.'); return; }
+    setCorrecting('batch');
+    setError('');
+    try {
+      const response = await fetch('/api/finance/rubrica-composition/batch-exclude', {
+        method:'POST', credentials:'include', headers:{ 'Content-Type':'application/json' },
+        body:JSON.stringify({ purchaseIds:selectedActiveIds, rubricaId:String(rubrica.id), reason:reason.trim() }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.message || data.error || 'Estorno não concluído');
+      setSelectedIds([]);
+      await onCompositionChanged?.();
+    } catch (cause) { setError(`Não foi possível estornar as selecionadas: ${cause.message}`); }
     finally { setCorrecting(null); }
   }
 
@@ -103,17 +129,27 @@ export default function ValorUtilizadoDialog({ rubrica, composition, onClose, on
           </div>
         )}
         {error && <p role="alert" className="mb-3 rounded border border-red-200 bg-red-50 p-2 text-sm text-red-800">{error}</p>}
+        {canEdit && solicitacoes.length > 0 && <div className="mb-3 flex flex-wrap items-center gap-3 rounded border border-gray-200 bg-gray-50 p-2 text-sm">
+          <label className="flex items-center gap-2"><input type="checkbox" checked={selectedActiveIds.length === activeIds.length}
+            onChange={event => setSelectedIds(event.target.checked ? activeIds : [])} />Selecionar todas desta rubrica</label>
+          <span>{selectedActiveIds.length} selecionada(s)</span>
+          <button type="button" disabled={!selectedActiveIds.length || Boolean(correcting)} onClick={excludeSelected}
+            className="rounded border border-red-300 px-3 py-1.5 font-medium text-red-800 disabled:opacity-40">Estornar selecionadas do somatório</button>
+          <span className="text-gray-500">Não exclui notas, solicitações nem pagamentos.</span>
+        </div>}
         {solicitacoes.length === 0 ? (
           <p className="rounded border border-dashed p-6 text-center text-gray-600">Nenhuma solicitação aprovada vinculada a esta rubrica.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-[1200px] w-full text-left text-xs">
-              <thead className="bg-gray-50"><tr>{['ID / número', 'Descrição', 'Fornecedor', 'Solicitante', 'Data', 'Centro de custo', 'Grupo / meta', 'Rubrica', 'Natureza', 'Item', 'Valor', 'Status', 'Documento', 'Ações'].map(label => <th key={label} className="p-2">{label}</th>)}</tr></thead>
+              <thead className="bg-gray-50"><tr>{canEdit && <th className="p-2">Selecionar</th>}{['ID / número', 'Descrição', 'Fornecedor', 'Solicitante', 'Data', 'Centro de custo', 'Grupo / meta', 'Rubrica', 'Natureza', 'Item', 'Valor', 'Status', 'Documento', 'Ações'].map(label => <th key={label} className="p-2">{label}</th>)}</tr></thead>
               <tbody>{solicitacoes.map(item => {
                 const id = String(item.id || item.base44_id || '');
                 const documentUrl = item.nf_pdf_url || item.nota_fiscal_pdf_url || item.nota_fiscal_url || item.arquivo_url;
                 const driveUrl = item.drive_backup_nf_pdf_link || item.drive_file_url || (item.drive_file_id ? `https://drive.google.com/file/d/${encodeURIComponent(item.drive_file_id)}/view` : '');
                 return <tr key={id} className="border-t align-top">
+                  {canEdit && <td className="p-2"><input type="checkbox" aria-label={`Selecionar solicitação ${first(item.nf_numero, id)}`}
+                    checked={selectedActiveIds.includes(id)} onChange={event => setSelectedIds(previous => event.target.checked ? [...new Set([...previous,id])] : previous.filter(value => value !== id))} /></td>}
                   <td className="p-2">{first(item.numero_solicitacao, item.nf_numero, id)}</td>
                   <td className="p-2">{first(item.descricao_item, item.descricao, item.descricao_servico, item.objeto)}</td>
                   <td className="p-2">{first(item.fornecedor_nome, item.nf_emitente_nome, item.fornecedor)}</td>

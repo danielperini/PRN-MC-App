@@ -927,6 +927,45 @@ app.post('/api/finance/rubrica-composition/correct', requireSession, async (req,
   } finally { client.release(); }
 });
 
+// Reversal of several selected entries is one auditable transaction. It never
+// deletes a paid request, its fiscal documents, or the payment history.
+app.post('/api/finance/rubrica-composition/batch-exclude', requireSession, async (req, res) => {
+  const actor = await canCorrectRubricaComposition(req.userId);
+  if (!actor) return res.status(403).json({ error:'financial_editor_required' });
+  const rubricaId = String(req.body?.rubricaId || '').trim();
+  const purchaseIds = Array.isArray(req.body?.purchaseIds) ? [...new Set(req.body.purchaseIds.map(value => String(value || '').trim()))] : [];
+  const reason = String(req.body?.reason || '').trim();
+  if (!rubricaId || purchaseIds.length < 1 || purchaseIds.length > 100 || purchaseIds.some(id => !id)
+    || reason.length < 8 || reason.length > 500) return res.status(400).json({ error:'invalid_batch_correction' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const target = (await client.query('SELECT id FROM rubricas WHERE id::text=$1 FOR UPDATE',[rubricaId])).rows[0];
+    if (!target) { await client.query('ROLLBACK'); return res.status(404).json({ error:'rubrica_not_found' }); }
+    const rows = (await client.query('SELECT * FROM purchase_requests WHERE id=ANY($1::text[]) ORDER BY id FOR UPDATE',[purchaseIds])).rows;
+    if (rows.length !== purchaseIds.length || rows.some(p => String(p.rubrica_id || '') !== rubricaId
+      || !['APROVADO','APROVADO_COORD','APROVADO_ADMIN','PAGO'].includes(String(p.status || '').toUpperCase())
+      || p.duplicada_financeira === true || p.incluir_no_somatorio === false)) {
+      await client.query('ROLLBACK'); return res.status(409).json({ error:'composition_changed_refresh_required' });
+    }
+    for (const purchase of rows) {
+      const audit = { action:'exclude', reason, actor:actor.email, at:new Date().toISOString(),
+        old_rubrica_id:rubricaId, new_rubrica_id:rubricaId, old_included:true, new_included:false };
+      await client.query(`UPDATE purchase_requests SET incluir_no_somatorio=FALSE,
+        raw_data=jsonb_set(COALESCE(raw_data,'{}'::jsonb),'{composition_history}',
+          COALESCE(CASE WHEN jsonb_typeof(raw_data->'composition_history')='array' THEN raw_data->'composition_history' ELSE '[]'::jsonb END,'[]'::jsonb)||$2::jsonb),
+        updated_at=NOW(),updated_date=NOW() WHERE id=$1`,[purchase.id,JSON.stringify([audit])]);
+    }
+    await syncRubricaBalances(client);
+    await client.query('COMMIT');
+    return res.json({ success:true, excluded:rows.length, purchaseIds });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(()=>{});
+    console.error('RUBRICA_COMPOSITION_BATCH_EXCLUDE_ERROR',error);
+    return res.status(500).json({ error:'batch_composition_correction_failed' });
+  } finally { client.release(); }
+});
+
 // Public dashboard copy is drawn only from approved reports. Return a slim,
 // immutable source projection rather than exposing the full report or photos
 // to professionals who do not own that report.
