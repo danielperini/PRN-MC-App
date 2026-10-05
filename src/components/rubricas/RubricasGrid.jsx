@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -105,6 +105,7 @@ export default function RubricasGrid({
   const [recalculando, setRecalculando] = useState(false);
   const [conciliandoItens, setConciliandoItens] = useState(false);
   const [compositionRubrica, setCompositionRubrica] = useState(null);
+  const queryClient = useQueryClient();
   const { data: composition, isLoading: compositionLoading, isError: compositionError } = useQuery({
     queryKey: ['rubrica-composition'],
     queryFn: async () => {
@@ -624,6 +625,10 @@ export default function RubricasGrid({
           composition={composition?.rubricas?.[String(compositionRubrica.id)]}
           canEdit={isCoordenador}
           onEditPurchase={(purchase) => { setCompositionRubrica(null); onEditPurchase?.(purchase); }}
+          onCompositionChanged={async () => {
+            await queryClient.invalidateQueries({ queryKey:['rubrica-composition'] });
+            await onRefresh?.();
+          }}
           onClose={() => setCompositionRubrica(null)} />
       )}
     </div>

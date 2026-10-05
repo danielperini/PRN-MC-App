@@ -483,8 +483,8 @@ const PURCHASE_UTILIZED_WHERE_SQL = `p.rubrica_id IS NOT NULL
 
 // Recompute from fiscal data after every state-changing purchase action. Drafts
 // never consume the budget and the invoice amount wins over UI display fields.
-async function syncRubricaBalances() {
-  const r = await pool.query(`
+async function syncRubricaBalances(db = pool) {
+  const r = await db.query(`
     WITH used AS (
       SELECT p.rubrica_id, ROUND(SUM(${PURCHASE_UTILIZED_AMOUNT_SQL})::numeric, 2) AS amount
       FROM purchase_requests p
@@ -825,6 +825,86 @@ app.get('/api/apps/:appId/entities/User/me', requireSession, async (req,res) => 
     console.error('CURRENT_USER_ERROR:', error);
     return res.status(500).json({ error:'current_user_failed', message:error.message });
   }
+});
+
+async function canCorrectRubricaComposition(userId) {
+  const user = (await pool.query('SELECT email,role FROM users WHERE id=$1 LIMIT 1', [userId])).rows[0];
+  if (!user) return null;
+  const role = String(user.role || '').toUpperCase();
+  if (['ADMIN','COORDENADOR','COORDINATOR','COORD_COMUNICACAO','COORD_ADMINISTRATIVA','COORD_PRODUCAO'].includes(role)) return user;
+  if (['daniel@periniprojetos.com.br','danielperini.mc@viadutodasartes.org.br','josiane@periniprojetos.com.br'].includes(String(user.email || '').toLowerCase())) return user;
+  return null;
+}
+
+app.get('/api/finance/rubrica-composition/candidates', requireSession, async (req, res) => {
+  try {
+    if (!(await canCorrectRubricaComposition(req.userId))) return res.status(403).json({ error:'financial_editor_required' });
+    const search = String(req.query.q || '').trim();
+    const rubricaId = String(req.query.rubricaId || '').trim();
+    if (search.length < 2 || search.length > 120 || !rubricaId) return res.status(400).json({ error:'invalid_search' });
+    const rows = (await pool.query(`
+      SELECT p.id,p.nf_numero,p.descricao_item,p.fornecedor_nome,p.nf_emitente_nome,
+        p.nf_data_emissao,p.centro_custo,p.meta_id,p.rubrica_id,p.status,p.incluir_no_somatorio,
+        ROUND((${PURCHASE_UTILIZED_AMOUNT_SQL})::numeric,2) AS valor_composicao,
+        r.rubrica AS rubrica_atual
+      FROM purchase_requests p LEFT JOIN rubricas r ON r.id::text=p.rubrica_id::text
+      WHERE UPPER(COALESCE(p.status,'')) IN ('APROVADO','APROVADO_COORD','APROVADO_ADMIN','PAGO')
+        AND COALESCE(p.duplicada_financeira,FALSE)=FALSE
+        AND (p.rubrica_id IS DISTINCT FROM $1 OR p.incluir_no_somatorio IS FALSE)
+        AND (p.id ILIKE $2 OR COALESCE(p.nf_numero,'') ILIKE $2
+          OR COALESCE(p.descricao_item,'') ILIKE $2 OR COALESCE(p.fornecedor_nome,'') ILIKE $2)
+      ORDER BY p.nf_data_emissao DESC NULLS LAST,p.id LIMIT 30`,[rubricaId,`%${search.replace(/[\\%_]/g,'\\$&')}%`])).rows;
+    return res.json({ candidates:rows });
+  } catch (error) {
+    console.error('RUBRICA_COMPOSITION_CANDIDATES_ERROR',error);
+    return res.status(500).json({ error:'composition_candidates_failed' });
+  }
+});
+
+app.post('/api/finance/rubrica-composition/correct', requireSession, async (req, res) => {
+  const actor = await canCorrectRubricaComposition(req.userId);
+  if (!actor) return res.status(403).json({ error:'financial_editor_required' });
+  const purchaseId = String(req.body?.purchaseId || '').trim();
+  const rubricaId = String(req.body?.rubricaId || '').trim();
+  const action = String(req.body?.action || '').trim();
+  const reason = String(req.body?.reason || '').trim();
+  if (!purchaseId || !rubricaId || !['include','exclude'].includes(action) || reason.length < 8 || reason.length > 500)
+    return res.status(400).json({ error:'invalid_composition_correction' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const purchase = (await client.query('SELECT * FROM purchase_requests WHERE id=$1 FOR UPDATE',[purchaseId])).rows[0];
+    if (!purchase) { await client.query('ROLLBACK'); return res.status(404).json({ error:'purchase_not_found' }); }
+    if (!['APROVADO','APROVADO_COORD','APROVADO_ADMIN','PAGO'].includes(String(purchase.status || '').toUpperCase())) {
+      await client.query('ROLLBACK'); return res.status(409).json({ error:'purchase_not_approved' });
+    }
+    if (purchase.duplicada_financeira) { await client.query('ROLLBACK'); return res.status(409).json({ error:'duplicate_purchase_blocked' }); }
+    const target = (await client.query('SELECT id FROM rubricas WHERE id::text=$1',[rubricaId])).rows[0];
+    if (!target) { await client.query('ROLLBACK'); return res.status(404).json({ error:'rubrica_not_found' }); }
+    if (action === 'exclude' && String(purchase.rubrica_id || '') !== rubricaId) {
+      await client.query('ROLLBACK'); return res.status(409).json({ error:'purchase_rubrica_changed' });
+    }
+    const oldRubricaId = purchase.rubrica_id || null;
+    const oldIncluded = purchase.incluir_no_somatorio !== false;
+    const newRubricaId = action === 'include' ? rubricaId : oldRubricaId;
+    const newIncluded = action === 'include';
+    if (String(oldRubricaId || '') === String(newRubricaId || '') && oldIncluded === newIncluded) {
+      await client.query('ROLLBACK'); return res.json({ success:true, unchanged:true });
+    }
+    const audit = { action, reason, actor:actor.email, at:new Date().toISOString(), old_rubrica_id:oldRubricaId,
+      new_rubrica_id:newRubricaId, old_included:oldIncluded, new_included:newIncluded };
+    await client.query(`UPDATE purchase_requests SET rubrica_id=$2,budgetline_id=$2,incluir_no_somatorio=$3,
+      raw_data=jsonb_set(COALESCE(raw_data,'{}'::jsonb),'{composition_history}',
+        COALESCE(CASE WHEN jsonb_typeof(raw_data->'composition_history')='array' THEN raw_data->'composition_history' ELSE '[]'::jsonb END,'[]'::jsonb)||$4::jsonb),
+      updated_at=NOW() WHERE id=$1`,[purchaseId,newRubricaId,newIncluded,JSON.stringify([audit])]);
+    await syncRubricaBalances(client);
+    await client.query('COMMIT');
+    return res.json({ success:true, action, purchaseId, rubricaId:newRubricaId, included:newIncluded });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(()=>{});
+    console.error('RUBRICA_COMPOSITION_CORRECTION_ERROR',error);
+    return res.status(500).json({ error:'composition_correction_failed', message:error.message });
+  } finally { client.release(); }
 });
 
 // Public dashboard copy is drawn only from approved reports. Return a slim,
