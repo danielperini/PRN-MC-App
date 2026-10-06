@@ -317,7 +317,7 @@ async function main() {
         await snapshot(db,runId,'report_photos',duplicateId);
         const result = await db.query(`UPDATE report_photos SET galeria_oculta=TRUE,duplicada_de=$2,
           raw_data=jsonb_set(COALESCE(raw_data,'{}'::jsonb),'{evidence_dedupe}',
-            jsonb_build_object('at',NOW(),'canonical_id',$2,'method','same_drive_report_activity')),
+            jsonb_build_object('at',NOW(),'canonical_id',$2::text,'method','same_drive_report_activity')),
           updated_date=NOW() WHERE id=$1 AND report_id=$3 AND drive_file_id=$4
             AND COALESCE(galeria_oculta,FALSE)=FALSE`,[
           duplicateId,canonicalId,group.report_id,group.drive_file_id,
