@@ -115,14 +115,29 @@ async function missingAttachmentPhotos(db) {
     const list = byAttachment.get(String(row.attachment_id)) || [];
     list.push(row); byAttachment.set(String(row.attachment_id),list);
   }
-  const ready = [], review = [];
+  const ready = [], review = [], selectedIdentity = new Set();
   for (const [attachmentId,list] of byAttachment) {
     if (new Set(list.map(row => row.report_id)).size !== 1) {
       review.push({attachment_id:attachmentId,reason:'multiple_report_matches'}); continue;
     }
-    ready.push(list[0]);
+    const row = list[0];
+    const identity = `${row.report_id}|${row.valid_activity_id || ''}|${row.drive_file_id || row.file_url}`;
+    if (selectedIdentity.has(identity)) {
+      review.push({attachment_id:attachmentId,reason:'same_photo_already_selected_for_report'}); continue;
+    }
+    selectedIdentity.add(identity);
+    ready.push(row);
   }
   return {ready,review};
+}
+
+async function visibleDuplicateGroups(db) {
+  return (await db.query(`SELECT report_id,drive_file_id,activity_id,
+      array_agg(id ORDER BY id) AS ids,array_agg(base44_id ORDER BY id) AS public_ids
+    FROM report_photos WHERE report_id IS NOT NULL AND report_id<>''
+      AND drive_file_id IS NOT NULL AND drive_file_id<>''
+      AND COALESCE(galeria_oculta,FALSE)=FALSE
+    GROUP BY report_id,drive_file_id,activity_id HAVING COUNT(*)>1`)).rows;
 }
 
 async function hashCandidates(db) {
@@ -183,6 +198,7 @@ async function main() {
     const plan = await candidates(db);
     const hashPlan = await hashCandidates(db);
     const attachmentPlan = await missingAttachmentPhotos(db);
+    const duplicateGroups = await visibleDuplicateGroups(db);
     const matchedAttachmentIds = new Set([
       ...hashPlan.ready.map(row => String(row.attachment_id)),
       ...hashPlan.review.flatMap(row => row.attachment_ids || []),
@@ -197,9 +213,11 @@ async function main() {
       attachment_activities_unresolved:attachmentPlan.ready.filter(row => row.source_activity_id && !row.valid_activity_id).length,
       attachment_review:attachmentPlan.review,hash_links_to_restore:hashPlan.ready.length,
       hash_review:hashPlan.review,linked:0,linked_by_hash:0,imported:0,
+      visible_duplicate_groups:duplicateGroups.length,duplicate_rows_to_hide:duplicateGroups.reduce((sum,row) => sum+row.ids.length-1,0),
+      duplicate_rows_hidden:0,
       report_projection_added:0,activity_projection_added:0,
       normalized_activity_projection_added:0};
-    if (!apply || (!plan.ready.length && !hashPlan.ready.length && !attachmentPlan.ready.length)) {
+    if (!apply || (!plan.ready.length && !hashPlan.ready.length && !attachmentPlan.ready.length && !duplicateGroups.length)) {
       console.log('RESTORE_GALLERY_EVIDENCE_LINKS',JSON.stringify(summary)); return;
     }
     await db.query('BEGIN');
@@ -222,6 +240,9 @@ async function main() {
     const attachmentSignature = rows => rows.map(row => `${row.attachment_id}|${row.report_id}|${row.valid_activity_id || ''}`).sort().join(';');
     if (attachmentSignature(freshAttachments.ready) !== attachmentSignature(attachmentPlan.ready))
       throw new Error('attachment_plan_changed_retry');
+    const duplicateSignature = rows => rows.map(row => `${row.report_id}|${row.drive_file_id}|${row.ids.join(',')}`).sort().join(';');
+    if (duplicateSignature(await visibleDuplicateGroups(db)) !== duplicateSignature(duplicateGroups))
+      throw new Error('gallery_duplicate_plan_changed_retry');
 
     for (const row of plan.ready) {
       await snapshot(db,runId,'report_photos',row.photo_id);
@@ -288,6 +309,22 @@ async function main() {
       ]);
       if (inserted.rowCount !== 1) throw new Error(`attachment_photo_changed_retry:${row.attachment_id}`);
       summary.imported++;
+    }
+
+    for (const group of duplicateGroups) {
+      const canonicalId = String(group.public_ids[0]);
+      for (const duplicateId of group.ids.slice(1)) {
+        await snapshot(db,runId,'report_photos',duplicateId);
+        const result = await db.query(`UPDATE report_photos SET galeria_oculta=TRUE,duplicada_de=$2,
+          raw_data=jsonb_set(COALESCE(raw_data,'{}'::jsonb),'{evidence_dedupe}',
+            jsonb_build_object('at',NOW(),'canonical_id',$2,'method','same_drive_report_activity')),
+          updated_date=NOW() WHERE id=$1 AND report_id=$3 AND drive_file_id=$4
+            AND COALESCE(galeria_oculta,FALSE)=FALSE`,[
+          duplicateId,canonicalId,group.report_id,group.drive_file_id,
+        ]);
+        if (result.rowCount !== 1) throw new Error(`gallery_duplicate_changed_retry:${duplicateId}`);
+        summary.duplicate_rows_hidden++;
+      }
     }
 
     // Append-only synchronization: existing report narratives, activities and
