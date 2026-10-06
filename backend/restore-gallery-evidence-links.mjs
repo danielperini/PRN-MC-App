@@ -205,7 +205,7 @@ async function main() {
     await db.query('SELECT id FROM report_photos WHERE id::text=ANY($1::text[]) ORDER BY id FOR UPDATE',
       [[...plan.ready,...hashPlan.ready].map(row => String(row.photo_id))]);
     await db.query('SELECT id FROM attachments WHERE id::text=ANY($1::text[]) ORDER BY id FOR UPDATE',
-      [...attachmentPlan.ready,...hashPlan.ready].map(row => String(row.attachment_id))]);
+      [[...attachmentPlan.ready,...hashPlan.ready].map(row => String(row.attachment_id))]);
     const fresh = await candidates(db);
     const freshHashes = await hashCandidates(db);
     const freshAttachments = await missingAttachmentPhotos(db);
