@@ -483,7 +483,7 @@ export default function ReportEditor() {
     const legacy = asObject(r.raw_data);
     setAtividades(normalizeAtividades(Array.isArray(r.atividades) ? r.atividades : legacy.atividades));
     setFotos(Array.isArray(r.fotos) ? r.fotos : asArray(legacy.fotos));
-    setAttachments(Array.isArray(r.attachments) ? r.attachments : []);
+    setAttachments(Array.isArray(r.attachments) ? r.attachments : asArray(legacy.attachments));
     setDepoimentos(Array.isArray(r.depoimentos) ? r.depoimentos : []);
   }
 

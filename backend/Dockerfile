@@ -37,6 +37,7 @@ COPY reconcile-exact-financial-duplicates.mjs ./
 COPY reconcile-drive-purchase-duplicates.mjs ./
 COPY audit-ambiguous-invoice-hashes.mjs ./
 COPY restore-gallery-evidence-links.mjs ./
+COPY restore-report-document-evidence.mjs ./
 
 EXPOSE 3000
 

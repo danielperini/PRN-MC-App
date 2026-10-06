@@ -133,6 +133,8 @@ export default function AttachmentsSection({
                   <p className="text-gray-400 italic">Sem legenda</p>
                 )}
                 <div className="flex gap-1 pt-1">
+                  {(file.url?.startsWith('/api/files/') || /^https?:\/\//i.test(file.url || '')) &&
+                    <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">Abrir</a>}
                   <button onClick={() => handleEditClick(idx)} className="flex items-center gap-1 text-blue-600 hover:text-blue-800">
                     <Edit2 className="w-3 h-3" /> Editar legenda
                   </button>
