@@ -366,10 +366,12 @@ function ComprasInner() {
       return carregarSolicitacoes({ isCoordenador, currentUser, userMuseu });
     },
     enabled: !!currentUser && (isCoordenador || userTeamMember !== undefined),
-    staleTime: 1000 * 60 * 5,
+    staleTime: 1000 * 30,
     gcTime: 1000 * 60 * 10,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
+    // Correções financeiras feitas no servidor não podem ficar presas no cache
+    // quando alguém volta à página ou à aba de Compras.
+    refetchOnWindowFocus: true,
+    refetchOnMount: 'always',
   });
 
   // Aplica locks de centro_custo a cada atualização vinda do servidor ou quando um lock é ativado
