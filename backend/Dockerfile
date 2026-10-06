@@ -36,6 +36,7 @@ COPY restore-isabella-nf5-somatorio.mjs ./
 COPY reconcile-exact-financial-duplicates.mjs ./
 COPY reconcile-drive-purchase-duplicates.mjs ./
 COPY audit-ambiguous-invoice-hashes.mjs ./
+COPY restore-gallery-evidence-links.mjs ./
 
 EXPOSE 3000
 
