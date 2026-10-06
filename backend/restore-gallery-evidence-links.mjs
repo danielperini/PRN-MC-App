@@ -152,7 +152,8 @@ async function hashCandidates(db) {
   const ready = [], review = [];
   for (const [photoId,list] of byPhoto) {
     if (list.length !== 1 || byAttachment.get(String(list[0].attachment_id)).length !== 1) {
-      review.push({photo_id:photoId,reason:'nonunique_hash_match'}); continue;
+      review.push({photo_id:photoId,attachment_ids:[...new Set(list.map(row => String(row.attachment_id)))],
+        reason:'nonunique_hash_match'}); continue;
     }
     const row = list[0];
     const raw = object(row.photo_raw);
@@ -161,7 +162,8 @@ async function hashCandidates(db) {
     if ((priorReport && priorReport !== id(row.report_id))
       || (priorActivity && priorActivity !== id(row.activity_id))
       || (id(row.old_author) && norm(row.old_author) !== norm(row.author_name))) {
-      review.push({photo_id:photoId,reason:'conflicting_original_reference'}); continue;
+      review.push({photo_id:photoId,attachment_ids:[String(row.attachment_id)],
+        reason:'conflicting_original_reference'}); continue;
     }
     ready.push(row);
   }
@@ -181,7 +183,10 @@ async function main() {
     const plan = await candidates(db);
     const hashPlan = await hashCandidates(db);
     const attachmentPlan = await missingAttachmentPhotos(db);
-    const matchedAttachmentIds = new Set(hashPlan.ready.map(row => String(row.attachment_id)));
+    const matchedAttachmentIds = new Set([
+      ...hashPlan.ready.map(row => String(row.attachment_id)),
+      ...hashPlan.review.flatMap(row => row.attachment_ids || []),
+    ]);
     attachmentPlan.ready = attachmentPlan.ready.filter(row => !matchedAttachmentIds.has(String(row.attachment_id)));
     const summary = {run_id:runId,mode:apply?'apply':'dry_run',candidates:plan.ready.length,
       reports:new Set(plan.ready.map(row => row.report_id)).size,
