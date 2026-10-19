@@ -1752,7 +1752,7 @@ function ComprasInner() {
             <div className="border-t pt-4">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-900">Gerenciar Lotes de Notificações</h3>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap justify-end gap-2">
                   <ResendNotificationBatch batchSlot="manha" onSuccess={refreshFinanceiroCompleto} />
                   <ResendNotificationBatch batchSlot="tarde" onSuccess={refreshFinanceiroCompleto} />
                   <ResendNotificationBatch batchSlot="agora" onSuccess={refreshFinanceiroCompleto} />

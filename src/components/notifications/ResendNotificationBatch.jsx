@@ -56,7 +56,7 @@ export default function ResendNotificationBatch({ batchSlot = 'manha', onSuccess
       className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50"
     >
       <RotateCw className={`h-4 w-4 ${reenviando ? 'animate-spin' : ''}`} />
-      {reenviando ? 'Reenviando...' : `Reenviar Lote ${batchSlot === 'agora' ? 'Agora' : (batchSlot === 'manha' ? 'Manhã' : 'Tarde')}`}
+      {reenviando ? 'Reenviando...' : `Reenviar Lote ${batchSlot === 'agora' ? 'Imediatamente' : (batchSlot === 'manha' ? 'Manhã' : 'Tarde')}`}
     </Button>
   );
 }
