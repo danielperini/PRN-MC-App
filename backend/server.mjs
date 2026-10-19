@@ -4,6 +4,8 @@ import multer from 'multer';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { createServer } from 'node:http';
 import { Readable } from 'node:stream';
 import { Server as SocketIOServer } from 'socket.io';
@@ -14,6 +16,7 @@ import nodemailer from 'nodemailer';
 import { brandedEmailHtml, brandedEmailText, paymentNotificationSteps, purchaseSubmissionSteps, reportSubmissionSteps } from './email-layout.mjs';
 
 const { Pool } = pg;
+const execFileAsync = promisify(execFile);
 const app = express();
 const httpServer = createServer(app);
 const io = new SocketIOServer(httpServer, {
@@ -1761,6 +1764,35 @@ app.get('/api/drive-files/:fileId', requireSession, async (req, res) => {
 app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,res) => {
   const name=String(req.params.functionName||'');
   try {
+    if (name === 'reenviarLoteNotificacoes') {
+      const actor=(await pool.query('SELECT id,role FROM users WHERE id=$1 LIMIT 1',[req.userId])).rows[0];
+      if (!isReportCoordinator(actor)) return res.status(403).json({success:false,error:'notification_batch_forbidden'});
+      if (req.body?.batchSlot !== 'agora') return res.status(422).json({success:false,error:'Reenvio de lotes antigos indisponível nesta instalação.'});
+      const requestId=String(req.body?.requestId || '').trim();
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId))
+        return res.status(400).json({success:false,error:'Identificador de envio inválido.'});
+      try {
+        const {stdout}=await execFileAsync(process.execPath,
+          ['/app/send-pending-payment-digest.mjs',`--manual-request-id=${requestId}`],
+          {cwd:'/app',env:process.env,timeout:180000,maxBuffer:1024*1024});
+        const resultLine=stdout.split(/\r?\n/).find((line)=>line.startsWith('PENDING_PAYMENT_DIGEST_RESULT '));
+        const skippedLine=stdout.split(/\r?\n/).find((line)=>line.startsWith('PENDING_PAYMENT_DIGEST_SKIPPED '));
+        if (resultLine) {
+          const result=JSON.parse(resultLine.slice('PENDING_PAYMENT_DIGEST_RESULT '.length));
+          return res.json({success:result.status==='SENT',...result,
+            message:result.status==='SENT' ? `Compilado enviado agora: ${result.pending} solicitações.` : 'Envio parcial; confira o registro de notificações.'});
+        }
+        if (skippedLine) {
+          const result=JSON.parse(skippedLine.slice('PENDING_PAYMENT_DIGEST_SKIPPED '.length));
+          return res.json({success:false,...result,error:result.reason==='no_pending_purchases'
+            ? 'Não há solicitações aprovadas aguardando pagamento.' : 'Este envio já foi processado. Confira o histórico antes de reenviar.'});
+        }
+        throw new Error('manual_digest_no_result');
+      } catch (error) {
+        console.error('MANUAL_PAYMENT_DIGEST_FAILED', {actorId:req.userId,requestId,error:error.message,stderr:error.stderr?.slice(-500)});
+        return res.status(502).json({success:false,error:'Não foi possível enviar o compilado. Confira o histórico antes de tentar novamente.'});
+      }
+    }
     if (name === 'updateGalleryPhotoMetadata') {
       const photoId=String(req.body?.photoId || '').trim();
       if (!/^\d+$/.test(photoId)) return res.status(400).json({success:false,error:'invalid_photo_id'});

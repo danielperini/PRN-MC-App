@@ -1755,6 +1755,7 @@ function ComprasInner() {
                 <div className="flex gap-2">
                   <ResendNotificationBatch batchSlot="manha" onSuccess={refreshFinanceiroCompleto} />
                   <ResendNotificationBatch batchSlot="tarde" onSuccess={refreshFinanceiroCompleto} />
+                  <ResendNotificationBatch batchSlot="agora" onSuccess={refreshFinanceiroCompleto} />
                 </div>
               </div>
               <NotificationHistoryPanel />

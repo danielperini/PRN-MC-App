@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
@@ -12,23 +12,30 @@ import { RotateCw } from 'lucide-react';
  */
 export default function ResendNotificationBatch({ batchSlot = 'manha', onSuccess }) {
   const [reenviando, setReenviando] = useState(false);
+  const requestId = useRef(null);
 
   async function handleReenviar() {
-    if (!window.confirm(`Reenviar o último lote de ${batchSlot === 'agora' ? 'agora' : (batchSlot === 'manha' ? 'manhã' : 'tarde')}? Isso criará novos registros na fila para o próximo horário disponível.`)) {
+    const confirmation = batchSlot === 'agora'
+      ? 'Enviar agora um único compilado por e-mail com todas as solicitações aprovadas ainda não pagas? Os destinatários são notasfiscais, Daniel Perini e administração.'
+      : `Reenviar o último lote de ${batchSlot === 'manha' ? 'manhã' : 'tarde'}?`;
+    if (!window.confirm(confirmation)) {
       return;
     }
 
     setReenviando(true);
 
     try {
+      if (batchSlot === 'agora' && !requestId.current) requestId.current = crypto.randomUUID();
       const res = await base44.functions.invoke('reenviarLoteNotificacoes', {
         batchSlot,
+        ...(batchSlot === 'agora' ? { requestId: requestId.current } : {}),
       });
 
       const result = res?.data || res;
 
       if (result?.success) {
         toast.success(result.message || 'Lote reenviado com sucesso!');
+        requestId.current = null;
         onSuccess?.(result);
       } else {
         toast.error(result?.error || 'Erro ao reenviar lote.');

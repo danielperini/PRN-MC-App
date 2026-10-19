@@ -12,6 +12,10 @@ const RECIPIENTS = Object.freeze([
 const appUrl = publicAppUrl(process.env.PUBLIC_APP_URL || process.env.APP_URL);
 const dryRun = process.argv.includes('--dry-run');
 const sendToday = process.argv.includes('--send-today');
+const manualRequestId = process.argv.find((arg) => arg.startsWith('--manual-request-id='))?.split('=')[1] || '';
+if (manualRequestId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(manualRequestId)) {
+  throw new Error('invalid_manual_request_id');
+}
 const zone = 'America/Sao_Paulo';
 const money = (value) => Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -93,7 +97,9 @@ function itemText(rows) {
 
 async function main() {
   const clock = brasilClock();
-  if (!dryRun && !sendToday && (['Sat','Sun'].includes(clock.weekday) || clock.hour !== 6)) {
+  const notificationType = manualRequestId ? 'purchase.pending_digest.manual' : 'purchase.pending_digest';
+  const logSlot = manualRequestId ? `${clock.slot}:manual:${manualRequestId}` : clock.slot;
+  if (!dryRun && !sendToday && !manualRequestId && (['Sat','Sun'].includes(clock.weekday) || clock.hour !== 6)) {
     console.log('PENDING_PAYMENT_DIGEST_SKIPPED', JSON.stringify({ reason:'outside_weekday_06h', slot:clock.slot }));
     return;
   }
@@ -110,11 +116,11 @@ async function main() {
       if (!lock.locked) throw new Error('pending_digest_already_running');
       locked = true;
       const { rows:[previous] } = await client.query(
-        `SELECT id,status FROM notification_logs WHERE notification_type='purchase.pending_digest' AND batch_slot=$1 LIMIT 1`,
-        [clock.slot],
+        `SELECT id,status FROM notification_logs WHERE notification_type=$1 AND batch_slot=$2 LIMIT 1`,
+        [notificationType, logSlot],
       );
       if (previous) {
-        console.log('PENDING_PAYMENT_DIGEST_SKIPPED', JSON.stringify({ reason:'already_attempted_today', slot:clock.slot, status:previous.status }));
+        console.log('PENDING_PAYMENT_DIGEST_SKIPPED', JSON.stringify({ reason:'already_attempted', slot:logSlot, status:previous.status }));
         return;
       }
     }
@@ -153,8 +159,8 @@ async function main() {
     const logId = crypto.randomUUID();
     await client.query(`INSERT INTO notification_logs
       (id,status,notification_type,recipients,sent_at,provider,error_message,batch_slot,item_count)
-      VALUES ($1,'PROCESSING','purchase.pending_digest',$2,NOW(),'smtp',NULL,$3,$4)`,
-      [logId, JSON.stringify(RECIPIENTS), clock.slot, rows.length]);
+      VALUES ($1,'PROCESSING',$2,$3,NOW(),'smtp',NULL,$4,$5)`,
+      [logId, notificationType, JSON.stringify(RECIPIENTS), logSlot, rows.length]);
     try {
       const transport = nodemailer.createTransport({
         host:process.env.SMTP_HOST, port:Number(process.env.SMTP_PORT || 465),
@@ -170,7 +176,7 @@ async function main() {
       const status = rejected.length ? 'PARTIAL' : 'SENT';
       await client.query('UPDATE notification_logs SET status=$1,error_message=$2 WHERE id=$3',
         [status, rejected.length ? `Destinatários recusados: ${rejected.join(', ')}` : missingDrive.length ? `Notas sem link no Drive: ${missingDrive.join(', ')}` : null, logId]);
-      console.log('PENDING_PAYMENT_DIGEST_RESULT', JSON.stringify({ status, slot:clock.slot, pending:rows.length,
+      console.log('PENDING_PAYMENT_DIGEST_RESULT', JSON.stringify({ status, slot:logSlot, pending:rows.length,
         recipients:RECIPIENTS, accepted:[...accepted], rejected, missingDrive, messageId:result.messageId }));
       if (rejected.length) process.exitCode = 1;
     } catch (error) {
