@@ -1101,8 +1101,9 @@ async function normalizeReportRelationPayload(req, entityName, body = {}) {
   const { actor, ids } = await canonicalOwnedReportIds(req.userId);
   if (!actor) throw new Error('session_user_not_found');
   let canonicalId = relationId;
-  const report = (await pool.query('SELECT id,base44_id FROM reports WHERE id::text=$1 OR base44_id=$1 LIMIT 1', [relationId])).rows[0];
+  const report = (await pool.query('SELECT id,base44_id,raw_data FROM reports WHERE id::text=$1 OR base44_id=$1 LIMIT 1', [relationId])).rows[0];
   if (!report) throw new Error('report_relation_not_found');
+  if (report.raw_data?.historical_recovery) throw new Error('historical_report_read_only');
   canonicalId = String(report.id);
   if (ids !== null && !ids.includes(canonicalId)) throw new Error('report_relation_access_denied');
   if (entityName === 'ReportPhoto' && body.activity_id) {
@@ -1122,6 +1123,11 @@ async function assertReportRelationAccess(req, table, relationId) {
   if (!['report_activities','report_photos'].includes(table)) return { allowed:true, exists:true };
   const row = (await pool.query(`SELECT id,report_id FROM ${quoteIdentifier(table)} WHERE id=$1 LIMIT 1`, [relationId])).rows[0];
   if (!row) return { allowed:false, exists:false };
+  if (row.report_id) {
+    const historical = await pool.query(`SELECT 1 FROM reports WHERE id::text=$1
+      AND raw_data ? 'historical_recovery' LIMIT 1`, [String(row.report_id)]);
+    if (historical.rowCount) return { allowed:false, exists:true };
+  }
   const { actor, ids } = await canonicalOwnedReportIds(req.userId);
   if (!actor) return { allowed:false, exists:true };
   return { allowed:ids === null || ids.includes(String(row.report_id)), exists:true };
@@ -1647,6 +1653,9 @@ async function updateEntity(req,res) {
       const access = await assertReportUpdateAccess(req, req.params.id);
       if (!access.exists) return res.status(404).json({error:'entity_not_found'});
       if (!access.allowed) return res.status(403).json({error:'report_access_denied'});
+      if (access.report?.raw_data?.historical_recovery) {
+        return res.status(409).json({error:'historical_report_read_only'});
+      }
       reportAccess=access;
     }
     const relationAccess=await assertReportRelationAccess(req,table,req.params.id);
@@ -1708,6 +1717,7 @@ app.delete('/api/apps/:appId/entities/:entityName/:id',requireSession,async(req,
       const access=await assertReportUpdateAccess(req,req.params.id);
       if (!access.exists) return res.status(404).json({error:'entity_not_found'});
       if (!access.allowed) return res.status(403).json({error:'report_access_denied'});
+      if (access.report?.raw_data?.historical_recovery) return res.status(409).json({error:'historical_report_read_only'});
     }
     const relationAccess=await assertReportRelationAccess(req,table,req.params.id);
     if (!relationAccess.exists) return res.status(404).json({error:'entity_not_found'});
