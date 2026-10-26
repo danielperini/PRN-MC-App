@@ -111,7 +111,7 @@ export default function Relatorios() {
   const [deepSearchLoading, setDeepSearchLoading] = useState(false);
   const deepSearchTimeout = useRef(null);
 
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = String(user?.role || '').toUpperCase() === 'ADMIN';
 
   const returnReportMutation = useMutation({
     mutationFn: async ({ report, comment }) => {
@@ -252,8 +252,7 @@ export default function Relatorios() {
   }, [reports, isError, cachedReports]);
 
   const myReports = useMemo(() => {
-    if (isAdmin) return effectiveReports;
-    if (isCoordenador) return effectiveReports.filter((report) => report.status !== 'DRAFT');
+    if (isAdmin || isCoordenador) return effectiveReports;
     return effectiveReports.filter((report) => isReportOwner(report, user));
   }, [effectiveReports, user, isAdmin, isCoordenador]);
 
