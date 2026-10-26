@@ -38,7 +38,6 @@ COPY reconcile-drive-purchase-duplicates.mjs ./
 COPY audit-ambiguous-invoice-hashes.mjs ./
 COPY restore-gallery-evidence-links.mjs ./
 COPY restore-report-document-evidence.mjs ./
-COPY restore-historical-report-index-202603.mjs ./
 
 EXPOSE 3000
 

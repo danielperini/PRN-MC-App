@@ -614,11 +614,7 @@ export default function Relatorios() {
             {filtered.map((report) => {
               const config = STATUS_CONFIG[report.status] || STATUS_CONFIG.DRAFT;
               const Icon = config.icon;
-              const historical = report.raw_data?.historical_recovery;
-              const originalPdfUrl = historical?.original_pdf_id
-                ? report.drive_backup_relatorio_url
-                : null;
-              const canReturnToReview = isCoordenador && !historical && report.status !== 'RETURNED';
+              const canReturnToReview = isCoordenador && report.status !== 'RETURNED';
 
               return (
                 <Card
@@ -655,16 +651,6 @@ export default function Relatorios() {
                           </p>
                         )}
 
-                        {historical && (
-                          <div className="mt-2 text-xs text-amber-800">
-                            Arquivo histórico · estado original: {historical.original_status || 'não informado'}.
-                            {originalPdfUrl ? ' Dados e atividades preservados conforme o PDF original.' : ' Somente o índice antigo foi localizado; conteúdo e fotos não foram presumidos.'}
-                            {Array.isArray(report.raw_data?.atividades) && report.raw_data.atividades.length > 0 && (
-                              <p className="mt-1">Atividades do PDF: {report.raw_data.atividades.map((activity) => activity.nome).join(' · ')}</p>
-                            )}
-                          </div>
-                        )}
-
                         {report.return_comment && (
                           <div className="mt-2 rounded border border-red-200 bg-red-50 p-2 text-xs text-red-700">
                             Retorno: {report.return_comment}
@@ -673,19 +659,12 @@ export default function Relatorios() {
                       </div>
 
                       <div className="flex flex-wrap gap-2 justify-end">
-                        {historical ? originalPdfUrl ? (
-                          <a href={originalPdfUrl} target="_blank" rel="noopener noreferrer">
-                            <Button size="sm" variant="outline" className="gap-1 shrink-0">
-                              <FileText className="h-3.5 w-3.5" />
-                              Abrir PDF original
-                            </Button>
-                          </a>
-                        ) : null : <Link to={`/ReportEditor?id=${report.id}`}>
+                        <Link to={`/ReportEditor?id=${report.id}`}>
                           <Button size="sm" variant="outline" className="gap-1 shrink-0">
                             <Eye className="h-3.5 w-3.5" />
                             Abrir
                           </Button>
-                        </Link>}
+                        </Link>
 
                         {canReturnToReview && (
                           <Button
@@ -702,7 +681,7 @@ export default function Relatorios() {
                           </Button>
                         )}
 
-                        {isCoordenador && !historical && (
+                        {isCoordenador && (
                           <Button
                             size="sm"
                             variant="destructive"
