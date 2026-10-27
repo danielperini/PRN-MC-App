@@ -88,10 +88,24 @@ async function renderReport(drive, report, activities, photos) {
   const doc = new PDFDocument({ size: 'A4', margin: 48, compress: true, info: { Title: `Relatório Mensal Aprovado - ${report.author_name} - ${report.mes_referencia}/${report.ano}`, Author: 'Museus Centro' } });
   doc.on('data', chunk => chunks.push(chunk));
   const done = new Promise((resolve, reject) => { doc.on('end', resolve); doc.on('error', reject); });
-  doc.font('Helvetica-Bold').fontSize(19).fillColor('#142234').text('MUSEUS CENTRO');
-  doc.fontSize(15).text(`Relatório Mensal - ${clean(report.status)}`);
-  doc.moveDown(0.5).font('Helvetica').fontSize(9).fillColor('#666').text(`ID canônico: ${report.id}  |  Protocolo: ${clean(report.numero_protocolo) || '-'}  |  Gerado em: ${new Date().toISOString().slice(0,10)}`);
-  doc.moveDown(1);
+  const section = title => { if (doc.y > 735) doc.addPage(); doc.rect(48, doc.y, 499, 25).fill('#f1f1f1'); doc.rect(48, doc.y, 8, 25).fill('#1b1b1b'); doc.fillColor('#252525').font('Helvetica-Bold').fontSize(11).text(title, 64, doc.y + 7); doc.y += 36; };
+  doc.rect(0, 0, 595, 110).fill('#0b0b0b');
+  doc.fillColor('#fff').font('Helvetica-Bold').fontSize(21).text('MUSEUS CENTRO', 58, 30);
+  doc.fillColor('#aaa').font('Helvetica').fontSize(8).text('RELATÓRIO MENSAL INDIVIDUAL  ·  FUNDAÇÃO MUNICIPAL DE CULTURA / PBH', 58, 67);
+  doc.roundedRect(455, 28, 94, 30, 6).fill('#008b16'); doc.fillColor('#fff').font('Helvetica-Bold').fontSize(8).text('DOCUMENTO OFICIAL', 468, 40);
+  doc.y = 125; doc.fillColor('#777').font('Helvetica').fontSize(8).text(`Gerado em: ${new Date().toLocaleString('pt-BR')}  ·  Período: ${clean(report.mes_referencia)} / ${report.ano}`);
+  doc.y += 14;
+  const cells = [['PROFISSIONAL', report.author_name], ['FUNÇÃO', report.funcao || report.author_role], ['MUSEU', report.museu], ['PERÍODO DE REFERÊNCIA', `${report.mes_referencia} / ${report.ano}`], ['STATUS DO RELATÓRIO', report.status], ['EQUIPE', report.equipe]];
+  cells.forEach((cell, i) => { const x = 48 + (i % 3) * 166.3; const y = doc.y + Math.floor(i / 3) * 52; doc.rect(x, y, 166.3, 52).lineWidth(.4).stroke('#d0d0d0'); doc.fillColor('#777').font('Helvetica-Bold').fontSize(7).text(cell[0], x + 10, y + 10); doc.fillColor('#1d1d1d').font('Helvetica').fontSize(10).text(clean(cell[1]) || '-', x + 10, y + 29, { width: 146, ellipsis: true }); });
+  doc.y += 120;
+  doc.rect(48, doc.y, 499, 52).fill('#0b0b0b');
+  [['ATIVIDADES', activities.length], ['PÚBLICO TOTAL', report.publico_geral_declarado ?? '—'], ['METAS', Array.isArray(report.metas) ? report.metas.length : 0], ['FOTOS', photos.length]].forEach((s, i) => { const x = 48 + i * 124.75; if (i) doc.rect(x, doc.y + 9, 1, 34).fill('#444'); doc.fillColor('#fff').font('Helvetica-Bold').fontSize(18).text(String(s[1]), x + 50, doc.y + 10, { align: 'center', width: 60 }); doc.fillColor('#999').font('Helvetica').fontSize(7).text(s[0], x + 20, doc.y + 36, { align: 'center', width: 100 }); });
+  doc.y += 72;
+  section('ÍNDICE DE ATIVIDADES');
+  doc.fillColor('#444').font('Helvetica-Bold').fontSize(8).text('#', 54, doc.y); doc.text('Título', 72, doc.y); doc.text('Museu', 310, doc.y); doc.text('Classificação', 395, doc.y); doc.text('Público', 500, doc.y); doc.y += 20;
+  activities.forEach((item, i) => { if (doc.y > 735) doc.addPage(); doc.fillColor('#333').font('Helvetica').fontSize(8).text(String(i + 1), 54, doc.y); doc.text(clean(item.nome) || 'Atividade sem título', 72, doc.y, { width: 225 }); doc.text(clean(item.museu_lista) || '-', 310, doc.y, { width: 75 }); doc.text(clean(item.classificacao) || '-', 395, doc.y, { width: 90 }); doc.text(String(item.publico_estimado ?? '-'), 500, doc.y); doc.y += 16; });
+  section('RESUMO DO PERÍODO');
+  doc.fillColor('#222').font('Helvetica').fontSize(10).text(clean(report.resumo_periodo) || 'Sem resumo informado.', { lineGap: 4 });
   for (const [label, value] of [
     ['Profissional', report.author_name], ['E-mail do autor', report.author_email || report.created_by],
     ['Função', report.funcao || report.author_role], ['Equipe', report.equipe],
@@ -106,7 +120,7 @@ async function renderReport(drive, report, activities, photos) {
     ['Comentários gerais', report.comentarios_gerais],
     ['Comentários da coordenação', report.comentarios_coordenacao],
   ]) addLabeledText(doc, label, value);
-  doc.addPage().font('Helvetica-Bold').fontSize(16).fillColor('#142234').text(`Atividades (${activities.length})`);
+  doc.addPage().font('Helvetica-Bold').fontSize(16).fillColor('#142234').text(`Atividades detalhadas (${activities.length})`);
   doc.moveDown(0.5);
   for (const [index, item] of activities.entries()) {
     doc.font('Helvetica-Bold').fontSize(11).fillColor('#142234').text(`${index + 1}. ${clean(item.nome) || 'Atividade sem título'}`);
@@ -123,30 +137,29 @@ async function renderReport(drive, report, activities, photos) {
   doc.moveDown(0.5);
   let imagesEmbedded = 0;
   let imagesUnavailable = 0;
-  for (const [index, photo] of photos.entries()) {
-    const label = `${index + 1}. ${clean(photo.legenda || photo.caption || photo.file_name) || 'Foto sem legenda'}`;
-    if (doc.y > 520) doc.addPage();
-    doc.font('Helvetica-Bold').fontSize(10).fillColor('#142234').text(label);
-    const activity = activities.find(item => String(item.id) === String(photo.activity_id));
-    doc.font('Helvetica').fontSize(8).fillColor('#555').text(`Atividade: ${clean(activity?.nome) || clean(photo.activity_id) || 'não identificada'} | Museu: ${clean(photo.museu) || '-'} | Arquivo: ${clean(photo.file_name) || '-'}`);
-    const backupId = photo.raw_data?.monthly_backup_file_id || photo.drive_file_id;
-    if (backupId) doc.fontSize(8).fillColor('#255882').text(`Backup da foto: https://drive.google.com/file/d/${backupId}/view`);
-    try {
-      const bytes = await photoBytes(drive, photo);
-      const jpeg = bytes?.[0] === 0xff && bytes?.[1] === 0xd8;
-      const png = bytes?.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
-      if (!bytes || bytes.length > 15_000_000 || (!jpeg && !png)) throw new Error('imagem indisponível ou formato não compatível');
-      if (doc.y > 505) doc.addPage();
-      // PDFKit's `fit` preserves the original aspect ratio; the box only limits
-      // the maximum size so portrait and landscape photos are never stretched.
-      doc.image(bytes, 50, doc.y + 5, { fit: [495, 285], align: 'center', valign: 'center' });
-      doc.y += 295;
-      imagesEmbedded++;
-    } catch (error) {
-      doc.font('Helvetica-Oblique').fontSize(8).fillColor('#9a3412').text(`Imagem não incorporada: ${clean(error.message)}. Referência: ${clean(photo.file_url) || clean(photo.drive_file_id) || '-'}`);
-      imagesUnavailable++;
+  for (let index = 0; index < photos.length; index += 2) {
+    if (doc.y > 510) doc.addPage();
+    const rowY = doc.y;
+    for (let col = 0; col < 2; col++) {
+      const photo = photos[index + col]; if (!photo) continue;
+      const x = col === 0 ? 48 : 302;
+      const activity = activities.find(item => String(item.id) === String(photo.activity_id));
+      doc.rect(x, rowY, 245, 295).lineWidth(.6).stroke('#b8c7df');
+      doc.font('Helvetica-Bold').fontSize(8).fillColor('#142234').text(`Foto ${index + col + 1}`, x + 8, rowY + 10);
+      try {
+        const bytes = await photoBytes(drive, photo);
+        const jpeg = bytes?.[0] === 0xff && bytes?.[1] === 0xd8;
+        const png = bytes?.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
+        if (!bytes || bytes.length > 15_000_000 || (!jpeg && !png)) throw new Error('imagem indisponível ou formato não compatível');
+        // fit preserves the source aspect ratio inside the card.
+        doc.image(bytes, x + 8, rowY + 28, { fit: [229, 190], align: 'center', valign: 'center' });
+        imagesEmbedded++;
+      } catch (error) { doc.font('Helvetica-Oblique').fontSize(8).fillColor('#9a3412').text(`Imagem não incorporada: ${clean(error.message)}`, x + 8, rowY + 100, { width: 229 }); imagesUnavailable++; }
+      doc.font('Helvetica').fontSize(7).fillColor('#142234').text(clean(photo.legenda || photo.caption || photo.file_name) || 'Foto sem legenda', x + 8, rowY + 225, { width: 229 });
+      doc.fontSize(7).fillColor('#555').text(`${clean(activity?.nome) || 'Atividade não identificada'} — ${clean(photo.museu) || '-'}`, x + 8, rowY + 246, { width: 229 });
+      doc.font('Helvetica-Oblique').fontSize(7).fillColor('#777').text(`Foto: ${clean(report.author_name)}`, x + 8, rowY + 273, { width: 229 });
     }
-    doc.moveDown(0.5);
+    doc.y = rowY + 310;
   }
   doc.end();
   await done;
