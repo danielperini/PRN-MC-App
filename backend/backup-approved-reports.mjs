@@ -223,7 +223,12 @@ async function main() {
       folderCache.set(cacheKey, monthFolder);
       const folder = await ensureFolder(drive, monthFolder, `ID-${report.id}_${filePart(report.author_name)}_${filePart(report.museu)}`);
       const photoFolder = await ensureFolder(drive, folder, 'Fotos - atalhos para backup canonico');
-      const name = `Relatorio_Mensal_${filePart(report.status)}_${key}_${filePart(report.museu)}_${filePart(report.author_name)}_ID-${report.id}.pdf`;
+      // Nome canônico: número do relatório, usuário, cargo e mês/ano.
+      // O ID é o fallback estável quando o protocolo ainda não foi gerado.
+      const reportNumber = filePart(report.numero_protocolo || report.numero_relatorio || `ID-${report.id}`);
+      const author = filePart(report.author_name || report.author_email || 'SEM_USUARIO');
+      const role = filePart(report.funcao || report.author_role || 'SEM_CARGO');
+      const name = `${reportNumber}_${author}_${role}_${key}.pdf`;
       const listing = await listFolder(drive, folder);
       const activities = (await pool.query('SELECT * FROM report_activities WHERE report_id=$1 ORDER BY data_inicio NULLS LAST,id', [String(report.id)])).rows;
       const photos = (await pool.query('SELECT * FROM report_photos WHERE report_id=$1 AND duplicada_de IS NULL ORDER BY ordem NULLS LAST,created_date,id', [String(report.id)])).rows;
