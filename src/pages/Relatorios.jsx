@@ -230,6 +230,37 @@ export default function Relatorios() {
     },
   });
 
+  // Exportações são processadas em fila para evitar concorrência no conector do Drive.
+  const exportQueueRef = useRef([]);
+  const exportRunningRef = useRef(false);
+  const [exportingReportId, setExportingReportId] = useState(null);
+
+  const processExportQueue = async () => {
+    if (exportRunningRef.current) return;
+    exportRunningRef.current = true;
+    try {
+      while (exportQueueRef.current.length > 0) {
+        const report = exportQueueRef.current.shift();
+        setExportingReportId(report.id);
+        try {
+          await exportReportMutation.mutateAsync(report);
+        } catch (_error) {
+          // O erro já é apresentado pela mutation; continue com o próximo item.
+        } finally {
+          setExportingReportId(null);
+        }
+      }
+    } finally {
+      exportRunningRef.current = false;
+    }
+  };
+
+  const enqueueExport = (report) => {
+    if (exportQueueRef.current.some((item) => item.id === report.id) || exportingReportId === report.id) return;
+    exportQueueRef.current.push(report);
+    processExportQueue();
+  };
+
   const {
     data: reports = [],
     isLoading,
@@ -691,12 +722,12 @@ export default function Relatorios() {
                             size="sm"
                             variant="outline"
                             className="gap-1 shrink-0"
-                            disabled={exportReportMutation.isPending}
-                            onClick={() => exportReportMutation.mutate(report)}
+                            disabled={exportingReportId === report.id || exportQueueRef.current.some((item) => item.id === report.id)}
+                            onClick={() => enqueueExport(report)}
                             title="Exporta o PDF e atualiza o backup mensal no Drive"
                           >
-                            {exportReportMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                            Exportar PDF + backup
+                            {exportingReportId === report.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                            {exportingReportId === report.id ? 'Exportando…' : 'Exportar PDF + backup'}
                           </Button>
                         )}
 
