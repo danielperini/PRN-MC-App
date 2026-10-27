@@ -83,7 +83,7 @@ async function photoBytes(drive, photo) {
   return null;
 }
 
-async function renderReport(drive, report, activities, photos, photoFolderId) {
+async function renderReport(drive, report, activities, photos) {
   const chunks = [];
   const doc = new PDFDocument({ size: 'A4', margin: 48, compress: true, info: { Title: `Relatório Mensal Aprovado - ${report.author_name} - ${report.mes_referencia}/${report.ano}`, Author: 'Museus Centro' } });
   doc.on('data', chunk => chunks.push(chunk));
@@ -98,7 +98,6 @@ async function renderReport(drive, report, activities, photos, photoFolderId) {
     ['Museu', report.museu], ['Museu secundário', report.museu_secundario],
     ['Mês de referência', `${report.mes_referencia} ${report.ano}`],
     ['Status', report.status], ['Revisão', report.review_status],
-    ['Pasta das fotos deste relatório', `https://drive.google.com/drive/folders/${photoFolderId}`],
     ['Enviado em', report.submitted_at], ['Público declarado', report.publico_geral_declarado],
     ['Resumo do período', report.resumo_periodo], ['Resumo executivo', report.resumo_executivo],
     ['Pontos positivos', report.raw_data?.avaliacao_pontos_positivos],
@@ -120,7 +119,7 @@ async function renderReport(drive, report, activities, photos, photoFolderId) {
     doc.moveDown(0.5);
   }
   doc.addPage().font('Helvetica-Bold').fontSize(16).fillColor('#142234').text(`Evidências fotográficas (${photos.length})`);
-  doc.font('Helvetica').fontSize(9).fillColor('#555').text('Os arquivos completos ficam na pasta de fotos indicada na capa. Este PDF inclui até 20 prévias e a referência de todas as fotos. Os vínculos reproduzem o estado atual do banco e não atestam autoria individual.');
+  doc.font('Helvetica').fontSize(9).fillColor('#555').text('As atividades e as evidências fotográficas deste relatório estão incorporadas neste PDF. Os vínculos reproduzem o estado atual do banco e não atestam autoria individual.');
   doc.moveDown(0.5);
   let imagesEmbedded = 0;
   let imagesUnavailable = 0;
@@ -210,30 +209,21 @@ async function main() {
   const summary = { mode: apply ? 'apply' : 'dry_run', reports: reports.length, approved: reports.filter(report => report.status === 'APPROVED').length, created: 0, updated: 0, unchanged: 0, photoLinks: 0, missingPhotoBackups: 0, failed: 0, imagesEmbedded: 0, imagesUnavailable: 0, folderId: '' };
   if (!apply) { console.log('APPROVED_REPORT_BACKUP', JSON.stringify(summary)); return; }
   const reportsRoot = await ensureFolder(drive, rootId, 'Relatórios');
-  const evidenceRoot = await ensureFolder(drive, rootId, 'Evidências');
   summary.folderId = reportsRoot;
   const approvedFolder = await ensureFolder(drive, reportsRoot, 'Aprovados');
   const pendingFolder = await ensureFolder(drive, reportsRoot, 'Em andamento');
-  const approvedEvidenceFolder = await ensureFolder(drive, evidenceRoot, 'Aprovados');
-  const pendingEvidenceFolder = await ensureFolder(drive, evidenceRoot, 'Em andamento');
   const folderCache = new Map();
   for (const report of reports) {
     try {
       const key = periodKey(report);
       const approved = report.status === 'APPROVED';
       const top = approved ? approvedFolder : pendingFolder;
-      const evidenceTop = approved ? approvedEvidenceFolder : pendingEvidenceFolder;
       const monthNumber = Number(key.slice(5, 7));
       const monthLabel = `${monthNames[monthNumber - 1] || key.slice(5, 7)} ${key.slice(0, 4)}`;
       const cacheKey = `${top}|${key}`;
       const monthFolder = folderCache.get(cacheKey) || await ensureFolder(drive, top, monthLabel);
       folderCache.set(cacheKey, monthFolder);
-      const evidenceCacheKey = `${evidenceTop}|${key}`;
-      const evidenceMonthFolder = folderCache.get(evidenceCacheKey) || await ensureFolder(drive, evidenceTop, monthLabel);
-      folderCache.set(evidenceCacheKey, evidenceMonthFolder);
-      const folder = await ensureFolder(drive, monthFolder, `ID-${report.id}_${filePart(report.author_name)}_${filePart(report.museu)}`);
-      const evidenceReportFolder = await ensureFolder(drive, evidenceMonthFolder, `ID-${report.id}_${filePart(report.author_name)}_${filePart(report.museu)}`);
-      const photoFolder = await ensureFolder(drive, evidenceReportFolder, 'Fotos - atalhos para backup canonico');
+      const folder = monthFolder;
       // Nome canônico: número do relatório, usuário, cargo e mês/ano.
       // O ID é o fallback estável quando o protocolo ainda não foi gerado.
       const reportNumber = filePart(report.numero_protocolo || report.numero_relatorio || `ID-${report.id}`);
@@ -253,21 +243,17 @@ async function main() {
       if (pdfExisting?.appProperties?.sourceHash === sourceHash && pdfExisting.name === name) {
         pdfResult = { file: pdfExisting, action: 'unchanged' };
       } else {
-        rendered = await renderReport(drive, report, activities, photos, photoFolder);
+        rendered = await renderReport(drive, report, activities, photos);
         pdfResult = await upsertBytes(drive, folder, listing, name, { reportId: String(report.id), kind: 'pdf', sourceHash, sha256: sha256(rendered.bytes) }, rendered.bytes, 'application/pdf');
       }
-      const jsonName = `Dados_e_Atividades_ID-${report.id}.json`;
-      const jsonResult = await upsertBytes(drive, folder, listing, jsonName, { reportId: String(report.id), kind: 'json', sourceHash, sha256: sha256(snapshot) }, snapshot, 'application/json');
-      for (const action of [pdfResult.action, jsonResult.action]) summary[action]++;
-      const links = await linkPhotos(drive, photoFolder, report, photos);
-      summary.photoLinks += links.linked;
-      summary.missingPhotoBackups += links.missing;
+      // O PDF único é a cópia canônica; não criar JSON, atalhos ou subpastas por relatório.
+      summary[pdfResult.action]++;
       const file = pdfResult.file;
       const url = file.webViewLink || `https://drive.google.com/file/d/${file.id}/view`;
       if (report.status === 'APPROVED') await pool.query(`UPDATE reports SET drive_backup_relatorio_id=$1,drive_backup_relatorio_url=$2,drive_backup_status='concluido',drive_backup_at=NOW() WHERE id=$3 AND status='APPROVED'`, [file.id, url, report.id]);
       summary.imagesEmbedded += rendered.imagesEmbedded;
       summary.imagesUnavailable += rendered.imagesUnavailable;
-      console.log('REPORT_BACKUP_ITEM', JSON.stringify({ id: report.id, status: report.status, folderId: folder, name, driveId: file.id, activities: activities.length, photos: photos.length, photoLinks: links.linked, missingPhotoBackups: links.missing, imagesEmbedded: rendered.imagesEmbedded, imagesUnavailable: rendered.imagesUnavailable }));
+      console.log('REPORT_BACKUP_ITEM', JSON.stringify({ id: report.id, status: report.status, folderId: folder, name, driveId: file.id, activities: activities.length, photos: photos.length, imagesEmbedded: rendered.imagesEmbedded, imagesUnavailable: rendered.imagesUnavailable }));
     } catch (error) {
       summary.failed++;
       console.error('REPORT_BACKUP_FAILED', JSON.stringify({ id: report.id, error: error.message }));
