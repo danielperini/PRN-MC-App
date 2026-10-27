@@ -223,14 +223,13 @@ async function main() {
       const approved = report.status === 'APPROVED';
       const top = approved ? approvedFolder : pendingFolder;
       const evidenceTop = approved ? approvedEvidenceFolder : pendingEvidenceFolder;
-      const year = key.slice(0, 4);
       const monthNumber = Number(key.slice(5, 7));
-      const monthLabel = `${key.slice(5, 7)} - ${monthNames[monthNumber - 1] || key.slice(5, 7)}`;
+      const monthLabel = `${monthNames[monthNumber - 1] || key.slice(5, 7)} ${key.slice(0, 4)}`;
       const cacheKey = `${top}|${key}`;
-      const monthFolder = folderCache.get(cacheKey) || await ensureFolder(drive, await ensureFolder(drive, top, year), monthLabel);
+      const monthFolder = folderCache.get(cacheKey) || await ensureFolder(drive, top, monthLabel);
       folderCache.set(cacheKey, monthFolder);
       const evidenceCacheKey = `${evidenceTop}|${key}`;
-      const evidenceMonthFolder = folderCache.get(evidenceCacheKey) || await ensureFolder(drive, await ensureFolder(drive, evidenceTop, year), monthLabel);
+      const evidenceMonthFolder = folderCache.get(evidenceCacheKey) || await ensureFolder(drive, evidenceTop, monthLabel);
       folderCache.set(evidenceCacheKey, evidenceMonthFolder);
       const folder = await ensureFolder(drive, monthFolder, `ID-${report.id}_${filePart(report.author_name)}_${filePart(report.museu)}`);
       const evidenceReportFolder = await ensureFolder(drive, evidenceMonthFolder, `ID-${report.id}_${filePart(report.author_name)}_${filePart(report.museu)}`);
