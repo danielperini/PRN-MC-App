@@ -119,7 +119,7 @@ async function renderReport(drive, report, activities, photos) {
     doc.moveDown(0.5);
   }
   doc.addPage().font('Helvetica-Bold').fontSize(16).fillColor('#142234').text(`Evidências fotográficas (${photos.length})`);
-  doc.font('Helvetica').fontSize(9).fillColor('#555').text('As atividades e as evidências fotográficas deste relatório estão incorporadas neste PDF. Os vínculos reproduzem o estado atual do banco e não atestam autoria individual.');
+  doc.font('Helvetica').fontSize(9).fillColor('#555').text('Todas as atividades e evidências fotográficas deste relatório estão incorporadas neste PDF, preservando a proporção original das imagens. Os vínculos reproduzem o estado atual do banco e não atestam autoria individual.');
   doc.moveDown(0.5);
   let imagesEmbedded = 0;
   let imagesUnavailable = 0;
@@ -127,18 +127,20 @@ async function renderReport(drive, report, activities, photos) {
     const label = `${index + 1}. ${clean(photo.legenda || photo.caption || photo.file_name) || 'Foto sem legenda'}`;
     if (doc.y > 520) doc.addPage();
     doc.font('Helvetica-Bold').fontSize(10).fillColor('#142234').text(label);
-    doc.font('Helvetica').fontSize(8).fillColor('#555').text(`Atividade: ${clean(photo.activity_id) || 'não identificada'} | Museu: ${clean(photo.museu) || '-'} | Arquivo: ${clean(photo.file_name) || '-'}`);
+    const activity = activities.find(item => String(item.id) === String(photo.activity_id));
+    doc.font('Helvetica').fontSize(8).fillColor('#555').text(`Atividade: ${clean(activity?.nome) || clean(photo.activity_id) || 'não identificada'} | Museu: ${clean(photo.museu) || '-'} | Arquivo: ${clean(photo.file_name) || '-'}`);
     const backupId = photo.raw_data?.monthly_backup_file_id || photo.drive_file_id;
     if (backupId) doc.fontSize(8).fillColor('#255882').text(`Backup da foto: https://drive.google.com/file/d/${backupId}/view`);
-    if (imagesEmbedded >= 20) { doc.moveDown(0.5); continue; }
     try {
       const bytes = await photoBytes(drive, photo);
       const jpeg = bytes?.[0] === 0xff && bytes?.[1] === 0xd8;
       const png = bytes?.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
       if (!bytes || bytes.length > 15_000_000 || (!jpeg && !png)) throw new Error('imagem indisponível ou formato não compatível');
       if (doc.y > 505) doc.addPage();
-      doc.image(bytes, 50, doc.y + 5, { fit: [495, 215], align: 'center', valign: 'center' });
-      doc.y += 225;
+      // PDFKit's `fit` preserves the original aspect ratio; the box only limits
+      // the maximum size so portrait and landscape photos are never stretched.
+      doc.image(bytes, 50, doc.y + 5, { fit: [495, 285], align: 'center', valign: 'center' });
+      doc.y += 295;
       imagesEmbedded++;
     } catch (error) {
       doc.font('Helvetica-Oblique').fontSize(8).fillColor('#9a3412').text(`Imagem não incorporada: ${clean(error.message)}. Referência: ${clean(photo.file_url) || clean(photo.drive_file_id) || '-'}`);
