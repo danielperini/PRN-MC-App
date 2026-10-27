@@ -1863,7 +1863,9 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
       if (!monthKey) return res.status(422).json({success:false,error:'report_period_invalid'});
       const rootId = String(req.body?.rootFolderId || req.body?.root_folder_id || process.env.GOOGLE_DRIVE_FOLDER_ID || '').trim();
       if (rootId && !/^[A-Za-z0-9_-]{10,}$/.test(rootId)) return res.status(400).json({success:false,error:'invalid_drive_root'});
-      const args=['/app/backup-approved-reports.mjs','--apply',`--month=${monthKey}`];
+      // A ação do cartão é individual: nunca reprocessar os demais relatórios
+      // do mês ao exportar apenas um usuário.
+      const args=['/app/backup-approved-reports.mjs','--apply',`--month=${monthKey}`,`--report-id=${reportId}`];
       if (rootId) args.push(`--root-folder-id=${rootId}`);
       const {stdout,stderr}=await execFileAsync(process.execPath,args,{cwd:'/app',env:process.env,timeout:300000,maxBuffer:8*1024*1024});
       const summaryLine=stdout.split(/\r?\n/).find(line=>line.startsWith('REPORT_BACKUP '));
