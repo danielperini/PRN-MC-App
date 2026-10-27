@@ -23,7 +23,13 @@ try {
     const reportKey = `${p.report_year}-${String({Janeiro:1,Fevereiro:2,Março:3,Abril:4,Maio:5,Junho:6,Julho:7,Agosto:8,Setembro:9,Outubro:10,Novembro:11,Dezembro:12}[p.report_month] || 0).padStart(2,'0')}`;
     if (photoDate && activityDate && photoDate.slice(0,7) !== activityDate.slice(0,7)) out.monthConflicts++;
     if (p.activity_row_id && (!photoDate || !activityDate || photoDate.slice(0,7) === activityDate.slice(0,7))) { out.valid++; continue; }
-    const candidates = rows.filter(a => String(a.report_id) === String(p.report_id) && dateOnly(a.activity_date || a.activity_end) && photoDate && dateOnly(a.activity_date || a.activity_end).slice(0,7) === photoDate.slice(0,7));
+    const candidateMap = new Map();
+    for (const a of rows) {
+      const activityId = a.activity_base_id || a.activity_row_id;
+      const candidateDate = dateOnly(a.activity_date || a.activity_end);
+      if (String(a.report_id) === String(p.report_id) && activityId && candidateDate && photoDate && candidateDate.slice(0,7) === photoDate.slice(0,7)) candidateMap.set(String(activityId), a);
+    }
+    const candidates = [...candidateMap.values()];
     if (candidates.length === 1 && apply) {
       await pool.query('UPDATE report_photos SET activity_id=$2,mes_referencia=$3,ano=$4,updated_date=NOW() WHERE id=$1', [p.id, candidates[0].activity_base_id || candidates[0].activity_row_id, p.report_month, p.report_year]);
       out.repaired++;
