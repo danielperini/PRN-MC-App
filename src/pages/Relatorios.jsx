@@ -54,9 +54,10 @@ const STATUS_CONFIG = {
   ARCHIVED: { label: 'Arquivado', color: 'bg-slate-100 text-slate-600', icon: FileText },
 };
 
-import { MESES, MUSEUS, CACHE_KEYS } from '@/utils/constants';
+import { CACHE_KEYS } from '@/utils/constants';
 
 const REPORTS_CACHE_KEY = CACHE_KEYS.RELATORIOS_LIST;
+const REPORTS_DRIVE_ROOT_FOLDER_ID = '1JJCga4kS_9_QxkH_MYHn5uQeAqBkgjY0';
 
 function reportCacheKey(email = '') {
   const identity = String(email || '').trim().toLowerCase();
@@ -207,6 +208,25 @@ export default function Relatorios() {
     },
     onError: (error) => {
       toastMessages.deleteFailed(error?.message || 'Erro ao excluir relatório.');
+    },
+  });
+
+  const exportReportMutation = useMutation({
+    mutationFn: async (report) => {
+      const response = await base44.functions.invoke('exportReportPdfAndBackup', {
+        reportId: report.id,
+        rootFolderId: REPORTS_DRIVE_ROOT_FOLDER_ID,
+      });
+      return response?.data || response;
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['relatorios-list'] });
+      const url = result?.report?.drive_backup_relatorio_url;
+      if (url) window.open(url, '_blank', 'noopener,noreferrer');
+      toastMessages.updateSuccess();
+    },
+    onError: (error) => {
+      toastMessages.updateFailed(error?.message || 'Não foi possível exportar e salvar o relatório no Drive.');
     },
   });
 
@@ -665,6 +685,20 @@ export default function Relatorios() {
                             Abrir
                           </Button>
                         </Link>
+
+                        {(isAdmin || isCoordenador || isReportOwner(report, user)) && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1 shrink-0"
+                            disabled={exportReportMutation.isPending}
+                            onClick={() => exportReportMutation.mutate(report)}
+                            title="Exporta o PDF e atualiza o backup mensal no Drive"
+                          >
+                            {exportReportMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                            Exportar PDF + backup
+                          </Button>
+                        )}
 
                         {canReturnToReview && (
                           <Button

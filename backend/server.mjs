@@ -1845,6 +1845,32 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
       const updated=(await pool.query('SELECT * FROM purchase_requests WHERE id=$1',[purchase.id])).rows[0];
       return res.json({success:true,files_backed:result.backed,purchase:updated});
     }
+    if (name === 'exportReportPdfAndBackup') {
+      const actor = (await pool.query('SELECT id,email,role FROM users WHERE id=$1 LIMIT 1',[req.userId])).rows[0];
+      const reportId = String(req.body?.reportId || req.body?.report_id || '').trim();
+      if (!reportId) return res.status(400).json({success:false,error:'report_id_required'});
+      const report = (await pool.query('SELECT id,status,author_email,created_by,mes_referencia,ano,drive_backup_relatorio_id,drive_backup_relatorio_url FROM reports WHERE id=$1 LIMIT 1',[reportId])).rows[0];
+      if (!report) return res.status(404).json({success:false,error:'report_not_found'});
+      const role = String(actor?.role || '').toUpperCase();
+      const owner = String(actor?.email || '').trim().toLowerCase() === String(report.author_email || report.created_by || '').trim().toLowerCase();
+      if (!['ADMIN','COORDENADOR','COORDINATOR'].includes(role) && !owner) return res.status(403).json({success:false,error:'report_access_denied'});
+      if (!process.env.GOOGLE_DRIVE_CLIENT_ID || !process.env.GOOGLE_DRIVE_CLIENT_SECRET || !process.env.GOOGLE_DRIVE_REFRESH_TOKEN) {
+        return res.status(503).json({success:false,error:'drive_not_configured'});
+      }
+      const monthNames=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+      const month = monthNames.findIndex(value => value === String(report.mes_referencia || '').trim().toLowerCase()) + 1;
+      const monthKey = Number(report.ano) >= 2026 && month > 0 ? `${report.ano}-${String(month).padStart(2,'0')}` : '';
+      if (!monthKey) return res.status(422).json({success:false,error:'report_period_invalid'});
+      const rootId = String(req.body?.rootFolderId || req.body?.root_folder_id || process.env.GOOGLE_DRIVE_FOLDER_ID || '').trim();
+      if (rootId && !/^[A-Za-z0-9_-]{10,}$/.test(rootId)) return res.status(400).json({success:false,error:'invalid_drive_root'});
+      const args=['/app/backup-approved-reports.mjs','--apply',`--month=${monthKey}`];
+      if (rootId) args.push(`--root-folder-id=${rootId}`);
+      const {stdout,stderr}=await execFileAsync(process.execPath,args,{cwd:'/app',env:process.env,timeout:300000,maxBuffer:8*1024*1024});
+      const summaryLine=stdout.split(/\r?\n/).find(line=>line.startsWith('REPORT_BACKUP '));
+      const summary=summaryLine ? JSON.parse(summaryLine.slice('REPORT_BACKUP '.length)) : {};
+      const updated=(await pool.query('SELECT drive_backup_relatorio_id,drive_backup_relatorio_url,drive_backup_status,drive_backup_at FROM reports WHERE id=$1 LIMIT 1',[reportId])).rows[0] || {};
+      return res.status(200).json({success:true,report_id:reportId,month:monthKey,summary,report:updated,stderr:stderr ? stderr.slice(-2000) : ''});
+    }
     if (name === 'consultarBalancetesOficiais') {
       const actorResult = await pool.query('SELECT id,email,full_name,role FROM users WHERE id=$1 LIMIT 1', [req.userId]);
       if (!isReportCoordinator(actorResult.rows[0])) return res.status(403).json({ success:false, error:'financial_audit_forbidden' });

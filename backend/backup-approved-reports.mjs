@@ -11,7 +11,9 @@ import { google } from 'googleapis';
 // to canonical image backups and never duplicate the image bytes.
 const apply = process.argv.includes('--apply');
 const reportId = process.argv.find(arg => arg.startsWith('--report-id='))?.slice(12) || '';
-const rootId = process.env.GOOGLE_DRIVE_FOLDER_ID || '1qVwpSypPHyQ_IK_H2yTho46MVCzj0FrU';
+const requestedRoot = process.argv.find(arg => arg.startsWith('--root-folder-id='))?.slice(17) || '';
+const rootId = requestedRoot || process.env.GOOGLE_DRIVE_FOLDER_ID || '1qVwpSypPHyQ_IK_H2yTho46MVCzj0FrU';
+const requestedMonth = process.argv.find(arg => arg.startsWith('--month='))?.slice(8) || '';
 const uploadDir = process.env.UPLOAD_DIR || '/app/uploads';
 const pool = new pg.Pool({
   host: process.env.DB_HOST || 'db', port: Number(process.env.DB_PORT || 5432),
@@ -203,7 +205,7 @@ async function main() {
   const drive = google.drive({ version: 'v3', auth });
   const reports = (await pool.query(`SELECT * FROM reports WHERE ($1::text='' OR id::text=$1) ORDER BY ano,mes_referencia,author_name,id`, [reportId])).rows.filter(report => {
     const key = periodKey(report);
-    return key && key >= '2026-02' && key <= new Date().toISOString().slice(0,7);
+    return key && key >= '2026-02' && key <= new Date().toISOString().slice(0,7) && (!requestedMonth || key === requestedMonth);
   });
   const summary = { mode: apply ? 'apply' : 'dry_run', reports: reports.length, approved: reports.filter(report => report.status === 'APPROVED').length, created: 0, updated: 0, unchanged: 0, photoLinks: 0, missingPhotoBackups: 0, failed: 0, imagesEmbedded: 0, imagesUnavailable: 0, folderId: '' };
   if (!apply) { console.log('APPROVED_REPORT_BACKUP', JSON.stringify(summary)); return; }
