@@ -209,20 +209,32 @@ async function main() {
   });
   const summary = { mode: apply ? 'apply' : 'dry_run', reports: reports.length, approved: reports.filter(report => report.status === 'APPROVED').length, created: 0, updated: 0, unchanged: 0, photoLinks: 0, missingPhotoBackups: 0, failed: 0, imagesEmbedded: 0, imagesUnavailable: 0, folderId: '' };
   if (!apply) { console.log('APPROVED_REPORT_BACKUP', JSON.stringify(summary)); return; }
-  const baseFolder = await ensureFolder(drive, rootId, 'Relatorios Mensais - Backup PDF e Fotos');
-  summary.folderId = baseFolder;
-  const approvedFolder = await ensureFolder(drive, baseFolder, 'Aprovados');
-  const pendingFolder = await ensureFolder(drive, baseFolder, 'Em andamento');
+  const reportsRoot = await ensureFolder(drive, rootId, 'Relatórios');
+  const evidenceRoot = await ensureFolder(drive, rootId, 'Evidências');
+  summary.folderId = reportsRoot;
+  const approvedFolder = await ensureFolder(drive, reportsRoot, 'Aprovados');
+  const pendingFolder = await ensureFolder(drive, reportsRoot, 'Em andamento');
+  const approvedEvidenceFolder = await ensureFolder(drive, evidenceRoot, 'Aprovados');
+  const pendingEvidenceFolder = await ensureFolder(drive, evidenceRoot, 'Em andamento');
   const folderCache = new Map();
   for (const report of reports) {
     try {
       const key = periodKey(report);
-      const top = report.status === 'APPROVED' ? approvedFolder : pendingFolder;
+      const approved = report.status === 'APPROVED';
+      const top = approved ? approvedFolder : pendingFolder;
+      const evidenceTop = approved ? approvedEvidenceFolder : pendingEvidenceFolder;
+      const year = key.slice(0, 4);
+      const monthNumber = Number(key.slice(5, 7));
+      const monthLabel = `${key.slice(5, 7)} - ${monthNames[monthNumber - 1] || key.slice(5, 7)}`;
       const cacheKey = `${top}|${key}`;
-      const monthFolder = folderCache.get(cacheKey) || await ensureFolder(drive, top, key);
+      const monthFolder = folderCache.get(cacheKey) || await ensureFolder(drive, await ensureFolder(drive, top, year), monthLabel);
       folderCache.set(cacheKey, monthFolder);
+      const evidenceCacheKey = `${evidenceTop}|${key}`;
+      const evidenceMonthFolder = folderCache.get(evidenceCacheKey) || await ensureFolder(drive, await ensureFolder(drive, evidenceTop, year), monthLabel);
+      folderCache.set(evidenceCacheKey, evidenceMonthFolder);
       const folder = await ensureFolder(drive, monthFolder, `ID-${report.id}_${filePart(report.author_name)}_${filePart(report.museu)}`);
-      const photoFolder = await ensureFolder(drive, folder, 'Fotos - atalhos para backup canonico');
+      const evidenceReportFolder = await ensureFolder(drive, evidenceMonthFolder, `ID-${report.id}_${filePart(report.author_name)}_${filePart(report.museu)}`);
+      const photoFolder = await ensureFolder(drive, evidenceReportFolder, 'Fotos - atalhos para backup canonico');
       // Nome canônico: número do relatório, usuário, cargo e mês/ano.
       // O ID é o fallback estável quando o protocolo ainda não foi gerado.
       const reportNumber = filePart(report.numero_protocolo || report.numero_relatorio || `ID-${report.id}`);
