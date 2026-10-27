@@ -143,7 +143,9 @@ async function renderReport(drive, report, activities, photos) {
     for (let col = 0; col < 2; col++) {
       const photo = photos[index + col]; if (!photo) continue;
       const x = col === 0 ? 48 : 302;
-      const activity = activities.find(item => String(item.id) === String(photo.activity_id));
+      const photoDate = clean(photo.raw_data?.data_foto || photo.data_foto || photo.data_atividade || photo.created_date).slice(0, 10);
+      const activity = activities.find(item => String(item.id) === String(photo.activity_id))
+        || activities.find(item => photoDate && String(item.data_inicio || item.data_atividade || '').slice(0, 10) === photoDate);
       doc.rect(x, rowY, 245, 295).lineWidth(.6).stroke('#b8c7df');
       doc.font('Helvetica-Bold').fontSize(8).fillColor('#142234').text(`Foto ${index + col + 1}`, x + 8, rowY + 10);
       try {
@@ -156,7 +158,7 @@ async function renderReport(drive, report, activities, photos) {
         imagesEmbedded++;
       } catch (error) { doc.font('Helvetica-Oblique').fontSize(8).fillColor('#9a3412').text(`Imagem não incorporada: ${clean(error.message)}`, x + 8, rowY + 100, { width: 229 }); imagesUnavailable++; }
       doc.font('Helvetica').fontSize(7).fillColor('#142234').text(clean(photo.legenda || photo.caption || photo.file_name) || 'Foto sem legenda', x + 8, rowY + 225, { width: 229 });
-      doc.fontSize(7).fillColor('#555').text(`${clean(activity?.nome) || 'Atividade não identificada'} — ${clean(photo.museu) || '-'}`, x + 8, rowY + 246, { width: 229 });
+      doc.fontSize(7).fillColor('#555').text(`${clean(activity?.nome) || 'Atividade não identificada'} — ${clean(photo.museu) || '-'}${photoDate ? ` — ${photoDate.split('-').reverse().join('/')}` : ''}`, x + 8, rowY + 246, { width: 229 });
       doc.font('Helvetica-Oblique').fontSize(7).fillColor('#777').text(`Foto: ${clean(report.author_name)}`, x + 8, rowY + 273, { width: 229 });
     }
     doc.y = rowY + 310;

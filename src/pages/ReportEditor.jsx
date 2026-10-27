@@ -649,14 +649,17 @@ export default function ReportEditor() {
     try {
       await handleSave();
 
-      const response = await base44.functions.invoke('generateReportPDF', {
+      // Use the same canonical export used by the reports list: one PDF with
+      // activities/photos and an idempotent Drive backup.
+      const response = await base44.functions.invoke('exportReportPdfAndBackup', {
         reportId: report.id,
-        secoes: secoesPdf.length > 0 ? secoesPdf : undefined,
+        rootFolderId: '1TJ44Sz-A3gub8lv_U2GRsn16hwkuhwkF',
       });
 
-      if (response.data?.pdf_url) {
-        window.open(response.data.pdf_url, '_blank');
-        toast.success('📄 PDF gerado com sucesso!');
+      const url = response.data?.report?.drive_backup_relatorio_url;
+      if (url) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+        toast.success('📄 PDF exportado e backup atualizado com sucesso!');
       } else if (response.data?.error) {
         toast.error('Erro ao gerar PDF: ' + response.data.error);
       } else {
