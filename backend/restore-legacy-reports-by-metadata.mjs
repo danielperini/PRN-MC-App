@@ -11,8 +11,18 @@ const suppliedProtocolAuthors = {
   '00004': 'Producao Viaduto das Artes',
   '00006': 'Caroline Abasse',
   '00007': 'Daniela Assis',
-  '00008': 'Daniela Assis',
+  '00008': 'Clara Assumpcao',
   '00009': 'Daniela Assis',
+};
+// Canonical copies verified by reading the PDF contents through Drive.
+const verifiedLegacyFiles = {
+  '00001': '1Y1jGAdD7BNdprUn3i5eFa1lBpJ7I_RvI',
+  '00002': '1Yq0SI5vsT8jGti1C4UktBUwwmbSmedA-',
+  '00004': '1IeW8Ob5vofoMPbGY-zJ8srwUUhCvV6FV',
+  '00006': '19MXPjCPKaLBBQNp9DaPlUxkrp6gfgzQZ',
+  '00007': '1iOqtvfkrtmElvn0WfiEUPUrPwC8jx8KT',
+  '00008': '1J_4sGXWUyDpSmljpecvxB4_ED9qUMVyK',
+  '00009': '1HEsVTF7eguhAmE9gezeKpcFb2hGIjS2n',
 };
 const norm = v => String(v ?? '').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
 async function main() {
@@ -21,6 +31,11 @@ async function main() {
   const drive = google.drive({ version:'v3', auth }); const files=[];
   const walk = async parent => { let token; do { const r=await drive.files.list({q:`'${parent}' in parents and trashed=false`,fields:'nextPageToken,files(id,name,mimeType,webViewLink)',pageSize:1000,pageToken:token,supportsAllDrives:true,includeItemsFromAllDrives:true}); for(const f of r.data.files||[]) f.mimeType==='application/vnd.google-apps.folder'?await walk(f.id):files.push(f); token=r.data.nextPageToken; } while(token); };
   await walk(rootId);
+  for (const id of Object.values(verifiedLegacyFiles)) {
+    if (files.some(f => f.id === id)) continue;
+    const f = (await drive.files.get({ fileId:id, fields:'id,name,mimeType,webViewLink', supportsAllDrives:true })).data;
+    files.push(f);
+  }
   const legacy = files.filter(f => /\.(pdf|html?)$/i.test(f.name) && !/Relatorio_Mensal_(APPROVED|DRAFT|RETURNED|SUBMITTED)_/i.test(f.name));
   const db=await pool.connect(); const summary={mode:apply?'apply':'dry_run',files:legacy.length,linked:0,ambiguous:[],unmatched:[]};
   try {
