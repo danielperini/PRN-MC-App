@@ -11,6 +11,7 @@ const suppliedProtocolAuthors = {
   '00004': 'Producao Viaduto das Artes',
   '00006': 'Caroline Abasse',
   '00007': 'Daniela Assis',
+  '00008': 'Daniela Assis',
   '00009': 'Daniela Assis',
 };
 const norm = v => String(v ?? '').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
