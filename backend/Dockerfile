@@ -41,6 +41,7 @@ COPY restore-report-document-evidence.mjs ./
 COPY audit-report-photo-links.mjs ./
 COPY repair-report-photo-backups.mjs ./
 COPY restore-reports-from-drive.mjs ./
+COPY restore-legacy-reports-by-metadata.mjs ./
 
 EXPOSE 3000
 
