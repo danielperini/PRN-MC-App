@@ -40,6 +40,7 @@ COPY restore-gallery-evidence-links.mjs ./
 COPY restore-report-document-evidence.mjs ./
 COPY audit-report-photo-links.mjs ./
 COPY repair-report-photo-backups.mjs ./
+COPY restore-reports-from-drive.mjs ./
 
 EXPOSE 3000
 
