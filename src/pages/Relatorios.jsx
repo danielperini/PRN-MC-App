@@ -97,6 +97,24 @@ function isReportOwner(report, user) {
     || ids.includes(String(report?.created_by_id || '').trim());
 }
 
+const REPORT_MONTH_ORDER = ['janeiro','fevereiro','marco','abril','maio','maio junho','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+function reportMonthIndex(value) {
+  const normalized = String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[–—-]/g, ' ').replace(/\s+/g, ' ').trim();
+  const index = REPORT_MONTH_ORDER.indexOf(normalized);
+  return index >= 0 ? index : 99;
+}
+function sortReportsChronologically(list) {
+  return [...list].sort((a, b) => {
+    const yearDiff = Number(a?.ano || 0) - Number(b?.ano || 0);
+    if (yearDiff) return yearDiff;
+    const monthDiff = reportMonthIndex(a?.mes_referencia) - reportMonthIndex(b?.mes_referencia);
+    if (monthDiff) return monthDiff;
+    const authorDiff = String(a?.author_name || a?.created_by || '').localeCompare(String(b?.author_name || b?.created_by || ''), 'pt-BR');
+    if (authorDiff) return authorDiff;
+    return Number(a?.id || 0) - Number(b?.id || 0);
+  });
+}
+
 export default function Relatorios() {
   const queryClient = useQueryClient();
   const { user, isLoading: userLoading, isCoordenador } = useCurrentUser();
@@ -393,8 +411,8 @@ export default function Relatorios() {
 
   const isDeepSearch = deepSearchResults !== null;
   const filtered = useMemo(() => {
-    if (isDeepSearch) return applyFilters(deepSearchResults);
-    return localFiltered;
+    if (isDeepSearch) return sortReportsChronologically(applyFilters(deepSearchResults));
+    return sortReportsChronologically(localFiltered);
   }, [isDeepSearch, deepSearchResults, localFiltered, applyFilters]);
 
   const exportReports = async (format) => {
