@@ -15,7 +15,9 @@ async function main() {
   const legacy = files.filter(f => /\.(pdf|html?)$/i.test(f.name) && !/Relatorio_Mensal_(APPROVED|DRAFT|RETURNED|SUBMITTED)_/i.test(f.name));
   const db=await pool.connect(); const summary={mode:apply?'apply':'dry_run',files:legacy.length,linked:0,ambiguous:[],unmatched:[]};
   try {
-    const reports=(await db.query('SELECT id,status,author_name,mes_referencia,ano,numero_protocolo,numero_relatorio,drive_backup_relatorio_id FROM reports')).rows;
+    // Legacy installations do not all have the optional protocol columns.
+    // Read the existing schema and use whichever metadata is available.
+    const reports=(await db.query('SELECT * FROM reports')).rows;
     for(const file of legacy){
       const n=file.name; const protocol=n.match(/MC[-_](JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)(20\d{2})[-_](\d{4,})/i); const period=n.match(/(Janeiro|Fevereiro|Marco|Março|Abril|Maio|Junho|Julho|Agosto|Setembro|Outubro|Novembro|Dezembro)[ _-]*(20\d{2})/i); const month=protocol?months[protocol[1].toUpperCase()]:period?months[norm(period[1]).slice(0,3).toUpperCase()]:null; const year=Number(protocol?.[2]||period?.[2]||0); const seq=protocol?.[3]; const author=n.replace(/\.[^.]+$/,'').replace(/^Relatorio(?:_Mensal)?[_ -]*/i,'').replace(/MC[-_][A-Z]+20\d{2}[-_]\d{4,}/i,'').replace(/[-_]*(Fevereiro|Marco|Março|Abril|Maio|Junho|Julho|Agosto|Setembro|Outubro|Novembro|Dezembro)[ _-]*20\d{2}/i,'').trim();
       let candidates=reports.filter(r=>{ const byProto=seq && (String(r.numero_protocolo||'').includes(seq)||String(r.numero_relatorio||'').includes(seq)); const byPeriod=month&&year&&Number(r.ano)===year&&Number(r.mes_referencia)===month; const byAuthor=author&&norm(r.author_name).includes(norm(author)); return byProto || (byPeriod&&byAuthor); });
