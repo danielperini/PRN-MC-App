@@ -644,6 +644,11 @@ export default function ReportEditor() {
   async function handleExportPdf() {
     if (!report?.id) return;
 
+    const confirmarBackup = window.confirm(
+      'Deseja exportar este relatório em PDF e fazer o backup na pasta do mês correto do Drive?'
+    );
+    if (!confirmarBackup) return;
+
     setExportingPdf(true);
 
     try {
