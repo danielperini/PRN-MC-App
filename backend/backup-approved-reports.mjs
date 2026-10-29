@@ -249,8 +249,14 @@ async function main() {
       const sameAuthor = reports.filter(item => periodKey(item) === key && filePart(item.author_name || item.author_email || 'SEM_USUARIO') === author);
       const suffix = sameAuthor.length > 1 ? `_ID-${report.id}` : '';
       const name = `${baseName}${suffix}.pdf`;
-      const activities = (await pool.query('SELECT * FROM report_activities WHERE report_id=$1 ORDER BY data_inicio NULLS LAST,id', [String(report.id)])).rows;
-      const photos = (await pool.query('SELECT * FROM report_photos WHERE report_id=$1 AND duplicada_de IS NULL ORDER BY ordem NULLS LAST,created_date,id', [String(report.id)])).rows;
+      const activityRows = (await pool.query('SELECT * FROM report_activities WHERE report_id=$1 ORDER BY data_inicio NULLS LAST,id', [String(report.id)])).rows;
+      const activities = activityRows.length
+        ? activityRows
+        : (Array.isArray(report.atividades) ? report.atividades : []);
+      const photoRows = (await pool.query('SELECT * FROM report_photos WHERE report_id=$1 AND duplicada_de IS NULL ORDER BY ordem NULLS LAST,created_date,id', [String(report.id)])).rows;
+      const photos = photoRows.length
+        ? photoRows
+        : (Array.isArray(report.fotos) ? report.fotos : []);
       const snapshotReport = { ...report };
       for (const key of ['drive_backup_relatorio_id','drive_backup_relatorio_url','drive_backup_status','drive_backup_at']) delete snapshotReport[key];
       const snapshot = Buffer.from(JSON.stringify({ report: snapshotReport, activities, photos }, null, 2));
