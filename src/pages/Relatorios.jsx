@@ -684,6 +684,10 @@ export default function Relatorios() {
               const config = STATUS_CONFIG[report.status] || STATUS_CONFIG.DRAFT;
               const Icon = config.icon;
               const canReturnToReview = isCoordenador && report.status !== 'RETURNED';
+              const reportBackupUrl = report.drive_backup_relatorio_url
+                || (report.drive_backup_relatorio_id
+                  ? `https://drive.google.com/file/d/${report.drive_backup_relatorio_id}/view`
+                  : '');
 
               return (
                 <Card
@@ -735,7 +739,20 @@ export default function Relatorios() {
                           </Button>
                         </Link>
 
-                        {(isAdmin || isCoordenador || isReportOwner(report, user)) && (
+                        {reportBackupUrl && (
+                          <a
+                            href={reportBackupUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center justify-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100 shrink-0"
+                            title="Abrir o PDF do backup no Google Drive"
+                          >
+                            <FileText className="h-3.5 w-3.5" />
+                            PDF no Drive
+                          </a>
+                        )}
+
+                        {(isAdmin || isCoordenador || isReportOwner(report, user)) && !reportBackupUrl && (
                           <Button
                             size="sm"
                             variant="outline"
