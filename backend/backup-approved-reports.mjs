@@ -6,7 +6,7 @@ import pg from 'pg';
 import PDFDocument from 'pdfkit';
 import { google } from 'googleapis';
 
-// One PDF and one restorable JSON snapshot per monthly report from February
+// One canonical PDF per monthly report from January
 // 2026 onward. Re-running updates the same Drive objects; photo shortcuts point
 // to canonical image backups and never duplicate the image bytes.
 const apply = process.argv.includes('--apply');
@@ -221,7 +221,7 @@ async function main() {
   const drive = google.drive({ version: 'v3', auth });
   const reports = (await pool.query(`SELECT * FROM reports WHERE ($1::text='' OR id::text=$1) ORDER BY ano,mes_referencia,author_name,id`, [reportId])).rows.filter(report => {
     const key = periodKey(report);
-    return key && key >= '2026-02' && key <= new Date().toISOString().slice(0,7) && (!requestedMonth || key === requestedMonth);
+    return key && key >= '2026-01' && key <= new Date().toISOString().slice(0,7) && (!requestedMonth || key === requestedMonth);
   });
   const summary = { mode: apply ? 'apply' : 'dry_run', reports: reports.length, approved: reports.filter(report => report.status === 'APPROVED').length, created: 0, updated: 0, unchanged: 0, photoLinks: 0, missingPhotoBackups: 0, failed: 0, imagesEmbedded: 0, imagesUnavailable: 0, folderId: '' };
   if (!apply) { console.log('APPROVED_REPORT_BACKUP', JSON.stringify(summary)); return; }
@@ -236,18 +236,20 @@ async function main() {
       const approved = report.status === 'APPROVED';
       const top = approved ? approvedFolder : pendingFolder;
       const monthNumber = Number(key.slice(5, 7));
-      const monthLabel = `${monthNames[monthNumber - 1] || key.slice(5, 7)} ${key.slice(0, 4)}`;
+      const folderLabel = `${monthNames[monthNumber - 1] || key.slice(5, 7)} ${key.slice(0, 4)}`;
       const cacheKey = `${top}|${key}`;
-      const monthFolder = folderCache.get(cacheKey) || await ensureFolder(drive, top, monthLabel);
+      const monthFolder = folderCache.get(cacheKey) || await ensureFolder(drive, top, folderLabel);
       folderCache.set(cacheKey, monthFolder);
       const folder = monthFolder;
-      // Nome canônico: número do relatório, usuário, cargo e mês/ano.
-      // O ID é o fallback estável quando o protocolo ainda não foi gerado.
-      const reportNumber = filePart(report.numero_protocolo || report.numero_relatorio || `ID-${report.id}`);
+      // Nome canônico compatível com os relatórios exportados manualmente.
+      // O ID só é acrescentado quando há outro relatório do mesmo usuário no mês.
       const author = filePart(report.author_name || report.author_email || 'SEM_USUARIO');
-      const role = filePart(report.funcao || report.author_role || 'SEM_CARGO');
-      const name = `${reportNumber}_${author}_${role}_${key}.pdf`;
       const listing = await listFolder(drive, folder);
+      const monthLabel = filePart(monthNames[monthNumber - 1] || key.slice(5, 7)).toUpperCase();
+      const baseName = `MC_RELATORIO_${key.slice(0, 4)}_${monthLabel}_${author}`;
+      const sameAuthor = reports.filter(item => periodKey(item) === key && filePart(item.author_name || item.author_email || 'SEM_USUARIO') === author);
+      const suffix = sameAuthor.length > 1 ? `_ID-${report.id}` : '';
+      const name = `${baseName}${suffix}.pdf`;
       const activities = (await pool.query('SELECT * FROM report_activities WHERE report_id=$1 ORDER BY data_inicio NULLS LAST,id', [String(report.id)])).rows;
       const photos = (await pool.query('SELECT * FROM report_photos WHERE report_id=$1 AND duplicada_de IS NULL ORDER BY ordem NULLS LAST,created_date,id', [String(report.id)])).rows;
       const snapshotReport = { ...report };
