@@ -269,7 +269,7 @@ async function main() {
       summary[pdfResult.action]++;
       const file = pdfResult.file;
       const url = file.webViewLink || `https://drive.google.com/file/d/${file.id}/view`;
-      if (report.status === 'APPROVED') await pool.query(`UPDATE reports SET drive_backup_relatorio_id=$1,drive_backup_relatorio_url=$2,drive_backup_status='concluido',drive_backup_at=NOW() WHERE id=$3 AND status='APPROVED'`, [file.id, url, report.id]);
+      await pool.query(`UPDATE reports SET drive_backup_relatorio_id=$1,drive_backup_relatorio_url=$2,drive_backup_status='concluido',drive_backup_at=NOW() WHERE id=$3`, [file.id, url, report.id]);
       summary.imagesEmbedded += rendered.imagesEmbedded;
       summary.imagesUnavailable += rendered.imagesUnavailable;
       console.log('REPORT_BACKUP_ITEM', JSON.stringify({ id: report.id, status: report.status, folderId: folder, name, driveId: file.id, activities: activities.length, photos: photos.length, imagesEmbedded: rendered.imagesEmbedded, imagesUnavailable: rendered.imagesUnavailable }));
