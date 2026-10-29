@@ -225,16 +225,15 @@ async function main() {
   });
   const summary = { mode: apply ? 'apply' : 'dry_run', reports: reports.length, approved: reports.filter(report => report.status === 'APPROVED').length, created: 0, updated: 0, unchanged: 0, photoLinks: 0, missingPhotoBackups: 0, failed: 0, imagesEmbedded: 0, imagesUnavailable: 0, folderId: '' };
   if (!apply) { console.log('APPROVED_REPORT_BACKUP', JSON.stringify(summary)); return; }
-  const reportsRoot = await ensureFolder(drive, rootId, 'Relatórios');
-  summary.folderId = reportsRoot;
-  const approvedFolder = await ensureFolder(drive, reportsRoot, 'Aprovados');
-  const pendingFolder = await ensureFolder(drive, reportsRoot, 'Em andamento');
+  // A raiz informada pelo botão SUCC é a pasta final do backup. Os meses ficam
+  // diretamente nela, sem camadas adicionais ou pastas por relatório.
+  summary.folderId = rootId;
+  for (const monthName of monthNames) await ensureFolder(drive, rootId, `${monthName} 2026`);
   const folderCache = new Map();
   for (const report of reports) {
     try {
       const key = periodKey(report);
-      const approved = report.status === 'APPROVED';
-      const top = approved ? approvedFolder : pendingFolder;
+      const top = rootId;
       const monthNumber = Number(key.slice(5, 7));
       const folderLabel = `${monthNames[monthNumber - 1] || key.slice(5, 7)} ${key.slice(0, 4)}`;
       const cacheKey = `${top}|${key}`;
