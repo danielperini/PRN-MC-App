@@ -653,7 +653,7 @@ export default function ReportEditor() {
       // activities/photos and an idempotent Drive backup.
       const response = await base44.functions.invoke('exportReportPdfAndBackup', {
         reportId: report.id,
-        rootFolderId: '1uwwx0IEzx9MWCeE1tk80nSrKcju5lVJT',
+        rootFolderId: '1VJADgTZEE1_DPRDYVZQjrGtAKNaqvsFA',
       });
 
       const url = response.data?.report?.drive_backup_relatorio_url;
