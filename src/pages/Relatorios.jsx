@@ -57,8 +57,6 @@ const STATUS_CONFIG = {
 import { CACHE_KEYS } from '@/utils/constants';
 
 const REPORTS_CACHE_KEY = CACHE_KEYS.RELATORIOS_LIST;
-const REPORTS_DRIVE_ROOT_FOLDER_ID = '1JJCga4kS_9_QxkH_MYHn5uQeAqBkgjY0';
-
 function reportCacheKey(email = '') {
   const identity = String(email || '').trim().toLowerCase();
   return identity ? `${REPORTS_CACHE_KEY}:${identity}` : null;
@@ -228,56 +226,6 @@ export default function Relatorios() {
       toastMessages.deleteFailed(error?.message || 'Erro ao excluir relatório.');
     },
   });
-
-  const exportReportMutation = useMutation({
-    mutationFn: async (report) => {
-      const response = await base44.functions.invoke('exportReportPdfAndBackup', {
-        reportId: report.id,
-        rootFolderId: REPORTS_DRIVE_ROOT_FOLDER_ID,
-      });
-      return response?.data || response;
-    },
-    onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ['relatorios-list'] });
-      const url = result?.report?.drive_backup_relatorio_url;
-      if (url) window.open(url, '_blank', 'noopener,noreferrer');
-      toastMessages.updateSuccess();
-    },
-    onError: (error) => {
-      toastMessages.updateFailed(error?.message || 'Não foi possível exportar e salvar o relatório no Drive.');
-    },
-  });
-
-  // Exportações são processadas em fila para evitar concorrência no conector do Drive.
-  const exportQueueRef = useRef([]);
-  const exportRunningRef = useRef(false);
-  const [exportingReportId, setExportingReportId] = useState(null);
-
-  const processExportQueue = async () => {
-    if (exportRunningRef.current) return;
-    exportRunningRef.current = true;
-    try {
-      while (exportQueueRef.current.length > 0) {
-        const report = exportQueueRef.current.shift();
-        setExportingReportId(report.id);
-        try {
-          await exportReportMutation.mutateAsync(report);
-        } catch (_error) {
-          // O erro já é apresentado pela mutation; continue com o próximo item.
-        } finally {
-          setExportingReportId(null);
-        }
-      }
-    } finally {
-      exportRunningRef.current = false;
-    }
-  };
-
-  const enqueueExport = (report) => {
-    if (exportQueueRef.current.some((item) => item.id === report.id) || exportingReportId === report.id) return;
-    exportQueueRef.current.push(report);
-    processExportQueue();
-  };
 
   const {
     data: reports = [],
@@ -750,20 +698,6 @@ export default function Relatorios() {
                             <FileText className="h-3.5 w-3.5" />
                             PDF no Drive
                           </a>
-                        )}
-
-                        {(isAdmin || isCoordenador || isReportOwner(report, user)) && !reportBackupUrl && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="gap-1 shrink-0"
-                            disabled={exportingReportId === report.id || exportQueueRef.current.some((item) => item.id === report.id)}
-                            onClick={() => enqueueExport(report)}
-                            title="Exporta o PDF e atualiza o backup mensal no Drive"
-                          >
-                            {exportingReportId === report.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                            {exportingReportId === report.id ? 'Exportando…' : 'Exportar PDF + backup'}
-                          </Button>
                         )}
 
                         {canReturnToReview && (
