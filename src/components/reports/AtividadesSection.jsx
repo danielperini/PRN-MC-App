@@ -204,9 +204,17 @@ export default function AtividadesSection({
   }, [programacaoItemsRaw]);
 
   const { data: equipe = [] } = useQuery({
-    queryKey: ['team-members-for-report-activities'],
+    queryKey: ['team-members-for-report-activities-v2'],
     queryFn: async () => {
-      const res = await base44.entities.TeamMember.list('', 1000);
+      const sources = await Promise.all([
+        base44.entities.TeamMember?.list?.('', 1000).catch(() => []),
+        base44.entities.Equipe?.list?.('', 1000).catch(() => []),
+        base44.entities.User?.list?.('', 1000).catch(() => []),
+      ]);
+      const res = sources.flat().filter((member) => {
+        const role = normalizeText(member?.role || member?.base_role || member?.perfil);
+        return role.includes('profissional') || role.includes('coordenador') || role.includes('admin');
+      });
       const map = new Map();
 
       for (const member of res || []) {
