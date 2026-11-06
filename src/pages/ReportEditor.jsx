@@ -394,34 +394,6 @@ export default function ReportEditor() {
         return;
       }
 
-      let existingDrafts = await base44.entities.Report.filter({
-        created_by: currentUser.email,
-        mes_referencia: mesAtual,
-        ano: anoAtual,
-        status: 'DRAFT',
-      });
-
-      if (!existingDrafts?.length) {
-        existingDrafts = await base44.entities.Report.filter({
-          author_email: currentUser.email,
-          mes_referencia: mesAtual,
-          ano: anoAtual,
-          status: 'DRAFT',
-        });
-      }
-
-      const ownDrafts = (existingDrafts || [])
-        .filter((draft) => isReportOwner(draft, currentUser)
-          && String(draft.status || '').toUpperCase() === 'DRAFT'
-          && String(draft.mes_referencia || '') === String(mesAtual)
-          && Number(draft.ano) === Number(anoAtual))
-        .sort((a, b) => String(b.updated_date || b.created_date || '').localeCompare(String(a.updated_date || a.created_date || '')));
-
-      if (ownDrafts.length > 0) {
-        applyReport(await loadReportRelations(ownDrafts[0]));
-        toast.info('Rascunho existente aberto.');
-        return;
-      }
 
       const payload = createEmptyReportPayload(currentUser, mesAtual, anoAtual);
       const created = await base44.entities.Report.create(payload);
