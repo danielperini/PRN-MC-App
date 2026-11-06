@@ -8,6 +8,7 @@ import AtividadeCamposBasicos from './AtividadeCamposBasicos';
 import ActivityPhotoLinker from './ActivityPhotoLinker';
 import ActivityAttachments from './ActivityAttachments';
 import { metaOcultaNoTerceiroAditivo } from '@/utils/metasAditivosPermitidos';
+import { METAS_PROJETO_FALLBACK } from '@/lib/metasProjeto';
 
 function createActivityId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -228,7 +229,7 @@ export default function AtividadesSection({
     queryKey: ['project-metas-3-4-aditivo'],
     queryFn: async () => {
       const res = await base44.entities.ProjectMeta.list('ordem', 1000);
-      return (Array.isArray(res) ? res : [])
+      const metasBanco = (Array.isArray(res) ? res : [])
         .filter((m) => {
           if (m.ativo === false) return false;
           // Apenas metas do 3º e 4º Aditivo: ordem numérica de 1 a 25
@@ -240,6 +241,27 @@ export default function AtividadesSection({
           label: m.nome,
           nome: m.nome,
         }));
+
+      // O catálogo oficial é a fonte de recuperação quando uma meta ainda
+      // não foi sincronizada na entidade ProjectMeta (ex.: Meta 20).
+      const ordensBanco = new Set(
+        metasBanco
+          .map((m) => String(m.label || '').match(/^(?:meta\s*)?(\d{1,2})\b/i)?.[1])
+          .filter(Boolean)
+      );
+      const metasFallback = METAS_PROJETO_FALLBACK
+        .filter((m) => /^(\d{1,2})\s*-/.test(String(m.label || '')))
+        .filter((m) => {
+          const ordem = String(m.label).match(/^(\d{1,2})\s*-/)?.[1];
+          return ordem && !ordensBanco.has(ordem) && !metaOcultaNoTerceiroAditivo({ nome: m.label });
+        })
+        .map((m) => ({ id: m.id, label: m.label, nome: m.label }));
+
+      return [...metasBanco, ...metasFallback].sort((a, b) => {
+        const ordemA = Number(String(a.label || '').match(/^(?:meta\s*)?(\d{1,2})\b/i)?.[1] || 999);
+        const ordemB = Number(String(b.label || '').match(/^(?:meta\s*)?(\d{1,2})\b/i)?.[1] || 999);
+        return ordemA - ordemB || String(a.label).localeCompare(String(b.label), 'pt-BR');
+      });
     },
   });
 
