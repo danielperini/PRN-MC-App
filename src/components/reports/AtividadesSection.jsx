@@ -10,6 +10,10 @@ import ActivityAttachments from './ActivityAttachments';
 import { metaOcultaNoTerceiroAditivo } from '@/utils/metasAditivosPermitidos';
 import { METAS_PROJETO_FALLBACK } from '@/lib/metasProjeto';
 
+// Preserve a snapshot before startup installers synchronize and clear the
+// exported compatibility array.
+const METAS_CATALOGO_RECUPERACAO = [...METAS_PROJETO_FALLBACK];
+
 function createActivityId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
@@ -249,7 +253,7 @@ export default function AtividadesSection({
           .map((m) => String(m.label || '').match(/^(?:meta\s*)?(\d{1,2})\b/i)?.[1])
           .filter(Boolean)
       );
-      const metasFallback = METAS_PROJETO_FALLBACK
+      const metasFallback = METAS_CATALOGO_RECUPERACAO
         .filter((m) => /^(\d{1,2})\s*-/.test(String(m.label || '')))
         .filter((m) => {
           const ordem = String(m.label).match(/^(\d{1,2})\s*-/)?.[1];
