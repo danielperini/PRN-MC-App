@@ -14,7 +14,7 @@ import { syncProgramacao } from './programacao-sync.mjs';
 import { buildRubricaComposition } from './rubrica-composition.mjs';
 import nodemailer from 'nodemailer';
 import { brandedEmailHtml, brandedEmailText, paymentNotificationSteps, purchaseSubmissionSteps, reportSubmissionSteps } from './email-layout.mjs';
-import { resolveTenantContext, appendTenantScope, applyTenantPayload, tenantContextResponse } from './tenant-context.mjs';
+import { resolveTenantContext, appendTenantScope, applyTenantPayload, tenantContextResponse, canManageOrganization } from './tenant-context.mjs';
 
 const { Pool } = pg;
 const execFileAsync = promisify(execFile);
@@ -1622,12 +1622,15 @@ app.post('/api/apps/:appId/entities/:entityName', requireSession, async (req,res
     if (!(await canMutateAccountEntity(req,table))) return res.status(403).json({error:'manage_users_required'});
     const columns=await tableColumns(table); const columnTypes=await tableColumnTypes(table);
     const tenantContext = await resolveTenantContext(pool, req);
+    if (table === 'organizations' && !canManageOrganization(tenantContext)) return res.status(403).json({error:'organization_admin_required'});
+    if (table === 'projects' && !canManageOrganization(tenantContext)) return res.status(403).json({error:'organization_admin_required'});
     const fiscalBody=normalizePurchaseFiscalPayload(req.params.entityName,req.body||{});
     let normalizedBody=await normalizeReportCreatePayload(req,req.params.entityName,fiscalBody);
     normalizedBody=await normalizeReportRelationPayload(req,req.params.entityName,normalizedBody);
     normalizedBody=await normalizeClientErrorPayload(req,req.params.entityName,normalizedBody);
     normalizedBody=preserveReportEditorContent(normalizedBody);
     normalizedBody=applyTenantPayload(normalizedBody, table, columns, tenantContext);
+    if (table === 'projects') normalizedBody = { ...normalizedBody, organization_id: tenantContext.organizationId };
     let entries=Object.entries(normalizedBody).filter(([k,v])=>columns.includes(k)&&v!==undefined&&
       (table!=='rubricas'||!CALCULATED_RUBRICA_FIELDS.has(k)));
     if (columns.includes('id') && !entries.some(([key]) => key === 'id')) {
@@ -1698,12 +1701,19 @@ async function updateEntity(req,res) {
     if (!relationAccess.allowed) return res.status(403).json({error:'report_relation_access_denied'});
     const columns=await tableColumns(table); if(!columns.includes('id')) return res.status(400).json({error:'entity_has_no_id_column'});
     const tenantContext = await resolveTenantContext(pool, req);
+    if (table === 'organizations' && !canManageOrganization(tenantContext)) return res.status(403).json({error:'organization_admin_required'});
+    if (table === 'projects') {
+      const targetProject=(await pool.query('SELECT organization_id FROM projects WHERE id=$1 LIMIT 1',[req.params.id])).rows[0];
+      if (!targetProject) return res.status(404).json({error:'entity_not_found'});
+      if (String(targetProject.organization_id)!==String(tenantContext.organizationId) || !canManageOrganization(tenantContext)) return res.status(403).json({error:'organization_admin_required'});
+    }
     const columnTypes=await tableColumnTypes(table);
     const fiscalBody=normalizePurchaseFiscalPayload(req.params.entityName,req.body||{});
     let normalizedBody=await normalizeReportUpdatePayload(req,req.params.entityName,fiscalBody);
     normalizedBody=await normalizeReportRelationPayload(req,req.params.entityName,normalizedBody);
     normalizedBody=preserveReportEditorContent(normalizedBody,reportAccess?.report?.raw_data);
     normalizedBody=applyTenantPayload(normalizedBody, table, columns, tenantContext);
+    if (table === 'projects') normalizedBody = { ...normalizedBody, organization_id: tenantContext.organizationId };
     entries=Object.entries(normalizedBody).filter(([k,v])=>columns.includes(k)&&k!=='id'&&v!==undefined&&
       (table!=='rubricas'||!CALCULATED_RUBRICA_FIELDS.has(k)));
     currentField=entries[0]?.[0]||null;
@@ -1751,6 +1761,7 @@ app.put('/api/apps/:appId/entities/:entityName/:id',requireSession,updateEntity)
 app.delete('/api/apps/:appId/entities/:entityName/:id',requireSession,async(req,res)=>{
   try { const table=entityTable(req.params.entityName); if(!table) return res.status(404).json({error:'entity_not_migrated'}); if(!(await tableExists(table))) return res.status(404).json({error:'table_not_found',table});
     if (['users','user_permissions','user_registrations'].includes(table) && !(await canManageUsers(req.userId))) return res.status(403).json({error:'manage_users_required'});
+    if (table === 'organizations' || table === 'projects') return res.status(405).json({error:'tenant_delete_not_supported'});
     if (table==='reports') {
       const access=await assertReportUpdateAccess(req,req.params.id);
       if (!access.exists) return res.status(404).json({error:'entity_not_found'});
