@@ -848,6 +848,7 @@ app.get('/db-health', async (_req,res) => { try { const r=await pool.query('SELE
 // entity reader remains owner-scoped to protect editing and report relations.
 app.get('/api/gallery/photos', requireSession, async (req, res) => {
   try {
+    const tenantContext = await resolveTenantContext(pool, req);
     const limit = Math.min(Math.max(Number.parseInt(req.query.limit,10) || 200,1),200);
     const offset = Math.min(Math.max(Number.parseInt(req.query.offset,10) || 0,0),10000);
     const rows = (await pool.query(`SELECT id,base44_id,report_id,activity_id,drive_file_id,file_name,file_url,
@@ -855,7 +856,8 @@ app.get('/api/gallery/photos', requireSession, async (req, res) => {
       jsonb_build_object('data_foto',raw_data->>'data_foto') AS raw_data
       FROM report_photos
       WHERE galeria_oculta IS DISTINCT FROM TRUE AND NULLIF(BTRIM(file_url),'') IS NOT NULL
-      ORDER BY created_date DESC NULLS LAST,id DESC LIMIT $1 OFFSET $2`,[limit,offset])).rows;
+        AND organization_id=$3 AND project_id=$4
+      ORDER BY created_date DESC NULLS LAST,id DESC LIMIT $1 OFFSET $2`,[limit,offset,tenantContext.organizationId,tenantContext.projectId])).rows;
     res.setHeader('Cache-Control','private, no-store');
     return res.json(rows);
   } catch (error) {
@@ -1018,13 +1020,15 @@ app.post('/api/finance/rubrica-composition/batch-exclude', requireSession, async
 // to professionals who do not own that report.
 app.get('/api/dashboard/daily-report-sources', requireSession, async (req,res) => {
   try {
+    const tenantContext = await resolveTenantContext(pool, req);
     const actor=(await pool.query('SELECT email,role FROM users WHERE id=$1 LIMIT 1',[req.userId])).rows[0];
     const result=await pool.query(`SELECT id,status,museu,museu_secundario,mes_referencia,ano,
       author_name,author_email,created_by,updated_date,resumo_periodo,resumo_executivo,
       comentarios_gerais,raw_data->'atividades' AS atividades,raw_data->'depoimentos' AS depoimentos
       FROM reports WHERE UPPER(COALESCE(status,'')) IN
       ('APPROVED','APROVADO','APROVADO_COORD','APROVADO_ADMIN','APROVADO ADMIN')
-      ORDER BY updated_date DESC NULLS LAST,id DESC LIMIT 5000`);
+      AND organization_id=$1 AND project_id=$2
+      ORDER BY updated_date DESC NULLS LAST,id DESC LIMIT 5000`,[tenantContext.organizationId,tenantContext.projectId]);
     const allowedActivityFields=['responsavel','profissional','autor','depoimento_participantes',
       'depoimento','feedback_publico','resultado_alcancado','descricao','observacoes','avaliacao','relato','impacto'];
     const reports=result.rows.map(row=>{
