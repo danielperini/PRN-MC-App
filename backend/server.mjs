@@ -516,12 +516,19 @@ const PURCHASE_UTILIZED_WHERE_SQL = `p.rubrica_id IS NOT NULL
 
 // Recompute from fiscal data after every state-changing purchase action. Drafts
 // never consume the budget and the invoice amount wins over UI display fields.
-async function syncRubricaBalances(db = pool) {
+async function syncRubricaBalances(db = pool, tenantContext = null) {
+  const scopeSql = tenantContext
+    ? ' AND p.organization_id=$1 AND p.project_id=$2'
+    : '';
+  const rubricaScopeSql = tenantContext
+    ? ' WHERE organization_id=$1 AND project_id=$2'
+    : '';
+  const params = tenantContext ? [tenantContext.organizationId, tenantContext.projectId] : [];
   const r = await db.query(`
     WITH used AS (
       SELECT p.rubrica_id, ROUND(SUM(${PURCHASE_UTILIZED_AMOUNT_SQL})::numeric, 2) AS amount
       FROM purchase_requests p
-      WHERE ${PURCHASE_UTILIZED_WHERE_SQL}
+      WHERE ${PURCHASE_UTILIZED_WHERE_SQL}${scopeSql}
       GROUP BY p.rubrica_id
     )
     UPDATE rubricas r
@@ -530,19 +537,20 @@ async function syncRubricaBalances(db = pool) {
         saldo_real=COALESCE(r.valor_total,r.valor_rubrica,0)-COALESCE(u.amount,0),
         percentual_utilizado=CASE WHEN COALESCE(r.valor_total,r.valor_rubrica,0)>0 THEN ROUND(COALESCE(u.amount,0)/COALESCE(r.valor_total,r.valor_rubrica,0)*100,2) ELSE 0 END,
         updated_at=NOW()
-    FROM (SELECT id FROM rubricas) all_r
+    FROM (SELECT id FROM rubricas${rubricaScopeSql}) all_r
     LEFT JOIN used u ON u.rubrica_id=all_r.id
     WHERE r.id=all_r.id
-  `);
+  `, params);
   return r.rowCount || 0;
 }
 
 // One backend response supplies the amount shown in every row and the exact
 // request list behind it. Totals are summed in integer cents from those same
 // rows, so the modal footer cannot disagree with the displayed amount.
-app.get('/api/finance/rubrica-composition', requireSession, async (_req, res) => {
+app.get('/api/finance/rubrica-composition', requireSession, async (req, res) => {
   try {
-    const rubricas = (await pool.query('SELECT id, grupo, rubrica, centro_custo, COALESCE(valor_total,valor_rubrica,0) AS orcado FROM rubricas')).rows;
+    const tenantContext = await resolveTenantContext(pool, req);
+    const rubricas = (await pool.query('SELECT id, grupo, rubrica, centro_custo, COALESCE(valor_total,valor_rubrica,0) AS orcado FROM rubricas WHERE organization_id=$1 AND project_id=$2',[tenantContext.organizationId,tenantContext.projectId])).rows;
     const rows = (await pool.query(`
       SELECT p.rubrica_id::text AS rubrica_id,
         to_jsonb(p) || jsonb_build_object('meta_nome_resolvido', pm.nome) AS purchase,
@@ -550,7 +558,8 @@ app.get('/api/finance/rubrica-composition', requireSession, async (_req, res) =>
       FROM purchase_requests p
       LEFT JOIN project_metas pm ON pm.id=p.meta_id
       WHERE ${PURCHASE_UTILIZED_WHERE_SQL}
-    `)).rows;
+        AND p.organization_id=$1 AND p.project_id=$2
+    `,[tenantContext.organizationId,tenantContext.projectId])).rows;
     return res.json({ rubricas: buildRubricaComposition(rubricas, rows) });
   } catch (error) {
     console.error('RUBRICA_COMPOSITION_ERROR:', error);
@@ -895,6 +904,7 @@ app.get('/api/finance/rubrica-composition/candidates', requireSession, async (re
     const search = String(req.query.q || '').trim();
     const rubricaId = String(req.query.rubricaId || '').trim();
     if (search.length < 2 || search.length > 120 || !rubricaId) return res.status(400).json({ error:'invalid_search' });
+    const tenantContext = await resolveTenantContext(pool, req);
     const rows = (await pool.query(`
       SELECT p.id,p.nf_numero,p.descricao_item,p.fornecedor_nome,p.nf_emitente_nome,
         p.nf_data_emissao,p.centro_custo,p.meta_id,p.rubrica_id,p.status,p.incluir_no_somatorio,
@@ -906,7 +916,8 @@ app.get('/api/finance/rubrica-composition/candidates', requireSession, async (re
         AND (p.rubrica_id IS DISTINCT FROM $1 OR p.incluir_no_somatorio IS FALSE)
         AND (p.id ILIKE $2 OR COALESCE(p.nf_numero,'') ILIKE $2
           OR COALESCE(p.descricao_item,'') ILIKE $2 OR COALESCE(p.fornecedor_nome,'') ILIKE $2)
-      ORDER BY p.nf_data_emissao DESC NULLS LAST,p.id LIMIT 30`,[rubricaId,`%${search.replace(/[\\%_]/g,'\\$&')}%`])).rows;
+        AND p.organization_id=$3 AND p.project_id=$4
+      ORDER BY p.nf_data_emissao DESC NULLS LAST,p.id LIMIT 30`,[rubricaId,`%${search.replace(/[\\%_]/g,'\\$&')}%`,tenantContext.organizationId,tenantContext.projectId])).rows;
     return res.json({ candidates:rows });
   } catch (error) {
     console.error('RUBRICA_COMPOSITION_CANDIDATES_ERROR',error);
@@ -917,6 +928,7 @@ app.get('/api/finance/rubrica-composition/candidates', requireSession, async (re
 app.post('/api/finance/rubrica-composition/correct', requireSession, async (req, res) => {
   const actor = await canCorrectRubricaComposition(req.userId);
   if (!actor) return res.status(403).json({ error:'financial_editor_required' });
+  const tenantContext = await resolveTenantContext(pool, req);
   const purchaseId = String(req.body?.purchaseId || '').trim();
   const rubricaId = String(req.body?.rubricaId || '').trim();
   const action = String(req.body?.action || '').trim();
@@ -927,12 +939,13 @@ app.post('/api/finance/rubrica-composition/correct', requireSession, async (req,
   try {
     await client.query('BEGIN');
     const purchase = (await client.query('SELECT * FROM purchase_requests WHERE id=$1 FOR UPDATE',[purchaseId])).rows[0];
+    if (purchase && (String(purchase.organization_id)!==String(tenantContext.organizationId) || String(purchase.project_id)!==String(tenantContext.projectId))) { await client.query('ROLLBACK'); return res.status(403).json({ error:'tenant_context_mismatch' }); }
     if (!purchase) { await client.query('ROLLBACK'); return res.status(404).json({ error:'purchase_not_found' }); }
     if (!['APROVADO','APROVADO_COORD','APROVADO_ADMIN','PAGO'].includes(String(purchase.status || '').toUpperCase())) {
       await client.query('ROLLBACK'); return res.status(409).json({ error:'purchase_not_approved' });
     }
     if (purchase.duplicada_financeira) { await client.query('ROLLBACK'); return res.status(409).json({ error:'duplicate_purchase_blocked' }); }
-    const target = (await client.query('SELECT id FROM rubricas WHERE id::text=$1',[rubricaId])).rows[0];
+    const target = (await client.query('SELECT id FROM rubricas WHERE id::text=$1 AND organization_id=$2 AND project_id=$3',[rubricaId,tenantContext.organizationId,tenantContext.projectId])).rows[0];
     if (!target) { await client.query('ROLLBACK'); return res.status(404).json({ error:'rubrica_not_found' }); }
     if (action === 'exclude' && String(purchase.rubrica_id || '') !== rubricaId) {
       await client.query('ROLLBACK'); return res.status(409).json({ error:'purchase_rubrica_changed' });
@@ -950,7 +963,7 @@ app.post('/api/finance/rubrica-composition/correct', requireSession, async (req,
       raw_data=jsonb_set(COALESCE(raw_data,'{}'::jsonb),'{composition_history}',
         COALESCE(CASE WHEN jsonb_typeof(raw_data->'composition_history')='array' THEN raw_data->'composition_history' ELSE '[]'::jsonb END,'[]'::jsonb)||$4::jsonb),
       updated_at=NOW() WHERE id=$1`,[purchaseId,newRubricaId,newIncluded,JSON.stringify([audit])]);
-    await syncRubricaBalances(client);
+    await syncRubricaBalances(client, tenantContext);
     await client.query('COMMIT');
     return res.json({ success:true, action, purchaseId, rubricaId:newRubricaId, included:newIncluded });
   } catch (error) {
@@ -965,6 +978,7 @@ app.post('/api/finance/rubrica-composition/correct', requireSession, async (req,
 app.post('/api/finance/rubrica-composition/batch-exclude', requireSession, async (req, res) => {
   const actor = await canCorrectRubricaComposition(req.userId);
   if (!actor) return res.status(403).json({ error:'financial_editor_required' });
+  const tenantContext = await resolveTenantContext(pool, req);
   const rubricaId = String(req.body?.rubricaId || '').trim();
   const purchaseIds = Array.isArray(req.body?.purchaseIds) ? [...new Set(req.body.purchaseIds.map(value => String(value || '').trim()))] : [];
   const reason = String(req.body?.reason || '').trim();
@@ -973,9 +987,9 @@ app.post('/api/finance/rubrica-composition/batch-exclude', requireSession, async
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const target = (await client.query('SELECT id FROM rubricas WHERE id::text=$1 FOR UPDATE',[rubricaId])).rows[0];
+    const target = (await client.query('SELECT id FROM rubricas WHERE id::text=$1 AND organization_id=$2 AND project_id=$3 FOR UPDATE',[rubricaId,tenantContext.organizationId,tenantContext.projectId])).rows[0];
     if (!target) { await client.query('ROLLBACK'); return res.status(404).json({ error:'rubrica_not_found' }); }
-    const rows = (await client.query('SELECT * FROM purchase_requests WHERE id=ANY($1::text[]) ORDER BY id FOR UPDATE',[purchaseIds])).rows;
+    const rows = (await client.query('SELECT * FROM purchase_requests WHERE id=ANY($1::text[]) AND organization_id=$2 AND project_id=$3 ORDER BY id FOR UPDATE',[purchaseIds,tenantContext.organizationId,tenantContext.projectId])).rows;
     if (rows.length !== purchaseIds.length || rows.some(p => String(p.rubrica_id || '') !== rubricaId
       || !['APROVADO','APROVADO_COORD','APROVADO_ADMIN','PAGO'].includes(String(p.status || '').toUpperCase())
       || p.duplicada_financeira === true || p.incluir_no_somatorio === false)) {
@@ -989,7 +1003,7 @@ app.post('/api/finance/rubrica-composition/batch-exclude', requireSession, async
           COALESCE(CASE WHEN jsonb_typeof(raw_data->'composition_history')='array' THEN raw_data->'composition_history' ELSE '[]'::jsonb END,'[]'::jsonb)||$2::jsonb),
         updated_at=NOW(),updated_date=NOW() WHERE id=$1`,[purchase.id,JSON.stringify([audit])]);
     }
-    await syncRubricaBalances(client);
+    await syncRubricaBalances(client, tenantContext);
     await client.query('COMMIT');
     return res.json({ success:true, excluded:rows.length, purchaseIds });
   } catch (error) {
@@ -1676,7 +1690,7 @@ app.post('/api/apps/:appId/entities/:entityName', requireSession, async (req,res
     }
     if (table==='document_intakes') await suppressExactDuplicateIntakes(r.rows[0].id);
     if (table==='purchase_requests' && ['APROVADO','APROVADO_COORD','APROVADO_ADMIN','PAGO'].includes(String(r.rows[0]?.status||'').toUpperCase())) {
-      await syncRubricaBalances().catch(error => console.error('RUBRICA_BALANCE_SYNC_ERROR', error));
+      await syncRubricaBalances(pool, tenantContext).catch(error => console.error('RUBRICA_BALANCE_SYNC_ERROR', error));
     }
     if (table==='client_error_logs') console.warn('CLIENT_ERROR_LOGGED', JSON.stringify({ error_id:r.rows[0].error_id, user_email:r.rows[0].user_email, url:r.rows[0].url }));
     res.status(201).json(publicEntityRow(table,r.rows[0]));
@@ -1740,7 +1754,7 @@ async function updateEntity(req,res) {
       await rehydrateReportMediaProjection(r.rows[0].report_id).catch((error) => console.error('REPORT_PHOTO_PROJECTION_SYNC_ERROR', error));
     }
     if (table==='document_intakes') await suppressExactDuplicateIntakes(r.rows[0].id);
-    if (table==='purchase_requests') await syncRubricaBalances().catch(error => console.error('RUBRICA_BALANCE_SYNC_ERROR', error));
+    if (table==='purchase_requests') await syncRubricaBalances(pool, tenantContext).catch(error => console.error('RUBRICA_BALANCE_SYNC_ERROR', error));
     res.json(publicEntityRow(table,r.rows[0]));
   } catch(e) {
     const bodyKeys=Object.keys(req.body||{});
