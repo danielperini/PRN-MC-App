@@ -15,6 +15,7 @@ import { RotateCw } from 'lucide-react';
 import AppTour from '@/components/tour/AppTour';
 import WelcomeBanner from '@/components/tour/WelcomeBanner';
 import BugReportButton from '@/components/common/BugReportButton';
+import TenantContextBar from '@/components/tenant/TenantContextBar';
 
 const PAGE_TITLES = {
   Dashboard: 'Painel',
@@ -168,11 +169,13 @@ export default function Layout({ children, currentPageName }) {
           <Sidebar currentPageName={currentPageName} collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((prev) => !prev)} currentUser={currentUser} />
           <div className="flex-1 min-w-0 flex flex-col">
             <TopNav title={pageTitle} currentPageName={currentPageName} currentUser={currentUser} />
+            <TenantContextBar />
             <main className="flex-1 min-w-0 overflow-x-hidden p-4 md:p-6">{children}</main>
           </div>
         </div>
         <div className="lg:hidden min-h-screen flex flex-col pb-20">
           <MobileHeader title={pageTitle} currentPageName={currentPageName} currentUser={currentUser} />
+          <TenantContextBar />
           <main ref={mobileMainRef} className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-4 relative">
             {pullDistance > 0 && (
               <div className="fixed top-0 left-0 right-0 z-40 flex items-center justify-center bg-gradient-to-b from-blue-50 to-transparent transition-all" style={{ height: `${pullDistance}px` }}>

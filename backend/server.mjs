@@ -14,6 +14,7 @@ import { syncProgramacao } from './programacao-sync.mjs';
 import { buildRubricaComposition } from './rubrica-composition.mjs';
 import nodemailer from 'nodemailer';
 import { brandedEmailHtml, brandedEmailText, paymentNotificationSteps, purchaseSubmissionSteps, reportSubmissionSteps } from './email-layout.mjs';
+import { resolveTenantContext, appendTenantScope, applyTenantPayload, tenantContextResponse, canManageOrganization } from './tenant-context.mjs';
 
 const { Pool } = pg;
 const execFileAsync = promisify(execFile);
@@ -136,6 +137,35 @@ async function canMutateAccountEntity(req,table,targetId=null) {
   const safe=new Set(['full_name','funcao','equipe','museu']);
   return Object.keys(req.body||{}).every(key=>safe.has(key));
 }
+app.get('/api/context', requireSession, async (req, res) => {
+  try {
+    const context = await resolveTenantContext(pool, req);
+    res.json(tenantContextResponse(context));
+  } catch (error) {
+    const status = /membership_required|access_denied/.test(String(error.message)) ? 403 : 503;
+    console.error('TENANT_CONTEXT_GET_ERROR', error.message);
+    res.status(status).json({ error: error.message });
+  }
+});
+
+app.post('/api/context', requireSession, async (req, res) => {
+  try {
+    const organizationId = String(req.body?.organizationId || req.body?.organization_id || '').trim();
+    const projectId = String(req.body?.projectId || req.body?.project_id || '').trim();
+    if (!organizationId || !projectId) return res.status(400).json({ error: 'organization_and_project_required' });
+    const contextRequest = {
+      ...req,
+      query: { ...(req.query || {}), organization_id: organizationId, project_id: projectId },
+      headers: { ...(req.headers || {}), 'x-organization-id': organizationId, 'x-project-id': projectId },
+    };
+    const context = await resolveTenantContext(pool, contextRequest);
+    res.json(tenantContextResponse(context));
+  } catch (error) {
+    const status = /membership_required|access_denied/.test(String(error.message)) ? 403 : 503;
+    console.error('TENANT_CONTEXT_SELECT_ERROR', error.message);
+    res.status(status).json({ error: error.message });
+  }
+});
 function publicEntityRow(table,row) {
   if (!row) return row;
   if (table==='users') { const {password_hash,...safe}=row; return safe; }
@@ -459,7 +489,7 @@ const ENTITY_TABLES = Object.freeze({
   LancamentoRubrica:'lancamentos_rubrica', Meta:'metas', MetaActivity:'meta_activities', PurchaseRequest:'purchase_requests',
   PurchaseDocument:'purchase_documents', DocumentIntake:'document_intakes', FinanceiroAuditLog:'financeiro_audit_logs', AuditLog:'audit_logs',
   UserPermission:'user_permissions', UserRegistration:'user_registrations', Profile:'profiles', Museu:'museus', Equipe:'equipes', Fornecedor:'fornecedores',
-  ClientErrorLog:'client_error_logs'
+  ClientErrorLog:'client_error_logs', Organization:'organizations', Project:'projects'
 });
 function entityTable(name) { return ENTITY_TABLES[String(name || '')] || null; }
 function quoteIdentifier(value) { return `"${String(value).replaceAll('"', '""')}"`; }
@@ -486,12 +516,19 @@ const PURCHASE_UTILIZED_WHERE_SQL = `p.rubrica_id IS NOT NULL
 
 // Recompute from fiscal data after every state-changing purchase action. Drafts
 // never consume the budget and the invoice amount wins over UI display fields.
-async function syncRubricaBalances(db = pool) {
+async function syncRubricaBalances(db = pool, tenantContext = null) {
+  const scopeSql = tenantContext
+    ? ' AND p.organization_id=$1 AND p.project_id=$2'
+    : '';
+  const rubricaScopeSql = tenantContext
+    ? ' WHERE organization_id=$1 AND project_id=$2'
+    : '';
+  const params = tenantContext ? [tenantContext.organizationId, tenantContext.projectId] : [];
   const r = await db.query(`
     WITH used AS (
       SELECT p.rubrica_id, ROUND(SUM(${PURCHASE_UTILIZED_AMOUNT_SQL})::numeric, 2) AS amount
       FROM purchase_requests p
-      WHERE ${PURCHASE_UTILIZED_WHERE_SQL}
+      WHERE ${PURCHASE_UTILIZED_WHERE_SQL}${scopeSql}
       GROUP BY p.rubrica_id
     )
     UPDATE rubricas r
@@ -500,19 +537,20 @@ async function syncRubricaBalances(db = pool) {
         saldo_real=COALESCE(r.valor_total,r.valor_rubrica,0)-COALESCE(u.amount,0),
         percentual_utilizado=CASE WHEN COALESCE(r.valor_total,r.valor_rubrica,0)>0 THEN ROUND(COALESCE(u.amount,0)/COALESCE(r.valor_total,r.valor_rubrica,0)*100,2) ELSE 0 END,
         updated_at=NOW()
-    FROM (SELECT id FROM rubricas) all_r
+    FROM (SELECT id FROM rubricas${rubricaScopeSql}) all_r
     LEFT JOIN used u ON u.rubrica_id=all_r.id
     WHERE r.id=all_r.id
-  `);
+  `, params);
   return r.rowCount || 0;
 }
 
 // One backend response supplies the amount shown in every row and the exact
 // request list behind it. Totals are summed in integer cents from those same
 // rows, so the modal footer cannot disagree with the displayed amount.
-app.get('/api/finance/rubrica-composition', requireSession, async (_req, res) => {
+app.get('/api/finance/rubrica-composition', requireSession, async (req, res) => {
   try {
-    const rubricas = (await pool.query('SELECT id, grupo, rubrica, centro_custo, COALESCE(valor_total,valor_rubrica,0) AS orcado FROM rubricas')).rows;
+    const tenantContext = await resolveTenantContext(pool, req);
+    const rubricas = (await pool.query('SELECT id, grupo, rubrica, centro_custo, COALESCE(valor_total,valor_rubrica,0) AS orcado FROM rubricas WHERE organization_id=$1 AND project_id=$2',[tenantContext.organizationId,tenantContext.projectId])).rows;
     const rows = (await pool.query(`
       SELECT p.rubrica_id::text AS rubrica_id,
         to_jsonb(p) || jsonb_build_object('meta_nome_resolvido', pm.nome) AS purchase,
@@ -520,7 +558,8 @@ app.get('/api/finance/rubrica-composition', requireSession, async (_req, res) =>
       FROM purchase_requests p
       LEFT JOIN project_metas pm ON pm.id=p.meta_id
       WHERE ${PURCHASE_UTILIZED_WHERE_SQL}
-    `)).rows;
+        AND p.organization_id=$1 AND p.project_id=$2
+    `,[tenantContext.organizationId,tenantContext.projectId])).rows;
     return res.json({ rubricas: buildRubricaComposition(rubricas, rows) });
   } catch (error) {
     console.error('RUBRICA_COMPOSITION_ERROR:', error);
@@ -809,6 +848,7 @@ app.get('/db-health', async (_req,res) => { try { const r=await pool.query('SELE
 // entity reader remains owner-scoped to protect editing and report relations.
 app.get('/api/gallery/photos', requireSession, async (req, res) => {
   try {
+    const tenantContext = await resolveTenantContext(pool, req);
     const limit = Math.min(Math.max(Number.parseInt(req.query.limit,10) || 200,1),200);
     const offset = Math.min(Math.max(Number.parseInt(req.query.offset,10) || 0,0),10000);
     const rows = (await pool.query(`SELECT id,base44_id,report_id,activity_id,drive_file_id,file_name,file_url,
@@ -816,7 +856,8 @@ app.get('/api/gallery/photos', requireSession, async (req, res) => {
       jsonb_build_object('data_foto',raw_data->>'data_foto') AS raw_data
       FROM report_photos
       WHERE galeria_oculta IS DISTINCT FROM TRUE AND NULLIF(BTRIM(file_url),'') IS NOT NULL
-      ORDER BY created_date DESC NULLS LAST,id DESC LIMIT $1 OFFSET $2`,[limit,offset])).rows;
+        AND organization_id=$3 AND project_id=$4
+      ORDER BY created_date DESC NULLS LAST,id DESC LIMIT $1 OFFSET $2`,[limit,offset,tenantContext.organizationId,tenantContext.projectId])).rows;
     res.setHeader('Cache-Control','private, no-store');
     return res.json(rows);
   } catch (error) {
@@ -865,6 +906,7 @@ app.get('/api/finance/rubrica-composition/candidates', requireSession, async (re
     const search = String(req.query.q || '').trim();
     const rubricaId = String(req.query.rubricaId || '').trim();
     if (search.length < 2 || search.length > 120 || !rubricaId) return res.status(400).json({ error:'invalid_search' });
+    const tenantContext = await resolveTenantContext(pool, req);
     const rows = (await pool.query(`
       SELECT p.id,p.nf_numero,p.descricao_item,p.fornecedor_nome,p.nf_emitente_nome,
         p.nf_data_emissao,p.centro_custo,p.meta_id,p.rubrica_id,p.status,p.incluir_no_somatorio,
@@ -876,7 +918,8 @@ app.get('/api/finance/rubrica-composition/candidates', requireSession, async (re
         AND (p.rubrica_id IS DISTINCT FROM $1 OR p.incluir_no_somatorio IS FALSE)
         AND (p.id ILIKE $2 OR COALESCE(p.nf_numero,'') ILIKE $2
           OR COALESCE(p.descricao_item,'') ILIKE $2 OR COALESCE(p.fornecedor_nome,'') ILIKE $2)
-      ORDER BY p.nf_data_emissao DESC NULLS LAST,p.id LIMIT 30`,[rubricaId,`%${search.replace(/[\\%_]/g,'\\$&')}%`])).rows;
+        AND p.organization_id=$3 AND p.project_id=$4
+      ORDER BY p.nf_data_emissao DESC NULLS LAST,p.id LIMIT 30`,[rubricaId,`%${search.replace(/[\\%_]/g,'\\$&')}%`,tenantContext.organizationId,tenantContext.projectId])).rows;
     return res.json({ candidates:rows });
   } catch (error) {
     console.error('RUBRICA_COMPOSITION_CANDIDATES_ERROR',error);
@@ -887,6 +930,7 @@ app.get('/api/finance/rubrica-composition/candidates', requireSession, async (re
 app.post('/api/finance/rubrica-composition/correct', requireSession, async (req, res) => {
   const actor = await canCorrectRubricaComposition(req.userId);
   if (!actor) return res.status(403).json({ error:'financial_editor_required' });
+  const tenantContext = await resolveTenantContext(pool, req);
   const purchaseId = String(req.body?.purchaseId || '').trim();
   const rubricaId = String(req.body?.rubricaId || '').trim();
   const action = String(req.body?.action || '').trim();
@@ -897,12 +941,13 @@ app.post('/api/finance/rubrica-composition/correct', requireSession, async (req,
   try {
     await client.query('BEGIN');
     const purchase = (await client.query('SELECT * FROM purchase_requests WHERE id=$1 FOR UPDATE',[purchaseId])).rows[0];
+    if (purchase && (String(purchase.organization_id)!==String(tenantContext.organizationId) || String(purchase.project_id)!==String(tenantContext.projectId))) { await client.query('ROLLBACK'); return res.status(403).json({ error:'tenant_context_mismatch' }); }
     if (!purchase) { await client.query('ROLLBACK'); return res.status(404).json({ error:'purchase_not_found' }); }
     if (!['APROVADO','APROVADO_COORD','APROVADO_ADMIN','PAGO'].includes(String(purchase.status || '').toUpperCase())) {
       await client.query('ROLLBACK'); return res.status(409).json({ error:'purchase_not_approved' });
     }
     if (purchase.duplicada_financeira) { await client.query('ROLLBACK'); return res.status(409).json({ error:'duplicate_purchase_blocked' }); }
-    const target = (await client.query('SELECT id FROM rubricas WHERE id::text=$1',[rubricaId])).rows[0];
+    const target = (await client.query('SELECT id FROM rubricas WHERE id::text=$1 AND organization_id=$2 AND project_id=$3',[rubricaId,tenantContext.organizationId,tenantContext.projectId])).rows[0];
     if (!target) { await client.query('ROLLBACK'); return res.status(404).json({ error:'rubrica_not_found' }); }
     if (action === 'exclude' && String(purchase.rubrica_id || '') !== rubricaId) {
       await client.query('ROLLBACK'); return res.status(409).json({ error:'purchase_rubrica_changed' });
@@ -920,7 +965,7 @@ app.post('/api/finance/rubrica-composition/correct', requireSession, async (req,
       raw_data=jsonb_set(COALESCE(raw_data,'{}'::jsonb),'{composition_history}',
         COALESCE(CASE WHEN jsonb_typeof(raw_data->'composition_history')='array' THEN raw_data->'composition_history' ELSE '[]'::jsonb END,'[]'::jsonb)||$4::jsonb),
       updated_at=NOW() WHERE id=$1`,[purchaseId,newRubricaId,newIncluded,JSON.stringify([audit])]);
-    await syncRubricaBalances(client);
+    await syncRubricaBalances(client, tenantContext);
     await client.query('COMMIT');
     return res.json({ success:true, action, purchaseId, rubricaId:newRubricaId, included:newIncluded });
   } catch (error) {
@@ -935,6 +980,7 @@ app.post('/api/finance/rubrica-composition/correct', requireSession, async (req,
 app.post('/api/finance/rubrica-composition/batch-exclude', requireSession, async (req, res) => {
   const actor = await canCorrectRubricaComposition(req.userId);
   if (!actor) return res.status(403).json({ error:'financial_editor_required' });
+  const tenantContext = await resolveTenantContext(pool, req);
   const rubricaId = String(req.body?.rubricaId || '').trim();
   const purchaseIds = Array.isArray(req.body?.purchaseIds) ? [...new Set(req.body.purchaseIds.map(value => String(value || '').trim()))] : [];
   const reason = String(req.body?.reason || '').trim();
@@ -943,9 +989,9 @@ app.post('/api/finance/rubrica-composition/batch-exclude', requireSession, async
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const target = (await client.query('SELECT id FROM rubricas WHERE id::text=$1 FOR UPDATE',[rubricaId])).rows[0];
+    const target = (await client.query('SELECT id FROM rubricas WHERE id::text=$1 AND organization_id=$2 AND project_id=$3 FOR UPDATE',[rubricaId,tenantContext.organizationId,tenantContext.projectId])).rows[0];
     if (!target) { await client.query('ROLLBACK'); return res.status(404).json({ error:'rubrica_not_found' }); }
-    const rows = (await client.query('SELECT * FROM purchase_requests WHERE id=ANY($1::text[]) ORDER BY id FOR UPDATE',[purchaseIds])).rows;
+    const rows = (await client.query('SELECT * FROM purchase_requests WHERE id=ANY($1::text[]) AND organization_id=$2 AND project_id=$3 ORDER BY id FOR UPDATE',[purchaseIds,tenantContext.organizationId,tenantContext.projectId])).rows;
     if (rows.length !== purchaseIds.length || rows.some(p => String(p.rubrica_id || '') !== rubricaId
       || !['APROVADO','APROVADO_COORD','APROVADO_ADMIN','PAGO'].includes(String(p.status || '').toUpperCase())
       || p.duplicada_financeira === true || p.incluir_no_somatorio === false)) {
@@ -959,7 +1005,7 @@ app.post('/api/finance/rubrica-composition/batch-exclude', requireSession, async
           COALESCE(CASE WHEN jsonb_typeof(raw_data->'composition_history')='array' THEN raw_data->'composition_history' ELSE '[]'::jsonb END,'[]'::jsonb)||$2::jsonb),
         updated_at=NOW(),updated_date=NOW() WHERE id=$1`,[purchase.id,JSON.stringify([audit])]);
     }
-    await syncRubricaBalances(client);
+    await syncRubricaBalances(client, tenantContext);
     await client.query('COMMIT');
     return res.json({ success:true, excluded:rows.length, purchaseIds });
   } catch (error) {
@@ -974,13 +1020,15 @@ app.post('/api/finance/rubrica-composition/batch-exclude', requireSession, async
 // to professionals who do not own that report.
 app.get('/api/dashboard/daily-report-sources', requireSession, async (req,res) => {
   try {
+    const tenantContext = await resolveTenantContext(pool, req);
     const actor=(await pool.query('SELECT email,role FROM users WHERE id=$1 LIMIT 1',[req.userId])).rows[0];
     const result=await pool.query(`SELECT id,status,museu,museu_secundario,mes_referencia,ano,
       author_name,author_email,created_by,updated_date,resumo_periodo,resumo_executivo,
       comentarios_gerais,raw_data->'atividades' AS atividades,raw_data->'depoimentos' AS depoimentos
       FROM reports WHERE UPPER(COALESCE(status,'')) IN
       ('APPROVED','APROVADO','APROVADO_COORD','APROVADO_ADMIN','APROVADO ADMIN')
-      ORDER BY updated_date DESC NULLS LAST,id DESC LIMIT 5000`);
+      AND organization_id=$1 AND project_id=$2
+      ORDER BY updated_date DESC NULLS LAST,id DESC LIMIT 5000`,[tenantContext.organizationId,tenantContext.projectId]);
     const allowedActivityFields=['responsavel','profissional','autor','depoimento_participantes',
       'depoimento','feedback_publico','resultado_alcancado','descricao','observacoes','avaliacao','relato','impacto'];
     const reports=result.rows.map(row=>{
@@ -1039,6 +1087,18 @@ app.get('/api/apps/:appId/entities/:entityName', requireSession, async (req,res)
         values.push(ids);
         sql+=`${sql?' AND':' WHERE'} report_id::text = ANY($${values.length}::text[])`;
       }
+    }
+    const tenantContext = await resolveTenantContext(pool, req);
+    if (table === 'organizations') {
+      values.push(req.userId);
+      sql += `${sql ? ' AND' : ' WHERE'} id IN (SELECT organization_id FROM organization_memberships WHERE user_id=$${values.length} AND COALESCE(status,'ACTIVE')='ACTIVE')`;
+    } else if (table === 'projects') {
+      values.push(tenantContext.organizationId);
+      sql += `${sql ? ' AND' : ' WHERE'} organization_id=$${values.length}`;
+    } else {
+      const scoped = appendTenantScope(sql, values, table, columns, tenantContext);
+      sql = scoped.sql;
+      values = scoped.values;
     }
     const activeClause=table==='programacoes'&&columns.includes('source_active')
       ? `${sql?' AND':' WHERE'} source_active IS DISTINCT FROM FALSE`
@@ -1579,11 +1639,16 @@ app.post('/api/apps/:appId/entities/:entityName', requireSession, async (req,res
     if(!(await tableExists(table))) return res.status(404).json({error:'table_not_found',table});
     if (!(await canMutateAccountEntity(req,table))) return res.status(403).json({error:'manage_users_required'});
     const columns=await tableColumns(table); const columnTypes=await tableColumnTypes(table);
+    const tenantContext = await resolveTenantContext(pool, req);
+    if (table === 'organizations' && !canManageOrganization(tenantContext)) return res.status(403).json({error:'organization_admin_required'});
+    if (table === 'projects' && !canManageOrganization(tenantContext)) return res.status(403).json({error:'organization_admin_required'});
     const fiscalBody=normalizePurchaseFiscalPayload(req.params.entityName,req.body||{});
     let normalizedBody=await normalizeReportCreatePayload(req,req.params.entityName,fiscalBody);
     normalizedBody=await normalizeReportRelationPayload(req,req.params.entityName,normalizedBody);
     normalizedBody=await normalizeClientErrorPayload(req,req.params.entityName,normalizedBody);
     normalizedBody=preserveReportEditorContent(normalizedBody);
+    normalizedBody=applyTenantPayload(normalizedBody, table, columns, tenantContext);
+    if (table === 'projects') normalizedBody = { ...normalizedBody, organization_id: tenantContext.organizationId };
     let entries=Object.entries(normalizedBody).filter(([k,v])=>columns.includes(k)&&v!==undefined&&
       (table!=='rubricas'||!CALCULATED_RUBRICA_FIELDS.has(k)));
     if (columns.includes('id') && !entries.some(([key]) => key === 'id')) {
@@ -1629,7 +1694,7 @@ app.post('/api/apps/:appId/entities/:entityName', requireSession, async (req,res
     }
     if (table==='document_intakes') await suppressExactDuplicateIntakes(r.rows[0].id);
     if (table==='purchase_requests' && ['APROVADO','APROVADO_COORD','APROVADO_ADMIN','PAGO'].includes(String(r.rows[0]?.status||'').toUpperCase())) {
-      await syncRubricaBalances().catch(error => console.error('RUBRICA_BALANCE_SYNC_ERROR', error));
+      await syncRubricaBalances(pool, tenantContext).catch(error => console.error('RUBRICA_BALANCE_SYNC_ERROR', error));
     }
     if (table==='client_error_logs') console.warn('CLIENT_ERROR_LOGGED', JSON.stringify({ error_id:r.rows[0].error_id, user_email:r.rows[0].user_email, url:r.rows[0].url }));
     res.status(201).json(publicEntityRow(table,r.rows[0]));
@@ -1653,11 +1718,20 @@ async function updateEntity(req,res) {
     if (!relationAccess.exists) return res.status(404).json({error:'entity_not_found'});
     if (!relationAccess.allowed) return res.status(403).json({error:'report_relation_access_denied'});
     const columns=await tableColumns(table); if(!columns.includes('id')) return res.status(400).json({error:'entity_has_no_id_column'});
+    const tenantContext = await resolveTenantContext(pool, req);
+    if (table === 'organizations' && !canManageOrganization(tenantContext)) return res.status(403).json({error:'organization_admin_required'});
+    if (table === 'projects') {
+      const targetProject=(await pool.query('SELECT organization_id FROM projects WHERE id=$1 LIMIT 1',[req.params.id])).rows[0];
+      if (!targetProject) return res.status(404).json({error:'entity_not_found'});
+      if (String(targetProject.organization_id)!==String(tenantContext.organizationId) || !canManageOrganization(tenantContext)) return res.status(403).json({error:'organization_admin_required'});
+    }
     const columnTypes=await tableColumnTypes(table);
     const fiscalBody=normalizePurchaseFiscalPayload(req.params.entityName,req.body||{});
     let normalizedBody=await normalizeReportUpdatePayload(req,req.params.entityName,fiscalBody);
     normalizedBody=await normalizeReportRelationPayload(req,req.params.entityName,normalizedBody);
     normalizedBody=preserveReportEditorContent(normalizedBody,reportAccess?.report?.raw_data);
+    normalizedBody=applyTenantPayload(normalizedBody, table, columns, tenantContext);
+    if (table === 'projects') normalizedBody = { ...normalizedBody, organization_id: tenantContext.organizationId };
     entries=Object.entries(normalizedBody).filter(([k,v])=>columns.includes(k)&&k!=='id'&&v!==undefined&&
       (table!=='rubricas'||!CALCULATED_RUBRICA_FIELDS.has(k)));
     currentField=entries[0]?.[0]||null;
@@ -1670,8 +1744,9 @@ async function updateEntity(req,res) {
       return res.status(400).json({error:'empty_entity_update'});
     }
     const vals=entries.map(([,v])=>v); vals.push(req.params.id);
-    const sets=entries.map(([k],i)=>`${quoteIdentifier(k)}=$${i+1}`).join(',');
-    const r=await pool.query(`UPDATE ${quoteIdentifier(table)} SET ${sets} WHERE "id"=$${vals.length} RETURNING *`,vals);
+    const sets=entries.map(([k],i)=>`${quoteIdentifier(k)}=${i+1}`).join(',');
+    const scopedUpdate=appendTenantScope(`"id"=${vals.length}`, vals, table, columns, tenantContext);
+    const r=await pool.query(`UPDATE ${quoteIdentifier(table)} SET ${sets} WHERE ${scopedUpdate.sql} RETURNING *`,scopedUpdate.values);
     if(!r.rowCount) return res.status(404).json({error:'entity_not_found'});
     if (table==='reports' && Array.isArray(normalizedBody.atividades)) {
       await syncReportActivities(r.rows[0], normalizedBody.atividades).catch((error) => console.error('REPORT_ACTIVITY_SYNC_ERROR', error));
@@ -1683,7 +1758,7 @@ async function updateEntity(req,res) {
       await rehydrateReportMediaProjection(r.rows[0].report_id).catch((error) => console.error('REPORT_PHOTO_PROJECTION_SYNC_ERROR', error));
     }
     if (table==='document_intakes') await suppressExactDuplicateIntakes(r.rows[0].id);
-    if (table==='purchase_requests') await syncRubricaBalances().catch(error => console.error('RUBRICA_BALANCE_SYNC_ERROR', error));
+    if (table==='purchase_requests') await syncRubricaBalances(pool, tenantContext).catch(error => console.error('RUBRICA_BALANCE_SYNC_ERROR', error));
     res.json(publicEntityRow(table,r.rows[0]));
   } catch(e) {
     const bodyKeys=Object.keys(req.body||{});
@@ -1704,6 +1779,7 @@ app.put('/api/apps/:appId/entities/:entityName/:id',requireSession,updateEntity)
 app.delete('/api/apps/:appId/entities/:entityName/:id',requireSession,async(req,res)=>{
   try { const table=entityTable(req.params.entityName); if(!table) return res.status(404).json({error:'entity_not_migrated'}); if(!(await tableExists(table))) return res.status(404).json({error:'table_not_found',table});
     if (['users','user_permissions','user_registrations'].includes(table) && !(await canManageUsers(req.userId))) return res.status(403).json({error:'manage_users_required'});
+    if (table === 'organizations' || table === 'projects') return res.status(405).json({error:'tenant_delete_not_supported'});
     if (table==='reports') {
       const access=await assertReportUpdateAccess(req,req.params.id);
       if (!access.exists) return res.status(404).json({error:'entity_not_found'});
@@ -1712,7 +1788,10 @@ app.delete('/api/apps/:appId/entities/:entityName/:id',requireSession,async(req,
     const relationAccess=await assertReportRelationAccess(req,table,req.params.id);
     if (!relationAccess.exists) return res.status(404).json({error:'entity_not_found'});
     if (!relationAccess.allowed) return res.status(403).json({error:'report_relation_access_denied'});
-    const r=await pool.query(`DELETE FROM ${quoteIdentifier(table)} WHERE "id"=$1 RETURNING *`,[req.params.id]); if(!r.rowCount) return res.status(404).json({error:'entity_not_found'}); res.json(r.rows[0]);
+    const columns=await tableColumns(table);
+    const tenantContext=await resolveTenantContext(pool, req);
+    const scopedDelete=appendTenantScope('"id"=$1',[req.params.id],table,columns,tenantContext);
+    const r=await pool.query(`DELETE FROM ${quoteIdentifier(table)} WHERE ${scopedDelete.sql} RETURNING *`,scopedDelete.values); if(!r.rowCount) return res.status(404).json({error:'entity_not_found'}); res.json(r.rows[0]);
   } catch(e) { console.error('ENTITY_DELETE_ERROR:',e); res.status(500).json({error:'entity_delete_failed',message:e.message}); }
 });
 
@@ -1833,9 +1912,10 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
     if (name === 'backupPurchaseNow') {
       const actor=(await pool.query('SELECT id,role FROM users WHERE id=$1 LIMIT 1',[req.userId])).rows[0];
       if (!isReportCoordinator(actor)) return res.status(403).json({success:false,error:'backup_forbidden'});
+      const tenantContext = await resolveTenantContext(pool, req);
       const purchaseId=String(req.body?.purchaseId || '').trim();
       if (!purchaseId) return res.status(400).json({success:false,error:'purchase_id_required'});
-      const purchase=(await pool.query('SELECT * FROM purchase_requests WHERE id::text=$1 LIMIT 1',[purchaseId])).rows[0];
+      const purchase=(await pool.query('SELECT * FROM purchase_requests WHERE id::text=$1 AND organization_id=$2 AND project_id=$3 LIMIT 1',[purchaseId,tenantContext.organizationId,tenantContext.projectId])).rows[0];
       if (!purchase) return res.status(404).json({success:false,error:'purchase_not_found'});
       if (!canonicalPurchaseIdentity(purchase)) return res.status(422).json({success:false,error:'fiscal_identity_incomplete',
         message:'Informe número da nota, emitente, valor e data de emissão antes do backup.'});
@@ -1847,9 +1927,10 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
     }
     if (name === 'exportReportPdfAndBackup') {
       const actor = (await pool.query('SELECT id,email,role FROM users WHERE id=$1 LIMIT 1',[req.userId])).rows[0];
+      const tenantContext = await resolveTenantContext(pool, req);
       const reportId = String(req.body?.reportId || req.body?.report_id || '').trim();
       if (!reportId) return res.status(400).json({success:false,error:'report_id_required'});
-      const report = (await pool.query('SELECT id,status,author_email,created_by,mes_referencia,ano,drive_backup_relatorio_id,drive_backup_relatorio_url FROM reports WHERE id=$1 LIMIT 1',[reportId])).rows[0];
+      const report = (await pool.query('SELECT id,status,author_email,created_by,mes_referencia,ano,organization_id,project_id,drive_backup_relatorio_id,drive_backup_relatorio_url FROM reports WHERE id=$1 AND organization_id=$2 AND project_id=$3 LIMIT 1',[reportId,tenantContext.organizationId,tenantContext.projectId])).rows[0];
       if (!report) return res.status(404).json({success:false,error:'report_not_found'});
       const role = String(actor?.role || '').toUpperCase();
       const owner = String(actor?.email || '').trim().toLowerCase() === String(report.author_email || report.created_by || '').trim().toLowerCase();
@@ -1865,12 +1946,12 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
       if (rootId && !/^[A-Za-z0-9_-]{10,}$/.test(rootId)) return res.status(400).json({success:false,error:'invalid_drive_root'});
       // A ação do cartão é individual: nunca reprocessar os demais relatórios
       // do mês ao exportar apenas um usuário.
-      const args=['/app/backup-approved-reports.mjs','--apply',`--month=${monthKey}`,`--report-id=${reportId}`];
+      const args=['/app/backup-approved-reports.mjs','--apply',`--month=${monthKey}`,`--report-id=${reportId}`,`--project-id=${tenantContext.projectId}`];
       if (rootId) args.push(`--root-folder-id=${rootId}`);
       const {stdout,stderr}=await execFileAsync(process.execPath,args,{cwd:'/app',env:process.env,timeout:300000,maxBuffer:8*1024*1024});
       const summaryLine=stdout.split(/\r?\n/).find(line=>line.startsWith('REPORT_BACKUP '));
       const summary=summaryLine ? JSON.parse(summaryLine.slice('REPORT_BACKUP '.length)) : {};
-      const updated=(await pool.query('SELECT drive_backup_relatorio_id,drive_backup_relatorio_url,drive_backup_status,drive_backup_at FROM reports WHERE id=$1 LIMIT 1',[reportId])).rows[0] || {};
+      const updated=(await pool.query('SELECT drive_backup_relatorio_id,drive_backup_relatorio_url,drive_backup_status,drive_backup_at FROM reports WHERE id=$1 AND organization_id=$2 AND project_id=$3 LIMIT 1',[reportId,tenantContext.organizationId,tenantContext.projectId])).rows[0] || {};
       return res.status(200).json({success:true,report_id:reportId,month:monthKey,summary,report:updated,stderr:stderr ? stderr.slice(-2000) : ''});
     }
     if (name === 'consultarBalancetesOficiais') {

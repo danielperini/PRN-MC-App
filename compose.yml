@@ -42,11 +42,12 @@ services:
       PGPASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - ./migration/sql/004_finalize_relationships.sql:/migrations/004_finalize_relationships.sql:ro
+      - ./migration/sql/005_multi_organization_project_foundation.sql:/migrations/005_multi_organization_project_foundation.sql:ro
     depends_on:
       db:
         condition: service_healthy
     entrypoint: ["/bin/sh", "-ec"]
-    command: "psql -v ON_ERROR_STOP=1 -f /migrations/004_finalize_relationships.sql"
+    command: "psql -v ON_ERROR_STOP=1 -f /migrations/004_finalize_relationships.sql && psql -v ON_ERROR_STOP=1 -f /migrations/005_multi_organization_project_foundation.sql"
 
   api:
     build:
@@ -93,4 +94,4 @@ services:
 
 volumes:
   appgestor_pgdata:
-  appgestor_uploads:
+  appgestor_uploads
