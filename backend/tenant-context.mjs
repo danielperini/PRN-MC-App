@@ -17,18 +17,11 @@ const TENANT_SCOPED_TABLES = new Set([
 
 function headerValue(req, names) {
   for (const name of names) {
-    const value = String(req.headers[name] || req.query?.[name.replaceAll('-', '_')] || '').trim();
+    const queryNames = [name, name.replace(/^x-/, ''), name.replaceAll('-', '_'), name.replace(/^x-/, '').replaceAll('-', '_')];
+    const value = String(req.headers[name] || queryNames.map((key) => req.query?.[key]).find(Boolean) || '').trim();
     if (value) return value;
   }
   return '';
-}
-
-async function activeMembership(pool, table, userId, idColumn, id) {
-  const result = await pool.query(
-    `SELECT * FROM ${table} WHERE user_id=$1 AND ${idColumn}=$2 AND COALESCE(status,'ACTIVE')='ACTIVE' LIMIT 1`,
-    [userId, id],
-  );
-  return result.rows[0] || null;
 }
 
 export async function resolveTenantContext(pool, req) {
@@ -113,4 +106,12 @@ export function tenantContextResponse(context) {
     organizations: context.organizations,
     projects: context.projects,
   };
+}
+
+export function canManageOrganization(context) {
+  return ['ORG_ADMIN', 'ADMIN'].includes(String(context?.organizationRole || '').toUpperCase());
+}
+
+export function canManageProject(context) {
+  return canManageOrganization(context) || ['PROJECT_ADMIN'].includes(String(context?.projectRole || '').toUpperCase());
 }
