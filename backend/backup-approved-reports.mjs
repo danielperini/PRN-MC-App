@@ -12,7 +12,8 @@ import { google } from 'googleapis';
 const apply = process.argv.includes('--apply');
 const reportId = process.argv.find(arg => arg.startsWith('--report-id='))?.slice(12) || '';
 const requestedRoot = process.argv.find(arg => arg.startsWith('--root-folder-id='))?.slice(17) || '';
-const rootId = requestedRoot || process.env.GOOGLE_DRIVE_FOLDER_ID || '1qVwpSypPHyQ_IK_H2yTho46MVCzj0FrU';
+const fallbackRootId = requestedRoot || process.env.GOOGLE_DRIVE_FOLDER_ID || '1qVwpSypPHyQ_IK_H2yTho46MVCzj0FrU';
+const projectId = process.argv.find(arg => arg.startsWith('--project-id='))?.slice(13) || '';
 const requestedMonth = process.argv.find(arg => arg.startsWith('--month='))?.slice(8) || '';
 const uploadDir = process.env.UPLOAD_DIR || '/app/uploads';
 const pool = new pg.Pool({
@@ -219,7 +220,15 @@ async function main() {
   const auth = new google.auth.OAuth2(process.env.GOOGLE_DRIVE_CLIENT_ID, process.env.GOOGLE_DRIVE_CLIENT_SECRET);
   auth.setCredentials({ refresh_token: process.env.GOOGLE_DRIVE_REFRESH_TOKEN });
   const drive = google.drive({ version: 'v3', auth });
-  const reports = (await pool.query(`SELECT * FROM reports WHERE ($1::text='' OR id::text=$1) ORDER BY ano,mes_referencia,author_name,id`, [reportId])).rows.filter(report => {
+  const configuredRoot = projectId
+    ? (await pool.query('SELECT root_folder_id FROM project_drive_roots WHERE project_id=$1 LIMIT 1',[projectId])).rows[0]?.root_folder_id
+    : '';
+  const rootId = configuredRoot || fallbackRootId;
+  if (!rootId) throw new Error('Google Drive root não configurada para o projeto');
+  const reports = (await pool.query(`SELECT * FROM reports
+    WHERE ($1::text='' OR id::text=$1)
+      AND ($2::text='' OR project_id=$2)
+    ORDER BY ano,mes_referencia,author_name,id`, [reportId,projectId])).rows.filter(report => {
     const key = periodKey(report);
     return key && key >= '2026-01' && key <= new Date().toISOString().slice(0,7) && (!requestedMonth || key === requestedMonth);
   });
@@ -274,7 +283,7 @@ async function main() {
       summary[pdfResult.action]++;
       const file = pdfResult.file;
       const url = file.webViewLink || `https://drive.google.com/file/d/${file.id}/view`;
-      await pool.query(`UPDATE reports SET drive_backup_relatorio_id=$1,drive_backup_relatorio_url=$2,drive_backup_status='concluido',drive_backup_at=NOW() WHERE id=$3`, [file.id, url, report.id]);
+      await pool.query(`UPDATE reports SET drive_backup_relatorio_id=$1,drive_backup_relatorio_url=$2,drive_backup_status='concluido',drive_backup_at=NOW() WHERE id=$3${projectId ? ' AND project_id=$4' : ''}`, projectId ? [file.id, url, report.id, projectId] : [file.id, url, report.id]);
       summary.imagesEmbedded += rendered.imagesEmbedded;
       summary.imagesUnavailable += rendered.imagesUnavailable;
       console.log('REPORT_BACKUP_ITEM', JSON.stringify({ id: report.id, status: report.status, folderId: folder, name, driveId: file.id, activities: activities.length, photos: photos.length, imagesEmbedded: rendered.imagesEmbedded, imagesUnavailable: rendered.imagesUnavailable }));
