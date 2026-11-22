@@ -1912,9 +1912,10 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
     if (name === 'backupPurchaseNow') {
       const actor=(await pool.query('SELECT id,role FROM users WHERE id=$1 LIMIT 1',[req.userId])).rows[0];
       if (!isReportCoordinator(actor)) return res.status(403).json({success:false,error:'backup_forbidden'});
+      const tenantContext = await resolveTenantContext(pool, req);
       const purchaseId=String(req.body?.purchaseId || '').trim();
       if (!purchaseId) return res.status(400).json({success:false,error:'purchase_id_required'});
-      const purchase=(await pool.query('SELECT * FROM purchase_requests WHERE id::text=$1 LIMIT 1',[purchaseId])).rows[0];
+      const purchase=(await pool.query('SELECT * FROM purchase_requests WHERE id::text=$1 AND organization_id=$2 AND project_id=$3 LIMIT 1',[purchaseId,tenantContext.organizationId,tenantContext.projectId])).rows[0];
       if (!purchase) return res.status(404).json({success:false,error:'purchase_not_found'});
       if (!canonicalPurchaseIdentity(purchase)) return res.status(422).json({success:false,error:'fiscal_identity_incomplete',
         message:'Informe número da nota, emitente, valor e data de emissão antes do backup.'});
@@ -1926,9 +1927,10 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
     }
     if (name === 'exportReportPdfAndBackup') {
       const actor = (await pool.query('SELECT id,email,role FROM users WHERE id=$1 LIMIT 1',[req.userId])).rows[0];
+      const tenantContext = await resolveTenantContext(pool, req);
       const reportId = String(req.body?.reportId || req.body?.report_id || '').trim();
       if (!reportId) return res.status(400).json({success:false,error:'report_id_required'});
-      const report = (await pool.query('SELECT id,status,author_email,created_by,mes_referencia,ano,drive_backup_relatorio_id,drive_backup_relatorio_url FROM reports WHERE id=$1 LIMIT 1',[reportId])).rows[0];
+      const report = (await pool.query('SELECT id,status,author_email,created_by,mes_referencia,ano,organization_id,project_id,drive_backup_relatorio_id,drive_backup_relatorio_url FROM reports WHERE id=$1 AND organization_id=$2 AND project_id=$3 LIMIT 1',[reportId,tenantContext.organizationId,tenantContext.projectId])).rows[0];
       if (!report) return res.status(404).json({success:false,error:'report_not_found'});
       const role = String(actor?.role || '').toUpperCase();
       const owner = String(actor?.email || '').trim().toLowerCase() === String(report.author_email || report.created_by || '').trim().toLowerCase();
@@ -1944,12 +1946,12 @@ app.post('/api/apps/:appId/functions/:functionName', requireSession, async (req,
       if (rootId && !/^[A-Za-z0-9_-]{10,}$/.test(rootId)) return res.status(400).json({success:false,error:'invalid_drive_root'});
       // A ação do cartão é individual: nunca reprocessar os demais relatórios
       // do mês ao exportar apenas um usuário.
-      const args=['/app/backup-approved-reports.mjs','--apply',`--month=${monthKey}`,`--report-id=${reportId}`];
+      const args=['/app/backup-approved-reports.mjs','--apply',`--month=${monthKey}`,`--report-id=${reportId}`,`--project-id=${tenantContext.projectId}`];
       if (rootId) args.push(`--root-folder-id=${rootId}`);
       const {stdout,stderr}=await execFileAsync(process.execPath,args,{cwd:'/app',env:process.env,timeout:300000,maxBuffer:8*1024*1024});
       const summaryLine=stdout.split(/\r?\n/).find(line=>line.startsWith('REPORT_BACKUP '));
       const summary=summaryLine ? JSON.parse(summaryLine.slice('REPORT_BACKUP '.length)) : {};
-      const updated=(await pool.query('SELECT drive_backup_relatorio_id,drive_backup_relatorio_url,drive_backup_status,drive_backup_at FROM reports WHERE id=$1 LIMIT 1',[reportId])).rows[0] || {};
+      const updated=(await pool.query('SELECT drive_backup_relatorio_id,drive_backup_relatorio_url,drive_backup_status,drive_backup_at FROM reports WHERE id=$1 AND organization_id=$2 AND project_id=$3 LIMIT 1',[reportId,tenantContext.organizationId,tenantContext.projectId])).rows[0] || {};
       return res.status(200).json({success:true,report_id:reportId,month:monthKey,summary,report:updated,stderr:stderr ? stderr.slice(-2000) : ''});
     }
     if (name === 'consultarBalancetesOficiais') {
