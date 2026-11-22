@@ -3,6 +3,9 @@ import { createClient } from '@base44/sdk';
 import { appParams } from '@/lib/app-params';
 import { filtrarMetas3e4Aditivos } from '@/utils/metasAditivosPermitidos';
 import { isTeamPaymentPurchase } from '@/lib/purchaseTeamClassification';
+import { getTenantContext, setTenantContext, clearTenantContext, tenantHeaders, selectTenantContext } from '@/lib/tenantContext';
+
+export { getTenantContext, setTenantContext, clearTenantContext, selectTenantContext };
 
 const { appId, token, functionsVersion, appBaseUrl } = appParams;
 const validToken = token && !['null', 'undefined'].includes(String(token).trim().toLowerCase()) ? token : undefined;
@@ -17,6 +20,23 @@ export const base44 = createClient({
   requiresAuth: true,
   appBaseUrl,
 });
+
+// Every local API request carries the selected organization/project context.
+// The backend validates these ids against the authenticated memberships; the
+// browser storage is only a convenience and never an authorization boundary.
+function installTenantContextFetch() {
+  if (typeof window === 'undefined' || window.__appGestorTenantFetchInstalled) return;
+  const originalFetch = window.fetch.bind(window);
+  window.fetch = (input, init = {}) => {
+    const rawUrl = typeof input === 'string' ? input : input?.url || '';
+    const sameOrigin = rawUrl.startsWith('/') || rawUrl.startsWith(window.location.origin);
+    if (!sameOrigin) return originalFetch(input, init);
+    const inherited = (typeof Request !== 'undefined' && input instanceof Request) ? input.headers : {};
+    return originalFetch(input, { ...init, headers: tenantHeaders(init.headers || inherited) });
+  };
+  window.__appGestorTenantFetchInstalled = true;
+}
+installTenantContextFetch();
 
 // On the VPS the HttpOnly appgestor_session is the only authoritative login
 // state.  The legacy SDK can retain the previous Google user in browser
