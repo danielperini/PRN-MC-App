@@ -14,6 +14,7 @@ import { syncProgramacao } from './programacao-sync.mjs';
 import { buildRubricaComposition } from './rubrica-composition.mjs';
 import nodemailer from 'nodemailer';
 import { brandedEmailHtml, brandedEmailText, paymentNotificationSteps, purchaseSubmissionSteps, reportSubmissionSteps } from './email-layout.mjs';
+import { resolveTenantContext, appendTenantScope, applyTenantPayload, tenantContextResponse } from './tenant-context.mjs';
 
 const { Pool } = pg;
 const execFileAsync = promisify(execFile);
@@ -136,6 +137,35 @@ async function canMutateAccountEntity(req,table,targetId=null) {
   const safe=new Set(['full_name','funcao','equipe','museu']);
   return Object.keys(req.body||{}).every(key=>safe.has(key));
 }
+app.get('/api/context', requireSession, async (req, res) => {
+  try {
+    const context = await resolveTenantContext(pool, req);
+    res.json(tenantContextResponse(context));
+  } catch (error) {
+    const status = /membership_required|access_denied/.test(String(error.message)) ? 403 : 503;
+    console.error('TENANT_CONTEXT_GET_ERROR', error.message);
+    res.status(status).json({ error: error.message });
+  }
+});
+
+app.post('/api/context', requireSession, async (req, res) => {
+  try {
+    const organizationId = String(req.body?.organizationId || req.body?.organization_id || '').trim();
+    const projectId = String(req.body?.projectId || req.body?.project_id || '').trim();
+    if (!organizationId || !projectId) return res.status(400).json({ error: 'organization_and_project_required' });
+    const contextRequest = {
+      ...req,
+      query: { ...(req.query || {}), organization_id: organizationId, project_id: projectId },
+      headers: { ...(req.headers || {}), 'x-organization-id': organizationId, 'x-project-id': projectId },
+    };
+    const context = await resolveTenantContext(pool, contextRequest);
+    res.json(tenantContextResponse(context));
+  } catch (error) {
+    const status = /membership_required|access_denied/.test(String(error.message)) ? 403 : 503;
+    console.error('TENANT_CONTEXT_SELECT_ERROR', error.message);
+    res.status(status).json({ error: error.message });
+  }
+});
 function publicEntityRow(table,row) {
   if (!row) return row;
   if (table==='users') { const {password_hash,...safe}=row; return safe; }
@@ -459,7 +489,7 @@ const ENTITY_TABLES = Object.freeze({
   LancamentoRubrica:'lancamentos_rubrica', Meta:'metas', MetaActivity:'meta_activities', PurchaseRequest:'purchase_requests',
   PurchaseDocument:'purchase_documents', DocumentIntake:'document_intakes', FinanceiroAuditLog:'financeiro_audit_logs', AuditLog:'audit_logs',
   UserPermission:'user_permissions', UserRegistration:'user_registrations', Profile:'profiles', Museu:'museus', Equipe:'equipes', Fornecedor:'fornecedores',
-  ClientErrorLog:'client_error_logs'
+  ClientErrorLog:'client_error_logs', Organization:'organizations', Project:'projects'
 });
 function entityTable(name) { return ENTITY_TABLES[String(name || '')] || null; }
 function quoteIdentifier(value) { return `"${String(value).replaceAll('"', '""')}"`; }
@@ -1040,6 +1070,18 @@ app.get('/api/apps/:appId/entities/:entityName', requireSession, async (req,res)
         sql+=`${sql?' AND':' WHERE'} report_id::text = ANY($${values.length}::text[])`;
       }
     }
+    const tenantContext = await resolveTenantContext(pool, req);
+    if (table === 'organizations') {
+      values.push(req.userId);
+      sql += `${sql ? ' AND' : ' WHERE'} id IN (SELECT organization_id FROM organization_memberships WHERE user_id=${values.length} AND COALESCE(status,'ACTIVE')='ACTIVE')`;
+    } else if (table === 'projects') {
+      values.push(tenantContext.organizationId);
+      sql += `${sql ? ' AND' : ' WHERE'} organization_id=${values.length}`;
+    } else {
+      const scoped = appendTenantScope(sql, values, table, columns, tenantContext);
+      sql = scoped.sql;
+      values = scoped.values;
+    }
     const activeClause=table==='programacoes'&&columns.includes('source_active')
       ? `${sql?' AND':' WHERE'} source_active IS DISTINCT FROM FALSE`
       : '';
@@ -1579,11 +1621,13 @@ app.post('/api/apps/:appId/entities/:entityName', requireSession, async (req,res
     if(!(await tableExists(table))) return res.status(404).json({error:'table_not_found',table});
     if (!(await canMutateAccountEntity(req,table))) return res.status(403).json({error:'manage_users_required'});
     const columns=await tableColumns(table); const columnTypes=await tableColumnTypes(table);
+    const tenantContext = await resolveTenantContext(pool, req);
     const fiscalBody=normalizePurchaseFiscalPayload(req.params.entityName,req.body||{});
     let normalizedBody=await normalizeReportCreatePayload(req,req.params.entityName,fiscalBody);
     normalizedBody=await normalizeReportRelationPayload(req,req.params.entityName,normalizedBody);
     normalizedBody=await normalizeClientErrorPayload(req,req.params.entityName,normalizedBody);
     normalizedBody=preserveReportEditorContent(normalizedBody);
+    normalizedBody=applyTenantPayload(normalizedBody, table, columns, tenantContext);
     let entries=Object.entries(normalizedBody).filter(([k,v])=>columns.includes(k)&&v!==undefined&&
       (table!=='rubricas'||!CALCULATED_RUBRICA_FIELDS.has(k)));
     if (columns.includes('id') && !entries.some(([key]) => key === 'id')) {
@@ -1653,11 +1697,13 @@ async function updateEntity(req,res) {
     if (!relationAccess.exists) return res.status(404).json({error:'entity_not_found'});
     if (!relationAccess.allowed) return res.status(403).json({error:'report_relation_access_denied'});
     const columns=await tableColumns(table); if(!columns.includes('id')) return res.status(400).json({error:'entity_has_no_id_column'});
+    const tenantContext = await resolveTenantContext(pool, req);
     const columnTypes=await tableColumnTypes(table);
     const fiscalBody=normalizePurchaseFiscalPayload(req.params.entityName,req.body||{});
     let normalizedBody=await normalizeReportUpdatePayload(req,req.params.entityName,fiscalBody);
     normalizedBody=await normalizeReportRelationPayload(req,req.params.entityName,normalizedBody);
     normalizedBody=preserveReportEditorContent(normalizedBody,reportAccess?.report?.raw_data);
+    normalizedBody=applyTenantPayload(normalizedBody, table, columns, tenantContext);
     entries=Object.entries(normalizedBody).filter(([k,v])=>columns.includes(k)&&k!=='id'&&v!==undefined&&
       (table!=='rubricas'||!CALCULATED_RUBRICA_FIELDS.has(k)));
     currentField=entries[0]?.[0]||null;
@@ -1670,8 +1716,9 @@ async function updateEntity(req,res) {
       return res.status(400).json({error:'empty_entity_update'});
     }
     const vals=entries.map(([,v])=>v); vals.push(req.params.id);
-    const sets=entries.map(([k],i)=>`${quoteIdentifier(k)}=$${i+1}`).join(',');
-    const r=await pool.query(`UPDATE ${quoteIdentifier(table)} SET ${sets} WHERE "id"=$${vals.length} RETURNING *`,vals);
+    const sets=entries.map(([k],i)=>`${quoteIdentifier(k)}=${i+1}`).join(',');
+    const scopedUpdate=appendTenantScope(`"id"=${vals.length}`, vals, table, columns, tenantContext);
+    const r=await pool.query(`UPDATE ${quoteIdentifier(table)} SET ${sets} WHERE ${scopedUpdate.sql} RETURNING *`,scopedUpdate.values);
     if(!r.rowCount) return res.status(404).json({error:'entity_not_found'});
     if (table==='reports' && Array.isArray(normalizedBody.atividades)) {
       await syncReportActivities(r.rows[0], normalizedBody.atividades).catch((error) => console.error('REPORT_ACTIVITY_SYNC_ERROR', error));
@@ -1712,7 +1759,10 @@ app.delete('/api/apps/:appId/entities/:entityName/:id',requireSession,async(req,
     const relationAccess=await assertReportRelationAccess(req,table,req.params.id);
     if (!relationAccess.exists) return res.status(404).json({error:'entity_not_found'});
     if (!relationAccess.allowed) return res.status(403).json({error:'report_relation_access_denied'});
-    const r=await pool.query(`DELETE FROM ${quoteIdentifier(table)} WHERE "id"=$1 RETURNING *`,[req.params.id]); if(!r.rowCount) return res.status(404).json({error:'entity_not_found'}); res.json(r.rows[0]);
+    const columns=await tableColumns(table);
+    const tenantContext=await resolveTenantContext(pool, req);
+    const scopedDelete=appendTenantScope('"id"=$1',[req.params.id],table,columns,tenantContext);
+    const r=await pool.query(`DELETE FROM ${quoteIdentifier(table)} WHERE ${scopedDelete.sql} RETURNING *`,scopedDelete.values); if(!r.rowCount) return res.status(404).json({error:'entity_not_found'}); res.json(r.rows[0]);
   } catch(e) { console.error('ENTITY_DELETE_ERROR:',e); res.status(500).json({error:'entity_delete_failed',message:e.message}); }
 });
 
