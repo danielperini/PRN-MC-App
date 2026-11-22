@@ -1073,10 +1073,10 @@ app.get('/api/apps/:appId/entities/:entityName', requireSession, async (req,res)
     const tenantContext = await resolveTenantContext(pool, req);
     if (table === 'organizations') {
       values.push(req.userId);
-      sql += `${sql ? ' AND' : ' WHERE'} id IN (SELECT organization_id FROM organization_memberships WHERE user_id=${values.length} AND COALESCE(status,'ACTIVE')='ACTIVE')`;
+      sql += `${sql ? ' AND' : ' WHERE'} id IN (SELECT organization_id FROM organization_memberships WHERE user_id=$${values.length} AND COALESCE(status,'ACTIVE')='ACTIVE')`;
     } else if (table === 'projects') {
       values.push(tenantContext.organizationId);
-      sql += `${sql ? ' AND' : ' WHERE'} organization_id=${values.length}`;
+      sql += `${sql ? ' AND' : ' WHERE'} organization_id=$${values.length}`;
     } else {
       const scoped = appendTenantScope(sql, values, table, columns, tenantContext);
       sql = scoped.sql;
