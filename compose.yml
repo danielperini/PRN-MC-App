@@ -94,4 +94,4 @@ services:
 
 volumes:
   appgestor_pgdata:
-  appgestor_uploads
+  appgestor_uploads:
